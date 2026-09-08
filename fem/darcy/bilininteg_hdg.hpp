@@ -266,15 +266,58 @@ void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
           DarcyHybridization already builds rather than the atomics. */
 /** @brief Whether HDGFaceScatterBatched() can take @a integs on @a face_list.
 
-    Every integrator has to be one the batched kernel implements -- an
-    HDGDiffusionIntegrator or either HDGConvection*Integrator, in any
-    combination -- and each has to want ONE integration rule across the whole
-    face list, since the kernel samples every face at the same points. A
-    non-uniform ElementTransformation::OrderW() defeats the second, which is
-    why it is asked of the faces rather than of the mesh.
+    Every integrator has to resolve into one SCALAR integrator per equation,
+    each of which the batched kernel implements -- an HDGDiffusionIntegrator or
+    either HDGConvection*Integrator, in any combination. At vdim == 1 that is
+    the integrator itself. At vdim > 1 it has to be a
+    VectorBlockDiagonalIntegrator of exactly vdim blocks, in either of its
+    forms: one integrator per equation, or one replicated. A null block is
+    refused, because VectorBlockDiagonalIntegrator::AssembleMat() SHRINKS its
+    element matrix rather than zeroing that block, so the per-face route is
+    already reading a matrix a block short against offsets sized for vdim of
+    them (and MFEM_ASSERT is compiled out in a release build) -- a caller
+    wanting a zero block passes a zero-valued integrator.
+
+    Every one of those refusals was PROBED rather than read off the code, and
+    every one fires: a bare scalar integrator at vdim = 3, a wrapper of two
+    blocks against vdim = 3, a wrapper with one block left null, a wrapper
+    whose block is itself a SumIntegrator, and a list mixing a wrapper with a
+    bare integrator. Both admitting shapes -- one integrator per equation, and
+    one replicated -- are taken. This branch has shipped a gate that could
+    never fire for any caller once already.
+
+    Each resolved block has to want ONE integration rule across the whole face
+    list, since the kernel samples every face at the same points. A
+    non-uniform ElementTransformation::OrderW() defeats that, which is why it
+    is asked of the faces rather than of the mesh. It is asked PER BLOCK
+    because that is how the per-face route calls them:
+    VectorBlockDiagonalIntegrator invokes each block's
+    AssembleHDGFaceMatrix() in turn and each picks its own rule.
 
     False means the caller keeps its per-face loop, not that anything is
-    wrong. */
+    wrong.
+
+    **The vdim > 1 case was TWO refusals and the plan recorded one.**
+    HDGFaceSpacesCanBatch()'s predecessor rejected `vdim != 1` outright, and
+    doc/HDG-DEVICE-OFFLOAD.md filed that as the whole of the item. Measured:
+    relaxing the vdim test alone leaves the kernel refused on every system,
+    because at vdim > 1 the only shape any caller installs is a
+    VectorBlockDiagonalIntegrator and the kind test reported that Unsupported.
+    Both had to go together, and a probe on the three configurations said so
+    before either was written.
+
+    **And the caller the plan named is not reached by this.**
+    miniapps/hdg/navierstokes.cpp puts a HyperbolicFormIntegrator on the same
+    NonlinearForm as its HDGDiffusionIntegrator stabilization, so
+    DarcyForm::EnableHybridization()'s FaceIntegratorsAreLinear() is false and
+    the whole constraint goes to `c_nlfi_p`, where there is no batched kernel
+    at all -- measured as `NumPotFaceConstraintIntegrators() == 0`, not
+    inferred. What this reaches is the purely bilinear system constraint:
+    tests/unit/fem/test_darcy_system.cpp, examples/hdg/ex17.cpp and
+    examples/hdg/ex21.cpp (HDG linear elasticity, one repeated
+    HDGDiffusionIntegrator at vdim = dim). Those three additionally need
+    DarcyHybridization::EnableNPC(), since the kernel writes H into `H_data`;
+    that is a separate item of the plan and is not lifted here. */
 bool HDGFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
                             const FiniteElementSpace &el_fes,
                             const Array<BilinearFormIntegrator*> &integs,
@@ -299,7 +342,63 @@ bool HDGFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
 
     Each integrator is applied in its own pass at its own rule, accumulating,
     after one pass that zeroes E, G and H. D is not zeroed here: it accumulates
-    across the faces of an element and its zeroing belongs to the caller. */
+    across the faces of an element and its zeroing belongs to the caller.
+
+    @note VDIM > 1, and the whole of it is the scatter INDEXING -- the seven
+          weights and the shapes are the scalar kernel's, untouched. The stored
+          blocks carry the space's vector dimension, because
+          DarcyHybridization's offsets are built from `GetDof() * GetVDim()`:
+          `Df_offsets[el]` holds (ND*vdim)^2, `E_offsets[f]` holds
+          (TRD*vdim)*(ND*vdim) per side, `H_offsets[f]` holds (TRD*vdim)^2.
+          Within a block the layout is GROUP outermost (side 1, side 2, trace),
+          then EQUATION, then dof -- equation k's element dofs occupy the
+          contiguous run [k*ND, (k+1)*ND) -- because that is what
+          VectorBlockDiagonalIntegrator::AssembleMat() produces and what
+          ComputeAndAssemblePotFaceMatrix() CopyMN()s out of. Ordering does not
+          enter: neither route consults it, so both agree on a byVDIM space as
+          well as a byNODES one.
+
+    @note ONE PASS PER (integrator, equation) PAIR, and that is a decision
+          rather than a detail. Correctness first: each equation's integrator
+          picks its own integration rule, exactly as it does on the per-face
+          route, so a pass is the largest unit that can share a rule. And it
+          keeps the kernel at one thread per FACE with plain inner loops --
+          adding an equation component to a flat index decomposition is the
+          shape that turned out to be 0.37 s of a 0.95 s loop in
+          ComputeElementsHBatched().
+
+    @note The zeroing pass clears the WHOLE block, every equation, including
+          the off-diagonal ones no pass ever writes. That is what makes
+          zero-then-accumulate reproduce the per-face route, which CopyMN()s
+          the whole sub-block out of an element matrix whose off-diagonal
+          equation entries are exactly zero.
+
+    @note MEASURED. Entrywise against the per-face route's assembled NPC trace
+          gradient over 60 (face term, order, vdim, wrapper form) combinations
+          in 2-D: worst 1.78e-15 against a matrix norm of 4.14, i.e. 4.3e-16
+          relative -- round-off from the association, not from the indexing,
+          the same level the scalar case measures. Five deliberate mis-indexings
+          are counted in
+          tests/unit/fem/test_darcy_batched_face.cpp; the one worth repeating
+          here is that interleaving the equation into the dof index
+          (`i*vdim + e` for `e*ND + i`) fails 40 of the 60 and the 20 it does
+          not fail are EXACTLY the order-0 ones, where one dof per equation
+          makes the two indexings the same integer. An order-0 case cannot
+          discriminate this kernel.
+
+    @note AND IT IS SLOWER ON THE HOST, as the scalar version is and for the
+          same reason: D goes through AtomicAdd where the per-face loop does a
+          plain +=. DarcyForm::Assemble() at vdim = 3, interleaved A/B, three
+          alternating pairs per size in one process, one thread -- (n = 32,
+          order 2): 0.0570/0.0584, 0.0548/0.0584, 0.0582/0.0582 s serial
+          against batched; (48, 2): 0.1251/0.1298, 0.1309/0.1325,
+          0.1279/0.1311; (64, 1): 0.0699/0.0719, 0.0652/0.0671, 0.0717/0.0733.
+          So 2-6% slower, and the sign is the same in all nine pairs even
+          though the magnitude is inside the run-to-run spread. What the
+          vdim > 1 path buys is that a system's face constraint is
+          EXPRESSIBLE on a device at all, which is the gate
+          doc/HDG-DEVICE-OFFLOAD.md sets for every step of it: nothing here
+          pays until the whole chain is device-resident. */
 void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
                            const FiniteElementSpace &el_fes,
                            const Array<BilinearFormIntegrator*> &integs,
@@ -312,8 +411,9 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
 
 /** @brief Whether HDGBdrFaceScatterBatched() can take @a integs.
 
-    The same question HDGFaceScatterCanBatch() asks, on boundary faces. The
-    face lists are per integrator because a boundary integrator carries an
+    The same question HDGFaceScatterCanBatch() asks, on boundary faces --
+    including the vdim > 1 resolution into one scalar integrator per equation.
+    The face lists are per integrator because a boundary integrator carries an
     attribute marker and two of them need not apply to the same faces. */
 /** @brief Whether HDGElementMassBatched() can take @a integs on @a fes.
 
@@ -488,7 +588,41 @@ void HDGDiffusionFaceScatterBatched(const FiniteElementSpace &tr_fes,
                                     Vector &E_data, Vector &G_data,
                                     Vector &H_data, Vector &Df_data);
 
-/// Whether HDGDiffusionFaceMatricesBatched() can run on these spaces.
+/** @brief Whether the batched HDG face routines' SPACE requirements hold: a
+    conforming mesh of one element geometry and one dof count, a DG_Interface
+    trace collection, and one vector dimension shared by the two spaces.
+
+    The vector dimension may be greater than one, and that is the only part
+    worth explaining. A system's face constraint is block diagonal in the
+    equation index -- equation k's trace multiplies equation k's field alone --
+    so what the kernels need is that the trace space and the field space agree
+    on how many equations there are. A trace space of a DIFFERENT vector
+    dimension is a different operator shape rather than a harder case, and no
+    caller in the tree has one.
+
+    Ordering does not enter, and that is MEASURED rather than reasoned from
+    the code. The blocks are laid out the way
+    VectorBlockDiagonalIntegrator's element matrix is -- group outermost
+    (side 1, side 2, trace), then equation, then dof -- because that is what
+    DarcyHybridization::ComputeAndAssemblePotFaceMatrix() CopyMN()s out of,
+    so neither route consults the space's Ordering. The check: the assembled
+    NPC trace gradient on the same problem built byNODES and byVDIM comes back
+    with the same nnz and BIT-IDENTICAL entries at vdim = 2 and 3, on 2-D
+    quads and 3-D hexes, at orders 1 and 2 -- and the batched route agrees
+    with the per-face one to 1.9e-16 to 6.7e-16 relative in every one. Nothing
+    here is 2-D: triangles and hexes were checked alongside quads. */
+bool HDGFaceSpacesCanBatch(const FiniteElementSpace &tr_fes,
+                           const FiniteElementSpace &el_fes);
+
+/** @brief Whether HDGDiffusionFaceMatricesBatched() can run on these spaces.
+
+    HDGFaceSpacesCanBatch() and, additionally, vdim == 1. That extra condition
+    is not a gap: this predicate gates the two routines that take a bare
+    Coefficient and a beta rather than an integrator
+    (HDGDiffusionFaceMatricesBatched(), HDGDiffusionFaceScatterBatched()), so
+    there is no way to tell them what each equation's coefficient is. The
+    vdim > 1 generalisation is on HDGFaceScatterCanBatch(), which takes the
+    integrators. */
 bool HDGDiffusionFaceMatricesCanBatch(const FiniteElementSpace &tr_fes,
                                       const FiniteElementSpace &el_fes);
 

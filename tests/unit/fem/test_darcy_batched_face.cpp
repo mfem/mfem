@@ -98,16 +98,20 @@ struct Outcome
 void AssembleGradient(Mesh &mesh, int order, FaceTerm term,
                       DarcyHybridization::AssemblyMode am, Outcome &out,
                       MassTerm mass = MassTerm::Plain,
-                      bool ess_flux_dofs = false)
+                      bool ess_flux_dofs = false,
+                      int neq = 1, bool repeat_integ = false)
 {
    const int dim = mesh.Dimension();
 
    L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
    L2_FECollection p_coll(order, dim);
    DG_Interface_FECollection t_coll(order, dim);
-   FiniteElementSpace Vh(&mesh, &u_coll, dim);
-   FiniteElementSpace Wh(&mesh, &p_coll);
-   FiniteElementSpace Mh(&mesh, &t_coll);
+   // vdim = neq on the potential and the trace, neq*dim on the flux, and
+   // Ordering::byNODES -- the layout every system caller in the tree uses
+   // (navierstokes, examples/hdg/ex17 and ex21, test_darcy_system).
+   FiniteElementSpace Vh(&mesh, &u_coll, neq * dim, Ordering::byNODES);
+   FiniteElementSpace Wh(&mesh, &p_coll, neq, Ordering::byNODES);
+   FiniteElementSpace Mh(&mesh, &t_coll, neq, Ordering::byNODES);
 
    DarcyForm darcy(&Vh, &Wh);
    ConstantCoefficient one(1.0);
@@ -136,64 +140,135 @@ void AssembleGradient(Mesh &mesh, int order, FaceTerm term,
       v(0) = 1.5 + 0.4 * X(0);
       v(1) = 0.8 + 0.3 * X(1);
    });
+
+   // PER-EQUATION coefficients, and they are the whole reason a vdim > 1 case
+   // can discriminate an equation index. With one coefficient shared across
+   // the blocks, permuting the equations leaves the operator unchanged and the
+   // comparison below would pass on a scatter that wrote equation 1's block
+   // where equation 0's belongs.
+   std::vector<std::unique_ptr<Coefficient>> kap_e(neq);
+   std::vector<std::unique_ptr<VectorCoefficient>> vel_e(neq);
+   std::vector<std::unique_ptr<MatrixCoefficient>> mat_e(neq);
+   for (int e = 0; e < neq; e++)
+   {
+      const real_t s = 1.0 + 0.75 * e;
+      kap_e[e].reset(new FunctionCoefficient([s](const Vector &X)
+      {
+         return s * (1.0 + 0.5 * X(0) * X(1));
+      }));
+      vel_e[e].reset(new VectorFunctionCoefficient(
+                        dim, [s](const Vector &X, Vector &v)
+      {
+         v(0) = s * (1.0 + 0.5 * std::sin(M_PI * X(1)));
+         v(1) = -0.7 * s + 0.3 * std::cos(M_PI * X(0));
+      }));
+      mat_e[e].reset(new MatrixFunctionCoefficient(
+                        dim, [s](const Vector &X, DenseMatrix &m)
+      {
+         m.SetSize(2);
+         m(0, 0) = s * (2.0 + X(0));
+         m(1, 1) = 1.0 + s * X(1);
+         m(0, 1) = m(1, 0) = 0.25 * s;
+      }));
+   }
+
+   /// One scalar face integrator of family @a t for equation @a e.
+   auto mk = [&](FaceTerm t, int e) -> BilinearFormIntegrator *
+   {
+      Coefficient &kq = (neq == 1) ? kappa : *kap_e[e];
+      VectorCoefficient &vq = (neq == 1) ? (VectorCoefficient&)vel : *vel_e[e];
+      MatrixCoefficient &mq = (neq == 1) ? (MatrixCoefficient&)mat : *mat_e[e];
+      switch (t)
+      {
+         case FaceTerm::Diffusion:    return new HDGDiffusionIntegrator(kq, 1.0);
+         case FaceTerm::DiffusionVel: return new HDGDiffusionIntegrator(vq, kq, 1.0);
+         case FaceTerm::DiffusionMat: return new HDGDiffusionIntegrator(mq, 1.0);
+         case FaceTerm::Centered:
+            return new HDGConvectionCenteredIntegrator(vq, 1.0);
+         default:
+            return new HDGConvectionUpwindedIntegrator(vq, 1.0, 0.5);
+      }
+   };
+
+   /// Register family @a t on @a form, wrapped for the vector dimension.
+   auto add = [&](BilinearForm *form, bool interior, FaceTerm t)
+   {
+      BilinearFormIntegrator *bfi;
+      if (neq == 1)
+      {
+         bfi = mk(t, 0);
+      }
+      else if (repeat_integ)
+      {
+         // examples/hdg/ex17 and ex21's shape: ONE integrator replicated, so
+         // VectorBlockDiagonalIntegrator holds one where it has neq blocks.
+         // GetIntegrator(i) is out of bounds for i > 0 there, which is why
+         // HDGFaceBlocksOf() asks GetNumIntegrators() first.
+         bfi = new VectorBlockDiagonalIntegrator(neq, mk(t, 0));
+      }
+      else
+      {
+         std::vector<BilinearFormIntegrator*> blks(neq);
+         for (int e = 0; e < neq; e++) { blks[e] = mk(t, e); }
+         bfi = new VectorBlockDiagonalIntegrator(blks);
+      }
+      if (interior) { form->AddInteriorFaceIntegrator(bfi); }
+      else { form->AddBdrFaceIntegrator(bfi); }
+   };
+
+   /// A vdim-shaped wrapper for a non-HDG integrator, or the integrator.
+   auto wrap = [&](BilinearFormIntegrator *bfi) -> BilinearFormIntegrator *
+   {
+      return (neq == 1) ? bfi
+      : new VectorBlockDiagonalIntegrator(neq, bfi);
+   };
+
    switch (mass)
    {
       case MassTerm::Plain:
          darcy.GetFluxMassForm()->AddDomainIntegrator(
-            new VectorMassIntegrator());
+            wrap(new VectorMassIntegrator()));
          break;
       case MassTerm::Diagonal:
          darcy.GetFluxMassForm()->AddDomainIntegrator(
-            new VectorMassIntegrator(dcoeff));
+            wrap(new VectorMassIntegrator(dcoeff)));
          break;
       case MassTerm::Matrix:
          darcy.GetFluxMassForm()->AddDomainIntegrator(
-            new VectorMassIntegrator(mat));
+            wrap(new VectorMassIntegrator(mat)));
          break;
       default:
          darcy.GetFluxMassForm()->AddDomainIntegrator(
-            new VectorMassIntegrator(kappa));
+            wrap(new VectorMassIntegrator(kappa)));
          break;
    }
    if (mass == MassTerm::PotScalar)
    {
       darcy.GetPotentialMassForm()->AddDomainIntegrator(
-         new MassIntegrator(kappa));
+         wrap(new MassIntegrator(kappa)));
    }
-   darcy.GetFluxDivForm()->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      wrap(new VectorDivergenceIntegrator()));
    darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+      wrap(new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0))));
 
    BilinearForm *M_p = darcy.GetPotentialMassForm();
    switch (term)
    {
       case FaceTerm::Diffusion:
-         M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kappa, 1.0));
-         break;
       case FaceTerm::DiffusionVel:
-         M_p->AddInteriorFaceIntegrator(
-            new HDGDiffusionIntegrator(vel, kappa, 1.0));
-         break;
       case FaceTerm::DiffusionMat:
-         M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(mat, 1.0));
-         break;
       case FaceTerm::Centered:
-         M_p->AddInteriorFaceIntegrator(
-            new HDGConvectionCenteredIntegrator(vel, 1.0));
-         break;
       case FaceTerm::Upwinded:
-         M_p->AddInteriorFaceIntegrator(
-            new HDGConvectionUpwindedIntegrator(vel, 1.0, 0.5));
+         add(M_p, true, term);
          break;
       case FaceTerm::DiffusionCentered:
-         M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kappa, 1.0));
-         M_p->AddInteriorFaceIntegrator(
-            new HDGConvectionCenteredIntegrator(vel, 1.0));
+         add(M_p, true, FaceTerm::Diffusion);
+         add(M_p, true, FaceTerm::Centered);
          break;
       case FaceTerm::DiffusionUpwinded:
-         M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kappa, 1.0));
-         M_p->AddInteriorFaceIntegrator(
-            new HDGConvectionUpwindedIntegrator(vel, 1.0, 0.5));
+         add(M_p, true, FaceTerm::Diffusion);
+         add(M_p, true, FaceTerm::Upwinded);
          break;
    }
    // The SAME terms on the boundary, which has its own kernel and its own
@@ -204,25 +279,19 @@ void AssembleGradient(Mesh &mesh, int order, FaceTerm term,
    switch (term)
    {
       case FaceTerm::Centered:
-         M_p->AddBdrFaceIntegrator(
-            new HDGConvectionCenteredIntegrator(vel, 1.0));
-         break;
       case FaceTerm::Upwinded:
-         M_p->AddBdrFaceIntegrator(
-            new HDGConvectionUpwindedIntegrator(vel, 1.0, 0.5));
+         add(M_p, false, term);
          break;
       case FaceTerm::DiffusionCentered:
-         M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kappa, 1.0));
-         M_p->AddBdrFaceIntegrator(
-            new HDGConvectionCenteredIntegrator(vel, 1.0));
+         add(M_p, false, FaceTerm::Diffusion);
+         add(M_p, false, FaceTerm::Centered);
          break;
       case FaceTerm::DiffusionUpwinded:
-         M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kappa, 1.0));
-         M_p->AddBdrFaceIntegrator(
-            new HDGConvectionUpwindedIntegrator(vel, 1.0, 0.5));
+         add(M_p, false, FaceTerm::Diffusion);
+         add(M_p, false, FaceTerm::Upwinded);
          break;
       default:
-         M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kappa, 1.0));
+         add(M_p, false, FaceTerm::Diffusion);
          break;
    }
 
@@ -237,7 +306,8 @@ void AssembleGradient(Mesh &mesh, int order, FaceTerm term,
       // reached by any case in the suite.
       for (int i = 0; i < Vh.GetVSize(); i += 7) { ess_flux.Append(i); }
    }
-   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   darcy.EnableHybridization(&Mh, wrap(new NormalTraceJumpIntegrator()),
+                             ess_flux);
 
    DarcyHybridization *dh = darcy.GetHybridization();
    dh->SetAssemblyMode(am);
@@ -364,6 +434,119 @@ TEST_CASE("The batched HDG face kernel assembles the per-face operator",
    // still far inside anything a wrong weight would produce: removing the
    // upwinded form's E crossing -- side 1's E carries side 2's weight -- fails
    // 12 assertions over 10 of the 42 combinations, worst 9.9e-02 relative.
+   Vector d(ref.data);
+   d -= got.data;
+   const real_t scale = ref.data.Normlinf();
+   CAPTURE(d.Normlinf(), scale);
+   REQUIRE(d.Normlinf() <= 1e-14 * scale);
+}
+
+/**
+ * @brief The same, on a SYSTEM: a face constraint of vector dimension > 1.
+ *
+ * `HDGFaceSpacesCanBatch()` used to refuse `vdim != 1` outright, and the
+ * device-offload plan filed that as one refusal. It is two, and the measurement
+ * says so: relaxing the vdim test alone leaves the kernel refused, because at
+ * vdim > 1 the only shape any caller installs is a
+ * VectorBlockDiagonalIntegrator and `HDGBatchKindOf()` reported that
+ * Unsupported. Both had to go, and the second is what HDGFaceBlocksOf() is.
+ *
+ * WHAT IS BEING TESTED IS THE INDEXING, not the arithmetic: a pass writes one
+ * equation's diagonal sub-block, at row/column offset e*ND inside a block of
+ * leading dimension ND*neq, and the per-quadrature-point weights are the
+ * scalar kernel's untouched. Two things make the comparison able to fail:
+ *
+ *  - PER-EQUATION coefficients, so permuting the equations changes the
+ *    operator. With one coefficient shared, a scatter that put equation 1's
+ *    block where equation 0's belongs would agree to the last bit.
+ *  - order >= 1 TOGETHER WITH neq >= 2. At order 0 an element has one dof per
+ *    equation and a face one trace dof per equation, so `e*ND + i` and
+ *    `i*neq + e` -- field-outermost against interleaved -- are the same index,
+ *    and that wrong layout passes. That is the same blind spot the batched
+ *    divergence kernel has, and it is measured below rather than argued.
+ *
+ * MEASURED, by writing the wrong layout on purpose -- five breakages, each
+ * gated on an environment variable inside the kernel so one TU rebuilds, of
+ * the 60 combinations here:
+ *
+ *  - interleaving the element and trace index (`i*neq + e` for `e*ND + i`) in
+ *    the INTERIOR kernel: 40 fail, and the 20 that pass carry `order := 0`
+ *    exactly, none carry order 1 or 2. That is the predicted blind spot
+ *    arriving on the nose.
+ *  - the same in the BOUNDARY kernel: 40 fail. So the boundary pass is
+ *    reached and checked, which is not free -- the boundary kernel is where
+ *    the scalar case's defect was.
+ *  - reversing the trace equation index (`(neq-1-e)*TRD`), interior: 60 fail;
+ *    boundary: 60 fail here, and the [DebugDevice] companion case PASSES it,
+ *    because that one compares the recovered SOLUTION and this test's
+ *    boundary trace dofs are all essential, so the damage lands entirely in
+ *    eliminated rows. Comparing the operator rather than a solve is what
+ *    catches it.
+ *  - dropping the equation offsets, every pass writing block 0: the first
+ *    combinations fail on sparsity and the third aborts, the local solve
+ *    having gone singular.
+ *  - permuting the WEIGHTS between blocks while writing at the right offsets
+ *    (equation e's block filled from equation neq-1-e's integrator): 30 fail,
+ *    and they are exactly the 30 with `repeated := false`. The other 30 share
+ *    one coefficient across the blocks, so the permutation really is a no-op
+ *    there. This is the one breakage the VALUE comparison catches rather than
+ *    the sparsity one -- the other four move a nonzero and are caught by
+ *    `got.J.Size() == ref.J.Size()` before any value is looked at.
+ */
+TEST_CASE("The batched HDG face kernel assembles a vdim > 1 face constraint",
+          "[DarcyHybridization][BatchedLinAlg]")
+{
+   using namespace darcy_batched_face;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   const FaceTerm term = GENERATE(FaceTerm::Diffusion,
+                                  FaceTerm::DiffusionVel,
+                                  FaceTerm::DiffusionMat,
+                                  FaceTerm::Upwinded,
+                                  FaceTerm::DiffusionUpwinded);
+   // order 0 is kept as a control, not as coverage: it is the one order at
+   // which this case CANNOT discriminate, and the write-up above says so.
+   const int order = GENERATE(0, 1, 2);
+   const int neq = GENERATE(2, 3);
+   // The single-repeated wrapper is examples/hdg/ex17's shape and reaches a
+   // different branch of HDGFaceBlocksOf(); it shares one coefficient across
+   // the blocks, so it cannot discriminate an equation swap and is not asked
+   // to -- what it establishes is that GetNumIntegrators() < GetNumBlocks()
+   // is handled rather than read out of bounds.
+   const bool repeated = GENERATE(false, true);
+   CAPTURE(Name(term), order, neq, repeated);
+
+   const int n = 2;
+   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+
+   Outcome ref, got;
+   AssembleGradient(mesh_a, order, term, AM::Serial, ref, MassTerm::Plain,
+                    false, neq, repeated);
+   AssembleGradient(mesh_b, order, term, AM::Batched, got, MassTerm::Plain,
+                    false, neq, repeated);
+
+   REQUIRE_FALSE(ref.taken);
+   REQUIRE(got.taken);
+   REQUIRE_FALSE(ref.bdr_taken);
+   REQUIRE(got.bdr_taken);
+   REQUIRE(ref.nintegs == NumIntegs(term));
+   REQUIRE(got.nintegs == NumIntegs(term));
+
+   REQUIRE(ref.data.Size() > 0);
+   REQUIRE(ref.data.Normlinf() > 1e-6);
+
+   REQUIRE(got.I.Size() == ref.I.Size());
+   REQUIRE(got.J.Size() == ref.J.Size());
+   for (int i = 0; i < ref.I.Size(); i++) { REQUIRE(got.I[i] == ref.I[i]); }
+   for (int i = 0; i < ref.J.Size(); i++) { REQUIRE(got.J[i] == ref.J[i]); }
+
+   // Round-off relative to the matrix norm, for the reason the scalar case
+   // gives: the per-face route sums the integrators into one element matrix
+   // and the kernel accumulates pass by pass, so the association differs.
+   // Worst over these 60 combinations with the tolerance set to zero:
+   // 1.78e-15 against a norm of 4.14, i.e. 4.3e-16 relative -- so 1e-14 leaves
+   // a factor of 23, the same headroom the scalar case measured for itself.
    Vector d(ref.data);
    d -= got.data;
    const real_t scale = ref.data.Normlinf();

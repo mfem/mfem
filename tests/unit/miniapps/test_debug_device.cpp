@@ -441,7 +441,8 @@ void NPCStep(DarcyHybridization::LocalFactorMode mode,
 /// the nonlinear NPCStep() above does not reach: a nonlinear potential mass
 /// takes the constraint to c_nlfi_p, where there is no batched kernel at all.
 void FaceKernelStep(DarcyHybridization::AssemblyMode am,
-                    Vector &dq, Vector &dp, Vector &dtr_out, bool &taken)
+                    Vector &dq, Vector &dp, Vector &dtr_out, bool &taken,
+                    int neq = 1)
 {
    const int n = 4, order = 1, dim = 2;
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
@@ -449,34 +450,92 @@ void FaceKernelStep(DarcyHybridization::AssemblyMode am,
    L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
    L2_FECollection p_coll(order, dim);
    DG_Interface_FECollection t_coll(order, dim);
-   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
-                      Mh(&mesh, &t_coll);
+   FiniteElementSpace Vh(&mesh, &u_coll, neq * dim, Ordering::byNODES),
+                      Wh(&mesh, &p_coll, neq, Ordering::byNODES),
+                      Mh(&mesh, &t_coll, neq, Ordering::byNODES);
 
    DarcyForm darcy(&Vh, &Wh);
    ConstantCoefficient one(1.0), src(1.0);
+   Vector src_v(neq);
+   for (int e = 0; e < neq; e++) { src_v(e) = 1.0 + 0.5 * e; }
+   VectorConstantCoefficient src_vc(src_v);
    VectorFunctionCoefficient vel(dim, [](const Vector &X, Vector &v)
    {
       v(0) = 1.0 + 0.5 * std::sin(M_PI * X(1));
       v(1) = -0.7 + 0.3 * std::cos(M_PI * X(0));
    });
 
-   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
-   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   // PER-EQUATION coefficients: with one shared, an equation permutation in
+   // the scatter would be invisible. See
+   // tests/unit/fem/test_darcy_batched_face.cpp.
+   std::vector<std::unique_ptr<Coefficient>> kap_e(neq);
+   std::vector<std::unique_ptr<VectorCoefficient>> vel_e(neq);
+   for (int e = 0; e < neq; e++)
+   {
+      const real_t s = 1.0 + 0.75 * e;
+      kap_e[e].reset(new FunctionCoefficient([s](const Vector &X)
+      {
+         return s * (1.0 + 0.5 * X(0) * X(1));
+      }));
+      vel_e[e].reset(new VectorFunctionCoefficient(
+                        dim, [s](const Vector &X, Vector &v)
+      {
+         v(0) = s * (1.0 + 0.5 * std::sin(M_PI * X(1)));
+         v(1) = -0.7 * s + 0.3 * std::cos(M_PI * X(0));
+      }));
+   }
+   auto wrap = [&](BilinearFormIntegrator *bfi) -> BilinearFormIntegrator *
+   {
+      return (neq == 1) ? bfi : new VectorBlockDiagonalIntegrator(neq, bfi);
+   };
+   /// The diffusion or the upwinded term, per equation, wrapped.
+   auto face_integ = [&](bool diffusion) -> BilinearFormIntegrator *
+   {
+      if (neq == 1)
+      {
+         return diffusion
+         ? (BilinearFormIntegrator*) new HDGDiffusionIntegrator(one, 1.0)
+         : (BilinearFormIntegrator*) new HDGConvectionUpwindedIntegrator(
+            vel, 1.0, 0.5);
+      }
+      std::vector<BilinearFormIntegrator*> blks(neq);
+      for (int e = 0; e < neq; e++)
+      {
+         blks[e] = diffusion
+         ? (BilinearFormIntegrator*) new HDGDiffusionIntegrator(
+            *kap_e[e], 1.0)
+         : (BilinearFormIntegrator*) new HDGConvectionUpwindedIntegrator(
+            *vel_e[e], 1.0, 0.5);
+      }
+      return new VectorBlockDiagonalIntegrator(blks);
+   };
+
+   if (neq == 1)
+   {
+      darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   }
+   else
+   {
+      darcy.GetPotentialRHS()->AddDomainIntegrator(
+         new VectorDomainLFIntegrator(src_vc));
+   }
+   darcy.GetFluxMassForm()->AddDomainIntegrator(
+      wrap(new VectorMassIntegrator(one)));
    darcy.GetFluxDivForm()->AddDomainIntegrator(
-      new VectorDivergenceIntegrator());
+      wrap(new VectorDivergenceIntegrator()));
    darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+      wrap(new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0))));
 
    BilinearForm *M_p = darcy.GetPotentialMassForm();
-   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
-   M_p->AddInteriorFaceIntegrator(
-      new HDGConvectionUpwindedIntegrator(vel, 1.0, 0.5));
+   M_p->AddInteriorFaceIntegrator(face_integ(true));
+   M_p->AddInteriorFaceIntegrator(face_integ(false));
    // A boundary term the kernel does NOT cover, so the host loop that reads
    // D immediately after it is in play -- which is the whole point here.
-   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(face_integ(true));
 
    Array<int> ess_flux;
-   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   darcy.EnableHybridization(&Mh, wrap(new NormalTraceJumpIntegrator()),
+                             ess_flux);
    DarcyHybridization *dh = darcy.GetHybridization();
    dh->SetAssemblyMode(am);
    dh->EnableNPC();
@@ -990,6 +1049,58 @@ TEST_CASE("The batched HDG face kernel under a device", "[DebugDevice]")
    // Round-off and not bitwise: the kernel accumulates point by point where
    // the per-face route adds one element matrix. See
    // tests/unit/fem/test_darcy_batched_face.cpp, which measures the level.
+   auto close = [](const Vector &a, const Vector &b)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      REQUIRE(d.Normlinf() <= 1e-12 * std::max(a.Normlinf(), 1e-30));
+   };
+   close(tr_ref, tr_bat);
+   close(p_ref, p_bat);
+   close(q_ref, q_bat);
+}
+
+/**
+ * @brief The same, on a SYSTEM -- a face constraint of vector dimension > 1.
+ *
+ * The vdim > 1 scatter writes one equation's diagonal sub-block per pass, at
+ * row/column offset e*ND inside a block of leading dimension ND*neq, and it
+ * reads the SAME per-face offset arrays as the scalar one. That is exactly
+ * where the documented device hazard lives: Array<int>::Read() and
+ * Vector::Read() default to on_dev = true, so E_offsets, H_offsets and
+ * Df_offsets come back device-valid and the host loops that follow --
+ * ComputeElementH() and the boundary pass, both through raw pointers -- index
+ * them raw. Multiplying the block strides by neq does not change that, but it
+ * does mean more of the block is written by a kernel and less of it by the
+ * host, so a missing sync shows up in more entries rather than fewer.
+ *
+ * The correctness bar here is the same one the scalar case sets: the answer
+ * the per-face host loop gives, with the kernel actually taken.
+ */
+TEST_CASE("The batched HDG face kernel under a device, vdim > 1",
+          "[DebugDevice]")
+{
+   using namespace darcy_alias;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   const int neq = 2;
+   Vector q_ref, p_ref, tr_ref, q_bat, p_bat, tr_bat;
+   bool taken_ref = true, taken_bat = false;
+   FaceKernelStep(AM::Serial, q_ref, p_ref, tr_ref, taken_ref, neq);
+   FaceKernelStep(AM::Batched, q_bat, p_bat, tr_bat, taken_bat, neq);
+
+   REQUIRE_FALSE(taken_ref);
+   REQUIRE(taken_bat);
+
+   REQUIRE(tr_ref.Norml2() > 1e-6);
+   REQUIRE(p_ref.Norml2() > 1e-6);
+   REQUIRE(q_ref.Norml2() > 1e-6);
+
+   tr_ref.HostRead(); tr_bat.HostRead();
+   p_ref.HostRead(); p_bat.HostRead();
+   q_ref.HostRead(); q_bat.HostRead();
+
    auto close = [](const Vector &a, const Vector &b)
    {
       REQUIRE(a.Size() == b.Size());

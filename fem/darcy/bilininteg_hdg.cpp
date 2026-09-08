@@ -2132,13 +2132,22 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
    return energy;
 }
 
-bool HDGDiffusionFaceMatricesCanBatch(const FiniteElementSpace &tr_fes,
-                                      const FiniteElementSpace &el_fes)
+bool HDGFaceSpacesCanBatch(const FiniteElementSpace &tr_fes,
+                           const FiniteElementSpace &el_fes)
 {
    const Mesh *mesh = el_fes.GetMesh();
    if (!mesh || mesh->GetNE() == 0) { return false; }
    if (mesh->Nonconforming()) { return false; }
-   if (tr_fes.GetVDim() != 1 || el_fes.GetVDim() != 1) { return false; }
+   // ONE vector dimension across the two spaces, and it may be > 1.
+   //
+   // The face constraint of a system is block diagonal in the equation index
+   // -- equation k's trace multiplies equation k's field and nothing else --
+   // so a trace space of a different vector dimension from the field space is
+   // a different operator shape, not a harder case of this one. No caller in
+   // the tree has one: navierstokes, examples/hdg/ex17 and ex21 and
+   // tests/unit/fem/test_darcy_system.cpp all carry vdim on both.
+   if (tr_fes.GetVDim() != el_fes.GetVDim()) { return false; }
+   if (el_fes.GetVDim() < 1) { return false; }
    if (!dynamic_cast<const DG_Interface_FECollection*>(tr_fes.FEColl()))
    { return false; }
 
@@ -2152,6 +2161,18 @@ bool HDGDiffusionFaceMatricesCanBatch(const FiniteElementSpace &tr_fes,
       if (el_fes.GetFE(e)->GetDof() != nd) { return false; }
    }
    return true;
+}
+
+bool HDGDiffusionFaceMatricesCanBatch(const FiniteElementSpace &tr_fes,
+                                      const FiniteElementSpace &el_fes)
+{
+   // The two routines this gates -- HDGDiffusionFaceMatricesBatched() and
+   // HDGDiffusionFaceScatterBatched() -- take a bare Coefficient and a beta
+   // rather than an integrator, so they have no way to be told what each
+   // equation's coefficient is and stay SCALAR. The vdim > 1 generalisation
+   // lives on HDGFaceScatterCanBatch()/HDGFaceScatterBatched(), which take
+   // the integrators themselves.
+   return HDGFaceSpacesCanBatch(tr_fes, el_fes) && el_fes.GetVDim() == 1;
 }
 
 void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
@@ -2395,6 +2416,61 @@ const IntegrationRule *HDGBatchRule(const BilinearFormIntegrator *bfi,
    return NULL;
 }
 
+/** @brief One diagonal block of a face constraint: which equation it belongs
+    to and the SCALAR integrator that supplies it. */
+struct HDGFaceBlock
+{
+   int eq;                             ///< the equation index, 0 at vdim == 1
+   const BilinearFormIntegrator *bfi;  ///< the scalar integrator for it
+};
+
+/** @brief Resolve @a bfi into one HDGFaceBlock per equation, or refuse.
+
+    At vdim == 1 that is the integrator itself, on equation 0. At vdim > 1 the
+    only shape any caller in the tree installs is a
+    VectorBlockDiagonalIntegrator over the scalar HDG face families, in both
+    of its forms: one integrator per equation (navierstokes,
+    test_darcy_system) or one repeated (examples/hdg/ex17, ex21). Both are
+    admitted; anything else is refused.
+
+    THE NULL BLOCK IS REFUSED AND THE REASON IS NOT FASTIDIOUSNESS.
+    VectorBlockDiagonalIntegrator::AssembleMat() accumulates its row and
+    column extents only for non-null blocks, so a null one SHRINKS the
+    element matrix rather than zeroing that block -- the per-face route then
+    reads a matrix one block short against offsets sized for vdim of them,
+    and MFEM_ASSERT is compiled out in a release build. The batched route
+    would be wrong in a different way from the per-face route, which is worse
+    than either being wrong. A caller wanting a zero block passes a
+    zero-valued integrator, which is what navierstokes' pressure row does. */
+bool HDGFaceBlocksOf(const BilinearFormIntegrator *bfi, int vdim,
+                     std::vector<HDGFaceBlock> &out)
+{
+   out.clear();
+   if (vdim == 1 && !dynamic_cast<const VectorBlockDiagonalIntegrator*>(bfi))
+   {
+      if (HDGBatchKindOf(bfi) == HDGBatchKind::Unsupported) { return false; }
+      out.push_back({0, bfi});
+      return true;
+   }
+
+   auto *vb = dynamic_cast<const VectorBlockDiagonalIntegrator*>(bfi);
+   if (!vb) { return false; }
+   if (vb->GetNumBlocks() != vdim) { return false; }
+
+   const int ni = vb->GetNumIntegrators();
+   const bool repeated = (ni < vdim);
+   if (repeated && ni != 1) { return false; }
+
+   for (int k = 0; k < vdim; k++)
+   {
+      const BilinearFormIntegrator *b = vb->GetIntegrator(repeated ? 0 : k);
+      if (!b) { return false; }
+      if (HDGBatchKindOf(b) == HDGBatchKind::Unsupported) { return false; }
+      out.push_back({k, b});
+   }
+   return true;
+}
+
 /// The seven per-(point, face) weight streams of HDGFaceScatterBatched().
 struct HDGFaceWeights
 {
@@ -2415,41 +2491,52 @@ bool HDGFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
                             const Array<int> &face_list)
 {
    if (integs.Size() == 0) { return false; }
-   if (!HDGDiffusionFaceMatricesCanBatch(tr_fes, el_fes)) { return false; }
+   if (!HDGFaceSpacesCanBatch(tr_fes, el_fes)) { return false; }
    if (face_list.Size() == 0) { return true; }
 
    Mesh *mesh = el_fes.GetMesh();
+   const int VD = el_fes.GetVDim();
+   std::vector<HDGFaceBlock> blocks;
    for (BilinearFormIntegrator *bfi : integs)
    {
-      if (HDGBatchKindOf(bfi) == HDGBatchKind::Unsupported) { return false; }
-      // A state dependent stabilization is not a bilinear form at all; the
-      // per-face routine refuses it too.
-      if (auto *d = dynamic_cast<const HDGDiffusionIntegrator*>(bfi))
+      // One SCALAR integrator per equation; see HDGFaceBlocksOf(). At
+      // vdim == 1 this is the integrator itself and the loop runs once.
+      if (!HDGFaceBlocksOf(bfi, VD, blocks)) { return false; }
+      for (const HDGFaceBlock &blk : blocks)
       {
-         const HDGStabilization *st = d->GetStabilization();
-         if (st && !st->IsConstant()) { return false; }
-      }
+         // A state dependent stabilization is not a bilinear form at all; the
+         // per-face routine refuses it too.
+         if (auto *d = dynamic_cast<const HDGDiffusionIntegrator*>(blk.bfi))
+         {
+            const HDGStabilization *st = d->GetStabilization();
+            if (st && !st->IsConstant()) { return false; }
+         }
 
-      // ONE rule for the whole face list. The convection forms take
-      // ElementTransformation::OrderW() into their rule, so a mesh whose
-      // elements do not all report the same one would want a different number
-      // of points on different faces -- which the kernel, sampling every face
-      // at one rule, cannot do. Asked of the faces because that is where the
-      // answer is; HDGDiffusionFaceMatricesCanBatch() checks the geometry and
-      // the dof counts and could not see this.
-      const IntegrationRule *ir0 = NULL;
-      for (int fi = 0; fi < face_list.Size(); fi++)
-      {
-         FaceElementTransformations *ftr =
-            mesh->GetInteriorFaceTransformations(face_list[fi]);
-         if (!ftr) { return false; }
-         const IntegrationRule *ir =
-            HDGBatchRule(bfi, *tr_fes.GetFaceElement(face_list[fi]),
-                         *el_fes.GetFE(ftr->Elem1No),
-                         *el_fes.GetFE(ftr->Elem2No), *ftr);
-         if (!ir) { return false; }
-         if (!ir0) { ir0 = ir; }
-         else if (ir != ir0) { return false; }
+         // ONE rule for the whole face list, PER BLOCK -- each equation's
+         // integrator is asked separately, because that is how the per-face
+         // route calls them: VectorBlockDiagonalIntegrator invokes each
+         // block's AssembleHDGFaceMatrix() in turn, so each picks its own
+         // rule. The convection forms take ElementTransformation::OrderW()
+         // into theirs, so a mesh whose elements do not all report the same
+         // one would want a different number of points on different faces --
+         // which the kernel, sampling every face at one rule, cannot do.
+         // Asked of the faces because that is where the answer is;
+         // HDGFaceSpacesCanBatch() checks the geometry and the dof counts and
+         // could not see this.
+         const IntegrationRule *ir0 = NULL;
+         for (int fi = 0; fi < face_list.Size(); fi++)
+         {
+            FaceElementTransformations *ftr =
+               mesh->GetInteriorFaceTransformations(face_list[fi]);
+            if (!ftr) { return false; }
+            const IntegrationRule *ir =
+               HDGBatchRule(blk.bfi, *tr_fes.GetFaceElement(face_list[fi]),
+                            *el_fes.GetFE(ftr->Elem1No),
+                            *el_fes.GetFE(ftr->Elem2No), *ftr);
+            if (!ir) { return false; }
+            if (!ir0) { ir0 = ir; }
+            else if (ir != ir0) { return false; }
+         }
       }
    }
    return true;
@@ -2475,6 +2562,18 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
    const FiniteElement *tr_fe0 = tr_fes.GetFaceElement(face_list[0]);
    const int TRD = tr_fe0->GetDof();
    const int ND = el_fes.GetFE(0)->GetDof();
+   // The vector dimension, and the block dimensions it multiplies.
+   //
+   // E, G, H and D are stored at the sizes DarcyHybridization's offsets carry,
+   // which are the SPACE's: Df_offsets[el] holds (ND*VD)^2, E_offsets[f] holds
+   // (TRD*VD)*(ND*VD) per side and H_offsets[f] holds (TRD*VD)^2. Within a
+   // block the layout is field-outermost -- equation k's dofs occupy the
+   // contiguous run [k*ND, (k+1)*ND) -- because that is what
+   // VectorBlockDiagonalIntegrator::AssembleMat() produces and what
+   // ComputeAndAssemblePotFaceMatrix() then CopyMN()s out of, and it is
+   // Ordering::byNODES's layout as well.
+   const int VD = el_fes.GetVDim();
+   const int NDT = ND * VD, TRDT = TRD * VD;
 
    // Face-indexed offsets, shared by every pass.
    Array<int> eo(NF), ho(NF), d1o(NF), d2o(NF);
@@ -2498,7 +2597,12 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
       real_t *d_E = E_data.ReadWrite();
       real_t *d_G = G_data.ReadWrite();
       real_t *d_H = H_data.ReadWrite();
-      const int nd = ND, trd = TRD;
+      // The WHOLE block, every equation, including the off-diagonal ones the
+      // passes below never touch. That is what makes zero-then-accumulate
+      // reproduce the per-face route: it CopyMN()s the whole (NDT x TRDT)
+      // sub-block out of an element matrix whose off-diagonal equation
+      // entries are exactly zero.
+      const int nd = NDT, trd = TRDT;
       mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
       {
          const int e0 = d_eo[f], h0 = d_ho[f];
@@ -2521,221 +2625,248 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
 
    const int dim = mesh->Dimension();
 
-   for (BilinearFormIntegrator *bfi : integs)
+   // ONE PASS PER (integrator, equation) PAIR, rather than one per integrator
+   // with an equation loop inside the kernel. Two reasons, and the first is
+   // correctness: each equation's integrator picks its OWN integration rule,
+   // exactly as it does on the per-face route, so a pass is the largest unit
+   // that can share a rule. The second is that it keeps the kernel index
+   // arithmetic at one thread per FACE with plain inner loops -- adding an
+   // equation component to a flat index decomposition is the shape that cost
+   // 0.37 s of a 0.95 s loop in ComputeElementsHBatched().
+   std::vector<HDGFaceBlock> blocks;
+   for (BilinearFormIntegrator *bfi_v : integs)
    {
-      const HDGBatchKind kind = HDGBatchKindOf(bfi);
-      auto *dif = dynamic_cast<const HDGDiffusionIntegrator*>(bfi);
-      auto *tr_bfi = dynamic_cast<const DGTraceIntegrator*>(bfi);
-
-      FaceElementTransformations *ftr0 =
-         mesh->GetInteriorFaceTransformations(face_list[0]);
-      const IntegrationRule &ir =
-         *HDGBatchRule(bfi, *tr_fe0, *el_fes.GetFE(ftr0->Elem1No),
-                       *el_fes.GetFE(ftr0->Elem2No), *ftr0);
-      const int NQ = ir.GetNPoints();
-
-      HDGFaceWeights w;
-      w.Init(NQ * NF);
-      Vector sh1(NQ * ND * NF), sh2(NQ * ND * NF), trs(NQ * TRD);
-      sh1.UseDevice(true);
-      sh2.UseDevice(true);
-      trs.UseDevice(true);
-
+      MFEM_VERIFY(HDGFaceBlocksOf(bfi_v, VD, blocks),
+                  "integrator does not resolve into scalar diagonal blocks");
+      for (const HDGFaceBlock &blk : blocks)
       {
-         Vector t(TRD);
-         for (int q = 0; q < NQ; q++)
+         const BilinearFormIntegrator *bfi = blk.bfi;
+         const int EQ = blk.eq;
+         const HDGBatchKind kind = HDGBatchKindOf(bfi);
+         auto *dif = dynamic_cast<const HDGDiffusionIntegrator*>(bfi);
+         auto *tr_bfi = dynamic_cast<const DGTraceIntegrator*>(bfi);
+
+         FaceElementTransformations *ftr0 =
+            mesh->GetInteriorFaceTransformations(face_list[0]);
+         const IntegrationRule &ir =
+            *HDGBatchRule(bfi, *tr_fe0, *el_fes.GetFE(ftr0->Elem1No),
+                          *el_fes.GetFE(ftr0->Elem2No), *ftr0);
+         const int NQ = ir.GetNPoints();
+
+         HDGFaceWeights w;
+         w.Init(NQ * NF);
+         Vector sh1(NQ * ND * NF), sh2(NQ * ND * NF), trs(NQ * TRD);
+         sh1.UseDevice(true);
+         sh2.UseDevice(true);
+         trs.UseDevice(true);
+
          {
-            tr_fe0->CalcShape(ir.IntPoint(q), t);
-            for (int i = 0; i < TRD; i++) { trs(q + i * NQ) = t(i); }
-         }
-      }
-
-      {
-         Vector nor(dim), vu(dim), nh(dim), ni(dim), s1(ND), s2(ND);
-         DenseMatrix mq(dim);
-         real_t *pd1 = w.d1.HostWrite(), *pd2 = w.d2.HostWrite();
-         real_t *pe1 = w.e1.HostWrite(), *pe2 = w.e2.HostWrite();
-         real_t *pg1 = w.g1.HostWrite(), *pg2 = w.g2.HostWrite();
-         real_t *ph = w.h.HostWrite();
-         real_t *ps1 = sh1.HostWrite(), *ps2 = sh2.HostWrite();
-
-         for (int fi = 0; fi < NF; fi++)
-         {
-            FaceElementTransformations *ftr =
-               mesh->GetInteriorFaceTransformations(face_list[fi]);
-            const FiniteElement &e1 = *el_fes.GetFE(ftr->Elem1No);
-            const FiniteElement &e2 = *el_fes.GetFE(ftr->Elem2No);
-
+            Vector t(TRD);
             for (int q = 0; q < NQ; q++)
             {
-               const IntegrationPoint &ip = ir.IntPoint(q);
-               ftr->SetAllIntPoints(&ip);
-               const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
-               const IntegrationPoint &eip2 = ftr->GetElement2IntPoint();
+               tr_fe0->CalcShape(ir.IntPoint(q), t);
+               for (int i = 0; i < TRD; i++) { trs(q + i * NQ) = t(i); }
+            }
+         }
 
-               if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
-               else { CalcOrtho(ftr->Jacobian(), nor); }
+         {
+            Vector nor(dim), vu(dim), nh(dim), ni(dim), s1(ND), s2(ND);
+            DenseMatrix mq(dim);
+            real_t *pd1 = w.d1.HostWrite(), *pd2 = w.d2.HostWrite();
+            real_t *pe1 = w.e1.HostWrite(), *pe2 = w.e2.HostWrite();
+            real_t *pg1 = w.g1.HostWrite(), *pg2 = w.g2.HostWrite();
+            real_t *ph = w.h.HostWrite();
+            real_t *ps1 = sh1.HostWrite(), *ps2 = sh2.HostWrite();
 
-               e1.CalcPhysShape(*ftr->Elem1, s1);
-               e2.CalcPhysShape(*ftr->Elem2, s2);
-               for (int i = 0; i < ND; i++)
+            for (int fi = 0; fi < NF; fi++)
+            {
+               FaceElementTransformations *ftr =
+                  mesh->GetInteriorFaceTransformations(face_list[fi]);
+               const FiniteElement &e1 = *el_fes.GetFE(ftr->Elem1No);
+               const FiniteElement &e2 = *el_fes.GetFE(ftr->Elem2No);
+
+               for (int q = 0; q < NQ; q++)
                {
-                  ps1[q + NQ * (i + ND * fi)] = s1(i);
-                  ps2[q + NQ * (i + ND * fi)] = s2(i);
-               }
+                  const IntegrationPoint &ip = ir.IntPoint(q);
+                  ftr->SetAllIntPoints(&ip);
+                  const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
+                  const IntegrationPoint &eip2 = ftr->GetElement2IntPoint();
 
-               const int o = q + fi * NQ;
-               if (kind == HDGBatchKind::Diffusion)
-               {
-                  // The velocity enters only through sign(u.n) and |u.n|; see
-                  // HDGDiffusionIntegrator::AssembleHDGFaceMatrix().
-                  real_t un = 0.;
-                  if (VectorCoefficient *v = dif->GetVelocity())
-                  {
-                     v->Eval(vu, *ftr->Elem1, eip1);
-                     un = vu * nor;
-                  }
-                  const real_t un_raw = un;
-                  real_t a, b;
-                  if (un != 0.)
-                  {
-                     un /= std::fabs(un);
-                     a = 0.5 * dif->GetAlpha() * un;
-                     b = dif->GetBeta() * std::fabs(un);
-                  }
-                  else { a = 0.; b = dif->GetBeta(); }
+                  if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
+                  else { CalcOrtho(ftr->Jacobian(), nor); }
 
-                  Coefficient *Q = dif->GetCoefficient();
-                  MatrixCoefficient *MQ = dif->GetMatrixCoefficient();
-                  real_t wq[2];
-                  ElementTransformation *el[2] = { ftr->Elem1, ftr->Elem2 };
-                  const IntegrationPoint *eip[2] = { &eip1, &eip2 };
-                  for (int side = 0; side < 2; side++)
+                  e1.CalcPhysShape(*ftr->Elem1, s1);
+                  e2.CalcPhysShape(*ftr->Elem2, s2);
+                  for (int i = 0; i < ND; i++)
                   {
-                     const real_t wn = ip.weight / el[side]->Weight();
-                     if (!MQ)
+                     ps1[q + NQ * (i + ND * fi)] = s1(i);
+                     ps2[q + NQ * (i + ND * fi)] = s2(i);
+                  }
+
+                  const int o = q + fi * NQ;
+                  if (kind == HDGBatchKind::Diffusion)
+                  {
+                     // The velocity enters only through sign(u.n) and |u.n|; see
+                     // HDGDiffusionIntegrator::AssembleHDGFaceMatrix().
+                     real_t un = 0.;
+                     if (VectorCoefficient *v = dif->GetVelocity())
                      {
-                        ni.Set(Q ? (wn * Q->Eval(*el[side], *eip[side])) : wn,
-                               nor);
+                        v->Eval(vu, *ftr->Elem1, eip1);
+                        un = vu * nor;
                      }
-                     else
+                     const real_t un_raw = un;
+                     real_t a, b;
+                     if (un != 0.)
                      {
-                        nh.Set(wn, nor);
-                        MQ->Eval(mq, *el[side], *eip[side]);
-                        mq.MultTranspose(nh, ni);
+                        un /= std::fabs(un);
+                        a = 0.5 * dif->GetAlpha() * un;
+                        b = dif->GetBeta() * std::fabs(un);
                      }
-                     wq[side] = ni * nor;
-                  }
+                     else { a = 0.; b = dif->GetBeta(); }
 
-                  const real_t face_w = ip.weight * nor.Norml2();
-                  const real_t w1 = dif->EvalStabilization(
-                                       wq[0], b + a, un_raw, face_w, 0., 0., *ftr->Elem1);
-                  const real_t w2 = dif->EvalStabilization(
-                                       wq[1], b - a, un_raw, face_w, 0., 0., *ftr->Elem2);
-                  pd1[o] += w1;  pe1[o] += w1;  pg1[o] += w1;
-                  pd2[o] += w2;  pe2[o] += w2;  pg2[o] += w2;
-                  ph[o] += w1 + w2;
-               }
-               else
-               {
-                  tr_bfi->GetVelocity()->Eval(vu, *ftr->Elem1, eip1);
-                  const real_t un = vu * nor;
-                  const real_t alpha = tr_bfi->GetAlpha();
-                  real_t wp, wm, wd;
-                  if (kind == HDGBatchKind::ConvCentered)
-                  {
-                     // D and G take |a u.n| on both sides; E takes b-a on
-                     // side 1 and b+a on side 2.
-                     const real_t a = alpha * un, b = std::fabs(alpha * un);
-                     wd = ip.weight * b;
-                     wm = ip.weight * (b - a);
-                     wp = ip.weight * (b + a);
-                     pd1[o] += wd;  pg1[o] += wd;  pe1[o] += wm;
-                     pd2[o] += wd;  pg2[o] += wd;  pe2[o] += wp;
-                     ph[o] += 2. * wd;
+                     Coefficient *Q = dif->GetCoefficient();
+                     MatrixCoefficient *MQ = dif->GetMatrixCoefficient();
+                     real_t wq[2];
+                     ElementTransformation *el[2] = { ftr->Elem1, ftr->Elem2 };
+                     const IntegrationPoint *eip[2] = { &eip1, &eip2 };
+                     for (int side = 0; side < 2; side++)
+                     {
+                        const real_t wn = ip.weight / el[side]->Weight();
+                        if (!MQ)
+                        {
+                           ni.Set(Q ? (wn * Q->Eval(*el[side], *eip[side])) : wn,
+                                  nor);
+                        }
+                        else
+                        {
+                           nh.Set(wn, nor);
+                           MQ->Eval(mq, *el[side], *eip[side]);
+                           mq.MultTranspose(nh, ni);
+                        }
+                        wq[side] = ni * nor;
+                     }
+
+                     const real_t face_w = ip.weight * nor.Norml2();
+                     const real_t w1 = dif->EvalStabilization(
+                                          wq[0], b + a, un_raw, face_w, 0., 0., *ftr->Elem1);
+                     const real_t w2 = dif->EvalStabilization(
+                                          wq[1], b - a, un_raw, face_w, 0., 0., *ftr->Elem2);
+                     pd1[o] += w1;  pe1[o] += w1;  pg1[o] += w1;
+                     pd2[o] += w2;  pe2[o] += w2;  pg2[o] += w2;
+                     ph[o] += w1 + w2;
                   }
                   else
                   {
-                     // Upwinded: D and G take their own side's weight and E
-                     // takes the OTHER side's. That crossing is the whole
-                     // difference from the centred form.
-                     const real_t a = 0.5 * alpha * un;
-                     const real_t b = tr_bfi->GetBeta() * std::fabs(un);
-                     wp = ip.weight * (b + a);
-                     wm = ip.weight * (b - a);
-                     pd1[o] += wp;  pg1[o] += wp;  pe1[o] += wm;
-                     pd2[o] += wm;  pg2[o] += wm;  pe2[o] += wp;
-                     ph[o] += wp + wm;
+                     tr_bfi->GetVelocity()->Eval(vu, *ftr->Elem1, eip1);
+                     const real_t un = vu * nor;
+                     const real_t alpha = tr_bfi->GetAlpha();
+                     real_t wp, wm, wd;
+                     if (kind == HDGBatchKind::ConvCentered)
+                     {
+                        // D and G take |a u.n| on both sides; E takes b-a on
+                        // side 1 and b+a on side 2.
+                        const real_t a = alpha * un, b = std::fabs(alpha * un);
+                        wd = ip.weight * b;
+                        wm = ip.weight * (b - a);
+                        wp = ip.weight * (b + a);
+                        pd1[o] += wd;  pg1[o] += wd;  pe1[o] += wm;
+                        pd2[o] += wd;  pg2[o] += wd;  pe2[o] += wp;
+                        ph[o] += 2. * wd;
+                     }
+                     else
+                     {
+                        // Upwinded: D and G take their own side's weight and E
+                        // takes the OTHER side's. That crossing is the whole
+                        // difference from the centred form.
+                        const real_t a = 0.5 * alpha * un;
+                        const real_t b = tr_bfi->GetBeta() * std::fabs(un);
+                        wp = ip.weight * (b + a);
+                        wm = ip.weight * (b - a);
+                        pd1[o] += wp;  pg1[o] += wp;  pe1[o] += wm;
+                        pd2[o] += wm;  pg2[o] += wm;  pe2[o] += wp;
+                        ph[o] += wp + wm;
+                     }
                   }
                }
             }
          }
-      }
 
-      const auto d_d1 = Reshape(w.d1.Read(), NQ, NF);
-      const auto d_d2 = Reshape(w.d2.Read(), NQ, NF);
-      const auto d_e1 = Reshape(w.e1.Read(), NQ, NF);
-      const auto d_e2 = Reshape(w.e2.Read(), NQ, NF);
-      const auto d_g1 = Reshape(w.g1.Read(), NQ, NF);
-      const auto d_g2 = Reshape(w.g2.Read(), NQ, NF);
-      const auto d_h  = Reshape(w.h.Read(),  NQ, NF);
-      const auto d_s1 = Reshape(sh1.Read(), NQ, ND, NF);
-      const auto d_s2 = Reshape(sh2.Read(), NQ, ND, NF);
-      const auto d_tr = Reshape(trs.Read(), NQ, TRD);
-      const int *d_eo = eo.Read(), *d_ho = ho.Read();
-      const int *d_o1 = d1o.Read(), *d_o2 = d2o.Read();
+         const auto d_d1 = Reshape(w.d1.Read(), NQ, NF);
+         const auto d_d2 = Reshape(w.d2.Read(), NQ, NF);
+         const auto d_e1 = Reshape(w.e1.Read(), NQ, NF);
+         const auto d_e2 = Reshape(w.e2.Read(), NQ, NF);
+         const auto d_g1 = Reshape(w.g1.Read(), NQ, NF);
+         const auto d_g2 = Reshape(w.g2.Read(), NQ, NF);
+         const auto d_h  = Reshape(w.h.Read(),  NQ, NF);
+         const auto d_s1 = Reshape(sh1.Read(), NQ, ND, NF);
+         const auto d_s2 = Reshape(sh2.Read(), NQ, ND, NF);
+         const auto d_tr = Reshape(trs.Read(), NQ, TRD);
+         const int *d_eo = eo.Read(), *d_ho = ho.Read();
+         const int *d_o1 = d1o.Read(), *d_o2 = d2o.Read();
 
-      real_t *d_E = E_data.ReadWrite();
-      real_t *d_G = G_data.ReadWrite();
-      real_t *d_H = H_data.ReadWrite();
-      real_t *d_D = Df_data.ReadWrite();
+         real_t *d_E = E_data.ReadWrite();
+         real_t *d_G = G_data.ReadWrite();
+         real_t *d_H = H_data.ReadWrite();
+         real_t *d_D = Df_data.ReadWrite();
 
-      const int nd = ND, trd = TRD, nq = NQ;
+         // The SCALAR shape counts, and the BLOCK strides they are written at.
+         // A pass writes only equation EQ's diagonal sub-block, which sits at
+         // row/column offset EQ*nd inside a block of leading dimension ndt (and
+         // EQ*trd inside trdt for the trace). At VD == 1 these collapse to the
+         // scalar kernel exactly -- roff and toff are 0, ndt == nd, trdt == trd
+         // -- so the arithmetic is bit-for-bit what it was.
+         const int nd = ND, trd = TRD, nq = NQ;
+         const int ndt = NDT, trdt = TRDT;
+         const int roff = EQ * ND, toff = EQ * TRD;
 
-      mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
-      {
-         const int e0 = d_eo[f], h0 = d_ho[f];
-         const int o1 = d_o1[f], o2 = d_o2[f];
-         const int e2off = e0 + trd * nd;
-
-         for (int q = 0; q < nq; q++)
+         mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
          {
-            const real_t ad1 = d_d1(q, f), ad2 = d_d2(q, f);
-            const real_t ae1 = d_e1(q, f), ae2 = d_e2(q, f);
-            const real_t ag1 = d_g1(q, f), ag2 = d_g2(q, f);
+            const int e0 = d_eo[f], h0 = d_ho[f];
+            const int o1 = d_o1[f], o2 = d_o2[f];
+            const int e2off = e0 + trdt * ndt;
 
-            for (int i = 0; i < nd; i++)
+            for (int q = 0; q < nq; q++)
             {
-               const real_t s1i = d_s1(q, i, f), s2i = d_s2(q, i, f);
+               const real_t ad1 = d_d1(q, f), ad2 = d_d2(q, f);
+               const real_t ae1 = d_e1(q, f), ae2 = d_e2(q, f);
+               const real_t ag1 = d_g1(q, f), ag2 = d_g2(q, f);
 
-               // D accumulates per ELEMENT, and two faces of one element
-               // collide, so it is the one block that needs atomics.
-               for (int j = 0; j < nd; j++)
+               for (int i = 0; i < nd; i++)
                {
-                  AtomicAdd(d_D[o1 + i + nd * j], ad1 * s1i * d_s1(q, j, f));
-                  AtomicAdd(d_D[o2 + i + nd * j], ad2 * s2i * d_s2(q, j, f));
+                  const real_t s1i = d_s1(q, i, f), s2i = d_s2(q, i, f);
+                  const int ri = roff + i;
+
+                  // D accumulates per ELEMENT, and two faces of one element
+                  // collide, so it is the one block that needs atomics.
+                  for (int j = 0; j < nd; j++)
+                  {
+                     const int rj = roff + j;
+                     AtomicAdd(d_D[o1 + ri + ndt * rj], ad1 * s1i * d_s1(q, j, f));
+                     AtomicAdd(d_D[o2 + ri + ndt * rj], ad2 * s2i * d_s2(q, j, f));
+                  }
+                  for (int j = 0; j < trd; j++)
+                  {
+                     const real_t t = d_tr(q, j);
+                     const int tj = toff + j;
+                     d_E[e0 + ri + ndt * tj]    -= ae1 * s1i * t;
+                     d_E[e2off + ri + ndt * tj] -= ae2 * s2i * t;
+                     d_G[e0 + tj + trdt * ri]    += ag1 * t * s1i;
+                     d_G[e2off + tj + trdt * ri] += ag2 * t * s2i;
+                  }
                }
-               for (int j = 0; j < trd; j++)
+
+               const real_t ah = d_h(q, f);
+               for (int i = 0; i < trd; i++)
                {
-                  const real_t t = d_tr(q, j);
-                  d_E[e0 + i + nd * j]    -= ae1 * s1i * t;
-                  d_E[e2off + i + nd * j] -= ae2 * s2i * t;
-                  d_G[e0 + j + trd * i]    += ag1 * t * s1i;
-                  d_G[e2off + j + trd * i] += ag2 * t * s2i;
+                  const real_t t = ah * d_tr(q, i);
+                  for (int j = 0; j < trd; j++)
+                  {
+                     d_H[h0 + (toff + i) + trdt * (toff + j)] -= t * d_tr(q, j);
+                  }
                }
             }
-
-            const real_t ah = d_h(q, f);
-            for (int i = 0; i < trd; i++)
-            {
-               const real_t t = ah * d_tr(q, i);
-               for (int j = 0; j < trd; j++)
-               {
-                  d_H[h0 + i + trd * j] -= t * d_tr(q, j);
-               }
-            }
-         }
-      });
+         });
+      }
    }
 }
 
@@ -3307,35 +3438,39 @@ bool HDGBdrFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
 {
    if (integs.Size() == 0) { return false; }
    MFEM_ASSERT((size_t)integs.Size() == face_lists.size(), "one list each");
-   if (!HDGDiffusionFaceMatricesCanBatch(tr_fes, el_fes)) { return false; }
+   if (!HDGFaceSpacesCanBatch(tr_fes, el_fes)) { return false; }
 
    Mesh *mesh = el_fes.GetMesh();
+   const int VD = el_fes.GetVDim();
+   std::vector<HDGFaceBlock> blocks;
    for (int k = 0; k < integs.Size(); k++)
    {
-      BilinearFormIntegrator *bfi = integs[k];
-      if (HDGBatchKindOf(bfi) == HDGBatchKind::Unsupported) { return false; }
-      if (auto *d = dynamic_cast<const HDGDiffusionIntegrator*>(bfi))
+      if (!HDGFaceBlocksOf(integs[k], VD, blocks)) { return false; }
+      for (const HDGFaceBlock &blk : blocks)
       {
-         const HDGStabilization *st = d->GetStabilization();
-         if (st && !st->IsConstant()) { return false; }
-      }
+         if (auto *d = dynamic_cast<const HDGDiffusionIntegrator*>(blk.bfi))
+         {
+            const HDGStabilization *st = d->GetStabilization();
+            if (st && !st->IsConstant()) { return false; }
+         }
 
-      // One rule across this integrator's own face list; see
-      // HDGFaceScatterCanBatch(). Elem2 is absent, so the rule takes only
-      // Elem1's OrderW() -- but that can still vary element to element.
-      const IntegrationRule *ir0 = NULL;
-      for (int fi = 0; fi < face_lists[k].Size(); fi++)
-      {
-         const int face = face_lists[k][fi];
-         FaceElementTransformations *ftr =
-            mesh->GetFaceElementTransformations(face);
-         if (!ftr || ftr->Elem2No >= 0) { return false; }
-         const FiniteElement &fe = *el_fes.GetFE(ftr->Elem1No);
-         const IntegrationRule *ir =
-            HDGBatchRule(bfi, *tr_fes.GetFaceElement(face), fe, fe, *ftr);
-         if (!ir) { return false; }
-         if (!ir0) { ir0 = ir; }
-         else if (ir != ir0) { return false; }
+         // One rule across this integrator's own face list; see
+         // HDGFaceScatterCanBatch(). Elem2 is absent, so the rule takes only
+         // Elem1's OrderW() -- but that can still vary element to element.
+         const IntegrationRule *ir0 = NULL;
+         for (int fi = 0; fi < face_lists[k].Size(); fi++)
+         {
+            const int face = face_lists[k][fi];
+            FaceElementTransformations *ftr =
+               mesh->GetFaceElementTransformations(face);
+            if (!ftr || ftr->Elem2No >= 0) { return false; }
+            const FiniteElement &fe = *el_fes.GetFE(ftr->Elem1No);
+            const IntegrationRule *ir =
+               HDGBatchRule(blk.bfi, *tr_fes.GetFaceElement(face), fe, fe, *ftr);
+            if (!ir) { return false; }
+            if (!ir0) { ir0 = ir; }
+            else if (ir != ir0) { return false; }
+         }
       }
    }
    return true;
@@ -3361,6 +3496,10 @@ void HDGBdrFaceScatterBatched(const FiniteElementSpace &tr_fes,
    const int TRD = tr_fes.GetFaceElement(all_faces[0])->GetDof();
    const int ND = el_fes.GetFE(0)->GetDof();
    const int dim = mesh->Dimension();
+   // See HDGFaceScatterBatched(): the stored blocks carry the space's vector
+   // dimension and a pass writes one equation's diagonal sub-block of them.
+   const int VD = el_fes.GetVDim();
+   const int NDT = ND * VD, TRDT = TRD * VD;
 
    {
       // E, G and H over the union of the lists. The per-face route ASSIGNS
@@ -3376,7 +3515,8 @@ void HDGBdrFaceScatterBatched(const FiniteElementSpace &tr_fes,
       real_t *d_E = E_data.ReadWrite();
       real_t *d_G = G_data.ReadWrite();
       real_t *d_H = H_data.ReadWrite();
-      const int nd = ND, trd = TRD;
+      // The whole block, every equation; see HDGFaceScatterBatched().
+      const int nd = NDT, trd = TRDT;
       mfem::forall(all_faces.Size(), [=] MFEM_HOST_DEVICE (int f)
       {
          const int e0 = d_eo[f], h0 = d_ho[f];
@@ -3394,211 +3534,223 @@ void HDGBdrFaceScatterBatched(const FiniteElementSpace &tr_fes,
       });
    }
 
+   std::vector<HDGFaceBlock> blocks;
    for (int k = 0; k < integs.Size(); k++)
    {
-      BilinearFormIntegrator *bfi = integs[k];
       const Array<int> &flist = face_lists[k];
       const int NF = flist.Size();
       if (NF == 0) { continue; }
 
-      const HDGBatchKind kind = HDGBatchKindOf(bfi);
-      auto *dif = dynamic_cast<const HDGDiffusionIntegrator*>(bfi);
-      auto *tr_bfi = dynamic_cast<const DGTraceIntegrator*>(bfi);
-
-      const FiniteElement *tr_fe0 = tr_fes.GetFaceElement(flist[0]);
-      FaceElementTransformations *ftr0 =
-         mesh->GetFaceElementTransformations(flist[0]);
-      const FiniteElement &fe0 = *el_fes.GetFE(ftr0->Elem1No);
-      const IntegrationRule &ir =
-         *HDGBatchRule(bfi, *tr_fe0, fe0, fe0, *ftr0);
-      const int NQ = ir.GetNPoints();
-
-      // ZEROED, and not merely sized. Vector(int) does not initialise, the
-      // loop below only accumulates into these, and an uninitialised weight
-      // is not a crash -- it is a plausible-looking face integral. Measured:
-      // the E block of a face whose true weight is exactly zero came back
-      // carrying another face's upwinded values, and the answer was 46% out.
-      // HDGFaceWeights::Init() does this for the interior kernel; this loop
-      // was open-coded and dropped it.
-      Vector wd(NQ * NF), we(NQ * NF), wg(NQ * NF), wh(NQ * NF);
-      Vector sh(NQ * ND * NF), trs(NQ * TRD);
-      Array<int> eo(NF), ho(NF), dof(NF);
-      wd = 0.;
-      we = 0.;
-      wg = 0.;
-      wh = 0.;
-      wd.UseDevice(true);
-      we.UseDevice(true);
-      wg.UseDevice(true);
-      wh.UseDevice(true);
-      sh.UseDevice(true);
-      trs.UseDevice(true);
-
+      MFEM_VERIFY(HDGFaceBlocksOf(integs[k], VD, blocks),
+                  "integrator does not resolve into scalar diagonal blocks");
+      for (const HDGFaceBlock &blk : blocks)
       {
-         Vector t(TRD);
-         for (int q = 0; q < NQ; q++)
+         const BilinearFormIntegrator *bfi = blk.bfi;
+         const int EQ = blk.eq;
+         const HDGBatchKind kind = HDGBatchKindOf(bfi);
+         auto *dif = dynamic_cast<const HDGDiffusionIntegrator*>(bfi);
+         auto *tr_bfi = dynamic_cast<const DGTraceIntegrator*>(bfi);
+
+         const FiniteElement *tr_fe0 = tr_fes.GetFaceElement(flist[0]);
+         FaceElementTransformations *ftr0 =
+            mesh->GetFaceElementTransformations(flist[0]);
+         const FiniteElement &fe0 = *el_fes.GetFE(ftr0->Elem1No);
+         const IntegrationRule &ir =
+            *HDGBatchRule(bfi, *tr_fe0, fe0, fe0, *ftr0);
+         const int NQ = ir.GetNPoints();
+
+         // ZEROED, and not merely sized. Vector(int) does not initialise, the
+         // loop below only accumulates into these, and an uninitialised weight
+         // is not a crash -- it is a plausible-looking face integral. Measured:
+         // the E block of a face whose true weight is exactly zero came back
+         // carrying another face's upwinded values, and the answer was 46% out.
+         // HDGFaceWeights::Init() does this for the interior kernel; this loop
+         // was open-coded and dropped it.
+         Vector wd(NQ * NF), we(NQ * NF), wg(NQ * NF), wh(NQ * NF);
+         Vector sh(NQ * ND * NF), trs(NQ * TRD);
+         Array<int> eo(NF), ho(NF), dof(NF);
+         wd = 0.;
+         we = 0.;
+         wg = 0.;
+         wh = 0.;
+         wd.UseDevice(true);
+         we.UseDevice(true);
+         wg.UseDevice(true);
+         wh.UseDevice(true);
+         sh.UseDevice(true);
+         trs.UseDevice(true);
+
          {
-            tr_fe0->CalcShape(ir.IntPoint(q), t);
-            for (int i = 0; i < TRD; i++) { trs(q + i * NQ) = t(i); }
-         }
-      }
-
-      {
-         Vector nor(dim), vu(dim), nh(dim), ni(dim), sv(ND);
-         DenseMatrix mq(dim);
-         real_t *pd = wd.HostWrite(), *pe = we.HostWrite();
-         real_t *pg = wg.HostWrite(), *ph = wh.HostWrite();
-         real_t *ps = sh.HostWrite();
-
-         for (int fi = 0; fi < NF; fi++)
-         {
-            const int face = flist[fi];
-            FaceElementTransformations *ftr =
-               mesh->GetFaceElementTransformations(face);
-            const FiniteElement &fe = *el_fes.GetFE(ftr->Elem1No);
-            eo[fi] = E_offsets[face];
-            ho[fi] = H_offsets[face];
-            dof[fi] = Df_offsets[ftr->Elem1No];
-
+            Vector t(TRD);
             for (int q = 0; q < NQ; q++)
             {
-               const IntegrationPoint &ip = ir.IntPoint(q);
-               ftr->SetAllIntPoints(&ip);
-               const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
-
-               if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
-               else { CalcOrtho(ftr->Jacobian(), nor); }
-
-               fe.CalcPhysShape(*ftr->Elem1, sv);
-               for (int i = 0; i < ND; i++)
-               {
-                  ps[q + NQ * (i + ND * fi)] = sv(i);
-               }
-
-               const int o = q + fi * NQ;
-               if (kind == HDGBatchKind::Diffusion)
-               {
-                  real_t un = 0.;
-                  if (VectorCoefficient *v = dif->GetVelocity())
-                  {
-                     v->Eval(vu, *ftr->Elem1, eip1);
-                     un = vu * nor;
-                  }
-                  const real_t un_raw = un;
-                  real_t a, b;
-                  if (un != 0.)
-                  {
-                     un /= std::fabs(un);
-                     a = 0.5 * dif->GetAlpha() * un;
-                     b = dif->GetBeta() * std::fabs(un);
-                  }
-                  else { a = 0.; b = dif->GetBeta(); }
-
-                  Coefficient *Q = dif->GetCoefficient();
-                  MatrixCoefficient *MQ = dif->GetMatrixCoefficient();
-                  const real_t wn = ip.weight / ftr->Elem1->Weight();
-                  if (!MQ)
-                  {
-                     ni.Set(Q ? (wn * Q->Eval(*ftr->Elem1, eip1)) : wn, nor);
-                  }
-                  else
-                  {
-                     nh.Set(wn, nor);
-                     MQ->Eval(mq, *ftr->Elem1, eip1);
-                     mq.MultTranspose(nh, ni);
-                  }
-                  const real_t wq1 = ni * nor;
-                  const real_t face_w = ip.weight * nor.Norml2();
-                  const real_t w1 = dif->EvalStabilization(
-                                       wq1, b + a, un_raw, face_w, 0., 0., *ftr->Elem1);
-                  // One weight for all four: the trace block takes side 1's
-                  // alone, side 2 being absent.
-                  pd[o] += w1;  pe[o] += w1;  pg[o] += w1;  ph[o] += w1;
-               }
-               else
-               {
-                  tr_bfi->GetVelocity()->Eval(vu, *ftr->Elem1, eip1);
-                  const real_t un = vu * nor;
-                  const real_t alpha = tr_bfi->GetAlpha();
-                  if (kind == HDGBatchKind::ConvCentered)
-                  {
-                     const real_t a = alpha * un, b = std::fabs(alpha * un);
-                     pd[o] += ip.weight * b;
-                     pg[o] += ip.weight * b;
-                     pe[o] += ip.weight * (b - a);
-                     // b and not 2b: the centred form halves its trace term
-                     // at a boundary, where the upwinded one does not.
-                     ph[o] += ip.weight * b;
-                  }
-                  else
-                  {
-                     const real_t a = 0.5 * alpha * un;
-                     const real_t b = tr_bfi->GetBeta() * std::fabs(un);
-                     pd[o] += ip.weight * (b + a);
-                     pg[o] += ip.weight * (b + a);
-                     pe[o] += ip.weight * (b - a);
-                     // 2b even here -- "this term must be non-zero at the
-                     // boundary for stability reasons, so the advective part
-                     // is intentionally dropped", says the per-face routine.
-                     ph[o] += ip.weight * 2. * b;
-                  }
-               }
+               tr_fe0->CalcShape(ir.IntPoint(q), t);
+               for (int i = 0; i < TRD; i++) { trs(q + i * NQ) = t(i); }
             }
          }
-      }
 
-      const auto d_wd = Reshape(wd.Read(), NQ, NF);
-      const auto d_we = Reshape(we.Read(), NQ, NF);
-      const auto d_wg = Reshape(wg.Read(), NQ, NF);
-      const auto d_wh = Reshape(wh.Read(), NQ, NF);
-      const auto d_s = Reshape(sh.Read(), NQ, ND, NF);
-      const auto d_tr = Reshape(trs.Read(), NQ, TRD);
-      const int *d_eo = eo.Read(), *d_ho = ho.Read(), *d_do = dof.Read();
-
-      real_t *d_E = E_data.ReadWrite();
-      real_t *d_G = G_data.ReadWrite();
-      real_t *d_H = H_data.ReadWrite();
-      real_t *d_D = Df_data.ReadWrite();
-
-      const int nd = ND, trd = TRD, nq = NQ;
-
-      mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
-      {
-         const int e0 = d_eo[f], h0 = d_ho[f], o1 = d_do[f];
-
-         for (int q = 0; q < nq; q++)
          {
-            const real_t ad = d_wd(q, f), ae = d_we(q, f);
-            const real_t ag = d_wg(q, f), ah = d_wh(q, f);
+            Vector nor(dim), vu(dim), nh(dim), ni(dim), sv(ND);
+            DenseMatrix mq(dim);
+            real_t *pd = wd.HostWrite(), *pe = we.HostWrite();
+            real_t *pg = wg.HostWrite(), *ph = wh.HostWrite();
+            real_t *ps = sh.HostWrite();
 
-            for (int i = 0; i < nd; i++)
+            for (int fi = 0; fi < NF; fi++)
             {
-               const real_t si = d_s(q, i, f);
-               // Two boundary faces of one element collide in D -- any
-               // corner element has them -- so the atomics are needed here
-               // for the same reason as on the interior.
-               for (int j = 0; j < nd; j++)
-               {
-                  AtomicAdd(d_D[o1 + i + nd * j], ad * si * d_s(q, j, f));
-               }
-               for (int j = 0; j < trd; j++)
-               {
-                  const real_t t = d_tr(q, j);
-                  d_E[e0 + i + nd * j] -= ae * si * t;
-                  d_G[e0 + j + trd * i] += ag * t * si;
-               }
-            }
+               const int face = flist[fi];
+               FaceElementTransformations *ftr =
+                  mesh->GetFaceElementTransformations(face);
+               const FiniteElement &fe = *el_fes.GetFE(ftr->Elem1No);
+               eo[fi] = E_offsets[face];
+               ho[fi] = H_offsets[face];
+               dof[fi] = Df_offsets[ftr->Elem1No];
 
-            for (int i = 0; i < trd; i++)
-            {
-               const real_t t = ah * d_tr(q, i);
-               for (int j = 0; j < trd; j++)
+               for (int q = 0; q < NQ; q++)
                {
-                  d_H[h0 + i + trd * j] -= t * d_tr(q, j);
+                  const IntegrationPoint &ip = ir.IntPoint(q);
+                  ftr->SetAllIntPoints(&ip);
+                  const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
+
+                  if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
+                  else { CalcOrtho(ftr->Jacobian(), nor); }
+
+                  fe.CalcPhysShape(*ftr->Elem1, sv);
+                  for (int i = 0; i < ND; i++)
+                  {
+                     ps[q + NQ * (i + ND * fi)] = sv(i);
+                  }
+
+                  const int o = q + fi * NQ;
+                  if (kind == HDGBatchKind::Diffusion)
+                  {
+                     real_t un = 0.;
+                     if (VectorCoefficient *v = dif->GetVelocity())
+                     {
+                        v->Eval(vu, *ftr->Elem1, eip1);
+                        un = vu * nor;
+                     }
+                     const real_t un_raw = un;
+                     real_t a, b;
+                     if (un != 0.)
+                     {
+                        un /= std::fabs(un);
+                        a = 0.5 * dif->GetAlpha() * un;
+                        b = dif->GetBeta() * std::fabs(un);
+                     }
+                     else { a = 0.; b = dif->GetBeta(); }
+
+                     Coefficient *Q = dif->GetCoefficient();
+                     MatrixCoefficient *MQ = dif->GetMatrixCoefficient();
+                     const real_t wn = ip.weight / ftr->Elem1->Weight();
+                     if (!MQ)
+                     {
+                        ni.Set(Q ? (wn * Q->Eval(*ftr->Elem1, eip1)) : wn, nor);
+                     }
+                     else
+                     {
+                        nh.Set(wn, nor);
+                        MQ->Eval(mq, *ftr->Elem1, eip1);
+                        mq.MultTranspose(nh, ni);
+                     }
+                     const real_t wq1 = ni * nor;
+                     const real_t face_w = ip.weight * nor.Norml2();
+                     const real_t w1 = dif->EvalStabilization(
+                                          wq1, b + a, un_raw, face_w, 0., 0., *ftr->Elem1);
+                     // One weight for all four: the trace block takes side 1's
+                     // alone, side 2 being absent.
+                     pd[o] += w1;  pe[o] += w1;  pg[o] += w1;  ph[o] += w1;
+                  }
+                  else
+                  {
+                     tr_bfi->GetVelocity()->Eval(vu, *ftr->Elem1, eip1);
+                     const real_t un = vu * nor;
+                     const real_t alpha = tr_bfi->GetAlpha();
+                     if (kind == HDGBatchKind::ConvCentered)
+                     {
+                        const real_t a = alpha * un, b = std::fabs(alpha * un);
+                        pd[o] += ip.weight * b;
+                        pg[o] += ip.weight * b;
+                        pe[o] += ip.weight * (b - a);
+                        // b and not 2b: the centred form halves its trace term
+                        // at a boundary, where the upwinded one does not.
+                        ph[o] += ip.weight * b;
+                     }
+                     else
+                     {
+                        const real_t a = 0.5 * alpha * un;
+                        const real_t b = tr_bfi->GetBeta() * std::fabs(un);
+                        pd[o] += ip.weight * (b + a);
+                        pg[o] += ip.weight * (b + a);
+                        pe[o] += ip.weight * (b - a);
+                        // 2b even here -- "this term must be non-zero at the
+                        // boundary for stability reasons, so the advective part
+                        // is intentionally dropped", says the per-face routine.
+                        ph[o] += ip.weight * 2. * b;
+                     }
+                  }
                }
             }
          }
-      });
+
+         const auto d_wd = Reshape(wd.Read(), NQ, NF);
+         const auto d_we = Reshape(we.Read(), NQ, NF);
+         const auto d_wg = Reshape(wg.Read(), NQ, NF);
+         const auto d_wh = Reshape(wh.Read(), NQ, NF);
+         const auto d_s = Reshape(sh.Read(), NQ, ND, NF);
+         const auto d_tr = Reshape(trs.Read(), NQ, TRD);
+         const int *d_eo = eo.Read(), *d_ho = ho.Read(), *d_do = dof.Read();
+
+         real_t *d_E = E_data.ReadWrite();
+         real_t *d_G = G_data.ReadWrite();
+         real_t *d_H = H_data.ReadWrite();
+         real_t *d_D = Df_data.ReadWrite();
+
+         const int nd = ND, trd = TRD, nq = NQ;
+         const int ndt = NDT, trdt = TRDT;
+         const int roff = EQ * ND, toff = EQ * TRD;
+
+         mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+         {
+            const int e0 = d_eo[f], h0 = d_ho[f], o1 = d_do[f];
+
+            for (int q = 0; q < nq; q++)
+            {
+               const real_t ad = d_wd(q, f), ae = d_we(q, f);
+               const real_t ag = d_wg(q, f), ah = d_wh(q, f);
+
+               for (int i = 0; i < nd; i++)
+               {
+                  const real_t si = d_s(q, i, f);
+                  const int ri = roff + i;
+                  // Two boundary faces of one element collide in D -- any
+                  // corner element has them -- so the atomics are needed here
+                  // for the same reason as on the interior.
+                  for (int j = 0; j < nd; j++)
+                  {
+                     AtomicAdd(d_D[o1 + ri + ndt * (roff + j)],
+                               ad * si * d_s(q, j, f));
+                  }
+                  for (int j = 0; j < trd; j++)
+                  {
+                     const real_t t = d_tr(q, j);
+                     const int tj = toff + j;
+                     d_E[e0 + ri + ndt * tj] -= ae * si * t;
+                     d_G[e0 + tj + trdt * ri] += ag * t * si;
+                  }
+               }
+
+               for (int i = 0; i < trd; i++)
+               {
+                  const real_t t = ah * d_tr(q, i);
+                  for (int j = 0; j < trd; j++)
+                  {
+                     d_H[h0 + (toff + i) + trdt * (toff + j)] -= t * d_tr(q, j);
+                  }
+               }
+            }
+         });
+      }
    }
 }
 

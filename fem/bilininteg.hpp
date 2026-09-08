@@ -782,6 +782,18 @@ public:
    /// Get the number of diagonal blocks
    inline int GetNumBlocks() const { return numBlocks; }
 
+   /** @brief How many integrators are actually held, which is NOT
+       GetNumBlocks() in general.
+
+       The single-repeated constructor `VectorBlockDiagonalIntegrator(n, bfi)`
+       stores ONE integrator and replicates it, so GetIntegrator(i) is out of
+       bounds for every i > 0 there; AssembleMat() branches on exactly this
+       comparison. A caller that wants to inspect the blocks rather than
+       assemble them -- the batched HDG face kernel does -- has to be able to
+       ask, and reading GetIntegrator(i) up to GetNumBlocks() is undefined
+       behaviour without it. */
+   inline int GetNumIntegrators() const { return (int)integs.size(); }
+
    /// Set the flag of ownership of the integrator(s)
    void UseExternalIntegrators() { own_integs = false; }
 
