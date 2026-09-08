@@ -529,5 +529,357 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
+
+
+class StokesMassBrinkmanDesignLFIntegrator : public LinearFormIntegrator
+{
+private:
+   ParGridFunction &rho_tilde;
+   ParGridFunction &u;
+   ParGridFunction &v;
+   BrinkmanCoefficient b_cf;
+   
+   // Pre-allocated data for the Domain Integrator
+   Vector shape;
+   Vector state_shape, u_val, v_val;
+
+public:
+   StokesMassBrinkmanDesignLFIntegrator(ParGridFunction &rho_tilde_,
+                                       ParGridFunction &u_,
+                                       ParGridFunction &v_, BrinkmanCoefficient &b_cf_)
+      : rho_tilde(rho_tilde_), u(u_), v(v_), b_cf(b_cf_){}
+
+   // -------------------------------------------------------------------------
+   // Domain Integrator
+   // -------------------------------------------------------------------------
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &T,
+                               Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      const int dim = T.GetSpaceDim();
+      
+      shape.SetSize(dof);
+      elvect.SetSize(dof);
+      elvect = 0.0;
+
+      const int int_order = 2 * T.OrderGrad(&el);
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), int_order);
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q); 
+         T.SetIntPoint(&ip);
+         el.CalcPhysShape(T, shape);
+
+         u.GetVectorValue(T, ip, u_val);
+         v.GetVectorValue(T, ip, v_val);
+
+         real_t uv = u_val * v_val;
+
+
+         const real_t rp = b_cf.Eval_Derivative(T, ip);
+         
+         const real_t density = rp * uv;
+         const real_t weight = ip.weight * T.Weight() * density;
+
+         for (int i = 0; i < dof; i++)
+         {
+            elvect(i) += weight * shape(i);
+         }
+      }
+   }
+   
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+class StokesVelocityGradientLFIntegrator : public LinearFormIntegrator
+{
+private:
+   ParGridFunction &rho_tilde;
+   ParGridFunction &q;
+   ParGridFunction &lam;
+   SIMPCoefficient s_cf;
+   
+   // Pre-allocated data for the Domain Integrator
+   Vector shape;
+   Vector grad_q;
+   real_t lam_val;
+   VectorCoefficient &v_base;
+
+   // Pre-allocated data for the Face Integrators
+   Vector shape1, shape2;
+   real_t alpha;
+
+public:
+   StokesVelocityGradientLFIntegrator(ParGridFunction &rho_tilde_,
+                                       ParGridFunction &q_,
+                                       ParGridFunction &lam_, SIMPCoefficient &s_cf_, VectorCoefficient &v_base_, real_t alpha_ = -1.0)
+      : rho_tilde(rho_tilde_), q(q_), lam(lam_), s_cf(s_cf_), alpha(alpha_), v_base(v_base_){}
+
+   // -------------------------------------------------------------------------
+   // Domain Integrator
+   // -------------------------------------------------------------------------
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &T,
+                               Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      const int dim = T.GetSpaceDim();
+      
+      shape.SetSize(dof);
+      elvect.SetSize(dim*dof);
+      elvect = 0.0;
+      grad_q.SetSize(dim);
+
+      const int int_order = 2 * T.OrderGrad(&el);
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), int_order);
+      for (int r = 0; r < ir.GetNPoints(); r++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(r);
+         T.SetIntPoint(&ip);
+         el.CalcPhysShape(T, shape);
+
+         // For scalar fields, GetGradient populates a Vector
+         q.GetGradient(T, grad_q);
+         lam.GetValue(T, ip, lam_val);
+         const real_t rp = s_cf.Eval(T, ip);
+         grad_q *= lam_val*rp;
+         
+         // Assuming the same negative adjoint/compliance convention
+         // const real_t density = rp * u_val * v_val;
+         const real_t weight = ip.weight * T.Weight();
+         for (int k = 0; k < dim; k++)
+         {
+            real_t cf = grad_q(k);
+            for (int i = 0; i < dof; i++)
+            {
+               elvect(dof*k + i) += ip.weight * T.Weight() * shape(i) * cf;
+            }
+         }
+      }
+   }
+
+   
+   // -------------------------------------------------------------------------
+   // 2. Interior Face Integrator 
+   // -------------------------------------------------------------------------
+   void AssembleRHSElementVect(const FiniteElement &el1,
+                               const FiniteElement &el2,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override
+   {
+      const int dof1 = el1.GetDof();
+      const int dof2 = el2.GetDof();
+      const int dim = Tr.GetSpaceDim();
+      Vector v_val(dim);
+
+      shape1.SetSize(dof1);
+      shape2.SetSize(dof2);
+      elvect.SetSize(dim*(dof1 + dof2));
+      elvect = 0.0;
+
+      const int int_order = std::min(Tr.Elem1->OrderW(), Tr.Elem2->OrderW()) + 2 * std::max(el1.GetOrder(), el2.GetOrder()) ;
+      const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), int_order);
+      for (int r = 0; r < ir.GetNPoints(); r++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(r);
+         Tr.SetAllIntPoints(&ip);
+
+         el1.CalcPhysShape(*Tr.Elem1, shape1);
+         el2.CalcPhysShape(*Tr.Elem2, shape2);
+
+         const real_t u1 = q.GetValue(*Tr.Elem1, Tr.Elem1->GetIntPoint());
+         const real_t u2 = q.GetValue(*Tr.Elem2, Tr.Elem2->GetIntPoint());
+         const real_t z1 = lam.GetValue(*Tr.Elem1, Tr.Elem1->GetIntPoint());
+         const real_t z2 = lam.GetValue(*Tr.Elem2, Tr.Elem2->GetIntPoint());
+         
+
+         v_base.Eval(v_val, Tr, ip);
+
+         // Extract geometric normal vector
+         Vector nor(dim);
+         CalcOrtho(Tr.Jacobian(), nor);
+         const real_t face_weight = nor.Norml2(); 
+         nor /= face_weight; // Normalize to get true normal dot product
+         // Calculate normal velocity component
+         real_t vn = 0.0;
+         for (int i = 0; i < dim; i++)
+         {
+             vn += v_val(i) * nor(i);
+         }
+         // Nonconservative upwind logic
+         const real_t jump_u = u2 - u1;
+         const real_t z_up = (vn >= 0.0) ? z2 : z1;
+         
+         real_t d_integrand = alpha * jump_u * z_up;
+         if (vn == 0.0){d_integrand = 0.0;}
+
+         // Evaluate SIMP derivatives on both sides of the face
+         const real_t rp1 = s_cf.Eval(*Tr.Elem1, Tr.Elem1->GetIntPoint());
+         const real_t rp2 = s_cf.Eval(*Tr.Elem2, Tr.Elem2->GetIntPoint());
+
+         // Assuming the velocity coeff evaluates standard DG face averaging {v}
+         const real_t w_D1 = 0.5 * rp1 * ip.weight * face_weight * d_integrand;
+         const real_t w_D2 = 0.5 * rp2 * ip.weight * face_weight * d_integrand;
+
+         for (int k = 0; k < dim; k++)
+         {
+            real_t nk = nor(k);
+            for (int i = 0; i < dof1; i++) {elvect(k*dof1 + i) += w_D1 * shape1(i) * nk;}
+            for (int i = 0; i < dof2; i++) {elvect(dim*dof1 + k*dof2 + i) += w_D2 * shape2(i) * nk;} 
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // 3. Boundary Face Integrator (Outflow/Inflow)
+   // -------------------------------------------------------------------------
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      const int dim = Tr.GetSpaceDim();
+      real_t beta = alpha/2.0;
+
+      shape.SetSize(dof);
+      elvect.SetSize(dim*dof);
+      elvect = 0.0;
+      Vector v_val(dim);
+
+      const int int_order = Tr.Elem1->OrderW() + 2 * el.GetOrder();
+      const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), int_order);
+
+      for (int r = 0; r < ir.GetNPoints(); r++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(r);
+         Tr.SetAllIntPoints(&ip);
+         el.CalcPhysShape(*Tr.Elem1, shape);
+         const real_t u1 = q.GetValue(Tr, ip);
+         const real_t lam1 = lam.GetValue(Tr, ip);
+         v_base.Eval(v_val, Tr, ip);
+         Vector nor(dim);
+         CalcOrtho(Tr.Jacobian(), nor);
+         const real_t face_weight = nor.Norml2(); 
+         real_t vn = v_val*nor;
+         const real_t rp = s_cf.Eval(*Tr.Elem1, Tr.Elem1->GetIntPoint());
+         const real_t weight = rp * ip.weight;
+         for (int k = 0; k < dim; k++)
+         {
+            real_t nk = 0.0;
+            if (vn > 0.0){nk = -0.5 * alpha * (u1) * nor(k) * lam1 + beta * (u1) * lam1 * nor(k); }
+            else if (vn < 0.0){nk = -0.5 * alpha * (u1) * lam1 * nor(k) - beta * (u1) * lam1 * nor(k); }
+            else{ nk = 0.0;}
+            for (int i = 0; i < dof; i++)
+            {
+               elvect(dof*k + i) += weight * shape(i) * nk;
+            }
+         }
+      }
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+class BdrFlowVelocityGradientLFIntegrator : public LinearFormIntegrator
+{
+private:
+   ParGridFunction &rho_tilde;
+   ParGridFunction &lam;            // The adjoint state
+   Coefficient &inflow;           // The prescribed inflow boundary data
+   VectorCoefficient &v_base;     // The unscaled base velocity field
+   real_t alpha;
+
+   Vector shape;
+   Vector v_val;
+   SIMPCoefficient SIMP_cf;
+
+public:
+   BdrFlowVelocityGradientLFIntegrator(ParGridFunction &rho_tilde_,
+                             ParGridFunction &lam_,
+                             Coefficient &inflow_,
+                             VectorCoefficient &v_base_, SIMPCoefficient SIMP_cf_,
+                             real_t alpha_ = -1.0)
+      : rho_tilde(rho_tilde_), lam(lam_), inflow(inflow_), 
+        v_base(v_base_), alpha(alpha_), SIMP_cf(SIMP_cf_){}
+
+   // Provide a no-op domain integrator implementation so this class
+   // is not abstract (we only use it for boundary face integration).
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
+   {
+      elvect.SetSize(el.GetDof());
+      elvect = 0.0;
+   }
+   // -------------------------------------------------------------------------
+   // Boundary Face Integrator (Sensitivity of linear form 'b')
+   // -------------------------------------------------------------------------
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      const int dim = Tr.GetSpaceDim();
+      real_t beta = 0.5*alpha;
+
+      shape.SetSize(dof);
+      elvect.SetSize(dim*dof);
+      elvect = 0.0;
+      v_val.SetSize(dim);
+
+      // Integration rule order
+      // const int int_order = 2 * el.GetOrder(); 
+      const int int_order = Tr.Elem1->OrderW() + 2*el.GetOrder();
+      const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), int_order);
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetAllIntPoints(&ip);
+         const IntegrationPoint &eip = Tr.GetElement1IntPoint();
+         el.CalcShape(eip, shape);
+
+         // Evaluate the adjoint state (z) and prescribed inflow at the boundary
+         const real_t z_val = lam.GetValue(*Tr.Elem1, Tr.Elem1->GetIntPoint());
+         const real_t u_in = inflow.Eval(Tr, ip);
+
+         // Evaluate the unscaled velocity vector
+         v_base.Eval(v_val, *Tr.Elem1, eip);
+
+         // Calculate and normalize the geometric normal vector
+         Vector nor(dim);
+         CalcOrtho(Tr.Jacobian(), nor);
+
+         // Compute normal velocity component (v_base \cdot n)
+         real_t vn = 0.0;
+         for (int i = 0; i < dim; i++)
+         {
+             vn += v_val(i) * nor(i);
+         }
+
+         // The original integrand was: alpha * (v_n) * inflow * test_function
+        //const real_t b_integrand = 0.5 * alpha * vn * u_in * z_val + beta * alpha * fabs(vn) * u_in * z_val;
+
+         // Derivative of SIMP scaling function w.r.t rho
+         const real_t rp = SIMP_cf.Eval(*Tr.Elem1, Tr.Elem1->GetIntPoint());
+         const real_t weight = rp * ip.weight;
+
+         for (int k = 0; k < dim; k++)
+         {
+            real_t nk = 0.0;
+            if (vn  > 0.0){nk = 0.5 * alpha * nor(k) * u_in * z_val + beta * alpha * nor(k) * u_in * z_val;}
+            else if (vn < 0.0) {nk = 0.5 * alpha * nor(k) * u_in * z_val - beta * alpha * nor(k) * u_in * z_val;}
+            for (int i = 0; i < dof; i++)
+            {
+               elvect(dof*k + i) += weight * shape(i);
+            }
+         }
+      }
+   }
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 }
 #endif 

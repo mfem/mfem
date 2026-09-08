@@ -16,7 +16,7 @@ namespace mfem
 class TopOptRKIMEXSolver : public ODESolver
 {
 protected:
-    TopOptTimeDependentOperator *f;
+    MixedMultiPhysicsOperator *f;
     int num_stages;
     mfem::Array2D<real_t> A_ex; // A_ex must be num_stages+1 x num_stages + 1
     mfem::Array2D<real_t> A_imp;
@@ -35,13 +35,18 @@ protected:
     Vector y, yd, yl; // helpers
 public:
     void SetButcherTable(mfem::Array2D<real_t> &A_ex_, mfem::Array2D<real_t> &A_imp_, Vector &b_ex_, Vector &b_imp_);
-    void Init(TopOptTimeDependentOperator &f_);
+    void Init(MixedMultiPhysicsOperator &f_);
     void AdjointStep(Vector &lam, Vector &x,Vector &dJdrho_tilde, real_t &t, real_t &dt);
+    //void StateGradStep(Vector &lam, Vector &x,Vector &adj_forcing, real_t &t, real_t &dt, ParFiniteElementSpace &vfes);
     Vector ComboAdjointMult(real_t a1, real_t a2, real_t dt, Vector &x, real_t t, real_t ce, real_t ci, real_t bi);
 
     void ComputeBaseGradient(Vector &v, Vector &x_old, real_t dt,real_t t, Vector &out);
     void StageChainRule(Vector &v, Vector &x_old, int idx, real_t dt, real_t t, Vector &out);
     void DesignGradStage(Vector &v,Vector &x_old, int idx, real_t dt, real_t t, Vector &out);
+
+    // void ComputeBaseStateGradient(Vector &v, Vector &x_old, real_t dt,real_t t, Vector &out, ParFiniteElementSpace &vfes);
+    //void StageChainRuleStateGradient(Vector &v, Vector &x_old, int idx, real_t dt, real_t t, Vector &out, ParFiniteElementSpace &vfes);
+    //void StateGradStage(Vector &v,Vector &x_old, int idx, real_t dt, real_t t, Vector &out, ParFiniteElementSpace &vfes);
 
     void ComputeAdjointStage(Vector &v, int idx, real_t dt, real_t t, Vector &out);
 
@@ -133,6 +138,62 @@ void TopOptRKIMEXSolver::DesignGradStage(Vector &v, Vector &x_old, int idx, real
    }
 }
 
+// void TopOptRKIMEXSolver::ComputeBaseStateGradient(Vector &v, Vector &x_old, real_t dt, real_t t, Vector &out, ParFiniteElementSpace &vfes)
+// {
+//    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+//    f->SetTime(t + c_ex(0)*dt);
+//    f->ExplicitMultCoupledStateGradient(dt*A_ex(1,0), v, x_old, out, vfes);
+//    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+//    f->SetTime(t + c_imp(1)*dt);
+//    f->ImplicitSolveCoupledStateGradient(dt, dt*A_imp(1,1), v, x_old, out, vfes);
+//    f->SetTime(t);
+// }
+
+// void TopOptRKIMEXSolver::StageChainRuleStateGradient(Vector &v, Vector &x_old, int idx, real_t dt, real_t t, Vector &out, ParFiniteElementSpace &vfes)
+// {
+//    Vector yy(x_old.Size());
+//    for(int jj = 0; jj < idx; jj++)
+//    {
+//       yy = x_old;
+//       for (int ii = 0; ii < jj; ii++)
+//       {
+//          yy.Add(dt*A_ex(jj, ii), ks_ex[ii]);
+//          yy.Add(dt*A_imp(jj, ii+1), ks_imp[ii]); 
+//       }
+//       f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+//       f->SetTime(t + c_ex(jj)*dt); 
+//       f->ExplicitMultCoupledStateGradient(dt*A_ex(idx,jj), v, yy, out, vfes);
+//       f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+//       f->SetTime(t + c_imp(jj+1)*dt);
+//       f->ImplicitSolveCoupledStateGradient(dt, dt*A_imp(idx,jj+1), v, yy, out, vfes);
+//       f->SetTime(t);
+//    }
+// }
+
+// void TopOptRKIMEXSolver::StateGradStage(Vector &v, Vector &x_old, int idx, real_t dt, real_t t, Vector &out, ParFiniteElementSpace &vfes)
+// {
+//    if (idx == 1)
+//    {
+//       ComputeBaseStateGradient(v, x_old, dt, t, out, vfes);
+//    }
+//    else
+//    {
+//       Vector vv(v.Size());
+//       Vector psum(out.Size());
+//       for (int jj = idx-1; jj > 0; jj--)
+//       {
+//          psum = 0.0;
+//          vv = ComboAdjointMult(A_ex(idx, jj)*dt, A_imp(idx, jj+1)*dt, dt, v, t, c_ex(jj), c_imp(jj+1), b_imp(idx+1));
+//          StateGradStage(vv,x_old, jj, dt,t, psum, vfes);
+//          out.Add(1.0, psum);
+//       }
+//       psum = 0.0;
+//       StageChainRuleStateGradient(v, x_old, idx, dt, t, psum, vfes);
+//       out.Add(1.0, psum);
+//    }
+// }
+
+
 void TopOptRKIMEXSolver::ComputeAdjointStage(Vector &v, int idx, real_t dt, real_t t, Vector &out)
 {
    if (idx == 1)
@@ -147,7 +208,7 @@ void TopOptRKIMEXSolver::ComputeAdjointStage(Vector &v, int idx, real_t dt, real
       for (int jj = idx-1; jj > 0; jj--)
       {
          psum = 0.0;
-         vv = ComboAdjointMult(A_ex(idx, jj)*dt, A_imp(idx, jj+1)*dt, dt, v, t, c_ex(jj), c_imp(jj+1), b_imp(1));
+         vv = ComboAdjointMult(A_ex(idx, jj)*dt, A_imp(idx, jj+1)*dt, dt, v, t, c_ex(jj), c_imp(jj+1), b_imp(1)); 
          ComputeAdjointStage(vv, jj, dt,t, psum);
          out.Add(1.0, psum);
       }
@@ -162,7 +223,7 @@ void TopOptRKIMEXSolver::ComputeAdjointStage(Vector &v, int idx, real_t dt, real
 
 
 
-void TopOptRKIMEXSolver::Init(TopOptTimeDependentOperator &f_)
+void TopOptRKIMEXSolver::Init(MixedMultiPhysicsOperator &f_)
 {
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
@@ -324,6 +385,118 @@ void TopOptRKIMEXSolver::AdjointStep(Vector &lam, Vector &x, Vector &dJdrho_tild
     lks_imp.clear();
     t += dt;
 }
+
+// void TopOptRKIMEXSolver::StateGradStep(Vector &lam, Vector &x, Vector &adj_forcing, real_t &t, real_t &dt, ParFiniteElementSpace &vfes)
+// {
+
+//     // adjoint computation 
+//     f->SetTime(t);
+//     Vector x_old = x;
+//     Vector y = x_old; 
+//     Vector y_adj(y.Size());
+//     y_adj = lam;
+//     f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+//     Vector imp_l(lam.Size());
+//     Vector exp_l(lam.Size());
+//     Vector lam_old = lam;
+//     f->AdjointMult(lam_old, exp_l);
+//     lks_ex.push_back(exp_l);
+
+//     // state 
+//     f->Mult(x, k);
+//     ks_ex.push_back(k);
+//     x.Add(dt*b_ex(0), ks_ex[0]);
+ 
+//     f->SetTime(t+c_imp(0)*dt);
+//     f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+//     f->ImplicitSolve(dt, x_old, k);
+//     ks_imp.push_back(k);
+//     f->SetTime(t);
+
+//     // adj forcing
+//     Vector exp_grad_placeholder(adj_forcing.Size());
+//     Vector imp_grad_placeholder(adj_forcing.Size());
+//     imp_grad_placeholder = 0.0;
+//     exp_grad_placeholder = 0.0;
+//     f->ExplicitMultCoupledStateGradient(1.0, lam_old, x_old, exp_grad_placeholder, vfes);
+//     adj_forcing.Add(dt*b_ex(0), exp_grad_placeholder);
+//     if(Mpi::Root()){std::cout<<"stokes forcing adjoint norm = " << adj_forcing.Norml2() << std::endl;}
+
+//     f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+//     f->SetTime(t + c_imp(1)*dt);
+//     f->AdjointImplicitSolve(dt, lam_old, imp_l);
+//     f->SetTime(t);
+//     lks_imp.push_back(imp_l);
+
+    
+//     lam.Add(dt*b_ex(0), exp_l);
+//     for (int stage = 0; stage < num_stages; stage++)
+//     {
+//       y = x_old;
+//       // y_adj = lam_old;
+//       for (int ii = 0; ii <= stage; ii++)
+//       {
+//          y.Add(dt*A_ex(stage+1, ii), ks_ex[ii]);
+//          y.Add(dt*A_imp(stage+1, ii+1), ks_imp[ii]); 
+//          // y_adj.Add(dt*A_ex(stage+1, ii), lks_ex[ii]);
+//          // y_adj.Add(dt*A_imp(stage+1, ii+1), lks_imp[ii]); 
+//       }
+
+//       exp_grad_placeholder = 0.0;
+//       imp_grad_placeholder = 0.0;
+
+//       //gradient 
+//       // first term, grad wrt operator
+//       f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+//       f->SetTime(t + c_ex(stage+1)*dt);
+//       f->ExplicitMultCoupledStateGradient(1.0, lam_old, y, exp_grad_placeholder, vfes);
+//       f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+//       f->SetTime(t + c_imp(stage+1)*dt);
+//       f->ImplicitSolveCoupledStateGradient(dt, 1.0, lam_old, y, imp_grad_placeholder, vfes);
+//       f->SetTime(t);
+//       adj_forcing.Add(dt*b_ex(stage+1), exp_grad_placeholder);
+//       adj_forcing.Add(dt*b_imp(stage+1), imp_grad_placeholder);
+//       if(Mpi::Root()){std::cout<<"stokes forcing adjoint norm = " << adj_forcing.Norml2() << std::endl;}
+
+//       exp_grad_placeholder = 0.0;
+//       imp_grad_placeholder = 0.0;
+
+//       // Second term, grad wrt stage
+//       StateGradStage(exp_l, x_old, stage+1, dt, t, exp_grad_placeholder, vfes);
+//       StateGradStage(imp_l, x_old, stage+1, dt, t, imp_grad_placeholder, vfes);
+//       adj_forcing.Add(dt*b_ex(stage+1), exp_grad_placeholder);
+//       adj_forcing.Add(dt*b_imp(stage+1), imp_grad_placeholder);
+//       if(Mpi::Root()){std::cout<<"stokes forcing adjoint norm = " << adj_forcing.Norml2() << std::endl;}
+
+//       // adjoint
+//       y_adj = 0.0;
+//       ComputeAdjointStage(exp_l, stage+1, dt, t, y_adj);
+//       lam.Add(dt*b_ex(stage+1), y_adj);
+//       y_adj = 0.0;
+//       ComputeAdjointStage(imp_l, stage+1, dt, t, y_adj);
+//       lam.Add(dt*b_imp(stage+1), y_adj);
+//       y_adj = 0.0;
+
+//       // state
+//       f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+//       f->SetTime(t + c_imp(stage+1)*dt);
+//       f->ImplicitSolve(dt, y, k);
+//       ks_imp.push_back(k);
+//       // y.Add(dt*A_imp(stage, stage), ks_imp[stage]);
+//       f->SetTime(t + c_ex(stage+1)*dt);
+//       f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+//       f->Mult(y, k);
+//       ks_ex.push_back(k);
+//       x.Add(dt*b_ex(stage+1), ks_ex[stage+1]);
+//       x.Add(dt*b_imp(stage+1), ks_imp[stage+1]);
+//       f->SetTime(t);
+//     }
+//     ks_ex.clear();
+//     ks_imp.clear();
+//     lks_ex.clear();
+//     lks_imp.clear();
+//     //t += dt;
+// }
 
 class TopOptRKIMEX_1_1_1 : public TopOptRKIMEXSolver
 {

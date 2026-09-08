@@ -10,9 +10,18 @@
 #include "ObjFunc.hpp"     // TimeIntegratedObjective (J, dJ/du)
 #include "HeatTransferLinForms.hpp"
 #include "../../pde_filter.hpp"
+#include "diffusion_mass_solver.hpp"
+#include "diffusion_mass_solver.cpp"
 
 namespace mfem
 {
+
+static int GlobalMax(MPI_Comm comm, int value)
+{
+   int global = 0;
+   MPI_Allreduce(&value, &global, 1, MPI_INT, MPI_MAX, comm);
+   return global;
+}
 
 // =============================================================================
 // FORWARD TRAJECTORY STORAGE
@@ -155,7 +164,9 @@ class TopOptTimeDependentOperator : public TimeDependentOperator
    virtual void AdjointMult(const Vector &lam, Vector &lam_rhs) const = 0;
    virtual void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) = 0;  
    virtual void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) = 0;
-   virtual void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) = 0; 
+   virtual void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) = 0;
+   virtual void ExplicitMultCoupledStateGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdu, ParFiniteElementSpace &vfes) = 0;
+   virtual void ImplicitSolveCoupledStateGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdu, ParFiniteElementSpace &vfes) = 0;  
 };
 
 TopOptTimeDependentOperator::TopOptTimeDependentOperator(int n) : TimeDependentOperator(n)
@@ -176,7 +187,6 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
     ParFiniteElementSpace *fespace;
     ParFiniteElementSpace *filter_fes;
     ParBilinearForm *M, *K, *S, *A; 
-    mutable ParBilinearForm *Kd;
     std::unique_ptr<HypreParMatrix> M_mat, S_mat, K_mat;
     mutable ParLinearForm *b;
     mutable std::unique_ptr<HypreParVector> b_vec;
@@ -221,6 +231,12 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
     mutable Vector z;
     mutable Vector w;
     int problem_type;
+    
+
+
+
+
+
 
     public:
     IMEXAdvectionDiffusionSolver(ParFiniteElementSpace &fes, 
@@ -258,6 +274,8 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
     void JacobianMult1Transpose(const Vector &lam, Vector &lam_rhs) const;
     void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) override;
     void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) override; 
+    void ExplicitMultCoupledStateGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdu, ParFiniteElementSpace &vfes) override;
+    void ImplicitSolveCoupledStateGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdu, ParFiniteElementSpace &vfes) override; 
     void AdjointImplicitSolve2(const real_t dt, const Vector &lam, Vector &k);
     void Mult(const Vector &x, Vector &y) const override
     {
@@ -546,11 +564,11 @@ void IMEXAdvectionDiffusionSolver::InitializeFlowProblem()
 
     // Form the DG Conevection Matrix
     constexpr real_t alpha = -1.0;
-    //ScalarVectorProductCoefficient velocity_cf(SIMP_cf, v_base);  
+    ScalarVectorProductCoefficient velocity_cf(SIMP_cf, v_base);   
     K = new ParBilinearForm(fespace);
-    K->AddDomainIntegrator(new ConvectionIntegrator(v_base, alpha));
-    K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(v_base, alpha));                                                       
-    K->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(v_base, alpha), inflow_bdr_attr);
+    K->AddDomainIntegrator(new ConvectionIntegrator(velocity_cf, alpha));
+    K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha));                                                       
+    K->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha), inflow_bdr_attr);
     
     // Form DG Stiffness Matrix
     ProductCoefficient diff_cf(raw_diff_term, SIMP_cf);
@@ -577,7 +595,7 @@ void IMEXAdvectionDiffusionSolver::InitializeFlowProblem()
 
 
     b = new ParLinearForm(fespace);
-    b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(raw_inflow, v_base, alpha), inflow_bdr_attr);
+    b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(raw_inflow, velocity_cf, alpha), inflow_bdr_attr);
     b->Assemble();
     b_vec.reset(b->ParallelAssemble());
 
@@ -614,14 +632,14 @@ void IMEXAdvectionDiffusionSolver::Mult1(const Vector &x, Vector &y) const
    z += *b_vec;
    M_solver->Mult(z, y);
 
-   raw_inflow.SetTime(t);
-   GridFunctionCoefficient rho_til_cf(&rho_tilde);
-   ProductCoefficient inflow(rho_til_cf, raw_inflow);
-   //b->Update();
-   b = new ParLinearForm(fespace);
-   b->AddDomainIntegrator(new DomainLFIntegrator(inflow));
-   b->Assemble();
-   b_vec.reset(b->ParallelAssemble());
+   // raw_inflow.SetTime(t);
+   // GridFunctionCoefficient rho_til_cf(&rho_tilde);
+   // ProductCoefficient inflow(rho_til_cf, raw_inflow);
+   // //b->Update();
+   // b = new ParLinearForm(fespace);
+   // b->AddDomainIntegrator(new DomainLFIntegrator(inflow));
+   // b->Assemble();
+   // b_vec.reset(b->ParallelAssemble());
 }
 
 void IMEXAdvectionDiffusionSolver::ImplicitSolve2(const real_t dt_pass, const Vector &x, Vector &k)
@@ -690,6 +708,21 @@ void IMEXAdvectionDiffusionSolver::ImplicitSolveDesignGradient(const real_t dt_p
    else{MFEM_ABORT("Unknown Problem Type (Design Gradient): " << problem_type);}
 }
 
+void IMEXAdvectionDiffusionSolver::ImplicitSolveCoupledStateGradient(const real_t dt_pass, const real_t a,Vector &dual_vector, Vector &x, Vector &dfdu, ParFiniteElementSpace &vfes)
+{
+   MFEM_VERIFY(implicit_solver != NULL, "Implicit time integration is not supported with partial assembly");
+   implicit_solver->SetTimeStep(dt);
+   if (problem_type == 1)
+   {
+      //dfdrho_tilde = 0.0; 
+      // No dependence on rho, do nothing.
+   }
+   else if (problem_type == 2)
+   { 
+      // no dependence on u, do nothing
+   }
+   else{MFEM_ABORT("Unknown Problem Type (Design Gradient): " << problem_type);}
+}
 
 
 void IMEXAdvectionDiffusionSolver::JacobianMult1Transpose(const Vector &lam, Vector &lam_rhs) const
@@ -753,227 +786,673 @@ void IMEXAdvectionDiffusionSolver::ExplicitMultDesignGradient(const real_t dt_pa
    else{MFEM_ABORT("Unknown Problem Type (Design Gradient): " << problem_type);}
 }
 
-// // =============================================================================
-// // IMEX ODESolvers for Design Opt
-// // =============================================================================
-// // Note, Time dependent operator f must have adjointmult
+void IMEXAdvectionDiffusionSolver::ExplicitMultCoupledStateGradient(const real_t dt_pass, Vector &dual_vector, Vector &x, Vector &dgdu, ParFiniteElementSpace &vfes)
+{
+   // Update the design gradient
+   M_solver->Mult(dual_vector, w);
+   // Vector q_vec = trajectory->Get(current_step-1);
+   // std::cout<<"current step = "<<current_step << std::endl;
+   // Vector wf(filter_fes->GetTrueVSize()), qf(filter_fes->GetTrueVSize());
+   // Mixed_Mass_mat->Mult(w, wf);
+   // Mixed_Mass_mat->Mult(q_vec, qf);
 
-// class TopOptIMEXSolver : public ODESolver
-// {
-// protected:
-//    IMEXAdvectionDiffusionSolver *f;
-// public:
-//    virtual void Init(IMEXAdvectionDiffusionSolver &f_) = 0;
-//    virtual void AdjointStep(Vector &lam, real_t &t, real_t &dt, Vector &x) = 0;
-//    virtual void Step(Vector &x, real_t &t, real_t &dt) = 0;
-//    // virtual ~TopOptIMEXSolver();
-// };
+   ParGridFunction lam_gf(fespace);
+   lam_gf.SetFromTrueDofs(w);
+   ParGridFunction qq_gf(fespace);
+   qq_gf.SetFromTrueDofs(x);
+   rho_tilde.ExchangeFaceNbrData();
+   lam_gf.ExchangeFaceNbrData();
+   qq_gf.ExchangeFaceNbrData();
 
-// void TopOptIMEXSolver::Init(IMEXAdvectionDiffusionSolver &f_)
-// {
-//    this->f = &f_;
-//    mem_type = GetMemoryType(f_.GetMemoryClass());
-// }
+   if (problem_type == 1)
+   {
 
-
-// class TopOptIMEXExpImplEuler : public TopOptIMEXSolver
-// {
-// private:
-//    Vector k1; Vector k2;
-// public:
-//    void Init(IMEXAdvectionDiffusionSolver &f_) override;
-
-//    void Step(Vector &x, real_t &t, real_t &dt) override;
-
-//    void AdjointStep(Vector &lam, real_t &t, real_t &dt, Vector &x) override;
-// };
-
-// void TopOptIMEXExpImplEuler::Init(IMEXAdvectionDiffusionSolver &f_)
-// {
-//    TopOptIMEXSolver::Init(f_);
-//    int n = f->Width();
-//    k1.SetSize(n, mem_type);
-//    k2.SetSize(n, mem_type);
-// }
-
-// void TopOptIMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
-// {
-//    f->SetTime(t);
-//    f->Mult(x, k1);
-
-//    f->SetTime(t+dt);
-//    f->ImplicitSolve(dt, x, k2);
-
-//    f->SetTime(t);
-//    x.Add(dt, k1);
-//    x.Add(dt, k2);
-//    t += dt;
-// }
-
-// void TopOptIMEXExpImplEuler::AdjointStep(Vector &lam, real_t &t, real_t &dt, Vector &x)
-// {
-//    f->SetTime(t);
-//    f->AdjointMult(lam, k1, x);
-
-//    f->SetTime(t+dt);
-//    f->AdjointImplicitSolve(dt, lam, x, k2);
-
-//    f->SetTime(t);
-//    lam.Add(dt, k1);
-//    lam.Add(dt, k2);
-//    t += dt;
-// }
-
-// /// Second order, two-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
-// /** L-stable IMEX RK2 method adopted from "On the Stability of IMEX Upwind gSBP
-//     Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb. Same
-//     as (2,2,2) from "Implicit-explicit Runge-Kutta methods for time-dependent
-//     partial differential equations" by Ascher, Ruuth and Spiteri, Applied
-//     Numerical Mathematics (1997). */
-// class TopOptIMEXRK2 : public TopOptIMEXSolver
-// {
-// private:
-//    Vector k1_exp; Vector k2_exp; Vector k_imp;
-//    //helper vector
-//    Vector y;
-// public:
-//    void Init(IMEXAdvectionDiffusionSolver &f_) override;
-
-//    void Step(Vector &x, real_t &t, real_t &dt) override;
-
-//    void AdjointStep(Vector &lam, real_t &t, real_t &dt, Vector &x) override;
-// };
-
-// void TopOptIMEXRK2::Init(IMEXAdvectionDiffusionSolver &f_)
-// {
-//    TopOptIMEXSolver::Init(f_);
-//    int n = f->Width();
-//    k1_exp.SetSize(n, mem_type);
-//    k2_exp.SetSize(n, mem_type);
-//    k_imp.SetSize(n, mem_type);
-//    y.SetSize(n, mem_type);
-// }
-
-// void TopOptIMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
-// {
-//    double gamma = 1 - sqrt(2)/2;
-//    double delta = 1 - 1/(2*gamma);
-
-//    f->SetTime(t);
-
-//    //K1 exp is just f_1(t, x)
-//    f->Mult(x, k1_exp);
-
-//    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
-//    f->SetTime(t + gamma*dt);
-//    add(x, dt*gamma, k1_exp, y);
-//    f->Mult(y, k2_exp);
-
-//    //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
-//    f->ImplicitSolve(dt*gamma, x, k_imp);
-//    //reuse k_imp to avoid extra vector
-
-//    //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
-//    f -> SetTime(t + dt);
-//    //add(x, dt*(1-gamma), k2_imp, z);
-//    //optimization to avoid extra vector
-//    x.Add(dt*(1-gamma), k_imp);
-//    //f->ImplicitSolve(dt*gamma, z, k3_imp);
-//    //reuse k_imp to avoid extra vector
-//    f->ImplicitSolve(dt*gamma, x, k_imp);
-
-//    //add it all up
-//    f->SetTime(t);
-//    x.Add(dt*delta, k1_exp);
-//    x.Add(dt*(1-delta), k2_exp);
-//    //x.Add(dt*(1-gamma), k2_imp); it is already added to x above
-//    x.Add(dt*gamma, k_imp);
-//    t += dt;
-// }
-
-// void TopOptIMEXRK2::AdjointStep(Vector &lam, real_t &t, real_t &dt, Vector &x)
-// {
-//    double gamma = 1 - sqrt(2)/2;
-//    double delta = 1 - 1/(2*gamma);
-//    int n = lam.Size();
-
-//    f->SetTime(t);
-
-//    Vector x1(n), x2(n), x3(n), ys(n), yi(n), x4(n);
-//    f->Mult(x, x1);
-
-//    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
-//    f->SetTime(t + gamma*dt);
-//    add(x, dt*gamma, k1_exp, ys);
-//    f->UpdateDt(gamma*dt);
-//    f->Mult(ys, x2);
-//    f->UpdateDt(dt);
-
-//    //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
-//    f->ImplicitSolve(dt*gamma, x, x3);
-//    //reuse k_imp to avoid extra vector
-
-//    //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
-//    f -> SetTime(t + dt);
-//    //add(x, dt*(1-gamma), k2_imp, z);
-//    //optimization to avoid extra vector
-//    add(x, dt*(1-gamma), x3, yi);
-//    //f->ImplicitSolve(dt*gamma, z, k3_imp);
-//    //reuse k_imp to avoid extra vector
-//    f->ImplicitSolve(dt*gamma, yi, x4);
-
-//    /////////////////////////////
-
-//    //K1 exp is just f_1(t, x)
-//    f->UpdateDt(delta*dt);
-//    f->AdjointMult(lam, k1_exp, x);
-
-//    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
-//    f->SetTime(t + gamma*dt);
-//    add(lam, dt*gamma, k1_exp, y);
-//    f->UpdateDt((1-delta)*dt);
-//    f->AdjointMult(y, k2_exp, x);
-//    // f->UpdateDt(dt);
-
-//    //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
-//    f->UpdateDt((1-gamma)*dt);
-//    f->AdjointImplicitSolve(dt*gamma, lam, x, k_imp);
-//    //reuse k_imp to avoid extra vector
-
-//    //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
-//    f -> SetTime(t + dt);
-//    //add(x, dt*(1-gamma), k2_imp, z);
-//    //optimization to avoid extra vector
-//    lam.Add(dt*(1-gamma), k_imp);
-//    //f->ImplicitSolve(dt*gamma, z, k3_imp);
-//    //reuse k_imp to avoid extra vector
-//    f->UpdateDt(gamma*dt);
-//    f->AdjointImplicitSolve(dt*(gamma), lam, yi, k_imp);
-//    f->UpdateDt(dt);
-
-//    f->SetTime(t);
-
-//    //add it all up
-//    lam.Add(dt*delta, k1_exp);
-//    lam.Add(dt*(1.0-delta), k2_exp);
-//    //x.Add(dt*(1-gamma), k2_imp); it is already added to x above
-//    lam.Add(dt*gamma, k_imp);
-//    t += dt;
-// }
-
-
-
-// std::unique_ptr<TopOptIMEXSolver> SelectDesignOptIMEX(const int ode_solver_type)
-// {
-//    using ode_ptr = std::unique_ptr<TopOptIMEXSolver>;
-//    switch (ode_solver_type)
-//    {
-//       // L-stable IMEX methods for design opt
-//       case 1: return ode_ptr(new TopOptIMEXExpImplEuler);
-//       case 2: return ode_ptr(new TopOptIMEXRK2);
-
-//       default: MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
-//    }
-// }
+   }
+   else if (problem_type == 2)
+   {
+      ParLinearForm adv_lf(&vfes);
+      if(Mpi::Root()){std::cout<<"adv lf norm pre = " << adv_lf.Norml2() << std::endl;}
+      if(Mpi::Root()){std::cout<<"pre lin form q = " << qq_gf.Norml2() << std::endl;}
+      if(Mpi::Root()){std::cout<<"pre lin form l = " << lam_gf.Norml2() << std::endl;}
+      adv_lf.AddDomainIntegrator(new StokesVelocityGradientLFIntegrator(rho_tilde, qq_gf, lam_gf, SIMP_cf, v_base));
+      if(Mpi::Root()){std::cout<<"adv lf norm pre = " << adv_lf.Norml2() << std::endl;}
+      adv_lf.AddBdrFaceIntegrator(new StokesVelocityGradientLFIntegrator(rho_tilde, qq_gf, lam_gf, SIMP_cf, v_base), inflow_bdr_attr);
+      if(Mpi::Root()){std::cout<<"adv lf norm pre = " << adv_lf.Norml2() << std::endl;}
+      adv_lf.AddInteriorFaceIntegrator(new StokesVelocityGradientLFIntegrator(rho_tilde, qq_gf, lam_gf, SIMP_cf, v_base));
+      adv_lf.Assemble();
+      if(Mpi::Root()){std::cout<<"adv lf norm post = " << adv_lf.Norml2() << std::endl;}
+      std::unique_ptr<HypreParVector> adv_vec(adv_lf.ParallelAssemble());
+      if(Mpi::Root()){std::cout<<"adv portion = " << adv_vec->Norml2() << std::endl;}
+      // for(int idx = 0; idx < adv_vec->Size(); idx++)
+      // {
+      //    if(Mpi::Root()){std::cout<<"idx = " << idx << ", adv_vec val = " << (*adv_vec)(idx) << std::endl;}
+      // }
+      dgdu.Add(-dt_pass, *adv_vec);
+      //design_gradient.Add(-dt, *adv_vec);
+      ParLinearForm bdr_flow_lf(&vfes);
+      bdr_flow_lf.AddBdrFaceIntegrator(new BdrFlowVelocityGradientLFIntegrator(rho_tilde, lam_gf, raw_inflow, v_base, SIMP_cf), inflow_bdr_attr);
+      bdr_flow_lf.Assemble();
+      std::unique_ptr<HypreParVector> bdr_flow_vec(bdr_flow_lf.ParallelAssemble());
+      if(Mpi::Root()){std::cout<<"inflow portion = " << bdr_flow_vec->Norml2() << std::endl;}
+      dgdu.Add(dt_pass, *bdr_flow_vec);
+      //design_gradient.Add(dt, *bdr_flow_vec);
+   }
+   else{MFEM_ABORT("Unknown Problem Type (Design Gradient): " << problem_type);} 
 }
+
+class TopOptSteadyStateOperator : public Operator
+{
+   public:
+   TopOptSteadyStateOperator(int n);
+   TopOptSteadyStateOperator(int h, int w);
+   virtual void AdjointSolve(Vector &lam_rhs_update) = 0;
+   virtual void AddDesignGradient(Vector &dgdrho_tilde, real_t dt) = 0; 
+};
+
+TopOptSteadyStateOperator::TopOptSteadyStateOperator(int n) : Operator(n)
+{}
+
+TopOptSteadyStateOperator::TopOptSteadyStateOperator(int h, int w) : Operator(h, w)
+{}
+
+class TopOptSteadyStateStokesSolver : public TopOptSteadyStateOperator
+{
+   protected:
+   ParFiniteElementSpace *V_fes;
+   ParFiniteElementSpace *P_fes;
+   ParFiniteElementSpace *filter_fes;
+   BrinkmanCoefficient brinkman_cf;
+   bool pa;
+   BrinkmanStokesSolver *brinkman_stokes_solver;
+   ConstantCoefficient viscosity_cf;
+
+   ParGridFunction brinkman_gf;
+   mutable ParGridFunction u_gf, p_gf;
+   mutable ParGridFunction v_gf, ap_gf;
+   mutable ParGridFunction q_gf, l_gf;
+
+   BlockVector x, rhs, trueX, trueRhs;
+
+   Array<int> inlet_bdr;
+   Array<int> noslip_bdr;
+   Array<int> all_ess_bdr;
+   int max_attr;
+
+   mutable ParGridFunction rho_tilde;
+
+   // misc
+   MPI_Comm comm;
+
+   // PDE Coefficients
+   mutable VectorFunctionCoefficient inlet_cf;
+
+   public:
+   TopOptSteadyStateStokesSolver(ParFiniteElementSpace &V_fes,
+   ParFiniteElementSpace &P_fes,
+   ParFiniteElementSpace &filter_fes,
+   Array<int> &inlet_bdr,
+   Array<int> &noslip_bdr,
+   Array<int> &all_ess_bdr,
+   ParGridFunction &rho_tilde,
+   BrinkmanCoefficient &brinkman_cf,
+   ConstantCoefficient &viscosity_cf,
+   VectorFunctionCoefficient &inlet_cf,
+   bool pa,
+   MPI_Comm comm);
+
+   void SetQ(ParGridFunction &q) {q_gf = q;}
+   void SetLam(ParGridFunction &l) {l_gf = l;}
+
+   virtual ~TopOptSteadyStateStokesSolver()
+   {
+      delete brinkman_stokes_solver;
+    }
+
+   ParGridFunction GetU(){return u_gf;}
+
+   void SolveStokes();
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      brinkman_stokes_solver->Mult(x,y);
+   }
+
+   void AdjointSolve(Vector &lam_rhs_update) override
+   {
+      // //trueX = 0.0;
+      // // BlockVector adjRhs = trueRhs;
+      // // adjRhs.GetBlock(0).Add(1.0, lam_rhs_update);
+      // VectorConstantCoefficient adj_rhs(lam_rhs_update);
+      // for (int attr = 1; attr <= max_attr; attr++)
+      // {
+      //    brinkman_stokes_solver->Acceleration().Add(attr, adj_rhs);
+      // }
+      // brinkman_stokes_solver->Solve(x);
+      // v_gf.SetFromTrueDofs(x.GetBlock(0));
+      // ap_gf.SetFromTrueDofs(x.GetBlock(0));
+      std::cout << "to be implemented " << std::endl;
+   }
+
+   void AddDesignGradient(Vector &dgdrho_tilde, real_t dt)
+   {
+      ParLinearForm mass_b_lf(filter_fes);
+      mass_b_lf.AddDomainIntegrator(new StokesMassBrinkmanDesignLFIntegrator(rho_tilde, u_gf, v_gf, brinkman_cf));
+      mass_b_lf.Assemble();
+      std::unique_ptr<HypreParVector> mass_b_vec(mass_b_lf.ParallelAssemble());
+      dgdrho_tilde.Add(dt, *mass_b_vec);
+   }
+};
+
+TopOptSteadyStateStokesSolver::TopOptSteadyStateStokesSolver(ParFiniteElementSpace &V_fes_,
+   ParFiniteElementSpace &P_fes_,
+   ParFiniteElementSpace &filter_fes_,
+   Array<int> &inlet_bdr_,
+   Array<int> &noslip_bdr_,
+   Array<int> &all_ess_bdr_,
+   ParGridFunction &rho_tilde_,
+   BrinkmanCoefficient &brinkman_cf_,
+   ConstantCoefficient &viscosity_cf_,
+   VectorFunctionCoefficient &inlet_cf_,
+   bool pa_,
+   MPI_Comm comm_)
+   : TopOptSteadyStateOperator(V_fes_.GlobalTrueVSize() + P_fes_.GlobalTrueVSize()),
+   V_fes(&V_fes_),
+   P_fes(&P_fes_),
+   filter_fes(&filter_fes_),
+   inlet_bdr(inlet_bdr_),
+   noslip_bdr(noslip_bdr_),
+   all_ess_bdr(all_ess_bdr_),
+   rho_tilde(rho_tilde_),
+   brinkman_cf(brinkman_cf_),
+   viscosity_cf(viscosity_cf_),
+   inlet_cf(inlet_cf_),
+   u_gf(&V_fes_),
+   p_gf(&P_fes_),
+   v_gf(&V_fes_),
+   ap_gf(&P_fes_),
+   brinkman_gf(&filter_fes_),
+   pa(pa_),
+   comm(comm_)
+   {
+      max_attr = GlobalMax(V_fes->GetParMesh()->GetComm(),
+                                  V_fes->GetParMesh()->attributes.Size()
+                                  ? V_fes->GetParMesh()->attributes.Max() : 0);
+      int dim = V_fes -> GetVDim();
+      int order_v = V_fes -> GetElementOrder(0);
+      int order_p = P_fes -> GetElementOrder(0);
+
+      rho_tilde.ExchangeFaceNbrData();
+      brinkman_gf.ProjectCoefficient(brinkman_cf);
+
+      brinkman_stokes_solver = new BrinkmanStokesSolver(*V_fes, *P_fes);
+      brinkman_stokes_solver->SetSolverType(StokesSolver::KrylovSolver::GMRES);
+      brinkman_stokes_solver->SetVelocityPreconditionerType(StokesSolver::VelocityPreconditioner::AMG);
+      brinkman_stokes_solver->SetPressurePreconditionerType(StokesSolver::PressurePreconditioner::CAHOUET_CHABARD);
+      brinkman_stokes_solver->SetCCDiffusionSolverType(StokesSolver::CCDiffusionSolver::GMRES);
+      brinkman_stokes_solver->SetLSCVelocityOperatorType(StokesSolver::LSCVelocityOperator::ASSEMBLED);
+      brinkman_stokes_solver->SetLSCDiagonalOperatorType(StokesSolver::LSCDiagonalOperator::MATCH_VELOCITY);
+      brinkman_stokes_solver->SetLSCQPreconditionerType(StokesSolver::LSCQPreconditioner::OPERATOR_JACOBI);
+      brinkman_stokes_solver->SetRelTol(1e-10);
+      brinkman_stokes_solver->SetAbsTol(0.0);
+      brinkman_stokes_solver->SetMaxIter(500);
+      brinkman_stokes_solver->SetVelocityAMGElasticityNearNullspace(false);
+      brinkman_stokes_solver->SetVelocityPreconditionerCGRelTol(1.0e-8); 
+      brinkman_stokes_solver->SetVelocityPreconditionerCGAbsTol(0.0);
+      brinkman_stokes_solver->SetVelocityPreconditionerCGMaxIter(100);
+      brinkman_stokes_solver->SetPressurePreconditionerCGRelTol(1e-8);
+      brinkman_stokes_solver->SetPressurePreconditionerCGAbsTol(0.0);
+      brinkman_stokes_solver->SetPressurePreconditionerCGMaxIter(100);
+      brinkman_stokes_solver->SetKDim(50);
+      brinkman_stokes_solver->SetPrintLevel(-1);
+
+      brinkman_stokes_solver->SetViscosity(viscosity_cf);
+      brinkman_stokes_solver->SetBrinkmanPenalization(brinkman_gf);
+
+      for (int attr = 1; attr <= all_ess_bdr.Size(); attr++)
+      {
+         if (all_ess_bdr[attr-1] == 1){brinkman_stokes_solver->VelocityBoundary().Add(attr, inlet_cf);}
+      }
+
+      // Vector zero(dim);
+      // zero = 0.0;
+
+      // VectorConstantCoefficient accel(zero);
+      // for (int attr = 1; attr <= max_attr; attr++)
+      // {
+      //    std::cout << "....or accel" << std::endl;
+      //    brinkman_stokes_solver->Acceleration().Add(attr, accel);
+      // }
+      std::cout << "done" << std::endl;
+   }
+
+   void TopOptSteadyStateStokesSolver::SolveStokes()
+   {
+      x.Update(brinkman_stokes_solver->GetBlockOffsets());
+      brinkman_stokes_solver->Solve(x);
+      u_gf.SetFromTrueDofs(x.GetBlock(0));
+      p_gf.SetFromTrueDofs(x.GetBlock(1));
+      std::cout <<  std::setprecision(14) << "velocity norm = " << u_gf.Norml2() << ", pressure norm = " << p_gf.Norml2() << std::endl;
+   }
+
+
+
+
+/**   Abstract Class for MixedMultiPhysics Operators. Assumed to be a time dependent operator, but it is possible to implement with static problems.
+ *    Class is designed to incorporate IMEX Time-stepping, although other time integration schemes are possible. 
+ *    
+ *    Designed to be used for Topology Optimization, which is the purpose of the ExplicitMultDesignGradient and ImplicitSolveDesignGradient methods.
+ *
+ *    Note that Mult and ImplicitSolve are inherited from TimeDependentOperator, and must be implemented in derived classes of MixedMultiPhysicsOperator.
+*/
+class MixedMultiPhysicsOperator : public TimeDependentOperator
+{
+   protected:
+   int num_constraints; // Essentially, the number of PDEs in the mixed-multiphysics system.
+   MPI_Comm comm;
+   int current_step;
+   real_t dt;
+   real_t t_final;
+   ForwardTrajectoryStorage trajectory; //Storage for the State Trajectory
+   int n_steps;
+
+   public:
+   MixedMultiPhysicsOperator(int n, int num_constraints, MPI_Comm &comm, real_t dt, real_t t_final);
+
+   // This is where you initialize the operators, bilinear forms, solvers, etc.
+   virtual void InitializeOperators(ParGridFunction &new_rho_til) = 0;
+
+   // Perform computation of the explicit portion of the adjoint equation. 
+   virtual void AdjointMult(const Vector &lam, Vector &lam_rhs) const = 0;
+
+   // Perform computation of the implicit portion of the adjoint equation. 
+   virtual void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) = 0;
+   
+   // Perform computation of the design gradient of explicit portion. 
+   virtual void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) = 0;
+
+   // Perform computation of the design gradient of implicit portion. 
+   virtual void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) = 0;
+
+   // Return the state.
+   virtual void GetState(Vector &state_vec) = 0;
+
+   // return the current step index.
+   int GetStep(){return current_step;}
+
+   // Set the current time-step.
+   void SetStep(int new_step){current_step = new_step;}
+
+   // Store the current state
+   void StoreTraj(int step, Vector &state_vec){trajectory.Store(step, state_vec);}
+
+   // Get the Trajectory at a given time-step
+   void GetTraj(int step, Vector &state_vec) {state_vec = trajectory.Get(step);}
+
+   // Update Dt in case of variable time-stepping
+   void UpdateDt(real_t dt_real)   
+   {
+      MPI_Bcast(&dt_real, 1, MPI_DOUBLE, 0, comm);
+      dt = dt_real;
+   }
+};
+
+MixedMultiPhysicsOperator::MixedMultiPhysicsOperator(int n, 
+   int num_constraints_, 
+   MPI_Comm &comm_, 
+   real_t dt_,
+   real_t t_final_) 
+   : TimeDependentOperator(n), 
+   dt(dt_),
+   num_constraints(num_constraints_),
+   comm(comm_),
+   current_step(0),
+   trajectory((int)ceil(t_final_ / dt_)),
+   t_final(t_final_)
+{
+   n_steps = (int)ceil(t_final_ / dt_);
+}
+
+/**  "Mixed Multi-Physics" Operator where the only operation is Advection-Diffusion.
+ *    Spatial Discretization is Interior Penalty DG. Designed to be used in conjunction with 
+ *    the IMEX-RK schemes implemented in TopOptIMEXIntegrators.hpp. The advection term is treated explicitly, and diffusion implicit.
+*/
+class AdvectionDiffusionMixedMultiPhysicsOperator : public MixedMultiPhysicsOperator
+{
+   protected:
+   // Finite Element Spaces, Operators, and Solvers
+   ParFiniteElementSpace *fespace;
+   ParFiniteElementSpace *filter_fes;
+   ParBilinearForm *M, *K, *S, *A; 
+   std::unique_ptr<HypreParMatrix> M_mat, S_mat, K_mat;
+   mutable ParLinearForm *b;
+   mutable std::unique_ptr<HypreParVector> b_vec;
+   Solver *M_prec;
+   CGSolver *M_solver;
+   Implicit_Solver *implicit_solver;
+   LORSolver<HypreBoomerAMG>* lor_solver;
+   real_t kappa;
+
+   // Solution Storage
+   GridFunctionCoefficient q0; 
+   mutable ParGridFunction q_gf;
+
+   // Boundary Stuff
+   Array<int> ess_bdr_attr;
+   Array<int> ess_tdof_list;
+   mutable Array<int> inflow_bdr_attr;
+
+   // Design Optimization
+   mutable ParGridFunction* rho_tilde;
+   SIMPCoefficient SIMP_cf;
+
+   // PDE Coefficients
+   real_t raw_diff_term;
+   mutable VectorFunctionCoefficient v_base;
+   mutable FunctionCoefficient raw_inflow;
+   real_t dt_diff_term;
+   
+   // misc
+   int true_size;
+
+   // Helpers
+   mutable Vector z;
+   mutable Vector w;
+
+   public:
+   AdvectionDiffusionMixedMultiPhysicsOperator(ParFiniteElementSpace &fes,  
+      VectorFunctionCoefficient &v_base, 
+      real_t &dt_diff_term, 
+      real_t &raw_diff_term,  
+      GridFunctionCoefficient &q0, 
+      ParGridFunction * rho_tilde, 
+      real_t dt, 
+      real_t t_final, 
+      SIMPCoefficient SIMP_cf, 
+      FunctionCoefficient raw_inflow,
+      Array<int> inflow_bdr_attr,
+      MPI_Comm &comm);
+
+   void UpdateGridFuncWithStateVec(Vector &state_vec){q_gf.SetFromTrueDofs(state_vec);}
+
+   /**
+    * Set the essential boundary conditions. Maybe be non-homogenous.
+    */
+   void SetEssentialBoundaryConditions(Array<int> ess_bdr_attr_);
+   /**
+    * Set the inflow boundary.
+    */
+   void SetInflowBoundaryConditions(Array<int> inflow_bdr_attr_, FunctionCoefficient &inflow_cf);
+
+
+   // Return the state vector  corresponding to the true dofs
+   void GetState(Vector &state_vec) override;
+   void InitializeOperators(ParGridFunction &new_rho_til) override; 
+   void Mult(const Vector &x, Vector &y) const override;
+   void ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k) override;
+   void AdjointMult(const Vector &lam, Vector &lam_rhs) const override;
+   void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) override;
+   void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) override;
+   void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) override;
+   ParGridFunction& GetQ(){return q_gf;}
+   
+
+   virtual ~AdvectionDiffusionMixedMultiPhysicsOperator()
+   {
+      delete implicit_solver;
+      delete lor_solver;
+      delete M_prec;
+      delete M_solver;
+      //delete trajectory;
+      delete M;
+      delete K;
+      delete S;
+      delete A;
+      delete b;
+      //delete b_vec;
+   }
+};
+
+AdvectionDiffusionMixedMultiPhysicsOperator::AdvectionDiffusionMixedMultiPhysicsOperator(ParFiniteElementSpace &fes_,  
+   VectorFunctionCoefficient &v_base_, 
+   real_t &dt_diff_term_, 
+   real_t &raw_diff_term_,  
+   GridFunctionCoefficient &q0_, 
+   ParGridFunction * rho_tilde_, 
+   real_t dt_, 
+   real_t t_final_, 
+   SIMPCoefficient SIMP_cf_, 
+   FunctionCoefficient raw_inflow_,
+   Array<int> inflow_bdr_attr_,
+   MPI_Comm &comm_) :
+   MixedMultiPhysicsOperator(fes_.GetTrueVSize(), 1, comm_, dt_, t_final_),
+   fespace(&fes_),
+   v_base(v_base_),
+   dt_diff_term(dt_diff_term_),
+   raw_diff_term(raw_diff_term_),
+   q0(q0_),
+   rho_tilde(rho_tilde_),
+   SIMP_cf(SIMP_cf_),
+   raw_inflow(raw_inflow_),
+   inflow_bdr_attr(inflow_bdr_attr_),
+   z(fes_.GetTrueVSize()), 
+   w(fes_.GetTrueVSize())
+{
+   int order = fespace->GetOrder(0);
+   kappa = (order + 1)*(order + 1);
+   rho_tilde->ExchangeFaceNbrData();
+   t = 0.0;
+
+   q_gf.SetSpace(fespace);
+   q_gf.ProjectCoefficient(q0);
+   q_gf.ExchangeFaceNbrData();
+
+   filter_fes = rho_tilde->ParFESpace();
+
+   int n_steps = (int)ceil(t_final / dt);
+   //trajectory = new ForwardTrajectoryStorage(n_steps);
+   trajectory.EnableStorage();
+   Vector q_vec = q_gf;
+   trajectory.Store(0, q_vec);  
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::SetEssentialBoundaryConditions(Array<int> ess_bdr_attr_)
+{
+   ess_bdr_attr = ess_bdr_attr_;
+   fespace->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);  
+   fespace->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list); 
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::SetInflowBoundaryConditions(Array<int> inflow_bdr_attr_, 
+   FunctionCoefficient &inflow_cf)
+{
+   inflow_bdr_attr = inflow_bdr_attr_; 
+   raw_inflow = inflow_cf;
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::GetState(Vector &state_vec)
+{
+   state_vec = *(q_gf.GetTrueDofs());
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::InitializeOperators(ParGridFunction &new_rho_til)
+{
+   *rho_tilde = new_rho_til;
+   // Boundary Conditions   
+   if (ess_bdr_attr.Size() == 0)
+   {
+     ess_bdr_attr.SetSize(fespace->GetParMesh()->bdr_attributes.Max());   
+     ess_bdr_attr = 0;   
+     fespace->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);  
+     fespace->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);  
+   } 
+   if (inflow_bdr_attr.Size() == 0)
+   {
+     inflow_bdr_attr.SetSize(fespace->GetParMesh()->bdr_attributes.Max()); 
+     inflow_bdr_attr = 0;
+     inflow_bdr_attr[1] = 1;    
+   }
+   const real_t sigma = -1.0;
+   M = new ParBilinearForm(fespace);
+   M->AddDomainIntegrator(new MassIntegrator());
+   // Form the DG Conevection Matrix
+   constexpr real_t alpha = -1.0;
+   ScalarVectorProductCoefficient velocity_cf(SIMP_cf, v_base);   
+   K = new ParBilinearForm(fespace);
+   K->AddDomainIntegrator(new ConvectionIntegrator(velocity_cf, alpha));
+   K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha));                                   
+   K->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha), inflow_bdr_attr);
+   
+   // Form DG Stiffness Matrix
+   ProductCoefficient diff_cf(raw_diff_term, SIMP_cf);
+   S = new ParBilinearForm(fespace);
+   S->AddDomainIntegrator(new DiffusionIntegrator(diff_cf));
+   S->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_cf, sigma, kappa));
+
+   // For the preconditioner - create billinear form corresponding to
+   // operator (M + dt S)
+   ProductCoefficient dt_diff_cf(dt_diff_term, SIMP_cf); 
+   A = new ParBilinearForm(fespace);
+   A->AddDomainIntegrator(new MassIntegrator);
+   A->AddDomainIntegrator(new DiffusionIntegrator(dt_diff_cf));
+   A->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_cf, sigma, kappa));
+   
+   M->Assemble();
+   K->Assemble();
+   S->Assemble();
+   A->Assemble();
+   M->Finalize();
+   K->Finalize();
+   S->Finalize();
+   A->Finalize();
+   
+   b = new ParLinearForm(fespace);
+   b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(raw_inflow, velocity_cf, alpha), inflow_bdr_attr);
+   b->Assemble();
+   b_vec.reset(b->ParallelAssemble());
+   
+   //  A->Reset(A->ParallelAssemble(), true);
+   M_mat.reset(M->ParallelAssemble());
+   S_mat.reset(S->ParallelAssemble());
+   K_mat.reset(K->ParallelAssemble());
+   HypreSmoother *hypre_prec = new HypreSmoother(*M_mat, HypreSmoother::Jacobi);
+   M_prec = hypre_prec;
+   implicit_solver = new Implicit_Solver(*M_mat, *S_mat, *fespace, dt, comm);
+   lor_solver = new LORSolver<HypreBoomerAMG>(*A, ess_tdof_list);
+   lor_solver->GetSolver().SetSystemsOptions(fespace->GetVDim(), true);
+   lor_solver->GetSolver().SetPrintLevel(-1);
+   implicit_solver -> SetPreconditioner(*lor_solver);
+   
+   M_solver = new CGSolver(comm);
+   M_solver->SetOperator(*M_mat);
+   M_solver->SetPreconditioner(*M_prec);
+   M_solver->iterative_mode = false;
+   M_solver->SetRelTol(1e-13);
+   M_solver->SetAbsTol(0.0);
+   M_solver->SetMaxIter(100);
+   M_solver->SetPrintLevel(0);
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::Mult(const Vector &x, Vector &y) const
+{
+   // Perform the explicit step
+   // y = M^{-1} (K x + b)
+   K_mat->Mult(x, z);
+   z += *b_vec;
+   M_solver->Mult(z, y);
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::AdjointMult(const Vector &lam, Vector &lam_rhs) const
+{
+   // Plain transpose of the forward RHS Jacobian:
+   // G(u) = M^{-1} (K u + b)
+   // lam_rhs = 0.0;
+   // Adjoint RHS evaluation for discrete adjoint 
+   // Jac(G) = M^{-1} K 
+   // Jac(G)^T = K^{T} M^{-T} 
+   z = 0.0;
+   M_solver->Mult(lam, z);
+   K_mat->MultTranspose(z, lam_rhs);
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k)
+{
+   // Perform the implicit step
+   // solve for k, k = -(M+dt S)^{-1} S x
+   MFEM_VERIFY(implicit_solver != NULL,
+               "Implicit time integration is not supported with partial assembly");
+   z = 0.0;
+   S_mat->Mult(x, z);
+   z *= -1.0;
+   implicit_solver->SetTimeStep(dt_pass);
+   implicit_solver->Mult(z, k);
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k)
+{
+   // Perform the implicit step
+   // solve for k, k = -(M+dt S)^{-1} S x
+   MFEM_VERIFY(implicit_solver != NULL,
+               "Implicit time integration is not supported with partial assembly");
+   implicit_solver->SetTimeStep(dt_pass);
+   implicit_solver->Mult(lam, z);
+   z *= -1.0;
+   S_mat->Mult(z, k);
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::ExplicitMultDesignGradient(const real_t dt_pass, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde)
+{
+   // Update the design gradient
+   // Compute w = M^{-1} lambda
+   M_solver->Mult(dual_vector, w);
+   ParGridFunction lam_gf(fespace);
+   lam_gf.SetFromTrueDofs(w);
+   // Update q_gf to be x. 
+   q_gf.SetFromTrueDofs(x);
+   rho_tilde->ExchangeFaceNbrData();
+   lam_gf.ExchangeFaceNbrData();
+   q_gf.ExchangeFaceNbrData();
+   // Gradient from the Convection term
+   ParLinearForm adv_lf(filter_fes);
+   adv_lf.AddDomainIntegrator(new DGAdvectionDesignLFIntegrator(*rho_tilde, q_gf, lam_gf, v_base, SIMP_cf));
+   adv_lf.AddBdrFaceIntegrator(new DGAdvectionDesignLFIntegrator(*rho_tilde, q_gf, lam_gf, v_base, SIMP_cf), inflow_bdr_attr);
+   adv_lf.AddInteriorFaceIntegrator(new DGAdvectionDesignLFIntegrator(*rho_tilde, q_gf, lam_gf, v_base, SIMP_cf));
+   adv_lf.Assemble();
+   std::unique_ptr<HypreParVector> adv_vec(adv_lf.ParallelAssemble());
+   dgdrho_tilde.Add(-dt_pass, *adv_vec);
+   // Gradient from the rhs
+   ParLinearForm bdr_flow_lf(filter_fes);
+   bdr_flow_lf.AddBdrFaceIntegrator(new BdrFlowDesignLFIntegrator(*rho_tilde, lam_gf, raw_inflow, v_base, SIMP_cf),inflow_bdr_attr);
+   bdr_flow_lf.Assemble();
+   std::unique_ptr<HypreParVector> bdr_flow_vec(bdr_flow_lf.ParallelAssemble());
+   dgdrho_tilde.Add(dt_pass, *bdr_flow_vec);
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a,Vector &dual_vector, Vector &x, Vector &dfdrho_tilde)
+{
+   MFEM_VERIFY(implicit_solver != NULL, "Implicit time integration is not supported with partial assembly");
+   implicit_solver->SetTimeStep(dt);
+   //lam A^{-1} dS/drho A^{-1} S q
+   Vector k_d(dual_vector.Size()); 
+   Vector y(dual_vector.Size());
+   Vector u(x.Size());
+   implicit_solver->Mult(dual_vector, w); // w = A^{-1} lam, A is self adjoint
+   M_mat->Mult(x, u);
+   implicit_solver->Mult(u, y); // y = A^{-1}S q
+   ParLinearForm stiff_lf1(filter_fes); 
+   ParGridFunction w_gf(fespace);
+   ParGridFunction y_gf(fespace);
+   w_gf.SetFromTrueDofs(w);
+   y_gf.SetFromTrueDofs(y);
+   rho_tilde->ExchangeFaceNbrData();
+   w_gf.ExchangeFaceNbrData();
+   y_gf.ExchangeFaceNbrData();
+   stiff_lf1.AddDomainIntegrator(new DGStiffnessDesignLFIntegrator(*rho_tilde, y_gf, w_gf, raw_diff_term, kappa, SIMP_cf));
+   stiff_lf1.AddInteriorFaceIntegrator(new DGStiffnessDesignLFIntegrator(*rho_tilde, y_gf, w_gf, raw_diff_term, kappa, SIMP_cf));
+   stiff_lf1.Assemble();
+   std::unique_ptr<HypreParVector> stiff_vec1(stiff_lf1.ParallelAssemble());   
+   dfdrho_tilde.Add(a, *stiff_vec1);
+}
+}
+
+
 #endif 

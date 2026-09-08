@@ -62,7 +62,7 @@ real_t simple_init_design(const Vector &x)
     return 1 - (gaussian1 + gaussian3 + gaussian4 + gaussian6);
 }
 
-void inlet_vel_func(const Vector &x, Vector &v)
+void inlet_vel_func(const Vector &x, Vector &v) 
 {
    int dim = x.Size();
    v(0) = 1.0;  
@@ -81,7 +81,7 @@ bool InitializeDesign(ParGridFunction &rho, real_t x_max, real_t y_max)
 
 real_t inflow_function(const Vector &x)      
 {
-   return 1.0;  
+   return 0.0;  
 }  
 
 // Initial condition
@@ -135,7 +135,7 @@ real_t u0_function(const Vector &x)
 //     // Injection 2
 //     // Distance from center (normalized by sigma)
 //     real_t dx2 = (x(0) - x_center2) / sigma_x;
-//     real_t dy2 = (x(1) - y_center2) / sigma_y;
+//     real_t dy2 = (x(1) - y_center2) / sigma_y; 
 //     real_t r_squared2 = dx2 * dx2 + dy2 * dy2;
 //     real_t gaussian2 = std::exp(-0.5 * r_squared2);
 
@@ -152,7 +152,7 @@ real_t u0_function(const Vector &x)
 //     real_t dy4 = (x(1) - y_center4) / sigma_y;
 //     real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
 //     real_t gaussian4 = std::exp(-0.5 * r_squared4);
-
+ 
 //         // Injection 5
 //     // Distance from center (normalized by sigma)
 //     real_t dx5 = (x(0) - x_center5) / sigma_x;
@@ -160,23 +160,23 @@ real_t u0_function(const Vector &x)
 //     real_t r_squared5 = dx5 * dx5 + dy5 * dy5;
 //     real_t gaussian5 = std::exp(-0.5 * r_squared5);
 
-//         // Injection 6
+//         // Injection 6 
 //     // Distance from center (normalized by sigma)
 //     real_t dx6 = (x(0) - x_center6) / sigma_x;
-//     real_t dy6 = (x(1) - y_center6) / sigma_y;
+//     real_t dy6 = (x(1) - y_center6) / sigma_y; 
 //     real_t r_squared6 = dx6 * dx6 + dy6 * dy6;
 //     real_t gaussian6 = std::exp(-0.5 * r_squared6);
 
-//             // Injection 7
+//             // Injection 7   
 //     // Distance from center (normalized by sigma)
 //     real_t dx7 = (x(0) - x_center7) / sigma_x;
-//     real_t dy7 = (x(1) - y_center7) / sigma_y;
-//     real_t r_squared7 = dx7 * dx7 + dy7 * dy7;
+//     real_t dy7 = (x(1) - y_center7) / sigma_y; 
+//     real_t r_squared7 = dx7 * dx7 + dy7 * dy7;  
 //     real_t gaussian7 = std::exp(-0.5 * r_squared7); 
 
 //         // Injection 8
 //     // Distance from center (normalized by sigma)
-//     real_t dx8 = (x(0) - x_center8) / sigma_x;
+//     real_t dx8 = (x(0) - x_center8) / sigma_x; 
 //     real_t dy8 = (x(1) - y_center8) / sigma_y;  
 //     real_t r_squared8 = dx8 * dx8 + dy8 * dy8;
 //     real_t gaussian8 = std::exp(-0.5 * r_squared8);
@@ -198,22 +198,23 @@ int main(int argc, char *argv[])
     int ser_ref_levels = 1;
     int par_ref_levels = 1;    
     int order = 2; 
-    real_t dynamic_viscosity = 1.0;
-    bool visualization = true;
+    real_t dynamic_viscosity = 1.0;     
+    bool visualization = true; 
     real_t t_final = 0.1;           
     real_t dt = 0.001;              
-    real_t diffusion_term = 0.01;   
+    real_t diffusion_term = 0.01;    
     int problem_type = 2; 
     int vis_steps = 1; 
+    real_t b_term = 0.0;
 
     bool pv_vis = true; 
     int ode_solver_type = 4; // 1 - Forward Backward Euler 
-    const char *device_config = "cpu";  
+    const char *device_config = "cpu";   
     OptionsParser args(argc, argv); 
     args.AddOption(&mesh_file, "-m", "--mesh",
                     "Mesh file to use."); 
     args.AddOption(&ser_ref_levels, "-rs", "--refine-serial", 
-                        "Number of times to refine the mesh uniformly in serial," 
+                        "Number of times to refine the mesh uniformly in serial,"  
                         " -1 for auto.");   
     args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",  
                         "Number of times to refine the mesh uniformly in parallel.");       
@@ -221,10 +222,10 @@ int main(int argc, char *argv[])
                         "Finite element order (polynomial degree) >= 0.");       
     args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",  
                         "--no-visualization", 
-                        "Enable or disable Visualization"); 
+                        "Enable or disable Visualization");   
     args.AddOption(&dynamic_viscosity, "-dv", "--dynamic-viscosity",
                         "Dynamic Viscosity of the Fluid.");  
-                           args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",  
+                           args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",    
                     "--no-visualization", 
                     "Enable or disable Paraview Visualization");
     args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -239,6 +240,8 @@ int main(int argc, char *argv[])
                     "Visualize every n-th timestep.");   
     args.AddOption(&problem_type, "-pt", "--problem_type",                                  
                     "Select which problem solve.");
+    args.AddOption(&b_term, "-b", "--brinkman-term",                                  
+                    "Brinkman Scaling.");
     args.AddOption(&device_config, "-d", "--device",
                     "Device configuration string, see Device::Configure().");         
     args.Parse(); 
@@ -247,7 +250,7 @@ int main(int argc, char *argv[])
     {
         if (Mpi::Root())
         {
-            args.PrintUsage(cout);    
+            args.PrintUsage(cout);       
         }
         return 1;       
     }
@@ -269,11 +272,11 @@ int main(int argc, char *argv[])
     for (int lev = 0; lev < ser_ref_levels; lev++) { mesh->UniformRefinement(); } 
     if (mesh->NURBSext)   
     {  
-        mesh->SetCurvature(max(order, 1)); 
+        mesh->SetCurvature(max(order, 1));  
     }
 
 
-    // 5. Define the parallel mesh by a partitioning of the serial mesh. Refine
+    // 5. Define the parallel mesh by a partitioning of the serial mesh. Refine 
     //    this mesh further in parallel to increase the resolution. Once the
     //    parallel mesh is defined, the serial mesh can be deleted.           
     ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
@@ -284,14 +287,14 @@ int main(int argc, char *argv[])
     }
 
     // 6. FE Collections for pressure and velocity spaces, using taylor hood elements for now
-    FiniteElementCollection *v_coll(new H1_FECollection(order, dim));
-    FiniteElementCollection *p_coll(new H1_FECollection(order-1, dim));
+    FiniteElementCollection *v_coll(new H1_FECollection(order, dim, BasisType::GaussLobatto));  
+    FiniteElementCollection *p_coll(new H1_FECollection(order-1, dim, BasisType::GaussLobatto));
 
     
-    ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, v_coll, 2);
+    ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, v_coll, 2, Ordering::byNODES);
     ParFiniteElementSpace *P_space = new ParFiniteElementSpace(pmesh, p_coll);
 
-    HYPRE_BigInt dimV = V_space->GlobalTrueVSize();
+    HYPRE_BigInt dimV = V_space->GlobalTrueVSize(); 
     HYPRE_BigInt dimP = P_space->GlobalTrueVSize();
 
     if(Mpi::Root())
@@ -300,23 +303,23 @@ int main(int argc, char *argv[])
         std::cout << "dim(V) = " << dimV << "\n";
         std::cout << "dim(P) = " << dimP << "\n";
         std::cout << "dim(V+P) = " << dimV + dimP << "\n";
-        std::cout << "***********************************************************\n";
+        std::cout << "***********************************************************\n";  
     }
 
-    H1_FECollection filter_fec(order, dim); 
+    H1_FECollection filter_fec(order, dim);  
     L2_FECollection control_fec(order-1, dim, BasisType::GaussLobatto);
     ParFiniteElementSpace filter_fes(pmesh, &filter_fec);  
     ParFiniteElementSpace control_fes(pmesh, &control_fec);  
     
-    ParGridFunction rho(&control_fes);  
-    ParGridFunction rho_tilde(&filter_fes); 
+    ParGridFunction rho(&control_fes);   
+    ParGridFunction rho_tilde(&filter_fes);  
     if (!InitializeDesign(rho, 1.0, 1.0))  
     { 
         if (myid == 0)
         {
-            cerr << "Error: unknown -init value. Use uniform, solid, void, or gaussian.\n";        
+            cerr << "Error: unknown -init value. Use uniform, solid, void, or gaussian.\n";         
         }
-        return 1;
+        return 1; 
     } 
 
     toopt::PDEFilterOptions filter_opts;
@@ -325,11 +328,11 @@ int main(int argc, char *argv[])
     filter_opts.filter_radius = 0.01; 
     toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);     
     filter.Assemble();   
-    filter.Mult(rho, rho_tilde);    
+    filter.Mult(rho, rho_tilde);     
     rho_tilde.ExchangeFaceNbrData();
 
-    BrinkmanCoefficient brink_coeff(&rho_tilde, 0.5);  
-    ProductCoefficient b_coeff(100000.0, brink_coeff);
+    BrinkmanCoefficient b_coeff(&rho_tilde, 0.5, b_term);   
+    // ProductCoefficient b_coeff(100000.0, brink_coeff);
 
 
     
@@ -361,295 +364,193 @@ int main(int argc, char *argv[])
     all_ess_bdr[3] = 1;
 
     // Set Top (Attr 3) and Bottom (Attr 1) as No-Slip
-    noslip_bdr[2] = 1;
+    noslip_bdr[2] = 1; 
     noslip_bdr[0] = 1;
     all_ess_bdr[2] = 1;
     all_ess_bdr[0] = 1;
 
 
+    FiniteElementCollection *fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, fec);                                                                
+    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize(); 
 
-    // 9. coeffs
-    ConstantCoefficient visc_coeff(dynamic_viscosity);
-    ConstantCoefficient zero(0.0);
-    ConstantCoefficient one(1.0);
-    ConstantCoefficient mone(-1.0);
-    Vector vec_one(dim);
-    vec_one = 1.0;
-    VectorConstantCoefficient vone(vec_one);
-
-    FunctionCoefficient fnatcoeff(f_natural);
-
-
-    Vector vec_zero(dim);
-    vec_zero = 0.0;
-    VectorConstantCoefficient vzero(vec_zero);
-
-    VectorFunctionCoefficient inlet_cf(dim, inlet_vel_func);
-
-    ParGridFunction u(V_space);
-    u = 0.0; // Initialize with zero
-    ParGridFunction p(P_space);
-    p = 0.0;    
-
-    // Project the respective boundary conditions
-    // u.ProjectBdrCoefficient(inlet_cf, noslip_bdr);
-    u.ProjectBdrCoefficient(inlet_cf, inlet_bdr);
-
-    // 10. Block operator
-    ParBilinearForm *a(new ParBilinearForm(V_space)); 
-    ParMixedBilinearForm *b(new ParMixedBilinearForm(V_space, P_space));
-
-
-    a->AddDomainIntegrator(new VectorMassIntegrator(b_coeff));
-    a->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
-    a->Assemble();
-    a->Finalize();
-
-
-    b->AddDomainIntegrator(new VectorDivergenceIntegrator(mone));
-    b->Assemble();
-    b->Finalize();
-
-
-    BlockOperator *BrinkStokesOp = new BlockOperator(block_trueOffsets);
-
-    Array<int> ess_tdof_slip;
-    V_space->GetEssentialTrueDofs(noslip_bdr, ess_tdof_slip, 1); 
-
-    Array<int> ess_tdof_inlet;
-    V_space->GetEssentialTrueDofs(inlet_bdr, ess_tdof_inlet, -1);
-
-    Array<int> ess_tdof_list;
-    ess_tdof_list.Append(ess_tdof_slip);
-    ess_tdof_list.Append(ess_tdof_inlet);
-
-    ess_tdof_list.Sort();
-    ess_tdof_list.Unique();
-
-    // Array<int> ess_tdof_list;
-    // V_space->GetEssentialTrueDofs(all_ess_bdr, ess_tdof_list);
-    Array<int> empty_p_tdofs;
-    
-    HypreParMatrix A;
-    HypreParMatrix B;
-
-
-    //TransposeOperator Bt;
-
-    // A = a->ParallelAssemble();
-    // B = b->ParallelAssemble();
-    // (*B) *= -1;
-    // Bt = new TransposeOperator(B);
-    // BrinkStokesOp->SetBlock(0,0, A);
-    // BrinkStokesOp->SetBlock(0,1, Bt);
-    // BrinkStokesOp->SetBlock(1,0, B);
-
-    // 11. RHS
-    MemoryType mt = device.GetMemoryType();
-    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
-    BlockVector trueX(block_trueOffsets, mt), trueRhs(block_trueOffsets, mt);
-
-    ParLinearForm *fform(new ParLinearForm);
-    fform->Update(V_space, rhs.GetBlock(0), 0);
-    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(vzero));
-    //fform->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(fnatcoeff));
-    fform->Assemble();
-    fform->SyncAliasMemory(rhs);
-    // fform->ParallelAssemble(trueRhs.GetBlock(0));
-    // trueRhs.GetBlock(0).SyncAliasMemory(trueRhs);
-
-    ParLinearForm *gform(new ParLinearForm);
-    gform->Update(P_space, rhs.GetBlock(1), 0);
-    gform->AddDomainIntegrator(new DomainLFIntegrator(zero));
-    gform->Assemble();
-    gform->SyncAliasMemory(rhs);
-    // gform->ParallelAssemble(trueRhs.GetBlock(1));
-    // trueRhs.GetBlock(1).SyncAliasMemory(trueRhs);
-
-    Vector X_v, B_v, X_p, B_p;
-
-    // Eliminate boundary DOFs from the A block (Velocity)
-    a->FormLinearSystem(ess_tdof_list, u,*fform, A, trueX.GetBlock(0), trueRhs.GetBlock(0));
-
-    // Eliminate boundary DOFs from the B block (Divergence constraint)
-    b->FormRectangularLinearSystem(ess_tdof_list, empty_p_tdofs, u, *gform, B, trueX.GetBlock(0), trueRhs.GetBlock(1));
-
-    TransposeOperator Bt(&B);
-    BrinkStokesOp->SetBlock(0,0, &A);
-    BrinkStokesOp->SetBlock(0,1, &Bt);
-    BrinkStokesOp->SetBlock(1,0, &B);
-
-
-    
-
-
-
-    // 11. Construct the operators for preconditioner
-    // HypreParMatrix *AinvBt = NULL;
-    // HypreParVector *Ad = NULL;
-    // HypreParMatrix *S = NULL; 
-    // Solver *invA, *invS;
-
-    // Ad = new HypreParVector(MPI_COMM_WORLD, A->GetGlobalNumRows(),
-    //                         A->GetRowStarts());
-    // A->GetDiag(*Ad);
-    // AinvBt = B->Transpose();
-    // AinvBt->InvScaleRows(*Ad);
-    // S = ParMult(B, AinvBt);
-    // invA = new HypreDiagScale(*A);
-    // invS = new HypreBoomerAMG(*S);
-
-    // invA->iterative_mode = false;
-    // invS->iterative_mode = false;
-
-    // BlockDiagonalPreconditioner *StokesBrinkmanPr = new BlockDiagonalPreconditioner(
-    //     block_trueOffsets);
-    // StokesBrinkmanPr->SetDiagonalBlock(0, invA);
-    // StokesBrinkmanPr->SetDiagonalBlock(1, invS);
-
-    // 12. Solve the linear system with MINRES.
-    //     Check the norm of the unpreconditioned residual.
-    int maxIter(15000);
-    real_t rtol(1.e-6);
-    real_t atol(1.e-10);
-    MINRESSolver solver(MPI_COMM_WORLD);
-    solver.SetAbsTol(atol);
-    solver.SetRelTol(rtol);
-    solver.SetMaxIter(maxIter);
-    solver.SetOperator(*BrinkStokesOp); 
-    //solver.SetPreconditioner(*StokesBrinkmanPr);
-    solver.SetPrintLevel(1);
-    trueX = 0.0;
-    solver.Mult(trueRhs, trueX);
-    if (device.IsEnabled()) { trueX.HostRead(); }
-
-    if(Mpi::Root())
-    {
-        if (solver.GetConverged())
-        {
-            std::cout << "MINRES converged in " << solver.GetNumIterations() << " iterations with a residual norm of " << solver.GetFinalNorm() << ".\n";
-        }
-        else
-        {
-            std::cout << "MINRES did not converge in " << solver.GetNumIterations() << " iterations. Residual norm is " << solver.GetFinalNorm() << ".\n";
-        }
-    }
-
-    // ParGridFunction *u(new ParGridFunction);
-    // ParGridFunction *p(new ParGridFunction);
-    u.MakeRef(V_space, x.GetBlock(0), 0);
-    p.MakeRef(P_space, x.GetBlock(1), 0);
-    u.Distribute(&(trueX.GetBlock(0)));
-    p.Distribute(&(trueX.GetBlock(1)));
-
-
-    
-   // 19. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream u_sock(vishost, visport);
-      u_sock << "parallel " << num_procs << " " << myid << "\n";
-      u_sock.precision(8);
-      u_sock << "solution\n" << *pmesh << u << "window_title 'Velocity'"
-             << endl;
-      // Make sure all ranks have sent their 'u' solution before initiating
-      // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
-      socketstream p_sock(vishost, visport);
-      p_sock << "parallel " << num_procs << " " << myid << "\n";
-      p_sock.precision(8);
-      p_sock << "solution\n" << *pmesh << p << "window_title 'Pressure'"
-             << endl;
-   }
-
-    // FiniteElementCollection *fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
-    // ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, fec);                                                                
-    // HYPRE_BigInt global_vSize = fes->GlobalTrueVSize(); 
-
-    // // 8. Boundary Conditions    
-    // // Array<int> ess_tdof_list;                              
-    // // Array<int> ess_bdr(4);   
-    // // ess_bdr = 0;   
-    // // pmesh->MarkExternalBoundaries(ess_bdr);  
-    // // fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
-    // // Array<int> inflow_bdr(4); 
-    // // inflow_bdr = 0;
-    // //inflow_bdr[1] = 1;    
+    // 8. Boundary Conditions    
+    // Array<int> ess_tdof_list;                              
+    // Array<int> ess_bdr(4);   
+    // ess_bdr = 0;   
+    // pmesh->MarkExternalBoundaries(ess_bdr);  
+    // fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
+    // Array<int> inflow_bdr(4); 
+    // inflow_bdr = 0;
+    //inflow_bdr[1] = 1;    
         
     
     
-    // // 10. Define the Coefficients  
-    // SIMPCoefficient simp_stiff(&rho_tilde, 1e-6, 1.0, 3.0);  
-    // ConstantCoefficient cons_diff_coeff(diffusion_term);  
-    // ConstantCoefficient cons_dt_diff_coeff(dt*diffusion_term);    
-    // ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
-    // ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
-    // FunctionCoefficient inflow(inflow_function);   
-    // FunctionCoefficient q0(u0_function); 
-    // VectorGridFunctionCoefficient u_cf(&u); 
-    // real_t dt_diffusion_term = dt*diffusion_term; 
+    // 10. Define the Coefficients  
+    VectorFunctionCoefficient inlet_cf(dim, inlet_vel_func); 
+    SIMPCoefficient simp_stiff(&rho_tilde, 1e-6, 1.0, 3.0);  
+    ConstantCoefficient cons_diff_coeff(diffusion_term);  
+    ConstantCoefficient cons_dt_diff_coeff(dt*diffusion_term);         
+    ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
+    ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
+    FunctionCoefficient inflow(inflow_function);   
+    FunctionCoefficient q0(u0_function); 
+    ConstantCoefficient visc_cf(dynamic_viscosity);
+    // VectorGridFunctionCoefficient u_cf(&u);  
+    real_t dt_diffusion_term = dt*diffusion_term;    
     
-    // // 11. Construct the Objective Function 
-    // RectangularIndicator indicator(0, 1, 0, 1); 
-    // ParGridFunction one_gf(fes);
-    // ConstantCoefficient one_cf(1.0);
-    // one_gf.ProjectCoefficient(one_cf);     
-    // TerminalTargetObjective obj_func(fes, indicator, one_gf, comm);           
-    // int n_steps = (int)ceil(t_final / dt);   
+    // 11. Construct the Objective Function 
+    RectangularIndicator indicator(0, 1, 0, 1); 
+    ParGridFunction one_gf(fes);
+    ConstantCoefficient one_cf(1.0);
+    one_gf.ProjectCoefficient(one_cf);     
+    TerminalTargetObjective obj_func(fes, indicator, one_gf, comm);             
+    int n_steps = (int)ceil(t_final / dt);   
+     
+    const int n = control_fes.GetTrueVSize();       
+    Vector rho_tv(n);
+    rho.GetTrueDofs(rho_tv);
+    MemoryType mt = device.GetMemoryType();
+    double worst_best_fd_rel = 0.0; 
+
+    Vector q0_vec(fes->GetTrueVSize()), h(control_fes.GetTrueVSize());
+    Vector dJ_drho(rho_tv.Size()), rho_plus(rho_tv.Size()), rho_minus(rho_tv.Size()); 
+    real_t eps = 1.0;   
+    real_t tolerance = 1e-3; 
+    int ntrials = 7;
+    int nscales = 10;   
+    for(int trial = 0; trial < ntrials; trial++)    
+    { 
+        int seed1 = 50 + 3*trial;  
+        int seed2 = 51 + 3*trial;  
+        // int seed3 = 102 + 3*trial;
+        q0_vec.Randomize(seed1);
+        h.Randomize(seed2); 
+        // h = 1.0;
+        real_t h_norm = sqrt(InnerProduct(comm, h, h));    
+        h /= h_norm; 
+        ParGridFunction q0_gf(fes); 
+        q0_gf.SetFromTrueDofs(q0_vec); 
+        GridFunctionCoefficient q0_cf; 
+        q0_cf.SetGridFunction(&q0_gf); 
+        DesignSolverWithStokes design_solver(*fes,                
+            filter_fes,  
+            control_fes, 
+            *V_space,
+            *P_space, 
+            filter, 
+            obj_func,
+            diffusion_term, 
+            dt_diffusion_term,
+            inflow, 
+            q0_cf, 
+            n_steps, 
+            dt, 
+            t_final, 
+            rho, rho_tilde, 
+            simp_stiff, 
+            inlet_bdr,
+            noslip_bdr, 
+            all_ess_bdr,
+            b_coeff,
+            visc_cf,
+            inlet_cf,
+            ode_solver_type, 
+            vis_steps, problem_type, comm, false);
+
+        design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
+        const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
+        design_solver.PhysicsASolve();                      // adjoint physics: -> dJ/drho_tilde 
+        design_solver.FilterASolve(dJ_drho);
+        
+        const real_t projected_grad = InnerProduct(comm, h, dJ_drho);     
+        real_t gradnorm = sqrt(InnerProduct(comm, dJ_drho, dJ_drho));  
+
+        if (Mpi::Root())
+        {
+            mfem::out << "\nDesign Taylor trial " << trial   
+                    << ": J0=" << setprecision(16) << J0 
+                    << ", <dJ/drho,p>=" << projected_grad    
+                    << ", ||dJ/drho||="<< gradnorm << '\n';   
+        }
     
-    // const int n = control_fes.GetTrueVSize();      
-    // Vector rho_tv(n);
-    // rho.GetTrueDofs(rho_tv);
 
-    // Vector dJ_drho(rho_tv.Size());
-    // ParGridFunction q0_gf(fes); 
-    // q0_gf.ProjectCoefficient(q0);
-    // GridFunctionCoefficient q0_cf; 
-    // q0_cf.SetGridFunction(&q0_gf);
-    // DesignSolver design_solver(*fes,               
-    //     filter_fes,  
-    //     control_fes, 
-    //     filter, 
-    //     obj_func,
-    //     u_cf, 
-    //     diffusion_term, 
-    //     dt_diffusion_term,
-    //     inflow, 
-    //     q0_cf, 
-    //     n_steps, 
-    //     dt, 
-    //     t_final, 
-    //     rho, rho_tilde, 
-    //     simp_stiff, ode_solver_type, 
-    //     vis_steps, problem_type, comm);
-    // design_solver.SetInflowBdr(inlet_bdr); 
-    // design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
-    // const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
+        real_t scale = 1.0;  
+        double previous_remainder = -1.0;  
+        double trial_best_fd_rel = numeric_limits<double>::infinity();      
+        bool trial_has_quadratic_drop = false;  
+    
+        for (int s = 0; s < nscales; s++)  
+        { 
+            rho_plus = rho_tv; 
+            rho_minus = rho_tv;  
+            rho_plus.Add(scale, h); 
+            rho_minus.Add(-scale, h);
 
-    ParaViewDataCollection paraview_dc("density", pmesh); 
-    if (pv_vis) {
-        paraview_dc.SetPrefixPath("ParaView"); 
-        paraview_dc.SetLevelsOfDetail(order);
-        paraview_dc.SetDataFormat(VTKFormat::BINARY);
-        paraview_dc.SetHighOrderOutput(true);
-        paraview_dc.RegisterField("density", &rho);
-        paraview_dc.RegisterField("rho_filter", &rho_tilde); 
-        paraview_dc.SetCycle(0);
-        paraview_dc.SetTime(0.0);
-        paraview_dc.Save();
+
+
+            design_solver.FilterFSolve(rho_plus);                // forward filter:  rho -> rho_tilde
+            const real_t Jp = design_solver.PhysicsFSolve();  // forward physics: -> J
+
+            design_solver.FilterFSolve(rho_minus);              // forward filter:  rho -> rho_tilde
+            const real_t Jm = design_solver.PhysicsFSolve(); // forward physics: -> J 
+     
+            const real_t fd = (Jp - Jm) / (2.0 * scale);        
+    
+            const double derivative_scale = max(max(fabs(static_cast<double>(fd)), fabs(static_cast<double>(projected_grad))), 1e-30);
+            const double fd_rel = fabs(static_cast<double>(fd - projected_grad))
+                                / derivative_scale;  
+            const double fd_abs = fabs(static_cast<double>(fd - projected_grad));      
+            trial_best_fd_rel = min(trial_best_fd_rel, fd_rel);  
+
+            const real_t first_order_remainder = 
+                fabs(Jp - J0 - scale * projected_grad); 
+            const double remainder_ratio = 
+                (previous_remainder > 0.0) ?   
+                previous_remainder / first_order_remainder : 0.0;       
+
+            if (Mpi::Root())
+            {
+                mfem::out << "  scale=" << scientific << setprecision(3) << scale
+                        << "  FD=" << setprecision(12) << fd
+                        << "  Jp= " << Jp
+                        << "  Jm= " << Jm 
+                        << "  rel_err=" << fd_rel
+                        << "  abs_err=" << fd_abs
+                        << "  first_order_rem=" << first_order_remainder;
+                if (previous_remainder > 0.0)
+                {
+                mfem::out << "  rem_ratio=" << remainder_ratio;
+                }
+                mfem::out << '\n';
+            }
+            if (previous_remainder > 0.0 && remainder_ratio > 50.0) 
+            {
+                trial_has_quadratic_drop = true;
+            }
+            previous_remainder = first_order_remainder;   
+            scale *= 0.1; 
+        }
+        worst_best_fd_rel = max(worst_best_fd_rel, trial_best_fd_rel);     
+        if(Mpi::Root())  
+        {
+            MFEM_VERIFY(trial_best_fd_rel < tolerance,
+                    "Raw design Taylor check did not find an accurate scale.");
+            MFEM_VERIFY(trial_has_quadratic_drop,
+                    "Raw design Taylor check did not show quadratic remainder decay.");    
+        }
     }
+ 
 
 
-
+ 
     // Free the used memory.  
     // delete pd;
-    delete fform;
-    delete gform;
-    // delete u;
-    // delete p;
-    delete BrinkStokesOp;
+    // delete fform;
+    // delete gform;
+    // // delete u;
+    // // delete p;
+    // delete BrinkStokesOp;
     // delete StokesBrinkmanPr;
     // delete invA;
     // delete invS;
@@ -659,12 +560,12 @@ int main(int argc, char *argv[])
     // delete Bt;
     // delete B;
     // delete A;
-    delete a;
-    delete b;
+    // delete a;
+    // delete b;
     delete P_space;
-    delete V_space;
+    delete V_space;   
     delete p_coll;
-    delete v_coll;
+    delete v_coll; 
     delete pmesh;
     // delete fes;  
     // //delete pmesh;

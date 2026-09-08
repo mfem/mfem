@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    // 1. Initialize MPI and HYPRE.
    Mpi::Init();  
    int num_procs = Mpi::WorldSize();   
-   const MPI_Comm comm = MPI_COMM_WORLD;     
+   MPI_Comm comm = MPI_COMM_WORLD;     
    int myid = Mpi::WorldRank();                  
    Hypre::Init();  
 
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
    args.AddOption(&mesh_file, "-m", "--mesh",
                    "Mesh file to use."); 
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial", 
-                    "Number of times to refine the mesh uniformly in serial," 
+                    "Number of times to refine the mesh uniformly in serial,"   
                     " -1 for auto.");   
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",  
                     "Number of times to refine the mesh uniformly in parallel.");       
@@ -223,22 +223,34 @@ int main(int argc, char *argv[])
       q0_gf.SetFromTrueDofs(q0_vec); 
       GridFunctionCoefficient q0_cf; 
       q0_cf.SetGridFunction(&q0_gf);
+
+      int max_bdr = pmesh->bdr_attributes.Max();
+      Array<int> inlet_bdr(max_bdr);    inlet_bdr = 0;
+      inlet_bdr[3] = 1;
+
+      std::unique_ptr<MixedMultiPhysicsOperator> oper = std::make_unique<AdvectionDiffusionMixedMultiPhysicsOperator>(*fes, raw_velocity,
+      dt_diffusion_term, 
+      diffusion_term,
+      q0_cf,
+      &rho_tilde,
+      dt, 
+      t_final, 
+      simp_stiff,
+      inflow, inlet_bdr,
+      comm);
+
       DesignSolver design_solver(*fes,               
          filter_fes,  
          control_fes, 
+         oper,
          filter, 
          obj_func,
-         raw_velocity, 
-         diffusion_term, 
-         dt_diffusion_term,
-         inflow, 
          q0_cf, 
          n_steps, 
          dt, 
          t_final, 
-         rho, rho_tilde, 
-         simp_stiff, ode_solver_type, 
-         vis_steps, problem_type, comm); 
+         rho, rho_tilde, ode_solver_type, 
+         vis_steps, comm); 
 
       design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
       const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
@@ -246,12 +258,12 @@ int main(int argc, char *argv[])
       design_solver.FilterASolve(dJ_drho);
       
       const real_t projected_grad = InnerProduct(comm, h, dJ_drho);     
-      real_t gradnorm = sqrt(InnerProduct(comm, dJ_drho, dJ_drho));  
+      real_t gradnorm = sqrt(InnerProduct(comm, dJ_drho, dJ_drho));   
 
       if (Mpi::Root())
       {
          mfem::out << "\nDesign Taylor trial " << trial   
-                   << ": J0=" << setprecision(16) << J0 
+                   << ": J0=" << setprecision(16) << J0  
                    << ", <dJ/drho,p>=" << projected_grad   
                    << ", ||dJ/drho||="<< gradnorm << '\n';   
       }
@@ -261,29 +273,27 @@ int main(int argc, char *argv[])
       double previous_remainder = -1.0;  
       double trial_best_fd_rel = numeric_limits<double>::infinity();     
       bool trial_has_quadratic_drop = false;  
-  
+   
       for (int s = 0; s < nscales; s++) 
       {
          rho_plus = rho_tv; 
          rho_minus = rho_tv;  
          rho_plus.Add(scale, h); 
-         rho_minus.Add(-scale, h);
-
-
+         rho_minus.Add(-scale, h);  
 
          design_solver.FilterFSolve(rho_plus);                // forward filter:  rho -> rho_tilde
          const real_t Jp = design_solver.PhysicsFSolve();  // forward physics: -> J
 
          design_solver.FilterFSolve(rho_minus);              // forward filter:  rho -> rho_tilde
-         const real_t Jm = design_solver.PhysicsFSolve(); // forward physics: -> J 
+         const real_t Jm = design_solver.PhysicsFSolve(); // forward physics: -> J   
  
          const real_t fd = (Jp - Jm) / (2.0 * scale);     
  
          const double derivative_scale = max(max(fabs(static_cast<double>(fd)), fabs(static_cast<double>(projected_grad))), 1e-30);
          const double fd_rel = fabs(static_cast<double>(fd - projected_grad))
-                               / derivative_scale;  
+                               / derivative_scale;   
          const double fd_abs = fabs(static_cast<double>(fd - projected_grad));     
-         trial_best_fd_rel = min(trial_best_fd_rel, fd_rel); 
+         trial_best_fd_rel = min(trial_best_fd_rel, fd_rel);     
 
          const real_t first_order_remainder = 
             fabs(Jp - J0 - scale * projected_grad); 
@@ -295,7 +305,7 @@ int main(int argc, char *argv[])
          {
             mfem::out << "  scale=" << scientific << setprecision(3) << scale
                       << "  FD=" << setprecision(12) << fd
-                      << "  Jp= " << Jp
+                      << "  Jp= " << Jp  
                       << "  Jm= " << Jm
                       << "  rel_err=" << fd_rel
                       << "  abs_err=" << fd_abs
@@ -305,8 +315,8 @@ int main(int argc, char *argv[])
                mfem::out << "  rem_ratio=" << remainder_ratio;
             }
             mfem::out << '\n';
-         }
-         if (previous_remainder > 0.0 && remainder_ratio > 50.0) 
+         }  
+         if (previous_remainder > 0.0 && remainder_ratio > 50.0)  
          {
             trial_has_quadratic_drop = true;
          }
