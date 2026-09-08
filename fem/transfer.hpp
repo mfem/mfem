@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,8 @@
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
 #endif
+
+#include <cstddef>
 
 namespace mfem
 {
@@ -162,6 +164,18 @@ public:
 };
 
 
+struct CoefficientWithOrder
+{
+   Coefficient *coeff;
+   int order;
+   CoefficientWithOrder() : coeff(nullptr), order(0) { }
+   CoefficientWithOrder(std::nullptr_t) : coeff(nullptr), order(0) { }
+   CoefficientWithOrder(Coefficient &coeff_) : coeff(&coeff_), order(1) { }
+   CoefficientWithOrder(Coefficient &coeff_, int order_)
+      : coeff(&coeff_), order(order_) { }
+   operator bool() const { return coeff != nullptr; }
+};
+
 /** @brief Transfer data in L2 and H1 finite element spaces between a coarse
     mesh and an embedded refined mesh using L2 projection. */
 /** The forward, coarse-to-fine, transfer uses L2 projection. The backward,
@@ -207,6 +221,8 @@ public:
    protected:
       const FiniteElementSpace& fes_ho;
       const FiniteElementSpace& fes_lor;
+      CoefficientWithOrder coeff_ho;
+      CoefficientWithOrder coeff_lor;
 
       MemoryType d_mt;
       Array<int> offsets;
@@ -214,7 +230,14 @@ public:
 
       L2Projection(const FiniteElementSpace& fes_ho_,
                    const FiniteElementSpace& fes_lor_,
+                   CoefficientWithOrder coeff_ho_,
+                   CoefficientWithOrder coeff_lor_,
                    MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      L2Projection(const FiniteElementSpace& fes_ho_,
+                   const FiniteElementSpace& fes_lor_,
+                   MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2Projection(fes_ho_, fes_lor_, nullptr, nullptr, d_mt_) { }
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
@@ -225,11 +248,11 @@ public:
                          IntegrationPointTransformation& ip_tr,
                          DenseMatrix& M_mixed_el) const;
 
-      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
-                         const FiniteElement& fe_lor,
-                         ElementTransformation* el_tr,
-                         IntegrationPointTransformation& ip_tr,
-                         DenseMatrix& B_L, DenseMatrix& B_H) const;
+      void ElemMixedEvaluation(Geometry::Type geom, const FiniteElement& fe_ho,
+                               const FiniteElement& fe_lor,
+                               IntegrationPointTransformation& ip_tr,
+                               const IntegrationRule& ir,
+                               DenseMatrix& B_L, DenseMatrix& B_H) const;
    public:
       /* Returns the Mixed Mass M_LH via device element assembly by building the
       basis functions and data at the quadrature points. */
@@ -287,8 +310,16 @@ public:
    public:
       L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
                           const FiniteElementSpace& fes_lor_,
+                          CoefficientWithOrder coeff_ho_,
+                          CoefficientWithOrder coeff_lor_,
                           const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
+                          const FiniteElementSpace& fes_lor_,
+                          const bool use_ea_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2ProjectionL2Space(fes_ho_, fes_lor_, nullptr, nullptr, use_ea_, d_mt_) { }
 
       /*Same as above but assembles and stores R_ea, P_ea */
       void EAL2ProjectionL2Space();
@@ -356,13 +387,30 @@ public:
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                           const FiniteElementSpace &fes_lor_,
+                          CoefficientWithOrder coeff_ho_,
+                          CoefficientWithOrder coeff_lor_,
                           const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
+                          const FiniteElementSpace& fes_lor_,
+                          const bool use_ea_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2ProjectionH1Space(fes_ho_, fes_lor_, nullptr, nullptr, use_ea_, d_mt_) { }
+
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                           const ParFiniteElementSpace &pfes_lor_,
+                          CoefficientWithOrder coeff_ho_,
+                          CoefficientWithOrder coeff_lor_,
                           const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      L2ProjectionH1Space(const ParFiniteElementSpace& fes_ho_,
+                          const ParFiniteElementSpace& fes_lor_,
+                          const bool use_ea_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2ProjectionH1Space(fes_ho_, fes_lor_, nullptr, nullptr, use_ea_, d_mt_) { }
 #endif
       /// Same as above but assembles action of R through 4 parts:
       ///   ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector)
@@ -508,18 +556,38 @@ public:
       virtual ~L2Prolongation() { }
    };
 
+   /// Coefficient for the mixed L2 inner product.
+   CoefficientWithOrder coeff_ho;
+   /// Coefficient for the low-order L2 inner product.
+   CoefficientWithOrder coeff_lor;
    L2Projection   *F; ///< Forward, coarse-to-fine, operator
    L2Prolongation *B; ///< Backward, fine-to-coarse, operator
    bool force_l2_space;
 
 public:
+   /// Construct the unweighted L2 projection grid transfer.
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
                             bool force_l2_space_ = false,
                             MemoryType d_mt_ = Device::GetHostMemoryType()) // move to method
       : GridTransfer(coarse_fes_, fine_fes_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)
-   { }
+        coeff_ho(nullptr), coeff_lor(nullptr), F(nullptr), B(nullptr),
+        force_l2_space(force_l2_space_) { }
+
+   /// @brief Construct the weighted L2 projection grid transfer.
+   ///
+   /// The low-order inner product is weighted by @a coeff_lor, and the mixed
+   /// inner product is weighted by @a coeff_ho.
+   L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
+                            FiniteElementSpace &fine_fes_,
+                            CoefficientWithOrder coeff_ho_,
+                            CoefficientWithOrder coeff_lor_,
+                            bool force_l2_space_ = false,
+                            MemoryType d_mt_ = Device::GetHostMemoryType()) // move to method
+      : GridTransfer(coarse_fes_, fine_fes_),
+        coeff_ho(coeff_ho_), coeff_lor(coeff_lor_), F(nullptr), B(nullptr),
+        force_l2_space(force_l2_space_) { }
+
    virtual ~L2ProjectionGridTransfer();
 
    const Operator &ForwardOperator() override;
@@ -527,6 +595,7 @@ public:
    const Operator &BackwardOperator() override;
 
    bool SupportsBackwardsOperator() const override;
+
 private:
    void BuildF();
 };

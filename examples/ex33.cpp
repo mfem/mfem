@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
 
    if (power_of_laplace > 0)
    {
-      // 10.1 Compute Stiffnes Matrix
+      // 10.1 Compute Stiffness Matrix
       BilinearForm k(&fespace);
       k.AddDomainIntegrator(new DiffusionIntegrator(one));
       k.Assemble();
