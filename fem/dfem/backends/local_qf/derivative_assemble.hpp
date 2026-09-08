@@ -414,8 +414,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
    // Slab must hold full (test_vdim, test_op_dim, nq) fhat.
    // It is allocated by the caller, and is shared by every output, so it must be
-   // Before, declaring it here allocated one slab per output and the device
-   // kernel ran out of shared memory once an integrator had more outputs.
+   // large enough to hold the fhat for all quadrature points in the element.
    static constexpr int FHAT_SLAB_MAX = MQN * 4;
 
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
@@ -1247,7 +1246,7 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    {
       MFEM_VERIFY(dim == 3, "mesh dimension " << dim << " does not match the "
                   "3D q-function signature this integrator was built from");
-      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
    }
    else
    {
@@ -1257,7 +1256,7 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
       }
       if (dim == 3)
       {
-         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3>(q1d);
+         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
       }
       MFEM_ABORT("Unsupported dimension " << dim);
       return nullptr;

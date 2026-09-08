@@ -816,7 +816,9 @@ TEST_CASE("dFEM Hessian assemble", "[Parallel][dFEM][Hessian]")
    }
    SECTION("3D")
    {
-      const int p = GENERATE(2, 8);
+      // DerivativeAssemble limits 3D HO kernels to MQ1 = 8, so p = 8
+      // (which requires q1d = 9) is intentionally unsupported here.
+      const int p = GENERATE(2, 7);
       CAPTURE(p);
       hessian_assemble<3>("../../data/inline-hex.mesh", p);
    }
