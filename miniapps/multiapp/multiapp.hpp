@@ -101,8 +101,7 @@ public:
     virtual ~AbstractTape() = default;
 };
 
-
-/// @brief Base class for providing memory and distinguishing between
+/// @brief Base class for allocating memory, copying data and distinguishing between
 /// fields variables
 class Field
 {
@@ -113,8 +112,8 @@ public:
 private:
     // TODO: Use hash map to store states with unique IDs
     inline static int next_id = 0;
-    int id = -1; // initialized to invalid id
-    AbstractTape *tape = nullptr; // Optional tape tracking this field
+    int id = -1; // Initialized to invalid id
+    AbstractTape *tape = nullptr; // Tape tracking this field (not owned)
 
 protected:
     std::string name; // Optional name for the field
@@ -149,16 +148,18 @@ public:
         id = i;
     }
 
-    /// Make allocate a copy of the state and transfer ownership.
-    virtual StateType* MakeCopy(const StateType* original) const
+    /// Make make a copy of the state
+    virtual void MakeCopy(const StateType* original, StateType* copy) const
     { MFEM_ABORT("MakeCopy is not implemented in base class."); }
 
     /// Allocate a new state with the same type as this state and transfer ownership.
     virtual StateType* MakeNew() const
     { MFEM_ABORT("MakeNew is not implemented in base class."); }
+
+    virtual ~Field() = default;
 };
 
-/// @brief Base class for storing data (Vector) and distinguishing
+/// @brief Base class for allocating memory, copying Vector data and distinguishing
 /// fields variables
 class VectorField : public Field
 {
@@ -179,20 +180,16 @@ public:
     
     VectorField(int s, int id_ = -1) : VectorField(s, MemoryType::HOST, id_) { }
 
-    /// Make allocate a new copy of the state and transfer ownership.
-    Vector* MakeCopy(const Vector* original) const override
-    {
-        return new Vector(*original);
-    }
+    /// Make a copy of the state
+    void MakeCopy(const Vector* original, Vector* copy) const override
+    { *copy = *original; }
 
     /// Allocate a new state with the same type as this state and transfer ownership.
-    Vector* MakeNew() const override
-    {
-        return new Vector(size, mt);
-    }
+    Vector* MakeNew() const override { return new Vector(size, mt); }
 };
 
 
+/// @brief Base class representing a graph operation in the computational graph.
 struct GraphOperation
 {
     using InputType = std::initializer_list<Field*>;
@@ -202,13 +199,14 @@ struct GraphOperation
     using IndexMap = GenericFieldMap<int, int>;
 
 protected:
-    Operator *op;
+    Operator *op; // Optional forward operator (not owned)
+    Operator *grad_op = nullptr; // Optional gradient operator (not owned)
 
 public:
     Array<Field*> inputs, outputs;
-    IndexMap input_index, output_index; ///< Field::ID to Array index
-    ExecuteFunc execute;
-    GradFunc grad, grad_transpose;
+    ExecuteFunc execute; // forward operation
+    GradFunc grad, grad_transpose; // gradient and grad_transpose functions
+    IndexMap input_index, output_index; ///< Field::ID to Array index (may not be needed)
 
     GraphOperation(Operator &oper, InputType in, OutputType out,
                    ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
@@ -223,16 +221,6 @@ public:
         {
             execute = [this](const MultiVector &x, MultiVector &y)
                             { op->MultMV(x, y); };
-        }
-        if(!grad)
-        {
-            grad = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                          { op->GetGradientMV(x).MultMV(dx, dy); };
-        }
-        if(!grad_transpose)
-        {
-            grad_transpose = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                    { op->GetGradientMV(x).MultTransposeMV(dx, dy); };
         }
     }
 
@@ -258,6 +246,9 @@ public:
         if (execute) { execute(x, y); }
         else { MFEM_ABORT("Execute function not defined for this GraphOperation."); }
     }
+
+    virtual void ExecuteTranspose(const MultiVector &x, MultiVector &y) const
+    { MFEM_ABORT("ExecuteTranspose function not defined for this GraphOperation."); }
 
     GraphOperation *GetGradient() const;
 
@@ -297,11 +288,14 @@ struct AbstractGraphOperation : GraphOperation
                            { }
 };
 
+/// @brief A GraphOperation that represents the gradient of another GraphOperation.
+/// Applies the Jacobian and its transpose to the input vectors.
+/// TODO: Tidy this up to handle J and J^T cleanly.
 struct GraphOperationGradient : GraphOperation
 {
-    ExecuteFunc execute_primal;
-    mutable Array<Vector*> primal;
-    mutable MultiVector pmv;
+    ExecuteFunc execute_primal, execute_transpose;
+    mutable MultiVector primal;
+    GraphOperation *primal_op = nullptr;
 
     GraphOperationGradient(GraphOperation &oper);
 
@@ -309,12 +303,11 @@ struct GraphOperationGradient : GraphOperation
 
     virtual void SetPrimal(MultiVector &x) override;
 
-    ~GraphOperationGradient()
-    {
-        primal.DeleteAll();
-        // pmv.SetNumBlocks(0);
-    }
+    void ExecuteTranspose(const MultiVector &x, MultiVector &y) const override;
+
+    ~GraphOperationGradient() { }
 };
+
 
 class GraphOperator : public Operator
 {
@@ -404,11 +397,12 @@ public:
         {
             // Default functions if not provided
             auto def_exec = execute ? execute : [this](AuxType &s, const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
-            auto def_grad = grad ? grad : [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                                { this->GradientMultMV(x, dx, dy); };
-            auto def_grad_transpose = grad_transpose ? grad_transpose :
-                                     [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                           { this->GradientMultTransposeMV(x, dx, dy); };
+            auto def_grad = grad ? grad : nullptr;
+                                        // [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                                        //       { this->GradientMultMV(x, dx, dy); };
+            auto def_grad_transpose = grad_transpose ? grad_transpose : nullptr;
+                                    //  [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                                    //        { this->GradientMultTransposeMV(x, dx, dy); };
 
             // Register the operation on the tape
             auto *op = new AbstractGraphOperation<GraphOperator, AuxType>(*this, inputs, outputs, auxiliary_data,
@@ -474,7 +468,7 @@ protected:
 
     GraphOperation* dag_op = nullptr; ///< Pointer to the operation representing the entire DAG
     mutable DualGraph *grad_dag = nullptr; ///< Gradient dag operator
-    mutable Operator *fdj_op = nullptr; ///< Finite difference jacobian operator (TODO: Remove this and use the gradient dag instead)
+    mutable Operator *fdj_op = nullptr; ///< Finite difference jacobian operator (TODO: Remove this)
 
     friend class DualGraph; ///< Allow DualGraph to access protected members
 public:
@@ -509,12 +503,19 @@ public:
 
     void ComputeDepth(bool reverse = false);
 
+    /// Allocate memory for the DAG's intermediate states and I/O fields
+    /// I/O to dag comes from the x/y in Mult(x,y), hence often don't need
+    /// to be allocated
+    void AllocateMemory(bool allocate_IO = true);
+    void ClearMemory();
+
 protected:
     // This changes intermediate state; restrict user call
     virtual void UpdateState(const MultiVector &x);
 
     // -- EXPERIMENTAL: Get state memory to copy and store primal in dual graph
-    virtual void GetState(Field &field, MultiVector &state, int igrad = 0)
+    // Get up to the @a igrad-th gradient of the state for a given field
+    virtual void GetState(Field &field, MultiVector &state, int igrad = 0) const
     {
         MFEM_ASSERT(igrad >= 0, "The ith gradient must be non-negative.");
 
@@ -535,7 +536,7 @@ protected:
         for(int i = 0; i <= igrad; ++i)
         {
             // Force storage as const to avoid accidental modification of the state memory
-            // state.MakeRef(i, std::as_const(*state_memory[idx][i]));
+            state.MakeRef(i, std::as_const(*state_memory[idx][i]));
             // Possibly allocate new and copy to avoid changing the state memory in the DAG
             // and handle the copy operation, if state is Array<Vector*> instead of MultiVector
             // state[i] = field.CreateCopy(state_memory(idx, i));
@@ -551,11 +552,10 @@ public:
         height = outoff.Last();
     }
 
+    virtual void Execute(int upto_depth = 0) const;
+
     void Mult(const Vector &x, Vector &y) const override;
     void MultMV(const MultiVector &x, MultiVector &y) const override;
-
-    void MultTranspose(const Vector &x, Vector &y) const override;
-    void MultTransposeMV(const MultiVector &x, MultiVector &y) const override;
 
     Operator& GetGradient(const Vector &x) const override;
     Operator& GetGradientMV(const MultiVector &x) const override;
@@ -581,6 +581,8 @@ public:
     DualGraph(const DAGraph &primal_dag);
     void Assemble() override;
     void UpdateState(const MultiVector &x) override;
+    void MultTranspose(const Vector &x, Vector &y) const override;
+    void MultTransposeMV(const MultiVector &x, MultiVector &y) const override;
 };
 
 } //mfem namespace

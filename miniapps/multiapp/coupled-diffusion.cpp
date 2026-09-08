@@ -74,67 +74,33 @@ public:
    }
 };
 
-
-class CoefficientIntegrator : public NonlinearFormIntegrator
+class VectorProductDerivativeCoefficient : public Coefficient
 {
 protected:
-   std::function<real_t(real_t, bool)> func;
-   Vector shape;
+   ParGridFunction &gf, &gf_dx;
+   Vector vals, dvals;
 
 public:
-   CoefficientIntegrator(std::function<real_t(real_t, bool)> func) : func(func) { }
+   VectorProductDerivativeCoefficient(ParGridFunction &gf, ParGridFunction &gf_dx) :
+                                      gf(gf), gf_dx(gf_dx) { }
 
-   void AssembleElementVector(const FiniteElement &el,
-                              ElementTransformation &Tr,
-                              const Vector &elfun, Vector &elvect)
+   real_t Eval(ElementTransformation &Tr, const IntegrationPoint &ip) override
    {
-      int dof = el.GetDof();
-      shape.SetSize(dof);
-      elvect.SetSize(dof);
-      elvect = 0.0;
-
-      const IntegrationRule *ir = &el.GetNodes();
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      gf.GetVectorValue(Tr, ip, vals);
+      gf_dx.GetVectorValue(Tr, ip, dvals);
+      real_t prod = 1.0;
+      for(int i = 0; i < vals.Size(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         Tr.SetIntPoint(&ip);
-         // el.CalcShape(ip, shape);
-         el.CalcPhysShape(Tr, shape);
-         const real_t w = Tr.Weight();
-         real_t x = elfun * shape; // Evaluate the state at the integration point
-         real_t f = func(x, true); // Evaluate the function value
-         for (int j = 0; j < dof; j++)
-         {
-            elvect(j) += f * w;
-         }
+         prod *= vals[i];
       }
-   }
-
-   void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
-                            const Vector &elfun, DenseMatrix &elmat)
-   {
-      int dof = el.GetDof();
-      shape.SetSize(dof);
-      elmat.SetSize(dof);
-      elmat = 0.0;
-
-      const IntegrationRule *ir = &el.GetNodes();
-
-      for (int i = 0; i < ir->GetNPoints(); i++)
+      real_t sum = 0.0;
+      for(int i = 0; i < vals.Size(); i++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         el.CalcShape(ip, shape);
-         Tr.SetIntPoint(&ip);
-         real_t x = elfun * shape; // Evaluate the state at the integration point
-         real_t dfdx = func(x, false); // Evaluate the derivative value
-         for (int j = 0; j < dof; j++)
-         {
-            elmat(j,j) += dfdx * shape(j); // Diagonal contribution to the Jacobian
-         }
+         sum += dvals[i] * (prod / vals[i]); 
       }
+      return sum;
    }
 };
-
 
 class NonlinearDiffusionIntegrator : public NonlinearFormIntegrator
 {
@@ -241,52 +207,58 @@ public:
 /// An application that takes an input field T, and computes an output field k(T)
 class DiffusionCoefficient : public GraphOperator
 {
+public:
+   class GradientOperator : public Operator
+   {
+   protected:
+      mutable Vector xdofs;
+      mutable ParGridFunction x_gf;
+      ParGridFunction &y_gf;
+      mutable LambdaCoefficient dk_coeff;
+
+   public:
+      GradientOperator(int sz, ParGridFunction &x, ParGridFunction &y,
+                       std::function<real_t(real_t)> func) : Operator(sz,sz),
+                       x_gf(x), y_gf(y), dk_coeff(&x_gf, func) { }
+
+      Operator &GetGradientMV(const MultiVector &x) const
+      {
+         x_gf.SetFromTrueDofs(x[0]);
+         y_gf.ProjectCoefficient(dk_coeff);
+         y_gf.GetTrueDofs(xdofs); // J = dk/dT
+         return const_cast<GradientOperator&>(*this);
+      }
+
+      void MultMV(const MultiVector &x, MultiVector &y) const override
+      { y[0] = x[0]; y[0] *= xdofs; } // y = J * x
+
+      void Mult(const Vector &x, Vector &y) const override
+      { MFEM_ABORT("Mult not implemented for GradientOperator."); }
+   };
 protected:
+
    ParFiniteElementSpace &fes;
    Array<int> in_offsets, out_offsets;
    std::function<real_t(real_t, bool)> lambda_func;
 
-   mutable ParNonlinearForm Nform;
-   mutable Operator *J = nullptr; // Jacobian for the nonlinear form
-
-   CoefficientIntegrator *coeff_integrator = nullptr;
-
-   mutable Vector dk_dofs;
-   mutable ParGridFunction T_gf;
-   mutable ParGridFunction k_gf;
-   mutable LambdaCoefficient k_coeff, dk_coeff;
+   mutable ParGridFunction T_gf, k_gf;
+   mutable LambdaCoefficient k_coeff;
+   GradientOperator gradient;
 
 public:
    DiffusionCoefficient(ParFiniteElementSpace &fes, 
                         std::function<real_t(real_t, bool)> func) :
                         GraphOperator(fes.GetTrueVSize()), fes(fes),
-                        lambda_func(func),
-                        Nform(&fes), coeff_integrator(new CoefficientIntegrator(lambda_func)),
-                        T_gf(&fes), k_gf(&fes),
+                        lambda_func(func), T_gf(&fes), k_gf(&fes),
                         k_coeff(&T_gf, [&](real_t x) { return lambda_func(x, true); }),
-                        dk_coeff(&T_gf, [&](real_t x) { return lambda_func(x, false); })
+                        gradient(fes.GetTrueVSize(), T_gf, k_gf, [&](real_t x) { return lambda_func(x, false); })
    {
-      // Testing with the nonlinear form framework to compute k(T) and dk/dT
-      Nform.AddDomainIntegrator(coeff_integrator); // Transfer ownership
-      Nform.SetGradientType(Operator::Type::Hypre_ParCSR);
-      Nform.SetEssentialTrueDofs(Array<int>()); // No essential true dofs for this operator
-      Nform.Setup();
-
       in_offsets = Array<int>({0, fes.GetTrueVSize()});
       out_offsets = Array<int>({0, fes.GetTrueVSize()});
    }
 
    void Mult(const Vector &x, Vector &y) const override
-   {
-      BlockVector xb(x.GetData(), in_offsets);
-      BlockVector yb(y.GetData(), out_offsets);
-
-      MultiVector xmv(1), ymv(1);
-      xmv.MakeRef(0, xb.GetBlock(0));
-      ymv.MakeRef(0, yb.GetBlock(0));
-
-      MultMV(xmv, ymv);
-   }
+   { MultiVector xmv(x), ymv(y); MultMV(xmv, ymv); }
 
    void MultMV(const MultiVector &x, MultiVector &y) const override
    {
@@ -296,33 +268,10 @@ public:
       T_gf.SetFromTrueDofs(tdof);
       k_gf.ProjectCoefficient(k_coeff);
       k_gf.GetTrueDofs(kdof);
-
-      if(exec_mode == GraphOperator::GRADIENT_MODE)
-      {
-         T_gf.SetFromTrueDofs(tdof);
-         k_gf.ProjectCoefficient(dk_coeff);
-         k_gf.GetTrueDofs(dk_dofs); // yadj = dk/dT * xadj
-      }
-      else
-      {
-         dk_dofs = 0.0; // Clear the derivative dofs if not in gradient mode
-      }
    }
 
-   void GradientMultMV(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
-   {
-      const Vector &tdof = x[0];
-      const Vector &xadj = dx[0];
-      Vector &yadj = dy[0];
-
-      // T_gf.SetFromTrueDofs(tdof);
-      // k_gf.ProjectCoefficient(dk_coeff);
-      // k_gf.GetTrueDofs(yadj); // yadj = dk/dT * xadj
-      // yadj *= xadj; // Element-wise multiplication for the Jacobian-vector product
-
-      yadj = xadj;
-      yadj *= dk_dofs; // Element-wise multiplication for the Jacobian-vector product
-   }
+   Operator& GetGradientMV(const MultiVector &x) const override
+   { return gradient.GetGradientMV(x); }
 
    ~DiffusionCoefficient() override
    { }
@@ -332,15 +281,55 @@ public:
 /// field prod(x) := y = prod_i x_i.
 class FieldProduct : public GraphOperator
 {
+class GradientOperator : public Operator
+{
+protected:
+   Array<int> &in_offsets, &out_offsets;
+   mutable ParGridFunction x_gf, dx_gf;
+   ParGridFunction &y_gf;
+   mutable Vector dfdx;
+   mutable VectorProductDerivativeCoefficient ddx_coeff;
+
+public:
+   GradientOperator(Array<int> &in_off, Array<int> &out_off,
+                    ParGridFunction &x, ParGridFunction &y) :
+                    Operator(out_off.Last(), in_off.Last()),
+                    in_offsets(in_off), out_offsets(out_off),
+                    x_gf(x), dx_gf(x), y_gf(y), ddx_coeff(x_gf, dx_gf)
+                    {
+                     dx_gf = 0.0;
+                     dx_gf.GetTrueDofs(dfdx);
+                    }
+
+   Operator& GetGradientMV(const MultiVector &x) const override
+   {
+      for (int i = 0; i < in_offsets.Size()-1; i++)
+      { dfdx.SetVector(x[i], in_offsets[i]); } // Set all x_i
+      x_gf.SetFromTrueDofs(dfdx);
+      return const_cast<GradientOperator&>(*this);
+   }
+   void MultMV(const MultiVector &x, MultiVector &y) const override
+   {
+      Vector &y_dof = y[0];
+      for (int i = 0; i < in_offsets.Size()-1; i++)
+      { dfdx.SetVector(x[i], in_offsets[i]); } // Set all dx_i
+      dx_gf.SetFromTrueDofs(dfdx);
+      y_gf.ProjectCoefficient(ddx_coeff); // Compute sum_i (dx_i * d(prod)/dx_i)
+      y_gf.GetTrueDofs(y_dof);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   { MFEM_ABORT("Mult is not implemented for GradientOperator."); }
+};
 protected:
    int ninputs;
    ParFiniteElementSpace *nd_fes;
    Array<int> in_offsets, out_offsets;
 
-   mutable Vector dfdx, xdof;
-   mutable ParGridFunction x_gf;
-   mutable ParGridFunction y_gf;
+   mutable Vector xdof;
+   mutable ParGridFunction x_gf, y_gf;
    mutable VectorProductCoefficient prod_coeff;
+   mutable GradientOperator *gradient;
 
 public:
    FieldProduct(ParFiniteElementSpace &fes, int n) :
@@ -360,23 +349,16 @@ public:
       y_gf.ProjectCoefficient(prod_coeff);
 
       out_offsets = Array<int>({0, fes.GetTrueVSize()});
+      gradient = new GradientOperator(in_offsets, out_offsets, x_gf, y_gf);
    }
 
    void Mult(const Vector &x, Vector &y) const override
-   {
-      BlockVector yb(y.GetData(), out_offsets);
-
-      x_gf.SetFromTrueDofs(x);
-      y_gf.ProjectCoefficient(prod_coeff);
-      y_gf.GetTrueDofs(yb.GetBlock(0));
-   }
+   { MFEM_ABORT("Mult is not implemented for FieldProduct."); }
 
    void MultMV(const MultiVector &x, MultiVector &y) const override
    {
       for (int i = 0; i < ninputs; i++)
-      {
-         xdof.SetVector(x[i], in_offsets[i]); // Set all x_i
-      }
+      { xdof.SetVector(x[i], in_offsets[i]); } // Set all x_i
 
       Vector &y_dof = y[0];
       x_gf.SetFromTrueDofs(xdof);
@@ -384,31 +366,13 @@ public:
       y_gf.GetTrueDofs(y_dof);
    }
 
-   void GradientMultMV(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
-   {
-      // Jacobian vector product for y = prod_i x_i is:
-      // dy/dx = sum_i (prod_{j!=i} x_j * dx_i/dx)
-      for (int i = 0; i < ninputs; i++)
-      {
-         xdof.SetVector(x[i], in_offsets[i]); // Set all x_i
-      }
-
-      Vector &jvp = dy[0];
-      jvp = 0.0;
-      for (int i = 0; i < ninputs; i++)
-      {
-         xdof.SetVector(dx[i], in_offsets[i]); // Set x_i = dx_i/dx for i-th term in the product
-         x_gf.SetFromTrueDofs(xdof);
-         y_gf.ProjectCoefficient(prod_coeff); // Recompute product with x_i replaced by dx_i/dx
-         y_gf.GetTrueDofs(dfdx); // Get prod_{j!=i} x_j * dx_i/dx for i-th term
-         jvp += dfdx; // Accumulate contribution from i-th term
-         xdof.SetVector(x[i], in_offsets[i]); // Reset x_i to original value
-      }
-   }
+   Operator& GetGradientMV(const MultiVector &x) const override
+   { return gradient->GetGradientMV(x); }
 
    ~FieldProduct() override
    {
       if(nd_fes) delete nd_fes;
+      if(gradient) delete gradient;
    }
 };
 
@@ -439,6 +403,7 @@ public:
    ConstantCoefficient zero_coeff, one_coeff;
 
    mutable HypreParMatrix *dfdk_mat = nullptr, *dfdT_mat = nullptr;
+   BlockOperator *gradient = nullptr;
 
 public:
 
@@ -465,6 +430,7 @@ public:
 
       in_offsets = Array<int>({0, fes.GetTrueVSize(), 2*fes.GetTrueVSize()});
       out_offsets = Array<int>({0, fes.GetTrueVSize()});
+      gradient = new BlockOperator(out_offsets, in_offsets);
    }
 
    void Assemble()
@@ -488,7 +454,6 @@ public:
       bform.Assemble();
       bform.ParallelAssemble(b);
       b.SetSubVector(ess_tdofs, 0.0);
-      // b.Neg(); // f(T) = -Div(k grad(T)) + b
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -512,62 +477,32 @@ public:
 
       k.SetFromTrueDofs(kdofs); // update for use in k_gfc
       Nform.Mult(tdofs, fdofs);
-      // fdofs.Neg();
-      // fdofs -= b; // Add the source term
       fdofs += b; // Add the source term
       fdofs.SetSubVector(ess_tdofs, 0.0);
-
-      if(exec_mode == GraphOperator::GRADIENT_MODE)
-      {
-         if(dfdT_mat) delete dfdT_mat;
-         if(dfdk_mat) delete dfdk_mat;
-
-         dk = 0.0;
-         k.SetFromTrueDofs(kdofs);
-         Operator* grad = &Nform.GetGradient(tdofs);
-         dfdT_mat = new HypreParMatrix(dynamic_cast<const HypreParMatrix&>(*grad)); // deep copy
-
-         dk = 1.0;
-         k  = 0.0;
-         grad = &Nform.GetGradient(tdofs);
-         dfdk_mat = new HypreParMatrix(dynamic_cast<const HypreParMatrix&>(*grad)); // deep copy
-      }
-      else
-      {
-         if(dfdT_mat) { delete dfdT_mat; dfdT_mat = nullptr; }
-         if(dfdk_mat) { delete dfdk_mat; dfdk_mat = nullptr; }
-      }
    }
 
    // Exact block jacobian [df/dT, df/dk]
-   Operator& GetGradient(const Vector &x) const override
-   {
-      MFEM_ABORT("GetGradient not implemented for DiffusionOperator");
-   }
    Operator& GetGradientMV(const MultiVector &x) const override
    {
-      MFEM_ABORT("GetGradientMV not implemented for DiffusionOperator");
-   }
+      const Vector &tdofs = x[0];
+      const Vector &kdofs = x[1];
 
-   void GradientMultMV(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
-   {
-      const Vector &Tadj = dx[0];
-      const Vector &kadj = dx[1];
-      Vector &yadj = dy[0];
+      if(dfdT_mat) delete dfdT_mat;
+      if(dfdk_mat) delete dfdk_mat;
 
-      const Vector &tdo = x[0];
-      const Vector &kdo = x[1];
+      dk = 0.0;
+      k.SetFromTrueDofs(kdofs);
+      Operator* grad = &Nform.GetGradient(tdofs);
+      dfdT_mat = new HypreParMatrix(dynamic_cast<const HypreParMatrix&>(*grad)); // deep copy
 
-      if(dfdT_mat)
-      {
-         dfdT_mat->Mult(Tadj, yadj);
-      }
-      if(dfdk_mat)
-      {
-         dfdk_mat->AddMult(kadj, yadj);
-      }
-      // yadj.Neg();
-      // yadj.SetSubVector(ess_tdofs, 0.0);
+      dk = 1.0;
+      k  = 0.0;
+      grad = &Nform.GetGradient(tdofs);
+      dfdk_mat = new HypreParMatrix(dynamic_cast<const HypreParMatrix&>(*grad)); // deep copy
+
+      gradient->SetBlock(0, 0, dfdT_mat);
+      gradient->SetBlock(0, 1, dfdk_mat);
+      return *gradient;
    }
 
    /// @brief Destroy the DiffusionOperator object
@@ -575,6 +510,7 @@ public:
    {
       if(dfdT_mat) delete dfdT_mat;
       if(dfdk_mat) delete dfdk_mat;
+      if(gradient) delete gradient;
    }
 };
 
@@ -663,6 +599,7 @@ int main(int argc, char *argv[])
 
    // Define the DAG
    DAGraph dag;
+
    dag.Watch({T1_field, T2_field}); // Track fields that are inputs to the DAG
    dag.StartRecording();
 
@@ -674,10 +611,9 @@ int main(int argc, char *argv[])
       prod_coeff.RegisterFields({k1_field, k2_field}, {kp_field});
       diff_op1.RegisterFields({T1_field, kp_field}, {f1_field});
       diff_op2.RegisterFields({T2_field, kp_field}, {f2_field}, // Possible to specify action lambdas
-  /* Force const if needed */     [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); },
-  /* Default for GraphOperator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultMV(x, dx, dy); },
-///* If using mfem::Operator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GetGradientMV(x).MultMV(dx, dy); },
-                                [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTransposeMV(x, dx, dy); }
+  /* Force const if needed */     [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); }
+  /* For matrix-free grad_mult */ //[&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultMV(x, dx, dy); },
+                              //   [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTransposeMV(x, dx, dy); }
                               );
 
    /* // If you want to use state-dependent operators
