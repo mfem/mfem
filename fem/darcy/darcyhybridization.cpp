@@ -6256,12 +6256,35 @@ grad(offsets)
    for (int f = 0; f < faces.Size(); f++)
    {
       FaceElementTransformations *FTr = &ws.lop_faces[f];
-      mesh->GetFaceElementTransformations(faces[f], *FTr, *Tr, *Tr, 0);
+      // Which side of the face this element is on, and whether the face has a
+      // second element, WITHOUT building any geometry. This was a third call
+      // to GetFaceElementTransformations() at mask 0 -- a mask that asks for
+      // no transformation at all, so its only product was Elem1No and
+      // Elem2No, which Mesh::GetFaceElements() reads out of the same
+      // faces_info entry. MultNL()'s own face loops already ask that way two
+      // loops further down.
+      //
+      // Measured on `convdiff -p 1 -o 2 -dg -hb -nl -npc -nls 3 -gm 0` at
+      // 128x128: 196,608 probe calls per solve, and 0.0075 s of them against
+      // an instrumentation floor of about 0.008 s for that many timer scopes
+      // -- so its cost is under 2% of NPCResidual and not separable from the
+      // measurement. It goes because a call whose purpose is invisible is
+      // worth more removed than kept, not because it was hot.
+      //
+      // The remaining call is NOT removable and the doc entry that asked for
+      // it to be is wrong: it is made twice per interior face per residual
+      // evaluation, once from each element, and it must be, because
+      // LocalNLOperator holds every face of ONE element live at once with
+      // Elem1/Elem2 bound to that element's own transformation objects. One
+      // shared FaceElementTransformations per face needs a face-major loop,
+      // which is a different operator, not a saving.
+      int el1_f, el2_f;
+      mesh->GetFaceElements(faces[f], &el1_f, &el2_f);
       IsoparametricTransformation *Tr1, *Tr2;
-      if (FTr->Elem2No >= 0)
+      if (el2_f >= 0)
       {
          IsoparametricTransformation *Nbr = &ws.lop_nbrs[f];
-         if (FTr->Elem1No == el)
+         if (el1_f == el)
          {
             Tr1 = Tr;
             Tr2 = Nbr;
@@ -6279,7 +6302,7 @@ grad(offsets)
                dh.c_pfes->GetParMesh()->FaceIsTrueInterior(faces[f]))
       {
          IsoparametricTransformation *Nbr = &ws.lop_nbrs[f];
-         if (FTr->Elem1No == el)
+         if (el1_f == el)
          {
             Tr1 = Tr;
             Tr2 = Nbr;
