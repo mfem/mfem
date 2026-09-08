@@ -37,8 +37,6 @@ GraphOperation *GraphOperation::GetGradient() const
 GraphOperationGradient::GraphOperationGradient(GraphOperation &oper):
                         GraphOperation(nullptr, {}, {},oper.grad, oper.grad_transpose),
                         primal_op(&oper)
-                        // GraphOperation(oper.GetOperator(), {}, {}, nullptr,
-                        //                oper.grad, oper.grad_transpose), primal_op(&oper)
 {
     inputs = oper.inputs;
     outputs = oper.outputs;
@@ -131,10 +129,6 @@ void GraphOperator::RegisterFields(std::initializer_list<Field*> inputs,
     auto execute = [this](const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
     auto grad_mult = nullptr;
     auto grad_mult_transpose = nullptr;
-    // auto grad_mult = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-    //                        { this->GradientMultMV(x, dx, dy); };
-    // auto grad_mult_transpose = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-    //                                  { this->GradientMultTransposeMV(x, dx, dy); };
     RegisterFields(inputs, outputs, execute, grad_mult, grad_mult_transpose);
 }
 
@@ -206,7 +200,7 @@ void DAGraph::AllocateMemory(bool allocate_IO)
 
         // Check if ID matches the inputs or output fields
         bool found = false;
-        if(allocate_IO)
+        if(!allocate_IO)
         {
             for (auto & inout : {inputs, outputs})
             {
