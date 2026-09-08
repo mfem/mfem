@@ -355,6 +355,31 @@ public:
    /// Get the associated flux function
    const FluxFunction &GetFluxFunction() const { return fluxFunction; }
 
+   /// Get the numerical flux this integrator was constructed with.
+   const NumericalFlux &GetNumericalFlux() const { return numFlux; }
+
+   /// The overall sign the constructor took.
+   real_t GetSign() const { return sign; }
+
+   /** @brief The rule the HDG face routines integrate at, asked of the
+       integrator rather than reconstructed.
+
+       ONE SOURCE OF TRUTH: AssembleHDGFaceVector() and AssembleHDGFaceGrad()
+       both call this, so a batched driver that also calls it cannot integrate
+       at a different rule than they do. The same argument, and the same
+       accessor, as HDGDiffusionIntegrator::GetHDGFaceIntRule() -- a rule
+       copied into a batch driver diverges silently the day the original
+       changes. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      const FiniteElement &trace_face_fe, const FiniteElement &fe,
+      FaceElementTransformations &Tr) const
+   {
+      if (IntRule) { return *IntRule; }
+      const int order = 2*std::max(fe.GetOrder(),
+                                   trace_face_fe.GetOrder()) + IntOrderOffset;
+      return IntRules.Get(Tr.GetGeometryType(), order);
+   }
+
    /**
     * @brief Implements (F(u), ∇v) with abstract F computed by
     * FluxFunction::ComputeFlux()
