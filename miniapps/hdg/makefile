@@ -26,6 +26,14 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff mfem-logo navierstokes
 PAR_MINIAPPS = panisodiff pconvdiff pnavierstokes
+# hdgdevice reports which stages of the hybridized solve actually run on the
+# device and where the data still comes back. In a host build every setting it
+# turns on is a different route to the same loops, so it would print a ledger
+# saying "host" on every line and a timing indistinguishable from convdiff's --
+# it is built only where it has something to say.
+ifeq ($(MFEM_USE_CUDA),YES)
+   SEQ_MINIAPPS += hdgdevice
+endif
 # navierstokes is driven by KINSOL -- it takes its globalisation from
 # KIN_LINESEARCH rather than carrying a line search of its own -- so it needs
 # SUNDIALS and drops out of the build without it. pnavierstokes carries the
@@ -107,7 +115,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS) hdgdevice
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

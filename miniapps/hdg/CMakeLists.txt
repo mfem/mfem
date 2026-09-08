@@ -42,6 +42,17 @@ add_mfem_miniapp(mfem-logo
     ${HDG_COMMON_FILES}
     LIBRARIES mfem)
 
+# hdgdevice reports which stages of the hybridized solve actually run on the
+# device. In a host build every setting it turns on is a different route to the
+# same loops, so it is built only where it has something to say. The GNU
+# makefile gates it the same way.
+if (MFEM_USE_CUDA)
+  add_mfem_miniapp(hdgdevice
+      MAIN hdgdevice.cpp
+      ${HDG_COMMON_FILES}
+      LIBRARIES mfem)
+endif()
+
 # navierstokes takes its globalisation from KINSolver's KIN_LINESEARCH rather
 # than carrying a backtracking Newton of its own, so it requires SUNDIALS and
 # is not built without it. The GNU makefile drops it from SEQ_MINIAPPS for the
