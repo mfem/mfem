@@ -575,6 +575,15 @@ private:
           transformations are read straight out of @a ws.lop_faces; there is no
           indirection vector because every entry would be `&ws.lop_faces[f]`. */
       TransWorkspace &ws;
+      /** @brief This element's slice of the block integrator's flux row,
+          precomputed for the whole mesh, or NULL to call the integrator.
+
+          See DarcyHybridization::CanBatchLocalResidual(). Not owned. A
+          member here costs nothing outside darcyhybridization.cpp -- this is
+          a nested class and no translation unit constructs or contains one --
+          which is exactly why the same value is a PARAMETER on
+          DarcyHybridization's own methods. */
+      const Vector *elem_flux_row;
       const Array<int> offsets;
       mutable Vector Au, Dp, DpEx;
       mutable DenseMatrix grad_A, grad_D;
@@ -597,7 +606,8 @@ private:
           TransWorkspace::lop_elem. Nothing here is owned, so there is no
           destructor. */
       LocalNLOperator(const DarcyHybridization &dh, int el, const BlockVector &trps,
-                      const Array<int> &faces, TransWorkspace &ws);
+                      const Array<int> &faces, TransWorkspace &ws,
+                      const Vector *elem_flux_row = NULL);
       virtual ~LocalNLOperator() = default;
 
       inline const Array<int>& GetOffsets() const { return offsets; }
@@ -1103,11 +1113,19 @@ private:
    /// A correctly sized zero load for a gradient pass; see the definition.
    void ZeroLoad(BlockVector &b, bool true_dofs) const;
 
-   /// The local nonlinear residual of @a el at (@a u_l, @a p_l).
+   /** @brief The local nonlinear residual of @a el at (@a u_l, @a p_l).
+
+       @a elem_flux_row, when given, is this element's slice of the block
+       integrator's flux row as HDGMixedConductionResidualBatched() computed
+       it for the whole mesh, and the element term is read from there instead
+       of from the integrator. A PARAMETER and not a member, per the standing
+       note: a member on DarcyHybridization moves the class layout and every
+       translation unit that includes mfem.hpp with it. */
    void LocalResidual(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &bu_l, const Vector &bp_l,
                       const Vector &u_l, const Vector &p_l,
-                      Vector &ru_l, Vector &rp_l, TransWorkspace &ws) const;
+                      Vector &ru_l, Vector &rp_l, TransWorkspace &ws,
+                      const Vector *elem_flux_row = NULL) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p, bool with_bnl = false) const;
    /** @brief MultInv() for every element at once, on element-blocked vectors.
@@ -1333,6 +1351,73 @@ public:
        and one of these numbers being 1 rather than 2 is the difference
        between exercising the batched accumulation and not. */
    int NumPotFaceConstraintIntegrators() const;
+
+   /** @brief Whether the ELEMENT integrator of the NPC local residual is
+       evaluated by one batched kernel for the whole mesh instead of one
+       integrator call per element.
+
+       False, having done nothing, unless AssemblyMode::Batched is asked for
+       and the block nonlinear integrator is one
+       HDGMixedConductionResidualBatched() implements -- see there for what
+       that means and why a FunctionDiffusionFlux cannot be one.
+
+       **Ask this rather than inferring it**, for the reason
+       CanBatchPotFaceAssembly() gives at length: the fallback is silent, it
+       is the normal case, and a timing does not separate the two.
+
+       What it does NOT cover, each measured against the 88 hybridized
+       references in miniapps/hdg/regress_test/ rather than guessed at:
+
+       * @a m_nlfi_u / @a m_nlfi_p, which reach the residual as
+         SumNLFIntegrators of pure BilinearFormIntegrators on 50 of those 88
+         -- VectorMassIntegrator, VectorFEMassIntegrator and
+         ConservativeConvectionIntegrator. Those element matrices are
+         CONSTANT (a BilinearFormIntegrator's AssembleElementMatrix() does not
+         see the state), so the residual re-assembles a fixed matrix once per
+         element per evaluation in order to multiply by it. Batching that
+         wants a kernel per integrator -- the mass one exists
+         (HDGElementMassBatched()), the convection one does not -- and is the
+         largest remaining piece.
+       * @a c_nlfi / @a c_nlfi_p, a state-carrying FACE constraint, on 17 of
+         the 88 (HyperbolicFormIntegrator, the -nlc cases). Those are per
+         face, not per element, and the flux hierarchy is a separate piece of
+         work.
+       * A MixedConductionNLFIntegrator over a FunctionDiffusionFlux, on 5 of
+         the 88 (`-p 8`). Its conductivity is a host std::function of the
+         current potential; there is no device form of it and no per-point
+         weight that can be computed ahead of the kernel.
+
+       **What it costs. It is the first kernel of the offload plan measured
+       to pay on the HOST -- and only inside NPCResidual; end to end it is
+       inside run-to-run scatter, the trace solve being 54-59% of a run.**
+       `convdiff -p 2 -nld -dg -hb -npc -nls 3 -gm 0
+       -rtol 1e-12 -bam` at 128x128, one thread, direct trace solve, ON and
+       OFF interleaved back to back in one binary through an environment gate
+       so no rebuild sits between the halves -- time in NPCResidual over its
+       three calls:
+
+       | | order 2 | order 3 |
+       |---|---|---|
+       | per-element integrator | 0.321-0.355 s | 0.529-0.659 s |
+       | batched kernel | 0.258-0.297 s | 0.409-0.491 s |
+       | ratio, median of 4 pairs | 0.86 | 0.77 |
+
+       Faster in 8 pairs of 8, and the reason is not the batching: the kernel
+       is matrix free per point against ONE reference shape table for the
+       mesh, where AssembleElementVector() calls CalcShape() per element per
+       point and forms each contracted flux through Vector::operator*(). The
+       kernel's own share is 0.019 s and 0.038 s per call; the integrator it
+       replaces was 0.037 s and 0.075 s per call in a separately instrumented
+       build, which is indicative only -- the ratios above are the
+       interleaved measurement and the only one that survives this machine's
+       drift.
+
+       The HostRead() that follows it is FREE here -- 0.0000 s to the timer's
+       resolution -- because with no Device configured it is a no-op. On a
+       device it is the transfer the offload plan's gate is about, and it is
+       the reason this is a link in a chain rather than a speedup: the
+       consumer is still the host element loop. */
+   bool CanBatchLocalResidual() const;
 
    /** @brief Assemble the flux mass block for every element in one batched
        kernel, from @a M_u's DOMAIN integrators, instead of one

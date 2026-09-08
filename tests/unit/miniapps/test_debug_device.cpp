@@ -533,6 +533,106 @@ void FaceKernelStep(DarcyHybridization::AssemblyMode am,
    dtr_out.HostRead();
 }
 
+/** @brief One NPC residual on the `-nld` shape, in the given assembly mode.
+
+    The flux law is a MixedConductionNLFIntegrator over a LinearDiffusionFlux
+    on the BlockNonlinearForm and the HDG stabilization is a plain
+    HDGDiffusionIntegrator on the LINEAR potential mass form, which is what
+    puts the law on m_nlfi and takes the constraint to c_bfi_p. That is the
+    only shape DarcyHybridization::CanBatchLocalResidual() admits, and 15 of
+    the 88 hybridized regression references have it.
+
+    Under a device the residual kernel writes ru_batched device-side and the
+    element loop that follows reads it on the HOST -- so a missing HostRead()
+    faults here under `debug` and, per this file's face-kernel case, would
+    silently return a stale buffer under CUDA. That is the whole reason this
+    case exists rather than only the globbed one.
+
+    Everything read back at the end goes through HostRead(), as the other
+    fixtures here do. */
+void LocalResidualStep(DarcyHybridization::AssemblyMode am, int order,
+                       Vector &rq, Vector &rp, Vector &rtr, bool &taken)
+{
+   const int n = 4, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     0.8, 1.2);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), src(1.0);
+   FunctionCoefficient ikappa([](const Vector &X)
+   {
+      return 1.3 + 0.4 * std::sin(M_PI * X(0)) * X(1);
+   });
+   LinearDiffusionFlux law(dim, ikappa);
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   darcy.GetBlockNonlinearForm()->AddDomainIntegrator(
+      new MixedConductionNLFIntegrator(law));
+
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetAssemblyMode(am);
+   dh->EnableNPC();
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   dh->SetEssentialBC(all);
+
+   darcy.Assemble();
+   darcy.Finalize();
+   taken = dh->CanBatchLocalResidual();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   // A state with structure: for a law linear in the flux, x = 0 makes the
+   // flux row identically zero and the comparison vacuous.
+   x.HostWrite();
+   for (int i = 0; i < x.Size(); i++)
+   {
+      x(i) = std::sin(0.71 * i + 0.5) + 0.5 * std::cos(0.113 * i);
+   }
+   Vector x_tr(Mh.GetVSize());
+   x_tr.HostWrite();
+   for (int i = 0; i < x_tr.Size(); i++)
+   {
+      x_tr(i) = std::sin(0.71 * i + 2.1) + 0.5 * std::cos(0.113 * i);
+   }
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+
+   Vector qv, pv;
+   qv.MakeRef(r, 0, r.GetBlock(0).Size());
+   pv.MakeRef(r, r.GetBlock(0).Size(), r.GetBlock(1).Size());
+   rq.SetSize(qv.Size());
+   rq = qv;
+   rp.SetSize(pv.Size());
+   rp = pv;
+   rtr.SetSize(r_tr.Size());
+   rtr = r_tr;
+   rq.HostRead();
+   rp.HostRead();
+   rtr.HostRead();
+}
+
 } // namespace darcy_alias
 
 /**
@@ -760,6 +860,54 @@ TEST_CASE("The batched HDG face kernel under a device", "[DebugDevice]")
       Vector d(a);
       d -= b;
       REQUIRE(d.Normlinf() <= 1e-12 * std::max(a.Normlinf(), 1e-30));
+   };
+   close(tr_ref, tr_bat);
+   close(p_ref, p_bat);
+   close(q_ref, q_bat);
+}
+
+/**
+ * @brief AssemblyMode::Batched's local-residual kernel under a Device gives
+ * the per-element integrator's answer, and its result reaches the host loop
+ * that consumes it.
+ *
+ * The kernel computes every element's flux row on the device; the element
+ * loop in MultNL() then reads element el's slice on the HOST. Nothing in the
+ * globbed test set can see the difference -- with no Device configured the
+ * kernel's Write() and the loop's read are the same buffer. Under `debug`
+ * they are not, which is exactly the hazard this file's face-kernel case
+ * records: remove the HostRead() and this faults rather than fails.
+ */
+TEST_CASE("The batched HDG local residual under a device", "[DebugDevice]")
+{
+   using namespace darcy_alias;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   const int order = GENERATE(1, 2);
+
+   Vector q_ref, p_ref, tr_ref, q_bat, p_bat, tr_bat;
+   bool taken_ref = true, taken_bat = false;
+   LocalResidualStep(AM::Serial, order, q_ref, p_ref, tr_ref, taken_ref);
+   LocalResidualStep(AM::Batched, order, q_bat, p_bat, tr_bat, taken_bat);
+
+   // Two fallbacks agree perfectly and test nothing.
+   REQUIRE_FALSE(taken_ref);
+   REQUIRE(taken_bat);
+
+   REQUIRE(tr_ref.Normlinf() > 1e-3);
+   REQUIRE(p_ref.Normlinf() > 1e-3);
+   REQUIRE(q_ref.Normlinf() > 1e-3);
+
+   // Round-off and not bitwise, and the kernel is not why: AssemblyMode::
+   // Batched switches the face, mass and divergence kernels on as well, and
+   // those accumulate point by point. The bitwise pin on the residual kernel
+   // alone is in tests/unit/fem/test_darcy_batched_residual.cpp.
+   auto close = [](const Vector &a, const Vector &b)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      REQUIRE(d.Normlinf() <= 1e-11 * std::max(a.Normlinf(), 1e-30));
    };
    close(tr_ref, tr_bat);
    close(p_ref, p_bat);

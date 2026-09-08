@@ -377,6 +377,74 @@ void HDGElementDivBatched(const FiniteElementSpace &trial_fes,
                           const Array<BilinearFormIntegrator*> &integs,
                           Vector &emat);
 
+/** @brief Whether HDGMixedConductionResidualBatched() can take @a integ on
+    @a fes.
+
+    @a integ has to be a MixedConductionNLFIntegrator whose constitutive law
+    is a LinearDiffusionFlux. That is the whole of the state-independence
+    requirement and it is a guarantee rather than a guess: the law's
+    ComputeDualFlux() takes its state argument UNNAMED, so the dual flux is a
+    fixed linear map of the flux at each point, and ComputeDualFluxJacobian()
+    hands that map over directly. A FunctionDiffusionFlux is refused -- its
+    conductivity is a caller-supplied `std::function<real_t(const Vector &x,
+    real_t u)>` evaluated at the CURRENT potential, so there is neither a
+    device-callable form of it nor a per-point weight that can be computed
+    ahead of the kernel. Lifting that needs a different caller contract, not a
+    guard.
+
+    One equation only. MixedConductionNLFIntegrator::AssembleElementGrad()
+    asserts a (neq*dim)-square dual-flux Jacobian and LinearDiffusionFlux
+    returns a dim-square one, so neq > 1 does not work through this law in the
+    per-element route either.
+
+    A scalar-range flux basis, so one shape value serves every spatial
+    component and the reference shape table is the same for every element. An
+    H(div) element needs CalcVShape(), which is per element, and lays its dofs
+    out per equation rather than per (equation, direction).
+
+    And one element geometry, one dof count and one integration rule across
+    the mesh, which is what lets the kernel sample every element at the same
+    points -- the same three conditions HDGElementMassCanBatch() asks.
+
+    Those three are checked over EVERY element, so this is O(NE) with an
+    ElementTransformation built per element, and the kernel's own
+    MFEM_VERIFY runs it a second time. That is the house style here and the
+    cost is inside the timing on
+    DarcyHybridization::CanBatchLocalResidual() rather than hidden from it;
+    but note it is paid per residual EVALUATION, not once per assembly the
+    way HDGElementMassCanBatch()'s is. */
+bool HDGMixedConductionResidualCanBatch(const FiniteElementSpace &fes,
+                                        BlockNonlinearFormIntegrator *integ);
+
+/** @brief The flux row of a MixedConductionNLFIntegrator's ELEMENT term,
+    every element at once, matrix free.
+
+    @a u_all is the local flux, element-blocked: element e at offset
+    (ndof*vdim)*e, component c of dof i at c*ndof + i, which is
+    FiniteElementSpace::GetElementVDofs()'s own Ordering::byNODES layout and
+    therefore DarcyHybridization::el_u_dofs's. @a ru_all is overwritten with
+    the same layout.
+
+    Matrix free rather than assemble-then-apply, and that is the cheaper way
+    round here as well as the one that needs no storage: the residual costs
+    O(nq * ndof * dim) where forming the block first costs O(nq * ndof^2 *
+    dim). The per-point conductivity is read out of the law once per point per
+    element -- exactly as many coefficient evaluations as the per-element
+    route makes -- and the apply is one mfem::forall over ELEMENTS with the
+    dof and quadrature loops inside it, which is the shape that keeps the
+    index arithmetic out of the kernel.
+
+    Round-off against MixedConductionNLFIntegrator::AssembleElementVector(),
+    and the association is deliberately its association: the accumulation is
+    written `w * shape(i) * mF[c]` in that order, and the dual flux is formed
+    by the same k-order contraction the law's own MultABt() uses, so on the
+    cases measured it comes out BITWISE. That is a measurement, not a
+    guarantee -- Vector::operator*() reduces through mfem::reduce and a
+    device backend need not associate a dot product the way the host does. */
+void HDGMixedConductionResidualBatched(const FiniteElementSpace &fes,
+                                       BlockNonlinearFormIntegrator *integ,
+                                       const Vector &u_all, Vector &ru_all);
+
 bool HDGBdrFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
                                const FiniteElementSpace &el_fes,
                                const Array<BilinearFormIntegrator*> &integs,

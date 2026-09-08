@@ -938,6 +938,40 @@ bool DarcyHybridization::CanBatchPotFaceAssembly() const
    return HDGFaceScatterCanBatch(c_fes, fes_p, integs, flist);
 }
 
+bool DarcyHybridization::CanBatchLocalResidual() const
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+
+   // MultNlMode::AtFields is NPC's mode and the only one that evaluates the
+   // local residual at supplied fields; every other mode SOLVES the local
+   // problem, and a precomputed residual is no use to a solve.
+   if (!NPCEnabled()) { return false; }
+
+   // Parallel is refused, and the reason is NOT that the kernel needs
+   // anything from a neighbour. It does not: NPCCheck() refuses a conforming
+   // flux space, so every element's flux dofs are its own and this loop is
+   // rank-local exactly as NPCResidual()'s own comment says. It is refused
+   // because it has not been RUN on more than one rank -- this worktree is a
+   // serial build -- and a claim about behaviour on this branch is measured
+   // rather than argued from a code path. Lifting it is a test, not work.
+   if (ParallelU() || ParallelP()) { return false; }
+
+   if (!m_nlfi) { return false; }
+   if (!HDGMixedConductionResidualCanBatch(fes, m_nlfi)) { return false; }
+
+   // One flux block per element, and it has to be the element's WHOLE vdof
+   // set: the kernel writes ndof*vdim entries per element into a flat array
+   // in GetElementVDofs() order, while GetFDofs() drops essential flux dofs
+   // -- which would shorten one element's slice and shift every slice after
+   // it. An L2 flux has no essential dofs, so this is a check rather than a
+   // restriction there; on an H(div) flux it is the restriction, and the
+   // integrator gate refuses that space anyway.
+   const int NE = fes.GetNE();
+   if (NE == 0) { return false; }
+   const int na = UniformBlockSize(Af_f_offsets, NE);
+   return na > 0 && na == fes.GetFE(0)->GetDof() * fes.GetVDim();
+}
+
 /// The interior faces, which is what the batched face assembly covers.
 void DarcyHybridization::InteriorFaceList(Array<int> &flist) const
 {
@@ -3081,6 +3115,45 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       f_2_b = fes.GetMesh()->GetFaceToBdrElMap();
    }
 
+   // NPC's element integrator as ONE kernel for the whole mesh, before the
+   // element loop rather than inside it. See CanBatchLocalResidual() for what
+   // is admitted and what is not; the element loop below then reads its own
+   // slice instead of calling the integrator.
+   //
+   // The HostRead() is the transfer the offload plan's gate is about: the
+   // consumer here is a host element loop, so a kernel landed on its own
+   // pays it. Measured on `convdiff -p 2 -o 3 -dg -hb -nld -npc -nls 3 -bam`
+   // at 128x128 and reported in the commit; it is a link in a chain that is
+   // not yet closed, not a speedup.
+   Vector ru_batched;
+   const bool batched_lr = (mode == MultNlMode::AtFields)
+                           && CanBatchLocalResidual();
+   if (batched_lr)
+   {
+      BuildElementDofMaps();
+      Vector u_all(el_u_dofs.Size());
+      u_all.UseDevice(true);
+      darcy_u.GetSubVector(el_u_dofs, u_all);
+      HDGMixedConductionResidualBatched(fes, m_nlfi, u_all, ru_batched);
+      // Back to the host, AND it has to stop advertising itself as device
+      // data. Vector's element-wise operators take
+      // `use_dev = UseDevice() || v.UseDevice()`, so a device-flagged slice
+      // makes `bu += *elem_flux_row` inside LocalNLOperator a DEVICE
+      // operation and leaves bu device-valid -- where every reader after it
+      // is host code: B.MultTranspose(), the DenseMatrix AddMults, the
+      // subtraction of bu_l.
+      //
+      // Measured under Device("debug"), and it is not subtle: without the
+      // UseDevice(false) the FLUX row of the NPC residual comes out 2.7e-2
+      // and 5.0e-2 wrong at orders 1 and 2, against a row norm of 0.29 and
+      // 0.34, while the potential and trace rows stay exact to 4.4e-16. A
+      // ten per cent error in exactly the one block this kernel writes, and
+      // completely invisible with no Device configured -- which is why
+      // tests/unit/miniapps/test_debug_device.cpp carries a case for it.
+      ru_batched.HostRead();
+      ru_batched.UseDevice(false);
+   }
+
    // Serial keeps the original element order exactly, so its answer is the one
    // it always was; threaded walks the colours, and within a colour no two
    // elements share a face. See BuildElementColouring().
@@ -3105,6 +3178,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          Array<int> c_offsets;
          Array<int> faces, oris;
          Vector bu_l, bp_l, u_l, p_l, y_l;
+         Vector ru_int;
          Array<int> u_vdofs, p_dofs;
          TransWorkspace ws;
 
@@ -3214,8 +3288,22 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                   // E x on the potential row, so between them the trace coupling
                   // appears once on each row.
                   Vector ru_l, rp_l;
+                  if (batched_lr)
+                  {
+                     // MakeRef and not `ru_int = Vector(ptr, n)`: Vector has a
+                     // move assignment, so a prvalue on the right ALIASES the
+                     // pointer and everything done to the left-hand side is
+                     // written back through it. This is a read-only view and
+                     // MakeRef says so.
+                     ru_int.MakeRef(ru_batched, Af_f_offsets[el],
+                                    u_vdofs.Size());
+                     // Memory::MakeAlias() inherits the base's USE_DEVICE
+                     // flag, so this is belt as well as braces -- see the
+                     // note where ru_batched is filled.
+                     ru_int.UseDevice(false);
+                  }
                   LocalResidual(el, faces, x_l, bu_l, bp_l, u_l, p_l, ru_l, rp_l,
-                                ws);
+                                ws, batched_lr ? &ru_int : NULL);
                   r_local->GetBlock(0).AddElementVector(u_vdofs, ru_l);
                   r_local->GetBlock(1).AddElementVector(p_dofs, rp_l);
                   // and fall through to the trace row, which is the same assembly
@@ -4192,12 +4280,13 @@ void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,
                                        const Vector &bu_l, const Vector &bp_l,
                                        const Vector &u_l, const Vector &p_l,
                                        Vector &ru_l, Vector &rp_l,
-                                       TransWorkspace &ws) const
+                                       TransWorkspace &ws,
+                                       const Vector *elem_flux_row) const
 {
    // The local equations are lop(u, p) = (bu_l, bp_l) -- that is what the
    // local nonlinear solve solves in the other ordering -- so the residual is
    // one evaluation of the same operator rather than a solve with it.
-   LocalNLOperator lop(*this, el, x_l, faces, ws);
+   LocalNLOperator lop(*this, el, x_l, faces, ws, elem_flux_row);
 
    BlockVector xv(lop.GetOffsets()), rv(lop.GetOffsets());
    xv.GetBlock(0) = u_l;
@@ -6221,13 +6310,15 @@ void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(
    const DarcyHybridization &dh_, int el_, const BlockVector &trps_,
-   const Array<int> &faces_, TransWorkspace &ws_)
+   const Array<int> &faces_, TransWorkspace &ws_,
+   const Vector *elem_flux_row_)
    : dh(dh_), el(el_), trps(trps_), faces(faces_),
      a_dofs_size(dh.Af_f_offsets[el+1] - dh.Af_f_offsets[el]),
      d_dofs_size(dh.Df_f_offsets[el+1] - dh.Df_f_offsets[el]),
      B(const_cast<real_t*>(&dh.Bf_data[dh.Bf_offsets[el]]),
        d_dofs_size, a_dofs_size),
-     Bt(B), ws(ws_), offsets({0, a_dofs_size, a_dofs_size+d_dofs_size}),
+     Bt(B), ws(ws_), elem_flux_row(elem_flux_row_),
+     offsets({0, a_dofs_size, a_dofs_size+d_dofs_size}),
 grad(offsets)
 {
    width = height = a_dofs_size + d_dofs_size;
@@ -6331,14 +6422,29 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
 {
    if (dh.m_nlfi)
    {
-      //element contribution
-      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
-      Array<const Vector*> x_arr({&u_l, &p_l});
-      Array<Vector*> y_arr({&Au, &Dp});
+      if (elem_flux_row)
+      {
+         // Already computed for every element at once; see
+         // DarcyHybridization::CanBatchLocalResidual(). Nothing is added to
+         // bp because the gate admits only a MixedConductionNLFIntegrator,
+         // whose AssembleElementVector() sets its potential row to size zero
+         // -- which the per-element branch below then skips. That is a
+         // property of the admitted integrator, so it is the gate's business
+         // rather than something to test for here.
+         MFEM_ASSERT(elem_flux_row->Size() == bu.Size(), "Incompatible size");
+         bu += *elem_flux_row;
+      }
+      else
+      {
+         //element contribution
+         Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+         Array<const Vector*> x_arr({&u_l, &p_l});
+         Array<Vector*> y_arr({&Au, &Dp});
 
-      dh.m_nlfi->AssembleElementVector(fe_arr, *Tr, x_arr, y_arr);
-      if (Au.Size() != 0) { bu += Au; }
-      if (Dp.Size() != 0) { bp += Dp; }
+         dh.m_nlfi->AssembleElementVector(fe_arr, *Tr, x_arr, y_arr);
+         if (Au.Size() != 0) { bu += Au; }
+         if (Dp.Size() != 0) { bp += Dp; }
+      }
    }
 
    if (dh.c_nlfi)

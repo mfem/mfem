@@ -973,6 +973,8 @@ int main(int argc, char *argv[])
               << (dh->CanBatchPotBdrFaceAssembly() ? "yes" : "no")
               << ", face kernel taken: "
               << (dh->CanBatchPotFaceAssembly() ? "yes" : "no")
+              << ", local residual batched: "
+              << (dh->CanBatchLocalResidual() ? "yes" : "no")
               << ", local factor batched: "
               << (dh->CanBatchLocalSolve() ? "yes" : "no") << "\n";
       }

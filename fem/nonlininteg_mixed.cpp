@@ -173,6 +173,14 @@ void FrozenDualFluxCoefficient::Eval(DenseMatrix &K,
    fun.ComputeDualFluxJacobian(state, flux, T, J_u, K);
 }
 
+const IntegrationRule &MixedConductionNLFIntegrator::GetElementIntRule(
+   const FiniteElement &fe_u, ElementTransformation &Tr) const
+{
+   if (IntRule) { return *IntRule; }
+   const int order = 2*fe_u.GetOrder() + Tr.OrderW();
+   return IntRules.Get(fe_u.GetGeomType(), order);
+}
+
 void MixedConductionNLFIntegrator::AssembleElementVector(
    const Array<const FiniteElement*> &el, ElementTransformation &Tr,
    const Array<const Vector*> &elfun, const Array<Vector*> &elvect)
@@ -212,12 +220,7 @@ void MixedConductionNLFIntegrator::AssembleElementVector(
    Vector x(sdim), p(neq), ue(sdim), Fe(sdim);
    DenseMatrix mu(neq, sdim), mF(neq, sdim);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      const int order = 2*fe_u.GetOrder() + Tr.OrderW();//<---
-      ir = &IntRules.Get(fe_u.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = &GetElementIntRule(fe_u, Tr);
 
    elvect_u.SetSize(neq * nvdof_u);
    elvect_u = 0.0;
@@ -493,12 +496,11 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    Vector x(sdim), p(neq), ue(sdim);
    DenseMatrix mu(neq, sdim);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      const int order = 2*fe_u.GetOrder() + Tr.OrderW();//<---
-      ir = &IntRules.Get(fe_u.GetGeomType(), order);
-   }
+   // The same rule the residual integrates at, and through the same accessor
+   // -- these two had a copy of the expression each, which is how a residual
+   // and its gradient come to disagree by one quadrature order and nothing
+   // says so.
+   const IntegrationRule *ir = &GetElementIntRule(fe_u, Tr);
 
    if (scalar_u) { shape_u.SetSize(ndof_u); }
    else { vshape_u.SetSize(ndof_u, sdim); }

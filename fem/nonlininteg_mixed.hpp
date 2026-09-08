@@ -169,6 +169,20 @@ public:
    /// The constitutive law this integrator was constructed with.
    const MixedFluxFunction &GetFluxFunction() const { return fluxFunction; }
 
+   /** @brief The rule AssembleElementVector() and AssembleElementGrad()
+       integrate the ELEMENT term at.
+
+       Exposed rather than reconstructed, and that is deliberate: a batched
+       route that copied `2*fe_u.GetOrder() + Tr.OrderW()` would have diverged
+       from this integrator silently the day the expression here changed.
+       HDGDiffusionIntegrator's GetHDGFaceIntRule() exists for the same
+       reason and the two batched paths ask the same way.
+
+       @a Tr is consulted for OrderW() only, so a caller may hand it any
+       element's transformation on a mesh of one geometry. */
+   const IntegrationRule &GetElementIntRule(const FiniteElement &fe_u,
+                                            ElementTransformation &Tr) const;
+
    void AssembleElementVector(const Array<const FiniteElement*> &el,
                               ElementTransformation &Tr,
                               const Array<const Vector*> &elfun,

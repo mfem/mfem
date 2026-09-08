@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_hdg.hpp"
+#include "../nonlininteg_mixed.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 
@@ -2941,6 +2942,202 @@ void HDGElementMassBatched(const FiniteElementSpace &fes,
          }
       });
    }
+}
+
+
+namespace
+{
+
+/// The MixedConductionNLFIntegrator @a integ is, or NULL if it is not one.
+MixedConductionNLFIntegrator *AsMixedConduction(
+   BlockNonlinearFormIntegrator *integ)
+{
+   return dynamic_cast<MixedConductionNLFIntegrator*>(integ);
+}
+
+} // namespace
+
+bool HDGMixedConductionResidualCanBatch(const FiniteElementSpace &fes,
+                                        BlockNonlinearFormIntegrator *integ)
+{
+   MixedConductionNLFIntegrator *mc = AsMixedConduction(integ);
+   if (!mc) { return false; }
+
+   // The law, and this is the one condition that is about the PHYSICS rather
+   // than about the mesh. See the doxygen.
+   const MixedFluxFunction &fun = mc->GetFluxFunction();
+   if (!dynamic_cast<const LinearDiffusionFlux*>(&fun)) { return false; }
+   if (fun.num_equations != 1) { return false; }
+
+   Mesh *mesh = fes.GetMesh();
+   const int NE = fes.GetNE();
+   if (!mesh || NE == 0) { return false; }
+
+   const int sdim = mesh->SpaceDimension();
+   if (fes.GetVDim() != sdim) { return false; }
+   if (fun.dim != sdim) { return false; }
+   // The kernel holds the point values of the flux and the dual flux in
+   // fixed-size registers, which is what keeps them off the stack on a
+   // device. Three is every mesh MFEM builds, so this is a bound on the
+   // kernel rather than a restriction on the caller.
+   if (sdim > 3) { return false; }
+
+   const Geometry::Type g = mesh->GetElementBaseGeometry(0);
+   const int nd = fes.GetFE(0)->GetDof();
+   const IntegrationRule *ir0 = NULL;
+   for (int e = 0; e < NE; e++)
+   {
+      const FiniteElement *fe = fes.GetFE(e);
+      if (mesh->GetElementBaseGeometry(e) != g) { return false; }
+      if (fe->GetDof() != nd) { return false; }
+      if (fe->GetRangeType() != FiniteElement::SCALAR) { return false; }
+      ElementTransformation *Tr = mesh->GetElementTransformation(e);
+      const IntegrationRule *ir = &mc->GetElementIntRule(*fe, *Tr);
+      if (!ir0) { ir0 = ir; }
+      else if (ir != ir0) { return false; }
+   }
+   return true;
+}
+
+void HDGMixedConductionResidualBatched(const FiniteElementSpace &fes,
+                                       BlockNonlinearFormIntegrator *integ,
+                                       const Vector &u_all, Vector &ru_all)
+{
+   MFEM_VERIFY(HDGMixedConductionResidualCanBatch(fes, integ),
+               "this integrator does not admit the batched local residual");
+
+   MixedConductionNLFIntegrator *mc = AsMixedConduction(integ);
+   const MixedFluxFunction &fun = mc->GetFluxFunction();
+
+   Mesh *mesh = fes.GetMesh();
+   const int NE = fes.GetNE();
+   const int ND = fes.GetFE(0)->GetDof();
+   const int SDIM = mesh->SpaceDimension();
+   const int N = ND * SDIM;
+
+   ElementTransformation *Tr0 = mesh->GetElementTransformation(0);
+   const IntegrationRule &ir = mc->GetElementIntRule(*fes.GetFE(0), *Tr0);
+   const int NQ = ir.GetNPoints();
+
+   MFEM_VERIFY(u_all.Size() == N * NE, "Incompatible size");
+   ru_all.SetSize(N * NE);
+   ru_all.UseDevice(true);
+   ru_all = 0.;
+   if (NE == 0) { return; }
+
+   // CalcShape and NOT CalcPhysShape, because that is what
+   // AssembleElementVector() calls -- and it is what makes one table serve
+   // the mesh. An L2 collection with map_type INTEGRAL divides the physical
+   // shape by detJ, so the physical table would be per element while the
+   // reference one is not, and the two answers would differ.
+   Vector sh(NQ * ND), wt(NQ * NE), kk(SDIM * SDIM * NQ * NE);
+   sh.UseDevice(true);
+   wt.UseDevice(true);
+   kk.UseDevice(true);
+
+   {
+      Vector shape(ND);
+      real_t *ps = sh.HostWrite();
+      const FiniteElement &fe0 = *fes.GetFE(0);
+      for (int q = 0; q < NQ; q++)
+      {
+         fe0.CalcShape(ir.IntPoint(q), shape);
+         for (int i = 0; i < ND; i++) { ps[q + NQ * i] = shape(i); }
+      }
+   }
+
+   {
+      // One conductivity read per point per element -- the same number of
+      // coefficient evaluations AssembleElementVector() makes -- and it is
+      // read through the LAW rather than reconstructed from its coefficient.
+      // ComputeDualFluxJacobian() is exactly the linear map ComputeDualFlux()
+      // applies: dualFlux(0,d) = sum_d' flux(0,d') J_F(d,d'), which is what
+      // Set(), RightScaling() and MultABt() do in the law's three branches.
+      Vector state(1);
+      DenseMatrix flux0(1, SDIM), J_u, J_F;
+      state = 0.;
+      flux0 = 0.;
+      real_t *pw = wt.HostWrite(), *pk = kk.HostWrite();
+      for (int e = 0; e < NE; e++)
+      {
+         ElementTransformation *Tr = mesh->GetElementTransformation(e);
+         for (int q = 0; q < NQ; q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            Tr->SetIntPoint(&ip);
+            fun.ComputeDualFluxJacobian(state, flux0, *Tr, J_u, J_F);
+            // Checked at the first point and only there, so it runs in a
+            // release build without costing the loop: a VERIFY per point
+            // would be NQ*NE norms. The gate admits the law by TYPE, and
+            // this is the same statement by VALUE -- J_u is d(dual
+            // flux)/d(state), and it has to vanish or the per-point map
+            // frozen here is not the law. A guard nothing ever reaches is
+            // worse than none, and this one at least runs.
+            if (e == 0 && q == 0)
+            {
+               MFEM_VERIFY(J_F.Height() == SDIM && J_F.Width() == SDIM,
+                           "J_F must be dim squared for one equation");
+               MFEM_VERIFY(J_u.MaxMaxNorm() == 0.0,
+                           "the law depends on the state and cannot be frozen");
+            }
+            MFEM_ASSERT(J_F.Height() == SDIM && J_F.Width() == SDIM,
+                        "J_F must be dim squared for one equation");
+            pw[q + NQ * e] = ip.weight * Tr->Weight();
+            for (int d = 0; d < SDIM; d++)
+               for (int dp = 0; dp < SDIM; dp++)
+               {
+                  pk[d + SDIM * (dp + SDIM * (q + NQ * e))] = J_F(d, dp);
+               }
+         }
+      }
+   }
+
+   const auto d_s = Reshape(sh.Read(), NQ, ND);
+   const auto d_w = Reshape(wt.Read(), NQ, NE);
+   const auto d_k = Reshape(kk.Read(), SDIM, SDIM, NQ, NE);
+   const auto d_u = u_all.Read();
+   real_t *d_r = ru_all.ReadWrite();
+
+   const int nd = ND, sd = SDIM, nq = NQ, n = N;
+
+   // One thread per ELEMENT with the quadrature and dof loops inside it. One
+   // thread per output ENTRY would need three integer divisions to recover
+   // (i, component, element), and this branch has already paid for learning
+   // that such arithmetic IS the kernel -- 0.37 s of a 0.95 s loop in
+   // ComputeElementsHBatched()'s first draft.
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int MAX_SDIM = 3;
+      real_t mu[MAX_SDIM], mF[MAX_SDIM];
+      const real_t *u = d_u + n * e;
+      real_t *r = d_r + n * e;
+
+      for (int q = 0; q < nq; q++)
+      {
+         for (int d = 0; d < sd; d++)
+         {
+            real_t t = 0.;
+            for (int i = 0; i < nd; i++) { t += u[d * nd + i] * d_s(q, i); }
+            mu[d] = t;
+         }
+         for (int d = 0; d < sd; d++)
+         {
+            real_t t = 0.;
+            for (int dp = 0; dp < sd; dp++) { t += mu[dp] * d_k(d, dp, q, e); }
+            mF[d] = t;
+         }
+         const real_t w = d_w(q, e);
+         for (int d = 0; d < sd; d++)
+            for (int i = 0; i < nd; i++)
+            {
+               // `w * shape(i) * mF` and not `(w * mF) * shape(i)`: the
+               // per-element route writes it in this order and floating-point
+               // multiplication is not associative, so the other grouping
+               // costs the bitwise agreement for nothing.
+               r[d * nd + i] += w * d_s(q, i) * mF[d];
+            }
+      }
+   });
 }
 
 
