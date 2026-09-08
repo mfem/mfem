@@ -1360,6 +1360,87 @@ public:
        Bf and an essential one to Be, and every potential row goes with it. */
    bool AssembleDivMatricesBatched(MixedBilinearForm *B);
 
+   /** @brief Assemble every BOUNDARY-face contribution of @a M_u into the
+       flux mass blocks with one kernel, instead of one
+       AssembleFluxMassMatrix() per (boundary face, integrator) pair.
+
+       @returns false, having done nothing, unless AssemblyMode::Batched is
+       asked for and at least one boundary element is admitted; the caller
+       then keeps the loop in DarcyForm::AssembleFluxMassBdrFaces().
+
+       **This is NOT the shape of AssemblePotBdrFaceMatricesBatched(), and the
+       difference is forced rather than chosen.** That routine dispatches on
+       three known HDG integrator families and evaluates their quadrature on
+       the device, because a potential-mass constraint is one of those three.
+       A flux-mass boundary face integrator belongs to no family at all: there
+       is no BilinearFormIntegrator in the library whose AssembleFaceMatrix()
+       returns the one-sided block of a vector L2 or an H(div) flux space, so
+       nothing can be dispatched on. What is batched here is therefore the
+       SCATTER -- the mask that splits an element's block between Af and Ae --
+       and the integrator is still evaluated on the host, one face at a time,
+       exactly as the loop this replaces does it.
+
+       That still buys the thing the loop cost: the block arrays are written
+       by a kernel and are never brought to the host in the middle of the flux
+       mass group. AssembleFluxMassMatricesBatched() used to end with
+       SyncLocalBlocksToHost() for no other reason than that this loop
+       followed it on the host.
+
+       The work is grouped BY ELEMENT and each element is one thread, so a
+       corner element's two boundary faces are summed by the same thread in
+       the loop's own order. That is what makes this bit-for-bit rather than
+       round-off, and it is why there are no atomics here where the boundary
+       potential kernel needs them.
+
+       It accumulates, and it has to: the element pass has already put the
+       domain integrators' block where this adds to it. Assigning does not
+       drop the boundary term, it drops everything else -- see
+       AssembleFluxMassMatrix(), whose history this is.
+
+       **Measured.** Against the loop, with only this pass switched (an
+       environment gate in CanBatchFluxMassBdrFaces(), used as a probe and not
+       committed), the assembled NPC trace gradient differs by **0.0 exactly**
+       on eight configurations spanning order 0 to 2, quadrilaterals and
+       triangles, one and two integrators and split attribute markers; and the
+       reduced right-hand side, which is the only reader of Ae, by 0.0 exactly
+       on four more. On a HOST there is no time in it and none was expected:
+       interleaved A/B, four alternating pairs, `Assemble()` comes out at a
+       host/batched ratio of 0.96-1.04 at order 3 on 64x64 quads and 0.90-0.99
+       at order 1 on 96x96, with |H| bit-identical to 17 digits in every pair.
+       The transfer it removes is a device transfer and there is no device
+       configured in a plain host build, so it cannot be timed here at all --
+       which is the plan's own gate rather than a disappointment.
+
+       @note Who reaches it: **nothing in this tree but the unit tests.** See
+       DarcyForm::AssembleFluxMassBdrFaces(), where that is written out. */
+   bool AssembleFluxMassBdrMatricesBatched(BilinearForm *M_u,
+                                           int skip_zeros = 0);
+
+   /** @brief Whether AssembleFluxMassBdrMatricesBatched() would actually be
+       taken. Ask rather than infer, as for the others.
+
+       Note which refusals this one does NOT need, since every other face
+       kernel in this class carries them, and why -- by inspection of what the
+       routine names, which is a check anyone can repeat:
+
+       - it names no trace-space object at all, so
+         HDGDiffusionFaceMatricesCanBatch()'s conditions (a DG_Interface trace
+         collection, one geometry, one order, vdim == 1) are not conditions on
+         this pass. Blocks of different sizes are carried by an offset array
+         rather than one stride, so a mixed-order or mixed-geometry mesh is
+         admitted;
+       - it never writes H, so the NPC refusal the two potential face kernels
+         carry does not apply. **The reduced route is covered too**, and that
+         is where Ae matters, Ae having no reader under NPC at all;
+       - it walks BOUNDARY ELEMENTS, which are genuine domain boundary and
+         never shared, so ParallelC() is not a reason to refuse -- though
+         ParDarcyForm::Assemble() never calls the pass at all, for which see
+         DarcyForm::AssembleFluxMassBdrFaces().
+
+       What it does inherit is the periodic-mesh guard, from the same
+       Mesh::GetBdrFaceTransformations() null test the loop uses. */
+   bool CanBatchFluxMassBdrFaces(BilinearForm *M_u) const;
+
    /** @brief Whether the batched flux / potential mass assembly would
        actually be taken. Ask rather than infer: both fall back silently, on
        an integrator the kernel does not implement or on a mesh whose elements
@@ -1949,6 +2030,12 @@ public:
    /// Shared by CanBatchFluxMass() and CanBatchPotMass().
    bool CanBatchElementMass(BilinearForm *M,
                             const FiniteElementSpace &f) const;
+   /** @brief The (boundary element, integrator, element) triples
+       DarcyForm::AssembleFluxMassBdrFaces() would visit, in that loop's own
+       order -- attribute markers applied per integrator and the periodic
+       leftovers dropped by the same null-transformation test. */
+   void FluxMassBdrWork(BilinearForm *M_u, Array<int> &bdr_els,
+                        Array<int> &integs, Array<int> &elems) const;
    /// The local index of each free / essential hat dof, and where each
    /// element's essential run starts; see AssembleFluxMassMatricesBatched().
    void HatDofMaps(Array<int> &free_map, Array<int> &ess_map,
