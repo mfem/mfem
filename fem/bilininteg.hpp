@@ -549,6 +549,19 @@ public:
    void AddIntegrator(BilinearFormIntegrator *integ)
    { integrators.Append(integ); nlfi.AddIntegrator(integ); }
 
+   /// The number of integrators added, so a caller can look inside the sum.
+   int NumIntegrators() const { return integrators.Size(); }
+   /** @brief The @a i-th integrator added, without transferring ownership.
+
+       A wrapper that hides what it wraps forces every consumer to treat a sum
+       of ONE as different from the thing itself. That matters wherever a
+       caller collects a form's integrators into a SumIntegrator
+       unconditionally: a consumer testing `dynamic_cast<T*>` on the result
+       then never matches, however few integrators there are, and an
+       alternative assembly path that keys off the integrator's type becomes
+       unreachable with no diagnostic. */
+   BilinearFormIntegrator *GetIntegrator(int i) const { return integrators[i]; }
+
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
                               DenseMatrix &elmat) override;
@@ -3179,6 +3192,12 @@ protected:
 
 public:
 
+   /** @brief The rule AssembleElementMatrix() uses on this element; see
+       VectorMassIntegrator::GetElementIntRule() for why it is asked rather
+       than reconstructed. */
+   const IntegrationRule &GetElementIntRule(
+      const FiniteElement &el, ElementTransformation &Trans) const;
+
    using ApplyKernelType = void(*)(const int, const Array<real_t>&,
                                    const Array<real_t>&, const Vector&,
                                    const Vector&, Vector&, const int, const int);
@@ -3454,6 +3473,23 @@ public:
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
+
+   /// The scalar coefficient, or null.
+   Coefficient *GetCoefficient() const { return Q; }
+   /// The diagonal vector coefficient, or null.
+   VectorCoefficient *GetVectorCoefficient() const { return VQ; }
+   /// The full matrix coefficient, or null.
+   MatrixCoefficient *GetMatrixCoefficient() const { return MQ; }
+
+   /** @brief The rule AssembleElementMatrix() uses on this element.
+
+       ONE SOURCE OF TRUTH: that routine calls this, so an element-assembly
+       kernel that wants the same operator can ask rather than reconstruct the
+       formula. A copied rule diverges silently the day the original changes,
+       and this one has three inputs -- the element order, the
+       transformation's OrderW() and Q_order -- any of which could. */
+   const IntegrationRule &GetElementIntRule(
+      const FiniteElement &el, ElementTransformation &Trans) const;
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -3900,6 +3936,20 @@ public:
       Q(&q), trial_maps(NULL), test_maps(NULL), geom(NULL)
    { }
 
+   /// The scalar coefficient, or null.
+   Coefficient *GetCoefficient() const { return Q; }
+
+   /** @brief The rule AssembleElementMatrix2() uses on this element.
+
+       ONE SOURCE OF TRUTH: that routine calls this, so an element-assembly
+       kernel that wants the same operator asks instead of reconstructing the
+       formula. GetRule() below is the DEFAULT and is not the same question --
+       a caller may have set an explicit rule with SetIntRule(), which this
+       honours and that does not. */
+   const IntegrationRule &GetElementIntRule(
+      const FiniteElement &trial_fe, const FiniteElement &test_fe,
+      ElementTransformation &Trans) const;
+
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
@@ -4301,6 +4351,15 @@ private:
    Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
+   /// The velocity coefficient, or null.
+   VectorCoefficient *GetVelocity() const { return u; }
+   /// The scalar density coefficient, or null.
+   Coefficient *GetDensity() const { return rho; }
+   /// The alpha the constructor took.
+   real_t GetAlpha() const { return alpha; }
+   /// The beta the constructor took.
+   real_t GetBeta() const { return beta; }
+
    DGTraceIntegrator(real_t a, real_t b);
 
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.

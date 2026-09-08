@@ -1653,6 +1653,14 @@ MassIntegrator::MassIntegrator(Coefficient &q, const IntegrationRule *ir)
    Q = &q;
 }
 
+const IntegrationRule &MassIntegrator::GetElementIntRule(
+   const FiniteElement &el, ElementTransformation &Trans) const
+{
+   const IntegrationRule *ir = GetIntegrationRule(el, Trans);
+   MFEM_VERIFY(ir, "MassIntegrator has no default integration rule");
+   return *ir;
+}
+
 void MassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
@@ -1668,7 +1676,7 @@ void MassIntegrator::AssembleElementMatrix
    shape.SetSize(nd);
 
 
-   const IntegrationRule *ir = GetIntegrationRule(el, Trans);
+   const IntegrationRule *ir = &GetElementIntRule(el, Trans);
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -1907,6 +1915,16 @@ const IntegrationRule &ConvectionIntegrator::GetRule(
    return GetRule(el,el,Trans);
 }
 
+const IntegrationRule &VectorMassIntegrator::GetElementIntRule(
+   const FiniteElement &el, ElementTransformation &Trans) const
+{
+   if (const IntegrationRule *ir = GetIntegrationRule(el, Trans)) { return *ir; }
+   const int order = 2 * el.GetOrder() + Trans.OrderW() + Q_order;
+   return (el.Space() == FunctionSpace::rQk)
+          ? RefinedIntRules.Get(el.GetGeomType(), order)
+          : IntRules.Get(el.GetGeomType(), order);
+}
+
 void VectorMassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
@@ -1932,20 +1950,7 @@ void VectorMassIntegrator::AssembleElementMatrix
    }
 
 
-   const IntegrationRule *ir = GetIntegrationRule(el, Trans);
-   if (ir == NULL)
-   {
-      int order = 2 * el.GetOrder() + Trans.OrderW() + Q_order;
-
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
-   }
+   const IntegrationRule *ir = &GetElementIntRule(el, Trans);
 
    elmat = 0.0;
    for (int s = 0; s < ir->GetNPoints(); s++)
@@ -3154,6 +3159,15 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    }
 }
 
+const IntegrationRule &VectorDivergenceIntegrator::GetElementIntRule(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans) const
+{
+   const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
+   MFEM_VERIFY(ir, "VectorDivergenceIntegrator has no default rule");
+   return *ir;
+}
+
 void VectorDivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,
@@ -3174,7 +3188,7 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
 
    elmat.SetSize (test_dof, sdim*trial_dof);
 
-   const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
+   const IntegrationRule *ir = &GetElementIntRule(trial_fe, test_fe, Trans);
 
    elmat = 0.0;
 
