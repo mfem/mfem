@@ -242,10 +242,17 @@ int main(int argc, char *argv[])
       sw.Stop();
       // A query, for the same reason the assembly lines are: the batched
       // local residual refuses an integrator it cannot weigh, silently, and
-      // its consumer is still the host element loop.
+      // its consumer is still the host element loop. Three states again --
+      // CanBatchLocalResidual() refuses on `!m_nlfi` as well as on an
+      // integrator it cannot weigh, and this problem has NO nonlinear
+      // residual integrator, so "host integrators" would name calls that
+      // never happen. The const accessor is the one to ask: the non-const
+      // overload CREATES the form.
+      const bool res_any = cdarcy->GetBlockNonlinearForm() != NULL;
       Stage s_res{"NPC residual",
                   dh->CanBatchLocalResidual() ? "device kernel"
-                  : "host integrators", sw.RealTime()};
+                  : (res_any ? "host integrators" : "host, linear"),
+                  sw.RealTime()};
 
       sw.Clear();
       sw.Start();
