@@ -204,17 +204,53 @@ an address and nothing else; under CUDA it would index on stale memory.
 same shape as the `Af_ipiv` note on `InvertA()` and it was found the same way:
 by running the thing on a device rather than reasoning about it.
 
-### What it still refuses, in order of what it would buy
+## WHAT IS LEFT, and the first item is the whole project
 
-* **The nonlinear constraints — 52 of the 88 references, the largest class by
-  far.** `c_nlfi_p` / `c_nlfi` are never touched by `DarcyForm::Assemble()`;
-  they are evaluated per element-face pair inside `AssembleHDGGrad()` once per
-  Newton step. That is a different loop carrying state, not an extension of
-  this one.
-* **Parallel shared faces**, for the `FaceIsInterior()` reason above.
-* **`vdim > 1`**, which `HDGDiffusionFaceMatricesCanBatch()` refuses: the
-  arithmetic per block is the same, the scatter indexing is not.
-* **Non-NPC problems**, for the H destination above.
+**Nothing is faster end to end, and the gate says that is expected.** Measured
+just now, `hdgdevice -n 32 -o 2` under CUDA with cuDSS against the same problem
+with every setting off: **0.2100 s against 0.1688 s**. The assembly alone is
+0.0540 against 0.0168 -- three times slower on the device, because its
+neighbours are on the host and D goes through `AtomicAdd` where the per-element
+route uses `+=`. The trace solve is the one stage that is faster (0.0756
+against 0.1114). Every stage that runs is verified correct; none of it pays
+yet, and it cannot until the chain closes.
+
+In order of what each would buy:
+
+1. **The NPC residual's integrators.** They are host code and run once per
+   Newton step, which makes them the largest single item left in a nonlinear
+   solve. They evaluate `MixedConductionNLFIntegrator` and the HDG face
+   integrators at the current state, so they are the state-carrying half of
+   step 2 rather than an extension of the assembly kernels.
+2. **The nonlinear face constraints — 52 of the 88 references, the largest
+   class by far.** `c_nlfi_p` / `c_nlfi` are never touched by
+   `DarcyForm::Assemble()`; they are evaluated per element-face pair inside
+   `AssembleHDGGrad()`, once per Newton step. A different loop carrying state,
+   not an extension of this one, and it shares its ingredients with item 1.
+3. **`ComputeElementH()`'s face-PAIR loop.** The factorisation and the Schur
+   complement are batched; the `C A^-1 C^T` double loop over an element's faces
+   is not, and it is why `FactorElementsBatched()` still reads its blocks back.
+   `GradientMode::MatrixFree` skips the loop entirely but its apply,
+   `MultNL(GradMult)`, is the per-element `MultInv()` -- so that end is not
+   device-resident either.
+4. **The scatter into the trace `SparseMatrix`** -- group 3, 40-47% of
+   `NPCGradient`. `GradientMode::MatrixFree` deletes it outright, at the cost
+   of an unpreconditioned trace solve; that trade is the open research question
+   in `doc/HDG-JACOBIAN-FREE-TRACE.md`.
+5. **The flux mass boundary faces** (`DarcyForm::AssembleFluxMassBdrFaces`),
+   the one assembly loop on the hybridized path with no kernel. Small, and the
+   same shape as the potential-mass boundary one that does have one.
+6. **Parallel shared faces**, for the `FaceIsInterior()` reason above -- the
+   face kernels refuse `ParallelC()` outright today.
+7. **`vdim > 1` face constraint**, which `HDGDiffusionFaceMatricesCanBatch()`
+   refuses: the arithmetic per block is the same, the scatter indexing is not.
+   `navierstokes` is the caller that wants it.
+8. **Non-NPC problems**, for the H destination above: the kernel writes
+   `H_data` and the reduced route reads an assembled sparse `H`.
+
+Not on this list, deliberately: the element blocks, the linear face
+constraints, the local factorisation and solves, and the trace solve. Those
+are done.
 
 ## The gate, before any of the steps
 

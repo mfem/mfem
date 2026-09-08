@@ -187,10 +187,27 @@ int main(int argc, char *argv[])
       darcy.Assemble();
       darcy.Finalize();
       sw.Stop();
-      Stage s_asm{"assembly (integrators)", "host", sw.RealTime()};
-      Stage s_face{"  of which face constraint",
+      // EVERY line is queried. This one used to read a literal "host" and went
+      // on reading it after the element kernels landed -- the exact staleness
+      // this harness exists to prevent, in the harness itself.
+      const DarcyForm *cdarcy = &darcy;
+      auto *fm = const_cast<BilinearForm*>(cdarcy->GetFluxMassForm());
+      auto *pm = const_cast<BilinearForm*>(cdarcy->GetPotentialMassForm());
+      auto *bb = const_cast<MixedBilinearForm*>(cdarcy->GetFluxDivForm());
+      const bool el_dev = dh->CanBatchFluxMass(fm) && dh->CanBatchDiv(bb);
+      Stage s_asm{"assembly, total", "mixed", sw.RealTime()};
+      Stage s_mass{"  flux mass + divergence",
+                   el_dev ? "device kernel" : "host per-element", 0.};
+      Stage s_pmass{"  potential mass",
+                    dh->CanBatchPotMass(pm) ? "device kernel"
+                    : "host (or no domain term)", 0.};
+      Stage s_face{"  face constraint, interior",
                    dh->CanBatchPotFaceAssembly() ? "device kernel"
                    : "host per-face", 0.};
+      Stage s_bface{"  face constraint, boundary",
+                    dh->CanBatchPotBdrFaceAssembly() ? "device kernel"
+                    : "host per-face", 0.};
+      Stage s_fbdr{"  flux mass boundary faces", "host per-face", 0.};
 
       BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
       b = 0.0;
@@ -294,7 +311,11 @@ int main(int argc, char *argv[])
 
       Array<Stage*> stages;
       stages.Append(&s_asm);
+      stages.Append(&s_mass);
+      stages.Append(&s_pmass);
       stages.Append(&s_face);
+      stages.Append(&s_bface);
+      stages.Append(&s_fbdr);
       stages.Append(&s_res);
       stages.Append(&s_grad);
       stages.Append(&s_red);
@@ -324,12 +345,14 @@ int main(int argc, char *argv[])
       }
    }
 
-   cout << "What is NOT on the device, and it is most of the time above:\n"
-        << "  * every integrator -- the element assembly, the NPC residual,\n"
-        << "    and the boundary faces -- which is step 2 of\n"
-        << "    doc/HDG-DEVICE-OFFLOAD.md and the majority of the work;\n"
-        << "  * the face loops around the batched local solves, which is why\n"
-        << "    NPCReduce still reads its answers back;\n"
+   cout << "What is NOT on the device:\n"
+        << "  * the NPC RESIDUAL's integrators, which run once per Newton\n"
+        << "    step and are the largest single item left;\n"
+        << "  * the flux mass boundary faces, and any face constraint the\n"
+        << "    kernel refuses -- a nonlinear one above all, which is not an\n"
+        << "    assembly-time term at all and needs a different loop;\n"
+        << "  * ComputeElementH()'s face-PAIR loop, which is why the\n"
+        << "    factorisation still reads its blocks back;\n"
         << "  * the scatter into the trace SparseMatrix.\n";
 
    return 0;
