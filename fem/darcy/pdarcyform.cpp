@@ -241,6 +241,24 @@ void ParDarcyForm::Assemble(int skip_zeros)
    else if (Mnl_p)
    {
       Mnl_p->Setup();
+
+      // The potential MASS is on this NonlinearForm -- so there is no pM_p and
+      // the block above did not run -- but its FACE constraint may be linear,
+      // in which case DarcyForm::EnableHybridization() routed it to c_bfi_p.
+      // These two passes are what fill E, G, H and D from it.
+      //
+      // **This is the serial branch's exact twin and it was missed once.**
+      // Fixing DarcyForm::Assemble() alone left the parallel path assembling
+      // no constraint at all: the trace system is then singular, and where the
+      // serial run failed loudly with beta = -nan out of GMRES, the parallel
+      // one merely ground -- `pconvdiff -nx 10 -ny 10 -p 1 -o 2 -dg -hb -nl
+      // -nld` sat at 95% CPU for 23 minutes on a 10x10 mesh. A hang is the
+      // same defect wearing a slower face.
+      if (hybridization && hybridization->GetPotConstraintIntegrator())
+      {
+         AssemblePotHDGFaces(skip_zeros);
+         AssemblePotHDGSharedFaces(skip_zeros);
+      }
    }
 
    if (pb_u)

@@ -59,11 +59,28 @@ DarcyHybridization::~DarcyHybridization()
    }
 }
 
+/** @brief A LINEAR potential face constraint.
+
+    This may be combined with a NONLINEAR potential mass, and used not to be.
+    Both this and SetPotMassNonlinearIntegrator() carried a bare MFEM_VERIFY
+    refusing the combination, with no reason given; the reason was that the
+    constraint's contribution to D is assembled into Df_data at assembly time
+    and ConstructGrad() zeroes Df_data to make room for the nonlinear mass's
+    Jacobian, so the contribution was destroyed after the first gradient.
+    Finalize() now backs it up into Df_lin_data on the PotNL branch and the
+    three D consumers add it as a further term rather than an alternative --
+    see the comment on that backup.
+
+    The combination is not exotic. A caller whose potential mass is nonlinear
+    must put it on a NonlinearForm, and the HDG face stabilization goes on the
+    SAME form; `convdiff` installs the identical HDGDiffusionIntegrator either
+    way. DarcyForm::EnableHybridization() now routes such a constraint here,
+    which assembles E, G, H and D once instead of once per element per Newton
+    evaluation and makes the batched face kernel reachable on a nonlinear
+    problem. */
 void DarcyHybridization::SetConstraintIntegrators(
    BilinearFormIntegrator *c_flux_integ, BilinearFormIntegrator *c_pot_integ)
 {
-   MFEM_VERIFY(!m_nlfi_p, "Linear constraint cannot work with a non-linear mass");
-
    c_bfi.reset(c_flux_integ);
    c_bfi_p.reset(c_pot_integ);
    c_nlfi_p.reset();
@@ -99,8 +116,8 @@ void DarcyHybridization::SetFluxMassNonlinearIntegrator(
 void DarcyHybridization::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
                                                        *pot_integ, bool own)
 {
-   MFEM_VERIFY(!c_bfi_p, "Non-linear mass cannot work with a linear constraint");
-
+   // A linear constraint alongside this is supported; see
+   // SetConstraintIntegrators(BilinearFormIntegrator*, BilinearFormIntegrator*).
    if (own_m_nlfi_p) { delete m_nlfi_p; }
    own_m_nlfi_p = own;
    m_nlfi_p = pot_integ;
@@ -241,7 +258,13 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    }
 
    Bf_data.SetSize(Bf_offsets[NE]); Bf_data = 0.;
-   if (!m_nlfi_p)
+   // A nonlinear potential mass allocates D lazily, in ReducedGradient(),
+   // because ConstructGrad() is what fills it. A LINEAR face constraint needs
+   // it at ASSEMBLY time though -- AssemblePotMassMatrix() accumulates the
+   // face contribution into it -- so the two together still need it here.
+   // Without the second test that assembly segfaults in DenseMatrix::operator+=
+   // on an unsized Df_data.
+   if (!m_nlfi_p || c_bfi_p)
    {
       AllocD();
    }
@@ -1986,13 +2009,140 @@ void TransposeBlocksScaled(const Vector &B, int na, int nd, int NE,
    const int nb = na*nd;
    const auto d_B = B.Read();
    auto d_Bt = Bt.Write();
-   mfem::forall(nb*NE, [=] MFEM_HOST_DEVICE (int idx)
+   // One thread per ELEMENT and the block transposed by inner loops. A thread
+   // per entry needs three integer divisions to recover (i, j, el) and that
+   // was measurable -- see HDGGatherFaceCols(), where the same shape of
+   // kernel cost 0.19 s of a 0.95 s loop before it was written this way.
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int el)
    {
-      const int i = idx % na;            // flux dof: the transpose's row
-      const int j = (idx / na) % nd;     // potential dof: its column
-      const int el = idx / nb;
+      const real_t *b = d_B + el*nb;
+      real_t *bt = d_Bt + el*nb;
       // B's block is (nd, na) column-major, so B(j, i) sits at i*nd + j.
-      d_Bt[idx] = sgn * d_B[el*nb + i*nd + j];
+      for (int j = 0; j < nd; j++)
+      {
+         for (int i = 0; i < na; i++) { bt[j*na + i] = sgn * b[i*nd + j]; }
+      }
+   });
+}
+
+/** @brief Gather one (@a m, @a nc) column-major block per (element, local
+    face) into the element-blocked (@a m, @a nf*nc, @a nel) tensor @a dst.
+
+    @a map carries three offsets per (element, local face) -- into Ct_data,
+    into E_data/G_data, and into H_data -- and @a comp picks which. It is
+    built once for the whole mesh, so element @a e of the chunk is element
+    @a el_0 + e of that map; that is what keeps it one array rather than one
+    per chunk.
+
+    A free function and not a member, for the nvcc reason spelled out on
+    TransposeBlocksScaled(). */
+void HDGGatherFaceCols(const Vector &src, const Array<int> &map, int comp,
+                       int m, int nc, int nf, int el_0, int nel, Vector &dst)
+{
+   const int T = nf*nc;
+   const auto d_src = src.Read();
+   const auto d_map = map.Read();
+   auto d_dst = dst.Write();
+   // One thread per (element, face) and the block copied by inner loops, NOT
+   // one thread per entry. The flat form needs four integer divisions per
+   // output entry to recover (i, j, lf, e), and integer division is not a
+   // cheap instruction: measured, that alone was 0.19 s of a 0.95 s face-pair
+   // loop at n=128, for a copy that moves 28 MB. This leaves two divisions
+   // per BLOCK and the copy contiguous on both sides.
+   mfem::forall(nf*nel, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int lf = idx % nf;
+      const int e  = idx / nf;
+      const real_t *src = d_src + d_map[3*((el_0 + e)*nf + lf) + comp];
+      real_t *dst = d_dst + e*m*T + lf*nc*m;
+      for (int j = 0; j < nc; j++)
+      {
+         for (int i = 0; i < m; i++) { dst[j*m + i] = src[j*m + i]; }
+      }
+   });
+}
+
+/** @brief The same gather for a block stacked by ROWS: one (@a nc, @a n)
+    block per (element, local face) into an (@a nf*nc, @a n, @a nel) tensor.
+
+    G is the one stored that way -- (trace dofs, potential dofs) rather than
+    the (potential dofs, trace dofs) of E -- so its element block is a column
+    of face blocks where E's is a row of them. */
+void HDGGatherFaceRows(const Vector &src, const Array<int> &map, int comp,
+                       int nc, int n, int nf, int el_0, int nel, Vector &dst)
+{
+   const int T = nf*nc;
+   const auto d_src = src.Read();
+   const auto d_map = map.Read();
+   auto d_dst = dst.Write();
+   mfem::forall(nf*nel, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int lf = idx % nf;
+      const int e  = idx / nf;
+      const real_t *src = d_src + d_map[3*((el_0 + e)*nf + lf) + comp];
+      real_t *dst = d_dst + e*T*n + lf*nc;
+      for (int j = 0; j < n; j++)
+      {
+         for (int i = 0; i < nc; i++) { dst[j*T + i] = src[j*nc + i]; }
+      }
+   });
+}
+
+/** @brief Add each face's own (@a nc, @a nc) block to the matching DIAGONAL
+    block of the element's (T, T) matrix, T = @a nf*nc.
+
+    An offset of -1 says this element is not the face's first, which is how
+    the element loop states "integrate the face contribution only on one
+    side". */
+void HDGAddFaceDiagBlocks(const Vector &src, const Array<int> &map, int comp,
+                          int nc, int nf, int el_0, int nel, Vector &dst)
+{
+   const int T = nf*nc;
+   const auto d_src = src.Read();
+   const auto d_map = map.Read();
+   auto d_dst = dst.ReadWrite();
+   mfem::forall(nf*nel, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int lf = idx % nf;
+      const int e  = idx / nf;
+      const int o  = d_map[3*((el_0 + e)*nf + lf) + comp];
+      if (o < 0) { return; }
+      const real_t *src = d_src + o;
+      real_t *dst = d_dst + e*T*T + lf*nc*T + lf*nc;
+      for (int j = 0; j < nc; j++)
+      {
+         for (int i = 0; i < nc; i++) { dst[j*T + i] += src[j*nc + i]; }
+      }
+   });
+}
+
+/** @brief Repack the element's (T, T) matrix into the (f2, f1) BLOCK layout
+    ComputeElementH() leaves behind and ScatterElementH() replays: f1 outer,
+    f2 inner, each block contiguous and column-major.
+
+    The two layouts differ -- the matrix runs whole columns of length T where
+    the buffer runs one face block at a time -- so this is a real permutation
+    and not a reinterpretation. Written as a kernel over the BUFFER, whose
+    linear index decomposes into (i2, j1, f2, f1, e) with exactly the strides
+    the buffer has; only the read is scattered. */
+void HDGPackElementH(const Vector &Hfull, int nc, int nf, int nel,
+                     Vector &Hel)
+{
+   const int T = nf*nc;
+   const auto d_H = Hfull.Read();
+   auto d_buf = Hel.Write();
+   mfem::forall(nf*nf*nel, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int f2 = idx % nf;
+      const int f1 = (idx / nf) % nf;
+      const int e  = idx / (nf*nf);
+      const real_t *src = d_H + e*T*T + f1*nc*T + f2*nc;
+      real_t *dst = d_buf + e*T*T + (f1*nf + f2)*nc*nc;
+      for (int j1 = 0; j1 < nc; j1++)
+      {
+         for (int i2 = 0; i2 < nc; i2++)
+         { dst[j1*nc + i2] = src[j1*T + i2]; }
+      }
    });
 }
 
@@ -2077,6 +2227,160 @@ bool DarcyHybridization::FactorElementsBatched(ComputeHMode mode,
    S_store.GetMemory().Sync(S.GetMemory());
 
    return true;
+}
+
+bool DarcyHybridization::BuildElementHFaceMap(int na, int nd, bool with_h,
+                                              int &nf, int &nc,
+                                              Array<int> &face_map) const
+{
+   const Mesh *mesh = fes.GetMesh();
+   const int NE = mesh->GetNE();
+   if (NE <= 0) { return false; }
+
+   const int vdim = c_fes.GetVDim();
+
+   Array<int> faces;
+   GetElementFaces(0, faces);
+   nf = faces.Size();
+   if (nf <= 0) { return false; }
+   nc = c_fes.GetFaceElement(faces[0])->GetDof() * vdim;
+   if (nc <= 0) { return false; }
+
+   face_map.SetSize(3*NE*nf);
+   for (int el = 0; el < NE; el++)
+   {
+      GetElementFaces(el, faces);
+      if (faces.Size() != nf) { return false; }
+      for (int lf = 0; lf < nf; lf++)
+      {
+         const int f = faces[lf];
+         if (c_fes.GetFaceElement(f)->GetDof() * vdim != nc) { return false; }
+
+         int el1, el2;
+         mesh->GetFaceElements(f, &el1, &el2);
+         // The element loop's own test, and it is a test on the FACE rather
+         // than on the element: side 0 is the face's first element. A shared
+         // face of a ParMesh has el2 < 0 and its local element is always the
+         // first, so nothing here is serial-only.
+         const int side = (el1 != el) ? 1 : 0;
+
+         const int k = 3*(el*nf + lf);
+         face_map[k    ] = Ct_offsets[f] + side*na*nc;
+         // E and G share E_offsets, and with one block size their second
+         // side sits the same distance in: E is (nd, nc) and G is (nc, nd).
+         face_map[k + 1] = E_offsets[f] + side*nd*nc;
+         face_map[k + 2] = (with_h && side == 0) ? H_offsets[f] : -1;
+      }
+   }
+
+   face_map.UseDevice(true);
+   return true;
+}
+
+void DarcyHybridization::ComputeElementsHBatched(
+   ComputeHMode mode, int el_0, int nel, int na, int nd, int nf, int nc,
+   const Vector &AiBt_all, const Array<int> &face_map,
+   ElementHWorkspace &ws, Vector &Hel) const
+{
+   const bool gradient = (mode != ComputeHMode::Linear);
+   const bool with_eg = (c_bfi_p || mode == ComputeHMode::Gradient);
+   // Where the Schur complement was left; the same question, and the same
+   // answer, as FactorElementsBatched().
+   const bool to_S = (gradient && lop_type == LocalOpType::FluxNL);
+   const int T = nf*nc;
+
+   if (nel <= 0 || T <= 0) { return; }
+
+   // Chunk views of the element-blocked stores. An ALIAS Memory and not a raw
+   // pointer, for the reason InvertA() gives at length: the raw-pointer
+   // DenseTensor constructor goes through Memory::Wrap(), which sets
+   // VALID_HOST with no device type, and that pins the batched kernels to the
+   // host however the Device is configured.
+   Memory<real_t> A_mem(Af_data.GetMemory(), el_0*na*na, nel*na*na);
+   DenseTensor A;
+   A.NewMemoryAndSize(A_mem, na, na, nel, false);
+   Array<int> A_ipiv;
+   A_ipiv.MakeRef(Af_ipiv.GetMemory(), el_0*na, nel*na);
+
+   Memory<real_t> B_mem(Bf_data.GetMemory(), el_0*na*nd, nel*na*nd);
+   DenseTensor B;
+   B.NewMemoryAndSize(B_mem, nd, na, nel, false);
+
+   Vector &S_store = (to_S) ? (Sf_data) : (Df_data);
+   Array<int> &S_store_ipiv = (to_S) ? (Sf_ipiv) : (Df_ipiv);
+   Memory<real_t> S_mem(S_store.GetMemory(), el_0*nd*nd, nel*nd*nd);
+   DenseTensor S;
+   S.NewMemoryAndSize(S_mem, nd, nd, nel, false);
+   Array<int> S_ipiv;
+   S_ipiv.MakeRef(S_store_ipiv.GetMemory(), el_0*nd, nel*nd);
+
+   Memory<real_t> AiBt_mem(AiBt_all.GetMemory(), el_0*na*nd, nel*na*nd);
+   Vector AiBt;
+   AiBt.NewMemoryAndSize(AiBt_mem, nel*na*nd, false);
+   AiBt.UseDevice(true);
+
+   // The caller's scratch, and SetSize() on a Vector that is already big
+   // enough is free; see ElementHWorkspace for what making these locals cost.
+   Vector &Ct_el = ws.Ct, &AiCt = ws.AiCt, &BAiCt = ws.BAiCt,
+           &CAiBt = ws.CAiBt, &Hfull = ws.Hfull;
+   Ct_el.SetSize(na*T*nel);
+   AiCt.SetSize(na*T*nel);
+   BAiCt.SetSize(nd*T*nel);
+   CAiBt.SetSize(T*nd*nel);
+   Hfull.SetSize(T*T*nel);
+
+   HDGGatherFaceCols(Ct_data, face_map, 0, na, nc, nf, el_0, nel, Ct_el);
+
+   // A^-1 C^T, for every face of every element of the chunk in one solve.
+   AiCt = Ct_el;
+   BatchedLinAlg::LUSolve(A, A_ipiv, AiCt);
+
+   // S^-1 (B A^-1 C^T - E). The subtraction is its own pass and is NOT folded
+   // into the AddMult's beta: AddMult scales y before accumulating, so a
+   // pre-loaded -E would have the product summed on top of it, where the
+   // element loop sums the product and then subtracts. See MultInvBatched().
+   BatchedLinAlg::AddMult(B, AiCt, BAiCt, 1.0, 0.0);
+   if (with_eg)
+   {
+      Vector &E_el = ws.EG;
+      E_el.SetSize(nd*T*nel);
+      HDGGatherFaceCols(E_data, face_map, 1, nd, nc, nf, el_0, nel, E_el);
+      BAiCt -= E_el;
+   }
+   BatchedLinAlg::LUSolve(S, S_ipiv, BAiCt);
+
+   // The tensor views of the two products come after the writes that fill
+   // them, and that is load-bearing on a device: a DenseTensor holds a COPY
+   // of the Memory, so it carries the validity flags as they stood when it
+   // was made. FactorElementsBatched() states the same thing from the other
+   // end, where it has to Sync() back.
+   DenseTensor Ct_t;
+   Ct_t.NewMemoryAndSize(Ct_el.GetMemory(), na, T, nel, false);
+
+   // -C A^-1 C^T
+   BatchedLinAlg::AddMult(Ct_t, AiCt, Hfull, 1.0, 0.0, BatchedLinAlg::Op::T);
+   Hfull.Neg();
+
+   // C A^-1 B^T + G
+   BatchedLinAlg::AddMult(Ct_t, AiBt, CAiBt, 1.0, 0.0, BatchedLinAlg::Op::T);
+   if (with_eg)
+   {
+      Vector &G_el = ws.EG;
+      G_el.SetSize(T*nd*nel);
+      HDGGatherFaceRows(G_data, face_map, 1, nc, nd, nf, el_0, nel, G_el);
+      CAiBt += G_el;
+   }
+
+   DenseTensor CAiBt_t;
+   CAiBt_t.NewMemoryAndSize(CAiBt.GetMemory(), T, nd, nel, false);
+   BatchedLinAlg::AddMult(CAiBt_t, BAiCt, Hfull, 1.0, 1.0);
+
+   if (mode == ComputeHMode::Gradient)
+   {
+      HDGAddFaceDiagBlocks(H_data, face_map, 2, nc, nf, el_0, nel, Hfull);
+   }
+
+   HDGPackElementH(Hfull, nc, nf, nel, Hel);
 }
 
 void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
@@ -2354,7 +2658,33 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
    // that is asked for; the loop below then does the face pairs only.
    Vector AiBt_all;
    const bool prefactored = FactorElementsBatched(mode, AiBt_all);
-   if (prefactored)
+
+   // And the FACE-PAIR loop batches with it, when the mesh gives one face
+   // count per element and one trace size per face. That turns the whole of
+   // ComputeElementH() after the factorisation into five BatchedLinAlg calls
+   // and four gather/pack kernels per chunk -- see ComputeElementsHBatched().
+   int na = 0, nd = 0, nf = 0, nc = 0;
+   Array<int> face_map;
+   bool batched_asm = false;
+   if (prefactored && assemble)
+   {
+      na = UniformBlockSize(Af_f_offsets, NE);
+      nd = UniformBlockSize(Df_f_offsets, NE);
+      // The map is built on the host out of these three, and the batched FACE
+      // assembly hands them to kernels, which leaves them device-valid; every
+      // reader here indexes them raw. Same shape as the Af_ipiv note on
+      // InvertA(), so the same repair, and it has to happen BEFORE the map is
+      // built rather than in the sync at the end.
+      if (Ct_offsets.Size()) { Ct_offsets.HostRead(); }
+      if (E_offsets.Size()) { E_offsets.HostRead(); }
+      if (H_offsets.Size()) { H_offsets.HostRead(); }
+      batched_asm = (na > 0 && nd > 0) &&
+                    BuildElementHFaceMap(na, nd,
+                                         mode == ComputeHMode::Gradient,
+                                         nf, nc, face_map);
+   }
+
+   if (prefactored && !batched_asm)
    {
       // THE copy back, and the only one this route needs. Everything that
       // consumes these blocks is host code reaching them through raw
@@ -2379,8 +2709,24 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       SyncLocalBlocksToHost();
    }
 
-   Array<real_t> Hel_data;
+   // The block buffer is a Vector and not an Array<real_t> because the
+   // batched path WRITES it with a kernel; the scatter that reads it is host
+   // code either way, and HostRead() below is where that is said.
+   Vector Hel_data;
+   Hel_data.UseDevice(batched_asm);
    Array<int> Hel_offsets, faces;
+
+   // Hoisted out of the loop, and deliberately: see ElementHWorkspace.
+   ElementHWorkspace ws;
+   if (batched_asm)
+   {
+      ws.Ct.UseDevice(true);
+      ws.AiCt.UseDevice(true);
+      ws.EG.UseDevice(true);
+      ws.BAiCt.UseDevice(true);
+      ws.CAiBt.UseDevice(true);
+      ws.Hfull.UseDevice(true);
+   }
 
    for (int el_0 = 0; el_0 < NE; el_0 += chunk)
    {
@@ -2403,25 +2749,56 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
          Hel_offsets[el-el_0+1] = Hel_offsets[el-el_0] + size;
       }
       Hel_data.SetSize(Hel_offsets[nel]);
-      real_t * const Hbuf = (Hel_data.Size() > 0) ? Hel_data.GetData() : NULL;
+
+      if (batched_asm)
+      {
+         MFEM_ASSERT(Hel_offsets[nel] == nel*nf*nc*nf*nc,
+                     "the batched face-pair loop needs one trace size");
+         ComputeElementsHBatched(mode, el_0, nel, na, nd, nf, nc, AiBt_all,
+                                 face_map, ws, Hel_data);
+      }
+      else
+      {
+         real_t * const Hbuf =
+            (Hel_data.Size() > 0) ? Hel_data.HostWrite() : NULL;
 
 #ifdef MFEM_USE_OPENMP
-      #pragma omp parallel for schedule(dynamic) \
-      if (asm_mode == AssemblyMode::Threaded)
+         #pragma omp parallel for schedule(dynamic) \
+         if (asm_mode == AssemblyMode::Threaded)
 #endif
-         for (int el = el_0; el < el_1; el++)
-         {
-            ComputeElementH(el, mode,
-                            Hbuf ? Hbuf + Hel_offsets[el-el_0] : NULL,
-                            prefactored ? &AiBt_all : NULL);
-         }
+            for (int el = el_0; el < el_1; el++)
+            {
+               ComputeElementH(el, mode,
+                               Hbuf ? Hbuf + Hel_offsets[el-el_0] : NULL,
+                               prefactored ? &AiBt_all : NULL);
+            }
+      }
 
       if (!assemble) { continue; }
 
+      // The transfer the scatter needs, and the only one this route takes per
+      // chunk. It is what a device-resident assembly of H would have to
+      // remove, and removing it means a different scatter -- see
+      // SetAssemblyMode() on why the sparse one cannot even be threaded.
+      const real_t * const Hbuf_r = Hel_data.HostRead();
+
       for (int el = el_0; el < el_1; el++)
       {
-         ScatterElementH(el, Hbuf + Hel_offsets[el-el_0], *H_);
+         ScatterElementH(el, Hbuf_r + Hel_offsets[el-el_0], *H_);
       }
+   }
+
+
+   if (batched_asm)
+   {
+      // THE copy back, moved to after the loop rather than before it. The
+      // face pairs read the local blocks on the device; what still needs them
+      // on the host is everything downstream -- the per-element MultInv() the
+      // reduced and NPC routes call, and the raw-pointer readers of the
+      // offset arrays. The comment on the other branch is the whole argument
+      // for why it is unconditional.
+      AiBt_all.HostRead();
+      SyncLocalBlocksToHost();
    }
 
    // Everything past here finalizes the assembled matrix, and there is none
@@ -2837,7 +3214,8 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                   // E x on the potential row, so between them the trace coupling
                   // appears once on each row.
                   Vector ru_l, rp_l;
-                  LocalResidual(el, faces, x_l, bu_l, bp_l, u_l, p_l, ru_l, rp_l);
+                  LocalResidual(el, faces, x_l, bu_l, bp_l, u_l, p_l, ru_l, rp_l,
+                                ws);
                   r_local->GetBlock(0).AddElementVector(u_vdofs, ru_l);
                   r_local->GetBlock(1).AddElementVector(p_dofs, rp_l);
                   // and fall through to the trace row, which is the same assembly
@@ -2871,7 +3249,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                   }
 
                   //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
-                  MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
+                  MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l, ws);
                }
 
                if (mode == MultNlMode::Sol)
@@ -3173,10 +3551,21 @@ void DarcyHybridization::Finalize()
          lop_type = LocalOpType::PotNL;
          // backup the data for gradient construction
          Af_lin_data = Af_data;
+         // The potential mass is the nonlinear one, so Df_data is about to
+         // become the DESTINATION for its per-element Jacobian -- ConstructGrad()
+         // zeroes it. Anything already assembled there is a LINEAR face
+         // constraint's contribution to D (there is no linear potential mass
+         // in this branch, or it would not be nonlinear), and it has to
+         // survive. Backing it up here is what lets a linear c_bfi_p coexist
+         // with a nonlinear m_nlfi_p; the three consumers then add it as a
+         // further term. Without it that contribution is silently lost after
+         // the first gradient, which is what the refusal in
+         // SetPotMassNonlinearIntegrator() used to be avoiding.
+         if (!D_empty) { Df_lin_data = Df_data; }
          InvertA();
       }
-      else if (IsNonlinear() && !m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi
-               && !c_nlfi)
+      else if (IsNonlinear() && !m_nlfi_p && !c_nlfi_p && !c_bfi_p && !D_empty
+               && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::FluxNL;
          // backup the data for gradient construction
@@ -3480,7 +3869,8 @@ void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Vector &x, Vector &b)
 
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
                                    const Vector &bp_l, const BlockVector &x_l,
-                                   Vector &u_l, Vector &p_l) const
+                                   Vector &u_l, Vector &p_l,
+                                   TransWorkspace &ws) const
 {
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
@@ -3512,13 +3902,13 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    switch (lop_type)
    {
       case LocalOpType::FluxNL:
-         lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces);
+         lop = new LocalFluxNLOperator(*this, el, bp_l, x_l, faces, ws);
          break;
       case LocalOpType::PotNL:
-         lop = new LocalPotNLOperator(*this, el, bu_l, x_l, faces);
+         lop = new LocalPotNLOperator(*this, el, bu_l, x_l, faces, ws);
          break;
       case LocalOpType::FullNL:
-         lop = new LocalNLOperator(*this, el, x_l, faces);
+         lop = new LocalNLOperator(*this, el, x_l, faces, ws);
          break;
    }
 
@@ -3801,12 +4191,13 @@ void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,
                                        const BlockVector &x_l,
                                        const Vector &bu_l, const Vector &bp_l,
                                        const Vector &u_l, const Vector &p_l,
-                                       Vector &ru_l, Vector &rp_l) const
+                                       Vector &ru_l, Vector &rp_l,
+                                       TransWorkspace &ws) const
 {
    // The local equations are lop(u, p) = (bu_l, bp_l) -- that is what the
    // local nonlinear solve solves in the other ordering -- so the residual is
    // one evaluation of the same operator rather than a solve with it.
-   LocalNLOperator lop(*this, el, x_l, faces);
+   LocalNLOperator lop(*this, el, x_l, faces, ws);
 
    BlockVector xv(lop.GetOffsets()), rv(lop.GetOffsets());
    xv.GetBlock(0) = u_l;
@@ -4091,7 +4482,13 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, grad_D);
       D += grad_D;
    }
-   else if (!D_empty && lop_type != LocalOpType::FluxNL)
+   // The linear D is an ADDITIONAL term, not an alternative, when the potential
+   // mass is nonlinear and the face constraint is linear: Df_lin_data then
+   // holds the constraint's contribution ALONE and nothing else supplies it.
+   // With no nonlinear mass it holds the linear mass and the constraint
+   // together, which is the original behaviour and the original condition.
+   if ((!m_nlfi_p || c_bfi_p) && !D_empty
+       && lop_type != LocalOpType::FluxNL)
    {
       DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       D += D_lin;
@@ -5824,13 +6221,14 @@ void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(
    const DarcyHybridization &dh_, int el_, const BlockVector &trps_,
-   const Array<int> &faces_)
+   const Array<int> &faces_, TransWorkspace &ws_)
    : dh(dh_), el(el_), trps(trps_), faces(faces_),
      a_dofs_size(dh.Af_f_offsets[el+1] - dh.Af_f_offsets[el]),
      d_dofs_size(dh.Df_f_offsets[el+1] - dh.Df_f_offsets[el]),
      B(const_cast<real_t*>(&dh.Bf_data[dh.Bf_offsets[el]]),
        d_dofs_size, a_dofs_size),
-     Bt(B), offsets({0, a_dofs_size, a_dofs_size+d_dofs_size}), grad(offsets)
+     Bt(B), ws(ws_), offsets({0, a_dofs_size, a_dofs_size+d_dofs_size}),
+grad(offsets)
 {
    width = height = a_dofs_size + d_dofs_size;
 
@@ -5839,33 +6237,38 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
 
    const Mesh *mesh = dh.fes.GetMesh();
 
-   // element transformation
-   Tr = new IsoparametricTransformation();
+   // Every transformation below belongs to @a ws and is reused across the
+   // element loop; see TransWorkspace::lop_elem for what that is worth and
+   // what it replaced. The vectors are sized FIRST, so the pointers taken
+   // afterwards cannot be invalidated by a later growth.
+   Tr = &ws.lop_elem;
    if (faces.Size() <= 0)
    {
       mesh->GetElementTransformation(el, Tr);
    }
 
    // face transformations
-   FTrs.resize(faces.Size());
-   NbrTrs.resize(faces.Size());
+   if ((int)ws.lop_faces.size() < faces.Size())
+   {
+      ws.lop_faces.resize(faces.Size());
+      ws.lop_nbrs.resize(faces.Size());
+   }
    for (int f = 0; f < faces.Size(); f++)
    {
-      FaceElementTransformations *&FTr = FTrs[f];
-      FTr = new FaceElementTransformations();
+      FaceElementTransformations *FTr = &ws.lop_faces[f];
       mesh->GetFaceElementTransformations(faces[f], *FTr, *Tr, *Tr, 0);
       IsoparametricTransformation *Tr1, *Tr2;
       if (FTr->Elem2No >= 0)
       {
-         NbrTrs[f] = new IsoparametricTransformation();
+         IsoparametricTransformation *Nbr = &ws.lop_nbrs[f];
          if (FTr->Elem1No == el)
          {
             Tr1 = Tr;
-            Tr2 = NbrTrs[f];
+            Tr2 = Nbr;
          }
          else
          {
-            Tr1 = NbrTrs[f];
+            Tr1 = Nbr;
             Tr2 = Tr;
          }
 
@@ -5875,15 +6278,15 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
       else if (dh.ParallelC() &&
                dh.c_pfes->GetParMesh()->FaceIsTrueInterior(faces[f]))
       {
-         NbrTrs[f] = new IsoparametricTransformation();
+         IsoparametricTransformation *Nbr = &ws.lop_nbrs[f];
          if (FTr->Elem1No == el)
          {
             Tr1 = Tr;
-            Tr2 = NbrTrs[f];
+            Tr2 = Nbr;
          }
          else
          {
-            Tr1 = NbrTrs[f];
+            Tr1 = Nbr;
             Tr2 = Tr;
          }
 
@@ -5893,21 +6296,10 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
 #endif
       else
       {
-         NbrTrs[f] = NULL;
          Tr1 = Tr2 = Tr;
 
          mesh->GetFaceElementTransformations(faces[f], *FTr, *Tr1, *Tr2, 21);
       }
-   }
-}
-
-DarcyHybridization::LocalNLOperator::~LocalNLOperator()
-{
-   delete Tr;
-   for (int f = 0; f < faces.Size(); f++)
-   {
-      delete FTrs[f];
-      delete NbrTrs[f];
    }
 }
 
@@ -5935,7 +6327,7 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
 
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = FTrs[f];
+         FaceElementTransformations *FTr = &ws.lop_faces[f];
 
          int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM
                     | BlockNonlinearFormIntegrator::HDGFaceType::TRACE;
@@ -6003,7 +6395,12 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
       dh.m_nlfi_p->AssembleElementVector(*fe_p, *Tr, p_l, Dp);
       bp += Dp;
    }
-   else if (!dh.D_empty)
+   // The linear D is an ADDITIONAL term, not an alternative, when the potential
+   // mass is nonlinear and the face constraint is linear: Df_lin_data then
+   // holds the constraint's contribution ALONE and nothing else supplies it.
+   // With no nonlinear mass it holds the linear mass and the constraint
+   // together, which is the original behaviour and the original condition.
+   if ((!dh.m_nlfi_p || dh.c_bfi_p) && !dh.D_empty)
    {
       const DenseMatrix D(&dh.Df_lin_data[dh.Df_offsets[el]],
                           d_dofs_size, d_dofs_size);
@@ -6015,7 +6412,7 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
       //bp += E x
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = FTrs[f];
+         FaceElementTransformations *FTr = &ws.lop_faces[f];
 
          int type = NonlinearFormIntegrator::HDGFaceType::ELEM
                     | NonlinearFormIntegrator::HDGFaceType::TRACE;
@@ -6097,7 +6494,7 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
 
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = FTrs[f];
+         FaceElementTransformations *FTr = &ws.lop_faces[f];
 
          int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM;
 
@@ -6166,7 +6563,12 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
       dh.m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, grad_D);
       grad += grad_D;
    }
-   else if (!dh.D_empty)
+   // The linear D is an ADDITIONAL term, not an alternative, when the potential
+   // mass is nonlinear and the face constraint is linear: Df_lin_data then
+   // holds the constraint's contribution ALONE and nothing else supplies it.
+   // With no nonlinear mass it holds the linear mass and the constraint
+   // together, which is the original behaviour and the original condition.
+   if ((!dh.m_nlfi_p || dh.c_bfi_p) && !dh.D_empty)
    {
       DenseMatrix D(&dh.Df_lin_data[dh.Df_offsets[el]], d_dofs_size, d_dofs_size);
       grad += D;
@@ -6179,7 +6581,7 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
       //grad += D_f
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = FTrs[f];
+         FaceElementTransformations *FTr = &ws.lop_faces[f];
 
          int type = NonlinearFormIntegrator::HDGFaceType::ELEM;
 
@@ -6294,8 +6696,9 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
 
 DarcyHybridization::LocalFluxNLOperator::LocalFluxNLOperator(
    const DarcyHybridization &dh_, int el_, const Vector &bp_,
-   const BlockVector &trps_, const Array<int> &faces_)
-   : LocalNLOperator(dh_, el_, trps_, faces_), bp(bp_),
+   const BlockVector &trps_, const Array<int> &faces_,
+   TransWorkspace &ws)
+   : LocalNLOperator(dh_, el_, trps_, faces_, ws), bp(bp_),
      LU_D(&dh.Df_data[dh.Df_offsets[el]], &dh.Df_ipiv[dh.Df_f_offsets[el]])
 {
    MFEM_ASSERT(bp.Size() == d_dofs_size, "Incompatible size");
@@ -6353,8 +6756,9 @@ Operator &DarcyHybridization::LocalFluxNLOperator::GetGradient(
 
 DarcyHybridization::LocalPotNLOperator::LocalPotNLOperator(
    const DarcyHybridization &dh_, int el_, const Vector &bu_,
-   const BlockVector &trps_, const Array<int> &faces_)
-   : LocalNLOperator(dh_, el_, trps_, faces_), bu(bu_),
+   const BlockVector &trps_, const Array<int> &faces_,
+   TransWorkspace &ws)
+   : LocalNLOperator(dh_, el_, trps_, faces_, ws), bu(bu_),
      LU_A(&dh.Af_data[dh.Af_offsets[el]], &dh.Af_ipiv[dh.Af_f_offsets[el]])
 {
    MFEM_ASSERT(bu.Size() == a_dofs_size, "Incompatible size");

@@ -230,6 +230,81 @@ void DarcyForm::EnablePotentialReduction(const Array<int> &ess_flux_tdof_list)
    EnableReduction(ess_flux_tdof_list, new DarcyPotentialReduction(fes_u, fes_p));
 }
 
+/** @brief Is every face integrator this NonlinearForm carries actually a
+    BilinearFormIntegrator, i.e. linear in the state?
+
+    A caller whose potential mass is nonlinear has to put the potential mass on
+    a NonlinearForm, and the HDG face stabilization then goes on the SAME form
+    -- `convdiff` installs the identical HDGDiffusionIntegrator on the linear
+    form when the mass is linear and on the nonlinear one when it is not. So a
+    constraint that is linear in every term routinely arrives as a
+    NonlinearForm's face integrators, and taking it as nonlinear costs a great
+    deal: the constraint blocks E, G, H and D are then rebuilt from the
+    integrator once per element per Newton evaluation instead of once at
+    assembly, the batched face kernel is unreachable (its gate is
+    DarcyHybridization::PotFaceConstraintIntegrators(), which reads c_bfi_p),
+    and the residual evaluates the integrator rather than applying an
+    assembled block.
+
+    Measured on `convdiff -p 1 -o 2 -dg -hb -nl -npc -nls 3`, 128x128, with a
+    direct trace solve: ConstructGrad() was 0.36 s of a 2.33 s NPC step
+    before, essentially all of it this constraint.
+
+    It is all-or-nothing across the interior AND boundary lists on purpose.
+    The two are stored separately (c_bfi_p / c_nlfi_p against the boundary
+    lists), but the residual's boundary loop lives inside the c_nlfi_p branch,
+    so a linear interior with a nonlinear boundary would set c_bfi_p and leave
+    the boundary terms with nothing to evaluate them.
+
+    **And it requires the problem to be nonlinear for some OTHER reason**,
+    which is not an optimisation but a correctness condition.
+    DarcyHybridization::IsNonlinear() reads c_nlfi_p, so moving a constraint
+    off it can make a problem classify as LINEAR -- and for a problem whose
+    only nonlinear-form content is this constraint, that is exactly what
+    happens. `convdiff -p 1 -dg -hb -nl` is such a case: the sole occupant of
+    the potential mass NonlinearForm is an HDGDiffusionIntegrator, so the
+    problem really is linear and `-nl` merely forces it down the nonlinear
+    path. Reclassifying it changes the whole solve route, and measured, it
+    produced a NaN in GMRES on the first Newton step. Requiring another
+    nonlinearity keeps the classification exactly where it was, so nothing
+    that used to be nonlinear stops being so.
+
+    There is nothing to gain in the reclassifying case anyway: with no other
+    nonlinearity there is no Newton loop re-evaluating the constraint.
+
+    **The dynamic_cast is not by itself a linearity test, and it does not have
+    to be.** A BilinearFormIntegrator may override AssembleHDGFaceVector() and
+    AssembleHDGFaceGrad() and carry state through them --
+    HDGDiffusionIntegrator does exactly that, so that a solution dependent
+    SetStabilization() can contribute its derivatives, and says so on
+    AssembleHDGFaceGrad(). What makes the cast safe is that the route below
+    reaches such an integrator only through AssembleHDGFaceMatrix(), which
+    cannot see the state and REFUSES rather than guesses:
+    `MFEM_VERIFY(!stab || stab->IsConstant(), "A state dependent stabilization
+    makes the face term nonlinear")`. So a genuinely nonlinear one aborts
+    loudly at assembly instead of quietly assembling a different operator. An
+    integrator added later that carries state through the vector form WITHOUT
+    such a guard would be admitted here wrongly; the guard belongs on the
+    integrator, next to the state it hides. */
+static bool FaceIntegratorsAreLinear(const std::unique_ptr<NonlinearForm>
+                                     &Mnl_p,
+                                     bool nonlinear_elsewhere)
+{
+   if (!nonlinear_elsewhere) { return false; }
+   auto fnlfi = Mnl_p->GetInteriorFaceIntegrators();
+   auto bfnlfi = Mnl_p->GetBdrFaceIntegrators();
+   if (fnlfi.Size() == 0) { return false; }
+   for (int i = 0; i < fnlfi.Size(); i++)
+   {
+      if (!dynamic_cast<BilinearFormIntegrator*>(fnlfi[i])) { return false; }
+   }
+   for (int i = 0; i < bfnlfi.Size(); i++)
+   {
+      if (!dynamic_cast<BilinearFormIntegrator*>(bfnlfi[i])) { return false; }
+   }
+   return true;
+}
+
 void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
                                     BilinearFormIntegrator *constr_flux_integ,
                                     const Array<int> &ess_flux_tdof_list)
@@ -246,6 +321,15 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    }
    hybridization.reset(new DarcyHybridization(fes_u, fes_p, constr_space, bsym));
 
+   // Is the problem nonlinear for a reason OTHER than the potential face
+   // constraint? Required before that constraint may be moved to the linear
+   // route, because IsNonlinear() reads c_nlfi_p -- see
+   // FaceIntegratorsAreLinear().
+   const bool nl_elsewhere =
+      (Mnl_u && Mnl_u->GetDNFI() && Mnl_u->GetDNFI()->Size() > 0) ||
+      (Mnl_p && Mnl_p->GetDNFI() && Mnl_p->GetDNFI()->Size() > 0) ||
+      (Mnl != nullptr);
+
    // Automatically load the potential constraint operator from the face integrators
    if (M_p)
    {
@@ -261,6 +345,19 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
          constr_pot_integ = sbfi;
       }
       hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+   }
+   else if (Mnl_p && FaceIntegratorsAreLinear(Mnl_p, nl_elsewhere))
+   {
+      // A linear constraint that merely happens to sit on a NonlinearForm.
+      // Taking the c_bfi_p route assembles E, G, H and D once instead of once
+      // per Newton evaluation, and is what makes the batched face kernel
+      // reachable on a nonlinear problem. See FaceIntegratorsAreLinear().
+      SumIntegrator *sbfi = new SumIntegrator(false);
+      for (NonlinearFormIntegrator *nlfi : Mnl_p->GetInteriorFaceIntegrators())
+      {
+         sbfi->AddIntegrator(static_cast<BilinearFormIntegrator*>(nlfi));
+      }
+      hybridization->SetConstraintIntegrators(constr_flux_integ, sbfi);
    }
    else if (Mnl_p)
    {
@@ -383,6 +480,9 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    }
    else if (Mnl_p)
    {
+      // Matches the interior choice above -- FaceIntegratorsAreLinear() is
+      // all-or-nothing across both lists, so the two never disagree.
+      const bool linear = FaceIntegratorsAreLinear(Mnl_p, nl_elsewhere);
       auto bfnlfi = Mnl_p->GetBdrFaceIntegrators();
       auto bfnlfi_marker = Mnl_p->GetBdrFaceIntegratorsMarkers();
       hybridization->UseExternalBdrPotConstraintIntegrators();
@@ -391,7 +491,20 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       {
          NonlinearFormIntegrator *nlfi = bfnlfi[i];
          Array<int> *nlfi_marker = bfnlfi_marker[i];
-         if (nlfi_marker)
+         if (linear)
+         {
+            BilinearFormIntegrator *bfi =
+               static_cast<BilinearFormIntegrator*>(nlfi);
+            if (nlfi_marker)
+            {
+               hybridization->AddBdrPotConstraintIntegrator(bfi, *nlfi_marker);
+            }
+            else
+            {
+               hybridization->AddBdrPotConstraintIntegrator(bfi);
+            }
+         }
+         else if (nlfi_marker)
          {
             hybridization->AddBdrPotConstraintIntegrator(nlfi, *nlfi_marker);
          }
@@ -569,6 +682,18 @@ void DarcyForm::Assemble(int skip_zeros)
    else if (Mnl_p)
    {
       Mnl_p->Setup();
+
+      // The potential MASS is on this NonlinearForm -- so there is no M_p and
+      // the block above did not run -- but its FACE constraint may be linear,
+      // in which case EnableHybridization() routed it to c_bfi_p. This pass is
+      // what fills E, G, H and D from it. Without it they stay zero, the trace
+      // system is singular, and GMRES returns beta = -nan on the first Newton
+      // step. GetPotConstraintIntegrator() is exactly "the constraint took the
+      // linear route", so it is the right test and not a proxy for one.
+      if (hybridization && hybridization->GetPotConstraintIntegrator())
+      {
+         AssemblePotHDGFaces(skip_zeros);
+      }
    }
 
    if (b_u)
@@ -2462,8 +2587,17 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
          hybridization->ComputeAndAssemblePotFaceMatrix(f, elmat1, elmat2, vdofs1,
                                                         vdofs2);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-         M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
-         M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
+         // M_p is NULL when the potential mass lives on a NonlinearForm and
+         // only the constraint came down the linear route -- there is then no
+         // sparse potential mass to accumulate into, and nothing wants one.
+         if (M_p)
+         {
+            if (M_p)
+            {
+               M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
+            }
+            M_p->SpMat().AddSubMatrix(vdofs2, vdofs2, elmat2, skip_zeros);
+         }
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
       }
    }

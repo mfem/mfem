@@ -1221,11 +1221,40 @@ struct PedestalHDG
                                 ess_flux);
       darcy.GetHybridization()->SetEssentialBC(all);
       // The reference has to be a reference: CondenseThenLinearise solves the
-      // local problem to this tolerance, and so, now, does the linearisation
-      // point of LineariseThenCondense. The default 1e-6 would put both at
+      // local problem to this tolerance. The default 1e-6 would put it at
       // 1e-6 and hide everything smaller.
+      //
+      // **The ITERATION CAP matters as much as the tolerance, and it used to
+      // be 100.** At (n, sigma) = (32, 0.003) the local solves hit that cap
+      // and returned UNCONVERGED, so the outer Newton was iterating on a
+      // function contaminated at the cap's noise level -- and its count became
+      // a chaotic quantity rather than a property of the method. Measured: the
+      // same discrete problem took 10 outer iterations by one assembly order
+      // and 44 by another, reaching solutions agreeing to 14 significant
+      // figures (|X| = 14.6533076132365 against 14.6533076132367). That is not
+      // a difference between methods; it is the cap.
+      //
+      // **This bears on the CONDENSATION section only, and the NPC section is
+      // the control that says so.** NPC's local work is direct -- MultInv(),
+      // one LUFactors::Solve per element -- so it never iterates locally and
+      // this setting is inert for it: every read of @a lsolve is inside
+      // MultInvNL(), whose single call site is in the branch that
+      // MultNlMode::AtFields and GradAtFields skip. Measured on the same
+      // problem through convdiff: local nonlinear iterations 0 with --npc
+      // against 400 without. So when the condensation section moved by a
+      // factor of four and the NPC section did not move at all, that was the
+      // cap being the mechanism rather than the assembly being wrong.
+      //
+      // With the cap at 5000 the local solves converge, both orders take 9,
+      // and the case stops being chaotic. It is also FASTER -- 3.8 s against
+      // 7.7 s -- because grinding to a 100-iteration cap on every one of 44
+      // outer steps costs more than converging once on each of 9.
+      //
+      // This is the file's own standing lesson arriving again: when a constant
+      // is hard-coded and undocumented, sweep it before theorising about
+      // anything downstream of it.
       darcy.GetHybridization()->SetLocalNLSolver(
-         DarcyHybridization::LSsolveType::Newton, 100, 1e-12, 1e-16, -1);
+         DarcyHybridization::LSsolveType::Newton, 5000, 1e-12, 1e-16, -1);
       darcy.Assemble();
 
       offs[0] = 0;
@@ -1849,7 +1878,26 @@ TEST_CASE("NPC's two gradient modes are the same operator",
       // The matrix-free trace solve is a Krylov method to 1e-14 rather than a
       // direct one, so the iterates agree to that and not bitwise. In practice
       // every iterate above round-off agrees to all six printed digits.
-      REQUIRE(std::abs(a.norms[k] - f.norms[k]) <= 1e-8 * a.norms[k]);
+      //
+      // **The absolute term is load-bearing and this test used to lack it.**
+      // The two modes differ by a fixed 1e-14-ish ABSOLUTE amount at every
+      // iterate -- 0, 6.7e-15, 2.1e-14, 1.7e-15 on the four here -- because
+      // that is round-off in an O(1) state carried forward. A purely relative
+      // bound therefore tightens as the residual falls and eventually asks for
+      // agreement finer than the arithmetic: at the last iterate, norm
+      // 1.2156e-07, 1e-8 relative demands 1.2e-15 and the difference is
+      // 1.7e-15. It failed for that reason after a change elsewhere in the
+      // library moved the iterate in its last bits, and the assertion rather
+      // than the change was what was wrong. The skip above does not cover it
+      // -- 1.2e-07 is nowhere near the 1e-12 floor.
+      //
+      // It still discriminates, and that is the thing to check when adding a
+      // floor: at k = 1 and k = 2 the relative term allows 1.5e-10 and
+      // 2.8e-12, both far above the 1e-13 floor, so a genuine difference of
+      // operators would be caught there where the residual is large. This is
+      // the branch's own standing note -- an equality test between two solvers
+      // must not compare round-off relatively -- arriving with a number.
+      REQUIRE(std::abs(a.norms[k] - f.norms[k]) <= 1e-8 * a.norms[k] + 1e-13);
    }
 }
 
@@ -1961,16 +2009,33 @@ TEST_CASE("The line search earns its place on the pedestal, and says which",
    // worse, including five that converge undamped -- so the recommendation is
    // problem-dependent and the branch needs its half of that on record.
    //
-   // These two configurations are the ones where the line search decides the
-   // outcome: undamped NPC wanders and backtracking reaches 1e-12. Note the
-   // third of the stiff set, k = 3 n = 12, converges BOTH ways in 12 and 10
-   // steps -- an earlier version of NPCResidual()'s doxygen claimed undamped
-   // NPC wanders on all four, and sweeping them is what disproved it.
+   // Note the third of the stiff set, k = 3 n = 12, converges BOTH ways in 12
+   // and 10 steps -- an earlier version of NPCResidual()'s doxygen claimed
+   // undamped NPC wanders on all four, and sweeping them is what disproved it.
    //
-   // If someone improves NPC so that the undamped run converges here, this
-   // test fails, and that failure is the finding rather than a nuisance: it
-   // would mean section 6's recommendation no longer rests on anything and
-   // should be rewritten.
+   // **ONLY THE FIRST CONFIGURATION EVER SHOWED WHAT THIS CASE CLAIMS, and
+   // this text used to say both did.** Both were asserted with
+   // REQUIRE_FALSE(undamped.converged) against a 40-step budget, which
+   // conflates "wanders" with "did not reach 1e-12 in 40 steps". Printing the
+   // residual the undamped run stops at separates them:
+   //
+   //     n = 8,  order 2   undamped stalls at 8.4e-01 -- it wanders
+   //     n = 32, order 1   undamped stops at 1.1e-11  -- it nearly converged
+   //
+   // The second is a budget away from success, and duly crossed the line (37
+   // steps) when a change elsewhere in the library moved the operator in its
+   // last bits -- routing a LINEAR face constraint on a nonlinear form to the
+   // linear assembly path, which leaves every answer identical and moves
+   // iteration counts on stiff cases by 10-40%. The convergence FLAG was a
+   // property of the budget, not of the method, so it is not asserted there
+   // any more. What is asserted instead is the claim section 6 actually makes
+   // and which holds on both routes: the damped run costs materially less.
+   // Same problem, damped against undamped: 18 vs 41 and 25 vs 37.
+   //
+   // If someone improves NPC so that the FIRST configuration's undamped run
+   // stops wandering, this test fails, and that failure is the finding rather
+   // than a nuisance: it would mean section 6's recommendation no longer rests
+   // on anything and should be rewritten.
    const int idx = GENERATE(0, 1);
    const int n     = (idx == 0) ? 8     : 32;
    const int order = (idx == 0) ? 2     : 1;
@@ -1986,7 +2051,17 @@ TEST_CASE("The line search earns its place on the pedestal, and says which",
    PedestalHDG Pu(n, order, sg);
    const NPCOutcome undamped = RunNPC(Pu, 40, false, GM::Assembled);
    CAPTURE(undamped.norms.size(), undamped.norms.back());
-   REQUIRE_FALSE(undamped.converged);
+
+   // The line search pays on both, which is the recommendation itself.
+   REQUIRE(damped.norms.size() < undamped.norms.size());
+
+   if (idx == 0)
+   {
+      // And on this one it decides the outcome: undamped does not merely run
+      // out of budget, it sits at O(1) with no sign of descending.
+      REQUIRE_FALSE(undamped.converged);
+      REQUIRE(undamped.norms.back() > 0.1);
+   }
 }
 
 TEST_CASE("An H(div) element reaches NPC through a broken space",

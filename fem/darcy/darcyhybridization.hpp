@@ -522,6 +522,39 @@ private:
    enum class LocalOpType { FluxNL, PotNL, FullNL };
    LocalOpType lop_type{LocalOpType::FullNL};
 
+   /// Defined below, after the members it is scratch for; see there.
+   struct TransWorkspace;
+
+   /** @brief The scratch ComputeElementsHBatched() works in, hoisted out of
+       the chunk loop by the caller.
+
+       It is a struct and an argument rather than six locals because the
+       allocation is not free and was not small: at one chunk of 256 elements
+       and order 2 the buffers come to about 1.5 MB, every one of them above
+       glibc's mmap threshold, so making them locals asked the kernel for
+       fresh pages and faulted them in on first touch once per chunk. Measured
+       -- that alone was 0.36 s of a 0.99 s face-pair loop at n=128.
+
+       Vector::SetSize() does not shrink the allocation, so sizing for the
+       first chunk sizes for all of them and the last, short chunk reuses what
+       is there. */
+   struct ElementHWorkspace
+   {
+      /// The element's trace blocks side by side, (na, T).
+      Vector Ct;
+      /// A^-1 Ct, same shape.
+      Vector AiCt;
+      /// E and then G; the two are the same size and their lives do not
+      /// overlap.
+      Vector EG;
+      /// S^-1 (B A^-1 Ct - E), (nd, T).
+      Vector BAiCt;
+      /// C A^-1 B^T + G, (T, nd).
+      Vector CAiBt;
+      /// The element matrix before it is packed into blocks, (T, T).
+      Vector Hfull;
+   };
+
    friend class LocalNLOperator;
    class LocalNLOperator : public Operator
    {
@@ -536,8 +569,12 @@ private:
       TransposeOperator Bt;
       const FiniteElement *fe_u, *fe_p;
       IsoparametricTransformation *Tr;
-      std::vector<FaceElementTransformations*> FTrs;
-      std::vector<IsoparametricTransformation*> NbrTrs;
+      /** The caller's per-thread scratch. Every transformation this operator
+          uses lives in it, so the operator allocates nothing per element --
+          it used to allocate nine objects and two pointer vectors. The face
+          transformations are read straight out of @a ws.lop_faces; there is no
+          indirection vector because every entry would be `&ws.lop_faces[f]`. */
+      TransWorkspace &ws;
       const Array<int> offsets;
       mutable Vector Au, Dp, DpEx;
       mutable DenseMatrix grad_A, grad_D;
@@ -556,9 +593,12 @@ private:
       void AddGradDE(const Vector &p_l, DenseMatrix &gD) const;
 
    public:
+      /** @a ws supplies every transformation this operator uses; see
+          TransWorkspace::lop_elem. Nothing here is owned, so there is no
+          destructor. */
       LocalNLOperator(const DarcyHybridization &dh, int el, const BlockVector &trps,
-                      const Array<int> &faces);
-      virtual ~LocalNLOperator();
+                      const Array<int> &faces, TransWorkspace &ws);
+      virtual ~LocalNLOperator() = default;
 
       inline const Array<int>& GetOffsets() const { return offsets; }
 
@@ -575,7 +615,8 @@ private:
 
    public:
       LocalFluxNLOperator(const DarcyHybridization &dh, int el, const Vector &bp,
-                          const BlockVector &trps, const Array<int> &faces);
+                          const BlockVector &trps, const Array<int> &faces,
+                          TransWorkspace &ws);
 
       void SolveP(const Vector &u_l, Vector &p_l) const;
       void Mult(const Vector &x, Vector &y) const override;
@@ -591,7 +632,8 @@ private:
 
    public:
       LocalPotNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
-                         const BlockVector &trps, const Array<int> &faces);
+                         const BlockVector &trps, const Array<int> &faces,
+                         TransWorkspace &ws);
 
       void SolveU(const Vector &p_l, Vector &u_l) const;
       void Mult(const Vector &x, Vector &y) const override;
@@ -660,6 +702,49 @@ private:
       IsoparametricTransformation elem;    ///< the element transformation
       FaceElementTransformations face;     ///< one face at a time
       IsoparametricTransformation f1, f2;  ///< that face's two side transforms
+
+      /** @brief LocalNLOperator's storage: ALL of an element's faces at once.
+
+          The four above serve a loop that visits one face at a time, which is
+          what ConstructGrad() does. LocalNLOperator cannot use them: its
+          AddMultDE() and AddMultBlock() iterate an element's faces with every
+          transformation live, so it needs one per face simultaneously.
+
+          It used to heap-allocate them -- one IsoparametricTransformation, and
+          per face a FaceElementTransformations plus another
+          IsoparametricTransformation for the neighbour -- in its constructor,
+          which runs ONCE PER ELEMENT PER RESIDUAL EVALUATION. Measured on
+          `convdiff -p 1 -o 2 -dg -hb -nl -npc -nls 3` at 128x128 with a direct
+          trace solve, that constructor and destructor were 0.098 s of
+          NPCResidual's 0.744 s -- 13%, and twice what the integrators inside
+          the same routine cost.
+
+          Held here they are allocated once for the whole element loop and
+          reused: the vectors grow to the largest face count seen and never
+          shrink. @a lop_elem is deliberately separate from @a elem so that a
+          LocalNLOperator and a ConstructGrad() pass over the same element can
+          never alias each other's geometry.
+
+          **End to end it is worth about 1.5%, not the 3% the 13% above
+          predicts, and the case for it is not the 1.5%.** Interleaved A/B over
+          eight pairs on the case above, two binaries built from the same tree
+          so no rebuild sits between the halves: minimum 3.804 s -> 3.750 s,
+          median 3.928 s -> 3.865 s, faster in seven pairs of eight. What it
+          buys that the number does not show is that the residual's element
+          loop now allocates NOTHING per element, which is a precondition for
+          threading or offloading it -- a malloc per element per evaluation is
+          exactly what stops such a loop scaling.
+
+          **A blocked measurement said the opposite and was wrong.** Building
+          one version, timing five runs, rebuilding the other and timing five
+          more reported 3.33 s -> 3.63 s, i.e. a 9% REGRESSION, because the two
+          halves ran minutes apart on a machine whose load was still settling.
+          Best-of-five does not defend against drift between the halves; only
+          interleaving does. Where two variants differ by a couple of percent,
+          build both binaries first and alternate the runs. */
+      IsoparametricTransformation lop_elem;
+      std::vector<FaceElementTransformations> lop_faces;
+      std::vector<IsoparametricTransformation> lop_nbrs;
    };
 
    /// The shared Mesh cache. Valid only on a single-threaded path.
@@ -857,17 +942,136 @@ private:
        complement and @a AiBt_all back. That transfer is step 2's to remove,
        not this one's.
 
-       NOT bit-for-bit the element loop, unlike the local solve: the Schur
-       complement goes through BatchedLinAlg::AddMult() where the loop uses
-       mfem::AddMult(), and the two accumulate a product in different orders.
-       The LU factorisations themselves are the same kernels::LUFactor() in a
-       build without LAPACK. Measured agreement is on SetLocalFactorMode(). */
+       **Bit-for-bit the element loop in a build without LAPACK, and this
+       used to say it was not.** The claim was that the Schur complement goes
+       through BatchedLinAlg::AddMult() where the loop uses mfem::AddMult()
+       and "the two accumulate a product in different orders". They do not:
+       both run the same j-k-i loop over the same products, and
+       kernels::AddMult()'s `alpha` is 1.0 here, which is an exact multiply.
+       The test that says so was already in the tree and passing -- "The
+       batched element factorisation assembles the same trace operator"
+       compares the assembled H entrywise with RequireSame(), not with a
+       tolerance. An asserted claim sat next to a measurement that refuted it
+       for as long as nobody read them together.
+       With LAPACK the element side is dgemm_ and only round-off agreement is
+       claimed; likewise on the GPU_BLAS and MAGMA backends. Measured
+       agreement is on SetLocalFactorMode(). */
    bool FactorElementsBatched(ComputeHMode mode, Vector &AiBt_all) const;
+   /** @brief The (element, local face) index map ComputeElementsHBatched()
+       reads: three offsets per entry -- into @a Ct_data, into @a E_data and
+       @a G_data, and into @a H_data -- for the whole mesh, laid out
+       interleaved at 3*(el*@a nf + lf).
+
+       Returns false, and @a nf and @a nc are then meaningless, unless every
+       element has the same number of faces and every face the same number of
+       trace dofs. That is the batched face loop's whole precondition beyond
+       the uniform A and D blocks CanBatchLocalFactor() asks for, and it is
+       asked of the mesh and the trace space rather than assumed from
+       "uniform mesh at uniform order" -- a per-face trace degree
+       (SetTraceOrders()) breaks it while leaving the local blocks uniform.
+
+       The H offset is -1 where this element is not the face's FIRST, which is
+       how the element loop's "integrate the face contribution only on one
+       side" is carried into a kernel that cannot branch on the mesh. */
+   bool BuildElementHFaceMap(int na, int nd, bool with_h, int &nf, int &nc,
+                             Array<int> &face_map) const;
+   /** @brief The FACE-PAIR half of ComputeElementH() -- everything after the
+       factorisation -- for a chunk of @a nel elements at once, writing the
+       same (f2, f1) block buffer the element loop writes.
+
+       **This is the largest offloadable item in an NPC step**: 24% of one at
+       order 2 and 45% at order 3, and the only share that GROWS with order.
+       See ComputeH() for the profile it comes from.
+
+       The double loop it replaces is one matrix identity per element, which
+       is what makes the whole thing five BatchedLinAlg calls:
+
+           H_el = -C^T A^-1 C + (C^T A^-1 B^T + G) S^-1 (B A^-1 C - E)
+
+       with C the element's trace blocks side by side, (na, T), and G and E
+       the matching stacks, T = @a nf * @a nc. The element loop's (f2, f1)
+       block is exactly that expression's (f2, f1) block, so nothing is
+       reassociated across faces -- what changes is that the inner products
+       run over all of C at once instead of one face pair at a time.
+
+       Bit-for-bit the element loop in a build without LAPACK, for the reason
+       FactorElementsBatched() gives, and everything that is a SUM of two
+       matrices is additionally done in the loop's own order: E is subtracted
+       after the product rather than folded into an AddMult beta, which would
+       accumulate on top of -E instead.
+
+       **What it is worth, measured, interleaved A/B/C over five or six runs
+       each, one thread, `convdiff -dg -hb -npc -nls 3 -gm 0 -rtol 1e-12`.**
+       A is the element loop, B is LocalFactorMode::Batched before this
+       existed, C is it now. Seconds, summed over the run's ComputeH() calls:
+
+           case                    A      B      C     pairs B->C
+           o2 n=128 -p 2 -nld    0.571  0.645  0.491     1.45x
+           o3 n=128 -p 2 -nld    1.705  1.842  1.530     1.39x
+           o2 n=128 -p 1 -nl     0.494  0.537  0.439     1.36x
+           o5  n=64 -p 2 -nld    2.840  3.018  2.313     1.59x
+
+       So the face-pair loop itself is 1.36-1.59x faster batched, and it is
+       what makes LocalFactorMode::Batched a net gain at all -- **B is 5-9%
+       SLOWER than A at every size**, which SetLocalFactorMode() used to claim
+       the opposite of.
+
+       **End to end it is inside run-to-run scatter**, and that is not a
+       disappointment but the plan's own gate: at o3 n=128 the whole solve is
+       8 s, of which the trace solve is 54-59%, so a 0.18 s saving cannot be
+       resolved against a 5% spread (median 8.27 s against 8.57 s, min 7.91
+       against 7.77, answers identical to every digit). Measure this where it
+       happens, not at the end of a solve.
+
+       @a Hel must be sized @a nel * T * T; the caller's chunking is what
+       bounds it, and the alias Memory views mean the chunk needs no copy of
+       the local blocks. The chunk length itself is nearly irrelevant on a
+       host -- swept 4, 8, 16, 32, 64, 128, 256, 1024 elements at o2 n=128 and
+       the face-pair time stayed in 0.73-0.86 s with no trend, which is what
+       ruled out cache streaming as the explanation of the first, slow
+       version. */
+   void ComputeElementsHBatched(ComputeHMode mode, int el_0, int nel,
+                                int na, int nd, int nf, int nc,
+                                const Vector &AiBt_all,
+                                const Array<int> &face_map,
+                                ElementHWorkspace &ws, Vector &Hel) const;
    /** @brief Add the blocks ComputeElementH() left in @a Hel to @a H.
        Serial by contract -- see SetAssemblyMode(). */
    void ScatterElementH(int el, const real_t *Hel, SparseMatrix &H) const;
    /// Elements per chunk of the element loop; see ComputeH().
    int AssemblyChunkSize(int NE) const;
+   /** @brief Build the trace-trace block H, and factor the local blocks on
+       the way.
+
+       **This is the largest single cost of an NPC step, and it was not where
+       the device-offload plan expected to find it.** Measured on
+       `convdiff -dg -hb -npc -nls 3 -gm 0 -rtol 1e-12`, 128x128 quads, one
+       thread, with a DIRECT trace solve so the Krylov question is excluded --
+       shares of the step's own work, that trace solve being a further 54-59%
+       of the run:
+
+       | | `-p 1 -nl`, k=2 | `-p 2 -nld`, k=2 | `-p 2 -nld`, k=3 |
+       |---|---|---|---|
+       | this routine | 39% | 54% | 61% |
+       | -- ComputeElementH(), dense | 24% | 31% | 45% |
+       | -- ScatterElementH(), sparse | 10% | 13% | 9% |
+       | -- Finalize() + RAP | 7% | 11% | 7% |
+       | the integrators in the residual | 5% | 7% | 6% |
+
+       Two things follow. The dense half GROWS with order (dofs cubed) while
+       the integrator evaluation shrinks (quadrature points times dofs), so a
+       plan ranked on the integrators gets further from the truth exactly where
+       the method is expensive. And the whole of that dense half is batched
+       now: LocalFactorMode::Batched takes the factorisation through
+       FactorElementsBatched() and the `C A^-1 C^T` face-PAIR loop through
+       ComputeElementsHBatched(), which is where the timings live.
+
+       The sparse third of it, ScatterElementH() plus Finalize(), is host-only
+       work by construction; GradientMode::MatrixFree is what deletes it, at
+       the cost of an unpreconditioned trace solve. **It is the next item**,
+       and it is now comparable to the dense half rather than a third of it:
+       with the face pairs batched, the scatter is 0.21-0.35 s against the
+       pairs' 0.27-1.15 s at the four sizes on ComputeElementsHBatched(). */
    void ComputeH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H) const;
 #ifdef MFEM_USE_MPI
    void ComputeParH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H,
@@ -879,7 +1083,8 @@ private:
    void GetHFaceMatrix(int f, DenseMatrix &H) const;
    void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
    void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l,
-                  const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
+                  const BlockVector &x_l, Vector &u_l, Vector &p_l,
+                  TransWorkspace &ws) const;
    /** @brief The flux and potential the linearisation implies for the trace
        @a x_l, by a local nonlinear solve. */
    /** @brief The trace space's prolongation from true dofs to L-dofs, or
@@ -902,7 +1107,7 @@ private:
    void LocalResidual(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &bu_l, const Vector &bp_l,
                       const Vector &u_l, const Vector &p_l,
-                      Vector &ru_l, Vector &rp_l) const;
+                      Vector &ru_l, Vector &rp_l, TransWorkspace &ws) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p, bool with_bnl = false) const;
    /** @brief MultInv() for every element at once, on element-blocked vectors.
@@ -1224,13 +1429,23 @@ public:
        **The hot path is batched too now**, and the paragraph that used to sit
        here said it was not. InvertA() and InvertD() run once, from
        Finalize(), and only for LocalOpType::PotNL and FluxNL -- so on their
-       own they batch a cold path. The factorisation that runs once per
-       *linearisation* is the one ComputeElementH() does, and that is now
-       FactorElementsBatched(): one pre-pass before ComputeH()'s element loop
-       that factors every A, forms every Schur complement and factors those
-       too, with ComputeElementH() skipping the arithmetic and reading what it
-       left. The note that called this "a larger change than this one" was
-       right about its size and wrong to leave it undone.
+       own they batch a cold path. What runs once per *linearisation* is
+       ComputeH(), and both of its element-local halves are batched:
+       FactorElementsBatched() factors every A, forms every Schur complement
+       and factors those too, and ComputeElementsHBatched() then does every
+       element's `C A^-1 C^T` face-PAIR loop as five BatchedLinAlg calls.
+
+       **Only the two together are worth taking, and the factorisation alone
+       is a LOSS.** This doxygen used to quote "0.553 s to 0.416 s at order 2,
+       n=128" for the factorisation half, and that number is real but it is
+       only what leaves ComputeElementH(); it does not count what
+       FactorElementsBatched() spends. Counting both, and interleaved rather
+       than in blocked halves, the factorisation on its own is 5-9% slower
+       than the element loop at every size tried. The face-pair loop is
+       1.36-1.59x faster and pays for it. The table is on
+       ComputeElementsHBatched(); the lesson is the branch's own -- a
+       measurement of one half of a change is not a measurement of the
+       change.
 
        **The setting does more than its name says**, and the name is kept for
        compatibility. Batched also sends the local SOLVES through

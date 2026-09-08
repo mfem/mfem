@@ -428,6 +428,119 @@ void NPCStep(Mesh &mesh, int order, real_t c,
    out.dtr = dtr;
 }
 
+/// One NPC Newton step on a LocalOpType::FluxNL problem.
+///
+/// FluxNL is the one mode whose potential mass is LINEAR, so Df_data holds
+/// its factorisation and the Schur complement has to go to Sf_data instead --
+/// which is a branch in both FactorElementsBatched() and
+/// ComputeElementsHBatched(), and nothing else in this file reaches it. The
+/// two harnesses above are LocalOpType::PotNL and a linear problem.
+///
+/// Reaching it is narrower than it looks and was established by printing
+/// lop_type rather than by reading the condition: Finalize() asks for
+/// `IsNonlinear() && !m_nlfi_p && !c_nlfi_p && !c_bfi_p && !D_empty`, so a
+/// potential-mass HDG FACE term disqualifies it. `convdiff -nlu`, the one
+/// nonlinear-flux configuration in the regression set, therefore comes out
+/// FullNL and does not exercise this at all. What does is a nonlinear flux
+/// form carrying a linear integrator -- which is exactly what that miniapp
+/// puts there -- with the potential mass a plain domain term.
+void FluxNLStep(Mesh &mesh, int order,
+                DarcyHybridization::LocalFactorMode mode, NPCOutcome &out)
+{
+   const int dim = mesh.Dimension();
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim);
+   FiniteElementSpace Wh(&mesh, &p_coll);
+   FiniteElementSpace Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient src([](const Vector &X)
+   {
+      return std::sin(M_PI*X(0))*std::sin(M_PI*X(1));
+   });
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   // The flux mass on the NONLINEAR form, which is what makes this FluxNL.
+   darcy.GetFluxMassNonlinearForm()->AddDomainIntegrator(
+      new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   // A domain term and no face term: D must be non-empty and c_bfi_p must not
+   // be set, or Finalize() picks FullNL instead.
+   darcy.GetPotentialMassForm()->AddDomainIntegrator(new MassIntegrator(one));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetLocalFactorMode(mode);
+   dh->EnableNPC();
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   dh->SetEssentialBC(ess_bdr);
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   x = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+
+   Vector x_tr(Mh.GetVSize());
+   x_tr = 0.0;
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+
+   auto full_norm = [](const BlockVector &rl, const Vector &rt)
+   {
+      return std::sqrt(rl*rl + rt*rt);
+   };
+
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+   out.n0 = full_norm(r, r_tr);
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+   out.can_batch_solve = dh->CanBatchLocalSolve();
+   dh->NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   {
+      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+      std::unique_ptr<GSSmoother> prec;
+      if (Sm) { prec.reset(new GSSmoother(*Sm)); }
+      GMRESSolver gmres;
+      gmres.SetOperator(S);
+      if (prec) { gmres.SetPreconditioner(*prec); }
+      gmres.SetKDim(200);
+      gmres.SetMaxIter(2000);
+      gmres.SetRelTol(1e-14);
+      gmres.SetAbsTol(0.0);
+      gmres.SetPrintLevel(-1);
+      gmres.Mult(b_tr, dtr);
+   }
+
+   BlockVector dx(darcy.GetOffsets());
+   dh->NPCRecover(r, dtr, dx);
+   x += dx;
+   x_tr += dtr;
+
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+   out.n1 = full_norm(r, r_tr);
+
+   out.dx.Update(darcy.GetOffsets());
+   out.dx = dx;
+   out.dtr = dtr;
+}
+
 } // namespace darcy_batched_factor
 
 TEST_CASE("The batched local factorisation gives the serial one's answer",
@@ -614,10 +727,18 @@ TEST_CASE("The batched element factorisation assembles the same trace operator",
 
    const int order = GENERATE(0, 1, 2);
    const int n = GENERATE(2, 4);
-   CAPTURE(order, n);
+   // Three faces per element and not four, which is the other half of what
+   // ComputeElementsHBatched() needs uniform: BuildElementHFaceMap() asks the
+   // MESH for the face count and the trace space for the dofs on a face, and
+   // neither follows from the uniform A and D blocks CanBatchLocalFactor()
+   // checks. Quadrilaterals alone would leave nf = 4 hard-wired into every
+   // case here.
+   const Element::Type etype = GENERATE(Element::QUADRILATERAL,
+                                        Element::TRIANGLE);
+   CAPTURE(order, n, etype);
 
-   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
-   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, etype);
+   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, etype);
 
    const LinearOutcome ref = SolveLinear(mesh_a, order, LFM::Serial);
    const LinearOutcome got = SolveLinear(mesh_b, order, LFM::Batched);
@@ -716,6 +837,44 @@ TEST_CASE("The batched local solve gives the serial one's NPC step",
    CAPTURE(ref.n0, ref.n1);
    REQUIRE(ref.n0 > 1e-3);
    REQUIRE(ref.n1 < 0.1 * ref.n0);
+
+   RequireSame(ref.dtr, got.dtr);
+   RequireSame(ref.dx.GetBlock(0), got.dx.GetBlock(0));
+   RequireSame(ref.dx.GetBlock(1), got.dx.GetBlock(1));
+}
+
+TEST_CASE("The batched routes agree with the loop in LocalOpType::FluxNL",
+          "[DarcyHybridization][BatchedLinAlg][NPC]")
+{
+   using namespace darcy_batched_factor;
+   using LFM = DarcyHybridization::LocalFactorMode;
+
+   // The mode where the Schur complement lives in Sf_data rather than over the
+   // potential mass, which is a branch in both batched routines and in the
+   // element loop; see FluxNLStep() for why nothing else here reaches it.
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(2, 4);
+   const Element::Type etype = GENERATE(Element::QUADRILATERAL,
+                                        Element::TRIANGLE);
+   CAPTURE(order, n, etype);
+
+   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, etype);
+   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, etype);
+
+   NPCOutcome ref, got;
+   FluxNLStep(mesh_a, order, LFM::Serial, ref);
+   FluxNLStep(mesh_b, order, LFM::Batched, got);
+
+   REQUIRE_FALSE(ref.can_batch_solve);
+   REQUIRE(got.can_batch_solve);
+
+   // There has to be a step to compare. The flux form is nonlinear only in
+   // where it is registered -- the integrator on it is linear -- so one NPC
+   // step lands on the answer and n1 is round-off; that is the right check
+   // here, and it is a stronger one than a mere decrease.
+   CAPTURE(ref.n0, ref.n1);
+   REQUIRE(ref.n0 > 1e-3);
+   REQUIRE(ref.n1 < 1e-9 * ref.n0);
 
    RequireSame(ref.dtr, got.dtr);
    RequireSame(ref.dx.GetBlock(0), got.dx.GetBlock(0));
