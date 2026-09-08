@@ -278,6 +278,14 @@ void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
     them (and MFEM_ASSERT is compiled out in a release build) -- a caller
     wanting a zero block passes a zero-valued integrator.
 
+    Every one of those refusals was PROBED rather than read off the code, and
+    every one fires: a bare scalar integrator at vdim = 3, a wrapper of two
+    blocks against vdim = 3, a wrapper with one block left null, a wrapper
+    whose block is itself a SumIntegrator, and a list mixing a wrapper with a
+    bare integrator. Both admitting shapes -- one integrator per equation, and
+    one replicated -- are taken. This branch has shipped a gate that could
+    never fire for any caller once already.
+
     Each resolved block has to want ONE integration rule across the whole face
     list, since the kernel samples every face at the same points. A
     non-uniform ElementTransformation::OrderW() defeats that, which is why it
@@ -376,7 +384,21 @@ bool HDGFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
           (`i*vdim + e` for `e*ND + i`) fails 40 of the 60 and the 20 it does
           not fail are EXACTLY the order-0 ones, where one dof per equation
           makes the two indexings the same integer. An order-0 case cannot
-          discriminate this kernel. */
+          discriminate this kernel.
+
+    @note AND IT IS SLOWER ON THE HOST, as the scalar version is and for the
+          same reason: D goes through AtomicAdd where the per-face loop does a
+          plain +=. DarcyForm::Assemble() at vdim = 3, interleaved A/B, three
+          alternating pairs per size in one process, one thread -- (n = 32,
+          order 2): 0.0570/0.0584, 0.0548/0.0584, 0.0582/0.0582 s serial
+          against batched; (48, 2): 0.1251/0.1298, 0.1309/0.1325,
+          0.1279/0.1311; (64, 1): 0.0699/0.0719, 0.0652/0.0671, 0.0717/0.0733.
+          So 2-6% slower, and the sign is the same in all nine pairs even
+          though the magnitude is inside the run-to-run spread. What the
+          vdim > 1 path buys is that a system's face constraint is
+          EXPRESSIBLE on a device at all, which is the gate
+          doc/HDG-DEVICE-OFFLOAD.md sets for every step of it: nothing here
+          pays until the whole chain is device-resident. */
 void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
                            const FiniteElementSpace &el_fes,
                            const Array<BilinearFormIntegrator*> &integs,
@@ -510,12 +532,17 @@ void HDGDiffusionFaceScatterBatched(const FiniteElementSpace &tr_fes,
     dimension is a different operator shape rather than a harder case, and no
     caller in the tree has one.
 
-    Ordering does not enter. The blocks are laid out the way
+    Ordering does not enter, and that is MEASURED rather than reasoned from
+    the code. The blocks are laid out the way
     VectorBlockDiagonalIntegrator's element matrix is -- group outermost
     (side 1, side 2, trace), then equation, then dof -- because that is what
     DarcyHybridization::ComputeAndAssemblePotFaceMatrix() CopyMN()s out of,
-    and both routes therefore agree whatever Ordering the space was built
-    with. */
+    so neither route consults the space's Ordering. The check: the assembled
+    NPC trace gradient on the same problem built byNODES and byVDIM comes back
+    with the same nnz and BIT-IDENTICAL entries at vdim = 2 and 3, on 2-D
+    quads and 3-D hexes, at orders 1 and 2 -- and the batched route agrees
+    with the per-face one to 1.9e-16 to 6.7e-16 relative in every one. Nothing
+    here is 2-D: triangles and hexes were checked alongside quads. */
 bool HDGFaceSpacesCanBatch(const FiniteElementSpace &tr_fes,
                            const FiniteElementSpace &el_fes);
 
