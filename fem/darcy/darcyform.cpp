@@ -431,16 +431,24 @@ void DarcyForm::Assemble(int skip_zeros)
    {
       if (hybridization)
       {
-         DenseMatrix elmat;
-
-         // Element-wise integration
-         for (int i = 0; i < fes_u -> GetNE(); i++)
+         // The batched route does the same element loop in one kernel, from
+         // the form's DOMAIN integrators only -- the boundary faces below are
+         // routed separately either way. It refuses unless
+         // AssemblyMode::Batched is asked for; see
+         // AssembleFluxMassMatricesBatched().
+         if (!hybridization->AssembleFluxMassMatricesBatched(M_u.get()))
          {
-            M_u->ComputeElementMatrix(i, elmat);
+            DenseMatrix elmat;
+
+            // Element-wise integration
+            for (int i = 0; i < fes_u -> GetNE(); i++)
+            {
+               M_u->ComputeElementMatrix(i, elmat);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            M_u->AssembleElementMatrix(i, elmat, skip_zeros);
+               M_u->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            hybridization->AssembleFluxMassMatrix(i, elmat);
+               hybridization->AssembleFluxMassMatrix(i, elmat);
+            }
          }
 
          AssembleFluxMassBdrFaces(skip_zeros);
@@ -473,16 +481,23 @@ void DarcyForm::Assemble(int skip_zeros)
    {
       if (hybridization)
       {
-         DenseMatrix elmat;
-
-         // Element-wise integration
-         for (int i = 0; i < fes_u -> GetNE(); i++)
+         // As for the two masses: the domain integrators only. B's FACE
+         // integrators are a marker for the constraint on the hybridized path
+         // and are never evaluated here, so there is nothing for the kernel to
+         // miss; see EnableHybridization().
+         if (!hybridization->AssembleDivMatricesBatched(B.get()))
          {
-            B->ComputeElementMatrix(i, elmat);
+            DenseMatrix elmat;
+
+            // Element-wise integration
+            for (int i = 0; i < fes_u -> GetNE(); i++)
+            {
+               B->ComputeElementMatrix(i, elmat);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            B->AssembleElementMatrix(i, elmat, skip_zeros);
+               B->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            hybridization->AssembleDivMatrix(i, elmat);
+               hybridization->AssembleDivMatrix(i, elmat);
+            }
          }
       }
       else if (reduction)
@@ -511,16 +526,21 @@ void DarcyForm::Assemble(int skip_zeros)
    {
       if (hybridization)
       {
-         DenseMatrix elmat;
-
-         // Element-wise integration
-         for (int i = 0; i < fes_p -> GetNE(); i++)
+         // As for the flux mass: the domain integrators only, the faces below
+         // routed separately. See AssemblePotMassMatricesBatched().
+         if (!hybridization->AssemblePotMassMatricesBatched(M_p.get()))
          {
-            M_p->ComputeElementMatrix(i, elmat);
+            DenseMatrix elmat;
+
+            // Element-wise integration
+            for (int i = 0; i < fes_p -> GetNE(); i++)
+            {
+               M_p->ComputeElementMatrix(i, elmat);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            M_p->AssembleElementMatrix(i, elmat, skip_zeros);
+               M_p->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-            hybridization->AssemblePotMassMatrix(i, elmat);
+               hybridization->AssemblePotMassMatrix(i, elmat);
+            }
          }
 
          AssemblePotHDGFaces(skip_zeros);
@@ -2451,7 +2471,12 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
    const int num_boundary_face_integs =
       hybridization->NumBdrPotConstraintIntegrators();
 
-   if (num_boundary_face_integs > 0)
+   // The batched boundary pass replaces the whole loop below, markers and
+   // periodic-mesh guard included; it builds its own face lists from the same
+   // two rules. It refuses far more often than it accepts -- see
+   // CanBatchPotBdrFaceAssembly().
+   if (num_boundary_face_integs > 0 &&
+       !hybridization->AssemblePotBdrFaceMatricesBatched())
    {
       // Which boundary attributes need to be processed?
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
@@ -2500,6 +2525,11 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
       }
    }
+
+   // Once, after BOTH passes. Either may have been a device kernel, and
+   // everything downstream -- ComputeElementH(), the face loops, the boundary
+   // flux pass -- reads E, G, H and D through raw pointers, which do not sync.
+   hybridization->SyncLocalBlocksToHost();
 }
 
 void DarcyForm::AllocBlockOp(bool nonconforming)

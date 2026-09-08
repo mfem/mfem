@@ -24,8 +24,12 @@
 
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
+#include <vector>
+
 namespace mfem
 {
+
+class HDGDiffusionIntegrator;
 
 /// Class for total flux hybridization of Darcy-like mixed systems
 /** Class DarcyHybridization performs total flux hybridization of mixed systems
@@ -213,10 +217,16 @@ public:
 
           A DEVICE mode: it needs the storage to be device-resident to be
           worth anything, and its D accumulation goes through AtomicAdd, which
-          costs on a host where the per-face loop's plain += does not. Falls
-          back to Serial whenever the face term is not a single pure-diffusion
-          HDGDiffusionIntegrator, which is all the batched kernel covers.
-          See SetAssemblyMode(). */
+          costs on a host where the per-face loop's plain += does not.
+
+          **It falls back silently, and for most problems it does.** The
+          kernel covers HDGDiffusionIntegrator with any of its coefficients,
+          both HDGConvection*Integrators, and a SumIntegrator of them, on an
+          interior face of a serial conforming mesh under NPC.
+          CanBatchPotFaceAssembly() answers whether it was taken -- ask it,
+          because this mode was unreachable for EVERY caller in the tree until
+          DarcyForm's SumIntegrator wrapper was looked through, and no answer
+          and no timing showed that. */
       Batched,
    };
 
@@ -421,6 +431,29 @@ private:
        E and G need no such protection and are left alone: they are stored per
        (face, SIDE), so the two elements of a face write different halves. */
    mutable Array<int> colour_order, colour_offsets;
+   /** @brief Every element's flux and potential dofs, concatenated in element
+       order, so that the whole gather or scatter between an L-vector and the
+       element-blocked layout is ONE Vector::GetSubVector()/SetSubVector().
+
+       Those overloads are mfem::forall kernels (linalg/vector.cpp:676, :740),
+       so with the maps and the blocked vector marked UseDevice() the gather
+       runs where the local blocks already live. The per-element loop they
+       replace could not: it goes through the `real_t *elem_data` overloads,
+       which begin with HostRead()/HostReadWrite() and are host loops by
+       construction.
+
+       Laid out to match @a Af_f_offsets and @a Df_f_offsets exactly -- the
+       flux half is GetFDofs(el) for each element in turn, the potential half
+       fes_p.GetElementVDofs(el) -- so element @a el's slice is at
+       Af_f_offsets[el] / Df_f_offsets[el], which is where the blocked vectors
+       put it. Entries carry MFEM's signed-dof convention and the kernels
+       honour it, so an H(div) flux gathers correctly.
+
+       Built once, lazily, by BuildElementDofMaps(). Both are pure functions of
+       the spaces and of @a hat_dofs_marker, which Init() fixes and nothing
+       afterwards changes: ConstructC() only re-marks free dofs from 0 to -1,
+       and GetFDofs() selects on != 1. */
+   mutable Array<int> el_u_dofs, el_p_dofs;
 
    GradientMode grad_mode{GradientMode::Assembled};
    AssemblyMode asm_mode{AssemblyMode::Serial};
@@ -635,6 +668,64 @@ private:
        fill. Cheap, once, and only on the threaded path. */
    void BuildElementColouring() const;
 
+   /** @brief Build @a el_u_dofs / @a el_p_dofs if they are not built. */
+   void BuildElementDofMaps() const;
+
+   /** @brief Make the element-local block arrays readable on the host.
+
+       The batched routes hand these arrays to BatchedLinAlg through
+       Read()/ReadWrite(), whose default is on_dev = true, so with a Device
+       configured they come back valid there -- and the debug backend
+       mprotects the host page while that is so. Every other consumer is host
+       code reaching them through raw pointers (Array::operator[],
+       Vector::GetData()), which does not sync, so it has to be told.
+
+       **Af_ipiv is the sharp one, and it is why this exists.** LUFactors uses
+       its entries as ARRAY INDICES, so a host reader indexes on whatever is
+       there; the fault lands inside LUFactors::Solve() naming no array; and
+       Af_ipiv.GetMemory().HostIsValid() reports **1** the whole time, because
+       the flag and the page protection are not the same thing. Guarding on
+       the flag would therefore pass and crash anyway. Measured on the NPC
+       route under Device("debug").
+
+       That route is also what withdraws the note on InvertA() saying nothing
+       reaches this. It reasoned that the only host reader is a nonlinear
+       local solve and that one does not run with a device configured. NPC has
+       no local nonlinear solve at all -- it reaches the same host MultInv()
+       directly -- so the reader is reached, and by the ordering that matters:
+       InvertA() or FactorElementsBatched() leaves the pivots on the device,
+       NPCReduce()'s MultInvBatched() puts them back there, and the
+       matrix-free Gradient::Mult() then indexes them on the host.
+
+       It covers the face blocks Ct, E, G and H as well as the element ones,
+       because AssemblyMode::Batched's face kernel writes E, G, H and D on the
+       device and the BOUNDARY face pass reads D on the host in the very next
+       loop.
+
+       Costs a flag check per array when nothing has moved. */
+   // (declared in the public section; see SyncLocalBlocksToHost() there)
+
+   /** @brief Whether each element's field dofs are its own.
+
+       True for two discontinuous spaces, and then an element loop that WRITES
+       field dofs writes somewhere no other element does. Two things need it,
+       for the same reason and at opposite ends of the machine: a threaded loop
+       needs it to run without a colouring (see CanThreadFieldLoop()), and a
+       device scatter needs it because Vector::SetSubVector() is an unordered
+       mfem::forall -- two entries of the map naming one dof would race, where
+       the serial loop's last-writer-wins is element order.
+
+       An H(div) flux shares dofs across faces, so both fall back to the serial
+       element loop there. That is the RT pathway, which this branch leaves
+       alone. */
+   bool FieldDofsAreElementLocal() const
+   {
+      return fes.FEColl()->GetContType() ==
+             FiniteElementCollection::DISCONTINUOUS
+             && fes_p.FEColl()->GetContType() ==
+             FiniteElementCollection::DISCONTINUOUS;
+   }
+
    /** @brief Whether an element loop that writes FIELD dofs may be threaded.
 
        It may when both field spaces are discontinuous, and then each element's
@@ -651,11 +742,7 @@ private:
        colouring covers it whatever the flux space is. */
    bool CanThreadFieldLoop() const
    {
-      return asm_mode == AssemblyMode::Threaded
-             && fes.FEColl()->GetContType() ==
-             FiniteElementCollection::DISCONTINUOUS
-             && fes_p.FEColl()->GetContType() ==
-             FiniteElementCollection::DISCONTINUOUS;
+      return asm_mode == AssemblyMode::Threaded && FieldDofsAreElementLocal();
    }
 
    FaceElementTransformations *GetFaceTransformation(int f) const;
@@ -749,7 +836,33 @@ private:
        @a Hel receives the (f2,f1) blocks contiguously, f1 outer and f2 inner,
        in the order ScatterElementH() replays them; it may be NULL when the
        mode is GradientFactorOnly. */
-   void ComputeElementH(int el, ComputeHMode mode, real_t *Hel) const;
+   void ComputeElementH(int el, ComputeHMode mode, real_t *Hel,
+                        const Vector *AiBt_all = NULL) const;
+   /** @brief The element-local FACTORISATION half of ComputeElementH() -- the
+       LU of A, the Schur complement and its LU -- for every element in one
+       batch of BatchedLinAlg calls, and A^-1 times the negated (0,1) block
+       into @a AiBt_all.
+
+       Returns false, having done nothing, unless LocalFactorMode::Batched is
+       asked for and the three arrays it views as DenseTensors are present and
+       one block size; the element loop then factors as it always has. When it
+       returns true the caller passes @a AiBt_all to ComputeElementH(), which
+       skips the arithmetic done here and reads its element's slice.
+
+       Every operation is a BatchedLinAlg call or one mfem::forall, so with a
+       device configured the whole factorisation runs there and nothing comes
+       back -- and in ComputeHMode::GradientFactorOnly nothing needs to, that
+       mode having no face loop after it. The assembling modes do: their face
+       loop is host dense work over Ct/E/G, and it pulls A, the Schur
+       complement and @a AiBt_all back. That transfer is step 2's to remove,
+       not this one's.
+
+       NOT bit-for-bit the element loop, unlike the local solve: the Schur
+       complement goes through BatchedLinAlg::AddMult() where the loop uses
+       mfem::AddMult(), and the two accumulate a product in different orders.
+       The LU factorisations themselves are the same kernels::LUFactor() in a
+       build without LAPACK. Measured agreement is on SetLocalFactorMode(). */
+   bool FactorElementsBatched(ComputeHMode mode, Vector &AiBt_all) const;
    /** @brief Add the blocks ComputeElementH() left in @a Hel to @a H.
        Serial by contract -- see SetAssemblyMode(). */
    void ScatterElementH(int el, const real_t *Hel, SparseMatrix &H) const;
@@ -797,9 +910,14 @@ private:
        @a bu and @a bp carry the elements' right-hand sides end to end in
        element order -- sizes Af_f_offsets.Last() and Df_f_offsets.Last() --
        and @a u and @a p come back the same way. Every step is a
-       BatchedLinAlg call, so on a device nothing is read back; the caller's
-       gather into @a bu / @a bp and scatter out of @a u / @a p are what
-       remain on the host.
+       BatchedLinAlg call, so on a device nothing is read back.
+
+       The caller's gather into @a bu / @a bp and scatter out of @a u / @a p
+       are kernels too now, one Vector::GetSubVector()/SetSubVector() over
+       el_u_dofs / el_p_dofs each; this doxygen used to say they "remain on
+       the host", and they were the larger cost. What remains on the host is
+       the FACE loop at each call site, and where one follows the answers it
+       still has to be read back.
 
        Requires CanBatchLocalFactor(), since a DenseTensor is one block size.
        Bit-for-bit the per-element route in a build without LAPACK, where
@@ -978,6 +1096,90 @@ public:
    /// The mode set by SetAssemblyMode().
    AssemblyMode GetAssemblyMode() const { return asm_mode; }
 
+   /** @brief Whether AssemblyMode::Batched's face kernel would actually be
+       taken, which is a much narrower question than whether it was asked for.
+
+       It needs the mode, an NPC problem (the kernel writes H into H_data,
+       where the reduced route's assembled H is what a non-NPC solve reads), a
+       serial constraint space (a shared face is not Mesh::FaceIsInterior()),
+       every integrator on the potential-mass constraint to be one
+       HDGFaceScatterBatched() implements, one integration rule across the
+       face list, and the geometry HDGDiffusionFaceMatricesCanBatch() asks for.
+
+       Measured against the 88 hybridized regression references: taken on 15,
+       against 6 when the kernel covered pure diffusion alone. Of the 73 it
+       still refuses, 52 carry a NONLINEAR constraint -- c_nlfi_p rather than
+       c_bfi_p -- which is not an assembly-time term at all and would need a
+       different kernel, over element-face pairs and per Newton step.
+
+       **Ask this rather than inferring it from a timing.** The mode was
+       unreachable for every caller in the tree until the SumIntegrator
+       DarcyForm wraps around the constraint was looked through, and an
+       assembly timing did not reveal that -- the run-to-run scatter is wider
+       than what the mode costs. A silent fallback is the normal case here,
+       so a caller that cares has to be able to ask. */
+   bool CanBatchPotFaceAssembly() const;
+
+   /** @brief How many integrators the potential-mass face constraint carries,
+       with DarcyForm's SumIntegrator wrapper unwrapped.
+
+       Reported rather than inferred for the same reason
+       CanBatchPotFaceAssembly() is: a caller cannot see through the wrapper,
+       and one of these numbers being 1 rather than 2 is the difference
+       between exercising the batched accumulation and not. */
+   int NumPotFaceConstraintIntegrators() const;
+
+   /** @brief Assemble the flux mass block for every element in one batched
+       kernel, from @a M_u's DOMAIN integrators, instead of one
+       ComputeElementMatrix() and one AssembleFluxMassMatrix() per element.
+
+       False, having done nothing, unless AssemblyMode::Batched is asked for
+       and every domain integrator is one HDGElementMassBatched() implements;
+       the caller then keeps its element loop.
+
+       It does NOT cover the form's face or boundary integrators. That is
+       deliberate and it is the difference from MFEM's AssemblyLevel::ELEMENT,
+       which folds them in for a DG space -- DarcyForm routes those itself,
+       into the constraint blocks rather than into the element matrix, so
+       folding them here would double-count them. */
+   bool AssembleFluxMassMatricesBatched(BilinearForm *M_u);
+
+   /// The same for the potential mass block; see the flux one.
+   bool AssemblePotMassMatricesBatched(BilinearForm *M_p);
+
+   /** @brief The same for the DIVERGENCE block, from @a B's domain
+       integrators.
+
+       Its scatter is the flux mass's mask with the rows unmasked: an
+       element's block is (potential dofs) x (hat dofs), a free COLUMN goes to
+       Bf and an essential one to Be, and every potential row goes with it. */
+   bool AssembleDivMatricesBatched(MixedBilinearForm *B);
+
+   /** @brief Whether the batched flux / potential mass assembly would
+       actually be taken. Ask rather than infer: both fall back silently, on
+       an integrator the kernel does not implement or on a mesh whose elements
+       do not all want one integration rule. */
+   bool CanBatchFluxMass(BilinearForm *M_u) const
+   { return CanBatchElementMass(M_u, fes); }
+   bool CanBatchPotMass(BilinearForm *M_p) const
+   { return CanBatchElementMass(M_p, fes_p); }
+   /// Whether the batched divergence assembly would actually be taken.
+   bool CanBatchDiv(MixedBilinearForm *B) const;
+
+   /** @brief Whether AssemblyMode::Batched's BOUNDARY face kernel would
+       actually be taken. The same conditions CanBatchPotFaceAssembly() asks,
+       of the boundary integrators and the faces their markers admit. */
+   bool CanBatchPotBdrFaceAssembly() const;
+
+   /** @brief Make the element-local and face block arrays readable on the
+       host; see the private note.
+
+       Public because DarcyForm::AssemblePotHDGFaces() owns the sequencing.
+       Its interior and boundary passes may each be a device kernel, and one
+       sync after both is right where one after each would push D back to the
+       device only to pull it down again. */
+   void SyncLocalBlocksToHost() const;
+
    /** @brief Choose how the element-local blocks A and D are factored.
        LocalFactorMode::Serial by default, so nothing existing changes.
 
@@ -1019,26 +1221,66 @@ public:
        this call -- stayed inside run-to-run scatter at every size tried, from
        nx=24 at order 5 to nx=128 at order 2, with deltas of both signs.
 
-       The reason is worth knowing before anyone spends time here.
-       InvertA() and InvertD() run **once**, from Finalize(), and only for
-       LocalOpType::PotNL and FluxNL. The factorisation that runs once per
-       *linearisation* is the one in ComputeElementH(), which factors A itself
-       unless the local operator is PotNL -- and that one is already inside
-       the loop AssemblyMode::Threaded parallelises. So this setting batches
-       the cold path. Its value is that it makes the device backends reachable
-       for that work at all, not that it moves a host solve. Reaching the hot
-       path means factoring all of A in one batched pre-pass before ComputeH()'s
-       element loop and having ComputeElementH() skip it, which is a larger
-       change than this one and is not made here.
+       **The hot path is batched too now**, and the paragraph that used to sit
+       here said it was not. InvertA() and InvertD() run once, from
+       Finalize(), and only for LocalOpType::PotNL and FluxNL -- so on their
+       own they batch a cold path. The factorisation that runs once per
+       *linearisation* is the one ComputeElementH() does, and that is now
+       FactorElementsBatched(): one pre-pass before ComputeH()'s element loop
+       that factors every A, forms every Schur complement and factors those
+       too, with ComputeElementH() skipping the arithmetic and reading what it
+       left. The note that called this "a larger change than this one" was
+       right about its size and wrong to leave it undone.
 
-       **The setting does more than its name says now**, and the name is kept
-       for compatibility. Batched also sends the local SOLVES through
+       **The setting does more than its name says**, and the name is kept for
+       compatibility. Batched also sends the local SOLVES through
        MultInvBatched() -- every element's `M^-1 (bu, bp)` in one batch of
        BatchedLinAlg calls rather than one LUFactors triple per element -- in
-       ReduceRHS(), ComputeSolution(), NPCReduce() and NPCRecover(). Unlike
-       the factorisation those are not a cold path: the last two run once per
-       NPC Newton step. CanBatchLocalSolve() answers whether it is taken and
-       carries what it costs. */
+       ReduceRHS(), ComputeSolution(), NPCReduce() and NPCRecover(); and it
+       gathers the element-blocked right-hand side, and scatters the recovered
+       fields, with one Vector::GetSubVector()/SetSubVector() kernel each over
+       el_u_dofs / el_p_dofs instead of a per-element host loop.
+
+       **What that last part was worth, measured, because the claim it
+       replaces was the opposite.** This doxygen used to record the batched
+       route as 5 to 15% *slower* in situ at every size tried, and blamed the
+       transfer around it. The transfer was not the cost. Timing the four
+       phases of ReduceRHS() separately, order 2 on 64x64 quads under
+       `-d cuda`, per call:
+
+           host gather loop   1.11 ms
+           MultInvBatched     6.25 ms
+           HostRead() back    0.26 ms
+           face loop          5.90 ms
+
+       -- the gather was **four times** the copy-back it was supposed to be
+       hiding behind. With both loops replaced by kernels the host gather
+       falls from 0.75 ms to 0.10 ms and the scatter from 0.80 ms to 0.08 ms,
+       and the end-to-end sign flips. Steady state, `-d cpu`, batched against
+       serial:
+
+           order 2,  64x64    FormLinearSystem  9.54 -> 8.35 ms
+                              RecoverFEMSolution 9.28 -> 8.33 ms
+           order 2, 160x160   FormLinearSystem 61.6 -> 54.2 ms
+                              RecoverFEMSolution 60.3 -> 54.3 ms
+           order 6,  48x48    FormLinearSystem 58.3 -> 71.8 ms
+                              RecoverFEMSolution 58.0 -> 72.5 ms
+
+       So: 10-12% faster at order 2 and 24% slower at order 6. The remaining
+       loss is the batched dense kernels themselves on large blocks, not the
+       plumbing, and it is a different problem from the one that was fixed.
+
+       **A contract that changes with a Device configured.** In this mode the
+       recovered fields come back DEVICE-valid: ComputeSolution() and
+       NPCRecover() scatter with a kernel and deliberately do not read the
+       answer back, which is the point. Reading them on the host is then the
+       caller's business, through HostRead() or any Vector operation that
+       syncs -- Vector::operator() and GetData() do not. The library propagates
+       the write through the BlockVector's aliases so the flags are right; see
+       ComputeSolution(). An H(div) flux keeps the host loop, since two
+       elements share a dof and an unordered scatter would race.
+
+       CanBatchLocalSolve() answers whether any of it is taken. */
    void SetLocalFactorMode(LocalFactorMode mode);
 
    /** @brief Whether LocalFactorMode::Batched would actually be taken, which
@@ -1085,24 +1327,23 @@ public:
        element's vectors in cache. On a device it crosses over around a
        thousand elements and reaches 3.5x.
 
-       IN SITU, inside RecoverFEMSolution() on 2-D quads, it is **5 to 15%
-       slower at every size tried, on host and device alike** -- 58.9 -> 67.1
-       ms at order 2 on 160x160 (host), 68.5 -> 72.4 ms for the same case on
-       CUDA, 54.1 -> 76.3 ms at order 6 on 48x48 (host). The device's 3.5x on
-       the arithmetic does not show up because the arithmetic is not what the
-       routine spends its time on: the face loop around it is host dense work,
-       and the gather into the blocked vectors and the one HostRead() back out
-       are host work too.
+       IN SITU it **used to be** 5 to 15% slower at every size tried, and that
+       was blamed on the transfer around it. It was not the transfer: the
+       gather and the scatter were per-element host loops through
+       Vector::GetSubVector(real_t*), which begins with HostRead(), and they
+       cost four times what the one copy-back did. With both replaced by
+       kernels the in-situ figure is 10-12% FASTER at order 2 and 24% slower
+       at order 6; the tables and the phase split are on SetLocalFactorMode().
 
-       That is the plan's own gate arriving on schedule (doc/HDG-DEVICE-
-       OFFLOAD.md): no step of the offload can be landed alone and show a
-       gain, because a device kernel whose neighbours are on the host pays
-       more in transfer than it saves. What this setting buys is that the
-       local solve is EXPRESSIBLE on a device at all, which the whole-chain
-       target requires and which it was not before -- see the two upstream
-       defects the attempt turned up, recorded on GPUBlasBatchedLinAlg::
-       AddMult and NativeBatchedLinAlg::LUSolve. Hence Serial by default, and
-       do not turn it on expecting a number to move. */
+       What is left of the gate (doc/HDG-DEVICE-OFFLOAD.md) still stands and
+       still bites: the face loops around these solves are host dense work, so
+       the chain is not device-resident and one HostRead() per call remains
+       where a face loop follows. Removing it is step 2's business, not this
+       one's. What this setting buys is that the local factorisation and solve
+       are EXPRESSIBLE on a device at all, which the whole-chain target
+       requires and which they were not before -- see the two upstream defects
+       the attempt turned up, recorded on GPUBlasBatchedLinAlg::AddMult and
+       NativeBatchedLinAlg::LUSolve. Hence Serial by default. */
    bool CanBatchLocalSolve() const;
 
    /** @brief Choose whether GetGradient() assembles the reduced system or only
@@ -1483,6 +1724,22 @@ public:
        Boundary faces are NOT covered and still go through
        ComputeAndAssemblePotBdrFaceMatrix(). */
    bool AssemblePotFaceMatricesBatched();
+   /// The integrators the batched face assembly would apply, sum unwrapped.
+   void PotFaceConstraintIntegrators(
+      Array<BilinearFormIntegrator*> &integs) const;
+   /// The boundary constraint integrators, and the faces each marker admits.
+   void PotBdrFaceLists(std::vector<Array<int>> &lists, Array<int> &all,
+                        Array<BilinearFormIntegrator*> &integs) const;
+   bool AssemblePotBdrFaceMatricesBatched();
+   /// Shared by CanBatchFluxMass() and CanBatchPotMass().
+   bool CanBatchElementMass(BilinearForm *M,
+                            const FiniteElementSpace &f) const;
+   /// The local index of each free / essential hat dof, and where each
+   /// element's essential run starts; see AssembleFluxMassMatricesBatched().
+   void HatDofMaps(Array<int> &free_map, Array<int> &ess_map,
+                   Array<int> &ess_offsets) const;
+   /// The interior faces, which is what the batched face assembly covers.
+   void InteriorFaceList(Array<int> &flist) const;
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p.get(); }
 
    /** @brief The nonlinear flux mass integrator, or NULL.

@@ -26,6 +26,7 @@ struct NullBuf: public std::streambuf { int overflow(int c) override { return c;
 #include <iosfwd>
 #include <csetjmp>
 #include <csignal>
+#include <memory>
 
 static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {
@@ -162,7 +163,17 @@ private:
 /// A linear hybridized Darcy solve. @a sync selects how the caller gets the
 /// potential load into its own BlockVector: through the block with a
 /// SyncAliasMemory afterwards, or host-explicitly. The two must agree.
-void Solve(bool sync, Vector &trace, Vector &pot)
+///
+/// @a mode selects how the element-local blocks are factored and solved.
+/// LocalFactorMode::Batched is the device-shaped route -- the gather, the
+/// factorisation, the Schur complement, the local solves and the scatter are
+/// all BatchedLinAlg calls or mfem::forall kernels -- and with a Device
+/// configured it leaves the recovered fields DEVICE-valid, which is the
+/// second thing this file is for.
+void Solve(bool sync, Vector &trace, Vector &pot,
+           DarcyHybridization::LocalFactorMode mode =
+              DarcyHybridization::LocalFactorMode::Serial,
+           Vector *flux = NULL)
 {
    const int n = 4, order = 1, dim = 2;
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
@@ -200,6 +211,7 @@ void Solve(bool sync, Vector &trace, Vector &pot)
    Array<int> ess_flux;
    darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
    darcy.GetHybridization()->SetEssentialBC(all);
+   darcy.GetHybridization()->SetLocalFactorMode(mode);
    darcy.Assemble();
 
    Array<int> offs(4);
@@ -248,10 +260,277 @@ void Solve(bool sync, Vector &trace, Vector &pot)
 
    trace.SetSize(X.Size());
    trace = X;
-   pot.SetSize(csol.GetBlock(1).Size());
-   pot = csol.GetBlock(1);
+
+   // Read the recovered fields back through a SECOND view over the range
+   // RecoverFEMSolution wrote, not through the block objects it wrote
+   // THROUGH. That is this file's other case seen from the far side, and it
+   // is the only way the library's own alias discipline is observable: a
+   // fresh alias comes back marked host-valid whatever the underlying state,
+   // so if ComputeSolution() leaves its answer in a block's device buffer
+   // without propagating it, this reads stale host memory and says nothing.
+   Vector qv, pv;
+   qv.MakeRef(csol, 0, csol.GetBlock(0).Size());
+   pv.MakeRef(csol, csol.GetBlock(0).Size(), csol.GetBlock(1).Size());
+   pot.SetSize(pv.Size());
+   pot = pv;
+   if (flux)
+   {
+      flux->SetSize(qv.Size());
+      *flux = qv;
+      flux->HostRead();
+   }
    trace.HostRead();
    pot.HostRead();
+}
+
+/// (c p^2, w) on the potential mass form, which is what puts
+/// DarcyHybridization into a nonlinear local operator and so onto the NPC
+/// route -- NPCReduce() and NPCRecover(), which a linear problem never
+/// reaches.
+class SquareSource : public NonlinearFormIntegrator
+{
+public:
+   explicit SquareSource(real_t c_) : c(c_) { }
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elvect.SetSize(dof);
+      elvect = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 2);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcPhysShape(Tr, shape);
+         const real_t u = shape * elfun;
+         elvect.Add(ip.weight * Tr.Weight() * c * u * u, shape);
+      }
+   }
+
+   void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elmat.SetSize(dof);
+      elmat = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 2);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcPhysShape(Tr, shape);
+         const real_t u = shape * elfun;
+         AddMult_a_VVt(ip.weight * Tr.Weight() * 2.0 * c * u, shape, elmat);
+      }
+   }
+
+private:
+   real_t c;
+   Vector shape;
+};
+
+/// One NPC Newton step on the semilinear problem, in the given local factor
+/// and gradient modes. Reaches NPCReduce()/NPCRecover() -- whose gather and
+/// scatter are the kernels LocalFactorMode::Batched installs -- and, under
+/// GradientMode::MatrixFree, ComputeHMode::GradientFactorOnly, whose whole
+/// body is the batched factorisation.
+void NPCStep(DarcyHybridization::LocalFactorMode mode,
+             DarcyHybridization::GradientMode gmode,
+             Vector &dq, Vector &dp, Vector &dtr_out)
+{
+   const int n = 4, order = 1, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     0.8, 1.2);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), src(1.0);
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new SquareSource(5.0));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetLocalFactorMode(mode);
+   dh->SetGradientMode(gmode);
+   dh->EnableNPC();
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   dh->SetEssentialBC(all);
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   x = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   Vector x_tr(Mh.GetVSize());
+   x_tr = 0.0;
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+   dh->NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   {
+      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+      std::unique_ptr<GSSmoother> prec;
+      if (Sm) { prec.reset(new GSSmoother(*Sm)); }
+      GMRESSolver gmres;
+      gmres.SetOperator(S);
+      if (prec) { gmres.SetPreconditioner(*prec); }
+      gmres.SetKDim(200);
+      gmres.SetMaxIter(2000);
+      gmres.SetRelTol(1e-14);
+      gmres.SetAbsTol(0.0);
+      gmres.SetPrintLevel(-1);
+      gmres.Mult(b_tr, dtr);
+   }
+
+   BlockVector dx(darcy.GetOffsets());
+   dx = 0.0;
+   dh->NPCRecover(r, dtr, dx);
+
+   // Through a SECOND view over the range NPCRecover wrote, for the reason
+   // Solve() gives.
+   Vector qv, pv;
+   qv.MakeRef(dx, 0, dx.GetBlock(0).Size());
+   pv.MakeRef(dx, dx.GetBlock(0).Size(), dx.GetBlock(1).Size());
+   dq.SetSize(qv.Size());
+   dq = qv;
+   dp.SetSize(pv.Size());
+   dp = pv;
+   dtr_out.SetSize(dtr.Size());
+   dtr_out = dtr;
+   dq.HostRead();
+   dp.HostRead();
+   dtr_out.HostRead();
+}
+
+/// One NPC Newton step on a LINEAR problem whose potential-mass face
+/// constraint is a SumIntegrator of a diffusion and an upwinded convection
+/// term -- which is what AssemblyMode::Batched's face kernel covers, and what
+/// the nonlinear NPCStep() above does not reach: a nonlinear potential mass
+/// takes the constraint to c_nlfi_p, where there is no batched kernel at all.
+void FaceKernelStep(DarcyHybridization::AssemblyMode am,
+                    Vector &dq, Vector &dp, Vector &dtr_out, bool &taken)
+{
+   const int n = 4, order = 1, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     0.8, 1.2);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), src(1.0);
+   VectorFunctionCoefficient vel(dim, [](const Vector &X, Vector &v)
+   {
+      v(0) = 1.0 + 0.5 * std::sin(M_PI * X(1));
+      v(1) = -0.7 + 0.3 * std::cos(M_PI * X(0));
+   });
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddInteriorFaceIntegrator(
+      new HDGConvectionUpwindedIntegrator(vel, 1.0, 0.5));
+   // A boundary term the kernel does NOT cover, so the host loop that reads
+   // D immediately after it is in play -- which is the whole point here.
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetAssemblyMode(am);
+   dh->EnableNPC();
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   dh->SetEssentialBC(all);
+
+   darcy.Assemble();
+   darcy.Finalize();
+   taken = dh->CanBatchPotFaceAssembly();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   x = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   Vector x_tr(Mh.GetVSize());
+   x_tr = 0.0;
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+   dh->NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   {
+      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+      REQUIRE(Sm != nullptr);
+      b_tr.HostReadWrite();
+      dtr.HostReadWrite();
+      UMFPackSolver umf(*Sm);
+      umf.Mult(b_tr, dtr);
+   }
+
+   BlockVector dx(darcy.GetOffsets());
+   dx = 0.0;
+   dh->NPCRecover(r, dtr, dx);
+
+   Vector qv, pv;
+   qv.MakeRef(dx, 0, dx.GetBlock(0).Size());
+   pv.MakeRef(dx, dx.GetBlock(0).Size(), dx.GetBlock(1).Size());
+   dq.SetSize(qv.Size());
+   dq = qv;
+   dp.SetSize(pv.Size());
+   dp = pv;
+   dtr_out.SetSize(dtr.Size());
+   dtr_out = dtr;
+   dq.HostRead();
+   dp.HostRead();
+   dtr_out.HostRead();
 }
 
 } // namespace darcy_alias
@@ -302,6 +581,189 @@ TEST_CASE("DarcyForm/BlockVector alias sync", "[DebugDevice]")
    Vector dp(pot_sync);
    dp -= pot_host;
    REQUIRE(dp.Norml2() <= 1e-12 * pot_host.Norml2());
+}
+
+/**
+ * @brief LocalFactorMode::Batched under a Device gives the element loop's
+ * answer, and the fields survive coming back through the caller's blocks.
+ *
+ * The globbed [DarcyHybridization][BatchedLinAlg] cases run this comparison
+ * with no Device, where every kernel degrades to a host loop and the memory
+ * validity machinery is inert -- so they cannot see any of what is under test
+ * here. With one configured:
+ *
+ *  - ReduceRHS() gathers the element-blocked right-hand side with one
+ *    mfem::forall over el_u_dofs instead of a per-element host loop, and the
+ *    result never touches the host;
+ *  - ComputeH() factors every element and forms every Schur complement in one
+ *    batch of BatchedLinAlg calls;
+ *  - ComputeSolution() scatters the recovered fields back with one kernel and
+ *    deliberately does NOT read them back, so they reach the caller
+ *    device-valid through two levels of BlockVector alias.
+ *
+ * That last one is what needs pinning, and it is exactly the failure this
+ * file's other case documents seen from inside the library. Dropping
+ * ComputeSolution()'s SyncFromBlocks() makes this case fail, and fail with
+ * the same signature: the potential comes back EXACTLY zero against a
+ * reference of -6.4e-03, because the caller's second view over that range
+ * reports host-valid while the answer sits in a block's device buffer.
+ *
+ * It only fails because Solve() reads the fields back through that second
+ * view. A first version read them through the very block objects the library
+ * had written, and passed with the sync removed -- the block knows where its
+ * own data is. Checking that the guard fires is what found that, and it is
+ * the difference between pinning the contract and pinning nothing.
+ *
+ * Bitwise, and that is a fact about this build rather than about batching:
+ * BatchedLinAlg's native backend runs the same kernels::LUFactor/LUSolve that
+ * LUFactors does without LAPACK, and kernels::AddMult runs mfem::AddMult's own
+ * j-k-i loop. The debug Device has no GPU_BLAS behind it, so the native
+ * backend is what runs.
+ */
+TEST_CASE("Darcy batched local algebra under a device", "[DebugDevice]")
+{
+   using namespace darcy_alias;
+   using LFM = DarcyHybridization::LocalFactorMode;
+
+   Vector tr_ref, pot_ref, q_ref, tr_bat, pot_bat, q_bat;
+   Solve(true, tr_ref, pot_ref, LFM::Serial, &q_ref);
+   Solve(true, tr_bat, pot_bat, LFM::Batched, &q_bat);
+
+   // There is something to get wrong.
+   REQUIRE(tr_ref.Norml2() > 1e-6);
+   REQUIRE(pot_ref.Norml2() > 1e-6);
+   REQUIRE(q_ref.Norml2() > 1e-6);
+
+   REQUIRE(tr_bat.Size() == tr_ref.Size());
+   REQUIRE(pot_bat.Size() == pot_ref.Size());
+   REQUIRE(q_bat.Size() == q_ref.Size());
+
+   // Vector::Norml2() reads through Read(), whose default is on_dev = true,
+   // so the three checks above left these DEVICE-valid; operator() below is a
+   // host access and the debug backend mprotects the host pointer. Reading a
+   // device-resident field on the host is exactly what this mode makes the
+   // caller say out loud.
+   tr_ref.HostRead(); tr_bat.HostRead();
+   pot_ref.HostRead(); pot_bat.HostRead();
+   q_ref.HostRead(); q_bat.HostRead();
+
+   for (int i = 0; i < tr_ref.Size(); i++)
+   {
+      REQUIRE(tr_bat(i) == tr_ref(i));
+   }
+   for (int i = 0; i < pot_ref.Size(); i++)
+   {
+      REQUIRE(pot_bat(i) == pot_ref(i));
+   }
+   for (int i = 0; i < q_ref.Size(); i++)
+   {
+      REQUIRE(q_bat(i) == q_ref(i));
+   }
+}
+
+/**
+ * @brief The same, on the NPC route, in both gradient modes.
+ *
+ * The linear case above reaches ReduceRHS() and ComputeSolution(). A
+ * NONLINEAR problem never reaches either -- NPCEnabled() short-circuits
+ * ReduceRHS() -- so NPCReduce()'s gather and NPCRecover()'s scatter, which
+ * are the other two kernels LocalFactorMode::Batched installs, have no
+ * coverage under a Device without this.
+ *
+ * GradientMode::MatrixFree is the half that matters most, and it is here
+ * because a claim about it turned out to be wrong. ComputeHMode::
+ * GradientFactorOnly has no face loop, so it looked like the one end of this
+ * chain with nothing to read back -- and ComputeH() was written to skip the
+ * host sync there on that reasoning. But the apply that follows,
+ * MultNL(GradMult), calls the PER-ELEMENT MultInv(), which reads Af_data,
+ * Bf_data and the pivots through raw pointers. Reading the code said so;
+ * running this said so louder, since the debug backend mprotects a host
+ * pointer whose device copy is the valid one and the case segfaults outright.
+ * There is no device-resident end here yet, and this is what keeps that
+ * honest.
+ */
+TEST_CASE("Darcy batched local algebra under a device on the NPC route",
+          "[DebugDevice]")
+{
+   using namespace darcy_alias;
+   using LFM = DarcyHybridization::LocalFactorMode;
+   using GM = DarcyHybridization::GradientMode;
+
+   const GM gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+
+   Vector q_ref, p_ref, tr_ref, q_bat, p_bat, tr_bat;
+   NPCStep(LFM::Serial, gmode, q_ref, p_ref, tr_ref);
+   NPCStep(LFM::Batched, gmode, q_bat, p_bat, tr_bat);
+
+   REQUIRE(tr_ref.Norml2() > 1e-6);
+   REQUIRE(p_ref.Norml2() > 1e-6);
+   REQUIRE(q_ref.Norml2() > 1e-6);
+
+   tr_ref.HostRead(); tr_bat.HostRead();
+   p_ref.HostRead(); p_bat.HostRead();
+   q_ref.HostRead(); q_bat.HostRead();
+
+   REQUIRE(tr_bat.Size() == tr_ref.Size());
+   for (int i = 0; i < tr_ref.Size(); i++) { REQUIRE(tr_bat(i) == tr_ref(i)); }
+   for (int i = 0; i < p_ref.Size(); i++) { REQUIRE(p_bat(i) == p_ref(i)); }
+   for (int i = 0; i < q_ref.Size(); i++) { REQUIRE(q_bat(i) == q_ref(i)); }
+}
+
+/**
+ * @brief AssemblyMode::Batched's face kernel under a Device gives the
+ * per-face loop's answer, and its results reach the host code that follows.
+ *
+ * The kernel writes E, G, H and D on the device, and the very next loop --
+ * the BOUNDARY face pass, which is not batched -- accumulates into D on the
+ * host through DenseMatrix::operator+=. Nothing in the globbed test set can
+ * see that: with no Device configured every one of those writes is a host
+ * write and the ordering is invisible.
+ *
+ * It was not hypothetical. This mode had been unreachable for every caller in
+ * the tree, so the first time it ran on a device was the first time anyone
+ * looked: under Device("debug") it faulted inside AssemblePotMassMatrix(),
+ * naming neither the array nor the routine that had left it there, and under
+ * CUDA it did not fault at all -- it read a stale host buffer and returned an
+ * answer 60% wrong. DarcyHybridization::AssemblePotFaceMatricesBatched()
+ * ends with SyncLocalBlocksToHost() for that reason; remove it and this case
+ * faults rather than fails, which is the debug backend doing its job.
+ */
+TEST_CASE("The batched HDG face kernel under a device", "[DebugDevice]")
+{
+   using namespace darcy_alias;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   Vector q_ref, p_ref, tr_ref, q_bat, p_bat, tr_bat;
+   bool taken_ref = true, taken_bat = false;
+   FaceKernelStep(AM::Serial, q_ref, p_ref, tr_ref, taken_ref);
+   FaceKernelStep(AM::Batched, q_bat, p_bat, tr_bat, taken_bat);
+
+   // The kernel was actually taken. Two fallbacks would agree perfectly and
+   // test nothing.
+   REQUIRE_FALSE(taken_ref);
+   REQUIRE(taken_bat);
+
+   REQUIRE(tr_ref.Norml2() > 1e-6);
+   REQUIRE(p_ref.Norml2() > 1e-6);
+   REQUIRE(q_ref.Norml2() > 1e-6);
+
+   tr_ref.HostRead(); tr_bat.HostRead();
+   p_ref.HostRead(); p_bat.HostRead();
+   q_ref.HostRead(); q_bat.HostRead();
+
+   // Round-off and not bitwise: the kernel accumulates point by point where
+   // the per-face route adds one element matrix. See
+   // tests/unit/fem/test_darcy_batched_face.cpp, which measures the level.
+   auto close = [](const Vector &a, const Vector &b)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      REQUIRE(d.Normlinf() <= 1e-12 * std::max(a.Normlinf(), 1e-30));
+   };
+   close(tr_ref, tr_bat);
+   close(p_ref, p_bat);
+   close(q_ref, q_bat);
 }
 
 #endif // _WIN32

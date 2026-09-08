@@ -66,9 +66,155 @@ the colouring `DarcyHybridization` already builds.
 Parity rather than a win on this hardware, which is a consumer card shared
 with a desktop under WSL2 and not a verdict.
 
-**Neither kernel is wired in.** Switching either on means the consumers --
-`ComputeAndAssemblePotFaceMatrix`, then the local factorisation and solves --
-moving with it, per the target above.
+**The scatter kernel is wired in**, behind `AssemblyMode::Batched`
+(`DarcyHybridization::AssemblePotFaceMatricesBatched()`), and this passage
+said otherwise for three commits after it stopped being true. The dense one is
+not wired in and should not be: its consumer is host code and the copy-back is
+the table above.
+
+**And "wired in" was not the same as "reachable", which cost the mode its
+entire existence.** `DarcyForm::EnableHybridization()` wraps a form's interior
+face integrators in a `SumIntegrator` *unconditionally*, even when there is
+exactly one, and the gate did `dynamic_cast<HDGDiffusionIntegrator*>` on the
+constraint. That cast could never succeed for any caller going through
+`DarcyForm` — which is every caller in the tree — so the mode was dead code
+from the day it landed. Nothing showed it: no test set the mode, and a timing
+comparison on `convdiff` did not separate it, the run-to-run scatter on
+assembly being wider than the `AtomicAdd` the mode adds. `SumIntegrator` has
+an accessor now, the gate looks through a sum of one, and
+`CanBatchPotFaceAssembly()` reports what was actually taken so a caller need
+never infer it again.
+
+Two more refusals went in with it, both of which a reachable kernel would have
+hit at once. The kernel writes H into `H_data`, which is where the per-face
+route puts it **only under NPC** — otherwise that route scatters H into the
+assembled sparse matrix and nothing reads `H_data`. And a shared face is not
+`Mesh::FaceIsInterior()`, so in parallel the kernel would silently drop every
+face on a partition boundary. Both are refusals rather than repairs; lifting
+them is work, not a guard.
+
+### What the kernel covers, after the generalisation
+
+`HDGDiffusionIntegrator` with any of its coefficients, both
+`HDGConvection*Integrator`s, and a `SumIntegrator` of them — on an interior
+face of a serial conforming mesh under NPC. Taken on **15 of the 88**
+hybridized references, against 6 for pure diffusion alone.
+
+**The three families share a shape and differ only in seven weights**, which
+is what made one kernel possible. At each quadrature point every one of them
+contributes
+
+    D1 += wd1 s1 s1^T,   E1 -= we1 s1 tr^T,   G1 += wg1 tr s1^T,
+    D2 += wd2 s2 s2^T,   E2 -= we2 s2 tr^T,   G2 += wg2 tr s2^T,
+    H  -= wh  tr tr^T,
+
+and diffusion is the degenerate case `wd1 = we1 = wg1`, `wd2 = we2 = wg2`. The
+centred form puts E on a different weight from D and G; the upwinded form
+**crosses** them, side 1's E carrying side 2's weight. In all three
+`wh = wd1 + wd2`. Each integrator gets its own pass at its own rule,
+accumulating, after one pass that zeroes E, G and H.
+
+**The rule is asked of the integrator, not reconstructed.**
+`GetHDGFaceIntRule()` is now what `AssembleHDGFaceMatrix()` itself calls, so
+the batched path cannot integrate at a different rule than the per-face loop —
+a copied rule would have diverged silently the day the original changed.
+
+Agreement is round-off and measured: the assembled NPC trace gradient, entry
+for entry over 42 combinations of term, order and mesh, differs by at most
+**7.0e-16 relative**. It is not bitwise and should not be — the per-face route
+sums every integrator into one element matrix and adds it to D once, the
+kernel accumulates point by point. Removing the upwinded form's crossing
+fails that test by 9.9e-02, which is what says it discriminates.
+
+### Boundary faces are batched too
+
+Same three families, one-sided throughout: a boundary face's E slot is
+(element dofs) x (trace dofs) rather than twice that, there is no side 2, and
+**the identity `wh = wd1 + wd2` does not hold** — the upwinded form keeps
+`2*beta*|u.n|` on its trace block at a boundary deliberately, "for stability
+reasons", where its D takes `beta|u.n| + alpha(u.n)/2`. Carrying the weights
+separately rather than deriving them is what made that expressible.
+
+The attribute markers are the structural difference from the interior case:
+two boundary integrators need not apply to the same faces, so each gets its
+own face list and its own pass, after one pass that zeroes E, G and H over
+their union. The `GetBdrFaceTransformations() == null` guard that drops a
+periodic mesh's leftover boundary elements is applied when the lists are
+built, so the kernel inherits it rather than reimplementing it.
+
+**A defect worth recording, because of how it presented.** The weight vectors
+were sized and not zeroed — `Vector(int)` does not initialise and the loop
+only accumulates — so a face whose true weight was exactly zero came back
+carrying whatever was in the heap. It did not crash and it did not look like
+garbage: the values were a plausible face integral with the right sparsity
+pattern, zero on the element dofs that vanish on the face. The answer was 46%
+out. What found it was comparing one face's assembled blocks against the
+per-face integrator's own element matrix, face by face, until one differed;
+what made it obvious was printing the host's whole element matrix rather than
+just the block that differed. The interior kernel zeroes in its `Init()`; the
+boundary one was open-coded and dropped it.
+
+## The element mass blocks are batched, and NOT through AssemblyLevel::ELEMENT
+
+`DarcyForm::Assemble()`'s two element loops -- `ComputeElementMatrix` then
+`AssembleFluxMassMatrix` / `AssemblePotMassMatrix`, per element -- are one
+kernel per form now, covering `MassIntegrator` and `VectorMassIntegrator` with
+any of its coefficient shapes: none, scalar, diagonal, or a fully coupled
+`MatrixCoefficient`.
+
+**MFEM's own element assembly cannot serve this, and that is measured rather
+than assumed.** `EABilinearFormExtension` has **no notion of `vdim`** -- a grep
+over `bilinearform_ext.cpp` returns nothing and it sizes `ea_data` as
+`ne*ndof*ndof` with a scalar `ndof` -- so the flux space, L2 with `vdim = dim`,
+cannot go through `AssemblyLevel::ELEMENT` at all. `VectorMassIntegrator` has
+no `AssembleEA` either, and `MassIntegrator`'s does not cover it: they are
+unrelated classes and the vector one produces a `nd*vdim` square with
+field-outermost blocks. And for a DG space the EA path sets
+`factorize_face_terms` and folds the form's FACE integrators into the element
+matrices -- which is exactly the work `DarcyForm` routes into the constraint
+blocks itself, so it would double-count. The kernel here therefore takes the
+form's DOMAIN integrators only, and produces blocks in NATIVE dof order, which
+is what the caller's element vdofs index.
+
+**The divergence block is batched too**, by a kernel of the same shape. There
+was never an upstream route for it on any element shape --
+`MixedBilinearForm::SetAssemblyLevel` aborts on `ELEMENT`, the two-space
+`AssembleEA` virtual is commented out, and `VectorDivergenceIntegrator` has no
+EA -- so unlike the masses there was nothing to weigh it against. Its columns
+are field-outermost, `k*trial_dofs + a`, which is `DenseMatrix::GradToDiv()`'s
+own layout; transposing them to `a*sdim + k` fails 40 of the test's 60
+combinations and passes exactly the 20 at order 0, where one trial dof makes
+the two indexings identical.
+
+**The flux scatter is the masked one.** `AssembleFluxMassMatrix()` splits an
+element's block: a free column goes to Af in its own compacted indexing, an
+essential one to Ae with every row of the element. Both are reproduced. Ae is
+read only by the right-hand side elimination `bu -= A_e u_e`, never by the
+gradient -- so the gradient comparison that was written believing it covered
+Ae did not, and said so only when the branch was disabled and it kept passing.
+It has its own case now, on the reduced route.
+
+**The device hazard this exposed is worth more than the kernel.** The batched
+mass hands the OFFSET arrays -- `hat_offsets`, `Af_offsets`, `Df_offsets` and
+the rest -- straight to a kernel, and `Array<int>::Read()` defaults to
+`on_dev = true`, so they came back valid on the device while every host reader
+indexes them raw as `Af_offsets[el]`. Under `Device("debug")` that faults with
+an address and nothing else; under CUDA it would index on stale memory.
+`SyncLocalBlocksToHost()` covers the offsets as well as the data now. It is the
+same shape as the `Af_ipiv` note on `InvertA()` and it was found the same way:
+by running the thing on a device rather than reasoning about it.
+
+### What it still refuses, in order of what it would buy
+
+* **The nonlinear constraints — 52 of the 88 references, the largest class by
+  far.** `c_nlfi_p` / `c_nlfi` are never touched by `DarcyForm::Assemble()`;
+  they are evaluated per element-face pair inside `AssembleHDGGrad()` once per
+  Newton step. That is a different loop carrying state, not an extension of
+  this one.
+* **Parallel shared faces**, for the `FaceIsInterior()` reason above.
+* **`vdim > 1`**, which `HDGDiffusionFaceMatricesCanBatch()` refuses: the
+  arithmetic per block is the same, the scatter indexing is not.
+* **Non-NPC problems**, for the H destination above.
 
 ## The gate, before any of the steps
 
@@ -252,14 +398,42 @@ arithmetic is genuinely faster; it is simply not where the routine's time
 goes. Same conclusion as the factorisation reached in step 1's first half,
 and for the same reason.
 
-What is still NOT done: **the gather and the scatter**. Both routed loops
-build the element-blocked right-hand side on the host and read the answer back
-with one `HostRead()` per call, which is named in the source at each site
-precisely because it is the transfer the target forbids. Removing it needs the
-face terms batched too -- step 2's territory -- and an index-array gather in
-place of `GetFDofs`/`GetElementVDofs`. And `ComputeElementH`'s factor+Schur is
-untouched, which is the once-per-linearisation factorisation this step's own
-note above already calls the hot path.
+**The gather, the scatter and `ComputeElementH`'s factor+Schur are done too**,
+and the paragraph they replace was wrong about which of them cost anything.
+It said the gather and the scatter "build the element-blocked right-hand side
+on the host and read the answer back with one `HostRead()` per call", and
+treated the `HostRead()` as the thing to remove. Timed separately, order 2 on
+64x64 quads under `-d cuda`, per `ReduceRHS()` call: host gather 1.11 ms,
+`MultInvBatched` 6.25 ms, `HostRead()` **0.26 ms**, face loop 5.90 ms. The
+gather was four times the transfer it was supposedly hiding behind.
+
+* `el_u_dofs` / `el_p_dofs` are the flat element-blocked dof maps, built once,
+  and the whole gather or scatter is now one `Vector::GetSubVector()` /
+  `SetSubVector()` -- which are already `mfem::forall` kernels
+  (`linalg/vector.cpp:676`, `:740`). The `real_t *` overloads the per-element
+  loop used begin with `HostRead()` and are host loops by construction.
+* `FactorElementsBatched()` does every element's LU of A, every Schur
+  complement and its LU in one batch before `ComputeH()`'s element loop.
+  Bit-for-bit the element loop without LAPACK, and that is not luck:
+  `kernels::AddMult` runs `mfem::AddMult`'s own j-k-i loop over the same
+  products.
+* Two of the four sites are closed at one end: `ComputeSolution()` and
+  `NPCRecover()` scatter with a kernel and do **not** read back, so the
+  recovered fields reach the caller device-valid. `ReduceRHS()` and
+  `NPCReduce()` gather with a kernel and still read back, because a host face
+  loop follows them.
+
+What is left is therefore the face loops, which is step 2, plus the batched
+dense kernels themselves: end to end this is now 10-12% *faster* than the
+element loop at order 2 and 24% slower at order 6, where the blocks are large
+enough that streaming the whole array costs more than the cache locality the
+per-element route has.
+
+**And there is no device-resident end yet, which an earlier draft of this
+claimed there was.** `ComputeHMode::GradientFactorOnly` has no face loop, so
+`GradientMode::MatrixFree` looked like a complete chain -- but the apply that
+follows, `MultNL(GradMult)`, calls the *per-element* `MultInv()`. It reads the
+local blocks on the host exactly as the face loop does.
 
 **Acceptance.** The NATIVE backend on device must be **bit-for-bit** the host's,
 because it runs the identical `kernels::LUFactor`/`LUSolve` scalar code — the

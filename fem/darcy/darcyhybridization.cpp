@@ -12,6 +12,7 @@
 #include "darcyhybridization.hpp"
 #include "bilininteg_hdg.hpp"
 #include "../../linalg/batched/batched.hpp"
+#include "../../general/forall.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -542,24 +543,398 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    }
 }
 
-bool DarcyHybridization::AssemblePotFaceMatricesBatched()
+/// The integrators the batched face assembly would be asked to apply.
+void DarcyHybridization::PotFaceConstraintIntegrators(
+   Array<BilinearFormIntegrator*> &integs) const
+{
+   integs.SetSize(0);
+   BilinearFormIntegrator *cbfi = c_bfi_p.get();
+   if (!cbfi) { return; }
+
+   // **Looking THROUGH the SumIntegrator is what makes this reachable at
+   // all.** DarcyForm::EnableHybridization() wraps a form's interior face
+   // integrators in one unconditionally, even when there is exactly one, so a
+   // dynamic_cast on c_bfi_p itself never matched for any caller that goes
+   // through DarcyForm -- which is every caller in the tree.
+   // AssemblyMode::Batched was therefore dead code, silently, and a timing
+   // comparison did not show it: the run-to-run scatter on convdiff's
+   // assembly is wider than the AtomicAdd cost the mode adds.
+   if (auto *sum = dynamic_cast<SumIntegrator*>(cbfi))
+   {
+      for (int i = 0; i < sum->NumIntegrators(); i++)
+      {
+         integs.Append(sum->GetIntegrator(i));
+      }
+      return;
+   }
+   integs.Append(cbfi);
+}
+
+void DarcyHybridization::HatDofMaps(Array<int> &free_map, Array<int> &ess_map,
+                                    Array<int> &ess_offsets) const
+{
+   const int NE = fes.GetNE();
+   free_map.SetSize(Af_f_offsets.Last());
+   ess_offsets.SetSize(NE + 1);
+   ess_offsets[0] = 0;
+   for (int el = 0; el < NE; el++)
+   {
+      const int o = hat_offsets[el];
+      const int a = hat_offsets[el+1] - o;
+      const int nf = Af_f_offsets[el+1] - Af_f_offsets[el];
+      ess_offsets[el+1] = ess_offsets[el] + (a - nf);
+   }
+   ess_map.SetSize(ess_offsets.Last());
+
+   for (int el = 0; el < NE; el++)
+   {
+      const int o = hat_offsets[el];
+      const int a = hat_offsets[el+1] - o;
+      int f = Af_f_offsets[el], e = ess_offsets[el];
+      for (int i = 0; i < a; i++)
+      {
+         if (hat_dofs_marker[o + i] == 1) { ess_map[e++] = i; }
+         else { free_map[f++] = i; }
+      }
+      MFEM_ASSERT(f == Af_f_offsets[el+1] && e == ess_offsets[el+1],
+                  "Internal error.");
+   }
+}
+
+bool DarcyHybridization::CanBatchElementMass(
+   BilinearForm *M, const FiniteElementSpace &f) const
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+   if (!M) { return false; }
+   Array<BilinearFormIntegrator*> *dbfi = M->GetDBFI();
+   if (!dbfi || dbfi->Size() == 0) { return false; }
+   return HDGElementMassCanBatch(f, *dbfi);
+}
+
+bool DarcyHybridization::AssembleFluxMassMatricesBatched(BilinearForm *M_u)
+{
+   if (!CanBatchElementMass(M_u, fes)) { return false; }
+
+   Vector emat;
+   HDGElementMassBatched(fes, *M_u->GetDBFI(), emat);
+
+   const int NE = fes.GetNE();
+   Array<int> free_map, ess_map, ess_offsets;
+   HatDofMaps(free_map, ess_map, ess_offsets);
+
+   // The scatter is the mask AssembleFluxMassMatrix() applies per element,
+   // written once: a free COLUMN goes to Af in its own compacted indexing, an
+   // essential one goes to Ae with every row of the element. Both accumulate,
+   // as the per-element routine does.
+   Vector Afv, Aev;
+   Afv.NewMemoryAndSize(Af_data.GetMemory(), Af_data.Size(), false);
+   const auto d_M = emat.Read();
+   const int *d_fm = free_map.Read(), *d_em = ess_map.Read();
+   const int *d_eo = ess_offsets.Read();
+   const int *d_ho = hat_offsets.Read();
+   const int *d_ao = Af_offsets.Read(), *d_afo = Af_f_offsets.Read();
+   real_t *d_Af = Afv.ReadWrite();
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Aev.NewMemoryAndSize(Ae_data.GetMemory(), Ae_data.Size(), false);
+   const int *d_aeo = Ae_offsets.Read();
+   real_t *d_Ae = Aev.ReadWrite();
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int a = d_ho[e+1] - d_ho[e];
+      const int nf = d_afo[e+1] - d_afo[e];
+      const int nes = d_eo[e+1] - d_eo[e];
+      const real_t *M = d_M + a * a * e;
+
+      for (int jj = 0; jj < nf; jj++)
+      {
+         const int j = d_fm[d_afo[e] + jj];
+         for (int ii = 0; ii < nf; ii++)
+         {
+            const int i = d_fm[d_afo[e] + ii];
+            d_Af[d_ao[e] + ii + nf * jj] += M[i + a * j];
+         }
+      }
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      for (int jj = 0; jj < nes; jj++)
+      {
+         const int j = d_em[d_eo[e] + jj];
+         for (int i = 0; i < a; i++)
+         {
+            d_Ae[d_aeo[e] + i + a * jj] += M[i + a * j];
+         }
+      }
+#else
+      MFEM_CONTRACT_VAR(nes);
+      MFEM_CONTRACT_VAR(d_em);
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   });
+
+   Af_data.GetMemory().Sync(Afv.GetMemory());
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Ae_data.GetMemory().Sync(Aev.GetMemory());
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   A_empty = false;
+
+   // THE copy back. DarcyForm::Assemble() runs AssembleFluxMassBdrFaces()
+   // immediately after this, and that loop accumulates into Af through
+   // AssembleFluxMassMatrix() on the host. Without this the debug backend
+   // faults there on an mprotected page and CUDA reads a stale buffer.
+   // It is the transfer step 2 has to remove and it cannot be removed until
+   // the boundary flux pass is batched too.
+   SyncLocalBlocksToHost();
+   return true;
+}
+
+bool DarcyHybridization::AssemblePotMassMatricesBatched(BilinearForm *M_p)
+{
+   if (!CanBatchElementMass(M_p, fes_p)) { return false; }
+
+   Vector emat;
+   HDGElementMassBatched(fes_p, *M_p->GetDBFI(), emat);
+
+   const int NE = fes_p.GetNE();
+   const int N = fes_p.GetFE(0)->GetDof() * fes_p.GetVDim();
+
+   Vector Dv;
+   Dv.NewMemoryAndSize(Df_data.GetMemory(), Df_data.Size(), false);
+   const auto d_M = emat.Read();
+   const int *d_do = Df_offsets.Read();
+   real_t *d_D = Dv.ReadWrite();
+   const int n = N;
+
+   // No mask here: the potential block keeps every element dof, so this is
+   // AssemblePotMassMatrix()'s `D_i += D` for every element at once.
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const real_t *M = d_M + n * n * e;
+      real_t *D = d_D + d_do[e];
+      for (int i = 0; i < n * n; i++) { D[i] += M[i]; }
+   });
+
+   Df_data.GetMemory().Sync(Dv.GetMemory());
+   D_empty = false;
+
+   // As for the flux: AssemblePotHDGFaces() follows, and its boundary pass is
+   // host code accumulating into D whenever the boundary kernel is refused --
+   // which is most of the time.
+   SyncLocalBlocksToHost();
+   return true;
+}
+
+bool DarcyHybridization::CanBatchDiv(MixedBilinearForm *B) const
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+   if (!B) { return false; }
+   Array<BilinearFormIntegrator*> *dbfi = B->GetDBFI();
+   if (!dbfi || dbfi->Size() == 0) { return false; }
+   return HDGElementDivCanBatch(fes, fes_p, *dbfi);
+}
+
+bool DarcyHybridization::AssembleDivMatricesBatched(MixedBilinearForm *B)
+{
+   if (!CanBatchDiv(B)) { return false; }
+
+   Vector emat;
+   HDGElementDivBatched(fes, fes_p, *B->GetDBFI(), emat);
+
+   const int NE = fes.GetNE();
+   Array<int> free_map, ess_map, ess_offsets;
+   HatDofMaps(free_map, ess_map, ess_offsets);
+
+   Vector Bfv, Bev;
+   Bfv.NewMemoryAndSize(Bf_data.GetMemory(), Bf_data.Size(), false);
+   const auto d_M = emat.Read();
+   const int *d_fm = free_map.Read(), *d_em = ess_map.Read();
+   const int *d_eo = ess_offsets.Read();
+   const int *d_ho = hat_offsets.Read();
+   const int *d_bo = Bf_offsets.Read(), *d_afo = Af_f_offsets.Read();
+   const int *d_dfo = Df_f_offsets.Read();
+   real_t *d_Bf = Bfv.ReadWrite();
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Bev.NewMemoryAndSize(Be_data.GetMemory(), Be_data.Size(), false);
+   const int *d_beo = Be_offsets.Read();
+   real_t *d_Be = Bev.ReadWrite();
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int a = d_ho[e+1] - d_ho[e];        // hat (flux) dofs
+      const int h = d_dfo[e+1] - d_dfo[e];      // potential dofs
+      const int nf = d_afo[e+1] - d_afo[e];
+      const int nes = d_eo[e+1] - d_eo[e];
+      const real_t *M = d_M + h * a * e;
+
+      for (int jj = 0; jj < nf; jj++)
+      {
+         const int j = d_fm[d_afo[e] + jj];
+         for (int i = 0; i < h; i++)
+         {
+            d_Bf[d_bo[e] + i + h * jj] += M[i + h * j];
+         }
+      }
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      for (int jj = 0; jj < nes; jj++)
+      {
+         const int j = d_em[d_eo[e] + jj];
+         for (int i = 0; i < h; i++)
+         {
+            d_Be[d_beo[e] + i + h * jj] += M[i + h * j];
+         }
+      }
+#else
+      MFEM_CONTRACT_VAR(nes);
+      MFEM_CONTRACT_VAR(d_em);
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   });
+
+   Bf_data.GetMemory().Sync(Bfv.GetMemory());
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Be_data.GetMemory().Sync(Bev.GetMemory());
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   // AssembleDivLDGFaces() and the potential mass loop follow, both host code
+   // reading these through raw pointers; see the flux mass.
+   SyncLocalBlocksToHost();
+   return true;
+}
+
+void DarcyHybridization::PotBdrFaceLists(
+   std::vector<Array<int>> &lists, Array<int> &all,
+   Array<BilinearFormIntegrator*> &integs) const
+{
+   Mesh *mesh = fes_p.GetMesh();
+   const int nint = NumBdrPotConstraintIntegrators();
+
+   integs.SetSize(0);
+   for (int k = 0; k < nint; k++)
+   {
+      integs.Append(boundary_constraint_pot_integs[k]);
+   }
+   lists.assign(nint, Array<int>());
+   all.SetSize(0);
+
+   for (int b = 0; b < mesh->GetNBE(); b++)
+   {
+      // A PERIODIC MESH KEEPS THE BOUNDARY ELEMENTS whose faces the
+      // identification turned interior, and GetBdrElementFaceIndex() then
+      // hands back an interior face whose two-sided E, G and H the interior
+      // pass has already filled. Mesh::GetBdrFaceTransformations() returning
+      // null is how every other boundary loop in this class drops them, and
+      // it is how this one does; see DarcyForm::AssemblePotHDGFaces().
+      if (!mesh->GetBdrFaceTransformations(b)) { continue; }
+      const int face = mesh->GetBdrElementFaceIndex(b);
+      const int attr = mesh->GetBdrAttribute(b);
+      bool any = false;
+      for (int k = 0; k < nint; k++)
+      {
+         const Array<int> *m = boundary_constraint_pot_integs_marker[k];
+         if (m && (*m)[attr-1] == 0) { continue; }
+         lists[k].Append(face);
+         any = true;
+      }
+      if (any) { all.Append(face); }
+   }
+}
+
+bool DarcyHybridization::CanBatchPotBdrFaceAssembly() const
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+   // The same two refusals the interior pass carries, and for the same
+   // reasons: H's destination, and shared faces.
+   if (!NPCEnabled()) { return false; }
+   if (ParallelC()) { return false; }
+   if (NumBdrPotConstraintIntegrators() == 0) { return false; }
+
+   std::vector<Array<int>> lists;
+   Array<int> all;
+   Array<BilinearFormIntegrator*> integs;
+   PotBdrFaceLists(lists, all, integs);
+   if (all.Size() == 0) { return false; }
+   return HDGBdrFaceScatterCanBatch(c_fes, fes_p, integs, lists);
+}
+
+bool DarcyHybridization::AssemblePotBdrFaceMatricesBatched()
+{
+   if (!CanBatchPotBdrFaceAssembly()) { return false; }
+
+   std::vector<Array<int>> lists;
+   Array<int> all;
+   Array<BilinearFormIntegrator*> integs;
+   PotBdrFaceLists(lists, all, integs);
+
+   Vector Ev, Gv, Hv, Dv;
+   Ev.NewMemoryAndSize(E_data.GetMemory(), E_data.Size(), false);
+   Gv.NewMemoryAndSize(G_data.GetMemory(), G_data.Size(), false);
+   Hv.NewMemoryAndSize(H_data.GetMemory(), H_data.Size(), false);
+   Dv.NewMemoryAndSize(Df_data.GetMemory(), Df_data.Size(), false);
+
+   HDGBdrFaceScatterBatched(c_fes, fes_p, integs, lists, all, E_offsets,
+                            H_offsets, Df_offsets, Ev, Gv, Hv, Dv);
+
+   E_data.GetMemory().Sync(Ev.GetMemory());
+   G_data.GetMemory().Sync(Gv.GetMemory());
+   H_data.GetMemory().Sync(Hv.GetMemory());
+   Df_data.GetMemory().Sync(Dv.GetMemory());
+   D_empty = false;
+
+   return true;
+}
+
+int DarcyHybridization::NumPotFaceConstraintIntegrators() const
+{
+   Array<BilinearFormIntegrator*> integs;
+   PotFaceConstraintIntegrators(integs);
+   return integs.Size();
+}
+
+bool DarcyHybridization::CanBatchPotFaceAssembly() const
 {
    if (asm_mode != AssemblyMode::Batched) { return false; }
 
-   // A lone HDGDiffusionIntegrator, not a SumIntegrator wrapping several:
-   // the kernel implements that one face term and nothing else, and a
-   // conservative check is the right kind here because the fallback is the
-   // per-face loop rather than a refusal.
-   auto *hd = dynamic_cast<HDGDiffusionIntegrator*>(c_bfi_p.get());
-   if (!hd || !hd->IsPureDiffusion()) { return false; }
-   if (!HDGDiffusionFaceMatricesCanBatch(c_fes, fes_p)) { return false; }
+   // The kernel writes H into H_data, which is where the per-face route puts
+   // it ONLY under NPC; otherwise that route scatters H into the assembled
+   // sparse matrix and nothing ever reads H_data. Taking the kernel there
+   // would put the face term where the reduced solve does not look. Refused
+   // rather than repaired here, because repairing it is a scatter the kernel
+   // does not have; see ComputeAndAssemblePotFaceMatrix().
+   if (!NPCEnabled()) { return false; }
 
-   Mesh *mesh = fes_p.GetMesh();
+   // A shared face is not interior by Mesh::FaceIsInterior(), which is what
+   // the face list is built from, so in parallel the kernel would silently
+   // drop every face on a partition boundary.
+   if (ParallelC()) { return false; }
+
+   Array<BilinearFormIntegrator*> integs;
+   PotFaceConstraintIntegrators(integs);
+   if (integs.Size() == 0) { return false; }
+
    Array<int> flist;
+   InteriorFaceList(flist);
+   return HDGFaceScatterCanBatch(c_fes, fes_p, integs, flist);
+}
+
+/// The interior faces, which is what the batched face assembly covers.
+void DarcyHybridization::InteriorFaceList(Array<int> &flist) const
+{
+   Mesh *mesh = fes_p.GetMesh();
+   flist.SetSize(0);
    for (int f = 0; f < mesh->GetNumFaces(); f++)
    {
       if (mesh->FaceIsInterior(f)) { flist.Append(f); }
    }
+}
+
+bool DarcyHybridization::AssemblePotFaceMatricesBatched()
+{
+   if (!CanBatchPotFaceAssembly()) { return false; }
+
+   Array<BilinearFormIntegrator*> integs;
+   PotFaceConstraintIntegrators(integs);
+
+   Array<int> flist;
+   InteriorFaceList(flist);
    if (flist.Size() == 0) { return true; }
 
    // Vector views carrying the arrays' Memory -- not GetData(), for the
@@ -570,16 +945,26 @@ bool DarcyHybridization::AssemblePotFaceMatricesBatched()
    Hv.NewMemoryAndSize(H_data.GetMemory(), H_data.Size(), false);
    Dv.NewMemoryAndSize(Df_data.GetMemory(), Df_data.Size(), false);
 
-   HDGDiffusionFaceScatterBatched(c_fes, fes_p, hd->GetCoefficient(),
-                                  hd->GetBeta(), hd->GetStabilization(),
-                                  flist, E_offsets, H_offsets, Df_offsets,
-                                  Ev, Gv, Hv, Dv);
+   HDGFaceScatterBatched(c_fes, fes_p, integs, flist, E_offsets, H_offsets,
+                         Df_offsets, Ev, Gv, Hv, Dv);
 
    E_data.GetMemory().Sync(Ev.GetMemory());
    G_data.GetMemory().Sync(Gv.GetMemory());
    H_data.GetMemory().Sync(Hv.GetMemory());
    Df_data.GetMemory().Sync(Dv.GetMemory());
    D_empty = false;
+
+   // NO copy back here. The boundary pass runs next and may be a kernel too,
+   // and syncing between them would pull D to the host only to push it back.
+   // DarcyForm::AssemblePotHDGFaces() calls SyncLocalBlocksToHost() once,
+   // after both -- which it must, because ComputeElementH() and every face
+   // loop after it read these through raw pointers.
+   //
+   // That sync is not optional and its absence is not a warning. Under
+   // Device("debug") the first host reader faults, in
+   // DenseMatrix::operator+= inside AssemblePotMassMatrix(), naming neither
+   // the array nor the routine that left it there; under CUDA it does not
+   // fault at all and the answer comes back 60% wrong.
    return true;
 }
 
@@ -710,6 +1095,83 @@ FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
    }
 
    return FTr;
+}
+
+void DarcyHybridization::BuildElementDofMaps() const
+{
+   const int NE = fes.GetNE();
+   const int na = Af_f_offsets.Last(), nd = Df_f_offsets.Last();
+   if (el_u_dofs.Size() == na && el_p_dofs.Size() == nd) { return; }
+
+   el_u_dofs.SetSize(na);
+   el_p_dofs.SetSize(nd);
+
+   Array<int> u_vdofs, p_dofs;
+   for (int el = 0; el < NE; el++)
+   {
+      GetFDofs(el, u_vdofs);
+      MFEM_ASSERT(u_vdofs.Size() == Af_f_offsets[el+1] - Af_f_offsets[el],
+                  "Internal error.");
+      std::copy(u_vdofs.begin(), u_vdofs.end(),
+                el_u_dofs.begin() + Af_f_offsets[el]);
+
+      fes_p.GetElementVDofs(el, p_dofs);
+      MFEM_ASSERT(p_dofs.Size() == Df_f_offsets[el+1] - Df_f_offsets[el],
+                  "Internal error.");
+      std::copy(p_dofs.begin(), p_dofs.end(),
+                el_p_dofs.begin() + Df_f_offsets[el]);
+   }
+
+   // The kernel side of GetSubVector()/SetSubVector() is chosen by
+   // dofs.UseDevice() || elemvect.UseDevice(), so this is half of what sends
+   // the gather to the device; the blocked vector at each call site is the
+   // other half.
+   el_u_dofs.UseDevice(true);
+   el_p_dofs.UseDevice(true);
+}
+
+void DarcyHybridization::SyncLocalBlocksToHost() const
+{
+   // The OFFSET arrays as well as the data, and they are the sharper half.
+   // The batched element mass hands these straight to a kernel, so
+   // Array<int>::Read() -- whose default is on_dev = true -- marks them valid
+   // there; and every host reader indexes them raw, as Af_offsets[el]. The
+   // fault that follows names an address and nothing else. Same shape as the
+   // Af_ipiv note on InvertA(), and found the same way.
+   if (hat_offsets.Size()) { hat_offsets.HostRead(); }
+   if (Af_offsets.Size()) { Af_offsets.HostRead(); }
+   if (Af_f_offsets.Size()) { Af_f_offsets.HostRead(); }
+   if (Bf_offsets.Size()) { Bf_offsets.HostRead(); }
+   if (Df_offsets.Size()) { Df_offsets.HostRead(); }
+   if (Df_f_offsets.Size()) { Df_f_offsets.HostRead(); }
+   if (E_offsets.Size()) { E_offsets.HostRead(); }
+   if (H_offsets.Size()) { H_offsets.HostRead(); }
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   if (Ae_offsets.Size()) { Ae_offsets.HostRead(); }
+   if (Be_offsets.Size()) { Be_offsets.HostRead(); }
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   if (Ct_data.Size()) { Ct_data.HostRead(); }
+   if (E_data.Size()) { E_data.HostRead(); }
+   if (G_data.Size()) { G_data.HostRead(); }
+   if (H_data.Size()) { H_data.HostRead(); }
+   if (Af_data.Size()) { Af_data.HostRead(); }
+   if (Af_ipiv.Size()) { Af_ipiv.HostRead(); }
+   if (Bf_data.Size()) { Bf_data.HostRead(); }
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   // The ELIMINATED blocks, which the batched flux mass writes alongside Af
+   // and which EliminateVDofsInRHS() reads on the host. They were missing
+   // from this list and the debug backend faulted on Ae the first time the
+   // mass kernel ran with a Device configured.
+   if (Ae_data.Size()) { Ae_data.HostRead(); }
+   if (Be_data.Size()) { Be_data.HostRead(); }
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   if (Bnl_data.Size()) { Bnl_data.HostRead(); }
+   if (Df_data.Size()) { Df_data.HostRead(); }
+   if (Df_lin_data.Size()) { Df_lin_data.HostRead(); }
+   if (Df_ipiv.Size()) { Df_ipiv.HostRead(); }
+   if (Sf_data.Size()) { Sf_data.HostRead(); }
+   if (Sf_ipiv.Size()) { Sf_ipiv.HostRead(); }
 }
 
 void DarcyHybridization::BuildElementColouring() const
@@ -1364,14 +1826,23 @@ void DarcyHybridization::InvertA()
       // as ARRAY INDICES (ipiv[i] - 1). A host reader would index on
       // uninitialised memory, which a synthetic probe duly segfaults on.
       //
-      // NOTHING REACHES IT TODAY, and that is measured rather than assumed:
-      // InvertA() runs only for LocalOpType::PotNL and FluxNL, whose local
-      // solves are MultInvNL(), and a nonlinear local solve does not run with
-      // a device configured AT ALL -- it aborts in LBFGSSolver on a NaN,
-      // identically in LocalFactorMode::Serial, which is step 0's caller
-      // contract and predates all of this. So the gap is real in structure
-      // and unreached in practice, and the thing that would close it is the
-      // same host/device discipline step 0 asks for, not a sync here.
+      // **THAT USED TO SAY NOTHING REACHES IT, AND THAT IS WITHDRAWN.** The
+      // argument was: InvertA() runs only for LocalOpType::PotNL and FluxNL,
+      // whose local solves are MultInvNL(), and a nonlinear local solve does
+      // not run with a device configured at all -- it aborts in LBFGSSolver
+      // on a NaN. Both halves are true and the conclusion does not follow,
+      // because NPC has no local nonlinear solve: it reaches the host
+      // MultInv() directly, on a PotNL problem, and indexes these pivots
+      // there. Measured -- the NPC case in
+      // tests/unit/miniapps/test_debug_device.cpp faults on exactly this
+      // page under Device("debug"), and HostIsValid() reports 1 while it
+      // does.
+      //
+      // SyncLocalBlocksToHost() is what closes it, called from MultNL() and
+      // ComputeH(). The shape of the mistake is the one this branch keeps
+      // finding: "X is unguarded" and "something reaches the gap" are two
+      // claims, and the second was argued from one caller instead of
+      // enumerated.
       Af_data.GetMemory().Sync(A.GetMemory());
       return;
    }
@@ -1501,8 +1972,116 @@ int DarcyHybridization::AssemblyChunkSize(int NE) const
    return std::min(chunk, std::max(NE, 1));
 }
 
+/** @brief @a Bt <- @a sgn times the transpose of each of @a NE blocks of @a B,
+    which are (@a nd, @a na) column-major and become (@a na, @a nd).
+
+    A free function and not a member, and nvcc is why: an extended
+    __host__ __device__ lambda may not be defined inside a member function with
+    private or protected access, which FactorElementsBatched() has. The other
+    batched kernels in fem/darcy are namespace-scope functions for the same
+    reason; see bilininteg_hdg.cpp. */
+void TransposeBlocksScaled(const Vector &B, int na, int nd, int NE,
+                           real_t sgn, Vector &Bt)
+{
+   const int nb = na*nd;
+   const auto d_B = B.Read();
+   auto d_Bt = Bt.Write();
+   mfem::forall(nb*NE, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int i = idx % na;            // flux dof: the transpose's row
+      const int j = (idx / na) % nd;     // potential dof: its column
+      const int el = idx / nb;
+      // B's block is (nd, na) column-major, so B(j, i) sits at i*nd + j.
+      d_Bt[idx] = sgn * d_B[el*nb + i*nd + j];
+   });
+}
+
+bool DarcyHybridization::FactorElementsBatched(ComputeHMode mode,
+                                               Vector &AiBt_all) const
+{
+   if (lfac_mode != LocalFactorMode::Batched) { return false; }
+
+   const int NE = fes.GetNE();
+   const int na = UniformBlockSize(Af_f_offsets, NE);
+   const int nd = UniformBlockSize(Df_f_offsets, NE);
+   // The same STORAGE conditions CanBatchLocalSolve() asks for, and for the
+   // same reason: what the DenseTensor views need is one block size and the
+   // el*n*n layout, not a particular local operator. A zero size is uniform
+   // and degenerate -- there is no Schur complement to form without a D.
+   if (na <= 0 || nd <= 0) { return false; }
+   if (Af_data.Size() != Af_offsets.Last() ||
+       Df_data.Size() != Df_offsets.Last() ||
+       Bf_data.Size() != Bf_offsets.Last()) { return false; }
+
+   const bool gradient = (mode != ComputeHMode::Linear);
+   // Where the Schur complement goes -- the question ComputeElementH() asks,
+   // and for the reason written there: in FluxNL, Df_data holds the factored
+   // LINEAR potential mass that the local solve needs, so the complement goes
+   // to Sf_data instead.
+   const bool to_S = (gradient && lop_type == LocalOpType::FluxNL);
+   if (to_S && (Sf_data.Size() != Df_data.Size() ||
+                Df_lin_data.Size() != Df_data.Size())) { return false; }
+
+   // Decompose A. NewMemoryAndSize and not the raw-pointer constructor, for
+   // the reason spelled out in InvertA().
+   DenseTensor A;
+   A.NewMemoryAndSize(Af_data.GetMemory(), na, na, NE, false);
+   if (!gradient || lop_type != LocalOpType::PotNL)
+   {
+      BatchedLinAlg::LUFactor(A, Af_ipiv);
+      Af_data.GetMemory().Sync(A.GetMemory());
+   }
+
+   // AiBt = A^-1 times the negated (0,1) block, one element's (na, nd) block
+   // at Bf_offsets[el] -- the same slot B fills transposed, and the shape Bnl
+   // is already stored in.
+   AiBt_all.SetSize(na*nd*NE);
+   AiBt_all.UseDevice(true);
+   TransposeBlocksScaled(Bf_data, na, nd, NE, (bsym)?(1.):(-1.), AiBt_all);
+   if (gradient && !Bnl_empty && Bnl_data.Size() == Bf_offsets.Last())
+   {
+      // The guard GetBnlMatrix() applies per element, applied once -- neither
+      // half of it depends on the element.
+      Vector Bnl_v;
+      Bnl_v.NewMemoryAndSize(Bnl_data.GetMemory(), Bnl_data.Size(), false);
+      Bnl_v.UseDevice(true);
+      AiBt_all -= Bnl_v;
+   }
+   BatchedLinAlg::LUSolve(A, Af_ipiv, AiBt_all);
+
+   // Construct and decompose the Schur complement
+   DenseTensor B;
+   B.NewMemoryAndSize(Bf_data.GetMemory(), nd, na, NE, false);
+   Vector &S_store = (to_S)?(Sf_data):(Df_data);
+   Array<int> &S_ipiv = (to_S)?(Sf_ipiv):(Df_ipiv);
+   if (to_S)
+   {
+      Vector D_lin;
+      D_lin.NewMemoryAndSize(Df_lin_data.GetMemory(), Df_lin_data.Size(),
+                             false);
+      D_lin.UseDevice(true);
+      Sf_data.UseDevice(true);
+      Sf_data = D_lin;
+   }
+   Vector S_v;
+   S_v.NewMemoryAndSize(S_store.GetMemory(), S_store.Size(), false);
+   S_v.UseDevice(true);
+   // beta = 1, which is y + A x and not a fused subtraction; see
+   // MultInvBatched() for why that distinction is worth stating.
+   BatchedLinAlg::AddMult(B, AiBt_all, S_v, 1.0, 1.0);
+   S_store.GetMemory().Sync(S_v.GetMemory());
+
+   DenseTensor S;
+   S.NewMemoryAndSize(S_store.GetMemory(), nd, nd, NE, false);
+   BatchedLinAlg::LUFactor(S, S_ipiv);
+   S_store.GetMemory().Sync(S.GetMemory());
+
+   return true;
+}
+
 void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
-                                         real_t *Hel) const
+                                         real_t *Hel,
+                                         const Vector *AiBt_all) const
 {
    const bool assemble = (mode != ComputeHMode::GradientFactorOnly);
    const bool gradient = (mode != ComputeHMode::Linear);
@@ -1510,9 +2089,14 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
 
+   // FactorElementsBatched() already did everything down to the Schur
+   // complement's LU, for every element at once; all that is wanted here is
+   // the views onto what it left.
+   const bool prefactored = (AiBt_all != NULL);
+
    // Decompose A
    LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
-   if (!gradient || lop_type != LocalOpType::PotNL)
+   if (!prefactored && (!gradient || lop_type != LocalOpType::PotNL))
    {
       LU_A.Factor(a_dofs_size);
    }
@@ -1521,31 +2105,44 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
                        d_dofs_size, a_dofs_size);
    DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
-   DenseMatrix AiBt(a_dofs_size, d_dofs_size);
+   DenseMatrix AiBt;
 
    // AiBt is A^-1 times the negated (0,1) block, which everything below
    // -- the Schur complement and the C A^-1 B^T + G product -- is built
    // from. The (0,1) block is -/+B^T from the linear divergence form plus,
    // for a solution-dependent flux law, d(flux residual)/dp; subtracting
    // the latter here is what puts it into both.
-   AiBt.Transpose(B);
-   if (!bsym) { AiBt.Neg(); }
-   DenseMatrix Bnl;
-   if (gradient && GetBnlMatrix(el, Bnl))
+   if (prefactored)
    {
-      AiBt -= Bnl;
+      AiBt.UseExternalData(
+         const_cast<real_t*>(AiBt_all->GetData()) + Bf_offsets[el],
+         a_dofs_size, d_dofs_size);
    }
-   LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+   else
+   {
+      AiBt.SetSize(a_dofs_size, d_dofs_size);
+      AiBt.Transpose(B);
+      if (!bsym) { AiBt.Neg(); }
+      DenseMatrix Bnl;
+      if (gradient && GetBnlMatrix(el, Bnl))
+      {
+         AiBt -= Bnl;
+      }
+      LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+   }
 
    LUFactors LU_S;
    if (!gradient || lop_type != LocalOpType::FluxNL)
    {
-      mfem::AddMult(B, AiBt, D);
+      if (!prefactored)
+      {
+         mfem::AddMult(B, AiBt, D);
+      }
 
       // Decompose Schur complement
       LU_S.data = D.GetData();
       LU_S.ipiv = &Df_ipiv[Df_f_offsets[el]];
-      LU_S.Factor(d_dofs_size);
+      if (!prefactored) { LU_S.Factor(d_dofs_size); }
    }
    else
    {
@@ -1565,16 +2162,19 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
       MFEM_VERIFY(Sf_data.Size() == Df_data.Size(),
                   "FluxNL Schur storage was not allocated; it is sized in "
                   "Finalize() where lop_type is decided.");
-      const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
-                              d_dofs_size, d_dofs_size);
       DenseMatrix S_el(&Sf_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
-      S_el = D_lin;
-      mfem::AddMult(B, AiBt, S_el);
+      if (!prefactored)
+      {
+         const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
+                                 d_dofs_size, d_dofs_size);
+         S_el = D_lin;
+         mfem::AddMult(B, AiBt, S_el);
+      }
 
       // Decompose Schur complement
       LU_S.data = S_el.GetData();
       LU_S.ipiv = &Sf_ipiv[Df_f_offsets[el]];
-      LU_S.Factor(d_dofs_size);
+      if (!prefactored) { LU_S.Factor(d_dofs_size); }
    }
 
    if (!assemble) { return; }
@@ -1750,6 +2350,35 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
    // schedule, and the entries themselves are what the sum is over.
    const int chunk = AssemblyChunkSize(NE);
 
+   // Every element's factorisation and Schur complement in one batch, when
+   // that is asked for; the loop below then does the face pairs only.
+   Vector AiBt_all;
+   const bool prefactored = FactorElementsBatched(mode, AiBt_all);
+   if (prefactored)
+   {
+      // THE copy back, and the only one this route needs. Everything that
+      // consumes these blocks is host code reaching them through raw
+      // pointers, which do not sync -- so without this it reads stale host
+      // memory, the whole matrix and silently, or on the debug backend
+      // segfaults on a host pointer whose device copy is the valid one.
+      // It is the transfer a full-device path has to remove, and naming it in
+      // one place is the point of having it here.
+      //
+      // **It is unconditional, and an earlier version made it conditional on
+      // `assemble` on an argument that turned out to be wrong.**
+      // ComputeHMode::GradientFactorOnly has no face loop after it, so it
+      // looked like the one end of this chain with nothing to read back. But
+      // that mode is what GradientMode::MatrixFree uses, and the apply that
+      // follows -- MultNL(GradMult) -- calls the PER-ELEMENT MultInv(), which
+      // reads Af_data, Bf_data and both sets of pivots exactly as the face
+      // loop does. The device test in tests/unit/miniapps/test_debug_device.cpp
+      // segfaults in LUFactors::Solve without this line; there is no
+      // device-resident end here yet, and there will not be until the
+      // matrix-free apply goes through MultInvBatched().
+      AiBt_all.HostRead();
+      SyncLocalBlocksToHost();
+   }
+
    Array<real_t> Hel_data;
    Array<int> Hel_offsets, faces;
 
@@ -1783,7 +2412,8 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
          for (int el = el_0; el < el_1; el++)
          {
             ComputeElementH(el, mode,
-                            Hbuf ? Hbuf + Hel_offsets[el-el_0] : NULL);
+                            Hbuf ? Hbuf + Hel_offsets[el-el_0] : NULL,
+                            prefactored ? &AiBt_all : NULL);
          }
 
       if (!assemble) { continue; }
@@ -2051,6 +2681,11 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
 {
    MFEM_ASSERT(mode != MultNlMode::AtFields || r_local,
                "MultNlMode::AtFields has nowhere to put the local residual");
+   // The element loop below is host dense work reaching the local blocks
+   // through raw pointers, and LocalFactorMode::Batched may have left them on
+   // the device. See SyncLocalBlocksToHost() -- and note that this is the
+   // matrix-free gradient's whole route to them, which is where it was found.
+   SyncLocalBlocksToHost();
    const int NE = fes.GetNE();
    const int dim = fes.GetMesh()->Dimension();
 
@@ -3188,6 +3823,7 @@ void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                                  Vector &u, Vector &p, bool with_bnl) const
 {
+
    Vector AiBtSiBAibu, AiBtSibp;
 
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
@@ -3817,15 +4453,15 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    {
       const int na = Af_f_offsets.Last(), nd = Df_f_offsets.Last();
       Vector bu_all(na), bp_all(nd);
-      Array<int> u_vdofs, p_dofs;
-      for (int el = 0; el < NE; el++)
-      {
-         GetFDofs(el, u_vdofs);
-         bu.GetSubVector(u_vdofs, bu_all.GetData() + Af_f_offsets[el]);
-
-         fes_p.GetElementVDofs(el, p_dofs);
-         bp.GetSubVector(p_dofs, bp_all.GetData() + Df_f_offsets[el]);
-      }
+      // One kernel each, not a loop of per-element GetSubVector(real_t*)
+      // calls: those begin with HostRead() and are host loops whatever the
+      // Device is, so they pinned the blocked right-hand side to the host and
+      // MultInvBatched() then had to push it back up. See el_u_dofs.
+      BuildElementDofMaps();
+      bu_all.UseDevice(true);
+      bp_all.UseDevice(true);
+      bu.GetSubVector(el_u_dofs, bu_all);
+      bp.GetSubVector(el_p_dofs, bp_all);
       if (bsym)
       {
          //In the case of the symmetrized system, the sign is opposite!
@@ -3843,6 +4479,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
       u_all.HostRead();
       p_all.HostRead();
    }
+
 
    // This loop scatters into the TRACE, so unlike the field loops it needs
    // the colouring -- and unlike them it is then safe whatever the flux space
@@ -3928,6 +4565,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
          }
       }
    }
+
 
    if (!ParallelC())
    {
@@ -4202,15 +4840,12 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
    if (batched_solve)
    {
       Vector ru_all(Af_f_offsets.Last()), rp_all(Df_f_offsets.Last());
-      for (int el = 0; el < NE; el++)
-      {
-         GetFDofs(el, u_vdofs);
-         r.GetBlock(0).GetSubVector(u_vdofs,
-                                    ru_all.GetData() + Af_f_offsets[el]);
-         fes_p.GetElementVDofs(el, p_dofs);
-         r.GetBlock(1).GetSubVector(p_dofs,
-                                    rp_all.GetData() + Df_f_offsets[el]);
-      }
+      // One kernel each; see ReduceRHS() and el_u_dofs.
+      BuildElementDofMaps();
+      ru_all.UseDevice(true);
+      rp_all.UseDevice(true);
+      r.GetBlock(0).GetSubVector(el_u_dofs, ru_all);
+      r.GetBlock(1).GetSubVector(el_p_dofs, rp_all);
       MultInvBatched(ru_all, rp_all, du_all, dp_all, true);
       // The face loop is host dense work through GetData(), which does not
       // sync; see ReduceRHS().
@@ -4356,19 +4991,33 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
       MultInvBatched(ru_all, rp_all, du_all, dp_all, true);
       du_all.Neg();
       dp_all.Neg();
-      du_all.HostRead();
-      dp_all.HostRead();
 
-      for (int el = 0; el < NE; el++)
+      if (FieldDofsAreElementLocal())
       {
-         GetFDofs(el, u_vdofs);
-         dx.GetBlock(0).SetSubVector(u_vdofs,
-                                     du_all.GetData() + Af_f_offsets[el]);
-         fes_p.GetElementVDofs(el, p_dofs);
-         dx.GetBlock(1).SetSubVector(p_dofs,
-                                     dp_all.GetData() + Df_f_offsets[el]);
+         // One kernel each and nothing comes back; see ComputeSolution().
+         BuildElementDofMaps();
+         dx.GetBlock(0).SetSubVector(el_u_dofs, du_all);
+         dx.GetBlock(1).SetSubVector(el_p_dofs, dp_all);
+      }
+      else
+      {
+         du_all.HostRead();
+         dp_all.HostRead();
+
+         for (int el = 0; el < NE; el++)
+         {
+            GetFDofs(el, u_vdofs);
+            dx.GetBlock(0).SetSubVector(u_vdofs,
+                                        du_all.GetData() + Af_f_offsets[el]);
+            fes_p.GetElementVDofs(el, p_dofs);
+            dx.GetBlock(1).SetSubVector(p_dofs,
+                                        dp_all.GetData() + Df_f_offsets[el]);
+         }
       }
    }
+
+   // The blocks were written, not the parent; see ComputeSolution().
+   dx.SyncFromBlocks();
 }
 
 void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
@@ -4443,6 +5092,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       bu_all.SetSize(Af_f_offsets.Last());
       bp_all.SetSize(Df_f_offsets.Last());
    }
+
 
    // Threaded only when both field spaces are discontinuous, so each
    // element's dofs are its own; see CanThreadFieldLoop(). This loop only
@@ -4520,21 +5170,38 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       }
    }
 
+
    if (batched_solve)
    {
       MultInvBatched(bu_all, bp_all, u_all, p_all);
-      // See ReduceRHS(): the scatter below is host work through GetData().
-      u_all.HostRead();
-      p_all.HostRead();
-
-      Array<int> u_vdofs, p_dofs;
-      for (int el = 0; el < NE; el++)
+      if (FieldDofsAreElementLocal())
       {
-         GetFDofs(el, u_vdofs);
-         u.SetSubVector(u_vdofs, u_all.GetData() + Af_f_offsets[el]);
+         // The scatter is one kernel and NOTHING comes back. This is the end
+         // of the chain a full-device path has to leave device-resident, so
+         // the HostRead() the other branch keeps is deliberately absent here;
+         // the fields come back device-valid and the sync below is what makes
+         // that legible through sol_t's blocks.
+         BuildElementDofMaps();
+         u.SetSubVector(el_u_dofs, u_all);
+         p.SetSubVector(el_p_dofs, p_all);
+      }
+      else
+      {
+         // A shared flux dof is written by both its elements, and an
+         // unordered forall would race where the serial loop's
+         // last-writer-wins is element order. See FieldDofsAreElementLocal().
+         u_all.HostRead();
+         p_all.HostRead();
 
-         fes_p.GetElementVDofs(el, p_dofs);
-         p.SetSubVector(p_dofs, p_all.GetData() + Df_f_offsets[el]);
+         Array<int> u_vdofs, p_dofs;
+         for (int el = 0; el < NE; el++)
+         {
+            GetFDofs(el, u_vdofs);
+            u.SetSubVector(u_vdofs, u_all.GetData() + Af_f_offsets[el]);
+
+            fes_p.GetElementVDofs(el, p_dofs);
+            p.SetSubVector(p_dofs, p_all.GetData() + Df_f_offsets[el]);
+         }
       }
    }
 
@@ -4545,11 +5212,27 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       {
          cR->Mult(u, sol_t.GetBlock(0));
       }
+      else
+      {
+         // u is a MakeRef of block 0, so a device write landed in ITS alias
+         // buffer and the block does not know. One more level to go after it.
+         u.SyncAliasMemory(sol_t.GetBlock(0));
+      }
    }
    else
    {
       fes.GetRestrictionOperator()->Mult(u, sol_t.GetBlock(0));
    }
+
+   // A BlockVector's blocks are aliases into its own storage, so a write made
+   // through a block leaves the result in that alias's buffer while a second
+   // view over the same range comes back marked host-valid whatever the
+   // underlying state. That is step 0's caller contract in
+   // doc/HDG-DEVICE-OFFLOAD.md, seen from the inside, and it is why the
+   // batched route may leave the fields on the device at all: without this
+   // the caller reads stale zeros, silently. Costs nothing when the write was
+   // a host one -- SyncAlias only copies flags.
+   sol_t.SyncFromBlocks();
 }
 
 void DarcyHybridization::ReconstructTotalFlux(

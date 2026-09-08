@@ -200,6 +200,8 @@ int main(int argc, char *argv[])
    bool use_npc = false;
    int gradient_mode = -1;
    bool threaded_assembly = false;
+   bool batched_assembly = false;
+   int local_factor_mode = -1;
    real_t newton_rtol = -1.;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
@@ -297,6 +299,28 @@ int main(int argc, char *argv[])
                   "and the errors are identical to the serial run whatever "
                   "OMP_NUM_THREADS says. Needs an MFEM_USE_OPENMP and "
                   "MFEM_THREAD_SAFE build and aborts without one.");
+   args.AddOption(&batched_assembly, "-bam", "--batched-assembly",
+                  "-no-bam", "--no-batched-assembly",
+                  "Assemble the interior-face potential term with one batched "
+                  "kernel that scatters straight into E, G, H and D: "
+                  "DarcyHybridization::AssemblyMode::Batched. A DEVICE mode -- "
+                  "its D accumulation goes through AtomicAdd, which costs on a "
+                  "host where the per-face loop's plain += does not -- and it "
+                  "falls back to the per-face loop for anything but a lone "
+                  "pure-diffusion HDGDiffusionIntegrator on an interior face. "
+                  "Both modes assemble the same matrix. Excludes -thr, which "
+                  "sets the same setting to a different value.");
+   args.AddOption(&local_factor_mode, "-lfac", "--local-factor-mode",
+                  "How the element-local blocks are factored and solved: "
+                  "0=one LUFactors per element, 1=the whole array through "
+                  "BatchedLinAlg, which is what makes the local work "
+                  "expressible on a device. Negative leaves it alone, and 0 "
+                  "is the default. Mode 1 also batches the local SOLVES and "
+                  "gathers and scatters them with kernels; measured 10-12% "
+                  "faster than the element loop at order 2 and 24% slower at "
+                  "order 6, and bit-for-bit either way in a build without "
+                  "LAPACK. Needs uniform block sizes -- see "
+                  "CanBatchLocalFactor(), which essential FLUX dofs defeat.");
    args.AddOption(&use_npc, "-npc", "--npc", "-no-npc", "--no-npc",
                   "Solve by NPC -- Newton on the full (q, u, u_hat) system "
                   "with the Jacobian solved by hybridized elimination -- "
@@ -885,10 +909,24 @@ int main(int argc, char *argv[])
       {
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
+      MFEM_VERIFY(!(threaded_assembly && batched_assembly),
+                  "-thr and -bam both set the assembly mode; pick one");
       if (threaded_assembly)
       {
          darcy->GetHybridization()->SetAssemblyMode(
             DarcyHybridization::AssemblyMode::Threaded);
+      }
+      else if (batched_assembly)
+      {
+         darcy->GetHybridization()->SetAssemblyMode(
+            DarcyHybridization::AssemblyMode::Batched);
+      }
+      if (local_factor_mode >= 0)
+      {
+         darcy->GetHybridization()->SetLocalFactorMode(
+            (local_factor_mode == 1)
+            ? DarcyHybridization::LocalFactorMode::Batched
+            : DarcyHybridization::LocalFactorMode::Serial);
       }
       if (gradient_mode >= 0)
       {
@@ -899,6 +937,45 @@ int main(int argc, char *argv[])
       }
       chrono.Stop();
       cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
+
+      // Say what was actually taken, not what was asked for. Both settings
+      // fall back silently -- LocalFactorMode::Batched needs uniform block
+      // sizes, which essential FLUX dofs defeat, and AssemblyMode::Batched
+      // needs the face term to be a lone pure-diffusion HDGDiffusionIntegrator
+      // -- so a flag that reads as "on" here can be doing nothing. This line
+      // goes BEFORE the errors the regression script parses off the tail.
+      {
+         const auto *dh = darcy->GetHybridization();
+         // The CONST accessors, and it matters: the non-const ones CONSTRUCT
+         // the form if it does not exist ("The form is constructed if it has
+         // not been already", darcyform.hpp), so asking this question through
+         // them after EnableHybridization() creates an empty flux or
+         // potential mass out of nothing. Measured: it segfaulted 43 of the
+         // 152 regression cases -- a diagnostic line changing the program it
+         // was diagnosing.
+         const DarcyForm *cdarcy = darcy.get();
+         auto *flux_mass =
+            const_cast<BilinearForm*>(cdarcy->GetFluxMassForm());
+         auto *pot_mass =
+            const_cast<BilinearForm*>(cdarcy->GetPotentialMassForm());
+         cout << "Assembly mode: "
+              << (int)dh->GetAssemblyMode()
+              << ", face integrators: "
+              << dh->NumPotFaceConstraintIntegrators()
+              << ", mass kernels: flux "
+              << (dh->CanBatchFluxMass(flux_mass) ? "y" : "n")
+              << " pot "
+              << (dh->CanBatchPotMass(pot_mass) ? "y" : "n")
+              << " div "
+              << (dh->CanBatchDiv(const_cast<MixedBilinearForm*>(
+                                     cdarcy->GetFluxDivForm())) ? "y" : "n")
+              << ", bdr kernel taken: "
+              << (dh->CanBatchPotBdrFaceAssembly() ? "yes" : "no")
+              << ", face kernel taken: "
+              << (dh->CanBatchPotFaceAssembly() ? "yes" : "no")
+              << ", local factor batched: "
+              << (dh->CanBatchLocalSolve() ? "yes" : "no") << "\n";
+      }
    }
    else if (reduction)
    {

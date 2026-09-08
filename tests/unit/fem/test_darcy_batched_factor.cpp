@@ -13,6 +13,7 @@
 #include "unit_tests.hpp"
 
 #include <cstring>
+#include <memory>
 
 using namespace mfem;
 
@@ -194,6 +195,9 @@ Outcome Solve(Mesh &mesh, int order, real_t c,
 struct LinearOutcome
 {
    Vector q, p, tr;
+   /// The assembled trace operator, entry for entry; empty under MatrixFree.
+   Array<int> HI, HJ;
+   Vector Hdata;
    bool can_batch_factor = false;
    bool can_batch_solve = false;
 };
@@ -207,7 +211,9 @@ struct LinearOutcome
 /// anything about the batched local SOLVE, and the two cases are not
 /// substitutes for one another.
 LinearOutcome SolveLinear(Mesh &mesh, int order,
-                          DarcyHybridization::LocalFactorMode mode)
+                          DarcyHybridization::LocalFactorMode mode,
+                          DarcyHybridization::GradientMode gmode =
+                             DarcyHybridization::GradientMode::Assembled)
 {
    const int dim = mesh.Dimension();
 
@@ -240,6 +246,7 @@ LinearOutcome SolveLinear(Mesh &mesh, int order,
 
    DarcyHybridization *dh = darcy.GetHybridization();
    dh->SetLocalFactorMode(mode);
+   dh->SetGradientMode(gmode);
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 1;
    dh->SetEssentialBC(ess_bdr);
@@ -257,13 +264,34 @@ LinearOutcome SolveLinear(Mesh &mesh, int order,
    out.can_batch_factor = dh->CanBatchLocalFactor();
    out.can_batch_solve = dh->CanBatchLocalSolve();
 
+   // The operator itself, when there is one. Comparing a SOLUTION lets a
+   // trace solve at a finite tolerance absorb a small error in the operator
+   // it is solving; comparing the assembled matrix asks the same question
+   // without that slack, and it is the only thing here that reaches
+   // ComputeH()'s own factorisation and Schur complement. InvertA(), which
+   // the semilinear case exercises, runs for LocalOpType::PotNL and FluxNL
+   // alone -- a LINEAR problem's A is factored inside ComputeElementH().
+   if (SparseMatrix *H = dynamic_cast<SparseMatrix*>(R.Ptr()))
+   {
+      const int nrows = H->Height(), nnz = H->NumNonZeroElems();
+      out.HI.SetSize(nrows+1);
+      std::copy(H->GetI(), H->GetI()+nrows+1, out.HI.begin());
+      out.HJ.SetSize(nnz);
+      std::copy(H->GetJ(), H->GetJ()+nnz, out.HJ.begin());
+      out.Hdata.SetSize(nnz);
+      std::copy(H->GetData(), H->GetData()+nnz, out.Hdata.GetData());
+   }
+
    GSSmoother prec;
    GMRESSolver lin;
    lin.SetKDim(200);
    lin.SetMaxIter(2000);
    lin.SetRelTol(1e-14);
    lin.SetAbsTol(0.0);
-   lin.SetPreconditioner(prec);
+   // GSSmoother needs the matrix, and GradientMode::MatrixFree carries none;
+   // that mode runs unpreconditioned, which is what SetGradientMode() says it
+   // costs.
+   if (out.Hdata.Size() > 0) { lin.SetPreconditioner(prec); }
    lin.SetOperator(*R.Ptr());
    lin.SetPrintLevel(-1);
    lin.Mult(B, X);
@@ -299,7 +327,9 @@ struct NPCOutcome
 /// reached only when the flux law depends on the potential
 /// (LocalOpType::FluxNL), and a potential-mass nonlinearity leaves Bnl empty.
 void NPCStep(Mesh &mesh, int order, real_t c,
-             DarcyHybridization::LocalFactorMode mode, NPCOutcome &out)
+             DarcyHybridization::LocalFactorMode mode, NPCOutcome &out,
+             DarcyHybridization::GradientMode gmode =
+                DarcyHybridization::GradientMode::Assembled)
 {
    const int dim = mesh.Dimension();
 
@@ -333,6 +363,7 @@ void NPCStep(Mesh &mesh, int order, real_t c,
 
    DarcyHybridization *dh = darcy.GetHybridization();
    dh->SetLocalFactorMode(mode);
+   dh->SetGradientMode(gmode);
    dh->EnableNPC();
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 1;
@@ -368,10 +399,14 @@ void NPCStep(Mesh &mesh, int order, real_t c,
    dtr.SetSize(b_tr.Size());
    dtr = 0.0;
    {
-      GSSmoother prec(*dynamic_cast<SparseMatrix*>(&S));
+      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+      // GradientMode::MatrixFree carries no matrix, so it runs
+      // unpreconditioned; see SetGradientMode().
+      std::unique_ptr<GSSmoother> prec;
+      if (Sm) { prec.reset(new GSSmoother(*Sm)); }
       GMRESSolver gmres;
       gmres.SetOperator(S);
-      gmres.SetPreconditioner(prec);
+      if (prec) { gmres.SetPreconditioner(*prec); }
       gmres.SetKDim(200);
       gmres.SetMaxIter(2000);
       gmres.SetRelTol(1e-14);
@@ -569,6 +604,90 @@ TEST_CASE("The batched local solve gives the serial one's answer",
    RequireSame(ref.tr, got.tr);
    RequireSame(ref.p, got.p);
    RequireSame(ref.q, got.q);
+}
+
+TEST_CASE("The batched element factorisation assembles the same trace operator",
+          "[DarcyHybridization][BatchedLinAlg]")
+{
+   using namespace darcy_batched_factor;
+   using LFM = DarcyHybridization::LocalFactorMode;
+
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(2, 4);
+   CAPTURE(order, n);
+
+   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+
+   const LinearOutcome ref = SolveLinear(mesh_a, order, LFM::Serial);
+   const LinearOutcome got = SolveLinear(mesh_b, order, LFM::Batched);
+
+   // can_batch_solve, not can_batch_factor: the latter asks only whether the
+   // STORAGE would allow batching and is true in both modes, so asserting it
+   // false of the reference says nothing. CanBatchLocalSolve() carries the
+   // `lfac_mode == Batched` half, which is the same condition
+   // FactorElementsBatched() tests.
+   REQUIRE_FALSE(ref.can_batch_solve);
+   REQUIRE(got.can_batch_solve);
+
+   // There is an operator to compare, and it is not the zero one.
+   REQUIRE(ref.Hdata.Size() > 0);
+   REQUIRE(ref.Hdata.Normlinf() > 1e-3);
+
+   // The sparsity first: a wrong Schur complement that happened to agree
+   // entrywise where both are structurally nonzero would still show here.
+   REQUIRE(got.HI.Size() == ref.HI.Size());
+   REQUIRE(got.HJ.Size() == ref.HJ.Size());
+   for (int i = 0; i < ref.HI.Size(); i++) { REQUIRE(got.HI[i] == ref.HI[i]); }
+   for (int i = 0; i < ref.HJ.Size(); i++) { REQUIRE(got.HJ[i] == ref.HJ[i]); }
+
+   // And the entries, bitwise for the reason RequireSame() gives: the two
+   // routes are the same scalar code in a build without LAPACK.
+   // BatchedLinAlg::AddMult() reaches kernels::AddMult() and the element loop
+   // reaches mfem::AddMult(), and those two run the identical j-k-i loop over
+   // the identical products -- so the Schur complement is not merely close.
+   RequireSame(ref.Hdata, got.Hdata);
+}
+
+TEST_CASE("The batched element factorisation serves a matrix-free gradient",
+          "[DarcyHybridization][BatchedLinAlg][NPC]")
+{
+   using namespace darcy_batched_factor;
+   using LFM = DarcyHybridization::LocalFactorMode;
+   using GM = DarcyHybridization::GradientMode;
+
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(2, 4);
+   CAPTURE(order, n);
+
+   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+
+   // GradientMode::MatrixFree takes ComputeHMode::GradientFactorOnly, whose
+   // whole body is the factorisation and the Schur complement -- there is no
+   // face loop after it, which makes it the one end of this chain with
+   // nothing to assemble and nothing to scatter.
+   //
+   // It has to be driven from the NONLINEAR side: GradientFactorOnly is
+   // reached from NPCGradient()/GetGradient() alone, and a linear problem's
+   // FormSystemMatrix() assembles H whatever the gradient mode says. A first
+   // version of this case asked SolveLinear() for it and got an assembled
+   // matrix back, which is what said so.
+   NPCOutcome ref, got;
+   NPCStep(mesh_a, order, 5.0, LFM::Serial, ref, GM::MatrixFree);
+   NPCStep(mesh_b, order, 5.0, LFM::Batched, got, GM::MatrixFree);
+
+   REQUIRE_FALSE(ref.can_batch_solve);
+   REQUIRE(got.can_batch_solve);
+
+   // There has to be a step to compare.
+   CAPTURE(ref.n0, ref.n1);
+   REQUIRE(ref.n0 > 1e-3);
+   REQUIRE(ref.n1 < 0.1 * ref.n0);
+
+   RequireSame(ref.dtr, got.dtr);
+   RequireSame(ref.dx.GetBlock(0), got.dx.GetBlock(0));
+   RequireSame(ref.dx.GetBlock(1), got.dx.GetBlock(1));
 }
 
 TEST_CASE("The batched local solve gives the serial one's NPC step",

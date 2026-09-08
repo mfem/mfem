@@ -14,6 +14,8 @@
 
 #include "../bilininteg.hpp"
 
+#include <vector>
+
 namespace mfem
 {
 
@@ -44,6 +46,17 @@ class HDGConvectionCenteredIntegrator : public DGTraceIntegrator
 public:
    HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a = 1.)
       : DGTraceIntegrator(u_, a, 0.) { }
+
+   /** @brief The rule AssembleHDGFaceMatrix() uses on this interior face.
+
+       ONE SOURCE OF TRUTH, and the reason it exists: the batched face
+       assembly has to integrate at exactly the rule the per-face loop does or
+       the two build different operators, and a rule copied into the batch
+       driver would diverge silently the day this one changed.
+       AssembleHDGFaceMatrix() calls this, so it cannot. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      const FiniteElement &trace_el, const FiniteElement &el1,
+      const FiniteElement &el2, FaceElementTransformations &Trans) const;
 
    void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                               const FiniteElement &el1,
@@ -95,6 +108,17 @@ public:
 
    HDGConvectionUpwindedIntegrator(VectorCoefficient &u_, real_t a, real_t b)
       : DGTraceIntegrator(u_, a, b) { }
+
+   /** @brief The rule AssembleHDGFaceMatrix() uses on this interior face.
+
+       ONE SOURCE OF TRUTH, and the reason it exists: the batched face
+       assembly has to integrate at exactly the rule the per-face loop does or
+       the two build different operators, and a rule copied into the batch
+       driver would diverge silently the day this one changed.
+       AssembleHDGFaceMatrix() calls this, so it cannot. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      const FiniteElement &trace_el, const FiniteElement &el1,
+      const FiniteElement &el2, FaceElementTransformations &Trans) const;
 
    void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                               const FiniteElement &el1,
@@ -240,6 +264,151 @@ void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
           the same call is 43.5 ms and, unlike the dense form, NOTHING COMES
           BACK. A host build wanting this shape should take the colouring
           DarcyHybridization already builds rather than the atomics. */
+/** @brief Whether HDGFaceScatterBatched() can take @a integs on @a face_list.
+
+    Every integrator has to be one the batched kernel implements -- an
+    HDGDiffusionIntegrator or either HDGConvection*Integrator, in any
+    combination -- and each has to want ONE integration rule across the whole
+    face list, since the kernel samples every face at the same points. A
+    non-uniform ElementTransformation::OrderW() defeats the second, which is
+    why it is asked of the faces rather than of the mesh.
+
+    False means the caller keeps its per-face loop, not that anything is
+    wrong. */
+bool HDGFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
+                            const FiniteElementSpace &el_fes,
+                            const Array<BilinearFormIntegrator*> &integs,
+                            const Array<int> &face_list);
+
+/** @brief The interior-face HDG constraint of every integrator in @a integs,
+    for every face in @a face_list, scattered straight into E, G, H and D.
+
+    The generalisation of HDGDiffusionFaceScatterBatched(), which covered a
+    lone pure-diffusion term. What every supported integrator has in common is
+    its SHAPE: at each quadrature point it contributes
+
+        D1 += wd1 s1 s1^T,   E1 -= we1 s1 tr^T,   G1 += wg1 tr s1^T,
+        D2 += wd2 s2 s2^T,   E2 -= we2 s2 tr^T,   G2 += wg2 tr s2^T,
+        H  -= wh  tr tr^T,
+
+    and they differ only in the seven weights. Diffusion is the degenerate
+    case wd1 = we1 = wg1 and wd2 = we2 = wg2; the convection forms are not --
+    the centred one has E and G on different weights, and the upwinded one
+    crosses them, side 1's E carrying side 2's weight. In all three
+    wh = wd1 + wd2, which is checked rather than assumed.
+
+    Each integrator is applied in its own pass at its own rule, accumulating,
+    after one pass that zeroes E, G and H. D is not zeroed here: it accumulates
+    across the faces of an element and its zeroing belongs to the caller. */
+void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
+                           const FiniteElementSpace &el_fes,
+                           const Array<BilinearFormIntegrator*> &integs,
+                           const Array<int> &face_list,
+                           const Array<int> &E_offsets,
+                           const Array<int> &H_offsets,
+                           const Array<int> &Df_offsets,
+                           Vector &E_data, Vector &G_data,
+                           Vector &H_data, Vector &Df_data);
+
+/** @brief Whether HDGBdrFaceScatterBatched() can take @a integs.
+
+    The same question HDGFaceScatterCanBatch() asks, on boundary faces. The
+    face lists are per integrator because a boundary integrator carries an
+    attribute marker and two of them need not apply to the same faces. */
+/** @brief Whether HDGElementMassBatched() can take @a integs on @a fes.
+
+    Every integrator has to be a MassIntegrator or a VectorMassIntegrator --
+    the two the Darcy mass forms carry -- and they all have to want one
+    integration rule across the mesh, since the kernel samples every element
+    at the same points. A VectorMassIntegrator's vdim has to match the space's;
+    it is a settable field and DarcyOperator does set it. */
+bool HDGElementMassCanBatch(const FiniteElementSpace &fes,
+                            const Array<BilinearFormIntegrator*> &integs);
+
+/** @brief Every element's mass matrix, for every integrator in @a integs, as
+    one device-resident Vector of NE blocks of (ndof*vdim)^2.
+
+    Element assembly rather than partial assembly, which is what the caller
+    wants: DarcyHybridization stores an element matrix per element and
+    condenses it, so a PA operator would have to be un-applied to get back
+    what it already has. The blocks come out in NATIVE dof order and
+    field-outermost, which is VectorMassIntegrator::AssembleElementMatrix()'s
+    own layout and Ordering::byNODES's -- so a caller's element vdofs index
+    them directly, with no lexicographic reordering of the kind
+    EABilinearFormExtension::GetElementMatrices() has to do.
+
+    @a emat is overwritten, not accumulated.
+
+    NOT the same route as MFEM's AssemblyLevel::ELEMENT, deliberately. That
+    one has no notion of vdim -- EABilinearFormExtension sizes ea_data as
+    ne*ndof*ndof with a scalar ndof -- and for a DG space it folds the form's
+    FACE terms into the element matrices, which is exactly the work
+    DarcyForm::Assemble() routes itself. Either would be wrong here. */
+void HDGElementMassBatched(const FiniteElementSpace &fes,
+                           const Array<BilinearFormIntegrator*> &integs,
+                           Vector &emat);
+
+/** @brief Whether HDGElementDivBatched() can take @a integs.
+
+    Every integrator has to be a VectorDivergenceIntegrator -- the one the
+    Darcy divergence form carries on a discontinuous flux -- and they all have
+    to want one integration rule across the mesh. The flux space's vdim has to
+    be the mesh's space dimension, which is what makes its element matrix
+    (test dofs) x (sdim * trial dofs) and lets the hat-dof mask index it. */
+bool HDGElementDivCanBatch(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes,
+                           const Array<BilinearFormIntegrator*> &integs);
+
+/** @brief Every element's divergence block, as one device-resident Vector of
+    NE blocks of (test dofs) x (sdim * trial dofs), column-major.
+
+    The mixed counterpart of HDGElementMassBatched(), and it exists for a
+    sharper reason than that one: MFEM has NO mixed element assembly at all.
+    MixedBilinearForm::SetAssemblyLevel aborts on AssemblyLevel::ELEMENT
+    ("stay tuned"), the two-space AssembleEA virtual is commented out in
+    fem/bilininteg.hpp, and VectorDivergenceIntegrator has no EA. So there is
+    nothing upstream to route through even in principle, on any element shape.
+
+    Columns are field-outermost -- column `k*trial_dofs + a` is component k of
+    trial dof a -- which is DenseMatrix::GradToDiv()'s own layout and
+    Ordering::byNODES's, so the caller's element vdofs index it directly. */
+void HDGElementDivBatched(const FiniteElementSpace &trial_fes,
+                          const FiniteElementSpace &test_fes,
+                          const Array<BilinearFormIntegrator*> &integs,
+                          Vector &emat);
+
+bool HDGBdrFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
+                               const FiniteElementSpace &el_fes,
+                               const Array<BilinearFormIntegrator*> &integs,
+                               const std::vector<Array<int>> &face_lists);
+
+/** @brief The BOUNDARY-face HDG constraint of every integrator in @a integs,
+    scattered straight into E, G, H and D.
+
+    One-sided throughout, and that is the whole difference from the interior
+    form: a boundary face's E slot is (element dofs) x (trace dofs) rather
+    than twice that, H takes one side's weight, and there is no side 2. The
+    weight identity wh = wd1 + wd2 that holds on an interior face does NOT
+    hold here for the upwinded form -- its H term keeps 2*beta*|u.n| at a
+    boundary deliberately, "for stability reasons", where its D takes
+    beta|u.n| + alpha(u.n)/2. That is why the weights are carried separately
+    rather than derived from one another.
+
+    @a face_lists gives, per integrator, the faces its attribute marker
+    admits; @a all_faces is their union and is what gets zeroed first. E, G
+    and H are assigned by the per-face route (CopyMN), so zero-then-accumulate
+    reproduces it; D accumulates there and here. */
+void HDGBdrFaceScatterBatched(const FiniteElementSpace &tr_fes,
+                              const FiniteElementSpace &el_fes,
+                              const Array<BilinearFormIntegrator*> &integs,
+                              const std::vector<Array<int>> &face_lists,
+                              const Array<int> &all_faces,
+                              const Array<int> &E_offsets,
+                              const Array<int> &H_offsets,
+                              const Array<int> &Df_offsets,
+                              Vector &E_data, Vector &G_data,
+                              Vector &H_data, Vector &Df_data);
+
 void HDGDiffusionFaceScatterBatched(const FiniteElementSpace &tr_fes,
                                     const FiniteElementSpace &el_fes,
                                     Coefficient *Q, real_t beta,
@@ -297,8 +466,37 @@ public:
 
    /// The scalar coefficient, or null.
    Coefficient *GetCoefficient() const { return Q; }
+   /// The matrix coefficient, or null.
+   MatrixCoefficient *GetMatrixCoefficient() const { return MQ; }
+   /// The velocity coefficient, or null.
+   VectorCoefficient *GetVelocity() const { return v; }
+   /// The alpha the constructor took.
+   real_t GetAlpha() const { return alpha; }
    /// The beta the constructor took.
    real_t GetBeta() const { return beta; }
+
+   /** @brief StabValue() made public, so a batched assembly weighs a point
+       the way the per-face loop does instead of copying the expression.
+
+       It was copied once already, into HDGFaceScatterBatched()'s ancestor,
+       and a copy of a two-line expression is exactly the kind of thing that
+       survives a change to the original. */
+   real_t EvalStabilization(real_t wq, real_t ba, real_t un, real_t face_w,
+                            real_t u, real_t uhat,
+                            ElementTransformation &Tr) const
+   { return StabValue(wq, ba, un, face_w, u, uhat, Tr); }
+
+   /** @brief The rule AssembleHDGFaceMatrix() uses on this interior face.
+
+       ONE SOURCE OF TRUTH, and the reason it exists: the batched face
+       assembly has to integrate at exactly the rule the per-face loop does or
+       the two build different operators, and a rule copied into the batch
+       driver would diverge silently the day this one changed.
+       AssembleHDGFaceMatrix() calls this, so it cannot. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      const FiniteElement &trace_el, const FiniteElement &el1,
+      const FiniteElement &el2, FaceElementTransformations &Trans) const;
+
 
 protected:
    inline real_t StabValue(real_t wq, real_t ba, real_t un, real_t face_w,
