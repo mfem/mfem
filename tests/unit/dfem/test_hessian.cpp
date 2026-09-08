@@ -256,6 +256,57 @@ void hessian_derivative_action(const char *filename, int p)
            MFEM_Approx(InnerProduct(pmesh.GetComm(), y_transpose, direction)));
 }
 
+/// Comparison bw assembled and MF hessian
+template <int DIM>
+void hessian_assemble(const char *filename, int p)
+{
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   smesh.Clear();
+
+   Array<int> all_domain_attr(pmesh.attributes.Max());
+   all_domain_attr = 1;
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   static constexpr int U = 0;
+   DifferentiableOperator dop({{U, &fes}}, {{U, &fes}}, pmesh);
+   hessian_output_qf<DIM> qf;
+   constexpr auto kernels = DerivativeKernels::Action |
+                            DerivativeKernels::AssembleMatrix |
+                            DerivativeKernels::AssembleDiagonal;
+   dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      qf, Inputs<Value<U>> {}, Outputs<Hessian<U>> {},
+      *ir, all_domain_attr, Derivatives<U> {});
+
+   Vector x(fes.GetTrueVSize());
+   x.Randomize(1);
+   MultiVector X{x};
+   auto derivative = dop.GetDerivative(U, X);
+
+   HypreParMatrix *A = nullptr;
+   derivative->Assemble(A);
+
+   Vector direction(fes.GetTrueVSize());
+   direction.Randomize(2);
+   Vector y_action(fes.GetTrueVSize()), y_assembled(fes.GetTrueVSize());
+   MultiVector action_output{y_action};
+   derivative->Mult(direction, action_output);
+   A->Mult(direction, y_assembled);
+   REQUIRE(MaxAbsDiff(y_action, y_assembled, pmesh.GetComm()) ==
+           MFEM_Approx(0.0).margin(1e-10));
+
+   // The separately assembled diagonal must agree with the matrix's own.
+   Vector diag(fes.GetTrueVSize()), ref_diag(fes.GetTrueVSize());
+   derivative->AssembleDiagonal(U, diag);
+   A->GetDiag(ref_diag);
+   REQUIRE(MaxAbsDiff(diag, ref_diag, pmesh.GetComm()) ==
+           MFEM_Approx(0.0).margin(1e-10));
+
+   delete A;
+}
+
 /// Integrand of the right-hand side of the adjoint identity: the reference
 /// Hessian of v contracted, entry by entry, with A_ij(u) = (i+1)(j+1) u.
 template <int DIM>
@@ -752,6 +803,22 @@ TEST_CASE("dFEM Hessian derivative action", "[Parallel][dFEM][Hessian]")
       const int p = GENERATE(2, 8);
       CAPTURE(p);
       hessian_derivative_action<3>("../../data/inline-hex.mesh", p);
+   }
+}
+
+TEST_CASE("dFEM Hessian assemble", "[Parallel][dFEM][Hessian]")
+{
+   SECTION("2D")
+   {
+      const int p = GENERATE(2, 8);
+      CAPTURE(p);
+      hessian_assemble<2>("../../data/inline-quad.mesh", p);
+   }
+   SECTION("3D")
+   {
+      const int p = GENERATE(2, 8);
+      CAPTURE(p);
+      hessian_assemble<3>("../../data/inline-hex.mesh", p);
    }
 }
 

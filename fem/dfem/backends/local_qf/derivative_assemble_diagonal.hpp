@@ -414,6 +414,7 @@ public:
                   {
                      const auto &B = out_dtq.B;
                      const auto &G = out_dtq.G;
+                     const auto &H = out_dtq.H;
                      if constexpr (is_value_fop<test_fop_t>::value)
                      {
                         return (k == 0) ? B(q, 0, d) : 0.0;
@@ -421,6 +422,15 @@ public:
                      else if constexpr (is_gradient_fop<test_fop_t>::value)
                      {
                         return (k == axis) ? G(q, 0, d) : B(q, 0, d);
+                     }
+                     else if constexpr (is_hessian_fop<test_fop_t>::value)
+                     {
+                        const int i = k / backend_t::DIM;
+                        const int j = k % backend_t::DIM;
+                        const int order = (i == axis) + (j == axis);
+                        return (order == 2) ? H(q, 0, d)
+                               : (order == 1) ? G(q, 0, d)
+                               : B(q, 0, d);
                      }
                      else
                      {
@@ -452,6 +462,15 @@ public:
                            else if constexpr (is_gradient_fop<fop_t>::value)
                            {
                               return (m == axis) ? in_dtq.G(q, 0, d)
+                                     : in_dtq.B(q, 0, d);
+                           }
+                           else if constexpr (is_hessian_fop<fop_t>::value)
+                           {
+                              const int i = m / backend_t::DIM;
+                              const int j = m % backend_t::DIM;
+                              const int order = (i == axis) + (j == axis);
+                              return (order == 2) ? in_dtq.H(q, 0, d)
+                                     : (order == 1) ? in_dtq.G(q, 0, d)
                                      : in_dtq.B(q, 0, d);
                            }
                            else

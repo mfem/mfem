@@ -80,6 +80,46 @@ trial_basis_weight_gradient(const DeviceTensor<3, const real_t> &B,
    }
 }
 
+
+template<int DIM>
+MFEM_HOST_DEVICE inline real_t
+trial_basis_weight_hessian(const DeviceTensor<3, const real_t> &B,
+                           const DeviceTensor<3, const real_t> &G,
+                           const DeviceTensor<3, const real_t> &H,
+                           const int m,
+                           const int qx,
+                           const int qy,
+                           const int qz,
+                           const int Jx,
+                           const int Jy,
+                           const int Jz)
+{
+   const int i = m / DIM;
+   const int j = m % DIM;
+   const int nx = (i == 0) + (j == 0);
+   const int ny = (i == 1) + (j == 1);
+   const int nz = (i == 2) + (j == 2);
+   const auto Hx = H(qx, 0, Jx), Hy = H(qy, 0, Jy);
+   const auto Gx = G(qx, 0, Jx), Gy = G(qy, 0, Jy);
+   const auto Bx = B(qx, 0, Jx), By = B(qy, 0, Jy);
+   const real_t Wx = (nx == 2) ? Hx : ((nx == 1) ? Gx : Bx);
+   const real_t Wy = (ny == 2) ? Hy : ((ny == 1) ? Gy : By);
+   if constexpr (DIM == 2)
+   {
+      MFEM_CONTRACT_VAR(qz & Jz);
+      MFEM_CONTRACT_VAR(nz);
+      return Wx * Wy;
+   }
+   else
+   {
+      const auto Bz = B(qz, 0, Jz), Gz = G(qz, 0, Jz);
+      const auto Hz = H(qz, 0, Jz);
+      const real_t Wz = (nz == 2) ? Hz : ((nz == 1) ? Gz : Bz);
+      return Wx * Wy * Wz;
+   }
+}
+
+
 template<int DIM, int MQ1, typename Shared, typename output_t>
 MFEM_HOST_DEVICE void
 map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
@@ -87,10 +127,11 @@ map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
                               const output_t &output,
                               const DofToQuadMap &dtq,
                               Shared &s,
-                              const int tv_dof = -1)
+                              const int tv_dof = -1,
+                              const int op_dof = -1)
 {
    using output_fop_t = std::decay_t<output_t>;
-   const auto B = dtq.B, G = dtq.G;
+   const auto B = dtq.B, G = dtq.G, H = dtq.H;
    const bool f_slab = (tv_dof >= 0);
    const int vdim = output.vdim;
    const int vd_begin = f_slab ? tv_dof : 0;
@@ -262,6 +303,83 @@ map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
          }
       }
    }
+   else if constexpr (is_hessian_fop_v<output_fop_t>)
+   {
+      const auto [q1d, unused, d1d] = H.GetShape();
+      MFEM_CONTRACT_VAR(unused);
+      const int test_dim = output.size_on_qp / vdim;
+      const int f_vdim = f_slab ? 1 : vdim;
+      const int op_begin = (op_dof >= 0) ? op_dof : 0;
+      const int op_end = (op_dof >= 0) ? op_dof + 1 : test_dim;
+      const int f_op_dim = (op_dof >= 0) ? 1 : test_dim;
+
+      ker::LoadMatrix(d1d, q1d, B, s.B);
+      ker::LoadMatrix(d1d, q1d, G, s.G);
+      ker::LoadMatrix(d1d, q1d, H, s.H);
+      if constexpr (DIM == 2)
+      {
+         const auto fqp = Reshape(&f(0, 0, 0), f_vdim, f_op_dim, q1d, q1d);
+         auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
+         ker::s_regs2d_t<MQ1> X, Y;
+         for (int vd = vd_begin; vd < vd_end; vd++)
+         {
+            const int fi = f_slab ? 0 : vd;
+            for (int k = op_begin; k < op_end; k++)
+            {
+               const int fk = (op_dof >= 0) ? 0 : k;
+               MFEM_FOREACH_THREAD(qy, y, q1d)
+               MFEM_FOREACH_THREAD(qx, x, q1d)
+               { X[qy][qx] = fqp(fi, fk, qx, qy); }
+               ker::Contract2d<true>(d1d, q1d, s.M,
+                                     ker::HessDir(k / DIM, k % DIM, 0,
+                                                  s.B, s.G, s.H),
+                                     ker::HessDir(k / DIM, k % DIM, 1,
+                                                  s.B, s.G, s.H),
+                                     X, Y);
+               MFEM_FOREACH_THREAD(dy, y, d1d)
+               MFEM_FOREACH_THREAD(dx, x, d1d)
+               { yd(dx, dy, vd) += Y[dy][dx]; }
+               MFEM_SYNC_THREAD;
+            }
+         }
+      }
+      else
+      {
+         const auto fqp =
+            Reshape(&f(0, 0, 0), f_vdim, f_op_dim, q1d, q1d, q1d);
+         auto yd = Reshape(&y(0, 0), d1d, d1d, d1d, vdim);
+         ker::s_regs3d_t<MQ1> X, Y;
+         for (int vd = vd_begin; vd < vd_end; vd++)
+         {
+            const int fi = f_slab ? 0 : vd;
+            for (int k = op_begin; k < op_end; k++)
+            {
+               const int fk = (op_dof >= 0) ? 0 : k;
+               for (int qz = 0; qz < q1d; qz++)
+               {
+                  MFEM_FOREACH_THREAD(qy, y, q1d)
+                  MFEM_FOREACH_THREAD(qx, x, q1d)
+                  { X[qz][qy][qx] = fqp(fi, fk, qx, qy, qz); }
+               }
+               ker::Contract3d<true>(d1d, q1d, s.M,
+                                     ker::HessDir(k / DIM, k % DIM, 0,
+                                                  s.B, s.G, s.H),
+                                     ker::HessDir(k / DIM, k % DIM, 1,
+                                                  s.B, s.G, s.H),
+                                     ker::HessDir(k / DIM, k % DIM, 2,
+                                                  s.B, s.G, s.H),
+                                     X, Y);
+               for (int dz = 0; dz < d1d; dz++)
+               {
+                  MFEM_FOREACH_THREAD(dy, y, d1d)
+                  MFEM_FOREACH_THREAD(dx, x, d1d)
+                  { yd(dx, dy, dz, vd) += Y[dz][dy][dx]; }
+               }
+               MFEM_SYNC_THREAD;
+            }
+         }
+      }
+   }
    else
    {
       MFEM_ABORT_KERNEL("quadrature data mapping to field is not implemented"
@@ -301,6 +419,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    static constexpr int FHAT_SLAB_MAX = MQN * 4;
 
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
+   static constexpr bool hess_out = is_hessian_fop_v<output_fop_t>;
    static constexpr bool ident_out = is_identity_fop_v<output_fop_t>;
 
    // qpdc shape: (nq, total_trial_op_dim, trial_vdim, output_size_on_qp, ne),
@@ -313,9 +432,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    const int size_on_qp = output.size_on_qp;
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-   MFEM_VERIFY(test_op_dim <= DIM,
+   // A Hessian test function carries DIM*DIM operator components, not DIM.
+   MFEM_VERIFY(test_op_dim <= (hess_out ? DIM * DIM : DIM),
                "DerivativeAssemble: test_op_dim exceeds spatial DIM");
-   MFEM_VERIFY(test_op_dim * nq <= FHAT_SLAB_MAX,
+   MFEM_VERIFY(nq <= FHAT_SLAB_MAX,
                "DerivativeAssemble: fhat slab exceeds capacity");
 #endif
 
@@ -366,6 +486,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
 
          const auto &B = input_dtq_maps[inp].B;
          const auto &G = input_dtq_maps[inp].G;
+         const auto &H = input_dtq_maps[inp].H;
 
          if constexpr (is_value_fop<fop_t>::value)
          {
@@ -401,6 +522,32 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                {
                   const real_t w = trial_basis_weight_gradient<DIM>(
                                       B, G, m, qx, qy, qz, Jx, Jy, Jz);
+                  for (int k = 0; k < test_op_dim; k++)
+                  {
+                     if (tod_only >= 0 && k != tod_only) { continue; }
+                     const real_t f = qpdc(q, m + m_offset, j, row_offset + tv * test_op_dim + k, e);
+                     if constexpr (grad_out && !ident_out)
+                     {
+                        fhat_storage[k * nq + q] += f * w;
+                     }
+                     else
+                     {
+                        fhat_storage[q] += f * w;
+                     }
+                  }
+               }
+            });
+         }
+         else if constexpr (is_hessian_fop<fop_t>::value)
+         {
+            foreach_qp([&](const int qx, const int qy, const int qz)
+            {
+               const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
+               for (int m = 0; m < trial_op_dim; m++)
+               {
+                  const real_t w = trial_basis_weight_hessian<DIM>(
+                                      B, G, input_dtq_maps[inp].H,
+                                      m, qx, qy, qz, Jx, Jy, Jz);
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
@@ -511,6 +658,29 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                            }
                         });
                      }
+                     else if constexpr (is_hessian_fop<fop_t>::value)
+                     {
+                        foreach_qp([&](const int qx, const int qy, const int qz)
+                        {
+                           const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
+                           for (int m = 0; m < trial_op_dim; m++)
+                           {
+                              const real_t w = trial_basis_weight_hessian<DIM>(
+                                                  B, G, input_dtq_maps[inp].H,
+                                                  m, qx, qy, qz, Jx, Jy, Jz);
+                              for (int i = 0; i < test_vdim; i++)
+                              {
+                                 for (int k = 0; k < test_op_dim; k++)
+                                 {
+                                    const real_t f = qpdc(
+                                                        q, m + m_offset, j,
+                                                        row_offset + i * test_op_dim + k, e);
+                                    fhat(i, k, q) += f * w;
+                                 }
+                              }
+                           }
+                        });
+                     }
                      else
                      {
                         MFEM_ABORT_KERNEL(
@@ -546,6 +716,20 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                         Reshape(&fhat_storage[0], 1, test_op_dim, nq);
                      map_quadrature_data_to_fields<DIM, MQ1>(
                         bvtfhat, f_slab, output, output_dtq, smem, tv);
+                  }
+               }
+               else if constexpr (hess_out)
+               {
+                  for (int tv = 0; tv < test_vdim; tv++)
+                  {
+                     for (int tod = 0; tod < test_op_dim; tod++)
+                     {
+                        zero_slab(1);
+                        accumulate_tv(Jx, Jy, Jz, j, tv, tod);
+                        auto f_slab = Reshape(&fhat_storage[0], 1, 1, nq);
+                        map_quadrature_data_to_fields<DIM, MQ1>(
+                           bvtfhat, f_slab, output, output_dtq, smem, tv, tod);
+                     }
                   }
                }
                else
@@ -921,8 +1105,11 @@ public:
                   "DerivativeAssemble: nq exceeds backend quadrature capacity");
       for_constexpr<n_outputs>([&](auto o)
       {
+         using output_fop_t = std::decay_t<decltype(get<o>(outputs))>;
          if (out_group[o] != group) { return; }
-         MFEM_VERIFY(out_op_dim[o] <= DIM,
+         constexpr int max_op_dim = is_hessian_fop_v<output_fop_t>
+                                    ? DIM * DIM : DIM;
+         MFEM_VERIFY(out_op_dim[o] <= max_op_dim,
                      "DerivativeAssemble: test_op_dim exceeds spatial DIM");
       });
       if (ctx.attr.Size() == 0) { return; }
@@ -1049,8 +1236,6 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeAssembleHO = typename assemble_t::DerivativeAssembleHO;
-   // We don't route thru DispatchHOKernelByDim() as for other callbacks
-   // since this kernel caps 3D at MQ1 = 8 but leaves 2D on the default.
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    if constexpr (QFDIM == 2)
    {
@@ -1062,7 +1247,7 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    {
       MFEM_VERIFY(dim == 3, "mesh dimension " << dim << " does not match the "
                   "3D q-function signature this integrator was built from");
-      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
+      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3>(q1d);
    }
    else
    {
@@ -1072,7 +1257,7 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
       }
       if (dim == 3)
       {
-         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
+         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3>(q1d);
       }
       MFEM_ABORT("Unsupported dimension " << dim);
       return nullptr;
