@@ -2510,64 +2510,103 @@ void DarcyForm::AssembleFluxMassBdrFaces(int skip_zeros)
    Array<BilinearFormIntegrator*> &boundary_face_integs = *M_u->GetBFBFI();
    const int num_boundary_face_integs = boundary_face_integs.Size();
 
-   if (num_boundary_face_integs <= 0) { return; }
-
-   Array<Array<int>*> &boundary_face_integs_marker = *M_u->GetBFBFI_Marker();
-   Mesh *mesh = fes_u->GetMesh();
-   DenseMatrix elmat;
-
-   // Which boundary attributes need to be processed?
-   Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
-                              mesh->bdr_attributes.Max() : 0);
-   bdr_attr_marker = 0;
-   for (int k = 0; k < num_boundary_face_integs; k++)
+   // The batched pass replaces the whole loop below, markers and the
+   // periodic-mesh guard included; it builds its own work list from the same
+   // two rules. See AssembleFluxMassBdrMatricesBatched(), and note that what
+   // it batches is the SCATTER -- the integrators are evaluated on the host
+   // either way, there being no integrator family here to dispatch on.
+   if (num_boundary_face_integs > 0 &&
+       !hybridization->AssembleFluxMassBdrMatricesBatched(M_u.get(), skip_zeros))
    {
-      if (boundary_face_integs_marker[k] == NULL)
-      {
-         bdr_attr_marker = 1;
-         break;
-      }
-      Array<int> &bdr_marker = *boundary_face_integs_marker[k];
-      MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                  "invalid boundary marker for boundary face integrator #"
-                  << k << ", counting from zero");
-      for (int i = 0; i < bdr_attr_marker.Size(); i++)
-      {
-         bdr_attr_marker[i] |= bdr_marker[i];
-      }
-   }
+      // BEFORE the loop, because the loop is host code accumulating into Af
+      // and Ae through raw pointers and the element pass above may have been
+      // a kernel. The one at the end of this routine is then a no-op on this
+      // branch, the host copies already being valid.
+      //
+      // **Not reachable today, and saying so is the point.**
+      // CanBatchFluxMassBdrFaces() accepts exactly when this loop would have
+      // work to do, so under AssemblyMode::Batched the two are never both
+      // live: work admitted means the kernel was taken, and no work admitted
+      // means this loop reads nothing. It is here because the gate is the only
+      // thing making that true -- add one refusal to it (a vdim condition, a
+      // geometry condition, ParallelC()) and this line is what stands between
+      // that and a fault naming neither the array nor the routine that left it
+      // there. Measured, with the gate forced false by a probe while work was
+      // admitted: without this line the fault lands inside
+      // DarcyHybridization::AssembleFluxMassMatrix() under Device("debug").
+      hybridization->SyncLocalBlocksToHost();
 
-   for (int i = 0; i < fes_u->GetNBE(); i++)
-   {
-      const int bdr_attr = mesh->GetBdrAttribute(i);
-      if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+      Array<Array<int>*> &boundary_face_integs_marker = *M_u->GetBFBFI_Marker();
+      Mesh *mesh = fes_u->GetMesh();
+      DenseMatrix elmat;
 
-      FaceElementTransformations *FTr = mesh->GetBdrFaceTransformations(i);
-      if (!FTr) { continue; }
-
-      const FiniteElement *fe1 = fes_u->GetFE(FTr->Elem1No);
-      // The second element is a dummy on a boundary face, as elsewhere: it is
-      // never used, but a null reference cannot be formed.
-      const FiniteElement *fe2 = fe1;
-
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
       for (int k = 0; k < num_boundary_face_integs; k++)
       {
-         if (boundary_face_integs_marker[k] &&
-             (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+         if (boundary_face_integs_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
 
-         boundary_face_integs[k]->AssembleFaceMatrix(*fe1, *fe2, *FTr, elmat);
-         MFEM_VERIFY(elmat.Height() == fe1->GetDof() * fes_u->GetVDim() &&
-                     elmat.Width() == elmat.Height(),
-                     "the flux mass boundary face integrator must return the "
-                     "block of the adjacent element alone");
-         hybridization->AssembleFluxMassMatrix(FTr->Elem1No, elmat);
+      for (int i = 0; i < fes_u->GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         FaceElementTransformations *FTr = mesh->GetBdrFaceTransformations(i);
+         if (!FTr) { continue; }
+
+         const FiniteElement *fe1 = fes_u->GetFE(FTr->Elem1No);
+         // The second element is a dummy on a boundary face, as elsewhere: it
+         // is never used, but a null reference cannot be formed.
+         const FiniteElement *fe2 = fe1;
+
+         for (int k = 0; k < num_boundary_face_integs; k++)
+         {
+            if (boundary_face_integs_marker[k] &&
+                (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+
+            boundary_face_integs[k]->AssembleFaceMatrix(*fe1, *fe2, *FTr, elmat);
+            MFEM_VERIFY(elmat.Height() == fe1->GetDof() * fes_u->GetVDim() &&
+                        elmat.Width() == elmat.Height(),
+                        "the flux mass boundary face integrator must return the "
+                        "block of the adjacent element alone");
+            hybridization->AssembleFluxMassMatrix(FTr->Elem1No, elmat);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-         Array<int> vdofs;
-         fes_u->GetElementVDofs(FTr->Elem1No, vdofs);
-         M_u->SpMat().AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+            Array<int> vdofs;
+            fes_u->GetElementVDofs(FTr->Elem1No, vdofs);
+            M_u->SpMat().AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         }
       }
    }
+
+   // Once, after BOTH passes of the flux mass group, and this is where the
+   // sync that used to sit at the end of AssembleFluxMassMatricesBatched()
+   // went. Either pass may have been a device kernel, and everything
+   // downstream -- ComputeElementH(), the local factorisation, the per-element
+   // MultInv() -- reads Af, Ae and the offset arrays through raw pointers,
+   // which do not sync. Same sequencing, and the same reason, as the end of
+   // AssemblePotHDGFaces().
+   //
+   // It is UNCONDITIONAL, including when there are no boundary integrators at
+   // all: the element pass alone can have left the blocks device-valid, and
+   // ComputeH() syncs only under LocalFactorMode::Batched, so nothing further
+   // down guarantees it.
+   hybridization->SyncLocalBlocksToHost();
 }
 
 void DarcyForm::AssemblePotHDGFaces(int skip_zeros)

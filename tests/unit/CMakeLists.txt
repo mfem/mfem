@@ -114,6 +114,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calchessian.cpp
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
+  fem/test_darcy_batched_bdrflux.cpp
   fem/test_darcy_batched_factor.cpp
   fem/test_darcy_batched_face.cpp
   fem/test_darcy_batched_residual.cpp

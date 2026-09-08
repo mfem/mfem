@@ -176,7 +176,34 @@ protected:
        Wanted by the extension-from-subdomains boundary treatment, where the
        Dirichlet datum on the true boundary is transferred to the computational
        one along paths and so depends on the flux of the element owning the
-       face; see extension_hdg.hpp. */
+       face; see extension_hdg.hpp.
+
+       @note **NOTHING IN THIS TREE REACHES IT.** Established by grep rather
+       than by reading: no miniapp under miniapps/hdg puts a boundary face
+       integrator on either flux mass form (every AddBdrFaceIntegrator there
+       goes on the divergence form, the potential mass, or a linear form), none
+       of the 152 regression references can, since convdiff has no option that
+       would install one, and **no BilinearFormIntegrator in the library fits
+       any of the three flux spaces this branch uses**: AssembleFaceMatrix()
+       has to return the one-sided block of the adjacent element at
+       (element dofs x vdim) square, and BoundaryMassIntegrator is a scalar
+       MassIntegrator -- vdim times too small on an L2 flux space of vdim =
+       dim, and with no scalar shape to evaluate at all on RT or broken RT --
+       while VectorMassIntegrator and VectorFEMassIntegrator have no
+       AssembleFaceMatrix() to begin with. Claimed of those three spaces and
+       not universally: a scalar (vdim == 1, non-vector) flux space would
+       admit BoundaryMassIntegrator, and nothing here builds one. The two callers in the tree are unit
+       tests, each with an integrator written in the test file
+       (tests/unit/fem/test_darcy_hybridization.cpp and
+       test_darcy_reconstruction.cpp), and the batched pass adds a third.
+
+       @note **And it is not called at all in parallel.**
+       ParDarcyForm::Assemble() has the element loop but no boundary flux mass
+       pass, so a boundary face integrator on pM_u is silently dropped on more
+       than one rank -- checked by reading pdarcyform.cpp, not fixed here,
+       and untested because the parallel tree is not this worktree's. Boundary
+       elements of a ParMesh are genuine domain boundary and never shared, so
+       the pass itself would be rank-local and correct. */
    void AssembleFluxMassBdrFaces(int skip_zeros);
    void AssembleDivLDGFaces(int skip_zeros);
    void AssemblePotLDGFaces(int skip_zeros);

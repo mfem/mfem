@@ -700,13 +700,262 @@ bool DarcyHybridization::AssembleFluxMassMatricesBatched(BilinearForm *M_u)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    A_empty = false;
 
-   // THE copy back. DarcyForm::Assemble() runs AssembleFluxMassBdrFaces()
-   // immediately after this, and that loop accumulates into Af through
-   // AssembleFluxMassMatrix() on the host. Without this the debug backend
-   // faults there on an mprotected page and CUDA reads a stale buffer.
-   // It is the transfer step 2 has to remove and it cannot be removed until
-   // the boundary flux pass is batched too.
-   SyncLocalBlocksToHost();
+   // NO copy back here, and this line used to be one. DarcyForm::Assemble()
+   // runs AssembleFluxMassBdrFaces() immediately after this, and that pass
+   // may be a kernel too (AssembleFluxMassBdrMatricesBatched()); syncing
+   // between them would pull Af and Ae to the host only to push them back.
+   // DarcyForm::AssembleFluxMassBdrFaces() syncs once, after either pass,
+   // exactly as AssemblePotHDGFaces() does for the potential group -- and it
+   // must, because everything downstream reads these through raw pointers.
+   //
+   // The sync that was here was needed only because the boundary pass was
+   // host code accumulating into Af through AssembleFluxMassMatrix(). Under
+   // Device("debug") that read faults on an mprotected page; under CUDA it
+   // silently reads a stale buffer. Measured with the boundary pass forced
+   // back onto the host and this line removed: the fault lands in
+   // AssembleFluxMassMatrix(), naming neither the array nor the routine that
+   // left it there.
+   return true;
+}
+
+void DarcyHybridization::FluxMassBdrWork(BilinearForm *M_u,
+                                         Array<int> &bdr_els,
+                                         Array<int> &integs,
+                                         Array<int> &elems) const
+{
+   bdr_els.SetSize(0);
+   integs.SetSize(0);
+   elems.SetSize(0);
+   if (!M_u) { return; }
+
+   Array<BilinearFormIntegrator*> *bfbfi = M_u->GetBFBFI();
+   if (!bfbfi || bfbfi->Size() == 0) { return; }
+   Array<Array<int>*> &markers = *M_u->GetBFBFI_Marker();
+
+   Mesh *mesh = fes.GetMesh();
+   const int nattr = mesh->bdr_attributes.Size() ? mesh->bdr_attributes.Max() : 0;
+   MFEM_CONTRACT_VAR(nattr);
+
+   for (int b = 0; b < fes.GetNBE(); b++)
+   {
+      // A PERIODIC MESH KEEPS THE BOUNDARY ELEMENTS whose faces the
+      // identification turned interior. This is the same
+      // Mesh::GetBdrFaceTransformations() null test the loop in
+      // DarcyForm::AssembleFluxMassBdrFaces() uses, so the kernel inherits
+      // the guard rather than restating it -- and it must, or the two routes
+      // would differ by one contribution per leftover element.
+      FaceElementTransformations *ftr = mesh->GetBdrFaceTransformations(b);
+      if (!ftr) { continue; }
+
+      const int attr = mesh->GetBdrAttribute(b);
+      for (int k = 0; k < bfbfi->Size(); k++)
+      {
+         const Array<int> *m = markers[k];
+         MFEM_ASSERT(!m || m->Size() == nattr,
+                     "invalid boundary marker for boundary face integrator #"
+                     << k << ", counting from zero");
+         if (m && (*m)[attr-1] == 0) { continue; }
+         bdr_els.Append(b);
+         integs.Append(k);
+         elems.Append(ftr->Elem1No);
+      }
+   }
+}
+
+bool DarcyHybridization::CanBatchFluxMassBdrFaces(BilinearForm *M_u) const
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+   if (!M_u) { return false; }
+   Array<BilinearFormIntegrator*> *bfbfi = M_u->GetBFBFI();
+   if (!bfbfi || bfbfi->Size() == 0) { return false; }
+
+   Array<int> bdr_els, integs, elems;
+   FluxMassBdrWork(M_u, bdr_els, integs, elems);
+   return bdr_els.Size() > 0;
+}
+
+bool DarcyHybridization::AssembleFluxMassBdrMatricesBatched(BilinearForm *M_u,
+                                                            int skip_zeros)
+{
+   if (!CanBatchFluxMassBdrFaces(M_u)) { return false; }
+
+   Array<int> bdr_els, integs, elems;
+   FluxMassBdrWork(M_u, bdr_els, integs, elems);
+   const int NC = bdr_els.Size();
+
+   Array<BilinearFormIntegrator*> &bfbfi = *M_u->GetBFBFI();
+   Mesh *mesh = fes.GetMesh();
+   const int NE = fes.GetNE();
+   const int vd = fes.GetVDim();
+
+   // THE OFFSETS, ON THE HOST, and this is not defensive -- it is the fault
+   // the debug backend threw the first time this routine ran under a Device.
+   // AssembleFluxMassMatricesBatched() ran just before it and handed these
+   // same arrays to a kernel; Array<int>::Read() defaults to on_dev = true,
+   // so they came back DEVICE-valid while the host half below indexes them
+   // raw as hat_offsets[e+1]. Under Device("debug") that is a SIGSEGV inside
+   // this function with an address and nothing else; under CUDA it would read
+   // stale memory and size the blocks wrongly.
+   //
+   // **The general shape, and it is worth more than the fix**: the offset
+   // arrays are SHARED between the passes, so the second kernel of a chain
+   // has to host-read whatever the first one made device-valid. The element
+   // pass never had to, being the first. Only the offsets, not the data --
+   // Af_data and Ae_data stay device-resident, which is the whole point of
+   // batching this pass at all.
+   hat_offsets.HostRead();
+   Af_f_offsets.HostRead();
+   hat_dofs_marker.HostRead();
+
+   // The contributions GROUPED BY ELEMENT, keeping the loop's order within
+   // each element. One thread per element then sums that element's blocks in
+   // exactly the order AssembleFluxMassMatrix() would have been called in, so
+   // every entry sees the same sequence of additions and the result is
+   // bit-for-bit rather than round-off. One thread per CONTRIBUTION would
+   // have needed AtomicAdd -- a corner element carries two boundary faces --
+   // and would then have been neither.
+   Array<int> ecount(NE);
+   ecount = 0;
+   for (int c = 0; c < NC; c++) { ecount[elems[c]]++; }
+
+   Array<int> wel, wbeg, fill(NE);
+   int nslot = 0;
+   for (int e = 0; e < NE; e++)
+   {
+      if (ecount[e] == 0) { continue; }
+      wel.Append(e);
+      wbeg.Append(nslot);
+      fill[e] = nslot;
+      nslot += ecount[e];
+   }
+   wbeg.Append(nslot);
+   MFEM_ASSERT(nslot == NC, "internal error");
+
+   Array<int> slot_of(NC);
+   for (int c = 0; c < NC; c++) { slot_of[c] = fill[elems[c]]++; }
+
+   // Where each slot's block starts. Sizes vary with the element, so this is
+   // an offset array rather than one stride -- which costs nothing and is
+   // what lets a mixed-order or mixed-geometry mesh through a gate that
+   // otherwise would have had to refuse it.
+   Array<int> poff(NC + 1);
+   poff[0] = 0;
+   for (int w = 0; w < wel.Size(); w++)
+   {
+      const int e = wel[w];
+      const int a = hat_offsets[e+1] - hat_offsets[e];
+      for (int s = wbeg[w]; s < wbeg[w+1]; s++) { poff[s+1] = poff[s] + a * a; }
+   }
+
+   Vector pack(poff[NC]);
+   pack.UseDevice(true);
+
+   // THE INTEGRATORS, on the host, in the loop's own (boundary element,
+   // integrator) order -- the pack slot is permuted, the evaluation is not.
+   // AssembleFaceMatrix() takes a FaceElementTransformations and a
+   // FiniteElement, neither of which carries any MFEM_HOST_DEVICE, so there
+   // is nothing to move here and no family to dispatch on; see the doxygen.
+   {
+      DenseMatrix elmat;
+      real_t *pw = pack.HostWrite();
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      Array<int> vdofs;
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      for (int c = 0; c < NC; c++)
+      {
+         const int e = elems[c];
+         const int a = hat_offsets[e+1] - hat_offsets[e];
+         FaceElementTransformations *ftr =
+            mesh->GetBdrFaceTransformations(bdr_els[c]);
+         const FiniteElement *fe1 = fes.GetFE(e);
+         // The second element is a dummy on a boundary face, as in the loop
+         // this replaces: never used, but a null reference cannot be formed.
+         bfbfi[integs[c]]->AssembleFaceMatrix(*fe1, *fe1, *ftr, elmat);
+         MFEM_VERIFY(elmat.Height() == fe1->GetDof() * vd &&
+                     elmat.Width() == elmat.Height() && elmat.Height() == a,
+                     "the flux mass boundary face integrator must return the "
+                     "block of the adjacent element alone");
+         const int o = poff[slot_of[c]];
+         for (int i = 0; i < a * a; i++) { pw[o + i] = elmat.GetData()[i]; }
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         // The sparse flux mass, which the loop this replaces accumulates
+         // into on the same pass. Host sparse work either way, and the
+         // element kernels above simply drop it -- unreachable, since
+         // MFEM_DARCY_HYBRIDIZATION_ELIM_BCS is defined unconditionally at
+         // the top of darcyhybridization.hpp, but not a gap worth copying.
+         fes.GetElementVDofs(e, vdofs);
+         M_u->SpMat().AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      }
+   }
+   MFEM_CONTRACT_VAR(skip_zeros);
+
+   Array<int> free_map, ess_map, ess_offsets;
+   HatDofMaps(free_map, ess_map, ess_offsets);
+
+   // The scatter is AssembleFluxMassMatrix()'s mask, the same one
+   // AssembleFluxMassMatricesBatched() writes for the element blocks: a free
+   // COLUMN goes to Af in its own compacted indexing, an essential one goes
+   // to Ae with every row of the element.
+   Vector Afv, Aev;
+   Afv.NewMemoryAndSize(Af_data.GetMemory(), Af_data.Size(), false);
+   const auto d_p = pack.Read();
+   const int *d_we = wel.Read(), *d_wb = wbeg.Read(), *d_po = poff.Read();
+   const int *d_fm = free_map.Read(), *d_em = ess_map.Read();
+   const int *d_eo = ess_offsets.Read();
+   const int *d_ho = hat_offsets.Read();
+   const int *d_ao = Af_offsets.Read(), *d_afo = Af_f_offsets.Read();
+   real_t *d_Af = Afv.ReadWrite();
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Aev.NewMemoryAndSize(Ae_data.GetMemory(), Ae_data.Size(), false);
+   const int *d_aeo = Ae_offsets.Read();
+   real_t *d_Ae = Aev.ReadWrite();
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+
+   mfem::forall(wel.Size(), [=] MFEM_HOST_DEVICE (int w)
+   {
+      const int e = d_we[w];
+      const int a = d_ho[e+1] - d_ho[e];
+      const int nf = d_afo[e+1] - d_afo[e];
+      const int nes = d_eo[e+1] - d_eo[e];
+
+      for (int s = d_wb[w]; s < d_wb[w+1]; s++)
+      {
+         const real_t *M = d_p + d_po[s];
+
+         for (int jj = 0; jj < nf; jj++)
+         {
+            const int j = d_fm[d_afo[e] + jj];
+            for (int ii = 0; ii < nf; ii++)
+            {
+               const int i = d_fm[d_afo[e] + ii];
+               d_Af[d_ao[e] + ii + nf * jj] += M[i + a * j];
+            }
+         }
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         for (int jj = 0; jj < nes; jj++)
+         {
+            const int j = d_em[d_eo[e] + jj];
+            for (int i = 0; i < a; i++)
+            {
+               d_Ae[d_aeo[e] + i + a * jj] += M[i + a * j];
+            }
+         }
+#else
+         MFEM_CONTRACT_VAR(nes);
+         MFEM_CONTRACT_VAR(d_em);
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+      }
+   });
+
+   Af_data.GetMemory().Sync(Afv.GetMemory());
+#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Ae_data.GetMemory().Sync(Aev.GetMemory());
+#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   A_empty = false;
+
+   // No copy back, for the reason on the element pass above:
+   // DarcyForm::AssembleFluxMassBdrFaces() syncs once after this.
    return true;
 }
 

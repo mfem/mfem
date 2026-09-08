@@ -633,6 +633,142 @@ void LocalResidualStep(DarcyHybridization::AssemblyMode am, int order,
    rtr.HostRead();
 }
 
+/** A flux-mass boundary face integrator: s <C q, v>_F with C a non-symmetric
+    constant coupling of the vdim components. It has to be written here because
+    the library has no BilinearFormIntegrator returning the one-sided element
+    block of a vector flux space on a boundary face -- which is also why the
+    batched boundary flux pass batches the SCATTER and not the quadrature. The
+    fuller note is on tests/unit/fem/test_darcy_batched_bdrflux.cpp. */
+class BdrFluxMass : public BilinearFormIntegrator
+{
+   const real_t s;
+   const int vd;
+
+public:
+   BdrFluxMass(real_t s_, int vd_) : s(s_), vd(vd_) { }
+
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      const int dof = el1.GetDof();
+      elmat.SetSize(dof * vd);
+      elmat = 0.0;
+      Vector shape(dof);
+      const IntegrationRule &ir =
+         IntRules.Get(Trans.GetGeometryType(), 2 * el1.GetOrder() + 2);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Trans.SetAllIntPoints(&ip);
+         el1.CalcShape(Trans.GetElement1IntPoint(), shape);
+         const real_t w = s * ip.weight * Trans.Weight();
+         for (int d = 0; d < vd; d++)
+            for (int e = 0; e < vd; e++)
+            {
+               const real_t wc = w * (1.0 + 0.5*d - 0.25*e + ((d > e) ? 0.75 : 0.));
+               for (int i = 0; i < dof; i++)
+                  for (int j = 0; j < dof; j++)
+                  {
+                     elmat(d*dof + i, e*dof + j) += wc * shape(i) * shape(j);
+                  }
+            }
+      }
+   }
+};
+
+/// One NPC Newton step on a LINEAR problem whose FLUX mass carries two
+/// BOUNDARY face integrators -- which is what
+/// AssembleFluxMassBdrMatricesBatched() covers, and what no miniapp and no
+/// regression reference in the tree installs.
+void BdrFluxStep(DarcyHybridization::AssemblyMode am,
+                 Vector &dq, Vector &dp, Vector &dtr_out, bool &taken)
+{
+   const int n = 4, order = 1, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     0.8, 1.2);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), src(1.0);
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   BilinearForm *M_u = darcy.GetFluxMassForm();
+   M_u->AddDomainIntegrator(new VectorMassIntegrator(one));
+   M_u->AddBdrFaceIntegrator(new BdrFluxMass(0.7, dim));
+   M_u->AddBdrFaceIntegrator(new BdrFluxMass(0.5, dim));
+
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetAssemblyMode(am);
+   dh->EnableNPC();
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   dh->SetEssentialBC(all);
+
+   darcy.Assemble();
+   darcy.Finalize();
+   taken = dh->CanBatchFluxMassBdrFaces(M_u);
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   x = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   Vector x_tr(Mh.GetVSize());
+   x_tr = 0.0;
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+   dh->NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   {
+      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+      REQUIRE(Sm != nullptr);
+      b_tr.HostReadWrite();
+      dtr.HostReadWrite();
+      UMFPackSolver umf(*Sm);
+      umf.Mult(b_tr, dtr);
+   }
+
+   BlockVector dx(darcy.GetOffsets());
+   dx = 0.0;
+   dh->NPCRecover(r, dtr, dx);
+
+   Vector qv, pv;
+   qv.MakeRef(dx, 0, dx.GetBlock(0).Size());
+   pv.MakeRef(dx, dx.GetBlock(0).Size(), dx.GetBlock(1).Size());
+   dq.SetSize(qv.Size());
+   dq = qv;
+   dp.SetSize(pv.Size());
+   dp = pv;
+   dtr_out.SetSize(dtr.Size());
+   dtr_out = dtr;
+   dq.HostRead();
+   dp.HostRead();
+   dtr_out.HostRead();
+}
+
 } // namespace darcy_alias
 
 /**
@@ -908,6 +1044,70 @@ TEST_CASE("The batched HDG local residual under a device", "[DebugDevice]")
       Vector d(a);
       d -= b;
       REQUIRE(d.Normlinf() <= 1e-11 * std::max(a.Normlinf(), 1e-30));
+   };
+   close(tr_ref, tr_bat);
+   close(p_ref, p_bat);
+   close(q_ref, q_bat);
+}
+
+/**
+ * @brief The batched BOUNDARY flux-mass pass under a Device gives the per-face
+ * loop's answer, and it is the pass that found the hazard.
+ *
+ * DarcyForm::AssembleFluxMassBdrFaces() was the last assembly loop on the
+ * hybridized path with no kernel. Batching it made this the SECOND kernel in
+ * the flux mass group, and that is what nothing had been before: the element
+ * pass hands hat_offsets, Af_f_offsets and hat_dofs_marker to a kernel, and
+ * Array<int>::Read() defaults to on_dev = true, so they come back
+ * DEVICE-valid while this pass's host half indexes them raw as
+ * hat_offsets[e+1]. The first run of it under Device("debug") was a SIGSEGV
+ * inside AssembleFluxMassBdrMatricesBatched() with an address and nothing
+ * else; under CUDA it would have sized the blocks from stale memory. The three
+ * HostRead() calls at the top of that routine are the fix, and removing them
+ * makes this case fault rather than fail -- which is the debug backend doing
+ * its job.
+ *
+ * Nothing in the globbed test set can see it: with no Device configured every
+ * one of those reads is a host read and the ordering is invisible.
+ *
+ * **The general shape is worth more than the fix.** The offset arrays are
+ * SHARED between the passes, so the second kernel of a chain has to host-read
+ * whatever the first one made device-valid. Every kernel added after this one
+ * inherits the same obligation.
+ */
+TEST_CASE("The batched boundary flux mass under a device", "[DebugDevice]")
+{
+   using namespace darcy_alias;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   Vector q_ref, p_ref, tr_ref, q_bat, p_bat, tr_bat;
+   bool taken_ref = true, taken_bat = false;
+   BdrFluxStep(AM::Serial, q_ref, p_ref, tr_ref, taken_ref);
+   BdrFluxStep(AM::Batched, q_bat, p_bat, tr_bat, taken_bat);
+
+   // The kernel was actually taken. Two fallbacks would agree perfectly.
+   REQUIRE_FALSE(taken_ref);
+   REQUIRE(taken_bat);
+
+   REQUIRE(tr_ref.Norml2() > 1e-6);
+   REQUIRE(p_ref.Norml2() > 1e-6);
+   REQUIRE(q_ref.Norml2() > 1e-6);
+
+   tr_ref.HostRead(); tr_bat.HostRead();
+   p_ref.HostRead(); p_bat.HostRead();
+   q_ref.HostRead(); q_bat.HostRead();
+
+   // Round-off and not bitwise, because switching AssemblyMode switches the
+   // element mass, the divergence and the face kernels as well. The boundary
+   // pass ON ITS OWN is bit-for-bit the loop -- one thread per element summing
+   // that element's faces in the loop's order -- and that is measured in
+   // tests/unit/fem/test_darcy_batched_bdrflux.cpp.
+   auto close = [](const Vector &a, const Vector &b)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      REQUIRE(d.Normlinf() <= 1e-12 * std::max(a.Normlinf(), 1e-30));
    };
    close(tr_ref, tr_bat);
    close(p_ref, p_bat);
