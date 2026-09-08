@@ -165,7 +165,7 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
       MFEM_UNROLL(e0)
       for (int dd = 0; dd < e0; ++dd) { qp[dd] = qp_store<tangent>(out(dd)); }
    }
-   else
+   else if constexpr (RNK == 2)
    {
       constexpr int e0 = qf_param_shape<T>::extents[0];
       constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -176,6 +176,25 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
          for (int j = 0; j < e1; ++j)
          {
             qp[i][j] = qp_store<tangent>(out(i, j));
+         }
+      }
+   }
+   else
+   {
+      constexpr int e0 = qf_param_shape<T>::extents[0];
+      constexpr int e1 = qf_param_shape<T>::extents[1];
+      constexpr int e2 = qf_param_shape<T>::extents[2];
+      MFEM_UNROLL(e0)
+      for (int i = 0; i < e0; ++i)
+      {
+         MFEM_UNROLL(e1)
+         for (int j = 0; j < e1; ++j)
+         {
+            MFEM_UNROLL(e2)
+            for (int k = 0; k < e2; ++k)
+            {
+               qp[i][j][k] = qp_store<tangent>(out(i, j, k));
+            }
          }
       }
    }
@@ -1068,6 +1087,76 @@ struct lo_ker_backend
          static_assert(false, "Unsupported");
       }
    }
+
+   template<int RNK,
+            typename ArgRegT,
+            typename YE_T,
+            typename FieldParamT = ArgRegT>
+   static MFEM_HOST_DEVICE void write_hessian(Shared &s,
+                                              const int e,
+                                              const int d,
+                                              const int q,
+                                              const real_t *B,
+                                              const real_t *G,
+                                              const real_t *H,
+                                              YE_T &YE,
+                                              ArgRegT &rarg)
+   {
+      static_assert(RNK == 2 || RNK == 3,
+                    "Hessian output requires a rank-2 scalar-field tensor or "
+                    "rank-3 vector-field tensor");
+      static constexpr int VDIM = (RNK == 2)
+                                  ? 1 : qf_param_shape<FieldParamT>::extents[0];
+      static constexpr int SDIM = (RNK == 2)
+                                  ? qf_param_shape<FieldParamT>::extents[0]
+                                  : qf_param_shape<FieldParamT>::extents[1];
+      static_assert(qf_param_shape<FieldParamT>::extents[RNK - 1] == SDIM,
+                    "Hessian trailing q-function parameter dimensions must match");
+      if constexpr (SDIM == DIM)
+      {
+         ker::LoadMatrix(d, q, B, s.B);
+         ker::LoadMatrix(d, q, G, s.G);
+         ker::LoadMatrix(d, q, H, s.H);
+         for (int c = 0; c < VDIM; ++c)
+         {
+            if constexpr (DIM == 2)
+            {
+               if constexpr (RNK == 2)
+               {
+                  ker::HessTranspose2d<DIM, MQ1>(
+                     d, q, s.B, s.G, s.H, rarg, s.M[0], s.M[1]);
+               }
+               else
+               {
+                  ker::VectorHessTranspose2d<VDIM, DIM, MQ1>(
+                     d, q, c, s.B, s.G, s.H, rarg, s.M[0], s.M[1]);
+               }
+               if constexpr (RNK == 2)
+               {
+                  ker::WriteHessDofs2d<DIM, MQ1>(d, c, e, rarg, YE);
+               }
+               else
+               {
+                  ker::WriteHessDofs2d<VDIM, DIM, MQ1>(d, c, e, rarg, YE);
+               }
+            }
+            else
+            {
+               if constexpr (RNK == 2)
+               {
+                  ker::HessTranspose3d<DIM, MQ1>(
+                     d, q, s.B, s.G, s.H, rarg, s.M[0], s.M[1]);
+               }
+               else
+               {
+                  ker::VectorHessTranspose3d<VDIM, DIM, MQ1>(
+                     d, q, c, s.B, s.G, s.H, rarg, s.M[0], s.M[1]);
+               }
+               ker::WriteHessDofs3d<DIM, MQ1>(d, c, e, s.M[0], YE);
+            }
+         }
+      }
+   }
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1379,6 +1468,14 @@ struct LocalQFLOBackend
             as_tensor<real_t, e0, e1>(&lok::at<DIM>(reg, qx, qy, qz)[0][0]) =
                out;
          }
+         else if constexpr (RNK == 3)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            constexpr int e2 = qf_param_shape<T>::extents[2];
+            as_tensor<real_t, e0, e1, e2>(
+               &lok::at<DIM>(reg, qx, qy, qz)[0][0][0]) = out;
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -1436,6 +1533,26 @@ struct LocalQFLOBackend
                }
             }
          }
+         else if constexpr (RNK == 3)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            constexpr int e1 = qf_param_shape<DT>::extents[1];
+            constexpr int e2 = qf_param_shape<DT>::extents[2];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  MFEM_UNROLL(e2)
+                  for (int k = 0; k < e2; ++k)
+                  {
+                     YE(i + e0 * (j + e1 * k), qx, qy, qz, e) =
+                        qf_store_value(qout(i, j, k));
+                  }
+               }
+            }
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -1478,6 +1595,26 @@ struct LocalQFLOBackend
                }
             }
          }
+         else if constexpr (RNK == 3)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            constexpr int e1 = qf_param_shape<DT>::extents[1];
+            constexpr int e2 = qf_param_shape<DT>::extents[2];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  MFEM_UNROLL(e2)
+                  for (int k = 0; k < e2; ++k)
+                  {
+                     YE(i + e0 * (j + e1 * k), qx, qy, qz, e) =
+                        qf_store_gradient(qout(i, j, k));
+                  }
+               }
+            }
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -1514,6 +1651,26 @@ struct LocalQFLOBackend
    {
       backend_t::template write_gradient<RNK, ArgRegT, YE_T, FieldParamT>(
          s, e, d, q, B, G, YE, rarg);
+   }
+
+   // ─────────────────────────────────────────────────────
+   template<int RNK,
+            typename ArgRegT,
+            typename YE_T,
+            typename FieldParamT = ArgRegT>
+   static inline MFEM_HOST_DEVICE void WriteHessian(Shared &s,
+                                                    const int e,
+                                                    const int d,
+                                                    const int q,
+                                                    const int,
+                                                    const real_t *B,
+                                                    const real_t *G,
+                                                    const real_t *H,
+                                                    YE_T &YE,
+                                                    ArgRegT &rarg)
+   {
+      backend_t::template write_hessian<RNK, ArgRegT, YE_T, FieldParamT>(
+         s, e, d, q, B, G, H, YE, rarg);
    }
 };
 

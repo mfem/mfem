@@ -359,6 +359,26 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
 }
 
 
+/// Write one 2D vector component into given device tensor,
+/// into the five-dimensional element layout.
+template <int VDIM, int DIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
+                                         const int i, const int j,
+                                         vd_regs2d_t<VDIM, DIM, MQ1> &X,
+                                         const DeviceTensor<5, real_t> &Y)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+      {
+         real_t value = 0.0;
+         for (int d = 0; d < DIM; ++d) { value += X(i, d, dy, dx); }
+         Y(dx, dy, 0, j, e) += value;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// Write 2D VDIM vector into given device tensor
 /// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
 template <int VDIM, int DIM, int MQ1 = 0>
@@ -795,6 +815,30 @@ inline MFEM_HOST_DEVICE void Hess2d(const int d1d, const int q1d,
    MFEM_SYNC_THREAD;
 }
 
+/// 2D transposed Hessian used by HO
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTranspose2d(
+   const int d1d, const int q1d,
+   real_t (&smem)[MQ1][MQ1],
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   const real_t (*H)[MQ1],
+   vd_regs2d_t<DIM, DIM, MQ1> &X,
+   vd_regs2d_t<DIM, DIM, MQ1> &Y)
+{
+   constexpr bool Transpose = true;
+   for (int i = 0; i < DIM; ++i)
+   {
+      for (int j = 0; j < DIM; ++j)
+      {
+         Contract2d<Transpose>(d1d, q1d, smem,
+                               HessDir(i, j, 0, B, G, H),
+                               HessDir(i, j, 1, B, G, H),
+                               X[i][j], Y[i][j]);
+      }
+   }
+}
+
 /// 2D vector transposed gradient
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
@@ -1072,6 +1116,31 @@ inline MFEM_HOST_DEVICE void Hess3d(const int d1d, const int q1d,
       }
    }
    MFEM_SYNC_THREAD;
+}
+
+/// 3D transposed Hessian, used by HO
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTranspose3d(
+   const int d1d, const int q1d,
+   real_t (&smem)[MQ1][MQ1],
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   const real_t (*H)[MQ1],
+   vd_regs3d_t<DIM, DIM, MQ1> &X,
+   vd_regs3d_t<DIM, DIM, MQ1> &Y)
+{
+   constexpr bool Transpose = true;
+   for (int i = 0; i < DIM; ++i)
+   {
+      for (int j = 0; j < DIM; ++j)
+      {
+         Contract3d<Transpose>(d1d, q1d, smem,
+                               HessDir(i, j, 0, B, G, H),
+                               HessDir(i, j, 1, B, G, H),
+                               HessDir(i, j, 2, B, G, H),
+                               X[i][j], Y[i][j]);
+      }
+   }
 }
 
 /// 3D scalar-field gradient stored as a value register with SDIM components
@@ -1999,6 +2068,325 @@ inline MFEM_HOST_DEVICE void WriteGradDofs2d(const int d1d,
       }
    }
 }
+
+// 2D Hessian transpose used for LO
+//
+// The adjoint of Hess2d, batched the same way and in the reverse stage order:
+// Hess2d runs X then Y per batch, so this runs Y^T then X^T.
+//
+//   forward   batch A   HessX2dA (G,H)          HessY2dA (B,G) -> reg{00,01,10}
+//             batch B   HessX2dB (B)            HessY2dB (H)   -> reg{11}
+//   transpose batch A   HessTransposeY2dA (B,G) HessTransposeX2dA (G,H) -> reg{00}
+//             batch B   HessTransposeY2dB (H)   HessTransposeX2dB (B)   -> reg{11}
+
+/// 2D Hessian transpose, batch A Y contraction.
+/// Stages {X_00, X_01 + X_10} and contracts qy -> dy with (B_y, G_y), leaving
+/// sm1 = {B_y X_00, G_y (X_01 + X_10)} for the X contraction to finish.
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeY2dA(
+   const int d1d, const int q1d,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1],
+   regs2d_vd_t<DIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 2, "HessTransposeY2dA requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][0][0];
+         sm0[qy][qx][1] = reg[qy][qx][0][1] + reg[qy][qx][1][0];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            u = std::fma(B[dy][qy], sm0[qy][qx][0], u);
+            v = std::fma(G[dy][qy], sm0[qy][qx][1], v);
+         }
+         sm1[dy][qx][0] = u;
+         sm1[dy][qx][1] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Hessian transpose, batch A X contraction.
+/// Finishes both batch A chains with (H_x, G_x) into reg[0][0].
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeX2dA(
+   const int d1d, const int q1d,
+   const real_t (*G)[MQ1], const real_t (*H)[MQ1],
+   const real_t (&sm1)[MQ1][MQ1][DIM], regs2d_vd_t<DIM, DIM, MQ1> &reg)
+{
+   static_assert(DIM == 2, "HessTransposeX2dA requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            u = std::fma(H[dx][qx], sm1[dy][qx][0], u);
+            u = std::fma(G[dx][qx], sm1[dy][qx][1], u);
+         }
+         reg[dy][dx][0][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Hessian transpose, batch B Y contraction.
+/// Stages X_11 and contracts qy -> dy with H_y.
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeY2dB(
+   const int d1d, const int q1d, const real_t (*H)[MQ1],
+   regs2d_vd_t<DIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 2, "HessTransposeY2dB requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][1][1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            u = std::fma(H[dy][qy], sm0[qy][qx][0], u);
+         }
+         sm1[dy][qx][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Hessian transpose, batch B X contraction, into reg[1][1].
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeX2dB(
+   const int d1d, const int q1d, const real_t (*B)[MQ1],
+   const real_t (&sm1)[MQ1][MQ1][DIM], regs2d_vd_t<DIM, DIM, MQ1> &reg)
+{
+   static_assert(DIM == 2, "HessTransposeX2dB requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            u = std::fma(B[dx][qx], sm1[dy][qx][0], u);
+         }
+         reg[dy][dx][1][1] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Hessian transpose, batch A Y contraction, component @a c
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessTransposeY2dA(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1],
+   regs2d_vdd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 2, "VectorHessTransposeY2dA requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][c][0][0];
+         sm0[qy][qx][1] = reg[qy][qx][c][0][1] + reg[qy][qx][c][1][0];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            u = std::fma(B[dy][qy], sm0[qy][qx][0], u);
+            v = std::fma(G[dy][qy], sm0[qy][qx][1], v);
+         }
+         sm1[dy][qx][0] = u;
+         sm1[dy][qx][1] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Hessian transpose, batch A X contraction, component @a c
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessTransposeX2dA(
+   const int d1d, const int q1d, const int c,
+   const real_t (*G)[MQ1], const real_t (*H)[MQ1],
+   const real_t (&sm1)[MQ1][MQ1][DIM], regs2d_vdd_t<VDIM, DIM, MQ1> &reg)
+{
+   static_assert(DIM == 2, "VectorHessTransposeX2dA requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            u = std::fma(H[dx][qx], sm1[dy][qx][0], u);
+            u = std::fma(G[dx][qx], sm1[dy][qx][1], u);
+         }
+         reg[dy][dx][c][0][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Hessian transpose, batch B Y contraction, component @a c
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessTransposeY2dB(
+   const int d1d, const int q1d, const int c, const real_t (*H)[MQ1],
+   regs2d_vdd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 2, "VectorHessTransposeY2dB requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][c][1][1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            u = std::fma(H[dy][qy], sm0[qy][qx][0], u);
+         }
+         sm1[dy][qx][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Hessian transpose, batch B X contraction, component @a c
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessTransposeX2dB(
+   const int d1d, const int q1d, const int c, const real_t (*B)[MQ1],
+   const real_t (&sm1)[MQ1][MQ1][DIM], regs2d_vdd_t<VDIM, DIM, MQ1> &reg)
+{
+   static_assert(DIM == 2, "VectorHessTransposeX2dB requires DIM == 2");
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            u = std::fma(B[dx][qx], sm1[dy][qx][0], u);
+         }
+         reg[dy][dx][c][1][1] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D scalar-field Hessian transpose
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTranspose2d(
+   const int d1d, const int q1d,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1], const real_t (*H)[MQ1],
+   regs2d_vd_t<DIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 2, "HessTranspose2d requires DIM == 2");
+   // Batch A: {u_xx, u_xy} --> reg[0][0].
+   HessTransposeY2dA<DIM, MQ1>(d1d, q1d, B, G, reg, sm0, sm1);
+   HessTransposeX2dA<DIM, MQ1>(d1d, q1d, G, H, sm1, reg);
+   // Batch B: {u_yy} --> reg[1][1].
+   HessTransposeY2dB<DIM, MQ1>(d1d, q1d, H, reg, sm0, sm1);
+   HessTransposeX2dB<DIM, MQ1>(d1d, q1d, B, sm1, reg);
+}
+
+/// 2D Hessian transpose of component @a c of a vector field
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessTranspose2d(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1], const real_t (*H)[MQ1],
+   regs2d_vdd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 2, "VectorHessTranspose2d requires DIM == 2");
+   VectorHessTransposeY2dA<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, reg, sm0, sm1);
+   VectorHessTransposeX2dA<VDIM, DIM, MQ1>(d1d, q1d, c, G, H, sm1, reg);
+   VectorHessTransposeY2dB<VDIM, DIM, MQ1>(d1d, q1d, c, H, reg, sm0, sm1);
+   VectorHessTransposeX2dB<VDIM, DIM, MQ1>(d1d, q1d, c, B, sm1, reg);
+}
+
+/// 2D Scalar Hessian Write
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteHessDofs2d(
+   const int d1d, const int c, const int e,
+   regs2d_vd_t<DIM, DIM, MQ1> &reg, const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+      {
+         const real_t u = reg[dy][dx][0][0];
+         const real_t v = reg[dy][dx][1][1];
+         YE(dx, dy, 0, c, e) += (u + v);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 2D Vector Hessian Write
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteHessDofs2d(
+   const int d1d, const int c, const int e,
+   regs2d_vdd_t<VDIM, DIM, MQ1> &reg, const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+      {
+         const real_t u = reg[dy][dx][c][0][0];
+         const real_t v = reg[dy][dx][c][1][1];
+         YE(dx, dy, 0, c, e) += (u + v);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 template <int DIM, int MQ1>
@@ -3160,6 +3548,231 @@ inline MFEM_HOST_DEVICE void WriteGradDofs3d(const int d1d,
          }
       }
    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 3D Hessian transpose used for LO
+//
+// Same adjoint as HessTranspose2D case, but bathced differently to fit in shared memory.
+// workspace M[2][MQ1]^d[DIM] sized for DIM chains but we need DIM(DIM+1)/2 for the Hessian.
+
+/// 3D Hessian transpose, Z stage: sm1[dz][qy][qx] = sum_qz Mz[dz][qz] sm0[...].
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeZ3d(
+   const int d1d, const int q1d, const real_t (*Mz)[MQ1],
+   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 3, "HessTransposeZ3d requires DIM == 3");
+   MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < q1d; ++qz)
+            {
+               u = std::fma(Mz[dz][qz], sm0[qz][qy][qx][0], u);
+            }
+            sm1[dz][qy][qx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Hessian transpose, Y stage: sm1[dz][dy][qx][1] from sm1[dz][qy][qx][0].
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeY3d(
+   const int d1d, const int q1d, const real_t (*My)[MQ1],
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 3, "HessTransposeY3d requires DIM == 3");
+   MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qy = 0; qy < q1d; ++qy)
+            {
+               u = std::fma(My[dy][qy], sm1[dz][qy][qx][0], u);
+            }
+            sm1[dz][dy][qx][1] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D Hessian transpose, X stage. Accumulates, one call per entry.
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeX3d(
+   const int d1d, const int q1d, const real_t (*Mx)[MQ1],
+   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 3, "HessTransposeX3d requires DIM == 3");
+   MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               u = std::fma(Mx[dx][qx], sm1[dz][dy][qx][1], u);
+            }
+            sm0[dz][dy][dx][1] += u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Zero the dof-space accumulator of the 3D Hessian transpose.
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeInit3d(
+   const int d1d, real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            sm0[dz][dy][dx][1] = 0.0;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Stage the symmetrized (i, j) entry of a scalar-field Hessian output.
+/// We include both components to consume the symmetric part as well
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTransposeLoad3d(
+   const int q1d, const int i, const int j,
+   regs3d_vd_t<DIM, DIM, MQ1> &reg, real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            sm0[qz][qy][qx][0] =
+               (i == j) ? reg[qz][qy][qx][i][j]
+               : reg[qz][qy][qx][i][j] + reg[qz][qy][qx][j][i];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Stage the symmetrized (@a i, @a j) entry of component @a c of a
+/// vector-field Hessian output.
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessTransposeLoad3d(
+   const int q1d, const int c, const int i, const int j,
+   regs3d_vdd_t<VDIM, DIM, MQ1> &reg, real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            sm0[qz][qy][qx][0] =
+               (i == j) ? reg[qz][qy][qx][c][i][j]
+               : reg[qz][qy][qx][c][i][j] + reg[qz][qy][qx][c][j][i];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// 3D scalar-field Hessian transpose
+///
+/// Similar to HessTranspose2D, but we batch differently to fit in shared mem.
+/// For 3D Hessian there's DIM(DIM+1)/2 chains, but we only have DIM in the shared workspace.
+///
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void HessTranspose3d(
+   const int d1d, const int q1d,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1], const real_t (*H)[MQ1],
+   regs3d_vd_t<DIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 3, "HessTranspose3d requires DIM == 3");
+   // six chains for components are summed in place, so we reset the accumulator
+   HessTransposeInit3d<DIM, MQ1>(d1d, sm0);
+   for (int i = 0; i < DIM; ++i)
+   {
+      // Upper tri only, the other half is consumed in HessTranspose stages
+      for (int j = i; j < DIM; ++j)
+      {
+         // reg --> sm0[..0]
+         HessTransposeLoad3d<DIM, MQ1>(q1d, i, j, reg, sm0);
+         // sm0[..0] --> sm1[..0], contracting qz -> dz
+         HessTransposeZ3d<DIM, MQ1>(d1d, q1d, HessDir(i, j, 2, B, G, H),
+                                    sm0, sm1);
+         // sm1[..0] --> sm1[..1], contracting qy -> dy
+         HessTransposeY3d<DIM, MQ1>(d1d, q1d, HessDir(i, j, 1, B, G, H), sm1);
+         // sm1[..1] --> sm0[..1] accumulator, contracting qx -> dx
+         HessTransposeX3d<DIM, MQ1>(d1d, q1d, HessDir(i, j, 0, B, G, H),
+                                    sm1, sm0);
+      }
+   }
+}
+
+/// 3D Hessian transpose of component @a c of a vector field
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessTranspose3d(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1], const real_t (*H)[MQ1],
+   regs3d_vdd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(DIM == 3, "VectorHessTranspose3d requires DIM == 3");
+   HessTransposeInit3d<DIM, MQ1>(d1d, sm0);
+   for (int i = 0; i < DIM; ++i)
+   {
+      for (int j = i; j < DIM; ++j)
+      {
+         VectorHessTransposeLoad3d<VDIM, DIM, MQ1>(q1d, c, i, j, reg, sm0);
+         HessTransposeZ3d<DIM, MQ1>(d1d, q1d, HessDir(i, j, 2, B, G, H),
+                                    sm0, sm1);
+         HessTransposeY3d<DIM, MQ1>(d1d, q1d, HessDir(i, j, 1, B, G, H), sm1);
+         HessTransposeX3d<DIM, MQ1>(d1d, q1d, HessDir(i, j, 0, B, G, H),
+                                    sm1, sm0);
+      }
+   }
+}
+
+/// 3D Hessian Write, from the accumulator filled by HessTranspose3d
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteHessDofs3d(
+   const int d1d, const int c, const int e,
+   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM], const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            YE(dx, dy, dz, c, e) += sm0[dz][dy][dx][1];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
 }
 
 

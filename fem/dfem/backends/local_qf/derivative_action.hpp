@@ -121,7 +121,7 @@ class DerivativeAction
    // outputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_outputs> output_dtq;
    const std::array<size_t, n_outputs> output_idx;
-   const std::array<const real_t *, n_outputs> output_B, output_G;
+   const std::array<const real_t *, n_outputs> output_B, output_G, output_H;
    const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
    // other constants
    const int dim, ne, nq, q1d;
@@ -161,6 +161,7 @@ public:
                     ctx.ir)),
       output_idx(create_output_vector_map(ctx, outputs)),
       output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
+      output_H(get_H(output_dtq)),
       output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       // other constants
@@ -218,6 +219,7 @@ public:
                    output_idx,
                    output_B,
                    output_G,
+                   output_H,
                    output_vdim,
                    output_d1d,
                    output_q1d,
@@ -275,6 +277,7 @@ public:
       std::array<int, n_inputs> in_q1d;
       std::array<const real_t *, n_outputs> out_B;
       std::array<const real_t *, n_outputs> out_G;
+      std::array<const real_t *, n_outputs> out_H;
       std::array<int, n_outputs> out_d1d;
       std::array<int, n_outputs> out_q1d;
       std::array<bool, n_inputs> input_dep;
@@ -302,6 +305,7 @@ public:
       const auto &in_q1d = data.in_q1d;
       const auto &out_B = data.out_B;
       const auto &out_G = data.out_G;
+      const auto &out_H = data.out_H;
       const auto &out_d1d = data.out_d1d;
       const auto &out_q1d = data.out_q1d;
       const auto &input_dep = data.input_dep;
@@ -507,7 +511,8 @@ public:
                      as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qout;
                   }
                   else if constexpr (is_value_fop_v<FOP> ||
-                                     is_gradient_fop_v<FOP>)
+                                     is_gradient_fop_v<FOP> ||
+                                     is_hessian_fop_v<FOP>)
                   {
                      auto &rarg = get<o>(rargs);
                      backend_t::template qp_push_tangent<ARG>(
@@ -600,7 +605,8 @@ public:
                      }
                   }
                   else if constexpr (is_value_fop_v<FOP> ||
-                                     is_gradient_fop_v<FOP>)
+                                     is_gradient_fop_v<FOP> ||
+                                     is_hessian_fop_v<FOP>)
                   {
                      auto &rarg = get<o>(rargs);
                      backend_t::template qp_push_tangent<ARG>(
@@ -624,7 +630,7 @@ public:
       {
          constexpr size_t i = ic.value, o = n_inputs + i;
          const int d = out_d1d[i], q = out_q1d[i];
-         const auto B = out_B[i], G = out_G[i];
+         const auto B = out_B[i], G = out_G[i], H = out_H[i];
          auto &YE = out_YE[i];
          auto &rarg = get<o>(rargs);
          using FOP = tuple_element_t<i, outputs_t>;
@@ -641,6 +647,16 @@ public:
             constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
             backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
                smem, e, d, q, q1d, B, G, YE, rarg);
+         }
+         else if constexpr (is_hessian_fop_v<FOP>)
+         {
+            using YE_t = decltype(YE);
+            using rarg_t = decltype(rarg);
+            using qf_param_t =
+               typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+            constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
+            backend_t::template WriteHessian<RNK, rarg_t, YE_t, qf_param_t>(
+               smem, e, d, q, q1d, B, G, H, YE, rarg);
          }
          else if constexpr (is_identity_fop_v<FOP>)
          {
@@ -681,6 +697,7 @@ public:
                               const std::array<size_t, n_outputs> &out_idx,
                               const std::array<const real_t *, n_outputs> out_B,
                               const std::array<const real_t *, n_outputs> out_G,
+                              const std::array<const real_t *, n_outputs> out_H,
                               const std::array<int, n_outputs> &out_vdim,
                               const std::array<int, n_outputs> &out_d1d,
                               const std::array<int, n_outputs> &out_q1d,
@@ -792,7 +809,8 @@ public:
          const size_t k = out_idx[i];
          const int d = out_d1d[i], q = out_q1d[i], v = out_vdim[i];
          using FOP = tuple_element_t<i, outputs_t>;
-         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
+         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP> ||
+                       is_hessian_fop_v<FOP>)
          {
             MFEM_ASSERT(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
@@ -825,6 +843,7 @@ public:
          in_q1d,
          out_B,
          out_G,
+         out_H,
          out_d1d,
          out_q1d,
          input_dep,
