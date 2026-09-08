@@ -4894,6 +4894,21 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension)
+   : Mesh(vertices_, num_vertices,
+          element_indices, element_type,
+          element_attributes, num_elements,
+          boundary_indices, boundary_type,
+          boundary_attributes, num_boundary_elements,
+          dimension, space_dimension, true /*generate_bdr*/)
+{
+}
+
+Mesh::Mesh(real_t *vertices_, int num_vertices,
+           int *element_indices, Geometry::Type element_type,
+           int *element_attributes, int num_elements,
+           int *boundary_indices, Geometry::Type boundary_type,
+           int *boundary_attributes, int num_boundary_elements,
+           int dimension, int space_dimension, bool generate_bdr)
    : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    if (space_dimension == -1)
@@ -4916,7 +4931,7 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    {
       elements[i] = NewElement(element_type);
       elements[i]->SetVertices(element_indices + i * element_index_stride);
-      elements[i]->SetAttribute(element_attributes[i]);
+      elements[i]->SetAttribute(element_attributes ? element_attributes[i] : (i + 1));
    }
    NumOfElements = num_elements;
 
@@ -4924,11 +4939,12 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    {
       boundary[i] = NewElement(boundary_type);
       boundary[i]->SetVertices(boundary_indices + i * boundary_index_stride);
-      boundary[i]->SetAttribute(boundary_attributes[i]);
+      boundary[i]->SetAttribute(boundary_attributes ? boundary_attributes[i] :
+                                (i + 1));
    }
    NumOfBdrElements = num_boundary_elements;
 
-   FinalizeTopology();
+   FinalizeTopology(generate_bdr);
 }
 
 Mesh::Mesh(const NURBSExtension& ext)
