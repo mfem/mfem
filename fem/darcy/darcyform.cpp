@@ -376,6 +376,24 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    }
    else if (Mnl)
    {
+      // REACHED BY NOTHING IN THIS TREE, and that was measured rather than
+      // read off the conditions. Printing which branch above fires for each
+      // of the 152 serial regression references: 17 fill c_nlfi_p, 5 reach
+      // here with an EMPTY interior-face list, and none reaches here with a
+      // MixedConductionNLFIntegrator in hand -- because every `-nld -hb`
+      // configuration in convdiff and anisodiff also puts an
+      // HDGDiffusionIntegrator on the potential mass form, which makes M_p or
+      // Mnl_p non-null and takes one of the branches above.
+      //
+      // The consequence is a SILENT DROP: in 12 of the 20 `-nld -hb`
+      // references the block nonlinear form carries one interior-face
+      // integrator that nothing here ever reads, so its face stabilization
+      // vanishes with no warning. The answer is not wrong in those cases --
+      // the HDGDiffusionIntegrator on the mass form supplies a stabilization
+      // of the same shape and the same `-td` -- so the references are what
+      // they always were, and repairing it means letting c_bfi_p and c_nlfi
+      // coexist, which is a change to four readers and a new linear backup
+      // for E, G and H. Recorded here rather than repaired.
       BlockNonlinearFormIntegrator *constr_integ = NULL;
       auto fnlfi = Mnl->GetInteriorFaceIntegrators();
       if (fnlfi.Size())

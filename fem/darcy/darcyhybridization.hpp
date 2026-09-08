@@ -1131,10 +1131,99 @@ private:
        is dgetrs_ and only round-off agreement is claimed. See MultInv(). */
    void MultInvBatched(const Vector &bu, const Vector &bp, Vector &u,
                        Vector &p, bool with_bnl = false) const;
+   /** @brief The element-local Jacobian blocks at the given local state.
+
+       @a skip_interior_faces leaves the INTERIOR-face constraint terms out of
+       D, E, G and H, for a caller that is about to supply them with
+       AssembleNLFaceGradBatched(). Boundary faces are unaffected: they carry
+       their own marked integrator lists, which the batched kernel does not
+       cover, and their `eg_written` bookkeeping is per face so it stays
+       self-consistent when the interior faces are removed from the loop.
+
+       A PARAMETER rather than a member on purpose. Adding a data member to
+       this class changes its layout, and every translation unit that includes
+       mfem.hpp then has to be rebuilt -- a trap this branch has paid for ten
+       times, presenting as malloc corruption in unrelated code. */
    void ConstructGrad(int el, const Array<int> &faces, TransWorkspace &ws,
                       const BlockVector &x_l,
                       const Vector &u_l,
-                      const Vector &p_l) const;
+                      const Vector &p_l,
+                      bool skip_interior_faces = false) const;
+
+   /** @brief The state-carrying interior-face constraint GRADIENT for every
+       (element, face) pair in one batched kernel, instead of one
+       AssembleHDGFaceGrad() call and four DenseMatrix::CopyMN() per pair.
+
+       @returns false, having done nothing, whenever it does not apply --
+       CanBatchNLFaceGrad() is the same question asked in advance. The caller
+       then keeps its per-pair loop, so this is an optimisation and never a
+       restriction.
+
+       @a x is the global trace vector; the element states come from
+       @a darcy_u / @a darcy_p, which is why this is an NPC-only path: those
+       hold the fields as Newton state under MultNlMode::GradAtFields, and
+       under MultNlMode::Grad the fields are produced BY the element loop and
+       are gone by the time this could run.
+
+       Interior faces only. Boundary faces stay in ConstructGrad(): they carry
+       marked integrator lists the kernel does not cover, and they are the
+       reason D is accumulated in a different ORDER by the two routes -- the
+       boundary contributions reach it during the element loop and the
+       interior ones afterwards. Measured, that is 2.2e-16 in D, bitwise
+       equality in E, G and H.
+
+       **What it is worth, measured on the reachable case.**
+       `convdiff -p 6 -o 2 -dg -hb -nl -npc -nls 3 -gm 0 -rtol 1e-12` at
+       128x128, one thread, direct trace solve -- a 13.4 s solve of which the
+       state-carrying constraint integrators are 1.54 s (0.94 s in the
+       gradient, 0.60 s in the residual), i.e. 12% of the whole run and 23% of
+       the NPC step's own work excluding the trace solve. At order 3 the same
+       figures are 2.46 s of 30 s, 17% of the step -- the share FALLS with
+       order, because the integrators go as quadrature points times dofs while
+       ComputeH's Schur complement goes as dofs cubed.
+
+       Of one gradient call, 58% at order 2, 64% at order 3 and 78% at order 5
+       is what this can move: the outer-product accumulation plus the
+       DenseMatrix scaffolding around it. The rest is the host precompute --
+       transformations, CalcOrtho, shape evaluation, the flux Jacobian -- which
+       stays on the host in either route because ElementTransformation and
+       Coefficient carry no MFEM_HOST_DEVICE. So the ceiling here is 4.9% of
+       the run at order 2 and 3, and the plan's gate says no step of this chain
+       pays on its own.
+
+       The plan's own profile put "the integrators" at 5-7% of an NPC step.
+       That was measured on `-p 1 -nl` and `-p 2 -nld`, whose face constraint
+       is LINEAR and therefore assembled once; on a genuinely state-carrying
+       constraint it is 23%.
+
+       **And end to end it does pay, above order 2, which the plan's gate
+       says it should not.** Whole-solve wall clock on the same case, three
+       interleaved per-pair/batched pairs at each size, one thread:
+
+       | | per-pair (s) | batched (s) | ratio |
+       |---|---|---|---|
+       | order 2, 64x64 | 2.456 2.457 2.493 | 2.536 2.564 2.525 | 1.03 1.04 1.01 |
+       | order 2, 128x128 | 11.60 11.68 11.56 | 11.85 12.18 11.85 | 1.02 1.04 1.03 |
+       | order 3, 64x64 | 5.213 5.076 5.110 | 4.945 4.890 4.955 | 0.95 0.96 0.97 |
+       | order 3, 128x128 | 24.63 24.22 22.34 | 24.10 23.53 21.18 | 0.98 0.97 0.95 |
+
+       1-4% SLOWER at order 2 and 2-5% FASTER at order 3, and the crossover is
+       the ablation's order trend arriving end to end: the batchable share of
+       a pair goes 58% -> 64% -> 78% while what the kernel adds -- AtomicAdd
+       on D where the per-pair loop does a plain +=, and one weight-array
+       allocation per integrator pass -- does not. It is a small number either
+       way and this is a host; the reason to have it is that the accumulation
+       is now EXPRESSIBLE on a device, which it was not.
+
+       One thing not measured: CanBatchNLFaceGrad() is evaluated THREE times
+       per gradient pass -- once in MultNL(), once here, and once in the
+       kernel's MFEM_VERIFY -- and each sweep walks every interior face and
+       side asking each integrator for its rule. That is per-Newton-step
+       overhead the assembly-time kernels never pay. The fix is one
+       MFEM_ASSERT and one dropped check; what it is worth has not been
+       measured, and the sign of the result flipping with ORDER says it is not
+       the dominant term. */
+   bool AssembleNLFaceGradBatched(const Vector &x) const;
    /** @brief One face integrator's contribution to D, E, G and H.
 
        @a eg_written says whether E and G for this face and side have already
@@ -1324,6 +1413,60 @@ public:
        than what the mode costs. A silent fallback is the normal case here,
        so a caller that cares has to be able to ask. */
    bool CanBatchPotFaceAssembly() const;
+
+   /** @brief Whether AssembleNLFaceGradBatched() would actually be taken.
+
+       The STATE-CARRYING counterpart of CanBatchPotFaceAssembly(), and a
+       different question: that one is about c_bfi_p, assembled once, and this
+       one is about c_nlfi_p / c_nlfi, evaluated once per element per Newton
+       step. It needs AssemblyMode::Batched, an NPC problem, a serial
+       constraint space, a nonlinear face constraint at all, and every
+       integrator in it to be one HDGNLFaceGradScatterBatched() weighs.
+
+       **Ask this rather than inferring it from the reference set.** Measured
+       over the 152 serial regression references by printing which constraint
+       slot EnableHybridization() fills: 17 fill c_nlfi_p, with a
+       SumNLFIntegrator of one HDGDiffusionIntegrator and one
+       HyperbolicFormIntegrator; 5 fill c_nlfi with NOTHING in it; and none at
+       all reach a MixedConductionNLFIntegrator face constraint, because in
+       every -nld -hb reference the potential mass form also carries an
+       HDGDiffusionIntegrator, which makes M_p or Mnl_p non-null and sends
+       EnableHybridization() down a branch that never reads
+       Mnl->GetInteriorFaceIntegrators(). */
+   bool CanBatchNLFaceGrad() const;
+
+   /** @brief Read-only views on one face's assembled constraint blocks, for a
+       caller checking one assembly route against another.
+
+       These are the SAME calls MultNL()'s element loop makes, promoted from
+       private because comparing two routes' blocks directly is sharper than
+       comparing the trace operator they end up in -- and, on a problem whose
+       local Schur complement is near singular, it is the only comparison that
+       means anything. Measured: the assembled trace operator came back at
+       6e+15 to 6e+226 on a pure-hyperbolic constraint at neq = 2, in BOTH
+       routes, while the blocks agreed bitwise.
+
+       @a side is 0 for the face's first element and 1 for its second. The
+       matrices ALIAS the hybridization's storage rather than copying it, so a
+       caller must not assemble into them -- doing exactly that once left the
+       hybridization corrupt behind a reconstruction. */
+   void GetFaceE(int f, int side, DenseMatrix &E) const
+   { GetEFaceMatrix(f, side, E); }
+   void GetFaceG(int f, int side, DenseMatrix &G) const
+   { GetGFaceMatrix(f, side, G); }
+   void GetFaceH(int f, DenseMatrix &H) const { GetHFaceMatrix(f, H); }
+
+   /** @brief The nonlinear face constraint's integrators, sums unwrapped.
+
+       Reported rather than inferred for the same reason
+       PotFaceConstraintIntegrators() is: DarcyForm wraps a form's face
+       integrators in a SumNLFIntegrator / SumBlockNLFIntegrator
+       unconditionally, so a caller cannot see what is inside. At most one of
+       the two lists is ever non-empty -- SetConstraintIntegrators() clears
+       the other slot. */
+   void NLFaceConstraintIntegrators(
+      Array<NonlinearFormIntegrator*> &integs,
+      Array<BlockNonlinearFormIntegrator*> &bintegs) const;
 
    /** @brief How many integrators the potential-mass face constraint carries,
        with DarcyForm's SumIntegrator wrapper unwrapped.

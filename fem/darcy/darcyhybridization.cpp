@@ -328,6 +328,24 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
+   // The element matrix has to be (hat dofs) square, and until this guard it
+   // was read to that extent WITHOUT being checked -- the MFEM_ASSERT below
+   // checks the index total, is debug-only, and cannot see a wrongly SHAPED
+   // argument at all. A caller who hands over the wrong shape therefore gets
+   // an out-of-bounds READ: no fault where it happens, plausible garbage in
+   // Af_data, and a crash or not depending on the heap.
+   //
+   // Reached, not hypothetical. A bare VectorMassIntegrator on a flux space
+   // whose vdim is neq*dim takes its own vdim from the SPACE DIMENSION when
+   // the coefficient is scalar, so it produces (nd*dim) square where this
+   // wants (nd*neq*dim) -- 2x2 against 4x4 at order 0. It presented as a
+   // SIGSEGV in an unrelated test file, under some Catch2 filters and not
+   // others, and not under gdb. AddressSanitizer on this translation unit
+   // named it in one run; three hours of bisection had not.
+   MFEM_VERIFY(A.Height() == s && A.Width() == s,
+               "flux mass element matrix is " << A.Height() << "x" << A.Width()
+               << ", expected " << s << "x" << s
+               << " -- see the note above on VectorMassIntegrator's vdim");
    int Af_el_idx = Af_offsets[el];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    int Ae_el_idx = Ae_offsets[el];
@@ -936,6 +954,144 @@ bool DarcyHybridization::CanBatchPotFaceAssembly() const
    Array<int> flist;
    InteriorFaceList(flist);
    return HDGFaceScatterCanBatch(c_fes, fes_p, integs, flist);
+}
+
+void DarcyHybridization::NLFaceConstraintIntegrators(
+   Array<NonlinearFormIntegrator*> &integs,
+   Array<BlockNonlinearFormIntegrator*> &bintegs) const
+{
+   integs.SetSize(0);
+   bintegs.SetSize(0);
+
+   // Looking THROUGH the sum is what makes any of this reachable, exactly as
+   // in PotFaceConstraintIntegrators(): DarcyForm::EnableHybridization()
+   // wraps a form's interior face integrators in a SumNLFIntegrator or a
+   // SumBlockNLFIntegrator unconditionally, even when there is one, so a
+   // dynamic_cast on the slot itself never matches what is inside.
+   if (NonlinearFormIntegrator *c = c_nlfi_p.get())
+   {
+      if (auto *sum = dynamic_cast<SumNLFIntegrator*>(c))
+      {
+         for (int i = 0; i < sum->NumIntegrators(); i++)
+         { integs.Append(sum->GetIntegrator(i)); }
+      }
+      else { integs.Append(c); }
+   }
+   if (BlockNonlinearFormIntegrator *c = c_nlfi.get())
+   {
+      if (auto *sum = dynamic_cast<SumBlockNLFIntegrator*>(c))
+      {
+         for (int i = 0; i < sum->NumIntegrators(); i++)
+         { bintegs.Append(sum->GetIntegrator(i)); }
+      }
+      else { bintegs.Append(c); }
+   }
+}
+
+bool DarcyHybridization::CanBatchNLFaceGrad() const
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+
+   // NPC only, and for a reason that is not the same as
+   // CanBatchPotFaceAssembly()'s. The batched pass runs AFTER the element
+   // loop, so it needs the element states to still exist -- and only
+   // MultNlMode::GradAtFields has them, in darcy_u / darcy_p as Newton state.
+   // Under MultNlMode::Grad the fields are produced by MultInvNL() inside the
+   // loop and are local to it.
+   if (!NPCEnabled()) { return false; }
+
+   // A shared face is not Mesh::FaceIsInterior(), so in parallel the pair
+   // list would silently drop every partition boundary.
+   if (ParallelC()) { return false; }
+
+   // A system's blocks are field-outermost, which is what byNODES gives and
+   // what every integrator here indexes; byVDIM would interleave them.
+   if (fes_p.GetVDim() > 1 && fes_p.GetOrdering() != Ordering::byNODES)
+   { return false; }
+   if (c_fes.GetVDim() > 1 && c_fes.GetOrdering() != Ordering::byNODES)
+   { return false; }
+
+   Array<NonlinearFormIntegrator*> integs;
+   Array<BlockNonlinearFormIntegrator*> bintegs;
+   NLFaceConstraintIntegrators(integs, bintegs);
+   if (integs.Size() + bintegs.Size() == 0) { return false; }
+
+   Array<int> flist;
+   InteriorFaceList(flist);
+   return HDGNLFaceGradCanBatch(c_fes, fes_p, &fes, integs, bintegs, flist);
+}
+
+bool DarcyHybridization::AssembleNLFaceGradBatched(const Vector &x) const
+{
+   if (!CanBatchNLFaceGrad()) { return false; }
+
+   Array<NonlinearFormIntegrator*> integs;
+   Array<BlockNonlinearFormIntegrator*> bintegs;
+   NLFaceConstraintIntegrators(integs, bintegs);
+
+   Array<int> flist;
+   InteriorFaceList(flist);
+   const int NF = flist.Size();
+   if (NF == 0) { return true; }
+   const int NP = 2 * NF;
+
+   Mesh *mesh = fes_p.GetMesh();
+   const int LDD = Df_f_offsets[1] - Df_f_offsets[0];
+   const int LDC = c_fes.GetFaceElement(flist[0])->GetDof() * c_fes.GetVDim();
+
+   Array<int> D_off(NP), E_off(NP), G_off(NP), H_off(NP);
+   Vector el_state(NP * LDD), tr_state(NP * LDC);
+
+   Array<int> p_dofs, c_dofs;
+   Vector p_l, x_f;
+   for (int fi = 0; fi < NF; fi++)
+   {
+      const int f = flist[fi];
+      int el1, el2;
+      mesh->GetFaceElements(f, &el1, &el2);
+      const int els[2] = { el1, el2 };
+
+      c_fes.GetFaceVDofs(f, c_dofs);
+      x.GetSubVector(c_dofs, x_f);
+      MFEM_VERIFY(x_f.Size() == LDC, "trace block size is not uniform");
+
+      for (int side = 0; side < 2; side++)
+      {
+         const int p = 2 * fi + side;
+         const int el = els[side];
+         MFEM_VERIFY(Df_f_offsets[el+1] - Df_f_offsets[el] == LDD,
+                     "potential block size is not uniform");
+
+         D_off[p] = Df_offsets[el];
+         // Side 2's E and G blocks follow side 1's, which is the offset
+         // AssembleHDGGrad() computes as c_dofs_size*d_dofs_size.
+         const int eg = side ? (LDC * LDD) : 0;
+         E_off[p] = E_offsets[f] + eg;
+         G_off[p] = G_offsets[f] + eg;
+         H_off[p] = H_offsets[f];
+
+         fes_p.GetElementVDofs(el, p_dofs);
+         MFEM_VERIFY(p_dofs.Size() == LDD, "potential vdof count is not "
+                     "uniform: " << p_dofs.Size() << " against " << LDD);
+         darcy_p.GetSubVector(p_dofs, p_l);
+         for (int i = 0; i < LDD; i++) { el_state(p * LDD + i) = p_l(i); }
+         for (int i = 0; i < LDC; i++) { tr_state(p * LDC + i) = x_f(i); }
+      }
+   }
+
+   HDGNLFaceGradScatterBatched(c_fes, fes_p, &fes, integs, bintegs, flist,
+                               el_state, tr_state, D_off, E_off, G_off, H_off,
+                               Df_data, E_data, G_data, H_data);
+
+   // The kernel took D, E, G and H through Vector::ReadWrite(), whose default
+   // is on_dev = true, so they come back marked valid on the device -- and
+   // ComputeH(), which runs next, indexes them raw as &Df_data[...] on the
+   // host. Found by running it: under Device("debug") the batched route
+   // faulted inside NPCGradient() at order 0 with an address and nothing
+   // else, where the per-pair route got through. Same shape as the offsets
+   // note on SyncLocalBlocksToHost() itself, and the same fix.
+   SyncLocalBlocksToHost();
+   return true;
 }
 
 /// The interior faces, which is what the batched face assembly covers.
@@ -3088,6 +3244,16 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
    if (threaded) { BuildElementColouring(); }
    const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
 
+   // The state-carrying interior-face constraint gradient, for every
+   // (element, face) pair at once, instead of one AssembleHDGFaceGrad() and
+   // four DenseMatrix::CopyMN() per pair. Decided ONCE here: asking per
+   // element would call CanBatchNLFaceGrad(), which walks every face, inside
+   // the element loop. It runs AFTER the loop because D carries the element
+   // mass Jacobian the loop sets, and only in GradAtFields because that is
+   // the mode whose fields survive the loop. See AssembleNLFaceGradBatched().
+   const bool batch_nl_faces = (mode == MultNlMode::GradAtFields) &&
+                               CanBatchNLFaceGrad();
+
    for (int pass = 0; pass < npasses; pass++)
    {
       const int i0 = threaded ? colour_offsets[pass] : 0;
@@ -3205,7 +3371,8 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
 
                   if (mode == MultNlMode::GradAtFields)
                   {
-                     ConstructGrad(el, faces, ws, x_l, u_l, p_l);
+                     ConstructGrad(el, faces, ws, x_l, u_l, p_l,
+                                   batch_nl_faces);
                      continue;
                   }
 
@@ -3404,6 +3571,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       }
    }
 
+   if (batch_nl_faces) { AssembleNLFaceGradBatched(x); }
 }
 
 void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
@@ -4392,7 +4560,8 @@ void DarcyHybridization::MultInvBatched(const Vector &bu, const Vector &bp,
 void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
                                        TransWorkspace &ws,
                                        const BlockVector &x_l,
-                                       const Vector &u_l, const Vector &p_l) const
+                                       const Vector &u_l, const Vector &p_l,
+                                       bool skip_interior_faces) const
 {
    const FiniteElement *fe_u = fes.GetFE(el);
    const FiniteElement *fe_p = fes_p.GetFE(el);
@@ -4531,7 +4700,8 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
 
          if (FTr->Elem2No >= 0)
          {
-            //interior
+            //interior -- left to AssembleNLFaceGradBatched() when asked
+            if (skip_interior_faces) { continue; }
             AssembleHDGGrad(el, FTr, *c_nlfi_p, x_f, p_l, eg_written[f]);
          }
          else
@@ -4562,7 +4732,8 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
 
          if (FTr->Elem2No >= 0)
          {
-            //interior
+            //interior -- left to AssembleNLFaceGradBatched() when asked
+            if (skip_interior_faces) { continue; }
             AssembleHDGGrad(el, FTr, *c_nlfi, x_f, u_l, p_l, eg_written[f]);
          }
          else

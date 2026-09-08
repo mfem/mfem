@@ -497,6 +497,18 @@ public:
       const FiniteElement &trace_el, const FiniteElement &el1,
       const FiniteElement &el2, FaceElementTransformations &Trans) const;
 
+   /** @brief The rule the ONE-SIDED routines integrate at.
+
+       A separate overload because the one-sided routines take the max over
+       ONE element and the trace, not over two elements -- so on a mesh whose
+       neighbours differ in order the two rules are genuinely different and
+       collapsing them would change the operator. Same one-source-of-truth
+       argument as the two-sided one: HDGNLFaceGradScatterBatched() asks this
+       rather than reconstructing the expression. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      const FiniteElement &trace_el, const FiniteElement &el,
+      FaceElementTransformations &Trans) const;
+
 
 protected:
    inline real_t StabValue(real_t wq, real_t ba, real_t un, real_t face_w,
@@ -614,6 +626,117 @@ public:
                                const Vector &trfun, const Vector &elfun,
                                Vector *d_energy = NULL) override;
 };
+
+/** @brief Whether HDGNLFaceGradScatterBatched() can take these integrators.
+
+    False means the caller keeps its per-element-face loop, not that anything
+    is wrong. What it asks:
+
+    * every integrator is one the kernel weighs -- an HDGDiffusionIntegrator
+      with a CONSTANT stabilization, a MixedConductionNLFIntegrator, or a
+      HyperbolicFormIntegrator;
+    * one element geometry, one element dof count and one trace dof count, so
+      the reference shape tables and the block strides are single numbers;
+    * a conforming serial mesh and a DG_Interface trace space;
+    * one integration rule across every (element, face) pair, asked of the
+      integrator on each pair rather than derived from the mesh -- a
+      non-uniform ElementTransformation::OrderW() or a neighbour of a
+      different order defeats it;
+    * @a neq == 1 wherever an HDGDiffusionIntegrator is present, since that
+      integrator is scalar and a system wraps it in a
+      VectorBlockDiagonalIntegrator, which the kernel does not look inside. */
+bool HDGNLFaceGradCanBatch(const FiniteElementSpace &tr_fes,
+                           const FiniteElementSpace &el_fes,
+                           const FiniteElementSpace *fl_fes,
+                           const Array<NonlinearFormIntegrator*> &integs,
+                           const Array<BlockNonlinearFormIntegrator*> &bintegs,
+                           const Array<int> &face_list);
+
+/** @brief The STATE-CARRYING HDG face constraint GRADIENT, for every
+    (element, face) pair at once, scattered straight into D, E, G and H.
+
+    The counterpart of HDGFaceScatterBatched() for the terms that are not
+    bilinear forms: c_nlfi_p / c_nlfi rather than c_bfi_p. Those are evaluated
+    once per element per Newton step inside DarcyHybridization::ConstructGrad(),
+    not once at assembly, so this is a per-step kernel and it is ONE SIDED --
+    a pair is (element, face, side) and each interior face is visited from
+    both of its elements, exactly as the element loop visits it.
+
+    **Two weight matrices per point, not seven, and that is measured across
+    the three families rather than assumed.** At each quadrature point every
+    one of them contributes
+
+        D += W_el(di,dj) s_el(i) s_el(j),   G += W_el(di,dj) s_tr(i) s_el(j),
+        E += W_tr(di,dj) s_el(i) s_tr(j),   H += W_tr(di,dj) s_tr(i) s_tr(j),
+
+    with W_el the derivative of the face residual with respect to the ELEMENT
+    state and W_tr the derivative with respect to the TRACE state. D and G
+    share a weight because they are the same residual row tested against the
+    two spaces, and so do E and H. Checked against all three:
+    HDGDiffusionIntegrator's one-sided matrix gives W_el = +w and W_tr = -w
+    (its G comes from `elmat(el+j,i) = -elmat(i,el+j)`, so +w and not -w -- the
+    sign that a reading of the lower-triangular fill gets wrong);
+    MixedConductionNLFIntegrator the same with its own w; and
+    HyperbolicFormIntegrator W_el = -weight*sign*J(2).n and
+    W_tr = -weight*sign*J(1).n, which is where the neq x neq matrices come
+    from.
+
+    The state enters ONLY through those weights, and only on the host: the
+    flux Jacobian, the numerical flux's AverageGrad and the element
+    transformations carry no MFEM_HOST_DEVICE. So the precompute is a host
+    loop writing flat weight and shape arrays, exactly as
+    HDGFaceScatterBatched()'s is, and the device part is the scatter.
+
+    Measured shares of one AssembleHDGGrad() call on the reachable case
+    (`convdiff -p 6 -o k -dg -hb -nl -npc`, 128x128, HyperbolicFormIntegrator,
+    three interleaved A/B pairs with the accumulation loops ablated):
+
+    | order | integrator | of which accumulation | + DenseMatrix scaffolding |
+    |---|---|---|---|
+    | 2 | 1544 ns | 671 ns (43%) | 530 ns -> 58% of the call is batchable |
+    | 3 | 2800 ns | 1432 ns (51%) | 955 ns -> 64% |
+    | 5 | 8764 ns | 6289 ns (72%) | 2620 ns -> 78% |
+
+    The remaining 42/36/22% is the host precompute, which stays on the host in
+    either route. So this moves 58-78% of the per-pair gradient work off the
+    host critical path and cannot remove more than that.
+
+    The FLUX state is not an argument, and that is a property of the three
+    integrators rather than an omission. A c_nlfi_p integrator is handed the
+    potential alone; MixedConductionNLFIntegrator, the only
+    BlockNonlinearFormIntegrator admitted, builds its own zero flux
+    (`DenseMatrix u(1, dim); u = 0.;`) and never reads elfun[0]. An integrator
+    whose face term depends on the flux would have to be added to the gate,
+    not merely passed more data.
+
+    @param el_state one pair's neq*ND potential dofs, field-outermost,
+                    pair-major; the state the weights are evaluated at.
+    @param tr_state the same for the pair's face trace dofs.
+    @param D_off    per pair, the offset of its element's D block.
+    @param E_off    per pair, the offset of its (face, side) E block.
+    @param G_off    the same for G.
+    @param H_off    per pair, the offset of its face's H block.
+
+    E and G are zeroed here, over the pairs this call covers, and then every
+    integrator accumulates -- which reproduces ConstructGrad()'s
+    `eg_written` rule (clear on the first writer of a face and side) without
+    the flag. D and H are NOT zeroed: D carries the element mass Jacobian and
+    H may carry boundary faces, and both zeroings belong to the caller.
+
+    @note D needs AtomicAdd -- the faces of one element collide on it. E, G
+          and H do not: one thread per FACE handles both sides, which makes H
+          exclusive as well. That is one atomic block per pair against the
+          three the obvious pair-per-thread decomposition would need. */
+void HDGNLFaceGradScatterBatched(
+   const FiniteElementSpace &tr_fes, const FiniteElementSpace &el_fes,
+   const FiniteElementSpace *fl_fes,
+   const Array<NonlinearFormIntegrator*> &integs,
+   const Array<BlockNonlinearFormIntegrator*> &bintegs,
+   const Array<int> &face_list,
+   const Vector &el_state, const Vector &tr_state,
+   const Array<int> &D_off, const Array<int> &E_off,
+   const Array<int> &G_off, const Array<int> &H_off,
+   Vector &Df_data, Vector &E_data, Vector &G_data, Vector &H_data);
 
 }
 
