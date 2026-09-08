@@ -105,8 +105,14 @@ public:
    /// Operator application
    void Mult (const Vector & x, Vector & y) const override;
 
+   /// Action of the operator on multiple vectors (MultiVector).
+   void MultMV(const MultiVector &x, MultiVector &y) const;
+
    /// Action of the transpose operator
    void MultTranspose (const Vector & x, Vector & y) const override;
+
+   /// Action of the transpose operator on multiple vectors (MultiVector).
+   void MultTransposeMV(const MultiVector &x, MultiVector &y) const;
 
 #ifdef MFEM_USE_MPI
    /** @brief Returns a monolithic HypreParMatrix formed by merging the blocks of

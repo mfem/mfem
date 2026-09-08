@@ -97,6 +97,30 @@ void BlockOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
+// Operator application
+void BlockOperator::MultMV(const MultiVector &x, MultiVector &y) const
+{
+   MFEM_ASSERT(x.NumBlocks() == nColBlocks,
+               "incorrect number of input MultiVector blocks");
+   MFEM_ASSERT(y.NumBlocks() == nRowBlocks,
+               "incorrect number of output MultiVector blocks");
+
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      y[iRow] = 0.0;
+      tmp.SetSize(row_offsets[iRow+1] - row_offsets[iRow]);
+      tmp.UseDevice(true);
+      for (int jCol=0; jCol < nColBlocks; ++jCol)
+      {
+         if (op(iRow,jCol) && coef(iRow,jCol) != 0.)
+         {
+            op(iRow,jCol)->Mult(x[jCol], tmp);
+            y[iRow].Add(coef(iRow,jCol), tmp);
+         }
+      }
+   }
+}
+
 // Action of the transpose operator
 void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
 {
@@ -127,6 +151,29 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
       yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
+}
+
+void BlockOperator::MultTransposeMV(const MultiVector &x, MultiVector &y) const
+{
+   MFEM_ASSERT(x.NumBlocks() == nRowBlocks,
+               "incorrect number of input MultiVector blocks");
+   MFEM_ASSERT(y.NumBlocks() == nColBlocks,
+               "incorrect number of output MultiVector blocks");
+
+   for (int iRow=0; iRow < nColBlocks; ++iRow)
+   {
+      y[iRow] = 0.0;
+      tmp.SetSize(col_offsets[iRow+1] - col_offsets[iRow]);
+      tmp.UseDevice(true);
+      for (int jCol=0; jCol < nRowBlocks; ++jCol)
+      {
+         if (op(jCol,iRow) && coef(jCol,iRow) != 0.)
+         {
+            op(jCol,iRow)->MultTranspose(x[jCol], tmp);
+            y[iRow].Add(coef(jCol,iRow), tmp);
+         }
+      }
    }
 }
 
