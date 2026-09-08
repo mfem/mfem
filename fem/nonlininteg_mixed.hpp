@@ -182,6 +182,33 @@ public:
        element's transformation on a mesh of one geometry. */
    const IntegrationRule &GetElementIntRule(const FiniteElement &fe_u,
                                             ElementTransformation &Tr) const;
+   /// The velocity coefficient, or null.
+   VectorCoefficient *GetVelocity() const { return v; }
+   /// The alpha the constructor took.
+   real_t GetAlpha() const { return alpha; }
+   /// The beta the constructor took.
+   real_t GetBeta() const { return beta; }
+   /// The per-variable stabilization for variable @a e, defaulting to one.
+   real_t GetVariableStabilization(int e) const { return TauVar(e); }
+
+   /** @brief The rule the HDG face routines integrate at, asked of the
+       integrator rather than reconstructed.
+
+       ONE SOURCE OF TRUTH, the same argument as
+       HDGDiffusionIntegrator::GetHDGFaceIntRule(): AssembleHDGFaceVector()
+       and AssembleHDGFaceGrad() call this, so a batched driver that also
+       calls it cannot integrate at a different rule. Note it takes the FLUX
+       element as well as the potential one -- the max over both is what these
+       routines use, and the comma operator that once discarded the flux order
+       here was a defect. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      const FiniteElement &el_u, const FiniteElement &el_p,
+      FaceElementTransformations &Tr) const
+   {
+      if (IntRule) { return *IntRule; }
+      const int order = 2 * std::max(el_u.GetOrder(), el_p.GetOrder());
+      return IntRules.Get(Tr.GetGeometryType(), order);
+   }
 
    void AssembleElementVector(const Array<const FiniteElement*> &el,
                               ElementTransformation &Tr,

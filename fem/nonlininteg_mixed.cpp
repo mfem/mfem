@@ -889,15 +889,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       }
    }
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      // a simple choice for the integration order; is this OK?
-      // std::max, not the comma operator, which discarded the flux order
-      // and under-integrated whenever it exceeded the potential order.
-      const int order = 2 * std::max(el_u.GetOrder(), el_p.GetOrder());
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
-   }
+   // Asked of the integrator, so a batched driver cannot integrate at a
+   // different rule; see GetHDGFaceIntRule().
+   const IntegrationRule *ir = &GetHDGFaceIntRule(el_u, el_p, Trans);
 
    // assemble: alpha < {h^{-1} Q} [u],[v] >
    for (int q = 0; q < ir->GetNPoints(); q++)
@@ -1105,14 +1099,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       }
    }
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      // a simple choice for the integration order; is this OK?
-      // std::max, not the comma operator; see the face vector.
-      const int order = 2 * std::max(el_u.GetOrder(), el_p.GetOrder());
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
-   }
+   // Asked of the integrator, so a batched driver cannot integrate at a
+   // different rule; see GetHDGFaceIntRule().
+   const IntegrationRule *ir = &GetHDGFaceIntRule(el_u, el_p, Trans);
 
    // assemble: alpha < {h^{-1} Q} [u],[v] >
    for (int q = 0; q < ir->GetNPoints(); q++)

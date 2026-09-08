@@ -121,6 +121,7 @@ set(UNIT_TESTS_SRCS
   fem/test_darcy_degenerate.cpp
   fem/test_darcy_functionals.cpp
   fem/test_darcy_hybridization.cpp
+  fem/test_darcy_nl_face_grad.cpp
   fem/test_darcy_nonlinear.cpp
   fem/test_darcy_nonlinear_mms.cpp
   fem/test_darcy_npc.cpp

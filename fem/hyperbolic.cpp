@@ -468,13 +468,9 @@ void HyperbolicFormIntegrator::AssembleHDGFaceVector(
    DenseMatrix trvect_mat(elvect.GetData() + dof_dual_el * num_equations,
                           dof_dual_tr, num_equations);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      const int order = 2*std::max(fe.GetOrder(),
-                                   trace_face_fe.GetOrder()) + IntOrderOffset;
-      ir = &IntRules.Get(Tr.GetGeometryType(), order);
-   }
+   // Asked of the integrator, so a batched driver cannot integrate at a
+   // different rule; see GetHDGFaceIntRule().
+   const IntegrationRule *ir = &GetHDGFaceIntRule(trace_face_fe, fe, Tr);
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -587,13 +583,9 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
    const DenseMatrix elfun_mat(elfun.GetData(), dof_el, num_equations);
    const DenseMatrix trfun_mat(trfun.GetData(), dof_tr, num_equations);
 
-   const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      const int order = 2*std::max(fe.GetOrder(),
-                                   trace_face_fe.GetOrder()) + IntOrderOffset;
-      ir = &IntRules.Get(Tr.GetGeometryType(), order);
-   }
+   // Asked of the integrator, so a batched driver cannot integrate at a
+   // different rule; see GetHDGFaceIntRule().
+   const IntegrationRule *ir = &GetHDGFaceIntRule(trace_face_fe, fe, Tr);
 
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
