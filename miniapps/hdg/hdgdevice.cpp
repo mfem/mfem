@@ -207,7 +207,20 @@ int main(int argc, char *argv[])
       Stage s_bface{"  face constraint, boundary",
                     dh->CanBatchPotBdrFaceAssembly() ? "device kernel"
                     : "host per-face", 0.};
-      Stage s_fbdr{"  flux mass boundary faces", "host per-face", 0.};
+      // Three states here, not two, and the middle one is why this line was
+      // wrong twice over: it read a LITERAL "host per-face" after
+      // AssembleFluxMassBdrMatricesBatched() landed, and this problem has no
+      // flux mass boundary face integrator at all, so "host per-face" named a
+      // loop that never runs. What that pass batches is the SCATTER only --
+      // no BilinearFormIntegrator in the library returns the one-sided block
+      // of a vector L2 or an H(div) flux space, so there is nothing for a
+      // quadrature kernel to dispatch on. See CanBatchFluxMassBdrFaces().
+      Array<BilinearFormIntegrator*> *fm_bfbfi = fm->GetBFBFI();
+      const bool fbdr_any = fm_bfbfi && fm_bfbfi->Size() > 0;
+      Stage s_fbdr{"  flux mass boundary faces",
+                   !fbdr_any ? "no such term"
+                   : (dh->CanBatchFluxMassBdrFaces(fm) ? "device scatter"
+                      : "host per-face"), 0.};
 
       BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
       b = 0.0;
@@ -227,7 +240,12 @@ int main(int argc, char *argv[])
       sw.Start();
       dh->NPCResidual(b, x, x_tr, r, r_tr);
       sw.Stop();
-      Stage s_res{"NPC residual", "host (integrators)", sw.RealTime()};
+      // A query, for the same reason the assembly lines are: the batched
+      // local residual refuses an integrator it cannot weigh, silently, and
+      // its consumer is still the host element loop.
+      Stage s_res{"NPC residual",
+                  dh->CanBatchLocalResidual() ? "device kernel"
+                  : "host integrators", sw.RealTime()};
 
       sw.Clear();
       sw.Start();
@@ -236,6 +254,13 @@ int main(int argc, char *argv[])
       Stage s_grad{"NPC gradient (factor+Schur)",
                    dh->CanBatchLocalSolve() ? "device batched" : "host loop",
                    sw.RealTime()};
+      // The STATE-CARRYING face constraint, re-evaluated once per element
+      // per Newton step, which is a different question from the
+      // assembly-time s_face above. This problem's constraint is linear, so
+      // the honest answer is that there is no such term here.
+      Stage s_gface{"  of which NL constraint",
+                    dh->CanBatchNLFaceGrad() ? "device kernel"
+                    : "host or linear", 0.};
 
       sw.Clear();
       sw.Start();
@@ -318,6 +343,7 @@ int main(int argc, char *argv[])
       stages.Append(&s_fbdr);
       stages.Append(&s_res);
       stages.Append(&s_grad);
+      stages.Append(&s_gface);
       stages.Append(&s_red);
       stages.Append(&s_tr);
       stages.Append(&s_rec);
@@ -345,15 +371,28 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Four of this list's five bullets have been struck since it was written,
+   // each by a kernel that landed after it -- the NPC residual, the
+   // state-carrying face constraint, the flux mass boundary faces' scatter
+   // and ComputeElementH()'s face-PAIR loop. That is the same staleness the
+   // ledger above was carrying, so what is left is written as what the
+   // library REFUSES rather than as what nobody has built.
    cout << "What is NOT on the device:\n"
-        << "  * the NPC RESIDUAL's integrators, which run once per Newton\n"
-        << "    step and are the largest single item left;\n"
-        << "  * the flux mass boundary faces, and any face constraint the\n"
-        << "    kernel refuses -- a nonlinear one above all, which is not an\n"
-        << "    assembly-time term at all and needs a different loop;\n"
-        << "  * ComputeElementH()'s face-PAIR loop, which is why the\n"
-        << "    factorisation still reads its blocks back;\n"
-        << "  * the scatter into the trace SparseMatrix.\n";
+        << "  * the flux mass boundary faces' INTEGRATOR. The scatter is a\n"
+        << "    kernel, but no BilinearFormIntegrator in the library returns\n"
+        << "    the one-sided block of a vector L2 or an H(div) flux space,\n"
+        << "    so there is nothing for a quadrature kernel to dispatch on;\n"
+        << "  * any residual or face-constraint integrator the kernels\n"
+        << "    refuse -- a conductivity that is a host std::function of the\n"
+        << "    current potential above all. The ledger's own lines say\n"
+        << "    which of them THIS problem hits, and a linear constraint\n"
+        << "    reads as no such term rather than as a refusal;\n"
+        << "  * the scatter into the trace SparseMatrix;\n"
+        << "  * the readbacks. SyncLocalBlocksToHost() is still called from\n"
+        << "    the assembly and from the local-block routines, so the chain\n"
+        << "    returns to the host between groups -- COUNTED, not inferred:\n"
+        << "    nine call sites across darcyform.cpp and\n"
+        << "    darcyhybridization.cpp as this was written.\n";
 
    return 0;
 }

@@ -251,131 +251,123 @@ transformation setup. `LocalNLOperator`'s constructor and destructor alone --
 nine heap-allocated transformation objects per element per residual -- are 13%
 of `NPCResidual`, which is twice what its integrators cost.
 
-### The list, reordered
+### The list, corrected -- and its own ranking was wrong twice more
 
-1. ~~**`ComputeElementH()`'s face-PAIR loop.**~~ **DONE** -- see below.
+**Six of the nine are done: item 1 before this round, items 3, 5, 6 and 8 in
+it, and item 4 turns out to have been done in this tree already when the entry
+was written.** Every write-up is in the code, per this branch's rule. What is
+kept here is only what each one settled that THIS LIST had wrong, since that
+is the part a to-do list has to carry.
+
+1. ~~**`ComputeElementH()`'s face-PAIR loop.**~~ **DONE** --
+   `ComputeElementsHBatched()`, and see below.
+
 2. **The scatter into the trace `SparseMatrix`** -- `ScatterElementH` plus
-   `Finalize`/RAP, together 17-24% of the step and entirely host sparse work
-   that no device path can do as written. `GradientMode::MatrixFree` deletes it
-   outright, at the cost of an unpreconditioned trace solve; that trade is the
-   open research question in `doc/HDG-JACOBIAN-FREE-TRACE.md`.
-3. **The NPC residual's integrators**, 5-7%. Still worth doing -- everything
-   has to reach the device eventually -- but it cannot be justified on its own
-   numbers, and it should not be done before 1 and 2.
-4. **`LocalResidual`'s per-element scaffolding**, 13% of `NPCResidual`. Not a
-   kernel: `LocalNLOperator`'s constructor heap-allocates one
-   `IsoparametricTransformation` plus, per face, a `FaceElementTransformations`
-   and another `IsoparametricTransformation`, and calls
-   `mesh->GetFaceElementTransformations` TWICE per interior face -- once per
-   element per residual evaluation. `ConstructGrad` avoids all of it with
-   `TransWorkspace`; giving `LocalResidual` the same is the fix, and it is a
-   precondition for threading or offloading that loop at all.
-5. **The nonlinear face constraints.** This entry used to read "52 of the 88
-   references, the largest class by far", and **the linear-integrator half of it
-   is now DONE** -- see below. What is left is the genuinely state-carrying
-   part: `MixedConductionNLFIntegrator` (20 serial references) and
-   `HyperbolicFormIntegrator` (17), the latter being a different flux hierarchy
-   in `fem/hyperbolic.hpp` and a separate piece of work.
-6. **The flux mass boundary faces** (`DarcyForm::AssembleFluxMassBdrFaces`),
-   the one assembly loop on the hybridized path with no kernel. Small, and the
-   same shape as the potential-mass boundary one that does have one.
+   `Finalize`/RAP, together 17-24% of the step. **Now the largest open item,
+   and the claim that "no device path can do this as written" is withdrawn**:
+   `HybridizationExtension::ConstructH()` in `fem/hybridization_ext.cpp:316`
+   assembles a hybridization trace matrix on the device, 280 lines from this
+   one. It also needs no segmented reduction, which was the reason to think it
+   hard -- a trace dof's multiplicity is at most 2, so a static sparsity
+   pattern plus a per-nonzero gather map is the whole design, and MFEM has
+   both a reducer and CUB scan wrappers if one were ever wanted. Measured on
+   the gather: **13x on the host and 320-650x on the device**, bit-for-bit
+   identical, with cuDSS keeping H device-resident at 2.207e-16. About 300
+   lines, and not built. `GradientMode::MatrixFree` still deletes the item
+   outright at the cost of an unpreconditioned trace solve --
+   `doc/HDG-JACOBIAN-FREE-TRACE.md`.
+
+3. ~~**The NPC residual's integrators, 5-7%.**~~ **DONE** --
+   `CanBatchLocalResidual()`, 0.86x and 0.77x of the per-element integrator
+   inside `NPCResidual` at orders 2 and 3, interleaved through an environment
+   gate so no rebuild sits between the halves. The reason is not the batching:
+   the kernel is matrix free per point against ONE reference shape table for
+   the mesh, where `AssembleElementVector()` calls `CalcShape()` per element
+   per point. **Read the 5-7% row for what it is** -- it counts this item's
+   integrators only, and on 83 of the 88 references it is what the kernel now
+   takes; the FACE constraint's integrators are item 5 and are a different
+   number.
+
+4. ~~**`LocalResidual`'s per-element scaffolding, 13% of `NPCResidual`.**~~
+   **Already DONE when this entry was written**, and nothing had noticed:
+   `LocalNLOperator` and `LocalResidual()` both take a `TransWorkspace &`, so
+   the heap-allocated transformation objects per element per residual
+   evaluation are gone. Checked by reading the signatures, not remembered.
+
+5. ~~**The nonlinear face constraints.**~~ **DONE, and the entry named the
+   wrong integrator.** `MixedConductionNLFIntegrator` is unreachable as a
+   hybridized face constraint from every miniapp -- established by printing
+   which slot `EnableHybridization()` fills across all 152 serial references:
+   17 fill `c_nlfi_p` with a `SumNLFIntegrator` of `HDGDiffusionIntegrator`
+   and `HyperbolicFormIntegrator`, 5 fill `c_nlfi` with nothing in it, and
+   none at all reaches a `MixedConductionNLFIntegrator`. Nor was
+   `HyperbolicFormIntegrator` "a separate piece of work": all three families
+   are **two weight matrices per point**, D and G sharing one and E and H the
+   other, so one kernel covers them. Cost on a configuration that actually
+   carries a nonlinear constraint: **23% of the NPC step at order 2 and 17%
+   at order 3**, against the 5-7% this list quoted from references whose
+   constraint is LINEAR and assembled once. See `CanBatchNLFaceGrad()`.
+
+   **And it is the first step measured to beat the gate**: 1-4% slower at
+   order 2, 2-5% faster at order 3, three interleaved pairs per size. So "no
+   step of this plan can be landed alone and show a gain" is too strong, and
+   the crossover is the order trend arriving end to end -- the batchable share
+   of one pair is 58% / 64% / 78% at orders 2 / 3 / 5.
+
+   Two things found on the way that are NOT offload items. About half the
+   per-Newton constraint cost is the *linear* `HDGDiffusionIntegrator`,
+   re-evaluated every step only because it shares a form with the hyperbolic
+   one; hoisting it to `c_bfi_p` needs `c_bfi_p` and `c_nlfi_p` to coexist and
+   would make the existing assembly-time face kernel reachable there. And in
+   12 of the 20 `-nld -hb` references the block nonlinear form carries an
+   interior-face `MixedConductionNLFIntegrator` that `EnableHybridization()`
+   never reads -- a silent drop, which is a defect.
+
+6. ~~**The flux mass boundary faces.**~~ **DONE, and only half of it can ever
+   be a kernel.** No `BilinearFormIntegrator` in the library returns the
+   one-sided block of a vector L2 or an H(div) flux space, so there is nothing
+   for a quadrature kernel to dispatch on; what is batched is the SCATTER --
+   the mask that splits an element's block between Af and Ae -- and the
+   integrator stays on the host by necessity rather than by omission. One
+   thread per element, so a corner element's two faces are summed in the
+   loop's own order, which is what makes it bit-for-bit and why it needs no
+   atomics. **Nothing in this tree but the unit tests reaches the routine.**
+   See `AssembleFluxMassBdrMatricesBatched()`.
+
 7. **Parallel shared faces**, for the `FaceIsInterior()` reason above -- the
-   face kernels refuse `ParallelC()` outright today.
-8. **`vdim > 1` face constraint**, which `HDGDiffusionFaceMatricesCanBatch()`
-   refuses: the arithmetic per block is the same, the scatter indexing is not.
-   `navierstokes` is the caller that wants it.
+   face kernels refuse `ParallelC()` outright today. Unchanged, still open.
+
+8. ~~**`vdim > 1` face constraint.**~~ **DONE, and `navierstokes` is not the
+   caller.** It bypasses `DarcyOperator` entirely and cannot reach the
+   routine, so the item was two refusals rather than one.
+
 9. **Non-NPC problems**, for the H destination above: the kernel writes
-   `H_data` and the reduced route reads an assembled sparse `H`.
+   `H_data` and the reduced route reads an assembled sparse `H`. Unchanged.
 
-### DONE: `ComputeElementH()`'s face-PAIR loop batches
+**Two items larger than anything on this list, both found while measuring
+it, and neither an offload item.** `UMFPackSolver::SetOperator` is **38.5% of
+a run** -- the symbolic analysis recomputed per Newton step and used once,
+with the fix already written on `direct-solver-symbolic-reuse`. And **48 of
+70 references re-assemble a constant element matrix on every residual
+evaluation**, because the integrators are `BilinearFormIntegrator`s.
 
-`ComputeElementsHBatched()`, taken whenever `LocalFactorMode::Batched` is set
-and the mesh gives one face count per element and one trace size per face. The
-double loop is one matrix identity per element --
 
-    H_el = -C^T A^-1 C + (C^T A^-1 B^T + G) S^-1 (B A^-1 C - E)
+### The DONE items' write-ups are in the code, not here
 
-with `C` the element's trace blocks side by side -- so the whole thing is five
-`BatchedLinAlg` calls and four gather/pack kernels. Bit-for-bit the element
-loop in a build without LAPACK, which the tree's existing entrywise comparison
-of the assembled `H` already asserts. Numbers and the full write-up are on
-`ComputeElementsHBatched()`; the short form is 1.36-1.59x on the face-pair loop
-and 1.10-1.23x on `ComputeH`'s whole element-local half, with the end-to-end
-figure inside run-to-run scatter because the trace solve is 54-59% of a run.
+Two of them used to be spelled out at length in this file -- the face-PAIR
+loop batching and the linear-face-constraint routing -- and both are the kind
+of thing this branch keeps next to the code. `ComputeElementsHBatched()`
+carries the matrix identity, the nine-stage timing table and the finding that
+integer division in a kernel's index decomposition was 40% of the loop;
+`CanBatchPotFaceAssembly()` and `EnableHybridization()` carry the routing, its
+three refusals, and why reclassifying a genuinely linear problem gave a NaN in
+GMRES. The four kernels of this round are written up the same way, on the
+`CanBatch*` predicate and the `*Batched` routine each names.
 
-**Two corrections came out of building it, both to claims this branch had
-written down**, and both are in the doxygen where they belong:
+Not on the list above, deliberately, because they are done: the element
+blocks, the linear face constraints, the local factorisation and solves, and
+the trace solve.
 
-* `LocalFactorMode::Batched` **was a net LOSS before this**, 5-9% at every size.
-  The "0.553 s -> 0.416 s" that entry 1 used to quote is real and is only the
-  part that leaves `ComputeElementH()`; it never counted what
-  `FactorElementsBatched()` itself spends. A measurement of one half of a
-  change is not a measurement of the change.
-* The batched routes are **bit-for-bit** the element loop without LAPACK, and
-  `FactorElementsBatched()`'s doxygen said they were not. The test that refutes
-  it was already in the tree and passing.
-
-**Coverage, since a batched route that nothing runs is how this branch lost
-`FluxNL`'s Schur complement once already.** The tree's existing Serial-against-
-Batched cases reach the new code in `ComputeHMode::Linear` and `Gradient`,
-on quadrilaterals and now triangles, and they discriminate -- dropping `H_f`,
-dropping `E`/`G`, or transposing the pack each fail 9, 27 and 18 assertions.
-The one branch they did NOT reach is `LocalOpType::FluxNL`, where the Schur
-complement goes to `Sf_data`; `convdiff -nlu`, the only nonlinear-flux
-configuration in the regression set, comes out `FullNL` because a
-potential-mass HDG face term disqualifies `FluxNL`. That was established by
-printing `lop_type`, not by reading the condition, and it now has a fixture of
-its own that fails 8 assertions if the store is chosen wrongly.
-
-**And one finding that is not about HDG at all.** The first version was 1.9x
-SLOWER, and the cause was neither cache streaming (swept the chunk from 4 to
-1024 elements: no trend) nor the batched LU's single-right-hand-side loop
-(replaced it with a multi-RHS host solve: a wash). It was **integer division in
-the kernel index decomposition** -- one `mfem::forall` thread per output entry
-needs four divisions to recover `(i, j, face, element)`, and that was 0.37 s of
-a 0.95 s loop for kernels that only move 28 MB. One thread per BLOCK with inner
-loops leaves two divisions per block and cost 0.03 s. `TransposeBlocksScaled()`
-had the same shape and the same fix, which is most of why the factorisation
-half improved too. **Anywhere a `forall` decomposes a flat index into more than
-two components, that arithmetic is the kernel.**
-
-### DONE: a linear face constraint on a nonlinear form takes the linear route
-
-A caller whose potential mass is nonlinear must put it on a `NonlinearForm`,
-and the HDG face stabilization goes on the SAME form -- `convdiff` installs the
-identical `HDGDiffusionIntegrator` either way. `EnableHybridization()` used to
-take every such constraint as nonlinear, so E, G, H and D were rebuilt from the
-integrator once per element per Newton evaluation, and the batched face kernel
-was unreachable on any nonlinear problem (its gate,
-`PotFaceConstraintIntegrators()`, reads `c_bfi_p`).
-
-It now routes to `c_bfi_p` when every interior AND boundary face integrator on
-the form is a `BilinearFormIntegrator` and the problem is nonlinear for some
-other reason. Measured, `-p 1 -o 2 -dg -hb -nl -npc -nls 3` at 128x128 with a
-direct trace solve:
-
-| | before | after |
-|---|---|---|
-| `ConstructGrad` | 0.293 s | **0.081 s** |
-| `NPCResidual` | 0.619 s | **0.344 s** |
-| assembly (once) | 0.081 s | 0.152 s |
-| **whole solve** | **4.16 s** | **3.17 s** |
-
-and with `-bam` the report line goes from `face kernel taken: no` to
-**`face kernel taken: yes`** on a nonlinear problem, same answer to every digit
-(1.02089e-06 / 1.45682e-08). That is the device kernel reaching a class it
-could not reach before, which is worth more than the 24%.
-
-Two conditions on it, both found by measurement and both recorded in the code:
-`IsNonlinear()` reads `c_nlfi_p`, so moving the constraint off it can
-reclassify a problem as linear (`-p 1 -dg -hb -nl` really IS linear, and
-reclassifying it gave a NaN in GMRES); and `lop_type`'s `FluxNL` test reads
-`!c_nlfi_p`, so it needs `!c_bfi_p` too or a problem flips mode underneath the
-change.
-
-Not on this list, deliberately: the element blocks, the linear face
-constraints, the local factorisation and solves, and the trace solve. Those
-are done.
 
 ## The gate, before any of the steps
 
