@@ -103,6 +103,9 @@ struct MemoryIJData
 {
    Memory<HYPRE_Int> I, J;
    Memory<real_t> data;
+#if defined(HYPRE_MIXED_PRECISION) && defined(MFEM_USE_DOUBLE)
+   Memory<hypre_float> data_f;
+#endif
 };
 
 namespace internal
