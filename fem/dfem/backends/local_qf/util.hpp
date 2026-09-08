@@ -713,19 +713,67 @@ MFEM_HOST_DEVICE inline real_t qf_flat_gradient_gradient(const ARG &a, int c)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Number of trailing tensor extents spanned by the operator dimension of a
+/// field operator: 1 for Value and Gradient, 2 for Hessian.
+template <typename FOP>
+constexpr int qf_op_rank_v = is_hessian_fop_v<FOP> ? 2 : 1;
+
+/// Locate the `(vdim, op_dim)` component of a q-function argument.
+///
+/// `i` indexes vdim and `k` indexes the operator dimension. @a OP_RANK says
+/// how many trailing extents of `ARG` the operator dimension spans, so `k` is
+/// split across that many indices, row-major. The leading extent carries vdim
+/// exactly when `rank > OP_RANK`; otherwise vdim is 1 and `i` is always 0:
+///
+///   fop        ARG                        OP_RANK  rank  component
+///   Value      tensor<T,VDIM>             1        1     a(i)
+///   Gradient   tensor<T,DIM>              1        1     a(k)
+///   Gradient   tensor<T,VDIM,DIM>         1        2     a(i, k)
+///   Hessian    tensor<T,DIM,DIM>          2        2     a(k / D, k % D)
+///   Hessian    tensor<T,VDIM,DIM,DIM>     2        3     a(i, k / D, k % D)
+///
+/// Ranks 1 and 2 share the `a(i + k)` form because one of the two indices is
+/// then always 0; rank 0 has a single component.
+template <int OP_RANK, typename ARG>
+MFEM_HOST_DEVICE inline auto &qf_component_at(ARG &a, int i, int k)
+{
+   static_assert(OP_RANK == 1 || OP_RANK == 2,
+                 "operator dimension spans one or two tensor extents");
+   constexpr int RNK = qf_param_shape<std::remove_const_t<ARG>>::rank;
+   static_assert(RNK >= OP_RANK || RNK == 0, "argument rank below OP_RANK");
+   if constexpr (RNK == 0)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      return a(0);
+   }
+   else if constexpr (OP_RANK == 1)
+   {
+      if constexpr (RNK == 1) { return a(i + k); }
+      else { return a(i, k); }
+   }
+   else
+   {
+      // k runs over the product of the last two extents.
+      constexpr int el =
+         qf_param_shape<std::remove_const_t<ARG>>::extents[RNK - 1];
+      if constexpr (RNK == 2)
+      {
+         MFEM_CONTRACT_VAR(i);
+         return a(k / el, k % el);
+      }
+      else { return a(i, k / el, k % el); }
+   }
+}
+
 /// Two-index component access for a q-function argument.
 ///
-/// `i` indexes vdim, `k` indexes the operator dimension, matching the
-/// column-major packing `c = i + extents[0]*k` of the flat accessors above.
-/// Prefer these wherever the caller already has both indices: the flat form
-/// would have to undo the packing with an integer division, which is expensive
-/// on device and pointless when `(i, k)` are right there.
-///
-/// The runtime extents of the callers agree with the static extents of `ARG`:
-/// for rank 2, `vdim == extents[0]` and `op_dim == extents[1]`; for rank 1 one
-/// of the two is 1 and the corresponding index is always 0, so `a(i + k)`
-/// selects the right component; for rank 0 both are 1.
-template <typename ARG>
+/// Prefer these over the flat accessors above wherever the caller already has
+/// both indices. The flat form has to undo its packing with an integer
+/// division, which is expensive on device and pointless when `(i, k)` are
+/// right there, and its single flat index cannot address a Hessian at all: the
+/// operator dimension then spans two extents rather than one.
+template <int OP_RANK = 1, typename ARG>
 MFEM_HOST_DEVICE inline real_t qf_value_at(const ARG &a, int i, int k)
 {
    if constexpr (std::is_same_v<ARG, real_t> || is_dual_number<ARG>::value)
@@ -734,40 +782,24 @@ MFEM_HOST_DEVICE inline real_t qf_value_at(const ARG &a, int i, int k)
       MFEM_CONTRACT_VAR(k);
       return qf_store_value(a);
    }
-   else
-   {
-      constexpr int RNK = qf_param_shape<ARG>::rank;
-      if constexpr (RNK == 0)
-      {
-         MFEM_CONTRACT_VAR(i);
-         MFEM_CONTRACT_VAR(k);
-         return qf_store_value(a(0));
-      }
-      else if constexpr (RNK == 1) { return qf_store_value(a(i + k)); }
-      else { return qf_store_value(a(i, k)); }
-   }
+   else { return qf_store_value(qf_component_at<OP_RANK>(a, i, k)); }
 }
 
-template <typename ARG>
+template <int OP_RANK = 1, typename ARG>
 MFEM_HOST_DEVICE inline real_t qf_gradient_at(const ARG &a, int i, int k)
 {
+   // is_dual_number is also true for a nested dual; qf_store_gradient picks
+   // the right member for either.
    if constexpr (is_dual_number<ARG>::value)
    {
       MFEM_CONTRACT_VAR(i);
       MFEM_CONTRACT_VAR(k);
-      return a.gradient;
+      return qf_store_gradient(a);
    }
-   else if constexpr (qf_param_uses_dual_v<ARG>)
+   else if constexpr (qf_param_uses_dual_v<ARG> ||
+                      qf_param_uses_nested_dual_v<ARG>)
    {
-      constexpr int RNK = qf_param_shape<ARG>::rank;
-      if constexpr (RNK == 0)
-      {
-         MFEM_CONTRACT_VAR(i);
-         MFEM_CONTRACT_VAR(k);
-         return a(0).gradient;
-      }
-      else if constexpr (RNK == 1) { return a(i + k).gradient; }
-      else { return a(i, k).gradient; }
+      return qf_store_gradient(qf_component_at<OP_RANK>(a, i, k));
    }
    else
    {
@@ -779,7 +811,7 @@ MFEM_HOST_DEVICE inline real_t qf_gradient_at(const ARG &a, int i, int k)
    }
 }
 
-template <typename ARG>
+template <int OP_RANK = 1, typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_value_at(ARG &a, int i, int k, real_t v)
 {
    if constexpr (std::is_same_v<ARG, real_t>)
@@ -787,6 +819,12 @@ MFEM_HOST_DEVICE inline void qf_set_value_at(ARG &a, int i, int k, real_t v)
       MFEM_CONTRACT_VAR(i);
       MFEM_CONTRACT_VAR(k);
       a = v;
+   }
+   else if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      a.value.value = v;
    }
    else if constexpr (is_dual_number<ARG>::value)
    {
@@ -796,48 +834,34 @@ MFEM_HOST_DEVICE inline void qf_set_value_at(ARG &a, int i, int k, real_t v)
    }
    else
    {
-      constexpr int RNK = qf_param_shape<ARG>::rank;
-      constexpr bool D = qf_param_uses_dual_v<ARG>;
-      if constexpr (RNK == 0)
-      {
-         MFEM_CONTRACT_VAR(i);
-         MFEM_CONTRACT_VAR(k);
-         if constexpr (D) { a(0).value = v; }
-         else { a(0) = v; }
-      }
-      else if constexpr (RNK == 1)
-      {
-         if constexpr (D) { a(i + k).value = v; }
-         else { a(i + k) = v; }
-      }
-      else
-      {
-         if constexpr (D) { a(i, k).value = v; }
-         else { a(i, k) = v; }
-      }
+      auto &c = qf_component_at<OP_RANK>(a, i, k);
+      if constexpr (qf_param_uses_nested_dual_v<ARG>) { c.value.value = v; }
+      else if constexpr (qf_param_uses_dual_v<ARG>) { c.value = v; }
+      else { c = v; }
    }
 }
 
-template <typename ARG>
+template <int OP_RANK = 1, typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_gradient_at(ARG &a, int i, int k, real_t v)
 {
-   if constexpr (is_dual_number<ARG>::value)
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      a.gradient.value = v;
+   }
+   else if constexpr (is_dual_number<ARG>::value)
    {
       MFEM_CONTRACT_VAR(i);
       MFEM_CONTRACT_VAR(k);
       a.gradient = v;
    }
-   else if constexpr (qf_param_uses_dual_v<ARG>)
+   else if constexpr (qf_param_uses_nested_dual_v<ARG> ||
+                      qf_param_uses_dual_v<ARG>)
    {
-      constexpr int RNK = qf_param_shape<ARG>::rank;
-      if constexpr (RNK == 0)
-      {
-         MFEM_CONTRACT_VAR(i);
-         MFEM_CONTRACT_VAR(k);
-         a(0).gradient = v;
-      }
-      else if constexpr (RNK == 1) { a(i + k).gradient = v; }
-      else { a(i, k).gradient = v; }
+      auto &c = qf_component_at<OP_RANK>(a, i, k);
+      if constexpr (qf_param_uses_nested_dual_v<ARG>) { c.gradient.value = v; }
+      else { c.gradient = v; }
    }
    else
    {

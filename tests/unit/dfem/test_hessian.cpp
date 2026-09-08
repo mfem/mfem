@@ -213,26 +213,47 @@ void hessian_derivative_action(const char *filename, int p)
    static constexpr int U = 0;
    DifferentiableOperator dop({{U, &fes}}, {{U, &fes}}, pmesh);
    hessian_output_qf<DIM> qf;
-   constexpr auto kernels = DerivativeKernels::Action;
+   constexpr auto kernels = DerivativeKernels::Action |
+                            DerivativeKernels::Apply |
+                            DerivativeKernels::ApplyTranspose;
    dop.AddDomainIntegrator<LocalQFBackend, kernels>(
       qf, Inputs<Value<U>> {}, Outputs<Hessian<U>> {},
       *ir, all_domain_attr, Derivatives<U> {});
 
-   Vector x(fes.GetTrueVSize()), y(fes.GetTrueVSize()), z(fes.GetTrueVSize());
+   Vector x(fes.GetTrueVSize()), y_primal(fes.GetTrueVSize());
+   Vector y_action(fes.GetTrueVSize()), y_apply(fes.GetTrueVSize());
+   Vector y_transpose(fes.GetTrueVSize());
    x.Randomize(1);
    MultiVector X{x};
-   auto derivative = dop.GetDerivative(U, X);
+   // false: matrix-free derivative action, true: cached derivative apply.
+   auto action_derivative = dop.GetDerivative(U, X, false);
+   auto cached_derivative = dop.GetDerivative(U, X, true);
 
    Vector direction(fes.GetTrueVSize());
    direction.Randomize(2);
-   MultiVector action_output{z};
-   derivative->Mult(direction, action_output);
+   MultiVector action_output{y_action};
+   action_derivative->Mult(direction, action_output);
 
+   MultiVector apply_output{y_apply};
+   cached_derivative->Mult(direction, apply_output);
+
+   Vector cotangent(fes.GetTrueVSize());
+   cotangent.Randomize(3);
+   MultiVector cotangent_input{cotangent};
+   MultiVector transpose_output{y_transpose};
+   cached_derivative->MultTranspose(cotangent_input, transpose_output);
+
+   // The q-function is linear, so the derivative action in a direction is the
+   // primal action applied to that direction.
    MultiVector direction_input{direction};
-   MultiVector primal_output{y};
+   MultiVector primal_output{y_primal};
    dop.Mult(direction_input, primal_output);
-   REQUIRE(MaxAbsDiff(y, z, pmesh.GetComm()) ==
+   REQUIRE(MaxAbsDiff(y_primal, y_action, pmesh.GetComm()) ==
            MFEM_Approx(0.0).margin(1e-11));
+   REQUIRE(MaxAbsDiff(y_action, y_apply, pmesh.GetComm()) ==
+           MFEM_Approx(0.0).margin(1e-11));
+   REQUIRE(InnerProduct(pmesh.GetComm(), cotangent, y_apply) ==
+           MFEM_Approx(InnerProduct(pmesh.GetComm(), y_transpose, direction)));
 }
 
 /// Integrand of the right-hand side of the adjoint identity: the reference

@@ -51,12 +51,12 @@ class DerivativeApply
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
    const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
+   const std::array<const real_t *, n_inputs> input_B, input_G, input_H;
    const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
    // outputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_outputs> output_dtq;
    const std::array<size_t, n_outputs> output_idx;
-   const std::array<const real_t *, n_outputs> output_B, output_G;
+   const std::array<const real_t *, n_outputs> output_B, output_G, output_H;
    const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
@@ -91,9 +91,10 @@ class DerivativeApply
    static constexpr int StaticVDim()
    {
       constexpr int rank = ParamRank<slot>();
-      if constexpr (is_gradient_fop_v<fop_t>)
+      if constexpr (is_gradient_fop_v<fop_t> || is_hessian_fop_v<fop_t>)
       {
-         if constexpr (rank <= 1) { return 1; }
+         constexpr int op_rank = is_hessian_fop_v<fop_t> ? 2 : 1;
+         if constexpr (rank <= op_rank) { return 1; }
          else { return ParamExtent<slot, 0>(); }
       }
       else
@@ -107,7 +108,16 @@ class DerivativeApply
    static constexpr int StaticOpDim()
    {
       constexpr int rank = ParamRank<slot>();
-      if constexpr (is_gradient_fop_v<fop_t>)
+      if constexpr (is_hessian_fop_v<fop_t>)
+      {
+         if constexpr (rank < 2) { return 1; }
+         else
+         {
+            constexpr int first = rank == 2 ? 0 : 1;
+            return ParamExtent<slot, first>() * ParamExtent<slot, first + 1>();
+         }
+      }
+      else if constexpr (is_gradient_fop_v<fop_t>)
       {
          if constexpr (rank == 0) { return 1; }
          else if constexpr (rank == 1) { return ParamExtent<slot, 0>(); }
@@ -218,6 +228,7 @@ public:
                                          ctx.ir)),
       input_idx(create_input_vector_map(ctx, inputs)),
       input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
+      input_H(get_H(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       output_dtq(create_dtq_maps<Entity::Element>(
@@ -228,6 +239,7 @@ public:
                     ctx.ir)),
       output_idx(create_output_vector_map(ctx, outputs)),
       output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
+      output_H(get_H(output_dtq)),
       output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
@@ -283,6 +295,7 @@ public:
                    input_idx,
                    input_B,
                    input_G,
+                   input_H,
                    input_vdim,
                    input_d1d,
                    input_q1d,
@@ -292,6 +305,7 @@ public:
                    output_idx,
                    output_B,
                    output_G,
+                   output_H,
                    output_vdim,
                    output_d1d,
                    output_q1d,
@@ -346,6 +360,7 @@ public:
                              const std::array<size_t, n_inputs> & /*in_idx*/,
                              const std::array<const real_t *, n_inputs> in_B,
                              const std::array<const real_t *, n_inputs> in_G,
+                             const std::array<const real_t *, n_inputs> in_H,
                              const std::array<int, n_inputs> &in_vdim,
                              const std::array<int, n_inputs> &in_d1d,
                              const std::array<int, n_inputs> &in_q1d,
@@ -355,6 +370,7 @@ public:
                              const std::array<size_t, n_outputs> &out_idx,
                              const std::array<const real_t *, n_outputs> out_B,
                              const std::array<const real_t *, n_outputs> out_G,
+                             const std::array<const real_t *, n_outputs> out_H,
                              const std::array<int, n_outputs> &out_vdim,
                              const std::array<int, n_outputs> &out_d1d,
                              const std::array<int, n_outputs> &out_q1d,
@@ -401,7 +417,8 @@ public:
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
          if (!input_dep[i]) { return; }
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                       is_hessian_fop_v<FOP>)
          {
             in_XE_dir[i] = Reshape(d_direction, d, d, B2D ? 1 : d, v, ne);
          }
@@ -426,7 +443,8 @@ public:
          const size_t k = out_idx[i];
          const int d = out_d1d[i], q = out_q1d[i], v = out_vdim[i];
          using FOP = tuple_element_t<i, outputs_t>;
-         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
+         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP> ||
+                       is_hessian_fop_v<FOP>)
          {
             MFEM_VERIFY(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
             out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
@@ -473,7 +491,7 @@ public:
             if constexpr (!StaticInputDep<i>()) { return; }
             const auto &XE = in_XE_dir[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
+            const real_t *B = in_B[i], *G = in_G[i], *H = in_H[i];
             auto &sarg = get<i>(sargs);
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
@@ -490,6 +508,18 @@ public:
                                                 decltype(XE),
                                                 FieldParamT>(
                                                    smem, e, d, q, Q1D, B, G, XE, sarg);
+            }
+            else if constexpr (is_hessian_fop_v<FOP>)
+            {
+               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
+               using FieldParamT =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               backend_t::template LoadHessian<RNK,
+                                               decltype(sarg),
+                                               decltype(XE),
+                                               FieldParamT>(
+                                                  smem, e, d, q, Q1D,
+                                                  B, G, H, XE, sarg);
             }
             else if constexpr (is_identity_fop_v<FOP> || is_weight_fop_v<FOP>)
             {
@@ -537,6 +567,7 @@ public:
                      using FOP = tuple_element_t<o, outputs_t>;
                      using ARG =
                         typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
+                     constexpr int orank = qf_op_rank_v<FOP>;
                      constexpr int tv = StaticOutputVDim<o>();
                      constexpr int to = StaticOutputOpDim<o>();
                      constexpr int offset_o = StaticOutputOffset<o>();
@@ -561,6 +592,8 @@ public:
                               {
                                  constexpr int op_dim_s = StaticInputOpDim<s>();
                                  constexpr int m_offset = StaticInputOpOffset<s>();
+                                 using SFOP = tuple_element_t<s, inputs_t>;
+                                 constexpr int orank = qf_op_rank_v<SFOP>;
                                  const auto &dvec = get<s>(dvecs);
                                  MFEM_UNROLL(trial_vdim_ct)
                                  for (int j = 0; j < trial_vdim_ct; j++)
@@ -572,12 +605,12 @@ public:
                                           cache_row + j * total_trial_op_dim_ct +
                                           (m + m_offset);
                                        sum += cache_tensor(q, cache_idx, e) *
-                                              qf_value_at(dvec, j, m);
+                                              qf_value_at<orank>(dvec, j, m);
                                     }
                                  }
                               }
                            });
-                           qf_set_value_at(fhat, i, k, sum);
+                           qf_set_value_at<orank>(fhat, i, k, sum);
                         }
                      }
 
@@ -591,7 +624,7 @@ public:
                            for (int k = 0; k < to; k++)
                            {
                               YE(i + tv * k, qx, qy, qz, e) =
-                                 qf_value_at(fhat, i, k);
+                                 qf_value_at<orank>(fhat, i, k);
                            }
                         }
                      }
@@ -613,7 +646,7 @@ public:
          {
             constexpr size_t i = ic.value, o = n_inputs + i;
             const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
-            const auto B = out_B[i], G = out_G[i];
+            const auto B = out_B[i], G = out_G[i], H = out_H[i];
             auto &YE = out_YE[i];
             auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
@@ -630,6 +663,16 @@ public:
                constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
                backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
                   smem, e, d, q, Q1D, B, G, YE, rarg);
+            }
+            else if constexpr (is_hessian_fop_v<FOP>)
+            {
+               using YE_t = decltype(YE);
+               using rarg_t = decltype(rarg);
+               using qf_param_t =
+                  typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
+               backend_t::template WriteHessian<RNK, rarg_t, YE_t, qf_param_t>(
+                  smem, e, d, q, Q1D, B, G, H, YE, rarg);
             }
             else if constexpr (is_identity_fop_v<FOP>) { /* written at qp */ }
             else

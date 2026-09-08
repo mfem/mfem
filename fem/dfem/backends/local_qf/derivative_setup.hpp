@@ -50,7 +50,7 @@ class DerivativeSetup
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
    const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
+   const std::array<const real_t *, n_inputs> input_B, input_G, input_H;
    const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
@@ -84,6 +84,7 @@ public:
                    ctx.ir)),
       input_idx(create_input_vector_map(ctx, inputs)),
       input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
+      input_H(get_H(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
@@ -152,6 +153,7 @@ public:
                    input_idx,
                    input_B,
                    input_G,
+                   input_H,
                    input_vdim,
                    input_d1d,
                    input_q1d,
@@ -198,6 +200,7 @@ public:
                              const std::array<size_t, n_inputs> &in_idx,
                              const std::array<const real_t *, n_inputs> in_B,
                              const std::array<const real_t *, n_inputs> in_G,
+                             const std::array<const real_t *, n_inputs> in_H,
                              const std::array<int, n_inputs> &in_vdim,
                              const std::array<int, n_inputs> &in_d1d,
                              const std::array<int, n_inputs> &in_q1d,
@@ -238,7 +241,8 @@ public:
          const size_t k = in_idx[i];
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                       is_hessian_fop_v<FOP>)
          {
             MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
             in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
@@ -284,7 +288,7 @@ public:
             constexpr size_t i = ic.value;
             const auto &XE = in_XE[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
+            const real_t *B = in_B[i], *G = in_G[i], *H = in_H[i];
             auto &rarg = get<i>(rargs);
             using XE_t = decltype(XE);
             using rarg_t = decltype(rarg);
@@ -301,6 +305,14 @@ public:
                   typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
                backend_t::template LoadGradient<RNK, rarg_t, XE_t, FieldParamT>(
                   smem, e, d, q, q1d, B, G, XE, rarg);
+            }
+            else if constexpr (is_hessian_fop_v<FOP>)
+            {
+               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
+               using FieldParamT =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               backend_t::template LoadHessian<RNK, rarg_t, XE_t, FieldParamT>(
+                  smem, e, d, q, q1d, B, G, H, XE, rarg);
             }
             else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
             {
@@ -349,7 +361,8 @@ public:
                         parg = XE(qx, qy, qz, 0, 0);
                      }
                      else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
+                                        is_gradient_fop_v<FOP> ||
+                                        is_hessian_fop_v<FOP>)
                      {
                         parg = backend_t::template qp_pull<ARG>(
                            get<i>(rargs), qx, qy, qz);
@@ -380,7 +393,9 @@ public:
                            reset_output_args(primal_args);
 
                            args_tuple_t shadow_args {};
-                           qf_set_value_at(get<s>(shadow_args), j, m, 1.0);
+                           using SFOP = tuple_element_t<s, inputs_t>;
+                           constexpr int orank = qf_op_rank_v<SFOP>;
+                           qf_set_value_at<orank>(get<s>(shadow_args), j, m, 1.0);
 
                            call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
 
@@ -388,6 +403,8 @@ public:
                            {
                               constexpr size_t o = oc.value, ao = n_inputs + o;
                               const auto &tangent = get<ao>(shadow_args);
+                              using OFOP = tuple_element_t<o, outputs_t>;
+                              constexpr int orank = qf_op_rank_v<OFOP>;
                               const int tv = out_vdim[o], to = out_op_dim[o];
                               for (int i = 0; i < tv; i++)
                               {
@@ -398,7 +415,7 @@ public:
                                        row * trial_vdim * total_trial_op_dim +
                                        j * total_trial_op_dim + col_m;
                                     cache_tensor(q, cache_idx, e) =
-                                       qf_value_at(tangent, i, k);
+                                       qf_value_at<orank>(tangent, i, k);
                                  }
                               }
                            });
@@ -435,7 +452,8 @@ public:
                         qarg = XE(qx, qy, qz, 0, 0);
                      }
                      else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
+                                        is_gradient_fop_v<FOP> ||
+                                        is_hessian_fop_v<FOP>)
                      {
                         qarg = backend_t::template qp_pull<ARG>(
                            get<i>(rargs), qx, qy, qz);
@@ -465,7 +483,9 @@ public:
                            // so they are reset per seed.
                            reset_output_args(qargs);
 
-                           qf_set_gradient_at(get<s>(qargs), j, m, 1.0);
+                           using SFOP = tuple_element_t<s, inputs_t>;
+                           constexpr int orank = qf_op_rank_v<SFOP>;
+                           qf_set_gradient_at<orank>(get<s>(qargs), j, m, 1.0);
 
                            call_qfunc_no_move(qfunc, qargs);
 
@@ -473,6 +493,8 @@ public:
                            {
                               constexpr size_t o = oc.value, ao = n_inputs + o;
                               const auto &tangent = get<ao>(qargs);
+                              using OFOP = tuple_element_t<o, outputs_t>;
+                              constexpr int orank = qf_op_rank_v<OFOP>;
                               const int tv = out_vdim[o], to = out_op_dim[o];
                               for (int i = 0; i < tv; i++)
                               {
@@ -483,14 +505,14 @@ public:
                                        row * trial_vdim * total_trial_op_dim +
                                        j * total_trial_op_dim + col_m;
                                     cache_tensor(q, cache_idx, e) =
-                                       qf_gradient_at(tangent, i, k);
+                                       qf_gradient_at<orank>(tangent, i, k);
                                  }
                               }
                            });
 
                            // Clear the seed so the next direction starts from
                            // the pristine (zero-tangent) primal state.
-                           qf_set_gradient_at(get<s>(qargs), j, m, 0.0);
+                           qf_set_gradient_at<orank>(get<s>(qargs), j, m, 0.0);
                         }
                         m_offset += op_dim_s;
                      });
