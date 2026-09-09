@@ -13,6 +13,7 @@
 #include "mesh_test_utils.hpp"
 #include "unit_tests.hpp"
 
+#include <algorithm>
 #include <array>
 namespace mfem
 {
@@ -465,6 +466,45 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
          Mesh sttmp(stmp);
          sttmp.GeneralRefinement(serial_refines);
          REQUIRE(sttmp.GetNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
+
+         auto count_edge_face_slaves = [](const NCMesh::NCList &list)
+         {
+            int count = 0;
+            for (const auto &slave : list.slaves)
+            {
+               count += slave.index < 0;
+            }
+            return count;
+         };
+         const auto &serial_faces = sttmp.ncmesh->GetFaceList();
+         const auto &parallel_faces = ttmp.pncmesh->GetFaceList();
+         const int serial_slaves = count_edge_face_slaves(serial_faces);
+
+         std::vector<int> edge_face_edges;
+         for (const auto &slave : parallel_faces.slaves)
+         {
+            if (slave.index < 0)
+            {
+               edge_face_edges.push_back(slave.index);
+            }
+         }
+         std::sort(edge_face_edges.begin(), edge_face_edges.end());
+         const auto last =
+            std::unique(edge_face_edges.begin(), edge_face_edges.end());
+         const bool unique_edges = last == edge_face_edges.end();
+
+         const int expected_parallel_slaves =
+            ttmp.GetNE() ? (Mpi::WorldSize() > 1 ? 21 : 1) : 0;
+         const int parallel_slaves = static_cast<int>(edge_face_edges.size());
+         CAPTURE(serial_slaves, parallel_slaves, expected_parallel_slaves,
+                 unique_edges);
+         int valid_relations =
+            serial_slaves == 1 &&
+            parallel_slaves == expected_parallel_slaves &&
+            unique_edges;
+         MPI_Allreduce(MPI_IN_PLACE, &valid_relations, 1, MPI_INT, MPI_MIN,
+                       MPI_COMM_WORLD);
+         CHECK(valid_relations);
 
          // Loop over interior faces, fill and check face transform on the
          // serial.

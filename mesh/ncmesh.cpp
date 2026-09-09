@@ -3656,19 +3656,24 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
                              PointMatrix(pmid1, pmid2, pmid0),
                              level+1, matrix_map);
 
-      // Traverse possible tet edges constrained by the master face. This needs
-      // to occur if none of these first NC level faces are split further, OR if
-      // they are on different processors. The different processor constraint is
-      // needed in the case of local elements constrained by this face via the
-      // edge alone. Cannot know this a priori, so just constrain any edge
-      // attached to two neighbors.
-      if (HaveTets() && (!b[3].unsplit || b[3].ghost_neighbor))
+      // In parallel, child-face state is observer-relative: a rank can touch
+      // an interior edge without owning a slave face. Visit every possible tet
+      // edge so all ranks discover the same relations.
+      const bool all_edges = IsParallel();
+      if (HaveTets() && (all_edges || !b[3].unsplit || b[3].ghost_neighbor))
       {
-         // If the faces have no further splits, so would not be captured by
-         // normal face relations, add possible edge constraints.
-         if (!b[1].unsplit || b[1].ghost_neighbor) { TraverseTetEdge(mid[0],mid[1], pmid0,pmid1, matrix_map); }
-         if (!b[2].unsplit || b[2].ghost_neighbor) { TraverseTetEdge(mid[1],mid[2], pmid1,pmid2, matrix_map); }
-         if (!b[0].unsplit || b[0].ghost_neighbor) { TraverseTetEdge(mid[2],mid[0], pmid2,pmid0, matrix_map); }
+         if (all_edges || !b[1].unsplit || b[1].ghost_neighbor)
+         {
+            TraverseTetEdge(mid[0],mid[1], pmid0,pmid1, matrix_map);
+         }
+         if (all_edges || !b[2].unsplit || b[2].ghost_neighbor)
+         {
+            TraverseTetEdge(mid[1],mid[2], pmid1,pmid2, matrix_map);
+         }
+         if (all_edges || !b[0].unsplit || b[0].ghost_neighbor)
+         {
+            TraverseTetEdge(mid[2],mid[0], pmid2,pmid0, matrix_map);
+         }
       }
    }
    return {false, false};
