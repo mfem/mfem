@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -242,6 +242,10 @@ if (MFEM_USE_CUDA)
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
     set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
+    # some of these meshes aren't actually used right now,
+    # but add dependency just in case.
+    add_dependencies(gpu_unit_tests copy_miniapps_multidomain_data)
+    add_dependencies(gpu_unit_tests copy_miniapps_nurbs_data)
     target_link_libraries(gpu_unit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -257,6 +261,10 @@ if (MFEM_USE_HIP)
     # gpu_unit_tests
     set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
     mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
+    # some of these meshes aren't actually used right now,
+    # but add dependency just in case.
+    add_dependencies(gpu_unit_tests copy_miniapps_multidomain_data)
+    add_dependencies(gpu_unit_tests copy_miniapps_nurbs_data)
     target_link_libraries(gpu_unit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
     if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -284,6 +292,10 @@ function(add_serial_miniapp_test name test_uvm)
     endif(MFEM_USE_HIP)
 
     mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
+    # some of these meshes aren't actually used right now,
+    # but add dependency just in case.
+    add_dependencies(${name}_tests_cpu copy_miniapps_multidomain_data)
+    add_dependencies(${name}_tests_cpu copy_miniapps_nurbs_data)
     add_dependencies(${name}_tests_cpu copy_miniapps_meshing_data)
     add_dependencies(${name}_tests_cpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
     target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
@@ -294,6 +306,10 @@ function(add_serial_miniapp_test name test_uvm)
     endif()
 
     mfem_add_executable(${name}_tests_debug ${${NAME}_TESTS_SRCS})
+    # some of these meshes aren't actually used right now,
+    # but add dependency just in case.
+    add_dependencies(${name}_tests_debug copy_miniapps_multidomain_data)
+    add_dependencies(${name}_tests_debug copy_miniapps_nurbs_data)
     add_dependencies(${name}_tests_debug copy_miniapps_meshing_data)
     add_dependencies(${name}_tests_debug ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
     target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_DEVICE="debug")
@@ -305,6 +321,10 @@ function(add_serial_miniapp_test name test_uvm)
 
     if (MFEM_USE_CUDA OR MFEM_USE_HIP)
         mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
+        # some of these meshes aren't actually used right now,
+        # but add dependency just in case.
+        add_dependencies(${name}_tests_gpu copy_miniapps_multidomain_data)
+        add_dependencies(${name}_tests_gpu copy_miniapps_nurbs_data)
         add_dependencies(${name}_tests_gpu copy_miniapps_meshing_data)
         add_dependencies(${name}_tests_gpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
         target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
@@ -316,6 +336,10 @@ function(add_serial_miniapp_test name test_uvm)
 
         if (test_uvm)
             mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
+            # some of these meshes aren't actually used right now,
+            # but add dependency just in case.
+            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_multidomain_data)
+            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_nurbs_data)
             add_dependencies(${name}_tests_gpu_uvm copy_miniapps_meshing_data)
             add_dependencies(${name}_tests_gpu_uvm ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
             target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
@@ -347,6 +371,10 @@ if (MFEM_USE_CEED)
         set_property(SOURCE ${CEED_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
     mfem_add_executable(ceed_tests ${CEED_TESTS_SRCS})
+    # some of these meshes aren't actually used right now,
+    # but add dependency just in case.
+    add_dependencies(ceed_tests copy_miniapps_multidomain_data)
+    add_dependencies(ceed_tests copy_miniapps_nurbs_data)
     target_link_libraries(ceed_tests mfem)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ceed_tests)
     # Add CEED tests
@@ -371,6 +399,10 @@ if (MFEM_USE_MPI)
         set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)
     endif()
     mfem_add_executable(punit_tests punit_test_main.cpp)
+    # some of these meshes aren't actually used right now,
+    # but add dependency just in case.
+    add_dependencies(punit_tests copy_miniapps_multidomain_data)
+    add_dependencies(punit_tests copy_miniapps_nurbs_data)
     target_link_libraries(punit_tests unit_tests_srcs)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
     foreach(np 1 ${MFEM_MPI_NP})
@@ -387,6 +419,10 @@ if (MFEM_USE_MPI)
         set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
         mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
         target_link_libraries(pgpu_unit_tests unit_tests_srcs)
+        # some of these meshes aren't actually used right now,
+        # but add dependency just in case.
+        add_dependencies(pgpu_unit_tests copy_miniapps_multidomain_data)
+        add_dependencies(pgpu_unit_tests copy_miniapps_nurbs_data)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})
             if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -402,6 +438,10 @@ if (MFEM_USE_MPI)
         set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
         mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
         target_link_libraries(pgpu_unit_tests unit_tests_srcs)
+        # some of these meshes aren't actually used right now,
+        # but add dependency just in case.
+        add_dependencies(pgpu_unit_tests copy_miniapps_multidomain_data)
+        add_dependencies(pgpu_unit_tests copy_miniapps_nurbs_data)
         add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
         foreach(np 1 ${MFEM_MPI_NP})
             if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -427,6 +467,10 @@ function(add_mpi_executable_test name dev)
     target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_MPI=1)
     target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_DEVICE="${DEV}")
     target_link_libraries(p${name}_tests_${dev} mfem)
+    # some of these meshes aren't actually used right now,
+    # but add dependency just in case.
+    add_dependencies(p${name}_tests_${dev} copy_miniapps_multidomain_data)
+    add_dependencies(p${name}_tests_${dev} copy_miniapps_nurbs_data)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} p${name}_tests_${dev})
 endfunction(add_mpi_executable_test)
 
@@ -503,5 +547,9 @@ if (MFEM_USE_HIP)
 endif()
 mfem_add_executable(debug_device_tests ${DEBUG_DEVICE_SRCS})
 target_link_libraries(debug_device_tests mfem)
+# some of these meshes aren't actually used right now,
+# but add dependency just in case.
+add_dependencies(debug_device_tests copy_miniapps_multidomain_data)
+add_dependencies(debug_device_tests copy_miniapps_nurbs_data)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
 add_test(NAME debug_device_tests COMMAND debug_device_tests)
