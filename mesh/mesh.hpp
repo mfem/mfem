@@ -974,8 +974,13 @@ public:
        Quadrilaterals are split into two triangles, prisms are split into
        3 tetrahedra, and hexahedra are split into either 5 or 6 tetrahedra
        depending on the configuration.
-       @warning The curvature of the original mesh is not carried over to the
-       new mesh. Periodic meshes are not supported. */
+
+       @warning Although periodic meshes are supported, some periodic
+       configurations (such as periodic-hexagon.mesh) do not work because MFEM
+       requires edges to be uniquely identified by their endpoint vertices, and
+       so edge paths connecting periodic boundaries must have at least three
+       segments. MakeSimplicial inserts new diagonal edges that may violate this
+       condition. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.
