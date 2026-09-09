@@ -3396,9 +3396,15 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
    if (!IsVariableOrder())
    {
-      // face order can be different from fec->GetOrder()
+      const int dim = mesh->Dimension();
+
       Geometry::Type geom = mesh->GetFaceGeometry(face);
-      return fec->FiniteElementForGeometry(geom)->GetOrder();
+      const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
+      if (fe == nullptr)
+      {
+         MFEM_ABORT("GetFaceOrder is not defined for mesh dimention " << dim);
+      }
+      return fe->GetOrder();
    }
 
    if (face >= var_face_dofs.Size())
