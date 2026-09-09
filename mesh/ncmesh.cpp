@@ -3656,9 +3656,10 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
                              PointMatrix(pmid1, pmid2, pmid0),
                              level+1, matrix_map);
 
-      // In parallel, child-face state is observer-relative: a rank can touch
-      // an interior edge without owning a slave face. Visit every possible tet
-      // edge so all ranks discover the same relations.
+      // In parallel, also visit interior tet edges covered by local slave faces.
+      // Their owners can lack a local slave face and need the master face's
+      // interpolation rows. These records supply the owners to the master face
+      // and boundary-entity P-matrix communication groups.
       const bool all_edges = IsParallel();
       if (HaveTets() && (all_edges || !b[3].unsplit || b[3].ghost_neighbor))
       {

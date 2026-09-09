@@ -409,27 +409,6 @@ void ParNCMesh::BuildVertexList()
    Array<int> hanging_owner(nvertices);
    hanging_owner = INT_MAX;
 
-   Array<int> edge_node(NEdges + NGhostEdges);
-   edge_node = -1;
-   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
-   {
-      if (node->HasEdge() && node->edge_index >= 0 &&
-          node->edge_index < edge_node.Size())
-      {
-         edge_node[node->edge_index] = node.index();
-      }
-   }
-   auto edge_vertices = [&](int edge, int vertices[2])
-   {
-      if (edge < 0 || edge >= edge_node.Size() || edge_node[edge] < 0)
-      {
-         return false;
-      }
-      const Node &node = nodes[edge_node[edge]];
-      vertices[0] = nodes[node.p1].HasVertex() ? nodes[node.p1].vert_index : -1;
-      vertices[1] = nodes[node.p2].HasVertex() ? nodes[node.p2].vert_index : -1;
-      return vertices[0] >= 0 && vertices[1] >= 0;
-   };
    auto owner_rank = [&](int entity, int index, int nlocal)
    {
       // Group 0 on a ghost entity means its owner was not observed locally.
@@ -452,12 +431,14 @@ void ParNCMesh::BuildVertexList()
    int mv[4], me[4], mo[4], sv[4];
    for (const auto &master : edge_list.masters)
    {
-      if (!edge_vertices(master.index, mv)) { continue; }
+      GetEdgeVertices(master, mv);
       for (int i = master.slaves_begin; i < master.slaves_end; i++)
       {
          const Slave &slave = edge_list.slaves[i];
          const int owner = owner_rank(1, slave.index, NEdges);
-         if (!edge_vertices(slave.index, sv)) { continue; }
+         if (owner == INT_MAX) { continue; }
+         MFEM_ASSERT(slave.element >= 0, "observed slave edge has no element");
+         GetEdgeVertices(slave, sv);
          update_owner(sv[0], owner, mv, 2);
          update_owner(sv[1], owner, mv, 2);
       }
@@ -482,7 +463,9 @@ void ParNCMesh::BuildVertexList()
          {
             const int edge = FlipIndexSign(slave.index);
             const int owner = owner_rank(1, edge, NEdges);
-            if (!edge_vertices(edge, sv)) { continue; }
+            if (owner == INT_MAX) { continue; }
+            MFEM_ASSERT(slave.element >= 0, "observed edge-face slave has no element");
+            GetEdgeVertices(slave, sv);
             update_owner(sv[0], owner, mv, nmv);
             update_owner(sv[1], owner, mv, nmv);
          }
@@ -534,9 +517,9 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
             master_flag |= slave_flag;
             slave_flag |= master_old_flag;
          }
-         else // special case: prism edge-face constraint
+         else // special case: edge-face constraint
          {
-            if (entity_owner[1][FlipIndexSign(si)] != MyRank)
+            if (entity_owner[1][FlipIndexSign(si)] != 0)
             {
                master_flag |= 0x2;
             }

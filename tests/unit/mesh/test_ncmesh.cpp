@@ -419,6 +419,14 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
       REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
       REQUIRE(smesh.GetNE() == 8 + 1);
 
+      // This fixed-order collection has no DOFs on the extra edge-face records.
+      {
+         RT0_3DFECollection fec;
+         FiniteElementSpace fes(&smesh, &fec);
+         ParFiniteElementSpace pfes(&pmesh, &fec);
+         CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
+      }
+
       // Each pair of indices here represents sequential element indices to
       // refine. First the i element is refined, then in the resulting mesh the
       // j element is refined. These pairs were arrived at by looping over all
@@ -466,45 +474,6 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
          Mesh sttmp(stmp);
          sttmp.GeneralRefinement(serial_refines);
          REQUIRE(sttmp.GetNE() == 1 + 8 - 1 + 8 - 1 + 8); // 23 elements
-
-         auto count_edge_face_slaves = [](const NCMesh::NCList &list)
-         {
-            int count = 0;
-            for (const auto &slave : list.slaves)
-            {
-               count += slave.index < 0;
-            }
-            return count;
-         };
-         const auto &serial_faces = sttmp.ncmesh->GetFaceList();
-         const auto &parallel_faces = ttmp.pncmesh->GetFaceList();
-         const int serial_slaves = count_edge_face_slaves(serial_faces);
-
-         std::vector<int> edge_face_edges;
-         for (const auto &slave : parallel_faces.slaves)
-         {
-            if (slave.index < 0)
-            {
-               edge_face_edges.push_back(slave.index);
-            }
-         }
-         std::sort(edge_face_edges.begin(), edge_face_edges.end());
-         const auto last =
-            std::unique(edge_face_edges.begin(), edge_face_edges.end());
-         const bool unique_edges = last == edge_face_edges.end();
-
-         const int expected_parallel_slaves =
-            ttmp.GetNE() ? (Mpi::WorldSize() > 1 ? 21 : 1) : 0;
-         const int parallel_slaves = static_cast<int>(edge_face_edges.size());
-         CAPTURE(serial_slaves, parallel_slaves, expected_parallel_slaves,
-                 unique_edges);
-         int valid_relations =
-            serial_slaves == 1 &&
-            parallel_slaves == expected_parallel_slaves &&
-            unique_edges;
-         MPI_Allreduce(MPI_IN_PLACE, &valid_relations, 1, MPI_INT, MPI_MIN,
-                       MPI_COMM_WORLD);
-         CHECK(valid_relations);
 
          // Loop over interior faces, fill and check face transform on the
          // serial.
@@ -650,7 +619,7 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
 
 } // test case
 
-TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
+TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
 {
    if (Mpi::WorldSize() < 3) { return; }
 
@@ -662,27 +631,173 @@ TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
    smesh.GeneralRefinement(ref);
    REQUIRE(smesh.GetNE() == 15);
 
-   H1_FECollection fec(1, 3);
-   FiniteElementSpace fes(&smesh, &fec);
-   const auto serial_ntdof = fes.GetTrueVSize();
-
-   const std::array<int, 15> base =
-   {2, 2, 1, 2, 0, 1, 2, 2, 0, 2, 1, 1, 2, 1, 0};
-   std::array<int, 3> labels = {0, 1, 2};
-   do
+   // On a nonzero rank, self ownership is still group 0. Entirely local
+   // master/slave relations must not be classified as shared.
    {
-      Array<int> partition(static_cast<int>(base.size()));
-      for (int i = 0; i < partition.Size(); i++)
-      {
-         partition[i] = labels[base[i]];
-      }
-
-      CAPTURE(labels[0], labels[1], labels[2]);
-      ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.GetData());
-      ParFiniteElementSpace pfes(&pmesh, &fec);
-      CHECK(pfes.GlobalTrueVSize() == serial_ntdof);
+      Array<int> local_partition(smesh.GetNE());
+      local_partition = 1;
+      ParMesh local(MPI_COMM_WORLD, smesh, local_partition.GetData());
+      int shared = local.GetNE() ? local.pncmesh->GetSharedFaces().masters.Size() : 0;
+      MPI_Allreduce(MPI_IN_PLACE, &shared, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      CHECK(shared == 0);
    }
-   while (std::next_permutation(labels.begin(), labels.end()));
+
+   // Rank 0 owns an interior edge of a slave face local to rank 2, but
+   // does not own a slave face supplying that edge's constraint.
+   const std::array<int, 15> partition =
+   {0, 1, 2, 1, 0, 1, 1, 0, 2, 2, 0, 2, 1, 0, 0};
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.data());
+   auto &nc = *pmesh.pncmesh;
+   const auto &faces = nc.GetFaceList();
+   const auto &edges = nc.GetEdgeList();
+
+   int checked = 0, missing = 0;
+   for (const auto &master : faces.masters)
+   {
+      if (nc.IsGhost(2, master.index)) { continue; }
+      int mv[4], me[4], mo[4];
+      const int nmv = nc.GetFaceVerticesEdges(master, mv, me, mo);
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const auto &slave = faces.slaves[i];
+         if (slave.index < 0 || nc.IsGhost(2, slave.index)) { continue; }
+         int sv[4], se[4], so[4];
+         const int nsv = nc.GetFaceVerticesEdges(slave, sv, se, so);
+         for (int j = 0; j < nsv; j++)
+         {
+            const int edge = se[j];
+            if (std::find(me, me + nmv, edge) != me + nmv) { continue; }
+            const auto type = edges.GetMeshIdAndType(edge).type;
+            if (type != NCMesh::NCList::MeshIdType::MASTER &&
+                type != NCMesh::NCList::MeshIdType::CONFORMING) { continue; }
+
+            // Infer the required recipient from ordinary slave-face edges,
+            // independently of whether an edge-face record was discovered.
+            const int owner = nc.GetGroup(nc.GetEntityOwnerId(1, edge))[0];
+            checked++;
+            const auto group = nc.GetEntityGroupId(2, master.index);
+            missing += !nc.GroupContains(group, owner);
+         }
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &missing, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(checked > 0);
+   // Fail collectively before space construction can wait for a missing row.
+   REQUIRE(missing == 0);
+
+   ND_FECollection fec(2, 3);
+   FiniteElementSpace fes(&smesh, &fec);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
+}
+
+TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
+{
+   if (Mpi::WorldSize() < 3) { return; }
+
+   auto check_ownership = [](Mesh &smesh, const Array<int> &base)
+   {
+      std::array<int, 3> labels = {0, 1, 2};
+      do
+      {
+         Array<int> partition(base.Size());
+         for (int i = 0; i < partition.Size(); i++)
+         {
+            partition[i] = labels[base[i]];
+         }
+
+         CAPTURE(labels[0], labels[1], labels[2]);
+         ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.GetData());
+         for (int order : {1, 2, 3})
+         {
+            CAPTURE(order);
+            H1_FECollection fec(order, smesh.Dimension());
+            FiniteElementSpace fes(&smesh, &fec);
+            ParFiniteElementSpace pfes(&pmesh, &fec);
+            CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
+            if (order != 1) { continue; }
+
+            // Copy each serial P1 nodal basis to all its parallel copies and
+            // compare P R, including hanging vertices. Affine fields alone
+            // can conceal a spurious true DOF.
+            GridFunction serial_values(&fes);
+            Vector true_values;
+            int finite = 1;
+            real_t error = 0.0;
+            for (int i = 0; i < fes.GetVSize(); i++)
+            {
+               serial_values = 0.0;
+               serial_values[i] = 1.0;
+               ParGridFunction actual(&pmesh, &serial_values, partition.GetData());
+               actual.GetTrueDofs(true_values);
+               actual.SetFromTrueDofs(true_values);
+               serial_values.GetTrueDofs(true_values);
+               serial_values.SetFromTrueDofs(true_values);
+               ParGridFunction expected(&pmesh, &serial_values, partition.GetData());
+               actual -= expected;
+               if (actual.CheckFinite()) { finite = 0; }
+               else { error = std::max(error, actual.Normlinf()); }
+            }
+            MPI_Allreduce(MPI_IN_PLACE, &finite, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPITypeMap<real_t>::mpi_type,
+                          MPI_MAX, MPI_COMM_WORLD);
+            CHECK(finite);
+            CHECK(error == MFEM_Approx(0.0));
+         }
+      }
+      while (std::next_permutation(labels.begin(), labels.end()));
+   };
+
+   SECTION("VertexFan")
+   {
+      Mesh smesh("../../data/ref-tetrahedron.mesh");
+      smesh.UniformRefinement();
+      smesh.EnsureNCMesh(true);
+      smesh.GeneralRefinement(Array<int>({0}));
+      REQUIRE(smesh.GetNE() == 15);
+      const Array<int> partition({2, 2, 1, 2, 0, 1, 2, 2, 0, 2, 1, 1, 2, 1, 0});
+      check_ownership(smesh, partition);
+   }
+
+   SECTION("Edge")
+   {
+      // The central child (3) touches the diagonal midpoint but holds neither
+      // constraining half-edge. Both half-edges are held by rank 1.
+      Mesh smesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+      smesh.EnsureNCMesh(true);
+      smesh.GeneralRefinement(Array<int>({0}));
+      REQUIRE(smesh.GetNE() == 5);
+      const Array<int> partition({1, 1, 2, 0, 2});
+      check_ownership(smesh, partition);
+   }
+
+   SECTION("Face")
+   {
+      // Two tetrahedra share z=0. Refine both children incident on the edge
+      // [(0,1/2,0),(1/2,1/2,0)] so its midpoint has no constraining master edge.
+      Mesh smesh(3, 5, 2, 0);
+      smesh.AddVertex(0, 0, 0);
+      smesh.AddVertex(1, 0, 0);
+      smesh.AddVertex(0, 1, 0);
+      smesh.AddVertex(0, 0, 1);
+      smesh.AddVertex(0, 0, -1);
+      smesh.AddTet(0, 1, 2, 3);
+      smesh.AddTet(0, 2, 1, 4);
+      smesh.FinalizeTetMesh(1, 0, true);
+      smesh.EnsureNCMesh(true);
+      smesh.GeneralRefinement(Array<int>({0}));
+      smesh.GeneralRefinement(Array<int>({2, 7}));
+      REQUIRE(smesh.GetNE() == 23);
+
+      // Element 20 touches the coarse face only at (1/4,1/2,0); element 22
+      // is the lower tetrahedron. Rank 1 holds all constraining slave faces.
+      Array<int> partition(smesh.GetNE());
+      partition = 1;
+      partition[20] = 0;
+      partition[22] = 2;
+      check_ownership(smesh, partition);
+   }
 }
 
 TEST_CASE("P2Q1PureTetHexPri",  "[Parallel], [NCMesh]")
