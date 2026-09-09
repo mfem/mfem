@@ -28,7 +28,7 @@ class ElementTransformation
 {
 protected:
    const IntegrationPoint *IntPoint;
-   DenseMatrix dFdx, adjJ, invJ;
+   DenseMatrix dFdx, adjJ, invJ, Gij;
    DenseMatrix d2Fdx2, adjJT;
    real_t Wght;
    int EvalState;
@@ -39,7 +39,8 @@ protected:
       ADJUGATE_MASK = 4,
       INVERSE_MASK  = 8,
       HESSIAN_MASK  = 16,
-      TRANS_ADJUGATE_MASK = 32
+      TRANS_ADJUGATE_MASK = 32,
+      METRIC_MASK = 64
    };
    Geometry::Type geom;
 
@@ -55,6 +56,7 @@ protected:
    const DenseMatrix &EvalAdjugateJ();
    const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
+   const DenseMatrix &EvalMetric();
 
    /// @name Tolerance used for point comparisons
    ///@{
@@ -157,6 +159,11 @@ public:
         at the currently set IntegrationPoint. */
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
+
+   /** @brief Return the metric tensor of the transformation
+        at the currently set IntegrationPoint. */
+   const DenseMatrix &Metric()
+   { return (EvalState & METRIC_MASK) ? Gij : EvalMetric(); }
 
    /// Return the order of the current element we are using for the transformation.
    virtual int Order() const = 0;

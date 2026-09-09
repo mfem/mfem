@@ -68,6 +68,20 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    return invJ;
 }
 
+const DenseMatrix &ElementTransformation::EvalMetric()
+{
+   MFEM_ASSERT((EvalState & METRIC_MASK) == 0, "");
+   InverseJacobian();
+   DenseMatrix invJP(dFdx.Height());
+   Geometries.InvJacToInvPerfJac(geom, invJ, invJP);
+
+   Gij.SetSize(dFdx.Height(), dFdx.Height());
+   MultAtB(invJP, invJP, Gij);
+
+   EvalState |= METRIC_MASK;
+   return Gij;
+}
+
 int InverseElementTransformation::FindClosestPhysPoint(
    const Vector& pt, const IntegrationRule &ir)
 {
