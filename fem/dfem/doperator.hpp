@@ -763,7 +763,8 @@ public:
          f(static_cast<int>(out_field_id), *daction_e[diagonal_idx]);
       }
 
-      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+
+      restriction_transpose_abs(outfds, out_rcache, daction_e, daction_l);
       prolongation_transpose(outfds[diagonal_idx],
                              *daction_l[diagonal_idx], diag);
    }

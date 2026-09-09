@@ -2381,6 +2381,47 @@ void restriction_transpose(
    }
 }
 
+/// @brief Apply the transposed restrictions of @a fields, using @a cache to
+/// avoid re-resolving them on every call, and ignoring the signs
+/// that come from dof orientation.
+///
+/// (Equivalent of ElementRestriction::AbsMultTranspose used in AssembleDiagonal)
+/// @see RestrictionCache
+template <typename entity_t>
+void restriction_transpose_abs(
+   const std::vector<FieldDescriptor> &fields,
+   RestrictionCache<entity_t> &cache,
+   const std::vector<Vector *> &x_e,
+   std::vector<Vector *> &x_l)
+{
+   cache.EnsureSetup(fields);
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      const Operator *R = cache.Get(i);
+
+      if (R == nullptr || cache.IsPassthrough(i))
+      {
+         if (x_l[i] != nullptr && x_l[i] != x_e[i]) { delete x_l[i]; }
+         x_l[i] = x_e[i];
+         continue;
+      }
+
+      const int s = cache.Width(i);
+      if (x_l[i] == x_e[i]) { x_l[i] = nullptr; }
+      if (x_l[i] == nullptr) { x_l[i] = new Vector(s); }
+      x_l[i]->SetSize(s);
+
+      if (const auto *ER = dynamic_cast<const ElementRestriction *>(R))
+      {
+         ER->AbsMultTranspose(*x_e[i], *x_l[i]);
+      }
+      else
+      {
+         R->MultTranspose(*x_e[i], *x_l[i]);
+      }
+   }
+}
+
 inline
 void get_lvectors(const std::vector<FieldDescriptor> &fields,
                   const Vector &x,
