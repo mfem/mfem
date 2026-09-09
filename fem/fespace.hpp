@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1098,7 +1098,7 @@ public:
    /// default value), then the number of Dofs is <determined by the
    /// FiniteElementSpace::GetNDofs().
    ///
-   /// @note The @a dofs array is overwritten and resized to accomodate the
+   /// @note The @a dofs array is overwritten and resized to accommodate the
    /// new values.
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
 
@@ -1438,11 +1438,11 @@ public:
        attribute @a bdr_attrs[i]. */
    void GetBoundaryElementsByAttribute(
       const Array<int> &bdr_attrs,
-      std::vector<Array<int>> &attr_to_elements);
+      std::vector<Array<int>> &attr_to_elements) const;
 
    /** @brief Get all boundary elements with a specific attribute. */
    void GetBoundaryElementsByAttribute(int bdr_attr,
-                                       Array<int> &boundary_elements);
+                                       Array<int> &boundary_elements) const;
 
    /** @brief Compute edge orientations relative to a boundary loop direction.
 

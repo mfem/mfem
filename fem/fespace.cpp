@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -4066,8 +4066,6 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
    }
    ceed::RemoveBasisAndRestriction(this);
-
-
 }
 
 void FiniteElementSpace::DestroyDoFTransArray()
@@ -4627,7 +4625,7 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
 
 void FiniteElementSpace::GetBoundaryElementsByAttribute(
    const Array<int> &bdr_attrs,
-   std::vector<Array<int>> &attr_to_elements)
+   std::vector<Array<int>> &attr_to_elements) const
 {
    // One (initially empty) list of boundary elements per requested attribute,
    // indexed to match bdr_attrs.
@@ -4652,8 +4650,8 @@ void FiniteElementSpace::GetBoundaryElementsByAttribute(
    }
 }
 
-void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
-                                                        Array<int> &boundary_elements)
+void FiniteElementSpace::GetBoundaryElementsByAttribute(
+   int bdr_attr, Array<int> &boundary_elements) const
 {
    boundary_elements.SetSize(0);
 

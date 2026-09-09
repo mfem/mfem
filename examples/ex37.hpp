@@ -261,8 +261,8 @@ public:
    void SetDiffusionCoefficient(Coefficient * diffcf_) { diffcf = diffcf_; }
    void SetMassCoefficient(Coefficient * masscf_) { masscf = masscf_; }
    void SetRHSCoefficient(Coefficient * rhscf_) { rhscf = rhscf_; }
-   void SetEssentialBoundary(const Array<int> & ess_bdr_) { ess_bdr = ess_bdr_;};
-   void SetNeumannBoundary(const Array<int> & neumann_bdr_) { neumann_bdr = neumann_bdr_;};
+   void SetEssentialBoundary(const Array<int> & ess_bdr_) { ess_bdr = ess_bdr_; }
+   void SetNeumannBoundary(const Array<int> & neumann_bdr_) { neumann_bdr = neumann_bdr_; }
    void SetNeumannData(Coefficient * neumann_cf_) {neumann_cf = neumann_cf_;}
    void SetEssBdrData(Coefficient * essbdr_cf_) {essbdr_cf = essbdr_cf_;}
    void SetGradientData(VectorCoefficient * gradient_cf_) {gradient_cf = gradient_cf_;}
@@ -346,8 +346,8 @@ public:
    void SetOrder(int order_) { order = order_ ; }
    void SetLameCoefficients(Coefficient * lambda_cf_, Coefficient * mu_cf_) { lambda_cf = lambda_cf_; mu_cf = mu_cf_;  }
    void SetRHSCoefficient(VectorCoefficient * rhs_cf_) { rhs_cf = rhs_cf_; }
-   void SetEssentialBoundary(const Array<int> & ess_bdr_) { ess_bdr = ess_bdr_;};
-   void SetNeumannBoundary(const Array<int> & neumann_bdr_) { neumann_bdr = neumann_bdr_;};
+   void SetEssentialBoundary(const Array<int> & ess_bdr_) { ess_bdr = ess_bdr_; }
+   void SetNeumannBoundary(const Array<int> & neumann_bdr_) { neumann_bdr = neumann_bdr_; }
    void SetEssBdrData(VectorCoefficient * essbdr_cf_) {essbdr_cf = essbdr_cf_;}
 
    void ResetFEM();
@@ -449,7 +449,7 @@ real_t proj(GridFunction &psi, GridFunction &alpha_grad, real_t target_volume,
    {
       c = (f_a * b - f_b * a) / (f_a - f_b);
 
-      if (abs(b - a) < tol * abs(b + a)) { done = true; break; }
+      if (std::fabs(b - a) < tol * std::fabs(b + a)) { done = true; break; }
 
       y = c;
       int_sigmoid_psi->Assemble();

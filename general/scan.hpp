@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,15 +49,15 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
       size_t bytes = workspace.Size();
       if (bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
-                       workspace.Write(), bytes, d_in, d_out, num_items);
+         auto error = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
+                         workspace.Write(), bytes, d_in, d_out, num_items);
 #if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
+         if (error == cudaSuccess)
          {
             return;
          }
 #elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
+         if (error == hipSuccess)
          {
             return;
          }
@@ -113,15 +113,15 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       size_t bytes = workspace.Size();
       if (bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, num_items);
+         auto error = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
+                         workspace.Write(), bytes, d_in, d_out, scan_op, num_items);
 #if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
+         if (error == cudaSuccess)
          {
             return;
          }
 #elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
+         if (error == hipSuccess)
          {
             return;
          }
@@ -176,16 +176,16 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       size_t bytes = workspace.Size();
       if (bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
-                       num_items);
+         auto error = MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
+                         workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
+                         num_items);
 #if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
+         if (error == cudaSuccess)
          {
             return;
          }
 #elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
+         if (error == hipSuccess)
          {
             return;
          }
@@ -250,16 +250,16 @@ void CopyFlagged(bool use_dev, InputIt d_in, FlagIt d_flags, OutputIt d_out,
       size_t bytes = workspace.Size();
       if (bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceSelect::Flagged(
-                       workspace.Write(), bytes, d_in, d_flags, d_out, d_num_selected_out,
-                       num_items);
+         auto error = MFEM_CUB_NAMESPACE::DeviceSelect::Flagged(
+                         workspace.Write(), bytes, d_in, d_flags, d_out, d_num_selected_out,
+                         num_items);
 #if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
+         if (error == cudaSuccess)
          {
             return;
          }
 #elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
+         if (error == hipSuccess)
          {
             return;
          }
@@ -318,16 +318,16 @@ void CopyIf(bool use_dev, InputIt d_in, OutputIt d_out,
       size_t bytes = workspace.Size();
       if (bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceSelect::If(
-                       workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
-                       num_items, select_op);
+         auto error = MFEM_CUB_NAMESPACE::DeviceSelect::If(
+                         workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
+                         num_items, select_op);
 #if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
+         if (error == cudaSuccess)
          {
             return;
          }
 #elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
+         if (error == hipSuccess)
          {
             return;
          }
@@ -377,16 +377,16 @@ void CopyUnique(bool use_dev, InputIt d_in, OutputIt d_out,
       size_t bytes = workspace.Size();
       if (bytes)
       {
-         auto err = MFEM_CUB_NAMESPACE::DeviceSelect::Unique(
-                       workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
-                       num_items);
+         auto error = MFEM_CUB_NAMESPACE::DeviceSelect::Unique(
+                         workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
+                         num_items);
 #if defined(MFEM_USE_CUDA)
-         if (err == cudaSuccess)
+         if (error == cudaSuccess)
          {
             return;
          }
 #elif defined(MFEM_USE_HIP)
-         if (err == hipSuccess)
+         if (error == hipSuccess)
          {
             return;
          }

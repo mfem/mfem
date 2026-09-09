@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -40,7 +40,7 @@ namespace Ginkgo
 
 template <typename T> using gko_array = gko::array<T>;
 #if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
-// for inter-operability with hypre integer types
+// for interoperability with hypre integer types
 using gko_hypre_int =
    std::conditional_t<sizeof(HYPRE_Int) == sizeof(std::int32_t), std::int32_t,
    std::conditional_t<sizeof(HYPRE_Int) == sizeof(std::int64_t), std::int64_t, void>>;
@@ -52,6 +52,13 @@ static_assert(!std::is_void_v<gko_hypre_int>,
 static_assert(!std::is_void_v<gko_hypre_bigint>,
               "HYPRE_BigInt type is incompatible with Ginkgo");
 #endif
+
+/**
+* @defgroup Ginkgo Ginkgo interface
+*
+* @brief Wrappers for using the Ginkgo library of high-performance linear
+* solvers and preconditioners with MFEM.
+*/
 
 /**
 * Helper class for a case where a wrapped MFEM Vector
@@ -473,7 +480,7 @@ real_t compute_norm(const VecType *b)
  * Custom gko::log::Logger base class for logging the final residual norm and
  * iteration count. This is necessary because some solvers (e.g., IR) will not
  * have the final residual available if they stop due to reaching maximum
- * iterations prior to convergance, and the standard Convergence logger will not
+ * iterations prior to convergence, and the standard Convergence logger will not
  * respect the use of derived types (VectorWrapper/ParallelVectorWrapper) when
  * computing the final residual.
  *
@@ -655,7 +662,7 @@ private:
  * to the solvers) residual norms.
  *
  * This base class should not be used directly; solvers should use
- * EnableConvergenceLogger, which has vector type as a template parameter,
+ * EnableResidualLogger, which has vector type as a template parameter,
  * instead.
  *
  * @ingroup Ginkgo
@@ -888,7 +895,7 @@ public:
     * Constructor.
     * Takes an @p GinkgoExecType argument and creates an Executor.
     * In Ginkgo, GPU Executors must have an associated host Executor.
-    * This routine allows for explicite setting of the CPU Executor
+    * This routine allows for explicit setting of the CPU Executor
     * for GPU backends.
     */
    GinkgoExecutor(ExecType exec_type, ExecType host_exec_type);
@@ -1086,7 +1093,7 @@ public:
    void SetOperator(const Operator &op) override;
 
    /**
-    * Solve the linear system <tt>Ax=y</tt>. Dependent on the information
+    * Solve the linear system <tt>Ay=x</tt>. Dependent on the information
     * provided by derived classes one of Ginkgo's linear solvers is chosen.
     */
    void Mult(const Vector &x, Vector &y) const override;
