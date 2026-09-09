@@ -18,6 +18,7 @@
 #include "../general/binaryio.hpp"
 #include "../general/communication.hpp"
 
+#include <algorithm>
 #include <numeric> // std::accumulate
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
@@ -383,6 +384,9 @@ void ParNCMesh::BuildVertexList()
    // This is an extension of NCMesh::BuildVertexList() which also determines
    // vertex ownership and creates vertex processor groups.
 
+   GetEdgeList();
+   if (Dim >= 3) { GetFaceList(); }
+
    int nvertices = NVertices + NGhostVertices;
 
    tmp_owner.SetSize(nvertices);
@@ -398,6 +402,96 @@ void ParNCMesh::BuildVertexList()
    entity_elem_local[0] = -1;
 
    NCMesh::BuildVertexList();
+
+   // A hanging vertex must be owned by a rank that holds a constraining slave
+   // locally. Every vertex toucher has all vertex-neighbor elements in its
+   // ghost layer, so all touchers see the same relevant slave owners.
+   Array<int> hanging_owner(nvertices);
+   hanging_owner = INT_MAX;
+
+   Array<int> edge_node(NEdges + NGhostEdges);
+   edge_node = -1;
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      if (node->HasEdge() && node->edge_index >= 0 &&
+          node->edge_index < edge_node.Size())
+      {
+         edge_node[node->edge_index] = node.index();
+      }
+   }
+   auto edge_vertices = [&](int edge, int vertices[2])
+   {
+      if (edge < 0 || edge >= edge_node.Size() || edge_node[edge] < 0)
+      {
+         return false;
+      }
+      const Node &node = nodes[edge_node[edge]];
+      vertices[0] = nodes[node.p1].HasVertex() ? nodes[node.p1].vert_index : -1;
+      vertices[1] = nodes[node.p2].HasVertex() ? nodes[node.p2].vert_index : -1;
+      return vertices[0] >= 0 && vertices[1] >= 0;
+   };
+   auto owner_rank = [&](int entity, int index, int nlocal)
+   {
+      // Group 0 on a ghost entity means its owner was not observed locally.
+      if (index < 0 || index >= entity_owner[entity].Size() ||
+          (index >= nlocal && entity_owner[entity][index] == 0))
+      {
+         return INT_MAX;
+      }
+      return groups[entity_owner[entity][index]][0];
+   };
+   auto update_owner = [&](int vertex, int owner, const int *master, int nmaster)
+   {
+      if (vertex >= 0 && vertex < nvertices && owner != INT_MAX &&
+          std::find(master, master + nmaster, vertex) == master + nmaster)
+      {
+         hanging_owner[vertex] = std::min(hanging_owner[vertex], owner);
+      }
+   };
+
+   int mv[4], me[4], mo[4], sv[4];
+   for (const auto &master : edge_list.masters)
+   {
+      if (!edge_vertices(master.index, mv)) { continue; }
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const Slave &slave = edge_list.slaves[i];
+         const int owner = owner_rank(1, slave.index, NEdges);
+         if (!edge_vertices(slave.index, sv)) { continue; }
+         update_owner(sv[0], owner, mv, 2);
+         update_owner(sv[1], owner, mv, 2);
+      }
+   }
+   for (const auto &master : face_list.masters)
+   {
+      const int nmv = GetFaceVerticesEdges(master, mv, me, mo);
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const Slave &slave = face_list.slaves[i];
+         if (slave.index >= 0)
+         {
+            if (slave.element < 0 || elements[slave.element].rank < 0) { continue; }
+            const int owner = owner_rank(2, slave.index, NFaces);
+            const int nsv = GetFaceVerticesEdges(slave, sv, me, mo);
+            for (int j = 0; j < nsv; j++)
+            {
+               update_owner(sv[j], owner, mv, nmv);
+            }
+         }
+         else
+         {
+            const int edge = FlipIndexSign(slave.index);
+            const int owner = owner_rank(1, edge, NEdges);
+            if (!edge_vertices(edge, sv)) { continue; }
+            update_owner(sv[0], owner, mv, nmv);
+            update_owner(sv[1], owner, mv, nmv);
+         }
+      }
+   }
+   for (int i = 0; i < nvertices; i++)
+   {
+      if (hanging_owner[i] != INT_MAX) { tmp_owner[i] = hanging_owner[i]; }
+   }
 
    InitOwners(nvertices, entity_owner[0]);
    MakeSharedList(vertex_list, shared_vertices);

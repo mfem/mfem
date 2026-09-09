@@ -650,6 +650,41 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
 
 } // test case
 
+TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
+{
+   if (Mpi::WorldSize() < 3) { return; }
+
+   Mesh smesh("../../data/ref-tetrahedron.mesh");
+   smesh.UniformRefinement();
+   smesh.EnsureNCMesh(true);
+   Array<int> ref(1);
+   ref[0] = 0;
+   smesh.GeneralRefinement(ref);
+   REQUIRE(smesh.GetNE() == 15);
+
+   H1_FECollection fec(1, 3);
+   FiniteElementSpace fes(&smesh, &fec);
+   const auto serial_ntdof = fes.GetTrueVSize();
+
+   const std::array<int, 15> base =
+   {2, 2, 1, 2, 0, 1, 2, 2, 0, 2, 1, 1, 2, 1, 0};
+   std::array<int, 3> labels = {0, 1, 2};
+   do
+   {
+      Array<int> partition(static_cast<int>(base.size()));
+      for (int i = 0; i < partition.Size(); i++)
+      {
+         partition[i] = labels[base[i]];
+      }
+
+      CAPTURE(labels[0], labels[1], labels[2]);
+      ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.GetData());
+      ParFiniteElementSpace pfes(&pmesh, &fec);
+      CHECK(pfes.GlobalTrueVSize() == serial_ntdof);
+   }
+   while (std::next_permutation(labels.begin(), labels.end()));
+}
+
 TEST_CASE("P2Q1PureTetHexPri",  "[Parallel], [NCMesh]")
 {
    auto exact_soln = [](const Vector& x)

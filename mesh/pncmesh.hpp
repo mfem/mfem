@@ -46,9 +46,10 @@ namespace mfem
  *  seen by the rest of MFEM as they are skipped when a Mesh is created from
  *  the NCMesh.
  *
- *  The processor that owns a vertex, edge or a face (and in turn its DOFs) is
- *  currently defined to be the one with the lowest rank in the group of
- *  processors that share the entity.
+ *  Edges, faces, and non-hanging vertices are owned by the lowest rank in the
+ *  group of processors that share the entity. A hanging vertex is owned by the
+ *  lowest rank among the owners of the constraining slaves whose closure
+ *  contains it.
  *
  *  Vertices, edges and faces that are not owned by this ('MyRank') processor
  *  are ghosts, and are numbered after all real vertices/edges/faces, i.e.,
