@@ -160,6 +160,58 @@ inline std::ostream& operator<<(std::ostream& out, Gradient<FIELD_ID>)
    return out << "Gradient<" << FIELD_ID << ">";
 }
 
+/// @brief Curl FieldOperator.
+///
+/// This FieldOperator evaluates the reference curl of an H(curl) field. The
+/// result is scalar in 2D and vector-valued in 3D.
+template <int FIELD_ID = -1>
+class Curl : public FieldOperator<FIELD_ID>
+{
+public:
+   constexpr Curl() : FieldOperator<FIELD_ID>() {};
+};
+
+template <typename T>
+struct is_curl_fop : std::false_type {};
+
+template <int FIELD_ID>
+struct is_curl_fop<Curl<FIELD_ID>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_curl_fop_v = is_curl_fop<T>::value;
+
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, Curl<FIELD_ID>)
+{
+   return out << "Curl<" << FIELD_ID << ">";
+}
+
+/// @brief Divergence FieldOperator.
+///
+/// This FieldOperator evaluates the scalar reference divergence of an H(div)
+/// field.
+template <int FIELD_ID = -1>
+class Div : public FieldOperator<FIELD_ID>
+{
+public:
+   constexpr Div() : FieldOperator<FIELD_ID>() {};
+};
+
+template <typename T>
+struct is_div_fop : std::false_type {};
+
+template <int FIELD_ID>
+struct is_div_fop<Div<FIELD_ID>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_div_fop_v = is_div_fop<T>::value;
+
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, Div<FIELD_ID>)
+{
+   return out << "Div<" << FIELD_ID << ">";
+}
+
 /// @brief Sum FieldOperator.
 ///
 /// This FieldOperator is commonly used to signal that an output of a quadrature

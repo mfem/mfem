@@ -2590,6 +2590,95 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
    }, f.data);
 }
 
+/// @brief Get the representative finite element for an entity type.
+template <typename entity_t>
+inline const FiniteElement *GetTypicalFiniteElement(const FieldDescriptor &f)
+{
+   return std::visit([](auto &&arg) -> const FiniteElement *
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if constexpr (std::is_same_v<entity_t, Entity::Element>)
+         {
+            return arg->GetTypicalFE();
+         }
+         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+         {
+            return arg->GetTypicalTraceElement();
+         }
+      }
+      return nullptr;
+   }, f.data);
+}
+
+/// @brief Return whether a field operator can be applied to a field.
+///
+/// The general compatibility rules are:
+///
+/// - Value<>: any finite element and ParameterSpace
+/// - Gradient<>: finite elements with VALUE map type
+/// - Curl<>: finite elements with H_CURL map type
+/// - Div<>: finite elements with H_DIV map type
+/// - Identity<>: ParameterSpace and VectorQuadratureSpace
+/// - FunctionalValue<> and Sum<>: VectorQuadratureSpace
+template <typename entity_t, typename field_operator_t>
+bool IsCompatible(const FieldDescriptor &f)
+{
+   return std::visit([](auto &&arg)
+   {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      {
+         if constexpr (is_value_fop_v<field_operator_t>)
+         {
+            return true;
+         }
+
+         const FiniteElement *fe = nullptr;
+         if constexpr (std::is_same_v<entity_t, Entity::Element>)
+         {
+            fe = arg->GetTypicalFE();
+         }
+         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+         {
+            fe = arg->GetTypicalTraceElement();
+         }
+
+         if (fe == nullptr) { return false; }
+         if constexpr (is_gradient_fop_v<field_operator_t>)
+         {
+            return fe->GetMapType() == FiniteElement::MapType::VALUE;
+         }
+         else if constexpr (is_curl_fop_v<field_operator_t>)
+         {
+            return fe->GetMapType() == FiniteElement::MapType::H_CURL &&
+                   fe->GetDerivType() == FiniteElement::DerivType::CURL;
+         }
+         else if constexpr (is_div_fop_v<field_operator_t>)
+         {
+            return fe->GetMapType() == FiniteElement::MapType::H_DIV &&
+                   fe->GetDerivType() == FiniteElement::DerivType::DIV;
+         }
+         return false;
+      }
+      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
+      {
+         return is_identity_fop_v<field_operator_t> ||
+                is_value_fop_v<field_operator_t>;
+      }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         return is_identity_fop_v<field_operator_t> ||
+                is_functionalvalue_fop_v<field_operator_t> ||
+                is_sum_fop_v<field_operator_t>;
+      }
+      return false;
+   }, f.data);
+}
+
 /// @brief Check the compatibility of a field operator type with a
 /// FieldDescriptor.
 ///
@@ -2598,49 +2687,11 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
 ///
 /// @param f the field descriptor.
 /// @tparam field_operator_t the field operator type.
-template <typename field_operator_t>
+template <typename entity_t, typename field_operator_t>
 void CheckCompatibility(const FieldDescriptor &f)
 {
-   std::visit([](auto && arg)
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         if constexpr (std::is_same_v<field_operator_t, Value<>>)
-         {
-            // Supported by all FE spaces
-         }
-         else if constexpr (std::is_same_v<field_operator_t, Gradient<>>)
-         {
-            MFEM_ASSERT(arg->GetTypicalElement()->GetMapType() ==
-                        FiniteElement::MapType::VALUE,
-                        "Gradient not compatible with FE");
-         }
-         else
-         {
-            static_assert(dfem::always_false<T, field_operator_t>,
-                          "FieldOperator not compatible with FiniteElementSpace");
-         }
-      }
-      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
-      {
-         if constexpr (std::is_same_v<field_operator_t, Identity<>>)
-         {
-            // Only supported field operation for ParameterSpace
-         }
-         else
-         {
-            static_assert(dfem::always_false<T, field_operator_t>,
-                          "FieldOperator not compatible with ParameterSpace");
-         }
-      }
-      else
-      {
-         static_assert(dfem::always_false<T, field_operator_t>,
-                       "Operator not compatible with FE");
-      }
-   }, f.data);
+   MFEM_VERIFY((IsCompatible<entity_t, field_operator_t>(f)),
+               "FieldOperator is not compatible with its FieldDescriptor");
 }
 
 /// @brief Get the size on quadrature point for a field operator type
@@ -2653,15 +2704,27 @@ void CheckCompatibility(const FieldDescriptor &f)
 template <typename entity_t, typename field_operator_t>
 int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
 {
-   // CheckCompatibility<field_operator_t>(f);
+   CheckCompatibility<entity_t, field_operator_t>(f);
 
    if constexpr (is_value_fop<field_operator_t>::value)
    {
-      return GetVDim(f);
+      const FiniteElement *fe = GetTypicalFiniteElement<entity_t>(f);
+      return GetVDim(f) * (fe ? std::max(fe->GetRangeDim(), 1) : 1);
    }
    else if constexpr (is_gradient_fop<field_operator_t>::value)
    {
       return GetVDim(f) * GetDimension<entity_t>(f);
+   }
+   else if constexpr (is_curl_fop<field_operator_t>::value)
+   {
+      const FiniteElement *fe = GetTypicalFiniteElement<entity_t>(f);
+      MFEM_VERIFY(fe != nullptr && fe->GetCurlDim() > 0,
+                  "Curl FieldOperator requires an H(curl) finite element");
+      return GetVDim(f) * fe->GetCurlDim();
+   }
+   else if constexpr (is_div_fop<field_operator_t>::value)
+   {
+      return GetVDim(f);
    }
    else if constexpr (is_identity_fop<field_operator_t>::value)
    {
@@ -2876,6 +2939,11 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             DeviceTensor<3, const real_t>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
             static_cast<int>(idx)
          };
+      }
+      else if constexpr (is_curl_fop_v<decltype(fop)> ||
+                         is_div_fop_v<decltype(fop)>)
+      {
+         MFEM_ABORT("Curl and Div tensor contractions are not implemented yet");
       }
       else if constexpr (std::is_same_v<decltype(fop), Weight>)
       {

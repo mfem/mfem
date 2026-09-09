@@ -202,6 +202,10 @@ inline void create_fieldbases(
       {
          bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
       }
+      else if constexpr (is_curl_fop_v<fop_t> || is_div_fop_v<fop_t>)
+      {
+         MFEM_ABORT("GlobalQF Curl and Div basis operations are not implemented yet");
+      }
    });
 }
 
@@ -213,35 +217,18 @@ inline void check_consistency(
 {
    constexpr_for<0, nfops>([&](auto i)
    {
-      const auto input = get<i>(fops);
-      using input_t = std::decay_t<decltype(input)>;
+      const auto fop = get<i>(fops);
+      using fop_t = std::decay_t<decltype(fop)>;
 
       const auto fd = fields[fop_to_fd[i]];
 
-      if constexpr (is_identity_fop<input_t>::value)
-      {
-         MFEM_ASSERT(std::holds_alternative<const VectorQuadratureSpace *>(fd.data),
-                     "Identity FieldOperator requested on non "
-                     "VectorQuadratureSpace");
-      }
-      else if constexpr (is_weight_fop<input_t>::value)
+      if constexpr (is_weight_fop_v<fop_t>)
       {
          MFEM_CONTRACT_VAR(fd);
       }
-      else if constexpr (is_value_fop<input_t>::value)
+      else
       {
-         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
-                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data) ||
-                     std::holds_alternative<const ParameterSpace *>(fd.data),
-                     "Value FieldOperator requested on non "
-                     "VectorQuadratureSpace");
-      }
-      else if constexpr (is_gradient_fop<input_t>::value)
-      {
-         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
-                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data),
-                     "Value FieldOperator requested on non "
-                     "VectorQuadratureSpace");
+         CheckCompatibility<Entity::Element, fop_t>(fd);
       }
    });
 }
