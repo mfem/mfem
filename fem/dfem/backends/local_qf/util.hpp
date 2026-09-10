@@ -1135,7 +1135,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
       {
          t1d = std::max(t1d, in_d1d[ic.value]);
       }
@@ -1143,7 +1144,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_out>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, outputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
       {
          t1d = std::max(t1d, out_d1d[ic.value]);
       }
@@ -1161,7 +1163,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
       {
          t1d = std::max(t1d, in_d1d[ic.value]);
       }

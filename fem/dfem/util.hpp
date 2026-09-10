@@ -2874,6 +2874,10 @@ std::array<Vector, sizeof...(i)> create_input_qp_memory(
 ///
 /// This struct is used to store the mapping from degrees of freedom to
 /// quadrature points for a given field operator type.
+///
+/// This is used both for scalar and vector finite element mappings.
+/// In the second case, the mapping also includes the open 1D basis functions
+/// on top of the standard closed one.
 struct DofToQuadMap
 {
    /// Enumeration for the indices of the mappings B and G.
@@ -2885,31 +2889,143 @@ struct DofToQuadMap
    };
 
    /// @brief Basis functions evaluated at quadrature points.
+   ///        For Vector FE this represents the closed 1D basis functions.
    ///
    /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
    DeviceTensor<3, const real_t> B;
 
    /// @brief Gradient of the basis functions evaluated at quadrature points.
+   ///        For Vector FE this represents the gradient of the closed 1D basis functions.
    ///
    /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
    DeviceTensor<3, const real_t> G;
 
-   /// Reverse mapping indicating which input this map belongs to.
-   int which_input = -1;
+   /// Open 1D basis and its derivative, for a tensor-product vector
+   /// element only; empty for every other family.
+   ///
+   /// ND/RT elements need two 1D bases, since the dof extent changes per axis:
+   ///
+   ///   - H(div):  closed along the component's own direction, open transversally
+   ///   - H(curl): open along the component's own direction, closed transversally
+   ///
+   /// The two behaviors are encoded in Closed().
+   DeviceTensor<3, const real_t> Bo;
+   DeviceTensor<3, const real_t> Go;
+
+   /// Which finite element family this map describes.
+   enum Family { SCALAR = 0, HDIV = 1, HCURL = 2 };
+
+   int family = SCALAR;
+   int range_dim = 0;   ///< vector families: range dimension (2 or 3)
+   int ndof = 0;        ///< vector families: element dofs, sum of block sizes
 
    /// Number of 1D degrees of freedom, i.e. the DOF extent of @ref B.
    MFEM_HOST_DEVICE int D1D() const { return B.GetShape()[DOF]; }
 
-   /// Number of 1D quadrature points, i.e. the QP extent of @ref B.
+   /// Number of 1D quadrature points, i.e. the QP extent of @ref B. The closed
+   /// and open bases of a vector element share their quadrature rule.
    MFEM_HOST_DEVICE int Q1D() const { return B.GetShape()[QP]; }
+
+   /// True when this map describes a tensor-product vector element (ND/RT),
+   /// i.e. when the kernels have to take the component-block path.
+   MFEM_HOST_DEVICE bool IsVectorFE() const { return family != SCALAR; }
+
+   /// True when component @a c uses the closed 1D basis along direction @a k.
+   MFEM_HOST_DEVICE bool Closed(int c, int k) const
+   {
+      return (family == HDIV) ? (c == k) : (c != k);
+   }
+
+   /// 1D dof extent of component @a c along direction @a k. Directions past the
+   /// range dimension are degenerate and have extent 1.
+   MFEM_HOST_DEVICE int Extent(int c, int k) const
+   {
+      if (k >= range_dim) { return 1; }
+      return (Closed(c, k) ? B : Bo).GetShape()[DOF];
+   }
+
+   /// Number of dofs in the block of component @a c.
+   MFEM_HOST_DEVICE int BlockSize(int c) const
+   {
+      int n = 1;
+      for (int k = 0; k < range_dim; k++) { n *= Extent(c, k); }
+      return n;
+   }
+
+   /// Offset of the block of component @a c in the element vector.
+   MFEM_HOST_DEVICE int Offset(int c) const
+   {
+      int off = 0;
+      for (int j = 0; j < c; j++) { off += BlockSize(j); }
+      return off;
+   }
+
+   /// Element-vector index of the dof (@a dx, @a dy, @a dz) of component @a c.
+   MFEM_HOST_DEVICE int Index(int c, int dx, int dy, int dz) const
+   {
+      return Offset(c) + dx + Extent(c, 0) * (dy + Extent(c, 1) * dz);
+   }
+
+   /// The 1D factor of component @a c along direction @a k at (@a q, @a d), or
+   /// its derivative when @a deriv is set.
+   MFEM_HOST_DEVICE real_t At(int c, int k, bool deriv, int q, int d) const
+   {
+      const bool closed = Closed(c, k);
+      return deriv ? (closed ? G : Go)(q, 0, d) : (closed ? B : Bo)(q, 0, d);
+   }
+
+   /// Size on qp of a `Value` operator on a vector element.
+   MFEM_HOST_DEVICE int ValueSizeOnQP() const { return range_dim; }
+
+   /// Size on qp of a `Curl` operator: one scalar in 2D, three in 3D.
+   MFEM_HOST_DEVICE int CurlSizeOnQP() const
+   { return (range_dim == 2) ? 1 : 3; }
 
    /// Convenience for creating an empty DofToQuadMap.
    static DofToQuadMap Empty(int nqp = 0, int value_dim = 0, int grad_dim = 0,
-                             int ndof = 0, int which_input = -1)
+                             int ndof = 0)
    {
-      return { DeviceTensor<3, const real_t>(nullptr, nqp, value_dim, ndof),
-               DeviceTensor<3, const real_t>(nullptr, nqp, grad_dim, ndof),
-               which_input };
+      DofToQuadMap m
+      {
+         DeviceTensor<3, const real_t>(nullptr, nqp, value_dim, ndof),
+         DeviceTensor<3, const real_t>(nullptr, nqp, grad_dim, ndof)
+      };
+      m.Bo = DeviceTensor<3, const real_t>(nullptr, 0, 0, 0);
+      m.Go = DeviceTensor<3, const real_t>(nullptr, 0, 0, 0);
+      return m;
+   }
+
+   /// @brief Device view of the scalar basis @a dtq.
+   static DofToQuadMap Scalar(const DofToQuad &dtq, int value_dim = 1,
+                              int grad_dim = 1)
+   {
+      DofToQuadMap m = Empty();
+      m.B = DeviceTensor<3, const real_t>(dtq.B.Read(), dtq.nqpt, value_dim,
+                                          dtq.ndof);
+      m.G = DeviceTensor<3, const real_t>(dtq.G.Read(), dtq.nqpt, grad_dim,
+                                          dtq.ndof);
+      return m;
+   }
+
+   /// @brief Device view of a tensor-product vector element: the closed basis
+   /// @a c in B/G, the open basis @a o in Bo/Go.
+   static DofToQuadMap Vector(const DofToQuad &c, const DofToQuad &o,
+                              int family, int range_dim, int ndof)
+   {
+      MFEM_VERIFY(o.ndof == c.ndof - 1 && o.nqpt == c.nqpt,
+                  "a vector tensor element expects an open basis with one dof "
+                  "less than the closed one and a shared quadrature rule");
+      DofToQuadMap m = Scalar(c);
+      m.Bo = DeviceTensor<3, const real_t>(o.B.Read(), o.nqpt, 1, o.ndof);
+      m.Go = DeviceTensor<3, const real_t>(o.G.Read(), o.nqpt, 1, o.ndof);
+      m.family = family;
+      m.range_dim = range_dim;
+      m.ndof = ndof;
+      int total = 0;
+      for (int k = 0; k < range_dim; k++) { total += m.BlockSize(k); }
+      MFEM_VERIFY(total == ndof, "vector element dof count " << ndof <<
+                  " does not match the component-major layout size " << total);
+      return m;
    }
 };
 
@@ -2974,7 +3090,9 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       };
 
       if constexpr (is_value_fop<decltype(fop)>::value ||
-                    is_gradient_fop<decltype(fop)>::value)
+                    is_gradient_fop<decltype(fop)>::value ||
+                    is_div_fop_v<decltype(fop)> ||
+                    is_curl_fop_v<decltype(fop)>)
       {
          auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
          // ParameterSpace: dtq is non-null but has no B/G data (nqpt/ndof
@@ -2982,33 +3100,33 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          // (which_input=-1); only dependent inputs need B/G tensors.
          if (dtq == nullptr || dtq->B.Size() == 0)
          {
-            return DofToQuadMap
-            {
-               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
-               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
-               -1
-            };
+            return DofToQuadMap::Empty();
          }
-         return DofToQuadMap
+
+         // A tensor-product vector element (ND/RT) carries a second, open 1D
+         // basis; every other space is described by the single basis above.
+         if (const auto *vte =
+                dynamic_cast<const VectorTensorFiniteElement *>(dtq->FE))
          {
-            DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const real_t>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
-            static_cast<int>(idx)
-         };
-      }
-      else if constexpr (is_curl_fop_v<decltype(fop)> ||
-                         is_div_fop_v<decltype(fop)>)
-      {
-         MFEM_ABORT("Curl and Div tensor contractions are not implemented yet");
+            const int map_type = vte->GetMapType();
+            const int family = (map_type == FiniteElement::H_DIV)
+                               ? DofToQuadMap::HDIV
+                               : (map_type == FiniteElement::H_CURL)
+                               ? DofToQuadMap::HCURL
+                               : DofToQuadMap::SCALAR;
+            if (family != DofToQuadMap::SCALAR)
+            {
+               return DofToQuadMap::Vector(
+                         vte->GetDofToQuad(ir, DofToQuad::TENSOR),
+                         vte->GetDofToQuadOpen(ir, DofToQuad::TENSOR),
+                         family, vte->GetRangeDim(), vte->GetDof());
+            }
+         }
+         return DofToQuadMap::Scalar(*dtq, value_dim, grad_dim);
       }
       else if constexpr (std::is_same_v<decltype(fop), Weight>)
       {
-         return DofToQuadMap
-         {
-            DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
-            DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
-            -1
-         };
+         return DofToQuadMap::Empty(1, 1, 1, 1);
       }
       else if constexpr (is_identity_fop<decltype(fop)>::value ||
                          is_sum_fop<decltype(fop)>::value ||
@@ -3046,24 +3164,14 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          nqpt = q1d;
          ndof = q1d;
 
-         return DofToQuadMap
-         {
-            DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),
-            DeviceTensor<3, const real_t>(nullptr, nqpt, grad_dim, ndof),
-            -1
-         };
+         return DofToQuadMap::Empty(nqpt, value_dim, grad_dim, ndof);
       }
       else
       {
          static_assert(dfem::always_false<decltype(fop)>,
                        "field operator type is not implemented");
       }
-      return DofToQuadMap
-      {
-         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
-         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
-         -1
-      }; // Unreachable, but avoids compiler warning
+      return DofToQuadMap::Empty(); // Unreachable, silences a warning
    };
    return std::array<DofToQuadMap, N>
    {
