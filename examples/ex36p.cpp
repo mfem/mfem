@@ -558,14 +558,20 @@ ProximalGalerkinOperator::ProximalGalerkinOperator(
    a00.Assemble();
    a00.Finalize();
    A00 = a00.ParallelAssemble();
-   A00->EliminateRowsCols(ess_tdof_list);
+   {
+      HypreParMatrix *A00e = A00->EliminateRowsCols(ess_tdof_list);
+      delete A00e;
+   }
 
    ParMixedBilinearForm a10(&H1fes, &L2fes);
    a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
    a10.Assemble();
    a10.Finalize();
    A10 = a10.ParallelAssemble();
-   A10->EliminateCols(ess_tdof_list);
+   {
+      HypreParMatrix *A10e = A10->EliminateCols(ess_tdof_list);
+      delete A10e;
+   }
 
    A01 = A10->Transpose();
 
