@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2354,8 +2354,10 @@ void GridFunction::AccumulateAndCountTraceTangentValues(
    }
 }
 
-void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
+void GridFunction::ComputeMeans(AvgType type, const Array<int> &zones_per_vdof)
 {
+   HostReadWrite();
+   zones_per_vdof.HostRead();
    switch (type)
    {
       case ARITHMETIC:
@@ -2490,7 +2492,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
                ProjectCoefficientGlobalL2(coeff);
                return;
             case ProjectType::ELEMENT:
-               constexpr real_t signal = std::numeric_limits<real_t>::min();
+               constexpr real_t signal = -infinity();
 
                for (int i = 0; i < fes->GetNE(); i++)
                {
@@ -2763,7 +2765,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
             ProjectCoefficientGlobalL2(vcoeff);
             return;
          case ProjectType::ELEMENT:
-            constexpr real_t signal = std::numeric_limits<real_t>::min();
+            constexpr real_t signal = -infinity();
             for (int i = 0; i < fes->GetNE(); i++)
             {
                fes->GetElementVDofs(i, vdofs, doftrans);

@@ -464,6 +464,7 @@ public:
    {
       auto &inst = MemoryManager::Instance();
       void *res;
+      inst.EnsureAlloc(static_cast<MemoryType>(idx));
       inst.allocs[idx]->Alloc(&res, n * sizeof(T));
       return static_cast<T *>(res);
    }
@@ -471,7 +472,10 @@ public:
    void deallocate(T *ptr, size_t n)
    {
       auto &inst = MemoryManager::Instance();
-      inst.allocs[idx]->Dealloc(ptr, n * sizeof(T));
+      if (inst.allocs[idx])
+      {
+         inst.allocs[idx]->Dealloc(ptr, n * sizeof(T));
+      }
    }
 };
 
@@ -483,6 +487,8 @@ public:
 template <class T> class Memory
 {
 protected:
+   template <class U> friend class Memory;
+   template <class U> friend class MemoryView;
    T *h_ptr = nullptr;
    /// offset and size are in terms of number of entries of size T.
    /// offset is only used for registered aliases.
@@ -817,7 +823,30 @@ public:
       return inst.CompareHostDevice(segment, offset_ * sizeof(T),
                                     size * sizeof(T));
    }
+
+   /// For internal use only.
+   /// U* must be reinterpret_cast-able to T*
+   template <class U>
+   inline void CopyConvertPtr(const Memory<U> &base);
 };
+
+template <typename T>
+template <class U>
+inline void Memory<T>::CopyConvertPtr(const Memory<U> &base)
+{
+   h_ptr = reinterpret_cast<T*>(base.h_ptr);
+   size_ = base.size_;
+   offset_ = base.offset_;
+   segment = base.segment;
+   if (segment)
+   {
+      auto &inst = MemoryManager::Instance();
+      auto &seg = inst.storage.GetSegment(segment);
+      ++seg.ref_count;
+   }
+   h_mt = base.h_mt;
+   flags = static_cast<Flags>(base.flags);
+}
 
 template <class T> void Memory<T>::New(size_t size)
 {
@@ -1707,5 +1736,75 @@ template <class T> template <class U> Memory<T>::operator const U *() const
 
 } // namespace mfem
 #endif
+
+namespace mfem
+{
+/** @brief Type that enables viewing Vector objects as Array<real_t> objects and
+    vice versa. Currently, viewing methods are provided only for the first
+    direction, see Vector::GetArrayView(). */
+template <typename ViewedType>
+class MemoryView
+{
+   friend class Vector;
+
+protected:
+   static constexpr bool is_const_view = std::is_const_v<ViewedType>;
+   using T =
+      std::remove_reference_t<decltype((std::remove_cv_t<ViewedType> {})[0])>;
+   using MemoryType =
+      std::conditional_t<is_const_view, const Memory<T>, Memory<T>>;
+   using SizeType =
+      std::conditional_t<is_const_view, const int, int>;
+
+   std::remove_cv_t<ViewedType> view;
+   MemoryType &base_mem;
+   SizeType &base_size;  // if is_const_view, this is initialized but not used
+
+   // Keep the constructor private, for now.
+   inline MemoryView(MemoryType &mem, SizeType &size)
+      : base_mem(mem), base_size(size)
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      view.data = mem;
+      view.size = size;
+   }
+
+public:
+   MemoryView(const MemoryView &) = delete;
+   MemoryView(MemoryView &&) = delete;
+   MemoryView &operator=(const MemoryView &) = delete;
+   MemoryView &operator=(MemoryView &&) = delete;
+
+   inline ~MemoryView()
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      if constexpr (!is_const_view)
+      {
+         base_mem = view.data;
+         base_size = view.size;
+      }
+      else
+      {
+         base_mem.flags = view.data.flags;
+      }
+      view.data.Reset();
+   }
+
+   /** @brief Implicit conversion function to `ViewedType &`.
+
+       Implicit conversion may not work automatically when the returned type is
+       used for template parameter deduction. In such cases, use the prefix
+       operator*() to explicitly perform the conversion to `ViewedType &`. */
+   inline operator ViewedType &() { return view; }
+
+   /** @brief Return the view object by reference, `ViewedType &`.
+
+       This is an explicit way to return the view object, alternative to the
+       implicit conversion function to `ViewedType &`. */
+   inline ViewedType &operator*() { return view; }
+};
+} // namespace mfem
 
 #endif

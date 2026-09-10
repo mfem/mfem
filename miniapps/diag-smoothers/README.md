@@ -32,7 +32,7 @@ constant `c < 2` such that `(Ax,x) < c(Mx,x)` to say that `M` is `A`-convergent.
 
 Our interest lies on `AssemblyLevel::PARTIAL`. As the FEM operator has the
 structure `A = P^T G^T B^T D B G P` (see [this](https://mfem.org/performance/)),
-and the standard L(1)-Jacobi can be writen as `D_1 = diag( |A|1 ). A triangle
+and the standard L(1)-Jacobi can be written as `D_1 = diag( |A|1 ). A triangle
 inequality implies `D_{abs} = diag( |P^T| |G^T| |B^T| |D| |B| |G| |P| 1 )` is
 also `A`-convergent.
 

@@ -825,7 +825,7 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
          if (!allocs_storage[14])
          {
             allocs_storage[14].reset(
-               new UmpireAllocator(managed_umpire_name.c_str(), "MANAGED"));
+               new UmpireAllocator(managed_umpire_name.c_str(), "UM"));
             allocs[static_cast<int>(MemoryType::MANAGED_UMPIRE)] =
                allocs_storage[14].get();
          }
@@ -834,7 +834,7 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
          if (!allocs_storage[15])
          {
             allocs_storage[15].reset(
-               new UmpireAllocator(temp_managed_umpire_name.c_str(), "MANAGED"));
+               new UmpireAllocator(temp_managed_umpire_name.c_str(), "UM"));
             allocs[static_cast<int>(MemoryType::TEMP_MANAGED_UMPIRE)] =
                allocs_storage[15].get();
          }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -391,6 +391,9 @@ private:
       not empty */
    bool RealInteg();
    bool ImagInteg();
+
+   void BuildComplexOperator(OperatorHandle &A_r, OperatorHandle &A_i,
+                             OperatorHandle &A) const;
 
 public:
    SesquilinearForm(FiniteElementSpace *fes,
@@ -985,6 +988,12 @@ private:
       empty */
    bool RealInteg();
    bool ImagInteg();
+
+   void SetImaginaryEssentialDiagonalToZero(
+      const Array<int> &ess_tdof_list, OperatorHandle &A);
+
+   void BuildComplexOperator(OperatorHandle &A_r, OperatorHandle &A_i,
+                             OperatorHandle &A) const;
 
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,

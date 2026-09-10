@@ -43,14 +43,14 @@ template <class Op> void DoDeviceScan(Op &&op)
    size_t bytes = workspace.Size();
    if (bytes)
    {
-      auto err = op(workspace.Write(), bytes);
+      auto error = op(workspace.Write(), bytes);
 #if defined(MFEM_USE_CUDA)
-      if (err == cudaSuccess)
+      if (error == cudaSuccess)
       {
          return;
       }
 #elif defined(MFEM_USE_HIP)
-      if (err == hipSuccess)
+      if (error == hipSuccess)
       {
          return;
       }
