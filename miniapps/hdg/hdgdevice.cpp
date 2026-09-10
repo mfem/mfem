@@ -174,6 +174,8 @@ int main(int argc, char *argv[])
          dh->SetAssemblyMode(DarcyHybridization::AssemblyMode::Batched);
          dh->SetLocalFactorMode(
             DarcyHybridization::LocalFactorMode::Batched);
+         dh->SetTraceAssemblyMode(
+            DarcyHybridization::TraceAssemblyMode::Batched);
       }
       dh->EnableNPC();
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
@@ -249,10 +251,28 @@ int main(int argc, char *argv[])
       // never happen. The const accessor is the one to ask: the non-const
       // overload CREATES the form.
       const bool res_any = cdarcy->GetBlockNonlinearForm() != NULL;
+      // **FOUR states, and the first one is new.** This line read
+      // "host, linear" for this problem, correctly, until
+      // LinearResidualBatched() replaced the WHOLE element loop rather than
+      // the integrator inside it -- at which point "host, linear" named a
+      // loop that no longer runs. Asked in MultNL()'s own order of
+      // precedence: the whole-loop route first, because it returns before
+      // the loop is entered at all, then the element integrator's kernel,
+      // then the host. Fourth time this harness's own ledger has gone stale
+      // under a kernel that landed after it.
       Stage s_res{"NPC residual",
-                  dh->CanBatchLocalResidual() ? "device kernel"
+                  dh->CanBatchLinearResidual() ? "device kernel, whole loop"
+                  : dh->CanBatchLocalResidual() ? "device kernel, integrator"
                   : (res_any ? "host integrators" : "host, linear"),
                   sw.RealTime()};
+      // The nonlinear face constraint's RESIDUAL, which is a different
+      // question from s_gface below: that one is the Jacobian, taken once
+      // per Newton step, and this one is taken on every residual evaluation.
+      // This problem's constraint is linear, so the honest answer here is
+      // that there is no such term.
+      Stage s_fres{"  of which NL face constraint",
+                   dh->CanBatchNLFaceResidual() ? "device kernel"
+                   : "host or linear", 0.};
 
       sw.Clear();
       sw.Start();
@@ -268,6 +288,14 @@ int main(int argc, char *argv[])
       Stage s_gface{"  of which NL constraint",
                     dh->CanBatchNLFaceGrad() ? "device kernel"
                     : "host or linear", 0.};
+      // The sparse third of ComputeH(), which the plan had listed as the one
+      // stage no device path could take. Two states and not three: the
+      // alternative really does run here, because this harness leaves
+      // GradientMode at Assembled -- under MatrixFree there would be no
+      // trace matrix at all and this line would name nothing.
+      Stage s_gasm{"  of which trace matrix",
+                   dh->CanBatchTraceAssembly() ? "device kernel"
+                   : "host scatter + Finalize", 0.};
 
       sw.Clear();
       sw.Start();
@@ -349,8 +377,10 @@ int main(int argc, char *argv[])
       stages.Append(&s_bface);
       stages.Append(&s_fbdr);
       stages.Append(&s_res);
+      stages.Append(&s_fres);
       stages.Append(&s_grad);
       stages.Append(&s_gface);
+      stages.Append(&s_gasm);
       stages.Append(&s_red);
       stages.Append(&s_tr);
       stages.Append(&s_rec);
@@ -394,12 +424,38 @@ int main(int argc, char *argv[])
         << "    current potential above all. The ledger's own lines say\n"
         << "    which of them THIS problem hits, and a linear constraint\n"
         << "    reads as no such term rather than as a refusal;\n"
-        << "  * the scatter into the trace SparseMatrix;\n"
-        << "  * the readbacks. SyncLocalBlocksToHost() is still called from\n"
-        << "    the assembly and from the local-block routines, so the chain\n"
-        << "    returns to the host between groups -- COUNTED, not inferred:\n"
-        << "    nine call sites across darcyform.cpp and\n"
-        << "    darcyhybridization.cpp as this was written.\n";
+        // This bullet used to read "the scatter into the trace SparseMatrix"
+        // FLAT, and the line two rows above it in the ledger now queries the
+        // same thing and answers "device kernel" -- so the list contradicted
+        // the table it was printed under. That is the staleness this file was
+        // rewritten to prevent, in this file, for the third time. Written as
+        // the REFUSAL, which has a reason that does not expire: the trace
+        // matrix's PATTERN is host-built and its values are read back,
+        // because SparseMatrix's own host methods are not device-aware.
+        << "  * the trace matrix's pattern, and the readback of its values.\n"
+        << "    The fill is a kernel (see the ledger line), but\n"
+        << "    SetDiagIdentity() and EliminateRowCol() index I, J and A\n"
+        << "    through Memory::operator[] -- a raw host access -- so the\n"
+        << "    CSR cannot stay device-resident through ComputeH();\n"
+        << "  * the trace assembly on a problem that is NOT under NPC. The\n"
+        << "    face constraint fills the sparse H during Assemble(), so\n"
+        << "    ComputeH() inherits a linked-list matrix and cannot be\n"
+        << "    handed a CSR -- CanBatchTraceAssembly() says which;\n"
+        // The count that used to be here said "nine call sites". **It is
+        // still nine, and the replacement claim of "15" was mine and was
+        // wrong** -- that grep counted comment mentions as calls, and 15 is
+        // by coincidence the number of DATA ARRAYS the routine takes
+        // ownership of. So the original count was right, my correction was
+        // the error, and an audit caught it. A count is a literal whatever
+        // prose surrounds it and "COUNTED, not inferred" does not save one;
+        // the bullet therefore says WHY the readbacks exist, which is a fact
+        // about the library and cannot drift.
+        << "  * the readbacks. SyncLocalBlocksToHost() takes host OWNERSHIP\n"
+        << "    of the element blocks, and it must: every element loop that\n"
+        << "    consumes them reaches them through raw pointers, which\n"
+        << "    neither sync nor invalidate. So the chain returns to the\n"
+        << "    host wherever a host loop is still the consumer, and it is\n"
+        << "    the loops that have to go, not the syncs.\n";
 
    return 0;
 }

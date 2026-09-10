@@ -225,6 +225,7 @@ struct ResidualOutcome
 {
    BlockVector r;
    Vector r_tr;
+   Vector Sv;
    bool taken = false;
    int integ_calls = 0;
 };
@@ -351,4 +352,173 @@ TEST_CASE("The batched local residual reaches an NPC caller",
    close(ref.r.GetBlock(0), bat.r.GetBlock(0));
    close(ref.r.GetBlock(1), bat.r.GetBlock(1));
    close(ref.r_tr, bat.r_tr);
+}
+
+namespace darcy_batched_residual
+{
+
+/** @brief One NPC residual on a problem whose mass terms sit either on the
+    BILINEAR forms or on the NONLINEAR ones, the two being the same discrete
+    problem by construction.
+
+    `class BilinearFormIntegrator : public NonlinearFormIntegrator`, so
+    installing one on a nonlinear form compiles, and that is what
+    `convdiff -nl` does: a VectorMassIntegrator on the flux mass nonlinear
+    form. DarcyForm::EnableHybridization() then wraps it in a
+    SumNLFIntegrator -- unconditionally, even for a single integrator -- and
+    the element loop calls BilinearFormIntegrator::AssembleElementVector(),
+    which re-assembles a constant element matrix and multiplies, on every
+    residual evaluation.
+
+    TWO integrators on the potential mass, and one of them NON-SYMMETRIC.
+    Both are deliberate: a single-member sum cannot see a routine that stops
+    after the first member, and a symmetric block cannot see a transposed
+    write. */
+void NPCResidualMassSlots(bool nonlinear_slots, int order,
+                          ResidualOutcome &out)
+{
+   const int dim = 2, n = 4;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     0.8, 1.2);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), src(1.0);
+   FunctionCoefficient ikappa([](const Vector &X)
+   {
+      return 1.3 + 0.4 * std::sin(M_PI * X(0)) * X(1);
+   });
+   Vector bvec(dim);
+   bvec(0) = 0.9;
+   bvec(1) = -0.6;
+   VectorConstantCoefficient bcoeff(bvec);
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   if (nonlinear_slots)
+   {
+      darcy.GetFluxMassNonlinearForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(ikappa));
+      NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+      Mnl_p->AddDomainIntegrator(new MassIntegrator(one));
+      Mnl_p->AddDomainIntegrator(new ConservativeConvectionIntegrator(bcoeff));
+   }
+   else
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(ikappa));
+      BilinearForm *M_p = darcy.GetPotentialMassForm();
+      M_p->AddDomainIntegrator(new MassIntegrator(one));
+      M_p->AddDomainIntegrator(new ConservativeConvectionIntegrator(bcoeff));
+   }
+
+   // The face constraint, on the LINEAR potential mass form either way --
+   // CanBatchLinearResidual() requires c_bfi_p, and this is also what keeps
+   // Df_lin_data non-empty when the domain terms have moved off it.
+   BilinearForm *M_p_face = darcy.GetPotentialMassForm();
+   M_p_face->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p_face->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->EnableNPC();
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   dh->SetEssentialBC(all);
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   FillWavy(x, 0.5);
+   Vector x_tr(Mh.GetVSize());
+   FillWavy(x_tr, 2.1);
+
+   out.r.Update(darcy.GetOffsets());
+   dh->NPCResidual(b, x, x_tr, out.r, out.r_tr);
+   // AFTER the residual: the route builds its cache on first use, and asking
+   // before would report the question rather than the answer.
+   out.taken = dh->CanBatchLinearResidual();
+   out.r.HostRead();
+   out.r_tr.HostRead();
+
+   // **And the GRADIENT on the same state, which is the half this case was
+   // missing.** It compared residuals only, and passed for a whole session
+   // while the nonlinear-slot gradient was DOUBLE COUNTED: ConstructGrad()'s
+   // `if (m_nlfi_u)` branch carried no !ad_done guard, so the element loop
+   // added the element flux mass on top of CopyLinearGradBlocks()'s copy of
+   // the same matrix. The residual was bit-identical throughout -- it is
+   // computed by a different route -- so no residual comparison of any
+   // tightness could have caught it, while 20 of the 152 serial references
+   // did. Taken here, before dh goes out of scope, because the returned
+   // Operator is owned by it.
+   Operator &S = dh->NPCGradient(x, x_tr);
+   Vector v(x_tr.Size());
+   FillWavy(v, 3.7);
+   out.Sv.SetSize(x_tr.Size());
+   S.Mult(v, out.Sv);
+   out.Sv.HostRead();
+}
+
+} // namespace darcy_batched_residual
+
+/** @brief A mass term on the NONLINEAR form is the same problem as one on the
+    bilinear form, and the batched residual takes both.
+
+    The REQUIRE on the nonlinear arm's @a taken is the whole reachability
+    half, and it is what fails if the route goes back to refusing a nonlinear
+    mass slot: measured over the unit suite, no fixture reached this before
+    the case existed, and every `convdiff -nl` run did.
+
+    The equality half pins the assembled copy. Discriminated rather than
+    assumed: truncating the sum to its first member, and transposing each
+    element matrix, each fail this case on the first comparison. */
+TEST_CASE("A bilinear integrator on a nonlinear mass form is assembled once",
+          "[DarcyHybridization][BatchedLinAlg][NPC]")
+{
+   using namespace darcy_batched_residual;
+
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   ResidualOutcome lin, nlin;
+   NPCResidualMassSlots(false, order, lin);
+   NPCResidualMassSlots(true, order, nlin);
+
+   REQUIRE(lin.taken);
+   REQUIRE(nlin.taken);
+
+   REQUIRE(lin.r.GetBlock(0).Normlinf() > 1e-3);
+   REQUIRE(lin.r.GetBlock(1).Normlinf() > 1e-3);
+   REQUIRE(lin.r_tr.Normlinf() > 1e-3);
+
+   auto close = [](const Vector &a, const Vector &b)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      REQUIRE(d.Normlinf() <= 1e-11 * std::max(a.Normlinf(), 1e-30));
+   };
+   close(lin.r.GetBlock(0), nlin.r.GetBlock(0));
+   close(lin.r.GetBlock(1), nlin.r.GetBlock(1));
+   close(lin.r_tr, nlin.r_tr);
+
+   // The gradient has to agree too, and this is the assertion that fails on
+   // the double count -- by a factor near two on |S v|, not by round-off.
+   REQUIRE(lin.Sv.Normlinf() > 1e-3);
+   close(lin.Sv, nlin.Sv);
 }

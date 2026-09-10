@@ -742,7 +742,18 @@ protected:
        ConstructGrad() and LocalResidual() then call AssembleHDGFaceGrad() and
        AssembleHDGFaceVector() on it once per element per evaluation. That is
        exactly how every nonlinear HDG diffusion problem in this tree is posed
-       -- the unit tests' pedestal included. */
+       -- the unit tests' pedestal included.
+
+       **And every method was SHADOWING these with bare locals**, so the
+       members were dead and the allocation happened anyway -- the comment
+       above described a treatment the code was not applying. The locals are
+       now under `#ifdef MFEM_THREAD_SAFE`, which is the other half of the
+       pattern and what the two HDGConvection*Integrator classes above already
+       do. Measured with DHAT on `convdiff -p 6 -nl -dg -hb -npc` at 256
+       elements: 5,526 malloc/free pairs and 4.3 MB, the largest remaining
+       site once the hybridization's own temporaries were hoisted.
+
+       **A doxygen block is not evidence that its own advice was taken.** */
 #ifndef MFEM_THREAD_SAFE
    Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
    Vector nor_Jt, nor_Ji, ni_Jt, ni_Ji;
@@ -939,6 +950,48 @@ void HDGNLFaceGradScatterBatched(
    const Array<int> &D_off, const Array<int> &E_off,
    const Array<int> &G_off, const Array<int> &H_off,
    Vector &Df_data, Vector &E_data, Vector &G_data, Vector &H_data);
+
+/** @brief The RESIDUAL counterpart of HDGNLFaceGradScatterBatched(): every
+    interior face's nonlinear constraint contribution to the potential row and
+    to the trace row, for the whole face list at once.
+
+    **The same pass one tensor rank lower**, and it is worth reading the two
+    together. The gradient carries two `neq x neq` weight MATRICES per point
+    and contracts each against two shape tables; the residual carries two
+    `neq`-VECTORS per point -- the numerical flux evaluated AT the state
+    rather than differentiated -- and the contraction is rank one:
+
+        r_el(i, k) += sum_q w_el(q, k) * s_el(q, i)     the ELEM|TRACE row
+        r_tr(j, k) += sum_q w_tr(q, k) * s_tr(q, j)     the CONSTR|FACE row
+
+    so this kernel is strictly simpler than the one that exists. It takes the
+    same NP = 2*NF pair indexing, the same @a el_state and @a tr_state, and
+    the same refusals -- HDGNLFaceGradCanBatch() answers for both, because the
+    integrator families and the geometry conditions are identical.
+
+    @a r_el and @a r_tr come back PER PAIR, (NP x LDD) and (NP x LDC), and the
+    caller scatters them: the potential row per element is disjoint, the trace
+    row has two contributors per face and wants the caller's own accumulation.
+    Both are zeroed here. */
+/** @brief Whether HDGNLFaceResidualBatched() can take these integrators.
+    Everything HDGNLFaceGradCanBatch() asks, plus a refusal of
+    MixedConductionNLFIntegrator, which the residual pass deliberately does
+    not implement -- see there. */
+bool HDGNLFaceResidualCanBatch(
+   const FiniteElementSpace &tr_fes, const FiniteElementSpace &el_fes,
+   const FiniteElementSpace *fl_fes,
+   const Array<NonlinearFormIntegrator*> &integs,
+   const Array<BlockNonlinearFormIntegrator*> &bintegs,
+   const Array<int> &face_list);
+
+void HDGNLFaceResidualBatched(
+   const FiniteElementSpace &tr_fes, const FiniteElementSpace &el_fes,
+   const FiniteElementSpace *fl_fes,
+   const Array<NonlinearFormIntegrator*> &integs,
+   const Array<BlockNonlinearFormIntegrator*> &bintegs,
+   const Array<int> &face_list,
+   const Vector &el_state, const Vector &tr_state,
+   Vector &r_el, Vector &r_tr);
 
 }
 

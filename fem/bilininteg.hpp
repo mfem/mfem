@@ -33,6 +33,25 @@ protected:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL)
       : NonlinearFormIntegrator(ir) { }
 
+#ifndef MFEM_THREAD_SAFE
+   /** @brief Scratch for AssembleHDGFaceGrad()'s adapter, which assembles the
+       whole face matrix and then slices it.
+
+       A local there is a fresh DenseMatrix per face per gradient evaluation,
+       and the adapter is on an element loop: measured with DHAT on
+       `convdiff -p 6 -nl -o 2 -dg -hb -npc -nls 3` at 256 elements, **1,920
+       malloc/free pairs and 2.2 MB**, the largest single allocation site left
+       on that loop. DenseMatrix::SetSize() does not shrink, so held here it
+       sizes once.
+
+       **Named for its one use rather than `elmat`**, deliberately: `elmat`
+       is a local in a great many integrators deriving from this class, and a
+       base member of that name would be shadowed by every one of them --
+       silently, and this branch has paid three times for exactly that
+       pattern. Nothing else may use this member. */
+   DenseMatrix hdg_face_grad_elmat;
+#endif
+
 public:
    // TODO: add support for other assembly levels (in addition to PA) and their
    // actions.

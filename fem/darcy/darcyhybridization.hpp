@@ -250,6 +250,40 @@ public:
       Batched,
    };
 
+   /** @brief How the element blocks reach the global trace matrix.
+
+       The third of ComputeH(): the element-local face-pair blocks exist, and
+       they have to become a CSR matrix. This is a separate axis from
+       LocalFactorMode, which decides how those blocks are *computed* -- the
+       two are independent settings and were measured separately. */
+   enum class TraceAssemblyMode
+   {
+      /** @brief ScatterElementH() per element into an unfinalized
+          SparseMatrix, then Finalize(). The historical behaviour and the
+          default: no existing caller pays anything for the other mode. */
+      Serial,
+      /** @brief The CSR is built from the mesh connectivity ONCE and refilled
+          by a kernel per linearisation, instead of a linked-list matrix
+          rebuilt from scratch each time.
+
+          A DEVICE mode, and the one that closes the chain -- the sparse third
+          of ComputeH() was the last stage with no device path at all.
+          CanBatchTraceAssembly() answers whether it was taken.
+
+          **It does not give the same matrix OBJECT as Serial, and that is a
+          real difference rather than a caveat.** The two agree on the pattern
+          and on every value to the bit (see CanBatchTraceAssembly()), but a
+          row's columns come out in a different ORDER, so SparseMatrix::Mult()
+          reassociates and the trace solve differs in its last bits. Serial's
+          order cannot be reproduced: it is the reverse of the order in which
+          entries were first inserted, and AddSubMatrix(skip_zeros) declines
+          to insert an element's exact zeros -- so which element first touches
+          a column decides that column's position, and the order is a
+          function of the VALUES. Measured, not assumed; see
+          BuildTraceHMap(). */
+      Batched,
+   };
+
    /** @brief Whether the reduced (trace) gradient is assembled as a sparse
        matrix or only applied.
 
@@ -455,9 +489,38 @@ private:
        and GetFDofs() selects on != 1. */
    mutable Array<int> el_u_dofs, el_p_dofs;
 
+   /** @brief (NE*nf*nc) the trace vdof of each (element, local face, local
+       trace dof) -- the third of the element-blocked dof maps, and the one the
+       batched linear residual gathers x with. Built by
+       BuildElementDofMaps() when the mesh gives one face count per element
+       and one trace size per face, and left EMPTY otherwise, which is what
+       CanBatchLinearResidual() tests. */
+   mutable Array<int> el_c_dofs;
+
+   /** @brief The connectivity TraceAssemblyMode::Batched assembles against,
+       defined in the source file.
+
+       An opaque pointer and not a handful of Array members, deliberately: a
+       new member of this class changes its layout, and every translation unit
+       that includes mfem.hpp sees that layout, so it is a `make clean` in
+       every tree -- a trap this branch has paid for six times. Behind one
+       pointer the map's contents can grow without costing that again. */
+   struct TraceHMap;
+   mutable std::unique_ptr<TraceHMap> trace_h_map;
+
+   /** @brief The face blocks LinearResidualBatched() gathers, kept between
+       evaluations; defined in the source file.
+
+       An opaque pointer for the reason trace_h_map is one -- a new member
+       changes the class layout and every TU that includes mfem.hpp sees it --
+       and because this cache is exactly the sort of thing that grows. */
+   struct ResidualCache;
+   mutable std::unique_ptr<ResidualCache> res_cache;
+
    GradientMode grad_mode{GradientMode::Assembled};
    AssemblyMode asm_mode{AssemblyMode::Serial};
    LocalFactorMode lfac_mode{LocalFactorMode::Serial};
+   TraceAssemblyMode tasm_mode{TraceAssemblyMode::Serial};
 
    mutable long num_local_nl_iters{0};
 
@@ -558,6 +621,9 @@ private:
    friend class LocalNLOperator;
    class LocalNLOperator : public Operator
    {
+      /// See the constructor's parameter of the same name.
+      bool skip_int_faces{false};
+
    protected:
       const DarcyHybridization &dh;
       int el;
@@ -584,20 +650,44 @@ private:
           which is exactly why the same value is a PARAMETER on
           DarcyHybridization's own methods. */
       const Vector *elem_flux_row;
-      const Array<int> offsets;
-      mutable Vector Au, Dp, DpEx;
-      mutable DenseMatrix grad_A, grad_D;
+      /** Every one of these is a reference into @a ws, so the operator
+          allocates NOTHING per element. They were members, and a member of
+          an object built once per element per evaluation is a fresh
+          allocation per element however carefully the caller hoists. `mutable`
+          is gone with them: a const method may write through a
+          reference-to-non-const, which is what these now are. */
+      const Array<int> &offsets;
+      Vector &Au, &Dp, &DpEx;
+      DenseMatrix &grad_A, &grad_D;
       /** The (0,1) block and, when it is nonzero, the dense sum of it with
           the linear +/-B^T that would otherwise stand there alone. */
-      mutable DenseMatrix grad_Aup, grad_Bt;
-      mutable BlockOperator grad;
+      DenseMatrix &grad_Aup, &grad_Bt;
+
+      /** @brief The gradient's block structure, built on FIRST USE.
+
+          **The residual path never calls GetGradient()**, and that is the
+          whole point of this being a method rather than a member:
+          LocalResidual() -- every NPC residual evaluation -- constructs a
+          LocalNLOperator per element and only ever calls Mult(), so a
+          BlockOperator built in the constructor was 3,072 malloc/free pairs
+          on a 256-element problem for an object that path does not touch.
+          Neither specialised operator touches it either; both return
+          grad_A / grad_D directly as their own gradient.
+
+          Rebuilt only when the block structure changes, which on a uniform
+          mesh is once for the mesh. BlockOperator COPIES its offsets, so it
+          cannot be re-pointed at a new element's -- but GetGradient() re-sets
+          all four block pointers on every call, so a reused one can never be
+          read with a stale block. */
+      BlockOperator &Grad() const;
 
       void AddMultBlock(const Vector &u_l, const Vector &p_l, Vector &bu,
                         Vector &bp) const;
       void AddMultA(const Vector &u_l, Vector &bu) const;
       void AddMultDE(const Vector &p_l, Vector &bp) const;
-      void AddGradBlock(const Vector &u_l, const Vector &p_l, DenseMatrix &gA,
-                        DenseMatrix &gD) const;
+      /// Accumulates into grad_A / grad_D / grad_Aup; see the definition for
+      /// why it no longer takes the two it used to shadow.
+      void AddGradBlock(const Vector &u_l, const Vector &p_l) const;
       void AddGradA(const Vector &u_l, DenseMatrix &gA) const;
       void AddGradDE(const Vector &p_l, DenseMatrix &gD) const;
 
@@ -605,9 +695,15 @@ private:
       /** @a ws supplies every transformation this operator uses; see
           TransWorkspace::lop_elem. Nothing here is owned, so there is no
           destructor. */
+      /** @param skip_interior_faces leave the INTERIOR nonlinear face
+          constraint out of the residual, because
+          AssembleNLFaceResidualBatched() is doing it for every face at once.
+          Exactly the role ConstructGrad()'s parameter of the same name plays
+          for the gradient, and named the same so the two read as a pair. */
       LocalNLOperator(const DarcyHybridization &dh, int el, const BlockVector &trps,
                       const Array<int> &faces, TransWorkspace &ws,
-                      const Vector *elem_flux_row = NULL);
+                      const Vector *elem_flux_row = NULL,
+                      bool skip_interior_faces = false);
       virtual ~LocalNLOperator() = default;
 
       inline const Array<int>& GetOffsets() const { return offsets; }
@@ -621,7 +717,8 @@ private:
       const Vector &bp;
       LUFactors LU_D;
 
-      mutable Vector p_l;
+      /// The recovered potential, from @a ws; see TransWorkspace::lop_other.
+      Vector &p_l;
 
    public:
       LocalFluxNLOperator(const DarcyHybridization &dh, int el, const Vector &bp,
@@ -638,7 +735,8 @@ private:
       const Vector &bu;
       LUFactors LU_A;
 
-      mutable Vector u_l;
+      /// The recovered flux, from @a ws; see TransWorkspace::lop_other.
+      Vector &u_l;
 
    public:
       LocalPotNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
@@ -755,6 +853,65 @@ private:
       IsoparametricTransformation lop_elem;
       std::vector<FaceElementTransformations> lop_faces;
       std::vector<IsoparametricTransformation> lop_nbrs;
+
+      /** @brief AssembleHDGGrad()'s two block temporaries.
+
+          The integrator's output, and the sub-block CopyMN() lifts out of it
+          on the way into D, E, G and H. Four fresh DenseMatrix objects per
+          FACE per element per gradient before they were hoisted -- 6,144
+          malloc/free pairs and 1.9 MB on a 256-element problem, measured with
+          DHAT. The three destinations' lives do not overlap, so one @a g_blk
+          serves all of them; DenseMatrix::SetSize() does not shrink, so it
+          sizes once for the mesh. */
+      DenseMatrix g_elmat, g_blk;
+
+      /** @brief LocalResidual()'s two block vectors.
+
+          Constructed per element per residual evaluation before they were
+          hoisted -- 3,072 malloc/free pairs and 467 kB on a 256-element
+          problem. Update() re-points them at the element's offsets and
+          Vector::SetSize() does not shrink, so they size once for the mesh.
+          @a lr_rv is separate from @a lr_xv because Mult() reads one and
+          writes the other. */
+      BlockVector lr_xv, lr_rv;
+
+      /** @brief LocalNLOperator's per-element scratch, block structure and
+          integrator argument arrays.
+
+          A LocalNLOperator is constructed ONCE PER ELEMENT PER EVALUATION and
+          every one of these used to be a member of it or a local in one of
+          its methods, so each was a fresh object starting at capacity 0 and
+          allocating on its first SetSize(). Measured with DHAT on
+          `convdiff -p 6 -nl -o 2 -dg -hb -npc -nls 3` at 256 elements:
+          3,072 + 768 malloc/free pairs in the constructor and 1,536 in
+          Mult(), the largest remaining site on the element loop after the
+          earlier hoists.
+
+          Held here they are allocated once for the whole element loop, the
+          same mechanism and the same reason as @a lop_elem above: SetSize()
+          does not shrink, so the first element sizes them for the mesh.
+
+          **@a lop_grad is built on FIRST USE and not by the constructor**,
+          which is a separate finding rather than a hoist -- see
+          LocalNLOperator::Grad(). One @a lop_other serves both specialised
+          operators' recovered field because the switch in MultNL() builds
+          exactly one of them. */
+      Array<int> lop_offsets;
+      Vector lop_Au, lop_Dp, lop_DpEx, lop_other;
+      DenseMatrix lop_grad_A, lop_grad_D, lop_grad_Aup, lop_grad_Bt;
+      /// The integrators' own output blocks, added into the four above.
+      DenseMatrix lop_gA, lop_gD, lop_gAup;
+      /// The block integrator's argument arrays, built per call from
+      /// initialiser lists before they were hoisted.
+      Array<const FiniteElement*> lop_fe_arr;
+      Array<const Vector*> lop_x_arr;
+      Array<Vector*> lop_y_arr;
+      Array2D<DenseMatrix*> lop_grad_arr;
+      /// Mult()'s and GetGradient()'s two block views on the caller's
+      /// vectors. Separate for the same reason @a lr_rv is.
+      BlockVector lop_xv, lop_bv;
+      /// LocalNLOperator::GetGradient()'s block structure; see Grad().
+      std::unique_ptr<BlockOperator> lop_grad;
    };
 
    /// The shared Mesh cache. Valid only on a single-threaded path.
@@ -931,7 +1088,9 @@ private:
        @a Hel receives the (f2,f1) blocks contiguously, f1 outer and f2 inner,
        in the order ScatterElementH() replays them; it may be NULL when the
        mode is GradientFactorOnly. */
+   struct SerialHWorkspace;
    void ComputeElementH(int el, ComputeHMode mode, real_t *Hel,
+                        SerialHWorkspace &ws,
                         const Vector *AiBt_all = NULL) const;
    /** @brief The element-local FACTORISATION half of ComputeElementH() -- the
        LU of A, the Schur complement and its LU -- for every element in one
@@ -1047,7 +1206,80 @@ private:
                                 ElementHWorkspace &ws, Vector &Hel) const;
    /** @brief Add the blocks ComputeElementH() left in @a Hel to @a H.
        Serial by contract -- see SetAssemblyMode(). */
-   void ScatterElementH(int el, const real_t *Hel, SparseMatrix &H) const;
+   /** @brief The per-element scratch the SERIAL ComputeElementH() and
+       ScatterElementH() pair works in; defined in the source file. Distinct
+       from ElementHWorkspace, which is the BATCHED face-pair route's.
+
+       An opaque type for the reason TraceHMap and ResidualCache are: a struct
+       spelled out here would put its layout in every TU that includes
+       mfem.hpp. It exists because the routine asked c_fes for the same face's
+       vdofs nf*(nf+1) times per element -- 21,504 malloc/free pairs of FOUR
+       BYTES on a 256-element problem, the largest single allocation site in
+       an HDG solve -- and because ComputeElementH() beside it built four
+       DenseMatrix objects per element for the same reason. See the
+       definition. */
+   void ScatterElementH(int el, const real_t *Hel, SparseMatrix &H,
+                        SerialHWorkspace &ws) const;
+
+   /** @brief Build, or return, the cached connectivity
+       TraceAssemblyMode::Batched assembles against. NULL when this
+       hybridization cannot be assembled that way.
+
+       Everything in the map is a function of the mesh and the trace space
+       alone -- no value of any block enters it -- and that is the fact the
+       whole mode rests on, so it is worth saying why it holds. The host
+       route's pattern is `AddSubMatrix(skip_zeros=1)` per element followed by
+       Finalize(), which drops an entry only if it is exactly zero, and every
+       structurally present entry of H is nonzero in at least one of its
+       elements. **Measured rather than argued**, because a value-dependent
+       pattern would have sunk this design: the STRUCTURAL count -- every
+       (row, col) whose two faces share an element -- equals
+       NumNonZeroElems() exactly on 2-D triangles and quads and 3-D hexes at
+       orders 0 to 3, at several mesh sizes. Where they ever differ this mode
+       carries extra entries that are exactly 0.0, which changes no product.
+
+       Four facts hold it up, each checked here rather than assumed:
+
+       - **Every trace dof lies on exactly one face**, so one thread owns a
+         whole row of H and no reduction is needed anywhere. True of a
+         DG_Interface space; an H1 trace shares dofs between faces and is
+         refused.
+       - **A row's entry is a sum of at most two terms.** Its column's face
+         and its row's face must share an element, and a face has at most two
+         -- so the two contributions are written by separate passes, in
+         ascending element order, and a two-term IEEE sum does not depend on
+         the order anyway. No atomics, no segmented reduction.
+       - **A face's dofs need not be contiguous**, and in 2-D they are not, so
+         the map carries the (face, local dof) -> dof table explicitly instead
+         of computing it.
+       - **Each row's columns are laid out one neighbour face at a time**,
+         which is what lets a per-nonzero index be recovered from
+         `I[row] + slot*nc + j` and keeps the map O(NE nf^2) instead of
+         O(NE (nf nc)^2). It is also why the column ORDER differs from
+         Serial's; see TraceAssemblyMode::Batched. */
+   const TraceHMap *BuildTraceHMap() const;
+   /** @brief Give @a H the cached pattern and a zeroed data array, finalized
+       and ready for ScatterElementsHBatched() to fill.
+
+       @a V comes back as the view of @a H's data the scatter writes through,
+       and it is created ONCE for the whole element loop rather than per
+       chunk: a second Memory alias over the same range starts from the
+       source's flags and needs syncing back, and a chain of them per chunk is
+       exactly where this branch's device defects have lived. One view, one
+       Sync after the loop. */
+   void BuildTraceHPattern(const TraceHMap &map,
+                           std::unique_ptr<SparseMatrix> &H, Vector &V) const;
+   /** @brief Add a chunk's blocks from @a Hel straight into @a H's CSR data,
+       as two kernels: the elements that are the FIRST contributor to an entry
+       assign, and those that are the second add.
+
+       Two passes rather than one with atomics, and that is what makes it
+       bit-for-bit: an entry's two elements never write in the same kernel,
+       and the first is always the lower element index -- so the sum is
+       assembled in ascending element order however the chunks fall. */
+   void ScatterElementsHBatched(const TraceHMap &map, int el_0, int nel,
+                                const Vector &Hel, Vector &V) const;
+
    /// Elements per chunk of the element loop; see ComputeH().
    int AssemblyChunkSize(int NE) const;
    /** @brief Build the trace-trace block H, and factor the local blocks on
@@ -1125,9 +1357,13 @@ private:
                       const Vector &bu_l, const Vector &bp_l,
                       const Vector &u_l, const Vector &p_l,
                       Vector &ru_l, Vector &rp_l, TransWorkspace &ws,
-                      const Vector *elem_flux_row = NULL) const;
+                      const Vector *elem_flux_row = NULL,
+                      bool skip_interior_faces = false) const;
+   /** @param wk optional scratch of size Af_f_offsets[el+1]-Af_f_offsets[el],
+                  hoisted above an element loop so the routine's one temporary
+                  is not a fresh allocation per element. See the definition. */
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
-                Vector &p, bool with_bnl = false) const;
+                Vector &p, bool with_bnl = false, Vector *wk = NULL) const;
    /** @brief MultInv() for every element at once, on element-blocked vectors.
 
        @a bu and @a bp carry the elements' right-hand sides end to end in
@@ -1166,7 +1402,52 @@ private:
                       const BlockVector &x_l,
                       const Vector &u_l,
                       const Vector &p_l,
-                      bool skip_interior_faces = false) const;
+                      bool skip_interior_faces = false,
+                      bool ad_done = false) const;
+   /** @brief Do ConstructGrad()'s A and D work as two whole-array copies when
+       that is all it is, and say whether it applied; see the definition. */
+   bool CopyLinearGradBlocks() const;
+
+   /** @brief Build res_cache if it is not built; false when it cannot be.
+       Shared with CopyLinearGradBlocks() so the residual and the gradient are
+       built from the same blocks -- see the definition for what went wrong
+       when they were not. */
+   bool EnsureResidualCache(int na, int nd) const;
+
+   /** @brief The nonlinear interior-face constraint's residual for every face
+       at once -- the sibling of AssembleNLFaceGradBatched(), one tensor rank
+       lower. False when it does not apply.
+
+       The gradient carries two neq x neq weight matrices per quadrature
+       point; this carries two neq-vectors -- the numerical flux and the
+       stabilization AT the state rather than differentiated -- and contracts
+       them against the same shape tables, so the substitution that IS this
+       routine is HDGFlux::Average() where the gradient calls AverageGrad().
+
+       **Modest on a host and that is expected**: it removes the per-face
+       frame (GetInteriorFaceTransformations(), the dof lookups,
+       LocalNLOperator's per-face work) and keeps the per-point evaluation on
+       the host, which the frame/integrand ablation says is where the cost
+       actually is. Measured on a Burgers HDG face constraint, 48x48, 20 NPC
+       residuals: 1.17x, 1.17x, 1.19x, 1.33x, 1.28x, 1.36x over orders 1-3 on
+       quads and triangles, run-to-run spread about 5%. The shape is the
+       point -- it is what a device pass needs -- not the host ratio.
+
+       Those were 1.05x-1.24x until the @a checked parameter below stopped
+       the predicate being evaluated twice per residual; see the note on it. */
+   bool AssembleNLFaceResidualBatched(const Vector &x, BlockVector &r_local,
+                                      Vector &y, bool checked = false) const;
+   /** @brief The whole of MultNL(MultNlMode::AtFields)'s element loop as
+       batched operations: the NPC residual's two field rows and its trace
+       row, for every element at once.
+
+       1.6x to 9.7x against the element loop on a linear problem and 3.9x to
+       14.2x when the mass terms sit on the nonlinear slots; the table, and
+       the two costs that had to go before either was true, are on
+       ResidualCache in the source file. */
+   bool LinearResidualBatched(const Vector &x, const Vector &bu,
+                              const Vector &bp, BlockVector &r_local,
+                              Vector &y) const;
 
    /** @brief The state-carrying interior-face constraint GRADIENT for every
        (element, face) pair in one batched kernel, instead of one
@@ -1253,7 +1534,9 @@ private:
    void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
                         NonlinearFormIntegrator &nlfi,
                         const Vector &x_f, const Vector &p_l,
-                        bool &eg_written) const;
+                        bool &eg_written, TransWorkspace &ws) const;
+   /// The BLOCK overload keeps its locals: it serves c_nlfi, which the
+   /// reachability study found no miniapp fills, so it is not on a hot path.
    void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
                         BlockNonlinearFormIntegrator &nlfi,
                         const Vector &x_f, const Vector &u_l, const Vector &p_l,
@@ -1452,6 +1735,26 @@ public:
        EnableHybridization() down a branch that never reads
        Mnl->GetInteriorFaceIntegrators(). */
    bool CanBatchNLFaceGrad() const;
+
+   /** @brief Whether AssembleNLFaceResidualBatched() will apply -- its WHOLE
+       condition, because MultNL() skips the element loop's interior face work
+       on the strength of it and a later refusal would drop the term. */
+   bool CanBatchNLFaceResidual() const;
+
+   /** @brief Whether MultNL()'s element loop can be replaced wholesale by
+       LinearResidualBatched() -- see that routine. PUBLIC for the reason
+       CanBatchNLFaceGrad() is: a test comparing two configurations has to be
+       able to assert that the route it means to exercise was taken. */
+   bool CanBatchLinearResidual() const;
+
+   /** @brief Tell the hybridization that a coefficient it was entitled to
+       treat as fixed has moved.
+
+       A BilinearFormIntegrator on a NONLINEAR mass form is assembled once and
+       reused, which is what makes `convdiff -nl` fast and what freezes a
+       swept parameter. Call this after changing such a coefficient and before
+       the next residual or gradient. See the definition. */
+   void InvalidateCoefficientCache();
 
    /** @brief Read-only views on one face's assembled constraint blocks, for a
        caller checking one assembly route against another.
@@ -1691,7 +1994,44 @@ public:
        Public because DarcyForm::AssemblePotHDGFaces() owns the sequencing.
        Its interior and boundary passes may each be a device kernel, and one
        sync after both is right where one after each would push D back to the
-       device only to pull it down again. */
+       device only to pull it down again.
+
+       **It takes OWNERSHIP for the host, and that is the point** -- it goes
+       through HostReadWrite(), not HostRead(). The distinction is a defect
+       that cost two device-only wrong answers. A read leaves the host AND
+       the device copy marked valid; every element loop downstream of this
+       call then writes these blocks through RAW POINTERS, which does not
+       invalidate the device side. So from the SECOND pass onward a kernel's
+       ReadWrite() found a device copy that was valid and stale, skipped its
+       upload, and consumed the previous pass's data -- while every
+       first-pass comparison, which is what the unit tests take, was exact.
+
+       Measured under Device("cuda"), two consecutive NPCGradient() calls at
+       the same state, against tolerances of 7.5e-12:
+
+       | configuration | the kernel that consumed it | error |
+       |---|---|---|
+       | AssemblyMode::Batched | AssembleNLFaceGradBatched() | 0.17 to 0.76 |
+       | LocalFactorMode::Batched | ComputeElementsHBatched() | up to 3.8 |
+
+       The second is the sharper lesson: it needs neither AssemblyMode nor
+       the face-gradient kernel, so fixing that kernel alone left a live
+       instance behind, and the two share nothing but this function. D was
+       the array instrumented -- 2 on the host and 4 on the device at the
+       kernel's own entry, both sides marked valid, coming out at 6 where the
+       first pass gave 4, i.e. drifting by its own element contribution per
+       evaluation. Invisible on a host build, where there is no second copy.
+
+       Pinned under the debug backend, which sees this where a plain host
+       build cannot: "Two gradients in a row are the same operator under a
+       device" in tests/unit/miniapps/test_debug_device.cpp, one section per
+       lever, each asserting its own is live. Put these calls back to
+       HostRead() and both fail at every order.
+
+       The cost is one upload per kernel pass, which is the upload that was
+       missing. Ct_data, Ae_data, Bf_data and Be_data are const members and
+       stay on HostRead(); see the note at the end of the body for what that
+       does and does not claim. */
    void SyncLocalBlocksToHost() const;
 
    /** @brief Choose how the element-local blocks A and D are factored.
@@ -1821,6 +2161,59 @@ public:
 
        Valid once Init() has built the offsets. */
    bool CanBatchLocalFactor() const;
+
+   /** @brief Choose how the element blocks reach the global trace matrix.
+       TraceAssemblyMode::Serial is the default and the historical behaviour.
+
+       **This is the stage the offload plan had listed as impossible**, on the
+       grounds that a sparse insert cannot be a kernel. What it costs the host
+       route is not the insert: it is that `Grad.reset()` throws the matrix
+       away every linearisation, so each Newton step rebuilds a linked list of
+       one RowNode per nonzero, walks it to count, and walks it again to
+       compact. None of that depends on anything but the mesh, and Batched
+       does it once.
+
+       **What it changes for the caller.** The assembled matrix is the same
+       operator with the same pattern and the same values to the bit, but its
+       rows list their columns in a different order, so it is not the same
+       matrix object -- see TraceAssemblyMode::Batched.
+
+       **It does NOT come back device-resident, and an earlier draft of this
+       said it did.** The values are written by a kernel and then pulled down,
+       because every consumer on the way out -- SparseMatrix::SetDiagIdentity()
+       and EliminateRowCol(), and then UMFPack, GS and RAP -- indexes `I[i]`,
+       `J[k]` and `A[k]` through Memory::operator[], a raw host access that
+       neither syncs nor invalidates. Closing that end is a job on
+       SparseMatrix, not here. The pattern accordingly never leaves the host
+       at all; see the map.
+
+       CanBatchTraceAssembly() answers whether it is taken. */
+   void SetTraceAssemblyMode(TraceAssemblyMode mode);
+   /// The current trace assembly mode; see SetTraceAssemblyMode().
+   TraceAssemblyMode GetTraceAssemblyMode() const { return tasm_mode; }
+
+   /** @brief Whether TraceAssemblyMode::Batched would actually be taken.
+
+       Two questions, and the second is easy to miss. The CONNECTIVITY has to
+       suit: one face count per element, one dof count per face, every trace
+       dof on exactly one face, and no shared faces -- asked of the trace
+       space and the mesh, never of the order, and BuildTraceHMap() says what
+       each condition is for. And the DESTINATION has to be free, which on a
+       problem that is not under NPC it is not: the face constraint assembles
+       its per-face diagonal blocks straight into the sparse H during
+       Assemble(), so ComputeH() inherits a matrix rather than building one.
+       **So this mode reaches NPC problems and not the reduced route** -- the
+       offload plan's item 9, arriving at a second kernel.
+
+       A first version of this predicate asked only the first question and
+       returned true for a linear problem whose assembly then took the host
+       route. Two of this mode's own tests passed against a DELIBERATELY
+       BROKEN kernel because of it, and that is how it was found -- not by
+       reading the code. The branch's note is exact: a flag is not coverage,
+       and a lever has to be asserted live by something that would fail.
+
+       Valid once Init() has built the constraint space. */
+   bool CanBatchTraceAssembly() const;
 
    /** @brief Whether the local SOLVES are batched too, not only the
        factorisation.

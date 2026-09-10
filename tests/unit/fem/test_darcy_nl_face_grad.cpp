@@ -130,6 +130,7 @@ struct GradOutcome
    BlockVector dr;           ///< NPCRecover's fields from it
    Vector r_tr;              ///< the trace residual at the same state
    bool can_batch = false;   ///< whether the new kernel was taken
+   bool can_batch_res = false;  ///< and whether its RESIDUAL counterpart was
    int n_integs = 0;         ///< integrators in the face constraint, unwrapped
    GradOutcome() : dr() { }
 };
@@ -168,6 +169,7 @@ void OneGradient(Setup &s, DarcyHybridization::AssemblyMode mode,
 
    dh->NPCResidual(b, x, x_tr, r, r_tr);
    out.r_tr = r_tr;
+   out.can_batch_res = dh->CanBatchNLFaceResidual();
 
    Operator &S = dh->NPCGradient(x, x_tr);
    out.can_batch = dh->CanBatchNLFaceGrad();
@@ -565,6 +567,10 @@ TEST_CASE("The batched state-carrying face gradient agrees with the per-pair "
       // lost FluxNL's Schur complement once already.
       REQUIRE_FALSE(ref.can_batch);
       REQUIRE(got.can_batch);
+      // The RESIDUAL kernel likewise, which is what makes the r_tr comparison
+      // below a test of it rather than of two runs of the same code.
+      REQUIRE_FALSE(ref.can_batch_res);
+      REQUIRE(got.can_batch_res);
       // And the sum really has two members, so the accumulation across
       // integrators is exercised rather than a single pass.
       REQUIRE(ref.n_integs == 2);
@@ -608,6 +614,8 @@ TEST_CASE("The batched state-carrying face gradient agrees with the per-pair "
 
       REQUIRE_FALSE(ref.can_batch);
       REQUIRE(got.can_batch);
+      REQUIRE_FALSE(ref.can_batch_res);
+      REQUIRE(got.can_batch_res);
       REQUIRE(ref.r_tr.Normlinf() > 1e-3);
 
       // NOT the assembled operator, and NOT anything downstream of a local
@@ -680,6 +688,12 @@ TEST_CASE("The batched state-carrying face gradient agrees with the per-pair "
 
       REQUIRE_FALSE(ref.can_batch);
       REQUIRE(got.can_batch);
+      // **And the residual kernel refuses this family where the gradient
+      // takes it**, deliberately -- see HDGNLFaceResidualCanBatch(). Asserted
+      // so that implementing MixedConduction later has to come here and say
+      // so, rather than silently changing which route this section runs.
+      REQUIRE_FALSE(ref.can_batch_res);
+      REQUIRE_FALSE(got.can_batch_res);
       REQUIRE(ref.n_integs == 1);
 
       REQUIRE(ref.S_nnz > 0);

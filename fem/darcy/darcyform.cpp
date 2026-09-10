@@ -305,6 +305,40 @@ static bool FaceIntegratorsAreLinear(const std::unique_ptr<NonlinearForm>
    return true;
 }
 
+/** @brief Are ALL of @a Mnl_p's face integrators, interior and boundary,
+    plain BilinearFormIntegrators?
+
+    FaceIntegratorsAreLinear() asks the same question and then some: it also
+    requires the problem to be nonlinear for some OTHER reason, because it
+    decides whether to MOVE a constraint off the nonlinear route and
+    IsNonlinear() reads c_nlfi_p. This variant is for the case where the
+    linear route is already taken -- M_p exists, so c_bfi_p is being set
+    whatever we do here -- and there that extra condition would refuse a
+    perfectly bilinear integrator for a reason that does not apply. */
+static bool AllFaceIntegratorsAreBilinear(const std::unique_ptr<NonlinearForm>
+                                          &Mnl_p)
+{
+   for (NonlinearFormIntegrator *nlfi : Mnl_p->GetInteriorFaceIntegrators())
+   { if (!dynamic_cast<BilinearFormIntegrator*>(nlfi)) { return false; } }
+   for (NonlinearFormIntegrator *nlfi : Mnl_p->GetBdrFaceIntegrators())
+   { if (!dynamic_cast<BilinearFormIntegrator*>(nlfi)) { return false; } }
+   return true;
+}
+
+/// What to say when a face term on Mnl_p cannot be folded into c_bfi_p.
+static const char *MnlPFaceRefusal()
+{
+   return "A face integrator on the potential mass NONLINEAR form is not read "
+          "when a LINEAR potential mass form exists as well, and this one is "
+          "not a BilinearFormIntegrator, so it cannot be folded into the "
+          "linear constraint either. Put the HDG face constraint on the "
+          "linear potential mass form (GetPotentialMassForm()), or move the "
+          "whole potential mass onto the nonlinear form so the constraint is "
+          "read from there. Carrying a linear and a nonlinear face constraint "
+          "at once needs a linear backup for E, G and H, mirroring "
+          "Df_lin_data; see DarcyHybridization::ConstructGrad().";
+}
+
 void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
                                     BilinearFormIntegrator *constr_flux_integ,
                                     const Array<int> &ess_flux_tdof_list)
@@ -333,18 +367,51 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    // Automatically load the potential constraint operator from the face integrators
    if (M_p)
    {
-      BilinearFormIntegrator *constr_pot_integ = NULL;
+      SumIntegrator *sbfi = NULL;
       auto fbfi = M_p->GetFBFI();
       if (fbfi->Size())
       {
-         SumIntegrator *sbfi = new SumIntegrator(false);
+         sbfi = new SumIntegrator(false);
          for (BilinearFormIntegrator *bfi : *fbfi)
          {
             sbfi->AddIntegrator(bfi);
          }
-         constr_pot_integ = sbfi;
       }
-      hybridization->SetConstraintIntegrators(constr_flux_integ, constr_pot_integ);
+
+      // **Mnl_p's face integrators are read HERE too, and used to be
+      // dropped.** This branch tests M_p alone, so it shadows both `else if
+      // (Mnl_p)` branches below, and a face constraint put on the nonlinear
+      // potential mass form while a linear one existed reached nobody: no
+      // warning, the stabilization simply absent. Measured by toggling one
+      // such integrator with a loud coefficient (7.5, td 4.0) and comparing
+      // bit for bit -- |r_tr| came back 2.9217004681959e+00 either way, to
+      // every digit. It is worse than it sounds, because
+      // GetPotentialMassForm() CONSTRUCTS the form on demand: merely asking
+      // for M_p was enough to silence a constraint on Mnl_p.
+      //
+      // Folding them into the same SumIntegrator is the whole repair for the
+      // bilinear case, and it is the case that occurs -- an HDG face
+      // stabilization is a BilinearFormIntegrator, and so is a parametric
+      // HDGConvectionUpwindedIntegrator, which derives from
+      // DGTraceIntegrator. They are then assembled ONCE, which is what the
+      // linear route is for.
+      //
+      // A genuinely nonlinear one is REFUSED rather than folded or dropped:
+      // c_bfi_p and c_nlfi_p are one slot (each SetConstraintIntegrators()
+      // overload resets the others), and making them coexist needs a linear
+      // backup for E, G and H. Refusing names that, which a silent drop
+      // did not.
+      if (Mnl_p && Mnl_p->GetInteriorFaceIntegrators().Size() > 0)
+      {
+         MFEM_VERIFY(AllFaceIntegratorsAreBilinear(Mnl_p), MnlPFaceRefusal());
+         if (!sbfi) { sbfi = new SumIntegrator(false); }
+         for (NonlinearFormIntegrator *nlfi : Mnl_p->GetInteriorFaceIntegrators())
+         {
+            sbfi->AddIntegrator(static_cast<BilinearFormIntegrator*>(nlfi));
+         }
+      }
+      hybridization->SetConstraintIntegrators(constr_flux_integ,
+                                              (BilinearFormIntegrator*)sbfi);
    }
    else if (Mnl_p && FaceIntegratorsAreLinear(Mnl_p, nl_elsewhere))
    {
@@ -493,6 +560,37 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
          else
          {
             hybridization->AddBdrPotConstraintIntegrator(bfi);
+         }
+      }
+
+      // And Mnl_p's boundary face integrators, dropped by this branch for
+      // the same reason as the interior ones -- see the interior chain
+      // above. This half is additive rather than a single slot, since the
+      // boundary constraints are a LIST, so folding costs nothing.
+      //
+      // Bilinear only, and that is not conservatism: ConstructGrad()'s
+      // boundary loop lives INSIDE `if (c_nlfi_p)`, so a nonlinear boundary
+      // constraint added while the interior route is linear would be
+      // accepted here and then read by nobody -- the same silent drop one
+      // level down. Refused with the same message.
+      if (Mnl_p && Mnl_p->GetBdrFaceIntegrators().Size() > 0)
+      {
+         MFEM_VERIFY(AllFaceIntegratorsAreBilinear(Mnl_p), MnlPFaceRefusal());
+         auto bfnlfi = Mnl_p->GetBdrFaceIntegrators();
+         auto bfnlfi_marker = Mnl_p->GetBdrFaceIntegratorsMarkers();
+         for (int i = 0; i < bfnlfi.Size(); i++)
+         {
+            BilinearFormIntegrator *bfi =
+               static_cast<BilinearFormIntegrator*>(bfnlfi[i]);
+            Array<int> *nlfi_marker = bfnlfi_marker[i];
+            if (nlfi_marker)
+            {
+               hybridization->AddBdrPotConstraintIntegrator(bfi, *nlfi_marker);
+            }
+            else
+            {
+               hybridization->AddBdrPotConstraintIntegrator(bfi);
+            }
          }
       }
    }

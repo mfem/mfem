@@ -396,7 +396,16 @@ void BilinearFormIntegrator::AssembleHDGFaceGrad(
    FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
    DenseMatrix &grad)
 {
-   DenseMatrix elmat;
+   // A MEMBER in a build that cannot thread, per this class's
+   // hdg_face_grad_elmat and MFEM's own convention for integrator scratch.
+   // It was a local, which is a fresh DenseMatrix per face per gradient on an
+   // element loop -- 1,920 malloc/free pairs and 2.2 MB measured at 256
+   // elements. The whole face matrix is assembled here and then sliced, so
+   // this is the adapter's only temporary.
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix hdg_face_grad_elmat;
+#endif
+   DenseMatrix &elmat = hdg_face_grad_elmat;
    AssembleHDGFaceMatrix(type & 1, trace_face_fe, fe, Tr, elmat);
 
    const int ndof_el = fe.GetDof();

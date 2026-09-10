@@ -895,3 +895,121 @@ TEST_CASE("An inert boundary face integrator on a periodic mesh changes nothing"
    REQUIRE(dp.Norml2() < 1e-12 * a.GetBlock(1).Norml2());
    REQUIRE(dq.Norml2() < 1e-12 * a.GetBlock(0).Norml2());
 }
+
+namespace darcy_mnlp_face
+{
+
+/** @brief The same discrete problem, with one HDG face constraint placed
+    either on the LINEAR potential mass form or on the NONLINEAR one, while a
+    linear potential mass exists either way.
+
+    `DarcyForm::EnableHybridization()`'s constraint chain tests `M_p` first,
+    so the `Mnl_p` placement used to reach nobody -- no warning, the
+    stabilization simply absent from the assembled system. The two placements
+    are the same bilinear form, so the answers must agree. */
+struct FaceSlot
+{
+   Mesh mesh;
+   L2_FECollection uc, pc;
+   DG_Interface_FECollection tc;
+   FiniteElementSpace Vh, Wh, Mh;
+   DarcyForm darcy;
+   ConstantCoefficient one{1.0};
+   Array<int> ess_flux;
+
+   FaceSlot(int n, int order)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL)),
+        uc(order, 2, BasisType::GaussLobatto), pc(order, 2), tc(order, 2),
+        Vh(&mesh, &uc, 2), Wh(&mesh, &pc), Mh(&mesh, &tc),
+        darcy(&Vh, &Wh) { }
+
+   /// @a on_nonlinear puts the face constraint on Mnl_p instead of M_p.
+   void Build(bool on_nonlinear)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+      darcy.GetFluxDivForm()->AddDomainIntegrator(
+         new VectorDivergenceIntegrator());
+      darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+      // A linear potential mass exists in BOTH arms, which is what makes the
+      // `if (M_p)` branch fire and is the whole point of the case.
+      BilinearForm *Mp = darcy.GetPotentialMassForm();
+      Mp->AddDomainIntegrator(new MassIntegrator(one));
+
+      if (on_nonlinear)
+      {
+         NonlinearForm *Mnlp = darcy.GetPotentialMassNonlinearForm();
+         Mnlp->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+         Mnlp->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+      }
+      else
+      {
+         Mp->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+         Mp->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+      }
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      Array<int> eb(mesh.bdr_attributes.Max());
+      eb = 1;
+      darcy.GetHybridization()->SetEssentialBC(eb);
+      darcy.Assemble();
+      darcy.Finalize();
+   }
+
+   /// One reduced-system application, which is where a missing face
+   /// constraint shows up.
+   void Apply(Vector &Sv)
+   {
+      Vector v(Mh.GetVSize());
+      for (int i = 0; i < v.Size(); i++)
+      { v[i] = std::sin(0.37 * i + 0.11); }
+      Sv.SetSize(Mh.GetVSize());
+      darcy.GetHybridization()->GetMatrix().Mult(v, Sv);
+   }
+};
+
+} // namespace darcy_mnlp_face
+
+/** @brief A face constraint on the nonlinear potential mass form is read even
+    when a linear potential mass form exists.
+
+    The two arms are the same bilinear form in different slots, so agreement
+    is exact rather than approximate. It fails on the whole reduced operator
+    without the fold: measured, the `Mnl_p` arm reproduced the
+    NO-face-constraint answer bit for bit (|r_tr| 2.9217004681959e+00 either
+    way, with a loud coefficient that could not hide), because
+    `EnableHybridization()`'s `if (M_p)` branch shadows both `Mnl_p` face
+    branches. Both lists are covered -- interior and boundary -- since the two
+    chains had the defect independently. */
+TEST_CASE("A face constraint on the nonlinear potential mass form is read",
+          "[DarcyForm][DarcyHybridization]")
+{
+   using namespace darcy_mnlp_face;
+
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   Vector on_lin, on_nonlin;
+   {
+      FaceSlot f(4, order);
+      f.Build(false);
+      f.Apply(on_lin);
+   }
+   {
+      FaceSlot f(4, order);
+      f.Build(true);
+      f.Apply(on_nonlin);
+   }
+
+   // There is something to get wrong.
+   REQUIRE(on_lin.Normlinf() > 1e-3);
+   REQUIRE(on_lin.Size() == on_nonlin.Size());
+
+   Vector d(on_lin);
+   d -= on_nonlin;
+   CAPTURE(on_lin.Normlinf(), on_nonlin.Normlinf(), d.Normlinf());
+   REQUIRE(d.Normlinf() <= 1e-12 * on_lin.Normlinf());
+}

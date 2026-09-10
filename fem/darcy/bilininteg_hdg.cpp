@@ -2492,6 +2492,148 @@ struct HDGFaceWeights
 
 } // namespace
 
+namespace
+{
+
+/** @brief Everything the face weight loop used to ask a
+    FaceElementTransformations for, precomputed per FACE or per CODE.
+
+    **The whole point is that the loop no longer builds a
+    FaceElementTransformations per face**, which is where that loop's time
+    was: ablation inside it found the shape evaluation, the coefficient
+    evaluation, the per-point transformation update and the shape-table
+    stores ALL innocent, and the cost survived deleting the entire quadrature
+    loop -- so it was the per-face frame, not the integrand. See
+    doc/HDG-DEVICE-OFFLOAD.md step 2 for the tables.
+
+    Two facts make this exact, and both were measured rather than reasoned:
+
+    - **The element reference points at a face's quadrature points depend only
+      on (local face id, orientation, q).** So one table per CODE serves the
+      mesh: 4 distinct codes on 2-D quads and 6 on 3-D hexes, against one per
+      face. Checked by observing every face's own CalcPhysShape and requiring
+      faces that share a code to agree -- 0.0 at every order and dimension
+      tried.
+    - **The normal comes from the FACE's own transformation**, which is what
+      a FaceElementTransformations' Jacobian() already is -- so
+      `Mesh::GetFaceTransformation()` gives the identical `CalcOrtho()` input
+      with one transformation object instead of three plus the two element
+      frames.
+
+    **This deliberately does NOT use FaceGeometricFactors, and an earlier
+    version did.** Those arrays are device-resident and would be the right
+    source if the weight loop were a kernel -- but it cannot be: the diffusion
+    weight goes through `HDGDiffusionIntegrator::EvalStabilization()`, a host
+    virtual taking an ElementTransformation, and the coefficients go through
+    host `Coefficient::Eval`. So device geometry would be pulled straight back
+    down, buying nothing -- while `Mesh::GetFaceGeometricFactors()` SEGFAULTS
+    on a simplex mesh (inside ConformingFaceRestriction, via
+    GetFaceRestriction), which would have made this whole path tensor-only for
+    no gain. **A restriction that buys nothing is not a trade-off, it is a
+    defect**, and the version that had it was wrong. If the weights ever do
+    become a kernel, the factors are the source to switch to and the simplex
+    crash becomes the thing to fix first.
+
+    The shape tables need `map_type == VALUE`, where CalcPhysShape reduces to
+    CalcShape; an INTEGRAL space divides by the transformation weight and is
+    refused -- that is the one refusal left, and it is about the SPACE, not
+    the mesh. */
+struct HDGFaceTables
+{
+   int NQ = 0, ND = 0, dim = 0;
+   bool have_shape = false;       ///< false unless map_type == VALUE
+
+   Array<int> el1, el2;           ///< (NF) the two elements of each face
+   Array<int> c1, c2;             ///< (NF) each side's (local face, orient) slot
+   /// (NQ, ND, ncode) element shape at the face points, one table per slot
+   Vector sref;
+   /// (ncode) the element reference points, one rule per slot
+   std::vector<IntegrationRule> eip;
+};
+
+/// Build @a t for @a face_list at @a ir. Never fails: the two `have_*` flags
+/// say which halves are usable and the caller falls back for the rest.
+void HDGFaceBuildTables(Mesh &mesh, const FiniteElementSpace &el_fes,
+                        const Array<int> &face_list,
+                        const IntegrationRule &ir, HDGFaceTables &t)
+{
+   const int NF = face_list.Size();
+   t.NQ = ir.GetNPoints();
+   t.ND = el_fes.GetFE(0)->GetDof();
+   t.dim = mesh.Dimension();
+   t.el1.SetSize(NF);
+   t.el2.SetSize(NF);
+   t.c1.SetSize(NF);
+   t.c2.SetSize(NF);
+
+   // The slot table, keyed on the (local face id, orientation) info word each
+   // side carries. Populated from the FIRST face exhibiting a slot, which is
+   // what makes this O(ncode) transformations instead of O(NF).
+   std::map<int,int> slot_of;
+   std::vector<int> slot_info;
+   auto slot = [&](int info) -> int
+   {
+      auto it = slot_of.find(info);
+      if (it != slot_of.end()) { return it->second; }
+      const int s = (int)slot_info.size();
+      slot_of[info] = s;
+      slot_info.push_back(info);
+      return s;
+   };
+
+   for (int fi = 0; fi < NF; fi++)
+   {
+      const int f = face_list[fi];
+      const Mesh::FaceInformation fin = mesh.GetFaceInformation(f);
+      t.el1[fi] = fin.element[0].index;
+      t.el2[fi] = fin.element[1].index;
+      t.c1[fi] = slot(fin.element[0].local_face_id * 64
+                      + fin.element[0].orientation);
+      t.c2[fi] = slot(fin.element[1].local_face_id * 64
+                      + fin.element[1].orientation);
+   }
+
+   // The shape tables, one transformation per SLOT. Only valid where
+   // CalcPhysShape is CalcShape.
+   const int ncode = (int)slot_info.size();
+   t.have_shape = (el_fes.GetFE(0)->GetMapType() == FiniteElement::VALUE);
+   if (t.have_shape)
+   {
+      t.eip.assign(ncode, IntegrationRule(t.NQ));
+      t.sref.SetSize(t.NQ * t.ND * ncode);
+      t.sref = 0.0;
+      std::vector<bool> done(ncode, false);
+      Vector sh(t.ND);
+      real_t *ps = t.sref.HostWrite();
+      for (int fi = 0; fi < NF; fi++)
+      {
+         for (int side = 0; side < 2; side++)
+         {
+            const int c = side ? t.c2[fi] : t.c1[fi];
+            if (done[c]) { continue; }
+            FaceElementTransformations *ftr =
+               mesh.GetInteriorFaceTransformations(face_list[fi]);
+            if (!ftr) { t.have_shape = false; return; }
+            const FiniteElement &fe =
+               *el_fes.GetFE(side ? ftr->Elem2No : ftr->Elem1No);
+            for (int q = 0; q < t.NQ; q++)
+            {
+               ftr->SetAllIntPoints(&ir.IntPoint(q));
+               const IntegrationPoint &e =
+                  side ? ftr->GetElement2IntPoint() : ftr->GetElement1IntPoint();
+               t.eip[c].IntPoint(q) = e;
+               fe.CalcPhysShape(side ? *ftr->Elem2 : *ftr->Elem1, sh);
+               for (int i = 0; i < t.ND; i++)
+               { ps[q + t.NQ*(i + t.ND*c)] = sh(i); }
+            }
+            done[c] = true;
+         }
+      }
+   }
+}
+
+} // namespace
+
 bool HDGFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
                             const FiniteElementSpace &el_fes,
                             const Array<BilinearFormIntegrator*> &integs,
@@ -2676,34 +2818,117 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
             }
          }
 
+         // The tables that replace a FaceElementTransformations per face; see
+         // HDGFaceTables. Built per PASS because each pass has its own rule,
+         // and cheap because it costs one transformation per (local face,
+         // orientation) slot rather than one per face.
+         HDGFaceTables tab;
+         HDGFaceBuildTables(*mesh, el_fes, face_list, ir, tab);
+         // One refusal now, and it is about the SPACE rather than the mesh:
+         // the shape tables need map_type == VALUE. An earlier version ANDed
+         // this with a tensor-mesh test it had no need of -- see HDGFaceTables
+         // -- which silently sent every simplex mesh down the slow path.
+         const bool fast = tab.have_shape;
+         //
+         // **Measured, A/B in one build against an env gate that is now
+         // removed**, Assemble() on the host, n=64:
+         //
+         //     order  1     2     2 (n=128)  3
+         //     quads  1.42x 1.06x 1.13x      1.12x
+         //     tris   1.34x 1.29x --         1.28x
+         //
+         // Triangles gain MORE than quads at order 2 and 3, which is worth
+         // knowing because the first version of this used
+         // FaceGeometricFactors and so refused simplices outright -- it would
+         // have delivered nothing on the meshes that benefit most.
+         //
+         // The first A/B run of this was against a STALE probe binary whose
+         // makefile rule depended on the .cpp and not on libmfem.a; it
+         // reported 0.95x at order 3 and the trend backwards. Relink before
+         // believing a probe.
+
          {
             Vector nor(dim), vu(dim), nh(dim), ni(dim), s1(ND), s2(ND);
             DenseMatrix mq(dim);
+            // CALLER-PROVIDED and not Mesh::GetElementTransformation(i),
+            // which returns a pointer to the mesh's ONE shared
+            // Transformation -- two calls would alias and both sides would
+            // read the second element's geometry.
+            IsoparametricTransformation tr1, tr2, ftr_f;
             real_t *pd1 = w.d1.HostWrite(), *pd2 = w.d2.HostWrite();
             real_t *pe1 = w.e1.HostWrite(), *pe2 = w.e2.HostWrite();
             real_t *pg1 = w.g1.HostWrite(), *pg2 = w.g2.HostWrite();
             real_t *ph = w.h.HostWrite();
             real_t *ps1 = sh1.HostWrite(), *ps2 = sh2.HostWrite();
+            const real_t *psref = fast ? tab.sref.HostRead() : NULL;
 
             for (int fi = 0; fi < NF; fi++)
             {
+               // On the fast path NOTHING here builds a face transformation:
+               // the elements come from the tables and their transformations
+               // are the mesh's own, which is one object rather than three
+               // plus the face geometry.
                FaceElementTransformations *ftr =
-                  mesh->GetInteriorFaceTransformations(face_list[fi]);
-               const FiniteElement &e1 = *el_fes.GetFE(ftr->Elem1No);
-               const FiniteElement &e2 = *el_fes.GetFE(ftr->Elem2No);
+                  fast ? NULL : mesh->GetInteriorFaceTransformations(face_list[fi]);
+               const int e1no = fast ? tab.el1[fi] : ftr->Elem1No;
+               const int e2no = fast ? tab.el2[fi] : ftr->Elem2No;
+               const FiniteElement &e1 = *el_fes.GetFE(e1no);
+               const FiniteElement &e2 = *el_fes.GetFE(e2no);
+               if (fast)
+               {
+                  mesh->GetElementTransformation(e1no, &tr1);
+                  mesh->GetElementTransformation(e2no, &tr2);
+                  // The face frame, which is what a FaceElementTransformations
+                  // IS for the purposes of Jacobian() -- one object instead of
+                  // three, and it exists for every element geometry.
+                  mesh->GetFaceTransformation(face_list[fi], &ftr_f);
+               }
+               ElementTransformation *t1 = fast ? (ElementTransformation*)&tr1
+                                           : (ElementTransformation*)ftr->Elem1;
+               ElementTransformation *t2 = fast ? (ElementTransformation*)&tr2
+                                           : (ElementTransformation*)ftr->Elem2;
+               const int cc1 = fast ? tab.c1[fi] : 0;
+               const int cc2 = fast ? tab.c2[fi] : 0;
 
                for (int q = 0; q < NQ; q++)
                {
                   const IntegrationPoint &ip = ir.IntPoint(q);
-                  ftr->SetAllIntPoints(&ip);
-                  const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
-                  const IntegrationPoint &eip2 = ftr->GetElement2IntPoint();
+                  if (!fast) { ftr->SetAllIntPoints(&ip); }
+                  const IntegrationPoint &eip1 =
+                     fast ? tab.eip[cc1].IntPoint(q) : ftr->GetElement1IntPoint();
+                  const IntegrationPoint &eip2 =
+                     fast ? tab.eip[cc2].IntPoint(q) : ftr->GetElement2IntPoint();
+                  if (fast)
+                  {
+                     // The coefficient and stabilization calls below take an
+                     // ElementTransformation, and Weight() needs the point set
+                     // on it. Measured free: ablating the per-point
+                     // transformation update changed nothing.
+                     t1->SetIntPoint(&eip1);
+                     t2->SetIntPoint(&eip2);
+                  }
 
                   if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
+                  else if (fast)
+                  {
+                     ftr_f.SetIntPoint(&ip);
+                     CalcOrtho(ftr_f.Jacobian(), nor);
+                  }
                   else { CalcOrtho(ftr->Jacobian(), nor); }
 
-                  e1.CalcPhysShape(*ftr->Elem1, s1);
-                  e2.CalcPhysShape(*ftr->Elem2, s2);
+                  if (fast)
+                  {
+                     for (int i = 0; i < ND; i++)
+                     {
+                        s1(i) = psref[q + NQ * (i + ND * cc1)];
+                        s2(i) = psref[q + NQ * (i + ND * cc2)];
+                     }
+                  }
+                  else
+                  {
+                     e1.CalcPhysShape(*ftr->Elem1, s1);
+                     e2.CalcPhysShape(*ftr->Elem2, s2);
+                  }
                   for (int i = 0; i < ND; i++)
                   {
                      ps1[q + NQ * (i + ND * fi)] = s1(i);
@@ -2718,7 +2943,7 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
                      real_t un = 0.;
                      if (VectorCoefficient *v = dif->GetVelocity())
                      {
-                        v->Eval(vu, *ftr->Elem1, eip1);
+                        v->Eval(vu, *t1, eip1);
                         un = vu * nor;
                      }
                      const real_t un_raw = un;
@@ -2734,7 +2959,7 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
                      Coefficient *Q = dif->GetCoefficient();
                      MatrixCoefficient *MQ = dif->GetMatrixCoefficient();
                      real_t wq[2];
-                     ElementTransformation *el[2] = { ftr->Elem1, ftr->Elem2 };
+                     ElementTransformation *el[2] = { t1, t2 };
                      const IntegrationPoint *eip[2] = { &eip1, &eip2 };
                      for (int side = 0; side < 2; side++)
                      {
@@ -2755,16 +2980,16 @@ void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
 
                      const real_t face_w = ip.weight * nor.Norml2();
                      const real_t w1 = dif->EvalStabilization(
-                                          wq[0], b + a, un_raw, face_w, 0., 0., *ftr->Elem1);
+                                          wq[0], b + a, un_raw, face_w, 0., 0., *t1);
                      const real_t w2 = dif->EvalStabilization(
-                                          wq[1], b - a, un_raw, face_w, 0., 0., *ftr->Elem2);
+                                          wq[1], b - a, un_raw, face_w, 0., 0., *t2);
                      pd1[o] += w1;  pe1[o] += w1;  pg1[o] += w1;
                      pd2[o] += w2;  pe2[o] += w2;  pg2[o] += w2;
                      ph[o] += w1 + w2;
                   }
                   else
                   {
-                     tr_bfi->GetVelocity()->Eval(vu, *ftr->Elem1, eip1);
+                     tr_bfi->GetVelocity()->Eval(vu, *t1, eip1);
                      const real_t un = vu * nor;
                      const real_t alpha = tr_bfi->GetAlpha();
                      real_t wp, wm, wd;
@@ -4105,6 +4330,297 @@ bool HDGNLFaceGradCanBatch(const FiniteElementSpace &tr_fes,
       }
    }
    return true;
+}
+
+bool HDGNLFaceResidualCanBatch(
+   const FiniteElementSpace &tr_fes, const FiniteElementSpace &el_fes,
+   const FiniteElementSpace *fl_fes,
+   const Array<NonlinearFormIntegrator*> &integs,
+   const Array<BlockNonlinearFormIntegrator*> &bintegs,
+   const Array<int> &face_list)
+{
+   // Everything the GRADIENT pass needs, because the families and the
+   // geometry conditions are the same and there must not be two dispatches.
+   if (!HDGNLFaceGradCanBatch(tr_fes, el_fes, fl_fes, integs, bintegs,
+                              face_list)) { return false; }
+
+   // **And one refusal the gradient does not have.** That pass implements
+   // MixedConductionNLFIntegrator and this one does not, deliberately: the
+   // integrator is unreachable as a hybridized face constraint from every
+   // miniapp in the tree, established by printing which slot
+   // EnableHybridization() fills across all 152 serial references. A kernel
+   // for a slot nothing fills is untested code, and this file has recorded
+   // that mistake twice. Refused here rather than aborted in the kernel.
+   for (int k = 0; k < bintegs.Size(); k++)
+   {
+      if (HDGNLGradKindOf(bintegs[k]) == HDGNLGradKind::MixedConduction)
+      { return false; }
+   }
+   for (int k = 0; k < integs.Size(); k++)
+   {
+      if (HDGNLGradKindOf(integs[k]) == HDGNLGradKind::MixedConduction)
+      { return false; }
+   }
+   return true;
+}
+
+void HDGNLFaceResidualBatched(
+   const FiniteElementSpace &tr_fes, const FiniteElementSpace &el_fes,
+   const FiniteElementSpace *fl_fes,
+   const Array<NonlinearFormIntegrator*> &integs,
+   const Array<BlockNonlinearFormIntegrator*> &bintegs,
+   const Array<int> &face_list,
+   const Vector &el_state, const Vector &tr_state,
+   Vector &r_el, Vector &r_tr)
+{
+   MFEM_VERIFY(HDGNLFaceResidualCanBatch(tr_fes, el_fes, fl_fes, integs,
+                                         bintegs, face_list),
+               "these integrators do not admit the batched face residual");
+
+   Mesh *mesh = el_fes.GetMesh();
+   const int NF = face_list.Size();
+   if (NF == 0) { r_el.SetSize(0); r_tr.SetSize(0); return; }
+   const int NP = 2 * NF;
+   const int neq = el_fes.GetVDim();
+
+   int ND = 0, TRD = 0;
+   HDGNLFaceGradGeometryOK(tr_fes, el_fes, face_list, ND, TRD);
+   const int LDD = neq * ND, LDC = neq * TRD;
+
+   MFEM_ASSERT(el_state.Size() == NP * LDD && tr_state.Size() == NP * LDC, "");
+
+   r_el.SetSize(NP * LDD);
+   r_tr.SetSize(NP * LDC);
+   r_el.UseDevice(true);
+   r_tr.UseDevice(true);
+   r_el = 0.;
+   r_tr = 0.;
+
+   const int dim = mesh->Dimension();
+   const int NI = integs.Size() + bintegs.Size();
+
+   for (int k = 0; k < NI; k++)
+   {
+      NonlinearFormIntegrator *nlfi = (k < integs.Size()) ? integs[k] : NULL;
+      BlockNonlinearFormIntegrator *bnlfi =
+         nlfi ? NULL : bintegs[k - integs.Size()];
+      const HDGNLGradKind kind = nlfi ? HDGNLGradKindOf(nlfi)
+                                 : HDGNLGradKindOf(bnlfi);
+
+      FaceElementTransformations *ftr0 =
+         mesh->GetInteriorFaceTransformations(face_list[0]);
+      const FiniteElement &tr_fe0 = *tr_fes.GetFaceElement(face_list[0]);
+      const IntegrationRule &ir = nlfi
+                                  ? *HDGNLGradRule(nlfi, tr_fe0, *el_fes.GetFE(ftr0->Elem1No),
+                                                   fl_fes ? fl_fes->GetFE(ftr0->Elem1No) : NULL, *ftr0)
+                                  : *HDGNLGradRule(bnlfi, tr_fe0, *el_fes.GetFE(ftr0->Elem1No),
+                                                   fl_fes ? fl_fes->GetFE(ftr0->Elem1No) : NULL, *ftr0);
+      const int NQ = ir.GetNPoints();
+
+      // ONE weight VECTOR per (point, pair) for each row, where the gradient
+      // pass carries a matrix. Sized AND ZEROED, for the reason its own
+      // comment gives: Vector(int) does not initialise, and a face whose
+      // weight is exactly zero would otherwise carry heap -- which read as a
+      // plausible face integral with a 46% wrong answer once already.
+      Vector wel(NQ * neq * NP), wtr(NQ * neq * NP);
+      Vector sel(NQ * ND * NP), str(NQ * TRD);
+      wel = 0.; wtr = 0.; sel = 0.; str = 0.;
+      wel.UseDevice(true); wtr.UseDevice(true);
+      sel.UseDevice(true); str.UseDevice(true);
+
+      {
+         Vector t(TRD);
+         real_t *ps = str.HostWrite();
+         for (int q = 0; q < NQ; q++)
+         {
+            tr_fe0.CalcShape(ir.IntPoint(q), t);
+            for (int i = 0; i < TRD; i++) { ps[q + i * NQ] = t(i); }
+         }
+      }
+
+      {
+         auto *dif = dynamic_cast<HDGDiffusionIntegrator*>(nlfi);
+         auto *hyp = dynamic_cast<const HyperbolicFormIntegrator*>(nlfi);
+         auto *mix = dynamic_cast<const MixedConductionNLFIntegrator*>(bnlfi);
+
+         Vector nor(dim), vu(dim), nh(dim), ni(dim), s(ND);
+         Vector st_el(neq), st_tr(neq), tq(TRD), fl(neq);
+         DenseMatrix mq(dim);
+
+         real_t *pwel = wel.HostWrite(), *pwtr = wtr.HostWrite();
+         real_t *psel = sel.HostWrite();
+         const real_t *pes = el_state.HostRead(), *pts = tr_state.HostRead();
+         // Hoisted: this sat inside the quadrature loop, so the Memory<>
+         // validity check ran NQ*2*NF times for a table that never moves.
+         const real_t *pstr = str.HostRead();
+
+         for (int fi = 0; fi < NF; fi++)
+         {
+            FaceElementTransformations *ftr =
+               mesh->GetInteriorFaceTransformations(face_list[fi]);
+            const int els[2] = { ftr->Elem1No, ftr->Elem2No };
+
+            for (int side = 0; side < 2; side++)
+            {
+               const int p = 2 * fi + side;
+               const FiniteElement &el_fe = *el_fes.GetFE(els[side]);
+               const DenseMatrix el_mat(const_cast<real_t*>(pes + p * LDD),
+                                        ND, neq);
+               const DenseMatrix tr_mat(const_cast<real_t*>(pts + p * LDC),
+                                        TRD, neq);
+
+               for (int q = 0; q < NQ; q++)
+               {
+                  const IntegrationPoint &ip = ir.IntPoint(q);
+                  ftr->SetAllIntPoints(&ip);
+                  const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
+                  const IntegrationPoint &eip2 = ftr->GetElement2IntPoint();
+                  const IntegrationPoint &eip = side ? eip2 : eip1;
+                  ElementTransformation *ElTr = side ? ftr->Elem2 : ftr->Elem1;
+
+                  if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
+                  else { CalcOrtho(ftr->Jacobian(), nor); }
+
+                  // The trace table is (NQ x TRD) with stride NQ, so a row is
+                  // not contiguous; copy rather than alias, per the gradient
+                  // pass's note about Vector's move assignment.
+                  for (int i = 0; i < TRD; i++)
+                  { tq(i) = pstr[q + i * NQ]; }
+
+                  real_t *we = pwel + (q + NQ * neq * p);
+                  real_t *wt = pwtr + (q + NQ * neq * p);
+                  const int wstride = NQ;
+
+                  if (kind == HDGNLGradKind::Hyperbolic)
+                  {
+                     el_fe.CalcShape(eip, s);
+                     if (side) { nor.Neg(); }
+                     el_mat.MultTranspose(s, st_el);
+                     tr_mat.MultTranspose(tq, st_tr);
+                     const real_t w = -ip.weight * hyp->GetSign();
+                     // Average() where the gradient pass calls AverageGrad():
+                     // the numerical flux AT the state, a neq-vector, instead
+                     // of its Jacobian. That substitution IS this routine.
+                     const NumericalFlux &nf = hyp->GetNumericalFlux();
+                     nf.Average(st_tr, st_el, nor, *ftr, fl);
+                     for (int di = 0; di < neq; di++)
+                     {
+                        we[wstride * di] += w * fl(di);
+                        wt[wstride * di] += w * fl(di);
+                     }
+                  }
+                  else if (kind == HDGNLGradKind::Diffusion)
+                  {
+                     if (side) { nor.Neg(); }
+                     real_t un = 0.;
+                     if (VectorCoefficient *v = dif->GetVelocity())
+                     { v->Eval(vu, *ftr->Elem1, eip1); un = vu * nor; }
+                     el_fe.CalcPhysShape(*ElTr, s);
+                     real_t wn = ip.weight / ElTr->Weight();
+                     Coefficient *Q = dif->GetCoefficient();
+                     MatrixCoefficient *MQ = dif->GetMatrixCoefficient();
+                     if (!MQ)
+                     {
+                        if (Q) { wn *= Q->Eval(*ElTr, eip); }
+                        ni.Set(wn, nor);
+                     }
+                     else
+                     {
+                        nh.Set(wn, nor);
+                        MQ->Eval(mq, *ElTr, eip);
+                        mq.MultTranspose(nh, ni);
+                     }
+                     const real_t wq = ni * nor;
+                     const real_t un_raw = un;
+                     real_t a, b;
+                     if (un != 0.)
+                     {
+                        const real_t su = un / std::fabs(un);
+                        a = 0.5 * dif->GetAlpha() * su;
+                        b = dif->GetBeta() * std::fabs(un);
+                     }
+                     else { a = 0.; b = dif->GetBeta(); }
+
+                     // The scalar state at the point, which the stabilization
+                     // is a function of -- this is where a residual differs
+                     // from a Jacobian by more than a rank.
+                     // An explicit dot and NOT `s * Vector(el_mat.GetData(),
+                     // ND)`: Vector has a move assignment, so a prvalue binds
+                     // to it and ALIASES the pointer -- a trap this branch
+                     // has already paid for with a silently corrupted
+                     // residual. Read-only here, but not worth writing in a
+                     // form that has to be argued safe.
+                     real_t v_q = 0., t_q = 0.;
+                     for (int i = 0; i < ND; i++)
+                     { v_q += s(i) * el_mat.GetData()[i]; }
+                     for (int i = 0; i < TRD; i++)
+                     { t_q += tq(i) * tr_mat.GetData()[i]; }
+                     const real_t face_w = ip.weight * nor.Norml2();
+                     const real_t w = dif->EvalStabilization(
+                                         wq, b + a, un_raw, face_w, v_q, t_q, *ElTr);
+                     // AssembleHDGFaceVector() adds w*v_q against both shapes
+                     // and subtracts w*t_q against both, so the weight is one
+                     // scalar times the jump.
+                     const real_t wj = w * (v_q - t_q);
+                     we[0] += wj;
+                     wt[0] += wj;
+                  }
+                  else if (kind == HDGNLGradKind::MixedConduction)
+                  {
+                     // Deliberately not implemented, and refused rather than
+                     // approximated. MixedConductionNLFIntegrator is
+                     // unreachable as a hybridized face constraint from every
+                     // miniapp -- established by printing which slot
+                     // EnableHybridization() fills across all 152 serial
+                     // references -- so a kernel for it would be untested
+                     // code for a slot nothing fills. See the plan.
+                     MFEM_ABORT("the batched face residual does not implement "
+                                "MixedConductionNLFIntegrator; "
+                                "HDGNLFaceResidualCanBatch() should have "
+                                "refused it");
+                  }
+                  MFEM_CONTRACT_VAR(mix);
+
+                  for (int i = 0; i < ND; i++)
+                  { psel[q + NQ * (i + ND * p)] = s(i); }
+               }
+            }
+         }
+      }
+
+      // ---- the contraction. One thread per PAIR, the rank-one accumulation
+      // by inner loops: NQ*neq*(ND+TRD) per pair, and no index decomposition
+      // beyond the pair itself.
+      {
+         const auto d_we = wel.Read(), d_wt = wtr.Read();
+         const auto d_se = sel.Read(), d_st = str.Read();
+         auto d_re = r_el.ReadWrite();
+         auto d_rt = r_tr.ReadWrite();
+         const int nq = NQ, nd_ = ND, trd = TRD, ne = neq;
+         const int ldd = LDD, ldc = LDC;
+         mfem::forall(NP, [=] MFEM_HOST_DEVICE (int p)
+         {
+            for (int c = 0; c < ne; c++)
+            {
+               for (int q = 0; q < nq; q++)
+               {
+                  const real_t we = d_we[q + nq * (c + ne * p)];
+                  const real_t wt = d_wt[q + nq * (c + ne * p)];
+                  if (we != 0.0)
+                  {
+                     for (int i = 0; i < nd_; i++)
+                     { d_re[p * ldd + c * nd_ + i] += we * d_se[q + nq * (i + nd_ * p)]; }
+                  }
+                  if (wt != 0.0)
+                  {
+                     for (int j = 0; j < trd; j++)
+                     { d_rt[p * ldc + c * trd + j] += wt * d_st[q + nq * j]; }
+                  }
+               }
+            }
+         });
+      }
+   }
 }
 
 void HDGNLFaceGradScatterBatched(

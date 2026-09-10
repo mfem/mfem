@@ -1225,6 +1225,417 @@ TEST_CASE("The batched boundary flux mass under a device", "[DebugDevice]")
    close(q_ref, q_bat);
 }
 
+/**
+ * @brief Two gradients in a row are the same operator, under a Device.
+ *
+ * Not idempotence for its own sake. This is the one shape of defect a HOST
+ * build structurally cannot see, and it hid two live instances at once. The
+ * element loops write the local blocks D, E, G and H through RAW POINTERS,
+ * which does not invalidate a device copy -- so once a kernel has left one
+ * valid, a later kernel's ReadWrite() skips its upload and accumulates onto
+ * the PREVIOUS pass's data. The FIRST pass is always right, which is exactly
+ * why every other case in the tree passes: each takes one pass on a fresh
+ * object, where no device copy exists yet.
+ *
+ * Two kernels reach those blocks by different routes and both were wrong.
+ * Measured under Device("cuda") before the fix, |first - second| against
+ * tolerances of 7.5e-12: AssemblyMode::Batched, through
+ * AssembleNLFaceGradBatched(), 0.17 to 0.76; LocalFactorMode::Batched,
+ * through ComputeElementsHBatched(), up to 3.8. The second needs neither
+ * AssemblyMode nor that kernel, so a fix aimed at the first left it standing
+ * -- the reason this case has two sections and each asserts that its own
+ * lever is live rather than trusting the mode it set.
+ *
+ * What the two share is DarcyHybridization::SyncLocalBlocksToHost(), which
+ * takes OWNERSHIP for the host rather than merely making the blocks
+ * readable. Put its HostReadWrite() calls back to HostRead() and BOTH
+ * sections fail at every order -- measured, 0.087 and 1.67 against a scale
+ * of 3.25 at order 0, so 2.7% and 51% of the operator's own norm.
+ */
+static void TwoGradients(DarcyHybridization::AssemblyMode am,
+                         DarcyHybridization::LocalFactorMode lfm,
+                         DarcyHybridization::TraceAssemblyMode tam,
+                         int order, Vector &first, Vector &second)
+{
+   const int n = 3, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+   BurgersFlux flux(dim);
+   HDGFlux num_flux(flux, HDGFlux::HDGScheme::HDG_1);
+   Array<int> ess_flux;
+
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   // A NONLINEAR interior-face constraint, which is what puts the face
+   // gradient on the batchable route at all; a domain nonlinearity alone
+   // leaves CanBatchNLFaceGrad() false.
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+   Mnl_p->AddInteriorFaceIntegrator(
+      new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+   Mnl_p->AddBdrFaceIntegrator(
+      new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetAssemblyMode(am);
+   dh->SetLocalFactorMode(lfm);
+   dh->SetTraceAssemblyMode(tam);
+   dh->EnableNPC();
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   dh->SetEssentialBC(ess_bdr);
+   darcy.Assemble();
+   darcy.Finalize();
+
+   // Each section proves its own lever, rather than trusting the mode it set.
+   // Worth more than it looks: CanBatchTraceAssembly() once answered a
+   // DIFFERENT question from the one ComputeH() asks, and two tests carrying
+   // exactly this kind of guard passed against a kernel with a whole pass
+   // deleted. The guard is only as good as the predicate.
+   if (tam == DarcyHybridization::TraceAssemblyMode::Batched)
+   {
+      REQUIRE(dh->CanBatchTraceAssembly());
+   }
+   else if (am == DarcyHybridization::AssemblyMode::Batched)
+   {
+      REQUIRE_FALSE(dh->CanBatchTraceAssembly());
+      REQUIRE(dh->CanBatchNLFaceGrad());
+   }
+   else
+   {
+      REQUIRE_FALSE(dh->CanBatchTraceAssembly());
+      REQUIRE_FALSE(dh->CanBatchNLFaceGrad());
+      REQUIRE(dh->CanBatchLocalFactor());
+   }
+
+   BlockVector x(darcy.GetOffsets());
+   Vector x_tr(Mh.GetVSize());
+   for (int i = 0; i < x.Size(); i++)
+   {
+      x(i) = 0.4 + 0.6*std::sin(0.7*(i + 1) + 1.3)
+             + 0.2*std::cos(0.31*i*i + 1);
+   }
+   for (int i = 0; i < x_tr.Size(); i++)
+   {
+      x_tr(i) = 0.4 + 0.6*std::sin(0.7*(i + 1) + 2.6)
+                + 0.2*std::cos(0.31*i*i + 2);
+   }
+
+   for (int pass = 0; pass < 2; pass++)
+   {
+      Operator &S = dh->NPCGradient(x, x_tr);
+      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+      REQUIRE(Sm != nullptr);
+      Vector &out = pass ? second : first;
+      out.SetSize(Sm->NumNonZeroElems());
+      const real_t *d = Sm->HostReadData();
+      for (int i = 0; i < out.Size(); i++) { out(i) = d[i]; }
+   }
+}
+
+TEST_CASE("Two gradients in a row are the same operator under a device",
+          "[DebugDevice]")
+{
+   using AM = DarcyHybridization::AssemblyMode;
+   using LFM = DarcyHybridization::LocalFactorMode;
+   using TAM = DarcyHybridization::TraceAssemblyMode;
+
+   const int order = GENERATE(0, 1, 2);
+   CAPTURE(order);
+
+   Vector first, second;
+
+   SECTION("AssemblyMode::Batched -- the face gradient kernel")
+   {
+      TwoGradients(AM::Batched, LFM::Serial, TAM::Serial, order, first,
+                   second);
+   }
+
+   SECTION("LocalFactorMode::Batched -- the trace assembly kernels")
+   {
+      TwoGradients(AM::Serial, LFM::Batched, TAM::Serial, order, first,
+                   second);
+   }
+
+   // The third lever, reaching the blocks by a third route: the CSR data
+   // array, written by a kernel and read back at the end of ComputeH().
+   //
+   // **What this section does NOT do, checked rather than claimed.** It does
+   // not discriminate HostReadWriteData() from HostReadData() there --
+   // substituting the read passes at every order. It cannot: GetGradient()
+   // does `Grad.reset()` and the pattern builder allocates a fresh matrix
+   // every linearisation, so no device copy of that array survives to be
+   // consumed stale, which is the second half the other two sections have and
+   // this one has not. What it does assert is the same question those ask of
+   // their own kernels -- two assemblies in a row are one operator -- for a
+   // kernel whose staleness a host build could not see either way.
+   SECTION("TraceAssemblyMode::Batched -- the CSR fill")
+   {
+      TwoGradients(AM::Serial, LFM::Serial, TAM::Batched, order, first,
+                   second);
+   }
+
+   REQUIRE(first.Size() == second.Size());
+   REQUIRE(first.Normlinf() > 1e-3);
+
+   // An absolute floor against the operator's own scale, not a bare relative
+   // bound -- this file's standing note that an equality test between two
+   // routes must not compare round-off relatively. The two passes are the
+   // same host arithmetic on the same data, so the margin is enormous: the
+   // defect was 2% to 51% of the scale against the 1e-12 asked for here.
+   const real_t scale = first.Normlinf();
+   for (int i = 0; i < first.Size(); i++)
+   {
+      REQUIRE(std::abs(first(i) - second(i)) <= 1e-12 * scale);
+   }
+}
+
+/** @brief Two NPC residuals through the WHOLE-LOOP batched route, then a
+    gradient, in the two shapes LinearResidualBatched() admits.
+
+    @a mass_on_nlform puts the flux and potential mass on the NONLINEAR forms
+    instead of the bilinear ones. Every integrator in them is still a
+    BilinearFormIntegrator, which is what HDGIntegratorIsLinear() admits and
+    what makes ResidualCache::Au_all / Dp_all stand in for A and D; the
+    HDGDiffusionIntegrator face terms stay on the potential mass BILINEAR form
+    either way, because c_bfi_p is a hard requirement of the predicate.
+
+    Two residuals and not one: the first builds the ResidualCache -- the face
+    gathers, and the once-assembled Au/Dp -- and the second takes the cached
+    path. They are the same host arithmetic on the same data, so they are
+    compared BITWISE.
+
+    The gradient afterwards is the point of the case rather than an extra
+    check. MultNL() opens with SyncLocalBlocksToHost(), which does NOT name
+    Af_lin_data, and the gradient pass then reaches the local blocks through
+    raw host pointers; so this is a host raw reader arriving at the arrays a
+    kernel has just touched. */
+static void WholeLoopResidualStep(bool mass_on_nlform, int order,
+                                  Vector &first, Vector &second,
+                                  Vector &grad_action, bool &can_batch)
+{
+   const int n = 4, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     0.8, 1.2);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+
+   if (mass_on_nlform)
+   {
+      darcy.GetFluxMassNonlinearForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+      darcy.GetPotentialMassNonlinearForm()->AddDomainIntegrator(
+         new MassIntegrator(one));
+   }
+   else
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+   }
+
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->EnableNPC();
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   dh->SetEssentialBC(all);
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   // A route nothing takes tests nothing, and this predicate IS the routine's
+   // own first line -- LinearResidualBatched() returns false on it.
+   can_batch = dh->CanBatchLinearResidual();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b.HostWrite();
+   for (int i = 0; i < b.Size(); i++)
+   {
+      b(i) = 0.3 * std::cos(0.37 * i + 0.9);
+   }
+   x.HostWrite();
+   for (int i = 0; i < x.Size(); i++)
+   {
+      x(i) = std::sin(0.71 * i + 0.5) + 0.5 * std::cos(0.113 * i);
+   }
+   Vector x_tr(Mh.GetVSize());
+   x_tr.HostWrite();
+   for (int i = 0; i < x_tr.Size(); i++)
+   {
+      x_tr(i) = std::sin(0.71 * i + 2.1) + 0.5 * std::cos(0.113 * i);
+   }
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr;
+   for (int pass = 0; pass < 2; pass++)
+   {
+      dh->NPCResidual(b, x, x_tr, r, r_tr);
+      Vector &out = pass ? second : first;
+      out.SetSize(r.Size() + r_tr.Size());
+      out.HostWrite();
+      const real_t *rd = r.HostRead(), *td = r_tr.HostRead();
+      for (int i = 0; i < r.Size(); i++) { out(i) = rd[i]; }
+      for (int i = 0; i < r_tr.Size(); i++) { out(r.Size() + i) = td[i]; }
+   }
+
+   // The gradient immediately after, with no rebuild in between: this is the
+   // raw host reader arriving at blocks the kernels above have read through
+   // BatchedLinAlg.
+   Operator &S = dh->NPCGradient(x, x_tr);
+   SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+   REQUIRE(Sm != nullptr);
+   REQUIRE(Sm->NumNonZeroElems() > 0);
+
+   Vector v(Sm->Width());
+   v.HostWrite();
+   for (int i = 0; i < v.Size(); i++)
+   {
+      v(i) = 0.4 + 0.6 * std::sin(0.29 * i + 1.7);
+   }
+   grad_action.SetSize(Sm->Height());
+   grad_action = 0.0;
+   v.HostRead();
+   grad_action.HostReadWrite();
+   Sm->Mult(v, grad_action);
+   grad_action.HostRead();
+}
+
+/**
+ * @brief The WHOLE-LOOP batched NPC residual under a Device, and a gradient
+ * straight after it.
+ *
+ * LinearResidualBatched() replaces MultNL(AtFields)'s element loop outright,
+ * and it is the FIRST route to hand Af_lin_data, Bf_data and Df_lin_data to
+ * BatchedLinAlg at all -- so it is the first that COULD leave them
+ * device-valid, which is the premise the last paragraph withdraws. Every other
+ * consumer of those three reaches them through RAW HOST POINTERS which
+ * neither sync nor invalidate: LocalNLOperator::AddMultA() / AddGradA() and
+ * ConstructGrad()'s DenseMatrix view over &Af_lin_data[Af_offsets[el]]. And
+ * Af_lin_data is the one of the three that SyncLocalBlocksToHost() does NOT
+ * name, while Df_lin_data and Bf_data are both in its list.
+ *
+ * So the case exists to make the debug backend answer that omission, rather
+ * than the argument that Memory::Read() leaves the host copy valid. It takes
+ * two residuals -- the ResidualCache's build path and then its cached path --
+ * and a gradient straight afterwards, which is what puts a host raw reader at
+ * the same arrays right after a kernel has touched them.
+ *
+ * The two sections are the two shapes the predicate admits and they differ in
+ * WHICH array is at risk:
+ *
+ *  - mass on the BILINEAR forms: A_empty is false, Finalize() swaps the
+ *    assembled flux mass into Af_lin_data, and it is Af_lin_data that
+ *    BatchedLinAlg::Mult() reads. This is the section the question is about.
+ *  - mass on the NONLINEAR forms: every integrator in them is still bilinear,
+ *    so HDGIntegratorIsLinear() admits them and ResidualCache::Au_all /
+ *    Dp_all are assembled once and stand in for A and D. A_empty is true
+ *    there, so Af_lin_data is EMPTY and this section says nothing about it --
+ *    it covers the other two block stores instead.
+ *
+ * **What this case does NOT discriminate, measured rather than claimed.** It
+ * passes, and adding Af_lin_data to SyncLocalBlocksToHost() cannot be shown
+ * from here to change anything -- for a reason that is NOT the one usually
+ * given, which is that Memory::Read() leaves the host copy valid. Under
+ * Device("debug") a device Read() does not leave the host READABLE: it goes
+ * through MemoryManager::GetDevicePtr(), which protects the host page
+ * unconditionally, and a raw read after it aborts in MmuError. Measured on an
+ * Array<real_t> in twenty lines: Array::Read() gives host_valid=1
+ * device_valid=1 and the next `A[0]` aborts.
+ *
+ * What saves this route is that it never touches those arrays directly. Every
+ * block goes in as a DenseTensor built with `own_mem = false`, which is
+ * Memory::MakeAlias(), and the alias device path --
+ * MemoryManager::GetAliasDevicePtr() -- calls AliasUnprotect() on the host and
+ * updates only the ALIAS's flags. Same probe, same array, through the tensor:
+ * the base Memory stays host_valid=1 device_valid=0 and the raw read returns
+ * the right value. Nothing here Sync()s the alias flags back, and nothing
+ * writes Af_lin_data after Finalize(), so there is no stale device copy to
+ * find. That argument covers Bf_data and Df_lin_data equally; they are in the
+ * sync list because OTHER routines reach them through kernels that do Sync().
+ *
+ * The raw host readers of Af_lin_data are additionally unreachable on this
+ * route, counted under gdb rather than reasoned about: LocalNLOperator::
+ * AddMultA()/AddGradA() are called 0 times (they live in LocalResidual(),
+ * inside the very element loop this route replaces), and ConstructGrad()'s
+ * `&Af_lin_data[Af_offsets[el]]` view needs `!ad_done`, while
+ * CopyLinearGradBlocks() returns 1 on the bilinear section (so ad_done, and
+ * its own read of Af_lin_data is a syncing HostRead()) and 0 on the nonlinear
+ * one, where m_nlfi_u supplies the block instead.
+ *
+ * Nothing in the globbed test set can see any of this: with no Device
+ * configured every one of those reads is a host read and the ordering is
+ * invisible.
+ */
+TEST_CASE("The whole-loop batched NPC residual under a device",
+          "[DebugDevice]")
+{
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   Vector first, second, grad_action;
+   bool can_batch = false;
+
+   SECTION("mass on the bilinear forms -- Af_lin_data carries A")
+   {
+      WholeLoopResidualStep(false, order, first, second, grad_action,
+                            can_batch);
+   }
+
+   SECTION("mass on the nonlinear forms -- ResidualCache::Au_all / Dp_all")
+   {
+      WholeLoopResidualStep(true, order, first, second, grad_action,
+                            can_batch);
+   }
+
+   // The route was actually taken. Without this the case is a comparison of
+   // the element loop with itself, which is this file's standing lesson.
+   REQUIRE(can_batch);
+
+   // A residual of zero would agree with itself bitwise and prove nothing.
+   REQUIRE(first.Normlinf() > 1e-3);
+   REQUIRE(grad_action.Normlinf() > 1e-3);
+
+   // Bitwise, because the two passes are the same host arithmetic on the same
+   // data and the only difference between them is whether the face blocks
+   // were gathered on this call or the previous one. Anything a stale device
+   // copy did to those blocks would show up here.
+   REQUIRE(first.Size() == second.Size());
+   for (int i = 0; i < first.Size(); i++)
+   {
+      REQUIRE(first(i) == second(i));
+   }
+}
+
 #endif // _WIN32
 
 int main(int argc, char *argv[])

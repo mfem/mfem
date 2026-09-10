@@ -118,6 +118,7 @@ set(UNIT_TESTS_SRCS
   fem/test_darcy_batched_factor.cpp
   fem/test_darcy_batched_face.cpp
   fem/test_darcy_batched_residual.cpp
+  fem/test_darcy_batched_traceh.cpp
   fem/test_darcy_degenerate.cpp
   fem/test_darcy_functionals.cpp
   fem/test_darcy_hybridization.cpp

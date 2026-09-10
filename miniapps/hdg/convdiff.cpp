@@ -938,6 +938,12 @@ int main(int argc, char *argv[])
       chrono.Stop();
       cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
 
+      // CanBatchLinearResidual() is deliberately NOT on this line: it reads
+      // A_empty, D_empty and the block array sizes, none of which exist
+      // until Assemble() runs, so here it would report "no" for a route that
+      // then fires. A diagnostic printed before the state it describes is
+      // worse than no diagnostic.
+      //
       // Say what was actually taken, not what was asked for. Both settings
       // fall back silently -- LocalFactorMode::Batched needs uniform block
       // sizes, which essential FLUX dofs defeat, and AssemblyMode::Batched
@@ -977,6 +983,8 @@ int main(int argc, char *argv[])
               << (dh->CanBatchLocalResidual() ? "yes" : "no")
               << ", nl face grad kernel taken: "
               << (dh->CanBatchNLFaceGrad() ? "yes" : "no")
+              << ", nl face residual kernel taken: "
+              << (dh->CanBatchNLFaceResidual() ? "yes" : "no")
               << ", local factor batched: "
               << (dh->CanBatchLocalSolve() ? "yes" : "no") << "\n";
       }

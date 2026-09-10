@@ -206,14 +206,40 @@ by running the thing on a device rather than reasoning about it.
 
 ## WHAT IS LEFT, and the first item is the whole project
 
-**Nothing is faster end to end, and the gate says that is expected.** Measured
-just now, `hdgdevice -n 32 -o 2` under CUDA with cuDSS against the same problem
-with every setting off: **0.2100 s against 0.1688 s**. The assembly alone is
-0.0540 against 0.0168 -- three times slower on the device, because its
-neighbours are on the host and D goes through `AtomicAdd` where the per-element
-route uses `+=`. The trace solve is the one stage that is faster (0.0756
-against 0.1114). Every stage that runs is verified correct; none of it pays
-yet, and it cannot until the chain closes.
+> **"Nothing is faster end to end" is now FALSE, and it was the headline of
+> this section for the whole project.** It is above ~4k elements, and the
+> margin grows with size. Superseded text kept below, because the number in it
+> is real and is what the crossover is measured against.
+
+**The chain pays end to end on the device now.** `hdgdevice -o 2 -cudss`
+against the same problem with every setting off, one build, same session:
+
+| | device | control | |
+|---|---|---|---|
+| n=32, 1024 el | 0.1866 | 0.1688 | 1.11x **slower** |
+| n=64, 4096 el | 0.4198 | 0.5589 | **1.33x faster** |
+| n=128, 16384 el | 1.3059 | 2.1938 | **1.68x faster** |
+
+Agreeing with the control at 1.4e-14, 7.5e-14 and 1.8e-13. At n=128 the
+`NPC gradient` stage alone is **1.89x**, twice reproduced, which is the same
+1.42-1.84x the host-only interleaved measurement of `GetGradient` gives at
+that size and order -- so the stage that moved is identifiable and it is
+`ComputeH()`. The trace solve is 3.0x (cuDSS against UMFPACK) and the assembly
+is still ~1.4x slower on the device, for the `AtomicAdd` reason below.
+
+**So the crossover is between 1024 and 4096 elements**, which is where this
+file already puts the batched local solve's crossover -- the same threshold,
+arrived at from the other end. Below it every device setting is a loss and
+`-n 32` was the size this section had always been measured at.
+
+> **SUPERSEDED, kept as the number the crossover is measured against.**
+> Measured just now, `hdgdevice -n 32 -o 2` under CUDA with cuDSS against the
+> same problem with every setting off: **0.2100 s against 0.1688 s**. The
+> assembly alone is 0.0540 against 0.0168 -- three times slower on the
+> device, because its neighbours are on the host and D goes through
+> `AtomicAdd` where the per-element route uses `+=`. The trace solve is the
+> one stage that is faster (0.0756 against 0.1114). Every stage that runs is
+> verified correct; none of it pays yet, and it cannot until the chain closes.
 
 In order of what each would buy. **This ranking was re-measured and the first
 two entries were wrong; see the profile below.**
@@ -262,20 +288,63 @@ is the part a to-do list has to carry.
 1. ~~**`ComputeElementH()`'s face-PAIR loop.**~~ **DONE** --
    `ComputeElementsHBatched()`, and see below.
 
-2. **The scatter into the trace `SparseMatrix`** -- `ScatterElementH` plus
-   `Finalize`/RAP, together 17-24% of the step. **Now the largest open item,
-   and the claim that "no device path can do this as written" is withdrawn**:
-   `HybridizationExtension::ConstructH()` in `fem/hybridization_ext.cpp:316`
-   assembles a hybridization trace matrix on the device, 280 lines from this
-   one. It also needs no segmented reduction, which was the reason to think it
-   hard -- a trace dof's multiplicity is at most 2, so a static sparsity
-   pattern plus a per-nonzero gather map is the whole design, and MFEM has
-   both a reducer and CUB scan wrappers if one were ever wanted. Measured on
-   the gather: **13x on the host and 320-650x on the device**, bit-for-bit
-   identical, with cuDSS keeping H device-resident at 2.207e-16. About 300
-   lines, and not built. `GradientMode::MatrixFree` still deletes the item
-   outright at the cost of an unpreconditioned trace solve --
-   `doc/HDG-JACOBIAN-FREE-TRACE.md`.
+2. ~~**The scatter into the trace `SparseMatrix`.**~~ **DONE** --
+   `TraceAssemblyMode::Batched`, and this entry was wrong in three places.
+   The write-up is on `SetTraceAssemblyMode()`, `BuildTraceHMap()` and
+   `CanBatchTraceAssembly()`; what belongs here is only what the ENTRY got
+   wrong, since that is what a plan has to carry.
+
+   * **"A per-nonzero gather map is the whole design" -- no**, and it would
+     have been the expensive way. Such a map is O(NE (nf nc)^2) ints, the
+     size of the block buffer itself. Laying each row's columns out one
+     neighbour face at a time makes a nonzero's index `I[row] + slot*nc + j`,
+     so the map is O(NE nf^2) and the whole thing stays chunk-friendly -- no
+     buffer for the mesh, which is what the chunk exists to prevent.
+   * **"Bit-for-bit identical" -- of the VALUES, never of the storage.** The
+     serial route's column order is the reverse of first-insertion order, and
+     `AddSubMatrix(skip_zeros)` declines to insert an element's exact zeros --
+     so which element first touches a column decides its position and the
+     order is a function of the values. Measured, and the two matrices'
+     products differ at 4-6e-16 relative because of it. There is nothing to
+     fix; it is what an artefact of a linked list looks like.
+   * **"cuDSS keeping H device-resident" -- not through this routine.**
+     `SetDiagIdentity()` and `EliminateRowCol()`, both on the way out of
+     `ComputeH()`, index `I`, `J` and `A` through `Memory::operator[]`, a raw
+     host access that neither syncs nor invalidates. So the pattern is built
+     and kept on the host and the values come back through
+     `HostReadWriteData()`. Closing that end is a job on `SparseMatrix`.
+
+   And one thing the entry did not know: **the mode reaches NPC problems
+   only**, because on the reduced route the face constraint has already
+   assembled its per-face diagonal blocks into the sparse `H` by the time
+   `ComputeH()` runs. That is item 9 below arriving at a second kernel, and it
+   is a scope limit rather than a defect.
+
+   What it is worth, host, interleaved pairs, `GetGradient()` on a semilinear
+   problem -- and the ASSEMBLY HALF isolated by subtracting
+   `GradientMode::MatrixFree`, which does the factorisation and no assembly,
+   rather than by quoting a share from a profile of a different routine:
+
+   | | end to end | assembly half |
+   |---|---|---|
+   | order 1, n=64 | 1.37-1.71x | 1.62-2.33x |
+   | order 2, n=128 | 1.41-1.69x | 1.75-2.39x |
+   | order 3, n=64 | 1.13-1.18x | 1.19-1.29x |
+   | order 1, n=64, `LocalFactorMode::Batched` | 1.69-1.84x | 2.85-3.11x |
+   | order 2, n=128, `LocalFactorMode::Batched` | 1.42-1.67x | 1.83-2.69x |
+
+   **So this is the second step to beat the gate, and it beats it on the HOST
+   and at every size tried** -- the first was the state-carrying face
+   constraint, which needed order 3 and a device. The reason it pays with no
+   device at all is not the kernel: `Grad.reset()` throws the matrix away
+   every linearisation, so the serial route rebuilds a linked list of one
+   `RowNode` per nonzero and walks it twice, and none of that structure
+   depends on a value. The order trend runs the other way from every other
+   item here, because the face-pair dense work grows as dofs^3 while the
+   scatter grows as nnz.
+
+   `GradientMode::MatrixFree` still deletes the item outright at the cost of
+   an unpreconditioned trace solve -- `doc/HDG-JACOBIAN-FREE-TRACE.md`.
 
 3. ~~**The NPC residual's integrators, 5-7%.**~~ **DONE** --
    `CanBatchLocalResidual()`, 0.86x and 0.77x of the per-element integrator
@@ -342,7 +411,21 @@ is the part a to-do list has to carry.
    routine, so the item was two refusals rather than one.
 
 9. **Non-NPC problems**, for the H destination above: the kernel writes
-   `H_data` and the reduced route reads an assembled sparse `H`. Unchanged.
+   `H_data` and the reduced route reads an assembled sparse `H`. Still open,
+   and **now the binding constraint on item 2 as well** -- so this is no
+   longer one kernel's footnote. The face constraint reaches the sparse `H`
+   during `Assemble()` (`ComputeAndAssemblePotFaceMatrix()` and its boundary
+   twin, `H->AddSubMatrix()` in the non-NPC branch), so `ComputeH()` inherits
+   an unfinalized linked-list matrix and cannot be handed a CSR. Lifting it is
+   the same connectivity map with a second scatter, into the same CSR, from
+   the face loop instead of the element loop.
+
+   **It also cost the only real defect of item 2's round, and the way it
+   surfaced is the reusable part**: `CanBatchTraceAssembly()` asked the
+   connectivity question and not the destination question, so it returned true
+   on a linear problem whose assembly then took the host route -- and two of
+   the new tests passed against a DELIBERATELY BROKEN kernel. The ablation
+   found it; reading the predicate had not.
 
 **Two items larger than anything on this list, both found while measuring
 it, and neither an offload item.** `UMFPackSolver::SetOperator` is **38.5% of
@@ -389,7 +472,7 @@ Measured on the host, from the threading work. Shares of an **NPC step**
 |---|---|---|---|---|
 | 1 | local dense LA — `InvertA`/`InvertD`, `MultInv`, `NPCReduce`/`NPCRecover`, `ComputeElementH`'s factor+Schur | 7–10% | ~6% | **a storage change, no kernels** |
 | 2 | the integrators — `ConstructGrad`, `LocalResidual`, `DarcyForm::Assemble` | 46–53% | 44% | a partial-assembly rewrite |
-| 3 | the scatter into the `SparseMatrix` | 12–17% | ~13% | a different algorithm, or `MatrixFree` |
+| 3 | the scatter into the `SparseMatrix` | 12–17% | ~13% | **DONE** — a different algorithm, or `MatrixFree` |
 | 4 | the trace solve | 26–31% | 51% | a configuration change |
 
 ## What you write, and what you do not
@@ -595,7 +678,192 @@ same argument that makes `LocalFactorMode::Batched` exact without LAPACK. The
 not, so a test asserting equality has to say which backend it is asserting
 about. Plus: a serial build unchanged, and the host `Batched` path unchanged.
 
-## Step 2 — group 2, the integrators, and this is the work
+## Extending the batched residual to NONLINEAR integrators — Tiers 1 and 2 DONE
+
+> **Tier 2's flux path was WRONG when this section was written, and the
+> section said it was verified.** `ConstructGrad()`'s `if (m_nlfi_u)` branch
+> carried no `!ad_done` guard, so with `CopyLinearGradBlocks()` writing `A`
+> the element loop added the element flux mass on top of a copy of itself --
+> a gradient out by a factor near two while the residual stayed bit-identical.
+> It cost 20 of the 152 serial references and the `[NPC]` case pinning Tier 2
+> did not see it, because that case compared residuals only. Both are fixed;
+> the residual/gradient comparison is now in the pin, and
+> `CLAUDE_MEASUREMENTS.md` carries the numbers. **Read the sentence below as
+> "built and measured", not as "verified" -- the verification is what found
+> the defect, and it came after.**
+
+**Tier 1 and Tier 2 are built, verified and measured; their findings are in
+the code.** What is left here is Tier 3, which is blocked upstream, and the
+Tier 2 kernel that would be needed if a genuinely nonlinear mass slot ever
+appeared. Everything else that was in this section -- the two designs, the
+worth-estimates, the ordering argument -- is realised and has moved:
+
+| what | now lives on |
+|---|---|
+| Tier 1's structure, and why a host ratio of 1.05x-1.24x is the right result | `AssembleNLFaceResidualBatched()` doxygen |
+| why a boundary constraint is NOT a refusal, and the measurement that said the first draft's predicate never fired | `CanBatchNLFaceResidual()` in the source |
+| why the residual refuses `MixedConductionNLFIntegrator` where the gradient takes it | `HDGNLFaceResidualCanBatch()` |
+| Tier 2: `BilinearFormIntegrator : NonlinearFormIntegrator`, the `SumNLFIntegrator` that hides it, and the 3.9x-14.2x | `HDGIntegratorIsLinear()` and `ResidualCache::Au_all` |
+| why the flux row mirrors an ALTERNATIVE and the potential row an ADDITION | `CanBatchLinearResidual()` |
+| the two costs that had to go before the whole-loop route was a win at all | `ResidualCache` |
+
+### Two things this round got wrong first, both worth not repeating
+
+**A predicate that never returns true is dead code that passes every test.**
+Tier 1's first predicate refused any problem carrying a boundary nonlinear
+constraint, on the theory that a half-applied constraint would drop the
+boundary term. Both skip sites test `FTr->Elem2No >= 0` before skipping, so
+the boundary branch was never at risk -- and every one of the 74 refusals
+across the `[Batched]` tag was that condition. The route was unreachable and
+the suite was entirely happy. What found it was asking the direct question
+(count the firings) rather than running the tests again.
+
+**Two costs of the same size look like no cost at all.** The whole-loop
+residual was 0.42x-0.62x, attributed to the per-call gathers, and caching them
+moved it to 0.45x-0.60x -- which reads as "the fix did not work" and is
+actually "there is a second cost the same size". It was eight `Vector`
+constructions per evaluation. Both gone, the route is 1.6x-9.7x. See the
+table on `ResidualCache`.
+
+### Tier 3 -- a user's integrator. BLOCKED, and outside fem/darcy.
+
+`FluxFunction::ComputeFlux` and `ComputeFluxDotN` are plain virtuals;
+**`fem/hyperbolic.hpp` contains no `MFEM_HOST_DEVICE` at all**, and neither
+does `NonlinearFormIntegrator`. A device lambda cannot call either, so a
+caller's own flux law or integrator cannot be batched by anything fem/darcy
+does. Three ways out, and only the first is a real fix:
+
+1. **A device-callable flux contract in MFEM** -- an `MFEM_HOST_DEVICE`
+   evaluation on a POD flux descriptor, so a kernel can call it. Upstream
+   work, and the thing to propose if the compressible Navier-Stokes case
+   matters.
+2. **Keep the host pass for the per-point evaluation and batch only the
+   contraction.** This is exactly what Tier 1 does, and it is *why* Tier 1 was
+   feasible. It leaves a host loop over (face, point) but removes the
+   per-entity frame, which the ablation says is the whole cost. **So this is
+   not a workaround, it is the measured-correct answer for everything except
+   a device-resident chain.**
+3. `QuadratureFunction`-style precomputation of the integrand. Rejected: the
+   STATE changes every Newton step, so it is per-evaluation host work either
+   way -- it reorganises the host pass rather than removing it -- and the
+   ablation measured that pass as free.
+
+### If a genuinely nonlinear mass slot ever appears
+
+Tier 2 as built covers a `m_nlfi_u` / `m_nlfi_p` holding
+`BilinearFormIntegrator`s, which is what the tree actually installs. A real
+`NonlinearFormIntegrator` there stays refused. **Check reachability again
+before building a kernel for it** -- print which slot `EnableHybridization()`
+fills across the references, as was done for `MixedConductionNLFIntegrator`
+(unreachable as a face constraint from every miniapp) and for these two
+(reachable, but bilinear). A kernel for a slot nothing fills is the mistake
+this file has now recorded three times.
+
+`HDGMixedConductionResidualBatched()` is the template if it comes to that, and
+its own comment carries the design rule: **`CalcShape` and NOT
+`CalcPhysShape`**, so one reference table serves the mesh with the per-element
+geometry carried separately. Three pieces, in increasing order of work: the
+potential row of `m_nlfi` (the existing routine returns `ru_all` only), then
+`m_nlfi_p`, then `m_nlfi_u` -- noting `CanBatchLocalResidual()`'s restriction
+that the element's block must be its whole vdof set, which an H(div) flux
+breaks and an L2 flux does not.
+
+**And measure the frame, not the integrand.** `LocalNLOperator`'s constructor
+and destructor alone are 13% of `NPCResidual`, twice what its integrators
+cost, and the face weight loop's entire cost survived deleting its quadrature
+loop. This file has been wrong twice by measuring the integrand instead.
+
+## Step 2 — the integrators — MEASURED, and this section names the wrong cost
+
+**The batched face route already runs a device kernel; what is still host is
+the WEIGHT loop in front of it, and that loop is not bound by anything this
+section proposes to fix.** Attributed by ablation inside
+`HDGFaceScatterBatched`, timing the host weight loop against the device
+contraction, `-d cpu`, n=64:
+
+| order | host weight loop | device contraction | face asm / `Assemble()` |
+|---|---|---|---|
+| 1 | 81.6% | 18.4% | 47.3% |
+| 2 | 54.8% | 45.2% | 45.3% |
+| 3 | 41.3% | 58.7% | 32.1% |
+| 5 | 21.2% | 78.8% | 23.1% |
+
+So the prize falls hard with order -- 39% of `Assemble()` at order 1, 5% at
+order 5 -- which is the OPPOSITE trend to every other item on the list, and
+worth knowing before choosing where to spend.
+
+**Four ablations, and all four came back innocent.** Each skips one thing and
+keeps the rest, so the answers are wrong and only the timings count:
+
+| ablated | order 1 | order 2 | order 3 |
+|---|---|---|---|
+| `CalcPhysShape` per face per point | 0.0499 -> 0.0491 | 0.0787 -> 0.0744 | 0.1395 -> 0.1388 |
+| every coefficient `Eval` | -> 0.0608 | -> 0.0902 | -> 0.1512 |
+| the per-point transformation update | 0.0520 -> 0.0493 | 0.0734 -> 0.0720 | 0.1488 -> 0.1337 |
+| the shape-table STORES | 0.0493 -> 0.0479 | 0.0730 -> 0.0827 | 0.1273 -> 0.1262 |
+| **the WHOLE quadrature loop** | 0.0508 -> **0.0559** | 0.0781 -> **0.0737** | 0.1362 -> **0.1264** |
+
+The last row is the finding: **the time survives deleting the entire
+quadrature loop**, so every cost is per FACE and none of it is the integrand.
+What is left in the loop at that point is
+`Mesh::GetInteriorFaceTransformations()` and two `GetFE()` calls.
+
+**So this section's items 1 and 2 -- geometry precomputed, coefficients into
+`QuadratureFunction`s -- address things that are already free.** The cost is
+the construction of a `FaceElementTransformations` per face, which is the same
+shape as this file's existing finding that `LocalNLOperator`'s nine
+heap-allocated transformation objects per element are 13% of `NPCResidual`,
+twice what its integrators cost. **The change worth making is not "move the
+integrand to the device"; it is "stop building a transformation per face".**
+
+### The design that follows, with its four facts measured first
+
+Each of these would have changed the design, and two would have been silent
+wrong answers:
+
+* **`detJ(q,f) * normal(q,:,f)` from `FaceGeometricFactors` equals
+  `CalcOrtho(ftr->Jacobian())` EXACTLY** -- 0.0 in 2-D, 4.2e-17 in 3-D, sign
+  included. `normal` is normalised and signed e1->e2; `detJ` is its
+  magnitude. Checked because this branch has never once got a sign convention
+  right by reasoning.
+* **A coefficient projected into a `QuadratureFunction` on a
+  `FaceQuadratureSpace` needs `GetPermutedIndex()`.** At the plain index it is
+  wrong by 0.60-0.71 against a scale of 3.7-4.4; permuted it is 0.0 to 8.9e-16.
+  **And the geometric factors above match at the PLAIN index** -- so two
+  device arrays over the same face quadrature space carry different point
+  orderings, and mixing them is a silent wrong answer of about 16%.
+* **The element shape at a face's quadrature points depends only on
+  (local face id, orientation, q)**, so one table per code serves the mesh
+  instead of one per face: reproduces every face's `CalcPhysShape` at 0.0,
+  with **4 distinct codes on 2-D quads and 6 on 3-D hexes**. Valid because
+  `L2_FECollection` defaults to `map_type == VALUE`, where `CalcPhysShape`
+  reduces to `CalcShape`; an INTEGRAL space divides by `Trans.Weight()` and
+  would need the guard.
+* **`Mesh::GetFaceGeometricFactors()` SEGFAULTS on a simplex mesh** -- 2-D
+  triangles and 3-D tets alike, with or without `SetCurvature`, inside
+  `ConformingFaceRestriction`'s constructor via
+  `FiniteElementSpace::GetFaceRestriction`. Tensor meshes return fine. So the
+  device geometry is tensor-only and simplices must keep the host loop. **It
+  should refuse rather than crash; that is a defect to report upstream.**
+
+### What blocks the last step, and it is not the plan's list
+
+The diffusion weight is `dif->EvalStabilization(wq, ba, un, face_w, 0, 0,
+*ftr->Elem1)` -- a **host virtual call taking an `ElementTransformation`**.
+`HDGFaceScatterCanBatch()` already refuses a non-constant stabilization, so
+only closed-form cases reach the kernel, but reproducing that formula in a
+device lambda means duplicating an integrator's internals and diverging
+silently the day they change. Same for the per-side `Q`/`MQ` evaluation, which
+needs each side's element transformation.
+
+**Not built.** The measurement is the deliverable here: the cost is the
+per-face transformation, the four facts above are what a device path rests on,
+and the honest sequencing is to remove `GetInteriorFaceTransformations()` from
+the weight loop -- geometry from the factors, reference points and shape from
+the code tables, coefficients from a host preamble over plain element
+transformations -- rather than to port the integrand.
+
+## Step 2 (as originally planned) — group 2, the integrators, and this is the work
 
 `ElementTransformation` and `Coefficient` carry **zero** `MFEM_HOST_DEVICE`
 between them, so neither can appear in a device lambda, and every integrator in
@@ -623,15 +891,29 @@ round-off, not bitwise — a PA kernel reassociates the quadrature sum. Compare
 against the existing assembled path on the same problem, and pin it with the
 convergence tables the branch already has rather than only with norms.
 
-## Step 3 — group 3, the scatter
+## Step 3 — group 3, the scatter — DONE
 
-Two routes, and one already exists. `GradientMode::MatrixFree` **deletes this
+Two routes, and both exist now. `GradientMode::MatrixFree` **deletes this
 group outright** — measured at 40–47% of `NPCGradient` — so a device path that
 never assembles the trace matrix skips the problem. What it pays is an
 unpreconditioned trace solve at 8x, which is exactly the open question in
 `doc/HDG-JACOBIAN-FREE-TRACE.md`, and this is a second reason to want it
-answered. Otherwise: an `AssembleEA`-style element-matrix array plus an
-assembly kernel.
+answered.
+
+The other route is `TraceAssemblyMode::Batched` — see item 2 above, and the
+doxygen on `SetTraceAssemblyMode()` / `BuildTraceHMap()` for the design. It is
+**not** the "`AssembleEA`-style element-matrix array plus an assembly kernel"
+this section proposed, and the difference is worth stating: the element-matrix
+array already exists (it is the block buffer `ComputeElementH()` fills), and
+the part that needed designing was the *index map*, not the storage. What
+makes it work is that the pattern is a function of the connectivity alone —
+measured, since a value-dependent pattern would have sunk it.
+
+**Acceptance, and it is not the bitwise one this file assumes elsewhere.** The
+two routes give the same pattern and the same values to the bit, but each
+row's columns in a different order, so a matrix comparison has to be a
+comparison of (row, col) → value. See item 2 for why that order cannot be
+reproduced.
 
 ## Step 4 — SOLVED, by cuDSS, and it needed a compatibility fix
 
