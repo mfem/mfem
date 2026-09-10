@@ -403,15 +403,14 @@ void ParNCMesh::BuildVertexList()
 
    NCMesh::BuildVertexList();
 
-   // A hanging vertex must be owned by a rank that holds a constraining slave
-   // locally. Every vertex toucher has all vertex-neighbor elements in its
-   // ghost layer, so all touchers see the same relevant slave owners.
+   // The owner needs a local slave to build the vertex constraint.
+   // Vertex-neighbor ghosts give all sharing ranks the same candidates.
    Array<int> hanging_owner(nvertices);
    hanging_owner = INT_MAX;
 
    auto owner_rank = [&](int entity, int index, int nlocal)
    {
-      // Group 0 on a ghost entity means its owner was not observed locally.
+      // For a ghost, group 0 means unknown owner, not self.
       if (index < 0 || index >= entity_owner[entity].Size() ||
           (index >= nlocal && entity_owner[entity][index] == 0))
       {

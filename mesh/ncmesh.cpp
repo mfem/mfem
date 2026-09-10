@@ -3656,10 +3656,9 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
                              PointMatrix(pmid1, pmid2, pmid0),
                              level+1, matrix_map);
 
-      // In parallel, also visit interior tet edges covered by local slave faces.
-      // Their owners can lack a local slave face and need the master face's
-      // interpolation rows. These records supply the owners to the master face
-      // and boundary-entity P-matrix communication groups.
+      // An interior edge may be owned by a rank with no local slave face.
+      // Record the edge-face relation so that rank receives the master face's
+      // P rows, including its edge and vertex rows.
       const bool all_edges = IsParallel();
       if (HaveTets() && (all_edges || !b[3].unsplit || b[3].ghost_neighbor))
       {

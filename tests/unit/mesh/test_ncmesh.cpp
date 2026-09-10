@@ -419,7 +419,7 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
       REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
       REQUIRE(smesh.GetNE() == 8 + 1);
 
-      // This fixed-order collection has no DOFs on the extra edge-face records.
+      // RT0 has no edge DOFs; skip its empty edge-face constraints.
       {
          RT0_3DFECollection fec;
          FiniteElementSpace fes(&smesh, &fec);
@@ -631,8 +631,7 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
    smesh.GeneralRefinement(ref);
    REQUIRE(smesh.GetNE() == 15);
 
-   // On a nonzero rank, self ownership is still group 0. Entirely local
-   // master/slave relations must not be classified as shared.
+   // On rank 1, group 0 still means self. No faces should be shared.
    {
       Array<int> local_partition(smesh.GetNE());
       local_partition = 1;
@@ -642,8 +641,8 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
       CHECK(shared == 0);
    }
 
-   // Rank 0 owns an interior edge of a slave face local to rank 2, but
-   // does not own a slave face supplying that edge's constraint.
+   // Rank 0 owns an interior edge of rank 2's slave face, but no local
+   // slave face constrains that edge.
    const std::array<int, 15> partition =
    {0, 1, 2, 1, 0, 1, 1, 0, 2, 2, 0, 2, 1, 0, 0};
    ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.data());
@@ -671,8 +670,7 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
             if (type != NCMesh::NCList::MeshIdType::MASTER &&
                 type != NCMesh::NCList::MeshIdType::CONFORMING) { continue; }
 
-            // Infer the required recipient from ordinary slave-face edges,
-            // independently of whether an edge-face record was discovered.
+            // Use the slave face's edges, not the edge-face records.
             const int owner = nc.GetGroup(nc.GetEntityOwnerId(1, edge))[0];
             checked++;
             const auto group = nc.GetEntityGroupId(2, master.index);
@@ -683,7 +681,7 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
    MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    MPI_Allreduce(MPI_IN_PLACE, &missing, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    REQUIRE(checked > 0);
-   // Fail collectively before space construction can wait for a missing row.
+   // Fail on all ranks before a missing row can hang space construction.
    REQUIRE(missing == 0);
 
    ND_FECollection fec(2, 3);
@@ -718,9 +716,8 @@ TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
             CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
             if (order != 1) { continue; }
 
-            // Copy each serial P1 nodal basis to all its parallel copies and
-            // compare P R, including hanging vertices. Affine fields alone
-            // can conceal a spurious true DOF.
+            // Compare serial and parallel P R for every P1 nodal basis vector.
+            // Affine fields can hide extra true DOFs.
             GridFunction serial_values(&fes);
             Vector true_values;
             int finite = 1;
@@ -762,8 +759,8 @@ TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
 
    SECTION("Edge")
    {
-      // The central child (3) touches the diagonal midpoint but holds neither
-      // constraining half-edge. Both half-edges are held by rank 1.
+      // Child 3 on rank 0 touches the midpoint, but neither half-edge.
+      // Rank 1 holds both constraining half-edges.
       Mesh smesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
       smesh.EnsureNCMesh(true);
       smesh.GeneralRefinement(Array<int>({0}));
@@ -774,8 +771,8 @@ TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
 
    SECTION("Face")
    {
-      // Two tetrahedra share z=0. Refine both children incident on the edge
-      // [(0,1/2,0),(1/2,1/2,0)] so its midpoint has no constraining master edge.
+      // Refine both children sharing edge [(0,1/2,0),(1/2,1/2,0)].
+      // Its midpoint then depends on the coarse face, not a master edge.
       Mesh smesh(3, 5, 2, 0);
       smesh.AddVertex(0, 0, 0);
       smesh.AddVertex(1, 0, 0);
@@ -790,8 +787,8 @@ TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
       smesh.GeneralRefinement(Array<int>({2, 7}));
       REQUIRE(smesh.GetNE() == 23);
 
-      // Element 20 touches the coarse face only at (1/4,1/2,0); element 22
-      // is the lower tetrahedron. Rank 1 holds all constraining slave faces.
+      // Element 20 touches the coarse face only at (1/4,1/2,0).
+      // Rank 1 holds all constraining faces; element 22 is the lower tet.
       Array<int> partition(smesh.GetNE());
       partition = 1;
       partition[20] = 0;
