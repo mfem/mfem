@@ -24,7 +24,8 @@
 //
 //              This example highlights the ability of MFEM to deliver high-
 //              order solutions to variation inequality problems and
-//              showcases how to set up and solve nonlinear mixed methods.
+//              showcases how to set up and solve nonlinear mixed methods
+//              using mfem::NewtonSolver.
 //
 // [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
 //     preserving finite element method for pointwise bound constraints.
@@ -44,14 +45,12 @@ void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad);
 class LogarithmGridFunctionCoefficient : public Coefficient
 {
 protected:
-   GridFunction *u; // grid function
+   GridFunction *u;
    Coefficient *obstacle;
-   real_t min_val;
 
 public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
-                                    real_t min_val_=-36)
-      : u(&u_), obstacle(&obst_), min_val(min_val_) { }
+   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_)
+      : u(&u_), obstacle(&obst_) { }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
@@ -61,15 +60,122 @@ class ExponentialGridFunctionCoefficient : public Coefficient
 protected:
    GridFunction *u;
    Coefficient *obstacle;
-   real_t min_val;
-   real_t max_val;
 
 public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_,
-                                      real_t min_val_=0.0, real_t max_val_=1e6)
-      : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
+   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_)
+      : u(&u_), obstacle(&obst_) { }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+/**
+ * @brief Nonlinear residual/Jacobian operator for one proximal step of the
+ *        proximal-Galerkin obstacle problem, for use with mfem::NewtonSolver.
+ *
+ * This uses the equivalent (u, lambda) formulation: instead of solving
+ * directly for the latent variable psi, we solve for the pair
+ * (u in H1, lambda in L2) and recover psi afterwards. Acting on the monolithic
+ * true-dof vector X = [U ; Lambda], this operator evaluates the block residual
+ *
+ *   F(X)[v] = (grad u, grad v) - (lambda, v) - (f, v)
+ *   F(X)[w] = (u - exp(psi_cur) - phi, w)
+ *
+ * (Mult) and assembles the block tangent (GetGradient)
+ *
+ *   J(X) = |  (grad du, grad v)             -(dlambda, v)          |
+ *          |  (du, w)            alpha (exp(psi_cur) dlambda, w)   |
+ *
+ * where psi_cur = psi_old - alpha*lambda is the current latent variable.
+ */
+class ProximalGalerkinOperator : public Operator
+{
+private:
+   ParFiniteElementSpace &H1fes;
+   ParFiniteElementSpace &L2fes;
+   real_t alpha;
+   Coefficient &load;
+   Coefficient &obstacle;
+   ParGridFunction &psi_old_gf;
+   const Array<int> &ess_tdof_list;
+   const Array<int> &block_toffsets;
+
+   mutable ConstantCoefficient zero;
+   mutable ParGridFunction psi_cur_gf;
+   mutable ParGridFunction u_gf, lambda_gf;
+
+   // Constant Jacobian blocks
+   HypreParMatrix *A00 = nullptr;
+   HypreParMatrix *A10 = nullptr;
+   HypreParMatrix *A01 = nullptr;
+
+   // psi-dependent block, rebuilt each GetGradient()
+   mutable HypreParMatrix *A11 = nullptr;
+   mutable BlockOperator  *J   = nullptr;
+
+public:
+   ProximalGalerkinOperator(ParFiniteElementSpace &H1fes_,
+                            ParFiniteElementSpace &L2fes_,
+                            real_t alpha_, Coefficient &load_,
+                            Coefficient &obstacle_,
+                            ParGridFunction &psi_old_gf_,
+                            const Array<int> &ess_tdof_list_,
+                            const Array<int> &block_toffsets_);
+
+   /// Evaluate the block residual R = F(X).
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /// Assemble and return the block Jacobian J(X).
+   Operator &GetGradient(const Vector &x) const override;
+
+   /// Update the proximal parameter for the next proximal step.
+   void UpdateAlpha(real_t alpha_)
+   {
+      alpha = alpha_;
+   }
+
+   ~ProximalGalerkinOperator() override
+   {
+      delete J;
+      delete A11;
+      delete A01;
+      delete A10;
+      delete A00;
+   }
+};
+
+/**
+ * @brief Block-lower-triangular preconditioner for the proximal-Galerkin
+ *        Jacobian, rebuilt for the current Jacobian on each NewtonSolver
+ *        iteration.
+ *
+ * The (0,0), (0,1), and (1,0) blocks are constant for the whole run, so they
+ * are preconditioned once; only the preconditioner for the psi-dependent (1,1)
+ * block is rebuilt each call.
+ */
+class ProximalGalerkinPreconditioner : public Solver
+{
+private:
+   BlockLowerTriangularPreconditioner prec;
+   HypreParMatrix *GDGt = nullptr;
+   HypreParMatrix *S = nullptr;
+   HypreBoomerAMG *P00 = nullptr;
+   HypreBoomerAMG *P11 = nullptr;
+
+public:
+   ProximalGalerkinPreconditioner(const Array<int> &toffsets)
+      : Solver(toffsets.Last()), prec(toffsets) { };
+
+   void SetOperator(const Operator &op) override;
+
+   void Mult(const Vector &x, Vector &y) const override { prec.Mult(x, y); }
+
+   ~ProximalGalerkinPreconditioner() override
+   {
+      delete GDGt;
+      delete S;
+      delete P00;
+      delete P11;
+   }
 };
 
 int main(int argc, char *argv[])
@@ -94,7 +200,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--refs",
                   "Number of h-refinements.");
    args.AddOption(&max_it, "-mi", "--max-it",
-                  "Maximum number of iterations");
+                  "Maximum number of proximal iterations");
    args.AddOption(&tol, "-tol", "--tol",
                   "Stopping criteria based on the difference between"
                   "successive solution updates");
@@ -106,15 +212,15 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
+      if (Mpi::Root())
       {
-         args.PrintUsage(cout);
+         args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (myid == 0)
+   if (Mpi::Root())
    {
-      args.PrintOptions(cout);
+      args.PrintOptions(mfem::out);
    }
 
    // 2. Read the mesh from the mesh file.
@@ -136,8 +242,10 @@ int main(int argc, char *argv[])
 
    // 3C. Rescale the domain to a unit circle (radius = 1).
    GridFunction *nodes = mesh.GetNodes();
-   real_t scale = 2*sqrt(2);
-   *nodes /= scale;
+   {
+      const real_t scale = 2*sqrt(2);
+      *nodes /= scale;
+   }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
@@ -149,23 +257,15 @@ int main(int argc, char *argv[])
    L2_FECollection L2fec(order-1, dim);
    ParFiniteElementSpace L2fes(&pmesh, &L2fec);
 
-   int num_dofs_H1 = H1fes.GetTrueVSize();
-   MPI_Allreduce(MPI_IN_PLACE, &num_dofs_H1, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   int num_dofs_L2 = L2fes.GetTrueVSize();
-   MPI_Allreduce(MPI_IN_PLACE, &num_dofs_L2, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   if (myid == 0)
+   HYPRE_BigInt num_dofs_H1 = H1fes.GlobalTrueVSize();
+   HYPRE_BigInt num_dofs_L2 = L2fes.GlobalTrueVSize();
+   if (Mpi::Root())
    {
-      cout << "Number of H1 finite element unknowns: "
-           << num_dofs_H1 << endl;
-      cout << "Number of L2 finite element unknowns: "
-           << num_dofs_L2 << endl;
+      mfem::out << "Number of H1 finite element unknowns: "
+                << num_dofs_H1 << endl;
+      mfem::out << "Number of L2 finite element unknowns: "
+                << num_dofs_L2 << endl;
    }
-
-   Array<int> offsets(3);
-   offsets[0] = 0;
-   offsets[1] = H1fes.GetVSize();
-   offsets[2] = L2fes.GetVSize();
-   offsets.PartialSum();
 
    Array<int> toffsets(3);
    toffsets[0] = 0;
@@ -173,14 +273,9 @@ int main(int argc, char *argv[])
    toffsets[2] = L2fes.GetTrueVSize();
    toffsets.PartialSum();
 
-   BlockVector x(offsets), rhs(offsets);
-   x = 0.0; rhs = 0.0;
-
-   BlockVector tx(toffsets), trhs(toffsets);
-   tx = 0.0; trhs = 0.0;
+   BlockVector x(toffsets);
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
-   Array<int> empty;
    Array<int> ess_tdof_list;
    if (pmesh.bdr_attributes.Size())
    {
@@ -192,32 +287,26 @@ int main(int argc, char *argv[])
    // 6. Define an initial guess for the solution.
    auto IC_func = [](const Vector &x)
    {
-      real_t r0 = 1.0;
-      real_t rr = 0.0;
-      for (int i=0; i<x.Size(); i++)
-      {
-         rr += x(i)*x(i);
-      }
-      return r0*r0 - rr;
+      const real_t r0 = 1.0;
+      return r0 * r0 - x * x;
    };
-   ConstantCoefficient one(1.0);
    ConstantCoefficient zero(0.0);
 
-   // 7. Define the solution vectors as a finite element grid functions
+   // 7. Define the solution vectors as parallel finite element grid functions
    //    corresponding to the fespaces.
-   ParGridFunction u_gf, delta_psi_gf;
-   u_gf.MakeRef(&H1fes,x,offsets[0]);
-   delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
-   delta_psi_gf = 0.0;
-
+   ParGridFunction u_gf(&H1fes);
    ParGridFunction u_old_gf(&H1fes);
-   ParGridFunction psi_old_gf(&L2fes);
    ParGridFunction psi_gf(&L2fes);
+   ParGridFunction psi_old_gf(&L2fes);
+   ParGridFunction lambda_gf(&L2fes);
+   u_gf = 0.0;
    u_old_gf = 0.0;
+   psi_gf = 0.0;
    psi_old_gf = 0.0;
+   lambda_gf = 0.0;
 
    // 8. Define the function coefficients for the solution and use them to
-   //    initialize the initial guess
+   //    initialize the initial guess.
    FunctionCoefficient exact_coef(exact_solution_obstacle);
    VectorFunctionCoefficient exact_grad_coef(dim,exact_solution_gradient_obstacle);
    FunctionCoefficient IC_coef(IC_func);
@@ -226,7 +315,7 @@ int main(int argc, char *argv[])
    u_gf.ProjectCoefficient(IC_coef);
    u_old_gf = u_gf;
 
-   // 9. Initialize the slack variable ψₕ = ln(uₕ)
+   // 9. Initialize the slack variable ψₕ = ln(uₕ - ϕ).
    LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
    psi_gf.ProjectCoefficient(ln_u);
    psi_old_gf = psi_gf;
@@ -240,149 +329,81 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
    }
 
-   // 10. Iterate
+   // 10. Set up the nonlinear operator, the block linear solver used to invert
+   //     each Jacobian, and the Newton solver. The operator encapsulates the
+   //     residual b(.) and Jacobian a(.,.).
+   ProximalGalerkinOperator pg_op(H1fes, L2fes, alpha, f, obstacle,
+                                  psi_old_gf, ess_tdof_list, toffsets);
+
+   ProximalGalerkinPreconditioner prec(toffsets);
+   GMRESSolver gmres(MPI_COMM_WORLD);
+   gmres.SetPrintLevel(-1);
+   gmres.SetRelTol(1e-8);
+   gmres.SetMaxIter(1000);
+   gmres.SetPreconditioner(prec);
+
+   const int newton_max_it = 10;
+   const real_t newton_rel_tol = 1e-3;
+   NewtonSolver newton(MPI_COMM_WORLD);
+   newton.SetOperator(pg_op);
+   newton.SetSolver(gmres);
+   newton.SetPrintLevel(-1);
+   newton.SetRelTol(newton_rel_tol);
+   newton.SetAbsTol(0.0);
+   newton.SetMaxIter(newton_max_it);
+   newton.iterative_mode = true;
+
+   u_gf.GetTrueDofs(x.GetBlock(0));
+   x.GetBlock(1) = 0.0;
+   Vector zero_rhs;
+
+   // 11. Outer proximal loop.
    int k;
    int total_iterations = 0;
    real_t increment_u = 0.1;
    for (k = 0; k < max_it; k++)
    {
-      ParGridFunction u_tmp(&H1fes);
-      u_tmp = u_old_gf;
-
-      if (myid == 0)
+      if (Mpi::Root())
       {
          mfem::out << "\nOUTER ITERATION " << k+1 << endl;
       }
 
-      int j;
-      for ( j = 0; j < 10; j++)
+      // Fresh multiplier for this proximal step.
+      x.GetBlock(1) = 0.0;
+
+      // Solve the nonlinear proximal subproblem F(X) = 0.
+      newton.Mult(zero_rhs, x);
+      const real_t newton_iter = newton.GetNumIterations();
+      total_iterations += newton_iter;
+
+      // Distribute the result back to the grid functions.
+      u_gf.SetFromTrueDofs(x.GetBlock(0));
+      lambda_gf.SetFromTrueDofs(x.GetBlock(1));
+
+      // Recover the latent variable.
+      psi_gf = psi_old_gf;
+      psi_gf.Add(-alpha, lambda_gf);
+
+      if (visualization)
       {
-         total_iterations++;
-
-         ConstantCoefficient alpha_cf(alpha);
-
-         ParLinearForm b0,b1;
-         b0.Update(&H1fes,rhs.GetBlock(0),0);
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
-
-         ExponentialGridFunctionCoefficient exp_psi(psi_gf, zero);
-         ProductCoefficient neg_exp_psi(-1.0,exp_psi);
-         GradientGridFunctionCoefficient grad_u_old(&u_old_gf);
-         ProductCoefficient alpha_f(alpha, f);
-         GridFunctionCoefficient psi_cf(&psi_gf);
-         GridFunctionCoefficient psi_old_cf(&psi_old_gf);
-         SumCoefficient psi_old_minus_psi(psi_old_cf, psi_cf, 1.0, -1.0);
-
-         b0.AddDomainIntegrator(new DomainLFIntegrator(alpha_f));
-         b0.AddDomainIntegrator(new DomainLFIntegrator(psi_old_minus_psi));
-         b0.Assemble();
-
-         b1.AddDomainIntegrator(new DomainLFIntegrator(exp_psi));
-         b1.AddDomainIntegrator(new DomainLFIntegrator(obstacle));
-         b1.Assemble();
-
-         ParBilinearForm a00(&H1fes);
-         a00.SetDiagonalPolicy(mfem::Operator::DIAG_ONE);
-         a00.AddDomainIntegrator(new DiffusionIntegrator(alpha_cf));
-         a00.Assemble();
-         HypreParMatrix A00;
-         a00.FormLinearSystem(ess_tdof_list, x.GetBlock(0), rhs.GetBlock(0),
-                              A00, tx.GetBlock(0), trhs.GetBlock(0));
-
-
-         ParMixedBilinearForm a10(&H1fes,&L2fes);
-         a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
-         a10.Assemble();
-         HypreParMatrix A10;
-         a10.FormRectangularLinearSystem(ess_tdof_list, empty, x.GetBlock(0),
-                                         rhs.GetBlock(1),
-                                         A10, tx.GetBlock(0), trhs.GetBlock(1));
-
-         HypreParMatrix *A01 = A10.Transpose();
-
-         ParBilinearForm a11(&L2fes);
-         a11.AddDomainIntegrator(new MassIntegrator(neg_exp_psi));
-         // NOTE: Shift the spectrum of the Hessian matrix for additional
-         //       stability (Quasi-Newton).
-         ConstantCoefficient eps_cf(-1e-6);
-         if (order == 1)
-         {
-            // NOTE: ∇ₕuₕ = 0 for constant functions.
-            //       Therefore, we use the mass matrix to shift the spectrum
-            a11.AddDomainIntegrator(new MassIntegrator(eps_cf));
-         }
-         else
-         {
-            a11.AddDomainIntegrator(new DiffusionIntegrator(eps_cf));
-         }
-         a11.Assemble();
-         a11.Finalize();
-         HypreParMatrix A11;
-         a11.FormSystemMatrix(empty, A11);
-
-         BlockOperator A(toffsets);
-         A.SetBlock(0,0,&A00);
-         A.SetBlock(1,0,&A10);
-         A.SetBlock(0,1,A01);
-         A.SetBlock(1,1,&A11);
-
-         BlockDiagonalPreconditioner prec(toffsets);
-         HypreBoomerAMG P00(A00);
-         P00.SetPrintLevel(0);
-         HypreSmoother P11(A11);
-         prec.SetDiagonalBlock(0,&P00);
-         prec.SetDiagonalBlock(1,&P11);
-
-         GMRESSolver gmres(MPI_COMM_WORLD);
-         gmres.SetPrintLevel(-1);
-         gmres.SetRelTol(1e-8);
-         gmres.SetMaxIter(20000);
-         gmres.SetKDim(500);
-         gmres.SetOperator(A);
-         gmres.SetPreconditioner(prec);
-         gmres.Mult(trhs,tx);
-
-         u_gf.SetFromTrueDofs(tx.GetBlock(0));
-         delta_psi_gf.SetFromTrueDofs(tx.GetBlock(1));
-
-         u_tmp -= u_gf;
-         real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
-         u_tmp = u_gf;
-
-         real_t gamma = 1.0;
-         delta_psi_gf *= gamma;
-         psi_gf += delta_psi_gf;
-
-         if (visualization)
-         {
-            sol_sock << "parallel " << num_procs << " " << myid << "\n";
-            sol_sock << "solution\n" << pmesh << u_gf << "window_title 'Discrete solution'"
-                     << flush;
-         }
-
-         if (myid == 0)
-         {
-            mfem::out << "Newton_update_size = " << Newton_update_size << endl;
-         }
-
-         delete A01;
-
-         if (Newton_update_size < increment_u)
-         {
-            break;
-         }
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock << "solution\n" << pmesh << u_gf
+                  << "window_title 'Discrete solution'" << flush;
       }
 
-      u_tmp = u_gf;
-      u_tmp -= u_old_gf;
-      increment_u = u_tmp.ComputeL2Error(zero);
+      // Increment || u_h - u_h_prev ||.
+      ParGridFunction u_diff(&H1fes);
+      u_diff = u_gf;
+      u_diff -= u_old_gf;
+      increment_u = u_diff.ComputeL2Error(zero);
 
-      if (myid == 0)
+      if (Mpi::Root())
       {
-         mfem::out << "Number of Newton iterations = " << j+1 << endl;
+         mfem::out << "Number of Newton iterations = " << newton_iter << endl;
          mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
       }
 
+      // Advance the proximal iterates.
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
 
@@ -391,15 +412,17 @@ int main(int argc, char *argv[])
          break;
       }
 
-      real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
-      if (myid == 0)
+      const real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      if (Mpi::Root())
       {
          mfem::out << "H1-error  (|| u - uₕᵏ||)       = " << H1_error << endl;
       }
 
+      // Sync the operator with the current proximal parameter.
+      pg_op.UpdateAlpha(alpha);
    }
 
-   if (myid == 0)
+   if (Mpi::Root())
    {
       mfem::out << "\n Outer iterations: " << k+1
                 << "\n Total iterations: " << total_iterations
@@ -407,7 +430,7 @@ int main(int argc, char *argv[])
                 << endl;
    }
 
-   // 11. Exact solution.
+   // 12. Exact solution.
    if (visualization)
    {
       socketstream err_sock(vishost, visport);
@@ -423,21 +446,22 @@ int main(int argc, char *argv[])
    }
 
    {
-      real_t L2_error = u_gf.ComputeL2Error(exact_coef);
-      real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
+      const real_t L2_error = u_gf.ComputeL2Error(exact_coef);
+      const real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
 
       ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
       ParGridFunction u_alt_gf(&L2fes);
       u_alt_gf.ProjectCoefficient(u_alt_cf);
-      real_t L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
+      const real_t L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
 
-      if (myid == 0)
+      if (Mpi::Root())
       {
-         mfem::out << "\n Final L2-error (|| u - uₕ||)          = " << L2_error <<
-                   endl;
-         mfem::out << " Final H1-error (|| u - uₕ||)          = " << H1_error << endl;
-         mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = " << L2_error_alt <<
-                   endl;
+         mfem::out << "\n Final L2-error (|| u - uₕ||)          = "
+                   << L2_error << endl;
+         mfem::out << " Final H1-error (|| u - uₕ||)          = "
+                   << H1_error << endl;
+         mfem::out << " Final L2-error (|| u - ϕ - exp(ψₕ)||) = "
+                   << L2_error_alt << endl;
       }
    }
 
@@ -449,8 +473,7 @@ real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   real_t val = u->GetValue(T, ip) - obstacle->Eval(T, ip);
-   return max(min_val, log(val));
+   return log(u->GetValue(T, ip) - obstacle->Eval(T, ip));
 }
 
 real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
@@ -458,24 +481,21 @@ real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
 {
    MFEM_ASSERT(u != NULL, "grid function is not set");
 
-   real_t val = u->GetValue(T, ip);
-   return min(max_val, max(min_val, exp(val) + obstacle->Eval(T, ip)));
+   return exp(u->GetValue(T, ip)) + obstacle->Eval(T, ip);
 }
 
 real_t spherical_obstacle(const Vector &pt)
 {
-   real_t x = pt(0), y = pt(1);
-   real_t r = sqrt(x*x + y*y);
-   real_t r0 = 0.5;
-   real_t beta = 0.9;
-
-   real_t b = r0*beta;
-   real_t tmp = sqrt(r0*r0 - b*b);
-   real_t B = tmp + b*b/tmp;
-   real_t C = -b/tmp;
+   const real_t r = pt.Norml2();
+   const real_t r0 = 0.5;
+   const real_t beta = 0.9;
+   const real_t b = r0*beta;
 
    if (r > b)
    {
+      const real_t tmp = sqrt(r0*r0 - b*b);
+      const real_t B = tmp + b*b/tmp;
+      const real_t C = -b/tmp;
       return B + r * C;
    }
    else
@@ -486,11 +506,10 @@ real_t spherical_obstacle(const Vector &pt)
 
 real_t exact_solution_obstacle(const Vector &pt)
 {
-   real_t x = pt(0), y = pt(1);
-   real_t r = sqrt(x*x + y*y);
-   real_t r0 = 0.5;
-   real_t a =  0.348982574111686;
-   real_t A = -0.340129705945858;
+   const real_t r = pt.Norml2();
+   const real_t r0 = 0.5;
+   const real_t a =  0.348982574111686;
+   const real_t A = -0.340129705945858;
 
    if (r > a)
    {
@@ -498,26 +517,158 @@ real_t exact_solution_obstacle(const Vector &pt)
    }
    else
    {
-      return sqrt(r0*r0-r*r);
+      return sqrt(r0*r0 - r*r);
    }
 }
 
 void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad)
 {
-   real_t x = pt(0), y = pt(1);
-   real_t r = sqrt(x*x + y*y);
-   real_t r0 = 0.5;
-   real_t a =  0.348982574111686;
-   real_t A = -0.340129705945858;
+   const real_t r = pt.Norml2();
+   const real_t r0 = 0.5;
+   const real_t a  = 0.348982574111686;
+   const real_t A = -0.340129705945858;
 
+   grad = pt;
    if (r > a)
    {
-      grad(0) =  A * x / (r*r);
-      grad(1) =  A * y / (r*r);
+      grad *= A / (r*r);
    }
    else
    {
-      grad(0) = - x / sqrt( r0*r0 - r*r );
-      grad(1) = - y / sqrt( r0*r0 - r*r );
+      grad *= -1.0 / sqrt(r0*r0 - r*r);
    }
+}
+
+ProximalGalerkinOperator::ProximalGalerkinOperator(
+   ParFiniteElementSpace &H1fes_,
+   ParFiniteElementSpace &L2fes_,
+   real_t alpha_, Coefficient &load_,
+   Coefficient &obstacle_,
+   ParGridFunction &psi_old_gf_,
+   const Array<int> &ess_tdof_list_,
+   const Array<int> &block_toffsets_)
+   : Operator(block_toffsets_.Last()),
+     H1fes(H1fes_), L2fes(L2fes_), alpha(alpha_), load(load_),
+     obstacle(obstacle_), psi_old_gf(psi_old_gf_),
+     ess_tdof_list(ess_tdof_list_), block_toffsets(block_toffsets_),
+     zero(0.0), u_gf(&H1fes_), lambda_gf(&L2fes_)
+{
+   ParBilinearForm a00(&H1fes);
+   a00.AddDomainIntegrator(new DiffusionIntegrator());
+   a00.Assemble();
+   a00.Finalize();
+   A00 = a00.ParallelAssemble();
+   A00->EliminateRowsCols(ess_tdof_list);
+
+   ParMixedBilinearForm a10(&H1fes, &L2fes);
+   a10.AddDomainIntegrator(new MixedScalarMassIntegrator());
+   a10.Assemble();
+   a10.Finalize();
+   A10 = a10.ParallelAssemble();
+   A10->EliminateCols(ess_tdof_list);
+
+   A01 = A10->Transpose();
+
+   J = new BlockOperator(block_toffsets);
+   J->SetBlock(0, 0, A00);
+   J->SetBlock(1, 0, A10);
+   J->SetBlock(0, 1, A01, -1.0);
+
+   psi_cur_gf.SetSpace(&L2fes);
+}
+
+void ProximalGalerkinOperator::Mult(const Vector &x, Vector &y) const
+{
+   const BlockVector xb(const_cast<Vector&>(x), block_toffsets);
+   u_gf.SetFromTrueDofs(xb.GetBlock(0));
+   lambda_gf.SetFromTrueDofs(xb.GetBlock(1));
+
+   GradientGridFunctionCoefficient grad_u(&u_gf);
+   GridFunctionCoefficient lambda_cf(&lambda_gf);
+   SumCoefficient neg_lambda_load(lambda_cf, load, -1.0, -1.0);
+
+   ParLinearForm b0(&H1fes);
+   b0.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
+   b0.AddDomainIntegrator(new DomainLFIntegrator(neg_lambda_load));
+   b0.Assemble();
+
+   GridFunctionCoefficient u_cf(&u_gf);
+   psi_cur_gf = psi_old_gf;
+   psi_cur_gf.Add(-alpha, lambda_gf);
+   ExponentialGridFunctionCoefficient exp_psi(psi_cur_gf, obstacle);
+   SumCoefficient u_minus_exp_psi(u_cf, exp_psi, 1.0, -1.0);
+
+   ParLinearForm b1(&L2fes);
+   b1.AddDomainIntegrator(new DomainLFIntegrator(u_minus_exp_psi));
+   b1.Assemble();
+
+   BlockVector yb(y, block_toffsets);
+   Vector &y0 = yb.GetBlock(0);
+   Vector &y1 = yb.GetBlock(1);
+   b0.ParallelAssemble(y0);
+   b1.ParallelAssemble(y1);
+
+   // Hold the essential (H1) dofs fixed: zero residual there.
+   y0.SetSubVector(ess_tdof_list, 0.0);
+}
+
+Operator &ProximalGalerkinOperator::GetGradient(const Vector &x) const
+{
+   const BlockVector xb(const_cast<Vector&>(x), block_toffsets);
+   lambda_gf.SetFromTrueDofs(xb.GetBlock(1));
+
+   psi_cur_gf = psi_old_gf;
+   psi_cur_gf.Add(-alpha, lambda_gf);
+   ExponentialGridFunctionCoefficient exp_psi(psi_cur_gf, zero);
+   ProductCoefficient alpha_exp_psi(alpha, exp_psi);
+
+   ParBilinearForm a11(&L2fes);
+   a11.AddDomainIntegrator(new MassIntegrator(alpha_exp_psi));
+   a11.Assemble();
+   a11.Finalize();
+   delete A11;
+   A11 = a11.ParallelAssemble();
+
+   J->SetBlock(1, 1, A11);
+   return *J;
+}
+
+void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
+{
+   BlockOperator &Jop =
+      const_cast<BlockOperator&>(dynamic_cast<const BlockOperator&>(op));
+   HypreParMatrix &A11 = dynamic_cast<HypreParMatrix&>(Jop.GetBlock(1, 1));
+
+   if (P00 == nullptr)
+   {
+      HypreParMatrix &A00 = dynamic_cast<HypreParMatrix&>(Jop.GetBlock(0, 0));
+      HypreParMatrix &A10 = dynamic_cast<HypreParMatrix&>(Jop.GetBlock(1, 0));
+
+      P00 = new HypreBoomerAMG(A00);
+      P00->SetPrintLevel(0);
+
+      // GDGt = A10 diag(A00)^{-1} A10^T
+      HypreParVector d(A00.GetComm(), A00.GetGlobalNumRows(),
+                       A00.GetRowStarts());
+      A00.GetDiag(d);
+      HypreParMatrix *A10T = A10.Transpose();
+      A10T->InvScaleRows(d);
+      GDGt = ParMult(&A10, A10T);
+      delete A10T;
+
+      prec.SetDiagonalBlock(0, P00);
+      prec.SetBlock(1, 0, &A10);
+   }
+
+   // Build an approximate Schur complement of the A11 block:
+   //   S = A11 - A10 diag(A00)^{-1} A01
+   //     = A11 + A10 diag(A00)^{-1} A10^T.
+   delete S;
+   delete P11;
+   S = Add(1.0, A11, 1.0, *GDGt);
+   HypreBoomerAMG *amg = new HypreBoomerAMG(*S);
+   amg->SetPrintLevel(0);
+   P11 = amg;
+
+   prec.SetDiagonalBlock(1, P11);
 }
