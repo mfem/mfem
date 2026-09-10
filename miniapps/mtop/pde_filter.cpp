@@ -53,8 +53,8 @@ PDEFilter::PDEFilter(ParFiniteElementSpace& fes_filter,
       fes_control_(&fes_control),
       opts_(opts)
 {
-    MFEM_VERIFY(opts_.filter_radius > 0.0,
-                "PDEFilter: filter_radius must be positive");
+    MFEM_VERIFY(opts_.filter_radius >= 0.0,
+                "PDEFilter: filter_radius must be nonnegative");
     const FiniteElementCollection* fec = fes_filter_->FEColl();
     MFEM_VERIFY(fec && std::string(fec->Name()).rfind("H1", 0) == 0,
                 "PDEFilter: fes_filter must be an H1 space");
@@ -79,6 +79,28 @@ void PDEFilter::SetDiffusionCoeff(MatrixCoefficient& c)
 {
     MFEM_VERIFY(!assembled_, "PDEFilter: cannot change coefficient after Assemble()");
     diff_ = { nullptr, nullptr, &c };
+}
+
+void PDEFilter::SetPrescribedOutputDofs(const Array<int>& tdofs, double value)
+{
+    MFEM_VERIFY(std::isfinite(value),
+                "PDEFilter: prescribed output value must be finite");
+    prescribed_output_enabled_ = true;
+    prescribed_output_tdofs_ = tdofs;
+    prescribed_output_value_ = value;
+    for (int i = 0; i < prescribed_output_tdofs_.Size(); ++i)
+    {
+        MFEM_VERIFY(prescribed_output_tdofs_[i] >= 0 &&
+                    prescribed_output_tdofs_[i] < Height(),
+                    "PDEFilter: prescribed output true DOF is out of range");
+    }
+}
+
+void PDEFilter::ClearPrescribedOutputDofs()
+{
+    prescribed_output_tdofs_.SetSize(0);
+    prescribed_output_value_ = 0.0;
+    prescribed_output_enabled_ = false;
 }
 
 // =============================================================================
@@ -216,6 +238,15 @@ void PDEFilter::Mult(const Vector& x, Vector& y) const
     y = 0.0;
     solver_->Mult(rhs, y);
     CheckConvergence_(rhs, y, "PDEFilter::Mult");
+
+    // Fixed physical/passive regions are a projection of the Helmholtz
+    // solution, not fixed raw controls.  In particular, pinning raw controls
+    // does not prevent the global elliptic filter from coupling across an
+    // active/passive interface.
+    for (int i = 0; i < prescribed_output_tdofs_.Size(); ++i)
+    {
+        y[prescribed_output_tdofs_[i]] = prescribed_output_value_;
+    }
 }
 
 // =============================================================================
@@ -229,11 +260,20 @@ void PDEFilter::MultTranspose(const Vector& x, Vector& y) const
     MFEM_VERIFY(x.Size() == Height(),
                 "PDEFilter::MultTranspose: x.Size() != Height() (filter TrueVSize)");
 
-    // psi = (r^2 K + M)^{-1} x_filt
+    // For the optional affine output projection y=C F x+(I-C)c, the
+    // derivative is C F and its transpose is F^T C.  Zero the prescribed
+    // filtered components before the otherwise unchanged Helmholtz transpose.
+    Vector projected_x(x);
+    for (int i = 0; i < prescribed_output_tdofs_.Size(); ++i)
+    {
+        projected_x[prescribed_output_tdofs_[i]] = 0.0;
+    }
+
+    // psi = (r^2 K + M)^{-1} C x_filt
     Vector psi(Height());
     psi = 0.0;
-    solver_->Mult(x, psi);
-    CheckConvergence_(x, psi, "PDEFilter::MultTranspose");
+    solver_->Mult(projected_x, psi);
+    CheckConvergence_(projected_x, psi, "PDEFilter::MultTranspose");
 
     // y = M_fc^T * psi
     y.SetSize(Width());

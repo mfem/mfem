@@ -62,6 +62,211 @@ Example:
 mpirun -np 8 ./TopOptTransient -problem wave -r 0 -o 1 -tf 0.3 -dt 1e-4 -vf 0.5 -fr 0.03 -mi 150 -mv 0.2 -pv
 ```
 
+### `elastic-inclusion-identification`
+
+The default inverse-problem truth is one circular inclusion, selected
+explicitly with `-inclusion-truth single-disk`. It lies at `(0.75,0.45)` with
+radius `0.10` inside the active rectangle
+`[0.25,1.25] x [0.25,0.65]`. The legacy square/triangle/disk target remains
+available as `-inclusion-truth three-shape`.
+
+Only the accessible free surface is observed. The source occupies
+`y=0.75, x in [0.65,0.85]` (boundary attribute 5, measure `0.2`), and receivers
+occupy
+`y=0.75, x in [0.25,0.65] union [0.85,1.25]` (attribute 6, total measure
+`0.8`). The damped bottom, left, and right boundaries, the source, and the two
+outer top collars are excluded from the data objective.
+
+For this preset the default material law is
+
+```text
+s(rho_tilde) = 0.1 + 0.9 rho_tilde^3.
+```
+
+The disk's raw density is
+`((0.125-0.1)/(1.0-0.1))^(1/3) = 0.3028534321`, so its unfiltered material
+scale remains `0.125`; the background and passive raw density are `1`. The
+provisional analytic raw volume fraction is `0.9452462366`, and the driver
+replaces it with the exact projected discrete truth volume. Do not pass
+`-vf` for this problem.
+
+Although passive *raw* controls are not optimized, a global Helmholtz filter
+normally couples across an active/passive interface. The driver therefore
+also prescribes passive filtered DOFs to `rho_tilde=1`; its transpose applies
+the matching projected-filter Jacobian.
+
+The single-disk source defaults to carrier frequency `4` and pulse duration
+`0.75`.
+
+Every inverse run that consumes synthetic data performs a mandatory reference
+convergence audit before constructing an adjoint or entering MMA.  If the
+requested baseline is `Qp_ref, dt_ref`, the audit generates
+
+```text
+A = Qp_ref,     dt_ref
+B = Qp_ref,     dt_ref/2
+C = Q(p_ref+1), dt_ref/2.
+```
+
+All three histories are interpolated onto the same reconstruction receiver
+trace space.  Their differences use the objective's `2*p+2` boundary
+quadrature and composite Simpson integration on the coarse half-step samples.
+With the default tolerance, every temporal, order-enrichment, and combined
+discrepancy must be at most `1%` of `||C||` and at most `10%` of the uniform
+reconstruction error `sqrt(2*J0)`.  A failed audit exits before optimization;
+results are written to `reference_convergence_audit.csv` and
+`reference_boundary_data_history.txt`.  `-no-reference-audit` is accepted only
+with `-reference-only` and produces an explicitly unvalidated generator-debug
+run.
+
+Run the complete default Q3/Q3/Q4 audit without an adjoint or MMA update with:
+
+```bash
+srun -n 4 ./TopOptTransient \
+  -problem elastic-inclusion-identification \
+  -inclusion-truth single-disk \
+  -o 2 -do 1 -tf 1.5 -dt 0.001 -fr 0.05 \
+  -freq 4 -dur 0.75 \
+  -reference-order 3 -reference-dt 0.00025 \
+  -reference-only -no-pv -out jobs/disk_reference_audit
+```
+
+A reproducible full-window forward baseline is:
+
+```bash
+srun -n 4 ./TopOptTransient \
+  -problem elastic-inclusion-identification \
+  -inclusion-truth single-disk \
+  -o 2 -do 1 -tf 1.5 -dt 0.001 -fr 0.05 \
+  -freq 4 -dur 0.75 \
+  -reference-order 3 -reference-dt 0.00025 \
+  -forward-only -pv -out jobs/disk_uniform_forward
+```
+
+Build and run the configuration regression on one and multiple ranks with:
+
+```bash
+make test_elastic_inclusion_configuration
+./test_elastic_inclusion_configuration
+srun -n 4 ./test_elastic_inclusion_configuration
+```
+
+### `elastic-inclusion-identification-3d`
+
+The 3D single-ball continuation of the inverse problem. Its generated box is
+`[0,1.5] x [0,0.75] x [0,1.0]`, discretized with a uniform
+`60 x 30 x 40` hexahedral mesh (`h=0.025`). The active design box is
+`[0.25,1.25] x [0.25,0.65] x [0.25,0.75]`; its left/right/front/back/bottom
+collars are passive, damped, and absorbing, while the `0.10` top collar is
+passive and free.
+
+The truth is one ball centered at `(0.75,0.45,0.50)` with radius `0.10`.
+It retains the 2D contrast calibration: raw density `0.3028534321` maps under
+`s(rho_tilde)=0.1+0.9 rho_tilde^3` to unfiltered material scale `0.125`.
+The resulting provisional analytic raw volume fraction is `0.9853989964`;
+as in 2D, the driver substitutes the projected discrete truth volume before
+the optimization begins.
+
+The 3D truth selector accepts `-inclusion-truth single-ball` (the default) or
+`-inclusion-truth pyramid`.  The latter is a square-based pyramid aligned with
+the `y` axis: its base has centre `(0.75,0.40,0.50)` and side
+`0.2506628275`, and its apex is `(0.75,0.60,0.50)`, pointing upward toward the
+central top source.  Its centroid is `(0.75,0.45,0.50)` and its volume equals
+the radius-`0.10` ball volume exactly (up to floating-point rounding), so the
+two cases retain the same material contrast and prescribed material amount.
+The upward apex has `0.05` clearance to the active top interface, making this
+the intended truth for the no-filter multi-source acquisition; a filtered
+single-source use must choose `-fr <= 0.025` to satisfy the two-filter-radius
+clearance check.
+
+The physical access rule is extrapolated without adding inaccessible side
+measurements:
+
+- source: circular top patch
+  `y=0.75`, `(x-0.75)^2 + (z-0.50)^2 <= 0.10^2`
+  (attribute 7; physical area `pi*0.10^2`);
+- observed receiver surface: the full active top footprint
+  `y=0.75`, `x in [0.25,1.25]`, `z in [0.25,0.75]`, excluding the circular
+  source patch (attribute 8; physical area `0.5-pi*0.10^2`).
+
+Thus the observation remains only on the accessible top surface; the source,
+the outer top collars, and all five exterior subsoil faces are unobserved. The
+source keeps the 2D oblique polarization `[1/sqrt(2),-1/sqrt(2),0]`, which is
+applied uniformly over the circular patch; the embedded ball produces fully
+3D scattering.
+The mandatory Q3/Q3/Q4 reference audit is intentionally not bypassed.
+
+The generated mesh has twenty elements per P-wavelength and four elements
+across the ball and source radii. Do not add `-r 1`: uniform refinement would
+refine an already centroid-classified source patch rather than improve its
+circular geometric approximation.
+
+Build and check the geometry/objective wiring with:
+
+```bash
+make TopOptTransient test_elastic_inclusion_3d_configuration
+srun -n 4 ./test_elastic_inclusion_3d_configuration
+```
+
+The first reference-only experiment should use one node and the refined 3D
+recovery mesh:
+
+```bash
+srun -n 64 ./TopOptTransient \
+  -problem elastic-inclusion-identification-3d \
+  -r 0 -o 2 -do 1 -tf 1.5 -dt 0.001 -fr 0.05 \
+  -freq 4 -dur 0.75 \
+  -reference-order 3 -reference-dt 0.00025 \
+  -reference-only -no-pv -out jobs/ball3d_reference_audit
+```
+
+### `elastic-inclusion-identification-3d-multisource`
+
+This is the large-scale matrix-free version of the 3D inclusion inverse. It shares
+one raw density field among three independent traction experiments and minimizes
+the sum of their boundary-displacement tracking objectives. The source disks on
+the active top face are: the existing centre `(0.75,0.50)` (attribute 7), and
+two opposite off-centre pads `(0.375,0.375)` (attribute 9) and
+`(1.125,0.625)` (attribute 10), all with radius `0.10`. For shot `s`, the
+receiver is the whole accessible top footprint except its own active source
+disk: attribute 8 plus the other two source-pad attributes. Thus the unused
+pads are deliberately measured, not discarded.
+
+The problem enforces linear SIMP (`p=1`), no volume constraint, and no
+Helmholtz smoothing: the physical density is the raw elementwise DG(Q0)
+field (`rho_phys=rho_h`), with no L2-to-H1 transfer. It uses the
+partial-assembly kick--drift/symplectic-Euler discrete adjoint route. Before
+MMA, it generates exactly three high-fidelity truth traces—one per shot; unlike
+the single-source inverse it does not silently run a three-level audit for each
+of those shots.
+
+Run the full experiment through the scheduler, for example:
+
+```bash
+srun -n 64 ./TopOptTransient \
+  -problem elastic-inclusion-identification-3d-multisource \
+  -inclusion-truth pyramid \
+  -r 0 -o 2 -do 1 -tf 1.5 -dt 0.001 -freq 4 -dur 0.75 \
+  -matrix-free-symplectic-euler -lumped-mass -no-pv \
+  -volume-constraint-mode none -no-filter -simp-p 1 \
+  -nchk 16 -mi 100 -out jobs/ball3d_multisource
+```
+
+For the square-pyramid truth on Dane, use
+`run_pyramid_inverse_dane.sh`. Submit it from an external `RUN_ROOT` so its
+checkpoint, reference cache, and Slurm logs cannot enter the Git checkout:
+
+```bash
+mkdir -p /p/lustre1/$USER/topopt_runs/pyramid_inverse
+cd /p/lustre1/$USER/topopt_runs/pyramid_inverse
+MODE=reference sbatch /path/to/topopt_transient/run_pyramid_inverse_dane.sh "$PWD"
+MODE=optimize MAX_ITER=10 sbatch /path/to/topopt_transient/run_pyramid_inverse_dane.sh "$PWD"
+```
+
+The script documents the resource layout and the usual mesh, timestep,
+checkpoint, and MMA overrides. The reference-cache run is optional but avoids
+recomputing the three high-fidelity source traces in each fresh optimization.
+
 ### `band-waveguide`
 
 Generated 2D lift of a 1D transient waveguide/band-gap reference problem.
@@ -641,6 +846,15 @@ Common options:
 -lumped-mass                 diagonal mass solve: row-sum on tensor-product
                              elements, positive scaled diagonal on high-order
                              triangles/tetrahedra
+-matrix-free-symplectic-euler
+                             experimental discrete inverse: MFEM partial
+                             assembly for volume mass, stiffness, and sponge
+                             damping; lumped-mass kick--drift Euler; and its
+                             exact discrete adjoint. Requires -lumped-mass,
+                             legacy endpoint quadrature, same-grid discrete
+                             REVOLVE, a quadrilateral/hexahedral state mesh,
+                             and -no-pv. The absorbing-boundary surface
+                             operator remains assembled in this MFEM build.
 -freq <real>                 carrier frequency override (0 = problem default)
 -dur <real>                  pulse duration override (0 = problem default)
 -nchk <int>                  REVOLVE checkpoints per sweep (-1 = auto)
@@ -652,6 +866,13 @@ resolving a carrier at frequency `f` needs mesh size `h <~ c_p / (7 f)`.
 
 The default mass path is `-iterative-mass`. For larger explicit runs,
 `-lumped-mass` is usually much faster.
+
+For the experimental large-scale inverse route, add
+`-matrix-free-symplectic-euler -lumped-mass`. It replaces the default RK4
+march with one-RHS kick--drift Euler and uses its exact reverse sweep; it is
+currently limited to all-quadrilateral or all-hexahedral state meshes. The
+volume wave operators are partial-assembly/matrix-free, while the absorbing
+boundary surface operator and the Helmholtz filter remain assembled.
 
 For high-order physics with a coarser design, specify both orders. For example,
 `-o 8 --design-order 1` uses degree-8 displacement/adjoint fields while

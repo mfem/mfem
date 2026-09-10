@@ -25,15 +25,21 @@ struct PDEFilterOptions
 ///
 /// Inherits mfem::Operator and maps true-dof vectors:
 ///
-///   Mult          (x_ctrl,   y_filt)  :  y = F(x)   — forward filter
-///   MultTranspose (x_filt,   y_ctrl)  :  y = F^T(x) — adjoint filter
+///   Mult          (x_ctrl, y_filt) : y = F(x) — forward filter
+///   MultTranspose (x_filt, y_ctrl) : y = F^T(x) — adjoint filter
+///
+/// An optional prescribed-output projection makes Mult affine.  In that mode,
+/// MultTranspose applies the transpose of Mult's Jacobian; see
+/// SetPrescribedOutputDofs().
 ///
 /// Operator dimensions:
 ///   height = fes_filter.GetTrueVSize()   (output of Mult)
 ///   width  = fes_control.GetTrueVSize()  (input  of Mult)
 ///
-/// The filter solves:
+/// With a positive radius, the filter solves:
 ///   (r^2 K + M) rho_tilde = M_fc rho
+/// A zero radius intentionally removes Helmholtz smoothing and leaves the
+/// exact L2-to-H1 mass projection M rho_tilde = M_fc rho.
 ///
 /// where K is the H1 diffusion matrix, M the H1 mass matrix, and M_fc
 /// the mixed mass matrix (control trial, filter test).
@@ -86,6 +92,27 @@ public:
     /// @brief Full-tensor diffusion: r^2 * M(x).
     void SetDiffusionCoeff(MatrixCoefficient& coeff);
 
+    /// @brief Prescribe selected filtered true DOFs to a constant value.
+    ///
+    /// This optional operation is intended for fixed physical/passive regions.
+    /// With C denoting the diagonal projector that is one on unconstrained
+    /// filtered DOFs and zero on prescribed ones, the forward map becomes
+    ///
+    ///   y = C F x + (I-C) value.
+    ///
+    /// It is therefore affine rather than linear.  When prescribed outputs are
+    /// enabled, MultTranspose() applies the transpose of the forward map's
+    /// Jacobian, F^T C, not the transpose of the affine map itself.  This is the
+    /// derivative required by topology-optimization adjoints.
+    ///
+    /// The list contains local true-DOF indices in the filter space.  It may be
+    /// configured before or after Assemble(), since it does not change the
+    /// Helmholtz matrix.
+    void SetPrescribedOutputDofs(const Array<int>& tdofs, double value);
+
+    /// Remove an existing prescribed-output projection.
+    void ClearPrescribedOutputDofs();
+
     /// @brief Assemble the system matrix and set up the AMG+PCG solver.
     ///
     /// Must be called exactly once, after SetDiffusionCoeff (if any).
@@ -95,13 +122,15 @@ public:
     // mfem::Operator interface — true-dof Vectors
     // -----------------------------------------------------------------------
 
-    /// @brief Forward filter: y_filt = F(x_ctrl).
+    /// @brief Forward filter: y_filt = F(x_ctrl), optionally followed by the
+    /// prescribed-output affine projection configured above.
     ///
     /// @param x  Control true-dof vector, size Width()  = ctrl TrueVSize.
     /// @param y  Filter  true-dof vector, size Height() = filt TrueVSize.
     void Mult(const Vector& x, Vector& y) const override;
 
-    /// @brief Adjoint filter: y_ctrl = F^T(x_filt).
+    /// @brief Adjoint filter: y_ctrl = F^T(x_filt), or F^T C x_filt when
+    /// prescribed outputs are enabled.
     ///
     /// Because (r^2 K + M) is SPD the adjoint reuses the same solver.
     ///
@@ -135,6 +164,15 @@ public:
 
     MPI_Comm GetComm() const { return fes_filter_->GetComm(); }
 
+    bool HasPrescribedOutputDofs() const
+    { return prescribed_output_enabled_; }
+
+    const Array<int>& GetPrescribedOutputDofs() const
+    { return prescribed_output_tdofs_; }
+
+    double GetPrescribedOutputValue() const
+    { return prescribed_output_value_; }
+
 private:
     void AssembleBilinearForm_();
     void AssembleMixedMass_();
@@ -160,6 +198,12 @@ private:
         VectorCoefficient* vector = nullptr;
         MatrixCoefficient* matrix = nullptr;
     } diff_;
+
+    Array<int> prescribed_output_tdofs_;
+    double prescribed_output_value_ = 0.0;
+    // Separate from the local list size: in parallel a rank may own no
+    // prescribed DOFs even though the globally configured projection is on.
+    bool prescribed_output_enabled_ = false;
 
     // Owned wrapper coefficients created in AssembleBilinearForm_().
     // DiffusionIntegrator does not take ownership of its coefficient, so we

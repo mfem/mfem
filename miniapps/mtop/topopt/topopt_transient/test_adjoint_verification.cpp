@@ -2,10 +2,12 @@
 // Adjoint verification for the transient elastodynamics operator
 // =============================================================================
 //
-// These checks intentionally stop before design sensitivities and MMA:
+// These checks stop before MMA and cover the state and design sensitivities:
 //   1. <J(x) v, w> = <v, J(x)^T w>
 //   2. <D Phi_h(x) v, w> = <v, D Phi_h(x)^T w> for one RK4 step
 //   3. the same identity for an n-step RK4 map
+//   4. a filtered-design Taylor check for the partial-assembly kick--drift
+//      inverse path on tensor-product elements.
 //
 // MFEM in this checkout does not expose RK4 AdjointStep, so the RK4 transpose
 // used here is a local reverse-mode transcription of MFEM's RK4Solver::Step.
@@ -1695,6 +1697,310 @@ double CheckDesignTaylor(ParFiniteElementSpace &state_fes,
    return worst_best_fd_rel;
 }
 
+// The production large-scale inverse path uses MFEM partial assembly, row-
+// lumped mass, and kick--drift Euler.  Keep a separate Taylor check for that
+// exact combination: the legacy CheckDesignTaylor above intentionally tests
+// the assembled RK4 path instead.
+real_t EvaluateMatrixFreeKickDriftDesignObjective(
+   const Vector &rho_tv,
+   const Vector &x0,
+   ParFiniteElementSpace &state_fes,
+   ParGridFunction &rho,
+   ParGridFunction &rho_tilde,
+   toopt::PDEFilter &filter,
+   Coefficient &gamma_coef,
+   Array<int> &exterior_bdr_attr,
+   Array<int> &empty_bdr_attr,
+   TimeIntegratedObjective &objective,
+   const MaterialParams &mat,
+   const BoundaryLoadSpec &load_spec,
+   VectorCoefficient &load_coef,
+   real_t impedance,
+   int nsteps,
+   real_t h)
+{
+   rho.SetFromTrueDofs(rho_tv);
+   filter.Mult(rho, rho_tilde);
+
+   ConstantCoefficient rho_0_coef(mat.rho0);
+   ConstantCoefficient lambda_0_coef(mat.lambda0);
+   ConstantCoefficient mu_0_coef(mat.mu0);
+   SIMPCoefficient simp_mass(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+   SIMPCoefficient simp_stiff(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+   ProductCoefficient mass_coef(simp_mass, rho_0_coef);
+   ProductCoefficient lambda_coef(simp_stiff, lambda_0_coef);
+   ProductCoefficient mu_coef(simp_stiff, mu_0_coef);
+
+   ElastodynamicsOperator oper(
+      state_fes, mass_coef, lambda_coef, mu_coef,
+      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
+      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes,
+      load_coef, load_spec.domain_load, &gamma_coef, impedance,
+      exterior_bdr_attr, empty_bdr_attr, MassSolverType::LUMPED,
+      /*print_banner=*/false, load_spec.frequencies,
+      SpatialOperatorMode::PARTIAL_ASSEMBLY);
+
+   return RolloutKickDriftEulerObjective(
+      oper, state_fes, oper.GetBlockOffsets(), objective, x0, nsteps,
+      /*t_init=*/0.0, h);
+}
+
+real_t MatrixFreeKickDriftDesignObjectiveAdjointGradient(
+   const Vector &rho_tv,
+   const Vector &x0,
+   ParFiniteElementSpace &state_fes,
+   ParFiniteElementSpace &filter_fes,
+   ParFiniteElementSpace &control_fes,
+   ParGridFunction &rho,
+   ParGridFunction &rho_tilde,
+   toopt::PDEFilter &filter,
+   Coefficient &gamma_coef,
+   Array<int> &exterior_bdr_attr,
+   Array<int> &empty_bdr_attr,
+   TimeIntegratedObjective &objective,
+   const MaterialParams &mat,
+   const BoundaryLoadSpec &load_spec,
+   VectorCoefficient &load_coef,
+   real_t impedance,
+   int nsteps,
+   real_t h,
+   Vector &dJ_drho)
+{
+   rho.SetFromTrueDofs(rho_tv);
+   filter.Mult(rho, rho_tilde);
+
+   ConstantCoefficient rho_0_coef(mat.rho0);
+   ConstantCoefficient lambda_0_coef(mat.lambda0);
+   ConstantCoefficient mu_0_coef(mat.mu0);
+   SIMPCoefficient simp_mass(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+   SIMPCoefficient simp_stiff(&rho_tilde, mat.r_min, mat.r_max, mat.simp_p);
+   ProductCoefficient mass_coef(simp_mass, rho_0_coef);
+   ProductCoefficient lambda_coef(simp_stiff, lambda_0_coef);
+   ProductCoefficient mu_coef(simp_stiff, mu_0_coef);
+
+   ElastodynamicsOperator oper(
+      state_fes, mass_coef, lambda_coef, mu_coef,
+      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
+      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes,
+      load_coef, load_spec.domain_load, &gamma_coef, impedance,
+      exterior_bdr_attr, empty_bdr_attr, MassSolverType::LUMPED,
+      /*print_banner=*/false, load_spec.frequencies,
+      SpatialOperatorMode::PARTIAL_ASSEMBLY);
+
+   std::vector<Vector> states(nsteps + 1);
+   const real_t J = RolloutKickDriftEulerObjective(
+      oper, state_fes, oper.GetBlockOffsets(), objective, x0, nsteps,
+      /*t_init=*/0.0, h, nullptr,
+      [&](int step, real_t, const Vector &state) { states[step] = state; });
+
+   const int total_steps = nsteps + 1;
+   Vector dJ_drho_tilde(filter_fes.GetTrueVSize());
+   dJ_drho_tilde = 0.0;
+   Vector lambda(x0.Size()), lambda_prev(x0.Size()), q(x0.Size());
+   ObjectiveGradientAtStateAndTime(
+      state_fes, oper.GetBlockOffsets(), objective, states[nsteps],
+      nsteps * h, h, nsteps, total_steps, lambda);
+   for (int step = nsteps - 1; step >= 0; step--)
+   {
+      KickDriftEulerAdjointOneStepWithDesign(
+         oper, state_fes, filter_fes, rho_tilde, mat, states[step], step * h,
+         h, lambda, lambda_prev, dJ_drho_tilde);
+      ObjectiveGradientAtStateAndTime(
+         state_fes, oper.GetBlockOffsets(), objective, states[step],
+         step * h, h, step, total_steps, q);
+      lambda = lambda_prev;
+      lambda += q;
+   }
+
+   filter.MultTranspose(dJ_drho_tilde, dJ_drho);
+   MFEM_VERIFY(dJ_drho.Size() == control_fes.GetTrueVSize(),
+               "Matrix-free kick-drift raw gradient has unexpected size.");
+   return J;
+}
+
+// The production inverse uses this direct DG(Q0) sensitivity path.  Compare
+// one complete mass-plus-stiffness stage against the established generic
+// linear-form assembly before relying on its performance benefit.  The
+// generic route has its own Taylor test below; agreement here transfers that
+// verification to the element-local kernel without adding an expensive second
+// end-to-end inverse solve to this test.
+double CheckDGQ0DirectStageSensitivityEquivalence(
+   ParFiniteElementSpace &state_fes,
+   SpatialDampingCoefficient &gamma_coef,
+   Array<int> &exterior_bdr_attr,
+   Array<int> &empty_bdr_attr,
+   const MaterialParams &mat,
+   const BoundaryLoadSpec &load_spec,
+   VectorCoefficient &load_coef,
+   real_t impedance)
+{
+   MPI_Comm comm = state_fes.GetComm();
+   ParMesh *pmesh = state_fes.GetParMesh();
+   L2_FECollection dgq0_fec(0, pmesh->Dimension(), BasisType::GaussLobatto);
+   ParFiniteElementSpace dgq0_fes(pmesh, &dgq0_fec);
+   ParGridFunction rho_dgq0(&dgq0_fes);
+   Vector rho_tv(dgq0_fes.GetTrueVSize());
+   for (int i = 0; i < rho_tv.Size(); i++)
+   {
+      // Keep all values strictly within the unclamped SIMP interval while
+      // exercising different elementwise derivatives on every rank.
+      rho_tv[i] = 0.2 + 0.6 * (static_cast<real_t>((17 * i + 11) % 29) / 28.0);
+   }
+   rho_dgq0.SetFromTrueDofs(rho_tv);
+
+   ConstantCoefficient rho0_coef(mat.rho0);
+   ConstantCoefficient lambda0_coef(mat.lambda0);
+   ConstantCoefficient mu0_coef(mat.mu0);
+   SIMPCoefficient simp_mass(&rho_dgq0, mat.r_min, mat.r_max, mat.simp_p);
+   SIMPCoefficient simp_stiff(&rho_dgq0, mat.r_min, mat.r_max, mat.simp_p);
+   ProductCoefficient mass_coef(simp_mass, rho0_coef);
+   ProductCoefficient lambda_coef(simp_stiff, lambda0_coef);
+   ProductCoefficient mu_coef(simp_stiff, mu0_coef);
+   ElastodynamicsOperator oper(
+      state_fes, mass_coef, lambda_coef, mu_coef,
+      load_spec.amplitude, load_spec.duration, load_spec.time_profile,
+      load_spec.phase, load_spec.frequency, load_spec.bdr_attributes,
+      load_coef, load_spec.domain_load, &gamma_coef, impedance,
+      exterior_bdr_attr, empty_bdr_attr, MassSolverType::LUMPED,
+      /*print_banner=*/false, load_spec.frequencies,
+      SpatialOperatorMode::PARTIAL_ASSEMBLY);
+
+   Vector stage_state(oper.Height()), stage_rhs(oper.Height());
+   Vector stage_seed(oper.Height());
+   RandomState(stage_state, 910);
+   RandomState(stage_seed, 911);
+   oper.SetTime(0.137);
+   oper.Mult(stage_state, stage_rhs);
+
+   Vector generic_gradient(dgq0_fes.GetTrueVSize());
+   Vector direct_gradient(dgq0_fes.GetTrueVSize());
+   generic_gradient = 0.0;
+   direct_gradient = 0.0;
+   AddStageDesignGradientTilde(
+      oper, state_fes, dgq0_fes, rho_dgq0, mat, stage_state, stage_rhs,
+      stage_seed, generic_gradient);
+   DGQ0StageDesignWorkspace workspace(state_fes, dgq0_fes);
+   AddStageDesignGradientDGQ0(
+      oper, state_fes, dgq0_fes, rho_dgq0, mat, stage_state, stage_rhs,
+      stage_seed, direct_gradient, workspace);
+
+   Vector difference(direct_gradient);
+   difference -= generic_gradient;
+   const double reference_norm = std::sqrt(GlobalDot(
+      comm, generic_gradient, generic_gradient));
+   const double relative_error = std::sqrt(GlobalDot(comm, difference, difference)) /
+                                 std::max(reference_norm, 1e-30);
+   MFEM_VERIFY(relative_error < 5e-12,
+               "Direct DG(Q0) stage sensitivity differs from generic assembly.");
+   return relative_error;
+}
+
+double CheckMatrixFreeKickDriftDesignTaylor(
+   ParFiniteElementSpace &state_fes,
+   ParFiniteElementSpace &filter_fes,
+   ParFiniteElementSpace &control_fes,
+   ParGridFunction &rho,
+   ParGridFunction &rho_tilde,
+   toopt::PDEFilter &filter,
+   SpatialDampingCoefficient &gamma_coef,
+   Array<int> &exterior_bdr_attr,
+   Array<int> &empty_bdr_attr,
+   TimeIntegratedObjective &objective,
+   const MaterialParams &mat,
+   const BoundaryLoadSpec &load_spec,
+   VectorCoefficient &load_coef,
+   real_t impedance,
+   int nsteps,
+   real_t h,
+   int nscales,
+   real_t initial_scale,
+   real_t state_scale,
+   real_t tolerance)
+{
+   const MPI_Comm comm = state_fes.GetComm();
+   if (Mpi::Root())
+   {
+      mfem::out << "\n--- Matrix-free kick-drift design Taylor check ---\n";
+   }
+
+   Vector rho0;
+   rho.GetTrueDofs(rho0);
+   Vector x0(2 * state_fes.GetTrueVSize());
+   Vector direction(control_fes.GetTrueVSize());
+   Vector gradient(control_fes.GetTrueVSize());
+   RandomState(x0, 730);
+   x0 *= state_scale;
+   RandomState(direction, 731);
+   Normalize(comm, direction);
+
+   const real_t J0 = MatrixFreeKickDriftDesignObjectiveAdjointGradient(
+      rho0, x0, state_fes, filter_fes, control_fes, rho, rho_tilde, filter,
+      gamma_coef, exterior_bdr_attr, empty_bdr_attr, objective, mat,
+      load_spec, load_coef, impedance, nsteps, h, gradient);
+   const real_t projected_gradient = GlobalDot(comm, gradient, direction);
+   if (Mpi::Root())
+   {
+      mfem::out << "J0=" << setprecision(16) << J0
+                << ", <dJ/drho,p>=" << projected_gradient << '\n';
+   }
+
+   double best_relative_error = numeric_limits<double>::infinity();
+   real_t scale = initial_scale;
+   for (int index = 0; index < nscales; index++)
+   {
+      Vector rho_plus(rho0), rho_minus(rho0);
+      rho_plus.Add(scale, direction);
+      rho_minus.Add(-scale, direction);
+      const real_t Jp = EvaluateMatrixFreeKickDriftDesignObjective(
+         rho_plus, x0, state_fes, rho, rho_tilde, filter, gamma_coef,
+         exterior_bdr_attr, empty_bdr_attr, objective, mat, load_spec,
+         load_coef, impedance, nsteps, h);
+      const real_t Jm = EvaluateMatrixFreeKickDriftDesignObjective(
+         rho_minus, x0, state_fes, rho, rho_tilde, filter, gamma_coef,
+         exterior_bdr_attr, empty_bdr_attr, objective, mat, load_spec,
+         load_coef, impedance, nsteps, h);
+      const real_t finite_difference = (Jp - Jm) / (2.0 * scale);
+      const double denominator = std::max(
+         {std::abs(static_cast<double>(finite_difference)),
+          std::abs(static_cast<double>(projected_gradient)), 1e-30});
+      const double relative_error = std::abs(
+         static_cast<double>(finite_difference - projected_gradient)) /
+         denominator;
+      best_relative_error = std::min(best_relative_error, relative_error);
+      if (Mpi::Root())
+      {
+         mfem::out << "  scale=" << scientific << setprecision(3) << scale
+                   << "  FD=" << setprecision(12) << finite_difference
+                   << "  rel_err=" << relative_error << '\n';
+      }
+      scale *= 0.1;
+   }
+
+   MFEM_VERIFY(best_relative_error < tolerance,
+               "Matrix-free kick-drift design Taylor check failed.");
+   return best_relative_error;
+}
+
+bool HasTensorProductPartialAssemblySupport(
+   const ParFiniteElementSpace &state_fes)
+{
+   int local_supported = 1;
+   for (int element = 0; element < state_fes.GetNE(); element++)
+   {
+      const Geometry::Type geometry =
+         state_fes.GetFE(element)->GetGeomType();
+      if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE)
+      {
+         local_supported = 0;
+         break;
+      }
+   }
+   int globally_supported = 0;
+   MPI_Allreduce(&local_supported, &globally_supported, 1, MPI_INT, MPI_MIN,
+                 state_fes.GetComm());
+   return globally_supported != 0;
+}
+
 void CheckProductionRevolveSchedules()
 {
    // Regression values from the production spherical configurations.  These
@@ -2367,6 +2673,27 @@ int main(int argc, char *argv[])
                         taylor_scales, design_initial_scale,
                         design_state_scale, design_tolerance,
                         MassSolverType::LUMPED);
+   double dgq0_direct_stage_relative_error = -1.0;
+   double matrix_free_kick_drift_design_taylor_err = -1.0;
+   if (HasTensorProductPartialAssemblySupport(state_fes))
+   {
+      dgq0_direct_stage_relative_error =
+         CheckDGQ0DirectStageSensitivityEquivalence(
+            state_fes, gamma_coef, exterior_bdr_attr, empty_bdr_attr, mat,
+            load_spec, load_coef, impedance);
+      matrix_free_kick_drift_design_taylor_err =
+         CheckMatrixFreeKickDriftDesignTaylor(
+            state_fes, filter_fes, control_fes, rho, rho_tilde, filter,
+            gamma_coef, exterior_bdr_attr, empty_bdr_attr, objective, mat,
+            load_spec, load_coef, impedance, nsteps, dt, taylor_scales,
+            design_initial_scale, design_state_scale, design_tolerance);
+   }
+   else if (myid == 0)
+   {
+      mfem::out << "\nMatrix-free kick-drift Taylor check skipped: this MFEM "
+                << "partial-assembly path requires quadrilateral or "
+                   "hexahedral elements.\n";
+   }
    // Same gradient check but with a clamped Dirichlet BC active, to verify the
    // essential-dof projection is applied consistently in forward + adjoint.
    const double design_taylor_err_clamped =
@@ -2464,6 +2791,10 @@ int main(int argc, char *argv[])
                 << design_taylor_err_cg << '\n'
                 << "Worst raw-design Taylor FD error (lumped mass): "
                 << design_taylor_err_lumped << '\n'
+                << "Direct DG(Q0) versus generic stage-gradient error: "
+                << dgq0_direct_stage_relative_error << '\n'
+                << "Matrix-free kick-drift raw-design Taylor FD error: "
+                << matrix_free_kick_drift_design_taylor_err << '\n'
                 << "Worst raw-design Taylor FD error (lumped, clamped BC): "
                 << design_taylor_err_clamped << '\n'
                 << "Worst raw-design Taylor FD error (consistent, clamped BC): "

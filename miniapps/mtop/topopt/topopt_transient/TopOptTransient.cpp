@@ -11,10 +11,13 @@
 //
 // Pipeline per MMA iteration:
 //   1. raw control density rho (L2) -> Helmholtz filter -> rho_tilde (H1),
-//   2. rho_tilde drives SIMP mass/stiffness coefficients,
-//   3. TransientDesignSolver runs the RK4 forward sweep and either the default
-//      exact discrete adjoint or the opt-in continuous RK4/Hermite adjoint,
-//      returning dJ/drho after the filter transpose,
+//      except for the opt-in inverse identity mode rho_phys=rho in DG(Q0),
+//   2. the physical density drives SIMP mass/stiffness coefficients,
+//   3. TransientDesignSolver normally runs the RK4 forward sweep and either the
+//      default exact discrete adjoint or the opt-in continuous RK4/Hermite
+//      adjoint. The experimental matrix-free inverse instead uses kick--drift
+//      Euler and its exact discrete adjoint, returning dJ/drho after the
+//      filter transpose,
 //   4. MMA updates rho subject to the volume constraint + move limits.
 //
 // The adjoint + design gradient are verified in test_adjoint_verification.
@@ -47,12 +50,55 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <vector>
 
 using namespace std;
 using namespace mfem;
 
 namespace
 {
+
+struct ReferenceConvergenceAuditMetadata
+{
+   bool performed = false;
+   bool accepted = false;
+   real_t tolerance = 0.0;
+   BoundaryTraceComparisonMetrics temporal;
+   BoundaryTraceComparisonMetrics order_enrichment;
+   BoundaryTraceComparisonMetrics baseline_to_finest;
+   ReferenceBoundaryDataMetadata temporal_reference;
+   ReferenceBoundaryDataMetadata finest_reference;
+   real_t finest_signal_norm = 0.0;
+   real_t initial_reconstruction_error_norm = 0.0;
+   real_t temporal_signal_relative_error = 0.0;
+   real_t order_signal_relative_error = 0.0;
+   real_t combined_signal_relative_error = 0.0;
+   real_t temporal_initial_relative_error = 0.0;
+   real_t order_initial_relative_error = 0.0;
+   real_t combined_initial_relative_error = 0.0;
+   double total_seconds = 0.0;
+};
+
+// A presentation-only forward sweep needs the same time-integrator plumbing
+// as an inverse solve, but no receiver data or objective evaluation.
+class ZeroInstantaneousObjective final : public TimeIntegratedObjective
+{
+protected:
+   void AssembleStateGradientScaled(const ParGridFunction &, real_t, real_t,
+                                    ParLinearForm &gradient) override
+   {
+      gradient = 0.0;
+   }
+
+public:
+   ZeroInstantaneousObjective(ParFiniteElementSpace *fespace, MPI_Comm comm)
+      : TimeIntegratedObjective(fespace, comm) {}
+
+   real_t EvaluateInstantaneous(const ParGridFunction &, real_t) override
+   {
+      return 0.0;
+   }
+};
 
 // =============================================================================
 // OUTPUT DIRECTORY HELPER: Timestamp + SLURM Job ID
@@ -81,6 +127,58 @@ string ToLower(const char *text)
    transform(value.begin(), value.end(), value.begin(),
              [](unsigned char c) { return static_cast<char>(tolower(c)); });
    return value;
+}
+
+bool ParsePositiveFrequencyList(const char *text,
+                                vector<real_t> &frequencies,
+                                string &error)
+{
+   frequencies.clear();
+   const string input = text ? text : "";
+   if (input.empty())
+   {
+      error = "the list is empty";
+      return false;
+   }
+   istringstream stream(input);
+   string token;
+   while (getline(stream, token, ','))
+   {
+      istringstream token_stream(token);
+      real_t frequency = 0.0;
+      char trailing = '\0';
+      if (!(token_stream >> frequency) || (token_stream >> trailing) ||
+          !std::isfinite(frequency) || frequency <= 0.0)
+      {
+         error = "expected a comma-separated list of finite positive numbers";
+         return false;
+      }
+      frequencies.push_back(frequency);
+   }
+   if (frequencies.empty())
+   {
+      error = "the list contains no frequencies";
+      return false;
+   }
+   return true;
+}
+
+enum class VolumeConstraintMode
+{
+   NONE,
+   EQUALITY,
+   UPPER
+};
+
+const char *VolumeConstraintModeName(const VolumeConstraintMode mode)
+{
+   switch (mode)
+   {
+      case VolumeConstraintMode::NONE: return "none";
+      case VolumeConstraintMode::EQUALITY: return "active-region equality";
+      case VolumeConstraintMode::UPPER: return "active-region upper bound";
+   }
+   return "unknown";
 }
 
 unique_ptr<HypreParVector> AssembleVolumeWeights(ParFiniteElementSpace &fes,
@@ -233,6 +331,27 @@ void MapFullToActive(const Vector &rho_full_tv,
    {
       rho_active[i] = rho_full_tv[active_tdof_list[i]];
    }
+}
+
+// Maximum pointwise discrepancy on owned prescribed true DOFs.  All local
+// copies of shared H1 interface DOFs are synchronized by SetFromTrueDofs(), so
+// checking the owned true vector is sufficient for the global filtered field.
+real_t MaxPrescribedTDofDeviation(MPI_Comm comm,
+                                  const Vector &field_tv,
+                                  const Array<int> &prescribed_tdof_list,
+                                  real_t prescribed_value)
+{
+   real_t local_max = 0.0;
+   for (int i = 0; i < prescribed_tdof_list.Size(); i++)
+   {
+      local_max = std::max(
+         local_max,
+         std::abs(field_tv[prescribed_tdof_list[i]] - prescribed_value));
+   }
+   real_t global_max = 0.0;
+   MPI_Allreduce(&local_max, &global_max, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
+   return global_max;
 }
 
 Array<int> MakeBoundaryMarker(const ParMesh &pmesh, const Array<int> &attrs)
@@ -408,17 +527,34 @@ int main(int argc, char *argv[])
    // by test_adjoint_verification). Consistent (CG+AMG) is the default reference;
    // lumped (diagonal, row-sum) is faster for explicit RK4. User's choice via flag.
    bool use_iterative_mass = true;
+   bool matrix_free_symplectic_euler = false;
+   bool inverse_identity_density_transfer = false;
    const string default_mesh_file = cfg.mesh_file;
    const char *mesh_file = default_mesh_file.c_str();
    const char *design_init = "uniform";
    const char *problem_name = "wave";
+   const char *inclusion_truth_name = "single-disk";
    // -1 preserves the historical coupling: design/filter order follows -o.
    int design_order = -1;
    bool damping = true;   // -damp / -no-damp: apply the problem's damping
    bool forward_only = false;  // single forward objective sweep; no MMA/adjoint
+   // Write a lightweight three-shot animation through the prescribed truth.
+   // This is presentation output only: no inverse reference traces are made.
+   bool forward_visualization_truth = false;
+   bool time_integrator_smoke = false; // RK4 vs kick-drift forward comparison
    bool reference_only = false; // generate inclusion data, then exit
    int reference_order = -1;    // -1 = reconstruction order + 1
    real_t reference_time_step = -1.0; // -1 = effective coarse dt / 4
+   const char *reference_cache_directory = "";
+   // Resolved to true by default only after selecting an inverse problem, so
+   // unrelated forward problems do not print a misleading enabled audit.
+   bool reference_convergence_audit = false;
+   // Production inversions normally require the complete Qp/Qp/Q(p+1)
+   // trace audit.  This separate acknowledgement makes a deliberate
+   // baseline-only production run explicit in both its command line and
+   // output provenance.
+   bool allow_unaudited_reference = false;
+   real_t reference_audit_tolerance = 0.01;
    bool forward_modal_probe = false;  // terminal projection for temporal studies
    bool forward_modal_history = false; // launched/converted output time series
    int modal_sample_every = 1;
@@ -444,11 +580,16 @@ int main(int argc, char *argv[])
    // Carrier/pulse overrides (0 = keep the problem's default). Same problem can
    // then run cheap (low f, coarse mesh) locally and rich (high f) on HPC.
    real_t load_frequency = 0.0;
+   const char *load_frequencies = "";
    real_t load_duration = 0.0;
    // Negative sentinels retain each problem's material-law default.
    real_t simp_r_min = -1.0;
    real_t simp_r_max = -1.0;
    real_t simp_p = -1.0;
+   // "inherit" preserves the historical -volume-constraint /
+   // -no-volume-constraint switches. Explicit modes make it possible to
+   // compare an exact material equality with a conventional upper bound.
+   const char *volume_constraint_mode_name = "inherit";
    int num_checkpoints = -1;   // REVOLVE snapshot count; -1 = auto-size
 
    // === Checkpoint and output directory options ===
@@ -467,11 +608,18 @@ int main(int argc, char *argv[])
                   "Forward problem: wave, cantilever-compliance, "
                   "cantilever-harmonic-l2, cantilever-harmonic-tracking, "
                   "elastic-inclusion-identification, "
+                  "elastic-inclusion-identification-3d, "
+                  "elastic-inclusion-identification-3d-multisource, "
                   "band-waveguide, band-waveguide-legacy, band-mode-converter, "
                   "band-mode-converter-correlation, "
                   "band-mode-converter-energy, "
                   "band-mode-converter-reverse, spherical-bandgap, "
                   "mode-converter-3d, or mode-converter-reverse-3d");
+   args.AddOption(&inclusion_truth_name,
+                  "-inclusion-truth", "--inclusion-truth",
+                  "Truth preset: 2D elastic-inclusion-identification uses "
+                  "single-disk (default) or three-shape; 3D inclusion "
+                  "problems use single-ball (default) or pyramid.");
    args.AddOption(&damping, "-damp", "--damp", "-no-damp", "--no-damp",
                   "Apply the problem's damping (bulk + absorbing). -no-damp zeroes "
                   "all dissipation: free (Neumann) boundaries, conservative system.");
@@ -484,13 +632,35 @@ int main(int argc, char *argv[])
                   "Run one forward objective sweep at the initial/restarted design; "
                   "skip MMA, adjoint, and optimization checkpointing. With -pv, "
                   "write sampled wave fields without storing the full trajectory.");
+   args.AddOption(
+      &forward_visualization_truth,
+      "-forward-visualization-truth", "--forward-visualization-truth",
+      "-no-forward-visualization-truth", "--no-forward-visualization-truth",
+      "Presentation-only forward visualization through the prescribed inverse "
+      "truth. Requires -forward-only -pv; skips reference-trace generation and "
+      "writes one sampled wave collection per source.");
+   args.AddOption(&time_integrator_smoke,
+                  "-time-integrator-smoke", "--time-integrator-smoke",
+                  "-no-time-integrator-smoke", "--no-time-integrator-smoke",
+                  "In -forward-only mode, compare the existing RK4 forward "
+                  "rollout with one-RHS kick-drift (symplectic) Euler at the "
+                  "same dt. Reports wall time, objective and terminal-state "
+                  "differences; elastic-inclusion runs also compare the complete "
+                  "receiver trace. This diagnostic does not change production RK4.");
    args.AddOption(&reference_only,
                   "-reference-only", "--reference-only",
                   "-no-reference-only", "--no-reference-only",
-                  "Generate the elastic-inclusion reference boundary data and "
-                  "exit before constructing the reconstruction solver or MMA. "
-                  "Truth fields and metadata are written; trace samples remain "
+                  "Generate and, by default, convergence-audit the elastic-"
+                  "inclusion reference boundary data, run the uniform "
+                  "reconstruction needed by the acceptance gate, then exit "
+                  "before any adjoint or MMA update. Trace samples remain "
                   "in memory only.");
+   args.AddOption(&reference_cache_directory,
+                  "-reference-cache", "--reference-cache",
+                  "Directory for reusable high-fidelity inverse receiver "
+                  "traces. A complete, exactly compatible cache is loaded "
+                  "before generating reference solves; otherwise newly "
+                  "generated traces are atomically saved there.");
    args.AddOption(&reference_order,
                   "-reference-order", "--reference-order",
                   "Reference state H1 order for elastic inclusion data "
@@ -499,6 +669,23 @@ int main(int argc, char *argv[])
                   "-reference-dt", "--reference-time-step",
                   "Reference RK4 timestep for elastic inclusion data "
                   "(-1 selects effective reconstruction dt / 4).");
+   args.AddOption(&reference_convergence_audit,
+                  "-reference-audit", "--reference-convergence-audit",
+                  "-no-reference-audit", "--no-reference-convergence-audit",
+                  "Generate Q(p_ref),dt_ref/2 and Q(p_ref+1),dt_ref/2 "
+                  "histories and require receiver-trace convergence before "
+                  "using the baseline reference. Required by default for "
+                  "production runs.");
+   args.AddOption(&allow_unaudited_reference,
+                  "-allow-unaudited-reference", "--allow-unaudited-reference",
+                  "-no-allow-unaudited-reference", "--no-allow-unaudited-reference",
+                  "Acknowledge an explicitly requested baseline-only elastic-"
+                  "inclusion reconstruction when used with -no-reference-audit. "
+                  "Its outputs are marked SKIPPED/UNVALIDATED.");
+   args.AddOption(&reference_audit_tolerance,
+                  "-reference-audit-tol", "--reference-audit-tolerance",
+                  "Maximum signal-normalized receiver-trace error for every "
+                  "reference convergence comparison (default 0.01).");
    args.AddOption(&forward_modal_probe,
                   "-forward-modal-probe", "--forward-modal-probe",
                   "-no-forward-modal-probe", "--no-forward-modal-probe",
@@ -619,6 +806,24 @@ int main(int argc, char *argv[])
    args.AddOption(&cfg.vol_frac, "-vf", "--vol-frac", "Target volume fraction");
    args.AddOption(&cfg.filter_radius, "-fr", "--filter-radius",
                   "Helmholtz filter radius");
+   args.AddOption(&cfg.helmholtz_filter_enabled,
+                  "-filter", "--helmholtz-filter",
+                  "-no-filter", "--no-helmholtz-filter",
+                  "Apply Helmholtz density smoothing. With -no-filter, use "
+                  "only the exact L2-to-H1 mass projection required to transfer "
+                  "the discontinuous control to the physical density field.");
+   args.AddOption(&cfg.volume_constraint_enabled,
+                  "-volume-constraint", "--volume-constraint",
+                  "-no-volume-constraint", "--no-volume-constraint",
+                  "Enforce the active-region volume equality in MMA.");
+   args.AddOption(&volume_constraint_mode_name,
+                  "-volume-constraint-mode", "--volume-constraint-mode",
+                  "Volume constraint mode: inherit (default), equality, upper, or none. "
+                  "The upper mode enforces only V/V* - 1 <= 0.");
+   args.AddOption(&cfg.inclusion_truth_density,
+                  "-inclusion-truth-density", "--inclusion-truth-density",
+                  "Raw density inside the single-disk inverse truth ([0,1]); "
+                  "negative retains the legacy fixed-material-scale truth.");
    args.AddOption(&simp_r_min, "-simp-rmin", "--simp-rmin",
                   "SIMP material scale at rho_tilde=0 (positive = override "
                   "the band-waveguide default)");
@@ -663,10 +868,34 @@ int main(int argc, char *argv[])
                   "-lumped-mass", "--lumped-mass",
                   "Mass solver: consistent CG+AMG (default) or faster lumped. "
                   "Both are gradient-consistent (verified).");
+   args.AddOption(&matrix_free_symplectic_euler,
+                  "-matrix-free-symplectic-euler",
+                  "--matrix-free-symplectic-euler",
+                  "-no-matrix-free-symplectic-euler",
+                  "--no-matrix-free-symplectic-euler",
+                  "Experimental inverse path: MFEM partial assembly with "
+                  "lumped mass and the exact discrete kick-drift Euler "
+                  "adjoint. Requires -lumped-mass, legacy endpoint objective, "
+                  "same-grid discrete REVOLVE adjoints, and disables ParaView "
+                  "and unrelated RK4/continuous diagnostics.");
+   args.AddOption(&inverse_identity_density_transfer,
+                  "-inverse-identity-density-transfer",
+                  "--inverse-identity-density-transfer",
+                  "-no-inverse-identity-density-transfer",
+                  "--no-inverse-identity-density-transfer",
+                  "Inverse-only physical-density mode: retain the raw "
+                  "elementwise DG(Q0) control as rho_phys, bypassing both "
+                  "the L2-to-H1 mass projection and Helmholtz filter. "
+                  "Requires -problem elastic-inclusion-identification-3d-"
+                  "multisource, -matrix-free-symplectic-euler, and -do 1.");
    args.AddOption(&load_frequency, "-freq", "--load-frequency",
                   "Carrier frequency override for modulated/harmonic loads "
                   "(0 = problem default). Resolving the carrier needs "
                   "mesh size <~ c_p/(7 f).");
+   args.AddOption(&load_frequencies, "-freqs", "--load-frequencies",
+                  "Comma-separated coherent carrier frequencies for one "
+                  "common modulated-Gaussian source. The combined "
+                  "source is normalized to single-carrier temporal L2 energy.");
    args.AddOption(&load_duration, "-dur", "--load-duration",
                   "Pulse duration override (0 = problem default; the legacy "
                   "band and spherical loads span t_final, while the 2D mode "
@@ -722,9 +951,73 @@ int main(int argc, char *argv[])
       command_line_has_option("-vf", "--vol-frac");
    cfg.filter_radius_is_user =
       command_line_has_option("-fr", "--filter-radius");
+   cfg.inclusion_truth_density_is_user =
+      command_line_has_option("-inclusion-truth-density",
+                              "--inclusion-truth-density");
+   const string volume_constraint_mode_sel =
+      ToLower(volume_constraint_mode_name);
+   VolumeConstraintMode volume_constraint_mode = VolumeConstraintMode::NONE;
+   if (volume_constraint_mode_sel == "inherit")
+   {
+      volume_constraint_mode = cfg.volume_constraint_enabled ?
+         VolumeConstraintMode::EQUALITY : VolumeConstraintMode::NONE;
+   }
+   else if (volume_constraint_mode_sel == "equality")
+   {
+      volume_constraint_mode = VolumeConstraintMode::EQUALITY;
+      cfg.volume_constraint_enabled = true;
+   }
+   else if (volume_constraint_mode_sel == "upper")
+   {
+      volume_constraint_mode = VolumeConstraintMode::UPPER;
+      cfg.volume_constraint_enabled = true;
+   }
+   else if (volume_constraint_mode_sel == "none")
+   {
+      volume_constraint_mode = VolumeConstraintMode::NONE;
+      cfg.volume_constraint_enabled = false;
+   }
+   else
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -volume-constraint-mode must be inherit, equality, "
+                 "upper, or none.\n";
+      }
+      return 1;
+   }
    cfg.mesh_file = mesh_file;
    cfg.mesh_file_is_user =
       command_line_has_option("-mesh", "--mesh-file");
+   if (load_frequencies[0] != '\0')
+   {
+      if (load_frequency > 0.0)
+      {
+         if (myid == 0)
+         {
+            cerr << "Error: --load-frequency and --load-frequencies are "
+                    "mutually exclusive.\n";
+         }
+         return 1;
+      }
+      string frequency_error;
+      if (!ParsePositiveFrequencyList(load_frequencies,
+                                      cfg.boundary_load.frequencies,
+                                      frequency_error))
+      {
+         if (myid == 0)
+         {
+            cerr << "Error: invalid --load-frequencies value '"
+                 << load_frequencies << "': " << frequency_error << ".\n";
+         }
+         return 1;
+      }
+      // Problem constructors preserve a user frequency. Keep the first entry
+      // in the legacy scalar slot for compatibility with single-carrier
+      // diagnostics and their existing validation messages.
+      cfg.boundary_load.frequency = cfg.boundary_load.frequencies.front();
+      cfg.load_frequency_is_user = true;
+   }
    if (load_frequency > 0.0)
    {
       cfg.boundary_load.frequency = load_frequency;
@@ -759,6 +1052,17 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (cfg.inclusion_truth_density_is_user &&
+       (!std::isfinite(cfg.inclusion_truth_density) ||
+        cfg.inclusion_truth_density < 0.0 ||
+        cfg.inclusion_truth_density > 1.0))
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: --inclusion-truth-density must lie in [0,1].\n";
+      }
+      return 1;
+   }
    if (reference_order != -1 && reference_order < 1)
    {
       if (myid == 0)
@@ -775,6 +1079,16 @@ int main(int argc, char *argv[])
       {
          cerr << "Error: --reference-time-step must be -1 (automatic) or "
                  "finite and positive.\n";
+      }
+      return 1;
+   }
+   if (!std::isfinite(reference_audit_tolerance) ||
+       reference_audit_tolerance <= 0.0 ||
+       reference_audit_tolerance >= 1.0)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: --reference-audit-tolerance must lie in (0,1).\n";
       }
       return 1;
    }
@@ -857,10 +1171,14 @@ int main(int argc, char *argv[])
    // continuous diagnostic slip through with unsupported observation times,
    // and would unnecessarily require an explicit quadrature option for the
    // fixed-design DO/modified/naive comparison.
+   const std::string inclusion_problem_name = ToLower(problem_name);
    const bool inclusion_problem_requested =
-      ToLower(problem_name) == "elastic-inclusion-identification";
-   if (inclusion_problem_requested && !reference_only &&
-       !rk4_stage_objective)
+      inclusion_problem_name == "elastic-inclusion-identification" ||
+      inclusion_problem_name == "elastic-inclusion-identification-3d" ||
+      inclusion_problem_name ==
+         "elastic-inclusion-identification-3d-multisource";
+   if (inclusion_problem_requested && !rk4_stage_objective &&
+       !matrix_free_symplectic_euler)
    {
       rk4_stage_objective = true;
       objective_quadrature_name = "rk4-stage";
@@ -869,6 +1187,16 @@ int main(int argc, char *argv[])
          cout << "Elastic inclusion identification: selecting the required "
                  "common RK4-stage objective quadrature.\n";
       }
+   }
+   if (matrix_free_symplectic_euler && rk4_stage_objective)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -matrix-free-symplectic-euler requires "
+                 "-objective-quadrature legacy. Its exact discrete adjoint "
+                 "uses endpoint trapezoid weights, not RK4 internal stages.\n";
+      }
+      return 1;
    }
    if (adjoint_refinement < 1)
    {
@@ -965,6 +1293,24 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (time_integrator_smoke && !forward_only)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -time-integrator-smoke requires -forward-only.\n";
+      }
+      return 1;
+   }
+   if (time_integrator_smoke &&
+       (paraview || forward_modal_probe || forward_modal_history))
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -time-integrator-smoke cannot be combined with -pv "
+                 "or forward modal diagnostics.\n";
+      }
+      return 1;
+   }
    if (cfg.dt <= 0.0 || cfg.t_final <= 0.0)
    {
       if (myid == 0)
@@ -1054,6 +1400,23 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   if (matrix_free_symplectic_euler &&
+       (use_iterative_mass || adjoint_mode != TransientAdjointMode::DISCRETE ||
+        trajectory_storage != TrajectoryStorageMode::REVOLVE ||
+        adjoint_refinement != 1 || adjoint_coarsening != 1 || paraview ||
+        time_integrator_smoke || forward_modal_probe || forward_modal_history ||
+        rhs_spectrum || rk4_adjoint_comparison ||
+        continuous_diagnostic_count > 0))
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -matrix-free-symplectic-euler requires "
+                 "-lumped-mass, -adjoint-mode discrete, "
+                 "-trajectory-storage revolve, same forward/adjoint dt, and "
+                 "no ParaView, RK4, modal, spectral, or continuous diagnostics.\n";
+      }
+      return 1;
+   }
    if (rk4_adjoint_comparison &&
        (continuous_diagnostic_count > 0 || forward_only || rhs_spectrum))
    {
@@ -1117,14 +1480,113 @@ int main(int argc, char *argv[])
 
    unique_ptr<TransientTopOptProblem> problem_owner;
    const string problem_sel = ToLower(problem_name);
+   const bool inclusion_truth_requested =
+      command_line_has_option("-inclusion-truth", "--inclusion-truth");
+   if (problem_sel != "elastic-inclusion-identification" &&
+       problem_sel != "elastic-inclusion-identification-3d" &&
+       problem_sel != "elastic-inclusion-identification-3d-multisource" &&
+       inclusion_truth_requested)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -inclusion-truth requires "
+                 "an elastic-inclusion-identification problem.\n";
+      }
+      return 1;
+   }
    if (problem_sel == "cantilever-compliance")
    {
       problem_owner = make_unique<CantileverComplianceProblem>(cfg);
    }
    else if (problem_sel == "elastic-inclusion-identification")
    {
+      ElasticInclusionTruthPreset inclusion_truth_preset;
+      const string inclusion_truth_sel = ToLower(inclusion_truth_name);
+      if (inclusion_truth_sel == "single-disk")
+      {
+         inclusion_truth_preset = ElasticInclusionTruthPreset::SINGLE_DISK;
+      }
+      else if (inclusion_truth_sel == "three-shape")
+      {
+         inclusion_truth_preset = ElasticInclusionTruthPreset::THREE_SHAPE;
+      }
+      else
+      {
+         if (myid == 0)
+         {
+            cerr << "Error: unknown -inclusion-truth '"
+                 << inclusion_truth_name
+                 << "'. Use single-disk or three-shape.\n";
+         }
+         return 1;
+      }
       problem_owner =
-         make_unique<ElasticInclusionIdentificationProblem>(cfg);
+         make_unique<ElasticInclusionIdentificationProblem>(
+            cfg, inclusion_truth_preset);
+   }
+   else if (problem_sel == "elastic-inclusion-identification-3d")
+   {
+      ElasticInclusion3DTruthPreset inclusion_truth_preset =
+         ElasticInclusion3DTruthPreset::SINGLE_BALL;
+      if (inclusion_truth_requested)
+      {
+         const string inclusion_truth_sel = ToLower(inclusion_truth_name);
+         if (inclusion_truth_sel == "single-ball" ||
+             inclusion_truth_sel == "ball")
+         {
+            inclusion_truth_preset = ElasticInclusion3DTruthPreset::SINGLE_BALL;
+         }
+         else if (inclusion_truth_sel == "pyramid" ||
+                  inclusion_truth_sel == "square-pyramid")
+         {
+            inclusion_truth_preset =
+               ElasticInclusion3DTruthPreset::SQUARE_PYRAMID;
+         }
+         else
+         {
+            if (myid == 0)
+            {
+               cerr << "Error: unknown 3D -inclusion-truth '"
+                    << inclusion_truth_name
+                    << "'. Use single-ball or pyramid.\n";
+            }
+            return 1;
+         }
+      }
+      problem_owner = make_unique<ElasticInclusionIdentification3DProblem>(
+         cfg, /*multi_source=*/false, inclusion_truth_preset);
+   }
+   else if (problem_sel == "elastic-inclusion-identification-3d-multisource")
+   {
+      ElasticInclusion3DTruthPreset inclusion_truth_preset =
+         ElasticInclusion3DTruthPreset::SINGLE_BALL;
+      if (inclusion_truth_requested)
+      {
+         const string inclusion_truth_sel = ToLower(inclusion_truth_name);
+         if (inclusion_truth_sel == "single-ball" ||
+             inclusion_truth_sel == "ball")
+         {
+            inclusion_truth_preset = ElasticInclusion3DTruthPreset::SINGLE_BALL;
+         }
+         else if (inclusion_truth_sel == "pyramid" ||
+                  inclusion_truth_sel == "square-pyramid")
+         {
+            inclusion_truth_preset =
+               ElasticInclusion3DTruthPreset::SQUARE_PYRAMID;
+         }
+         else
+         {
+            if (myid == 0)
+            {
+               cerr << "Error: unknown 3D -inclusion-truth '"
+                    << inclusion_truth_name
+                    << "'. Use single-ball or pyramid.\n";
+            }
+            return 1;
+         }
+      }
+      problem_owner = make_unique<ElasticInclusionIdentification3DProblem>(
+         cfg, /*multi_source=*/true, inclusion_truth_preset);
    }
    else if (problem_sel == "cantilever-harmonic-l2")
    {
@@ -1191,6 +1653,8 @@ int main(int argc, char *argv[])
               << "'. Use wave, cantilever-compliance, cantilever-harmonic-l2, "
                  "cantilever-harmonic-tracking, "
                  "elastic-inclusion-identification, "
+                 "elastic-inclusion-identification-3d, "
+                 "elastic-inclusion-identification-3d-multisource, "
                  "band-waveguide, band-waveguide-legacy, "
                  "band-mode-converter, band-mode-converter-correlation, "
                  "band-mode-converter-energy, "
@@ -1202,6 +1666,14 @@ int main(int argc, char *argv[])
    }
    TransientTopOptProblem &problem = *problem_owner;
 
+   // Problems may choose a different inherited volume policy than the raw
+   // command-line defaults (the multi-source inverse deliberately has none).
+   if (volume_constraint_mode_sel == "inherit")
+   {
+      volume_constraint_mode = problem.GetConfig().volume_constraint_enabled ?
+         VolumeConstraintMode::EQUALITY : VolumeConstraintMode::NONE;
+   }
+
    // A problem-owned state-order default is resolved only after the concrete
    // problem exists.  Preserve an explicit design-order override; otherwise
    // keep the documented design/filter-order-follows-state behavior.
@@ -1210,16 +1682,124 @@ int main(int argc, char *argv[])
       design_order = problem.GetOrder();
    }
 
+   if (inverse_identity_density_transfer)
+   {
+      const bool valid_identity_problem =
+         problem_sel == "elastic-inclusion-identification-3d-multisource";
+      if (!valid_identity_problem || !matrix_free_symplectic_euler ||
+          design_order != 1 || problem.GetConfig().helmholtz_filter_enabled)
+      {
+         if (myid == 0)
+         {
+            cerr << "Error: -inverse-identity-density-transfer requires "
+                    "the 3D multi-source elastic-inclusion inverse, "
+                    "-matrix-free-symplectic-euler, -do 1 (DG(Q0) control), "
+                    "and the problem's no-Helmholtz configuration.\n";
+         }
+         return 1;
+      }
+   }
+
+   if (forward_visualization_truth)
+   {
+      if (!forward_only || !paraview || !problem.HasReferenceTruth() ||
+          restart)
+      {
+         if (myid == 0)
+         {
+            cerr << "Error: -forward-visualization-truth requires "
+                 "-forward-only -pv, a problem with a prescribed truth, "
+                 "and no restart.\n";
+         }
+         return 1;
+      }
+   }
    const bool requires_reference_data =
-      problem.RequiresReferenceBoundaryData();
+      problem.RequiresReferenceBoundaryData() && !forward_visualization_truth;
+   const int number_of_sources = problem.GetNumberOfSources();
+   MFEM_VERIFY(number_of_sources > 0,
+               "The selected problem has no independent source experiments.");
+   if (number_of_sources > 1 && !matrix_free_symplectic_euler &&
+       !forward_visualization_truth)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: the multi-source 3D inverse is implemented for the "
+                 "matrix-free symplectic-Euler route; add "
+                 "-matrix-free-symplectic-euler -lumped-mass. The only "
+                 "exception is -forward-visualization-truth.\n";
+      }
+      return 1;
+   }
+   if (number_of_sources > 1 &&
+       volume_constraint_mode != VolumeConstraintMode::NONE)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: the multi-source 3D inverse has no volume "
+                 "constraint; use -volume-constraint none (or inherit).\n";
+      }
+      return 1;
+   }
+   const bool reference_audit_toggle_is_user =
+      command_line_has_option("-reference-audit",
+                              "--reference-convergence-audit") ||
+      command_line_has_option("-no-reference-audit",
+                              "--no-reference-convergence-audit");
+   const bool reference_audit_option_is_user =
+      reference_audit_toggle_is_user ||
+      allow_unaudited_reference ||
+      command_line_has_option("-reference-audit-tol",
+                              "--reference-audit-tolerance");
+   if (requires_reference_data && !reference_audit_toggle_is_user)
+   {
+      reference_convergence_audit =
+         problem.DefaultReferenceConvergenceAudit();
+   }
    if (!requires_reference_data &&
        (reference_only || reference_order != -1 ||
-        reference_time_step != -1.0))
+        reference_time_step != -1.0 || reference_audit_option_is_user ||
+        reference_cache_directory[0] != '\0'))
    {
       if (myid == 0)
       {
          cerr << "Error: reference-data options require "
-                 "-problem elastic-inclusion-identification.\n";
+                 "an elastic-inclusion-identification problem.\n";
+      }
+      return 1;
+   }
+   if (requires_reference_data && !reference_convergence_audit &&
+       problem.DefaultReferenceConvergenceAudit() &&
+       !reference_only && !allow_unaudited_reference)
+   {
+      if (myid == 0)
+      {
+        cerr << "Error: the reference convergence audit is mandatory before "
+                 "a reconstruction or optimization run. "
+                 "Use -no-reference-audit together with "
+                 "-allow-unaudited-reference only when a baseline-only "
+                 "production run is explicitly intended.\n";
+      }
+      return 1;
+   }
+   if (number_of_sources > 1 && reference_convergence_audit)
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: the multi-source acquisition currently generates one "
+                 "high-fidelity baseline trace per shot. Use "
+                 "-no-reference-audit (or omit the audit option) rather than "
+                 "requesting a per-shot temporal/order audit.\n";
+      }
+      return 1;
+   }
+   if (allow_unaudited_reference &&
+       (!requires_reference_data || reference_convergence_audit))
+   {
+      if (myid == 0)
+      {
+         cerr << "Error: -allow-unaudited-reference requires an elastic-"
+                 "inclusion problem and explicit -no-reference-audit.\n";
       }
       return 1;
    }
@@ -1263,6 +1843,11 @@ int main(int argc, char *argv[])
    // than the generic startup defaults) are what PrintOptions reports.
    cfg = problem.GetConfig();
    mesh_file = problem.GetMeshFile().c_str();
+   load_frequency = cfg.boundary_load.frequency;
+   load_duration = cfg.boundary_load.duration;
+   simp_r_min = cfg.material.r_min;
+   simp_r_max = cfg.material.r_max;
+   simp_p = cfg.material.simp_p;
    if (myid == 0)
    {
       args.PrintOptions(cout);
@@ -1399,13 +1984,39 @@ int main(int argc, char *argv[])
       }
    }
 
-   for (int l = 0; l < problem.GetRefinementLevel(); l++)
+   // The 100M-DoF inverse cannot refine the replicated serial mesh first:
+   // at r=2 that creates 4.6 million hexahedra independently on every MPI
+   // rank and exhausts each task's memory before matrix-free physics begins.
+   // Partition the native 72k-element mesh, release the replicated copy, and
+   // refine only the distributed ParMesh.  Preserve the established serial-
+   // refine route for all other experiments so their historical partitions
+   // and numerical provenance are unchanged.
+   unique_ptr<ParMesh> pmesh_owner;
+   if (inverse_identity_density_transfer)
    {
-      mesh.UniformRefinement();
+      pmesh_owner = make_unique<ParMesh>(comm, mesh);
+      mesh.Clear();
+      for (int l = 0; l < problem.GetRefinementLevel(); l++)
+      {
+         pmesh_owner->UniformRefinement();
+      }
+      if (myid == 0 && problem.GetRefinementLevel() > 0)
+      {
+         cout << "Scalable mesh construction: partitioned the base mesh "
+                 "before " << problem.GetRefinementLevel()
+              << " distributed uniform refinement(s).\n";
+      }
    }
-
-   ParMesh pmesh(comm, mesh);
-   mesh.Clear();
+   else
+   {
+      for (int l = 0; l < problem.GetRefinementLevel(); l++)
+      {
+         mesh.UniformRefinement();
+      }
+      pmesh_owner = make_unique<ParMesh>(comm, mesh);
+      mesh.Clear();
+   }
+   ParMesh &pmesh = *pmesh_owner;
 
    const BoundaryLoadSpec &load_spec = problem.GetBoundaryLoad();
    if (load_spec.direction.Size() != dim)
@@ -1435,6 +2046,15 @@ int main(int argc, char *argv[])
 
    ParGridFunction rho(&control_fes);
    ParGridFunction rho_tilde(&filter_fes);
+   // The physical density space is normally the continuous H1 filter output.
+   // The large multi-shot inverse instead evaluates SIMP directly on its
+   // elementwise DG(Q0) control; do not silently replace it by a projection.
+   ParFiniteElementSpace &physical_density_fes =
+      inverse_identity_density_transfer ? control_fes : filter_fes;
+   ParGridFunction &physical_density =
+      inverse_identity_density_transfer ? rho : rho_tilde;
+   const HYPRE_BigInt physical_density_dofs =
+      physical_density_fes.GlobalTrueVSize();
 
    // =========================================================================
    // CHECKPOINT LOAD (if restarting)
@@ -1529,8 +2149,17 @@ int main(int argc, char *argv[])
 
    rho_tilde = 0.0;
 
+   const bool helmholtz_filter_enabled =
+      problem.GetConfig().helmholtz_filter_enabled;
+   const bool volume_constraint_enabled =
+      volume_constraint_mode != VolumeConstraintMode::NONE;
+   const bool volume_constraint_is_equality =
+      volume_constraint_mode == VolumeConstraintMode::EQUALITY;
+   const bool volume_constraint_is_upper =
+      volume_constraint_mode == VolumeConstraintMode::UPPER;
    toopt::PDEFilterOptions filter_opts;
-   filter_opts.filter_radius = problem.GetFilterRadius();
+   filter_opts.filter_radius = helmholtz_filter_enabled ?
+      problem.GetFilterRadius() : 0.0;
    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);
    filter.Assemble();
 
@@ -1540,7 +2169,9 @@ int main(int argc, char *argv[])
    ConstantCoefficient one_coef(1.0);
    unique_ptr<Coefficient> active_region_coef;
    Array<int> active_tdof_list, passive_tdof_list;
+   Array<int> active_filter_tdof_list, passive_filter_tdof_list;
    ParGridFunction passive_marker(&control_fes);
+   ParGridFunction passive_filter_marker(&filter_fes);
    // Passive regions frozen at the problem's reference density (default:
    // the volume fraction; individual experiments can pin a reference medium
    // independent of -vf).
@@ -1558,6 +2189,23 @@ int main(int argc, char *argv[])
                                 active_tdof_list, passive_tdof_list,
                                 passive_marker);
 
+      if (inclusion_problem_requested && !inverse_identity_density_transfer)
+      {
+         // For the subsoil inverse experiment, freezing the raw passive
+         // controls is not sufficient: the global Helmholtz solve couples
+         // values across the active/passive interface.  Prescribe every
+         // filtered H1 DOF touching a passive element to the background value.
+         // PDEFilter::MultTranspose applies the exact Jacobian transpose F^T C
+         // of this affine forward projection.  Other problem specifications
+         // retain their existing filter semantics.
+         IdentifyActivePassiveDOFs(filter_fes, *passive_region_coef,
+                                   active_filter_tdof_list,
+                                   passive_filter_tdof_list,
+                                   passive_filter_marker);
+         filter.SetPrescribedOutputDofs(passive_filter_tdof_list,
+                                        passive_rho_value);
+      }
+
       // Get global DOF counts across all ranks
       HYPRE_BigInt global_control_dofs = control_fes.GlobalTrueVSize();
       HYPRE_BigInt local_active = active_tdof_list.Size();
@@ -1569,6 +2217,16 @@ int main(int argc, char *argv[])
                     HYPRE_MPI_BIG_INT, MPI_SUM, comm);
       global_active_control_dofs = global_active;
 
+      HYPRE_BigInt global_passive_filter = 0;
+      if (filter.HasPrescribedOutputDofs())
+      {
+         HYPRE_BigInt local_passive_filter = passive_filter_tdof_list.Size();
+         MPI_Allreduce(&local_passive_filter, &global_passive_filter, 1,
+                       HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+         MFEM_VERIFY(global_passive_filter > 0,
+                     "Elastic-inclusion passive filtered mask is empty.");
+      }
+
       if (myid == 0)
       {
          cout << "Passive regions defined:\n";
@@ -1576,6 +2234,12 @@ int main(int argc, char *argv[])
          cout << "  Active DOFs:  " << global_active << "\n";
          cout << "  Passive DOFs: " << global_passive << " (raw rho fixed at "
               << passive_rho_value << ")\n";
+         if (filter.HasPrescribedOutputDofs())
+         {
+            cout << "  Passive filtered DOFs: " << global_passive_filter
+                 << " (physical rho_tilde prescribed at "
+                 << passive_rho_value << ")\n";
+         }
       }
    }
 
@@ -1637,29 +2301,143 @@ int main(int argc, char *argv[])
       const real_t truth_volume_fraction = truth_volume / domain_volume;
       problem.SetComputedTruthVolumeFraction(truth_volume_fraction);
 
-      truth_rho_tilde = make_unique<ParGridFunction>(&filter_fes);
-      *truth_rho_tilde = 0.0;
-      filter.Mult(*truth_rho, *truth_rho_tilde);
+      truth_rho_tilde = make_unique<ParGridFunction>(
+         inverse_identity_density_transfer ? &control_fes : &filter_fes);
+      if (inverse_identity_density_transfer)
+      {
+         // The synthetic data must use precisely the same physical mapping as
+         // the reconstruction: rho_phys=rho_h in discontinuous DG(Q0).
+         *truth_rho_tilde = *truth_rho;
+      }
+      else
+      {
+         *truth_rho_tilde = 0.0;
+         filter.Mult(*truth_rho, *truth_rho_tilde);
+      }
+      real_t truth_passive_filtered_deviation = 0.0;
+      if (filter.HasPrescribedOutputDofs())
+      {
+         Vector truth_rho_tilde_tv(filter_fes.GetTrueVSize());
+         truth_rho_tilde->GetTrueDofs(truth_rho_tilde_tv);
+         truth_passive_filtered_deviation = MaxPrescribedTDofDeviation(
+            comm, truth_rho_tilde_tv, passive_filter_tdof_list,
+            passive_rho_value);
+         const real_t projection_tolerance =
+            64.0 * std::numeric_limits<real_t>::epsilon() *
+            std::max(real_t(1.0), std::abs(passive_rho_value));
+         MFEM_VERIFY(truth_passive_filtered_deviation <= projection_tolerance,
+                     "Reference truth filter did not preserve the prescribed "
+                     "passive physical material.");
+      }
       if (myid == 0)
       {
          cout << "Reference truth: discrete active volume fraction = "
               << setprecision(16) << truth_volume_fraction
               << ", active measure = " << domain_volume << "\n";
+         if (filter.HasPrescribedOutputDofs())
+         {
+            cout << "Reference truth: max passive filtered deviation = "
+                 << scientific << truth_passive_filtered_deviation << "\n";
+         }
       }
    }
 
    const real_t target_volume = problem.HasReferenceTruth() ?
       prescribed_truth_volume : problem.GetVolumeFraction() * domain_volume;
 
+   // Without any volume constraint, a uniform start must not import the
+   // problem's nominal/true volume fraction as hidden prior information. The
+   // upper-bound case deliberately starts on its requested bound, just as the
+   // equality case does, so their subsequent material usage is comparable.
+   const real_t initialization_density = volume_constraint_enabled ?
+      problem.GetVolumeFraction() : 0.5;
+
    // =========================================================================
-   // INITIALIZE DESIGN (skip if restarting - already loaded from checkpoint)
+   // INITIALIZE DESIGN AND THE RESTART-INDEPENDENT AUDIT BASELINE
    // =========================================================================
    real_t ref_x_max = 0.0, ref_y_max = 0.0;
    problem.GetReferenceDomainExtents(ref_x_max, ref_y_max);
+   const string initial_design_name = ToLower(design_init);
+   const bool initial_design_needs_volume_correction =
+      volume_constraint_is_equality &&
+      (initial_design_name == "modal-seed" ||
+       initial_design_name == "gaussian" ||
+       initial_design_name == "checkerboard");
+
+   const auto initialize_feasible_design =
+      [&](ParGridFunction &design, const bool report_volume_correction)
+   {
+      if (!InitializeDesign(design, design_init, initialization_density,
+                            ref_x_max, ref_y_max, problem))
+      {
+         return false;
+      }
+
+      Vector design_tv(control_fes.GetTrueVSize());
+      design.GetTrueDofs(design_tv);
+      if (passive_region_coef)
+      {
+         for (int i = 0; i < passive_tdof_list.Size(); i++)
+         {
+            design_tv[passive_tdof_list[i]] = passive_rho_value;
+         }
+      }
+
+      // Nonuniform seeds are not generally volume-exact after Q0 projection.
+      // Correct their raw active volume before the first MMA subproblem so
+      // that its first step resolves topology rather than a global-volume
+      // violation.  This same feasible construction is intentionally used by
+      // a restart's reference audit below.
+      if (initial_design_needs_volume_correction)
+      {
+         const real_t current_volume =
+            InnerProduct(comm, *volume_weights, design_tv);
+         const real_t volume_shift =
+            (target_volume - current_volume) / domain_volume;
+         if (passive_region_coef)
+         {
+            for (int i = 0; i < active_tdof_list.Size(); i++)
+            {
+               design_tv[active_tdof_list[i]] += volume_shift;
+            }
+         }
+         else
+         {
+            design_tv += volume_shift;
+         }
+         int local_out_of_bounds = 0;
+         for (int i = 0; i < design_tv.Size(); i++)
+         {
+            if (design_tv[i] < -1e-12 || design_tv[i] > 1.0 + 1e-12)
+            {
+               local_out_of_bounds = 1;
+               break;
+            }
+         }
+         int global_out_of_bounds = 0;
+         MPI_Allreduce(&local_out_of_bounds, &global_out_of_bounds, 1,
+                       MPI_INT, MPI_MAX, comm);
+         if (global_out_of_bounds != 0) { return false; }
+         if (report_volume_correction && myid == 0)
+         {
+            cout << "Initial design '" << initial_design_name
+                 << "': raw active-volume correction=" << scientific
+                 << volume_shift << "\n";
+         }
+      }
+
+      design.SetFromTrueDofs(design_tv);
+      return true;
+   };
+
+   Vector reference_audit_baseline_rho_tv(control_fes.GetTrueVSize());
+   const char *reference_audit_baseline_description =
+      restarting ? "fresh feasible initialization (restart-independent)" :
+                   "initial reconstruction design";
+
    if (!restarting)
    {
-      if (!InitializeDesign(rho, design_init, problem.GetVolumeFraction(),
-                            ref_x_max, ref_y_max, problem))
+      if (!initialize_feasible_design(rho, /*report_volume_correction=*/true))
       {
          if (myid == 0)
          {
@@ -1670,74 +2448,75 @@ int main(int argc, char *argv[])
          }
          return 1;
       }
+      rho.GetTrueDofs(reference_audit_baseline_rho_tv);
    }
-
-   // Enforce raw passive material after either fresh initialization or restart,
-   // before every diagnostic/forward-only early exit and before filtering.
-   if (passive_region_coef)
+   else
    {
-      Vector initialized_rho_tv(control_fes.GetTrueVSize());
-      rho.GetTrueDofs(initialized_rho_tv);
-      for (int i = 0; i < passive_tdof_list.Size(); i++)
-      {
-         initialized_rho_tv[passive_tdof_list[i]] = passive_rho_value;
-      }
-      rho.SetFromTrueDofs(initialized_rho_tv);
-   }
-
-   // Nonuniform seeds are not generally volume-exact after Q0 projection.
-   // Correct their raw active volume before the first MMA subproblem so that
-   // the first step resolves topology rather than a spurious global-volume
-   // violation. The Gaussian, checkerboard, and modal-seed bounds leave room
-   // for this deterministic shift in their supported volume-fraction range.
-   const string initial_design_name = ToLower(design_init);
-   if (!restarting &&
-       (initial_design_name == "modal-seed" || initial_design_name == "gaussian" ||
-        initial_design_name == "checkerboard"))
-   {
-      Vector rho_tv(control_fes.GetTrueVSize());
-      rho.GetTrueDofs(rho_tv);
-      const real_t current_volume =
-         InnerProduct(comm, *volume_weights, rho_tv);
-      const real_t volume_shift =
-         (target_volume - current_volume) / domain_volume;
+      // The restarted density is the MMA initial guess, but it is not a valid
+      // denominator for the reference-data acceptance gate: a successful
+      // reconstruction makes that residual intentionally small.  Rebuild the
+      // exact feasible design selected by -init for the audit instead.
       if (passive_region_coef)
       {
-         for (int i = 0; i < active_tdof_list.Size(); i++)
+         Vector restarted_rho_tv(control_fes.GetTrueVSize());
+         rho.GetTrueDofs(restarted_rho_tv);
+         for (int i = 0; i < passive_tdof_list.Size(); i++)
          {
-            rho_tv[active_tdof_list[i]] += volume_shift;
+            restarted_rho_tv[passive_tdof_list[i]] = passive_rho_value;
          }
+         rho.SetFromTrueDofs(restarted_rho_tv);
       }
-      else
+      ParGridFunction reference_audit_baseline_rho(&control_fes);
+      if (!initialize_feasible_design(reference_audit_baseline_rho,
+                                      /*report_volume_correction=*/false))
       {
-         rho_tv += volume_shift;
-      }
-      int local_out_of_bounds = 0;
-      for (int i = 0; i < rho_tv.Size(); i++)
-      {
-         if (rho_tv[i] < -1e-12 || rho_tv[i] > 1.0 + 1e-12)
+         if (myid == 0)
          {
-            local_out_of_bounds = 1;
-            break;
+            cerr << "Error: unable to construct the feasible initial design "
+                    "used by the restart reference audit.\n";
          }
+         return 1;
       }
-      int global_out_of_bounds = 0;
-      MPI_Allreduce(&local_out_of_bounds, &global_out_of_bounds, 1, MPI_INT,
-                    MPI_MAX, comm);
-      MFEM_VERIFY(global_out_of_bounds == 0,
-                  "Initial-design volume correction violates raw density bounds.");
-      rho.SetFromTrueDofs(rho_tv);
-      if (myid == 0)
-      {
-         cout << "Initial design '" << initial_design_name
-              << "': raw active-volume correction=" << scientific
-              << volume_shift << "\n";
-      }
+      reference_audit_baseline_rho.GetTrueDofs(
+         reference_audit_baseline_rho_tv);
    }
 
-   // Keep the displayed/initial filtered field consistent with the raw design
-   // supplied to the Helmholtz filter.
-   filter.Mult(rho, rho_tilde);
+   if (forward_visualization_truth)
+   {
+      MFEM_VERIFY(truth_rho,
+                  "Forward truth visualization requires a projected truth density.");
+      // Use the prescribed raw DG(Q0) inclusion rather than a uniform inverse
+      // initialization. Passive values were fixed during truth projection.
+      rho = *truth_rho;
+   }
+
+   // Keep the displayed physical field consistent with the raw design.  The
+   // identity inverse deliberately has rho_phys=rho in DG(Q0), so there is no
+   // mass projection or Helmholtz operation here.
+   if (!inverse_identity_density_transfer)
+   {
+      filter.Mult(rho, rho_tilde);
+   }
+   if (filter.HasPrescribedOutputDofs())
+   {
+      Vector initial_rho_tilde_tv(filter_fes.GetTrueVSize());
+      rho_tilde.GetTrueDofs(initial_rho_tilde_tv);
+      const real_t initial_passive_filtered_deviation =
+         MaxPrescribedTDofDeviation(
+            comm, initial_rho_tilde_tv, passive_filter_tdof_list,
+            passive_rho_value);
+      const real_t projection_tolerance =
+         64.0 * std::numeric_limits<real_t>::epsilon() *
+         std::max(real_t(1.0), std::abs(passive_rho_value));
+      MFEM_VERIFY(initial_passive_filtered_deviation <= projection_tolerance,
+                  "Initial filter did not preserve the prescribed passive "
+                  "physical material.");
+      if (myid == 0)
+      {
+         cout << "Initial design: max passive filtered deviation = "
+              << scientific << initial_passive_filtered_deviation << "\n";
+      }
+   }
 
    // Material and problem constants (match test_adjoint_verification).
    const MaterialParams &mat = problem.GetMaterialParams();
@@ -1751,11 +2530,28 @@ int main(int argc, char *argv[])
       real_t h_min, h_max, kappa_min, kappa_max;
       pmesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
       const real_t c_p = sqrt((mat.lambda0 + 2.0 * mat.mu0) / mat.rho0);
-      const real_t lambda_p = c_p / load_spec.frequency;
+      const real_t maximum_frequency = load_spec.frequencies.empty() ?
+         load_spec.frequency : *max_element(load_spec.frequencies.begin(),
+                                             load_spec.frequencies.end());
+      const real_t lambda_p = c_p / maximum_frequency;
       if (myid == 0)
       {
-         cout << "Carrier: f = " << load_spec.frequency
-              << ", c_p = " << c_p << ", lambda_p = " << lambda_p
+         cout << "Carrier: f = ";
+         if (load_spec.frequencies.empty())
+         {
+            cout << load_spec.frequency;
+         }
+         else
+         {
+            cout << '[';
+            for (size_t i = 0; i < load_spec.frequencies.size(); i++)
+            {
+               if (i > 0) { cout << ", "; }
+               cout << load_spec.frequencies[i];
+            }
+            cout << ']';
+         }
+         cout << ", c_p = " << c_p << ", shortest lambda_p = " << lambda_p
               << ", mesh h = [" << h_min << ", " << h_max << "]"
               << " -> elements/wavelength = [" << lambda_p / h_max
               << ", " << lambda_p / h_min << "]\n";
@@ -1780,32 +2576,280 @@ int main(int argc, char *argv[])
    // values and is immutable throughout MMA/adjoint sweeps.
    shared_ptr<const BoundaryTraceHistory> reference_trace_history;
    ReferenceBoundaryDataMetadata reference_metadata;
+   vector<shared_ptr<const BoundaryTraceHistory>> reference_trace_histories(
+      number_of_sources);
+   vector<ReferenceBoundaryDataMetadata> reference_metadata_by_source(
+      number_of_sources);
+   ReferenceConvergenceAuditMetadata reference_audit_metadata;
    int resolved_reference_order = 0;
    real_t resolved_reference_dt = 0.0;
+   double reference_audit_wall_start = 0.0;
    if (requires_reference_data)
    {
       MFEM_VERIFY(truth_rho_tilde,
-                  "Reference boundary data requires a filtered truth field.");
-      Array<int> observation_attributes;
-      problem.GetObservationBoundaryAttributes(observation_attributes);
-      Array<int> observation_marker =
-         MakeBoundaryMarker(pmesh, observation_attributes);
+                  "Reference boundary data requires a physical truth field.");
+      vector<Array<int>> reference_observation_markers(number_of_sources);
+      for (int source = 0; source < number_of_sources; source++)
+      {
+         Array<int> observation_attributes;
+         problem.GetObservationBoundaryAttributes(source, observation_attributes);
+         reference_observation_markers[source] =
+            MakeBoundaryMarker(pmesh, observation_attributes);
+      }
+      const Array<int> &observation_marker = reference_observation_markers[0];
       resolved_reference_order =
          reference_order < 0 ? state_order + 1 : reference_order;
       resolved_reference_dt =
          reference_time_step < 0.0 ? 0.25 * dt_eff : reference_time_step;
+      // At inverse production scale the synthetic measurements must not
+      // secretly reintroduce assembled HYPRE matrices.  The reference still
+      // uses its enriched H1 order and nested timestep, but follows the same
+      // matrix-free kick-drift model as the reconstruction when that route is
+      // selected.
+      const MassSolverType reference_mass_solver =
+         matrix_free_symplectic_euler ? MassSolverType::LUMPED :
+                                         MassSolverType::ITERATIVE;
+
+      const real_t steps_per_half_real =
+         dt_eff / (2.0 * resolved_reference_dt);
+      const long long rounded_steps_per_half =
+         std::llround(steps_per_half_real);
+      const real_t cache_nesting_tolerance =
+         real_t(2048.0) * std::numeric_limits<real_t>::epsilon() *
+         std::max(real_t(1.0), std::abs(steps_per_half_real));
+      MFEM_VERIFY(rounded_steps_per_half >= 2 &&
+                  std::abs(steps_per_half_real -
+                           static_cast<real_t>(rounded_steps_per_half)) <=
+                     cache_nesting_tolerance,
+                  "Reference cache requires a reference timestep that divides "
+                  "one coarse half step exactly.");
+      MFEM_VERIFY(2LL * num_steps * rounded_steps_per_half <=
+                     std::numeric_limits<int>::max(),
+                  "Reference cache time grid exceeds supported integer range.");
+
+      ReferenceTraceCacheSignature reference_cache_signature;
+      reference_cache_signature.n_mpi_ranks = mpi_ranks;
+      reference_cache_signature.number_of_sources = number_of_sources;
+      reference_cache_signature.reconstruction_state_order = state_order;
+      reference_cache_signature.reconstruction_state_true_dofs =
+         static_cast<long long>(state_fes.GlobalTrueVSize());
+      reference_cache_signature.coarse_steps = num_steps;
+      reference_cache_signature.coarse_dt = dt_eff;
+      reference_cache_signature.reference_state_order =
+         resolved_reference_order;
+      reference_cache_signature.reference_steps = static_cast<int>(
+         2LL * num_steps * rounded_steps_per_half);
+      reference_cache_signature.reference_steps_per_half_step =
+         static_cast<int>(rounded_steps_per_half);
+      reference_cache_signature.requested_reference_dt = resolved_reference_dt;
+      reference_cache_signature.effective_reference_dt = dt_eff /
+         (2.0 * static_cast<real_t>(rounded_steps_per_half));
+      reference_cache_signature.mass_solver_type =
+         static_cast<int>(reference_mass_solver);
+      reference_cache_signature.matrix_free_symplectic_euler =
+         matrix_free_symplectic_euler;
+      reference_cache_signature.damping_enabled = damping;
+
+      unique_ptr<ReferenceTraceCache> reference_cache;
+      bool reference_cache_reused = false;
+      if (reference_cache_directory[0] != '\0')
+      {
+         if (reference_convergence_audit)
+         {
+            if (myid == 0)
+            {
+               cerr << "Error: -reference-cache currently stores the "
+                       "multi-shot baseline only; do not combine it with a "
+                       "reference convergence audit.\n";
+            }
+            return 1;
+         }
+         reference_cache = make_unique<ReferenceTraceCache>(
+            reference_cache_directory, comm);
+         const ReferenceTraceCacheLoadResult cache_result =
+            reference_cache->Load(reference_cache_signature, state_fes,
+                                  reference_observation_markers,
+                                  reference_trace_histories,
+                                  reference_metadata_by_source);
+         if (cache_result == ReferenceTraceCacheLoadResult::LOADED)
+         {
+            reference_cache_reused = true;
+            reference_trace_history = reference_trace_histories[0];
+            reference_metadata = reference_metadata_by_source[0];
+            resolved_reference_dt = reference_metadata.effective_time_step;
+            if (myid == 0)
+            {
+               cout << "Reference trace cache: loaded " << number_of_sources
+                    << " high-fidelity shot histories from "
+                    << reference_cache_directory << "\n";
+            }
+         }
+         else if (cache_result != ReferenceTraceCacheLoadResult::MISSING)
+         {
+            if (myid == 0)
+            {
+               cerr << "Error: refusing to regenerate over an invalid or "
+                       "incompatible reference trace cache: "
+                    << reference_cache_directory << "\n";
+            }
+            return 1;
+         }
+      }
+
+      if (!reference_cache_reused)
+      {
+         if (reference_convergence_audit)
+         {
+            // Start before the baseline generator so the reported audit wall
+            // time includes A, B, C, their comparisons, and the later uniform
+            // reconstruction solve.
+            reference_audit_wall_start = MPI_Wtime();
+         }
 
       ReferenceBoundaryDataGenerator reference_generator(
          problem, state_fes, *truth_rho_tilde, observation_marker,
          num_steps, dt_eff, resolved_reference_order, resolved_reference_dt,
-         damping,
-         // Synthetic data use the higher-fidelity consistent mass model even
-         // when a reconstruction experiment opts into row-sum lumping.
-         MassSolverType::ITERATIVE);
+         damping, reference_mass_solver, /*source_index=*/0,
+         matrix_free_symplectic_euler);
       reference_trace_history = reference_generator.Generate();
       reference_metadata = reference_generator.Metadata();
+      reference_trace_histories[0] = reference_trace_history;
+      reference_metadata_by_source[0] = reference_metadata;
       resolved_reference_dt = reference_metadata.effective_time_step;
-      problem.SetBoundaryTraceHistory(reference_trace_history);
+
+      if (reference_convergence_audit)
+      {
+         MFEM_VERIFY(resolved_reference_order <
+                     std::numeric_limits<int>::max(),
+                     "Reference audit order enrichment overflows int.");
+         reference_audit_metadata.performed = true;
+         reference_audit_metadata.tolerance = reference_audit_tolerance;
+         const real_t finer_reference_dt = 0.5 * resolved_reference_dt;
+
+         if (myid == 0)
+         {
+            cout << "\n=== Reference Convergence Audit ===\n"
+                 << "A baseline: Q" << resolved_reference_order
+                 << ", dt=" << scientific << setprecision(8)
+                 << resolved_reference_dt << "\n"
+                 << "B temporal: Q" << resolved_reference_order
+                 << ", dt=" << finer_reference_dt << "\n"
+                 << "C enriched: Q" << resolved_reference_order + 1
+                 << ", dt=" << finer_reference_dt << "\n";
+         }
+
+         ReferenceBoundaryDataGenerator temporal_generator(
+            problem, state_fes, *truth_rho_tilde, observation_marker,
+            num_steps, dt_eff, resolved_reference_order, finer_reference_dt,
+            damping, reference_mass_solver, /*source_index=*/0,
+            matrix_free_symplectic_euler);
+         shared_ptr<const BoundaryTraceHistory> temporal_history =
+            temporal_generator.Generate();
+         reference_audit_metadata.temporal_reference =
+            temporal_generator.Metadata();
+
+         ReferenceBoundaryDataGenerator finest_generator(
+            problem, state_fes, *truth_rho_tilde, observation_marker,
+            num_steps, dt_eff, resolved_reference_order + 1,
+            finer_reference_dt, damping, reference_mass_solver,
+            /*source_index=*/0, matrix_free_symplectic_euler);
+         shared_ptr<const BoundaryTraceHistory> finest_history =
+            finest_generator.Generate();
+         reference_audit_metadata.finest_reference =
+            finest_generator.Metadata();
+
+         reference_audit_metadata.temporal =
+            CompareBoundaryTraceHistories(
+               *reference_trace_history, *temporal_history);
+         reference_audit_metadata.order_enrichment =
+            CompareBoundaryTraceHistories(*temporal_history, *finest_history);
+         reference_audit_metadata.baseline_to_finest =
+            CompareBoundaryTraceHistories(
+               *reference_trace_history, *finest_history);
+         reference_audit_metadata.finest_signal_norm =
+            reference_audit_metadata.baseline_to_finest.reference_norm;
+         MFEM_VERIFY(
+            std::isfinite(reference_audit_metadata.finest_signal_norm) &&
+            reference_audit_metadata.finest_signal_norm > 0.0,
+            "Reference convergence audit has no finite receiver signal.");
+
+         const real_t finest_signal =
+            reference_audit_metadata.finest_signal_norm;
+         reference_audit_metadata.temporal_signal_relative_error =
+            reference_audit_metadata.temporal.difference_norm / finest_signal;
+         reference_audit_metadata.order_signal_relative_error =
+            reference_audit_metadata.order_enrichment.difference_norm /
+            finest_signal;
+         reference_audit_metadata.combined_signal_relative_error =
+            reference_audit_metadata.baseline_to_finest.difference_norm /
+            finest_signal;
+         reference_audit_metadata.total_seconds =
+            MPI_Wtime() - reference_audit_wall_start;
+
+         if (myid == 0)
+         {
+            cout << defaultfloat << setprecision(10)
+                 << "Receiver measurement norm ||C|| = "
+                 << finest_signal << "\n"
+                 << "A-B temporal discrepancy: absolute="
+                 << reference_audit_metadata.temporal.difference_norm
+                 << ", /||C||="
+                 << reference_audit_metadata.temporal_signal_relative_error
+                 << "\n"
+                 << "B-C order discrepancy: absolute="
+                 << reference_audit_metadata.order_enrichment.difference_norm
+                 << ", /||C||="
+                 << reference_audit_metadata.order_signal_relative_error
+                 << "\n"
+                 << "A-C combined discrepancy: absolute="
+                 << reference_audit_metadata.baseline_to_finest.difference_norm
+                 << ", /||C||="
+                 << reference_audit_metadata.combined_signal_relative_error
+                 << "\n"
+                 << "A uniform-reconstruction error gate will follow after "
+                    "the coarse forward solve.\n";
+         }
+      }
+      for (int source = 1; source < number_of_sources; source++)
+      {
+         ReferenceBoundaryDataGenerator source_reference_generator(
+            problem, state_fes, *truth_rho_tilde,
+            reference_observation_markers[source],
+            num_steps, dt_eff, resolved_reference_order,
+            resolved_reference_dt, damping, reference_mass_solver, source,
+            matrix_free_symplectic_euler);
+         reference_trace_histories[source] =
+            source_reference_generator.Generate();
+         reference_metadata_by_source[source] =
+            source_reference_generator.Metadata();
+      }
+      if (reference_cache)
+      {
+         reference_cache_signature.reference_state_true_dofs =
+            static_cast<long long>(reference_metadata.global_state_true_dofs);
+         if (!reference_cache->Save(reference_cache_signature,
+                                    reference_trace_histories))
+         {
+            if (myid == 0)
+            {
+               cerr << "Error: failed to save the reusable reference trace "
+                       "cache at " << reference_cache_directory << "\n";
+            }
+            return 1;
+         }
+         if (myid == 0)
+         {
+            cout << "Reference trace cache: saved " << number_of_sources
+                 << " high-fidelity shot histories to "
+                 << reference_cache_directory << "\n";
+         }
+      }
+      }
+      for (int source = 0; source < number_of_sources; source++)
+      {
+         problem.SetBoundaryTraceHistory(
+            source, reference_trace_histories[source]);
+      }
       if (myid == 0)
       {
          cout << defaultfloat;
@@ -1813,7 +2857,14 @@ int main(int argc, char *argv[])
             output_parent_dir + "/reference_boundary_data_history.txt");
          reference_history
             << "# Elastic inclusion reference boundary data\n"
-            << "# Output directory: " << output_parent_dir << "\n";
+            << "# Output directory: " << output_parent_dir << "\n"
+            << "# Reference trace cache: "
+            << (reference_cache ?
+                (reference_cache_reused ? "loaded" : "generated-and-saved") :
+                "disabled")
+            << (reference_cache ? string(" path=") +
+                                  reference_cache_directory : string())
+            << "\n";
          ostringstream reference_problem_summary;
          problem.PrintSummary(reference_problem_summary);
          const MaterialParams &reference_material =
@@ -1832,7 +2883,10 @@ int main(int argc, char *argv[])
             << ", filter_radius=" << problem.GetFilterRadius()
             << ", SIMP=[r_min=" << reference_material.r_min
             << ", r_max=" << reference_material.r_max
-            << ", p=" << reference_material.simp_p << "]\n"
+            << ", p=" << reference_material.simp_p << "]"
+            << ", passive_filtered="
+            << (filter.HasPrescribedOutputDofs() ?
+                "prescribed-background" : "unconstrained") << "\n"
             << "# Load: profile="
             << LoadTimeProfileName(reference_load.time_profile)
             << ", amplitude=" << reference_load.amplitude
@@ -1849,7 +2903,13 @@ int main(int argc, char *argv[])
             << reference_metadata.effective_time_step
             << ", steps_per_coarse_half_step="
             << reference_metadata.reference_steps_per_half_step
-            << ", mass=consistent, damping="
+            << ", mass="
+            << (reference_metadata.mass_solver_type == MassSolverType::LUMPED ?
+                "lumped" : "consistent")
+            << ", integrator="
+            << (reference_metadata.matrix_free_symplectic_euler ?
+                "matrix-free-kick-drift-euler" : "RK4")
+            << ", damping="
             << (reference_metadata.damping_enabled ? "enabled" : "disabled")
             << "\n# Reference state global true DOFs: "
             << reference_metadata.global_state_true_dofs
@@ -1860,9 +2920,104 @@ int main(int argc, char *argv[])
             << ", global="
             << reference_metadata.global_trace_memory_bytes
             << "\n# Reference forward seconds: "
-            << reference_metadata.forward_seconds
-            << "\n# Reference convergence audit: pending (not part of "
-               "the first common-mesh implementation milestone)\n";
+            << reference_metadata.forward_seconds << "\n";
+         reference_history << "# Independent source traces: "
+                           << number_of_sources << "\n";
+         for (int source = 0; source < number_of_sources; source++)
+         {
+            Array<int> source_observation_attributes;
+            problem.GetObservationBoundaryAttributes(
+               source, source_observation_attributes);
+            const BoundaryLoadSpec &source_load =
+               problem.GetBoundaryLoad(source);
+            const ReferenceBoundaryDataMetadata &source_metadata =
+               reference_metadata_by_source[source];
+            reference_history << "# Shot " << source
+                              << ": load_attr="
+                              << source_load.bdr_attributes[0]
+                              << ", observed_attrs=[";
+            for (int i = 0; i < source_observation_attributes.Size(); i++)
+            {
+               if (i > 0) { reference_history << ','; }
+               reference_history << source_observation_attributes[i];
+            }
+            reference_history << "], reference_order="
+                              << source_metadata.state_order
+                              << ", reference_dt="
+                              << source_metadata.effective_time_step
+                              << ", reference_steps="
+                              << source_metadata.reference_steps
+                              << ", seconds="
+                              << source_metadata.forward_seconds << "\n";
+         }
+         if (reference_audit_metadata.performed)
+         {
+            reference_history
+               << "# Reference convergence audit trace refinements: "
+                  "complete; final uniform-reconstruction gate is appended "
+                  "after its coarse forward solve\n"
+               << "# Audit tolerance: signal_relative="
+               << reference_audit_metadata.tolerance
+               << ", initial_error_relative="
+               << std::min(real_t(0.1),
+                           10.0 * reference_audit_metadata.tolerance) << "\n"
+               << "# Audit A baseline: order="
+               << reference_metadata.state_order << ", dt="
+               << reference_metadata.effective_time_step << ", steps="
+               << reference_metadata.reference_steps << ", seconds="
+               << reference_metadata.forward_seconds << "\n"
+               << "# Audit B temporal: order="
+               << reference_audit_metadata.temporal_reference.state_order
+               << ", dt="
+               << reference_audit_metadata.temporal_reference.effective_time_step
+               << ", steps="
+               << reference_audit_metadata.temporal_reference.reference_steps
+               << ", global_state_true_dofs="
+               << reference_audit_metadata.temporal_reference.global_state_true_dofs
+               << ", seconds="
+               << reference_audit_metadata.temporal_reference.forward_seconds
+               << "\n# Audit C enriched: order="
+               << reference_audit_metadata.finest_reference.state_order
+               << ", dt="
+               << reference_audit_metadata.finest_reference.effective_time_step
+               << ", steps="
+               << reference_audit_metadata.finest_reference.reference_steps
+               << ", global_state_true_dofs="
+               << reference_audit_metadata.finest_reference.global_state_true_dofs
+               << ", seconds="
+               << reference_audit_metadata.finest_reference.forward_seconds
+               << "\n# Audit receiver signal norm: "
+               << reference_audit_metadata.finest_signal_norm
+               << "\n# Audit temporal discrepancy: absolute="
+               << reference_audit_metadata.temporal.difference_norm
+               << ", signal_relative="
+               << reference_audit_metadata.temporal_signal_relative_error
+               << "\n# Audit order discrepancy: absolute="
+               << reference_audit_metadata.order_enrichment.difference_norm
+               << ", signal_relative="
+               << reference_audit_metadata.order_signal_relative_error
+               << "\n# Audit combined discrepancy: absolute="
+               << reference_audit_metadata.baseline_to_finest.difference_norm
+               << ", signal_relative="
+               << reference_audit_metadata.combined_signal_relative_error
+               << "\n# Audit trace-generation/comparison seconds: "
+               << reference_audit_metadata.total_seconds << "\n";
+         }
+         else
+         {
+            if (number_of_sources > 1)
+            {
+               reference_history
+                  << "# Per-shot convergence audit: not requested; exactly "
+                     "one high-fidelity baseline was generated per shot\n";
+            }
+            else
+            {
+               reference_history
+                  << "# Reference convergence audit: SKIPPED/UNVALIDATED "
+                     "(explicit -no-reference-audit reference-only debug run)\n";
+            }
+         }
       }
 
       // One static density snapshot is available in every inverse mode,
@@ -1883,12 +3038,17 @@ int main(int argc, char *argv[])
          {
             density_dc.RegisterField("passive_region", &passive_marker);
          }
+         if (filter.HasPrescribedOutputDofs())
+         {
+            density_dc.RegisterField("passive_filtered_region",
+                                     &passive_filter_marker);
+         }
          density_dc.SetCycle(0);
          density_dc.SetTime(0.0);
          density_dc.Save();
       }
 
-      if (reference_only)
+      if (reference_only && !reference_convergence_audit)
       {
          if (myid == 0)
          {
@@ -1896,6 +3056,7 @@ int main(int argc, char *argv[])
             problem.PrintSummary(cout);
             cout << "Reference order: " << resolved_reference_order
                  << ", reference dt: " << resolved_reference_dt << "\n"
+                 << "Independent source traces: " << number_of_sources << "\n"
                  << "Trace memory: global "
                  << reference_metadata.global_trace_memory_bytes
                  << " bytes, maximum/rank "
@@ -1903,6 +3064,10 @@ int main(int argc, char *argv[])
                  << " bytes\n"
                  << "Configuration: " << output_parent_dir
                  << "/reference_boundary_data_history.txt\n"
+                 << "Reference convergence audit: "
+                 << (number_of_sources > 1 ?
+                     "not requested for the multi-shot baseline\n" :
+                     "SKIPPED/UNVALIDATED\n")
                  << "No reconstruction solve, adjoint, MMA update, or "
                     "optimization checkpoint was written.\n"
                  << "================================\n";
@@ -1928,10 +3093,28 @@ int main(int argc, char *argv[])
    Array<int> essential_bdr_attr =
       MakeBoundaryMarker(pmesh, essential_bdr_attributes);
 
-   unique_ptr<TimeIntegratedObjective> objective =
-      problem.CreateObjective(&state_fes, comm);
-   unique_ptr<VectorCoefficient> load_coef =
-      problem.CreateBoundaryLoadCoefficient();
+   // Each shot owns its reference-trace objective and traction coefficient.
+   // They all see the same rho/rho_tilde GridFunctions, hence the same
+   // material field, but are advanced/reversed sequentially to avoid storing
+   // three trajectories at once.
+   vector<unique_ptr<TimeIntegratedObjective>> objectives;
+   vector<unique_ptr<VectorCoefficient>> load_coefficients;
+   objectives.reserve(number_of_sources);
+   load_coefficients.reserve(number_of_sources);
+   for (int source = 0; source < number_of_sources; source++)
+   {
+      if (forward_visualization_truth)
+      {
+         objectives.emplace_back(
+            make_unique<ZeroInstantaneousObjective>(&state_fes, comm));
+      }
+      else
+      {
+         objectives.emplace_back(problem.CreateObjective(source, &state_fes, comm));
+      }
+      load_coefficients.emplace_back(
+         problem.CreateBoundaryLoadCoefficient(source));
+   }
 
    if (adjoint_mode == TransientAdjointMode::CONTINUOUS &&
        adjoint_coarsening > 1 && num_steps % adjoint_coarsening != 0)
@@ -1966,8 +3149,9 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      cout << "\n=== Transient "
-           << (forward_only ? "Forward-Only" : "TopOpt (MMA)") << " ===\n";
+      const char *run_mode = reference_only ? "Reference Audit" :
+                             (forward_only ? "Forward-Only" : "TopOpt (MMA)");
+      cout << "\n=== Transient " << run_mode << " ===\n";
       cout << "Mesh: " << problem.GetMeshFile() << "\n";
       cout << "Refinement levels: " << problem.GetRefinementLevel() << "\n";
       cout << "FE orders: state H1 = " << state_order
@@ -1976,11 +3160,42 @@ int main(int argc, char *argv[])
       cout << "State DOFs:   " << state_dofs << "\n";
       cout << "Filter DOFs:  " << filter_dofs << " (H1 rho_tilde)\n";
       cout << "Control DOFs: " << control_dofs << " (L2 rho)\n";
-      cout << "Target volume fraction: " << problem.GetVolumeFraction() << "\n";
-      cout << "Filter radius: " << problem.GetFilterRadius() << "\n";
+      cout << "Physical-density DOFs: " << physical_density_dofs
+           << (inverse_identity_density_transfer ? " (DG(Q0) rho_phys)\n" :
+               " (H1 rho_tilde)\n");
+      cout << "Volume constraint: "
+           << VolumeConstraintModeName(volume_constraint_mode)
+           << "\n";
+      if (volume_constraint_enabled)
+      {
+         cout << "Target volume fraction: " << problem.GetVolumeFraction() << "\n";
+      }
+      cout << "Density transfer: ";
+      if (inverse_identity_density_transfer)
+      {
+         cout << "identity, rho_phys=rho_h in DG(Q0) "
+                 "(no mass projection or Helmholtz filter)";
+      }
+      else
+      {
+         cout << (helmholtz_filter_enabled ? "Helmholtz filter, radius=" :
+                 "L2-to-H1 mass projection (no Helmholtz smoothing)");
+         if (helmholtz_filter_enabled) { cout << problem.GetFilterRadius(); }
+      }
+      cout << "\n";
       cout << "Time interval: [0, " << problem.GetFinalTime() << "],  steps: " << num_steps
            << ",  dt_eff: " << dt_eff << "\n";
-      if (!forward_only)
+      if (number_of_sources > 1)
+      {
+         cout << "Independent inverse shots: " << number_of_sources
+              << " (summed tracking objective; shared design)\n";
+      }
+      if (matrix_free_symplectic_euler)
+      {
+         cout << "Time integrator: matrix-free lumped-mass kick-drift Euler "
+                 "with its exact discrete adjoint\n";
+      }
+      if (!forward_only && !reference_only)
       {
          cout << "Max MMA iterations: " << problem.GetMaxIterations()
               << ",  move limit: " << problem.GetMoveLimit()
@@ -2006,12 +3221,206 @@ int main(int argc, char *argv[])
    // solver path used: no optimizer, adjoint sweep, or optimization checkpoint.
    MassSolverType mass_solver = use_iterative_mass ?
                                 MassSolverType::ITERATIVE : MassSolverType::LUMPED;
-   TransientDesignSolver design_solver(
-      state_fes, filter_fes, control_fes, filter, gamma_coef,
-      exterior_bdr_attr, essential_bdr_attr, *objective, mat, load_spec,
-      *load_coef, impedance, num_steps, dt_eff, mass_solver, rho, rho_tilde,
-      num_checkpoints, adjoint_mode, adjoint_refinement,
-      trajectory_storage, adjoint_coarsening, rk4_stage_objective);
+   vector<unique_ptr<TransientDesignSolver>> design_solvers;
+   design_solvers.reserve(number_of_sources);
+   for (int source = 0; source < number_of_sources; source++)
+   {
+      design_solvers.emplace_back(make_unique<TransientDesignSolver>(
+         state_fes, physical_density_fes, control_fes, filter, gamma_coef,
+         exterior_bdr_attr, essential_bdr_attr, *objectives[source], mat,
+         problem.GetBoundaryLoad(source), *load_coefficients[source], impedance,
+         num_steps, dt_eff, mass_solver, rho, physical_density, num_checkpoints,
+         adjoint_mode, adjoint_refinement, trajectory_storage,
+         adjoint_coarsening, rk4_stage_objective, matrix_free_symplectic_euler,
+         inverse_identity_density_transfer));
+   }
+   // Retain the established single-solver name for single-shot diagnostics and
+   // metadata. Multi-shot physics below visits every entry in design_solvers.
+   TransientDesignSolver &design_solver = *design_solvers.front();
+
+   // Complete the mandatory reference-data gate with the actual initial
+   // reconstruction error.  The trace-only portion above controls error
+   // relative to the full receiver signal.  This second denominator prevents
+   // a dominant direct wave from hiding discretization error comparable to the
+   // inclusion-scattering residual that the inversion must reduce.
+   if (requires_reference_data && reference_audit_metadata.performed)
+   {
+      const real_t initial_objective =
+         design_solver.Objective(reference_audit_baseline_rho_tv,
+                                "reference audit baseline");
+      reference_audit_metadata.total_seconds =
+         MPI_Wtime() - reference_audit_wall_start;
+      MFEM_VERIFY(std::isfinite(initial_objective) && initial_objective > 0.0,
+                  "Reference audit requires a finite nonzero initial "
+                  "reconstruction mismatch.");
+      reference_audit_metadata.initial_reconstruction_error_norm =
+         std::sqrt(2.0 * initial_objective);
+      const real_t initial_error =
+         reference_audit_metadata.initial_reconstruction_error_norm;
+
+      reference_audit_metadata.temporal_initial_relative_error =
+         reference_audit_metadata.temporal.difference_norm / initial_error;
+      reference_audit_metadata.order_initial_relative_error =
+         reference_audit_metadata.order_enrichment.difference_norm /
+         initial_error;
+      reference_audit_metadata.combined_initial_relative_error =
+         reference_audit_metadata.baseline_to_finest.difference_norm /
+         initial_error;
+
+      const real_t signal_tolerance =
+         reference_audit_metadata.tolerance;
+      const real_t initial_error_tolerance = std::min(
+         real_t(0.1), 10.0 * reference_audit_metadata.tolerance);
+      reference_audit_metadata.accepted =
+         reference_audit_metadata.temporal_signal_relative_error <=
+            signal_tolerance &&
+         reference_audit_metadata.order_signal_relative_error <=
+            signal_tolerance &&
+         reference_audit_metadata.combined_signal_relative_error <=
+            signal_tolerance &&
+         reference_audit_metadata.temporal_initial_relative_error <=
+            initial_error_tolerance &&
+         reference_audit_metadata.order_initial_relative_error <=
+            initial_error_tolerance &&
+         reference_audit_metadata.combined_initial_relative_error <=
+            initial_error_tolerance;
+
+      if (myid == 0)
+      {
+         const char *audit_status =
+            reference_audit_metadata.accepted ? "PASS" : "FAIL";
+         cout << defaultfloat << setprecision(10)
+              << "Reference-audit baseline ("
+              << reference_audit_baseline_description << ") objective J0 = "
+              << initial_objective << "\n"
+              << "Reference-audit baseline measurement error sqrt(2J0) = "
+              << initial_error << "\n"
+              << "Temporal discrepancy / initial error = "
+              << reference_audit_metadata.temporal_initial_relative_error
+              << "\n"
+              << "Order discrepancy / initial error = "
+              << reference_audit_metadata.order_initial_relative_error
+              << "\n"
+              << "Combined discrepancy / initial error = "
+              << reference_audit_metadata.combined_initial_relative_error
+              << "\n"
+              << "Reference convergence audit: " << audit_status
+              << " (signal tolerance=" << signal_tolerance
+              << ", initial-error tolerance=" << initial_error_tolerance
+              << ")\n"
+              << "===================================\n";
+
+         ofstream audit_csv(
+            output_parent_dir + "/reference_convergence_audit.csv");
+         MFEM_VERIFY(audit_csv.is_open(),
+                     "Could not open reference convergence audit CSV.");
+         audit_csv << setprecision(16)
+            << "comparison,candidate_order,candidate_dt,reference_order,"
+               "reference_dt,difference_norm,finest_signal_norm,"
+               "signal_relative_error,initial_error_norm,"
+               "initial_relative_error,signal_tolerance,"
+               "initial_error_tolerance,status\n";
+         const auto write_audit_row =
+            [&](const char *name, int candidate_order, real_t candidate_dt,
+                int comparison_order, real_t comparison_dt,
+                const BoundaryTraceComparisonMetrics &metrics,
+                real_t signal_relative, real_t initial_relative)
+            {
+               audit_csv << name << ',' << candidate_order << ','
+                         << candidate_dt << ',' << comparison_order << ','
+                         << comparison_dt << ',' << metrics.difference_norm
+                         << ',' << reference_audit_metadata.finest_signal_norm
+                         << ',' << signal_relative << ',' << initial_error
+                         << ',' << initial_relative << ',' << signal_tolerance
+                         << ',' << initial_error_tolerance << ','
+                         << audit_status << '\n';
+            };
+         write_audit_row(
+            "A_baseline_vs_B_temporal", reference_metadata.state_order,
+            reference_metadata.effective_time_step,
+            reference_audit_metadata.temporal_reference.state_order,
+            reference_audit_metadata.temporal_reference.effective_time_step,
+            reference_audit_metadata.temporal,
+            reference_audit_metadata.temporal_signal_relative_error,
+            reference_audit_metadata.temporal_initial_relative_error);
+         write_audit_row(
+            "B_temporal_vs_C_enriched",
+            reference_audit_metadata.temporal_reference.state_order,
+            reference_audit_metadata.temporal_reference.effective_time_step,
+            reference_audit_metadata.finest_reference.state_order,
+            reference_audit_metadata.finest_reference.effective_time_step,
+            reference_audit_metadata.order_enrichment,
+            reference_audit_metadata.order_signal_relative_error,
+            reference_audit_metadata.order_initial_relative_error);
+         write_audit_row(
+            "A_baseline_vs_C_enriched", reference_metadata.state_order,
+            reference_metadata.effective_time_step,
+            reference_audit_metadata.finest_reference.state_order,
+            reference_audit_metadata.finest_reference.effective_time_step,
+            reference_audit_metadata.baseline_to_finest,
+            reference_audit_metadata.combined_signal_relative_error,
+            reference_audit_metadata.combined_initial_relative_error);
+         audit_csv.flush();
+
+         ofstream reference_history(
+            output_parent_dir + "/reference_boundary_data_history.txt",
+            ios::app);
+         MFEM_VERIFY(reference_history.is_open(),
+                     "Could not append reference audit metadata.");
+         reference_history << setprecision(16)
+            << "# Reference convergence audit final: " << audit_status
+            << "\n# Audit baseline: "
+            << reference_audit_baseline_description
+            << "\n# Audit baseline reconstruction objective J0: "
+            << initial_objective
+            << "\n# Audit baseline reconstruction error norm sqrt(2J0): "
+            << initial_error
+            << "\n# Audit initial-error relative discrepancies: temporal="
+            << reference_audit_metadata.temporal_initial_relative_error
+            << ", order="
+            << reference_audit_metadata.order_initial_relative_error
+            << ", combined="
+            << reference_audit_metadata.combined_initial_relative_error
+            << "\n# Audit acceptance thresholds: signal_relative<="
+            << signal_tolerance << ", initial_error_relative<="
+            << initial_error_tolerance
+            << "\n# Audit total seconds including uniform reconstruction: "
+            << reference_audit_metadata.total_seconds << "\n";
+         reference_history.flush();
+      }
+
+      if (!reference_audit_metadata.accepted)
+      {
+         if (myid == 0)
+         {
+            cerr << "Error: reference boundary data failed its mandatory "
+                    "convergence audit. Reduce the baseline reference timestep "
+                    "and/or add a tested refined-mesh trace transfer; the "
+                    "baseline dataset will not be used.\n";
+         }
+         return 2;
+      }
+
+      if (reference_only)
+      {
+         if (myid == 0)
+         {
+            cout << "\n=== Reference-Only Audit Complete ===\n";
+            problem.PrintSummary(cout);
+            cout << "Accepted baseline: Q" << resolved_reference_order
+                 << ", dt=" << resolved_reference_dt << "\n"
+                 << "Audit report: " << output_parent_dir
+                 << "/reference_convergence_audit.csv\n"
+                 << "Configuration: " << output_parent_dir
+                 << "/reference_boundary_data_history.txt\n"
+                 << "Three reference solves and one uniform reconstruction "
+                    "solve were performed; no adjoint, MMA update, or "
+                    "optimization checkpoint was written.\n"
+                 << "=====================================\n";
+         }
+         return 0;
+      }
+   }
 
    if (rk4_adjoint_comparison)
    {
@@ -2084,6 +3493,56 @@ int main(int argc, char *argv[])
 
       Vector rho_tv_forward(control_fes.GetTrueVSize());
       rho.GetTrueDofs(rho_tv_forward);
+      if (time_integrator_smoke)
+      {
+         const ForwardIntegratorSmokeResult comparison =
+            design_solver.CompareForwardIntegrators(rho_tv_forward);
+         if (myid == 0)
+         {
+            const double rk4_ms_per_step =
+               1.0e3 * comparison.rk4_seconds / num_steps;
+            const double kick_drift_ms_per_step =
+               1.0e3 * comparison.kick_drift_seconds / num_steps;
+            const double speedup = comparison.kick_drift_seconds > 0.0 ?
+               comparison.rk4_seconds / comparison.kick_drift_seconds : 0.0;
+            cout << "\n=== Forward Integrator Smoke Test ===\n"
+                 << "Configuration: same assembled operator, source, design, "
+                    "mesh, final time, and dt.\n"
+                 << "RK4:             " << fixed << setprecision(3)
+                 << comparison.rk4_seconds << " s (" << rk4_ms_per_step
+                 << " ms/step)\n"
+                 << "Kick-drift Euler: " << comparison.kick_drift_seconds
+                 << " s (" << kick_drift_ms_per_step << " ms/step)\n"
+                 << "RK4 / kick-drift speedup = " << speedup << "x\n"
+                 << scientific << setprecision(8)
+                 << "Timed RK4 objective J = "
+                 << comparison.rk4_timed_objective << "\n"
+                 << "RK4 endpoint-trapezoid J = "
+                 << comparison.rk4_objective << "\n"
+                 << "Kick-drift endpoint-trapezoid J = "
+                 << comparison.kick_drift_objective << "\n"
+                 << "Relative endpoint-trapezoid objective difference = "
+                 << comparison.objective_relative_difference << "\n"
+                 << "Terminal relative displacement difference = "
+                 << comparison.terminal_displacement_relative_difference << "\n"
+                 << "Terminal relative velocity difference = "
+                 << comparison.terminal_velocity_relative_difference << "\n";
+            if (comparison.has_receiver_trace)
+            {
+               cout << "Space-time receiver-trace relative L2 difference = "
+                    << comparison.receiver_trace_relative_difference << "\n";
+            }
+            else
+            {
+               cout << "Receiver-trace comparison: not applicable to this "
+                       "objective.\n";
+            }
+            cout << "Timing excludes assembly/CFL estimation and the untimed "
+                    "trace-agreement replays. No adjoint or MMA update was run.\n"
+                 << "======================================\n";
+         }
+         return 0;
+      }
       real_t J = 0.0;
       int frames_saved = 0;
       real_t terminal_modal_projection = 0.0;
@@ -2098,35 +3557,48 @@ int main(int argc, char *argv[])
 
       if (paraview)
       {
-         const string wave_collection_name = "wave_forward";
-         const string wave_full_dir = output_parent_dir + "/ParaView/" + wave_collection_name;
-         ParaViewDataCollection wave_dc(wave_collection_name.c_str(), &pmesh);
-         wave_dc.SetLevelsOfDetail(state_order);
-         wave_dc.SetDataFormat(VTKFormat::BINARY);
-         wave_dc.SetHighOrderOutput(true);
-         wave_dc.SetPrefixPath((output_parent_dir + "/ParaView").c_str());
-
-         ParGridFunction u_gf(&state_fes);
-         wave_dc.RegisterField("displacement", &u_gf);
-
-         const int wave_viz_freq = max(1, num_steps / 20);
-         const auto save_wave = [&](int step, real_t time, const Vector &state)
+         // In presentation mode, each independent source gets its own PVD
+         // collection.  Normal single-shot forwards retain the old name.
+         const int wave_viz_freq = pv_freq > 0 ? max(1, pv_freq) :
+            max(1, num_steps / 50);
+         const int last_source = forward_visualization_truth ?
+            number_of_sources : 1;
+         for (int source = 0; source < last_source; source++)
          {
-            const int half_size = state.Size() / 2;
-            Vector u_vec(state.GetData(), half_size);
-            u_gf.SetFromTrueDofs(u_vec);
-            wave_dc.SetCycle(step);
-            wave_dc.SetTime(time);
-            wave_dc.Save();
-            frames_saved++;
-         };
-         J = design_solver.ForwardVisualizationSweepStream(
-            rho_tv_forward, wave_viz_freq, save_wave);
+            const string wave_collection_name =
+               number_of_sources == 1 ? "wave_forward" :
+               "wave_forward_shot" + to_string(source + 1);
+            const string wave_full_dir = output_parent_dir + "/ParaView/" +
+                                         wave_collection_name;
+            ParaViewDataCollection wave_dc(wave_collection_name.c_str(), &pmesh);
+            wave_dc.SetLevelsOfDetail(state_order);
+            wave_dc.SetDataFormat(VTKFormat::BINARY);
+            wave_dc.SetHighOrderOutput(true);
+            wave_dc.SetPrefixPath((output_parent_dir + "/ParaView").c_str());
 
-         if (myid == 0)
-         {
-            cout << "    Saved " << frames_saved << " forward-wave frames to: "
-                 << wave_full_dir << "/\n";
+            ParGridFunction u_gf(&state_fes);
+            wave_dc.RegisterField("displacement", &u_gf);
+            int source_frames_saved = 0;
+            const auto save_wave = [&](int step, real_t time, const Vector &state)
+            {
+               const int half_size = state.Size() / 2;
+               Vector u_vec(state.GetData(), half_size);
+               u_gf.SetFromTrueDofs(u_vec);
+               wave_dc.SetCycle(step);
+               wave_dc.SetTime(time);
+               wave_dc.Save();
+               source_frames_saved++;
+            };
+            J += design_solvers[source]->ForwardVisualizationSweepStream(
+               rho_tv_forward, wave_viz_freq, save_wave);
+
+            if (myid == 0)
+            {
+               cout << "    Saved " << source_frames_saved
+                    << " forward-wave frames for shot " << source + 1
+                    << " to: " << wave_full_dir << "/\n";
+            }
+            frames_saved += source_frames_saved;
          }
       }
       else
@@ -2251,7 +3723,13 @@ int main(int argc, char *argv[])
          }
          else
          {
-            J = design_solver.Objective(rho_tv_forward, "forward");
+            for (int source = 0; source < number_of_sources; source++)
+            {
+               J += design_solvers[source]->Objective(
+                  rho_tv_forward,
+                  number_of_sources == 1 ? "forward" :
+                  ("forward shot " + to_string(source)).c_str());
+            }
          }
       }
 
@@ -2291,13 +3769,10 @@ int main(int argc, char *argv[])
    // MMA works with active (designable) DOFs only
    const int n_full = control_fes.GetTrueVSize();
    const int n_active = passive_region_coef ? active_tdof_list.Size() : n_full;
-   // Wave-shielding objectives can reduce the response by removing material.
-   // Enforce an active-region volume equality rather than the compliance-style
-   // upper budget alone. MMA represents h=V/V* - 1=0 internally as (+h,-h),
-   // with an unconstrained equality multiplier; treating those rows as two
-   // ordinary inequalities makes the two dual barriers oppose one another at
-   // feasibility and can stall the topology update.
-   const int num_con = 2;
+   // An equality is represented by a packed (+h,-h) pair. An upper-bound run
+   // carries only +h, while the no-volume variant has only move and box bounds.
+   const int num_con = volume_constraint_is_equality ? 2 :
+                       (volume_constraint_is_upper ? 1 : 0);
 
    Vector rho_tv_full(n_full);
    rho.GetTrueDofs(rho_tv_full);
@@ -2320,27 +3795,35 @@ int main(int argc, char *argv[])
    Vector dJ_drho_active(n_active);
    Vector fival(num_con);
 
-   // Packed volume-equality gradients in the required (+h,-h) order.
-   // Extract only active DOF contributions
-   Vector dvol_full(*volume_weights);
-   dvol_full /= target_volume;
+   // Volume-constraint gradients. Equality uses the required (+h,-h) pair;
+   // upper-bound mode supplies only +h.
    Vector dvol_active(n_active);
-   if (passive_region_coef)
+   Vector dfidx[2];
+   if (volume_constraint_enabled)
    {
-      MapFullToActive(dvol_full, active_tdof_list, dvol_active);
+      Vector dvol_full(*volume_weights);
+      dvol_full /= target_volume;
+      if (passive_region_coef)
+      {
+         MapFullToActive(dvol_full, active_tdof_list, dvol_active);
+      }
+      else
+      {
+         dvol_active = dvol_full;
+      }
+      dfidx[0] = dvol_active;
+      if (volume_constraint_is_equality)
+      {
+         dfidx[1] = dvol_active;
+         dfidx[1] *= -1.0;
+      }
    }
-   else
-   {
-      dvol_active = dvol_full;
-   }
-   Vector dfidx[num_con];
-   dfidx[0] = dvol_active;
-   dfidx[1] = dvol_active;
-   dfidx[1] *= -1.0;
 
-   mfem_mma::MMAOptimizerParallel mma =
+   mfem_mma::MMAOptimizerParallel mma = volume_constraint_is_equality ?
       mfem_mma::MMAOptimizerParallel::WithEqualities(
-         comm, n_active, /*n_ineq=*/0, /*n_eq=*/1, rho_active);
+         comm, n_active, /*n_ineq=*/0, /*n_eq=*/1, rho_active) :
+      mfem_mma::MMAOptimizerParallel(
+         comm, n_active, volume_constraint_is_upper ? 1 : 0, rho_active);
    mma.SetAsymptotes(0.5, 0.7, 1.2);
 
    Vector rho_active_min(n_active), rho_active_max(n_active);
@@ -2364,6 +3847,11 @@ int main(int argc, char *argv[])
       {
          paraview_dc.RegisterField("passive_region", &passive_marker);
       }
+      if (filter.HasPrescribedOutputDofs())
+      {
+         paraview_dc.RegisterField("passive_filtered_region",
+                                   &passive_filter_marker);
+      }
    }
 
    ofstream history;
@@ -2384,6 +3872,16 @@ int main(int argc, char *argv[])
          {
             history << "# " << problem_summary.str();
          }
+         history << "# Passive filtered material: ";
+         if (filter.HasPrescribedOutputDofs())
+         {
+            history << "prescribed at background rho=" << passive_rho_value;
+         }
+         else
+         {
+            history << "unconstrained";
+         }
+         history << "\n";
          history << "# Adjoint mode: "
                  << TransientAdjointModeName(adjoint_mode) << "\n";
          history << "# Objective quadrature: "
@@ -2408,7 +3906,11 @@ int main(int argc, char *argv[])
                  << ", control_order=" << control_order
                  << ", state_dofs=" << state_dofs
                  << ", filter_dofs=" << filter_dofs
-                 << ", control_dofs=" << control_dofs << "\n";
+                 << ", control_dofs=" << control_dofs
+                 << ", physical_density_dofs=" << physical_density_dofs
+                 << ", density_transfer="
+                 << (inverse_identity_density_transfer ? "identity-DGQ0" :
+                                                       "PDEFilter") << "\n";
          if (requires_reference_data)
          {
             history << "# Reference data: state_order="
@@ -2420,7 +3922,13 @@ int main(int argc, char *argv[])
                     << reference_metadata.effective_time_step
                     << ", steps_per_coarse_half_step="
                     << reference_metadata.reference_steps_per_half_step
-                    << ", mass=consistent, damping="
+                    << ", mass="
+                    << (reference_metadata.mass_solver_type ==
+                        MassSolverType::LUMPED ? "lumped" : "consistent")
+                    << ", integrator="
+                    << (reference_metadata.matrix_free_symplectic_euler ?
+                        "matrix-free-kick-drift-euler" : "RK4")
+                    << ", damping="
                     << (reference_metadata.damping_enabled ?
                         "enabled" : "disabled")
                     << ", global_state_true_dofs="
@@ -2436,20 +3944,73 @@ int main(int argc, char *argv[])
                     << reference_metadata.global_trace_memory_bytes
                     << ", generation_seconds="
                     << reference_metadata.forward_seconds << "\n";
-            history << "# Reference convergence audit: pending (not part of "
-                       "the first common-mesh implementation milestone)\n";
+            history << "# Reference convergence audit: "
+                    << (reference_audit_metadata.accepted ? "PASS" :
+                        "SKIPPED/UNVALIDATED")
+                    << ", tolerance_signal="
+                    << reference_audit_metadata.tolerance
+                    << ", finest_signal_norm="
+                    << reference_audit_metadata.finest_signal_norm
+                    << ", initial_error_norm="
+                    << reference_audit_metadata.initial_reconstruction_error_norm
+                    << ", signal_relative=[temporal="
+                    << reference_audit_metadata.temporal_signal_relative_error
+                    << ", order="
+                    << reference_audit_metadata.order_signal_relative_error
+                    << ", combined="
+                    << reference_audit_metadata.combined_signal_relative_error
+                    << "], initial_relative=[temporal="
+                    << reference_audit_metadata.temporal_initial_relative_error
+                    << ", order="
+                    << reference_audit_metadata.order_initial_relative_error
+                    << ", combined="
+                    << reference_audit_metadata.combined_initial_relative_error
+                    << "]\n";
          }
          history << "# Physics: mass="
                  << (use_iterative_mass ? "consistent" : "lumped")
                  << ", damping=" << (damping ? "enabled" : "disabled")
                  << "\n";
+         history << "# Load: profile="
+                 << LoadTimeProfileName(load_spec.time_profile)
+                 << ", amplitude=" << load_spec.amplitude
+                 << ", duration=" << load_spec.duration
+                 << ", phase=" << load_spec.phase;
+         if (load_spec.frequencies.empty())
+         {
+            history << ", carrier_frequency=" << load_spec.frequency;
+         }
+         else
+         {
+            history << ", carrier_frequencies=[";
+            for (size_t i = 0; i < load_spec.frequencies.size(); i++)
+            {
+               if (i > 0) { history << ','; }
+               history << load_spec.frequencies[i];
+            }
+            history << "]"
+                    << ", common_envelope=true"
+                    << ", temporal_l2_normalization="
+                    << ComputeMultiCarrierEnergyNormalization(
+                       load_spec.time_profile, load_spec.duration,
+                       load_spec.frequency, load_spec.frequencies,
+                       load_spec.phase);
+         }
+         history << "\n";
          history << "# SIMP: s(rho_tilde)=" << mat.r_min << "+("
                  << mat.r_max - mat.r_min << ") rho_tilde^" << mat.simp_p
                  << "\n";
          history << "# Design: initialization=" << design_init
-                 << ", target_volume_fraction="
-                 << problem.GetVolumeFraction()
-                 << ", filter_radius=" << problem.GetFilterRadius()
+                 << ", volume_constraint="
+                 << VolumeConstraintModeName(volume_constraint_mode)
+                 << ", target_volume_fraction=" << problem.GetVolumeFraction()
+                 << ", density_transfer="
+                 << (inverse_identity_density_transfer ?
+                     "identity-DGQ0 (rho_phys=rho_h; no projection)" :
+                     (helmholtz_filter_enabled ? "Helmholtz" :
+                                                "L2-to-H1 mass projection"))
+                 << ", filter_radius="
+                 << (helmholtz_filter_enabled ? problem.GetFilterRadius() : 0.0)
                  << ", active_dofs=" << global_active_control_dofs
                  << ", total_control_dofs=" << control_dofs
                  << ", passive_density=" << passive_rho_value << "\n";
@@ -2532,6 +4093,9 @@ int main(int argc, char *argv[])
    // frames; -pvf overrides the interval. First/last iterations always saved.
    const int pv_save_interval =
       (pv_freq > 0) ? pv_freq : max(1, problem.GetMaxIterations() / 100);
+   // One shared filtered-gradient accumulator is retained across MMA updates.
+   // The individual source gradients are released immediately after addition.
+   Vector multi_filtered_gradient;
 
    for (; k < problem.GetMaxIterations() &&
           iterationError > problem.GetChangeTolerance(); k++)
@@ -2548,11 +4112,72 @@ int main(int argc, char *argv[])
          rho.SetFromTrueDofs(rho_active);
       }
 
-      design_solver.FilterFSolve(rho_tv_full);              // forward filter:  rho -> rho_tilde
-      const real_t J = design_solver.PhysicsFSolve(k);      // forward physics: -> J
-      design_solver.PhysicsASolve();                        // adjoint physics: -> dJ/drho_tilde
-      design_solver.FilterASolve(dJ_drho_full);             // adjoint filter:  -> dJ/drho
-      const Vector &dJ_drho_tilde = design_solver.FilteredDesignGradient();
+      // Transfer the common raw design once. Each shot then owns an
+      // independent forward/adjoint trajectory and contributes additively to
+      // J and dJ/d(rho_phys).  In the identity inverse this is exactly
+      // rho_phys=rho_h in DG(Q0), not a hidden H1 mass projection.
+      design_solver.FilterFSolve(rho_tv_full);
+      real_t J = 0.0;
+      if (number_of_sources > 1)
+      {
+         if (multi_filtered_gradient.Size() !=
+             physical_density_fes.GetTrueVSize())
+         {
+            multi_filtered_gradient.SetSize(
+               physical_density_fes.GetTrueVSize());
+         }
+      }
+      const Vector *dJ_drho_tilde_ptr = nullptr;
+      ContinuousStorageTelemetry iteration_telemetry;
+      if (number_of_sources == 1)
+      {
+         J = design_solver.PhysicsFSolve(k);
+         design_solver.PhysicsASolve();
+         design_solver.FilterASolve(dJ_drho_full);
+         dJ_drho_tilde_ptr = &design_solver.FilteredDesignGradient();
+         iteration_telemetry = design_solver.StorageTelemetry();
+         design_solver.ReleasePhysicsIterationStorage();
+      }
+      else
+      {
+         multi_filtered_gradient = 0.0;
+         for (int source = 0; source < number_of_sources; source++)
+         {
+            TransientDesignSolver &source_solver = *design_solvers[source];
+            J += source_solver.PhysicsFSolve(k);
+            source_solver.PhysicsASolve();
+            multi_filtered_gradient += source_solver.FilteredDesignGradient();
+            const ContinuousStorageTelemetry &source_telemetry =
+               source_solver.StorageTelemetry();
+            iteration_telemetry.forward_seconds +=
+               source_telemetry.forward_seconds;
+            iteration_telemetry.adjoint_seconds +=
+               source_telemetry.adjoint_seconds;
+            iteration_telemetry.trajectory_memory_mb = std::max(
+               iteration_telemetry.trajectory_memory_mb,
+               source_telemetry.trajectory_memory_mb);
+            iteration_telemetry.controller_replayed_blocks +=
+               source_telemetry.controller_replayed_blocks;
+            iteration_telemetry.locally_replayed_blocks +=
+               source_telemetry.locally_replayed_blocks;
+            iteration_telemetry.controller_replayed_intervals +=
+               source_telemetry.controller_replayed_intervals;
+            iteration_telemetry.locally_replayed_intervals +=
+               source_telemetry.locally_replayed_intervals;
+            source_solver.ReleasePhysicsIterationStorage();
+            source_solver.ReleaseAdjointIterationVectors();
+         }
+         if (inverse_identity_density_transfer)
+         {
+            dJ_drho_full = multi_filtered_gradient;
+         }
+         else
+         {
+            filter.MultTranspose(multi_filtered_gradient, dJ_drho_full);
+         }
+         dJ_drho_tilde_ptr = &multi_filtered_gradient;
+      }
+      const Vector &dJ_drho_tilde = *dJ_drho_tilde_ptr;
       real_t local_gradient_norm_sq[2] =
       {
          dJ_drho_full * dJ_drho_full,
@@ -2565,10 +4190,6 @@ int main(int argc, char *argv[])
          std::sqrt(global_gradient_norm_sq[0]);
       const real_t filtered_gradient_norm =
          std::sqrt(global_gradient_norm_sq[1]);
-      const ContinuousStorageTelemetry iteration_telemetry =
-         design_solver.StorageTelemetry();
-      design_solver.ReleasePhysicsIterationStorage();       // free matrices + REVOLVE snapshots
-
       // Never let an unstable forward/adjoint sweep reach MMA. A NaN objective
       // previously drove every active density through a bogus update and was
       // then committed as an apparently restartable optimization checkpoint.
@@ -2621,8 +4242,14 @@ int main(int argc, char *argv[])
       // Volume constraint and current fraction (over active region only)
       const real_t cur_volume = InnerProduct(comm, *volume_weights, rho_tv_full);
       const real_t cur_vol_frac = cur_volume / domain_volume;
-      fival(0) = cur_volume / target_volume - 1.0;  // +h
-      fival(1) = -fival(0);                         // -h
+      if (volume_constraint_enabled)
+      {
+         fival(0) = cur_volume / target_volume - 1.0;  // +h
+         if (volume_constraint_is_equality)
+         {
+            fival(1) = -fival(0);                      // -h
+         }
+      }
 
       // Box constraints with move limits (active DOFs only)
       rho_active_old = rho_active;
@@ -2639,62 +4266,111 @@ int main(int argc, char *argv[])
       Vector mma_objective_gradient(dJ_drho_active);
       mma_objective_gradient *= mma_objective_scale;
 
-      // MMA outer iteration (minimizes J subject to the packed volume
-      // equality) - active DOFs only.
+      // MMA outer iteration, with a packed volume equality, a single upper
+      // volume bound, or no design constraint beyond box and move limits.
       mma.Update(rho_active, mma_objective_gradient,
-                 mma_objective_scale * J, fival, dfidx,
+                 mma_objective_scale * J, fival,
+                 volume_constraint_enabled ? dfidx : nullptr,
                 rho_active_min, rho_active_max);
 
-      // The equality-aware MMA subproblem is normally feasible to solver
-      // tolerance.  Project its trial point onto the *exact* active volume
-      // equality nevertheless: in a long, strongly scaled transient run the
-      // internal dual solve can otherwise accumulate an infeasible volume
-      // drift.  The water-filling shift preserves both the box constraints
-      // and this iteration's MMA move bounds.  Since the pre-update design is
-      // feasible, the target lies in the interval obtained by saturating the
-      // lower and upper move bounds.
-      const auto bounded_active_volume = [&](const real_t shift)
+      if (volume_constraint_is_equality)
       {
-         real_t local_volume = 0.0;
+         // The equality-aware MMA subproblem is normally feasible to solver
+         // tolerance. Project its trial point onto the exact active volume
+         // equality nevertheless to prevent accumulated long-run drift.
+         const auto bounded_active_volume = [&](const real_t shift)
+         {
+            real_t local_volume = 0.0;
+            for (int i = 0; i < n_active; i++)
+            {
+               const real_t value = min(rho_active_max[i],
+                  max(rho_active_min[i], rho_active[i] + shift));
+               local_volume += target_volume * dvol_active[i] * value;
+            }
+            real_t global_volume = 0.0;
+            MPI_Allreduce(&local_volume, &global_volume, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+            return global_volume;
+         };
+         const real_t lower_volume = bounded_active_volume(-1.0);
+         const real_t upper_volume = bounded_active_volume(1.0);
+         const real_t volume_tolerance = 128.0 *
+            numeric_limits<real_t>::epsilon() * max(target_volume, 1.0);
+         MFEM_VERIFY(lower_volume <= target_volume + volume_tolerance &&
+                     upper_volume >= target_volume - volume_tolerance,
+                     "Active box/move bounds cannot satisfy the volume equality.");
+         real_t lower_shift = -1.0;
+         real_t upper_shift = 1.0;
+         for (int bisection_step = 0; bisection_step < 64; bisection_step++)
+         {
+            const real_t mid_shift = 0.5 * (lower_shift + upper_shift);
+            if (bounded_active_volume(mid_shift) < target_volume)
+            {
+               lower_shift = mid_shift;
+            }
+            else
+            {
+               upper_shift = mid_shift;
+            }
+         }
+         const real_t volume_shift = 0.5 * (lower_shift + upper_shift);
          for (int i = 0; i < n_active; i++)
          {
-            const real_t value = min(rho_active_max[i],
-                                     max(rho_active_min[i],
-                                         rho_active[i] + shift));
-            local_volume += target_volume * dvol_active[i] * value;
-         }
-         real_t global_volume = 0.0;
-         MPI_Allreduce(&local_volume, &global_volume, 1,
-                       MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-         return global_volume;
-      };
-      const real_t lower_volume = bounded_active_volume(-1.0);
-      const real_t upper_volume = bounded_active_volume(1.0);
-      const real_t volume_tolerance =
-         128.0 * numeric_limits<real_t>::epsilon() * max(target_volume, 1.0);
-      MFEM_VERIFY(lower_volume <= target_volume + volume_tolerance &&
-                  upper_volume >= target_volume - volume_tolerance,
-                  "Active box/move bounds cannot satisfy the volume equality.");
-      real_t lower_shift = -1.0;
-      real_t upper_shift = 1.0;
-      for (int bisection_step = 0; bisection_step < 64; bisection_step++)
-      {
-         const real_t mid_shift = 0.5 * (lower_shift + upper_shift);
-         if (bounded_active_volume(mid_shift) < target_volume)
-         {
-            lower_shift = mid_shift;
-         }
-         else
-         {
-            upper_shift = mid_shift;
+            rho_active[i] = min(rho_active_max[i],
+                                max(rho_active_min[i],
+                                    rho_active[i] + volume_shift));
          }
       }
-      const real_t volume_shift = 0.5 * (lower_shift + upper_shift);
-      for (int i = 0; i < n_active; i++)
+      else if (volume_constraint_is_upper)
       {
-         rho_active[i] = min(rho_active_max[i],
-                             max(rho_active_min[i],
-                                 rho_active[i] + volume_shift));
+         // MMA enforces the upper bound in its local subproblem. Correct only
+         // a roundoff-level or approximation-induced excess, never a design
+         // that legitimately uses less material than the cap.
+         const auto bounded_active_volume = [&](const real_t shift)
+         {
+            real_t local_volume = 0.0;
+            for (int i = 0; i < n_active; i++)
+            {
+               const real_t value = min(rho_active_max[i],
+                  max(rho_active_min[i], rho_active[i] + shift));
+               local_volume += target_volume * dvol_active[i] * value;
+            }
+            real_t global_volume = 0.0;
+            MPI_Allreduce(&local_volume, &global_volume, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+            return global_volume;
+         };
+         const real_t volume_tolerance = 128.0 *
+            numeric_limits<real_t>::epsilon() * max(target_volume, 1.0);
+         if (bounded_active_volume(0.0) > target_volume + volume_tolerance)
+         {
+            const real_t lower_volume = bounded_active_volume(-1.0);
+            MFEM_VERIFY(lower_volume <= target_volume + volume_tolerance,
+                        "Active box/move bounds cannot restore the upper "
+                        "volume bound.");
+            real_t lower_shift = -1.0;
+            real_t upper_shift = 0.0;
+            for (int bisection_step = 0; bisection_step < 64;
+                 bisection_step++)
+            {
+               const real_t mid_shift = 0.5 * (lower_shift + upper_shift);
+               if (bounded_active_volume(mid_shift) <= target_volume)
+               {
+                  lower_shift = mid_shift;
+               }
+               else
+               {
+                  upper_shift = mid_shift;
+               }
+            }
+            const real_t volume_shift = 0.5 * (lower_shift + upper_shift);
+            for (int i = 0; i < n_active; i++)
+            {
+               rho_active[i] = min(rho_active_max[i],
+                                   max(rho_active_min[i],
+                                       rho_active[i] + volume_shift));
+            }
+         }
       }
 
       local_nonfinite = 0;
@@ -2741,16 +4417,29 @@ int main(int argc, char *argv[])
       {
          cout << "it " << setw(3) << k + 1
               << "   J = " << scientific << setprecision(6) << J
-              << "   vol = " << fixed << setprecision(4) << cur_vol_frac
-              << "   g = [" << scientific << setprecision(3) << fival(0)
-              << ", " << fival(1) << "]"
+              << "   vol = " << fixed << setprecision(4) << cur_vol_frac;
+         if (volume_constraint_enabled)
+         {
+            cout << "   g = [" << scientific << setprecision(3) << fival(0);
+            if (volume_constraint_is_equality)
+            {
+               cout << ", " << fival(1);
+            }
+            cout << "]";
+         }
+         else
+         {
+            cout << "   g = [none]";
+         }
+         cout
               << "   ||grad_active|| = " << active_raw_gradient_norm
               << "   dRho(L1) = " << setprecision(3) << iterationError << "\n";
          history << setw(5) << k + 1 << "  "
                  << scientific << setprecision(8) << J << "  "
                  << fixed << setprecision(6) << cur_vol_frac << "  "
-                 << scientific << setprecision(6) << fival(0) << "  "
-                 << fival(1) << "  "
+                 << scientific << setprecision(6)
+                 << (volume_constraint_enabled ? fival(0) : 0.0) << "  "
+                 << (volume_constraint_is_equality ? fival(1) : 0.0) << "  "
                  << raw_gradient_norm << "  "
                  << active_raw_gradient_norm << "  "
                  << filtered_gradient_norm << "  "
@@ -2882,8 +4571,13 @@ int main(int argc, char *argv[])
    // sweep already computed the identical continuous/discrete objective.
    if (!final_design_objective_available)
    {
-      final_design_objective =
-         design_solver.Objective(rho_tv_full, "final design");
+      final_design_objective = 0.0;
+      for (int source = 0; source < number_of_sources; source++)
+      {
+         final_design_objective += design_solvers[source]->Objective(
+            rho_tv_full, number_of_sources == 1 ? "final design" :
+            ("final design shot " + to_string(source)).c_str());
+      }
       final_design_objective_available = true;
    }
    const real_t final_design_volume =
