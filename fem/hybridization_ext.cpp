@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -136,8 +136,13 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
    const int nidofs = idofs.Size();
    const int nbdofs = bdofs.Size();
 
-   MFEM_VERIFY(nidofs <= MID, "");
-   MFEM_VERIFY(nbdofs <= MBD, "");
+   static constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
+   static constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
+   static constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
+   static constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
+
+   MFEM_VERIFY(nidofs <= MAX_IDOFS, "");
+   MFEM_VERIFY(nbdofs <= MAX_BDOFS, "");
 
    Ahat_ii.SetSize(nidofs*nidofs*ne);
    Ahat_ib.SetSize(nidofs*nbdofs*ne);
@@ -170,11 +175,6 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
 
    mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
-      constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
-      constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
-      constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
-
       LocalMemory<int,MAX_IDOFS> idofs_loc;
       LocalMemory<int,MAX_BDOFS> bdofs_loc;
       for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
@@ -237,7 +237,7 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
       LocalMemory<int,MBD> ipiv_bb_loc;
 
       auto ipiv_ii = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_ii_loc;
-      auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
+      auto ipiv_bb = GLOBAL ? &d_ipiv_bb(0,e) : ipiv_bb_loc;
 
       kernels::LUFactor(A_ii, nidofs, ipiv_ii);
       kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbfdofs, A_ib, A_bi, A_bb);
@@ -368,6 +368,8 @@ void HybridizationExtension::ConstructH()
 
    CAhatInvCt = 0.0;
 
+   // Fill the face-to-face adjacency array. Two faces are adjacent if they are
+   // incident to a common element.
    mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
    {
       const int begin_f = d_face_face_offsets[fi];
@@ -403,6 +405,12 @@ void HybridizationExtension::ConstructH()
             }
          }
       }
+      // Fill unused entries with -1 to indicate invalid
+      const int end_f = d_face_face_offsets[fi + 1];
+      for (int i = begin_f + idx; i < end_f; ++i)
+      {
+         d_face_to_face[i] = -1;
+      }
    });
 
    mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
@@ -412,6 +420,7 @@ void HybridizationExtension::ConstructH()
       for (int idx_j = begin; idx_j < end; ++idx_j)
       {
          const int fj = d_face_to_face[idx_j];
+         if (fj < 0) { break; }
          for (int ei = 0; ei < 2; ++ei)
          {
             const int e = d_face_to_el(0, ei, fi);
