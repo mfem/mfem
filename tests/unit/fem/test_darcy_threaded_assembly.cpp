@@ -350,6 +350,74 @@ void RequireSameVector(const Vector &ref, const Vector &got, const char *what)
    REQUIRE(max_diff == 0.0);
 }
 
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+
+// Declared weak rather than reached through <mkl.h>: MKL's headers are not
+// among MFEM's dependencies, BLAS is only sometimes MKL, and a weak symbol
+// that stays null is exactly the "not MKL" case. GNU and clang only; on any
+// other compiler the guard below is a documented no-op.
+#if defined(__GNUC__)
+extern "C" void MKL_Set_Num_Threads(int) __attribute__((weak));
+extern "C" int MKL_Get_Max_Threads(void) __attribute__((weak));
+#define MFEM_TEST_HAVE_WEAK_MKL 1
+#endif
+
+/** @brief Pins MKL to one thread while it is alive, and restores the previous
+    count on the way out. Does nothing at all where BLAS is not MKL.
+
+    WHY THE TWO CASES BELOW CANNOT ASSERT BITWISE EQUALITY WITHOUT IT. They
+    compare a serial assembly against a threaded one and select the thread
+    count with omp_set_num_threads(). DenseMatrix reaches BLAS whenever
+    MFEM_USE_LAPACK is on, and an MKL built against libgomp -- which is what
+    MKL_THREADING_LAYER=GNU asks for, and what this tree requires for
+    unrelated reasons -- takes its own thread count from that SAME OpenMP
+    runtime. So changing MFEM's thread count silently changes MKL's GEMM
+    blocking too, and the two runs differ in the BLAS's own reduction order
+    however correct the colouring is. Neither run is wrong; they are not the
+    same arithmetic.
+
+    Measured on the recovered flux at order 2, before this existed:
+    **4.44e-14 on the DG form and 34.875 on RT**, with nt = 1 passing and
+    nt = 2 failing, identical over repeated runs -- deterministic, so not a
+    race. MKL_NUM_THREADS=1 makes every case pass; MKL_CBWR=COMPATIBLE does
+    NOT, which is what says the cause is reduction ORDER and not the
+    instruction-set dispatch CBWR controls.
+
+    The two magnitudes are one cause with two amplifications, and the RT one
+    is NOT explained -- a 1e-16 perturbation of that local system emerging as
+    O(10) is either its conditioning or a pivot order selecting a different
+    member of a singular system's solution family. Recorded because a future
+    reader who removes this guard will see 34.875 and reach for a race.
+
+    This went unnoticed for as long as it did because these cases had never
+    RUN anywhere: both HDG development trees build with MFEM_THREAD_SAFE off,
+    where AssemblyMode::Threaded aborts and the cases WARN instead. The first
+    build to execute them was one configured elsewhere. */
+class MKLPinnedToOneThread
+{
+#ifdef MFEM_TEST_HAVE_WEAK_MKL
+   const int saved;
+public:
+   MKLPinnedToOneThread()
+      : saved(MKL_Get_Max_Threads ? MKL_Get_Max_Threads() : 0)
+   {
+      if (MKL_Set_Num_Threads) { MKL_Set_Num_Threads(1); }
+   }
+   ~MKLPinnedToOneThread()
+   {
+      if (MKL_Set_Num_Threads && saved > 0) { MKL_Set_Num_Threads(saved); }
+   }
+#else
+public:
+   // User-provided, so the object is not trivially destructible and an
+   // unnamed-purpose local of this type draws no -Wunused-variable.
+   MKLPinnedToOneThread() { }
+   ~MKLPinnedToOneThread() { }
+#endif
+};
+
+#endif // MFEM_USE_OPENMP && MFEM_THREAD_SAFE
+
 } // namespace darcy_threaded_assembly
 
 using namespace darcy_threaded_assembly;
@@ -358,6 +426,10 @@ TEST_CASE("Threaded trace assembly is bit-for-bit the serial one",
           "[DarcyHybridization][AssemblyMode]")
 {
 #if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+   // Before anything below reaches BLAS: see MKLPinnedToOneThread. The
+   // bitwise assertions are about MFEM's accumulation order and cannot
+   // survive MKL re-blocking itself when the thread count moves.
+   const MKLPinnedToOneThread mkl_pinned;
    const int saved_threads = omp_get_max_threads();
 
    for (Form form : {Form::RT, Form::DG})
@@ -429,6 +501,10 @@ TEST_CASE("A threaded nonlinear element loop is bit-for-bit the serial one",
    // covers H_f in AssembleHDGGrad(). It would NOT cover an H1_Trace space,
    // where a dof is shared between faces and so sees more than two.
 #if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+   // Before anything below reaches BLAS: see MKLPinnedToOneThread. The
+   // bitwise assertions are about MFEM's accumulation order and cannot
+   // survive MKL re-blocking itself when the thread count moves.
+   const MKLPinnedToOneThread mkl_pinned;
    const int saved_threads = omp_get_max_threads();
 
    for (int order : {0, 1, 2})
