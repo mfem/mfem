@@ -2966,6 +2966,15 @@ struct DofToQuadMap
       return Offset(c) + dx + Extent(c, 0) * (dy + Extent(c, 1) * dz);
    }
 
+   /// Return basis matrix for component c along direction k, shaped (q1d x d1d).
+   /// Useful to retrieve per axis basis factors, and store it in loop, since
+   /// it does not change during the sweep.
+   MFEM_HOST_DEVICE const real_t *Basis(int c, int k, bool deriv) const
+   {
+      const bool closed = Closed(c, k);
+      return deriv ? (closed ? G : Go) : (closed ? B : Bo);
+   }
+
    /// The 1D factor of component @a c along direction @a k at (@a q, @a d), or
    /// its derivative when @a deriv is set.
    MFEM_HOST_DEVICE real_t At(int c, int k, bool deriv, int q, int d) const

@@ -107,7 +107,8 @@ class Action
       {
          return XE(qx, qy, qz, 0, 0);
       }
-      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                         is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
       {
          return backend_t::template qp_pull<ARG>(get<I>(rargs), qx, qy, qz);
       }
@@ -306,10 +307,21 @@ public:
          const size_t k = in_idx[i];
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                       is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
          {
-            MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
+            // Flat view for ND/RT elements, since they have different per-axis extents
+            if (in_dtq[i].IsVectorFE())
+            {
+               const int nd = in_dtq[i].ndof;
+               MFEM_VERIFY(xe[k]->Size() == nd * ne, "Size mismatch");
+               in_XE[i] = Reshape(xe[k]->Read(), nd, 1, 1, 1, ne);
+            }
+            else
+            {
+               MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
+               in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
+            }
          }
          else if constexpr (is_identity_fop_v<FOP>)
          {
@@ -339,10 +351,20 @@ public:
          const size_t k = out_idx[i];
          const int d = out_d1d[i], q = out_q1d[i], v = out_vdim[i];
          using FOP = tuple_element_t<i, outputs_t>;
-         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
+         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP> ||
+                       is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
          {
-            MFEM_ASSERT(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
+            if (out_dtq[i].IsVectorFE())
+            {
+               const int nd = out_dtq[i].ndof;
+               MFEM_ASSERT(ye[k]->Size() == nd * ne, "Size mismatch");
+               out_YE[i] = Reshape(ye[k]->ReadWrite(), nd, 1, 1, 1, ne);
+            }
+            else
+            {
+               MFEM_ASSERT(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
+               out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
+            }
          }
          else if constexpr (is_identity_fop_v<FOP> || is_functionalvalue_fop_v<FOP>)
          {
@@ -389,6 +411,15 @@ public:
             if constexpr (is_value_fop<FOP>::value)
             {
                backend_t::LoadValue(smem, e, dtq, XE, rarg);
+            }
+            else if constexpr (is_div_fop_v<FOP>)
+            {
+               backend_t::LoadDiv(smem, e, dtq, XE, rarg);
+            }
+            else if constexpr (is_curl_fop_v<FOP>)
+            {
+               static_assert(dfem::always_false<FOP>,
+                             "LocalQF: Curl<> is not implemented yet");
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -463,7 +494,9 @@ public:
                            qarg = XE(qx, qy, qz, 0, 0);
                         }
                         else if constexpr (is_value_fop_v<FOP> ||
-                                           is_gradient_fop_v<FOP>)
+                                           is_gradient_fop_v<FOP> ||
+                                           is_div_fop_v<FOP> ||
+                                           is_curl_fop_v<FOP>)
                         {
                            qarg = backend_t::template qp_pull<ARG>(
                               get<i>(rargs), qx, qy, qz);
@@ -506,7 +539,9 @@ public:
                            }
                         }
                         else if constexpr (is_value_fop_v<FOP> ||
-                                           is_gradient_fop_v<FOP>)
+                                           is_gradient_fop_v<FOP> ||
+                                           is_div_fop_v<FOP> ||
+                                           is_curl_fop_v<FOP>)
                         {
                            auto &rarg = get<o>(rargs);
                            backend_t::template qp_push<ARG>(
@@ -542,6 +577,15 @@ public:
                if constexpr (is_value_fop_v<FOP>)
                {
                   backend_t::WriteValue(smem, e, dtq, YE, rarg);
+               }
+               else if constexpr (is_div_fop_v<FOP>)
+               {
+                  backend_t::WriteDiv(smem, e, dtq, YE, rarg);
+               }
+               else if constexpr (is_curl_fop_v<FOP>)
+               {
+                  static_assert(dfem::always_false<FOP>,
+                                "LocalQF: Curl<> is not implemented yet");
                }
                else if constexpr (is_gradient_fop_v<FOP>)
                {

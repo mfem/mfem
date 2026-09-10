@@ -1172,4 +1172,71 @@ inline int compute_kernel_thread_1d(
    return t1d;
 }
 
+
+
+///////////////////////////////////////////////////////////////////////////////
+///
+/// Struct for ND/RT carrying information about a single sweep of a component block.
+/// Needed because unlike the scalar FE case, for Div and Curl, the sweep direction
+/// and accumulation pattern are nontrivial (extents vary depending on the component).
+///
+/// For Div: each component differentiates along its own axis and accumulates into a single slot.
+/// For Curl: each component differentiates along the two other axes and accumulates into
+///           two separate slots.
+/// How a field operator sweeps a tensor-product vector element (ND/RT).
+
+/// One sweep of a component block: contract it with the derivative along
+/// @a deriv_dir (-1 for no derivative), then accumulate @a sgn times the
+/// result into register-bank slot @a slot.
+struct VecTerm
+{
+   int deriv_dir;
+   int slot;
+   real_t sgn;
+};
+
+/// Number of register-bank slots @a FOP writes, given the range dimension.
+template <typename FOP>
+MFEM_HOST_DEVICE inline int vector_num_slots(int range_dim)
+{
+   if constexpr (is_value_fop_v<FOP>) { return range_dim; }
+   else if constexpr (is_div_fop_v<FOP>) { return 1; }
+   else { return (range_dim == 2) ? 1 : 3; }
+}
+
+/// Number of sweeps each component needs under @a FOP.
+template <typename FOP>
+MFEM_HOST_DEVICE inline int vector_num_terms(int range_dim)
+{
+   // (curl w)_i = eps_ijk d_j w_k pairs every component with two derivative
+   // directions in 3D, one in 2D. Value and Div take a single sweep.
+   if constexpr (is_curl_fop_v<FOP>) { return (range_dim == 2) ? 1 : 2; }
+   else
+   {
+      MFEM_CONTRACT_VAR(range_dim);
+      return 1;
+   }
+}
+
+/// Sweep @a t of component @a c under @a FOP.
+template <typename FOP>
+MFEM_HOST_DEVICE inline VecTerm vector_term(int c, int t)
+{
+   MFEM_CONTRACT_VAR(t);
+   // Component c is its own slot, and nothing is differentiated.
+   if constexpr (is_value_fop_v<FOP>) { return { -1, c, 1.0 }; }
+   // Every component differentiates along its own axis and sums into the
+   // single divergence slot.
+   else if constexpr (is_div_fop_v<FOP>) { return { c, 0, 1.0 }; }
+   else
+   {
+      static_assert(dfem::always_false<FOP>,
+                    "LocalQF: Curl<> is not implemented yet; the sweeps it "
+                    "needs are eps_ijk, two per component in 3D");
+      return { -1, 0, 1.0 };
+   }
+}
+
+
+
 } // namespace mfem::future

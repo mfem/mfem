@@ -293,6 +293,9 @@ struct ho_ker_backend
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>,
          ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
 
+   using vector_dofs_t = std::conditional_t<(DIM == 2),
+         ker::s_regs2d_t<MQ1>, ker::s_regs3d_t<MQ1>>;
+
    struct Shared
    {
       real_t M[MQ1][MQ1], B[MQ1][MQ1], G[MQ1][MQ1];
@@ -308,6 +311,301 @@ struct ho_ker_backend
          ker::LoadDofs3d(e, d, XE, dofs);
       }
    }
+
+   // Load the vector degrees of freedom for a given component of a vector element.
+   template<typename XE_t>
+   static MFEM_HOST_DEVICE void load_vector_dofs(
+      const int e, const DofToQuadMap &m, const int c,
+      const XE_t &XE, vector_dofs_t &dofs)
+   {
+      // Loading the vector degrees of freedom into the local register `dofs`
+      // We assume they have a flat view due to the ND/RT per axis extents of the element
+      const int ex = m.Extent(c, 0), ey = m.Extent(c, 1);
+      const int ez = (DIM == 2) ? 1 : m.Extent(c, 2);
+      const int off = m.Offset(c);
+      for (int dz = 0; dz < ez; dz++)
+      {
+         MFEM_FOREACH_THREAD(dy, y, ey)
+         MFEM_FOREACH_THREAD(dx, x, ex)
+         {
+            const real_t value = XE(off + dx + ex * (dy + ey * dz),
+                                    0, 0, 0, e);
+            if constexpr (DIM == 2) { dofs[dy][dx] = value; }
+            else { dofs[dz][dy][dx] = value; }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+
+   /// Run sweep @a t of component block @a c under field operator @a FOP, accumulating
+   /// into the q-function register bank @a rarg.
+   /// Bx -> By -> Bz
+   ///
+   /// Basically the vector-FE counterpart of ker::Contract3d<false>. Follows
+   /// the same axis sweep order, with two differences forced by ND/RT: the 1D
+   /// factors are taken per component, since a component uses the closed basis
+   /// along some axes and the open basis along the others, and the destination
+   /// is a bank slot picked by the operator rather than the component index.
+   template<typename FOP, typename Smem, typename ArgReg>
+   static MFEM_HOST_DEVICE void contract_vector_component(
+      const DofToQuadMap &m, const int c, const int t,
+      Smem &s, const vector_dofs_t &dofs, ArgReg &rarg)
+   {
+      // Determine the sweep parameters for this component and term.
+      // Based on the operator type and the component index
+      const VecTerm vt = vector_term<FOP>(c, t);
+      const int deriv_dir = vt.deriv_dir;
+      const int q1d = m.Q1D();
+
+      // The 1D factor for a given (component, axis, deriv) is fixed for the
+      // whole sweep, so it is resolved once here instead of per multiply-add.
+      const real_t *Bx = m.Basis(c, 0, deriv_dir == 0);
+      const real_t *By = m.Basis(c, 1, deriv_dir == 1);
+      const real_t *Bz = m.Basis(c, 2, deriv_dir == 2);
+      MFEM_CONTRACT_VAR(Bz);
+
+      // Get the extents of the element along each axis.
+      const int ex = m.Extent(c, 0), ey = m.Extent(c, 1);
+      const int ez = (DIM == 2) ? 1 : m.Extent(c, 2);
+
+      for (int dz = 0; dz < ez; dz++)
+      {
+         // Sweep along the x-axis for the current z-slice.
+         MFEM_FOREACH_THREAD(dy, y, ey)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t value = 0.0;
+            for (int dx = 0; dx < ex; dx++)
+            {
+               if constexpr (DIM == 2)
+               {
+                  value += Bx[qx + q1d * dx] * dofs[dy][dx];
+               }
+               else
+               {
+                  value += Bx[qx + q1d * dx] *
+                           dofs[dz][dy][dx];
+               }
+            }
+            s.M[dy][qx] = value;
+         }
+         MFEM_SYNC_THREAD;
+
+         // Sweep along the y-axis for the current z-slice.
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t value = 0.0;
+            for (int dy = 0; dy < ey; dy++)
+            {
+               value += By[qy + q1d * dy] * s.M[dy][qx];
+            }
+            if constexpr (DIM == 2) { vector_accum<FOP>(rarg, qx, qy, 0, vt, value); }
+            else
+            {
+               for (int qz = 0; qz < q1d; qz++)
+               {
+                  vector_accum<FOP>(rarg, qx, qy, qz, vt,
+                                    Bz[qz + q1d * dz] * value);
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   }
+
+   /// Integrate quadrature-point values against one component block,
+   /// producing that block's degrees of freedom.
+   /// Same assumptions as for the forward contraction above.
+   /// Bzt -> Byt -> Bxt
+   template<typename FOP, typename Smem, typename ArgReg>
+   static MFEM_HOST_DEVICE void contract_vector_component_transpose(
+      const DofToQuadMap &m, const int c, const int t,
+      Smem &s, ArgReg &rarg, vector_dofs_t &dofs)
+   {
+      const VecTerm vt = vector_term<FOP>(c, t);
+      const int deriv_dir = vt.deriv_dir;
+      const int q1d = m.Q1D();
+      // The 1D factor for a given (component, axis, deriv) is fixed for the
+      // whole sweep, so it is resolved once here instead of per multiply-add.
+      const real_t *Bx = m.Basis(c, 0, deriv_dir == 0);
+      const real_t *By = m.Basis(c, 1, deriv_dir == 1);
+      const real_t *Bz = m.Basis(c, 2, deriv_dir == 2);
+      MFEM_CONTRACT_VAR(Bz);
+
+      // Get the extents of the element along each axis.
+      const int ex = m.Extent(c, 0), ey = m.Extent(c, 1);
+      const int ez = (DIM == 2) ? 1 : m.Extent(c, 2);
+      for (int dz = 0; dz < ez; dz++)
+      {
+         // Sweep along the z-axis for the current element slice.
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t value = 0.0;
+            if constexpr (DIM == 2) { value = vector_src<FOP>(rarg, qx, qy, 0, vt); }
+            else
+            {
+               for (int qz = 0; qz < q1d; qz++)
+               {
+                  value += Bz[qz + q1d * dz] *
+                           vector_src<FOP>(rarg, qx, qy, qz, vt);
+               }
+            }
+            s.M[qy][qx] = value;
+         }
+         MFEM_SYNC_THREAD;
+
+         // Sweep along the y-axis for the current z-slice.
+         MFEM_FOREACH_THREAD(dy, y, ey)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t value = 0.0;
+            for (int qy = 0; qy < q1d; qy++)
+            {
+               value += By[qy + q1d * dy] * s.M[qy][qx];
+            }
+            s.B[dy][qx] = value;
+         }
+         MFEM_SYNC_THREAD;
+
+         // Sweep along the x-axis for the current y-slice.
+         MFEM_FOREACH_THREAD(dy, y, ey)
+         MFEM_FOREACH_THREAD(dx, x, ex)
+         {
+            real_t value = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               value += Bx[qx + q1d * dx] * s.B[dy][qx];
+            }
+            if constexpr (DIM == 2) { dofs[dy][dx] = value; }
+            else { dofs[dz][dy][dx] = value; }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   }
+
+   template<typename YE_t>
+   static MFEM_HOST_DEVICE void write_vector_dofs(
+      const int e, const DofToQuadMap &m, const int c,
+      const vector_dofs_t &dofs, const YE_t &YE)
+   {
+      const int ex = m.Extent(c, 0), ey = m.Extent(c, 1);
+      const int ez = (DIM == 2) ? 1 : m.Extent(c, 2);
+      const int off = m.Offset(c);
+      for (int dz = 0; dz < ez; dz++)
+      {
+         MFEM_FOREACH_THREAD(dy, y, ey)
+         MFEM_FOREACH_THREAD(dx, x, ex)
+         {
+            if constexpr (DIM == 2)
+            {
+               YE(off + dx + ex * dy, 0, 0, 0, e) += dofs[dy][dx];
+            }
+            else
+            {
+               YE(off + dx + ex * (dy + ey * dz), 0, 0, 0, e) +=
+                  dofs[dz][dy][dx];
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+
+   /// Interpolate a vector element at the quadrature points under field
+   /// operator @a FOP.
+   template<typename FOP, typename XE_t, typename ArgReg>
+   static MFEM_HOST_DEVICE void load_vector(
+      Shared &s, const int e, const DofToQuadMap &m,
+      const XE_t &XE, ArgReg &rarg)
+   {
+      zero_vector_components(rarg, vector_num_slots<FOP>(m.range_dim), m.Q1D());
+
+      const int nterms = vector_num_terms<FOP>(m.range_dim);
+      for (int c = 0; c < m.range_dim; c++)
+      {
+         // Gathered once and reused by every sweep of this component.
+         vector_dofs_t dofs;
+         load_vector_dofs(e, m, c, XE, dofs);
+         for (int t = 0; t < nterms; t++)
+         {
+            contract_vector_component<FOP>(m, c, t, s, dofs, rarg);
+         }
+      }
+   }
+
+   /// Integrate quadrature-point data against a vector element under field
+   /// operator @a FOP and add the result into the element vector.
+   template<typename FOP, typename YE_t, typename ArgReg>
+   static MFEM_HOST_DEVICE void write_vector(
+      Shared &s, const int e, const DofToQuadMap &m,
+      const YE_t &YE, ArgReg &rarg)
+   {
+      const int nterms = vector_num_terms<FOP>(m.range_dim);
+      for (int c = 0; c < m.range_dim; c++)
+      {
+         for (int t = 0; t < nterms; t++)
+         {
+            // write_vector_dofs adds into YE, so several sweeps of one
+            // component accumulate rather than overwrite.
+            vector_dofs_t dofs;
+            contract_vector_component_transpose<FOP>(m, c, t, s, rarg, dofs);
+            write_vector_dofs(e, m, c, dofs, YE);
+         }
+      }
+   }
+private:
+   /// Accumulate one quadrature-point contribution into the slot named by
+   /// @a vt. The sign is only ever non-unit for a Curl, so the other
+   /// operators keep a bare add in the innermost loop.
+   template<typename FOP, typename Reg>
+   static MFEM_HOST_DEVICE void vector_accum(
+      Reg &reg, int qx, int qy, int qz, const VecTerm &vt, real_t value)
+   {
+      if constexpr (is_curl_fop_v<FOP>)
+      {
+         vector_component(reg, qx, qy, qz, vt.slot) += vt.sgn * value;
+      }
+      else { vector_component(reg, qx, qy, qz, vt.slot) += value; }
+   }
+
+   /// Read back the slot named by @a vt, the mirror of vector_accum.
+   template<typename FOP, typename Reg>
+   static MFEM_HOST_DEVICE real_t vector_src(
+      Reg &reg, int qx, int qy, int qz, const VecTerm &vt)
+   {
+      const real_t value = vector_component(reg, qx, qy, qz, vt.slot);
+      if constexpr (is_curl_fop_v<FOP>) { return vt.sgn * value; }
+      else { return value; }
+   }
+
+   template<typename Reg>
+   static MFEM_HOST_DEVICE real_t &vector_component(
+      Reg &reg, int qx, int qy, int qz, int c)
+   {
+      if constexpr (DIM == 2)
+      {
+         MFEM_CONTRACT_VAR(qz);
+         return reg(c, qy, qx);
+      }
+      else { return reg(c, qz, qy, qx); }
+   }
+
+   template<typename Reg>
+   static MFEM_HOST_DEVICE void zero_vector_components(
+      Reg &reg, const int ncomp, const int q1d)
+   {
+      MFEM_FOREACH_THREAD(qy, y, q1d)
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      for (int qz = 0; qz < ((DIM == 2) ? 1 : q1d); qz++)
+         for (int c = 0; c < ncomp; c++)
+         {
+            vector_component(reg, qx, qy, qz, c) = 0.0;
+         }
+      MFEM_SYNC_THREAD;
+   }
+
+public:
 
    template<int VDIM, int SDIM, typename XE_t, typename Dofs>
    static MFEM_HOST_DEVICE void
@@ -526,6 +824,9 @@ struct LocalQFHOBackend
    using QReg = ho_qreg_t<backend_t, T>;
 
    // ─────────────────────────────────────────────────────
+   /// Interpolate a field to quadrature points.
+   /// Since we dispatch based on the DofToQuadMap, we can handle both
+   /// scalar and vector FE.
    template<typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE void LoadValue(Shared &s,
                                                  const int e,
@@ -533,11 +834,28 @@ struct LocalQFHOBackend
                                                  const XE_T &XE,
                                                  ArgRegT &rarg)
    {
+      if (dtq.IsVectorFE())
+      {
+         backend_t::template load_vector<Value<>>(s, e, dtq, XE, rarg);
+         return;
+      }
       const int d = dtq.D1D(), q = dtq.Q1D();
       ker::LoadMatrix(d, q, dtq.B, s.B);
       std::remove_reference_t<ArgRegT> dofs;
       backend_t::load_dofs(e, d, XE, dofs);
       backend_t::eval_value(d, q, s, dofs, rarg);
+   }
+
+   // ─────────────────────────────────────────────────────
+   /// Evaluate the reference divergence of a field at quadrature points.
+   template<typename ArgRegT, typename XE_T>
+   static inline MFEM_HOST_DEVICE void LoadDiv(Shared &s,
+                                               const int e,
+                                               const DofToQuadMap &dtq,
+                                               const XE_T &XE,
+                                               ArgRegT &rarg)
+   {
+      backend_t::template load_vector<Div<>>(s, e, dtq, XE, rarg);
    }
 
    // ─────────────────────────────────────────────────────
@@ -738,6 +1056,9 @@ struct LocalQFHOBackend
    }
 
    // ─────────────────────────────────────────────────────
+   /// Integrate qp scalars against test basis functions.
+   /// Since we dispatch based on the DofToQuadMap, we can deal with both
+   /// scalar and vector FE.
    template<typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE void WriteValue(Shared &s,
                                                   const int e,
@@ -745,10 +1066,27 @@ struct LocalQFHOBackend
                                                   YE_T &YE,
                                                   ArgRegT &rarg)
    {
+      if (dtq.IsVectorFE())
+      {
+         backend_t::template write_vector<Value<>>(s, e, dtq, YE, rarg);
+         return;
+      }
       const int d = dtq.D1D(), q = dtq.Q1D();
       ker::LoadMatrix(d, q, dtq.B, s.B);
       std::remove_reference_t<ArgRegT> dofs;
       backend_t::write_value(d, q, e, s, rarg, dofs, YE);
+   }
+
+   // ─────────────────────────────────────────────────────
+   /// Integrate qp scalars against divergence of test basis.
+   template<typename ArgRegT, typename YE_T>
+   static inline MFEM_HOST_DEVICE void WriteDiv(Shared &s,
+                                                const int e,
+                                                const DofToQuadMap &dtq,
+                                                YE_T &YE,
+                                                ArgRegT &rarg)
+   {
+      backend_t::template write_vector<Div<>>(s, e, dtq, YE, rarg);
    }
 
    // ─────────────────────────────────────────────────────
