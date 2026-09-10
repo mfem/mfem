@@ -200,13 +200,11 @@ struct GraphOperation
 
 protected:
     Operator *op; // Optional forward operator (not owned)
-    Operator *grad_op = nullptr; // Optional gradient operator (not owned)
 
 public:
     Array<Field*> inputs, outputs;
     ExecuteFunc execute; // forward operation
-    GradFunc grad, grad_transpose; // gradient and grad_transpose functions
-    IndexMap input_index, output_index; ///< Field::ID to Array index (may not be needed)
+    GradFunc grad, grad_transpose; // Jacobian application functions
 
     GraphOperation(Operator &oper, InputType in, OutputType out,
                    ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
@@ -214,9 +212,6 @@ public:
                    op(&oper), inputs(in), outputs(out),
                    execute(exec), grad(grad), grad_transpose(grad_transpose)
     {
-        int i = 0, o = 0;
-        for(auto *f : in) { input_index.Register(f->ID(), i++); }
-        for(auto *f : out) { output_index.Register(f->ID(), o++); }
         if(!exec)
         {
             execute = [this](const MultiVector &x, MultiVector &y)
@@ -227,28 +222,18 @@ public:
     GraphOperation(ExecuteFunc exec, InputType in, OutputType out,
                    GradFunc grad = nullptr, GradFunc grad_transpose = nullptr) :
                    op(nullptr), inputs(in), outputs(out), execute(exec),
-                   grad(grad), grad_transpose(grad_transpose)
-    {
-        int i = 0, o = 0;
-        for(auto *f : in) { input_index.Register(f->ID(), i++); }
-        for(auto *f : out) { output_index.Register(f->ID(), o++); }
-    }
+                   grad(grad), grad_transpose(grad_transpose) { }
 
-    std::tuple<int, int> Size() const { return std::make_tuple(inputs.Size(), outputs.Size()); }
+    std::tuple<int, int> Sizes() const { return std::make_tuple(inputs.Size(), outputs.Size()); }
 
     virtual void SetPrimal(MultiVector &x)
-    {
-        MFEM_ABORT("SetPrimal is not implemented for this GraphOperation.");
-    }
+    { MFEM_ABORT("Function not implemented."); }
 
-    virtual void Execute(const MultiVector &x, MultiVector &y) const
+    virtual void Execute(const MultiVector &x, MultiVector &y, bool reverse = false) const
     {
-        if (execute) { execute(x, y); }
-        else { MFEM_ABORT("Execute function not defined for this GraphOperation."); }
+        MFEM_ASSERT(!reverse, "Reverse execution not supported.");
+        execute(x, y);
     }
-
-    virtual void ExecuteTranspose(const MultiVector &x, MultiVector &y) const
-    { MFEM_ABORT("ExecuteTranspose function not defined for this GraphOperation."); }
 
     GraphOperation *GetGradient() const;
 
@@ -290,20 +275,17 @@ struct AbstractGraphOperation : GraphOperation
 
 /// @brief A GraphOperation that represents the gradient of another GraphOperation.
 /// Applies the Jacobian and its transpose to the input vectors.
-/// TODO: Tidy this up to handle J and J^T cleanly.
 struct GraphOperationGradient : GraphOperation
 {
     ExecuteFunc execute_primal, execute_transpose;
-    mutable MultiVector primal;
     GraphOperation *primal_op = nullptr;
+    mutable MultiVector primal; // Reference to memory in DAG
 
     GraphOperationGradient(GraphOperation &oper);
 
-    virtual void Execute(const MultiVector &x, MultiVector &y) const;
+    void Execute(const MultiVector &x, MultiVector &y, bool reverse = false) const override;
 
-    virtual void SetPrimal(MultiVector &x) override;
-
-    void ExecuteTranspose(const MultiVector &x, MultiVector &y) const override;
+    void SetPrimal(MultiVector &x) override;
 
     ~GraphOperationGradient() { }
 };
@@ -395,13 +377,13 @@ public:
 
             // Register the operation on the tape
             auto *op = new AbstractGraphOperation<GraphOperator, AuxType>(*this, inputs, outputs, auxiliary_data,
-                                                                              def_exec, def_grad, def_grad_transpose);
+                                                                          def_exec, def_grad, def_grad_transpose);
             tape->RegisterOperation(op);
         }
         else
         {   // Same tape but not recording, or no tape at all
             // Should we abort or do nothing?
-            // MFEM_ABORT("Input fields are not being recorded on a tape. Cannot register operation.");
+            MFEM_ABORT("Input fields are not being recorded on a tape. Cannot register operation.");
         }
     }
 
@@ -539,10 +521,13 @@ public:
 
 protected:
     /// Users should use Mult instead of calling Execute directly.
-    virtual void Execute(int upto_depth = 0) const;
+    virtual void Execute(bool reverse = false, int upto_depth = 0) const;
 public:
     void Mult(const Vector &x, Vector &y) const override;
     void MultMV(const MultiVector &x, MultiVector &y) const override;
+
+    void MultTranspose(const Vector &x, Vector &y) const override;
+    void MultTransposeMV(const MultiVector &x, MultiVector &y) const override;
 
     Operator& GetGradient(const Vector &x) const override;
     Operator& GetGradientMV(const MultiVector &x) const override;
@@ -568,8 +553,6 @@ public:
     DualGraph(const DAGraph &primal_dag);
     void Assemble() override;
     void UpdateState(const MultiVector &x) override;
-    void MultTranspose(const Vector &x, Vector &y) const override;
-    void MultTransposeMV(const MultiVector &x, MultiVector &y) const override;
 };
 
 } //mfem namespace
