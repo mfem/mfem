@@ -69,7 +69,6 @@ void GraphOperationGradient::SetPrimal(MultiVector &x)
     primal.SetNumBlocks(n);
     for(int i = 0; i < n; i++)
     {
-        // primal.MakeRef(i, x[i]);
         primal.MakeRef(i, std::as_const(x[i]));
     }
     if(!grad) // Gradient closure was not provided; build and store the Jacobian
@@ -721,7 +720,7 @@ void DualGraph::UpdateState(const MultiVector &x)
         }
 
         if(primal_dag->op_depth[iop] > 0) // Only execute nodes that are not leaves
-        { // Execution of leaves needed if building Jacobians internally to GraphOperator
+        {
             pop->Execute(xmv, ymv);
         }
         operations[iop]->SetPrimal(xmv);
