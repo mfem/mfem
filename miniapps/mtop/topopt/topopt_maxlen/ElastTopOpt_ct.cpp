@@ -807,8 +807,8 @@ int main(int argc, char *argv[])
         {
             for (int i = 0; i < m[r]; i++)
             {
-                tx_min[toffsets[1 + r] + i] = std::max(alpha_min, alpha_tv[r][i] - move);
-                tx_max[toffsets[1 + r] + i] = std::min(alpha_max, alpha_tv[r][i] + move);
+                tx_min[toffsets[1 + r] + i] = alpha_min;
+                tx_max[toffsets[1 + r] + i] = alpha_max;
             }
         }
 
@@ -1082,17 +1082,17 @@ static MeshProblem SetupPentagon(Mesh &mesh, const char *mesh_file)
     MeshProblem p;
     p.domain_attr.Append(1);
     p.outer_bdr_attrs = Array<int>({1});
-    p.rays.parallel = { 5, 2 * M_PI, 0.0 };     // aligned with pentagon edges
-    p.rays.cone     = { 5, 2 * M_PI, 0.0 };
+    p.rays.parallel = { 10, 2 * M_PI, 0.0 };     // aligned with pentagon edges
+    p.rays.cone     = { 10, 2 * M_PI, 0.0 };
 
     const int n_case = 5;
-    const real_t angles_deg_forces[] = {18.0, 90.0, 162.0, 234.0, 306.0};
+    const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
     real_t fdx[5], fdy[5];
     for (int k = 0; k < n_case; k++)
     {
         const real_t ang = angles_deg_forces[k] * M_PI / 180.0;
-        fdx[k] = cos(ang);
-        fdy[k] = sin(ang);
+        fdx[k] = -sin(ang);
+        fdy[k] = cos(ang);
     }
 
     const int first_attr = 2;

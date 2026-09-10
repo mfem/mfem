@@ -511,6 +511,10 @@ public:
    /// Return the current AMG preconditioner, assembling first if needed.
    const Solver *GetPreconditioner() const;
 
+   /// Krylov iteration count of the most recent solve (0 before any solve).
+   int GetNumIterations() const
+   { return cg_solver_ ? cg_solver_->GetNumIterations() : 0; }
+
 private:
    friend class AttributeCoefficientMap;
 

@@ -49,6 +49,7 @@ private:
     real_t dt = 0.1;
     real_t final_t = 3;
     real_t tol = 1e-6;
+    int print_level = 0;   // 0 off, 1 final summary, 2 every pseudo-time step
 
     // forward and backward march using the same scheme
     // stopping criterion is when relative rate of change below tolerance
@@ -77,6 +78,7 @@ public:
     void SetTimeStep(const real_t dt_) { dt = dt_; }
     void SetTerminalTime(const real_t final_t_) { final_t = final_t_; }
     void SetTol(const real_t tol_) { tol = tol_; }
+    void SetPrintLevel(int pl) { print_level = pl; }
 
     int GetIterCount() const { return iter_count; }
 
