@@ -666,8 +666,6 @@ void DualGraph::UpdateState(const MultiVector &x)
     auto [inoffsets, outoffsets] = GetOffsets();
 
     int nop = primal_dag->operations.Size();
-    auto grad_mode = GraphOperator::ExecutionMode::GRADIENT_MODE;
-    auto default_mode = GraphOperator::ExecutionMode::DEFAULT_MODE;
     const int ipgrad = primal_dag->GetGradientOrder();
 
     // Copy input into the memory for input field (outputs are done below)
@@ -724,10 +722,7 @@ void DualGraph::UpdateState(const MultiVector &x)
 
         if(primal_dag->op_depth[iop] > 0) // Only execute nodes that are not leaves
         { // Execution of leaves needed if building Jacobians internally to GraphOperator
-            GraphOperator *gop = dynamic_cast<GraphOperator*>(&(pop->GetOperator()));
-            if(gop) { gop->SetExecutionMode(grad_mode); }
             pop->Execute(xmv, ymv);
-            if(gop) { gop->SetExecutionMode(default_mode); }
         }
         operations[iop]->SetPrimal(xmv);
     }

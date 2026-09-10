@@ -311,20 +311,12 @@ struct GraphOperationGradient : GraphOperation
 
 class GraphOperator : public Operator
 {
-public:
-    enum ExecutionMode
-    {
-        GRADIENT_MODE, ///< Node is being executed as part of a gradient evaluation
-        DEFAULT_MODE   ///< Node is being executed as default, operator evaluation
-    };
-
 private:
     inline static int next_id = 0;
 
 protected:
     int id = -1;
     std::string name; ///< Optional name for the node
-    mutable ExecutionMode exec_mode = DEFAULT_MODE;
     Array<int> input_offsets;  ///< Offsets for input fields
     Array<int> output_offsets; ///< Offsets for output fields
 
@@ -335,9 +327,6 @@ public:
                               { }
 
     GraphOperator(int s = 0) : GraphOperator(s, s) { }
-
-    void SetExecutionMode(ExecutionMode mode) { exec_mode = mode; }
-    ExecutionMode GetExecutionMode() const { return exec_mode; }
 
     void SetID(int id_) { id = id_; }
     int ID() const { return id; }
