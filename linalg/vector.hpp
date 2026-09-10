@@ -103,9 +103,28 @@ public:
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
    /** The pointer @a data_ can be NULL. The data array can be replaced later
-       with SetData(). */
+       with SetData(). @a check = true if @a data_ could have been previously
+      registered with the memory manager. */
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   Vector(real_t *data_, int size_, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(data_, size_, false);
+      }
+      else
+      {
+         data.Wrap(data_, size_, false);
+      }
+      size = size_;
+   }
+#else
    Vector(real_t *data_, int size_)
-   { data.Wrap(data_, size_, false); size = size_; }
+   {
+      data.Wrap(data_, size_, false);
+      size = size_;
+   }
+#endif
 
    /** @brief Create a Vector referencing a sub-vector of the Vector @a base
        starting at the given offset, @a base_offset, and size @a size_. */
@@ -147,6 +166,23 @@ public:
    /// Return the device flag of the Memory object used by the Vector
    virtual bool UseDevice() const { return data.UseDevice(); }
 
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   /// Creates and returns a temporary vector. The result memory type will be
+   /// @sa GetTemporaryMemorySpace(@a mt).
+   ///
+   /// Also calls @sa UseDevice if IsDeviceMemory(mt) == true
+   static Vector NewTemporary(int size,
+                              MemoryType mt = Device::GetDeviceMemoryType())
+   {
+      Vector vec(size, GetTemporaryMemorySpace(mt));
+      if (IsDeviceMemory(mt))
+      {
+         vec.UseDevice();
+      }
+      return vec;
+   }
+#endif
+
    /// Reads a vector from multiple files
    void Load(std::istream ** in, int np, int * dim);
 
@@ -181,14 +217,47 @@ public:
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   void SetData(real_t *d, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(d, data.Capacity(), false);
+      }
+      else
+      {
+         data.Wrap(d, data.Capacity(), false);
+      }
+   }
+#else
    void SetData(real_t *d) { data.Wrap(d, data.Capacity(), false); }
+#endif
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(real_t *d, int s) { data.Wrap(d, s, false); size = s; }
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   void SetDataAndSize(real_t *d, int s, bool check = false)
+   {
+      if (check)
+      {
+         data.CheckedWrap(d, s, false);
+      }
+      else
+      {
+         data.Wrap(d, s, false);
+      }
+      size = s;
+   }
+#else
+   void SetDataAndSize(real_t *d, int s)
+   {
+      data.Wrap(d, s, false);
+      size = s;
+   }
+#endif
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
@@ -253,13 +322,13 @@ public:
    inline real_t *begin() { return data; }
 
    /// STL-like end.
-   inline real_t *end() { return data + size; }
+   inline real_t *end() { return static_cast<real_t*>(data) + size; }
 
    /// STL-like begin (const version).
    inline const real_t *begin() const { return data; }
 
    /// STL-like end (const version).
-   inline const real_t *end() const { return data + size; }
+   inline const real_t *end() const { return static_cast<const real_t*>(data) + size; }
 
    /// Return a reference to the Memory object used by the Vector.
    Memory<real_t> &GetMemory() { return data; }
@@ -273,7 +342,7 @@ public:
 
    /// Update the alias memory location of the vector to match @a v.
    void SyncAliasMemory(const Vector &v) const
-   { GetMemory().SyncAlias(v.GetMemory(),Size()); }
+   { GetMemory().SyncAlias(v.GetMemory(), Size()); }
 
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
@@ -645,8 +714,8 @@ inline void Vector::SetSize(int s)
    const MemoryType mt = data.GetMemoryType();
    const bool use_dev = data.UseDevice();
    data.Delete();
-   size = s;
    data.New(s, mt);
+   size = s;
    data.UseDevice(use_dev);
 }
 
@@ -669,13 +738,12 @@ inline void Vector::SetSize(int s, MemoryType mt)
    if (s > 0)
    {
       data.New(s, mt);
-      size = s;
    }
    else
    {
       data.Reset();
-      size = 0;
    }
+   size = s;
    data.UseDevice(use_dev);
 }
 
@@ -729,7 +797,7 @@ inline void Vector::Destroy()
 
 inline real_t &Vector::operator()(int i)
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(!data.Empty() && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];
@@ -737,7 +805,7 @@ inline real_t &Vector::operator()(int i)
 
 inline const real_t &Vector::operator()(int i) const
 {
-   MFEM_ASSERT(data && i >= 0 && i < size,
+   MFEM_ASSERT(!data.Empty() && i >= 0 && i < size,
                "index [" << i << "] is out of range [0," << size << ")");
 
    return data[i];
