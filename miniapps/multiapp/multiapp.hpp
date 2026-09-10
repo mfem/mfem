@@ -452,15 +452,11 @@ protected:
     Array<Field*> fields;  ///< List of all fields used in operations (not owned)
     IndexMap id_to_field_index; ///< Map from field ID to index in fields array
 
-    // -- EXPERIMENTAL: state memory management by dag (not Field)
+    mutable std::vector<Array<StateType*>> state_memory; ///< Owned: use id->field_index to index into this array
+                                                         /// nfields x ngrad (to store primal and daul)
 private:
     int gradient_order = 0; ///< Order of the gradient (0 for primal, 1 for first-order, etc.)
 protected:
-    virtual void SetGradientOrder(int order) { gradient_order = order; }
-    int GetGradientOrder() const { return gradient_order; }
-    mutable std::vector<Array<StateType*>> state_memory; ///< Owned: use id->field_index to index into this array
-                                                /// nfields x ngrad (to store primal and daul)
-    // -- EXPERIMENTAL
 
     int max_depth = 0; ///< Maximum depth of the graph
     bool is_sorted = false; ///< Is the graph topologically sorted?
@@ -509,18 +505,22 @@ public:
     void AllocateMemory(bool allocate_IO = true);
     void ClearMemory();
 
+    virtual void SetGradientOrder(int order) { gradient_order = order; }
+    int GetGradientOrder() const { return gradient_order; }
+
 protected:
     // This changes intermediate state; restrict user call
     virtual void UpdateState(const MultiVector &x);
 
-    // -- EXPERIMENTAL: Get state memory to copy and store primal in dual graph
+    // Get state memory to copy and store primal in dual graph
     // Get up to the @a igrad-th gradient of the state for a given field
     virtual void GetState(Field &field, MultiVector &state, int igrad = 0) const
     {
         MFEM_ASSERT(igrad >= 0, "The ith gradient must be non-negative.");
 
-        MFEM_ASSERT(state.NumBlocks() > igrad, "State size " << state.NumBlocks()
-                    << " is less than the requested gradient indices " << igrad);
+        state.SetNumBlocks(igrad + 1);
+        // MFEM_ASSERT(state.NumBlocks() > igrad, "State size " << state.NumBlocks()
+        //             << " is less than the requested gradient indices " << igrad);
 
         bool dag_has_field = id_to_field_index.Has(field.ID());
         MFEM_ASSERT(dag_has_field, "Field with ID " << field.ID()
@@ -528,7 +528,7 @@ protected:
 
         int idx = id_to_field_index.Get(field.ID());
 
-        // For now enforce the two are the same fields
+        // For now enforce the two are the same fields, instead of just matching IDs
         MFEM_ASSERT(&field == fields[idx], "Field with ID " << field.ID()
                     << " does not match the registered field in the DAG.");
 
@@ -537,14 +537,10 @@ protected:
         {
             // Force storage as const to avoid accidental modification of the state memory
             state.MakeRef(i, std::as_const(*state_memory[idx][i]));
-            // Possibly allocate new and copy to avoid changing the state memory in the DAG
-            // and handle the copy operation, if state is Array<Vector*> instead of MultiVector
-            // state[i] = field.CreateCopy(state_memory(idx, i));
         }
     }
-    // -- EXPERIMENTAL
-public:
 
+public:
     void SetOffsets(const Array<int> &inoff, const Array<int> &outoff) override
     {
         GraphOperator::SetOffsets(inoff, outoff);
@@ -552,8 +548,10 @@ public:
         height = outoff.Last();
     }
 
+protected:
+    /// Users should use Mult instead of calling Execute directly.
     virtual void Execute(int upto_depth = 0) const;
-
+public:
     void Mult(const Vector &x, Vector &y) const override;
     void MultMV(const MultiVector &x, MultiVector &y) const override;
 

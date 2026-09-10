@@ -140,10 +140,7 @@ DAGraph::DAGraph(const int nops, const int nfields) : GraphOperator()
 
     int reserve_fields = (nfields > 0) ? nfields : max_fields;
     fields.Reserve(reserve_fields);
-
-    // -- EXPERIMENTAL: Reserve state memory for each field
     state_memory.reserve(reserve_fields);
-    // -- EXPERIMENTAL
 }
 
 DAGraph::~DAGraph()
@@ -171,10 +168,8 @@ void DAGraph::Reset()
     is_sorted = false;
     is_assembled = false;
 
-    // -- EXPERIMENTAL: Clear state memory
-    if(fdj_op) { delete fdj_op; fdj_op = nullptr; }
     ClearMemory();
-    // -- EXPERIMENTAL
+    if(fdj_op) { delete fdj_op; fdj_op = nullptr; }
 }
 
 void DAGraph::AllocateMemory(bool allocate_IO)
@@ -366,8 +361,6 @@ void DAGraph::Watch(std::initializer_list<Field*> fields_list)
 
     dag_op = new GraphOperation(*this, fields_list, {});
 
-    // TODO: // -- EXPERIMENTAL: allocate state memory for dag inputs
-
     // Set the tape for each watched field
     for(auto &f : dag_op->inputs) { f->SetTape(this); }
 }
@@ -380,47 +373,28 @@ void DAGraph::AddOperation(GraphOperation *op)
                                                   // we can use grad_order of operation
                                                   // For finitely differetiable operators
 
-    for(auto *f : op->inputs)
+    for (auto & inout : {op->inputs, op->outputs})
     {
-        if(!id_to_field_index.Has(f->ID()))
+        for (auto & f : inout)
         {
-            fields.push_back(f);
-            id_to_field_index.Register(f->ID(), fields.Size() - 1);
-
-            // -- EXPERIMENTAL: Reserve state memory for each field
-            // TODO: Maybe include a flag to not allocate memory while taping
-            state_memory.push_back(Array<StateType*>());
-            auto &fmem = state_memory.back();
-            fmem.Reserve(grad_order);
-            for(int i = 0; i < grad_order; i++)
+            if(!id_to_field_index.Has(f->ID()))
             {
-                fmem.push_back(f->MakeNew()); // Allocate new memory (owned by dag)
+                fields.push_back(f);
+                id_to_field_index.Register(f->ID(), fields.Size() - 1);
+
+                // Reserve state memory for each field
+                // TODO: Maybe include a flag to not allocate memory while taping
+                state_memory.push_back(Array<StateType*>());
+                auto &fmem = state_memory.back();
+                fmem.Reserve(grad_order);
+                for(int i = 0; i < grad_order; i++)
+                {
+                    fmem.push_back(f->MakeNew()); // Allocate new memory (owned by dag)
+                }
             }
-            // -- EXPERIMENTAL
         }
     }
 
-    // Register outputs fields and id->index mapping and
-    // id->operation that outputs the field
-    for(auto *f : op->outputs)
-    {
-        id_to_op_index.Register(f->ID(), operations.Size() - 1);
-        if(!id_to_field_index.Has(f->ID()))
-        {
-            fields.push_back(f);
-            id_to_field_index.Register(f->ID(), fields.Size() - 1);
-
-            // -- EXPERIMENTAL: Reserve state memory for each field
-            state_memory.push_back(Array<StateType*>());
-            auto &fmem = state_memory.back();
-            fmem.Reserve(grad_order);
-            for(int i = 0; i < grad_order; i++)
-            {
-                fmem.push_back(f->MakeNew()); // Allocate new memory (owned by dag)
-            }
-            // -- EXPERIMENTAL
-        }
-    }
     op_owned.push_back(true); // For now, we own the operations
     is_sorted = false;
     is_assembled = false;
@@ -526,7 +500,6 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
     MFEM_ASSERT(outputs.Size() == y.NumBlocks(), "Number of output blocks (" << y.NumBlocks()
                 << ") must match number of output fields (" << outputs.Size() << ")");
 
-    // -- EXPERIMENTAL: Pass input and output to Execute()
     // The memory for input and output does not need to be allocated
     // It comes as arguments to this function loop over inputs and outputs.
     int iin = 0, iout = 0;
@@ -563,15 +536,16 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
 
     Execute(); // Execute the DAG with the current state memory
 
-    // -- EXPERIMENTAL: Resetting the state memory for the current
+    // Resetting the state memory for the current
     // gradient order to nullptr after execution
-    for (auto & inout : {inputs, outputs}) {
-        for (auto & f : inout) {
+    for (auto & inout : {inputs, outputs})
+    {
+        for (auto & f : inout)
+        {
             const int idx = id_to_field_index.Get(f->ID());
             state_memory[idx][igrad] = nullptr; // Reset to nullptr after deletion
         }
     }
-    // -- EXPERIMENTAL
 }
 
 
@@ -614,8 +588,7 @@ Operator& DAGraph::GetGradient(const Vector &x) const
     MultiVector xmv;
     BlockVectorToMultiVector(xb, xmv);
 
-    // -- EXPERIMENTAL: Possibly support both modes
-    // or remove the finite difference jacobian operator and use the gradient dag instead
+    // TODO: remove the finite difference jacobian option
     if(gradient_mode == GradientMode::ALGORITHMIC_DIFFERENTIATION)
     {
         return GetGradientMV(xmv);
@@ -633,7 +606,6 @@ Operator& DAGraph::GetGradient(const Vector &x) const
         }
         return *fdj_op;
     }
-    // -- EXPERIMENTAL
 }
 
 Operator &DAGraph::GetGradientMV(const MultiVector &x) const
@@ -670,7 +642,6 @@ DualGraph::DualGraph(const DAGraph &primal) : DAGraph(primal.Size()),
 
 void DualGraph::Assemble()
 {
-    // -- EXPERIMENTAL: Should we use the tape feature for the dual graph?
     // For now, insert operations for the dual graph directly from the primal graph
     for (auto pop : primal_dag->operations)
     {
@@ -699,7 +670,7 @@ void DualGraph::UpdateState(const MultiVector &x)
     auto default_mode = GraphOperator::ExecutionMode::DEFAULT_MODE;
     const int ipgrad = primal_dag->GetGradientOrder();
 
-    // -- EXPERIMENTAL: Copy input into the memory for input field (outputs are done below)
+    // Copy input into the memory for input field (outputs are done below)
     // Fetch grads from primal from igrad = 0 to igrad = ipgrad - 1
     MultiVector primal_state;
     if(ipgrad > 0) { primal_state.SetNumBlocks(ipgrad); }
