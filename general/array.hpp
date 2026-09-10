@@ -85,7 +85,8 @@ public:
    /// Creates array of @a asize elements with a given @a h_mt host MemoryType
    /// and @a d_mt device MemoryType
    inline Array(int asize, MemoryType h_mt, MemoryType d_mt)
-      : data(h_mt, d_mt), size(asize) { if (asize > 0) { data.New(asize, h_mt, d_mt); } }
+      : data(asize, h_mt, d_mt), size(asize)
+   {}
 
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership

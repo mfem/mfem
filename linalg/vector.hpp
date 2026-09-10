@@ -105,6 +105,7 @@ public:
    /** The pointer @a data_ can be NULL. The data array can be replaced later
        with SetData(). @a check = true if @a data_ could have been previously
       registered with the memory manager. */
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    Vector(real_t *data_, int size_, bool check = false)
    {
       if (check)
@@ -117,6 +118,13 @@ public:
       }
       size = size_;
    }
+#else
+   Vector(real_t *data_, int size_)
+   {
+      data.Wrap(data_, size_, false);
+      size = size_;
+   }
+#endif
 
    /** @brief Create a Vector referencing a sub-vector of the Vector @a base
        starting at the given offset, @a base_offset, and size @a size_. */
@@ -209,6 +217,7 @@ public:
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    void SetData(real_t *d, bool check = false)
    {
       if (check)
@@ -220,12 +229,16 @@ public:
          data.Wrap(d, data.Capacity(), false);
       }
    }
+#else
+   void SetData(real_t *d) { data.Wrap(d, data.Capacity(), false); }
+#endif
 
    /// Set the Vector data and size.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
+#ifdef MFEM_USE_NEW_MEM_MANAGER
    void SetDataAndSize(real_t *d, int s, bool check = false)
    {
       if (check)
@@ -238,6 +251,13 @@ public:
       }
       size = s;
    }
+#else
+   void SetDataAndSize(real_t *d, int s)
+   {
+      data.Wrap(d, s, false);
+      size = s;
+   }
+#endif
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
