@@ -50,7 +50,6 @@ class DerivativeSetup
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
    const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
    const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
@@ -83,7 +82,6 @@ public:
                    ctx.unionfds,
                    ctx.ir)),
       input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
@@ -150,8 +148,7 @@ public:
                    qfunc,
                    // inputs
                    input_idx,
-                   input_B,
-                   input_G,
+                   input_dtq,
                    input_vdim,
                    input_d1d,
                    input_q1d,
@@ -196,8 +193,7 @@ public:
                              qfunc_t &qfunc,
                              // inputs: idx, B, G, vdim, d1d, q1d
                              const std::array<size_t, n_inputs> &in_idx,
-                             const std::array<const real_t *, n_inputs> in_B,
-                             const std::array<const real_t *, n_inputs> in_G,
+                             const std::array<DofToQuadMap, n_inputs> &in_dtq,
                              const std::array<int, n_inputs> &in_vdim,
                              const std::array<int, n_inputs> &in_d1d,
                              const std::array<int, n_inputs> &in_q1d,
@@ -284,7 +280,7 @@ public:
             constexpr size_t i = ic.value;
             const auto &XE = in_XE[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
+            const DofToQuadMap &dtq = in_dtq[i];
             auto &rarg = get<i>(rargs);
             using XE_t = decltype(XE);
             using rarg_t = decltype(rarg);
@@ -292,7 +288,7 @@ public:
             if constexpr (is_value_fop<FOP>::value)
             {
                backend_t::template LoadValue<rarg_t, XE_t>(
-                  smem, e, d, q, Q1D, B, XE, rarg);
+                  smem, e, dtq, XE, rarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -300,7 +296,7 @@ public:
                using FieldParamT =
                   typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
                backend_t::template LoadGradient<RNK, rarg_t, XE_t, FieldParamT>(
-                  smem, e, d, q, q1d, B, G, XE, rarg);
+                  smem, e, dtq, XE, rarg);
             }
             else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
             {

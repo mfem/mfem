@@ -165,12 +165,10 @@ class Action
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
    const std::array<size_t, n_inputs> input_idx; // input to field
-   const std::array<const real_t *, n_inputs> input_B, input_G;
    const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
    // outputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_outputs> output_dtq;
    const std::array<size_t, n_outputs> output_idx; // output to field
-   const std::array<const real_t *, n_outputs> output_B, output_G;
    const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
    // other constants
    const int dim, ne, nq, q1d;
@@ -193,7 +191,6 @@ public:
                    ctx.unionfds,
                    ctx.ir)),
       input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, idx, B, G, d1d, q1d, vdim
@@ -204,7 +201,6 @@ public:
                     ctx.unionfds,
                     ctx.ir)),
       output_idx(create_output_vector_map(ctx, outputs)),
-      output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
       output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       // other constants
@@ -230,15 +226,13 @@ public:
                    qfunc,
                    // inputs
                    input_idx,
-                   input_B,
-                   input_G,
+                   input_dtq,
                    input_vdim,
                    input_d1d,
                    input_q1d,
                    // outputs
                    output_idx,
-                   output_B,
-                   output_G,
+                   output_dtq,
                    output_vdim,
                    output_d1d,
                    output_q1d,
@@ -274,15 +268,13 @@ public:
                    const qfunc_t &qfunc,
                    // inputs: idx, B, G, vdim, d1d, q1d
                    const std::array<size_t, n_inputs> &in_idx,
-                   const std::array<const real_t *, n_inputs> in_B,
-                   const std::array<const real_t *, n_inputs> in_G,
+                   const std::array<DofToQuadMap, n_inputs> &in_dtq,
                    const std::array<int, n_inputs> &in_vdim,
                    const std::array<int, n_inputs> &in_d1d,
                    const std::array<int, n_inputs> &in_q1d,
                    // outputs: idx, B, G, vdim, d1d, q1d
                    const std::array<size_t, n_outputs> &out_idx,
-                   const std::array<const real_t *, n_outputs> out_B,
-                   const std::array<const real_t *, n_outputs> out_G,
+                   const std::array<DofToQuadMap, n_outputs> &out_dtq,
                    const std::array<int, n_outputs> &out_vdim,
                    const std::array<int, n_outputs> &out_d1d,
                    const std::array<int, n_outputs> &out_q1d,
@@ -391,12 +383,12 @@ public:
             const auto &XE = in_XE[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
             ;
-            const real_t *B = in_B[i], *G = in_G[i];
+            const DofToQuadMap &dtq = in_dtq[i];
             auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, inputs_t>;
             if constexpr (is_value_fop<FOP>::value)
             {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, rarg);
+               backend_t::LoadValue(smem, e, dtq, XE, rarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -406,7 +398,7 @@ public:
                   typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
                constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
                backend_t::template LoadGradient<RNK, rarg_t, XE_t, qf_param_t>(
-                  smem, e, d, q, q1d, B, G, XE, rarg);
+                  smem, e, dtq, XE, rarg);
             }
             else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
             {
@@ -543,13 +535,13 @@ public:
             {
                constexpr size_t i = ic.value, o = n_inputs + i;
                const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
-               const auto B = out_B[i], G = out_G[i];
+               const DofToQuadMap &dtq = out_dtq[i];
                const auto &YE = out_YE[i];
                auto &rarg = get<o>(rargs);
                using FOP = tuple_element_t<i, outputs_t>;
                if constexpr (is_value_fop_v<FOP>)
                {
-                  backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
+                  backend_t::WriteValue(smem, e, dtq, YE, rarg);
                }
                else if constexpr (is_gradient_fop_v<FOP>)
                {
@@ -561,7 +553,7 @@ public:
                      typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
                   constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
                   backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                     smem, e, d, q, Q1D, B, G, YE, rarg);
+                     smem, e, dtq, YE, rarg);
                }
                else if constexpr (is_identity_fop_v<FOP> ||
                                   is_functionalvalue_fop_v<FOP>)

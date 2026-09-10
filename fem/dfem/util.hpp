@@ -2896,6 +2896,21 @@ struct DofToQuadMap
 
    /// Reverse mapping indicating which input this map belongs to.
    int which_input = -1;
+
+   /// Number of 1D degrees of freedom, i.e. the DOF extent of @ref B.
+   MFEM_HOST_DEVICE int D1D() const { return B.GetShape()[DOF]; }
+
+   /// Number of 1D quadrature points, i.e. the QP extent of @ref B.
+   MFEM_HOST_DEVICE int Q1D() const { return B.GetShape()[QP]; }
+
+   /// Convenience for creating an empty DofToQuadMap.
+   static DofToQuadMap Empty(int nqp = 0, int value_dim = 0, int grad_dim = 0,
+                             int ndof = 0, int which_input = -1)
+   {
+      return { DeviceTensor<3, const real_t>(nullptr, nqp, value_dim, ndof),
+               DeviceTensor<3, const real_t>(nullptr, nqp, grad_dim, ndof),
+               which_input };
+   }
 };
 
 /// @brief Get the size on quadrature point for a given set of inputs.

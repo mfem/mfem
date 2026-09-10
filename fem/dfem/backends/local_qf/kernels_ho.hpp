@@ -529,14 +529,12 @@ struct LocalQFHOBackend
    template<typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE void LoadValue(Shared &s,
                                                  const int e,
-                                                 const int d,
-                                                 const int q,
-                                                 const int,
-                                                 const real_t *B,
+                                                 const DofToQuadMap &dtq,
                                                  const XE_T &XE,
                                                  ArgRegT &rarg)
    {
-      ker::LoadMatrix(d, q, B, s.B);
+      const int d = dtq.D1D(), q = dtq.Q1D();
+      ker::LoadMatrix(d, q, dtq.B, s.B);
       std::remove_reference_t<ArgRegT> dofs;
       backend_t::load_dofs(e, d, XE, dofs);
       backend_t::eval_value(d, q, s, dofs, rarg);
@@ -549,16 +547,13 @@ struct LocalQFHOBackend
             typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE void LoadGradient(Shared &s,
                                                     const int e,
-                                                    const int d,
-                                                    const int q,
-                                                    const int,
-                                                    const real_t *B,
-                                                    const real_t *G,
+                                                    const DofToQuadMap &dtq,
                                                     const XE_T &XE,
                                                     ArgRegT &rarg)
    {
-      ker::LoadMatrix(d, q, B, s.B);
-      ker::LoadMatrix(d, q, G, s.G);
+      const int d = dtq.D1D(), q = dtq.Q1D();
+      ker::LoadMatrix(d, q, dtq.B, s.B);
+      ker::LoadMatrix(d, q, dtq.G, s.G);
       static_assert(RNK == 1 || RNK == 2);
       static constexpr int VDIM =
          (RNK == 1) ? 1 : qf_param_shape<FieldParamT>::extents[0];
@@ -746,14 +741,12 @@ struct LocalQFHOBackend
    template<typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE void WriteValue(Shared &s,
                                                   const int e,
-                                                  const int d,
-                                                  const int q,
-                                                  const int,
-                                                  const real_t *B,
+                                                  const DofToQuadMap &dtq,
                                                   YE_T &YE,
                                                   ArgRegT &rarg)
    {
-      ker::LoadMatrix(d, q, B, s.B);
+      const int d = dtq.D1D(), q = dtq.Q1D();
+      ker::LoadMatrix(d, q, dtq.B, s.B);
       std::remove_reference_t<ArgRegT> dofs;
       backend_t::write_value(d, q, e, s, rarg, dofs, YE);
    }
@@ -765,16 +758,13 @@ struct LocalQFHOBackend
             typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE void WriteGradient(Shared &s,
                                                      const int e,
-                                                     const int d,
-                                                     const int q,
-                                                     const int,
-                                                     const real_t *B,
-                                                     const real_t *G,
+                                                     const DofToQuadMap &dtq,
                                                      YE_T &YE,
                                                      ArgRegT &rarg)
    {
-      ker::LoadMatrix(d, q, B, s.B);
-      ker::LoadMatrix(d, q, G, s.G);
+      const int d = dtq.D1D(), q = dtq.Q1D();
+      ker::LoadMatrix(d, q, dtq.B, s.B);
+      ker::LoadMatrix(d, q, dtq.G, s.G);
       static_assert(RNK == 1 || RNK == 2);
       static constexpr int VDIM =
          (RNK == 1) ? 1 : qf_param_shape<FieldParamT>::extents[0];

@@ -799,14 +799,12 @@ struct LocalQFLOBackend
    template<typename ArgRegT, typename XE_T>
    static inline MFEM_HOST_DEVICE void LoadValue(Shared &s,
                                                  const int e,
-                                                 const int d,
-                                                 const int q,
-                                                 const int,
-                                                 const real_t *B,
+                                                 const DofToQuadMap &dtq,
                                                  const XE_T &XE,
                                                  ArgRegT &rarg)
    {
-      backend_t::template load_value<ArgRegT>(s, e, d, q, B, XE, rarg);
+      backend_t::template load_value<ArgRegT>(
+         s, e, dtq.D1D(), dtq.Q1D(), dtq.B, XE, rarg);
    }
 
    // ─────────────────────────────────────────────────────
@@ -816,16 +814,12 @@ struct LocalQFLOBackend
             typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE void LoadGradient(Shared &s,
                                                     const int e,
-                                                    const int d,
-                                                    const int q,
-                                                    const int,
-                                                    const real_t *B,
-                                                    const real_t *G,
+                                                    const DofToQuadMap &dtq,
                                                     const XE_T &XE,
                                                     ArgRegT &rarg)
    {
       backend_t::template load_gradient<RNK, ArgRegT, XE_T, FieldParamT>(
-         s, e, d, q, B, G, XE, rarg);
+         s, e, dtq.D1D(), dtq.Q1D(), dtq.B, dtq.G, XE, rarg);
    }
 
    // ─────────────────────────────────────────────────────
@@ -1061,13 +1055,12 @@ struct LocalQFLOBackend
    template<typename ArgRegT, typename YE_T>
    static inline MFEM_HOST_DEVICE void WriteValue(Shared &s,
                                                   const int e,
-                                                  const int d,
-                                                  const int q,
-                                                  const int,
-                                                  const real_t *B,
+                                                  const DofToQuadMap &dtq,
                                                   const YE_T &YE,
                                                   ArgRegT &rarg)
-   { backend_t::write_value(s, e, d, q, B, YE, rarg); }
+   {
+      backend_t::write_value(s, e, dtq.D1D(), dtq.Q1D(), dtq.B, YE, rarg);
+   }
 
    // ─────────────────────────────────────────────────────
    template<int RNK,
@@ -1076,16 +1069,12 @@ struct LocalQFLOBackend
             typename FieldParamT = ArgRegT>
    static inline MFEM_HOST_DEVICE void WriteGradient(Shared &s,
                                                      const int e,
-                                                     const int d,
-                                                     const int q,
-                                                     const int,
-                                                     const real_t *B,
-                                                     const real_t *G,
+                                                     const DofToQuadMap &dtq,
                                                      YE_T &YE,
                                                      ArgRegT &rarg)
    {
       backend_t::template write_gradient<RNK, ArgRegT, YE_T, FieldParamT>(
-         s, e, d, q, B, G, YE, rarg);
+         s, e, dtq.D1D(), dtq.Q1D(), dtq.B, dtq.G, YE, rarg);
    }
 };
 

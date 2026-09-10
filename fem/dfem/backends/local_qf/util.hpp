@@ -898,24 +898,6 @@ constexpr auto get_vdim(const Tuple& fields)
 }
 
 template<typename Tuple>
-constexpr auto get_B(const Tuple& fields)
-{
-   return future::apply([](const auto&... f)
-   {
-      return std::array<const real_t*, sizeof...(f)> {f.B...};
-   }, fields);
-}
-
-template<typename Tuple>
-constexpr auto get_G(const Tuple& fields)
-{
-   return future::apply([](const auto&... f)
-   {
-      return std::array<const real_t*, sizeof...(f)> {f.G...};
-   }, fields);
-}
-
-template<typename Tuple>
 constexpr auto get_D1D(const Tuple& fields)
 {
    return future::apply([](const auto&... f)

@@ -64,12 +64,10 @@ class DerivativeApplyTranspose
    const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, B, G, d1d, q1d, vdim (trial / derivative fields)
    const std::array<DofToQuadMap, n_inputs> input_dtq;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
    const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
    // outputs: dtq, idx, B, G, d1d, q1d, vdim (test / cotangent fields)
    const std::array<DofToQuadMap, n_outputs> output_dtq;
    const std::array<size_t, n_outputs> output_idx;
-   const std::array<const real_t *, n_outputs> output_B, output_G;
    const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
@@ -106,7 +104,6 @@ public:
                                          create_union_field_map_for_dtq(ctx, inputs),
                                          ctx.unionfds,
                                          ctx.ir)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       output_dtq(create_dtq_maps<Entity::Element>(
@@ -116,7 +113,6 @@ public:
                     ctx.unionfds,
                     ctx.ir)),
       output_idx(create_output_vector_map(ctx, outputs)),
-      output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
       output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
@@ -174,16 +170,14 @@ public:
                    qp_cache,
                    dir_out_e,
                    // inputs (integration target metadata)
-                   input_B,
-                   input_G,
+                   input_dtq,
                    input_vdim,
                    input_d1d,
                    input_q1d,
                    input_size_on_qp,
                    input_is_dependent,
                    // outputs (direction interpolation metadata)
-                   output_B,
-                   output_G,
+                   output_dtq,
                    output_vdim,
                    output_d1d,
                    output_q1d,
@@ -251,16 +245,14 @@ public:
       const Vector &qp_cache,
       const Vector &dir_e, // restricted, concatenated output cotangents
       // inputs (integration target metadata)
-      const std::array<const real_t *, n_inputs> in_B,
-      const std::array<const real_t *, n_inputs> in_G,
+      const std::array<DofToQuadMap, n_inputs> &in_dtq,
       const std::array<int, n_inputs> &in_vdim,
       const std::array<int, n_inputs> &in_d1d,
       const std::array<int, n_inputs> &in_q1d,
       const std::array<int, n_inputs> &in_size_on_qp,
       const std::array<bool, n_inputs> &input_dep,
       // outputs (direction interpolation metadata)
-      const std::array<const real_t *, n_outputs> out_B,
-      const std::array<const real_t *, n_outputs> out_G,
+      const std::array<DofToQuadMap, n_outputs> &out_dtq,
       const std::array<int, n_outputs> &out_vdim,
       const std::array<int, n_outputs> &out_d1d,
       const std::array<int, n_outputs> &out_q1d,
@@ -353,11 +345,11 @@ public:
             using FOP = tuple_element_t<o, outputs_t>;
             const auto &XE = out_XE_dir[o];
             const int d = out_d1d[o], q = out_q1d[o], Q1D = q1d;
-            const real_t *B = out_B[o], *G = out_G[o];
+            const DofToQuadMap &dtq = out_dtq[o];
             auto &oarg = get<ao>(rargs);
             if constexpr (is_value_fop_v<FOP>)
             {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, oarg);
+               backend_t::LoadValue(smem, e, dtq, XE, oarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -368,7 +360,7 @@ public:
                                                 decltype(oarg),
                                                 decltype(XE),
                                                 FieldParamT>(
-                                                   smem, e, d, q, Q1D, B, G, XE, oarg);
+                                                   smem, e, dtq, XE, oarg);
             }
             else if constexpr (is_identity_fop_v<FOP>)
             {
@@ -499,12 +491,12 @@ public:
             if (!input_dep[s]) { return; }
             using FOP = tuple_element_t<s, inputs_t>;
             const int d = in_d1d[s], q = in_q1d[s], Q1D = q1d;
-            const real_t *B = in_B[s], *G = in_G[s];
+            const DofToQuadMap &dtq = in_dtq[s];
             auto &sarg = get<s>(rargs);
             auto &YE = ye_XE;
             if constexpr (is_value_fop_v<FOP>)
             {
-               backend_t::WriteValue(smem, e, d, q, Q1D, B, YE, sarg);
+               backend_t::WriteValue(smem, e, dtq, YE, sarg);
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -514,7 +506,7 @@ public:
                   typename qf_param_slot<qfunc_t, s>::qf_decay_param_t;
                constexpr auto RNK = qf_param_slot<qfunc_t, s>::extents.size();
                backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                  smem, e, d, q, Q1D, B, G, YE, sarg);
+                  smem, e, dtq, YE, sarg);
             }
             else
             {
