@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -251,16 +251,18 @@ protected:
    Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
-   // deleted by the caller. Of these three tables, only face_edge and
+   // deleted by the caller. Of these four tables, only face_edge, edge_face and
    // edge_vertex are returned by access functions.
    mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
    mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
+   mutable Table *edge_face;     // Returned by GetEdgeFaceTable().
    mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
+   mutable std::unique_ptr<L2_SegmentElement> EdgeTransfElement;
 
    // refinement embeddings for forward compatibility with NCMesh
    mutable CoarseFineTransformations CoarseFineTr;
@@ -516,7 +518,7 @@ protected:
                     const std::string &kvf);
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
-       patch topology. Optional file comments can be provided in @a comments.
+       patch topology. Optional file comments can be provided in @a comment.
 
        @param[in] os  Output stream to which to write.
        @param[in] e_to_k  Map from edge to signed knotvector indices.
@@ -1489,7 +1491,7 @@ public:
 
    /// @}
 
-   /// @name Access information concerning individual mesh entites
+   /// @name Access information concerning individual mesh entities
    /// @{
 
    /// Return the attribute of element i.
@@ -1614,7 +1616,7 @@ public:
       { mesh.GetGeometries(dim, *this); }
    };
 
-   /// @name Access connectivity for individual mesh entites
+   /// @name Access connectivity for individual mesh entities
    /// @{
 
    /// Returns the indices of the vertices of element i.
@@ -1731,6 +1733,11 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    Table *GetFaceEdgeTable() const;
+
+   /// Returns the edge-to-face Table (3D)
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
+   Table *GetEdgeFaceTable() const;
 
    /// Returns the edge-to-vertex Table (3D)
    ///
@@ -2426,9 +2433,13 @@ public:
                                finite element space (continuous is default).
        @param[in]  space_dim   The space dimension (optional).
        @param[in]  ordering    The Ordering of the finite element space
-                               (Ordering::byVDIM is the default). */
-   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                             int ordering = 1);
+                               (Ordering::byVDIM is the default).
+       @param[in]  pyr_type    Select Bergot (pyr_type = 0) or Fuentes
+                               (pyr_type = 1) basis functions for pyramid
+                               shaped elements. */
+   virtual void SetCurvature(int order, bool discont = false,
+                             int space_dim = -1, int ordering = 1,
+                             int pyr_type = 1);
 
    /// @}
 
@@ -2784,7 +2795,7 @@ std::ostream& operator<<(std::ostream &os, const Mesh::FaceInformation& info);
     meshes (in serial, i.e. on one processor) and save the parts in parallel
     MFEM mesh format.
 
-    Another potential futrure purpose of this class could be to facilitate
+    Another potential future purpose of this class could be to facilitate
     exchange of MeshParts between MPI ranks for repartitioning purposes. It can
     also potentially be used to implement parallel mesh I/O functions with
     partitionings that have number of parts different from the number of MPI
@@ -2844,7 +2855,7 @@ public:
 
       Note that 'entity_to_vertex' does NOT describe all "faces" in the mesh
       part (i.e. all 'dimension'-1 entities) but only the boundary elements.
-      Also, note that lower dimesional entities ('dimension'-2 and lower) are
+      Also, note that lower dimensional entities ('dimension'-2 and lower) are
       NOT described by the respective array, i.e. the array will be empty.
    */
    Array<int> entity_to_vertex[Geometry::NumGeom];
