@@ -67,6 +67,26 @@ template <int DIM> struct hdiv_divdiv_qf
 };
 
 // ────────────────────────────────────────────────────────────────────────────
+// (u, v) + (div u, div v) on an H(div) space, in reference coordinates.
+//
+// Smoke test for Hdiv multiple outputs
+template <int DIM> struct hdiv_mass_divdiv_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(
+      const tensor<dscalar_t, DIM> &u,
+      const dscalar_t &du,
+      const tensor<real_t, DIM, DIM> &J,
+      const real_t &w,
+      tensor<dscalar_t, DIM> &v,
+      dscalar_t &dv) const
+   {
+      const real_t c = w / det(J);
+      v = c * dot(transpose(J), dot(J, u));
+      dv = du * c;
+   }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 struct HdivSetup
 {
    ParMesh pmesh;
@@ -112,8 +132,8 @@ real_t HdivMaxError(MPI_Comm comm, const Vector &a, const Vector &b)
 
 // ────────────────────────────────────────────────────────────────────────────
 template <int DIM, typename inputs_t, typename outputs_t, typename qf_t,
-          typename make_reference_t>
-void CheckHdivOperator(HdivSetup &setup, qf_t qf, make_reference_t make_ref)
+          typename add_reference_t>
+void CheckHdivOperator(HdivSetup &setup, qf_t qf, add_reference_t add_ref)
 {
    ParFiniteElementSpace &pfes = setup.pfes;
    const int tvsize = pfes.GetTrueVSize();
@@ -134,7 +154,7 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, make_reference_t make_ref)
 
    // Reference: the same bilinear form assembled by MFEM.
    ParBilinearForm blf_pa(&pfes);
-   blf_pa.AddDomainIntegrator(make_ref());
+   add_ref(blf_pa);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf_pa.Assemble();
 
@@ -152,6 +172,32 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, make_reference_t make_ref)
       dop.Mult(MX, MZ);
       REQUIRE(HdivMaxError(comm, Y, Z) == MFEM_Approx(0.0, 1e-10, 1e-10));
    }
+
+   SECTION("Derivative action, MF")
+   {
+      DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
+      constexpr auto kernels = DerivativeKernels::Action;
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
+         Derivatives<U> {});
+
+      // Differentiate at X on randomized direction dX.
+      ParGridFunction dx(&pfes), dy(&pfes);
+      Vector dX(tvsize), dY(tvsize), dZ(tvsize);
+      dX.Randomize(2);
+      dx.SetFromTrueDofs(dX);
+      blf_pa.Mult(dx, dy);
+      pfes.GetProlongationMatrix()->MultTranspose(dy, dY);
+      REQUIRE(dY.Normlinf() > 1e-8);
+
+      MultiVector MX{ X, setup.N }, MdZ{ dZ };
+
+      // Both forms are linear in U, so the derivative action along dX is the
+      // reference operator applied to dX.
+      auto dRdU = dop.GetDerivative(U, MX, false);
+      dRdU->Mult(dX, MdZ);
+      REQUIRE(HdivMaxError(comm, dY, dZ) == MFEM_Approx(0.0, 1e-10, 1e-10));
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -167,7 +213,8 @@ void hdiv_mass(const char *filename, int p)
 
    CheckHdivOperator<DIM, IT, OT>(
       setup, hdiv_mass_qf<DIM> {},
-      [&] { return new VectorFEMassIntegrator(); });
+      [](ParBilinearForm &blf)
+   { blf.AddDomainIntegrator(new VectorFEMassIntegrator()); });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -183,7 +230,28 @@ void hdiv_divdiv(const char *filename, int p)
 
    CheckHdivOperator<DIM, IT, OT>(
       setup, hdiv_divdiv_qf<DIM> {},
-      [&] { return new DivDivIntegrator(); });
+      [](ParBilinearForm &blf)
+   { blf.AddDomainIntegrator(new DivDivIntegrator()); });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template <int DIM>
+void hdiv_mass_divdiv(const char *filename, int p)
+{
+   CAPTURE(filename, DIM, p);
+   HdivSetup setup(filename, DIM, p);
+
+   static constexpr int U = 0, Coords = 1;
+   using IT = Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight>;
+   using OT = Outputs<Value<U>, Div<U>>;
+
+   CheckHdivOperator<DIM, IT, OT>(
+      setup, hdiv_mass_divdiv_qf<DIM> {},
+      [](ParBilinearForm &blf)
+   {
+      blf.AddDomainIntegrator(new VectorFEMassIntegrator());
+      blf.AddDomainIntegrator(new DivDivIntegrator());
+   });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -195,6 +263,7 @@ TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
 
    SECTION("Mass") { hdiv_mass<2>(GenAll(meshs, extra), p); }
    SECTION("DivDiv") { hdiv_divdiv<2>(GenAll(meshs, extra), p); }
+   SECTION("Mass+DivDiv") { hdiv_mass_divdiv<2>(GenAll(meshs, extra), p); }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -206,6 +275,7 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE]")
 
    SECTION("Mass") { hdiv_mass<3>(GenAll(meshs, extra), p); }
    SECTION("DivDiv") { hdiv_divdiv<3>(GenAll(meshs, extra), p); }
+   SECTION("Mass+DivDiv") { hdiv_mass_divdiv<3>(GenAll(meshs, extra), p); }
 }
 
 #endif // MFEM_USE_MPI
