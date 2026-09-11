@@ -58,6 +58,53 @@ void HessianIntegrator::AssembleElementMatrix(
    }
 }
 
+void AiryInterpolator::AssembleElementMatrix2(
+   const FiniteElement &hct_fe, const FiniteElement &jm_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_VERIFY(dynamic_cast<const HCTTriangleFiniteElement *>(&hct_fe),
+               "AiryInterpolator requires an HCT trial element");
+   MFEM_VERIFY(dynamic_cast<const JohnsonMercierTriangleFiniteElement *>(&jm_fe),
+               "AiryInterpolator requires a Johnson-Mercier range element");
+   const int hct_dof = hct_fe.GetDof();
+   const int jm_dof = jm_fe.GetDof();
+   DenseMatrix mass(jm_dof), cross(jm_dof, hct_dof);
+   DenseMatrix hessian(hct_dof, 3);
+   DenseTensor matrix_shape(2, 2, jm_dof);
+   mass = 0.0;
+   cross = 0.0;
+
+   const IntegrationRule &base = IntRules.Get(Geometry::TRIANGLE, 2);
+   std::unique_ptr<IntegrationRule> rule(base.ApplyToTriangleAlfeldSplit());
+   for (int q = 0; q < rule->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = rule->IntPoint(q);
+      Trans.SetIntPoint(&ip);
+      hct_fe.CalcPhysHessian(Trans, hessian);
+      jm_fe.CalcMShape(Trans, matrix_shape);
+      const real_t weight = ip.weight*Trans.Weight();
+      for (int i = 0; i < jm_dof; i++)
+      {
+         const real_t s00 = matrix_shape(0,0,i);
+         const real_t s01 = matrix_shape(0,1,i);
+         const real_t s11 = matrix_shape(1,1,i);
+         for (int j = 0; j < jm_dof; j++)
+         {
+            mass(i,j) += weight*(s00*matrix_shape(0,0,j) +
+                                 2.0*s01*matrix_shape(0,1,j) +
+                                 s11*matrix_shape(1,1,j));
+         }
+         for (int j = 0; j < hct_dof; j++)
+         {
+            cross(i,j) += weight*(s00*hessian(j,2) -
+                                  2.0*s01*hessian(j,1) +
+                                  s11*hessian(j,0));
+         }
+      }
+   }
+   DenseMatrixInverse(mass, true).Mult(cross, elmat);
+}
+
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssemblePA(fes)\n"

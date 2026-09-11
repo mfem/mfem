@@ -4080,6 +4080,20 @@ public:
     DiscreteLinearOperator class. */
 class DiscreteInterpolator : public BilinearFormIntegrator { };
 
+/** Construct the Airy map from the Hsieh--Clough--Tocher space to the
+    Johnson--Mercier symmetric matrix space:
+    $u \mapsto \begin{pmatrix}u_{yy}&-u_{xy}\\-u_{xy}&u_{xx}\end{pmatrix}$.
+
+    The resulting Johnson--Mercier field is pointwise divergence free. */
+class AiryInterpolator : public DiscreteInterpolator
+{
+public:
+   void AssembleElementMatrix2(const FiniteElement &hct_fe,
+                               const FiniteElement &jm_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
+};
+
 
 /** Class for constructing the gradient as a DiscreteLinearOperator from an
     $H^1$-conforming space to an $H(curl)$-conforming space. The range space can be
