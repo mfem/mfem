@@ -820,7 +820,7 @@ real_t ParTimeDepNonlinearForm::GetParGridFunctionEnergy(const Vector &x) const
 
 void ParTimeDepNonlinearForm::Mult(const Vector &dx, Vector &y) const
 {
-   TimeDepNonlinearForm::Mult(dx, y); // x --(P)--> aux1 --(A_local)--> aux2
+   TimeDepNonlinearForm::Mult(dx, aux2); // x --(P)--> aux1 --(A_local)--> aux2
 
    /* if (fnfi.Size())
     {
@@ -1155,7 +1155,6 @@ real_t ParBlockTimeDepNonlinearForm::GetEnergy(const Vector &dx) const
 
 void ParBlockTimeDepNonlinearForm::Mult(const Vector &dx, Vector &y) const
 {
-
    xs.Update(block_offsets);
    dxs.Update(block_offsets);
    dxs_true.Update(const_cast<Vector &>(dx), block_trueOffsets);
@@ -1172,8 +1171,6 @@ void ParBlockTimeDepNonlinearForm::Mult(const Vector &dx, Vector &y) const
    {
       aux2.Update(block_offsets);
    }
-   BlockVector &pby = needs_prolongation ? aux2 : ys;
-
 
    BlockTimeDepNonlinearForm::MultBlocked(xs, dxs, ys);
 

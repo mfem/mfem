@@ -2050,12 +2050,7 @@ void TimeDepNonlinearForm::Mult(const Vector &dx, Vector &y) const
 Operator &TimeDepNonlinearForm::GetGradient(const Vector &dx,
                                             bool finalize) const
 {
-   const Vector &pdx = Prolongate(dx);
-
-   add(x0,dt,pdx,x);
-
-   const Vector &px = x;
-
+   add(x0,dt,dx,x);
    if (ext)
    {
       hGrad.Clear();
@@ -2117,9 +2112,9 @@ Operator &TimeDepNonlinearForm::GetGradient(const Vector &dx,
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs, doftrans);
          T = fes->GetElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
+         x.GetSubVector(vdofs, el_x);
          doftrans.InvTransformPrimal(el_x);
-         pdx.GetSubVector(vdofs, el_dx);
+         dx.GetSubVector(vdofs, el_dx);
          doftrans.InvTransformPrimal(el_dx);
          for (int k = 0; k < tdnfi.Size(); k++)
          {
@@ -2166,9 +2161,9 @@ Operator &TimeDepNonlinearForm::GetGradient(const Vector &dx,
          fe = fes->GetBE(i);
          fes->GetBdrElementVDofs(i, vdofs, doftrans);
          T = fes->GetBdrElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
+         x.GetSubVector(vdofs, el_x);
          doftrans.InvTransformPrimal(el_x);
-         pdx.GetSubVector(vdofs, el_dx);
+         dx.GetSubVector(vdofs, el_dx);
          doftrans.InvTransformPrimal(el_dx);
          for (int k = 0; k < tbnfi.Size(); k++)
          {
@@ -2197,7 +2192,7 @@ Operator &TimeDepNonlinearForm::GetGradient(const Vector &dx,
             fes->GetElementVDofs(tr->Elem2No, vdofs2);
             vdofs.Append (vdofs2);
 
-            px.GetSubVector(vdofs, el_x);
+            x.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
@@ -2246,8 +2241,8 @@ Operator &TimeDepNonlinearForm::GetGradient(const Vector &dx,
          if (tr != NULL)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
-            px.GetSubVector(vdofs, el_x);
-            pdx.GetSubVector(vdofs, el_dx);
+            x.GetSubVector(vdofs, el_x);
+            dx.GetSubVector(vdofs, el_dx);
             fe1 = fes->GetFE(tr->Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
             // but we can't dereference a NULL pointer, and we don't want to
