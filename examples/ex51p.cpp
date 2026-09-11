@@ -145,9 +145,9 @@ int main(int argc, char *argv[])
                   "Problem setup to use. See options in velocity_function().");
 
    // Discretization parameters
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
-   int order = 3;
+   const char *mesh_file = "../data/periodic-square.mesh";
+   int ref_levels = 1;
+   int order = 2;
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&ref_levels, "-r", "--refine",
