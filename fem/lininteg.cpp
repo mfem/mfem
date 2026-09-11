@@ -12,9 +12,51 @@
 #include "fem.hpp"
 #include <cmath>
 #include "intrules.hpp"
+#include <memory>
 
 namespace mfem
 {
+void MatrixFEDomainLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Trans, Vector &elvect)
+{
+   MFEM_VERIFY(el.GetRangeType() == FiniteElement::MATRIX,
+               "MatrixFEDomainLFIntegrator requires a matrix-valued element");
+   const int dof = el.GetDof();
+   const int dim = Trans.GetSpaceDim();
+   DenseTensor shape(dim, dim, dof);
+   DenseMatrix value(dim);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   const IntegrationRule *base = GetIntegrationRule(el, Trans);
+   if (!base)
+   {
+      base = &IntRules.Get(el.GetGeomType(),
+                           Trans.OrderW() + 2*el.GetOrder());
+   }
+   std::unique_ptr<IntegrationRule> ir(base->ApplyToTriangleAlfeldSplit());
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Trans.SetIntPoint(&ip);
+      el.CalcMShape(Trans, shape);
+      F.Eval(value, Trans, ip);
+      const real_t w = ip.weight*Trans.Weight();
+      for (int i = 0; i < dof; i++)
+      {
+         real_t product = 0.0;
+         for (int a = 0; a < dim; a++)
+         {
+            for (int b = 0; b < dim; b++)
+            {
+               product += value(a,b)*shape(a,b,i);
+            }
+         }
+         elvect(i) += w*product;
+      }
+   }
+}
+
 void LinearFormIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)

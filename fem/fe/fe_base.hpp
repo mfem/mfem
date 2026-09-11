@@ -314,7 +314,7 @@ protected:
 
 public:
    /// Enumeration for range_type and deriv_range_type
-   enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR };
+   enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR, MATRIX };
 
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
@@ -347,9 +347,12 @@ public:
       H_DIV_R1D, /**< For 3-component vector fields in 1D; equivalent to a
                           direct sum of a VALUE basis and a pair of INTEGRAL
                           bases */
-      H_CURL_R1D /**< For 3-component vector fields in 1D; equivalent to a
+      H_CURL_R1D,/**< For 3-component vector fields in 1D; equivalent to a
                           direct sum of an INTEGRAL basis and a pair of VALUE
                           bases */
+      DOUBLE_CONTRAVARIANT_PIOLA
+      /**< For matrix fields; the double contravariant Piola map
+           $ u(x) = J \hat u(\hat x) J^t / w^2 $. */
    };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -423,7 +426,7 @@ public:
    /// Returns the type of FunctionSpace on the element.
    int Space() const { return func_space; }
 
-   /// Returns the FiniteElement::RangeType of the element, one of {SCALAR, VECTOR}.
+   /// Returns the range type, one of {SCALAR, VECTOR, MATRIX}.
    int GetRangeType() const { return range_type; }
 
    /** @brief Returns the FiniteElement::RangeType of the element derivative, either
@@ -431,8 +434,7 @@ public:
    int GetDerivRangeType() const { return deriv_range_type; }
 
    /** @brief Returns the FiniteElement::MapType of the element describing how reference
-       functions are mapped to physical space, one of {VALUE, INTEGRAL
-       H_DIV, H_CURL}. */
+       functions are mapped to physical space. */
    int GetMapType() const { return map_type; }
 
    /** @brief Returns the FiniteElement::DerivType of the element describing the
@@ -524,6 +526,23 @@ public:
    void CalcPhysVShape(ElementTransformation &Trans, DenseMatrix &shape) const
    { CalcVShape(Trans, shape); }
 
+   /** @brief Evaluate all matrix-valued shape functions in reference space.
+
+       The result has dimensions (#dim x #dim x #dof), with the matrix for
+       shape function k stored in the k-th slice. */
+   virtual void CalcMShape(const IntegrationPoint &ip,
+                           DenseTensor &shape) const;
+
+   /** @brief Evaluate all matrix-valued shape functions in physical space.
+
+       The result has dimensions (SDim x SDim x #dof). */
+   virtual void CalcMShape(ElementTransformation &Trans,
+                           DenseTensor &shape) const;
+
+   /// Equivalent to CalcMShape() with the same arguments.
+   void CalcPhysMShape(ElementTransformation &Trans, DenseTensor &shape) const
+   { CalcMShape(Trans, shape); }
+
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
@@ -536,6 +555,21 @@ public:
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
     */
    void CalcPhysDivShape(ElementTransformation &Trans, Vector &divshape) const;
+
+   /** @brief Evaluate the row-wise divergence of all matrix-valued shape
+       functions in reference space.
+
+       Each row of @a divshape contains the vector divergence of one matrix
+       shape function. The result size is (#dof x #dim). */
+   virtual void CalcDivShape(const IntegrationPoint &ip,
+                             DenseMatrix &divshape) const;
+
+   /** @brief Evaluate the row-wise divergence of all matrix-valued shape
+       functions in physical space.
+
+       The result size is (#dof x SDim). */
+   virtual void CalcPhysDivShape(ElementTransformation &Trans,
+                                 DenseMatrix &divshape) const;
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */

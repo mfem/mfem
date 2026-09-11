@@ -137,6 +137,7 @@ public:
    | RT_R1D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 1D. |
    | RT_R2D_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
    | RT_R2D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
+   | JM_2D_P1 | H(div;S) | 1 | - | DOUBLE_CONTRAVARIANT_PIOLA | Lowest-order symmetric matrix-valued Johnson--Mercier elements on triangles |
    | L2_[DIM]_[ORDER] | L2 | * | 0 | VALUE | Discontinuous L2 elements |
    | L2_T[BTYPE]_[DIM]_[ORDER] | L2 | * | * | VALUE | Discontinuous L2 elements |
    | L2Int_[DIM]_[ORDER] | L2 | * | 0 | INTEGRAL | Discontinuous L2 elements |
@@ -1063,6 +1064,32 @@ public:
    const char *Name() const override { return "LinearNonConf3D"; }
 
    int GetContType() const override { return DISCONTINUOUS; }
+};
+
+/** @brief Lowest-order Johnson--Mercier finite elements in 2D.
+
+    This collection is defined only on triangles. It provides symmetric
+    matrix-valued H(div) elements with four traction moments per edge and
+    three interior moments. */
+class JohnsonMercierFECollection : public FiniteElementCollection
+{
+private:
+   const JohnsonMercierTriangleFiniteElement TriangleFE;
+
+public:
+   JohnsonMercierFECollection() : FiniteElementCollection(1) { }
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return "JM_2D_P1"; }
+
+   int GetContType() const override { return NORMAL; }
 };
 
 /** @brief First order Raviart-Thomas finite elements in 2D. This class is kept

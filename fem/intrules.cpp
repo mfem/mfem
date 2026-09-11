@@ -236,6 +236,35 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    return kvir;
 }
 
+IntegrationRule *IntegrationRule::ApplyToTriangleAlfeldSplit() const
+{
+   const int np = GetNPoints();
+   IntegrationRule *split = new IntegrationRule(3*np);
+   split->SetOrder(GetOrder());
+
+   const real_t child[3][3][2] =
+   {
+      {{1.0, 0.0}, {0.0, 1.0}, {1.0/3.0, 1.0/3.0}},
+      {{0.0, 1.0}, {0.0, 0.0}, {1.0/3.0, 1.0/3.0}},
+      {{0.0, 0.0}, {1.0, 0.0}, {1.0/3.0, 1.0/3.0}}
+   };
+   for (int c = 0; c < 3; c++)
+   {
+      const real_t *a = child[c][0];
+      const real_t *b = child[c][1];
+      const real_t *d = child[c][2];
+      for (int q = 0; q < np; q++)
+      {
+         const IntegrationPoint &ip = IntPoint(q);
+         split->IntPoint(c*np + q).Set2w(
+            a[0] + ip.x*(b[0] - a[0]) + ip.y*(d[0] - a[0]),
+            a[1] + ip.x*(b[1] - a[1]) + ip.y*(d[1] - a[1]),
+            ip.weight/3.0);
+      }
+   }
+   return split;
+}
+
 IntegrationRule IntegrationRule::Reorder(const Array<int> &ordering) const
 {
    const int np = GetNPoints();

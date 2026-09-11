@@ -269,6 +269,10 @@ public:
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
 
+   /** @brief Return a rule obtained by applying this triangle rule to each
+       subtriangle of the barycentric (Alfeld) split. */
+   IntegrationRule *ApplyToTriangleAlfeldSplit() const;
+
    /** @brief  Returns an integration rule such that the new IntegrationPoints
     *  are re-ordered based on @a ordering.
     *

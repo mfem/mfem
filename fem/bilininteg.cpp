@@ -2887,6 +2887,88 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
    }
 }
 
+void MatrixFEMassIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_VERIFY(el.GetRangeType() == FiniteElement::MATRIX,
+               "MatrixFEMassIntegrator requires a matrix-valued element");
+   const int dof = el.GetDof();
+   const int dim = Trans.GetSpaceDim();
+   DenseTensor shape(dim, dim, dof);
+   elmat.SetSize(dof);
+   elmat = 0.0;
+
+   const IntegrationRule *base = GetIntegrationRule(el, Trans);
+   if (!base)
+   {
+      base = &IntRules.Get(el.GetGeomType(),
+                           Trans.OrderW() + 2*el.GetOrder());
+   }
+   std::unique_ptr<IntegrationRule> ir(base->ApplyToTriangleAlfeldSplit());
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Trans.SetIntPoint(&ip);
+      el.CalcMShape(Trans, shape);
+      real_t w = ip.weight*Trans.Weight();
+      if (Q) { w *= Q->Eval(Trans, ip); }
+      for (int i = 0; i < dof; i++)
+      {
+         for (int j = 0; j < dof; j++)
+         {
+            real_t product = 0.0;
+            for (int a = 0; a < dim; a++)
+            {
+               for (int b = 0; b < dim; b++)
+               {
+                  product += shape(a,b,i)*shape(a,b,j);
+               }
+            }
+            elmat(i,j) += w*product;
+         }
+      }
+   }
+}
+
+void MatrixDivDivIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_VERIFY(el.GetRangeType() == FiniteElement::MATRIX,
+               "MatrixDivDivIntegrator requires a matrix-valued element");
+   const int dof = el.GetDof();
+   const int dim = Trans.GetSpaceDim();
+   DenseMatrix divshape(dof, dim);
+   elmat.SetSize(dof);
+   elmat = 0.0;
+
+   const IntegrationRule *base = GetIntegrationRule(el, Trans);
+   if (!base)
+   {
+      base = &IntRules.Get(el.GetGeomType(), 2*el.GetOrder());
+   }
+   std::unique_ptr<IntegrationRule> ir(base->ApplyToTriangleAlfeldSplit());
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Trans.SetIntPoint(&ip);
+      el.CalcPhysDivShape(Trans, divshape);
+      real_t w = ip.weight*Trans.Weight();
+      if (Q) { w *= Q->Eval(Trans, ip); }
+      for (int i = 0; i < dof; i++)
+      {
+         for (int j = 0; j < dof; j++)
+         {
+            real_t product = 0.0;
+            for (int d = 0; d < dim; d++)
+            {
+               product += divshape(i,d)*divshape(j,d);
+            }
+            elmat(i,j) += w*product;
+         }
+      }
+   }
+}
+
 void VectorDivergenceIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe,
    const FiniteElement &test_fe,

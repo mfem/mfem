@@ -193,6 +193,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new CrouzeixRaviartFECollection;
    }
+   else if (!strcmp(name, "JM_2D_P1"))
+   {
+      fec = new JohnsonMercierFECollection;
+   }
    else if (!strcmp(name, "ND1_3D"))
    {
       fec = new ND1_3DFECollection;
@@ -966,6 +970,41 @@ const int *CrouzeixRaviartFECollection::DofOrderForOrientation(
    return indexes;
 }
 
+
+const FiniteElement *
+JohnsonMercierFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE) { return &TriangleFE; }
+   if (error_mode == RETURN_NULL) { return nullptr; }
+   MFEM_ABORT("JohnsonMercierFECollection supports triangles only");
+   return nullptr;
+}
+
+int JohnsonMercierFECollection::DofForGeometry(
+   Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT: return 0;
+      case Geometry::SEGMENT: return 4;
+      case Geometry::TRIANGLE: return 3;
+      default:
+         MFEM_ABORT("JohnsonMercierFECollection supports triangles only");
+   }
+   return 0;
+}
+
+const int *JohnsonMercierFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType != Geometry::SEGMENT) { return nullptr; }
+   // Reversing an edge reverses both n and t: the constant nn and nt
+   // moments are unchanged, while the linear moment polynomial changes sign.
+   static int ind_pos[] = {0, 1, 2, 3};
+   static int ind_neg[] = {0, 1, -3, -4};
+   return Or > 0 ? ind_pos : ind_neg;
+}
 
 const FiniteElement *
 RT0_2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const

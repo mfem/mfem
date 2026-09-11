@@ -424,6 +424,24 @@ public:
    }
 };
 
+/** $ (F, v)_\Omega $ for matrix-valued finite elements, using the Frobenius
+    inner product. This full-assembly integrator applies its triangle rule on
+    every subtriangle of the Alfeld split. */
+class MatrixFEDomainLFIntegrator : public LinearFormIntegrator
+{
+private:
+   MatrixCoefficient &F;
+
+public:
+   MatrixFEDomainLFIntegrator(MatrixCoefficient &f,
+                              const IntegrationRule *ir = nullptr)
+      : LinearFormIntegrator(ir), F(f) { }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Trans,
+                               Vector &elvect) override;
+};
+
 /// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements
 class VectorFEDomainLFCurlIntegrator : public DeltaLFIntegrator
 {

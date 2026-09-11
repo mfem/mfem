@@ -59,6 +59,18 @@ void FiniteElement::CalcVShape(
    MFEM_ABORT("method is not implemented for this class");
 }
 
+void FiniteElement::CalcMShape(
+   const IntegrationPoint &ip, DenseTensor &shape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
+void FiniteElement::CalcMShape(
+   ElementTransformation &Trans, DenseTensor &shape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
 void FiniteElement::CalcDivShape(
    const IntegrationPoint &ip, Vector &divshape) const
 {
@@ -70,6 +82,18 @@ void FiniteElement::CalcPhysDivShape(
 {
    CalcDivShape(Trans.GetIntPoint(), div_shape);
    div_shape *= (1.0 / Trans.Weight());
+}
+
+void FiniteElement::CalcDivShape(
+   const IntegrationPoint &ip, DenseMatrix &divshape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
+void FiniteElement::CalcPhysDivShape(
+   ElementTransformation &Trans, DenseMatrix &divshape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
 }
 
 void FiniteElement::CalcCurlShape(const IntegrationPoint &ip,

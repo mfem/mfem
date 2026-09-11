@@ -3151,6 +3151,47 @@ public:
    }
 };
 
+/** Integrator for the Frobenius inner product $(Q u, v)$ of matrix-valued
+    finite element functions. The optional coefficient @a Q is scalar.
+
+    This full-assembly integrator applies its triangle integration rule on
+    every subtriangle of the Alfeld split. */
+class MatrixFEMassIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient *Q;
+
+public:
+   MatrixFEMassIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), Q(nullptr) { }
+   MatrixFEMassIntegrator(Coefficient &q,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), Q(&q) { }
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+};
+
+/** Integrator for $(Q\,\mathrm{div}\,u,\mathrm{div}\,v)$ of matrix-valued
+    finite element functions, where divergence is applied row-wise. */
+class MatrixDivDivIntegrator : public BilinearFormIntegrator
+{
+private:
+   Coefficient *Q;
+
+public:
+   MatrixDivDivIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), Q(nullptr) { }
+   MatrixDivDivIntegrator(Coefficient &q,
+                          const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), Q(&q) { }
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+};
+
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
     scalar FE space; $v$ is also in a (different) scalar FE space.  */
 class VectorDivergenceIntegrator : public BilinearFormIntegrator

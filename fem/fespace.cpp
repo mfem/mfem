@@ -1660,6 +1660,27 @@ const FaceQuadratureInterpolator
    }
 }
 
+// JM's canonical traction moments depend on the physical facet frame, so
+// reference-child interpolation needs an element-dependent change of basis.
+static const DenseMatrix &PhysicalRefinementMatrix(
+   const FiniteElementSpace &fes, int element, const DenseMatrix &reference,
+   DenseMatrix &physical)
+{
+   const auto *jm = dynamic_cast<const JohnsonMercierTriangleFiniteElement *>(
+                       fes.GetFE(element));
+   if (!jm) { return reference; }
+
+   const auto &refinement = fes.GetMesh()->GetRefinementTransforms();
+   const auto &embedding = refinement.embeddings[element];
+   const auto geom = fes.GetMesh()->GetElementBaseGeometry(element);
+   IsoparametricTransformation child;
+   child.SetIdentityTransformation(geom);
+   child.SetPointMat(refinement.point_matrices[geom](embedding.matrix));
+   jm->GetPhysicalTransferMatrix(reference, child,
+                                 *fes.GetElementTransformation(element), physical);
+   return physical;
+}
+
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
    const Table *coarse_elem_fos, const DenseTensor localP[]) const
@@ -1693,7 +1714,9 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    {
       const Embedding &emb = rtrans.embeddings[k];
       const Geometry::Type geom = mesh->GetElementBaseGeometry(k);
-      const DenseMatrix &lP = localP[geom](emb.matrix);
+      DenseMatrix physical_transfer;
+      const DenseMatrix &lP = PhysicalRefinementMatrix(
+                                 *this, k, localP[geom](emb.matrix), physical_transfer);
       const int fine_ldof = localP[geom].SizeI();
 
       elem_dof->GetRow(k, dofs);
@@ -1973,8 +1996,11 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
          isotr.SetPointMat(pmats(emb.matrix));
          fe->GetLocalInterpolation(isotr, eP);
       }
-      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
-                                 emb.matrix);
+      const DenseMatrix &referenceP = (fespace->IsVariableOrder()) ?
+                                      eP : localP[geom](emb.matrix);
+      DenseMatrix physical_transfer;
+      const DenseMatrix &lP = PhysicalRefinementMatrix(
+                                 *fespace, k, referenceP, physical_transfer);
 
       subY.SetSize(lP.Height());
 
@@ -2060,8 +2086,11 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
          fe->GetLocalInterpolation(isotr, eP);
       }
 
-      const DenseMatrix &lP = (fespace->IsVariableOrder()) ? eP : localP[geom](
-                                 emb.matrix);
+      const DenseMatrix &referenceP = (fespace->IsVariableOrder()) ?
+                                      eP : localP[geom](emb.matrix);
+      DenseMatrix physical_transfer;
+      const DenseMatrix &lP = PhysicalRefinementMatrix(
+                                 *fespace, k, referenceP, physical_transfer);
 
       fespace->GetElementDofs(k, f_dofs, doftrans);
       old_elem_dof->GetRow(emb.parent, c_dofs);
