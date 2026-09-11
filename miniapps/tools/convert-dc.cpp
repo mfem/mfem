@@ -109,7 +109,7 @@ DataCollection *create_data_collection(const std::string &dc_name,
 #ifdef MFEM_USE_HDF5
          dc = new ParaViewHDFDataCollection(dc_name);
 #else
-      MFEM_ABORT("Must build with MFEM_USE_HDF5=YES for HDF5 support.");
+         MFEM_ABORT("Must build with MFEM_USE_HDF5=YES for HDF5 support.");
 #endif
       }
    }
