@@ -27,6 +27,8 @@
 //    fms_json:             FMSDataCollection w/ protocol json
 //    fms_yaml:             FMSDataCollection w/ protocol yaml
 //    fms_hdf5:             FMSDataCollection w/ protocol hdf5
+//    paraview:             ParaViewDataCollection
+//    paraview_hdf5:        ParaViewHDFDataCollection
 //
 // Compile with: make convert-dc
 //
@@ -95,6 +97,22 @@ DataCollection *create_data_collection(const std::string &dc_name,
       MFEM_ABORT("Must build with MFEM_USE_FMS=YES for FMS support.");
 #endif
    }
+   else if (dc_type.substr(0,8) == "paraview")
+   {
+      std::string::size_type pos = dc_type.find("_");
+      if (pos == std::string::npos)
+      {
+         dc = new ParaViewDataCollection(dc_name);
+      }
+      else
+      {
+#ifdef MFEM_USE_HDF5
+         dc = new ParaViewHDFDataCollection(dc_name);
+#else
+      MFEM_ABORT("Must build with MFEM_USE_HDF5=YES for HDF5 support.");
+#endif
+      }
+   }
    else
    {
       MFEM_ABORT("Unsupported Data Collection type:" << dc_type);
@@ -160,7 +178,9 @@ int main(int argc, char *argv[])
                   "\t   fms:                  FMSDataCollection w/ protocol ascii\n"
                   "\t   fms_json:             FMSDataCollection w/ protocol json\n"
                   "\t   fms_yaml:             FMSDataCollection w/ protocol yaml\n"
-                  "\t   fms_hdf5:             FMSDataCollection w/ protocol hdf5");
+                  "\t   fms_hdf5:             FMSDataCollection w/ protocol hdf5\n"
+                  "\t   paraview:             ParaViewDataCollection\n"
+                  "\t   paraview_hdf5:        ParaViewHDFDataCollection");
    args.Parse();
    if (!args.Good())
    {
