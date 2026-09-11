@@ -68,15 +68,34 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    return invJ;
 }
 
+const DenseMatrix &ElementTransformation::EvalPerfectJ()
+{
+   MFEM_ASSERT((EvalState & PERF_JACOBIAN_MASK) == 0, "");
+   Jacobian();
+   PJ.SetSize(dFdx.Height());
+   Geometries.JacToPerfJac(geom, dFdx, PJ);
+
+   EvalState |= PERF_JACOBIAN_MASK;
+   return PJ;
+}
+
+const DenseMatrix &ElementTransformation::EvalPerfectInverseJ()
+{
+   MFEM_ASSERT((EvalState & PERF_INVERSE_MASK) == 0, "");
+   InverseJacobian();
+   PInvJ.SetSize(dFdx.Height());
+   Geometries.InvJacToInvPerfJac(geom, invJ, PInvJ);
+
+   EvalState |= PERF_INVERSE_MASK;
+   return PInvJ;
+}
+
 const DenseMatrix &ElementTransformation::EvalMetric()
 {
    MFEM_ASSERT((EvalState & METRIC_MASK) == 0, "");
-   InverseJacobian();
-   DenseMatrix invJP(dFdx.Height());
-   Geometries.InvJacToInvPerfJac(geom, invJ, invJP);
-
-   Gij.SetSize(dFdx.Height(), dFdx.Height());
-   MultAtB(invJP, invJP, Gij);
+   PerfectInverseJacobian();
+   Gij.SetSize(dFdx.Height());
+   MultAtB(PInvJ, PInvJ, Gij);
 
    EvalState |= METRIC_MASK;
    return Gij;
