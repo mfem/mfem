@@ -2237,6 +2237,27 @@ protected:
    }
 };
 
+/** Class for integrating the scalar Hessian bilinear form
+    $a(u,v) := (Q \nabla^2 u, \nabla^2 v)$ using the Frobenius product.
+
+    Full assembly is supported. For HCT elements, the default triangle rule is
+    applied separately on the three Clough--Tocher subtriangles. */
+class HessianIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q;
+
+public:
+   HessianIntegrator(const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), Q(nullptr) { }
+   HessianIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr)
+      : BilinearFormIntegrator(ir), Q(&q) { }
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+};
+
 /** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$ where $Q$
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator

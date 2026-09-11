@@ -1066,6 +1066,32 @@ public:
    int GetContType() const override { return DISCONTINUOUS; }
 };
 
+/** @brief Cubic Hsieh--Clough--Tocher C1 finite elements in 2D.
+
+    This collection is defined only on triangles. It has three degrees of
+    freedom per vertex (value and two Cartesian derivatives) and one oriented
+    normal-derivative degree of freedom per edge. */
+class HCT_FECollection : public FiniteElementCollection
+{
+private:
+   const HCTTriangleFiniteElement TriangleFE;
+
+public:
+   HCT_FECollection() : FiniteElementCollection(3) { }
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return "HCT_2D_P3"; }
+
+   int GetContType() const override { return CONTINUOUS; }
+};
+
 /** @brief Lowest-order Johnson--Mercier finite elements in 2D.
 
     This collection is defined only on triangles. It provides symmetric

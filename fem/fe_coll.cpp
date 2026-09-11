@@ -193,6 +193,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new CrouzeixRaviartFECollection;
    }
+   else if (!strcmp(name, "HCT_2D_P3"))
+   {
+      fec = new HCT_FECollection;
+   }
    else if (!strcmp(name, "JM_2D_P1"))
    {
       fec = new JohnsonMercierFECollection;
@@ -968,6 +972,37 @@ const int *CrouzeixRaviartFECollection::DofOrderForOrientation(
    static int indexes[] = { 0 };
 
    return indexes;
+}
+
+
+const FiniteElement *HCT_FECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE) { return &TriangleFE; }
+   if (error_mode == RETURN_NULL) { return nullptr; }
+   MFEM_ABORT("HCT_FECollection supports triangles only");
+   return nullptr;
+}
+
+int HCT_FECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT: return 3;
+      case Geometry::SEGMENT: return 1;
+      case Geometry::TRIANGLE: return 0;
+      default: MFEM_ABORT("HCT_FECollection supports triangles only");
+   }
+   return 0;
+}
+
+const int *HCT_FECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType != Geometry::SEGMENT) { return nullptr; }
+   static int ind_pos[] = {0};
+   static int ind_neg[] = {-1};
+   return Or > 0 ? ind_pos : ind_neg;
 }
 
 

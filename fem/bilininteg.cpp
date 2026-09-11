@@ -21,6 +21,43 @@ using namespace std;
 namespace mfem
 {
 
+void HessianIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   MFEM_VERIFY(el.GetDim() == 2 && Trans.GetSpaceDim() == 2,
+               "HessianIntegrator currently supports two dimensions only");
+   const int dof = el.GetDof();
+   DenseMatrix hessian(dof, 3);
+   elmat.SetSize(dof);
+   elmat = 0.0;
+
+   const IntegrationRule *rule = GetIntegrationRule(el, Trans);
+   std::unique_ptr<IntegrationRule> split_rule;
+   if (!rule)
+   {
+      rule = &IntRules.Get(el.GetGeomType(),
+                           2*el.GetOrder() - 4 + Trans.OrderW());
+      if (dynamic_cast<const HCTTriangleFiniteElement *>(&el))
+      {
+         split_rule.reset(rule->ApplyToTriangleAlfeldSplit());
+         rule = split_rule.get();
+      }
+   }
+
+   for (int q = 0; q < rule->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = rule->IntPoint(q);
+      Trans.SetIntPoint(&ip);
+      el.CalcPhysHessian(Trans, hessian);
+      // The compressed Hessian stores (xx,xy,yy), so the mixed derivative has
+      // multiplicity two in the Frobenius product.
+      for (int i = 0; i < dof; i++) { hessian(i,1) *= M_SQRT2; }
+      real_t weight = ip.weight*Trans.Weight();
+      if (Q) { weight *= Q->Eval(Trans, ip); }
+      AddMult_a_AAt(weight, hessian, elmat);
+   }
+}
+
 void BilinearFormIntegrator::AssemblePA(const FiniteElementSpace&)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssemblePA(fes)\n"

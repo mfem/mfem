@@ -456,7 +456,8 @@ public:
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** The size (#dof) of the result Vector @a shape must be set in advance. */
-   void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
+   virtual void CalcPhysShape(ElementTransformation &Trans,
+                              Vector &shape) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -472,7 +473,8 @@ public:
        one shape function. The size (#dof x SDim) of @a dshape must be set in
        advance, where SDim >= #dim is the physical space dimension as described
        by @a Trans. */
-   void CalcPhysDShape(ElementTransformation &Trans, DenseMatrix &dshape) const;
+   virtual void CalcPhysDShape(ElementTransformation &Trans,
+                               DenseMatrix &dshape) const;
 
    /// Get a const reference to the nodes of the element
    const IntegrationRule & GetNodes() const { return Nodes; }
@@ -490,8 +492,8 @@ public:
    /** @brief Evaluate the Hessian of all shape functions of a scalar finite
        element in physical space at the given point @a ip. */
    /** The size (#dof, #dim*(#dim+1)/2) of @a Hessian must be set in advance. */
-   void CalcPhysHessian(ElementTransformation &Trans,
-                        DenseMatrix& Hessian) const;
+   virtual void CalcPhysHessian(ElementTransformation &Trans,
+                                DenseMatrix& Hessian) const;
 
    /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
        element in physical space at the given point @a ip. */
