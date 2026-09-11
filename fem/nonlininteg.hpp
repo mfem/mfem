@@ -158,6 +158,69 @@ public:
    }
 };
 
+
+
+/** @brief This class is used to express the local action of a general nonlinear
+    finite element operator. In addition it may provide the capability to
+    assemble the local gradient operator and to compute the local energy. */
+class TimeDepNonlinearFormIntegrator : public Integrator
+{
+protected:
+   real_t dt;
+
+public:
+
+   /// Perform the local action of the NonlinearFormIntegrator
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun,
+                                      const Vector &elrate,
+                                      Vector &elvect);
+
+   /// @brief Perform the local action of the NonlinearFormIntegrator resulting
+   /// from a face integral term.
+   virtual void AssembleFaceVector(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Vector &elfun,
+                                   const Vector &elrate,
+                                   Vector &elvect);
+
+   /// Assemble the local gradient matrix
+   virtual void AssembleElementGrad(const FiniteElement &el,
+                                    ElementTransformation &Tr,
+                                    const Vector &elfun,
+                                    const Vector &elrate,
+                                    DenseMatrix &elmat);
+
+   /// @brief Assemble the local action of the gradient of the
+   /// NonlinearFormIntegrator resulting from a face integral term.
+   virtual void AssembleFaceGrad(const FiniteElement &el1,
+                                 const FiniteElement &el2,
+                                 FaceElementTransformations &Tr,
+                                 const Vector &elfun,
+                                 const Vector &elrate,
+                                 DenseMatrix &elmat);
+
+   /// Compute the local energy
+   virtual real_t GetElementEnergy(const FiniteElement &el,
+                                   ElementTransformation &Tr,
+                                   const Vector &elfun,
+                                   const Vector &elrate);
+
+   /// Set the timestep to use during integration
+   void SetTimeStep(const real_t &dt_) { dt = dt_; }
+
+   /// Set the time
+   virtual void SetTime(const real_t &t_) { }
+
+   /// Set the timestep to use during integration
+   real_t GetTimeStep() const { return dt; } ;
+
+   virtual ~TimeDepNonlinearFormIntegrator() { }
+};
+
+
 /** The abstract base class BlockNonlinearFormIntegrator is
     a generalization of the NonlinearFormIntegrator class suitable
     for block state vectors. */
@@ -195,6 +258,63 @@ public:
 
    virtual ~BlockNonlinearFormIntegrator() { }
 };
+
+
+/** The abstract base class BlockNonlinearFormIntegrator is
+    a generalization of the NonlinearFormIntegrator class suitable
+    for block state vectors. */
+class BlockTimeDepNonlinearFormIntegrator
+{
+protected:
+   real_t dt;
+
+public:
+   /// Compute the local energy
+   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
+                                   ElementTransformation &Tr,
+                                   const Array<const Vector *>&elfun,
+                                   const Array<const Vector *> &elrate);
+
+   /// Perform the local action of the BlockNonlinearFormIntegrator
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
+                                      ElementTransformation &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<const Vector *> &elrate,
+                                      const Array<Vector *> &elvec);
+
+   virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                                   const Array<const FiniteElement *> &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Array<const Vector *> &elfun,
+                                   const Array<const Vector *> &elrate,
+                                   const Array<Vector *> &elvect);
+
+   /// Assemble the local gradient matrix
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                                    ElementTransformation &Tr,
+                                    const Array<const Vector *> &elfun,
+                                    const Array<const Vector *> &elrate,
+                                    const Array2D<DenseMatrix *> &elmats);
+
+   virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                                 const Array<const FiniteElement *>&el2,
+                                 FaceElementTransformations &Tr,
+                                 const Array<const Vector *> &elfun,
+                                 const Array<const Vector *> &elrate,
+                                 const Array2D<DenseMatrix *> &elmats);
+
+   /// Set the timestep to use during integration
+   void SetTimeStep(const real_t &dt_) { dt = dt_; }
+
+   /// Set the time
+   virtual void SetTime(const real_t &t_) { }
+
+   /// Set the timestep to use during integration
+   real_t GetTimeStep() const { return dt; };
+
+   virtual ~BlockTimeDepNonlinearFormIntegrator() { }
+};
+
 
 
 /// Abstract class for hyperelastic models
@@ -382,7 +502,7 @@ class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    Coefficient *Q{};
-   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
+   DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp, elmat_mass;
    Vector shape;
    // PA extension
    int dim, ne, nq, d1d, q1d;
@@ -475,6 +595,73 @@ protected:
 };
 
 
+class StabilizedVectorConvectionNLFIntegrator
+   : public TimeDepNonlinearFormIntegrator
+{
+public:
+   typedef std::function<real_t(ElementTransformation& Tr,
+                                const real_t& dt,
+                                const Vector& u,
+                                const Vector& dudt,
+                                const DenseMatrix& dudx,
+                                const Vector& res)> TauFunc_t;
+
+   typedef TauFunc_t KappaFunc_t;
+
+   typedef std::function<void(ElementTransformation& Tr,
+                              const real_t& dt,
+                              const Vector& u,
+                              const Vector& dudt,
+                              const DenseMatrix& dudx,
+                              const Vector& res,
+                              DenseMatrix& Ka)> KappaMatFunc_t;
+
+private:
+   DenseMatrix dshape, Ka, dshape_Ka, mat1, EF, dEF, dudx, ELV, elmat_comp,
+               elmat_mass;
+   Vector shape, test, trail;
+
+   TauFunc_t *tau_fun = nullptr;
+   KappaFunc_t *kappa_fun = nullptr;
+   KappaMatFunc_t *kappa_mat_fun = nullptr;
+
+public:
+   StabilizedVectorConvectionNLFIntegrator(TauFunc_t *tau,
+                                           KappaFunc_t*kappa = nullptr)
+      : tau_fun(tau), kappa_fun(kappa) { }
+
+   StabilizedVectorConvectionNLFIntegrator(TauFunc_t *tau,
+                                           KappaMatFunc_t *kappa)
+      : tau_fun(tau), kappa_mat_fun(kappa) { }
+
+   StabilizedVectorConvectionNLFIntegrator() = default;
+
+   static const IntegrationRule &GetRule(const FiniteElement &fe,
+                                         const ElementTransformation &T);
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              const Vector &elrate,
+                              Vector &elvect) override;
+
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            const Vector &elrate,
+                            DenseMatrix &elmat) override;
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(test_fe, trans);
+   }
+};
+
+
 /** This class is used to assemble the convective form of the nonlinear term
     arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$.
     Partial assembly is not supported; use VectorConvectionNLFIntegrator. */
@@ -533,6 +720,112 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultGradPA(const Vector &x, Vector &y) const override;
    void AssembleGradDiagonalPA(Vector &diag) const override;
+};
+
+/** This class is used to assemble the CDR
+*/
+
+class StabilizedCDRIntegrator : public TimeDepNonlinearFormIntegrator
+{
+public:
+   typedef std::function<real_t(ElementTransformation& Tr,
+                                const real_t& dt,
+                                const Vector& a,
+                                const real_t& dudt,
+                                const Vector& dudx,
+                                const real_t& res)> TauFunc_t;
+
+   typedef TauFunc_t KappaFunc_t;
+
+   typedef std::function<void(ElementTransformation& Tr,
+                              const real_t& dt,
+                              const Vector& a,
+                              const real_t& dudt,
+                              const Vector& dudx,
+                              const real_t& res,
+                              DenseMatrix& Ka)> KappaMatFunc_t;
+
+private:
+   DenseMatrix dshape, Ka, dshape_Ka, elmat_comp, elmat_mass;
+   Vector shape, lshape, dudx, test, trail;
+
+   Coefficient *mass = nullptr;
+   VectorCoefficient *conv = nullptr;
+   Coefficient *diff = nullptr;
+   MatrixCoefficient *diff_mat = nullptr;
+   Coefficient *react = nullptr;
+   Coefficient *force = nullptr;
+
+   TauFunc_t *tau_fun = nullptr;
+   KappaFunc_t *kappa_fun = nullptr;
+   KappaMatFunc_t *kappa_mat_fun = nullptr;
+
+public:
+   StabilizedCDRIntegrator(Coefficient *mass_,
+                           VectorCoefficient *conv_,
+                           Coefficient *diff_ = nullptr,
+                           Coefficient *react_ = nullptr,
+                           Coefficient *force_ = nullptr,
+                           TauFunc_t *tau = nullptr,
+                           KappaFunc_t*kappa = nullptr)
+      : mass(mass_), conv(conv_),  diff(diff_), react(react_), force(force_),
+        tau_fun(tau), kappa_fun(kappa) { };
+
+   StabilizedCDRIntegrator(Coefficient *mass_,
+                           VectorCoefficient *conv_,
+                           Coefficient *diff_,
+                           Coefficient *react_,
+                           Coefficient *force_,
+                           TauFunc_t *tau,
+                           KappaMatFunc_t*kappa)
+      : mass(mass_), conv(conv_),  diff(diff_), react(react_), force(force_),
+        tau_fun(tau), kappa_mat_fun(kappa) { };
+
+   StabilizedCDRIntegrator(Coefficient *mass_,
+                           VectorCoefficient *conv_,
+                           MatrixCoefficient *diff_mat_,
+                           Coefficient *react_ = nullptr,
+                           Coefficient *force_ = nullptr,
+                           TauFunc_t *tau = nullptr,
+                           KappaFunc_t *kappa = nullptr)
+      : mass(mass_), conv(conv_),  diff_mat(diff_mat_), react(react_),
+        force(force_), tau_fun(tau), kappa_fun(kappa) { };
+
+   StabilizedCDRIntegrator(Coefficient *mass_,
+                           VectorCoefficient *conv_,
+                           MatrixCoefficient *diff_mat_,
+                           Coefficient *react_,
+                           Coefficient *force_,
+                           TauFunc_t *tau,
+                           KappaMatFunc_t *kappa)
+      : mass(mass_), conv(conv_),  diff_mat(diff_mat_), react(react_),
+        force(force_), tau_fun(tau), kappa_mat_fun(kappa) { };
+
+   StabilizedCDRIntegrator() = default;
+
+   static const IntegrationRule &GetRule(const FiniteElement &fe,
+                                         const ElementTransformation &T);
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              const Vector &elrate,
+                              Vector &elvect) override;
+
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            const Vector &elrate,
+                            DenseMatrix &elmat) override;
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(test_fe, trans);
+   }
 };
 
 }
