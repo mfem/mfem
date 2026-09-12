@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -183,7 +183,7 @@ VectorConvectionNLFIntegrator::AddMultPAKernels::Kernel()
    {
       return internal::SmemPAConvectionNLApply3D<T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorConvectionNLFIntegrator::AddMultPAType
@@ -201,7 +201,7 @@ VectorConvectionNLFIntegrator::AddMultPAKernels::Fallback
    {
       return internal::SmemPAConvectionNLApply3D<>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 /// \endcond DO_NOT_DOCUMENT

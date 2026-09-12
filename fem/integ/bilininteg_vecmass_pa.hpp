@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -177,12 +177,9 @@ void SmemPAVectorMassApply3D(const int NE,
 }
 
 template <int T_Q1D = 0, int T_MDQ = 16>
-static void SmemPAVectorMassAssembleDiagonal2D(const int ne,
-                                               const int d1d,
-                                               const int q1d,
-                                               const real_t *b_r,
-                                               const real_t *d_r,
-                                               real_t *y_rw)
+void SmemPAVectorMassAssembleDiagonal2D(const int ne, const int d1d,
+                                        const int q1d, const real_t *b_r,
+                                        const real_t *d_r, real_t *y_rw)
 {
    constexpr int VDIM = 2;
 
@@ -234,12 +231,9 @@ static void SmemPAVectorMassAssembleDiagonal2D(const int ne,
 
 // T_MDQ <= 10 so the Q1D^3 thread block stays within the 1024/block GPU limit
 template <int T_Q1D = 0, int T_MDQ = 10>
-static void SmemPAVectorMassAssembleDiagonal3D(const int ne,
-                                               const int d1d,
-                                               const int q1d,
-                                               const real_t *b_r,
-                                               const real_t *d_r,
-                                               real_t *y_rw)
+void SmemPAVectorMassAssembleDiagonal3D(const int ne, const int d1d,
+                                        const int q1d, const real_t *b_r,
+                                        const real_t *d_r, real_t *y_rw)
 {
    constexpr int VDIM = 3;
 
@@ -328,7 +322,7 @@ VectorMassIntegrator::VectorMassAddMultPA::Kernel()
    {
       return internal::SmemPAVectorMassApply3D<T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorMassIntegrator::VectorMassAddMultPAType
@@ -342,7 +336,7 @@ VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
    {
       return internal::SmemPAVectorMassApply3D;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 // DiagonalPA kernels
@@ -358,7 +352,7 @@ VectorMassIntegrator::VectorMassAssembleDiagonalPA::Kernel()
    {
       return internal::SmemPAVectorMassAssembleDiagonal3D<T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorMassIntegrator::VectorMassAssembleDiagonalPAType
@@ -372,7 +366,7 @@ VectorMassIntegrator::VectorMassAssembleDiagonalPA::Fallback(int dim, int)
    {
       return internal::SmemPAVectorMassAssembleDiagonal3D;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 /// \endcond DO_NOT_DOCUMENT

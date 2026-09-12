@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -303,7 +303,7 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Kernel()
    {
       return internal::SmemPADivergenceApply3D<T_TR_D1D, T_TE_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorDivergenceIntegrator::VectorDivergenceAddMultPAType
@@ -322,7 +322,7 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultPA::Fallback
    {
       return internal::SmemPADivergenceApply3D;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 template<int DIM, int T_TR_D1D, int T_TE_D1D, int T_Q1D>
@@ -338,7 +338,7 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePA::Kernel()
    {
       return internal::SmemPADivergenceApplyTranspose3D<T_TR_D1D, T_TE_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePAType
@@ -357,7 +357,7 @@ VectorDivergenceIntegrator::VectorDivergenceAddMultTransposePA::Fallback
    {
       return internal::SmemPADivergenceApplyTranspose3D;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 /// \endcond DO_NOT_DOCUMENT

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -132,7 +132,7 @@ public:
    /// Find Particles in mesh corresponding to E and field
    void FindParticles();
 
-   /// Advance particles one time step using Boris algorithm
+   /// Advance particles one time step using leap-frog scheme
    void Step(real_t& t, real_t dt, real_t L, bool first_step = false);
 
    /// Redistribute particles across processors
@@ -230,9 +230,9 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.redist_interval, "-rdi", "--redist-interval",
-                  "Redistribution and update E_gf interval. Disabled if < 0.");
+                  "Redistribution and update E_gf interval. Disabled if <= 0.");
    args.AddOption(&ctx.output_csv_interval, "-oci", "--output-csv-interval",
-                  "Output CSV interval. Disabled if < 0.");
+                  "Output CSV interval. Disabled if <= 0.");
    args.AddOption(&ctx.visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -500,7 +500,7 @@ void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
       for (int d = 0; d < dim; ++d)
       {
          X(particle, d) += dt / M(particle) * P(particle, d);
-         while (X(particle, d) > L) { X(particle, d) -= L; }
+         while (X(particle, d) >= L) { X(particle, d) -= L; }
          while (X(particle, d) < 0.0) { X(particle, d) += L; }
       }
    }
@@ -540,7 +540,8 @@ real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
    }
 
    real_t global_kinetic_energy = 0.0;
-   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1, MPI_DOUBLE,
+   MPI_Allreduce(&kinetic_energy, &global_kinetic_energy, 1,
+                 MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, charged_particles->GetComm());
    return global_kinetic_energy;
 }
@@ -560,7 +561,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
    {
       local_domain_volume += pmesh->GetElementVolume(i);
    }
-   MPI_Allreduce(&local_domain_volume, &domain_volume, 1, MPI_DOUBLE, MPI_SUM,
+   MPI_Allreduce(&local_domain_volume, &domain_volume, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM,
                  phi_fes->GetParMesh()->GetComm());
 
    {
@@ -610,7 +612,8 @@ const ParLinearForm& FieldSolver::ComputeNeutralizingRHS(
       }
 
       real_t global_sum = 0.0;
-      MPI_Allreduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(&local_sum, &global_sum, 1, MPITypeMap<real_t>::mpi_type,
+                    MPI_SUM, comm);
 
       neutralizing_const = -global_sum / domain_volume;
       if (Mpi::Root())
@@ -664,7 +667,7 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
                   "Particle " << p << " found in element owned by rank "
                   << proc[p] << " but current rank is " << curr_rank
                   << "." << endl
-                  << "You must call redistribute everytime before "
+                  << "You must call redistribute every time before "
                   "updating the density grid function.");
       const int e = elem[p];
 

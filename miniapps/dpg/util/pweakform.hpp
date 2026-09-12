@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -79,8 +79,8 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
-   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix has to be deleted by the caller. */
+   /// Assembles the matrix on the true dofs, i.e. P^t A P.
+   /** The result is stored internally. */
    void ParallelAssemble(BlockMatrix *mat);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
