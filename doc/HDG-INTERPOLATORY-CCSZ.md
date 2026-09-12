@@ -1,6 +1,9 @@
 # Interpolatory HDG_k and its superconvergent postprocessing — a design, not a build
 
-**Status: nothing is implemented. This file is a to-do.** It specifies what
+**Status: CHOSEN, and nothing is implemented yet. This file is a to-do.** It is
+to be built in preference to porting the element integrators to the device and
+in preference to extending the element-local caches; §4.4.4 carries the
+reasoning and the measurements behind it. It specifies what
 Chen, Cockburn, Singler & Zhang, *Superconvergent Interpolatory HDG Methods for
 Reaction Diffusion Equations I: An HDG_k Method*, J. Sci. Comput. **81** (2019)
 2188–2212 (**CCSZ-I** below; PDF at `/home/ian/projects/meq/refs/SuperconvergentHDG-I.pdf`)
@@ -8,10 +11,9 @@ would need in order to be expressible on `fem/darcy/`, what interface the
 interpolatory integrator should present, and what each stage's falsifying
 measurement is.
 
-It is the design half of a pair. The *request* half is
-`doc/CCSZ-INTERPOLATORY-HDG-FROM-MEQ.md`, written by meq the same day; it asks
-for two API widenings and independently identified the same missing (1,0)
-gradient block. Where this file and that one differ, the differences are called
+It is the design half of a pair. The *request* half came from meq the same
+day, asking for two API widenings and independently identifying the same
+missing (1,0) gradient block. Where this file and that one differ, the differences are called
 out (§2.5, §6.6) — one of meq's premises about `τ` does not hold in this tree.
 
 **Line numbers are against the WORKING TREE of `gf-hdg-linearise-first` at
@@ -19,11 +21,12 @@ out (§2.5, §6.6) — one of meq's premises about `τ` does not hold in this tr
 read, not remembered. Function and class names are the stable part; if a number
 is off by a few dozen lines, grep the name.
 
-**No source file, test or makefile was touched, and nothing was compiled or
-run, in producing this.** Every number quoted from this tree is a line number
-or a count of grep hits; every number quoted as a measurement is CCSZ-I's own
-and is attributed. There are no new measurements here — §5 is a list of
-measurements to *take*.
+**Sections 1-3 touched no source file and ran nothing**; every number quoted
+from this tree there is a line number or a count of grep hits, and every number
+quoted as a measurement is CCSZ-I's own and is attributed. **§4.4 is the
+exception and does carry new measurements** — quadrature point counts read out
+of `IntRules`, and arithmetic intensities derived from the block shapes. §5 is
+still a list of measurements to *take*.
 
 ---
 
@@ -423,7 +426,7 @@ exist. CCSZ-I's `u*` must be the smaller, linear one.
 | a (1,0) gradient block | **absent** — §2.2 |
 | `τ` elementwise constant and **O(1)** | **needs the hook, not the default** — see below |
 
-**A correction to `doc/CCSZ-INTERPOLATORY-HDG-FROM-MEQ.md`.** That file says
+**A correction to meq's request.** It says
 "Paper I's `τ` is elementwise constant and O(1), which is what MEQ runs and what
 `HDGDiffusionIntegrator` supplies." The second half does not hold as written.
 `HDGDiffusionIntegrator`'s built-in stabilization carries `1/h` **intrinsically**:
@@ -473,7 +476,7 @@ nonlinear element operator was state-independent. Its own summary, `:3783-3787`:
 
 and `:3789-3801` says an interpolatory formulation would make all four
 unnecessary rather than easier.
-`doc/HDG-NPC-PARAMETRIC-COEFFICIENTS-REPLY-TO-GFFP.md` §8 carries the same table
+The reply to gffp's parametric-coefficient proposal carries the same table
 and the same objection.
 
 The three properties that has to buy, and the interface that buys them.
@@ -877,6 +880,136 @@ one dense LU of `A` per element per step from `FullNL`.
 allocates when live. `B12` is rank one and could be stored as two vectors per
 element; do not bother until it is measured to matter.
 
+### 4.4 The device case, and it is STRUCTURAL rather than arithmetic
+
+**This is the section that decided the method gets built.** It is also the
+section that withdraws the two arguments people reach for first, because both
+are measured here and both come out at about 1.
+
+#### 4.4.1 Machine balance kills the caching argument, on device
+
+Arithmetic intensity — flops done per byte moved — is the test of whether
+storing a result beats recomputing it. A machine pays off a cached read only
+above its own balance, peak FLOP/s over peak bandwidth:
+
+| part (FP64) | peak flop/s / bandwidth |
+|---|---|
+| RTX 2070 SUPER (the card in this workspace) | **0.63** flop/byte |
+| A100 80GB | 5.01 |
+| H100 SXM | 10.15 |
+| MI300X | 15.42 |
+
+**The element-local condensation cache has intensity `na/8`, exactly, and that
+is structural rather than a property of any mesh.** Each cached product is the
+*result* of its own flops, so flops/reals is the same factor in every one of
+them:
+
+| product | flops | reals | ratio |
+|---|---|---|---|
+| `A^-1 B^T` | `na^2 nd` | `na nd` | `na` |
+| `A^-1 C^T` | `nf na^2 nc` | `nf na nc` | `na` |
+| `B A^-1 C^T - E` | `nf nd na nc` | `nf nd nc` | `na` |
+| `C^T A^-1 B^T + G` | `nf nc na nd` | `nf nc nd` | `na` |
+| `C^T A^-1 C^T` | `nf^2 nc na nc` | `nf^2 nc^2` | `na` |
+
+So the whole cache is `na/8` flop/byte independent of `nd`, `nc`, `nf` and of
+the mesh, and it pays on device only above `na = 8 x balance`: **`na > 40` on
+an A100, `na > 81` on an H100**. meq runs `na = 12`, which is 1.5 flop/byte —
+a factor of 3.3 below an A100 and 6.8 below an H100.
+
+**And the card here is the one machine that would say otherwise.** Its FP64 is
+1/32 of its FP32, so its balance is 0.63 and the cache clears it above
+`na = 5`, i.e. at every order anyone runs. A device measurement taken in this
+workspace would report the cache viable and be wrong about every machine the
+code would be deployed on.
+
+**CCSZ-I's own steady-state work is worse on this axis, not better.** §4.3's
+cost is GEMVs against the fixed matrices, and a GEMV is the lowest-intensity
+dense operation there is: each matrix entry is read once for one multiply-add,
+**0.25 flop/byte** in double precision. That is below every balance in the
+table, including this card's.
+
+The conclusion is not "do not build CCSZ-I". It is that **its performance case
+is a HOST case** — where the recompute it removes is dominated by call
+overhead and serial-dependent small solves rather than by peak FLOP/s — and
+that anyone proposing it as a device throughput win should be shown the 0.25.
+
+#### 4.4.2 The quadrature-count argument is measured, and it is ~1
+
+The obvious remaining argument is that CCSZ-I evaluates `F` at `ns`
+interpolation nodes instead of `nq` quadrature points. **Measured against
+MFEM's own rules** — `IntRules.Get(geom, 2k+2)`, which is what the HDG
+integrators in this tree ask for, against `dim Z_h = P^{k+1}` / `Q^{k+1}`:
+
+| k | tri `ns` | tri `nq` | ratio | quad `ns` | quad `nq` | ratio |
+|---|---|---|---|---|---|---|
+| 1 | 6 | 6 | 1.00 | 9 | 9 | 1.00 |
+| 2 | 10 | 12 | **1.20** | 16 | 16 | **1.00** |
+| 3 | 15 | 16 | 1.07 | 25 | 25 | 1.00 |
+| 4 | 21 | 25 | 1.19 | 36 | 36 | 1.00 |
+| 5 | 28 | 33 | 1.18 | 49 | 49 | 1.00 |
+
+**On tensor-product elements the ratio is exactly 1 at every order, and it is
+arithmetic rather than luck**: a Gauss rule exact to degree `2k+2` needs `k+2`
+points per dimension, and `dim Q^{k+1}` is `(k+2)^d`. On simplices MFEM's
+symmetric rules are efficient enough that the saving never reaches 1.2.
+
+So **even an infinitely expensive `F` buys 1.20x on meq's configuration
+(triangles, k=2) and exactly nothing on quads.** Any estimate that puts this
+ratio near 2 has sized `nq` as the dimension of the exactly-integrated space
+instead of asking `IntRules`; that bound is loose by roughly a factor of two
+on triangles.
+
+#### 4.4.3 What `F` actually is here, and why it sits outside both arguments
+
+For meq the relevant `F` is **the evaluation of a 1-D HDG grid function** — a
+plasma profile in `psi` — so one evaluation is a data-dependent **search** for
+the 1-D element, an **indexed gather** of that element's coefficients, and a
+few flops of polynomial evaluation.
+
+That is latency-bound and, on a GPU, divergence-bound. It is not described by
+arithmetic intensity at all, and neither §4.4.1 nor §4.4.2 speaks to it.
+
+**It is also the hard part of porting the integrators**, which
+`doc/HDG-DEVICE-OFFLOAD.md` step 2 does not mention: a device integrator for
+this problem has to carry a 1-D search into a kernel, where the threads of a
+warp land in different 1-D elements and the coefficient fetch does not
+coalesce.
+
+**And this is where CCSZ-I earns its place, independent of every count above.**
+It separates *evaluating* `F` from *integrating* it: form the nodal values
+`gamma = B11 u + B12 p`, apply `F` at `ns` nodes, integrate with a GEMV. The
+expensive operation becomes **a flat, batchable array of `ns x NE` independent
+evaluations**, which can be sorted by 1-D element, coalesced, or held resident.
+Classic HDG interleaves the same evaluations with integration inside a
+per-element quadrature loop, where none of that is available.
+
+**Worth doing regardless, and it needs no CCSZ-I**: if the 1-D `psi` mesh is
+uniform the element index is `floor((psi - psi_0)/h)` and the search — with its
+divergence — disappears outright. If it is not uniform, the boundary array is
+small enough to sit in shared memory. That question is meq's and costs them
+one look at their profile mesh.
+
+#### 4.4.4 The decision
+
+**CCSZ-I is to be built, and it is to be built INSTEAD of two things**: instead
+of porting the element integrators to the device (`HDG-DEVICE-OFFLOAD.md`
+step 2, the largest remaining item there), and instead of extending the
+element-local caches any further.
+
+The reason is §4.4.3 and not §4.4.1 or §4.4.2. CCSZ-I does not make the
+arithmetic faster; it **removes the integrator that would otherwise have to be
+written as a device kernel**, and leaves behind two things a device already
+does well — a batched GEMV, which `BatchedLinAlg` supplies today, and a flat
+array of `F` evaluations that can be organised for coalescing. The caches go
+the other way: each one adds state with a lifetime to track, buys less than
+the last, and trades the resource a device has spare for the one it does not.
+
+`HDGPostprocessBlocks` also has the lifetime property the caches cannot: its
+matrices are constant **by construction**, since only the geometry and the
+diffusion inverse enter them, with a sequence and coefficient stamp that
+aborts on a stale read rather than a rule someone has to remember.
+
 ---
 
 ## 5. A staged plan, each stage with the check that would fail if it were wrong
@@ -1110,7 +1243,7 @@ nothing about which nodes. MFEM's `L2_FECollection` defaults to
 `GaussLobatto` is closed and puts dofs on vertices. `I_h` differs between them
 and so, in principle, does the answer at fixed `h`.
 
-`doc/CCSZ-INTERPOLATORY-HDG-FROM-MEQ.md` gives a concrete reason to care:
+meq's request gives a concrete reason to care:
 meq's integrand is `F/r` and a Lobatto triangle puts a dof at `r = 0` on any
 domain reaching the symmetry axis — "Quadrature never meets this; nodal
 interpolation does." So the node set is a caller choice, which is why
@@ -1133,7 +1266,7 @@ results to methods closely related to the HHO methods; see [8]" — ref [8] bein
 Cockburn, Di Pietro & Ern, *Bridging the HHO and HDG methods*, ESAIM M2AN **50**
 (2016) 635–650.
 
-`doc/CCSZ-INTERPOLATORY-HDG-FROM-MEQ.md` identifies the sequel as Chen,
+meq's request identifies the sequel as Chen,
 Cockburn, Singler & Zhang, Commun. Appl. Math. Comput. **4** (2022) 477–499, and
 says it needs **different spaces and `τ = 1/h`**. **I have not read it.**
 
@@ -1188,14 +1321,14 @@ nothing: `min{k,1} = 0` and Table 1's `k = 0` `u*` column is 0.97.
 
 1. **The sequel's content.** Chen, Cockburn, Singler & Zhang, CAMC **4** (2022)
    477–499 — I have not read it. Everything in §6.7 about it comes from
-   `doc/CCSZ-INTERPOLATORY-HDG-FROM-MEQ.md`.
+   meq's request.
 2. **The predecessor's content.** Cockburn, Singler & Zhang, J. Sci. Comput.
    **79** (2019) 1777–1800 (ref [16]) — not read. What §1.2 and §6.1 say about
    it is CCSZ-I's own description of it (§1 p. 2189, Remark 2.1 p. 2191, §5
    p. 2208).
 3. **Every performance number in §4.3 is an operation count, not a
    measurement.** No timing was taken. The 9%-of-a-Newton-step figure is quoted
-   from `doc/HDG-NPC-PARAMETRIC-COEFFICIENTS-REPLY-TO-GFFP.md` §7, which
+   from the reply to gffp's parametric-coefficient proposal, §7, which
    attributes it to this tree.
 4. **The `B11`/`B12` extraction formulae in §3.1 were derived by reading
    `postprocess_hdg.cpp:141-223`, not by running anything.** In particular the

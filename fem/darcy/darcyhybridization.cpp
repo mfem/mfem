@@ -3978,6 +3978,79 @@ void HDGScatterTraceRows(const Vector &src, const Array<int> &map,
    });
 }
 
+/** @brief SparseMatrix::SetDiagIdentity(), as one kernel.
+
+    Same arithmetic and same test: a row with exactly one entry whose value is
+    below 1e-16 gets a unit diagonal, because that entry IS the diagonal in a
+    one-entry row of a square matrix. Everything else is left alone.
+
+    It exists so that a trace matrix the batched assembly left on the device
+    does not have to come back for it. The host routine indexes I and A
+    through Memory::operator[], which neither syncs nor invalidates, so
+    calling it on a device-resident matrix reads a stale host copy.
+
+    @a use_dev is the caller's, not inferred: the serial route builds H as a
+    linked list on the host and finalises it there, and moving that matrix to
+    the device for one pass over the diagonal would cost more than it saves. */
+void HDGTraceDiagIdentity(SparseMatrix &H, bool use_dev)
+{
+   const int n = H.Height();
+   const auto d_I = H.ReadI(use_dev);
+   auto d_A = H.ReadWriteData(use_dev);
+   mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i)
+   {
+      if (d_I[i+1] == d_I[i] + 1 && fabs(d_A[d_I[i]]) < 1e-16)
+      {
+         d_A[d_I[i]] = 1.0;
+      }
+   });
+}
+
+/** @brief SparseMatrix::EliminateRow(row, dpolicy) over @a rows, as one
+    kernel, for a FINALIZED matrix.
+
+    The rows are disjoint -- an essential trace dof names one row -- so there
+    is nothing to reduce and no atomic. Each thread zeroes its row and, under
+    DIAG_ONE, writes 1 on the diagonal in the same pass, where the host
+    routine zeroes and then calls SearchRow() to place the diagonal.
+
+    **That fusion is only equivalent because the diagonal entry is present**,
+    which on this pattern it always is: a face is its own neighbour, so every
+    row's block for its own face is in the matrix and carries the diagonal.
+    SearchRow() would abort on a finalized matrix if it were absent, and the
+    kernel would instead leave the row zero; MFEM_ASSERT_KERNEL says so in a
+    debug build rather than letting the two disagree silently.
+
+    @a use_dev is the caller's, for HDGTraceDiagIdentity()'s reason. */
+void HDGTraceEliminateRows(SparseMatrix &H, const Array<int> &rows,
+                           Operator::DiagonalPolicy dpolicy, bool use_dev)
+{
+   MFEM_VERIFY(dpolicy == Operator::DIAG_ONE || dpolicy == Operator::DIAG_ZERO,
+               "HDGTraceEliminateRows: DIAG_KEEP has no meaning here");
+   MFEM_VERIFY(dpolicy != Operator::DIAG_ONE || H.Height() == H.Width(),
+               "DIAG_ONE wants a square matrix");
+   if (rows.Size() == 0) { return; }
+
+   const bool diag_one = (dpolicy == Operator::DIAG_ONE);
+   const auto d_rows = rows.Read(use_dev);
+   const auto d_I = H.ReadI(use_dev);
+   const auto d_J = H.ReadJ(use_dev);
+   auto d_A = H.ReadWriteData(use_dev);
+   mfem::forall_switch(use_dev, rows.Size(), [=] MFEM_HOST_DEVICE (int k)
+   {
+      const int r = d_rows[k];
+      bool found = false;
+      for (int j = d_I[r]; j < d_I[r+1]; j++)
+      {
+         const bool is_diag = (d_J[j] == r);
+         found = found || is_diag;
+         d_A[j] = (is_diag && diag_one) ? 1.0 : 0.0;
+      }
+      MFEM_ASSERT_KERNEL(found || !diag_one,
+                         "DIAG_ONE on a row with no diagonal entry");
+   });
+}
+
 /** @brief Build ResidualCache if it is not built, and say whether it is
     usable. Shared by LinearResidualBatched() and CopyLinearGradBlocks(),
     which is not an accident: **the two have to be built from the same blocks
@@ -4817,29 +4890,18 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       // bring the values down.
       H_->GetMemoryData().Sync(Hcsr.GetMemory());
 
-      // **The values come down here, and an attempt to keep them on the
-      // device SEGFAULTED under Device("debug").** The two host operations
-      // that force it are SetDiagIdentity() below and the caller's
-      // EliminateRow() loop, and both were rewritten as kernels
-      // (HDGTraceEliminateRows, HDGTraceDiagIdentity) to remove exactly this
-      // transfer -- so the kernels are not the missing piece. The consumers
-      // are: cuDSS is fine (device pointers) and so is UMFPackSolver
-      // (HostReadI/J/Data), but **GSSmoother is not** -- SparseMatrix's
-      // Gauss-Seidel sweeps index I, J and A through Memory::operator[], a
-      // raw host access that neither syncs nor invalidates, and the unit
-      // tests precondition the trace solve with it. Moving the readback to
-      // after the kernels was not enough either, so at least one more raw
-      // reader is in the chain and it has not been found.
+      // **The values stay where the scatter left them.** The two operations
+      // that used to force them down -- SetDiagIdentity() here and the
+      // caller's EliminateRow() loop -- are HDGTraceDiagIdentity() and
+      // HDGTraceEliminateRows(), so neither needs a host copy.
       //
-      // **So this stays, and "structural" is the honest label**: making the
-      // trace matrix device-resident is a change to SparseMatrix's host
-      // methods or a caller contract, not something ComputeH() can do. The
-      // debug backend is what established it; a host build passes either way,
-      // which is why this needed running rather than reasoning about.
+      // What consumes the matrix decides the rest, and every consumer in this
+      // tree synchronises itself: cuDSS takes device pointers, UMFPackSolver
+      // goes through HostReadI/J/Data, and SparseMatrix::Gauss_Seidel_forw()'s
+      // finalized branch is HostRead/HostReadWrite throughout. A consumer
+      // that indexes I, J or A through Memory::operator[] instead would read
+      // a stale host copy, and Device("debug") is what names one.
       //
-      // ReadWrite and not Read, for SyncLocalBlocksToHost()'s reason.
-      H_->HostReadWriteData();
-
       // Nothing to finalize: the matrix was built as a CSR. Nor is there a
       // diagonal to force -- a face is its own neighbour, so every row's
       // block for its own face is present and carries the diagonal, which is
@@ -4876,7 +4938,11 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       // ensure diagonal is non-zero
       if (diag_policy == DIAG_ONE)
       {
-         H_->SetDiagIdentity();
+         // On the device when the batched assembly put it there, and on the
+         // host otherwise: the serial route builds this matrix as a linked
+         // list and finalises it on the host, where a device pass would cost
+         // two transfers to touch the diagonal.
+         HDGTraceDiagIdentity(*H_, thmap != NULL);
       }
    }
 }
@@ -5093,14 +5159,15 @@ Operator &DarcyHybridization::ReducedGradient(MultNlMode mode,
       // the same shape SyncLocalBlocksToHost() records for the offset
       // arrays. Device("debug") faults in MmuError() here with no line
       // number; CUDA reads a stale copy.
-      ess_tdof_list.HostRead();
-      Grad->HostReadWriteI();
-      Grad->HostReadWriteJ();
-      Grad->HostReadWriteData();
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
-      {
-         Grad->EliminateRow(ess_tdof_list[i], Matrix::DIAG_ONE);
-      }
+      // One kernel over the essential rows, which are disjoint. It runs
+      // where the matrix already is: device-valid when the batched trace
+      // assembly built it, host otherwise. Both operands would otherwise be
+      // indexed raw -- Array<int>::operator[] on the list and
+      // SparseMatrix::EliminateRow() on I, J and A -- and Array<int>::Read()
+      // defaults to on_dev = true, so the list can be device-valid whenever
+      // SetSubVector(ess_tdof_list, ...) has handed it to a kernel.
+      HDGTraceEliminateRows(*Grad, ess_tdof_list, Operator::DIAG_ONE,
+                            Grad->GetMemoryData().DeviceIsValid());
       return *Grad;
    }
 
