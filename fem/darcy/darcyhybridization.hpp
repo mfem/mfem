@@ -503,8 +503,8 @@ private:
        An opaque pointer and not a handful of Array members, deliberately: a
        new member of this class changes its layout, and every translation unit
        that includes mfem.hpp sees that layout, so it is a `make clean` in
-       every tree -- a trap this branch has paid for six times. Behind one
-       pointer the map's contents can grow without costing that again. */
+       every tree. Behind one pointer the map's contents can grow without
+       costing that again. */
    struct TraceHMap;
    mutable std::unique_ptr<TraceHMap> trace_h_map;
 
@@ -516,6 +516,46 @@ private:
        and because this cache is exactly the sort of thing that grows. */
    struct ResidualCache;
    mutable std::unique_ptr<ResidualCache> res_cache;
+
+   /** @brief The state-INDEPENDENT half of the local condensation, kept
+       across a Newton loop instead of rebuilt at every gradient.
+
+       Under LocalOpType::PotNL only the potential mass is non-linear, so A
+       and its factorisation, B and the trace constraint blocks are all fixed
+       for the whole solve: `A^-1 B^T`, `B A^-1 B^T`, `A^-1 C^T`,
+       `B A^-1 C^T - E`, `C A^-1 B^T + G` and `C A^-1 C^T` do not move. D is
+       the only block that does, and the Schur complement moves only through
+       it. meq measures ComputeH() at 68-73% of their gradient leg, so this is
+       the leg inside the leg.
+
+       Dropped by InvalidateCoefficientCache() and by Reset(); a caller whose
+       coefficients move must say so, exactly as for res_cache.
+
+       **Measured**, ComputeH() seconds per gradient, serial, medians of
+       three, against the same tree with the cache refused:
+
+       | | off | on | |
+       |---|---|---|---|
+       | order 1, 32x32 quads | 0.00612 | 0.00455 | 1.34x |
+       | order 2, 24x24 quads | 0.01091 | 0.00591 | **1.85x** |
+       | order 2, 24x24 tris  | 0.00960 | 0.00553 | 1.74x |
+       | order 3, 16x16 quads | 0.01242 | 0.00557 | **2.23x** |
+
+       It grows with order because the cached products are the ones whose cost
+       is quadratic or cubic in the block sizes. Against meq's M-80, where
+       ComputeH() is 68-73% of a gradient leg that is a third of a solve, 1.85x
+       is about 11% of a whole solve at their k=2 -- below the 17-18% a flop
+       count predicted, because the remainder is memory-bound rather than
+       arithmetic-bound.
+
+       **It is not free in memory**, and the caller should know the size:
+       `na*nd + nf*nc*(na + 2*nd) + nf^2*nc^2` reals per element. That is
+       5.9 kB an element for 2-D order-2 quads, so ~97 MB on a 128x128 mesh.
+       A caller who is memory-bound rather than gradient-bound should not want
+       this, which is why the predicate is narrow rather than "whenever it is
+       correct". */
+   struct CondensationCache;
+   mutable std::unique_ptr<CondensationCache> cond_cache;
 
    GradientMode grad_mode{GradientMode::Assembled};
    AssemblyMode asm_mode{AssemblyMode::Serial};
@@ -767,6 +807,13 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override
       {
+         // DenseMatrixInverse::Mult() is LUFactors::Solve() on raw host
+         // pointers, and NewtonSolver hands it a device-flagged correction;
+         // see LocalNLOperator::Mult() for the whole of it.
+         x.UseDevice(false);
+         y.UseDevice(false);
+         x.HostRead();
+         y.HostWrite();
          inv.Mult(x, y);
       }
    };
@@ -1091,7 +1138,8 @@ private:
    struct SerialHWorkspace;
    void ComputeElementH(int el, ComputeHMode mode, real_t *Hel,
                         SerialHWorkspace &ws,
-                        const Vector *AiBt_all = NULL) const;
+                        const Vector *AiBt_all = NULL,
+                        CondensationCache *cc = NULL) const;
    /** @brief The element-local FACTORISATION half of ComputeElementH() -- the
        LU of A, the Schur complement and its LU -- for every element in one
        batch of BatchedLinAlg calls, and A^-1 times the negated (0,1) block
@@ -1756,6 +1804,12 @@ public:
        the next residual or gradient. See the definition. */
    void InvalidateCoefficientCache();
 
+   /** @brief Whether the state-independent condensation products can be kept
+       across a Newton loop; see CondensationCache. */
+   bool CanCacheCondensation() const;
+   /// Allocate the cache if it is wanted and not built; NULL if it is not.
+   CondensationCache *EnsureCondensationCache() const;
+
    /** @brief Read-only views on one face's assembled constraint blocks, for a
        caller checking one assembly route against another.
 
@@ -2192,6 +2246,36 @@ public:
    /// The current trace assembly mode; see SetTraceAssemblyMode().
    TraceAssemblyMode GetTraceAssemblyMode() const { return tasm_mode; }
 
+   /** @brief Seconds accumulated inside ComputeH() since ResetComputeHTime().
+
+       The gradient leg of an NPC Newton step is the whole of NPCGradient(),
+       and ComputeH() is only part of it -- the local factorisation, the
+       element Schur complements and the face-pair assembly. A caller timing
+       GetGradient() from outside therefore gets a number that BOUNDS
+       ComputeH() from above and does not locate it, which is not enough to
+       tell a change in the condensation apart from a change in the element
+       integrators.
+
+       **Always on rather than behind a build flag, deliberately.** The cost
+       is two StopWatch reads per ComputeH() call against a leg measured in
+       milliseconds -- meq's own StepProfile makes the same trade and says so
+       -- and a flag that has to be turned on is a flag that can be off when
+       the measurement is taken, which is how a mode comes to be unreached
+       while every test passes. An accumulator that is always running cannot
+       be in that position.
+
+       Static, so it needs no object to read and adds no data member to this
+       class, which would be a layout change for every translation unit that
+       includes mfem.hpp. It is therefore process-wide and NOT thread safe: it counts
+       every DarcyHybridization in the process, and a caller timing one solve
+       resets it first. Wall clock, not CPU, so it is a share of a wall-clock
+       leg and not comparable with a user-time figure. */
+   static real_t GetComputeHTime();
+   /// Zero the ComputeH() accumulator; see GetComputeHTime().
+   static void ResetComputeHTime();
+   /// How many times ComputeH() has run since ResetComputeHTime().
+   static long GetComputeHCalls();
+
    /** @brief Whether TraceAssemblyMode::Batched would actually be taken.
 
        Two questions, and the second is easy to miss. The CONNECTIVITY has to
@@ -2489,8 +2573,7 @@ public:
        that a Newton step annihilates by construction and hence no line search
        at all. What the evidence points at is non-monotonicity -- undamped
        Newton converges cases every monotone search kills -- for which KINSOL
-       offers Anderson-accelerated KIN_PICARD / KIN_FP. See
-       doc/HDG-NPC-GLOBALISATION-FROM-MEQ.md and section 6 of
+       offers Anderson-accelerated KIN_PICARD / KIN_FP. See section 6 of
        doc/HDG-ORDERING-API.md.
 
        A line search here is well defined for a

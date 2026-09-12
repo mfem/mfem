@@ -15,6 +15,7 @@
 #include "../../general/forall.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #ifdef MFEM_USE_OPENMP
 #include <omp.h>
@@ -3252,12 +3253,114 @@ struct DarcyHybridization::SerialHWorkspace
    /// ComputeElementH()'s dense temporaries, four per element before they
    /// were hoisted; DenseMatrix::SetSize() does not shrink, so they size once.
    DenseMatrix AiBt, AiCt, BAiCt, CAiBt;
+   /// The f2-only half of the face-PAIR loop, hoisted; see ComputeElementH().
+   Vector CAiBt_all;
+   Array<int> cofs;     ///< where each face's block starts in @a CAiBt_all
 };
+
+/** @brief The blocks of ComputeElementH() that do not move across a Newton
+    loop; see the declaration for which they are and why.
+
+    Laid out per element with a base offset and a running pointer, rather than
+    one offset array per face, because the fill and the read walk the faces in
+    the same order and a running pointer is then exact whatever the widths.
+    That matters: a per-face trace width is not constant under p-adaptivity. */
+struct DarcyHybridization::CondensationCache
+{
+   Array<int> aict_el;   ///< element -> base offset into AiCt_all
+   Array<int> bc_el;     ///< element -> base offset into BAiCt_all / CAiBt_all
+   Array<int> pair_el;   ///< element -> base offset into CAiCt_all
+   Vector AiBt_all;      ///< A^-1 (-/+B^T), na*nd per element
+   Vector AiCt_all;      ///< A^-1 C^T, na*nc per element face
+   Vector BAiCt_all;     ///< B A^-1 C^T - E, nd*nc per element face
+   Vector CAiBt_all;     ///< C A^-1 B^T + G, nc*nd per element face
+   Vector CAiCt_all;     ///< C A^-1 C^T, nc*nc per element face PAIR
+   Array<char> filled;   ///< per element; the loop fills its own slice
+};
+
+bool DarcyHybridization::CanCacheCondensation() const
+{
+   // **PotNL and nothing else.** The whole premise is that A, B and the trace
+   // constraint are fixed while D moves, which is what that local operator
+   // means: only the potential mass is non-linear. Under FluxNL the flux mass
+   // is the moving block and A^-1 is not reusable at all; under FullNL both
+   // move. Linear problems never take a second gradient, so there is nothing
+   // to amortise.
+   if (lop_type != LocalOpType::PotNL) { return false; }
+
+   // A BLOCK non-linear integrator writes the (0,1) gradient through
+   // Bnl_data, so AiBt would move with the state; see GetBnlMatrix().
+   if (!Bnl_empty) { return false; }
+   if (m_nlfi || m_nlfi_u) { return false; }
+
+   // A non-linear face constraint rewrites E, G and H at every gradient, and
+   // three of the six cached products are built from them.
+   if (c_nlfi_p || c_nlfi) { return false; }
+   if (!boundary_constraint_pot_nonlin_integs.empty()) { return false; }
+   if (!boundary_constraint_nonlin_integs.empty()) { return false; }
+
+   // The batched factorisation owns AiBt and the Schur complement itself and
+   // hands them in; caching underneath it would be two owners of one buffer.
+   if (lfac_mode == LocalFactorMode::Batched) { return false; }
+
+   return fes.GetNE() > 0;
+}
+
+DarcyHybridization::CondensationCache *
+DarcyHybridization::EnsureCondensationCache() const
+{
+   if (cond_cache) { return cond_cache.get(); }
+   if (!CanCacheCondensation()) { return NULL; }
+
+   const int NE = fes.GetNE();
+   std::unique_ptr<CondensationCache> c(new CondensationCache);
+   c->aict_el.SetSize(NE + 1);
+   c->bc_el.SetSize(NE + 1);
+   c->pair_el.SetSize(NE + 1);
+   c->aict_el[0] = c->bc_el[0] = c->pair_el[0] = 0;
+
+   Array<int> faces;
+   for (int el = 0; el < NE; el++)
+   {
+      const int na = Af_f_offsets[el+1] - Af_f_offsets[el];
+      const int nd = Df_f_offsets[el+1] - Df_f_offsets[el];
+      GetElementFaces(el, faces);
+
+      int cw_sum = 0, pair_sum = 0;
+      Array<int> w(faces.Size());
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         w[f] = c_fes.GetFaceElement(faces[f])->GetDof() * c_fes.GetVDim();
+         cw_sum += w[f];
+      }
+      for (int f1 = 0; f1 < faces.Size(); f1++)
+         for (int f2 = 0; f2 < faces.Size(); f2++)
+         {
+            pair_sum += w[f2] * w[f1];
+         }
+
+      c->aict_el[el+1] = c->aict_el[el] + na * cw_sum;
+      c->bc_el[el+1]   = c->bc_el[el]   + nd * cw_sum;
+      c->pair_el[el+1] = c->pair_el[el] + pair_sum;
+   }
+
+   c->AiBt_all.SetSize(Bf_offsets.Last());
+   c->AiCt_all.SetSize(c->aict_el.Last());
+   c->BAiCt_all.SetSize(c->bc_el.Last());
+   c->CAiBt_all.SetSize(c->bc_el.Last());
+   c->CAiCt_all.SetSize(c->pair_el.Last());
+   c->filled.SetSize(NE);
+   c->filled = 0;
+
+   cond_cache = std::move(c);
+   return cond_cache.get();
+}
 
 void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
                                          real_t *Hel,
                                          SerialHWorkspace &ws,
-                                         const Vector *AiBt_all) const
+                                         const Vector *AiBt_all,
+                                         CondensationCache *cc) const
 {
    const bool assemble = (mode != ComputeHMode::GradientFactorOnly);
    const bool gradient = (mode != ComputeHMode::Linear);
@@ -3269,6 +3372,17 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    // complement's LU, for every element at once; all that is wanted here is
    // the views onto what it left.
    const bool prefactored = (AiBt_all != NULL);
+
+   // **@a cc is acquired by the CALLER, outside the OpenMP region.** Building
+   // it here would have every thread race to construct it on the first
+   // gradient, which is the shared-scratch race a lazy initialiser inside a
+   // parallel region always is. It cannot fire where MFEM_THREAD_SAFE is off
+   // and AssemblyMode::Threaded therefore aborts, and it fires in any build
+   // that has both -- which is every build that wants the threaded assembly.
+   //
+   // Once built, each element writes only its own slice and its own flag
+   // byte, which are distinct memory locations, so the FILL is safe threaded.
+   const bool cc_read = (cc && cc->filled[el] != 0);
 
    // Decompose A
    LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
@@ -3297,9 +3411,22 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
          const_cast<real_t*>(AiBt_all->GetData()) + Bf_offsets[el],
          a_dofs_size, d_dofs_size);
    }
+   else if (cc_read)
+   {
+      AiBt.UseExternalData(cc->AiBt_all.GetData() + Bf_offsets[el],
+                           a_dofs_size, d_dofs_size);
+   }
    else
    {
-      AiBt.SetSize(a_dofs_size, d_dofs_size);
+      if (cc)
+      {
+         AiBt.UseExternalData(cc->AiBt_all.GetData() + Bf_offsets[el],
+                              a_dofs_size, d_dofs_size);
+      }
+      else
+      {
+         AiBt.SetSize(a_dofs_size, d_dofs_size);
+      }
       AiBt.Transpose(B);
       if (!bsym) { AiBt.Neg(); }
       DenseMatrix Bnl;
@@ -3315,6 +3442,20 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    {
       if (!prefactored)
       {
+         // **B A^-1 B^T is constant here and is deliberately NOT cached.**
+         // Caching it means forming the product into a zero matrix and then
+         // adding, where AddMult() accumulates into D directly -- the same
+         // arithmetic in a different order, so the last bits move. That costs
+         // the bitwise identity between this route and
+         // FactorElementsBatched(), which test_darcy_batched_factor.cpp
+         // asserts with BitwiseEqual() and which is a real invariant in a
+         // build without LAPACK, where the two are the same routine.
+         //
+         // Measured before it was given up: it also tipped two stiff NPC
+         // cases out of convergence at their iteration cap. It is 432 of the
+         // ~5,700 flops an element's condensation costs at meq's dimensions,
+         // i.e. under 8%, so the trade is a poor one. Everything else the
+         // cache holds is stored and replayed BIT for BIT.
          mfem::AddMult(B, AiBt, D);
       }
 
@@ -3365,6 +3506,68 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    DenseMatrix H_l;   ///< a view, via UseExternalData(): never allocates
    real_t *Hp = Hel;
 
+   // **(C A^-1 B^T + G) depends on f2 and NOT on f1**, and the pair loop
+   // below used to rebuild it for every (f1, f2) -- nf times per element
+   // instead of once per face. Hoisted here, which is free: no cache, no
+   // state that outlives the call, and the arithmetic is identical because
+   // the product was never a function of f1.
+   //
+   // At meq's dimensions (na=12, nd=6, nc=3, nf=3) it is the single largest
+   // item in the loop: 216 flops a pair, so 1944 per element per gradient
+   // against 648 once hoisted.
+   const int nfaces = faces.Size();
+   Array<int> &cofs = ws.cofs;
+   cofs.SetSize(nfaces + 1);
+   cofs[0] = 0;
+   for (int f = 0; f < nfaces; f++)
+   {
+      int e1, e2;
+      fes.GetMesh()->GetFaceElements(faces[f], &e1, &e2);
+      DenseMatrix Ctf;
+      GetCtFaceMatrix(faces[f], e1 != el, Ctf);
+      cofs[f+1] = cofs[f] + Ctf.Width();
+   }
+
+   // When the cache is live this lands in it and survives the call; otherwise
+   // it is the workspace's, sized once and reused down the element loop.
+   real_t *CAiBt_p;
+   if (cc)
+   {
+      MFEM_ASSERT(cc->bc_el[el] + cofs.Last()*d_dofs_size <= cc->bc_el[el+1],
+                  "condensation cache face widths disagree with the fill pass");
+      CAiBt_p = cc->CAiBt_all.GetData() + cc->bc_el[el];
+   }
+   else
+   {
+      ws.CAiBt_all.SetSize(cofs.Last() * B.Height());
+      CAiBt_p = ws.CAiBt_all.GetData();
+   }
+   if (!cc_read)
+   {
+      for (int f = 0; f < nfaces; f++)
+      {
+         int e1, e2;
+         fes.GetMesh()->GetFaceElements(faces[f], &e1, &e2);
+         DenseMatrix Ctf;
+         GetCtFaceMatrix(faces[f], e1 != el, Ctf);
+
+         DenseMatrix CAiBt_f(CAiBt_p + cofs[f]*B.Height(),
+                             Ctf.Width(), B.Height());
+         mfem::MultAtB(Ctf, AiBt, CAiBt_f);
+         if (c_bfi_p || mode == ComputeHMode::Gradient)
+         {
+            DenseMatrix G;
+            GetGFaceMatrix(faces[f], e1 != el, G);
+            CAiBt_f += G;
+         }
+      }
+   }
+
+   // The element's face-PAIR blocks run contiguously in the cache, and the
+   // fill and the read walk f1/f2 in the same order, so one running pointer
+   // is exact whatever the per-face widths are.
+   real_t *pair_p = cc ? (cc->CAiCt_all.GetData() + cc->pair_el[el]) : NULL;
+
    // Mult C^T
    for (int f1 = 0; f1 < faces.Size(); f1++)
    {
@@ -3374,20 +3577,52 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
       GetCtFaceMatrix(faces[f1], el1_1 != el, Ct1);
 
       //A^-1 C^T
-      AiCt.SetSize(Ct1.Height(), Ct1.Width());
-      AiCt = Ct1;
-      LU_A.Solve(Ct1.Height(), Ct1.Width(), AiCt.GetData());
-
-      //S^-1 (B A^-1 C^T - E)
-      BAiCt.SetSize(B.Height(), Ct1.Width());
-      mfem::Mult(B, AiCt, BAiCt);
-
-      if (c_bfi_p || mode == ComputeHMode::Gradient)
+      if (cc)
       {
-         DenseMatrix E;
-         GetEFaceMatrix(faces[f1], el1_1 != el, E);
+         AiCt.UseExternalData(cc->AiCt_all.GetData() + cc->aict_el[el]
+                              + cofs[f1]*a_dofs_size,
+                              Ct1.Height(), Ct1.Width());
+      }
+      else
+      {
+         AiCt.SetSize(Ct1.Height(), Ct1.Width());
+      }
+      if (!cc_read)
+      {
+         AiCt = Ct1;
+         LU_A.Solve(Ct1.Height(), Ct1.Width(), AiCt.GetData());
+      }
 
-         BAiCt -= E;
+      //S^-1 (B A^-1 C^T - E), the bracket being the constant half
+      BAiCt.SetSize(B.Height(), Ct1.Width());
+      if (cc)
+      {
+         DenseMatrix BAiCt0(cc->BAiCt_all.GetData() + cc->bc_el[el]
+                            + cofs[f1]*d_dofs_size,
+                            B.Height(), Ct1.Width());
+         if (!cc_read)
+         {
+            mfem::Mult(B, AiCt, BAiCt0);
+            if (c_bfi_p || mode == ComputeHMode::Gradient)
+            {
+               DenseMatrix E;
+               GetEFaceMatrix(faces[f1], el1_1 != el, E);
+               BAiCt0 -= E;
+            }
+         }
+         BAiCt = BAiCt0;
+      }
+      else
+      {
+         mfem::Mult(B, AiCt, BAiCt);
+
+         if (c_bfi_p || mode == ComputeHMode::Gradient)
+         {
+            DenseMatrix E;
+            GetEFaceMatrix(faces[f1], el1_1 != el, E);
+
+            BAiCt -= E;
+         }
       }
 
       LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
@@ -3404,21 +3639,23 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
          // same two loops in the same order to add them.
          H_l.UseExternalData(Hp, Ct2.Width(), Ct1.Width());
 
-         //- C A^-1 C^T
-         mfem::MultAtB(Ct2, AiCt, H_l);
+         //- C A^-1 C^T, constant across a Newton loop
+         if (cc)
+         {
+            DenseMatrix CAiCt(pair_p, Ct2.Width(), Ct1.Width());
+            if (!cc_read) { mfem::MultAtB(Ct2, AiCt, CAiCt); }
+            H_l = CAiCt;
+            pair_p += Ct2.Width() * Ct1.Width();
+         }
+         else
+         {
+            mfem::MultAtB(Ct2, AiCt, H_l);
+         }
          H_l.Neg();
 
-         //(C A^-1 B^T + G) S^-1 (B A^-1 C^T - E)
-         CAiBt.SetSize(Ct2.Width(), B.Height());
-         mfem::MultAtB(Ct2, AiBt, CAiBt);
-
-         if (c_bfi_p || mode == ComputeHMode::Gradient)
-         {
-            DenseMatrix G;
-            GetGFaceMatrix(faces[f2], el2_1 != el, G);
-
-            CAiBt += G;
-         }
+         //(C A^-1 B^T + G) S^-1 (B A^-1 C^T - E), the left factor hoisted
+         CAiBt.UseExternalData(CAiBt_p + cofs[f2]*B.Height(),
+                               Ct2.Width(), B.Height());
 
          mfem::AddMult(CAiBt, BAiCt, H_l);
 
@@ -3436,6 +3673,8 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
          Hp += Ct2.Width() * Ct1.Width();
       }
    }
+
+   if (cc) { cc->filled[el] = 1; }
 }
 
 
@@ -4269,9 +4508,54 @@ void DarcyHybridization::ScatterElementsHBatched(
    }
 }
 
+namespace
+{
+
+/** @brief The ComputeH() accumulator behind GetComputeHTime().
+
+    File static rather than a member for the reason the accessor's doxygen
+    gives: a data member on DarcyHybridization is a class-layout change, and
+    every translation unit that includes mfem.hpp sees that layout.
+    Function-local statics so the initialisation order is not a question. */
+real_t &ComputeHSeconds() { static real_t s = 0.0; return s; }
+long &ComputeHCalls() { static long n = 0; return n; }
+
+/** @brief Accumulate into ComputeHSeconds() however the scope is left.
+
+    std::chrono and not mfem::StopWatch, which would mean pulling
+    general/tic_toc.hpp into this translation unit for two clock reads. */
+struct ComputeHTimer
+{
+   std::chrono::steady_clock::time_point t0;
+   ComputeHTimer()
+      : t0(std::chrono::steady_clock::now()) { ComputeHCalls()++; }
+   ~ComputeHTimer()
+   {
+      const std::chrono::duration<real_t> dt =
+         std::chrono::steady_clock::now() - t0;
+      ComputeHSeconds() += dt.count();
+   }
+};
+
+} // namespace
+
+real_t DarcyHybridization::GetComputeHTime() { return ComputeHSeconds(); }
+
+void DarcyHybridization::ResetComputeHTime()
+{
+   ComputeHSeconds() = 0.0;
+   ComputeHCalls() = 0;
+}
+
+long DarcyHybridization::GetComputeHCalls() { return ComputeHCalls(); }
+
 void DarcyHybridization::ComputeH(ComputeHMode mode,
                                   std::unique_ptr<SparseMatrix> &H_) const
 {
+   // Timed for meq's level-2 split; see GetComputeHTime(). Two clock reads
+   // against a leg measured in milliseconds.
+   const ComputeHTimer compute_h_timer;
+
    MFEM_ASSERT(mode != ComputeHMode::Linear || !NPCEnabled(),
                "Cannot assemble H matrix in the non-linear regime");
 
@@ -4447,6 +4731,15 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
          real_t * const Hbuf =
             (Hel_data.Size() > 0) ? Hel_data.HostWrite() : NULL;
 
+         // Outside the parallel region below, deliberately; see
+         // ComputeElementH(). Only on the assembling gradient: Linear runs
+         // once so there is nothing to amortise, and GradientFactorOnly
+         // returns before the face loop and would leave the per-face half
+         // unfilled with the `filled` flag already set.
+         CondensationCache * const cc =
+            (mode == ComputeHMode::Gradient && assemble && !prefactored)
+            ? EnsureCondensationCache() : NULL;
+
 #ifdef MFEM_USE_OPENMP
          #pragma omp parallel if (asm_mode == AssemblyMode::Threaded)
 #endif
@@ -4466,7 +4759,7 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
             {
                ComputeElementH(el, mode,
                                Hbuf ? Hbuf + Hel_offsets[el-el_0] : NULL,
-                               ews, prefactored ? &AiBt_all : NULL);
+                               ews, prefactored ? &AiBt_all : NULL, cc);
             }
          }
       }
@@ -4791,6 +5084,19 @@ Operator &DarcyHybridization::ReducedGradient(MultNlMode mode,
       // the host and cuDSS would push it straight back. The rows are disjoint
       // so there is nothing to reduce. Same arithmetic, and the original is
       // named in HDGTraceEliminateRows() so the two can be diffed.
+      //
+      // **Both operands of that loop are indexed RAW**, so both have to be
+      // owned here: Array<int>::operator[] on the list, and EliminateRow()
+      // reaching I, J and A through Memory::operator[]. Array<int>::Read()
+      // defaults to on_dev = true and SetSubVector(ess_tdof_list, ...) hands
+      // the list to a kernel, which is how it gets marked device-valid --
+      // the same shape SyncLocalBlocksToHost() records for the offset
+      // arrays. Device("debug") faults in MmuError() here with no line
+      // number; CUDA reads a stale copy.
+      ess_tdof_list.HostRead();
+      Grad->HostReadWriteI();
+      Grad->HostReadWriteJ();
+      Grad->HostReadWriteData();
       for (int i = 0; i < ess_tdof_list.Size(); i++)
       {
          Grad->EliminateRow(ess_tdof_list[i], Matrix::DIAG_ONE);
@@ -5363,11 +5669,19 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    const Vector &bp = b_t.GetBlock(1);
    Vector y;
 
+   // **Whether @a y is an ALIAS of @a y_t, tracked rather than re-derived.**
+   // The two MakeRef() branches below have different conditions from the two
+   // assembly branches after MultNL(), and an alias needs SyncAliasMemory()
+   // exactly where nothing else writes y_t -- see the note at the sync. A
+   // flag is cheaper to read than the conjunction, and cannot drift from it.
+   bool y_aliases_y_t = false;
+
    if (mode == MultNlMode::Sol)
    {
       if (!ParallelU() && !cR)
       {
          y.MakeRef(y_t, 0, darcy_offsets.Last());
+         y_aliases_y_t = true;
       }
       else
       {
@@ -5380,6 +5694,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
       if (!ParallelC() && !(tr_cR = c_fes.GetRestrictionOperator()))
       {
          y.MakeRef(y_t, 0, c_fes.GetVSize());
+         y_aliases_y_t = true;
       }
       else
       {
@@ -5407,6 +5722,13 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
 
          yb_t.GetBlock(1) = yb.GetBlock(1);
       }
+      else if (y_aliases_y_t)
+      {
+         // Nothing assembles here, so the ALIAS is the only thing that was
+         // written; see the note on the trace branch below, which is the same
+         // fault and the one that was measured.
+         y.SyncAliasMemory(y_t);
+      }
    }
    else if (mode != MultNlMode::Grad && mode != MultNlMode::GradAtFields)
    {
@@ -5418,6 +5740,27 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
          if (tr_cP)
          {
             tr_cP->MultTranspose(y, y_t);
+         }
+         else if (y_aliases_y_t)
+         {
+            // **The serial analogue of this line was a measured defect**, and
+            // this is the same code shape: y is an alias of y_t, an alias
+            // carries its OWN host/device validity flags, and MultNL()'s
+            // batched trace row ends in a device kernel
+            // (HDGScatterTraceRows()) -- so without this the base keeps a
+            // stale host copy and every reader of y_t downstream gets it.
+            // NPCResidual() is where it was caught, on CUDA, as a trace
+            // residual of exactly 0.0 while both field blocks were right.
+            //
+            // **NOT VERIFIED ON A DEVICE.** There is no parallel CUDA build
+            // in this workspace, so what has been checked for this line is
+            // that it compiles and that the non-device parallel baselines are
+            // unmoved -- which is a null test, since with no Device the two
+            // copies are one and SyncAlias_() has nothing to do. The
+            // arithmetic it is meant to repair has never been run here.
+            // Whoever first builds MFEM_USE_MPI=YES with MFEM_USE_CUDA=YES
+            // should treat this as untested code, not as a fix that held.
+            y.SyncAliasMemory(y_t);
          }
       }
       else
@@ -6428,6 +6771,9 @@ bool DarcyHybridization::CopyLinearGradBlocks() const
 void DarcyHybridization::InvalidateCoefficientCache()
 {
    res_cache.reset();
+   // The condensation blocks are built from A, B and the trace constraint,
+   // every one of which a moving coefficient rewrites; see CondensationCache.
+   cond_cache.reset();
 }
 
 void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
@@ -7205,7 +7551,20 @@ void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,
 
    // The trace row is the only one shared between ranks, so it is the only
    // one that has to be assembled.
+   //
+   // **And when there is nothing to assemble, r_tr_l is an ALIAS of r_tr and
+   // still has to be synced.** An alias carries its own host/device validity
+   // flags, so a device write through it leaves the base believing its host
+   // copy is good. LinearResidualBatched() ends with a device kernel --
+   // HDGScatterTraceRows() -- and already calls SyncAliasMemory() on the two
+   // FIELD blocks it scatters; the trace row had no equivalent because
+   // nothing there knows the base. Measured on CUDA: r_tr came back exactly
+   // 0.0 while both field blocks were correct, so AddTraceRHS(),
+   // SetSubVector() and the caller's HostRead() below all read the stale
+   // buffer. The serial suite cannot see this -- with no Device the two
+   // copies are one.
    if (tr_P) { tr_P->MultTranspose(r_tr_l, r_tr); }
+   else { r_tr_l.SyncAliasMemory(r_tr); }
 
    // A load assembled on the SKELETON, if one is registered. It SUBTRACTS
    // here and ADDS in ReduceRHS(), r = A x - b being the same convention read
@@ -7509,7 +7868,22 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
       const SparseMatrix *tr_cP = c_fes.GetConformingProlongation();
       if (!tr_cP)
       {
-         sol_r.SetDataAndSize(sol_tr.GetData(), sol_tr.Size());
+         // **MakeRef and not SetDataAndSize(sol_tr.GetData(), ...), which is
+         // what this was.** GetData() hands back the raw host pointer without
+         // syncing, and the Vector built on it is UNREGISTERED -- it has no
+         // Memory behind it at all -- so a kernel downstream receives a bare
+         // host address where the memory manager expects a device one.
+         // GetSubVector()'s forall, reached from here through the recovery
+         // below, faults inside the lambda under Device("debug") on four
+         // separate cases; on CUDA it reads whatever the host copy last held.
+         // MakeRef() is the same non-owning view with the Memory, its
+         // registration and its validity flags carried along, and it is the
+         // idiom the two branches below already use for bu and u.
+         //
+         // This is the file's own `v = Vector(ptr, n)` trap wearing a device
+         // costume: the aliasing was always the point, and what was missing
+         // was that a raw pointer drops everything the Device needs.
+         sol_r.MakeRef(const_cast<Vector&>(sol_tr), 0, sol_tr.Size());
       }
       else
       {
@@ -8174,6 +8548,7 @@ void DarcyHybridization::Reset()
    trace_h_map.reset();
    // The face blocks it holds are re-assembled by whatever follows a Reset().
    res_cache.reset();
+   cond_cache.reset();
 
    A_empty = true;
    Af_data = 0.;
@@ -8837,6 +9212,29 @@ BlockOperator &DarcyHybridization::LocalNLOperator::Grad() const
 void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == Width() && y.Size() == Height(), "Incompatible size");
+   // **This operator is host arithmetic and its caller's vectors are not.**
+   // NewtonSolver::SetOperator() sets UseDevice(true) on its residual and
+   // correction unconditionally (linalg/solvers.cpp), and MultInvNL() builds
+   // one of those PER ELEMENT for the local solve -- so under a Device they
+   // arrive device-valid, and everything below reaches them through
+   // DenseMatrix::AddMult() and Vector::Neg(), i.e. Vector::GetData(), a raw
+   // host pointer that neither syncs nor invalidates. Device("debug") faults
+   // in MmuError() on the protected page; CUDA reads a stale one and the
+   // trace solve diverges to inf. Taking ownership here rather than at each
+   // raw read is the same move SyncLocalBlocksToHost() makes for the blocks.
+   // UseDevice(false) and not HostReadWrite() alone: taking the host copy
+   // validates it but leaves the FLAG set, so the very next MFEM vector
+   // operation goes straight back to the device -- `bp += Dp` in AddMultDE()
+   // is the one that did, between the sync and the raw read three lines
+   // later. The flag is mutable, and the solver these belong to is
+   // constructed per element in MultInvNL() and destroyed with it, so
+   // nothing outside this solve sees the change. At these sizes -- a handful
+   // of dofs -- host is also where this arithmetic belongs.
+   x.UseDevice(false);
+   y.UseDevice(false);
+   x.HostRead();
+   y.HostReadWrite();
+
 
    // From @a ws and not two locals: a BlockVector over caller-owned data
    // still allocates its own array of block views, which was 1,536
@@ -8872,6 +9270,8 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    const Vector &x) const
 {
    MFEM_ASSERT(x.Size() == Width(), "Incompatible size");
+   x.UseDevice(false);   // see Mult()
+   x.HostRead();
 
    BlockVector &x_l = ws.lop_xv;
    x_l.Update(const_cast<Vector&>(x), offsets);
@@ -8948,6 +9348,10 @@ void DarcyHybridization::LocalFluxNLOperator::Mult(const Vector &u_l,
 {
    MFEM_ASSERT(u_l.Size() == a_dofs_size &&
                bu.Size() == a_dofs_size, "Incompatible size");
+   u_l.UseDevice(false);    // see LocalNLOperator::Mult()
+   bu.UseDevice(false);
+   u_l.HostRead();
+   bu.HostReadWrite();
 
    SolveP(u_l, p_l);
 
@@ -8962,6 +9366,8 @@ Operator &DarcyHybridization::LocalFluxNLOperator::GetGradient(
    const Vector &u_l) const
 {
    MFEM_ASSERT(u_l.Size() == a_dofs_size, "Incompatible size");
+   u_l.UseDevice(false);   // see LocalNLOperator::Mult()
+   u_l.HostRead();
 
    SolveP(u_l, p_l);
 
@@ -9009,6 +9415,10 @@ void DarcyHybridization::LocalPotNLOperator::Mult(const Vector &p_l,
 {
    MFEM_ASSERT(p_l.Size() == d_dofs_size &&
                bp.Size() == d_dofs_size, "Incompatible size");
+   p_l.UseDevice(false);    // see LocalNLOperator::Mult()
+   bp.UseDevice(false);
+   p_l.HostRead();
+   bp.HostReadWrite();
 
    SolveU(p_l, u_l);
 
@@ -9022,6 +9432,8 @@ Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
    const Vector &p_l) const
 {
    MFEM_ASSERT(p_l.Size() == d_dofs_size, "Incompatible size");
+   p_l.UseDevice(false);   // see LocalNLOperator::Mult()
+   p_l.HostRead();
 
    SolveU(p_l, u_l);
 
@@ -9070,6 +9482,37 @@ void DarcyNPCOperator::Mult(const Vector &x, Vector &y) const
    yb.GetBlock(0) = r_loc.GetBlock(0);
    yb.GetBlock(1) = r_loc.GetBlock(1);
    yb.GetBlock(2) = r_tr;
+
+   // **BOTH hops, and each one is a separate Memory.** BlockVector(Vector &v,
+   // offsets) does MakeRef(v, ...), so yb is an ALIAS of y and each block is
+   // an alias of yb -- three Memory objects with three sets of validity flags.
+   // Writing the blocks tells neither yb nor y. SyncFromBlocks() carries the
+   // blocks up to yb and SyncAliasMemory() carries yb up to y; without the
+   // second, y still believes its own host copy is current.
+   //
+   // This is the residual meq's Newton evaluates -- their M-80 names this
+   // exact routine as the `residual` leg -- and an unsynced y here reads as
+   // whatever y last held, which for a fresh NewtonSolver work vector is
+   // zero. A zero residual at iteration 0 is a converged Newton that takes no
+   // steps and leaves the fields at the initial iterate, whose potential
+   // block is zero under NPC. That is M-79's symptom exactly.
+   yb.SyncFromBlocks();
+   // **The second hop is kept on reasoning, NOT on a measurement**, and that
+   // is said here because this branch's habit is the reverse. yb is itself an
+   // alias of y, so SyncFromBlocks() -- which only carries the blocks up to
+   // yb -- leaves y's own flags untouched, and y is what the caller reads.
+   //
+   // Nothing here or in meq has managed to construct a case that separates
+   // one hop from two: with SyncFromBlocks() alone, meq's whole solve runs
+   // clean under Device("debug") and matches the host to every printed digit,
+   // and the case in darcy_plain_npc.hpp passes on both backends -- including
+   // an assertion written specifically to catch a d2h migration, which comes
+   // back device-resident either way. So this line is not known to be load
+   // bearing. It is kept because it is free, because it makes the flags right
+   // rather than right-by-accident, and because the alternative rests on
+   // SyncAlias() repairing y by moving data that the offload plan wants left
+   // where it is.
+   yb.SyncAliasMemory(y);
 }
 
 Operator &DarcyNPCOperator::GetGradient(const Vector &x) const
@@ -9128,7 +9571,14 @@ void DarcyNPCSolver::Mult(const Vector &b, Vector &x) const
    xb.GetBlock(0) = dx_loc.GetBlock(0);
    xb.GetBlock(1) = dx_loc.GetBlock(1);
    xb.GetBlock(2) = dtr;
+   // See DarcyNPCOperator::Mult() for the two hops. The ORDER is the extra
+   // constraint here: Neg() acts on xb's own Memory, so the blocks have to be
+   // carried up to xb BEFORE it and xb carried up to x AFTER it. Sync either
+   // one on the wrong side and the negation is applied to a copy nobody
+   // reads.
+   xb.SyncFromBlocks();
    xb.Neg();
+   xb.SyncAliasMemory(x);
 }
 
 }
