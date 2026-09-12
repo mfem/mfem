@@ -48,6 +48,11 @@ public:
    void CalcPhysDivShape(ElementTransformation &Trans,
                          DenseMatrix &divshape) const override;
 
+   /** Project a scalar H1 element with three byVDIM components representing
+       (s00,s01,s11) using the canonical Johnson--Mercier moments. */
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
+
    void GetTransferMatrix(const FiniteElement &fe,
                           ElementTransformation &Trans,
                           DenseMatrix &I) const override;

@@ -418,6 +418,117 @@ void JohnsonMercierTriangleFiniteElement::CalcPhysDivShape(
    Mult(A, mapped, divshape);
 }
 
+void JohnsonMercierTriangleFiniteElement::Project(
+   const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
+{
+   MFEM_VERIFY(fe.GetDim() == 2 &&
+               fe.GetGeomType() == Geometry::TRIANGLE &&
+               fe.GetRangeType() == SCALAR && fe.GetMapType() == VALUE,
+               "the domain of the Johnson-Mercier projection must be a "
+               "scalar H1 triangle with three byVDIM components");
+   MFEM_VERIFY(Trans.GetSpaceDim() == 2 &&
+               Trans.Hessian().FNorm2() < 1e-20,
+               "Johnson-Mercier projection requires an affine 2D element");
+
+   const int source_dof = fe.GetDof();
+   I.SetSize(jm_dof, 3*source_dof);
+   I = 0.0;
+
+   const IntegrationRule &edge_rule =
+      IntRules.Get(Geometry::SEGMENT, 2*fe.GetOrder() + 1);
+   Vector shape(source_dof), pa(2), pb(2);
+   for (int edge = 0; edge < 3; edge++)
+   {
+      const int va = edge_vertices[edge][0];
+      const int vb = edge_vertices[edge][1];
+      IntegrationPoint ipa, ipb;
+      ipa.Set2(vertices[va][0], vertices[va][1]);
+      ipb.Set2(vertices[vb][0], vertices[vb][1]);
+      Trans.Transform(ipa, pa);
+      Trans.Transform(ipb, pb);
+      const real_t dx = pb(0) - pa(0);
+      const real_t dy = pb(1) - pa(1);
+      const real_t length = std::hypot(dx, dy);
+      const real_t t[2] = {dx/length, dy/length};
+      const real_t n[2] = {t[1], -t[0]};
+
+      for (int q = 0; q < edge_rule.GetNPoints(); q++)
+      {
+         const IntegrationPoint &sip = edge_rule.IntPoint(q);
+         const real_t r = sip.x;
+         IntegrationPoint ip;
+         ip.Set2(vertices[va][0] + r*(vertices[vb][0] - vertices[va][0]),
+                 vertices[va][1] + r*(vertices[vb][1] - vertices[va][1]));
+         Trans.SetIntPoint(&ip);
+         fe.CalcPhysShape(Trans, shape);
+         const real_t weight = sip.weight*length;
+         const real_t mode = 2.0*r - 1.0;
+         const real_t nn[3] =
+         {
+            n[0]*n[0], 2.0*n[0]*n[1], n[1]*n[1]
+         };
+         const real_t nt[3] =
+         {
+            t[0]*n[0], t[0]*n[1] + t[1]*n[0], t[1]*n[1]
+         };
+         for (int component = 0; component < 3; component++)
+         {
+            for (int j = 0; j < source_dof; j++)
+            {
+               const int column = component*source_dof + j;
+               I(4*edge, column) += weight*nn[component]*shape(j);
+               I(4*edge + 1, column) += weight*nt[component]*shape(j);
+               I(4*edge + 2, column) +=
+                  weight*mode*nn[component]*shape(j);
+               I(4*edge + 3, column) +=
+                  weight*mode*nt[component]*shape(j);
+            }
+         }
+      }
+   }
+
+   // The interior functionals are component moments of the double-Piola
+   // pullback on the reference triangle.
+   const IntegrationRule &rule =
+      IntRules.Get(Geometry::TRIANGLE, 2*fe.GetOrder());
+   for (int q = 0; q < rule.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = rule.IntPoint(q);
+      Trans.SetIntPoint(&ip);
+      fe.CalcPhysShape(Trans, shape);
+      const DenseMatrix &J = Trans.Jacobian();
+      const DenseMatrix &K = Trans.InverseJacobian();
+      const real_t det2 = J.Det()*J.Det();
+      const real_t pullback[3][3] =
+      {
+         {
+            det2*K(0,0)*K(0,0),
+            2.0*det2*K(0,0)*K(0,1), det2*K(0,1)*K(0,1)
+         },
+         {
+            det2*K(0,0)*K(1,0),
+            det2*(K(0,0)*K(1,1) + K(0,1)*K(1,0)),
+            det2*K(0,1)*K(1,1)
+         },
+         {
+            det2*K(1,0)*K(1,0),
+            2.0*det2*K(1,0)*K(1,1), det2*K(1,1)*K(1,1)
+         }
+      };
+      for (int row = 0; row < 3; row++)
+      {
+         for (int component = 0; component < 3; component++)
+         {
+            for (int j = 0; j < source_dof; j++)
+            {
+               I(12 + row, component*source_dof + j) +=
+                  ip.weight*pullback[row][component]*shape(j);
+            }
+         }
+      }
+   }
+}
+
 void JohnsonMercierTriangleFiniteElement::GetTransferMatrix(
    const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
 {

@@ -220,6 +220,41 @@ TEST_CASE("Johnson-Mercier triangle element", "[FiniteElement][JohnsonMercier]")
       }
    }
 
+   SECTION("canonical projection from symmetric H1 matrices")
+   {
+      H1_FECollection h1_fec(1, 2);
+      const FiniteElement &h1_fe =
+         *h1_fec.FiniteElementForGeometry(Geometry::TRIANGLE);
+      IsoparametricTransformation transformation;
+      transformation.SetIdentityTransformation(Geometry::TRIANGLE);
+      DenseMatrix projection;
+      fe.Project(h1_fe, transformation, projection);
+      REQUIRE(projection.Height() == 15);
+      REQUIRE(projection.Width() == 3*h1_fe.GetDof());
+
+      const real_t coefficients[3][3] =
+      {
+         {1.2, 0.3, -0.2},
+         {-0.4, 0.7, 0.1},
+         {2.1, -0.5, 0.8}
+      };
+      Vector h1_dofs(3*h1_fe.GetDof());
+      for (int component = 0; component < 3; component++)
+      {
+         for (int j = 0; j < h1_fe.GetDof(); j++)
+         {
+            const IntegrationPoint &ip = h1_fe.GetNodes().IntPoint(j);
+            h1_dofs(component*h1_fe.GetDof() + j) =
+               EvalAffineComponent(coefficients, component, ip.x, ip.y);
+         }
+      }
+      Vector projected(15), expected;
+      projection.Mult(h1_dofs, projected);
+      AffineMatrixDofs(coefficients, expected);
+      projected -= expected;
+      REQUIRE(projected.Normlinf() < 1e-12);
+   }
+
    SECTION("physical divergence on an affine element")
    {
       Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE, true);
