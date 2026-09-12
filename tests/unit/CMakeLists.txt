@@ -127,6 +127,7 @@ set(UNIT_TESTS_SRCS
   fem/test_darcy_nonlinear_mms.cpp
   fem/test_darcy_npc.cpp
   fem/test_darcy_nullmode.cpp
+  fem/test_darcy_plain_npc.cpp
   fem/test_darcy_postprocess.cpp
   fem/test_darcy_reconstruction.cpp
   fem/test_darcy_reduction.cpp
