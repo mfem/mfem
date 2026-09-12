@@ -198,6 +198,33 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, add_reference_t add_ref)
       dRdU->Mult(dX, MdZ);
       REQUIRE(HdivMaxError(comm, dY, dZ) == MFEM_Approx(0.0, 1e-10, 1e-10));
    }
+
+   SECTION("Derivative action, cached")
+   {
+      DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
+      constexpr auto kernels =
+         DerivativeKernels::Action | DerivativeKernels::Apply;
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
+         Derivatives<U> {});
+
+      // Differentiate at X on randomized direction dX.
+      ParGridFunction dx(&pfes), dy(&pfes);
+      Vector dX(tvsize), dY(tvsize), dZ(tvsize);
+      dX.Randomize(2);
+      dx.SetFromTrueDofs(dX);
+      blf_pa.Mult(dx, dy);
+      pfes.GetProlongationMatrix()->MultTranspose(dy, dY);
+      REQUIRE(dY.Normlinf() > 1e-8);
+
+      MultiVector MX{ X, setup.N }, MdZ{ dZ };
+
+      // Both forms are linear in U, so the derivative action along dX is the
+      // reference operator applied to dX.
+      auto dRdU = dop.GetDerivative(U, MX, true);
+      dRdU->Mult(dX, MdZ);
+      REQUIRE(HdivMaxError(comm, dY, dZ) == MFEM_Approx(0.0, 1e-10, 1e-10));
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
