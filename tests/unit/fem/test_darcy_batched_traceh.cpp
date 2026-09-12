@@ -304,7 +304,7 @@ void RequireCloseFields(const Assembled &ref, const Assembled &got)
 using namespace darcy_batched_traceh;
 
 TEST_CASE("The batched trace assembly builds the serial one's matrix",
-          "[DarcyHybridization][TraceAssembly][NPC]")
+          "[DarcyHybridization][TraceAssembly][NPC][GPU]")
 {
    const int order = GENERATE(0, 1, 2, 3);
    const auto elem = GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
@@ -338,7 +338,7 @@ TEST_CASE("The batched trace assembly builds the serial one's matrix",
 }
 
 TEST_CASE("The batched trace assembly runs beside the batched face pairs",
-          "[DarcyHybridization][TraceAssembly][BatchedLinAlg]")
+          "[DarcyHybridization][TraceAssembly][BatchedLinAlg][GPU]")
 {
    const int order = GENERATE(1, 2);
    CAPTURE(order);
@@ -364,7 +364,7 @@ TEST_CASE("The batched trace assembly runs beside the batched face pairs",
 }
 
 TEST_CASE("The batched trace assembly is refused on the reduced route",
-          "[DarcyHybridization][TraceAssembly]")
+          "[DarcyHybridization][TraceAssembly][GPU]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
 
@@ -390,7 +390,7 @@ TEST_CASE("The batched trace assembly is refused on the reduced route",
 }
 
 TEST_CASE("The batched trace assembly refuses a shared trace dof",
-          "[DarcyHybridization][TraceAssembly]")
+          "[DarcyHybridization][TraceAssembly][GPU]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
 

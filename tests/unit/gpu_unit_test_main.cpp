@@ -21,7 +21,27 @@ int main(int argc, char *argv[])
    return MFEM_SKIP_RETURN_VALUE;
 #endif
 
-   mfem::Device device("gpu");
+   // **MFEM_TEST_DEVICE, so this binary's cases can be run on the DEBUG
+   // backend as well as on the GPU.** Unset, nothing changes.
+   //
+   // Device("debug") has device memory semantics with host arithmetic and
+   // mprotects the host page, so a raw host read of a device-valid buffer is
+   // an MmuError with a backtrace rather than a wrong number. That matters
+   // here because debug_device_tests is built from
+   // miniapps/test_debug_device.cpp ALONE, so no [GPU]-tagged case can reach
+   // it by any other route.
+   //
+   // **A green GPU run is not on its own evidence of device discipline.** An
+   // unregistered or stale host pointer usually still reads on CUDA, and
+   // often reads the right value, where this backend traps it. Sweep per
+   // case on both.
+   //
+   // Not every [GPU] case can take it: upstream kernels that abort with "This
+   // kernel should only be used on GPU" (SmemPACurlCurlApply3D, reached from
+   // test_pa_coeff.cpp) refuse any non-GPU backend by design. So sweep the
+   // cases you own rather than the whole binary.
+   const char *dev_spec = getenv("MFEM_TEST_DEVICE");
+   mfem::Device device(dev_spec ? dev_spec : "gpu");
 
    // Include only tests labeled with GPU. Exclude parallel tests.
    return RunCatchSession(argc, argv, {"[GPU]", "~[Parallel]"});

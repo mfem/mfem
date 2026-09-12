@@ -86,7 +86,23 @@ private:
     data and a difference of any size is a defect. With LAPACK,
     LUFactors::Factor() calls getrf_ instead, whose blocked update
     reassociates, and the honest criterion becomes a tolerance -- which is
-    why the assertion below is compiled differently in that build. */
+    why the assertion below is compiled differently in that build.
+
+    **AND A DEVICE BACKEND IS THE SAME SITUATION, WHICH THIS DID NOT ALLOW
+    FOR.** With an mfem::Device configured, BatchedLinAlg dispatches to
+    cuBLAS rather than to the native loop, so the two arms are no longer the
+    same arithmetic and bitwise equality is unachievable BY CONSTRUCTION --
+    not a defect in either arm. Measured on an RTX 2070 SUPER, sm_75: six
+    cases across this file and test_darcy_batched_residual.cpp failed here on
+    the first hardware run, one of them printing
+    `0.137810123068043 == 0.137810123068043` -- a last-bit difference. The
+    reasoning above already covered it and only the predicate was too narrow,
+    so RequireSame() now asks about the DEVICE as well as about LAPACK. Same
+    shape as this tree's note that omp_set_num_threads() retunes MKL and so
+    defeats a bitwise threaded-vs-serial assertion.
+
+    The device question has to be asked at RUN time: one binary serves both,
+    and gpu_unit_tests configures Device("gpu") in main(). */
 bool BitwiseEqual(const Vector &a, const Vector &b)
 {
    if (a.Size() != b.Size()) { return false; }
@@ -97,13 +113,16 @@ bool BitwiseEqual(const Vector &a, const Vector &b)
 void RequireSame(const Vector &ref, const Vector &got)
 {
 #ifndef MFEM_USE_LAPACK
-   REQUIRE(BitwiseEqual(ref, got));
-#else
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      REQUIRE(BitwiseEqual(ref, got));
+      return;
+   }
+#endif
    REQUIRE(ref.Size() == got.Size());
    Vector d(ref);
    d -= got;
    REQUIRE(d.Normlinf() == MFEM_Approx(0.0, 1e-12, 1e-12));
-#endif
 }
 
 struct Outcome
@@ -544,7 +563,7 @@ void FluxNLStep(Mesh &mesh, int order,
 } // namespace darcy_batched_factor
 
 TEST_CASE("The batched local factorisation gives the serial one's answer",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_factor;
    using LFM = DarcyHybridization::LocalFactorMode;
@@ -629,7 +648,7 @@ TEST_CASE("The batched local factorisation gives the serial one's answer",
 }
 
 TEST_CASE("Essential flux dofs alone break the uniform block size",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_factor;
 
@@ -685,7 +704,7 @@ TEST_CASE("Essential flux dofs alone break the uniform block size",
 }
 
 TEST_CASE("The batched local solve gives the serial one's answer",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_factor;
    using LFM = DarcyHybridization::LocalFactorMode;
@@ -720,7 +739,7 @@ TEST_CASE("The batched local solve gives the serial one's answer",
 }
 
 TEST_CASE("The batched element factorisation assembles the same trace operator",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_factor;
    using LFM = DarcyHybridization::LocalFactorMode;
@@ -771,7 +790,7 @@ TEST_CASE("The batched element factorisation assembles the same trace operator",
 }
 
 TEST_CASE("The batched element factorisation serves a matrix-free gradient",
-          "[DarcyHybridization][BatchedLinAlg][NPC]")
+          "[DarcyHybridization][BatchedLinAlg][NPC][GPU]")
 {
    using namespace darcy_batched_factor;
    using LFM = DarcyHybridization::LocalFactorMode;
@@ -812,7 +831,7 @@ TEST_CASE("The batched element factorisation serves a matrix-free gradient",
 }
 
 TEST_CASE("The batched local solve gives the serial one's NPC step",
-          "[DarcyHybridization][BatchedLinAlg][NPC]")
+          "[DarcyHybridization][BatchedLinAlg][NPC][GPU]")
 {
    using namespace darcy_batched_factor;
    using LFM = DarcyHybridization::LocalFactorMode;
@@ -844,7 +863,7 @@ TEST_CASE("The batched local solve gives the serial one's NPC step",
 }
 
 TEST_CASE("The batched routes agree with the loop in LocalOpType::FluxNL",
-          "[DarcyHybridization][BatchedLinAlg][NPC]")
+          "[DarcyHybridization][BatchedLinAlg][NPC][GPU]")
 {
    using namespace darcy_batched_factor;
    using LFM = DarcyHybridization::LocalFactorMode;

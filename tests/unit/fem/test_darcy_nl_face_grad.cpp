@@ -544,7 +544,7 @@ struct CoupledHDG
 } // namespace darcy_nl_face_grad
 
 TEST_CASE("The batched state-carrying face gradient agrees with the per-pair "
-          "loop", "[DarcyHybridization][NPC][Batched]")
+          "loop", "[DarcyHybridization][NPC][Batched][GPU]")
 {
    using namespace darcy_nl_face_grad;
    using AM = DarcyHybridization::AssemblyMode;
@@ -714,7 +714,7 @@ TEST_CASE("The batched state-carrying face gradient agrees with the per-pair "
 }
 
 TEST_CASE("What the batched face gradient refuses, and why",
-          "[DarcyHybridization][NPC][Batched]")
+          "[DarcyHybridization][NPC][Batched][GPU]")
 {
    using namespace darcy_nl_face_grad;
    using AM = DarcyHybridization::AssemblyMode;

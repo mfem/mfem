@@ -473,7 +473,7 @@ void RequireSameMatrix(const Out &ref, const Out &got, real_t rtol)
  * of the packed block, fails these cases at 1e-01 and worse.
  */
 TEST_CASE("The batched boundary flux mass assembles the per-face blocks",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_bdrflux;
    using AM = DarcyHybridization::AssemblyMode;
@@ -544,7 +544,7 @@ TEST_CASE("The batched boundary flux mass assembles the per-face blocks",
  * refused this case would be comparing two identical fallbacks.
  */
 TEST_CASE("An inert boundary flux mass integrator changes nothing, batched",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_bdrflux;
    using AM = DarcyHybridization::AssemblyMode;
@@ -589,7 +589,7 @@ TEST_CASE("An inert boundary flux mass integrator changes nothing, batched",
  * disabled.
  */
 TEST_CASE("The batched boundary flux mass fills Ae for the RHS elimination",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_bdrflux;
    using AM = DarcyHybridization::AssemblyMode;
@@ -645,7 +645,7 @@ TEST_CASE("The batched boundary flux mass fills Ae for the RHS elimination",
  * elements is covered as well.
  */
 TEST_CASE("The batched boundary flux mass drops a periodic mesh's leftovers",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_bdrflux;
    using AM = DarcyHybridization::AssemblyMode;
@@ -719,7 +719,7 @@ TEST_CASE("The batched boundary flux mass drops a periodic mesh's leftovers",
  * grouping is right, not merely close.
  */
 TEST_CASE("The batched boundary flux mass on an H(div) flux, reduced route",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_bdrflux;
    using AM = DarcyHybridization::AssemblyMode;

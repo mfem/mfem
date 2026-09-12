@@ -108,7 +108,7 @@ void FillWavy(Vector &v, real_t shift)
     not would show up here as a disagreement rather than as a silently
     different answer in a solve. */
 TEST_CASE("The batched local residual reproduces the element integrator",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_residual;
 
@@ -135,6 +135,14 @@ TEST_CASE("The batched local residual reproduces the element integrator",
    Vector u_all(N * NE), ru_all;
    FillWavy(u_all, 0.3);
    HDGMixedConductionResidualBatched(Vh, &integ, u_all, ru_all);
+   // BOTH, and u_all is the one that was missing. The kernel READ u_all on the
+   // device, which leaves its device copy valid -- and Memory::operator[],
+   // which Vector::operator() reaches, asserts VALID_HOST *and not*
+   // VALID_DEVICE. So indexing u_all(...) in the loop below touches a page
+   // Device("debug") has mprotect-ed and dies in MmuError(); on CUDA it reads
+   // the host copy, which happens to be right here, so the fault is invisible
+   // there. A host read of an input is as necessary as one of an output.
+   u_all.HostRead();
    ru_all.HostRead();
 
    const int NDP = Wh.GetFE(0)->GetDof();
@@ -154,7 +162,24 @@ TEST_CASE("The batched local residual reproduces the element integrator",
       REQUIRE(out_u.Size() == N);
       for (int i = 0; i < N; i++)
       {
-         REQUIRE(ru_all(N * e + i) == out_u(i));
+         // Exact equality on the host, where the kernel and the integrator
+         // are the same arithmetic on the same data and any difference is a
+         // defect. Under a Device they are NOT: the kernel runs on the
+         // device and AssembleElementVector() on the host, so the criterion
+         // has to be a tolerance -- measured on an RTX 2070 SUPER, this
+         // failed printing `0.137810123068043 == 0.137810123068043`, a
+         // last-bit difference. The same widening RequireSame() in
+         // test_darcy_batched_factor.cpp needed, and for the same reason;
+         // its comment carries the argument.
+         if (Device::Allows(Backend::DEVICE_MASK))
+         {
+            REQUIRE(ru_all(N * e + i) ==
+                    MFEM_Approx(out_u(i), 1e-12, 1e-12));
+         }
+         else
+         {
+            REQUIRE(ru_all(N * e + i) == out_u(i));
+         }
          checked++;
       }
    }
@@ -169,7 +194,7 @@ TEST_CASE("The batched local residual reproduces the element integrator",
     arrives at it; three of the four conditions here have a live caller in
     miniapps/hdg/regress_test/ and the fourth is the H(div) flux space. */
 TEST_CASE("The batched local residual refuses what it cannot take",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_residual;
 
@@ -321,7 +346,7 @@ void NPCResidualOnce(DarcyHybridization::AssemblyMode am, int order,
     accumulate point by point where the per-element route adds one element
     matrix. The isolated case is what pins the kernel itself. */
 TEST_CASE("The batched local residual reaches an NPC caller",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_residual;
    using AM = DarcyHybridization::AssemblyMode;
@@ -488,7 +513,7 @@ void NPCResidualMassSlots(bool nonlinear_slots, int order,
     assumed: truncating the sum to its first member, and transposing each
     element matrix, each fail this case on the first comparison. */
 TEST_CASE("A bilinear integrator on a nonlinear mass form is assembled once",
-          "[DarcyHybridization][BatchedLinAlg][NPC]")
+          "[DarcyHybridization][BatchedLinAlg][NPC][GPU]")
 {
    using namespace darcy_batched_residual;
 

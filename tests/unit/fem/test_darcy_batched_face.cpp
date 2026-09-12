@@ -375,7 +375,7 @@ void AssembleGradient(Mesh &mesh, int order, FaceTerm term,
  * SumIntegrator and the gate looked for a bare integrator.
  */
 TEST_CASE("The batched HDG face kernel assembles the per-face operator",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_face;
    using AM = DarcyHybridization::AssemblyMode;
@@ -494,7 +494,7 @@ TEST_CASE("The batched HDG face kernel assembles the per-face operator",
  *    `got.J.Size() == ref.J.Size()` before any value is looked at.
  */
 TEST_CASE("The batched HDG face kernel assembles a vdim > 1 face constraint",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_face;
    using AM = DarcyHybridization::AssemblyMode;
@@ -578,7 +578,7 @@ TEST_CASE("The batched HDG face kernel assembles a vdim > 1 face constraint",
  * exactly the work DarcyForm routes into the constraint blocks itself.
  */
 TEST_CASE("The batched HDG element mass assembles the per-element blocks",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_face;
    using AM = DarcyHybridization::AssemblyMode;
@@ -729,7 +729,7 @@ void ReduceWithEssentialFlux(Mesh &mesh, int order,
  * to: the scatter reads each element's own count.
  */
 TEST_CASE("The batched HDG flux mass scatter handles essential flux dofs",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_face;
    using AM = DarcyHybridization::AssemblyMode;
@@ -779,7 +779,7 @@ TEST_CASE("The batched HDG flux mass scatter handles essential flux dofs",
  * is what said so.
  */
 TEST_CASE("The batched HDG flux mass scatter fills Ae for the RHS elimination",
-          "[DarcyHybridization][BatchedLinAlg]")
+          "[DarcyHybridization][BatchedLinAlg][GPU]")
 {
    using namespace darcy_batched_face;
    using AM = DarcyHybridization::AssemblyMode;
