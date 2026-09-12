@@ -369,9 +369,9 @@ extern "C" int MKL_Get_Max_Threads(void) __attribute__((weak));
     compare a serial assembly against a threaded one and select the thread
     count with omp_set_num_threads(). DenseMatrix reaches BLAS whenever
     MFEM_USE_LAPACK is on, and an MKL built against libgomp -- which is what
-    MKL_THREADING_LAYER=GNU asks for, and what this tree requires for
-    unrelated reasons -- takes its own thread count from that SAME OpenMP
-    runtime. So changing MFEM's thread count silently changes MKL's GEMM
+    this tree now LINKS (-lmkl_gnu_thread, see config/user.mk) and what meq's
+    CMake build resolves to as well -- takes its own thread count from that
+    SAME OpenMP runtime. So changing MFEM's thread count silently changes MKL's GEMM
     blocking too, and the two runs differ in the BLAS's own reduction order
     however correct the colouring is. Neither run is wrong; they are not the
     same arithmetic.
