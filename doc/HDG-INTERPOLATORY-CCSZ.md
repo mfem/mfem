@@ -882,7 +882,7 @@ element; do not bother until it is measured to matter.
 ## 5. A staged plan, each stage with the check that would fail if it were wrong
 
 Standing rules from `CLAUDE.md` that apply to every stage: `make -j6`, never a
-bare `make -j`; `MKL_THREADING_LAYER=GNU` on every run; `make style` **before**
+bare `make -j`; `make style` **before**
 the build it is meant to bless; `make clean` after touching
 `darcyhybridization.hpp` or any header under `fem/darcy/` (the class-layout trap,
 paid for six times); run `unit_tests` from `tests/unit` in a subshell; `-no-vis`
