@@ -1,18 +1,27 @@
+<<<<<<< HEAD
 // Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
-// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
-// LICENSE and NOTICE for details. LLNL-CODE-806117.
-//
-// This file is part of the MFEM library. For more information and source code
-// availability visit https://mfem.org.
-//
-// MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license. We welcome feedback and contributions, see file
-// CONTRIBUTING.md for details.
+=======
+   // Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+   >>>>>>> artv3/opt-mass-assembly
+   // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+   // LICENSE and NOTICE for details. LLNL-CODE-806117.
+   //
+   // This file is part of the MFEM library. For more information and source code
+   // availability visit https://mfem.org.
+   //
+   // MFEM is free software; you can redistribute it and/or modify it under the
+   // terms of the BSD-3 license. We welcome feedback and contributions, see file
+   // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
-using namespace mfem;
+   <<<<<<< HEAD
+   =======
+#include <type_traits>
+
+      >>>>>>> artv3/opt-mass-assembly
+      using namespace mfem;
 
 namespace
 {
@@ -37,6 +46,10 @@ void CheckMassEA(const char *mesh_file, const int order)
       dynamic_cast<const TensorBasisElement*>(fe0);
    MFEM_VERIFY(tbe, "");
    const Array<int> &dof_map = tbe->GetDofMap();
+   <<<<<<< HEAD
+   =======
+      const bool has_dof_map = (dof_map.Size() == ndof);
+   >>>>>>> artv3/opt-mass-assembly
 
    MassIntegrator mass;
 
@@ -50,12 +63,21 @@ void CheckMassEA(const char *mesh_file, const int order)
    mass.AssembleEA(fes, ea_add, true);
    MFEM_DEVICE_SYNC;
 
+   <<<<<<< HEAD
+   =======
+      const double tol = std::is_same<real_t, float>::value ? 1e-5 : 1e-12;
+
+   >>>>>>> artv3/opt-mass-assembly
    {
       const real_t *a = ea.HostRead();
       const real_t *b = ea_add.HostRead();
       for (int i = 0; i < ea.Size(); ++i)
       {
+         <<<<<<< HEAD
          REQUIRE((double)b[i] == MFEM_Approx(2.0*(double)a[i], 1e-12, 1e-12));
+         =======
+         REQUIRE((double)b[i] == MFEM_Approx(2.0*(double)a[i], tol, tol));
+         >>>>>>> artv3/opt-mass-assembly
       }
    }
 
@@ -70,19 +92,31 @@ void CheckMassEA(const char *mesh_file, const int order)
 
       for (int i = 0; i < ndof; ++i)
       {
+         <<<<<<< HEAD
          const int ii_s = dof_map[i];
+         =======
+            const int ii_s = has_dof_map ? dof_map[i] : i;
+         >>>>>>> artv3/opt-mass-assembly
          const int ii = ii_s >= 0 ? ii_s : -1 - ii_s;
          const int s_i = ii_s >= 0 ? 1 : -1;
          for (int j = 0; j < ndof; ++j)
          {
+            <<<<<<< HEAD
             const int jj_s = dof_map[j];
+            =======
+               const int jj_s = has_dof_map ? dof_map[j] : j;
+            >>>>>>> artv3/opt-mass-assembly
             const int jj = jj_s >= 0 ? jj_s : -1 - jj_s;
             const int s_j = jj_s >= 0 ? 1 : -1;
             elmat(ii, jj) -= s_i*s_j*ea_mats(i, j, e);
          }
       }
 
+      <<<<<<< HEAD
       REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0, 1e-10));
+      =======
+         REQUIRE(elmat.MaxMaxNorm() == MFEM_Approx(0.0, 100*tol));
+      >>>>>>> artv3/opt-mass-assembly
    }
 }
 
@@ -99,4 +133,7 @@ TEST_CASE("MassIntegrator full EA matches element assembly (tensor quads/hexes)"
 
    CheckMassEA(mesh_file, order);
 }
+<<<<<<< HEAD
 
+=======
+   >>>>>>> artv3/opt-mass-assembly
