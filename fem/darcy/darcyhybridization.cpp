@@ -28,6 +28,27 @@
 namespace mfem
 {
 
+namespace
+{
+
+/** @brief Pick the store a BATCHED route should read the (1,0) block from:
+    @a bg when the Jacobian's (1,0) block is live, and the linear @a bf
+    otherwise.
+
+    The batched mirror of DarcyHybridization::GetGradBMatrix(), and it exists
+    for the same reason -- one funnel, so a site that forgets the distinction
+    cannot exist. Only the NON-transposed use of B takes this. The transposed
+    one is the (0,1) block, which carries its own addend in Bnl_data and must
+    not be handed this one as well; the dense MultInv() holds two views for
+    exactly that reason and the batched route holds two tensors. */
+inline const Vector &GradBStore(bool gradient, bool bg_empty,
+                                const Vector &bg, const Vector &bf)
+{
+   return (gradient && !bg_empty) ? bg : bf;
+}
+
+} // anonymous namespace
+
 DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_p_,
                                        FiniteElementSpace *fes_c_,
@@ -3049,8 +3070,14 @@ bool DarcyHybridization::FactorElementsBatched(ComputeHMode mode,
    BatchedLinAlg::LUSolve(A, Af_ipiv, AiBt_all);
 
    // Construct and decompose the Schur complement
+   // The (1,0) role. This B multiplies A^-1 B^T from the LEFT, so on a
+   // gradient pass it is the JACOBIAN's (1,0) block and takes Bg_data;
+   // AiBt_all above was built from the (0,1) role, which stays linear and
+   // carries its own addend in Bnl_data. The dense ComputeElementH() holds
+   // two views for the same reason.
    DenseTensor B;
-   B.NewMemoryAndSize(Bf_data.GetMemory(), nd, na, NE, false);
+   B.NewMemoryAndSize(GradBStore(gradient, Bg_empty, Bg_data, Bf_data)
+                      .GetMemory(), nd, na, NE, false);
    Vector &S_store = (to_S)?(Sf_data):(Df_data);
    Array<int> &S_ipiv = (to_S)?(Sf_ipiv):(Df_ipiv);
    if (to_S)
@@ -3151,7 +3178,11 @@ void DarcyHybridization::ComputeElementsHBatched(
    Array<int> A_ipiv;
    A_ipiv.MakeRef(Af_ipiv.GetMemory(), el_0*na, nel*na);
 
-   Memory<real_t> B_mem(Bf_data.GetMemory(), el_0*na*nd, nel*na*nd);
+   // Non-transposed below, in B A^-1 C^T - E, so this is the (1,0) role and
+   // takes the Jacobian's block on a gradient pass. See FactorElementsBatched().
+   Memory<real_t> B_mem(GradBStore(gradient, Bg_empty, Bg_data,
+                                   Bf_data).GetMemory(),
+                        el_0*na*nd, nel*na*nd);
    DenseTensor B;
    B.NewMemoryAndSize(B_mem, nd, na, nel, false);
 
@@ -3356,6 +3387,16 @@ DarcyHybridization::EnsureCondensationCache() const
    return cond_cache.get();
 }
 
+void DarcyHybridization::GetGradBMatrix(int el, bool gradient,
+                                        DenseMatrix &B) const
+{
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+   const Vector &src = (gradient && !Bg_empty) ? Bg_data : Bf_data;
+   B.Reset(const_cast<real_t*>(&src[Bf_offsets[el]]),
+           d_dofs_size, a_dofs_size);
+}
+
 void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
                                          real_t *Hel,
                                          SerialHWorkspace &ws,
@@ -3392,8 +3433,14 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    }
 
    // Construct Schur complement
+   // TWO views, for the reason spelled out in MultInv(): B is read
+   // non-transposed as the (1,0) block and TRANSPOSED just below to build the
+   // (0,1) block, which carries its own addend in Bnl_data. One view for both
+   // roles applies the (1,0) addend twice, in the wrong place.
    const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
                        d_dofs_size, a_dofs_size);
+   DenseMatrix Bg;
+   GetGradBMatrix(el, gradient, Bg);
    DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
    // From @a ws and not a local, here and for the three below: see
    // SerialHWorkspace. Four DenseMatrix objects per element per gradient,
@@ -3456,7 +3503,7 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
          // ~5,700 flops an element's condensation costs at meq's dimensions,
          // i.e. under 8%, so the trade is a poor one. Everything else the
          // cache holds is stored and replayed BIT for BIT.
-         mfem::AddMult(B, AiBt, D);
+         mfem::AddMult(Bg, AiBt, D);
       }
 
       // Decompose Schur complement
@@ -3488,7 +3535,7 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
          const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
                                  d_dofs_size, d_dofs_size);
          S_el = D_lin;
-         mfem::AddMult(B, AiBt, S_el);
+         mfem::AddMult(Bg, AiBt, S_el);
       }
 
       // Decompose Schur complement
@@ -3602,7 +3649,7 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
                             B.Height(), Ct1.Width());
          if (!cc_read)
          {
-            mfem::Mult(B, AiCt, BAiCt0);
+            mfem::Mult(Bg, AiCt, BAiCt0);
             if (c_bfi_p || mode == ComputeHMode::Gradient)
             {
                DenseMatrix E;
@@ -3614,7 +3661,7 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
       }
       else
       {
-         mfem::Mult(B, AiCt, BAiCt);
+         mfem::Mult(Bg, AiCt, BAiCt);
 
          if (c_bfi_p || mode == ComputeHMode::Gradient)
          {
@@ -4219,6 +4266,13 @@ bool DarcyHybridization::LinearResidualBatched(
       A.NewMemoryAndSize(const_cast<Array<real_t>&>(Af_lin_data).GetMemory(),
                          na, na, NE, false);
    }
+   // Bf_data and not Bg_data, which is not an oversight. Bg_data is the
+   // JACOBIAN's (1,0) block; a residual takes the linear constraint plus
+   // whatever the integrator's own potential row supplies, exactly as the
+   // per-element LocalNLOperator::Mult() does. A first draft refused this
+   // route whenever Bg_data was live, which was the wrong reason for a
+   // correct-by-accident refusal -- CanBatchLocalResidual() admits only a
+   // MixedConductionNLFIntegrator, which writes no (1,0) block at all.
    B.NewMemoryAndSize(Bf_data.GetMemory(), nd, na, NE, false);
    D.NewMemoryAndSize(Df_lin_data.GetMemory(), nd, nd, NE, false);
    Ct.NewMemoryAndSize(rc.Ct_all.GetMemory(), na, T, NE, false);
@@ -6577,10 +6631,17 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
                   fluxnl_schur ? &Sf_ipiv[Df_f_offsets[el]]
                   : &Df_ipiv[Df_f_offsets[el]]);
 
-   // Load B
-
+   // Load B. TWO views, and the distinction is not cosmetic: this routine
+   // uses B in BOTH roles -- non-transposed just below as the (1,0) block,
+   // and transposed further down as the (0,1) block, which already carries
+   // its own addend in Bnl_data. Substituting one view for both puts the
+   // (1,0) addend into the (0,1) application and the first Newton step comes
+   // back inf. with_bnl is exactly the "this is a gradient application"
+   // predicate the (1,0) block needs; it does not have to be widened.
    const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
                        d_dofs_size, a_dofs_size);
+   DenseMatrix Bg;
+   GetGradBMatrix(el, with_bnl, Bg);
 
    //u = A^-1 bu
    u.SetSize(bu.Size());
@@ -6589,7 +6650,7 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 
    //p = -S^-1 (B A^-1 bu - bp)
    p.SetSize(bp.Size());
-   B.Mult(u, p);
+   Bg.Mult(u, p);
 
    p -= bp;
 
@@ -6666,10 +6727,21 @@ void DarcyHybridization::MultInvBatched(const Vector &bu, const Vector &bp,
    // spelled out in InvertA(): the latter goes through Memory::Wrap(), which
    // sets VALID_HOST with no device type and pins every kernel below to the
    // host however the Device is configured.
-   DenseTensor A, S, B;
+   DenseTensor A, S, B, Bt;
    A.NewMemoryAndSize(Af_data.GetMemory(), na, na, NE, false);
    S.NewMemoryAndSize(S_data.GetMemory(), nd, nd, NE, false);
-   B.NewMemoryAndSize(Bf_data.GetMemory(), nd, na, NE, false);
+   // TWO tensors over the same shape, for the reason the dense MultInv()
+   // spells out at length: this routine uses B in BOTH roles -- @a B
+   // non-transposed as the (1,0) block, @a Bt transposed as the (0,1) one,
+   // which already carries its own addend in Bnl_data. One tensor for both
+   // puts the (1,0) addend into the (0,1) application and the first Newton
+   // step comes back inf. @a with_bnl is exactly "these are the Jacobian's
+   // blocks", the same predicate the dense route passes to
+   // GetGradBMatrix(). They are the same memory whenever Bg_data is empty,
+   // which is every problem with no solution-dependent (1,0) term.
+   B.NewMemoryAndSize(GradBStore(with_bnl, Bg_empty, Bg_data, Bf_data)
+                      .GetMemory(), nd, na, NE, false);
+   Bt.NewMemoryAndSize(Bf_data.GetMemory(), nd, na, NE, false);
 
    u.SetSize(bu.Size());
    p.SetSize(bp.Size());
@@ -6705,7 +6777,7 @@ void DarcyHybridization::MultInvBatched(const Vector &bu, const Vector &bp,
    //u += -A^-1 (B^T + Bnl) S^-1 (B A^-1 bu - bp)
    Vector t(na * NE);
    t.UseDevice(true);
-   BatchedLinAlg::AddMult(B, p, t, 1.0, 0.0, BatchedLinAlg::Op::T);
+   BatchedLinAlg::AddMult(Bt, p, t, 1.0, 0.0, BatchedLinAlg::Op::T);
 
    if (with_bnl)
    {
@@ -6867,14 +6939,17 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       // this did -- leaves the local Jacobian inconsistent with the local
       // residual whenever the flux law depends on the potential, and Newton
       // then converges only to first order in that dependence rather than
-      // quadratically. Block (1,0) stays NULL: the divergence form is linear,
-      // so B is already exact in Bf_data.
+      // quadratically. Block (1,0) used to stay NULL on the grounds that the
+      // divergence form is linear, so B is already exact in Bf_data. That
+      // holds for every flux law, and NOT for a term evaluated at the
+      // postprocessed potential, which depends on the flux through u*. It is
+      // collected into Bg_data and read back through GetGradBMatrix().
       Array<const FiniteElement*> fe_arr({fe_u, fe_p});
       Array<const Vector*> x_arr({&u_l, &p_l});
       Array2D<DenseMatrix*> grad_arr(2,2);
-      DenseMatrix grad_A, grad_D, grad_Aup;
+      DenseMatrix grad_A, grad_D, grad_Aup, grad_Apu;
       grad_arr(0,0) = &grad_A;
-      grad_arr(1,0) = NULL;
+      grad_arr(1,0) = &grad_Apu;
       grad_arr(0,1) = &grad_Aup;
       grad_arr(1,1) = &grad_D;
       m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
@@ -6903,6 +6978,44 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       {
          DenseMatrix Bnl(&Bnl_data[Bf_offsets[el]], a_dofs_size, d_dofs_size);
          Bnl = 0.;
+      }
+
+      if (grad_Apu.Height() != 0)
+      {
+         MFEM_VERIFY(grad_Apu.Height() == d_dofs_size &&
+                     grad_Apu.Width() == a_dofs_size,
+                     "The (1,0) element gradient block is "
+                     << grad_Apu.Height() << "x" << grad_Apu.Width()
+                     << ", expected " << d_dofs_size << "x" << a_dofs_size);
+         if (Bg_data.Size() != Bf_offsets.Last())
+         {
+            Bg_data.SetSize(Bf_offsets.Last());
+            // Seeded with the LINEAR block, not with zero, and that is not
+            // tidiness. Bnl_data can be zero-filled because it is an ADDEND:
+            // an element whose block was never written contributes nothing.
+            // This array REPLACES B at its readers, and Bg_empty goes false
+            // as soon as the FIRST element writes, which exposes every
+            // element the loop has not reached yet. Zero-filled, those read
+            // B = 0, the Schur complement loses its divergence form, and the
+            // first Newton step comes back inf.
+            Bg_data = Bf_data;
+         }
+         // B PLUS the addend, not the addend alone: unlike Bnl_data, which
+         // is an addend applied at four sites, every reader of this block
+         // holds a VIEW onto Bf_data, which cannot be added into in place.
+         DenseMatrix Bg(&Bg_data[Bf_offsets[el]], d_dofs_size, a_dofs_size);
+         const DenseMatrix Bl(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                              d_dofs_size, a_dofs_size);
+         Bg = Bl;
+         Bg += grad_Apu;
+         Bg_empty = false;
+      }
+      else if (!Bg_empty)
+      {
+         DenseMatrix Bg(&Bg_data[Bf_offsets[el]], d_dofs_size, a_dofs_size);
+         const DenseMatrix Bl(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                              d_dofs_size, a_dofs_size);
+         Bg = Bl;
       }
    }
    else if (!ad_done)
@@ -9361,7 +9474,10 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    grad.SetDiagonalBlock(0, &grad_A);
 
    //B
-   grad.SetBlock(1, 0, &const_cast<DenseMatrix&>(B));
+   // The Jacobian's (1,0), which is B unless an integrator supplied an
+   // addend. Not B itself: Bt aliases it for the (0,1) block.
+   dh.GetGradBMatrix(el, true, const_cast<DenseMatrix&>(Bg));
+   grad.SetBlock(1, 0, &const_cast<DenseMatrix&>(Bg));
 
    //B^T, plus d(flux residual)/dp when the flux law supplies one
    if (grad_Aup.Height() != 0)

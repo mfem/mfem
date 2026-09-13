@@ -21,6 +21,7 @@
 #include "estimators_hdg.hpp"
 #include "functionals_hdg.hpp"
 #include "postprocess_hdg.hpp"
+#include "reaction_hdg.hpp"
 #include "tmop_hdg.hpp"
 
 #ifdef MFEM_USE_MPI

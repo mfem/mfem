@@ -410,6 +410,45 @@ private:
    mutable Vector Bnl_data;
    mutable bool Bnl_empty{true};
 
+   /** @brief The JACOBIAN's (1,0) block: the linear divergence form plus
+       whatever a block integrator's `grad_arr(1,0)` supplied.
+
+       The mirror of @a Bnl_data, and the doc above states the asymmetry from
+       the other side. A term evaluated at the POSTPROCESSED potential -- the
+       interpolatory HDG of Chen, Cockburn, Singler & Zhang -- makes the
+       potential equation depend on the flux, because `u*` is reconstructed
+       from it, and the divergence form alone is then not the whole (1,0)
+       block. Every other problem this branch has met leaves it empty, and
+       @a Bg_empty short-circuits the extra work.
+
+       @a Bf_data's own (d_dofs, a_dofs) orientation and @a Bf_offsets
+       indexing.
+
+       @warning **This is the (1,0) block only.** @a Bf_data is ALSO read
+       transposed as the (0,1) block -- LocalNLOperator holds one view and
+       uses it both ways, with TransposeOperator Bt aliasing it -- and that
+       role already carries @a Bnl_data. Adding this addend to the shared view
+       would apply it twice over in the wrong block, so the transposed uses
+       deliberately keep reading @a Bf_data. */
+   mutable Vector Bg_data;
+   mutable bool Bg_empty{true};
+   /* Seeded with @a Bf_data and NOT with zero when first allocated, which is
+      the one thing that differs from @a Bnl_data's handling and is not
+      optional. @a Bnl_data is an ADDEND, so an element whose block was never
+      written contributes nothing; this array REPLACES B at its readers, and
+      @a Bg_empty goes false as soon as the FIRST element writes, which
+      exposes every element the loop has not reached yet. Zero-filled, those
+      read B = 0, the Schur complement loses its divergence form, and the
+      first Newton step comes back inf. A replacing cache and an adding cache
+      have different initialisation obligations. */
+
+   /** @brief The (1,0) block of element @a el: the Jacobian's when @a gradient
+       and @a Bg_data is live, and the linear divergence form otherwise.
+
+       One funnel, so a site that forgets the distinction cannot exist. @a B is
+       reset as a non-owning view; nothing is copied. */
+   void GetGradBMatrix(int el, bool gradient, DenseMatrix &B) const;
+
    /** @brief Load the (0,1) gradient block of element @a el into @a Bnl.
 
        Returns false, leaving @a Bnl untouched, when there is no such block. */
@@ -673,6 +712,14 @@ private:
       const int a_dofs_size, d_dofs_size;
       DenseMatrix B;
       TransposeOperator Bt;
+      /** @brief The (1,0) block for GetGradient() only.
+
+          @a B stays the linear divergence form because Mult() is a RESIDUAL:
+          the reaction's own contribution arrives separately through
+          AddMultBlock(), so adding it to B there would count it twice. And
+          @a Bt aliases @a B, so the (0,1) block must keep reading the linear
+          one too. Only the Jacobian's (1,0) entry takes the addend. */
+      DenseMatrix Bg;
       const FiniteElement *fe_u, *fe_p;
       IsoparametricTransformation *Tr;
       /** The caller's per-thread scratch. Every transformation this operator
@@ -1621,6 +1668,19 @@ public:
        linear system. */
    DiagonalPolicy GetDiagonalPolicy() const { return diag_policy; }
 
+   /** @brief The element-local nonlinear solve, used whenever the local
+       operator is LocalOpType::FullNL.
+
+       @note **Its rtol caps the outer solver, and the default 1e-6 is not
+       tight enough for a convergence study.** The reduced residual is only as
+       accurate as the local solve that produced it, so a Newton on the trace
+       stalls just below this value and then oscillates. Measured on a problem
+       made exactly LINEAR (a reaction integrator present but returning zero):
+       the outer Newton fell from 1.04 to 9.5e-06 in one step and then sat
+       there for 40 iterations without converging. At rtol 1e-13 the same
+       problem converges in ONE step to 4.4e-14. Anything installed on the
+       block nonlinear form forces FullNL, so this applies to callers who
+       never asked for a local nonlinear solve at all. */
    void SetLocalNLSolver(LSsolveType type, int iters = 1000, real_t rtol = 1e-6,
                          real_t atol = 0., int print_lvl = -1)
    {
