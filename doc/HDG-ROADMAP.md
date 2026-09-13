@@ -35,14 +35,20 @@ which is why the measurement goes into the code where they will meet it. And
 directed work still overrides this: when the caller asks for one of them, it
 gets done, as §4's first two pieces were.
 
-## The branch topology, because three sections turn on it
+## The branch topology, because four sections turn on it
 
 ```
 gf-hdg-dev  (trunk)
   |- gf-hdg-subdomains-dev     extension/lifting       -> its own PR
   |- gf-hdg-linearise-first    NPC  <-- this branch    -> its own PR
+  |    `- gf-interp-hdg-dev    interpolatory HDG       -> its own PR
   `- gf-hdg-p-adaptivity       per-face trace order    -> its own PR
 ```
+
+`gf-interp-hdg-dev` is the one DESCENDANT here rather than a sibling, and that
+is forced: its work is built on this branch's `LocalOpType`, batched local
+routes and block-nonlinear-integrator path. So §10 is the one section whose
+machinery lives downstream rather than sideways.
 
 **These are reviewed by upstream separately and are not merged into each
 other**, so a section whose machinery lives on a sibling is not blocked work —
@@ -253,6 +259,26 @@ potential itself. `HDGStabilization` is a scalar hook that can rescale `τ` but
 cannot change what `τ` multiplies, so this needs a new face integrator.
 
 ## 10. Interpolatory evaluation of the nonlinear coefficient
+
+**Built, on `gf-interp-hdg-dev`, not here**, and the plan lives on that branch
+— `doc/HDG-INTERPOLATORY-CCSZ.md`, which used to sit here and does not any
+more, a plan document belonging on the branch doing the work. Chen, Cockburn,
+Singler & Zhang, *J. Sci. Comput.* **81** (2019) 2188–2212.
+
+What is there: `HDGPostprocessBlocks` splitting the classic postprocessing
+into per-element blocks that can be applied rather than re-solved;
+`fem/darcy/reaction_hdg.{hpp,cpp}` with an interpolatory reaction integrator
+and a quadrature one to measure it against; the Jacobian's (1,0) block, which
+this branch's hybridization did not have and which a term evaluated at the
+postprocessed potential needs; and
+`BlockNonlinearFormIntegrator::GetBlockRowMask()`, so a term writing one block
+row keeps the flux mass factored once.
+
+Two things to know before merging any of it back this way. The mask adds a
+**virtual to `BlockNonlinearFormIntegrator`**, which is a layout change to
+every integrator deriving from it — `make clean`, both trees. And the entry
+below, that "nothing in `fem/darcy` interpolates a coefficient", is true HERE
+and false there; it is a statement about this branch, not about the family.
 
 Optional, and *purely* so — the secondary payoff this entry used to claim, that
 it is what makes the classic local postprocessing general in `vdim`, has been
