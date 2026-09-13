@@ -112,9 +112,23 @@ void PardisoSolver::Mult(const Vector &b, Vector &x) const
 {
    // Solve
    phase = 33;
+   // **The host accessors, not Vector::GetData().** GetData() is a raw host
+   // pointer: it neither brings a device-resident right-hand side down nor
+   // invalidates the device copy of the solution written here. With an
+   // mfem::Device configured, PARDISO therefore factored the right matrix --
+   // SetOperator() above is careful, HostReadI/J/Data -- and then solved
+   // against a stale b, returning an x that no device consumer ever saw.
+   // UMFPackSolver::Mult() is the contrast and it is in this same directory.
+   //
+   // HostWrite() rather than HostReadWrite() because phase 33 with
+   // iparm[5] = 0 overwrites x entirely and never reads it on entry; a mode
+   // that does read it would need HostReadWrite(). The const_cast is for
+   // PARDISO's signature, which takes a non-const void * for the
+   // right-hand side.
    PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
            reordered_csr_colind, &idum, &nrhs,
-           iparm, &msglvl, b.GetData(), x.GetData(), &error);
+           iparm, &msglvl, const_cast<real_t *>(b.HostRead()), x.HostWrite(),
+           &error);
 
    MFEM_ASSERT(error == 0, "Pardiso solve error");
 }

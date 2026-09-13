@@ -187,6 +187,21 @@ void CPardisoSolver::Mult(const Vector &b, Vector &x) const
 {
    // Solve
    phase = 33;
+   // **The host accessors, not Vector::GetData().** GetData() is a raw host
+   // pointer: it neither brings a device-resident right-hand side down nor
+   // invalidates the device copy of the solution written here. With an
+   // mfem::Device configured, the solver therefore factored the right matrix
+   // -- SetOperator() above is careful, hypreParMat.HostRead() -- and then
+   // solved against a stale b, returning an x that no device consumer ever
+   // saw. UMFPackSolver::Mult() is the contrast and it is in this same
+   // directory. Reported against the serial PardisoSolver; this sibling
+   // carries the same two calls and is fixed with it.
+   //
+   // HostWrite() rather than HostReadWrite() because phase 33 with
+   // iparm[5] = 0 overwrites x entirely and never reads it on entry; a mode
+   // that does read it would need HostReadWrite(). The const_cast is for
+   // PARDISO's signature, which takes a non-const void * for the
+   // right-hand side.
    cluster_sparse_solver(pt,
                          &maxfct,
                          &mnum,
@@ -200,8 +215,8 @@ void CPardisoSolver::Mult(const Vector &b, Vector &x) const
                          &nrhs,
                          iparm,
                          &msglvl,
-                         b.GetData(),
-                         x.GetData(),
+                         const_cast<real_t *>(b.HostRead()),
+                         x.HostWrite(),
                          &comm_,
                          &error);
 

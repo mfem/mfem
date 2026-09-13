@@ -145,6 +145,77 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    REQUIRE(mm.PrintAliases(dev_null) == n_alias);
 }
 
+#ifdef MFEM_USE_MKL_PARDISO
+
+/** @brief PardisoSolver::Mult() with the right-hand side on the device.
+
+    PardisoSolver::SetOperator() synchronises its matrix -- HostReadI(),
+    HostReadJ(), HostReadData() -- and Mult() used to reach b and x through
+    Vector::GetData(), a raw host pointer that neither brings a device-resident
+    buffer down nor invalidates the device copy of one it writes. With an
+    mfem::Device configured the solve therefore ran against a stale right-hand
+    side and left a solution no device consumer could see.
+
+    This backend is the cheap way to hold it: it has device memory semantics
+    with host arithmetic and mprotects the host page behind a device-valid
+    buffer, so a raw touch is an MmuError here where on real hardware it is a
+    silently wrong number. No GPU is needed, only MFEM_USE_MKL_PARDISO.
+
+    The answer is arithmetic: b is formed from a chosen x_ex, so the solve has
+    a known solution and the check is not against a second implementation. */
+TEST_CASE("PardisoSolver takes its right-hand side from the device",
+          "[DebugDevice]")
+{
+   // A small nonsymmetric, diagonally dominant tridiagonal system. Small
+   // because what is under test is the vector handoff, not the factorization.
+   const int n = 64;
+   SparseMatrix A(n, n);
+   for (int i = 0; i < n; i++)
+   {
+      if (i > 0) { A.Add(i, i - 1, -1.0); }
+      A.Add(i, i, 4.0);
+      if (i < n - 1) { A.Add(i, i + 1, -2.0); }
+   }
+   A.Finalize();
+
+   Vector x_ex(n);
+   for (int i = 0; i < n; i++) { x_ex(i) = 1.0 + std::sin(real_t(i)); }
+
+   Vector b(n), x(n);
+   A.Mult(x_ex, b);
+
+   // Both ends device-resident before the call: b as a kernel would have left
+   // it, x as a caller that means to consume the solution on the device would
+   // have asked for it. Under this backend both host pages are now protected.
+   b.UseDevice(true);
+   x.UseDevice(true);
+   b.Read();
+   x.Write();
+
+   PardisoSolver pardiso;
+   pardiso.SetOperator(A);
+   pardiso.Mult(b, x);
+
+   // Read back through the DEVICE copy, not the host one. A host-side check
+   // would pass on real hardware even with the solution written raw to a host
+   // page nobody reads, because that page happens to hold the right numbers;
+   // it is the device copy that was left stale.
+   Vector Ax(n), r(n);
+   Ax.UseDevice(true);
+   r.UseDevice(true);
+   A.Mult(x, Ax);
+   subtract(Ax, b, r);
+   r.HostRead();
+   REQUIRE(r.CheckFinite() == 0);
+   REQUIRE(r.Normlinf() == MFEM_Approx(0.0));
+
+   x.HostRead();
+   x_ex -= x;
+   REQUIRE(x_ex.Normlinf() == MFEM_Approx(0.0));
+}
+
+#endif // MFEM_USE_MKL_PARDISO
+
 #endif // _WIN32
 
 int main(int argc, char *argv[])
