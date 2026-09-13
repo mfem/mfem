@@ -5918,7 +5918,19 @@ void DarcyHybridization::Finalize()
       // integrator supplies that block. IsNonlinear() provided that guarantee
       // and bnpc does not, so a form with no nonlinear integrator at all must
       // fall through to FullNL, which is the only branch that backs up both.
-      if (IsNonlinear() && !m_nlfi_u && !m_nlfi && !c_nlfi)
+      // A BLOCK integrator that writes the POTENTIAL ROW ONLY leaves the flux
+      // mass linear, so it belongs on this branch too. The promise is
+      // GetBlockRowMask()'s and the sites that act on it are ConstructGrad()
+      // and LocalPotNLOperator, both widened for it; a block integrator that
+      // writes any other row still falls through to FullNL.
+      //
+      // Measured, which is why the virtual exists at all: the general path
+      // costs 20-26% of a Newton step at order 3 on convdiff and 5-7% at
+      // order 2, against nothing at order 1.
+      const bool block_pot_row_only =
+         m_nlfi && m_nlfi->GetBlockRowMask() == (1 << 1);
+      if (IsNonlinear() && !m_nlfi_u && (!m_nlfi || block_pot_row_only)
+          && !c_nlfi)
       {
          lop_type = LocalOpType::PotNL;
          // backup the data for gradient construction
@@ -6952,9 +6964,22 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       grad_arr(1,0) = &grad_Apu;
       grad_arr(0,1) = &grad_Aup;
       grad_arr(1,1) = &grad_D;
+      // **Under PotNL the flux row is not asked for, and that is not an
+      // optimisation.** A here is the FACTORED linear flux mass -- InvertA()
+      // ran at Finalize() and nothing rebuilds it -- so writing anything into
+      // it destroys the factorisation every later solve depends on. The
+      // integrator promised through GetBlockRowMask() that it writes no flux
+      // row, and Finalize() selected this branch on that promise; asking for
+      // the blocks anyway would get a zero matrix from a well-behaved
+      // implementor and zero the factors.
+      const bool pot_row_only = (lop_type == LocalOpType::PotNL);
+      if (pot_row_only) { grad_arr(0,0) = NULL; grad_arr(0,1) = NULL; }
       m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
-      if (grad_A.Height() != 0) { A = grad_A; }
-      else { A = 0.; }
+      if (!pot_row_only)
+      {
+         if (grad_A.Height() != 0) { A = grad_A; }
+         else { A = 0.; }
+      }
       if (grad_D.Height() != 0) { D = grad_D; }
       else { D = 0.; }
 
@@ -9289,6 +9314,30 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
    }
 }
 
+void DarcyHybridization::LocalNLOperator::AddGradBlockPot(
+   const Vector &u_l, const Vector &p_l, DenseMatrix &grad) const
+{
+   if (!dh.m_nlfi) { return; }
+
+   // From @a ws and not locals, for the reason AddGradBlock() gives; and
+   // cleared before the call for the reason it gives as well -- these carry
+   // the LAST element's size in, so the Height() test below would add a
+   // stale block.
+   DenseMatrix &gD = ws.lop_gD;
+   Array<const FiniteElement*> &fe_arr = ws.lop_fe_arr;
+   Array<const Vector*> &x_arr = ws.lop_x_arr;
+   Array2D<DenseMatrix*> &grad_arr = ws.lop_grad_arr;
+   fe_arr.SetSize(2); fe_arr[0] = fe_u; fe_arr[1] = fe_p;
+   x_arr.SetSize(2);  x_arr[0] = &u_l;  x_arr[1] = &p_l;
+   grad_arr.SetSize(2,2);
+   grad_arr = NULL;
+   grad_arr(1,1) = &gD;
+   gD.SetSize(0,0);
+
+   dh.m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
+   if (gD.Height() != 0) { grad += gD; }
+}
+
 void DarcyHybridization::LocalNLOperator::AddGradA(const Vector &u_l,
                                                    DenseMatrix &grad) const
 {
@@ -9609,6 +9658,21 @@ void DarcyHybridization::LocalPotNLOperator::Mult(const Vector &p_l,
    B.Mult(u_l, bp);
 
    AddMultDE(p_l, bp);
+
+   // The BLOCK integrator's potential row. Without this a block integrator
+   // admitted to this branch by GetBlockRowMask() is never evaluated at all
+   // -- AddMultDE() knows m_nlfi_p, the linear D and c_nlfi_p, and nothing
+   // else reaches m_nlfi -- so the reaction would simply vanish from the
+   // residual while the gradient carried it. @a bu_scratch is written only
+   // if the integrator breaks its promise and writes the flux row, which
+   // AddMultBlock() guards on Au.Size().
+   if (dh.m_nlfi || dh.c_nlfi)
+   {
+      Vector &bu_scratch = ws.lop_bu_pot;
+      bu_scratch.SetSize(a_dofs_size);
+      bu_scratch = 0.0;
+      AddMultBlock(u_l, p_l, bu_scratch, bp);
+   }
 }
 
 Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
@@ -9620,8 +9684,17 @@ Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
 
    SolveU(p_l, u_l);
 
-   //grad = B A^-1 B^T
-   DenseMatrix BAi = B;
+   // grad = (B + dR_p/du) A^-1 B^T
+   //
+   // TWO factors and they are different blocks, which the single `B` here
+   // used to hide. Eliminating u gives du/dp = -A^-1 B^T, so the RIGHT
+   // factor is the flux row's (0,1) block -- linear, this branch being taken
+   // only when nothing writes the flux row. The LEFT factor is the
+   // POTENTIAL row's derivative with respect to u, which a block integrator
+   // evaluated at the postprocessed field supplies; it is collected in
+   // Bg_data and is the linear B whenever nothing supplies one.
+   dh.GetGradBMatrix(el, true, const_cast<DenseMatrix&>(Bg));
+   DenseMatrix BAi = Bg;
 
    LU_A.RightSolve(a_dofs_size, d_dofs_size, BAi.GetData());
    grad_D.SetSize(d_dofs_size);
@@ -9630,6 +9703,10 @@ Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
 
    //grad += D
    AddGradDE(p_l, grad_D);
+
+   // and the BLOCK integrator's (1,1). The flux-row blocks are not asked for
+   // -- see ConstructGrad(), where asking would zero the factored A.
+   AddGradBlockPot(u_l, p_l, grad_D);
 
    return grad_D;
 }

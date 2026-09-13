@@ -100,6 +100,16 @@ public:
        the blocks' own Assemble() if it has not run. */
    void Assemble();
 
+   /** @brief The potential row and nothing else.
+
+       `(I_h F(u*_h), v)_K` is tested against the POTENTIAL space only, so
+       the flux row is untouched and the flux mass stays linear. The row
+       READS the flux -- `gamma = B11 u_e + B12 p_e` -- and that is a
+       different statement: the promise is about what is written, and the
+       reader of the promise carries the (1,0) block through
+       DarcyHybridization's Bg_data. */
+   int GetBlockRowMask() const override { return 1 << 1; }
+
    /// `A9` for element @a el, `nd x ns`.
    void GetA9(int el, DenseMatrix &A9) const;
    /// Physical coordinates of element @a el's enriched nodes, `ns x dim`.

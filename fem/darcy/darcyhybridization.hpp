@@ -775,6 +775,17 @@ private:
       /// Accumulates into grad_A / grad_D / grad_Aup; see the definition for
       /// why it no longer takes the two it used to shadow.
       void AddGradBlock(const Vector &u_l, const Vector &p_l) const;
+
+      /** @brief Add the BLOCK integrator's (1,1) into @a grad, asking for no
+          other block.
+
+          AddGradBlock()'s counterpart for LocalOpType::PotNL, where the flux
+          row must not be asked for at all: A there is the FACTORED linear
+          flux mass and a well-behaved integrator handed a non-NULL (0,0)
+          writes a zero matrix into it. Face contributions are not collected
+          because the branch is not taken when c_nlfi is set. */
+      void AddGradBlockPot(const Vector &u_l, const Vector &p_l,
+                           DenseMatrix &grad) const;
       void AddGradA(const Vector &u_l, DenseMatrix &gA) const;
       void AddGradDE(const Vector &p_l, DenseMatrix &gD) const;
 
@@ -992,6 +1003,14 @@ private:
           exactly one of them. */
       Array<int> lop_offsets;
       Vector lop_Au, lop_Dp, lop_DpEx, lop_other;
+      /** @brief The flux-row output handed to AddMultBlock() from
+          LocalPotNLOperator::Mult(), which has no flux row of its own.
+
+          A block integrator reaches that branch only by promising through
+          GetBlockRowMask() that it writes the potential row alone, so this
+          stays zero -- it exists because AssembleElementVector() takes an
+          array of outputs and cannot be told to skip one. */
+      Vector lop_bu_pot;
       DenseMatrix lop_grad_A, lop_grad_D, lop_grad_Aup, lop_grad_Bt;
       /// The integrators' own output blocks, added into the four above.
       DenseMatrix lop_gA, lop_gD, lop_gAup;
@@ -2275,6 +2294,26 @@ public:
 
        Valid once Init() has built the offsets. */
    bool CanBatchLocalFactor() const;
+
+   /** @brief True when the flux mass block is factored ONCE, at Finalize(),
+       and reused by every later local solve and gradient.
+
+       This is the LocalOpType::PotNL regime, named by what a caller can
+       observe rather than by the enum, which stays private. It holds when
+       nothing makes the flux row non-linear: no flux-mass nonlinear
+       integrator, no non-linear face constraint, and no block nonlinear
+       integrator EXCEPT one whose
+       BlockNonlinearFormIntegrator::GetBlockRowMask() promises the potential
+       row alone.
+
+       It changes no answer -- the general path computes the same Jacobian
+       from the same blocks -- so it is a performance property and a test may
+       assert it only as such. Measured: the general path costs 5-7% of a
+       whole Newton step at order 2 and 20-26% at order 3.
+
+       Valid once Finalize() has run; false before, that being the default. */
+   bool FluxMassIsPrefactored() const
+   { return lop_type == LocalOpType::PotNL; }
 
    /** @brief Choose how the element blocks reach the global trace matrix.
        TraceAssemblyMode::Serial is the default and the historical behaviour.

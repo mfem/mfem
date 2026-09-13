@@ -198,6 +198,27 @@ class BlockNonlinearFormIntegrator
 public:
    using HDGFaceType = NonlinearFormIntegrator::HDGFaceType;
 
+   /** @brief Which block ROWS this integrator may write, as a bitmask: bit
+       @a i set means row @a i can be written by AssembleElementVector() or
+       AssembleElementGrad().
+
+       The default is EVERY row, so no existing implementor is affected and
+       none has to be revisited. An integrator returning a narrower mask is
+       making a PROMISE about the others, and a caller may act on it: a
+       hybridization can keep a block that no integrator writes linear and
+       factored once, instead of rebuilding and refactoring it at every
+       Newton step. See DarcyHybridization::Finalize(), which selects
+       LocalOpType::PotNL on this promise.
+
+       @warning A mask narrower than the implementation honours is a silent
+       wrong answer, not an abort -- the caller stops asking for the blocks
+       the promise excludes, so anything written to them is never read.
+
+       MEASURED, so the promise buys something real: on `convdiff -p 3 -dg
+       -hb` the general path costs 5-7% of a whole Newton step at order 2 and
+       20-26% at order 3, trace solves included in the denominator. */
+   virtual int GetBlockRowMask() const { return ~0; }
+
    /// Compute the local energy
    virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                                    ElementTransformation &Tr,

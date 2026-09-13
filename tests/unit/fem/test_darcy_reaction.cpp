@@ -488,10 +488,26 @@ struct AffineRun
    int iters{-1};
    bool can_factor{false};   ///< CanBatchLocalFactor(), asked after Assemble()
    bool can_solve{false};    ///< CanBatchLocalSolve()
+   bool prefactored{false};  ///< FluxMassIsPrefactored()
+   long local_nl{-1};        ///< GetNumLocalNLIterations()
    real_t err{-1.};
 };
 
-void RunAffine(DarcyHybridization::LocalFactorMode mode, AffineRun &out)
+/** @brief The same integrator with its promise WITHDRAWN.
+
+    GetBlockRowMask() is what lets DarcyHybridization keep the flux mass
+    factored once; returning the conservative default puts the identical
+    problem on the general path instead. The two must agree, which is what
+    makes the mask a performance declaration rather than a discretisation
+    one -- and the only way to check that without an environment gate. */
+struct FullMaskReaction : public HDGInterpolatoryReactionIntegrator
+{
+   using HDGInterpolatoryReactionIntegrator::HDGInterpolatoryReactionIntegrator;
+   int GetBlockRowMask() const override { return ~0; }
+};
+
+void RunAffine(DarcyHybridization::LocalFactorMode mode, AffineRun &out,
+               bool honour_mask = true)
 {
    const int order = 1, dim = 2, n = 4;
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::TRIANGLE);
@@ -534,8 +550,11 @@ void RunAffine(DarcyHybridization::LocalFactorMode mode, AffineRun &out)
    darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gco));
 
    // BlockNonlinearForm DELETES its domain integrators, so it owns this one.
-   HDGInterpolatoryReactionIntegrator *react =
-      new HDGInterpolatoryReactionIntegrator(F, blocks);
+   HDGReactionIntegratorBase *react =
+      honour_mask
+      ? static_cast<HDGReactionIntegratorBase*>(
+         new HDGInterpolatoryReactionIntegrator(F, blocks))
+      : static_cast<HDGReactionIntegratorBase*>(new FullMaskReaction(F, blocks));
    react->Assemble();
    darcy.GetBlockNonlinearForm()->AddDomainIntegrator(react);
 
@@ -558,6 +577,7 @@ void RunAffine(DarcyHybridization::LocalFactorMode mode, AffineRun &out)
    out.can_factor = dh->CanBatchLocalFactor()
                     && mode == DarcyHybridization::LocalFactorMode::Batched;
    out.can_solve = dh->CanBatchLocalSolve();
+   out.prefactored = dh->FluxMassIsPrefactored();
 
 #ifdef MFEM_USE_SUITESPARSE
    UMFPackSolver umf;
@@ -577,6 +597,7 @@ void RunAffine(DarcyHybridization::LocalFactorMode mode, AffineRun &out)
 
    REQUIRE(newton.GetConverged());
    out.iters = newton.GetNumIterations();
+   out.local_nl = dh->GetNumLocalNLIterations();
 
    darcy.RecoverFEMSolution(X, x);
    out.p = x.GetBlock(1);
@@ -663,6 +684,72 @@ TEST_CASE("The batched local routes carry the (1,0) gradient block",
    d -= ser.p;
    const real_t rel = d.Normlinf() / ser.p.Normlinf();
    CAPTURE(rel, ser.err, bat.err);
+   REQUIRE(std::isfinite(rel));
+   REQUIRE(rel < 1e-12);
+}
+
+TEST_CASE("GetBlockRowMask() keeps the flux mass factored once",
+          "[DarcyForm][Postprocess][Reaction]")
+{
+   // The mask is a PERFORMANCE declaration, so the whole of its correctness
+   // is that it changes nothing. Both arms run the identical discrete
+   // problem; the only difference is that one integrator promises through
+   // BlockNonlinearFormIntegrator::GetBlockRowMask() that it writes the
+   // potential row alone, which lets DarcyHybridization factor the flux mass
+   // once at Finalize() instead of rebuilding and refactoring it at every
+   // Newton step.
+   //
+   // Measured before it was built, on convdiff with the selection forced
+   // both ways: the general path costs 5-7% of a whole Newton step at order
+   // 2 and 20-26% at order 3, against nothing at order 1.
+   //
+   // Honouring the promise is more than the selection. The specialised local
+   // operator had never run a block integrator at all -- its residual path
+   // knew only the potential mass integrators, and its gradient built
+   // B A^-1 B^T with the LINEAR B in the left factor. A reaction evaluated
+   // at the postprocessed field writes only the potential row but READS the
+   // flux, so that left factor has to be the Jacobian's (1,0) block. Get
+   // either wrong and this case fails: the residual one drops the reaction
+   // and the answer moves, the gradient one costs the single Newton step.
+   using namespace darcy_reaction;
+
+   AffineRun promised, general;
+   RunAffine(DarcyHybridization::LocalFactorMode::Serial, promised, true);
+   RunAffine(DarcyHybridization::LocalFactorMode::Serial, general, false);
+
+   // The promise was acted on, and withdrawing it is what the control varies.
+   REQUIRE(promised.prefactored);
+   REQUIRE_FALSE(general.prefactored);
+
+   // Still one step: the linear problem's threshold, now asked of the
+   // specialised local operator's Jacobian.
+   REQUIRE(promised.iters == 1);
+   REQUIRE(general.iters == 1);
+
+   // The element-local solve does the same work either way.
+   CAPTURE(promised.local_nl, general.local_nl);
+   REQUIRE(promised.local_nl == general.local_nl);
+
+   // **What this case does NOT discriminate, said plainly.**
+   // LocalPotNLOperator::GetGradient() builds the element-local Jacobian as
+   // (B + dR_p/du) A^-1 B^T, the left factor being the Jacobian's (1,0)
+   // block rather than the linear divergence form. Substituting the linear B
+   // back was gated and MEASURED: the answer, the outer Newton count and
+   // this local total (96) are ALL unchanged. The operator is reached --
+   // checked by aborting inside it -- so the substitution is exercised and
+   // simply does not show here; the local problem converges to the same root
+   // from an inexact Jacobian.
+   //
+   // So that half rests on the analytic argument and on the two routes where
+   // the same substitution DOES fail loudly: ComputeElementH() and
+   // MultInv(), where using one view for both roles returns inf on the first
+   // step. Do not read this case as covering it.
+
+   REQUIRE(promised.p.Size() == general.p.Size());
+   Vector d(promised.p);
+   d -= general.p;
+   const real_t rel = d.Normlinf() / general.p.Normlinf();
+   CAPTURE(rel, promised.err, general.err);
    REQUIRE(std::isfinite(rel));
    REQUIRE(rel < 1e-12);
 }
