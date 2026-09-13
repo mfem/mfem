@@ -515,6 +515,17 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    }
 
    // Automatically load the block integrators
+   //
+   // **Only the FIRST domain integrator is taken, and the rest are silently
+   // dropped.** DarcyHybridization::m_nlfi is one pointer and there is no
+   // block analogue of the SumNLFIntegrator wrapper used for the potential
+   // mass twenty lines up, so a second AddDomainIntegrator() on this form
+   // contributes to nothing -- no warning, the term just vanishes. The same
+   // shape as the face integrators DarcyHybridization refuses by name; found
+   // while adding GetBlockRowMask(), whose promise a wrapper would have to
+   // forward as the OR of its parts. Recorded rather than fixed: nothing in
+   // this tree installs two, and changing it is a decision about the
+   // hybridization's interface rather than a repair.
    if (Mnl)
    {
       BlockNonlinearFormIntegrator *block_integ = NULL;
