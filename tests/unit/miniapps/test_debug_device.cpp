@@ -1769,6 +1769,127 @@ TEST_CASE("The NPC operator drives a Newton to the exact polynomial under a devi
    if (Device::Allows(Backend::DEVICE_MASK)) { REQUIRE(r.r_dev_valid); }
 }
 
+/** @brief HDGPostprocessBlocks::Apply() with element state ON THE DEVICE.
+
+    Apply()'s contract is that the CALLER supplies the element flux and
+    potential and receives `gamma`, and its doxygen invites a threaded element
+    loop to drive it. It used to reach all three through Vector::GetData(), a
+    raw host pointer that neither syncs a device-resident buffer down nor
+    invalidates the device copy of one it writes.
+
+    **The shipped caller could not see it.** HDGPotentialPostprocessor::
+    Compute() fills its element vectors with Vector::GetSubVector(), whose
+    `use_dev` is taken from the DESTINATION and the dof array, so a host-flagged
+    destination forces Read(false) -- a HostRead() of the grid function -- and
+    everything downstream is host-valid by luck rather than by discipline.
+    Measured: Compute() returns 2.0e-15 under Device("debug") with the defect
+    fully present. So the case has to drive Apply() directly, which is also the
+    only way a threaded or offloaded caller would reach it.
+
+    All three directions are exercised: `u_l` and `p_l` are left device-valid
+    by a Read(), and `gamma` by a Write(), before Apply() is called. Under this
+    backend a raw touch of any of them is an MmuError with a backtrace; under
+    CUDA it is a stale number. The answer is arithmetic rather than a second
+    run of the same code -- `q = -grad p` with `p` linear and `iK` the
+    identity, so the local Neumann problem has `u* = p` exactly, in the
+    enriched space and on any mesh. */
+TEST_CASE("HDG postprocessing blocks take element state from the device",
+          "[DebugDevice]")
+{
+   const int dim = 2;
+   const int order = GENERATE(1, 2);
+   const Element::Type geom =
+      GENERATE(Element::QUADRILATERAL, Element::TRIANGLE);
+   CAPTURE(order, geom == Element::TRIANGLE);
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, geom);
+
+   auto pfun = [](const Vector &x) { return x(0) + 2.0 * x(1); };
+   // q = -grad p, so iK = I leaves the local problem reading (grad u*, grad v)
+   // = (grad p, grad v). Both are in their spaces exactly at every order here.
+   auto qfun = [](const Vector &, Vector &v) { v(0) = -1.0; v(1) = -2.0; };
+
+   L2_FECollection p_coll(order, dim), q_coll(order, dim),
+                   s_coll(order + 1, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll, 1);
+   FiniteElementSpace fes_q(&mesh, &q_coll, dim);   // scalar range: vdim = dim
+   FiniteElementSpace fes_s(&mesh, &s_coll, 1);
+
+   GridFunction p(&fes_p), q(&fes_q);
+   FunctionCoefficient pex(pfun);
+   VectorFunctionCoefficient qex(dim, qfun);
+   p.ProjectCoefficient(pex);
+   q.ProjectCoefficient(qex);
+
+   HDGPostprocessBlocks blocks(fes_q, fes_p, fes_s);
+   blocks.Assemble();
+
+   // Two arms differing ONLY in where the element state lives. The host arm is
+   // the control: it says the exact-solution assertion below can be met at all,
+   // so a device arm that misses it is the device and not the problem.
+   GridFunction ps_host(&fes_s), ps_dev(&fes_s);
+   for (int on_device = 0; on_device < 2; on_device++)
+   {
+      GridFunction &ps = on_device ? ps_dev : ps_host;
+      ps = 0.0;
+      for (int z = 0; z < mesh.GetNE(); z++)
+      {
+         // Fresh per element, and that is not tidiness. A device-flagged
+         // gather or scatter leaves the DOF ARRAY device-valid too --
+         // GetSubVector()/SetSubVector() take `use_dev` from the pair and
+         // then Read() the dofs -- and FiniteElementSpace::GetElementDofs()
+         // refills an Array<int> through a host copy with no HostWrite(). So
+         // reusing one across elements aborts in the space, which is nothing
+         // to do with what this case is about.
+         Array<int> vd_q, vd_p, vd_s;
+         fes_q.GetElementVDofs(z, vd_q);
+         fes_p.GetElementVDofs(z, vd_p);
+         fes_s.GetElementVDofs(z, vd_s);
+
+         Vector u_l, p_l, gamma;
+         q.GetSubVector(vd_q, u_l);
+         p.GetSubVector(vd_p, p_l);
+         gamma.SetSize(vd_s.Size());
+
+         if (on_device)
+         {
+            u_l.UseDevice(true);
+            p_l.UseDevice(true);
+            gamma.UseDevice(true);
+            // Device-valid, host page protected: exactly what an element loop
+            // that had just run a kernel would hand in. All three directions
+            // at once -- two reads and the write.
+            u_l.Read();
+            p_l.Read();
+            gamma.Write();
+         }
+
+         blocks.Apply(z, u_l, p_l, gamma);
+         ps.SetSubVector(vd_s, gamma);
+      }
+      // The scatter above ran on the device in the second arm, so ps is
+      // device-valid; ComputeL2Error() reads element values on the host.
+      ps.HostRead();
+   }
+
+   // u* = p exactly, so this is a statement about arithmetic and not about
+   // another implementation.
+   const int qo = 2 * (order + 1) + 4;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++) { irs[i] = &IntRules.Get(i, qo); }
+   const real_t err_host = ps_host.ComputeL2Error(pex, irs);
+   const real_t err_dev = ps_dev.ComputeL2Error(pex, irs);
+   CAPTURE(err_host, err_dev);
+   REQUIRE(err_host < 1e-12);
+   REQUIRE(err_dev < 1e-12);
+
+   // And the two arms are the same numbers, not merely both small.
+   Vector diff(ps_dev);
+   diff -= ps_host;
+   REQUIRE(diff.Normlinf() == MFEM_Approx(0.0));
+}
+
+
 #endif // _WIN32
 
 int main(int argc, char *argv[])

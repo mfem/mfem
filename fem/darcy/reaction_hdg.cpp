@@ -11,6 +11,8 @@
 
 #include "reaction_hdg.hpp"
 
+#include <algorithm>
+
 namespace mfem
 {
 
@@ -163,10 +165,14 @@ void HDGInterpolatoryReactionIntegrator::AssembleElementVector(
    // did not write.
    elvec[0]->SetSize(0);
    elvec[1]->SetSize(neq * nd);
+   // The caller's row, so the host accessor rather than GetData(); see
+   // HDGPostprocessBlocks::Apply() for what the raw pointer costs. A pure
+   // write: A9.Mult() overwrites each block and the loop covers them all.
+   real_t *r_d = elvec[1]->HostWrite();
    for (int e = 0; e < neq; e++)
    {
       const Vector f_e(fvals.GetData() + e * ns, ns);
-      Vector r_e(elvec[1]->GetData() + e * nd, nd);
+      Vector r_e(r_d + e * nd, nd);
       A9.Mult(f_e, r_e);
    }
 }
@@ -273,7 +279,13 @@ void HDGQuadratureReactionIntegrator::AssembleElementVector(
 
    elvec[0]->SetSize(0);
    elvec[1]->SetSize(neq * nd);
-   *elvec[1] = 0.0;
+   // Zeroed through the host pointer rather than with `*elvec[1] = 0.0`,
+   // which honours the vector's UseDevice() flag and would put the zeros on
+   // the DEVICE -- leaving the raw accumulation below writing a host page
+   // the next reader has no reason to believe. See
+   // HDGPostprocessBlocks::Apply().
+   real_t *r_d = elvec[1]->HostWrite();
+   std::fill(r_d, r_d + neq * nd, (real_t) 0.0);
 
    Vector shape_p(nd), shape_s(ns), un(neq), Fn(neq), xq(Tr.GetSpaceDim());
    for (int k = 0; k < ir.GetNPoints(); k++)
@@ -296,7 +308,7 @@ void HDGQuadratureReactionIntegrator::AssembleElementVector(
 
       for (int e = 0; e < neq; e++)
       {
-         Vector r_e(elvec[1]->GetData() + e * nd, nd);
+         Vector r_e(r_d + e * nd, nd);
          r_e.Add(w * Fn(e), shape_p);
       }
    }

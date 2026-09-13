@@ -280,11 +280,38 @@ void HDGPostprocessBlocks::Apply(int el, const Vector &u_l, const Vector &p_l,
    const Vector mass(const_cast<real_t*>(mass_data.GetData()) + offs_p[el],
                      nd);
 
+   // **The caller's three vectors are reached through the HOST accessors and
+   // not through GetData().** GetData() is a raw host pointer: it neither
+   // brings a device-resident buffer down nor invalidates the device copy of
+   // one written here. An element state that was last touched on the device
+   // therefore reads STALE under CUDA, and traps in MmuError under
+   // Device("debug"), which mprotects the host page behind a device-valid
+   // buffer. This is a public entry point whose whole contract is that the
+   // CALLER supplies the state, so the caller's residency is not ours to
+   // assume -- and neither shipped caller made it visible. Compute() fills
+   // its element vectors with Vector::GetSubVector(), which takes `use_dev`
+   // from the destination and so forces the host path for a host-flagged
+   // one; and the reaction integrators are driven from
+   // DarcyHybridization::LocalNLOperator::Mult(), which already takes
+   // ownership of its caller's vectors for this very reason -- see the note
+   // there, which is the same finding one level up. Both are covered by
+   // something other than this routine, which is exactly why it has to be
+   // closed here rather than left to be noticed.
+   //
+   // The three blocks above keep the raw form deliberately: they are this
+   // object's own, Assemble() is a host loop, and nothing in the tree hands
+   // them to a kernel.
+   const real_t *u_d = u_l.HostRead();
+   const real_t *p_d = p_l.HostRead();
+   // Every one of the neq*ns entries is written below, so this is a pure
+   // write and must not pay for a d2h copy of what it is about to overwrite.
+   real_t *g_d = gamma.HostWrite();
+
    for (int e = 0; e < neq; e++)
    {
-      const Vector u_e(const_cast<real_t*>(u_l.GetData()) + e * na, na);
-      const Vector p_e(const_cast<real_t*>(p_l.GetData()) + e * nd, nd);
-      Vector g_e(gamma.GetData() + e * ns, ns);
+      const Vector u_e(const_cast<real_t*>(u_d) + e * na, na);
+      const Vector p_e(const_cast<real_t*>(p_d) + e * nd, nd);
+      Vector g_e(g_d + e * ns, ns);
       B11.Mult(u_e, g_e);
       // The whole potential dependence, and the reason B12 is rank one: the
       // element average is the only thing the local problem is told.
