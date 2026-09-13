@@ -750,9 +750,28 @@ mutable bool Bg_empty{true};
 void GetGradBMatrix(int el, bool gradient, DenseMatrix &B) const;
 ```
 
-Every site in §2.2's table that reads `&Bf_data[Bf_offsets[el]]` becomes a call
-to `GetGradBMatrix(el, gradient, B)`, and the two batched routes take a
-`DenseTensor` over `Bg_data` when it is live. `ComputeElementH()`'s existing
+**Correction, found before implementing: "every site" is wrong, and following
+it would corrupt the (0,1) block.** `LocalNLOperator` holds ONE `B` view
+(`darcyhybridization.cpp:8759`) and uses it in BOTH roles — non-transposed as
+(1,0) at `:9326`, `:9407`, `:9493`, and **transposed** as (0,1) at `:9319`,
+`:9426`, `:9474`, plus `TransposeOperator Bt(B)`
+(`darcyhybridization.hpp:675`) handed to `grad.SetBlock(0, 1, &Bt)` at
+`:9377`. `Bt` is a live view of `B`, not a copy. So writing the (1,0) addend
+into that object silently adds it to the (0,1) block as well — which already
+carries `Bnl` and must not get it twice.
+
+§2.2 says "sites where `B` acts transposed … need nothing", and that is true of
+the *sites* and false of the *object* they share. The design is therefore:
+**leave `B` as the linear `Bf` view so every transposed use stays correct, and
+introduce a separate accessor for the (1,0) role only.** Concretely three dense
+sites take it — `ComputeElementH` (`:3395`), `MultInv` (`:6582`) and
+`LocalNLOperator`'s non-transposed uses — and the four batched routes
+(`:3053`, `:3154`, `:4222`, `:6672`) take a `DenseTensor` over `Bg_data` when
+it is live.
+
+Also worth knowing before starting: only **two** places construct the dense
+view from `&Bf_data[Bf_offsets[el]]` and one more is the `LocalNLOperator`
+member initialiser; §2.2's table of thirteen counts USES, not views. `ComputeElementH()`'s existing
 `gradient` flag (`darcyhybridization.cpp:3263`) and `MultInv()`'s `with_bnl`
 (`:6100`) are already exactly the predicate needed; neither needs widening.
 
@@ -830,19 +849,24 @@ evaluated *at* `u*`'s nodes, downstream of it. So the existing exclusion is
 the behaviour this design wants, and `HDGPostprocessBlocks` must reproduce it
 rather than "fix" it.
 
-**Two things to check before stage 1, neither of which was verified here:**
+**Both of these were checked before stage 1, and both resolve the same way:
+the concern is about a DIFFERENT postprocessing and does not reach CCSZ-I.**
 
-* That exclusion list is a whitelist of two convection integrators, so a
-  CCSZ-I reaction integrator on `M_p` would be dropped from the
-  postprocessing *silently* -- the same silent-drop shape this branch has now
-  paid for three times. Whether that matters depends on whether anything
-  should ever put one there; state the answer in the class rather than leave
-  it to the whitelist.
-* The reconstruction reads `M_p`'s DOMAIN integrators. A CCSZ-I reaction term
-  is a `BlockNonlinearFormIntegrator` on `Mnl`, which this loop never
-  consults, so the exclusion may be vacuous for the proposed design. Confirm
-  which form the integrator actually lands on before relying on either
-  reading. The nonlinear
+* The whitelist is in `DarcyForm::ReconstructFluxAndPot()` -- the rich mixed
+  reconstruction, which §2.4 already rules out for CCSZ-I on separate grounds.
+  It reads `M_p->GetDBFI()`, i.e. BILINEAR form domain integrators.
+* `HDGPotentialPostprocessor` and `HDGPostprocessBlocks` read **no integrator
+  list at all** -- `grep -cE "GetDBFI|GetFBFI|AddDomainIntegrator|
+  BilinearFormIntegrator" fem/darcy/postprocess_hdg.{hpp,cpp}` is **0 and 0**.
+  They take the flux, the potential and `iK`, and nothing else. So there is no
+  whitelist for a CCSZ-I term to be silently dropped from, and the silent-drop
+  shape this branch has paid for three times does not arise on this path.
+* And the second reading holds too: a CCSZ-I reaction term is a
+  `BlockNonlinearFormIntegrator` on `Mnl`, which that loop never consults. The
+  exclusion is vacuous for the proposed design twice over.
+
+Stated on `HDGPostprocessBlocks` rather than left here, per this section's own
+instruction. The nonlinear
 terms the suite does exercise are `MixedConductionNLFIntegrator`
 (`fem/nonlininteg_mixed.hpp:109`, a flux law) and `HyperbolicFormIntegrator`
 (`miniapps/hdg/convdiff.cpp:862`, a convective flux); neither depends on `u*`.
@@ -1026,21 +1050,53 @@ in every batch miniapp run.
 Extract the element algebra of `postprocess_hdg.cpp:141-223`, form `B11`/`B12`,
 and rewrite `Compute()` as `Apply()` plus a scatter.
 
-**Falsifying measurement.** `tests/unit/fem/test_darcy_postprocess.cpp` has three
-cases (`:140`, `:179`, `:213`) covering one field, several fields treated
-independently, and an H(div) flux. Rerun them and require the postprocessed
-potential **bit-identical** to the pre-refactor values, not merely within a
-tolerance. A refactor that changes the answer in the last digits has changed the
-order of operations somewhere it should not have. Additionally: a direct check
-that `Apply(el, u_l, p_l)` reproduces `Compute()`'s element block for a random
-`(u_l, p_l)` — which fails if `B11` or `B12` picked up the row-replacement's
-`i_c` row wrongly, the single most likely error in the extraction.
+**BUILT.** `HDGPostprocessBlocks` is in `fem/darcy/postprocess_hdg.{hpp,cpp}`
+and `HDGPotentialPostprocessor::Compute()` is `Apply()` plus a scatter. Three
+cases in `tests/unit/fem/test_darcy_postprocess.cpp`.
 
-**And a check that the check can fail**: assert that `B12` has rank one by
-verifying `B12 * v` is parallel to `B12 * w` for two random `v, w`, and that
-perturbing `p_l` by anything with zero element mean leaves `gamma` unchanged to
-round-off. Both are properties of the *method*, not of the code, so they fail
-loudly on a mis-extraction and are not restatements of the implementation.
+**The falsifying measurement this section asked for was the wrong one, and it
+is withdrawn.** It required the refactored `Compute()` to be **bit-identical**
+to the pre-refactor values, on the grounds that "a refactor that changes the
+answer in the last digits has changed the order of operations somewhere it
+should not have". It has to change the order of operations, and that IS the
+refactor: the old loop accumulated the right-hand side over quadrature points
+from the flux **values**, and the cached route contracts a precomputed matrix
+with the flux **coefficients**. Same sum, different association, and the whole
+point of caching is to do it in the second order. Measured across nine
+configurations (orders 1-3, 2-D and 3-D, `neq` 1-3, H(div) flux, a
+non-diagonal x-dependent `iK`): **2.3e-15 to 3.5e-14 relative**, and zero of
+the nine bit-identical.
+
+**What replaced it is stronger in kind, because its answer is arithmetic.**
+With a flux that is exactly `-grad P` for `P` of degree `k+1`, the local
+Neumann problem has `P` as its solution and the mean row pins the constant, so
+`u*` must BE `P` -- an answer that does not depend on any implementation
+agreeing with any other. Measured: **1.7e-15 to 1.3e-13 relative** over the
+same sweep. A comparison against the route being replaced cannot serve as the
+acceptance here for the reason above; it is kept as a **separate** case, at
+round-off rather than bit-identity, where what it actually pins is that the
+scatter puts each equation's block where the enriched space expects it.
+
+The `i_c` row is indeed the most likely error, and it is what the mutation
+arms below exercise.
+
+**And the checks were checked, by mutation rather than by reading.** Three
+deliberate defects were gated on an environment variable inside `Assemble()`
+(`env -u` for the control arm, per `CLAUDE.md`'s note that `getenv("X")` is
+non-null for the empty string): (1) not clearing row `i_c` of the flux block,
+(2) dropping the sign on `B11`, (3) putting the mean constraint's unit vector
+on the wrong row. **All three fail**, 14 assertions each, and they are caught
+by the polynomial case AND independently by the pre-existing convergence case
+`"Local postprocessing improves the potential"`.
+
+The two property checks this section proposed -- `B12` rank one, and a
+zero-element-mean move of `p_l` leaving `gamma` alone -- are built and pass,
+but **be clear about what they can and cannot see**: `B12` is STORED as its
+two rank-one factors (`c12` and `mass_p`) rather than as a matrix, so rank one
+is structural and none of the three mutations can break it. They are contract
+tests against a future refactor that stores a dense block, not acceptance for
+this one. Said here because a reader would otherwise count them as part of the
+acceptance, which is the shape of mistake this file records elsewhere.
 
 ### Stage 1 — the two reaction integrators, and the null test
 
@@ -1050,17 +1106,83 @@ points and integrating against `W_h`. The control is not optional: it is the
 only reference the tree has, there being no reaction integrator at all (§4.2),
 and it is also the comparison the reply doc's item (2) asks for.
 
-**The null test.** With `F(u) = a + c u` and `a, c` **constants**, the two
-integrators must agree to round-off — residual *and* gradient, on a random state,
-element by element. §4.1 says why: the interpolant is exact there.
+**BUILT.** `NodalReactionFunction`, `HDGReactionIntegratorBase`,
+`HDGInterpolatoryReactionIntegrator` and `HDGQuadratureReactionIntegrator` in
+`fem/darcy/reaction_hdg.{hpp,cpp}`; three cases in
+`tests/unit/fem/test_darcy_reaction.cpp`. Both entry points go through one
+`Prepare()`, so the residual and the gradient cannot be of different operators.
 
-**And the discriminating half, without which the null test is worthless.** With
-`F(u) = u³` the two must **disagree**, by an amount that (i) is well above
-round-off on a coarse mesh and (ii) **decreases like `h^{k+2}`** under
-refinement. A null test that passes for a first draft returning zero for every
-input is this branch's most recently paid-for mistake
-(`HDGDatumErrorEstimator`, recorded in `CLAUDE.md`), and the fix there was the
-same: a section whose answer is arithmetic rather than a comparison.
+**The null test passes** — affine `F`, residual and gradient, to 1e-12
+relative — **but only after the comparison was made capable of failing, and as
+specified it was not.**
+
+#### The finding: on a Gauss-Legendre box the two integrators are IDENTICAL
+
+`L2_FECollection` is nodal at the **Gauss-Legendre** points. On a
+tensor-product element the enriched space's `k+2` points per dimension are
+therefore exactly the points of the rule the postprocessing already uses, and
+`A9` assembled with that rule gives `(chi_j, phi_i) = w_j phi_i(x_j)`. The
+interpolatory term is then the quadrature term **identically, for every `F`** —
+interpolation has degenerated to collocation.
+
+Measured at order 2, `n = 4`, `F = u^3 - u`, relative residual gap:
+
+| element | enriched basis | nodes vs rule points | default rule | raised rule |
+|---|---|---|---|---|
+| quad | Gauss-Legendre | 16 vs 16 | **4.3e-16** | 3.9e-05 |
+| quad | Gauss-Lobatto | 16 vs 16 | 6.5e-03 | 6.5e-03 |
+| triangle | Gauss-Legendre | 10 vs 12 | 1.2e-03 | 1.1e-03 |
+| triangle | Gauss-Lobatto | 10 vs 12 | 1.0e-02 | 1.0e-02 |
+
+So **the null test as specified could not fail**: run at the default rule on a
+box it passes for `u³` as readily as for `a + c u`, and would pass for an
+integrator that ignored `F` entirely. The cases now raise the control's rule
+deliberately, and a third case pins the collocation itself — it is a real
+property and the next person to compare the two forms will hit it.
+
+**This bears on the method and not only on the test.** Where this branch's
+miniapps run — quadrilaterals and hexahedra with the default L2 basis —
+CCSZ-I's interpolatory term *is* standard HDG evaluated with the `(k+2)`-point
+Gauss rule. The paper's own meshes are simplices, where it is not.
+
+#### And the gap converges at `h^{k+4}`, not the `h^{k+2}` predicted here
+
+Measured on a Gauss-Legendre box with a non-collocating control, `n = 4..32`:
+
+| k | rates | Gauss-Lobatto basis |
+|---|---|---|
+| 1 | 4.96, 4.99, **5.00** | 2.88, 2.98, **2.99** |
+| 2 | 5.97, 5.99, **6.00** | 3.97, 3.99, **4.00** |
+| 3 | 6.95, 6.99, **7.00** | — |
+
+Two orders better than `||I_h g - g|| = O(h^{k+2})` suggests. The mechanism:
+the leading interpolation error at Gauss points is the degree-`k+2` Legendre
+polynomial, L2-orthogonal to `P^{k+1}`; the next term contributes
+`<omega, (x-x_c) phi>`, and `(x-x_c) phi` is still in `P^{k+1}` for `phi` in
+`W_h`, so it vanishes too. **The explanation was tested rather than asserted** —
+the Lobatto column is the test, and it recovers `h^{k+2}` exactly.
+
+#### Two more things the build turned up
+
+* **The (1,1) gradient gap is EXACTLY zero at k = 1 on a box**, and that is the
+  same orthogonality rather than a defect. `B12` is rank one and its column is
+  the constant function, so that block probes `<I_h J - J, phi>` in one
+  direction; at k = 1 the error is the degree-3 Legendre polynomial times a
+  linear factor, orthogonal to `phi` in `Q1`. Measured 4.8e-16 against 2.4e-06
+  at k = 2 and 8.9e-04 on a triangle at k = 1. The test therefore discriminates
+  on the residual and the (1,0) block, and says why.
+* **MFEM's simplex quadrature loses accuracy above its tabulated range.** A
+  first draft of the control ran at degree 30, where a triangle rule jumps from
+  126 points to **816**. The symptom was the control's own gradient disagreeing
+  with a finite difference of its own residual by 1.1e-07, where every rule from
+  degree 8 to 25 gives 4e-12 — i.e. it looked like a defect in the integrator
+  and was a defect in my choice of rule. The control now runs at `4k+6`, exact
+  for `F(u*) phi` and well inside the range. The branch
+  `intrules-triangle-high-order` is about this.
+
+**Each gradient is also checked against a finite difference of its OWN
+residual**, so "the two agree" cannot mean "both are wrong the same way" —
+4e-12 relative for both.
 
 Stage 1 needs **no** library change: the residual is expressible on `Mnl` today
 (§2.2), and the gradient's (1,1) block is read. So stage 1 is a complete,
@@ -1071,113 +1193,348 @@ is where that is fixed and detected.
 
 Two ladders, because the theorem covers only one of them.
 
-**(a) Steady, first.** `−Δu + F(u) = f` on `Ω = (0,1)²`, `F(u) = u³ − u`,
-`u = sin(πx) sin(πy)`, `f` manufactured. This isolates the spatial
-discretisation and needs no time integrator — which matters, because
-`CLAUDE.md` records roadmap §8's time integration as **unverified**: all 152
-serial references use `--ntimesteps 0`. **No theorem covers the steady case**
-(§1.4); the expected ladder is the elliptic analogue of Corollary 3.15 and that
-is a guess, stated as one.
+**(a) RUN, and the falsifying measurement passes.** `Delta u - F(u) = g` on
+`(0,1)^2`, `F(u) = u^3 - u`, `u = sin(pi x) sin(pi y)`, `g` manufactured;
+uniform triangulations, direct trace solve, local nonlinear `rtol` 1e-13.
 
-**(b) Transient, against Table 1.** CCSZ Example 4.1 exactly:
-`F(u) = u³ − u`, `u = sin(t) sin(πx) sin(πy)`, `T = 1`, `k = 0` with backward
-Euler and `Δt = h`, `k = 1` with Crank–Nicolson and `Δt = h²`. This is the only
-run that is a check against the paper, and it inherits §8's unverified time
-integration as a confound — say so in the table.
+**tau = O(1), paper I's stabilization, interpolatory:**
 
-Mesh sequence: uniform triangulations with `h/√2 = 2^{-1} … 2^{-5}` (`n = 2, 4,
-8, 16, 32`), CCSZ's own, **plus `2^{-6}`**. Orders `k = 0, 1, 2, 3`.
-`τ`: run at O(1) via the `HDGStabilization` hook (§2.5) **and** at the built-in
-`O(1/h)`, because only the first is the paper's method and only the second is
-this tree's default.
+| k | u | q | u* | CCSZ Table 1 |
+|---|---|---|---|---|
+| 0 | 1.00 | 1.00 | **1.00** | 0.97 — must NOT superconverge |
+| 1 | 2.02 | 2.01 | **3.00** | 3.01 |
+| 2 | 3.04 | 3.01 | **4.01** | — |
+| 3 | 4.03 | 4.01 | **5.00** | — |
 
-**Falsifying measurement.** The `u*` column at `k = 1` must reach `k + 2 = 3`
-and the `k = 0` column must **not** superconverge — CCSZ's Table 1 gives 3.01
-and 0.97 respectively, and `min{k,1}` is why. A `k = 0` column that
-superconverges is as much a refutation as a `k = 1` column that does not.
+Both halves of the falsifier hold: `k = 1` reaches `k+2` and `k = 0` does not
+superconverge, which is `min{k,1}`. Taken to `n = 64` for `k = 0,1` and `n = 32`
+for `k = 2,3`, flat at the end, so the rates are asymptotic; the convergence
+flag is a COLUMN and reads yes throughout.
 
-**Three procedural rules, every one of them already paid for on this branch:**
+**tau = 1/h, this tree's default, destroys it at every order** — and at `k = 0`
+the error stops decreasing and starts GROWING:
 
-* **Rates must be taken asymptotically.** CCSZ's own `k = 1` `u*` column reads
-  2.95, 3.02, 3.02, 3.01 — climbing from below on the coarse end. This branch
-  has recorded two cases of stopping too early: the aerofoil flux rate went
-  2.08, 1.46, 1.53, **2.50** and recovered, and the lesson written down was "I
-  never ran the next refinement". Run `2^{-6}`.
-* **Print the solver's convergence flag IN the table, not to a log.** The 3-D
-  extension study reported `err_u = 4.17e-01` at `n = 32` — worse than the
-  coarsest mesh — with a quiet "[GMRES did not converge]", and that point would
-  have entered a rate table had the harness not printed the flag. Print it as a
-  column.
-* **Check the converged points too.** Re-run the coarsest three with a
-  **direct** trace solve and require the iterative numbers to every printed
-  digit. Roadmap §5 records a GS-preconditioned solve leaving the answer 13% off
-  with the relative test satisfied.
+| k | u | q | u* |
+|---|---|---|---|
+| 0 | −0.10 | 0.07 | **−0.25** |
+| 1 | 2.03 | 1.14 | **1.96** |
+| 2 | 3.03 | 2.12 | **3.08** |
+
+So §2.5's correction is not a footnote: a ladder run at the default `tau` is not
+a test of CCSZ-I's theorem, and would have reported the method as failing.
+
+**Interpolating costs nothing measurable.** Against the quadrature control at
+`tau = O(1)`, same meshes: `u*` agrees to the **fifth** digit at `k = 1`
+(7.26499e-06 against 7.26462e-06 at `n = 32`) and the **sixth** at `k = 2`.
+Same rates, same constants. That is Remark 2.3 borne out here, and it is the
+`h^{k+4}` gap of stage 1 arriving in a solve.
+
+**Every row was produced with a DIRECT trace solve**, which satisfies the third
+procedural rule in the stronger direction — there is no iterative number to
+cross-check because none was used.
+
+### What the ladder cost to get right, none of which was in the plan
+
+* **`q = -grad u`.** Measured, not reasoned: comparing against `+grad u` pinned
+  the flux error at 4.44 on every mesh, which is exactly `2||grad u||`.
+* **The source sign is `g = Delta u - F(u)`.** Both signs were run; `-1` gives
+  the linear control's rates exactly and `+1` collapses `u*` to rate 0.
+* **The local nonlinear solve's default `rtol` is 1e-6 and it caps the outer
+  Newton.** Anything on `Mnl` forces `LocalOpType::FullNL`, which replaces the
+  direct local inverse with an ITERATIVE element solve. With the reaction
+  identically zero — a linear problem — Newton fell to 9.5e-06 in one step and
+  then oscillated there for 40 iterations. `SetLocalNLSolver(..., rtol=1e-13)`
+  fixes it. **A ladder run without this reports errors polluted at 1e-5.**
+
+**(b) Transient, against Table 1 — NOT RUN.** It needs the time integration
+that roadmap §8 records as unverified, and (a) already settles the spatial
+question against CCSZ's own `k = 0` and `k = 1` columns.
+
 
 ### Stage 3 — the (1,0) gradient block
 
-`grad_arr(1,0)` read at `darcyhybridization.cpp:6428` and `:8614`; `Bg_data` and
-`GetGradBMatrix()` per §3.5; every site in §2.2's table routed through the
-funnel.
+**BUILT, and the falsifier passes.** `Bg_data` / `Bg_empty` and
+`GetGradBMatrix(el, gradient, B)` on `DarcyHybridization`; `ConstructGrad()`
+passes `grad_arr(1,0)` instead of NULL and writes `B + grad_Apu`. One case in
+`tests/unit/fem/test_darcy_reaction.cpp`.
 
-**Falsifying measurement, and it is a threshold rather than a trend.** Pose
-`F(u) = a + c u` with constant `a, c`. §4.1 says the interpolatory term is then a
-**linear** operator, so the whole discrete problem is linear and **a correct
-Jacobian must converge in exactly ONE Newton step.** A Jacobian missing `A10`
-cannot: `A10 = c · A9 B11` is not zero, so the step is wrong by a fixed
-non-vanishing amount. This branch has the pattern already — "Linear problem: one
-step exact, 6.96e-01 to 6.22e-15" is the `633003aeba` acceptance signal for NPC.
+**The two predicates were already exactly right**, as this section hoped:
+`ComputeElementH`'s `gradient` and `MultInv`'s `with_bnl`. `with_bnl` was
+CHECKED rather than taken on trust — it is true at `MultNL`, `NPCReduce` and
+`NPCRecover`, the three Jacobian applications, and false at `ReduceRHS` and
+`ComputeSolution`, the two linear ones.
 
-The point is that **the residual is bit-identical either way**, so the
-discriminating quantity is the residual *history*, not the answer. That is the
-same trap as `ConstructGrad()`'s double count, where "the RESIDUAL was
-bit-identical to the element loop — 2.9217004681959e+00 to every digit — while
-`|S v|` came back 1.4826943370698e+01 against the loop's 2.5716073704950e+01"
-(`darcyhybridization.cpp:6484-6486`).
+**The falsifier, on the affine law where the discrete problem is exactly
+linear:**
 
-**Two more, both from this branch's hard-won rule that a residual-only
-comparison cannot catch a wrong gradient:**
+| addend | Newton steps | answer |
+|---|---|---|
+| none (pre-stage-3) | 5, at a constant factor 4.2e-3 | 5.94876e-02 |
+| **`+grad_Apu`** | **1** | 5.94876e-02 |
+| `-grad_Apu` | 6 | 5.94876e-02 |
 
-* **LBFGS against Newton on the same operator.** LBFGS never calls
-  `GetGradient()`, so it is blind to `A10`. Run `F(u) = u³` with both. Before
-  stage 3: LBFGS converges, Newton degrades from quadratic to linear (or
-  diverges). After stage 3: both converge and Newton is quadratic. That split is
-  what found the `HyperbolicFormIntegrator` indexing defect and what the 20
-  broken Tier 2 references announced for free — the 8 that diverged were Newton
-  and `-npc`, the 12 that merely drifted were LBFGS.
-* **A finite-difference directional derivative of `NPCResidual()` against
-  `NPCGradient()`'s action**, with a **floor**. The two agree to every printed
-  digit while the residual is meaningful and differ by 2.5e-04 relative on the
-  last iterate where both are 2.25e-14 — `CLAUDE.md`'s own note: "An equality
-  test between two solvers must not compare round-off relatively."
+All three return the SAME answer, which is the point: the residual is
+identical either way and the discriminating quantity is the iteration history.
+The cubic ladder's errors are byte-for-byte stage 2's, with Newton down to a
+uniform **4** from 7, 6, 5, 5, 4.
 
-**And the no-regression check.** Both suites rerun with `Bg_data` present and
-never written, requiring **byte-identical** output files (§4.2). Also
-`GradientMode::MatrixFree` against `Assembled` on a problem that *does* write
-it, per the precedent named at `darcyhybridization.cpp:6159-6161`.
+### Three defects in the implementation, none of them where this section looked
+
+* **"Every site that reads `Bf_data` becomes a call to the funnel" is wrong**,
+  and §3.5 now carries the correction. `ComputeElementH` and `MultInv` EACH
+  read `B` in both roles — transposed via `AiBt.Transpose(B)` and
+  `B.MultTranspose` to build the (0,1) block, which already carries `Bnl`.
+  Substituting one view for both put the (1,0) addend into the (0,1)
+  application and Newton's first step came back `inf`. Each now keeps a linear
+  `B` for the transposed role and takes `Bg` only for the non-transposed
+  products. **The aliasing was found and written down for `LocalNLOperator`
+  first, and then walked into in the two functions that had not been audited.**
+* **`Bg_data` must be seeded with `Bf_data`, not with zero.** `Bnl_data` can be
+  zero-filled because it is an ADDEND — an unwritten element contributes
+  nothing. This array REPLACES `B` at its readers, and `Bg_empty` goes false as
+  soon as the first element writes, which exposes every element the loop has
+  not reached. Zero-filled, those read `B = 0`, the Schur complement loses its
+  divergence form, and the step is `inf`. **A replacing cache and an adding
+  cache have different initialisation obligations**, and that is the
+  generalisable part.
+* **The finite-difference check of the reduced gradient proposed below is not
+  valid for this operator** and was discarded rather than concluded from: it
+  reported ~100% disagreement with stage 3 DISABLED, i.e. against code that had
+  converged for years. `A->GetGradient()` on the reduced trace operator is not
+  `d(A->Mult)/dx` in the naive sense. The calibrated falsifier is the one-step
+  Newton above.
+
+**How the second and third were separated**, and it is the technique this file
+already records: two environment gates inside the routine — one disabling the
+READ side (`GetGradBMatrix` always returns `Bf`), one scaling the addend by
+0/±1 — with `env -u` for the control arm. Read side off gave 5 steps, i.e. the
+pre-stage-3 arithmetic exactly, which exonerated the routing in one run and
+pointed at the data. Both gates are removed.
+
+**The four batched routes are DONE**, which is §3.5's remaining half. They
+refused first — `MFEM_VERIFY(Bg_empty, ...)` naming the fix — on the grounds
+that a visible gap beats a wrong answer on a device path; that refusal is now
+replaced by the thing it was standing in for.
+
+* `FactorElementsBatched()` and `ComputeElementsHBatched()` each use `B`
+  non-transposed only (`S += B·A⁻¹Bᵀ`, and `B·A⁻¹Cᵀ − E`), so each takes one
+  tensor over the (1,0) store.
+* `MultInvBatched()` uses it in **both** roles and now holds **two** tensors,
+  exactly as the dense `MultInv()` holds two views and for the same reason.
+* The batched **residual** route's guard was the one mistake here, and it was
+  a correct refusal for a wrong reason: a residual never reads the Jacobian's
+  (1,0) block at all. Its `B` stays linear, with the reason written on it.
+
+A file-local `GradBStore()` picks the store, so the three sites state the
+distinction rather than re-derive it — the batched mirror of
+`GetGradBMatrix()`.
+
+**Pinned, and the pin was checked to fail**: "The batched local routes carry
+the (1,0) gradient block" runs the affine problem under `LocalFactorMode`
+`Serial` and `Batched` and requires both to take ONE Newton step and to agree
+to 1e-12. It also requires `CanBatchLocalFactor()` and `CanBatchLocalSolve()`
+to be true in the batched arm, because this branch has three recorded cases of
+a mode that never fired while every test passed. Gating `GradBStore()` back to
+the linear store takes the batched arm from **1 step to 6** while the dense arm
+stays at 1.
+
+### §4.2's "byte identity, not a pass count" — done properly, and it found something else
+
+`regression_test.py` compares the two printed error norms with
+**`tol = 1e-4` relative** (`equal()` at `:17-19`); only the iteration count is
+exact. So "4 / 152, unmoved" is a statement at 1e-4 and NOT the byte identity
+§4.2 demands — a change in the sixth digit passes it. The check was redone
+with `equal()` replaced by `a == b`, which at the six significant digits the
+references store is exact.
+
+**Result: Stage 3 on and Stage 3 off are IDENTICAL across all 152 cases** —
+`diff` of the per-case verdicts is empty, with the (1,0) block gated back to
+NULL by an environment variable in one arm and `env -u` in the other. That is
+the byte-identity check, and it passes.
+
+**And it exposed something that is NOT ours: 14 of the 152 references are
+stale.** Under exact comparison the suite reports 4 DIFFERS + **14 FAILING** +
+85 SUCCESS instead of 4 + 0 + 99, in **both** arms. They agree to 1e-4 and not
+to the printed digits. Every one is a nonlinear hybridized case:
+`p2_o2_hb_nl`, `p1_o2_hb_nl_nld_newton`, `p2_o2_dg_hb_h1_nl`,
+`p2_o2_hb_upwind_nl`, and ten more. Pre-existing, reproducible, and unrelated
+to this work — but it means **§4.2's acceptance criterion as written is not
+achievable against this reference set**, and anyone who takes "byte identity of
+the reference outputs" literally will think they broke something. The
+achievable form is the two-arm comparison above.
+
+### And then the references were rebuilt, on the caller's instruction
+
+Local only, not pushed. **18 serial references regenerated** — the 4 DIFFERS
+and the 14 FAILING — after which the suite is `SUCCESS: all tests finished
+succesfully! (49 / 152 skipped)` **under the exact comparison**. So §4.2's
+criterion as written is achievable again, against this reference set, and a
+future change to the interpolatory path can be held to byte identity rather
+than to 1e-4.
+
+Two things that had to be got right, and neither is obvious:
+
+* **The 49 skips are not stale, they are the OTHER build's references.** Every
+  skipped case has a twin — `p1_o3.txt` records `GMRES+GS`, `p1_o3_umfpack.txt`
+  records `GMRES+UMFPack`, and both reconstruct the SAME command line.
+  A build with SuiteSparse reproduces one and skips the other. Regenerating a
+  skipped reference would overwrite the non-UMFPack arm with a duplicate of the
+  UMFPack one and quietly delete half the set's coverage.
+* **`regression_test.py` rebuilds the command from a FIXED option list**, so a
+  reference recording anything outside that list at a non-default value would
+  be silently rewritten as a different case. The regeneration therefore refuses
+  unless the old option block is a SUBSET of the new one. It cannot be equal:
+  `convdiff` has gained fourteen options since these were written
+  (`--ref-levels`, `--trace-DG`, `--newton-rtol`, `--npc`, `--gradient-mode`,
+  …), so a first draft comparing the blocks for equality refused all 18. Subset
+  is the right invariant — every recorded setting reproduced, anything new at
+  its default.
+
+**What the regeneration absorbed**, which is the interesting part: the 14
+FAILING moved only in the 6th–7th significant digit at an UNCHANGED iteration
+count (8.2e-07 to 7.8e-05 relative), while the 4 DIFFERS moved their iteration
+count — 123→119, 173→198, 107→111, 140→139 — with the error norms **identical
+to every printed digit** in three of the four. So the set was drifting in two
+different ways, and the 1e-4 tolerance was hiding one of them completely.
+
 
 ### Stage 4 — parallel
 
-`fem/darcy/pdarcyform.{hpp,cpp}` and the `ParOperator`/`ParGradient` wrappers
-(`darcyhybridization.hpp:561`, `:574`). The postprocessing blocks are element
-local, so nothing crosses a rank boundary; the risk is entirely in `Bg_data`
-reaching the parallel gradient assembly.
+**RUN, and it needed NO code change** — which was checked rather than hoped
+for. `pdarcyform.cpp` has **zero** references to `Bf_data`, `ConstructGrad`,
+`ComputeElementH` or `MultInv`; `ParOperator` and `ParGradient`
+(`darcyhybridization.hpp:640`, `:653`) are nested in `DarcyHybridization` and
+hold a reference to it, so they delegate to the same element-local machinery
+and `Bg_data` reaches them by construction.
 
-**Falsifying measurement: rank-count independence.** `CLAUDE.md` records this as
-"the sharp check on parallel NPC", and it is cheap — the same problem at 1, 2, 3
-and 4 ranks must give identical error norms. `pconvdiff ... -npc` gave
-0.000144657 / 0.000117035 at every rank count. Add the reaction term and require
-the same.
+**Falsifying measurement: rank-count independence**, on the steady cubic
+problem with the interpolatory term, `n = 8`, order 1, triangles:
 
-### Stage 5 — `GetBlockRowMask()`, and only if it earns it
+| ranks | `err_u` | `err_u*` | Newton |
+|---|---|---|---|
+| 1 | 1.39666989016496e-02 | 4.66538176925364e-04 | 4 |
+| 2 | 1.39666989016496e-02 | 4.66538176925401e-04 | 4 |
+| 3 | 1.39666989016496e-02 | 4.66538176925475e-04 | 4 |
+| 4 | 1.39666989016496e-02 | 4.66538176925430e-04 | 4 |
 
-**Falsifying measurement, and it is the one that decides whether to do this at
-all.** Time a Newton step on the stage-2 steady problem three ways: (i) the
-reaction on `Mnl` with `FullNL`, (ii) the same problem with the reaction rewired
-to depend on `p` only so it can sit on `Mnl_p` and take `PotNL`, (iii) `Mnl`
-with the mask honoured. If (i) and (ii) are within noise, `InvertA()` is not
-worth a virtual and this stage does not happen. Separate the allocations from
-the arithmetic when timing it — the reply doc §7 records that on this tree
-"86% quadrature was the answer only after the allocation was hoisted out".
+`err_u` is identical to all fifteen digits; `err_u*` agrees to twelve
+significant digits, the residue being the order of a parallel reduction. The
+1-rank row reproduces the SERIAL ladder's `n = 8` entry exactly.
+
+**And stage 3's own falsifier holds in parallel**: the affine law converges in
+ONE Newton step at 1, 2 and 4 ranks, so the (1,0) block is reaching the
+parallel gradient assembly and not merely the serial one.
+
+**Parallel baselines unmoved**: 101 cases / 70,946 assertions on 2 ranks,
+identical to before any of this work. The parallel tree needed
+`make config` (a library source file was ADDED, which `make clean` does not
+fix) and then `make clean` (a member was added to `DarcyHybridization`, which
+is a layout change).
+
+
+### Stage 5 — `GetBlockRowMask()`: MEASURED, and it earns it
+
+**The measurement was taken differently from the proposal above, and the
+proposal was confoundable.** (i) against (ii) compares a block integrator on
+`Mnl` against a *different nonlinearity* on `Mnl_p`, so the two arms differ in
+the discretisation as well as in `lop_type` — this branch's own "check that the
+two configurations differ in that parameter ONLY". What was run instead varies
+`lop_type` and nothing else: a temporary gate in `Finalize()`'s selection
+forces the general `FullNL` branch on a problem that would otherwise take
+`PotNL`, with `env -u` for the control arm. Both arms then solve the **same**
+discrete problem, which the printed errors confirm digit for digit.
+
+`convdiff -p 3 -dg -hb -nlp -nlc -hdg 4 -nls 3` on quads, `Solver took` (the
+Newton solve, trace solves included), median of five:
+
+| order | n | Newton | PotNL | FullNL | FullNL / PotNL |
+|---|---|---|---|---|---|
+| 1 | 20 | 2 | 0.178 | 0.176 | **0.99** |
+| 1 | 40 | 4 | 1.425 | 1.408 | **0.99** |
+| 2 | 20 | 3 | 0.448 | 0.480 | **1.07** |
+| 2 | 40 | 4 | 2.545 | 2.669 | **1.05** |
+| 3 | 20 | 4 | 1.002 | 1.262 | **1.26** |
+| 3 | 40 | 4 | 4.031 | 4.827 | **1.20** |
+
+`err_t` is identical to every printed digit in both arms of every row.
+
+**Order 1 is noise and order 3 is not**, so the answer is not "within noise"
+and the stage happens. A fourth-order point at `n = 10` gives 0.447 against
+0.929 — but the two arms took 4 and 3 Newton steps there, so it is quoted as
+evidence of the TREND and not as a ratio.
+
+Two things sharpen the reading in opposite directions, and both are worth
+stating:
+
+* **The denominator includes the global trace solves**, which `InvertA()` does
+  not touch. So 20–26% of the whole step at order 3 understates the saving on
+  the element-local work.
+* **The nonlinearity here is a `HyperbolicFormIntegrator` on domain and
+  faces**, which is dearer than CCSZ's reaction — one nodal `F` per node. A
+  cheaper nonlinearity makes the flux factorisation a LARGER share, so these
+  are a lower bound for the interpolatory case, not an upper one.
+
+#### The stage is bigger than "one virtual", and §3.4 understates it
+
+§3.4 says the change is `GetBlockRowMask()` plus widening the predicate at
+`darcyhybridization.cpp:5421`. That is the SELECTION. The `PotNL` machinery
+then has to be able to run a block integrator at all, and today it cannot:
+
+* **`LocalPotNLOperator::Mult()` never calls `AddMultBlock()`**, which is the
+  only site that evaluates `m_nlfi`. It calls `AddMultDE()`, which knows
+  `m_nlfi_p`, the linear `D` and `c_nlfi_p`. So under `PotNL` a block
+  integrator on `Mnl` is silently not evaluated — the residual would simply
+  lose the reaction.
+* **`LocalPotNLOperator::GetGradient()` builds `B A⁻¹ Bᵀ + ∂R_p/∂p` with the
+  LINEAR `B` in the left factor.** CCSZ's reaction writes only the potential
+  row but READS both — `γ = B11 α + B12 β` — so its eliminated gradient is
+  `(B + ∂R_p/∂u) A⁻¹ Bᵀ + ∂R_p/∂p`, and `∂R_p/∂u` is exactly stage 3's
+  `Bg`. The `PotNL` path needs the same two-role split the `FullNL` one
+  already has.
+
+**The mask is still the right promise.** "Writes the potential row only" is
+exactly the condition for `A` to stay linear and factorable once; reading the
+flux in that row is fine *provided* the chain rule is carried, which is what
+`Bg` is. The work is four sites, not one, and this section used to say
+otherwise.
+
+#### BUILT, and what the pin does and does not cover
+
+`BlockNonlinearFormIntegrator::GetBlockRowMask()` with a `~0` default;
+`HDGReactionIntegratorBase` returns `1 << 1`, so both reaction integrators
+inherit it. `Finalize()` widened. `ConstructGrad()` NULLs the flux-row entries
+of `grad_arr` under `PotNL` — **asking for them is what would destroy the
+factorisation**, because a well-behaved implementor handed a non-NULL `(0,0)`
+writes a zero matrix into the array that holds `A`'s LU factors, and the
+existing `else { A = 0.; }` would do it even if the integrator wrote nothing.
+`LocalPotNLOperator::Mult()` gained the block integrator's potential row;
+`LocalPotNLOperator::GetGradient()` takes the (1,0) block in its left factor
+and gained `AddGradBlockPot()` for the (1,1). One new public predicate,
+`FluxMassIsPrefactored()`, so a caller and a test can see which regime is in
+force without the enum becoming public.
+
+**The pin is a control, because a performance declaration must change
+nothing**: "GetBlockRowMask() keeps the flux mass factored once" runs the same
+problem twice, the second time through a test-local subclass that overrides
+the mask back to `~0`. Both must be one Newton step and agree to 1e-12, and
+`FluxMassIsPrefactored()` must be true in one arm and false in the other — no
+environment gate anywhere.
+
+**Two of the three ways this can break are covered and one is not**, and the
+uncovered one is said so in the test rather than left to look covered:
+
+| break | caught by | measured |
+|---|---|---|
+| the residual loses the reaction | outer Newton count | 1 → **10** |
+| `ConstructGrad()` writes `A` | would destroy the LU factors | not separately gated |
+| the gradient's left factor is the LINEAR `B` | **nothing here** | answer, outer count and the local total (96) ALL unchanged |
+
+The third was gated and measured rather than assumed, and
+`LocalPotNLOperator::GetGradient()` was confirmed reached by aborting inside
+it — so the substitution IS exercised and simply does not show: the local
+solve converges to the same root from an inexact Jacobian. That half rests on
+the analytic argument and on `ComputeElementH()`/`MultInv()`, where the same
+substitution returns `inf` on the first step.
 
 ---
 
