@@ -47,11 +47,6 @@ add_mfem_miniapp(performance_ex1
   LIBRARIES mfem
   EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
 
-add_mfem_miniapp(performance_mass_ea_bench
-  MAIN mass_ea_bench.cpp
-  LIBRARIES mfem
-  EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
-
 if (MFEM_ENABLE_TESTING)
   add_test(NAME performance_ex1_ser
     COMMAND performance_ex1 -no-vis -r 2)
