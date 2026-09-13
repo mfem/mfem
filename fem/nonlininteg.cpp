@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -952,6 +952,76 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
          elmat.AddMatrix(-.5, elmat_comp_T, ii * nd, ii * nd);
       }
    }
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AssemblePA(
+   const FiniteElementSpace &)
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleGradPA(
+   const Vector &, const FiniteElementSpace &)
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AddMultPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AddMultGradPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleGradDiagonalPA(
+   Vector &) const
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssemblePA(
+   const FiniteElementSpace &)
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssembleGradPA(
+   const Vector &, const FiniteElementSpace &)
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AddMultPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AddMultGradPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssembleGradDiagonalPA(
+   Vector &) const
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
 }
 
 }

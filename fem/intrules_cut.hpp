@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -511,7 +511,7 @@ protected:
     @param [in] order Order of the IntegrationRule
     @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
-    @param [in] Tr ElemenTransformation to initalize the members with
+    @param [in] Tr ElementTransformation to initialize the members with
    */
    void InitSurface(int order, Coefficient& levelset, int lsO,
                     ElementTransformation& Tr);
@@ -526,7 +526,7 @@ protected:
     @param [in] order Order of the IntegrationRule
     @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
-    @param [in] Tr ElemenTransformation to initalize the members with
+    @param [in] Tr ElementTransformation to initialize the members with
    */
    void InitVolume(int order, Coefficient& levelset, int lsO,
                    ElementTransformation& Tr);

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -27,7 +27,10 @@ MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
+
+# The variable WARNING_FLAGS depends on which compiler is used, and is defined
+# later in this file.
+DEBUG_FLAGS = $(strip -g $(addprefix $(XCOMPILER),$(WARNING_FLAGS)) $(BASE_FLAGS))
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
 CXX_XCOMPILER =
@@ -46,6 +49,10 @@ SHARED = NO
 #
 # If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
+# CUDA compute capability used during compilation, e.g. sm_60. Multiple
+# architectures can be requested as a comma-separated list, e.g. sm_70,sm_80.
+# A single value may also be one of the nvcc special values "all",
+# "all-major", or "native".
 CUDA_ARCH = sm_60
 # Base CUDA install directory, only needed if building with clang+cuda:
 # The default setting is:
@@ -54,11 +61,23 @@ CUDA_ARCH = sm_60
 # 3. Use /usr/local/cuda
 CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
  $(patsubst %/,%,$(dir $(shell command -v nvcc))))),/usr/local/cuda)
+# Derive nvcc/clang architecture flags from CUDA_ARCH. A comma-separated list
+# expands into one -gencode / --cuda-gpu-arch flag per architecture; otherwise
+# use the -arch / --cuda-gpu-arch shorthand.
+MFEM_COMMA := ,
+CUDA_ARCH_NUMS = $(patsubst sm_%,%,$(subst $(MFEM_COMMA), ,$(CUDA_ARCH)))
+NVCC_ARCH_FLAGS = $(strip $(if $(findstring $(MFEM_COMMA),$(CUDA_ARCH)),\
+ $(foreach arch,$(CUDA_ARCH_NUMS),\
+ -gencode arch=compute_$(arch)$(MFEM_COMMA)code=sm_$(arch)),\
+ -arch=$(CUDA_ARCH)))
+CLANG_ARCH_FLAGS = $(strip $(if $(findstring $(MFEM_COMMA),$(CUDA_ARCH)),\
+ $(foreach arch,$(CUDA_ARCH_NUMS),--cuda-gpu-arch=sm_$(arch)),\
+ --cuda-gpu-arch=$(CUDA_ARCH)))
 # flags for clang+cuda
-CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
+CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) $(CLANG_ARCH_FLAGS)
 # flags for nvcc
 NVCC_FLAGS = -x=cu --expt-extended-lambda --expt-relaxed-constexpr \
- -arch=$(CUDA_ARCH) -isystem "$(CUDA_DIR)/include"
+ $(NVCC_ARCH_FLAGS) -isystem "$(CUDA_DIR)/include"
 # Prefixes for passing flags to the host compiler and linker when using
 # CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
@@ -199,6 +218,14 @@ else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
 else ifeq ($(MAKECMDGOALS),config)
    $(error Invalid floating-point precision: \
      MFEM_PRECISION = $(MFEM_PRECISION))
+endif
+
+ifeq ($(MFEM_USE_RAJA),YES)
+  BASE_FLAGS = -std=c++20
+endif
+
+ifeq ($(MFEM_USE_UMPIRE),YES)
+  BASE_FLAGS = -std=c++20
 endif
 
 # MPI library compile and link flags
@@ -376,7 +403,7 @@ CUDSS_LIBRARY_DIR = $(CUDSS_DIR)/lib
 CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
 CUDSS_LIB         = \
  $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
-# The cuDSS communication and threading libraries. 
+# The cuDSS communication and threading libraries.
 MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
    $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
 MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
@@ -644,10 +671,10 @@ ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
    @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
 ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
    ifeq ($(ENZYME_PLUGIN),)
-      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+      $(error Unable to find the Enzyme plugin! Please set ENZYME_DIR)
    endif
    ifneq ($(words $(ENZYME_PLUGIN)),1)
-      $(error Multiple versions of the Enzyme pluging found! \
+      $(error Multiple versions of the Enzyme plugin found! \
               Please set ENZYME_PLUGIN directly)
    endif
 endif
@@ -659,3 +686,15 @@ VERBOSE = NO
 
 # Optional build tag
 MFEM_BUILD_TAG = $(shell uname -snm)
+
+# Enable -pedantic flag only for gcc or clang. nvcc complains with -pedantic
+# because of line directives.
+PEDANTIC_FLAG = $(if \
+   $(findstring NVIDIA,$(shell $(MFEM_CXX) --version 2>&1)),, \
+   $(if $(or \
+      $(findstring gcc version,$(shell $(MFEM_CXX) -v 2>&1)), \
+      $(findstring clang version,$(shell $(MFEM_CXX) -v 2>&1))),-pedantic,))
+# Enable shadow warnings for clang only; GCC's -Wshadow flags more.
+SHADOW_WARNING_FLAG = $(if $(findstring clang,\
+ $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
+WARNING_FLAGS = $(PEDANTIC_FLAG) -Wall $(SHADOW_WARNING_FLAG)

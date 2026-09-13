@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -194,6 +194,21 @@ void GradVdotF2(const Vector & x, Vector & dvf)
    Vector tmp(2);
    dF.MultTranspose(V, tmp);
    dvf += tmp;
+}
+
+static void PerturbMesh(Mesh &mesh, Vector &orig_vert)
+{
+   // Slightly perturb the mesh vertices so that the Jacobians are not
+   // diagonal. Only works on low order meshes
+   MFEM_VERIFY(mesh.GetNodes() == nullptr, "internal error");
+   mesh.GetVertices(orig_vert);
+   Vector new_vert(orig_vert.Size());
+   Vector vert_displ(orig_vert.Size());
+   vert_displ.Randomize(9753);
+   vert_displ -= 0.5_r;
+   add(orig_vert, 0.02_r, vert_displ, new_vert);
+   mesh.SetVertices(new_vert);
+   mesh.NodesUpdated();
 }
 
 const std::string MapTypeName(FiniteElement::MapType map_type)
@@ -2190,6 +2205,38 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
             delete blfT;
             delete diff;
          }
+         SECTION("MixedScalarWeakCrossProductIntegrator, "
+                 "PA vs FA self consistency")
+         {
+            Vector orig_vert;
+            PerturbMesh(mesh, orig_vert);
+
+            MixedBilinearForm blf_fa(&fespace_h1, &fespace_ndp);
+            blf_fa.AddDomainIntegrator(
+               new MixedScalarWeakCrossProductIntegrator(V2_coef));
+            blf_fa.Assemble();
+            blf_fa.Finalize();
+
+            MixedBilinearForm blf_pa(&fespace_h1, &fespace_ndp);
+            blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            blf_pa.AddDomainIntegrator(
+               new MixedScalarWeakCrossProductIntegrator(V2_coef));
+            blf_pa.Assemble();
+
+            GridFunction x_in(&fespace_h1);
+            GridFunction y_out_fa(&fespace_ndp), y_out_pa(&fespace_ndp);
+
+            x_in.Randomize(54092);
+
+            blf_fa.Mult(x_in, y_out_fa);
+            blf_pa.Mult(x_in, y_out_pa);
+            y_out_pa -= y_out_fa;
+            CHECK(y_out_pa.Normlinf() <= 1e-12);
+
+            // Restore the mesh vertices to their original positions.
+            mesh.SetVertices(orig_vert);
+            mesh.NodesUpdated();
+         }
       }
       SECTION("Mapping H1 to RT")
       {
@@ -2538,6 +2585,31 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
 
             delete blfT;
             delete diff;
+         }
+         SECTION("MixedScalarWeakGradientIntegrator, PA vs FA self consistency")
+         {
+            MixedBilinearForm blfw_fa(&fespace_h1, &fespace_rt);
+            blfw_fa.AddDomainIntegrator(
+               new MixedScalarWeakGradientIntegrator(q2_coef));
+            blfw_fa.Assemble();
+            blfw_fa.Finalize();
+
+            MixedBilinearForm blfw_pa(&fespace_h1, &fespace_rt);
+            blfw_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            blfw_pa.AddDomainIntegrator(
+               new MixedScalarWeakGradientIntegrator(q2_coef));
+            blfw_pa.Assemble();
+
+            GridFunction x_in(&fespace_h1);
+            Vector y_out_fa(fespace_rt.GetVSize()),
+                   y_out_pa(fespace_rt.GetVSize());
+
+            x_in.Randomize(56789);
+
+            blfw_fa.Mult(x_in, y_out_fa);
+            blfw_pa.Mult(x_in, y_out_pa);
+            y_out_pa -= y_out_fa;
+            CHECK(y_out_pa.Normlinf() <= 1e-12);
          }
       }
    }
@@ -3052,6 +3124,31 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
 
             REQUIRE( g_h1.ComputeL2Error(VF2_coef) < tol );
          }
+         SECTION("Compare FA to PA")
+         {
+            Vector orig_vert;
+            PerturbMesh(mesh, orig_vert);
+            MixedBilinearForm blf_fa(&fespace_nd, &fespace_h1);
+            blf_fa.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V2_coef));
+            blf_fa.Assemble();
+            blf_fa.Finalize();
+
+            MixedBilinearForm blf_pa(&fespace_nd, &fespace_h1);
+            blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            blf_pa.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V2_coef));
+            blf_pa.Assemble();
+
+            blf_fa.Mult(f_nd, tmp_h1);
+            blf_pa.Mult(f_nd, g_h1);
+            tmp_h1 -= g_h1;
+            REQUIRE(tmp_h1.Normlinf() < tol);
+
+            // Restore the mesh vertices to their original positions.
+            mesh.SetVertices(orig_vert);
+            mesh.NodesUpdated();
+         }
       }
       for (int map_type = (int)FiniteElement::VALUE;
            map_type <= (int)FiniteElement::INTEGRAL; map_type++)
@@ -3085,6 +3182,31 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(VF2_coef) < tol );
+            }
+
+            SECTION("Compare FA to PA")
+            {
+               Vector orig_vert;
+               PerturbMesh(mesh, orig_vert);
+               MixedBilinearForm blf_fa(&fespace_nd, &fespace_l2);
+               blf_fa.AddDomainIntegrator(
+                  new MixedDotProductIntegrator(V2_coef));
+               blf_fa.Assemble();
+               blf_fa.Finalize();
+
+               MixedBilinearForm blf_pa(&fespace_nd, &fespace_l2);
+               blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+               blf_pa.AddDomainIntegrator(
+                  new MixedDotProductIntegrator(V2_coef));
+               blf_pa.Assemble();
+
+               blf_fa.Mult(f_nd, g_l2);
+               blf_pa.Mult(f_nd, tmp_l2);
+               tmp_l2 -= g_l2;
+               REQUIRE(tmp_l2.Normlinf() < tol);
+               // Restore the mesh vertices to their original positions.
+               mesh.SetVertices(orig_vert);
+               mesh.NodesUpdated();
             }
          }
       }
@@ -3123,6 +3245,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
 
             REQUIRE( g_h1.ComputeL2Error(VF2_coef) < tol );
          }
+         // PA RT to H1 not supported yet
       }
       for (int map_type = (int)FiniteElement::VALUE;
            map_type <= (int)FiniteElement::INTEGRAL; map_type++)
@@ -3157,6 +3280,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
 
                REQUIRE( g_l2.ComputeL2Error(VF2_coef) < tol );
             }
+            // PA RT to L2 not supported yet
          }
       }
    }
@@ -3446,6 +3570,83 @@ TEST_CASE("2D Bilinear Scalar Weak Curl Cross Integrators",
 
             delete blfT;
             delete diff;
+         }
+      }
+   }
+}
+
+TEST_CASE("2D Bilinear Scalar Curl Integrator PartialAssembly",
+          "[MixedScalarCurlIntegrator]"
+          "[BilinearFormIntegrator]"
+          "[NonlinearFormIntegrator]"
+          "[GPU]")
+{
+   int order = 2, n = 1, dim = 2;
+   double tol = 1e-9;
+
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, 1, 2.0, 3.0);
+
+   VectorFunctionCoefficient   F2_coef(dim, F2);
+   FunctionCoefficient         q2_coef(q2);
+
+   SECTION("Operators on ND")
+   {
+      ND_FECollection    fec_nd(order, dim);
+      FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+      GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F2_coef);
+
+      for (int map_type = (int)FiniteElement::VALUE;
+           map_type <= (int)FiniteElement::INTEGRAL; map_type++)
+      {
+         SECTION("Mapping ND to L2 (" +
+                 MapTypeName((FiniteElement::MapType)map_type) + ")")
+         {
+            L2_FECollection    fec_l2(order - 1, dim,
+                                      BasisType::GaussLegendre,
+                                      (FiniteElement::MapType)map_type);
+            FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+            Vector tmp_l2(fespace_l2.GetNDofs());
+            Vector tmp_l2_pa(fespace_l2.GetNDofs());
+
+            SECTION("Without Coefficient")
+            {
+               MixedBilinearForm blf_fa(&fespace_nd, &fespace_l2);
+               blf_fa.AddDomainIntegrator(new MixedScalarCurlIntegrator());
+               blf_fa.Assemble();
+               blf_fa.Finalize();
+
+               blf_fa.Mult(f_nd, tmp_l2);
+
+               MixedBilinearForm blf_pa(&fespace_nd, &fespace_l2);
+               blf_pa.SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
+               blf_pa.AddDomainIntegrator(new MixedScalarCurlIntegrator());
+               blf_pa.Assemble();
+
+               blf_pa.Mult(f_nd, tmp_l2_pa);
+               tmp_l2_pa -= tmp_l2;
+               REQUIRE(tmp_l2_pa.Normlinf() < tol);
+            }
+            SECTION("With Scalar Coefficient")
+            {
+               MixedBilinearForm blf_fa(&fespace_nd, &fespace_l2);
+               blf_fa.AddDomainIntegrator(
+                  new MixedScalarCurlIntegrator(q2_coef));
+               blf_fa.Assemble();
+               blf_fa.Finalize();
+
+               blf_fa.Mult(f_nd, tmp_l2);
+
+               MixedBilinearForm blf_pa(&fespace_nd, &fespace_l2);
+               blf_pa.SetAssemblyLevel(mfem::AssemblyLevel::PARTIAL);
+               blf_pa.AddDomainIntegrator(new MixedScalarCurlIntegrator(q2_coef));
+               blf_pa.Assemble();
+
+               blf_pa.Mult(f_nd, tmp_l2_pa);
+               tmp_l2_pa -= tmp_l2;
+               REQUIRE(tmp_l2_pa.Normlinf() < tol);
+            }
          }
       }
    }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -303,6 +303,66 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
       }
    }
 } // test case
+
+TEST_CASE("ParNCMesh Rebalance preserves element attributes",
+          "[Parallel], [NCMesh]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nranks = Mpi::WorldSize();
+   if (nranks < 2) { return; }
+
+   auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/fichera.mesh");
+   CAPTURE(mesh_fname);
+
+   auto CheckRebalance = [rank, nranks, mesh_fname](bool refine,
+                                                    bool custom_partition)
+   {
+      Mesh mesh(mesh_fname);
+      mesh.EnsureNCMesh();
+      ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+      const int attribute = 1234 + (custom_partition ? rank : 0);
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         pmesh.SetAttribute(i, attribute);
+      }
+      pmesh.SetAttributes();
+
+      if (refine)
+      {
+         Array<int> refinements;
+         if (pmesh.GetNE() && (custom_partition || rank == 0))
+         {
+            refinements.Append(0);
+         }
+         pmesh.GeneralRefinement(refinements);
+      }
+
+      int expected_attribute = attribute;
+      if (custom_partition)
+      {
+         // Move every element to the next rank, as in GitHub issue #4009.
+         Array<int> partition(pmesh.GetNE());
+         partition = (rank + 1) % nranks;
+         pmesh.Rebalance(partition);
+         expected_attribute = 1234 + (rank + nranks - 1) % nranks;
+      }
+      else
+      {
+         pmesh.Rebalance();
+      }
+
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         CHECK(pmesh.GetAttribute(i) == expected_attribute);
+      }
+   };
+
+   SECTION("Custom partition, unrefined") { CheckRebalance(false, true); }
+   SECTION("Custom partition, refined") { CheckRebalance(true, true); }
+   SECTION("Default partition, refined") { CheckRebalance(true, false); }
+}
 
 TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
 {
