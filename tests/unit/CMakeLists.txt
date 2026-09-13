@@ -75,6 +75,8 @@ set(UNIT_TESTS_SRCS
   linalg/test_particlevector.cpp
   linalg/test_petsc_nonlinear.cpp
   linalg/test_sparsesmoothers.cpp
+  linalg/test_tripack.cpp
+  linalg/test_tripack_magma.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
@@ -152,6 +154,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_mass_ea_sum_factorized.cpp
   fem/test_pa_nlvc.cpp
   fem/test_pa_vecdiv.cpp
   fem/test_pa_simplices.cpp
