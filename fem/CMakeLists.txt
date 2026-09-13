@@ -338,6 +338,8 @@ set(HDRS
   darcy/darcyhybridization.hpp
   darcy/darcyreduction.hpp
   darcy/estimators_hdg.hpp
+  darcy/functionals_hdg.hpp
+  darcy/postprocess_hdg.hpp
   darcy/pdarcyform.hpp
   darcy/tmop_hdg.hpp
   integrator.hpp
