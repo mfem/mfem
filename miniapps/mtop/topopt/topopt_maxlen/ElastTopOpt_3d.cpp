@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
     int    max_it       = 300;
     real_t tol          = 1e-4;       // stopping tol on iteration error
     real_t move         = 0.1;        // MMA move limit
+    const real_t passive_bound_gap = 1e-4; // total width around fixed MMA variables
     real_t epsilon      = 1e-2;       // thickness residual tolerance
 
     // advection (ray) thickness-solve controls -- this solve dominates the cost
@@ -147,11 +148,16 @@ int main(int argc, char *argv[])
     int  restart     = 0;       // 0 = off, 1 = rho only, 2 = full state
     int  pc_type     = 2;       // 0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG
     bool lor_by_vdim = true;    // monolithic LOR (-pc 2) ordering: byVDIM vs byNODES
+    bool elast_pa    = true;    // matrix-free vs fully assembled elasticity operator
+    real_t elast_rel_tol = 1e-5;
+    int elast_residual_check = 0; // 0 = native CG test; N > 0 = true residual every N
     const int seed   = 0;
 
     bool visualization = true;
     bool paraview      = false;
+    int  paraview_interval = 0; // intermediate output interval; 0 disables it
     bool optimize      = true;   // run the optimization loop after the initial eval
+    bool thickness     = true;   // enforce accumulated-density constraints
     int  solver_print  = 1;      // iterative-solver report: 0 off, 1 on
                                  // (CG history / PT summary), 2 verbose
                                  // (+ AMG, + every pseudo-time step)
@@ -191,19 +197,33 @@ int main(int argc, char *argv[])
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
     args.AddOption(&pc_type, "-pc", "--elast-precond", "elasticity preconditioner: "
-                    "0 = Jacobi, 1 = LOR diagonal AMG,  2 = LOR monolithic AMG");
+                    "0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG, "
+                    "3 = full-order diagonal AMG, 4 = full-order monolithic AMG");
     args.AddOption(&lor_by_vdim, "-vdim", "--by-vdim", "-nodes", "--by-nodes",
-                    "monolithic LOR ordering: byVDIM / byNODES");
+                    "monolithic AMG ordering: byVDIM / byNODES");
+    args.AddOption(&elast_pa, "-elast-pa", "--elasticity-partial-assembly",
+                    "-elast-fa", "--elasticity-full-assembly",
+                    "elasticity system operator assembly: partial or full");
+    args.AddOption(&elast_rel_tol, "-ert", "--elasticity-rel-tol",
+                    "elasticity relative residual tolerance");
+    args.AddOption(&elast_residual_check, "-erc", "--elasticity-residual-check",
+                    "recompute the elasticity true residual every N CG iterations; "
+                    "0 uses the native preconditioned-residual test");
     args.AddOption(&cp, "-cp", "--checkpoint",
                     "checkpointing: 0 = off, 1 = rho only, 2 = rho + alpha + MMA state");
     args.AddOption(&restart, "-restart", "--restart",
                     "restart: 0 = off, 1 = load rho only, 2 = load full state and resume");
     args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                     "store solution in paraview");
+    args.AddOption(&paraview_interval, "-pvi", "--paraview-interval",
+                    "write ParaView fields every N optimization iterations; 0 disables intermediate output");
     args.AddOption(&visualization, "-vis", "--visualization",
                     "-no-vis", "--no-visualization", "enable GLVis visualization");
     args.AddOption(&optimize, "-opt", "--optimize", "-no-opt", "--no-optimize",
                     "run the optimization loop (off: initial timed evaluation only)");
+    args.AddOption(&thickness, "-thickness", "--thickness",
+                    "-no-thickness", "--no-thickness",
+                    "enable accumulated-density thickness constraints");
     args.AddOption(&solver_print, "-spl", "--solver-print-level",
                     "iterative-solver report (filter / elasticity / advection): "
                     "0 = off, 1 = on, 2 = verbose");
@@ -229,6 +249,12 @@ int main(int argc, char *argv[])
         if (myid == 0) { args.PrintUsage(cout); }
         return 1;
     }
+    MFEM_VERIFY(paraview_interval >= 0,
+                "ParaView output interval must be nonnegative.");
+    MFEM_VERIFY(elast_rel_tol >= 0.0,
+                "Elasticity relative tolerance must be nonnegative.");
+    MFEM_VERIFY(elast_residual_check >= 0,
+                "Elasticity residual check interval must be nonnegative.");
     if (myid == 0) { args.PrintOptions(cout); }
 
     // initial (uniform) design density -- depends on the parsed options
@@ -239,6 +265,11 @@ int main(int argc, char *argv[])
           (mesh_file[0] ? mesh_file : "<built-in Cartesian beam>"));
     Mesh mesh;
     MeshProblem prob = loadMesh(myid, mesh_file, mesh);
+    if (!thickness)
+    {
+        prob.rays.clear();
+        stage("accumulated-density thickness constraints disabled");
+    }
     stage("mesh loaded (serial: " + std::to_string(mesh.GetNE()) + " elements, "
           + std::to_string(mesh.GetNBE()) + " bdr elements)");
 
@@ -561,10 +592,19 @@ int main(int argc, char *argv[])
     {
         elast_pc = LinearElasticitySolver::PreconditionerType::LORMonolithicAMG;
     }
+    else if (pc_type == 3)
+    {
+        elast_pc = LinearElasticitySolver::PreconditionerType::FullDiagonalAMG;
+    }
+    else if (pc_type == 4)
+    {
+        elast_pc = LinearElasticitySolver::PreconditionerType::FullMonolithicAMG;
+    }
     else
     {
         MFEM_ABORT("Unknown preconditioner! Elasticity preconditioner: "
-                    "0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG");
+                    "0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG, "
+                    "3 = full-order diagonal AMG, 4 = full-order monolithic AMG");
     }
 
     stage("configuring " + std::to_string(n_elast_solve) +
@@ -618,13 +658,16 @@ int main(int argc, char *argv[])
         // configurate the elast solver
         elast[i]->SetLambda(lambda_simp_cf);
         elast[i]->SetMu(mu_simp_cf);
+        elast[i]->SetAssemblyLevel(elast_pa ? AssemblyLevel::PARTIAL :
+                                   AssemblyLevel::LEGACY);
         elast[i]->SetPreconditionerType(elast_pc);
         elast[i]->SetMonolithicLOROrdering(
             lor_by_vdim ? Ordering::byVDIM : Ordering::byNODES);
         elast[i]->SetPrintLevel(solver_print);
-        elast[i]->SetRelTol(1e-7);
-        elast[i]->SetAbsTol(1e-14);
+        elast[i]->SetRelTol(elast_rel_tol);
+        elast[i]->SetAbsTol(1e-9);
         elast[i]->SetMaxIter(1000);
+        elast[i]->SetTrueResidualCheckInterval(elast_residual_check);
     }
 
     ParGridFunction u(&state_fes);
@@ -1287,11 +1330,15 @@ int main(int argc, char *argv[])
             tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
             tx_max[i] = std::min(real_t(1), rho_tv[i] + move);
         }
-        // Option C: freeze the passive regions (xmin = xmax = pinned value).
+        // MMA's rational model requires a nonzero interval.  Give each passive
+        // variable a small interval centered on its prescribed value, then
+        // restore that exact value immediately after the MMA update below.
         for (int k = 0; k < passive_ctrl_tdofs.Size(); k++)
         {
-            tx_min[passive_ctrl_tdofs[k]] = passive_ctrl_vals(k);
-            tx_max[passive_ctrl_tdofs[k]] = passive_ctrl_vals(k);
+            const int tdof = passive_ctrl_tdofs[k];
+            const real_t value = passive_ctrl_vals(k);
+            tx_min[tdof] = value - real_t(0.5) * passive_bound_gap;
+            tx_max[tdof] = value + real_t(0.5) * passive_bound_gap;
         }
         for (int r = 0; r < n_dir; r++)
         {
@@ -1314,6 +1361,7 @@ int main(int argc, char *argv[])
 
         if (trace) { stage("  it 1: MMA update"); }
         mma.Update(tx_local, df0dx, compliance, fival, dfidx.data(), tx_min, tx_max);
+        tx_local.GetBlock(0).SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals);
         rho.SetFromTrueDofs(tx_local.GetBlock(0));
         for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(tx_local.GetBlock(1 + r)); }
 
@@ -1423,13 +1471,13 @@ int main(int argc, char *argv[])
                 << "solution\n" << pmesh << phys_density << flush;
         }
 
-        // save every 50 iterations
-        // if (paraview && it % 50 == 0)
-        // {
-        //     paraview_dc.SetCycle(it);
-        //     paraview_dc.SetTime(it);
-        //     paraview_dc.Save();
-        // }
+        if (paraview && paraview_interval > 0 && it % paraview_interval == 0)
+        {
+            stage("writing ParaView fields for iteration " + std::to_string(it));
+            paraview_dc.SetCycle(it);
+            paraview_dc.SetTime(it);
+            paraview_dc.Save();
+        }
     }
 
     stage("optimization loop finished");
@@ -1624,7 +1672,7 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
     Array<int> all_sleeves;
     for (int k = 0; k < n_sleeve; k++) { all_sleeves.Append(first_sleeve_attr + k); }
 
-    p.cases.resize(3);
+    p.cases.resize(4);
 
     // LC1: outward radial body force, unit magnitude, on every top sleeve.
     {
@@ -1663,6 +1711,25 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
             vl.value(2) = 1.0;
             lc.vol_loads.push_back(vl);
         }
+    }
+
+    // LC4: unit tangential body force on every top sleeve.  The direction
+    // (-y/r, x/r, 0) is counterclockwise about the central z-axis and therefore
+    // creates a positive rotational moment about the centre.
+    {
+        LoadCase &lc = p.cases[3];
+        lc.clamp_attrs = clamp_bdr;
+
+        LoadCase::VolumeLoad vl;
+        vl.attrs = all_sleeves;
+        vl.fn = [](const Vector &x, Vector &f)
+        {
+            f.SetSize(x.Size());
+            f = 0.0;
+            const real_t r = std::sqrt(x[0]*x[0] + x[1]*x[1]);
+            if (r > 1e-12) { f[0] = -x[1]/r; f[1] = x[0]/r; }
+        };
+        lc.vol_loads.push_back(vl);
     }
 
     return p;

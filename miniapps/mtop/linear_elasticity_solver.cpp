@@ -17,6 +17,82 @@ bool GlobalBooleanOr(MPI_Comm comm, bool value)
    return global != 0;
 }
 
+/// Stop an iterative solve using a periodically recomputed true residual.
+class TrueResidualController : public IterativeSolverController
+{
+public:
+   TrueResidualController(const Operator &oper, const Vector &rhs,
+                          MPI_Comm comm, real_t rel_tol, real_t abs_tol,
+                          int interval, int max_iter, bool print)
+      : oper_(oper), rhs_(rhs), comm_(comm), rel_tol_(rel_tol),
+        abs_tol_(abs_tol), interval_(interval), max_iter_(max_iter),
+        print_(print)
+   {
+      MFEM_ASSERT(interval_ > 0, "True-residual interval must be positive.");
+      int rank = 0;
+      MPI_Comm_rank(comm_, &rank);
+      print_ = print_ && rank == 0;
+   }
+
+   void Reset() override
+   {
+      IterativeSolverController::Reset();
+      initial_norm_ = -1.0;
+      last_checked_iteration_ = -1;
+   }
+
+   void MonitorSolution(int iteration, real_t, const Vector &x,
+                        bool final) override
+   {
+      const bool scheduled = iteration == 0 || iteration == max_iter_ ||
+                             iteration % interval_ == 0;
+      if ((!scheduled && !final) || iteration == last_checked_iteration_)
+      {
+         return;
+      }
+
+      ax_.SetSize(oper_.Height());
+      oper_.Mult(x, ax_);
+      residual_ = rhs_;
+      residual_ -= ax_;
+      const real_t residual_norm =
+         std::sqrt(std::max(real_t(0.0),
+                            InnerProduct(comm_, residual_, residual_)));
+      MFEM_VERIFY(IsFinite(residual_norm),
+                  "Non-finite true residual norm at iteration " << iteration);
+
+      if (initial_norm_ < 0.0) { initial_norm_ = residual_norm; }
+      const real_t goal = std::max(abs_tol_, rel_tol_*initial_norm_);
+      converged = residual_norm <= goal;
+      last_checked_iteration_ = iteration;
+
+      if (print_)
+      {
+         const real_t relative_norm = initial_norm_ > 0.0 ?
+                                      residual_norm/initial_norm_ : 0.0;
+         mfem::out << "   Iteration : " << std::setw(3) << iteration
+                   << "  true ||b-Ax||/||r0|| = " << relative_norm
+                   << "  (||b-Ax|| = " << residual_norm << ")\n";
+      }
+   }
+
+   bool RequiresUpdatedSolution() const override { return true; }
+
+private:
+   const Operator &oper_;
+   const Vector &rhs_;
+   MPI_Comm comm_;
+   real_t rel_tol_;
+   real_t abs_tol_;
+   int interval_;
+   int max_iter_;
+   bool print_;
+   real_t initial_norm_ = -1.0;
+   int last_checked_iteration_ = -1;
+   Vector ax_;
+   Vector residual_;
+};
+
 /// Apply a fixed auxiliary solver through a vector-ordering permutation.
 class ReorderedFixedPreconditioner : public Solver
 {
@@ -278,6 +354,23 @@ void LinearElasticitySolver::SetMaxIter(int value)
    SetNeedsAssembly();
 }
 
+void LinearElasticitySolver::SetTrueResidualCheckInterval(int value)
+{
+   MFEM_VERIFY(value >= 0,
+               "True-residual check interval must be nonnegative.");
+   true_residual_check_interval_ = value;
+   SetNeedsAssembly();
+}
+
+void LinearElasticitySolver::SetAssemblyLevel(AssemblyLevel value)
+{
+   MFEM_VERIFY(value == AssemblyLevel::PARTIAL ||
+               value == AssemblyLevel::LEGACY,
+               "Elasticity assembly level must be PARTIAL or LEGACY (full).");
+   assembly_level_ = value;
+   SetNeedsAssembly();
+}
+
 void LinearElasticitySolver::SetPrintLevel(int value)
 {
    print_level_ = value;
@@ -366,54 +459,73 @@ void LinearElasticitySolver::BuildLORDiagonalAMG() const
 {
    MFEM_VERIFY(fespace_.GetOrdering() == Ordering::byNODES,
                "Diagonal LOR/AMG requires Ordering::byNODES.");
-   const int dim = fespace_.GetVDim();
    lor_disc_.reset(new ParLORDiscretization(fespace_));
    ParFiniteElementSpace &lor_space = lor_disc_->GetParFESpace();
    ParMesh &lor_mesh = *lor_space.GetParMesh();
-   lor_scalar_fespace_.reset(new ParFiniteElementSpace(
-                                &lor_mesh, lor_space.FEColl(), 1,
-                                Ordering::byNODES));
-   lor_integrator_.reset(new ElasticityIntegrator(*lambda_, *mu_));
-   lor_integrator_->AssemblePA(lor_space);
+   diagonal_scalar_fespace_.reset(new ParFiniteElementSpace(
+                                     &lor_mesh, lor_space.FEColl(), 1,
+                                     Ordering::byNODES));
+   BuildDiagonalAMG(lor_space, "LOR");
+}
 
-   lor_block_offsets_.SetSize(dim + 1);
-   lor_block_offsets_[0] = 0;
+void LinearElasticitySolver::BuildFullDiagonalAMG() const
+{
+   MFEM_VERIFY(fespace_.GetOrdering() == Ordering::byNODES,
+               "Full-order diagonal AMG requires Ordering::byNODES.");
+   diagonal_scalar_fespace_.reset(new ParFiniteElementSpace(
+                                     fespace_.GetParMesh(), fespace_.FEColl(),
+                                     1, Ordering::byNODES));
+   BuildDiagonalAMG(fespace_, "Full-order");
+}
+
+void LinearElasticitySolver::BuildDiagonalAMG(
+   ParFiniteElementSpace &vector_fespace, const char *description) const
+{
+   const int dim = fespace_.GetVDim();
+   diagonal_integrator_.reset(new ElasticityIntegrator(*lambda_, *mu_));
+   diagonal_integrator_->AssemblePA(vector_fespace);
+
+   diagonal_block_offsets_.SetSize(dim + 1);
+   diagonal_block_offsets_[0] = 0;
    for (int component = 0; component < dim; ++component)
    {
-      lor_forms_.emplace_back(new ParBilinearForm(
-                                 lor_scalar_fespace_.get()));
-      lor_forms_.back()->SetAssemblyLevel(AssemblyLevel::FULL);
-      lor_forms_.back()->EnableSparseMatrixSorting(Device::IsEnabled());
-      lor_forms_.back()->AddDomainIntegrator(
-         new ElasticityComponentIntegrator(*lor_integrator_, component,
+      diagonal_forms_.emplace_back(new ParBilinearForm(
+                                      diagonal_scalar_fespace_.get()));
+      diagonal_forms_.back()->SetAssemblyLevel(AssemblyLevel::FULL);
+      diagonal_forms_.back()->EnableSparseMatrixSorting(Device::IsEnabled());
+      diagonal_forms_.back()->AddDomainIntegrator(
+         new ElasticityComponentIntegrator(*diagonal_integrator_, component,
                                            component));
-      lor_forms_.back()->Assemble();
+      diagonal_forms_.back()->Assemble();
 
       Array<int> marker, block_ess_tdofs;
       BuildComponentBoundaryMarker(component, marker);
-      lor_scalar_fespace_->GetEssentialTrueDofs(marker, block_ess_tdofs);
-      lor_blocks_.emplace_back(lor_forms_.back()->ParallelAssemble());
-      lor_blocks_.back()->EliminateBC(block_ess_tdofs,
-                                      Operator::DiagonalPolicy::DIAG_ONE);
+      diagonal_scalar_fespace_->GetEssentialTrueDofs(marker,
+                                                     block_ess_tdofs);
+      diagonal_blocks_.emplace_back(
+         diagonal_forms_.back()->ParallelAssemble());
+      diagonal_blocks_.back()->EliminateBC(
+         block_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
 
-      lor_amg_blocks_.emplace_back(new HypreBoomerAMG);
-      lor_amg_blocks_.back()->SetStrengthThresh(0.25);
-      lor_amg_blocks_.back()->SetRelaxType(16);
-      lor_amg_blocks_.back()->SetPrintLevel(print_level_ > 1 ? 1 : 0);
-      lor_amg_blocks_.back()->SetOperator(*lor_blocks_.back());
-      lor_block_offsets_[component + 1] =
-         lor_amg_blocks_.back()->Height();
+      diagonal_amg_blocks_.emplace_back(new HypreBoomerAMG);
+      diagonal_amg_blocks_.back()->SetStrengthThresh(0.25);
+      diagonal_amg_blocks_.back()->SetRelaxType(16);
+      diagonal_amg_blocks_.back()->SetPrintLevel(print_level_ > 1 ? 1 : 0);
+      diagonal_amg_blocks_.back()->SetOperator(*diagonal_blocks_.back());
+      diagonal_block_offsets_[component + 1] =
+         diagonal_amg_blocks_.back()->Height();
    }
-   lor_block_offsets_.PartialSum();
-   MFEM_VERIFY(lor_block_offsets_.Last() == system_operator_->Height(),
-               "LOR block sizes do not match the PA elasticity system.");
+   diagonal_block_offsets_.PartialSum();
+   MFEM_VERIFY(diagonal_block_offsets_.Last() == system_operator_->Height(),
+               description << " diagonal block sizes do not match the PA "
+               "elasticity system.");
 
    std::unique_ptr<BlockDiagonalPreconditioner> block_prec(
-      new BlockDiagonalPreconditioner(lor_block_offsets_));
+      new BlockDiagonalPreconditioner(diagonal_block_offsets_));
    for (int component = 0; component < dim; ++component)
    {
       block_prec->SetDiagonalBlock(component,
-                                   lor_amg_blocks_[component].get());
+                                   diagonal_amg_blocks_[component].get());
    }
    preconditioner_ = std::move(block_prec);
 }
@@ -475,31 +587,114 @@ void LinearElasticitySolver::BuildLORMonolithicAMG() const
                             monolithic_lor_ordering_));
 }
 
+void LinearElasticitySolver::BuildFullMonolithicAMG() const
+{
+   full_monolithic_fespace_.reset(new ParFiniteElementSpace(
+                                     fespace_.GetParMesh(), fespace_.FEColl(),
+                                     fespace_.GetVDim(),
+                                     monolithic_lor_ordering_));
+
+   Array<int> full_ess_tdofs, marker;
+   ParMesh &mesh = *fespace_.GetParMesh();
+   marker.SetSize(mesh.bdr_attributes.Size() ?
+                  mesh.bdr_attributes.Max() : 0);
+   marker = 0;
+   for (const int id : boundary_ids_) { marker[id - 1] = 1; }
+   for (const auto &entry : vector_displacement_bcs_)
+   {
+      marker[entry.first - 1] = 1;
+   }
+   full_monolithic_fespace_->GetEssentialTrueDofs(marker, full_ess_tdofs);
+   for (const auto &entry : displacement_bcs_)
+   {
+      marker = 0;
+      marker[entry.first.first - 1] = 1;
+      Array<int> component_tdofs;
+      full_monolithic_fespace_->GetEssentialTrueDofs(
+         marker, component_tdofs, entry.first.second);
+      full_ess_tdofs.Append(component_tdofs);
+   }
+   full_ess_tdofs.Sort();
+   full_ess_tdofs.Unique();
+
+   full_monolithic_form_.reset(new ParBilinearForm(
+                                  full_monolithic_fespace_.get()));
+   full_monolithic_form_->AddDomainIntegrator(
+      new ElasticityIntegrator(*lambda_, *mu_));
+   full_monolithic_form_->Assemble();
+   full_monolithic_form_->Finalize();
+   full_monolithic_matrix_.reset(
+      full_monolithic_form_->ParallelAssemble());
+   full_monolithic_matrix_->EliminateBC(
+      full_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
+
+   std::unique_ptr<HypreBoomerAMG> amg(
+      new HypreBoomerAMG(*full_monolithic_matrix_));
+   if (monolithic_lor_ordering_ == Ordering::byVDIM)
+   {
+      amg->SetElasticityOptions(full_monolithic_fespace_.get());
+   }
+   else
+   {
+      amg->SetSystemsOptions(fespace_.GetVDim(), true);
+   }
+   amg->SetPrintLevel(print_level_ > 1 ? 1 : 0);
+   preconditioner_.reset(new ReorderedFixedPreconditioner(
+                            std::move(amg), fespace_.GetVDim(),
+                            fespace_.GetOrdering(),
+                            monolithic_lor_ordering_));
+}
+
 void LinearElasticitySolver::BuildPreconditioner() const
 {
    preconditioner_.reset();
-   lor_amg_blocks_.clear();
+   diagonal_amg_blocks_.clear();
    lor_monolithic_matrix_.reset();
    lor_monolithic_form_.reset();
    lor_monolithic_fespace_.reset();
-   lor_blocks_.clear();
-   lor_forms_.clear();
-   lor_integrator_.reset();
-   lor_scalar_fespace_.reset();
+   full_monolithic_matrix_.reset();
+   full_monolithic_form_.reset();
+   full_monolithic_fespace_.reset();
+   diagonal_blocks_.clear();
+   diagonal_forms_.clear();
+   diagonal_integrator_.reset();
+   diagonal_scalar_fespace_.reset();
    lor_disc_.reset();
 
    if (preconditioner_type_ == PreconditionerType::Jacobi)
    {
-      preconditioner_.reset(
-         new OperatorJacobiSmoother(*form_, ess_tdofs_));
+      if (assembly_level_ == AssemblyLevel::LEGACY)
+      {
+         std::unique_ptr<OperatorJacobiSmoother> jacobi(
+            new OperatorJacobiSmoother);
+         jacobi->SetOperator(*system_operator_);
+         preconditioner_ = std::move(jacobi);
+      }
+      else
+      {
+         preconditioner_.reset(
+            new OperatorJacobiSmoother(*form_, ess_tdofs_));
+      }
    }
    else if (preconditioner_type_ == PreconditionerType::LORDiagonalAMG)
    {
       BuildLORDiagonalAMG();
    }
-   else
+   else if (preconditioner_type_ == PreconditionerType::LORMonolithicAMG)
    {
       BuildLORMonolithicAMG();
+   }
+   else if (preconditioner_type_ == PreconditionerType::FullDiagonalAMG)
+   {
+      BuildFullDiagonalAMG();
+   }
+   else if (preconditioner_type_ == PreconditionerType::FullMonolithicAMG)
+   {
+      BuildFullMonolithicAMG();
+   }
+   else
+   {
+      MFEM_ABORT("Unknown elasticity preconditioner type.");
    }
 }
 
@@ -564,15 +759,17 @@ void LinearElasticitySolver::Assemble() const
 
    BuildEssentialTrueDofs();
    cg_.reset();
+   true_residual_controller_.reset();
    preconditioner_.reset();
    system_operator_.Clear();
 
    StopWatch assembly_timer;
    assembly_timer.Start();
    form_.reset(new ParBilinearForm(&fespace_));
-   form_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   form_->SetAssemblyLevel(assembly_level_);
    form_->AddDomainIntegrator(new ElasticityIntegrator(*lambda_, *mu_));
    form_->Assemble();
+   if (assembly_level_ == AssemblyLevel::LEGACY) { form_->Finalize(); }
    system_operator_.SetType(Operator::ANY_TYPE);
    form_->FormSystemMatrix(ess_tdofs_, system_operator_);
    assembly_timer.Stop();
@@ -584,13 +781,21 @@ void LinearElasticitySolver::Assemble() const
    prec_timer.Stop();
    prec_assembly_time_ = prec_timer.RealTime();
    cg_.reset(new CGSolver(fespace_.GetComm()));
-   cg_->SetRelTol(rel_tol_);
-   cg_->SetAbsTol(abs_tol_);
-   cg_->SetMaxIter(max_iter_ > 0 ? max_iter_ :
-                   std::max(200, 2*system_operator_->Height()));
+   const int cg_max_iter = max_iter_ > 0 ? max_iter_ :
+                           std::max(200, 2*system_operator_->Height());
+   cg_->SetRelTol(true_residual_check_interval_ > 0 ? 0.0 : rel_tol_);
+   cg_->SetAbsTol(true_residual_check_interval_ > 0 ? 0.0 : abs_tol_);
+   cg_->SetMaxIter(cg_max_iter);
    cg_->SetPrintLevel(print_level_);
    cg_->SetOperator(*system_operator_);
    cg_->SetPreconditioner(*preconditioner_);
+   if (true_residual_check_interval_ > 0)
+   {
+      true_residual_controller_.reset(new TrueResidualController(
+         *system_operator_, solve_rhs_, fespace_.GetComm(), rel_tol_, abs_tol_,
+         true_residual_check_interval_, cg_max_iter, print_level_ > 0));
+      cg_->SetController(*true_residual_controller_);
+   }
 
    LinearElasticitySolver *self =
       const_cast<LinearElasticitySolver *>(this);
@@ -619,11 +824,19 @@ void LinearElasticitySolver::SolveForward(const Vector &rhs,
    MFEM_VERIFY(rhs.Size() == Width(), "RHS has incompatible size.");
    BuildBoundaryTrueVector(boundary_true_values_);
    solve_rhs_ = rhs;
-   ConstrainedOperator *constrained =
-      dynamic_cast<ConstrainedOperator *>(system_operator_.Ptr());
-   MFEM_VERIFY(constrained != nullptr,
-               "Elasticity system is not a constrained operator.");
-   constrained->EliminateRHS(boundary_true_values_, solve_rhs_);
+   if (assembly_level_ == AssemblyLevel::PARTIAL)
+   {
+      ConstrainedOperator *constrained =
+         dynamic_cast<ConstrainedOperator *>(system_operator_.Ptr());
+      MFEM_VERIFY(constrained != nullptr,
+                  "Partial-assembly elasticity system is not constrained.");
+      constrained->EliminateRHS(boundary_true_values_, solve_rhs_);
+   }
+   else
+   {
+      form_->ParallelEliminateTDofsInRHS(
+         ess_tdofs_, boundary_true_values_, solve_rhs_);
+   }
 
    solution.SetSize(Height());
    if (!use_initial_guess) { solution = 0.0; }
