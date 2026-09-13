@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -65,8 +65,8 @@ void PAHcurlDotSetup2D(const int q1d,
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
             const real_t J11 = J(qx, qy, 0, 0, e);
-            const real_t J12 = J(qx, qy, 1, 0, e);
-            const real_t J21 = J(qx, qy, 0, 1, e);
+            const real_t J12 = J(qx, qy, 0, 1, e);
+            const real_t J21 = J(qx, qy, 1, 0, e);
             const real_t J22 = J(qx, qy, 1, 1, e);
             const real_t detJ = (J11 * J22) - (J21 * J12);
             const real_t scale = W(qx, qy) * (test_map_integral ? 1.0 / detJ : 1.0);
@@ -349,8 +349,8 @@ void PAHdivDotSetup2D(const int q1d,
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
             const real_t J11 = J(qx, qy, 0, 0, e);
-            const real_t J12 = J(qx, qy, 1, 0, e);
-            const real_t J21 = J(qx, qy, 0, 1, e);
+            const real_t J12 = J(qx, qy, 0, 1, e);
+            const real_t J21 = J(qx, qy, 1, 0, e);
             const real_t J22 = J(qx, qy, 1, 1, e);
             const real_t detJ = (J11 * J22) - (J21 * J12);
             const real_t scale = W(qx, qy) * (test_map_integral ? 1.0 / detJ : 1.0);
@@ -1058,9 +1058,17 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_ABORT("Unknown kernel.");
    }
 
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*eltest, *eltest,
-                                                     *mesh->GetTypicalElementTransformation());
+   // Use the same logic as the standard FA:
+   const IntegrationRule *ir;
+   {
+      auto &T = *mesh->GetTypicalElementTransformation();
+      ir = GetIntegrationRule(*fel, *eltest, T);
+      if (!ir)
+      {
+         const int ir_order = GetIntegrationOrder(*fel, *eltest, T);
+         ir = &IntRules.Get(fel->GetGeomType(), ir_order);
+      }
+   }
 
    auto map_type = eltest->GetMapType();
 
@@ -1165,7 +1173,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *test_el,
                                                      *mesh->GetTypicalElementTransformation());
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 3, "");
@@ -1324,7 +1332,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *test_el,
                                                      *mesh->GetTypicalElementTransformation());
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 3, "");
@@ -1482,7 +1490,7 @@ void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace
                "Only H(div) test spaces are supported!");
 
    const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule(
-                                  *test_el, *test_el,
+                                  *trial_fel, *test_fel,
                                   *mesh->GetTypicalElementTransformation());
 
    const int dims = test_el->GetDim();
@@ -1513,21 +1521,23 @@ void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
+   const GeometricFactors *geom = nullptr;
    if (trial_fel->GetMapType() == FiniteElement::INTEGRAL)
    {
-      const GeometricFactors *geom =
-         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
-      coeff /= geom->detJ;
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
    }
 
    if (dim == 2)
    {
-      internal::PAHdivL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+      internal::PAHdivL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data,
+                                geom);
    }
    else
    {
-      internal::PAHdivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+      internal::PAHdivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data,
+                                geom);
    }
+   pa_data *= -1_r;
 }
 
 void MixedScalarWeakGradientIntegrator::AddMultPA(const Vector &x,
@@ -1712,7 +1722,7 @@ void MixedScalarWeakCrossProductIntegrator::AssemblePA(
                      geom->J, coeff, pa_data);
    // Match the extra sign introduced by the legacy assembled path's
    // MixedScalarWeakCrossProductIntegrator::CalcShape().
-   pa_data *= -1.0;
+   pa_data *= -1_r;
 }
 
 void MixedScalarWeakCrossProductIntegrator::AddMultPA(const Vector &x,
