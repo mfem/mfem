@@ -225,6 +225,45 @@ void MagmaPackedLowerInverse::Compute(
    }
 }
 
+void MagmaPackedLowerInverse::ComputeInPlace(TriPackLowerMatrix &A_inv)
+{
+   MFEM_VERIFY(queue != nullptr, "MAGMA queue is not set.");
+
+   n = A_inv.GetNumRows();
+   batch_size = A_inv.GetNumMatrices();
+   packed_size = A_inv.GetPackedSize();
+
+   MFEM_VERIFY(n <= 64, "MAGMA packed inverse supports n <= 64.");
+   if (batch_size == 0) { return; }
+
+   real_t *inv_data = A_inv.Data().ReadWrite();
+   real_t **d_inv_ptrs =
+      SetPackedPointerArrayCached(inv_ptrs, inv_data, packed_size, batch_size, queue,
+                                  cached_inv_base, cached_inv_stride,
+                                  cached_inv_batch, cached_inv_queue);
+
+   info.SetSize(batch_size, Device::GetDeviceMemoryType());
+   magma_int_t *d_info = info.Write();
+   magma_memset(d_info, 0, batch_size*sizeof(magma_int_t));
+
+   int64_t device_lwork[1] = {0};
+   const magma_int_t status =
+      MFEM_TRIPACK_MAGMA_PREFIX(ppinv_batched)(
+         MagmaLower, n, d_inv_ptrs,
+         /*device_work*/ nullptr, device_lwork,
+         d_info, batch_size, queue);
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA packed inverse failed.");
+
+   magma_queue_sync(queue);
+
+   const magma_int_t *h_info = info.HostRead();
+   for (int e = 0; e < batch_size; ++e)
+   {
+      MFEM_VERIFY(h_info[e] == 0,
+                  "MAGMA packed inverse failed on matrix " << e << '.');
+   }
+}
+
 void MagmaPackedLowerInverse::ApplyInPlace(
    const TriPackLowerMatrix &A_inv,
    Vector &rhs_sol) const

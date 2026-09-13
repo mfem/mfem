@@ -17,6 +17,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -46,7 +47,7 @@ static void PrintTimingTable(const double packed_assembly_ms,
    cout << "Summary (times in ms; apply totals use reps=" << reps << ")\n";
    cout << "  Assembly packed EA: " << fixed << setprecision(6)
         << packed_assembly_ms << '\n';
-   cout << "  Assembly full EA:   " << fixed << setprecision(6)
+   cout << "  Assembly full EA (sum-fact): " << fixed << setprecision(6)
         << full_assembly_ms << '\n';
    cout << '\n';
 
@@ -414,6 +415,38 @@ int main(int argc, char *argv[])
    MassIntegrator mass;
    StopWatch sw;
 
+   // The benchmark stores per-element matrices and (sometimes) their inverses
+   // or factors. For very large meshes this can exceed available memory or
+   // stress backend limits (e.g. extremely large MAGMA batches). Detect this
+   // early and fail with a clear message instead of crashing.
+   {
+      const int packed_size = elem_dofs*(elem_dofs + 1)/2;
+      const long double packed_entries = (long double)ne * (long double)packed_size;
+      const long double rhs_entries = (long double)ne * (long double)elem_dofs;
+
+      // Always: packed EA + tripack inverse + rhs.
+      long double est_entries = 2.0L*packed_entries + rhs_entries;
+
+#ifdef MFEM_USE_MAGMA
+      if (magma_supported_device)
+      {
+         // Packed Cholesky factorization stores an additional packed matrix.
+         est_entries += packed_entries;
+         // Packed inverse (ppinv) stores another packed matrix when enabled.
+         if (elem_dofs <= 64) { est_entries += packed_entries; }
+      }
+#endif
+
+      const long double est_bytes = est_entries * (long double)sizeof(real_t);
+      const long double gib = est_bytes / (1024.0L * 1024.0L * 1024.0L);
+      if (gib > 10.0L)
+      {
+         MFEM_ABORT("Requested case is too large for this benchmark "
+                    "(estimated >= " << (double)gib << " GiB of matrix/RHS storage). "
+                    "Reduce --refine/--order or run on a node with more memory.");
+      }
+   }
+
    // Dry run assembly before timing steady-state work.
    TriPackLowerMatrix packed_ea;
    mass.AssembleEATriangular(fespace, packed_ea, false);
@@ -427,23 +460,72 @@ int main(int argc, char *argv[])
    const double assemble_packed_ms = 1000.0*sw.RealTime();
 
    // Time dense/full element-matrix assembly (needed for the full-LU path).
-   DenseTensor full_ea(elem_dofs, elem_dofs, ne, Device::GetDeviceMemoryType());
+   double assemble_full_ms = std::numeric_limits<double>::quiet_NaN();
+   std::unique_ptr<DenseTensor> full_ea;
    Vector full_ea_vec;
-   full_ea_vec.NewMemoryAndSize(full_ea.GetMemory(), full_ea.TotalSize(), false);
-   full_ea_vec.UseDevice(true);
+   bool full_ea_enabled = false;
 
-   // Dry run to remove first-use kernel and workspace allocation costs.
-   mass.AssembleEA(fespace, full_ea_vec, false);
-   MFEM_DEVICE_SYNC;
+#ifdef MFEM_USE_MAGMA
+   // Full/dense paths are only used for MAGMA comparisons; they can be very
+   // memory intensive for large meshes (ne * elem_dofs^2).
+   if (magma_supported_device)
+   {
+      const long double full_entries =
+         (long double)ne * (long double)elem_dofs * (long double)elem_dofs;
+      const long double full_bytes = full_entries * (long double)sizeof(real_t);
+      const long double gib = full_bytes / (1024.0L * 1024.0L * 1024.0L);
 
-   sw.Clear();
-   sw.Start();
-   mass.AssembleEA(fespace, full_ea_vec, false);
-   MFEM_DEVICE_SYNC;
-   sw.Stop();
-   const double assemble_full_ms = 1000.0*sw.RealTime();
+      // Heuristic guardrail: avoid attempting multi-GB dense allocations that
+      // may fail in ways that are hard to diagnose (e.g. allocator returning
+      // nullptr on device).
+      if (gib > 6.0L)
+      {
+         cout << "Skipping full/dense element-matrix paths (estimated "
+              << fixed << setprecision(3) << (double)gib
+              << " GiB for full EA storage)." << '\n';
+      }
+      else
+      {
+         try
+         {
+            full_ea.reset(new DenseTensor(elem_dofs, elem_dofs, ne,
+                                          Device::GetDeviceMemoryType()));
+            full_ea_vec.NewMemoryAndSize(full_ea->GetMemory(),
+                                         full_ea->TotalSize(), false);
+            full_ea_vec.UseDevice(true);
+
+            // Dry run to remove first-use kernel and workspace allocation costs.
+            mass.AssembleEA(fespace, full_ea_vec, false);
+            MFEM_DEVICE_SYNC;
+
+            sw.Clear();
+            sw.Start();
+            mass.AssembleEA(fespace, full_ea_vec, false);
+            MFEM_DEVICE_SYNC;
+            sw.Stop();
+            assemble_full_ms = 1000.0*sw.RealTime();
+            full_ea_enabled = true;
+         }
+         catch (const std::exception &e)
+         {
+            cout << "Skipping full/dense element-matrix paths (" << e.what()
+                 << ")." << '\n';
+            full_ea.reset();
+         }
+      }
+   }
+#endif
 
    TriPackLowerMatrix tripack_inverse;
+   std::vector<MethodTiming> methods;
+
+   Vector rhs(ne*elem_dofs);
+   FillRHS(rhs);
+
+   Vector tripack_x(rhs.Size()), work;
+   tripack_x.UseDevice(true);
+
+   // --- MFEM tripack inverse (packed lower-triangular) ---
    // Dry run setup before timing steady-state setup work.
    tripack::ComputeCholeskyLowerInverse(packed_ea, tripack_inverse);
    MFEM_DEVICE_SYNC;
@@ -458,107 +540,6 @@ int main(int argc, char *argv[])
    sw.Stop();
    const double tripack_inverse_setup_ms = 1000.0*sw.RealTime()/setup_reps;
 
-#ifdef MFEM_USE_MAGMA
-   magma_queue_t magma_queue = nullptr;
-   if (magma_supported_device) { magma_queue = Magma::Queue(); }
-
-   TriPackLowerMatrix magma_factor;
-   std::unique_ptr<MagmaPackedLowerCholesky> magma_chol_ws;
-   double magma_factor_ms = 0.0;
-
-   TriPackLowerMatrix magma_inverse;
-   std::unique_ptr<MagmaPackedLowerInverse> magma_inv_ws;
-   double magma_inverse_ms = 0.0;
-   bool magma_ppinv_enabled = false;
-   DenseTensor magma_full_factor;
-   Array<int> magma_full_pivots;
-   double magma_full_factor_ms = 0.0;
-   DenseTensor magma_full_inverse;
-   double magma_full_inverse_ms = 0.0;
-
-   if (magma_supported_device)
-   {
-      magma_chol_ws.reset(new MagmaPackedLowerCholesky());
-      magma_chol_ws->SetQueue(magma_queue);
-
-      // Dry run setup before timing steady-state setup work.
-      magma_chol_ws->Factor(packed_ea, magma_factor);
-      MFEM_DEVICE_SYNC;
-
-      sw.Clear();
-      sw.Start();
-      for (int r = 0; r < setup_reps; ++r)
-      {
-         magma_chol_ws->Factor(packed_ea, magma_factor);
-      }
-      MFEM_DEVICE_SYNC;
-      sw.Stop();
-      magma_factor_ms = 1000.0*sw.RealTime()/setup_reps;
-
-      // Benchmark packed inverse (ppinv) only for sizes supported by MAGMA's
-      // current packed-inverse apply kernel.
-      if (elem_dofs <= 64)
-      {
-         magma_ppinv_enabled = true;
-         magma_inv_ws.reset(new MagmaPackedLowerInverse());
-         magma_inv_ws->SetQueue(magma_queue);
-
-         // Dry run setup before timing steady-state setup work.
-         magma_inv_ws->Compute(packed_ea, magma_inverse);
-         MFEM_DEVICE_SYNC;
-
-         sw.Clear();
-         sw.Start();
-         for (int r = 0; r < setup_reps; ++r)
-         {
-            magma_inv_ws->Compute(packed_ea, magma_inverse);
-         }
-         MFEM_DEVICE_SYNC;
-         sw.Stop();
-         magma_inverse_ms = 1000.0*sw.RealTime()/setup_reps;
-      }
-
-      // Full (dense) MFEM BatchedLinAlg LU factorization for comparison.
-      magma_full_factor = full_ea;
-      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(magma_full_factor,
-                                                        magma_full_pivots);
-      MFEM_DEVICE_SYNC;
-
-      sw.Clear();
-      sw.Start();
-      for (int r = 0; r < setup_reps; ++r)
-      {
-         magma_full_factor = full_ea;
-         BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(magma_full_factor,
-                                                           magma_full_pivots);
-      }
-      MFEM_DEVICE_SYNC;
-      sw.Stop();
-      magma_full_factor_ms = 1000.0*sw.RealTime()/setup_reps;
-
-      magma_full_inverse = full_ea;
-      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).Invert(magma_full_inverse);
-      MFEM_DEVICE_SYNC;
-
-      sw.Clear();
-      sw.Start();
-      for (int r = 0; r < setup_reps; ++r)
-      {
-         magma_full_inverse = full_ea;
-         BatchedLinAlg::Get(BatchedLinAlg::MAGMA).Invert(magma_full_inverse);
-      }
-      MFEM_DEVICE_SYNC;
-      sw.Stop();
-      magma_full_inverse_ms = 1000.0*sw.RealTime()/setup_reps;
-   }
-#endif
-
-   Vector rhs(ne*elem_dofs);
-   FillRHS(rhs);
-
-   Vector tripack_x(rhs.Size()), work;
-   tripack_x.UseDevice(true);
-
    const double tripack_apply_ms =
       TimeLowerInverseApply(tripack_inverse, rhs, reps, tripack_x, work);
    double tripack_res_l2 = 0.0, tripack_rel_res_l2 = 0.0;
@@ -566,6 +547,17 @@ int main(int argc, char *argv[])
    ComputeLowerPackedResidual(packed_ea, tripack_x, rhs,
                               tripack_res_l2, tripack_rel_res_l2,
                               tripack_res_max, tripack_rel_res_max);
+
+   methods.push_back(
+   {
+      "MFEM tripack inverse", true,
+      assemble_packed_ms,
+      tripack_inverse_setup_ms, tripack_apply_ms,
+      (double)tripack_rel_res_max, tripack_rel_res_l2});
+
+   // Release per-method memory before moving on.
+   tripack_inverse.SetSize(0, 0);
+   work.SetSize(0);
 
 #ifdef MFEM_USE_MAGMA
    double magma_solve_ms = 0.0;
@@ -582,6 +574,28 @@ int main(int argc, char *argv[])
    Vector magma_full_inv_x;
    if (magma_supported_device)
    {
+      magma_queue_t magma_queue = Magma::Queue();
+
+      // --- MAGMA packed Cholesky factor + solve ---
+      TriPackLowerMatrix magma_factor;
+      std::unique_ptr<MagmaPackedLowerCholesky> magma_chol_ws;
+      magma_chol_ws.reset(new MagmaPackedLowerCholesky());
+      magma_chol_ws->SetQueue(magma_queue);
+
+      // Dry run setup before timing steady-state setup work.
+      magma_chol_ws->Factor(packed_ea, magma_factor);
+      MFEM_DEVICE_SYNC;
+
+      sw.Clear();
+      sw.Start();
+      for (int r = 0; r < setup_reps; ++r)
+      {
+         magma_chol_ws->Factor(packed_ea, magma_factor);
+      }
+      MFEM_DEVICE_SYNC;
+      sw.Stop();
+      const double magma_factor_ms = 1000.0*sw.RealTime()/setup_reps;
+
       magma_x.SetSize(rhs.Size());
       magma_x.UseDevice(true);
       magma_solve_ms =
@@ -590,41 +604,148 @@ int main(int argc, char *argv[])
                                  magma_res_l2, magma_rel_res_l2,
                                  magma_res_max, magma_rel_res_max);
 
-      magma_full_x.SetSize(rhs.Size());
-      magma_full_x.UseDevice(true);
-      magma_full_solve_ms =
-         TimeBatchedLinAlgFullLUSolve(magma_full_factor, magma_full_pivots, rhs,
-                                      reps, magma_full_x);
-      ComputeLowerPackedResidual(packed_ea, magma_full_x, rhs,
-                                 magma_full_res_l2, magma_full_rel_res_l2,
-                                 magma_full_res_max, magma_full_rel_res_max);
+      methods.push_back(
+      {
+         "MAGMA packed Cholesky solve", true,
+         assemble_packed_ms,
+         magma_factor_ms, magma_solve_ms,
+         (double)magma_rel_res_max, magma_rel_res_l2});
 
-      magma_full_inv_x.SetSize(rhs.Size());
-      magma_full_inv_x.UseDevice(true);
-      magma_full_inv_apply_ms =
-         TimeBatchedLinAlgFullInverseApply(magma_full_inverse, rhs, reps,
-                                           magma_full_inv_x);
-      ComputeLowerPackedResidual(packed_ea, magma_full_inv_x, rhs,
-                                 magma_full_inv_res_l2,
-                                 magma_full_inv_rel_res_l2,
-                                 magma_full_inv_res_max,
-                                 magma_full_inv_rel_res_max);
-   }
+      // Release per-method memory.
+      magma_x.SetSize(0);
+      magma_factor.SetSize(0, 0);
+      magma_chol_ws.reset();
 
-   double magma_ppinv_apply_ms = 0.0;
-   double magma_ppinv_res_l2 = 0.0, magma_ppinv_rel_res_l2 = 0.0;
-   real_t magma_ppinv_res_max = 0.0, magma_ppinv_rel_res_max = 0.0;
-   Vector magma_ppinv_x;
-   if (magma_supported_device && magma_ppinv_enabled)
-   {
-      magma_ppinv_x.SetSize(rhs.Size());
-      magma_ppinv_x.UseDevice(true);
-      magma_ppinv_apply_ms =
-         TimeMagmaInverseApply(magma_inverse, rhs, reps, magma_ppinv_x,
-                               *magma_inv_ws);
-      ComputeLowerPackedResidual(packed_ea, magma_ppinv_x, rhs,
-                                 magma_ppinv_res_l2, magma_ppinv_rel_res_l2,
-                                 magma_ppinv_res_max, magma_ppinv_rel_res_max);
+      // --- MAGMA packed inverse (ppinv) ---
+      if (elem_dofs <= 64)
+      {
+         TriPackLowerMatrix magma_inverse;
+         std::unique_ptr<MagmaPackedLowerInverse> magma_inv_ws;
+         magma_inv_ws.reset(new MagmaPackedLowerInverse());
+         magma_inv_ws->SetQueue(magma_queue);
+
+         magma_inv_ws->Compute(packed_ea, magma_inverse);
+         MFEM_DEVICE_SYNC;
+
+         sw.Clear();
+         sw.Start();
+         for (int r = 0; r < setup_reps; ++r)
+         {
+            magma_inv_ws->Compute(packed_ea, magma_inverse);
+         }
+         MFEM_DEVICE_SYNC;
+         sw.Stop();
+         const double magma_inverse_ms = 1000.0*sw.RealTime()/setup_reps;
+
+         Vector magma_ppinv_x;
+         magma_ppinv_x.SetSize(rhs.Size());
+         magma_ppinv_x.UseDevice(true);
+         const double magma_ppinv_apply_ms =
+            TimeMagmaInverseApply(magma_inverse, rhs, reps, magma_ppinv_x,
+                                  *magma_inv_ws);
+         double magma_ppinv_res_l2 = 0.0, magma_ppinv_rel_res_l2 = 0.0;
+         real_t magma_ppinv_res_max = 0.0, magma_ppinv_rel_res_max = 0.0;
+         ComputeLowerPackedResidual(packed_ea, magma_ppinv_x, rhs,
+                                    magma_ppinv_res_l2, magma_ppinv_rel_res_l2,
+                                    magma_ppinv_res_max, magma_ppinv_rel_res_max);
+
+         methods.push_back(
+         {
+            "MAGMA packed inverse (ppinv)", true,
+            assemble_packed_ms,
+            magma_inverse_ms, magma_ppinv_apply_ms,
+            (double)magma_ppinv_rel_res_max, magma_ppinv_rel_res_l2});
+
+         magma_ppinv_x.SetSize(0);
+         magma_inverse.SetSize(0, 0);
+         magma_inv_ws.reset();
+      }
+
+      // --- Full/dense paths (optional; can be huge) ---
+      if (full_ea_enabled)
+      {
+         // Full LU solve.
+         DenseTensor magma_full_factor;
+         Array<int> magma_full_pivots;
+         magma_full_factor = *full_ea;
+         BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(magma_full_factor,
+                                                           magma_full_pivots);
+         MFEM_DEVICE_SYNC;
+
+         sw.Clear();
+         sw.Start();
+         for (int r = 0; r < setup_reps; ++r)
+         {
+            magma_full_factor = *full_ea;
+            BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(magma_full_factor,
+                                                              magma_full_pivots);
+         }
+         MFEM_DEVICE_SYNC;
+         sw.Stop();
+         const double magma_full_factor_ms = 1000.0*sw.RealTime()/setup_reps;
+
+         magma_full_x.SetSize(rhs.Size());
+         magma_full_x.UseDevice(true);
+         magma_full_solve_ms =
+            TimeBatchedLinAlgFullLUSolve(magma_full_factor, magma_full_pivots, rhs,
+                                         reps, magma_full_x);
+         ComputeLowerPackedResidual(packed_ea, magma_full_x, rhs,
+                                    magma_full_res_l2, magma_full_rel_res_l2,
+                                    magma_full_res_max, magma_full_rel_res_max);
+
+         methods.push_back(
+         {
+            "MAGMA full LU solve", true,
+            assemble_full_ms,
+            magma_full_factor_ms, magma_full_solve_ms,
+            (double)magma_full_rel_res_max, magma_full_rel_res_l2});
+
+         magma_full_x.SetSize(0);
+         magma_full_pivots.SetSize(0);
+         magma_full_factor.SetSize(0, 0, 0);
+
+         // Full inverse + apply.
+         DenseTensor magma_full_inverse;
+         magma_full_inverse = *full_ea;
+         BatchedLinAlg::Get(BatchedLinAlg::MAGMA).Invert(magma_full_inverse);
+         MFEM_DEVICE_SYNC;
+
+         sw.Clear();
+         sw.Start();
+         for (int r = 0; r < setup_reps; ++r)
+         {
+            magma_full_inverse = *full_ea;
+            BatchedLinAlg::Get(BatchedLinAlg::MAGMA).Invert(magma_full_inverse);
+         }
+         MFEM_DEVICE_SYNC;
+         sw.Stop();
+         const double magma_full_inverse_ms = 1000.0*sw.RealTime()/setup_reps;
+
+         magma_full_inv_x.SetSize(rhs.Size());
+         magma_full_inv_x.UseDevice(true);
+         magma_full_inv_apply_ms =
+            TimeBatchedLinAlgFullInverseApply(magma_full_inverse, rhs, reps,
+                                              magma_full_inv_x);
+         ComputeLowerPackedResidual(packed_ea, magma_full_inv_x, rhs,
+                                    magma_full_inv_res_l2,
+                                    magma_full_inv_rel_res_l2,
+                                    magma_full_inv_res_max,
+                                    magma_full_inv_rel_res_max);
+
+         methods.push_back(
+         {
+            "MAGMA full inverse + apply", true,
+            assemble_full_ms,
+            magma_full_inverse_ms, magma_full_inv_apply_ms,
+            (double)magma_full_inv_rel_res_max, magma_full_inv_rel_res_l2});
+
+         magma_full_inv_x.SetSize(0);
+         magma_full_inverse.SetSize(0, 0, 0);
+
+         // Release the full EA storage as soon as we're done with full paths.
+         full_ea_vec.SetSize(0);
+         full_ea.reset();
+      }
    }
 #endif
 
@@ -639,48 +760,6 @@ int main(int argc, char *argv[])
    cout << "Setup repetitions: " << setup_reps << '\n';
    cout << '\n';
 
-   std::vector<MethodTiming> methods;
-   methods.push_back(
-   {
-      "MFEM tripack inverse", true,
-      assemble_packed_ms,
-      tripack_inverse_setup_ms, tripack_apply_ms,
-      (double)tripack_rel_res_max, tripack_rel_res_l2});
-#ifdef MFEM_USE_MAGMA
-   if (magma_supported_device)
-   {
-      methods.push_back(
-      {
-         "MAGMA packed Cholesky solve", true,
-         assemble_packed_ms,
-         magma_factor_ms, magma_solve_ms,
-         (double)magma_rel_res_max, magma_rel_res_l2});
-
-      if (magma_ppinv_enabled)
-      {
-         methods.push_back(
-         {
-            "MAGMA packed inverse (ppinv)", true,
-            assemble_packed_ms,
-            magma_inverse_ms, magma_ppinv_apply_ms,
-            (double)magma_ppinv_rel_res_max, magma_ppinv_rel_res_l2});
-      }
-
-      methods.push_back(
-      {
-         "MAGMA full LU solve", true,
-         assemble_full_ms,
-         magma_full_factor_ms, magma_full_solve_ms,
-         (double)magma_full_rel_res_max, magma_full_rel_res_l2});
-
-      methods.push_back(
-      {
-         "MAGMA full inverse + apply", true,
-         assemble_full_ms,
-         magma_full_inverse_ms, magma_full_inv_apply_ms,
-         (double)magma_full_inv_rel_res_max, magma_full_inv_rel_res_l2});
-   }
-#endif
    PrintTimingTable(assemble_packed_ms, assemble_full_ms, reps, methods);
 
    return 0;

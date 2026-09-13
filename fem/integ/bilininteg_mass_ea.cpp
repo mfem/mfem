@@ -52,12 +52,19 @@ void AssembleEATriangularImpl(const int dim, const int ne,
       switch ((dofs1D << 4 ) | quad1D)
       {
          case 0x22: kernel = EAMassAssembleTriangular2DLower<2,2>; break;
+         case 0x23: kernel = EAMassAssembleTriangular2DLower<2,3>; break;
          case 0x33: kernel = EAMassAssembleTriangular2DLower<3,3>; break;
+         case 0x34: kernel = EAMassAssembleTriangular2DLower<3,4>; break;
          case 0x44: kernel = EAMassAssembleTriangular2DLower<4,4>; break;
+         case 0x45: kernel = EAMassAssembleTriangular2DLower<4,5>; break;
          case 0x55: kernel = EAMassAssembleTriangular2DLower<5,5>; break;
+         case 0x56: kernel = EAMassAssembleTriangular2DLower<5,6>; break;
          case 0x66: kernel = EAMassAssembleTriangular2DLower<6,6>; break;
+         case 0x67: kernel = EAMassAssembleTriangular2DLower<6,7>; break;
          case 0x77: kernel = EAMassAssembleTriangular2DLower<7,7>; break;
+         case 0x78: kernel = EAMassAssembleTriangular2DLower<7,8>; break;
          case 0x88: kernel = EAMassAssembleTriangular2DLower<8,8>; break;
+         case 0x89: kernel = EAMassAssembleTriangular2DLower<8,9>; break;
          case 0x99: kernel = EAMassAssembleTriangular2DLower<9,9>; break;
       }
       return kernel(ne, B, pa_data, data, add, dofs1D, quad1D);
@@ -112,12 +119,19 @@ void MassIntegrator::AssembleEA_(Vector &ea_data,
       switch ((dofs1D << 4 ) | quad1D)
       {
          case 0x22: kernel = EAMassAssemble2D<2,2>; break;
+         case 0x23: kernel = EAMassAssemble2D<2,3>; break;
          case 0x33: kernel = EAMassAssemble2D<3,3>; break;
+         case 0x34: kernel = EAMassAssemble2D<3,4>; break;
          case 0x44: kernel = EAMassAssemble2D<4,4>; break;
+         case 0x45: kernel = EAMassAssemble2D<4,5>; break;
          case 0x55: kernel = EAMassAssemble2D<5,5>; break;
+         case 0x56: kernel = EAMassAssemble2D<5,6>; break;
          case 0x66: kernel = EAMassAssemble2D<6,6>; break;
+         case 0x67: kernel = EAMassAssemble2D<6,7>; break;
          case 0x77: kernel = EAMassAssemble2D<7,7>; break;
+         case 0x78: kernel = EAMassAssemble2D<7,8>; break;
          case 0x88: kernel = EAMassAssemble2D<8,8>; break;
+         case 0x89: kernel = EAMassAssemble2D<8,9>; break;
          case 0x99: kernel = EAMassAssemble2D<9,9>; break;
       }
       return kernel(ne,B,pa_data,ea_data,add,dofs1D,quad1D);

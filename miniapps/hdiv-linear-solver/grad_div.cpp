@@ -65,12 +65,16 @@ HdivSaddlePointSolver::L2InverseType ParseL2InverseType(const char *name)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED_PPINV;
    }
+   if (strcmp(name, "magma-full-inv") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL_INVERSE;
+   }
    if (strcmp(name, "magma-full") == 0)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL;
    }
    MFEM_ABORT("Unknown -l2inv value: " << name
-              << " (expected: cg | magma-packed | magma-packed-ppinv | magma-full)");
+              << " (expected: cg | magma-packed | magma-packed-ppinv | magma-full-inv | magma-full)");
    return HdivSaddlePointSolver::L2InverseType::CG;
 }
 

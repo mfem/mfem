@@ -108,6 +108,9 @@ public:
    void Compute(const TriPackLowerMatrix &A,
                 TriPackLowerMatrix &A_inv);
 
+   /// Compute packed inverse in-place, overwriting A_inv with its inverse.
+   void ComputeInPlace(TriPackLowerMatrix &A_inv);
+
    /// Apply packed inverse to rhs_sol, overwriting rhs_sol with the result.
    void ApplyInPlace(const TriPackLowerMatrix &A_inv,
                      Vector &rhs_sol) const;
@@ -140,6 +143,13 @@ inline void ComputeInverseLower(
    MagmaPackedLowerInverse &ws)
 {
    ws.Compute(packed_lower, lower_inverse);
+}
+
+inline void ComputeInverseLowerInPlace(
+   TriPackLowerMatrix &packed_lower_inout,
+   MagmaPackedLowerInverse &ws)
+{
+   ws.ComputeInPlace(packed_lower_inout);
 }
 
 inline void ApplyInverseLowerInPlace(

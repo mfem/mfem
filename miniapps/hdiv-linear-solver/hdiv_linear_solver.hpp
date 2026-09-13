@@ -40,6 +40,7 @@ public:
       CG,           ///< DGMassInverse (default).
       MAGMA_PACKED, ///< MAGMA packed-lower batched Cholesky+solve.
       MAGMA_PACKED_PPINV, ///< MAGMA packed-lower inverse (ppinv) + apply.
+      MAGMA_FULL_INVERSE, ///< MFEM BatchedLinAlg MAGMA full inverse + apply.
       MAGMA_FULL    ///< MFEM BatchedLinAlg MAGMA full dense LU solve.
    };
 private:

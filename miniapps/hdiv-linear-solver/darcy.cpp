@@ -77,12 +77,16 @@ HdivSaddlePointSolver::L2InverseType ParseL2InverseType(const char *name)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED_PPINV;
    }
+   if (strcmp(name, "magma-full-inv") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL_INVERSE;
+   }
    if (strcmp(name, "magma-full") == 0)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL;
    }
    MFEM_ABORT("Unknown -l2inv value: " << name
-              << " (expected: cg | magma-packed | magma-packed-ppinv | magma-full)");
+              << " (expected: cg | magma-packed | magma-packed-ppinv | magma-full-inv | magma-full)");
    return HdivSaddlePointSolver::L2InverseType::CG;
 }
 
@@ -95,6 +99,8 @@ const char *L2InverseTypeLabel(HdivSaddlePointSolver::L2InverseType type)
          return "magma-packed";
       case HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED_PPINV:
          return "magma-packed-ppinv";
+      case HdivSaddlePointSolver::L2InverseType::MAGMA_FULL_INVERSE:
+         return "magma-full-inv";
       case HdivSaddlePointSolver::L2InverseType::MAGMA_FULL:
          return "magma-full";
    }
@@ -214,7 +220,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&alpha, "-a", "--alpha", "Value of alpha coefficient.");
    args.AddOption(&l2inv, "-l2inv", "--l2-inverse",
-                  "Local L2 mass inverse: cg | magma-packed | magma-packed-ppinv | magma-full.");
+                  "Local L2 mass inverse: cg | magma-packed | magma-packed-ppinv | magma-full-inv | magma-full.");
    args.AddOption(&bench_l2inv, "-l2bench", "--l2-bench",
                   "-no-l2bench", "--no-l2-bench",
                   "Benchmark the local L2 inverse apply.");
@@ -311,12 +317,13 @@ int main(int argc, char *argv[])
    MFEM_DEVICE_SYNC;
    setup_sw.Stop();
 
+   const int n = fes_l2.GetTypicalFE()->GetDof();
+   const int ne = mesh.GetNE();
+   const size_t full_bytes = static_cast<size_t>(ne)*n*n*sizeof(real_t);
+   const size_t packed_bytes = static_cast<size_t>(ne)*n*(n+1)/2*sizeof(real_t);
+
    if (Mpi::Root())
    {
-      const int n = fes_l2.GetTypicalFE()->GetDof();
-      const int ne = mesh.GetNE();
-      const size_t full_bytes = static_cast<size_t>(ne)*n*n*sizeof(real_t);
-      const size_t packed_bytes = static_cast<size_t>(ne)*n*(n+1)/2*sizeof(real_t);
       cout << "Setup time: " << setup_sw.RealTime() << " s\n"
            << "Local element matrices (theoretical): full=" << full_bytes
            << " bytes, packed=" << packed_bytes << " bytes\n";
@@ -395,14 +402,16 @@ int main(int argc, char *argv[])
            << setw(14) << "ApplyTot"
            << setw(14) << "Total";
 #ifdef MFEM_USE_UMPIRE
-      cout << setw(16) << "HostHWM(MB)"
+      cout << setw(16) << "HostCur(MB)"
+           << setw(16) << "DevCur(MB)"
+           << setw(16) << "HostHWM(MB)"
            << setw(16) << "DevHWM(MB)";
 #endif
       cout << '\n';
 
       int width = 26 + 4*14;
 #ifdef MFEM_USE_UMPIRE
-      width += 2*16;
+      width += 4*16;
 #endif
       cout << string(width, '-') << '\n';
 
@@ -427,6 +436,10 @@ int main(int argc, char *argv[])
       const auto dev_stats =
          GetUmpireStatsMax(MemoryManager::GetUmpireDeviceAllocatorName());
       cout << setw(16) << fixed << setprecision(3)
+           << (host_stats.current_max_bytes / (1024.0*1024.0))
+           << setw(16) << fixed << setprecision(3)
+           << (dev_stats.current_max_bytes / (1024.0*1024.0))
+           << setw(16) << fixed << setprecision(3)
            << (host_stats.hwm_max_bytes / (1024.0*1024.0))
            << setw(16) << fixed << setprecision(3)
            << (dev_stats.hwm_max_bytes / (1024.0*1024.0));
@@ -436,13 +449,24 @@ int main(int argc, char *argv[])
       // Machine-readable line for scripts.
       cout << "HDIV_L2INV_SUMMARY_JSON: {"
            << "\"method\":\"" << L2InverseTypeLabel(l2inv_type) << "\","
+           << "\"dim\":" << dim << ","
+           << "\"elements\":" << ne << ","
+           << "\"elem_dofs\":" << n << ","
+           << "\"rt_true_dofs\":" << ndofs_rt << ","
+           << "\"l2_true_dofs\":" << ndofs_l2 << ","
+           << "\"theoretical_full_bytes\":" << full_bytes << ","
+           << "\"theoretical_packed_bytes\":" << packed_bytes << ","
            << "\"setup_ms\":" << std::fixed << std::setprecision(6) << setup_ms << ","
-           << "\"solve_s\":" << std::fixed << std::setprecision(6) << tic_toc.RealTime() << ","
+           << "\"solve_s\":" << std::fixed << std::setprecision(6) << tic_toc.RealTime() <<
+           ","
            << "\"iters\":" << saddle_point_solver.GetNumIterations() << ","
            << "\"l2_reps\":" << l2inv_reps << ","
-           << "\"l2_apply_ms_max\":" << std::fixed << std::setprecision(9) << l2_apply_ms_max;
+           << "\"l2_apply_ms_max\":" << std::fixed << std::setprecision(
+              9) << l2_apply_ms_max;
 #ifdef MFEM_USE_UMPIRE
-      cout << ",\"host_hwm_max_bytes\":" << host_stats.hwm_max_bytes
+      cout << ",\"host_current_max_bytes\":" << host_stats.current_max_bytes
+           << ",\"device_current_max_bytes\":" << dev_stats.current_max_bytes
+           << ",\"host_hwm_max_bytes\":" << host_stats.hwm_max_bytes
            << ",\"device_hwm_max_bytes\":" << dev_stats.hwm_max_bytes;
 #endif
       cout << "}\n";
