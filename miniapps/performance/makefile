@@ -122,7 +122,7 @@ MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 MFEM_PERF_CXXFLAGS_icc += -xHost
 
 
-SEQ_MINIAPPS = ex1
+SEQ_MINIAPPS = ex1 mass_ea_bench
 PAR_MINIAPPS = ex1p
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -163,7 +163,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ ex1 ex1p
+	rm -f *.o *~ ex1 ex1p mass_ea_bench
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

@@ -1218,16 +1218,18 @@ inline void EAMassAssemble2D(const int NE,
    {
       // For compile-time tensor dimensions, use sum-factorized block-column
       // assembly which reduces FLOPs and improves memory locality.
-      constexpr int D1D = T_D1D;
-      constexpr int Q1D = T_Q1D;
+      // NOTE: Use static constexpr to avoid MSVC treating these as captured
+      // lambda state (which breaks use in array bounds / constant eval).
+      static constexpr int D1D = T_D1D;
+      static constexpr int Q1D = T_Q1D;
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
       MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-      constexpr int NQ = Q1D*Q1D;
-      constexpr int SharedBytesPerCol =
+      static constexpr int NQ = Q1D*Q1D;
+      static constexpr int SharedBytesPerCol =
          sizeof(real_t)*(NQ + D1D*Q1D);
-      constexpr int SharedBytesBase = sizeof(real_t)*(Q1D*D1D);
-      constexpr int MaxSharedBytes = 48*1024;
-      constexpr int COLB =
+      static constexpr int SharedBytesBase = sizeof(real_t)*(Q1D*D1D);
+      static constexpr int MaxSharedBytes = 48*1024;
+      static constexpr int COLB =
          (SharedBytesBase + 4*SharedBytesPerCol <= MaxSharedBytes) ? 4 :
          (SharedBytesBase + 2*SharedBytesPerCol <= MaxSharedBytes) ? 2 : 1;
 
@@ -1395,22 +1397,24 @@ inline void EAMassAssemble3D(const int NE,
    {
       // For compile-time tensor dimensions, use sum-factorized block-column
       // assembly which reduces FLOPs and improves memory locality.
-      constexpr int D1D = T_D1D;
-      constexpr int Q1D = T_Q1D;
+      // NOTE: Use static constexpr to avoid MSVC treating these as captured
+      // lambda state (which breaks use in array bounds / constant eval).
+      static constexpr int D1D = T_D1D;
+      static constexpr int Q1D = T_Q1D;
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
       MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-      constexpr int NT = 32;
-      constexpr int ND = D1D*D1D*D1D;
-      constexpr int NQ = Q1D*Q1D*Q1D;
-      constexpr int T1S = D1D*Q1D*Q1D;
-      constexpr int T2S = D1D*D1D*Q1D;
+      static constexpr int NT = 32;
+      static constexpr int ND = D1D*D1D*D1D;
+      static constexpr int NQ = Q1D*Q1D*Q1D;
+      static constexpr int T1S = D1D*Q1D*Q1D;
+      static constexpr int T2S = D1D*D1D*Q1D;
 
-      constexpr int SharedBytesPerCol =
+      static constexpr int SharedBytesPerCol =
          sizeof(real_t)*(NQ + T1S + T2S);
-      constexpr int SharedBytesBase = sizeof(real_t)*(Q1D*D1D);
-      constexpr int MaxSharedBytes = 48*1024;
-      constexpr int COLB =
+      static constexpr int SharedBytesBase = sizeof(real_t)*(Q1D*D1D);
+      static constexpr int MaxSharedBytes = 48*1024;
+      static constexpr int COLB =
          (SharedBytesBase + 4*SharedBytesPerCol <= MaxSharedBytes) ? 4 :
          (SharedBytesBase + 2*SharedBytesPerCol <= MaxSharedBytes) ? 2 : 1;
 
