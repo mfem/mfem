@@ -50,7 +50,7 @@ RBVMSIntegrator::RBVMSIntegrator(Coefficient &rho,
 
 // Compute RBVMS stabilisation parameters
 void RBVMSIntegrator::GetTau(real_t &tau_m, real_t &tau_c, real_t &cfl2,
-                             real_t& rho, real_t &mu, Vector &u,
+                             real_t& rho, real_t &mu, Vector &u_,
                              ElementTransformation &T)
 {
    real_t Cd = 6.0;
@@ -69,10 +69,10 @@ void RBVMSIntegrator::GetTau(real_t &tau_m, real_t &tau_c, real_t &cfl2,
    tau_c = 0.0;
    for (int j = 0; j < dim; j++)
    {
-      real_t uj = u[j];
+      real_t uj = u_[j];
       for (int i = 0; i < dim; i++)
       {
-         tau_c += Gij(i,j)*u[i]*uj;
+         tau_c += Gij(i,j)*u_[i]*uj;
       }
    }
 
@@ -274,9 +274,9 @@ void RBVMSIntegrator::AssembleElementVector(
 
    double mu_ad = 0.0;// GetElemArtDiff(el, Tr, elsol, elrate);
 
-   for (int i = 0; i < ir.GetNPoints(); ++i)
+   for (int ii = 0; ii < ir.GetNPoints(); ++ii)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
+      const IntegrationPoint &ip = ir.IntPoint(ii);
       Tr.SetIntPoint(&ip);
       real_t w = ip.weight * Tr.Weight();
       real_t rho = c_rho.Eval(Tr, ip);
@@ -425,9 +425,9 @@ void RBVMSIntegrator::AssembleElementGrad(
 
    //double mu_ad = 0.0;//GetElemArtDiff(el, Tr, elsol, elrate);
 
-   for (int i = 0; i < ir.GetNPoints(); ++i)
+   for (int ii = 0; ii < ir.GetNPoints(); ++ii)
    {
-      const IntegrationPoint &ip = ir.IntPoint(i);
+      const IntegrationPoint &ip = ir.IntPoint(ii);
       Tr.SetIntPoint(&ip);
       real_t w = ip.weight * Tr.Weight();
 
@@ -445,7 +445,7 @@ void RBVMSIntegrator::AssembleElementGrad(
       shg_u.Mult(u, ushg_u);
 
       el[1]->CalcPhysShape(Tr, sh_p);
-      real_t p = sh_p*(*elsol[1]);
+     // real_t p = sh_p*(*elsol[1]);
 
       el[1]->CalcPhysDShape(Tr, shg_p);
       shg_p.MultTranspose(*elsol[1], grad_p);
@@ -511,7 +511,7 @@ void RBVMSIntegrator::AssembleElementGrad(
       AddMult_a_AAt(-w*tau_m, shg_p, mat_qp);
 
       // Off diagional block terms
-      int ii = 0;
+      int i = 0;
       for (int i_dim = 0; i_dim < dim; ++i_dim)
       {
          // Getting columns for outer product
@@ -531,9 +531,9 @@ void RBVMSIntegrator::AssembleElementGrad(
          for (int j_dim = 0; j_dim < i_dim; ++j_dim)
          {
             shg_u.GetColumnReference(j_dim, vec_u2);
-            AddMult_a_VWt(w*dt*(mu+tau_c), vec_u1, vec_u2, mat_uu[ii++]);
+            AddMult_a_VWt(w*dt*(mu+tau_c), vec_u1, vec_u2, mat_uu[i++]);
          }
-         AddMult_a_VVt(w*dt*(mu+tau_c), vec_u1, mat_uu[ii++]);
+         AddMult_a_VVt(w*dt*(mu+tau_c), vec_u1, mat_uu[i++]);
       }
    }
 
@@ -590,8 +590,8 @@ void OutflowIntegrator
                      const Array<Vector *> &elvec)
 {
    //std::cout<<"IncNavStoIntegrator::AssembleFaceVector"<<std::endl;
-   real_t outflow = 0.0;
-   bool suction = false;
+  // real_t outflow = 0.0;
+  // bool suction = false;
 
    SetDim(el1[0]->GetDim());
    int dof_u = el1[0]->GetDof();
@@ -602,14 +602,15 @@ void OutflowIntegrator
 
    *elvec[0] = 0.0;
    *elvec[1] = 0.0;
-   outflow = 0.0;
+   //outflow = 0.0;
 
    elf_u.UseExternalData(elsol[0]->GetData(), dof_u, dim);
    elf_du.UseExternalData(elrate[0]->GetData(), dof_u, dim);
    elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
 
    sh_u.SetSize(dof_u);
-   Vector traction(dim);
+   //Vector 
+   traction.SetSize(dim);
    int intorder = 2*el1[0]->GetOrder();
    const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -654,12 +655,12 @@ void OutflowIntegrator
                    const Array<const Vector *> &elrate,
                    const Array2D<DenseMatrix *> &elmats)
 {
-   real_t outflow = 0.0;
-   bool suction = false;
+  // real_t outflow = 0.0;
+   //bool suction = false;
 
    SetDim(el1[0]->GetDim());
    int dof_u = el1[0]->GetDof();
-   int dof_p = el1[1]->GetDof();
+  // int dof_p = el1[1]->GetDof();
 
    elf_u.UseExternalData(elsol[0]->GetData(), dof_u, dim);
    elf_du.UseExternalData(elrate[0]->GetData(), dof_u, dim);
@@ -763,13 +764,13 @@ void WeakBCIntegrator::SetDim(int dim_)
 
 // Compute Weak Dirichlet stabilisation parameters
 void WeakBCIntegrator::GetTauB(real_t &tau_b, real_t &tau_n,
-                               real_t &mu, Vector &u,
-                               Vector &nor,
+                               real_t &mu, Vector &u_,
+                               Vector &nor_,
                                FaceElementTransformations &Tr)
 {
    real_t Cb = 32.0;
 
-   Tr.Elem1->InverseJacobian().Mult(nor,hn);
+   Tr.Elem1->InverseJacobian().Mult(nor_,hn);
    tau_b = Cb*mu*hn.Norml2();
    tau_n = 100.0;
 }
@@ -783,7 +784,7 @@ void WeakBCIntegrator
                      const Array<const Vector *> &elrate,
                      const Array<Vector *> &elvec)
 {
-   bool blowing = false;
+   //bool blowing = false;
    SetDim(el1[0]->GetDim());
    int dof_u = el1[0]->GetDof();
    int dof_p = el1[1]->GetDof();
@@ -883,7 +884,7 @@ void WeakBCIntegrator
                    const Array<const Vector *> &elrate,
                    const Array2D<DenseMatrix *> &elmats)
 {
-   bool blowing = false;
+   //bool blowing = false;
    SetDim(el1[0]->GetDim());
    int dof_u = el1[0]->GetDof();
    int dof_p = el1[1]->GetDof();
@@ -999,7 +1000,7 @@ void WeakBCIntegrator
 
       for (int j_u = 0; j_u < dof_u; ++j_u)
       {
-         real_t tmp0 = sh_u(j_u)*w*dt*tau_n;
+         tmp0 = sh_u(j_u)*w*dt*tau_n;
          for (int j_dim = 0; j_dim < dim; ++j_dim)
          {
             real_t tmp1 = tmp0*nor(j_dim);
@@ -1019,7 +1020,7 @@ void WeakBCIntegrator
       // Momentum - Pressure block (w,p)
       for (int i_p = 0; i_p < dof_p; ++i_p)
       {
-         real_t tmp0 = sh_p(i_p)*w;
+         tmp0 = sh_p(i_p)*w;
          for (int dim_u = 0; dim_u < dim; ++dim_u)
          {
             real_t tmp1 = nor(dim_u)*tmp0;
@@ -1033,7 +1034,7 @@ void WeakBCIntegrator
       // Continuity - Velocity block (q,u)
       for (int dim_u = 0; dim_u < dim; ++dim_u)
       {
-         real_t tmp0 = nor(dim_u)*w*dt;
+         tmp0 = nor(dim_u)*w*dt;
          for (int j_u = 0; j_u < dof_u; ++j_u)
          {
             real_t tmp1 = sh_u(j_u)*tmp0;
@@ -1077,11 +1078,13 @@ void NewtonSystemSolver::Norms(const Vector &r, Vector& lnorm) const
    for (int i = 0; i < nvar; ++i)
    {
       Vector r_i(r.GetData() + bOffsets[i], bOffsets[i+1] - bOffsets[i]);
+#ifdef MFEM_USE_MPI
       if (parallel)
       {
          lnorm[i] = sqrt(InnerProduct(MPI_COMM_WORLD, r_i, r_i));
       }
       else
+#endif
       {
          lnorm[i] = sqrt(r_i*r_i);
       }

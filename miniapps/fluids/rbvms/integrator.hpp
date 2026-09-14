@@ -249,14 +249,14 @@ public:
       parallel = false;
 
    }
-
+#ifdef MFEM_USE_MPI
    NewtonSystemSolver(MPI_Comm comm_, Array<int> &offsets)
       : NewtonSolver(comm_), bOffsets(offsets)
    {
       nvar = bOffsets.Size()-1;
       parallel = true;
    }
-
+#endif
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
    virtual void Mult(const Vector &b, Vector &x) const;
