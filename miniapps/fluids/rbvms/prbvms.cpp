@@ -8,6 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
+
 #include <sys/stat.h>
 #include "mfem.hpp"
 //#include "../util/coefficients.hpp"
@@ -862,7 +863,11 @@ int main(int argc, char *argv[])
    {
       delete spaces[i];
    }
-
+   for (int i = 0; i < nstate; i++)
+   {
+      delete dx_u[i];
+      delete  dx_p[i];
+   }
    return 0;
 }
 
