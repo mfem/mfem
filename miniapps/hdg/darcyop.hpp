@@ -72,8 +72,33 @@ public:
       KINSol,
    };
 
+   /** @brief Which serial preconditioner to use where the code offers a
+       choice between an iterative smoother and a direct solve.
+
+       The choice used to be made at COMPILE time only, by MFEM_USE_SUITESPARSE
+       together with the USE_DIRECT_SOLVER_* macros in darcyop.cpp, and that is
+       what @a Default still reproduces exactly -- so nothing moves unless a
+       caller asks. It is selectable at run time because the regression
+       reference set records the preconditioner in its solver line and a build
+       that cannot reproduce the recorded one SKIPS the case: 49 of the 157
+       serial references were unreachable in a SuiteSparse build for that
+       reason alone, all of them through the Schur preconditioner. Forcing the
+       recorded choice is what lets one build run the whole set.
+
+       @a Direct aborts rather than falling back when SuiteSparse is absent,
+       because a silent fallback would reintroduce exactly the mismatch this
+       exists to remove. Parallel is unaffected: the parallel branches use
+       HypreBoomerAMG and offer no choice to make. */
+   enum class PrecType
+   {
+      Default = 0, ///< whatever the build's compile-time macros select
+      Iterative,   ///< force GSSmoother
+      Direct,      ///< force UMFPackSolver; aborts without SuiteSparse
+   };
+
 private:
    Array<int> offsets;
+   PrecType prec_type{PrecType::Default};
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
    LinearForm *g{};
@@ -118,6 +143,7 @@ private:
       bool nonlinear;
 
       const char *prec_str;
+      PrecType prec_type;
       mutable std::unique_ptr<BlockDiagonalPreconditioner> darcyPrec;
       mutable std::unique_ptr<SparseMatrix> S;
 #ifdef MFEM_USE_MPI
@@ -131,9 +157,11 @@ private:
 #endif
 
    public:
-      SchurPreconditioner(const DarcyForm *darcy, bool nonlinear = false);
+      SchurPreconditioner(const DarcyForm *darcy, bool nonlinear = false,
+                          PrecType prec_type = PrecType::Default);
 #ifdef MFEM_USE_MPI
-      SchurPreconditioner(const ParDarcyForm *darcy, bool nonlinear = false);
+      SchurPreconditioner(const ParDarcyForm *darcy, bool nonlinear = false,
+                          PrecType prec_type = PrecType::Default);
 #endif
 
       const char *GetString() const { return prec_str; }
@@ -289,6 +317,14 @@ public:
 
    /// Set the tolerance of iterative solvers
    void SetTolerance(real_t rtol_, real_t atol_ = 0.) { rtol = rtol_; atol = atol_; }
+
+   /** @brief Force the serial preconditioner instead of taking the build's
+       compile-time choice. See PrecType.
+
+       Must be called BEFORE the first ImplicitSolve(), which is where the
+       solver stack is built; it is read once, when `reassemble` is true, and
+       a later call changes nothing. */
+   void SetPrecType(PrecType type) { prec_type = type; }
 
    /// Set the maximal number of iterations of iterative solvers
    void SetMaxIters(int iters_) { max_iters = iters_; }

@@ -17,6 +17,51 @@
 #define USE_DIRECT_SOLVER_REDUCTION
 #define USE_DIRECT_SOLVER_SCHUR
 
+namespace
+{
+
+/** @brief Resolve DarcyOperator::PrecType against the build, for one site.
+
+    Returns true for a direct solve and false for the smoother. @a build_direct
+    is what the site's own compile-time condition selects, so PrecType::Default
+    reproduces the previous behaviour of that site exactly -- the four call
+    sites do NOT agree on it (each has its own USE_DIRECT_SOLVER_* macro), which
+    is why the condition is passed in rather than recomputed here. */
+inline bool UseDirectPrec(mfem::hdg::DarcyOperator::PrecType type,
+                          bool build_direct)
+{
+   switch (type)
+   {
+      case mfem::hdg::DarcyOperator::PrecType::Iterative: return false;
+      case mfem::hdg::DarcyOperator::PrecType::Direct:
+#ifdef MFEM_USE_SUITESPARSE
+         return true;
+#else
+         // Deliberately not a silent fallback to the smoother: the caller
+         // asked for the direct solve because something -- a regression
+         // reference, most likely -- requires it, and quietly giving back the
+         // other preconditioner is the mismatch this switch exists to remove.
+         MFEM_ABORT("A direct preconditioner was requested but MFEM is built "
+                    "without SuiteSparse.");
+         return false;
+#endif
+      case mfem::hdg::DarcyOperator::PrecType::Default: break;
+   }
+   return build_direct;
+}
+
+/// What USE_DIRECT_SOLVER_SCHUR selects in this build, read in one place.
+inline constexpr bool BuildDirectSchur()
+{
+#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_SCHUR)
+   return false;
+#else
+   return true;
+#endif
+}
+
+} // namespace
+
 namespace mfem
 {
 namespace hdg
@@ -128,11 +173,11 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            schur = new SchurPreconditioner(pdarcy, true);
+            schur = new SchurPreconditioner(pdarcy, true, prec_type);
          }
          else
 #endif
-            schur = new SchurPreconditioner(darcy, true);
+            schur = new SchurPreconditioner(darcy, true, prec_type);
          lin_prec.reset(schur);
          lin_prec_str = schur->GetString();
          lin_solver->SetPreconditioner(*lin_prec);
@@ -170,12 +215,20 @@ void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
 #endif
       {
 #if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_HYBRIDIZATION)
-         prec.reset(new GSSmoother());
-         prec_str = "GS";
+         constexpr bool build_direct = false;
 #else
-         prec.reset(new UMFPackSolver());
-         prec_str = "UMFPack";
+         constexpr bool build_direct = true;
 #endif
+         if (UseDirectPrec(prec_type, build_direct))
+         {
+            prec.reset(new UMFPackSolver());
+            prec_str = "UMFPack";
+         }
+         else
+         {
+            prec.reset(new GSSmoother());
+            prec_str = "GS";
+         }
       }
    }
    else if (darcy->GetReduction())
@@ -192,12 +245,20 @@ void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
 #endif
       {
 #if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_REDUCTION)
-         prec.reset(new GSSmoother());
-         prec_str = "GS";
+         constexpr bool build_direct = false;
 #else
-         prec.reset(new UMFPackSolver());
-         prec_str = "UMFPack";
+         constexpr bool build_direct = true;
 #endif
+         if (UseDirectPrec(prec_type, build_direct))
+         {
+            prec.reset(new UMFPackSolver());
+            prec_str = "UMFPack";
+         }
+         else
+         {
+            prec.reset(new GSSmoother());
+            prec_str = "GS";
+         }
       }
    }
    else
@@ -206,11 +267,11 @@ void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
 #ifdef MFEM_USE_MPI
       if (pdarcy)
       {
-         schur = new SchurPreconditioner(pdarcy);
+         schur = new SchurPreconditioner(pdarcy, false, prec_type);
       }
       else
 #endif
-         schur = new SchurPreconditioner(darcy);
+         schur = new SchurPreconditioner(darcy, false, prec_type);
       prec.reset(schur);
       prec_str = schur->GetString();
    }
@@ -750,8 +811,10 @@ void DarcyOperator::Update()
 }
 
 DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
-                                                        bool nonlinear_)
-   : Solver(darcy_->Height()), darcy(darcy_), nonlinear(nonlinear_)
+                                                        bool nonlinear_,
+                                                        PrecType prec_type_)
+   : Solver(darcy_->Height()), darcy(darcy_), nonlinear(nonlinear_),
+     prec_type(prec_type_)
 {
    if (!nonlinear)
    {
@@ -768,18 +831,15 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
    }
    else
    {
-#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_SCHUR)
-      prec_str = "GS";
-#else
-      prec_str = "UMFPack";
-#endif
+      prec_str = UseDirectPrec(prec_type, BuildDirectSchur()) ? "UMFPack" : "GS";
    }
 }
 
 #ifdef MFEM_USE_MPI
 DarcyOperator::SchurPreconditioner::SchurPreconditioner(
-   const ParDarcyForm *darcy_, bool nonlinear_)
-   : Solver(darcy_->Height()), darcy(darcy_), pdarcy(darcy_), nonlinear(nonlinear_)
+   const ParDarcyForm *darcy_, bool nonlinear_, PrecType prec_type_)
+   : Solver(darcy_->Height()), darcy(darcy_), pdarcy(darcy_),
+     nonlinear(nonlinear_), prec_type(prec_type_)
 {
    if (!nonlinear)
    {
@@ -950,11 +1010,14 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
          }
       }
 
-#if !defined(MFEM_USE_SUITESPARSE) or !defined(USE_DIRECT_SOLVER_SCHUR)
-      invS = new GSSmoother(*S);
-#else
-      invS = new UMFPackSolver(*S);
-#endif
+      if (UseDirectPrec(prec_type, BuildDirectSchur()))
+      {
+         invS = new UMFPackSolver(*S);
+      }
+      else
+      {
+         invS = new GSSmoother(*S);
+      }
    }
 
    invM->iterative_mode = false;
