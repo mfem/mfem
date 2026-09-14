@@ -1,0 +1,66 @@
+Options used:
+   --mesh 
+   --ncells-x 10
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 1
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 7
+   --time-final 0.5
+   --ntimesteps 2
+   --ode-solver 2
+   --kappa 0.1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.00044919s.
+***********************************************************
+dim(V) = 400
+dim(W) = 200
+dim(M) = 230
+dim(V+W+M) = 830
+***********************************************************
+Assembly took 0.000206646s.
+Preconditioner took 4.3782e-05s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 2 iterations with a residual norm of 3.33634e-09.
+Solver took 0.0160266s.
+Assembly took 0.000352309s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 3 iterations with a residual norm of 7.80378e-11.
+Solver took 0.0229226s.
+iter:	0	time:	0.25	q_err:	0.0713764	t_err:	0.0219033
+Assembly took 5.6275e-05s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 3 iterations with a residual norm of 6.81025e-11.
+Solver took 0.0233015s.
+Assembly took 0.000370414s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 3 iterations with a residual norm of 7.97631e-11.
+Solver took 0.0240851s.
+iter:	1	time:	0.5	q_err:	0.0687101	t_err:	0.0190987
+|| q_h - q_ex || / || q_ex || = 0.0687101
+|| t_h - t_ex || / || t_ex || = 0.0190987

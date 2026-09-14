@@ -226,14 +226,35 @@ coefficients, so every transient error it had ever printed compared against
 `t = 0`; and problem 4's exact solution spread as `2σ² + 4kt·π/4` where the PDE
 requires `2σ² + 4kt`, so it solved no equation the miniapp poses.
 
+**Correcting the first of those two, which this entry got wrong.** The error
+was not compared against `t = 0`. `gcoeff` is built unconditionally as
+`ProductCoefficient(-1., tcoeff)` and `ProductCoefficient::SetTime` propagates
+to its operands, so `tcoeff` was always being advanced — to the time
+`DarcyOperator` last set, which is the **stage** time `t + c_i·dt`. That
+distinction is the content of the defect, because it says which solvers are
+hit: backward Euler's one stage is at `c = 1` and is exactly unaffected, while
+`-ode 2`, `3` and `4` land at `c = 0.707`, `0.211` and `1 - a < 0`. And
+`pconvdiff` never had the fix at all until the trunk merge that brought this
+note.
+
+**Problems 7 and 9 now carry transient references** — four each per arm,
+sixteen in all, one per ODE solver, at `-tf 0.5 -nt 2`, coarse enough that the
+four `-ode` answers are separated by far more than the suite's `1e-4`. They are
+the right two: `u = (exp(t) − 1)·ux·uy` is identically zero at `t = 0`, so the
+initial condition is exact in every space, and their data is homogeneous and
+time-independent.
+
 What is left:
 
-* **Problems 5, 7 and 9 are unchecked.**
-* **No transient regression reference**, and one is now possible for the first
-  time: all 273 references (152 serial + 121 parallel) pass `--ntimesteps 0`.
+* **Problem 5 is not a temporal study and never was** — `GetQFun` returns zero
+  for `KovasznayFlow`, so `q_err` prints `inf`, and its `GetTFun` ignores `t`.
+  Problem 4 is checked and has no reference; it is the only one with
+  time-varying boundary data.
 * **The DAE questions proper**: index, consistent initialisation of the
-  algebraic trace block, and stage-order reduction on the constraint under a
-  DIRK method.
+  algebraic trace block — which problems 7 and 9 dodge by starting from zero
+  rather than answering — and stage-order reduction on the constraint under a
+  DIRK method. The last of these is measured: `convdiff.cpp`'s header comment
+  carries the self-convergence table showing the flux capped at `min(p, 2)`.
 * ~~The `vdim == 1` refusal in the H(div) time mass~~ — H(div), so not ours;
   `doc/HDG-HDIV-OPTIONAL.md` §3 has it.
 
