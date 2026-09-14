@@ -1251,6 +1251,53 @@ the smallest object any iterative method would have to work on, and it is
 precisely the low-order-surrogate trick that makes a trace-space preconditioner
 cheap to form.
 
+### The miniapp side of this is now verified, and until this session it was not
+
+`DarcyOperator` is a `TimeDependentOperator(IMPLICIT)` with `ImplicitSolve`;
+`btime_u`/`btime_p` lift a `1/dt` mass onto either block, into the linear or the
+nonlinear form, rebuilding the hybridization where they must. `convdiff` and
+`pconvdiff` reach it through `-tf`, `-nt` and `-ode`, the last selecting
+backward Euler or one of MFEM's three SDIRKs — formal orders 1, 2, 3 and 4.
+
+None of that had ever been exercised, and the reason was not that nobody had
+run it:
+
+* **The error the miniapps printed was wrong**, taken against the exact
+  solution at the LAST STAGE TIME of the step rather than at the end of it —
+  `t + c_i·dt`, which for `-ode 4` is before the step even begins. Backward
+  Euler escaped exactly, its one stage sitting at `c = 1`; the three SDIRKs did
+  not, and the higher the formal order the worse the miniapp made the method
+  look. Fixed in both miniapps; the mechanism is written where the fix is.
+* **There was no transient reference of any kind.** All 227 references passed
+  `--ntimesteps 0`, so every one of them exercised a steady solve.
+
+**Problems 7 and 9 now carry the transient references** — four each per arm,
+one per ODE solver, sixteen in all. They are the right two: both put `du/dt`
+into a manufactured source, both have `u = (exp(t) − 1)·ux·uy` and so start
+from an IDENTICALLY ZERO initial condition that every space represents
+exactly, and both have homogeneous, time-INDEPENDENT data. `regression_test.py`
+reconstructs `-tf`, `-nt` and `-ode` like any other option, and finds the
+solver line by its text rather than at `[-4]`, a transient run printing one
+per step.
+
+What that leaves, and it is the interesting half:
+
+* **The DAE questions proper, above.** The potential is the only differential
+  variable; the flux and the trace are algebraic, so this is an index-1 DAE.
+  Of the four solvers **only backward Euler is stiffly accurate** — for the
+  three SDIRKs `b` is not the last row of `A`; check the tableaux in
+  `linalg/ode.cpp` — and a DIRK has stage order 1, so the algebraic components
+  should converge at `min(p, 2)` whatever `-ode` asks for. Predicted, not yet
+  measured here. A self-convergence study in `dt` on a fixed mesh is what
+  measures it, error against an exact solution being unable to separate the
+  temporal error from the spatial one.
+* **Consistent initialisation of the algebraic block** is untouched. Problems 7
+  and 9 dodge the question rather than answering it: at `t = 0` their solution
+  is identically zero, so any initialisation is consistent.
+* **Time-varying boundary data has no coverage.** Problems 7 and 9 have none;
+  problem 4 does, and its reference is still missing.
+* The `vdim == 1` refusal in the H(div) time mass, noted under §4.
+
 ## 9. A driver, attempted and withdrawn
 
 **A Stokes-shaped driver was built here and has been removed.** It was meant to

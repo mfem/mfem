@@ -93,6 +93,12 @@ for i, filename in enumerate(filenames):
 	kappa = float(get_ref_param(filename, '--kappa', "1"))
 	hdg = int(get_ref_param(filename, '--hdg_scheme', "1"))
 	nls = int(get_ref_param(filename, '--nonlinear-solver', "0"))
+	# The time advance. The defaults are the miniapp's own, so every reference
+	# written before there were transient ones -- all of which record
+	# --ntimesteps 0 -- reconstructs the command it always did.
+	tf = float(get_ref_param(filename, '--time-final', "1"))
+	nt = int(get_ref_param(filename, '--ntimesteps', "0"))
+	ode = int(get_ref_param(filename, '--ode-solver', "1"))
 
 	file = open(filename, "r")
 	ref_out = file.readlines()
@@ -100,11 +106,29 @@ for i, filename in enumerate(filenames):
 	ref_L2_q_idx = ref_out[-2].find('= ')
 	ref_L2_t = float(ref_out[-1][ref_L2_t_idx+2::])
 	ref_L2_q = float(ref_out[-2][ref_L2_q_idx+2::])
-	ref_solver_idx = ref_out[-4].find(' ')
-	ref_solver = ref_out[-4][:ref_solver_idx]
-	ref_iters_idx_a = ref_out[-4].find('converged in')
-	ref_iters_idx_b = ref_out[-4].find(' iterations')
-	ref_iters = int(ref_out[-4][ref_iters_idx_a+13:ref_iters_idx_b])
+	# The solver line used to be read at [-4], which is the right line only
+	# while exactly three lines follow it. A transient run breaks that: it
+	# prints a solver line PER STEP and then the final-time errors. It is
+	# found by its own text now, scanning from the END -- because the inner
+	# linear solver prints "converged in" too, and because a transient
+	# reference pins the LAST step's count. No existing reference moves: for
+	# every one of them the backward scan lands on [-4], which was checked
+	# rather than assumed.
+	def solver_line(lines):
+		for l in reversed(lines):
+			if 'converged in ' in l and ' iterations' in l:
+				return l
+		return None
+
+	def parse_solver(lines):
+		l = solver_line(lines)
+		if l is None:
+			raise ValueError('no solver line')
+		a = l.find('converged in ')
+		b = l.find(' iterations')
+		return l[:l.find(' ')], int(l[a+13:b])
+
+	ref_solver, ref_iters = parse_solver(ref_out)
 
 	# Construct the command line
 	if parallel:
@@ -153,6 +177,11 @@ for i, filename in enumerate(filenames):
 		command_line += f' -k {kappa}'
 	if hdg != 1:
 		command_line += f' -hdg {hdg}'
+	# A transient case. All three options go on the command line even where
+	# they hold their default values: the time advance is the whole subject of
+	# such a reference, so it is spelled out rather than inferred.
+	if nt != 0:
+		command_line += f' -tf {tf} -nt {nt} -ode {ode}'
 	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_diff):
 		command_line += f' -nls {nls}'
 
@@ -169,11 +198,7 @@ for i, filename in enumerate(filenames):
 		test_L2_q_idx = split_cmd_out[-2].find('= ')
 		test_L2_t = float(split_cmd_out[-1][test_L2_t_idx+2::])
 		test_L2_q = float(split_cmd_out[-2][test_L2_q_idx+2::])
-		test_solver_idx = split_cmd_out[-4].find(' ')
-		test_solver = split_cmd_out[-4][:test_solver_idx]
-		test_iters_idx_a = split_cmd_out[-4].find('converged in ')
-		test_iters_idx_b = split_cmd_out[-4].find(' iterations')
-		test_iters = int(split_cmd_out[-4][test_iters_idx_a+13:test_iters_idx_b])
+		test_solver, test_iters = parse_solver(split_cmd_out)
 	except:
 		fail = True
 
