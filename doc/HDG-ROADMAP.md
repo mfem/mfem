@@ -209,26 +209,93 @@ built from, is §1's and not on this branch.
 
 ## 8. Time integration of the DAE
 
-**The integrators work and problem 4 is verified.** `DarcyOperator` is a
-`TimeDependentOperator(IMPLICIT)` with `ImplicitSolve`; `convdiff` has four ODE
-solvers behind `-ode` (backward Euler and three SDIRK, formally orders 1–4) and
-four transient problems. Observed temporal orders 1, 2.00, 3 and 4, and order
-4 = `k+1` in space at `k = 3`; the table is in the header comment of
-`miniapps/hdg/convdiff.cpp`, which is where it belongs. Two defects found and
-fixed on the way: `convdiff` never called `SetTime()` on the exact-solution
-coefficients, so every transient error it had ever printed compared against
-`t = 0`; and problem 4's exact solution spread as `2σ² + 4kt·π/4` where the PDE
-requires `2σ² + 4kt`, so it solved no equation the miniapp poses.
+**The integrators work.** `DarcyOperator` is a `TimeDependentOperator(IMPLICIT)`
+with `ImplicitSolve`; `convdiff`/`pconvdiff` have four ODE solvers behind
+`-ode` (backward Euler and three SDIRK, formally orders 1-4) and four transient
+problems. Problem 4 reproduces its recorded table exactly, both transient
+sample runs in the header run, the parallel miniapp matches the serial one to
+every printed digit and is rank-independent at 1, 2, 3 and 4 ranks, and `-npc`
+agrees with condensation digit-for-digit on problems 7 and 9 under `-ode` 1, 3
+and 4 -- a combination nothing had run before. Two defects were found and
+fixed earlier: the missing `SetTime()` on the exact-solution coefficients, and
+problem 4's exact solution spreading as `2s^2 + 4kt*pi/4` where the PDE
+requires `2s^2 + 4kt`.
+
+**Problems 5, 7 and 9 have now been checked.** 7 and 9 are sound and are
+temporal-study material: both manufacture the source with the `du/dt` term
+present (`ft = exp(t)*ux*uy`), which is exactly what problem 4 lacked, and both
+vanish on the whole boundary so their data is homogeneous and time-independent
+-- they exercise the integrator but not the time-varying-datum path, and only
+problem 4 does both. **Problem 5 is not a verification problem and cannot be
+made into a reference**: `GetQFun` returns `v = 0` for `KovasznayFlow`, so
+`q_err` prints `inf` at every step, and its `GetTFun` ignores `t` -- it is the
+injection profile the loop re-projects and adds, not a solution -- so `t_err`
+climbs past 1. `equal(inf, inf)` is `nan < tol`, i.e. `False`, so even a
+byte-identical rerun would fail the comparator.
+
+**And the order story is not what the miniapp's header said**; it is corrected
+in place there, with the numbers. The potential is the only field carrying a
+time derivative, so this is an index-1 DAE, and only backward Euler is stiffly
+accurate among the four -- for the three SDIRKs `b` is not the last row of `A`
+(`linalg/ode.cpp`). A DIRK has stage order 1, so **the flux is capped at second
+order in time whatever solver is chosen**, and `-ode 4` does not reach fourth
+order in the potential either: its rate peaks at 3.78 and falls to 2.62 by
+`nt = 512`. Measured by self-convergence in `dt` on a fixed mesh, which cancels
+the spatial error exactly. The previous "already at the spatial floor"
+explanation is **withdrawn**: holding `nt = 128` and refining `n = 48 -> 96`
+moves the answer 0.9%, so that point was better than 99% temporal.
 
 What is left:
 
-* **Problems 5, 7 and 9 are unchecked.**
-* **No transient regression reference**, and one is now possible for the first
-  time: all 273 references (152 serial + 121 parallel) pass `--ntimesteps 0`.
-* **The DAE questions proper**: index, consistent initialisation of the
-  algebraic trace block, and stage-order reduction on the constraint under a
-  DIRK method.
-* ~~The `vdim == 1` refusal in the H(div) time mass~~ — H(div), so not ours;
+* **No transient regression reference, and it is NOT one step away.** All 157
+  serial + 124 parallel references pass `--ntimesteps 0`, and the reference set
+  covers problems 1, 2, 3, 6, 8 and 10 -- every transient problem has zero
+  coverage. Three things block a transient reference, each checked by running
+  rather than read:
+  1. `regression_test.py` does not fail on one, it **crashes**:
+     `ValueError: could not convert string to float: 'ter:\t3\ttime:...'`. The
+     `try/except` guards the TEST parse, not the REFERENCE parse, so one
+     transient file in `regress_test/` aborts the whole suite run with no
+     summary and no report of the other cases.
+  2. It rebuilds the command from a fixed option list carrying no `-tf`, `-nt`
+     or `-ode` (nor `-sx`, `-sy`, `-c`, `-td`, `-dr`). Every existing reference
+     uses the defaults for all of those, so nothing is silently mis-run today,
+     but no transient can be expressed -- and neither can problem 5's own
+     documented sample, which needs `-sx 10 -sy 2.5`.
+  3. Under `btime` the miniapp prints one tab-separated
+     `iter:/time:/q_err:/t_err:` line per step instead of the two
+     `|| ... || = ...` lines the comparator reads at `[-1]` and `[-2]`. The
+     least invasive fix is to print the final step's two lines after the loop,
+     not to teach the parser a second format.
+  Two wrinkles to know before generating one. `get_local_nl()` scans forward
+  and `solver_line()` scans backward, so in a transient run they report
+  DIFFERENT time steps -- deterministic, so a reference still works, but it is
+  a trap. And a reference has to be sized so the temporal error dominates:
+  at `n = 12`, order 2, problem 7 is spatially floored from `nt = 16` onward
+  and `-ode` 2, 3 and 4 all return `t_err = 0.008649 +- 3e-6`, which the 1e-4
+  relative comparison calls equal -- such a reference could not fail if the
+  time integrator broke. At `nt = 4` on the same mesh they do separate (p9's
+  potential only just, at 1.7e-4 against a 1e-4 threshold; its flux is the
+  more discriminating of the two).
+* **No unit coverage either, and there cannot be any as things stand.** No test
+  under `tests/unit` mentions `ImplicitSolve`, `ODESolver`, `SDIRK` or
+  `TimeDependentOperator`; `fem/darcy` contains no time-integration code at
+  all. The whole time advance is `miniapps/hdg/darcyop.cpp`, so the regression
+  suite is the only mechanism that can reach it -- and it is the one that
+  cannot express a transient.
+* **A pure-diffusion transient problem is the missing piece**, and it would pay
+  twice: it is the well-conditioned temporal-order reference this suite wants,
+  and it is the only thing that would reach `convdiff`'s potential-reduction
+  branch, which is unreachable today (noted at the site).
+* **The DAE questions proper.** Stage-order reduction on the constraint is now
+  measured and is the cap above. Index and consistent initialisation of the
+  algebraic blocks are still open -- `x` starts with the potential projected
+  and the flux and trace at zero, which is inconsistent; it is harmless for the
+  solution, the old flux and trace entering `ImplicitSolve` only as an initial
+  guess, but nothing has checked what the DIRK stage combination of those
+  blocks means. Whether a stiffly accurate SDIRK would lift the flux cap is the
+  obvious next experiment and needs one new tableau, not new Darcy code.
+* ~~The `vdim == 1` refusal in the H(div) time mass~~ -- H(div), so not ours;
   `doc/HDG-HDIV-OPTIONAL.md` §3 has it.
 
 **ARKODE is present and not usable here**, which is worth knowing before
@@ -238,8 +305,12 @@ explicit `f(t, y)` — plus `LinSysSetup`/`LinSysSolve`, and runs its own Newton
 `DarcyOperator` defines **no `Mult` at all**, only `ImplicitSolve`, and cannot
 meaningfully define one, the trace block having no time derivative. Reaching
 ARKODE means either its mass-matrix/DAE facilities or a reformulation — the DAE
-questions above, not a wiring job. MFEM's own SDIRK methods already give orders
-1 through 4.
+questions above, not a wiring job. MFEM's own SDIRK methods give orders 1
+through 4 on an ODE; on THIS DAE they give 1, 2, 3 and 3-falling in the
+potential and never better than 2 in the flux, per the cap above -- so the
+argument "we already have 1 through 4, ARKODE would add nothing" is weaker
+than it reads, and a stiffly accurate tableau is the cheaper thing to try
+first.
 
 ## 9. Superconvergence at `k = 0` — the HHO-inspired methods
 

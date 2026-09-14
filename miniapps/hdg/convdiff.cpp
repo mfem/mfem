@@ -80,14 +80,79 @@
 //                 64  0.0367485  2.2030e-4   4.0987e-5   7.6093e-6
 //                128  0.0190342  5.5039e-5   5.2449e-6   7.9990e-7
 //
-//               Observed orders 1, 2.00, 3 and 4 -- their formal ones.
-//               -ode 4's last rate reads 3.25 rather than 4 because 8.0e-7 is
-//               already at the spatial floor: at nt = 256, -ode 4, the mesh
-//               sweep n = 12, 24, 48 gives 1.3206e-4, 7.8611e-6, 4.4835e-7,
-//               which is order 4 = k+1 in space.
+//               Observed orders 1, 2.00, 3 and 4 -- their formal ones. THAT
+//               COLUMN IS THE POTENTIAL, AND THE FLUX DOES NOT FOLLOW IT; see
+//               the order cap below.
 //
-//               Use -p 4 for a temporal study; problems 5, 7 and 9 are the
-//               other Nonsteady* candidates and are still unchecked.
+//               **Withdraw the spatial-floor explanation this comment used to
+//               give for -ode 4's last rate.** It read 3.25 rather than 4, and
+//               that was attributed to 8.0e-7 sitting on the spatial floor.
+//               The control says otherwise: holding nt = 128 and REFINING THE
+//               MESH from n = 48 to n = 96 -- a 16x cut in the order-3 spatial
+//               error -- moves the answer by 0.9%, from 6.80289e-07 to
+//               6.74163e-07 (and the flux from 1.54744e-05 to 1.49714e-05).
+//               At nt = 128 the error is better than 99% TEMPORAL. The rate
+//               falls because of the cap below, not because of the mesh.
+//               (Nineteen of the twenty entries above reproduce here to five
+//               digits; the -ode 4 / nt = 128 one reads 6.80289e-07,
+//               deterministically over repeated runs, against the 7.9990e-7
+//               recorded. It is the one entry the withdrawn explanation
+//               rested on.)
+//
+//               THE FLUX IS SECOND ORDER IN TIME WHATEVER SOLVER YOU PICK.
+//               The potential is the only field with a time derivative; the
+//               flux and the trace are ALGEBRAIC, so this is an index-1 DAE,
+//               and of the four solvers only backward Euler is stiffly
+//               accurate -- for the three SDIRKs b is not the last row of A
+//               (check the tableaux in linalg/ode.cpp). A DIRK has stage
+//               order 1, so the algebraic components converge at min(p, 2).
+//
+//               Measured by self-convergence in dt on a FIXED mesh, which
+//               cancels the spatial error exactly instead of hoping it is
+//               small: p 4, n = 12, order 3, k = 0.01, tf = 0.5, nt = 16..512
+//               against an nt = 4096 / -ode 4 reference, l2 over the dofs.
+//
+//                 -ode  formal   potential rates        flux rates
+//                    1       1   .84 .91 .95 .97 .99    .81 .89 .94 .97 .98
+//                    2       2   2.00 2.00 2.00 2.00    2.00 2.00 2.00 2.00
+//                    3       3   2.85 2.94 2.97 2.95    4.20 2.46 2.06 1.90
+//                    4       4   3.58 3.78 3.70 2.62    2.94 2.05 1.79 1.94
+//
+//               So -ode 2 and -ode 3 deliver their formal order in the
+//               potential and -ode 4 does NOT: its rate peaks at 3.78 and is
+//               falling (3.70, 3.48, 2.62) at the finest steps, which is what
+//               a subdominant O(dt^2) term taking over looks like. -ode 4
+//               therefore buys nothing over -ode 3 asymptotically in either
+//               field. The same cap reproduces on problem 9 (nonlinear
+//               diffusion, n = 12, order 2): flux 2.10, 2.13, 2.11 under
+//               -ode 4 against a potential still climbing at 3.23.
+//
+//               Two consequences worth holding. A rate read off the error
+//               against the exact solution cannot separate this from the
+//               spatial floor -- that is how the withdrawn explanation
+//               happened -- so use self-convergence in dt for any claim about
+//               the time integrator. And a regression reference compares BOTH
+//               printed errors, so a transient reference pins a flux whose
+//               accuracy is capped at 2 regardless of -ode.
+//
+//               Use -p 4, -p 7 or -p 9 for a temporal study. All three carry
+//               the du/dt term in their manufactured source (problems 7 and 9
+//               through ft = exp(t)*ux*uy in GetFFun), which is exactly what
+//               problem 4 was missing until it was corrected above. 7 and 9
+//               vanish on the whole boundary -- ux = x*tanh((1-x)/k) is zero
+//               at both ends -- so their data is homogeneous and time
+//               INDEPENDENT: they exercise the integrator but not the
+//               time-varying-datum path, and only problem 4 does both.
+//
+//               -p 5 IS NOT A TEMPORAL STUDY AND ITS PRINTED ERRORS ARE NOT
+//               ERRORS. GetQFun returns v = 0 for KovasznayFlow, so norm_q is
+//               identically zero and q_err prints inf at every step; and its
+//               GetTFun ignores t altogether -- it is the injection profile,
+//               which the time loop projects and ADDS every dt_Kovasznay,
+//               not a solution of anything. t_err accordingly climbs past 1
+//               (0.569, 0.826, ..., 1.32 on a 24x6 run of the starred sample
+//               above). The problem is a transport demonstration; treat the
+//               two numbers it prints as decoration.
 //               5) Kovasznay flow - advection-diffusion of periodically
 //                                   injected contaminant concentration (repr.
 //                                   by T) with Dirichlet temperature inflow BC
@@ -308,6 +373,7 @@ int main(int argc, char *argv[])
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::Default;
+   int prec_type = (int)DarcyOperator::PrecType::Default;
    bool pa = false;
    const char *device_config = "cpu";
    bool reconstruct = false;
@@ -406,6 +472,17 @@ int main(int argc, char *argv[])
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
    args.AddOption(&solver_type, "-nls", "--nonlinear-solver",
                   "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton, 4=KINSol).");
+   args.AddOption(&prec_type, "-prec", "--preconditioner",
+                  "Serial preconditioner where the code offers a choice "
+                  "(0=the build's own, 1=iterative/GS, 2=direct/UMFPack). The "
+                  "choice used to be compile-time only, so a build could not "
+                  "reproduce a reference recording the other one and the "
+                  "regression suite SKIPPED the case -- 49 of 157 serial "
+                  "references, all through the Schur preconditioner. "
+                  "Default 0 reproduces the build's behaviour exactly; "
+                  "2 aborts without SuiteSparse. Ignored in parallel, where "
+                  "HypreBoomerAMG offers no choice, and under -pa, which has "
+                  "no matrix to factor.");
    args.AddOption(&newton_rtol, "-rtol", "--newton-rtol",
                   "Relative tolerance of the outer nonlinear solver. "
                   "Negative keeps the default, which is 1e-6 and is loose "
@@ -489,6 +566,13 @@ int main(int argc, char *argv[])
                   "Enable or disable analytic solution.");
 
    args.ParseCheck();
+
+   if (prec_type < 0 || prec_type > 2)
+   {
+      cerr << "-prec must be 0 (build default), 1 (iterative) or 2 (direct)"
+           << endl;
+      return 1;
+   }
 
    // 2. Set the problem options
    pars.prob = (Problem)iproblem;
@@ -1225,6 +1309,16 @@ int main(int argc, char *argv[])
       {
          darcy->EnableFluxReduction();
       }
+      // UNREACHABLE from this miniapp, and it always has been. The branch
+      // wants a transient problem with no convection and no nonlinear
+      // diffusion, and there is none: 4 and 5 set bconv (or bnlconv under
+      // -nlc), 7 sets bnlconv, and 9 sets bnldiff, which -rd refuses
+      // outright a few lines above. Checked rather than read -- -rd without
+      // -dg/-brt prints "No possible reduction!" for every problem here,
+      // 1, 2, 4 and 8 included. So potential reduction is covered by
+      // anisodiff and by tests/unit/fem/test_darcy_reduction.cpp, and by
+      // nothing in convdiff. A pure-diffusion transient problem would be
+      // the one thing that lights it up.
       else if (!bconv && !bnlconv && btime)
       {
          darcy->EnablePotentialReduction(ess_flux_tdofs_list);
@@ -1387,6 +1481,7 @@ int main(int argc, char *argv[])
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
    op.SetTraceSolveLevel(gradient_mode);
+   op.SetPrecType((DarcyOperator::PrecType) prec_type);
    if (use_npc) { op.SetNPC(); }
    if (newton_rtol > 0.) { op.SetTolerance(newton_rtol); }
 

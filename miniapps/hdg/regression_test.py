@@ -20,14 +20,19 @@ def equal(a, b):
 
 print('Running Regression Testing:')
 parallel = False
+update_local = False
 filenames = []
-if len(sys.argv) > 1:
-	if sys.argv[1] == '-par':
-		parallel = True
-		if len(sys.argv) > 2:
-			filenames = sys.argv[2:]
-	else:
-		filenames = sys.argv[1:]
+args = sys.argv[1:]
+if '-par' in args:
+	parallel = True
+	args.remove('-par')
+# Regenerate this machine's own copy of each reference into the LOCAL
+# directory instead of comparing against it. See the block below for why the
+# local set exists at all.
+if '--update-local' in args:
+	update_local = True
+	args.remove('--update-local')
+filenames = args
 
 # Resolve the reference directories against this script rather than against
 # the working directory, so the suite can be run from an out-of-source build
@@ -35,15 +40,49 @@ if len(sys.argv) > 1:
 base = os.path.dirname(os.path.abspath(__file__))
 if parallel:
 	path = os.path.join(base, 'regress_test_par') + '/'
+	local_path = os.path.join(base, 'regress_test_par_local') + '/'
 else:
 	path = os.path.join(base, 'regress_test') + '/'
+	local_path = os.path.join(base, 'regress_test_local') + '/'
 
+# The local reference directories are gitignored, and that is the whole point
+# of them.
+#
+# regress_test/ and regress_test_par/ are the UPSTREAM reference set. They were
+# recorded on their author's machine and they depend on that machine's
+# configuration -- which BLAS, which SuiteSparse, which compiler -- so a
+# handful of cases will never reproduce here to the digits they store, and the
+# iteration counts of a few more will not either. That is not a defect and it
+# is not ours to fix: we have no authority to rewrite someone else's
+# references, and rewriting them is exactly what makes a diff that must never
+# be pushed. Only genuinely NEW references, for cases that did not exist
+# before, belong in the tracked directories.
+#
+# So this machine's own numbers go in regress_test_local/ instead, which git
+# never sees. A local file shadows the tracked one of the same name; a tracked
+# case with no local file is compared as it always was. Regenerate the local
+# set with --update-local.
+def resolve(name):
+	if os.path.isfile(local_path + name):
+		return local_path + name, True
+	return path + name, False
+
+from_local = set()
 if len(filenames) == 0:
-	filenames = os.listdir(path)
-	filenames = [ path + name for name in filenames ]
+	names = set(os.listdir(path))
+	if os.path.isdir(local_path):
+		names |= set(n for n in os.listdir(local_path) if n.endswith('.txt'))
+	filenames = []
+	for name in sorted(names):
+		f, is_local = resolve(name)
+		filenames.append(f)
+		if is_local:
+			from_local.add(f)
 
 failed = 0
 skipped = 0
+generated = 0
+refused = 0
 
 for i, filename in enumerate(filenames):
 	# Parsing reference file
@@ -100,6 +139,10 @@ for i, filename in enumerate(filenames):
 	reaction = int(get_ref_param(filename, '--reaction', "1"))
 	tau0 = float(get_ref_param(filename, '--stab-const', "0"))
 	rtol = float(get_ref_param(filename, '--newton-rtol', "-1"))
+	# An explicitly recorded preconditioner wins; where there is none it is
+	# inferred from the solver line further down. Upstream references predate
+	# the option and carry none; locally generated ones record it.
+	prec = int(get_ref_param(filename, '--preconditioner', "0"))
 
 	file = open(filename, "r")
 	ref_out = file.readlines()
@@ -202,18 +245,23 @@ for i, filename in enumerate(filenames):
 		command_line += f' -k {kappa}'
 	if hdg != 1:
 		command_line += f' -hdg {hdg}'
-	# nonlin_conv was missing from this test, so a case that is -nlc and
-	# nothing else would have recorded -nls and been re-run without it. Every
-	# -nlc reference also carries -nl, so it never bit; it is fixed rather
-	# than left as a trap for the next one.
+	# A recorded -nls is passed back, full stop. This used to be guarded by a
+	# hand-maintained list of "is the problem nonlinear" flags, and the list
+	# was wrong twice: nonlin_conv was missing (harmless only because every
+	# -nlc reference also carries -nl), and problem 10's nonlinearity is a
+	# REACTION that no -nl* flag announces, so its references were re-run
+	# without -nls, came back "incompatible preconditioner" and were SKIPPED --
+	# which reads as a pass. The guess is gone: if the reference recorded a
+	# non-default solver then that is what the run used, and reconstructing it
+	# is more faithful than deciding whether it ought to have mattered.
 	#
-	# Problem 10 is the third member of this family and it DID bite: its
-	# nonlinearity is the reaction term, which no -nl* flag announces, so its
-	# references were re-run without -nls and every one of them came back
-	# "incompatible preconditioner" -- SKIPPED, which reads as a pass. Caught
-	# by perturbing a reference and finding that nothing failed.
-	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_conv
-	                 or nonlin_diff or problem == 10):
+	# Six references are affected, all of them linear cases recording
+	# --nonlinear-solver 1: p{1,2}_o3_dg_rd, p3_o1_dg_upwind_rd and their
+	# _umfpack twins. Checked rather than assumed -- with and without -nls 1
+	# their output is identical except for the wall-clock timings, because a
+	# linear problem never reaches SetupNonlinearSolver() where solver_type is
+	# read.
+	if nls != 0:
 		command_line += f' -nls {nls}'
 	if npc:
 		command_line += ' -npc'
@@ -228,12 +276,80 @@ for i, filename in enumerate(filenames):
 	# is the local solver's noise floor, not the discretisation's.
 	if rtol > 0.:
 		command_line += f' -rtol {rtol}'
+	# A reference that records the ITERATIVE preconditioner is run with it
+	# forced, whether or not it says so as an option.
+	#
+	# This is what removes the perpetual skips. 49 of the 157 serial references
+	# record GMRES+GS or Newton+GMRES+GS -- all of them through the Schur
+	# preconditioner -- and a SuiteSparse build produces UMFPack there, so the
+	# solver strings did not match and every one of them was reported
+	# "incompatible preconditioner" and never run. They were not incompatible,
+	# only unreachable: with -prec 1 all 49 reproduce their upstream numbers,
+	# iteration counts included.
+	#
+	# Only GS is inferred, never UMFPack, and the asymmetry is the point. GS
+	# exists in every build, so forcing it can always be honoured; UMFPack
+	# needs SuiteSparse, and a build without it would be asked for something
+	# that aborts -- turning today's clean skip into a crash. A build that HAS
+	# SuiteSparse already produces UMFPack by default, so there is nothing to
+	# force. A UMFPack reference therefore still skips where it must, exactly
+	# as before.
+	prec_run = prec
+	if prec_run == 0 and 'GS' in ref_solver:
+		prec_run = 1
+	if prec_run != 0:
+		command_line += f' -prec {prec_run}'
 
 	print(f"RUNNING: {command_line}", end='\r', flush=True)
 
 	# Run test case
 	cmd_out = subprocess.getoutput(command_line)
 	split_cmd_out = cmd_out.splitlines()
+
+	if update_local:
+		# Refuse unless every option the reference records survives into the
+		# regenerated one. The script rebuilds the command from a FIXED option
+		# list, so a reference recording something outside that list at a
+		# non-default value would be silently rewritten as a DIFFERENT case --
+		# which is a worse outcome than not regenerating it. Subset, not
+		# equality: convdiff has gained options since these were recorded, so
+		# the new block is legitimately longer.
+		def options(lines):
+			out = []
+			for l in lines:
+				if l.startswith('Options used:'):
+					out = []
+					continue
+				if l.startswith('   --'):
+					out.append(l.rstrip())
+				elif out:
+					break
+			return out
+		ref_opts = set(options(ref_out))
+		new_opts = set(options(split_cmd_out))
+		# Differences this script creates on purpose are not drift. It always
+		# passes -no-vis, so a reference recorded without it (every upstream
+		# one) says --visualization where ours says --no-visualization; and the
+		# preconditioner is the option this run exists to add.
+		for o in ('   --visualization', '   --no-visualization'):
+			ref_opts.discard(o)
+			new_opts.discard(o)
+		ref_opts.discard(f'   --preconditioner {prec}')
+		new_opts.discard(f'   --preconditioner {prec_run}')
+		lost = sorted(ref_opts - new_opts)
+		if lost:
+			print(f"{bcolors.WARN}REFUSED:{bcolors.RESET} {os.path.basename(filename)} → "
+			      f"would drop {', '.join(l.strip() for l in lost)}")
+			refused += 1
+			continue
+		if not os.path.isdir(local_path):
+			os.makedirs(local_path)
+		out_name = local_path + os.path.basename(filename)
+		with open(out_name, 'w') as fh:
+			fh.write(cmd_out + '\n')
+		print(f"{bcolors.OKGREEN}WROTE:{bcolors.RESET} {out_name}")
+		generated += 1
+		continue
 
 	# Process the result
 	fail = False
@@ -281,6 +397,16 @@ for i, filename in enumerate(filenames):
 		failed += 1
 
 print("----------------------------------------------------------------")
+if update_local:
+	print(f"{bcolors.OKGREEN}WROTE{bcolors.RESET} {generated} local references"
+	      f" into {local_path}")
+	if refused > 0:
+		print(f"{bcolors.WARN}REFUSED{bcolors.RESET} {refused} -- see above;"
+		      " each records an option this script does not reconstruct")
+	sys.exit(0)
+if from_local:
+	print(f"{len(from_local)} / {len(filenames)} references came from"
+	      f" {local_path}")
 if skipped > 0:
 	skipped_str = f" ({skipped} / {len(filenames)} skipped)"
 else:
