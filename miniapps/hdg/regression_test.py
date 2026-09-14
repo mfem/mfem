@@ -100,6 +100,10 @@ for i, filename in enumerate(filenames):
 	tf = float(get_ref_param(filename, '--time-final', "1"))
 	nt = int(get_ref_param(filename, '--ntimesteps', "0"))
 	ode = int(get_ref_param(filename, '--ode-solver', "1"))
+	# An explicitly recorded preconditioner wins; where there is none it is
+	# inferred from the solver line further down. Upstream references predate
+	# the option and carry none; locally generated ones record it.
+	prec = int(get_ref_param(filename, '--preconditioner', "0"))
 
 	file = open(filename, "r")
 	ref_out = file.readlines()
@@ -205,6 +209,30 @@ for i, filename in enumerate(filenames):
 		command_line += f' -nls {nls}'
 	if npc:
 		command_line += ' -npc'
+
+	# A reference that records the ITERATIVE preconditioner is run with it
+	# forced, whether or not it says so as an option.
+	#
+	# This is what removes the perpetual skips. 49 of the 157 serial references
+	# record GMRES+GS or Newton+GMRES+GS -- all of them through the Schur
+	# preconditioner -- and a SuiteSparse build produces UMFPack there, so the
+	# solver strings did not match and every one of them was reported
+	# "incompatible preconditioner" and never run. They were not incompatible,
+	# only unreachable: with -prec 1 all 49 reproduce their upstream numbers,
+	# iteration counts included.
+	#
+	# Only GS is inferred, never UMFPack, and the asymmetry is the point. GS
+	# exists in every build, so forcing it can always be honoured; UMFPack
+	# needs SuiteSparse, and a build without it would be asked for something
+	# that aborts -- turning today's clean skip into a crash. A build that HAS
+	# SuiteSparse already produces UMFPack by default, so there is nothing to
+	# force. A UMFPack reference therefore still skips where it must, exactly
+	# as before.
+	prec_run = prec
+	if prec_run == 0 and 'GS' in ref_solver:
+		prec_run = 1
+	if prec_run != 0:
+		command_line += f' -prec {prec_run}'
 
 	print(f"RUNNING: {command_line}", end='\r', flush=True)
 

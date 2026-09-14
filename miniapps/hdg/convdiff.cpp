@@ -303,6 +303,7 @@ int main(int argc, char *argv[])
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::Default;
+   int prec_type = (int)DarcyOperator::PrecType::Default;
    bool pa = false;
    const char *device_config = "cpu";
    bool reconstruct = false;
@@ -382,6 +383,17 @@ int main(int argc, char *argv[])
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
    args.AddOption(&solver_type, "-nls", "--nonlinear-solver",
                   "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton, 4=KINSol).");
+   args.AddOption(&prec_type, "-prec", "--preconditioner",
+                  "Serial preconditioner where the code offers a choice "
+                  "(0=the build's own, 1=iterative/GS, 2=direct/UMFPack). The "
+                  "choice used to be compile-time only, so a build could not "
+                  "reproduce a reference recording the other one and the "
+                  "regression suite SKIPPED the case -- 49 of 157 serial "
+                  "references, all through the Schur preconditioner. "
+                  "Default 0 reproduces the build's behaviour exactly; "
+                  "2 aborts without SuiteSparse. Ignored in parallel, where "
+                  "HypreBoomerAMG offers no choice, and under -pa, which has "
+                  "no matrix to factor.");
    args.AddOption(&newton_rtol, "-rtol", "--newton-rtol",
                   "Relative tolerance of the outer nonlinear solver. "
                   "Negative keeps the default, which is 1e-6 and is loose "
@@ -465,6 +477,13 @@ int main(int argc, char *argv[])
                   "Enable or disable analytic solution.");
 
    args.ParseCheck();
+
+   if (prec_type < 0 || prec_type > 2)
+   {
+      cerr << "-prec must be 0 (build default), 1 (iterative) or 2 (direct)"
+           << endl;
+      return 1;
+   }
 
    // 2. Set the problem options
    pars.prob = (Problem)iproblem;
@@ -1258,6 +1277,7 @@ int main(int argc, char *argv[])
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
    op.SetTraceSolveLevel(gradient_mode);
+   op.SetPrecType((DarcyOperator::PrecType) prec_type);
    if (use_npc) { op.SetNPC(); }
    if (newton_rtol > 0.) { op.SetTolerance(newton_rtol); }
 
