@@ -445,7 +445,7 @@ void RBVMSIntegrator::AssembleElementGrad(
       shg_u.Mult(u, ushg_u);
 
       el[1]->CalcPhysShape(Tr, sh_p);
-     // real_t p = sh_p*(*elsol[1]);
+      // real_t p = sh_p*(*elsol[1]);
 
       el[1]->CalcPhysDShape(Tr, shg_p);
       shg_p.MultTranspose(*elsol[1], grad_p);
@@ -590,8 +590,8 @@ void OutflowIntegrator
                      const Array<Vector *> &elvec)
 {
    //std::cout<<"IncNavStoIntegrator::AssembleFaceVector"<<std::endl;
-  // real_t outflow = 0.0;
-  // bool suction = false;
+   // real_t outflow = 0.0;
+   // bool suction = false;
 
    SetDim(el1[0]->GetDim());
    int dof_u = el1[0]->GetDof();
@@ -609,7 +609,7 @@ void OutflowIntegrator
    elv_u.UseExternalData(elvec[0]->GetData(), dof_u, dim);
 
    sh_u.SetSize(dof_u);
-   //Vector 
+   //Vector
    traction.SetSize(dim);
    int intorder = 2*el1[0]->GetOrder();
    const IntegrationRule &ir = IntRules.Get(Tr.GetGeometryType(), intorder);
@@ -655,12 +655,12 @@ void OutflowIntegrator
                    const Array<const Vector *> &elrate,
                    const Array2D<DenseMatrix *> &elmats)
 {
-  // real_t outflow = 0.0;
+   // real_t outflow = 0.0;
    //bool suction = false;
 
    SetDim(el1[0]->GetDim());
    int dof_u = el1[0]->GetDof();
-  // int dof_p = el1[1]->GetDof();
+   // int dof_p = el1[1]->GetDof();
 
    elf_u.UseExternalData(elsol[0]->GetData(), dof_u, dim);
    elf_du.UseExternalData(elrate[0]->GetData(), dof_u, dim);

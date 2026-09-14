@@ -375,7 +375,7 @@ int main(int argc, char *argv[])
 
    MFEM_VERIFY(master_bdr.Size() == slave_bdr.Size(),
                "Master-slave count do not match.");
-  // bool allSet = true;
+   // bool allSet = true;
    for (int b = 0; b < bnd_flag.Size(); b++)
    {
       //   allSet = allSet || bnd_flag[b];
