@@ -74,6 +74,7 @@ for i, filename in enumerate(filenames):
 	nonlin_conv = get_ref_option(filename, '--nonlinear-convection')
 	nonlin_diff = get_ref_option(filename, '--nonlinear-diffusion')
 	npc = get_ref_option(filename, '--npc')
+	postproc = get_ref_option(filename, '--postprocess')
 
 	def get_ref_param(file, param, default=""):
 		ref_out = subprocess.getoutput("grep '^   "+param+"' "+file+" | cut -d ' ' -f 5")
@@ -94,18 +95,39 @@ for i, filename in enumerate(filenames):
 	kappa = float(get_ref_param(filename, '--kappa', "1"))
 	hdg = int(get_ref_param(filename, '--hdg_scheme', "1"))
 	nls = int(get_ref_param(filename, '--nonlinear-solver', "0"))
+	# Defaults match the miniapp's, so a reference written before these
+	# options existed reconstructs exactly as it always did.
+	reaction = int(get_ref_param(filename, '--reaction', "1"))
+	tau0 = float(get_ref_param(filename, '--stab-const', "0"))
+	rtol = float(get_ref_param(filename, '--newton-rtol', "-1"))
 
 	file = open(filename, "r")
 	ref_out = file.readlines()
+
+	# The solver line used to be read at [-4]. That is the right line only
+	# while exactly three lines follow it, and -pp adds a fourth -- so it is
+	# found by its own text now, scanning from the END because the inner
+	# linear solver prints "converged in" too. Existing references are
+	# unaffected: for them the backward scan lands on [-4].
+	def solver_line(lines):
+		for l in reversed(lines):
+			if 'converged in ' in l and ' iterations' in l:
+				return l
+		return None
+
+	def parse_solver(lines):
+		l = solver_line(lines)
+		if l is None:
+			raise ValueError('no solver line')
+		a = l.find('converged in ')
+		b = l.find(' iterations')
+		return l[:l.find(' ')], int(l[a+13:b])
+
 	ref_L2_t_idx = ref_out[-1].find('= ')
 	ref_L2_q_idx = ref_out[-2].find('= ')
 	ref_L2_t = float(ref_out[-1][ref_L2_t_idx+2::])
 	ref_L2_q = float(ref_out[-2][ref_L2_q_idx+2::])
-	ref_solver_idx = ref_out[-4].find(' ')
-	ref_solver = ref_out[-4][:ref_solver_idx]
-	ref_iters_idx_a = ref_out[-4].find('converged in')
-	ref_iters_idx_b = ref_out[-4].find(' iterations')
-	ref_iters = int(ref_out[-4][ref_iters_idx_a+13:ref_iters_idx_b])
+	ref_solver, ref_iters = parse_solver(ref_out)
 
 	# The local nonlinear iteration count, when the reference records one. It
 	# is what distinguishes NPC from the reduced route -- NPC runs no local
@@ -119,6 +141,19 @@ for i, filename in enumerate(filenames):
 				return int(l.split(':')[1])
 		return None
 	ref_local_nl = get_local_nl(ref_out)
+
+	# The postprocessed potential's error, when -pp recorded one. It is the
+	# quantity that superconverges, so a reference that carries it is the
+	# only thing in this suite that can see the local postprocessing move --
+	# the two errors below are u and q, which a broken u* does not touch.
+	# Found by prefix rather than by position, for the same reason as the
+	# solver line above.
+	def get_postproc(lines):
+		for l in lines:
+			if l.startswith('|| t_h* - t_ex ||'):
+				return float(l[l.find('= ')+2::])
+		return None
+	ref_L2_pp = get_postproc(ref_out)
 
 	# Construct the command line
 	if parallel:
@@ -171,11 +206,28 @@ for i, filename in enumerate(filenames):
 	# nothing else would have recorded -nls and been re-run without it. Every
 	# -nlc reference also carries -nl, so it never bit; it is fixed rather
 	# than left as a trap for the next one.
+	#
+	# Problem 10 is the third member of this family and it DID bite: its
+	# nonlinearity is the reaction term, which no -nl* flag announces, so its
+	# references were re-run without -nls and every one of them came back
+	# "incompatible preconditioner" -- SKIPPED, which reads as a pass. Caught
+	# by perturbing a reference and finding that nothing failed.
 	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_conv
-	                 or nonlin_diff):
+	                 or nonlin_diff or problem == 10):
 		command_line += f' -nls {nls}'
 	if npc:
 		command_line += ' -npc'
+	if reaction != 1:
+		command_line += f' -rx {reaction}'
+	if tau0 != 0.:
+		command_line += f' -tau0 {tau0}'
+	if postproc:
+		command_line += ' -pp'
+	# Problem 10's ladder is only meaningful with a tight outer tolerance --
+	# the default 1e-6 stops Newton one step in and the error it then reports
+	# is the local solver's noise floor, not the discretisation's.
+	if rtol > 0.:
+		command_line += f' -rtol {rtol}'
 
 	print(f"RUNNING: {command_line}", end='\r', flush=True)
 
@@ -190,11 +242,8 @@ for i, filename in enumerate(filenames):
 		test_L2_q_idx = split_cmd_out[-2].find('= ')
 		test_L2_t = float(split_cmd_out[-1][test_L2_t_idx+2::])
 		test_L2_q = float(split_cmd_out[-2][test_L2_q_idx+2::])
-		test_solver_idx = split_cmd_out[-4].find(' ')
-		test_solver = split_cmd_out[-4][:test_solver_idx]
-		test_iters_idx_a = split_cmd_out[-4].find('converged in ')
-		test_iters_idx_b = split_cmd_out[-4].find(' iterations')
-		test_iters = int(split_cmd_out[-4][test_iters_idx_a+13:test_iters_idx_b])
+		test_solver, test_iters = parse_solver(split_cmd_out)
+		test_L2_pp = get_postproc(split_cmd_out)
 	except:
 		fail = True
 
@@ -207,6 +256,12 @@ for i, filename in enumerate(filenames):
 					print(f"{bcolors.FAIL}FAILING:{bcolors.RESET} {command_line} → "
 					      f"local nonlinear iterations {test_local_nl}, reference "
 					      f"{ref_local_nl}")
+					failed += 1
+				elif ref_L2_pp is not None and (test_L2_pp is None
+				                                or not equal(ref_L2_pp, test_L2_pp)):
+					print(f"{bcolors.FAIL}FAILING:{bcolors.RESET} {command_line} → "
+					      f"postprocessed error {test_L2_pp}, reference "
+					      f"{ref_L2_pp}")
 					failed += 1
 				else:
 					print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)

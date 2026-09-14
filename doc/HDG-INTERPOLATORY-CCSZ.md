@@ -1,9 +1,22 @@
 # Interpolatory HDG_k and its superconvergent postprocessing — a design, not a build
 
-**Status: CHOSEN, and nothing is implemented yet. This file is a to-do.** It is
-to be built in preference to porting the element integrators to the device and
-in preference to extending the element-local caches; §4.4.4 carries the
-reasoning and the measurements behind it. It specifies what
+**Status: BUILT. Stages 0 to 6 are done, measured, and exposed on `convdiff`
+and `pconvdiff` as problem 10 with `-rx`, `-tau0` and `-pp`; eight regression
+references carry it.** What is left is in §6, and most of §6 is open in the
+literature rather than open here.
+
+> **This preamble used to read "CHOSEN, and nothing is implemented yet" and
+> stayed that way through five stages of implementation.** It is corrected
+> rather than deleted because that is the failure this branch keeps paying
+> for: a status line at the top of a long document is the line nobody
+> re-reads. The durable material has moved out of here -- the convergence
+> ladder and the `tau` measurement are in `convdiff.cpp`'s header comment, the
+> block algebra and the `k+2` claim are on `HDGPotentialPostprocessor`, and
+> the `(1,0)` contract is on the reaction integrators.
+
+It was to be built in preference to porting the element integrators to the
+device and in preference to extending the element-local caches; §4.4.4 carries
+the reasoning and the measurements behind it. It specifies what
 Chen, Cockburn, Singler & Zhang, *Superconvergent Interpolatory HDG Methods for
 Reaction Diffusion Equations I: An HDG_k Method*, J. Sci. Comput. **81** (2019)
 2188–2212 (**CCSZ-I** below; PDF at `/home/ian/projects/meq/refs/SuperconvergentHDG-I.pdf`)
@@ -1535,6 +1548,46 @@ it — so the substitution IS exercised and simply does not show: the local
 solve converges to the same root from an inexact Jacobian. That half rests on
 the analytic argument and on `ComputeElementH()`/`MultInv()`, where the same
 substitution returns `inf` on the first step.
+
+### Stage 6 -- the miniapp, and the coverage that makes it real
+
+Everything above was reachable only from `tests/unit`. **`convdiff` and
+`pconvdiff` now carry it as problem 10**, `-Delta u + u^3 - u = f` with
+`u = prod sin(pi x_i)` on the unit box -- CCSZ Example 4.1 -- plus `-rx`
+(interpolatory against the quadrature control), `-tau0` (the O(1)
+stabilization the theorem needs) and `-pp` (compute `u*` and report its
+error). The formulation, the flag meanings and the measured ladder are in
+`convdiff.cpp`'s header comment; they are not repeated here.
+
+**The falsifying measurement is that the ladder reproduces from committed
+code.** Stage 2's table was produced by a probe that no longer exists, so
+until now the branch's headline result could not be re-run by anyone. Driven
+from the miniapp, uniform triangulations, `-rx 1 -tau0 1`, rates of u / q / u*:
+`k = 0` gives 1.00 / 1.00 / **1.00**, `k = 1` 2.02 / 2.01 / **3.00**, `k = 2`
+3.04 / 3.05 / **4.00**, `k = 3` 4.03 / 4.01 / **5.01** -- every row of stage 2
+(a), including the `k = 0` row that must NOT superconverge. The `kappa/h` arm
+and the quadrature control reproduce too, the latter agreeing with the
+interpolatory arm to the fifth digit at `k = 1` and the sixth at `k = 2`.
+
+**Eight references, and what each one can and cannot catch.** Five serial and
+three parallel, on `inline-tri.mesh`. The `-tau0` pair discriminates strongly
+-- the stabilization changes every number. The `-rx 2` pair does NOT, and is
+recorded as a control rather than sold as a discriminator: the two arms agree
+to ~1e-4 relative by construction, so a reference pinning them apart would be
+pinning noise. What the `u*` line adds is the only coverage in the suite of a
+quantity the potential and flux errors cannot see, and it was checked by
+perturbing a reference's `u*` by 1% with the other two lines untouched, which
+fails.
+
+**And the first version of those references was not coverage at all.**
+`regression_test.py` rebuilds each command from a fixed option list and
+appended `-nls` only when one of the `-nl*` flags was set. Problem 10's
+nonlinearity is the reaction, which announces itself through no such flag, so
+every new reference was re-run with the default solver, reported "incompatible
+preconditioner", and was SKIPPED -- which reads as a pass. Found by the
+mutation check above returning SUCCESS on a reference whose `u*` had been
+moved 1%. This is the third member of that family in this file and the second
+one to have bitten.
 
 ---
 

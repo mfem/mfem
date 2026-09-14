@@ -24,6 +24,7 @@
 //               convdiff -nx 40 -p 4 -k 1e-4 -tf 0.5 -nt 20 -ode 3 -o 2 -hb -dg
 //               convdiff -nx 40 -p 4 -k 1e-4 -tf 0.5 -nt 20 -ode 2 -o 2 -rd -brt -up
 //             * convdiff -nx 120 -ny 30 -sx 10 -sy 2.5 -p 5 -k 1e-2 -tf 10 -nt 100 -ode 3 -o 2 -dg -hb
+//               convdiff -m ../../data/inline-tri.mesh -r 2 -p 10 -o 1 -dg -hb -nls 3 -rtol 1e-11 -tau0 1 -pp
 //
 // Device sample runs:
 //
@@ -94,6 +95,63 @@
 //               6) steady Burgers flow - with zero Dirichlet temperature BCs
 //               7) non-steady Burgers flow - with zero Dirichlet temperature
 //                                            BCs
+//              10) steady reaction-diffusion - CCSZ Example 4.1: -Delta u +
+//                                              F(u) = f with F(u) = u^3 - u
+//                                              and u = prod sin(pi x_i), zero
+//                                              Dirichlet on the unit box.
+//                                              Needs -hb and -nls 3.
+//
+//               PROBLEM 10 IS THE INTERPOLATORY-HDG PROBLEM, and it is the
+//               only one in this miniapp whose nonlinearity is a reaction
+//               rather than a flux law. Chen, Cockburn, Singler & Zhang,
+//               "Superconvergent Interpolatory HDG Methods for Reaction
+//               Diffusion Equations I: An HDG_k Method", J. Sci. Comput. 81
+//               (2019) 2188-2212. Their claim is that the LOCALLY
+//               POSTPROCESSED potential u* converges at k+2 where u and q
+//               converge at k+1, for k >= 1, and does NOT superconverge at
+//               k = 0 -- the rate is min{k,1} better. Three flags reach it:
+//
+//                 -rx 1  interpolate F at the nodes of the enriched space,
+//                        which is the method (default)
+//                 -rx 2  integrate F(u*) against the potential basis under
+//                        quadrature, which is the control it is measured
+//                        against and is NOT the paper's method
+//                 -pp    compute u* and report its error
+//                 -tau0  a CONSTANT stabilization
+//
+//               -tau0 IS NOT OPTIONAL FOR THE THEOREM and it is not a tuning
+//               knob. The built-in HDG stabilization is kappa/h, the LDG-style
+//               scaling; CCSZ's result is stated for an O(1) elementwise
+//               constant tau. Measured here on uniform triangulations of the
+//               unit square, -rx 1, rates of u / q / u*:
+//
+//                    k    -tau0 1                 default kappa/h
+//                    0    1.00 1.00  1.00         -0.10  0.07  -0.25
+//                    1    2.02 2.01  3.00          2.03  1.14   1.96
+//                    2    3.04 3.05  4.00          3.50  2.02   3.20
+//                    3    4.03 4.01  5.01
+//
+//               The k = 0 row is the sharp half of the check and it holds
+//               both ways: at tau = O(1) u* does not beat u, which is CCSZ's
+//               own Table 1 (0.97); at kappa/h the postprocessed error stops
+//               decreasing and starts GROWING. A ladder run at the default
+//               tau is not a test of this theorem and would report the method
+//               as failing.
+//
+//               INTERPOLATING COSTS NOTHING MEASURABLE. Against -rx 2 on the
+//               same meshes at -tau0 1, u* agrees to the FIFTH digit at k = 1
+//               (8.6227e-04 against 8.6247e-04) and the SIXTH at k = 2, with
+//               the same rates and the same constants. That is the paper's
+//               Remark 2.3 borne out here, and it is why the -rx 2 references
+//               in regress_test/ are a CONTROL rather than a discriminator:
+//               the two arms are supposed to agree, so a reference pinning
+//               them apart would be pinning noise.
+//
+//               A tight -rtol matters: the reaction puts the local element
+//               solve on an iterative Newton whose tolerance is derived from
+//               the outer one, and at the default the outer solver stops one
+//               step in and reports the local solver's noise floor as the
+//               discretisation error.
 //               We discretize with (broken) Raviart-Thomas finite elements
 //               (heat flux q) and piecewise discontinuous polynomials
 //               (temperature T). Alternatively, the piecewise discontinuous
@@ -139,9 +197,50 @@ enum Problem
    NonsteadyBurgers,
    SteadyLinearKappa,
    NonsteadyLinearKappa,
+   SteadyReactionDiffusion,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
+
+/** @brief `F(u) = u^3 - u`, Example 4.1 of Chen, Cockburn, Singler & Zhang,
+    J. Sci. Comput. 81 (2019) 2188-2212 -- the reaction of problem 10.
+
+    A NodalReactionFunction rather than a Coefficient because the interpolatory
+    method evaluates it AT the nodes of the enriched space and never under a
+    quadrature rule; the quadrature control reached by `-rx 2` uses the same
+    object, which is what makes the two arms differ in one thing only. */
+struct CubicReaction : public NodalReactionFunction
+{
+   int NumEquations() const override { return 1; }
+   void Eval(const Vector &, const Vector &u, Vector &F) const override
+   {
+      F.SetSize(1);
+      F(0) = u(0) * u(0) * u(0) - u(0);
+   }
+   void EvalJacobian(const Vector &, const Vector &u,
+                     DenseMatrix &J) const override
+   {
+      J.SetSize(1);
+      J(0, 0) = 3.0 * u(0) * u(0) - 1.0;
+   }
+};
+
+/** @brief A stabilization that is the constant @a tau0, ignoring the `1/h` the
+    integrator forms for itself.
+
+    **This is not a tuning knob, it is a different method.** The built-in
+    stabilization is `kappa/h`, the LDG-style scaling; CCSZ's theorem is stated
+    for an O(1) elementwise-constant `tau`, and the superconvergence of `u*` is
+    lost without it -- at order 0 the postprocessed error stops decreasing and
+    starts growing. See HDGPotentialPostprocessor's doxygen, which carries the
+    measured rates both ways. */
+struct ConstStabilization : public HDGStabilization
+{
+   real_t tau0;
+   ConstStabilization(real_t t) : tau0(t) { }
+   real_t Eval(real_t, real_t, real_t, real_t,
+               ElementTransformation &) const override { return tau0; }
+};
 
 struct ProblemParams
 {
@@ -181,6 +280,9 @@ int main(int argc, char *argv[])
    bool brt = false;
    bool upwinded = false;
    int iproblem = Problem::SteadyDiffusion;
+   int reaction = 1;
+   real_t tau0 = 0.;
+   bool postprocess = false;
    ProblemParams pars;
    real_t tf = 1.;
    int nt = 0;
@@ -238,6 +340,25 @@ int main(int argc, char *argv[])
                   "--no-broken-RT", "Enable broken RT elements for fluxes.");
    args.AddOption(&upwinded, "-up", "--upwinded", "-ce", "--centered",
                   "Switches between upwinded (1) and centered (0=default) stabilization.");
+   args.AddOption(&reaction, "-rx", "--reaction",
+                  "How problem 10's reaction term is discretised: "
+                  "1=interpolatory (CCSZ, the default), 2=quadrature. "
+                  "The two solve the SAME continuous problem and the "
+                  "quadrature arm is the control the interpolatory one is "
+                  "measured against; ignored by every other problem.");
+   args.AddOption(&tau0, "-tau0", "--stab-const",
+                  "Replace the HDG diffusion stabilization by this CONSTANT. "
+                  "Zero (the default) keeps the built-in kappa/h. It is not a "
+                  "tuning knob: CCSZ's k+2 superconvergence of the "
+                  "postprocessed potential is stated for an O(1) tau and is "
+                  "lost at kappa/h -- measured rates both ways are on "
+                  "HDGPotentialPostprocessor.");
+   args.AddOption(&postprocess, "-pp", "--postprocess", "-no-pp",
+                  "--no-postprocess",
+                  "Compute the local postprocessing u* of the potential into "
+                  "the enriched space of degree order+1 and report its error. "
+                  "This is the quantity that superconverges at k+2, so it is "
+                  "the one a convergence ladder for CCSZ wants.");
    args.AddOption(&iproblem, "-p", "--problem",
                   "Problem to solve:\n\t\t"
                   "1=steady diff\n\t\t"
@@ -373,9 +494,13 @@ int main(int argc, char *argv[])
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
    bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
+   bool breaction = false;
    switch (problem)
    {
       case Problem::SteadyDiffusion:
+         break;
+      case Problem::SteadyReactionDiffusion:
+         breaction = true;
          break;
       case Problem::NonsteadyAdvectionDiffusion:
       case Problem::KovasznayFlow:
@@ -435,6 +560,36 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   if (breaction && !hybridization)
+   {
+      cerr << "Problem 10's reaction term is a block nonlinear integrator, "
+           "which only the hybridized route assembles; add -hb" << endl;
+      return 1;
+   }
+
+   if (breaction && reaction != 1 && reaction != 2)
+   {
+      cerr << "-rx must be 1 (interpolatory) or 2 (quadrature)" << endl;
+      return 1;
+   }
+
+   // LBFGS never calls GetGradient(), so it cannot see the (1,0) block this
+   // term contributes and converges linearly at best. Refused rather than
+   // left to look slow, which is the same treatment -npc already gets.
+   if (breaction && solver_type == 1)
+   {
+      cerr << "Problem 10 needs a gradient-using solver; LBFGS (-nls 1) never "
+           "calls GetGradient(). Use -nls 3" << endl;
+      return 1;
+   }
+
+   if (!breaction && !postprocess && tau0 > 0.)
+   {
+      // Not an error -- a constant tau is meaningful for any HDG problem --
+      // but say it, because it silently changes the method.
+      cout << "NOTE: -tau0 replaces the built-in kappa/h stabilization\n";
+   }
+
    if (btime && nt <= 0)
    {
       cerr << "You must specify the number of time steps for time evolving problems"
@@ -481,6 +636,7 @@ int main(int argc, char *argv[])
    switch (problem)
    {
       case Problem::SteadyDiffusion:
+      case Problem::SteadyReactionDiffusion:
       case Problem::SteadyAdvectionDiffusion:
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
@@ -681,6 +837,21 @@ int main(int argc, char *argv[])
 
    // Diffusion stabilization
 
+   // One hook object for every face integrator below. It outlives them: the
+   // forms hold raw pointers to it and are destroyed with `darcy`, which is
+   // declared above this.
+   unique_ptr<ConstStabilization> const_stab;
+   if (tau0 > 0.) { const_stab = make_unique<ConstStabilization>(tau0); }
+   // Every HDGDiffusionIntegrator in this section goes through here, so a
+   // constant tau cannot reach some faces and not others -- which is the
+   // shape of bug a per-site edit would have introduced across ten call
+   // sites, and it would have looked like a stabilization that half works.
+   auto with_stab = [&](HDGDiffusionIntegrator *i)
+   {
+      if (const_stab) { i->SetStabilization(*const_stab); }
+      return i;
+   };
+
    if (dg && (!bnldiff || hybridization) && td > 0.)
    {
       if (!nonlinear_pot)
@@ -688,23 +859,27 @@ int main(int argc, char *argv[])
          BilinearForm *Mt = darcy->GetPotentialMassForm();
          if (upwinded && hybridization)
          {
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+            Mt->AddInteriorFaceIntegrator(with_stab(new HDGDiffusionIntegrator(ccoeff,
+                                                                               kcoeff, td)));
+            Mt->AddBdrFaceIntegrator(with_stab(new HDGDiffusionIntegrator(ccoeff, kcoeff,
+                                                                          td)),
                                      bdr_is_neumann);
             if (trace_ess_bc)
             {
-               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+               Mt->AddBdrFaceIntegrator(with_stab(new HDGDiffusionIntegrator(ccoeff, kcoeff,
+                                                                             td)),
                                         bdr_is_dirichlet);
             }
          }
          else if (!upwinded)
          {
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+            Mt->AddInteriorFaceIntegrator(with_stab(new HDGDiffusionIntegrator(kcoeff,
+                                                                               td)));
+            Mt->AddBdrFaceIntegrator(with_stab(new HDGDiffusionIntegrator(kcoeff, td)),
                                      bdr_is_neumann);
             if (trace_ess_bc)
             {
-               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+               Mt->AddBdrFaceIntegrator(with_stab(new HDGDiffusionIntegrator(kcoeff, td)),
                                         bdr_is_dirichlet);
             }
          }
@@ -714,14 +889,17 @@ int main(int argc, char *argv[])
          NonlinearForm *Mtnl = darcy->GetPotentialMassNonlinearForm();
          if (upwinded && hybridization)
          {
-            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
-            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td),
+            Mtnl->AddInteriorFaceIntegrator(with_stab(new HDGDiffusionIntegrator(ccoeff,
+                                                                                 kcoeff, td)));
+            Mtnl->AddBdrFaceIntegrator(with_stab(new HDGDiffusionIntegrator(ccoeff, kcoeff,
+                                                                            td)),
                                        bdr_is_neumann);
          }
          else if (!upwinded)
          {
-            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
+            Mtnl->AddInteriorFaceIntegrator(with_stab(new HDGDiffusionIntegrator(kcoeff,
+                                                                                 td)));
+            Mtnl->AddBdrFaceIntegrator(with_stab(new HDGDiffusionIntegrator(kcoeff, td)),
                                        bdr_is_neumann);
          }
       }
@@ -873,6 +1051,54 @@ int main(int argc, char *argv[])
    {
       if (!nonlinear_pot) { darcy->GetPotentialMassForm(); }
       else { darcy->GetPotentialMassNonlinearForm(); }
+   }
+
+   // Reaction term (problem 10)
+   //
+   // **Everything here has to be in place BEFORE EnableHybridization().**
+   // DarcyForm reads the forms at that call: which blocks exist, which face
+   // integrators are linear, and -- through GetBlockRowMask() -- whether the
+   // flux mass can stay factored once. An integrator added afterwards is
+   // silently never seen. Same trap as the boundary flux term in
+   // navierstokes.cpp.
+   unique_ptr<L2_FECollection> S_coll;
+   unique_ptr<FiniteElementSpace> S_space;
+   unique_ptr<HDGPostprocessBlocks> pp_blocks;
+   CubicReaction Freact;
+
+   // The enriched space is needed by the reaction term AND by -pp, and they
+   // must be the SAME one: the interpolatory method's nodes are that space's
+   // nodes, so a postprocessing run on a different enrichment would not be
+   // reporting the u* the residual was built from.
+   if (breaction || postprocess)
+   {
+      // The DEFAULT L2 basis, which is open (Gauss-Legendre), rather than the
+      // closed one W_coll uses. CCSZ's interpolation nodes are an open set
+      // (section 6.5 of doc/HDG-INTERPOLATORY-CCSZ.md), and a closed basis
+      // puts nodes on the element boundary where a reaction with a singular
+      // factor -- meq's F/r on the symmetry axis -- is not evaluable. The
+      // node set is a free choice with an unmeasured effect on the answer,
+      // which is why it is stated here rather than inherited.
+      S_coll = make_unique<L2_FECollection>(order + 1, dim);
+      S_space = make_unique<FiniteElementSpace>(&mesh, S_coll.get());
+
+      pp_blocks = make_unique<HDGPostprocessBlocks>(*V_space, *W_space,
+                                                    *S_space);
+      pp_blocks->SetDiffusionInverse(ikcoeff);
+      pp_blocks->Assemble();
+   }
+
+   if (breaction)
+   {
+      // The form OWNS its domain integrators and deletes them.
+      HDGReactionIntegratorBase *react =
+         (reaction == 1)
+         ? (HDGReactionIntegratorBase*)
+         new HDGInterpolatoryReactionIntegrator(Freact, *pp_blocks)
+         : (HDGReactionIntegratorBase*)
+         new HDGQuadratureReactionIntegrator(Freact, *pp_blocks);
+      react->Assemble();
+      darcy->GetBlockNonlinearForm()->AddDomainIntegrator(react);
    }
 
    // Set hybridization / reduction / assembly level
@@ -1240,6 +1466,26 @@ int main(int argc, char *argv[])
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
       real_t norm_t = ComputeLpNorm(2., tcoeff, mesh, irs);
 
+      // The local postprocessing, BEFORE the two lines below. The regression
+      // script reads the flux and potential errors off the LAST two lines of
+      // output and the solver line at [-4], so anything printed after them
+      // breaks every existing reference; this line is found by its own prefix
+      // instead. See regression_test.py's get_postproc().
+      if (postprocess)
+      {
+         // A space of its own is not built here: pp_blocks was assembled on
+         // S_space above, and under -rx the reaction's nodes ARE that space's
+         // nodes. Handing Compute() a different enrichment would report a u*
+         // the solve never saw.
+         GridFunction t_hpp(S_space.get());
+         HDGPotentialPostprocessor pp(q_h, t_h);
+         pp.SetDiffusionInverse(ikcoeff);
+         pp.Compute(t_hpp);
+         const real_t err_tpp = t_hpp.ComputeL2Error(tcoeff, irs);
+         cout << "|| t_h* - t_ex || / || t_ex || = " << err_tpp / norm_t
+              << "\n";
+      }
+
       if (btime)
       {
          cout << "iter:\t" << ti
@@ -1415,6 +1661,16 @@ TFunc GetTFun(const ProblemParams &params)
 
    switch (prob)
    {
+      case Problem::SteadyReactionDiffusion:
+         // CCSZ Example 4.1's solution, which vanishes on the boundary of the
+         // unit box -- so the "free BC (zero Dirichlet)" marking in section 5
+         // is the exact boundary condition and not an approximation of one.
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            real_t t0 = t_0;
+            for (int i = 0; i < x.Size(); i++) { t0 *= sin(M_PI * x(i)); }
+            return t0;
+         };
       case Problem::SteadyDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {
@@ -1522,6 +1778,22 @@ VecTFunc GetQFun(const ProblemParams &params)
 
    switch (prob)
    {
+      case Problem::SteadyReactionDiffusion:
+         // q = -k grad T, this miniapp's sign for the flux throughout.
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            const int vdim = x.Size();
+            v.SetSize(vdim);
+            for (int d = 0; d < vdim; d++)
+            {
+               real_t r = t_0 * M_PI * cos(M_PI * x(d));
+               for (int j = 0; j < vdim; j++)
+               {
+                  if (j != d) { r *= sin(M_PI * x(j)); }
+               }
+               v(d) = -k * r;
+            }
+         };
       case Problem::SteadyDiffusion:
          return [=](const Vector &x, real_t, Vector &v)
          {
@@ -1662,6 +1934,7 @@ VecFunc GetCFun(const ProblemParams &params)
    switch (prob)
    {
       case Problem::SteadyDiffusion:
+      case Problem::SteadyReactionDiffusion:
       case Problem::SteadyBurgers:
       case Problem::NonsteadyBurgers:
       case Problem::SteadyLinearKappa:
@@ -1734,6 +2007,20 @@ TFunc GetFFun(const ProblemParams &params)
 
    switch (prob)
    {
+      case Problem::SteadyReactionDiffusion:
+         // f = k Delta T - F(T): the sign SteadyDiffusion below uses for its
+         // own diffusive half (it returns -diff for diff = -k Delta T), with
+         // the reaction subtracted. The sign of the reaction half was
+         // established by RUNNING both -- the other one collapses u* to rate
+         // zero while leaving the potential's own rate looking plausible.
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            const int ndim = x.Size();
+            real_t t0 = t_0;
+            for (int i = 0; i < ndim; i++) { t0 *= sin(M_PI * x(i)); }
+            const real_t lap = -ndim * M_PI * M_PI * t0;
+            return k * lap - (t0 * t0 * t0 - t0);
+         };
       case Problem::SteadyDiffusion:
          return [=](const Vector &x, real_t) -> real_t
          {

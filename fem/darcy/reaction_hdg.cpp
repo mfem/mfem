@@ -217,14 +217,25 @@ void HDGInterpolatoryReactionIntegrator::AssembleElementGrad(
          }
    }
 
-   // A block may be NULL, and the (1,0) one currently always is: both of
-   // DarcyHybridization's call sites do `grad_arr = NULL` and then fill only
-   // (0,0), (0,1) and (1,1), on the stated grounds that the divergence form
-   // is linear so B is exact in Bf_data. That is the block this term needs,
-   // so until it exists the Jacobian assembled here is INCOMPLETE -- the
-   // potential residual's dependence on the flux is dropped. Newton then
-   // converges linearly rather than quadratically instead of failing, which
-   // is why it has to be said here rather than discovered.
+   // A block may be NULL and every one of the four is tested for it, because
+   // which ones are asked for depends on the route.
+   //
+   // **The (1,0) block used to be NULL always, and this comment used to say
+   // the Jacobian assembled here was therefore incomplete. It is not, and the
+   // comment is corrected rather than deleted because the failure it warned
+   // about is a quiet one.** DarcyHybridization::ConstructGrad() now passes
+   // `grad_arr(1,0)` and accumulates what comes back into Bg_data, on both
+   // the dense and the batched local routes; without it the potential
+   // residual's dependence on the flux is dropped and Newton converges
+   // linearly rather than quadratically -- it does not fail, so a passing
+   // suite says nothing. The pin is "The batched local routes carry the
+   // (1,0) gradient block" in tests/unit/fem/test_darcy_reaction.cpp, which
+   // gates the store and measures the count going 1 -> 6.
+   //
+   // The FLUX row is a different matter and is genuinely not written here:
+   // GetBlockRowMask() declares this term potential-row-only, which is what
+   // lets the flux mass stay factored once, and under that declaration
+   // ConstructGrad() NULLs (0,0) and (0,1) deliberately.
    if (elmats(0, 0)) { elmats(0, 0)->SetSize(0, 0); }
    if (elmats(0, 1)) { elmats(0, 1)->SetSize(0, 0); }
    if (elmats(1, 0))

@@ -1,0 +1,68 @@
+Options used:
+   --mesh ../../data/inline-tri.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels 1
+   --parallel-ref-levels 0
+   --order 1
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --reaction 1
+   --stab-const 1
+   --postprocess
+   --problem 10
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --newton-rtol 1e-11
+   --no-npc
+   --gradient-mode -1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.000698567s.
+***********************************************************
+dim(V) = 384
+dim(W) = 192
+dim(M) = 216
+dim(V+W+M) = 792
+***********************************************************
+Assembly took 0.000340617s.
+Preconditioner took 0.000111449s.
+Newton iteration  0 : ||r|| = 0.518833
+Newton iteration  1 : ||r|| = 0.0183612, ||r||/||r_0|| = 0.0353893
+Newton iteration  2 : ||r|| = 5.15241e-05, ||r||/||r_0|| = 9.93077e-05
+Newton iteration  3 : ||r|| = 3.8068e-10, ||r||/||r_0|| = 7.33724e-10
+Newton iteration  4 : ||r|| = 7.45702e-14, ||r||/||r_0|| = 1.43727e-13
+local nonlinear iterations: 1700
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 4 iterations with a residual norm of 7.45702e-14.
+Solver took 0.0114373s.
+|| t_h* - t_ex || / || t_ex || = 0.000862267
+|| q_h - q_ex || / || q_ex || = 0.0116944
+|| t_h - t_ex || / || t_ex || = 0.0279362

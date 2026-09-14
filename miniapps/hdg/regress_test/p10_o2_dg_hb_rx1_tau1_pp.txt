@@ -1,0 +1,71 @@
+Options used:
+   --mesh ../../data/inline-tri.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --ref-levels 1
+   --delta-random 0
+   --order 2
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --reaction 1
+   --stab-const 1
+   --postprocess
+   --problem 10
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --newton-rtol 1e-11
+   --no-threaded-assembly
+   --no-batched-assembly
+   --local-factor-mode -1
+   --no-npc
+   --gradient-mode -1
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.000787744s.
+Assembly mode: 0, face integrators: 1, mass kernels: flux n pot n div n, bdr kernel taken: no, face kernel taken: no, local residual batched: no, nl face grad kernel taken: no, nl face residual kernel taken: no, local factor batched: no
+***********************************************************
+dim(V) = 1536
+dim(W) = 768
+dim(M) = 624
+dim(V+W+M) = 2928
+***********************************************************
+Assembly took 0.00136313s.
+Preconditioner took 2.1971e-05s.
+Newton iteration  0 : ||r|| = 0.492593
+Newton iteration  1 : ||r|| = 0.0174492, ||r||/||r_0|| = 0.0354231
+Newton iteration  2 : ||r|| = 4.93223e-05, ||r||/||r_0|| = 0.000100128
+Newton iteration  3 : ||r|| = 3.70585e-10, ||r||/||r_0|| = 7.52315e-10
+Newton iteration  4 : ||r|| = 1.60888e-13, ||r||/||r_0|| = 3.26615e-13
+local nonlinear iterations: 4032
+Newton+GMRES+GS/Newton+GMRES converged in 4 iterations with a residual norm of 1.60888e-13.
+Solver took 0.0338662s.
+|| t_h* - t_ex || / || t_ex || = 4.72982e-05
+|| q_h - q_ex || / || q_ex || = 0.000356018
+|| t_h - t_ex || / || t_ex || = 0.00134411
