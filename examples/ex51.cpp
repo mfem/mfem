@@ -161,9 +161,9 @@ int main(int argc, char *argv[])
                   "Time step.");
 
    // Solver parameters
-   double GMRES_RelTol = 1e-3;
+   real_t GMRES_RelTol = 1e-3;
    int    GMRES_MaxIter = 250;
-   double Newton_RelTol = 1e-3;
+   real_t Newton_RelTol = 1e-3;
    int    Newton_MaxIter = 10;
 
    args.AddOption(&GMRES_RelTol, "-lt", "--linear-tolerance",
