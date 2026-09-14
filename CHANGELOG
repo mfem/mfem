@@ -27,6 +27,11 @@ Discretization improvements
   Additionally, ParSesquilinearForm::FormSystemMatrix now supports
   device-resident hypre matrices.
 
+- Fixed ElasticityIntegrator partial assembly: the scaled constructor
+  ElasticityIntegrator(m, q_l, q_m) now projects q_λ m and q_μ m; AssembleDiagonalPA
+  accumulates into the output vector; component element assembly honors add and
+  stores the (trial, test, element) layout expected by EABilinearFormExtension.
+
 - Reworked GridFunction::ProjectCoefficient to support selectable projection
   types (ELEMENT nodal interpolation, GLOBAL_L2, and element-local ELEMENT_L2
   based on Bezier projection) for Scalar, Vector, and VectorFE spaces, including
@@ -132,6 +137,10 @@ GPU computing
   * PA gradient and diagonal for VectorConvectionNLFIntegrator (AssembleGradPA,
     AddMultGradPA, AssembleGradDiagonalPA)
   * PA of VectorFEMassIntegrator now uses kernel specialization dispatch
+
+- Added compact pa_data and fused tensor-product partial-assembly apply kernels
+  for ElasticityIntegrator on quadrilaterals and hexahedra, with a generic
+  full-map fallback for other elements.
 
 - Added device assembly support for a number of electromagnetic integrators:
   3D H(curl) VectorFEDomainLFIntegrator, MixedScalarWeakGradientIntegrator,
