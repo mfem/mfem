@@ -143,6 +143,12 @@ for i, filename in enumerate(filenames):
 	# inferred from the solver line further down. Upstream references predate
 	# the option and carry none; locally generated ones record it.
 	prec = int(get_ref_param(filename, '--preconditioner', "0"))
+	# The time advance. The defaults are the miniapp's own, so every reference
+	# written before there were transient ones -- all of which record
+	# --ntimesteps 0 -- reconstructs the command it always did.
+	tf = float(get_ref_param(filename, '--time-final', "1"))
+	nt = int(get_ref_param(filename, '--ntimesteps', "0"))
+	ode = int(get_ref_param(filename, '--ode-solver', "1"))
 
 	file = open(filename, "r")
 	ref_out = file.readlines()
@@ -245,6 +251,11 @@ for i, filename in enumerate(filenames):
 		command_line += f' -k {kappa}'
 	if hdg != 1:
 		command_line += f' -hdg {hdg}'
+	# A transient case. All three options go on the command line even where
+	# they hold their default values: the time advance is the whole subject of
+	# such a reference, so it is spelled out rather than inferred.
+	if nt != 0:
+		command_line += f' -tf {tf} -nt {nt} -ode {ode}'
 	# A recorded -nls is passed back, full stop. This used to be guarded by a
 	# hand-maintained list of "is the problem nonlinear" flags, and the list
 	# was wrong twice: nonlin_conv was missing (harmless only because every

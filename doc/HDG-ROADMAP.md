@@ -245,44 +245,40 @@ the spatial error exactly. The previous "already at the spatial floor"
 explanation is **withdrawn**: holding `nt = 128` and refining `n = 48 -> 96`
 moves the answer 0.9%, so that point was better than 99% temporal.
 
+**The three blockers are gone and problems 7 and 9 now carry references.**
+Sixteen of them -- four per problem per arm, one per ODE solver -- came in with
+the trunk merge, along with the fixes that made them possible:
+`regression_test.py` reconstructs `-tf`, `-nt` and `-ode` like any other
+option and finds the solver line by its own text rather than at `[-4]`; and
+both miniapps now end a transient run with the two error lines a steady run
+ends with, so the comparator reads the same two lines for every reference in
+the suite. The `ValueError` crash on a transient reference file is gone with
+them.
+
+**And one more defect came out of it, on the trunk**: the error was taken at
+the LAST STAGE TIME of the step, `t + c_i*dt`, not at the end. This branch's
+own note that it was compared against `t = 0` is **withdrawn** -- `gcoeff` is
+`ProductCoefficient(-1., tcoeff)` and `ProductCoefficient::SetTime` propagates,
+so `tcoeff` was always advancing, to the wrong time. Backward Euler is exactly
+unaffected (`c = 1`); the three SDIRKs are not, and `-ode 4`'s last stage is at
+`c = 1 - a < 0`, before the step begins.
+
+The references are sized so they discriminate: `-tf 0.5 -nt 2` separates the
+four `-ode` answers by far more than the 1e-4 comparison (0.0557, 0.0191,
+0.0176, 0.0165 on problem 7), which the earlier draft of this section warned
+was the thing to get right -- at `n = 12`, order 2, `nt = 16` the same problem
+is spatially floored and all of `-ode` 2, 3 and 4 return `t_err` within 3e-6 of
+each other, a reference that could not fail if the integrator broke.
+
 What is left:
 
-* **No transient regression reference, and it is NOT one step away.** All 157
-  serial + 124 parallel references pass `--ntimesteps 0`, and the reference set
-  covers problems 1, 2, 3, 6, 8 and 10 -- every transient problem has zero
-  coverage. Three things block a transient reference, each checked by running
-  rather than read:
-  1. `regression_test.py` does not fail on one, it **crashes**:
-     `ValueError: could not convert string to float: 'ter:\t3\ttime:...'`. The
-     `try/except` guards the TEST parse, not the REFERENCE parse, so one
-     transient file in `regress_test/` aborts the whole suite run with no
-     summary and no report of the other cases.
-  2. It rebuilds the command from a fixed option list carrying no `-tf`, `-nt`
-     or `-ode` (nor `-sx`, `-sy`, `-c`, `-td`, `-dr`). Every existing reference
-     uses the defaults for all of those, so nothing is silently mis-run today,
-     but no transient can be expressed -- and neither can problem 5's own
-     documented sample, which needs `-sx 10 -sy 2.5`.
-  3. Under `btime` the miniapp prints one tab-separated
-     `iter:/time:/q_err:/t_err:` line per step instead of the two
-     `|| ... || = ...` lines the comparator reads at `[-1]` and `[-2]`. The
-     least invasive fix is to print the final step's two lines after the loop,
-     not to teach the parser a second format.
-  Two wrinkles to know before generating one. `get_local_nl()` scans forward
-  and `solver_line()` scans backward, so in a transient run they report
-  DIFFERENT time steps -- deterministic, so a reference still works, but it is
-  a trap. And a reference has to be sized so the temporal error dominates:
-  at `n = 12`, order 2, problem 7 is spatially floored from `nt = 16` onward
-  and `-ode` 2, 3 and 4 all return `t_err = 0.008649 +- 3e-6`, which the 1e-4
-  relative comparison calls equal -- such a reference could not fail if the
-  time integrator broke. At `nt = 4` on the same mesh they do separate (p9's
-  potential only just, at 1.7e-4 against a 1e-4 threshold; its flux is the
-  more discriminating of the two).
 * **No unit coverage either, and there cannot be any as things stand.** No test
   under `tests/unit` mentions `ImplicitSolve`, `ODESolver`, `SDIRK` or
   `TimeDependentOperator`; `fem/darcy` contains no time-integration code at
   all. The whole time advance is `miniapps/hdg/darcyop.cpp`, so the regression
-  suite is the only mechanism that can reach it -- and it is the one that
-  cannot express a transient.
+  suite is the only mechanism that can reach it -- which it now does, but at
+  the granularity of two printed error norms and an iteration count, not of an
+  assertion on a stage vector.
 * **A pure-diffusion transient problem is the missing piece**, and it would pay
   twice: it is the well-conditioned temporal-order reference this suite wants,
   and it is the only thing that would reach `convdiff`'s potential-reduction

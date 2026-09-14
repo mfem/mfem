@@ -56,19 +56,40 @@
 //                                                     with diffusion with
 //                                                     Dirichlet temperature BCs
 //
-//               Problem 4 is the tree's ONE VERIFIED TRANSIENT PROBLEM, and it
-//               was not until its exact solution was corrected. It spread as
-//               2 sigma^2 + 4 k t pi/4; substituting u = (A/D) exp(-r^2/D)
-//               into du/dt = k lap u gives both sides as u (r^2/D - 1) times
-//               D'/D and 4k/D, so D' = 4k and the pi/4 -- which the ROTATION
-//               legitimately carries, and which recurs as a 4*X*pi/4 idiom
-//               through this problem -- does not belong in the diffusion. The
-//               exact solution and the exact flux were mutually consistent, q
-//               really being -k grad u of that u, which is why nothing looked
-//               wrong locally; but that u solves no PDE posed here, and the
-//               source is zero so nothing absorbed it. Every transient error
-//               this miniapp printed converged, in dt AND in h, to 0.0121998
-//               rather than to zero.
+//               THE TRANSIENT PROBLEMS ARE 4, 5, 7 AND 9, and until recently
+//               not one of them had ever printed a meaningful error. Two
+//               defects, both invisible for as long as nothing ran a
+//               transient case.
+//
+//               The error was taken against the exact solution at the LAST
+//               STAGE TIME of the step rather than at the end of it. Nothing
+//               called SetTime() on qcoeff or tcoeff; they moved only as a
+//               side effect of DarcyOperator setting the time on what it was
+//               handed, and what it sets is t + c_i*dt for the stage it is
+//               solving. Backward Euler escapes exactly (c = 1); -ode 2, 3
+//               and 4 land at c = 0.707, 0.211 and 1 - a < 0. Measured on
+//               problem 7 at nt = 2, tf = 0.5, the printed potential error
+//               read 0.0557, 0.2048, 0.8175, 1.4569 for -ode 1..4 where the
+//               truth is 0.0557, 0.0191, 0.0176, 0.0165 -- so the higher the
+//               order, the worse the miniapp made the method look, which is
+//               the exact opposite of the truth. -ode 1's number is
+//               bit-identical either way, which is the check that says this
+//               is the stage time and nothing else. Harmless for the steady
+//               problems, whose exact solutions ignore the argument, so no
+//               steady reference moves.
+//
+//               And problem 4's Gaussian spread as 2 sigma^2 + 4 k t pi/4.
+//               Substituting u = (A/D) exp(-r^2/D) into du/dt = k lap u gives
+//               both sides as u (r^2/D - 1) times D'/D and 4k/D, so D' = 4k
+//               and the pi/4 -- which the ROTATION carries legitimately, and
+//               which recurs as a 4*X*pi/4 idiom through this problem -- does
+//               not belong in the diffusion. The exact solution and the exact
+//               flux were mutually consistent, q really being -k grad u of
+//               that u, which is why nothing looked wrong locally; but that u
+//               solves no PDE posed here, and the source is identically zero
+//               so nothing absorbed it. Every transient error this miniapp
+//               printed converged, in dt AND in h, to 0.0121998 rather than
+//               to zero.
 //
 //               Corrected, and measured -- final-time trace error, n = 48,
 //               order 3, tf = 0.5, k = 0.01, c = 1:
@@ -135,14 +156,25 @@
 //               printed errors, so a transient reference pins a flux whose
 //               accuracy is capped at 2 regardless of -ode.
 //
-//               Use -p 4, -p 7 or -p 9 for a temporal study. All three carry
-//               the du/dt term in their manufactured source (problems 7 and 9
-//               through ft = exp(t)*ux*uy in GetFFun), which is exactly what
-//               problem 4 was missing until it was corrected above. 7 and 9
-//               vanish on the whole boundary -- ux = x*tanh((1-x)/k) is zero
-//               at both ends -- so their data is homogeneous and time
-//               INDEPENDENT: they exercise the integrator but not the
-//               time-varying-datum path, and only problem 4 does both.
+//               PROBLEMS 7 AND 9 CARRY THE TRANSIENT REFERENCES, and problem
+//               4 does not. All three put the du/dt term in a manufactured
+//               source -- 7 and 9 through ft = exp(t)*ux*uy in GetFFun --
+//               which is exactly what problem 4 was missing until it was
+//               corrected above. But 7 and 9 have u = (exp(t) - 1) ux uy,
+//               which is IDENTICALLY ZERO at t = 0, so their initial
+//               condition is exact in every space and no projection error is
+//               folded into the temporal one; and they vanish on the whole
+//               boundary, ux = x*tanh((1-x)/k) being zero at both ends, so
+//               their data is homogeneous and time INDEPENDENT. They exercise
+//               the integrator but not the time-varying-datum path, and only
+//               problem 4 does both -- it is the one to reach for when that
+//               path is what is in question, and it has no reference.
+//
+//               A transient run ends with the same two error lines a steady
+//               run ends with, reporting the FINAL time; the per-step
+//               "iter:" lines above them are progress. regression_test.py
+//               reads those two lines, and -tf/-nt/-ode are reconstructed
+//               from the reference like any other option.
 //
 //               -p 5 IS NOT A TEMPORAL STUDY AND ITS PRINTED ERRORS ARE NOT
 //               ERRORS. GetQFun returns v = 0 for KovasznayFlow, so norm_q is
@@ -1510,6 +1542,10 @@ int main(int argc, char *argv[])
    int i_Kovasznay = 0; // Injection iteration - Kovasznay flow
    constexpr real_t dt_Kovasznay = 2.; // Injection period - Kovasznay flow
 
+   // Carried out of the loop so a transient run can report the final time
+   // after it, in the steady run's format.
+   real_t final_q_err = 0., final_t_err = 0.;
+
    for (int ti = 0; ti < nt; ti++)
    {
       // Set the current time
@@ -1541,14 +1577,21 @@ int main(int argc, char *argv[])
       }
 
       // The exact solution has to be evaluated at the time the numerical one
-      // has reached, and it was not: only gcoeff, fcoeff and qtcoeff are
-      // handed to DarcyOperator, which is the only thing that called
-      // SetTime(). So every transient error this miniapp has ever printed
-      // compared the evolving solution against the exact one frozen at t = 0.
-      // For problem 4 that exact solution is a Gaussian rotating with
-      // cos(4*c*t*pi/4), so the comparison was meaningless -- which is why
-      // there has never been a transient reference and why a temporal
-      // refinement produced no order.
+      // has REACHED, and it was not. Nothing here ever called SetTime() on
+      // qcoeff or tcoeff. They were advanced only as a side effect of
+      // DarcyOperator setting the time on the three coefficients it IS handed
+      // -- gcoeff is a ProductCoefficient over tcoeff and propagates to it,
+      // and with no convection qtcoeff is qcoeff itself -- and what
+      // DarcyOperator sets is the STAGE time of the solve it is performing,
+      // t + c_i*dt, not the end of the step.
+      //
+      // So every transient error this miniapp has printed was taken against
+      // the exact solution at the LAST STAGE of the step. Backward Euler
+      // escapes it exactly, its one stage sitting at c = 1. The three SDIRKs
+      // do not: -ode 2 lands at c = 1 - gamma = 0.707, -ode 3 at 0.211, and
+      // -ode 4 at c = 1 - a with a > 1, which is BEFORE the step begins --
+      // linalg/ode.cpp says so in its own tableau comment ("two solves are
+      // outside [t,t+dt]").
       //
       // Harmless for the steady problems, whose exact solutions ignore the
       // argument, so no steady reference moves.
@@ -1560,6 +1603,9 @@ int main(int argc, char *argv[])
       real_t norm_q = ComputeLpNorm(2., qcoeff, mesh, irs);
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
       real_t norm_t = ComputeLpNorm(2., tcoeff, mesh, irs);
+
+      final_q_err = err_q / norm_q;
+      final_t_err = err_t / norm_t;
 
       // The local postprocessing, BEFORE the two lines below. The regression
       // script reads the flux and potential errors off the LAST two lines of
@@ -1742,6 +1788,16 @@ int main(int argc, char *argv[])
             }
          }
       }
+   }
+
+   // A transient run reports the final time the way a steady one reports its
+   // single solve. The per-step "iter:" lines above are progress; these two
+   // are the run's result, and every reference in regress_test/ -- transient
+   // or not -- is compared on exactly these two lines.
+   if (btime)
+   {
+      cout << "|| q_h - q_ex || / || q_ex || = " << final_q_err << "\n";
+      cout << "|| t_h - t_ex || / || t_ex || = " << final_t_err << "\n";
    }
 
    return 0;
