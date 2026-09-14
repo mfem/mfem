@@ -225,7 +225,20 @@ for i, filename in enumerate(filenames):
 	# such a reference, so it is spelled out rather than inferred.
 	if nt != 0:
 		command_line += f' -tf {tf} -nt {nt} -ode {ode}'
-	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_diff):
+	# A recorded -nls is passed back, full stop. This used to be guarded by a
+	# hand-maintained list of "is the problem nonlinear" flags, and the list
+	# could only ever be wrong in one direction: a reference recording a
+	# non-default solver that the list judges linear is RE-RUN WITH A
+	# DIFFERENT SOLVER than the one it records. p3_o1_dg_upwind_rd.txt is
+	# exactly that -- it records --nonlinear-solver 1 on a linear problem --
+	# and --update-local refuses it for that reason, which is the guard doing
+	# its job and is also why the heuristic has to go rather than the guard.
+	#
+	# Six references are affected, all linear cases recording
+	# --nonlinear-solver 1. Checked rather than assumed: their output with and
+	# without -nls 1 is identical except for the wall-clock timings, a linear
+	# problem never reaching SetupNonlinearSolver() where solver_type is read.
+	if nls != 0:
 		command_line += f' -nls {nls}'
 
 	# A reference that records the ITERATIVE preconditioner is run with it
@@ -350,9 +363,6 @@ if update_local:
 		print(f"{bcolors.WARN}REFUSED{bcolors.RESET} {refused} -- see above;"
 		      " each records an option this script does not reconstruct")
 	sys.exit(0)
-if from_local:
-	print(f"{len(from_local)} / {len(filenames)} references came from"
-	      f" {local_path}")
 if from_local:
 	print(f"{len(from_local)} / {len(filenames)} references came from"
 	      f" {local_path}")
