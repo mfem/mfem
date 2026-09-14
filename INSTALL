@@ -378,7 +378,7 @@ MFEM_USE_SUITESPARSE = YES/NO
 MFEM_USE_SUPERLU = YES/NO
    Enable MFEM functionality based on the SuperLU_DIST library. Currently, this
    option adds the classes SuperLUSolver (a parallel sparse direct solver) and
-   SuperLURowLocMatrix a distributed CSR matrix class needed by SuperLU. When
+   SuperLURowLocMatrix (a distributed CSR matrix class needed by SuperLU). When
    enabled, this option uses the SUPERLU_* library options, see below.
 
 MFEM_USE_SUPERLU5 = YES/NO
@@ -419,7 +419,7 @@ MFEM_USE_MAGMA = YES/NO
 
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
-   GnuTLS_* classes, based on the GnuTLS library. This option may be useful in
+   GnuTLS_* classes, based on the GnuTLS library. This option may be useful in a
    multi-user environment to prevent users from sending/receiving visualization
    data to/from other users. When this option is enabled, the default behavior
    in class socketstream is to use secure sockets, e.g. when connecting to a
@@ -725,10 +725,10 @@ The specific libraries and their options are:
   Options: STRUMPACK_OPT, STRUMPACK_LIB.
   Versions: STRUMPACK >= 3.0.0.
 
-- CUDSS (optional), used when MFEM_USE_CUDSS = YES. Note that CUDSS requires 
+- CUDSS (optional), used when MFEM_USE_CUDSS = YES. Note that cuDSS requires
   CUDA 12.x toolkit and the cuDSS libraries. The supported communication backend
   is OpenMPI 4.x (default), and OpenMPI 4.x or a later version must be pre-built.
-  The source files in the cuDSS tarball provide guidance for developing custom 
+  The source files in the cuDSS tarball provide guidance for developing custom
   MPI implementations.
   URL: https://developer.nvidia.com/cudss
        https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss

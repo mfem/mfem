@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -45,7 +45,7 @@ protected:
    int capacity;
 
 public:
-   /// Default constructor for Vector. Sets size = 0 and data = NULL.
+   /// Default constructor for TAutoDiffVector. Sets size = 0 and data = NULL.
    TAutoDiffVector()
    {
       data = nullptr;
@@ -200,8 +200,8 @@ public:
    }
 
    /// Set the Vector data and size.
-   /** The Vector does not assume ownership of the new data. The new size is
-       @warning This method should be called only when OwnsData() is false.
+   /** The Vector does not assume ownership of the new data. The old data is
+       deleted, if owned.
        @sa NewDataAndSize(). */
    void SetDataAndSize(dtype *d, int s)
    {

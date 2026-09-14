@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -218,6 +218,14 @@ else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
 else ifeq ($(MAKECMDGOALS),config)
    $(error Invalid floating-point precision: \
      MFEM_PRECISION = $(MFEM_PRECISION))
+endif
+
+ifeq ($(MFEM_USE_RAJA),YES)
+  BASE_FLAGS = -std=c++20
+endif
+
+ifeq ($(MFEM_USE_UMPIRE),YES)
+  BASE_FLAGS = -std=c++20
 endif
 
 # MPI library compile and link flags
@@ -663,10 +671,10 @@ ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
    @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
 ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
    ifeq ($(ENZYME_PLUGIN),)
-      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+      $(error Unable to find the Enzyme plugin! Please set ENZYME_DIR)
    endif
    ifneq ($(words $(ENZYME_PLUGIN)),1)
-      $(error Multiple versions of the Enzyme pluging found! \
+      $(error Multiple versions of the Enzyme plugin found! \
               Please set ENZYME_PLUGIN directly)
    endif
 endif
