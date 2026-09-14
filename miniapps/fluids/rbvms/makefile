@@ -29,10 +29,13 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
    $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
-MINIAPPS = rbvms
+SEQ_MINIAPPS = rbvms
+PAR_MINIAPPS = prbvms
 
-ifeq ($(MFEM_USE_MPI),YES)
-   MINIAPPS = $(MINIAPPS) prbvms
+ifeq ($(MFEM_USE_MPI),NO)
+   MINIAPPS = $(SEQ_MINIAPPS)
+else
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
