@@ -305,8 +305,17 @@ for i, filename in enumerate(filenames):
 	# SuiteSparse already produces UMFPack by default, so there is nothing to
 	# force. A UMFPack reference therefore still skips where it must, exactly
 	# as before.
+	#
+	# The recorded preconditioner is the LAST '+'-separated field of the part
+	# before any '/': the string is built as
+	# solver[+prec][+lin_prec][/inner_solver] (darcyop.cpp). Matching 'GS'
+	# anywhere in it instead matches the GS inside **LBFGS**, which is how
+	# every LBFGS reference came to be re-run with a spurious `-prec 1`. That
+	# happened to be inert -- checked, serial and parallel, with and without,
+	# byte-identical output -- but it was passing an option the reference never
+	# asked for, which is the thing this block exists to avoid.
 	prec_run = prec
-	if prec_run == 0 and 'GS' in ref_solver:
+	if prec_run == 0 and ref_solver.split('/')[0].split('+')[-1] == 'GS':
 		prec_run = 1
 	if prec_run != 0:
 		command_line += f' -prec {prec_run}'
