@@ -146,7 +146,7 @@ static void BK_DG(bm::State &state)
    const double prob = ((double)state.range(2))/100;
    Kernel ker(p, N, prob);
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }
-   while (state.KeepRunning()) { ker.benchmark_action(); }
+   for (auto _ : state) { ker.benchmark_action(); }
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);
    state.counters["Order"] = bm::Counter(ker.p);

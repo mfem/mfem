@@ -30,7 +30,7 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 // Custom benchmark arguments generator
-static void CustomArguments(bm::Benchmark *b) noexcept
+static void CustomArguments(bmi::Benchmark *b) noexcept
 {
 #if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int MAX_NDOFS = 16 * 1024 * 1024;
@@ -301,7 +301,7 @@ template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
    T run(state.range(0), state.range(1));
-   while (state.KeepRunning()) { run.benchmark(); }
+   for (auto _ : state) { run.benchmark(); }
    state.counters["Dofs"] = bm::Counter(run.dofs);
    state.counters["MDof/s"] = bm::Counter(run.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Order"] = bm::Counter(state.range(0));
