@@ -1,0 +1,71 @@
+Options used:
+   --mesh 
+   --ncells-x 12
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --ref-levels -1
+   --delta-random 0
+   --order 1
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 9
+   --time-final 0.5
+   --ntimesteps 2
+   --ode-solver 4
+   --kappa 0.3
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.000495047s.
+***********************************************************
+dim(V) = 1152
+dim(W) = 576
+dim(M) = 624
+dim(V+W+M) = 2352
+***********************************************************
+Assembly took 0.00088684s.
+Preconditioner took 1.9887e-05s.
+Newton+GMRES+GS/Newton+GMRES converged in 3 iterations with a residual norm of 7.57906e-09.
+Solver took 0.0319765s.
+Assembly took 0.000152956s.
+Newton+GMRES+GS/Newton+GMRES converged in 3 iterations with a residual norm of 1.20723e-08.
+Solver took 0.0337653s.
+Assembly took 0.000254517s.
+Newton+GMRES+GS/Newton+GMRES converged in 3 iterations with a residual norm of 1.08264e-08.
+Solver took 0.0355806s.
+iter:	0	time:	0.25	q_err:	0.033166	t_err:	0.012057
+Assembly took 0.000295604s.
+Newton+GMRES+GS/Newton+GMRES converged in 3 iterations with a residual norm of 1.57994e-08.
+Solver took 0.0445629s.
+Assembly took 0.000262641s.
+Newton+GMRES+GS/Newton+GMRES converged in 3 iterations with a residual norm of 2.73485e-08.
+Solver took 0.0364582s.
+Assembly took 0.000158055s.
+Newton+GMRES+GS/Newton+GMRES converged in 4 iterations with a residual norm of 1.18609e-10.
+Solver took 0.044419s.
+iter:	1	time:	0.5	q_err:	0.0218748	t_err:	0.0146681
+|| q_h - q_ex || / || q_ex || = 0.0218748
+|| t_h - t_ex || / || t_ex || = 0.0146681

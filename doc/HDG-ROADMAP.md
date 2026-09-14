@@ -276,12 +276,20 @@ with it is an application's business, not the library's.
 with four ODE solvers behind `-ode` and observed temporal orders 1 to 4; the
 table is in `miniapps/hdg/convdiff.cpp`'s header comment.
 
-What is left is verification and theory — unchecked transient problems, no
-transient regression reference, and the DAE questions proper (index, consistent
-initialisation of the algebraic trace block, stage-order reduction on the
-constraint under a DIRK method). **Whether this is ours has not been decided**;
-it has had real work on the sibling branch and the scope note does not assume
-either way.
+**Problems 7 and 9 now carry transient references**, sixteen of them, four per
+problem per arm and one per ODE solver; they arrived with the trunk, along with
+the fix that made them meaningful. The error used to be taken against the exact
+solution at the LAST STAGE TIME of the step rather than at its end — backward
+Euler was exactly unaffected (`c = 1`), the three SDIRKs were not, and `-ode 4`
+read 1.4569 where the truth is 0.0165.
+
+What is left is theory rather than verification: the DAE questions proper —
+index, consistent initialisation of the algebraic trace block (which problems 7
+and 9 dodge by starting from an identically zero solution rather than
+answering), and stage-order reduction on the constraint under a DIRK method.
+Time-varying boundary data has no coverage either; only problem 4 has any, and
+it has no reference. **Whether this is ours has not been decided**; it has had
+real work on the sibling branches and the scope note does not assume either way.
 
 **ARKODE is present and not usable here**, which is worth knowing before anyone
 tries to wire it: its implicit path drives an explicit `f(t, y)` and

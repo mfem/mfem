@@ -1,0 +1,72 @@
+Options used:
+   --mesh 
+   --ncells-x 12
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 1
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 9
+   --time-final 0.5
+   --ntimesteps 2
+   --ode-solver 4
+   --kappa 0.3
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.000428852s.
+***********************************************************
+dim(V) = 576
+dim(W) = 288
+dim(M) = 324
+dim(V+W+M) = 1188
+***********************************************************
+Assembly took 0.000484857s.
+Preconditioner took 2.9956e-05s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 3 iterations with a residual norm of 7.57963e-09.
+Solver took 0.0173382s.
+Assembly took 7.6784e-05s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 3 iterations with a residual norm of 9.61852e-11.
+Solver took 0.0182053s.
+Assembly took 7.6173e-05s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 2 iterations with a residual norm of 7.8426e-10.
+Solver took 0.0131543s.
+iter:	0	time:	0.25	q_err:	0.0331661	t_err:	0.012057
+Assembly took 0.000119133s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 4 iterations with a residual norm of 9.90668e-11.
+Solver took 0.0266425s.
+Assembly took 8.0811e-05s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 4 iterations with a residual norm of 8.45757e-11.
+Solver took 0.0229082s.
+Assembly took 7.6373e-05s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 3 iterations with a residual norm of 1.53848e-09.
+Solver took 0.0186767s.
+iter:	1	time:	0.5	q_err:	0.0218749	t_err:	0.0146681
+|| q_h - q_ex || / || q_ex || = 0.0218749
+|| t_h - t_ex || / || t_ex || = 0.0146681
