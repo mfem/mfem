@@ -320,6 +320,14 @@ public:
    /// Set the tolerance of iterative solvers
    void SetTolerance(real_t rtol_, real_t atol_ = 0.) { rtol = rtol_; atol = atol_; }
 
+   /** @brief Force the serial preconditioner instead of taking the build's
+       compile-time choice. See PrecType.
+
+       Must be called BEFORE the first ImplicitSolve(), which is where the
+       solver stack is built; it is read once, when `reassemble` is true, and
+       a later call changes nothing. */
+   void SetPrecType(PrecType type) { prec_type = type; }
+
    /// Set the maximal number of iterations of iterative solvers
    void SetMaxIters(int iters_) { max_iters = iters_; }
 
@@ -359,14 +367,6 @@ public:
        hybridized nonlinear problem: with no trace space, or a linear one,
        this is ignored. */
    void SetNPC(bool npc_ = true) { npc = npc_; }
-
-   /** @brief Force the serial preconditioner instead of taking the build's
-       compile-time choice. See PrecType.
-
-       Must be called BEFORE the first ImplicitSolve(), which is where the
-       solver stack is built; it is read once, when `reassemble` is true, and
-       a later call changes nothing. */
-   void SetPrecType(PrecType type) { prec_type = type; }
 
    void EnableSolutionController(SolutionController::Type type) { sol_type = type; }
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
