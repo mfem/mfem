@@ -27,6 +27,11 @@ RBVMSIntegrator::RBVMSIntegrator(Coefficient &rho,
    Gij.SetSize(dim);
    hmap.SetSize(dim,dim);
 
+   mat_wp1 = new DenseMatrix[dim];
+   mat_qu1 = new DenseMatrix[dim];
+   mat_up = new DenseMatrix[dim];
+   mat_uu = new DenseMatrix[dim*dim];
+
    if (dim == 2)
    {
       hmap(0,0) = 0;
@@ -46,6 +51,14 @@ RBVMSIntegrator::RBVMSIntegrator(Coefficient &rho,
    {
       mfem_error("Only implemented for 2D and 3D");
    }
+}
+
+RBVMSIntegrator::~RBVMSIntegrator()
+{
+   delete[] mat_wp1;
+   delete[] mat_qu1;
+   delete[] mat_up;
+   delete[] mat_uu;
 }
 
 // Compute RBVMS stabilisation parameters
@@ -389,7 +402,7 @@ void RBVMSIntegrator::AssembleElementGrad(
 
    DenseMatrix mat_wu1(dof_u, dof_u);
    mat_wu1 = 0.0;
-   DenseMatrix mat_wp1[dim], mat_qu1[dim], mat_up[dim];
+   //DenseMatrix mat_wp1[dim], mat_qu1[dim], mat_up[dim];
    for (int i_dim = 0; i_dim < dim; ++i_dim)
    {
       mat_wp1[i_dim].SetSize(dof_u,dof_p);
@@ -401,7 +414,7 @@ void RBVMSIntegrator::AssembleElementGrad(
    }
 
    int dim2 = (dim*(dim+1))/2;
-   DenseMatrix  mat_uu[dim*dim];
+   //DenseMatrix  mat_uu[dim*dim];
    for (int i_dim = 0; i_dim < dim2; ++i_dim)
    {
       mat_uu[i_dim].SetSize(dof_u,dof_u);

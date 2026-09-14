@@ -50,11 +50,16 @@ private:
 
    real_t cfl = 0;
 
+   DenseMatrix *mat_wp1, *mat_qu1, *mat_up, *mat_uu;
+
 public:
    /// Constructor
    RBVMSIntegrator(Coefficient &rho_,
                    Coefficient &mu_,
                    VectorCoefficient &force_);
+
+   /// Destructor
+   ~RBVMSIntegrator();
 
    /// Set the time @a t
    void SetTime(const real_t &t) override
