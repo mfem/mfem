@@ -4720,20 +4720,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    mesh.attribute_sets.Copy(attribute_sets);
    mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
 
-   // Deep copy the NURBSExtension.
-   NURBSExtension* NURBSext = NULL;
-#ifdef MFEM_USE_MPI
-   const ParNURBSExtension *pNURBSext =
-      dynamic_cast<const ParNURBSExtension *>(mesh.NURBSExt());
-   if (pNURBSext)
-   {
-      NURBSext = new ParNURBSExtension(*pNURBSext);
-   }
-   else
-#endif
-   {
-      NURBSext = mesh.IsNURBS() ? new NURBSExtension(*mesh.NURBSExt()) : NULL;
-   }
+
 
    // Deep copy the NCMesh.
 #ifdef MFEM_USE_MPI
@@ -4753,8 +4740,25 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    {
       FiniteElementSpace *fes = mesh.Nodes->FESpace();
       const FiniteElementCollection *fec = fes->FEColl();
+
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
+
+      // Deep copy the NURBSExtension.
+      NURBSExtension* NURBSext = NULL;
+#ifdef MFEM_USE_MPI
+      const ParNURBSExtension *pNURBSext =
+         dynamic_cast<const ParNURBSExtension *>(mesh.NURBSExt());
+      if (pNURBSext)
+      {
+         NURBSext = new ParNURBSExtension(*pNURBSext);
+      }
+      else
+#endif
+      {
+         NURBSext = mesh.IsNURBS() ? new NURBSExtension(*mesh.NURBSExt()) : NULL;
+      }
+
       FiniteElementSpace *fes_copy =
          new FiniteElementSpace(*fes, this, NURBSext, fec_copy);
       Nodes = new GridFunction(fes_copy);

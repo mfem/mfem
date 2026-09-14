@@ -4761,7 +4761,8 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, NURBSExtension *ext,
                                                   std::istream &input)
 {
-   if (m->IsNURBS() & (ext != NULL) )
+   // Make sure provided extension matches the mesh nurbs extension
+   if (m->IsNURBS() && (ext != NULL) )
    {
       MFEM_VERIFY(m->NURBSExt() == ext,
                   "FiniteElementSpace::Load() Extension provided and Mesh has its own NURBS extension!!");
@@ -4833,7 +4834,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, NURBSExtension *ext,
             else
             {
                Array<int> orders;
-               orders.Load(m->NURBSExt()->GetNKV(), input);
+               orders.Load(ext->GetNKV(), input);
                nurbs_ext = new NURBSExtension(ext, orders);
             }
          }
