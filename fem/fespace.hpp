@@ -620,6 +620,10 @@ public:
    FiniteElementSpace(const FiniteElementSpace &orig, Mesh *mesh = NULL,
                       const FiniteElementCollection *fec = NULL);
 
+   FiniteElementSpace(const FiniteElementSpace &orig,
+                      Mesh *mesh, NURBSExtension *ext,
+                      const FiniteElementCollection *fec = NULL);
+
    FiniteElementSpace(Mesh *mesh,
                       const FiniteElementCollection *fec,
                       int vdim = 1, int ordering = Ordering::byNODES);
@@ -638,9 +642,16 @@ public:
    /// Returns the mesh
    inline Mesh *GetMesh() const { return mesh; }
 
+   /// Return true if the space is a NURBS space
+   bool IsNURBS() const
+   {
+      return NURBSext;
+   }
+
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
+   void OwnNURBSext(NURBSExtension *NURBSext = NULL);
 
    bool Conforming() const
    {
@@ -1635,6 +1646,8 @@ public:
    /** @brief Read a FiniteElementSpace from a stream. The returned
        FiniteElementCollection is owned by the caller. */
    FiniteElementCollection *Load(Mesh *m, std::istream &input);
+   FiniteElementCollection *Load(Mesh *m, NURBSExtension *ext,
+                                 std::istream &input);
 
    virtual ~FiniteElementSpace();
 };
