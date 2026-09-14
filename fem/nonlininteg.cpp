@@ -1367,7 +1367,7 @@ void StabilizedCDRIntegrator::AssembleElementGrad(
    dudx.SetSize(dim);
 
    real_t m,r,mu,f;
-   real_t u, dudt, dudx2, res, res0;
+   real_t u, dudt, dudx2, res;//, res0;
    Vector a(dim);
 
    Ka.SetSize(kappa_mat_fun ? dim : 0);
@@ -1404,7 +1404,7 @@ void StabilizedCDRIntegrator::AssembleElementGrad(
       dudx2 = 0.0;//lshape*elfun;
 
       // Compute the residual
-      res0 = m*dudt + a*dudx - mu*dudx2 + r*u - f;
+      res = m*dudt + a*dudx - mu*dudx2 + r*u - f;
 
       // Add Petrov-Galerkin weight
       test = shape;

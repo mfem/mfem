@@ -752,7 +752,7 @@ private:
    Coefficient *mass = nullptr;
    VectorCoefficient *conv = nullptr;
    Coefficient *diff = nullptr;
-   MatrixCoefficient *diff_mat = nullptr;
+   //   MatrixCoefficient *diff_mat = nullptr;
    Coefficient *react = nullptr;
    Coefficient *force = nullptr;
 
@@ -788,7 +788,7 @@ public:
                            Coefficient *force_ = nullptr,
                            TauFunc_t *tau = nullptr,
                            KappaFunc_t *kappa = nullptr)
-      : mass(mass_), conv(conv_),  diff_mat(diff_mat_), react(react_),
+      : mass(mass_), conv(conv_), react(react_),
         force(force_), tau_fun(tau), kappa_fun(kappa) { };
 
    StabilizedCDRIntegrator(Coefficient *mass_,
@@ -798,7 +798,7 @@ public:
                            Coefficient *force_,
                            TauFunc_t *tau,
                            KappaMatFunc_t *kappa)
-      : mass(mass_), conv(conv_),  diff_mat(diff_mat_), react(react_),
+      : mass(mass_), conv(conv_), react(react_),
         force(force_), tau_fun(tau), kappa_mat_fun(kappa) { };
 
    StabilizedCDRIntegrator() = default;
