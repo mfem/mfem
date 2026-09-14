@@ -317,22 +317,31 @@ SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
  $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
  -L$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib\
  -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
-ifeq ($(MFEM_USE_MPI),YES)
-   SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
-endif
-ifeq ($(MFEM_USE_CUDA),YES)
-   SUNDIALS_LIB += -lsundials_nveccuda
-endif
-ifeq ($(MFEM_USE_HIP),YES)
-   SUNDIALS_LIB += -lsundials_nvechip
-endif
+# Deferred for the same reason as -lsundials_core below: config/user.mk is
+# included AFTER this file, so an immediate `ifeq` here sees the DEFAULT value
+# of MFEM_USE_MPI / _CUDA / _HIP, not the user's. Enabling MPI through user.mk
+# therefore dropped -lsundials_nvecparallel and -lsundials_nvecmpiplusx, and
+# the failure landed at link time in an undefined N_VNew_Parallel rather than
+# anywhere near the cause. Command-line `make config MFEM_USE_MPI=YES` was
+# never affected, which is why this survived. $(if ...) inside a recursively
+# expanded variable evaluates at use time, when the values are final.
+SUNDIALS_LIB += $(if $(filter YES,$(MFEM_USE_MPI)),\
+ -lsundials_nvecparallel -lsundials_nvecmpiplusx)
+SUNDIALS_LIB += $(if $(filter YES,$(MFEM_USE_CUDA)),-lsundials_nveccuda)
+SUNDIALS_LIB += $(if $(filter YES,$(MFEM_USE_HIP)),-lsundials_nvechip)
 SUNDIALS_CORE_PAT = $(subst\
  @MFEM_DIR@,$(MFEM_DIR),$(SUNDIALS_DIR))/lib*/libsundials_core.*
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   ifneq ($(wildcard $(SUNDIALS_CORE_PAT)),)
-      SUNDIALS_LIB += -lsundials_core
-   endif
-endif
+# Deferred on purpose. config/user.mk is included AFTER this file, so neither
+# MFEM_USE_SUNDIALS nor SUNDIALS_DIR has its final value here: an immediate
+# test (ifeq plus ifneq $(wildcard ...)) sees SUNDIALS off and the default
+# SUNDIALS_DIR, so it never appends -lsundials_core for anyone who enables
+# SUNDIALS through user.mk rather than on the command line. The library still
+# builds -- only the link of an executable fails, much later and far from the
+# cause, as "libsundials_core.so.7: error adding symbols: DSO missing from
+# command line". Keeping this recursively expanded evaluates it at use time,
+# when both variables are final. SUNDIALS_LIB is unused when SUNDIALS is off,
+# so no guard on MFEM_USE_SUNDIALS is needed.
+SUNDIALS_LIB += $(if $(wildcard $(SUNDIALS_CORE_PAT)),-lsundials_core)
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 
