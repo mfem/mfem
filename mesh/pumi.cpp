@@ -1051,11 +1051,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    AdaptedpMesh->attributes.Copy(attributes);
    AdaptedpMesh->bdr_attributes.Copy(bdr_attributes);
 
-   // PUMI meshes cannot use NURBS meshes.
-   MFEM_VERIFY(AdaptedpMesh->NURBSext == NULL,
-               "invalid adapted mesh: it is a NURBS mesh");
-   NURBSext = NULL;
-
    // PUMI meshes cannot use NCMesh/ParNCMesh.
    MFEM_VERIFY(AdaptedpMesh->ncmesh == NULL && AdaptedpMesh->pncmesh == NULL,
                "invalid adapted mesh: it is a non-conforming mesh");

@@ -240,7 +240,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
       std::string mesh_type = "Unknown";
       std::vector<std::string> viz_tools;
       viz_tools.reserve(2); //for now
-      if (mesh.NURBSext)
+      if (mesh.IsNURBS())
       {
          mesh_type = "MFEM NURBS";
          viz_tools.push_back("NONE");
