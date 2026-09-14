@@ -21,6 +21,7 @@
 namespace mfem
 {
 
+
 class NonlinearForm : public Operator
 {
 protected:
@@ -206,6 +207,9 @@ public:
        vectors, i.e. their size must be fes->GetTrueVSize(). */
    void Mult(const Vector &x, Vector &y) const override;
 
+
+   virtual void ConservativeFlux(const Vector &dx, DenseMatrix &flux) {};
+
    /** @brief Compute the gradient Operator of the NonlinearForm corresponding
        to the state @a x. */
    /** Any previously specified essential boundary conditions will be
@@ -222,7 +226,7 @@ public:
    /** @brief Compute the gradient Operator of the NonlinearForm corresponding
        to the state @a x with optional finalization and elimintaion. */
    /** @see GetGradient(const Vector &) */
-   Operator &GetGradient(const Vector &x, bool finalize) const;
+   virtual Operator &GetGradient(const Vector &x, bool finalize) const;
 
    /// Update the NonlinearForm to propagate updates of the associated FE space.
    /** After calling this method, the essential boundary conditions need to be
@@ -408,6 +412,8 @@ public:
    /// directly.
    void Mult(const Vector &x, Vector &y) const override;
 
+   virtual void ConservativeFlux(const Vector &dx, DenseMatrix &flux) {};
+
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
    Operator &GetGradient(const Vector &x) const override;
@@ -416,6 +422,302 @@ public:
    virtual ~BlockNonlinearForm();
 };
 
+class TimeDepNonlinearForm : public NonlinearForm
+{
+protected:
+
+   /// Set of Time dependent Domain Integrators to be assembled (added).
+   Array<TimeDepNonlinearFormIntegrator*> tdnfi; // owned
+   Array<Array<int>*>              tdnfi_marker; // not owned
+
+   /// Set of Time dependent Boundary Integrators to be assembled (added).
+   Array<TimeDepNonlinearFormIntegrator*> tbnfi; // owned
+   Array<Array<int>*> tbnfi_marker; // not owned
+
+   /// Set of Time dependent Interior face Integrators to be assembled (added).
+   Array<TimeDepNonlinearFormIntegrator*> tfnfi; // owned
+
+   /// Set of Time dependent Boundary face Integrators to be assembled (added).
+   Array<TimeDepNonlinearFormIntegrator*> tbfnfi; // owned
+   Array<Array<int>*>              tbfnfi_marker; // not owned
+
+   Vector x0;
+   real_t dt, t;
+
+   mutable Vector x;
+
+public:
+   /// Construct a TimeDepNonlinearForm on the given FiniteElementSpace, @a f.
+   /** As an Operator, the TimeDepNonlinearForm has input and output size equal to the
+       number of true degrees of freedom, i.e. f->GetTrueVSize(). */
+   TimeDepNonlinearForm(FiniteElementSpace *f)
+      : NonlinearForm(f)
+   { }
+
+   ///
+   void SetTime(const real_t &t_);
+   void SetTimeStep(const real_t &dt_);
+
+   void SetTimeAndStep(const real_t &t_, const real_t &dt_)
+   {
+      SetTime(t_);
+      SetTimeStep(dt_);
+   }
+
+   virtual void SetInitialSolution(const Vector &x0_);
+
+   /// Adds new Time dependent Domain Integrator.
+   void AddTimeDepDomainIntegrator(TimeDepNonlinearFormIntegrator *nlfi)
+   { tdnfi.Append(nlfi); tdnfi_marker.Append(NULL); }
+
+   /// Adds new Time dependent Domain Integrator, restricted to specific attributes.
+   void AddTimeDepDomainIntegrator(TimeDepNonlinearFormIntegrator *nlfi,
+                                   Array<int> &elem_marker)
+   { tdnfi.Append(nlfi); tdnfi_marker.Append(&elem_marker); }
+
+   /// Access all Time dependent integrators added with AddTimeDepDomainIntegrator().
+   Array<TimeDepNonlinearFormIntegrator*> *GetTDNFI() { return &tdnfi; }
+   const Array<TimeDepNonlinearFormIntegrator*> *GetTDNFI() const { return &tdnfi; }
+
+   /// Adds new Time dependent Boundary Integrator.
+   void AddTimeDepBoundaryIntegrator(TimeDepNonlinearFormIntegrator *nlfi)
+   { tbnfi.Append(nlfi); tbnfi_marker.Append(NULL); }
+
+   /// Adds new Time dependent Boundary Integrator, restricted to specific attributes.
+   void AddTimeDepBoundaryIntegrator(TimeDepNonlinearFormIntegrator *nlfi,
+                                     Array<int> &elem_marker)
+   { tbnfi.Append(nlfi); tbnfi_marker.Append(&elem_marker); }
+
+   /// Access all integrators added with AddTimeDepBoundaryIntegrator().
+   Array<TimeDepNonlinearFormIntegrator*> *GetTBNFI() { return &tbnfi; }
+   const Array<TimeDepNonlinearFormIntegrator*> *GetTBNFI() const { return &tbnfi; }
+
+   /// Adds new Time dependent Interior Face Integrator.
+   void AddTimeDepInteriorFaceIntegrator(TimeDepNonlinearFormIntegrator *nlfi)
+   { tfnfi.Append(nlfi); }
+
+   /** @brief Access all interior face integrators added with
+       AddTimeDepInteriorFaceIntegrator(). */
+   const Array<TimeDepNonlinearFormIntegrator*>
+   &GetTimeDepInteriorFaceIntegrators() const
+   { return tfnfi; }
+
+   /// Adds new Boundary Face Integrator.
+   void AddBdrFaceIntegrator(TimeDepNonlinearFormIntegrator *nlfi)
+   { tbfnfi.Append(nlfi); tbfnfi_marker.Append(NULL); }
+
+   /** @brief Adds new Time dependent Boundary Face Integrator, restricted
+        to specific boundary attributes. */
+   void AddTimeDepBdrFaceIntegrator(TimeDepNonlinearFormIntegrator *nfi,
+                                    Array<int> &bdr_marker)
+   { tbfnfi.Append(nfi); tbfnfi_marker.Append(&bdr_marker); }
+
+   /** @brief Access all boundary face integrators added with
+       AddBdrFaceIntegrator(). */
+   const Array<TimeDepNonlinearFormIntegrator*> &GetTimeDepBdrFaceIntegrators()
+   const { return tbfnfi; }
+
+   /// Compute the energy corresponding to the state @a x.
+   /** In general, @a x may have non-homogeneous essential boundary values.
+
+       The state @a x must be a "GridFunction size" vector, i.e. its size must
+       be fes->GetVSize(). */
+   real_t GetGridFunctionEnergy(const Vector &x) const;
+
+   /// Evaluate the action of the TimeDepNonlinearForm.
+   /** The input essential dofs in @a x will, generally, be non-zero. However,
+       the output essential dofs in @a y will always be set to zero.
+
+       Both the input and the output vectors, @a x and @a y, must be true-dof
+       vectors, i.e. their size must be fes->GetTrueVSize(). */
+   void Mult(const Vector &dx, Vector &y) const override;
+
+
+
+   Operator &GetGradient(const Vector &dx) const override { return GetGradient(x, true); }
+
+   /** @brief Compute the gradient Operator of the TimeDepNonlinearForm corresponding
+       to the state @a x with optional finalization and elimintaion. */
+   /** @see GetGradient(const Vector &) */
+   Operator &GetGradient(const Vector &dx, bool finalize) const override;
+
+   /** @brief Destroy the TimeDepNonlinearForm including the owned
+       TimeDepNonlinearFormIntegrator%s and gradient Operator. */
+   virtual ~TimeDepNonlinearForm();
+};
+
+
+/** @brief A class representing a general block nonlinear operator defined on
+    the Cartesian product of multiple FiniteElementSpace%s. */
+class BlockTimeDepNonlinearForm : public BlockNonlinearForm
+{
+
+protected:
+
+   /// Set of Time dependent Domain Integrators to be assembled (added).
+   Array<BlockTimeDepNonlinearFormIntegrator*> tdnfi;
+   Array<Array<int>*>                   tdnfi_marker;
+
+   /// Set of Time dependent Boundary Integrators to be assembled (added).
+   Array<BlockTimeDepNonlinearFormIntegrator*> tbnfi;
+   Array<Array<int>*>                   tbnfi_marker;
+
+   /// Set of Time dependent Interior Face Integrators to be assembled (added).
+   Array<BlockTimeDepNonlinearFormIntegrator*> tfnfi;
+
+   /// Set of Time dependent Boundary Face Integrators to be assembled (added).
+   Array<BlockTimeDepNonlinearFormIntegrator*> tbfnfi;
+   Array<Array<int>*>                   tbfnfi_marker;
+
+   /// Specialized version of GetEnergy() for BlockVectors
+   real_t GetEnergyBlocked(const BlockVector &bx, const BlockVector &bdx) const;
+
+   /// Specialized version of Mult() for BlockVector%s
+   /// Block L-Vector to Block L-Vector
+   void MultBlocked(const BlockVector &bx,
+                    const BlockVector &bdx,
+                    BlockVector &by) const;
+
+   /// Specialized version of GetGradient() for BlockVector
+   void ComputeGradientBlocked(const BlockVector &bx,
+                               const BlockVector &bdx,
+                               bool finalize = true) const;
+
+   mutable BlockVector dxs;
+
+   Vector x0;
+   real_t dt, t;
+
+   mutable Vector x;
+
+public:
+
+   /// Construct a BlockTimeDepNonlinearForm on the given set of FiniteElementSpace%s.
+   BlockTimeDepNonlinearForm()
+      : BlockNonlinearForm()
+   {}
+
+   /// Construct a BlockTimeDepNonlinearForm on the given set of FiniteElementSpace%s.
+   BlockTimeDepNonlinearForm(Array<FiniteElementSpace *> &f)
+      : BlockNonlinearForm(f)
+   {}
+
+   ///
+   void SetTime(const real_t &t_);
+   void SetTimeStep(const real_t &dt_);
+
+   void SetTimeAndStep(const real_t &t_, const real_t &dt_)
+   {
+      SetTime(t_);
+      SetTimeStep(dt_);
+   }
+
+   virtual void SetInitialSolution(const Vector &x0_);
+
+   /// Adds new Time dependent Domain Integrator.
+   void AddTimeDepDomainIntegrator(BlockTimeDepNonlinearFormIntegrator *nlfi)
+   { tdnfi.Append(nlfi); tdnfi_marker.Append(NULL); }
+
+   /// Adds new Time dependent Domain Integrator, restricted to specific attributes.
+   void AddTimeDepDomainIntegrator(BlockTimeDepNonlinearFormIntegrator *nlfi,
+                                   Array<int> &elem_marker)
+   { tdnfi.Append(nlfi); tdnfi_marker.Append(&elem_marker); }
+
+   /// Adds new Time dependent Boundary Integrator.
+   void AddTimeDepBoundaryIntegrator(BlockTimeDepNonlinearFormIntegrator *nlfi)
+   { tbnfi.Append(nlfi); tbnfi_marker.Append(NULL); }
+
+   /// Adds new Time dependent Boundary Integrator, restricted to specific attributes.
+   void AddTimeDepBoundaryIntegrator(BlockTimeDepNonlinearFormIntegrator *nlfi,
+                                     Array<int> &elem_marker)
+   { tbnfi.Append(nlfi); tbnfi_marker.Append(&elem_marker); }
+
+   /// Adds new Time dependent Interior Face Integrator.
+   void AddTimeDepInteriorFaceIntegrator(BlockTimeDepNonlinearFormIntegrator *nlfi)
+   { tfnfi.Append(nlfi); }
+
+   /// Adds new Time dependent Boundary Face Integrator.
+   void AddTimeDepBdrFaceIntegrator(BlockTimeDepNonlinearFormIntegrator *nlfi)
+   { tbfnfi.Append(nlfi); tbfnfi_marker.Append(NULL); }
+
+   /** @brief Adds new Time dependent Boundary Face Integrator, restricted to
+       specific boundary attributes. */
+   void AddTimeDepBdrFaceIntegrator(BlockTimeDepNonlinearFormIntegrator *nlfi,
+                                    Array<int> &bdr_marker)
+   { tbfnfi.Append(nlfi); tbfnfi_marker.Append(&bdr_marker); }
+
+   real_t GetEnergy(const Vector &dx) const override;
+
+   /// Method is only called in serial, the parallel version calls MultBlocked
+   /// directly.
+   void Mult(const Vector &dx, Vector &y) const override;
+
+   /// Method is only called in serial, the parallel version calls
+   /// GetGradientBlocked directly.
+   Operator &GetGradient(const Vector &dx) const override;
+
+   ///
+   void ConservativeFlux(const Vector &dx, DenseMatrix &flux) override;
+
+   /// Destructor.
+   virtual ~BlockTimeDepNonlinearForm();
+};
+
+
+class Evolution : public TimeDependentOperator
+{
+private:
+   TimeDepNonlinearForm *form;
+   IterativeSolver &solver;
+
+public:
+
+   mutable DenseMatrix bdr_flux;
+
+   /// Constructor
+   Evolution(TimeDepNonlinearForm &form,
+             IterativeSolver &solver);
+
+   /// Solve time dependent problem
+   void ImplicitSolve(const real_t dt,
+                      const Vector &x,
+                      Vector &k) override;
+
+   /// Stub for explicit solve of time dependent problem
+   void Mult(const Vector &x, Vector &k) const override
+   { k = 0.0; }
+
+   /// Destructor
+   ~Evolution() {}
+};
+
+
+class BlockEvolution : public TimeDependentOperator
+{
+private:
+   BlockTimeDepNonlinearForm *bform;
+   IterativeSolver &solver;
+
+public:
+
+   mutable DenseMatrix bdr_flux;
+
+   /// Constructor
+   BlockEvolution(BlockTimeDepNonlinearForm &form,
+                  IterativeSolver &solver);
+
+   /// Solve time dependent problem
+   void ImplicitSolve(const real_t dt,
+                      const Vector &x,
+                      Vector &k) override;
+
+   /// Stub for explicit solve of time dependent problem
+   void Mult(const Vector &x, Vector &k) const override
+   { k = 0.0; }
+
+   /// Destructor
+   ~BlockEvolution() {}
+};
 
 }
 

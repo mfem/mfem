@@ -16,6 +16,7 @@
 #include "../general/hash.hpp"
 #include "../general/scan.hpp"
 #include "vector.hpp"
+#include "densemat.hpp"
 
 #ifdef MFEM_USE_OPENMP
 #include <omp.h>
@@ -1000,6 +1001,20 @@ real_t Vector::Norml2() const
    // final answer
    return res.second * sqrt(res.first);
 }
+
+real_t Vector::Norm2(const DenseMatrix &metric) const
+{
+   MFEM_ASSERT(size == metric.Width() &&
+               size == metric.Height(),
+               "incompatible metric!");
+
+   if (size == 0) { return 0.0; }
+   Vector tmp(size);
+   metric.Mult(*this, tmp);
+
+   return (*this) * tmp;
+}
+
 
 real_t Vector::Normlinf() const
 {
