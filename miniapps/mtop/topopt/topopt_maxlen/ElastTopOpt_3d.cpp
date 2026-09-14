@@ -87,7 +87,7 @@ struct MeshProblem
     std::vector<LoadCase> cases;
 };
 
-MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh);
+MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh, int ray_type);
 
 // Extract Mesh with non-zero density
 void SaveSolidSubmesh(ParMesh &pmesh, ParGridFunction &desi_density,
@@ -158,6 +158,8 @@ int main(int argc, char *argv[])
     int  paraview_interval = 0; // intermediate output interval; 0 disables it
     bool optimize      = true;   // run the optimization loop after the initial eval
     bool thickness     = true;   // enforce accumulated-density constraints
+    int  ray_type      = 1;      // circular plate rays: 1 radial outward,
+                                 // 2 vertical (+z), 3 parallel xy rays toward center
     int  solver_print  = 1;      // iterative-solver report: 0 off, 1 on
                                  // (CG history / PT summary), 2 verbose
                                  // (+ AMG, + every pseudo-time step)
@@ -224,6 +226,9 @@ int main(int argc, char *argv[])
     args.AddOption(&thickness, "-thickness", "--thickness",
                     "-no-thickness", "--no-thickness",
                     "enable accumulated-density thickness constraints");
+    args.AddOption(&ray_type, "-rt", "--ray-type",
+                    "circular plate thickness rays: 1 = radial outward, 2 = vertical (+z), "
+                    "3 = parallel rays in several xy directions pointing toward the center");
     args.AddOption(&solver_print, "-spl", "--solver-print-level",
                     "iterative-solver report (filter / elasticity / advection): "
                     "0 = off, 1 = on, 2 = verbose");
@@ -255,6 +260,7 @@ int main(int argc, char *argv[])
                 "Elasticity relative tolerance must be nonnegative.");
     MFEM_VERIFY(elast_residual_check >= 0,
                 "Elasticity residual check interval must be nonnegative.");
+    MFEM_VERIFY(ray_type >= 1 && ray_type <= 3, "Ray type must be 1, 2 or 3.");
     if (myid == 0) { args.PrintOptions(cout); }
 
     // initial (uniform) design density -- depends on the parsed options
@@ -264,7 +270,7 @@ int main(int argc, char *argv[])
     stage(std::string("loading mesh: ") +
           (mesh_file[0] ? mesh_file : "<built-in Cartesian beam>"));
     Mesh mesh;
-    MeshProblem prob = loadMesh(myid, mesh_file, mesh);
+    MeshProblem prob = loadMesh(myid, mesh_file, mesh, ray_type);
     if (!thickness)
     {
         prob.rays.clear();
@@ -1523,6 +1529,14 @@ static void RadialOutwardRay(const Vector &x, Vector &v)
     if (r > 1e-12) { v[0] = x[0]/r; v[1] = x[1]/r; }
 }
 
+// Unit vector field pointing at +z direction
+void VerticalRay(const Vector &x, Vector &v)
+{
+    v.SetSize(x.Size());
+    v = 0.0;
+    v(2) = 1.0;
+}
+
 // save the thresholded design by clipping from the max value
 void SaveSolidSubmesh(ParMesh &pmesh, ParGridFunction &desi_density,
                       ParGridFunction &phys_density, const std::string &run_tag, 
@@ -1637,7 +1651,8 @@ static MeshProblem SetupCartesianBeam(Mesh &mesh)
 //              11-22  PerimeterSleeveSurface_1..12 -> u = 0
 //              31-36  TopSleeveSurface_1..6        -> filter rho~ = 1 (default)
 // The mesh is centred on the z-axis, so "radial" == outward from (0,0).
-static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
+static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file,
+                                      int ray_type)
 {
     mesh = Mesh(mesh_file);
 
@@ -1656,12 +1671,35 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
     // every other surface -> rho~ = 1
 
     // --- max-thickness rays ------------------------------------------------
-    // One radial-outward field: the advection accumulates from the central hole
-    // outward, and rho_a is read on the outer free surface (surface 1) where
-    // v.n > 0, giving the radial material span from hub to rim.
+    // rho_a is read on the outer free surface (surface 1) where v.n > 0.
+    //   ray_type 1: one radial-outward field; the advection accumulates from the
+    //               central hole outward, giving the radial span from hub to rim.
+    //   ray_type 2: one vertical (+z) field, giving the through-thickness span.
+    //   ray_type 3: four parallel fields in the xy plane, v = -(cos t, sin t, 0)
+    //               for t = 0, 45, 90, 135 deg, entering at the rim and
+    //               pointing toward the center.
     const int dim = mesh.Dimension();
-    p.rays.push_back(
-        std::make_unique<VectorFunctionCoefficient>(dim, RadialOutwardRay));
+    if (ray_type == 1)
+    {
+        p.rays.push_back(
+            std::make_unique<VectorFunctionCoefficient>(dim, RadialOutwardRay));
+    }
+    else if (ray_type == 2)
+    {
+        p.rays.push_back(
+            std::make_unique<VectorFunctionCoefficient>(dim, VerticalRay));
+    }
+    else if (ray_type == 3)
+    {
+        const int n_xy_dir = 6;
+        for (int k = 0; k < n_xy_dir; k++)
+        {
+            const real_t t = M_PI * k / n_xy_dir;
+            Vector v(dim);  v = 0.0;
+            v(0) = -std::cos(t);  v(1) = -std::sin(t);
+            p.rays.push_back(std::make_unique<VectorConstantCoefficient>(v));
+        }
+    }
 
     // --- load cases ----------------------------------------------------
     Array<int> clamp_bdr;                       // u = 0 on the perimeter sleeves
@@ -1736,7 +1774,7 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
 }
 
 // select the per-mesh setup from the mesh file name
-MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh)
+MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh, int ray_type)
 {
     // no -m: fall back to the built-in Cartesian beam
     if (!mesh_file || mesh_file[0] == '\0')
@@ -1746,7 +1784,7 @@ MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh)
 
     if (strstr(mesh_file, "circular_plate_hex_sleeves_embedded_cylinder") != NULL)
     {
-        return SetupCircularPlate(mesh, mesh_file);
+        return SetupCircularPlate(mesh, mesh_file, ray_type);
     }
 
     if (myid == 0) { mfem::out << "invalid mesh file" << endl; }
