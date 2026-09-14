@@ -1,17 +1,13 @@
-// This file is part of the RBVMS application. For more information and source
-// code availability visit https://idoakkerman.github.io/
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
-//   _____  ______      ____  __  _____
-//   |  __ \|  _ \ \    / /  \/  |/ ____|
-//   | |__) | |_) \ \  / /| \  / | (___
-//   |  _  /|  _ < \ \/ / | |\/| |\___ \
-//   | | \ \| |_) | \  /  | |  | |____) |
-//   |_|  \_\____/   \/   |_|  |_|_____/
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
 //
-//
-// RBVMS is free software; you can redistribute it and/or modify it under the
-// terms of the BSD-3 license.
-//------------------------------------------------------------------------------
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 #include <sys/stat.h>
 #include "mfem.hpp"
 //#include "../util/coefficients.hpp"
