@@ -151,17 +151,23 @@ Two things are left, and neither is what this list used to say:
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
-**Untouched, and the largest item here by a wide margin** — no boundary-element
-machinery exists anywhere in MFEM, so it is a from-scratch build of the
-exterior representation rather than an HDG task.
+**Split out into `doc/HDG-BEM-COUPLING.md`, on this branch, and it is FULLY
+OPTIONAL.** It used to be described here as "the largest item by a wide margin",
+which read as though someone were waiting for it. Nobody is.
 
-It builds directly on §1 and so belongs on this branch rather than a sibling:
-Cockburn, Sayas & Solano's `Σ_h`, `E_h(q_h)` and `L_h(g)` are `TransferPath`,
-`ElementExtension` and `TransferredDatumCoefficient` term for term. A revised
-request from `meq` lives on `gf-hdg-linearise-first` as
-`doc/HDG-BEM-COUPLING-FROM-MEQ.md`; it asks for one integrator they will write
-themselves plus an optimisation nobody needs yet, and **nothing in this tree
-has to change for them to start**.
+The reason is at the top of that file and is worth knowing even if the plan is
+never opened: **choosing the artificial boundary to be a circle in 2-D or a
+sphere in 3-D makes the exterior operator exact and diagonal and removes the
+boundary integral machinery entirely** (Gatica & Hsiao, J. Math. Anal. Appl.
+189 (1995) 442-461). meq has that implemented and working -- an exact diagonal
+Dirichlet-to-Neumann map on a semicircle in a Gegenbauer basis, one number per
+mode -- and gffp has it derived and relied upon, not yet coded. Both known
+consumers of this tree avoid the coupling by choosing the boundary.
+
+Of what the plan describes, the transmission integrator is **delivered**
+(`ExtensionBoundaryQuadrature()`, written by meq and merged here) and only the
+auxiliary globally-coupled unknowns are unbuilt -- an optimisation, not a
+prerequisite.
 
 ## 3. Genuinely general Darcy-like problems — DONE
 
