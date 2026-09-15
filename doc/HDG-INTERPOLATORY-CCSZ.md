@@ -55,6 +55,57 @@ That is the sharpest limitation for this tree, whose nonlinear problems are
 (`fem/nonlininteg_mixed.hpp:23`, `:109`) is `q = q(u, ∇u)`, which is exactly the
 class CCSZ-I does not cover.
 
+**AMENDED: "outside the theory" is not "does not work", and a neighbouring
+code has run it on flux laws.** `../MaNTA/` — a 1-D nonlinear reaction-diffusion
+and *transport* HDG code, integrated as an index-1 DAE by SUNDIALS IDA — has
+CCSZ-I behind a `Superconvergent = true` configuration flag, citing this same
+paper. Read out of that tree's `docs/superconvergence.rst`, not from memory:
+
+* **It runs on transport systems, and converting cost nothing at the physics
+  level**: "No physics case needs changing to run under the flag, in C++,
+  Python or JAX — the batched hooks loop over however many points they are
+  given."
+* **It hit the same new coupling this branch did.** "The only genuinely new
+  coupling is that `u*` on a cell depends on that cell's `q` as well as its
+  `u`" — the Jacobian's (1,0) block, which is why this branch had to build one.
+* **Their measured orders**: `u*` reaches `k+2` and `u_h` keeps `k+1`, for a
+  linear constant-`kappa` case and for a nonlinear reaction `u^3 - u`, at
+  `k = 1` and `k = 2`.
+
+**And their limits section is the part to quote, because it is narrower than
+the flag suggests**: "A general nonlinear flux `sigma(u, q)` is outside the
+papers' theory — their conclusion names `F(grad u, u)` as open. **The Jacobian
+is verified for such a flux, but no order study asserts `k+2` for one.**"
+
+So the honest position for this section is three-way rather than two-way: the
+theory is open, the practice is **fine** — it runs, the Jacobian is right, and
+nothing degenerates — and the superconvergence RATE on a genuine flux law is
+unmeasured anywhere, here or there. The sentence above ("the class CCSZ-I does
+not cover") is true of the theory and was being read as if it were true of the
+method; it is not.
+
+**One anomaly of theirs worth carrying, because it contradicts the stated
+mechanism.** With their flag OFF, `u*` superconverges at `k = 2` but not at
+`k = 1`, and that is true whether or not the source is nonlinear. The papers
+attribute the loss to `I_h F(u_h)` evaluating `F` at an `O(h^{k+1})`-accurate
+`u_h`, which predicts the nonlinear rows differ from the linear ones. **They do
+not.** So whatever caps their `k = 1` rate is not the papers' mechanism, and
+their `k = 2` rows say the interpolatory method is not universally losing
+superconvergence. Their partial explanation is that nodal interpolation of a
+*known* smooth source at the Chebyshev nodes leaves an error very nearly
+orthogonal to `P^k`.
+
+**What this does NOT license for a caller with a gated source.** Interpolation
+is weakest exactly where the integrand is non-smooth, and a free-boundary
+Grad-Shafranov source is `{psi > 0}`-gated with a per-element connectivity
+test, so `F` is DISCONTINUOUS in the unknown on any element the plasma boundary
+crosses. meq already carries an `extraOrderIn = 4` on its `SourceIntegrator`
+"to keep the integration of an exponential in psi from being what limits a
+measured rate", i.e. it is already paying to fight integration error on this
+term, and interpolation is the opposite move. **That element is the probe to
+run before converting anything**, and it is not covered by MaNTA's evidence:
+their sources are smooth.
+
 ### 6.2 Systems (`vdim > 1`): no theory
 
 `u : Ω → ℝ` throughout. Example 4.2's Schnakenberg system is two equations and
