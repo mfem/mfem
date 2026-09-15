@@ -27,7 +27,6 @@ private:
    FiniteElementSpace h1_fespace;
    HCT_FECollection hct_fec;
    FiniteElementSpace hct_fespace;
-   DenseMatrix matrix_h1_weight;
    MatrixConstantCoefficient matrix_h1_coefficient;
    BilinearForm matrix_h1_form;
    BilinearForm biharmonic_form;
@@ -73,8 +72,7 @@ public:
         h1_fec(1, 2),
         h1_fespace(jm_fespace.GetMesh(), &h1_fec, 3, Ordering::byVDIM),
         hct_fespace(jm_fespace.GetMesh(), &hct_fec),
-        matrix_h1_weight(MatrixH1Weight()),
-        matrix_h1_coefficient(matrix_h1_weight),
+        matrix_h1_coefficient(MatrixH1Weight()),
         matrix_h1_form(&h1_fespace),
         biharmonic_form(&hct_fespace),
         pi(&h1_fespace, &jm_fespace),
@@ -204,7 +202,7 @@ int main(int argc, char *argv[])
    solver.SetRelTol(1e-10);
    solver.SetAbsTol(0.0);
    solver.SetMaxIter(500);
-   solver.SetPrintLevel(0);
+   solver.SetPrintLevel(1);
    solver.Mult(B, X);
    a.RecoverFEMSolution(X, b, solution);
    cout << "PCG iterations: " << solver.GetNumIterations() << '\n'

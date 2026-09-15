@@ -16,6 +16,24 @@ private:
    mutable Vector patch_rhs, patch_solution;
 
 public:
+   // Construct from explicit patch dofs, e.g. complete distributed vertex stars.
+   VertexPatchSmoother(const SparseMatrix &op, const Table &patches)
+      : Solver(op.Height())
+   {
+      for (int patch = 0; patch < patches.Size(); patch++)
+      {
+         Array<int> *dofs = new Array<int>;
+         patches.GetRow(patch, *dofs);
+         DenseMatrix patch_matrix(dofs->Size());
+         op.GetSubMatrix(*dofs, *dofs, patch_matrix);
+         DenseMatrix *patch_inverse = new DenseMatrix;
+         DenseMatrixInverse inverse(patch_matrix, true);
+         inverse.GetInverseMatrix(*patch_inverse);
+         patch_dofs.Append(dofs);
+         patch_inverses.Append(patch_inverse);
+      }
+   }
+
    VertexPatchSmoother(const SparseMatrix &op, FiniteElementSpace &fespace)
       : Solver(op.Height())
    {
