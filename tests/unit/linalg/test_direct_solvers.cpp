@@ -184,6 +184,123 @@ TEST_CASE("Serial Direct Solvers", "[GPU]")
 
 #endif
 
+#ifdef MFEM_USE_MKL_PARDISO
+
+// PardisoSolver::ArrayMult() against the one-column route it replaces.
+//
+// The residual alone is a weak check here: a packing that got the stride or
+// the ordering wrong would still return SOMETHING for every column, and a
+// column of it would still be the solve of a right-hand side -- just not the
+// one that was asked for. So each column is required to match the answer
+// Mult() gives for that same column, and the right-hand sides are made
+// pairwise different so that a transposed or offset packing cannot land on a
+// column that happens to be right.
+TEST_CASE("Pardiso solves several right-hand sides in one pass", "[Pardiso]")
+{
+   const int dim = 2, ne = 8, order = 2, ncols = 4;
+
+   Mesh mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0,
+                                     1.0);
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   ConstantCoefficient one(1.0);
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator(one));
+   a.Assemble();
+
+   FunctionCoefficient f(fexact);
+   LinearForm b(&fespace);
+   b.AddDomainIntegrator(new DomainLFIntegrator(f));
+   b.Assemble();
+
+   GridFunction x(&fespace);
+   x = 0.0;
+
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   const int n = B.Size();
+
+   // Pairwise different right-hand sides, and none a multiple of another.
+   Array<Vector *> BB(ncols), XX(ncols), XX_ref(ncols);
+   for (int j = 0; j < ncols; j++)
+   {
+      BB[j] = new Vector(n);
+      XX[j] = new Vector(n);
+      XX_ref[j] = new Vector(n);
+      for (int i = 0; i < n; i++)
+      {
+         (*BB[j])(i) = B(i) * (1.0 + 0.25 * j) + std::sin(0.5 * i + j);
+      }
+      *XX[j] = 0.0;
+      *XX_ref[j] = 0.0;
+   }
+
+   PardisoSolver pardiso;
+   pardiso.SetOperator(*A);
+
+   // The reference: one column at a time, which is what the loop in
+   // Operator::ArrayMult() would do.
+   for (int j = 0; j < ncols; j++) { pardiso.Mult(*BB[j], *XX_ref[j]); }
+
+   pardiso.ArrayMult(BB, XX);
+
+   Vector Y(n);
+   for (int j = 0; j < ncols; j++)
+   {
+      CAPTURE(j);
+      // Before any norm: Vector::Norml2() skips NaN entries rather than
+      // propagating them (fabs(NaN) > 0 is false), so a solve that returned
+      // nothing but NaN would pass a residual assertion with |r| == 0.
+      REQUIRE(XX[j]->CheckFinite() == 0);
+
+      A->Mult(*XX[j], Y);
+      Y -= *BB[j];
+      REQUIRE(Y.Norml2() < 1.e-10 * BB[j]->Norml2());
+
+      Vector d(*XX[j]);
+      d -= *XX_ref[j];
+      REQUIRE(d.Norml2() <= 1.e-12 * XX_ref[j]->Norml2());
+   }
+
+   // A single-column solve AFTER a blocked one. PARDISO reads the column
+   // count from the solver, so a blocked call that left it behind would have
+   // this write ncols*n entries into an n-sized vector.
+   Vector x1(n);
+   x1 = 0.0;
+   pardiso.Mult(*BB[0], x1);
+   REQUIRE(x1.CheckFinite() == 0);
+   Vector d1(x1);
+   d1 -= *XX_ref[0];
+   REQUIRE(d1.Norml2() <= 1.e-12 * XX_ref[0]->Norml2());
+
+   // One column through the blocked entry point is the same solve again.
+   Array<Vector *> B1(1), X1(1);
+   Vector xs(n);
+   xs = 0.0;
+   B1[0] = BB[0];
+   X1[0] = &xs;
+   pardiso.ArrayMult(B1, X1);
+   Vector ds(xs);
+   ds -= *XX_ref[0];
+   REQUIRE(ds.Norml2() <= 1.e-12 * XX_ref[0]->Norml2());
+
+   for (int j = 0; j < ncols; j++)
+   {
+      delete BB[j];
+      delete XX[j];
+      delete XX_ref[j];
+   }
+}
+
+#endif // MFEM_USE_MKL_PARDISO
+
 #ifdef DIRECT_SOLVE_PARALLEL
 
 TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")

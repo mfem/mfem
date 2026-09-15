@@ -61,6 +61,24 @@ public:
    void Mult(const Vector &b, Vector &x) const override;
 
    /**
+    * @brief Solve for several right-hand sides in one pass
+    *
+    * The factors are walked once rather than once per column: PARDISO's
+    * solve phase is called a single time with @a nrhs set to `X.Size()`,
+    * which is one triangular sweep over the factors instead of `X.Size()`
+    * of them. The arithmetic performed on any one column is unchanged, so
+    * the saving is in memory traffic and call overhead, not in flops.
+    *
+    * `X.Size() == 1` forwards to Mult() and allocates nothing, following
+    * STRUMPACKSolver::ArrayMult().
+    *
+    * @param X RHS vectors, all of length Width()
+    * @param Y Solution vectors, all of length Height()
+    */
+   void ArrayMult(const Array<const Vector *> &X,
+                  Array<Vector *> &Y) const override;
+
+   /**
     * @brief Set the print level for MKL Pardiso
     *
     * Prints statistics after the factorization and after each solve.
@@ -103,7 +121,16 @@ private:
    mutable int iparm[64] = {0};
    mutable int maxfct, mnum, msglvl, phase, error;
    int mtype;
-   int nrhs;
+   // Number of right-hand sides of the next solve phase. Mutable because
+   // ArrayMult() is const and sets it from the number of columns it is
+   // given; CuDSSSolver does the same. PARDISO reads it only in the solve
+   // phase, so changing it after the factorization is legal.
+   mutable int nrhs;
+
+   // Column-major packing of the right-hand sides and the solutions, sized
+   // nrhs*m and reused across calls, as in STRUMPACKSolver. Empty until a
+   // multi-column ArrayMult() asks for them.
+   mutable Vector rhs_buf, sol_buf;
 
    // Dummy variables
    mutable int idum;
