@@ -21,6 +21,8 @@
 #include "fe/fe_fixed_order.hpp"
 #include "fe/fe_h1.hpp"
 #include "fe/fe_hct.hpp"
+#include "fe/fe_argyris.hpp"
+#include "fe/fe_aw.hpp"
 #include "fe/fe_jm.hpp"
 #include "fe/fe_nd.hpp"
 #include "fe/fe_rt.hpp"

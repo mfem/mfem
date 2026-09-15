@@ -3,8 +3,8 @@
 // Compile with: make ex43
 //
 // Description: Solve a div-div plus mass problem for a symmetric matrix
-// field using the lowest-order 2D Johnson--Mercier element and geometric
-// multigrid with vertex-patch Schwarz smoothers.
+// field using lowest-order 2D Johnson--Mercier or Arnold--Winther elements
+// and geometric multigrid with vertex-patch Schwarz smoothers.
 
 #include "ex43.hpp"
 #include <iostream>
@@ -12,12 +12,12 @@
 using namespace mfem;
 using namespace std;
 
-class JohnsonMercierMultigrid : public GeometricMultigrid
+class SymmetricMatrixMultigrid : public GeometricMultigrid
 {
    std::unique_ptr<Solver> coarse_prec;
 public:
-   JohnsonMercierMultigrid(FiniteElementSpaceHierarchy &fes_hierarchy,
-                           const Array<int> &ess_bdr)
+   SymmetricMatrixMultigrid(FiniteElementSpaceHierarchy &fes_hierarchy,
+                            const Array<int> &ess_bdr)
       : GeometricMultigrid(fes_hierarchy, ess_bdr)
    {
       const int num_levels = fes_hierarchy.GetNumLevels();
@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
    int geometric_refinements = 2;
    bool visualization = false;
    bool random_rhs = false;
+   bool use_aw = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input triangle mesh.");
    args.AddOption(&geometric_refinements, "-r", "--refinements",
@@ -82,13 +83,16 @@ int main(int argc, char *argv[])
    args.AddOption(&random_rhs, "-random-rhs", "--random-rhs",
                   "-constant-rhs", "--constant-rhs",
                   "Use a reproducible random algebraic right-hand side.");
+   args.AddOption(&use_aw, "-aw", "--arnold-winther", "-jm", "--johnson-mercier",
+                  "Use Arnold--Winther or Johnson--Mercier elements.");
    args.ParseCheck();
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    MFEM_VERIFY(mesh->Dimension() == 2, "");
 
-   JohnsonMercierFECollection fec;
-   FiniteElementSpace *coarse_fespace = new FiniteElementSpace(mesh, &fec);
+   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(
+                                              use_aw ? "AW_2D_P3" : "JM_2D_P1"));
+   FiniteElementSpace *coarse_fespace = new FiniteElementSpace(mesh, fec.get());
    FiniteElementSpaceHierarchy fes_hierarchy(mesh, coarse_fespace, true, true);
    for (int level = 0; level < geometric_refinements; level++)
    {
@@ -111,7 +115,7 @@ int main(int argc, char *argv[])
    GridFunction solution(&fine_fespace);
    solution = 0.0;
    Array<int> ess_bdr;
-   JohnsonMercierMultigrid multigrid(fes_hierarchy, ess_bdr);
+   SymmetricMatrixMultigrid multigrid(fes_hierarchy, ess_bdr);
    multigrid.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
    OperatorHandle A; Vector B, X;
    multigrid.FormFineLinearSystem(solution, b, A, X, B);

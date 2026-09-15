@@ -426,7 +426,8 @@ public:
 
 /** $ (F, v)_\Omega $ for matrix-valued finite elements, using the Frobenius
     inner product. This full-assembly integrator applies its triangle rule on
-    every subtriangle of the Alfeld split. */
+    every subtriangle of the Alfeld split for Johnson--Mercier elements.
+    Arnold--Winther elements use an unsplit triangle rule. */
 class MatrixFEDomainLFIntegrator : public LinearFormIntegrator
 {
 private:

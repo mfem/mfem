@@ -34,6 +34,9 @@ private:
 public:
    HCTTriangleFiniteElement();
 
+   IntegrationPartition GetIntegrationPartition() const override
+   { return IntegrationPartition::ALFELD; }
+
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;

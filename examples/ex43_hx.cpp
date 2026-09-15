@@ -3,15 +3,15 @@
 // Compile with: make ex43_hx
 //
 // Description: Solve a div-div plus mass problem for a symmetric matrix
-// field using the lowest-order 2D Johnson--Mercier element and the auxiliary
-// space preconditioner
+// field using lowest-order 2D Johnson--Mercier or Arnold--Winther elements
+// and the auxiliary space preconditioner
 //
 //                 R + Pi B_1 Pi^t + J B_2 J^t.
 //
 // Here R is a vertex-patch Schwarz smoother, Pi is the canonical interpolant
 // from continuous piecewise-linear symmetric matrices, B_1 is the inverse of
-// the matrix H1 operator, J is the Airy map from the HCT space, and B_2 is the
-// inverse of the HCT biharmonic operator.
+// the matrix H1 operator, J is the Airy map from the HCT or Argyris space, and B_2 is the
+// inverse of the corresponding biharmonic operator.
 
 #include "ex43.hpp"
 #include <iostream>
@@ -25,15 +25,15 @@ class HXPreconditioner : public Solver
 private:
    H1_FECollection h1_fec;
    FiniteElementSpace h1_fespace;
-   HCT_FECollection hct_fec;
-   FiniteElementSpace hct_fespace;
+   unique_ptr<FiniteElementCollection> potential_fec;
+   FiniteElementSpace potential_fespace;
    MatrixConstantCoefficient matrix_h1_coefficient;
    BilinearForm matrix_h1_form;
    BilinearForm biharmonic_form;
    DiscreteLinearOperator pi;
    DiscreteLinearOperator airy;
    VertexPatchSmoother patch_smoother;
-   Array<int> hct_gauge_dofs;
+   Array<int> potential_gauge_dofs;
    unique_ptr<Solver> matrix_h1_inverse;
    unique_ptr<Solver> biharmonic_inverse;
    mutable Vector matrix_h1_rhs, matrix_h1_solution;
@@ -67,19 +67,22 @@ private:
    }
 
 public:
-   HXPreconditioner(const SparseMatrix &op, FiniteElementSpace &jm_fespace)
+   HXPreconditioner(const SparseMatrix &op, FiniteElementSpace &stress_fespace,
+                    bool use_aw)
       : Solver(op.Height()),
         h1_fec(1, 2),
-        h1_fespace(jm_fespace.GetMesh(), &h1_fec, 3, Ordering::byVDIM),
-        hct_fespace(jm_fespace.GetMesh(), &hct_fec),
+        h1_fespace(stress_fespace.GetMesh(), &h1_fec, 3, Ordering::byVDIM),
+        potential_fec(FiniteElementCollection::New(
+                         use_aw ? "Argyris_2D_P5" : "HCT_2D_P3")),
+        potential_fespace(stress_fespace.GetMesh(), potential_fec.get()),
         matrix_h1_coefficient(MatrixH1Weight()),
         matrix_h1_form(&h1_fespace),
-        biharmonic_form(&hct_fespace),
-        pi(&h1_fespace, &jm_fespace),
-        airy(&hct_fespace, &jm_fespace),
-        patch_smoother(op, jm_fespace)
+        biharmonic_form(&potential_fespace),
+        pi(&h1_fespace, &stress_fespace),
+        airy(&potential_fespace, &stress_fespace),
+        patch_smoother(op, stress_fespace)
    {
-      MFEM_VERIFY(jm_fespace.GetTrueVSize() == jm_fespace.GetVSize(),
+      MFEM_VERIFY(stress_fespace.GetTrueVSize() == stress_fespace.GetVSize(),
                   "HXPreconditioner currently requires a conforming mesh");
 
       pi.AddDomainInterpolator(new IdentityInterpolator);
@@ -103,14 +106,15 @@ public:
       biharmonic_form.Finalize();
 
       // Hessians annihilate affine functions. Fix value and both first
-      // derivatives at one vertex to select a representative of HCT/P1.
-      hct_fespace.GetVertexDofs(0, hct_gauge_dofs);
-      MFEM_VERIFY(hct_gauge_dofs.Size() == 3,
-                  "expected three HCT degrees of freedom at a vertex");
-      for (int i = 0; i < hct_gauge_dofs.Size(); i++)
+      // derivatives at one vertex to select a representative modulo P1.
+      potential_fespace.GetVertexDofs(0, potential_gauge_dofs);
+      // Argyris also has three second derivatives at each vertex; those
+      // are not in the affine kernel and must remain unconstrained.
+      potential_gauge_dofs.SetSize(3);
+      for (int i = 0; i < potential_gauge_dofs.Size(); i++)
       {
-         hct_gauge_dofs[i] = UnsignIndex(hct_gauge_dofs[i]);
-         biharmonic_form.SpMat().EliminateRowCol(hct_gauge_dofs[i]);
+         potential_gauge_dofs[i] = UnsignIndex(potential_gauge_dofs[i]);
+         biharmonic_form.SpMat().EliminateRowCol(potential_gauge_dofs[i]);
       }
       biharmonic_inverse = MakeInverse(biharmonic_form.SpMat());
    }
@@ -129,9 +133,9 @@ public:
 
       biharmonic_rhs.SetSize(airy.Width());
       airy.MultTranspose(x, biharmonic_rhs);
-      for (int i = 0; i < hct_gauge_dofs.Size(); i++)
+      for (int i = 0; i < potential_gauge_dofs.Size(); i++)
       {
-         biharmonic_rhs(hct_gauge_dofs[i]) = 0.0;
+         biharmonic_rhs(potential_gauge_dofs[i]) = 0.0;
       }
       biharmonic_solution.SetSize(biharmonic_rhs.Size());
       biharmonic_inverse->Mult(biharmonic_rhs, biharmonic_solution);
@@ -151,6 +155,7 @@ int main(int argc, char *argv[])
    int refinements = 2;
    bool visualization = false;
    bool random_rhs = false;
+   bool use_aw = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input triangle mesh.");
    args.AddOption(&refinements, "-r", "--refinements",
@@ -161,6 +166,8 @@ int main(int argc, char *argv[])
    args.AddOption(&random_rhs, "-random-rhs", "--random-rhs",
                   "-constant-rhs", "--constant-rhs",
                   "Use a reproducible random algebraic right-hand side.");
+   args.AddOption(&use_aw, "-aw", "--arnold-winther", "-jm", "--johnson-mercier",
+                  "Use Arnold--Winther or Johnson--Mercier elements.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
@@ -170,9 +177,10 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   JohnsonMercierFECollection fec;
-   FiniteElementSpace fespace(&mesh, &fec);
-   cout << "\nJohnson--Mercier space: " << fespace.GetNE()
+   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(
+                                              use_aw ? "AW_2D_P3" : "JM_2D_P1"));
+   FiniteElementSpace fespace(&mesh, fec.get());
+   cout << "\n" << fec->Name() << " space: " << fespace.GetNE()
         << " elements, " << fespace.GetTrueVSize() << " unknowns\n";
 
    DenseMatrix identity(2);
@@ -195,7 +203,7 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, solution, b, A, X, B);
    if (random_rhs) { B.Randomize(1); }
 
-   HXPreconditioner hx(A, fespace);
+   HXPreconditioner hx(A, fespace, use_aw);
    CGSolver solver;
    solver.SetOperator(A);
    solver.SetPreconditioner(hx);

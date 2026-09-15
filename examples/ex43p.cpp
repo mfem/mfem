@@ -6,8 +6,8 @@
 //              mpirun -np 4 ex43p -m ../data/inline-tri.mesh -rs 1 -r 3 -random-rhs
 //
 // Description: Parallel div-div plus mass problem for a symmetric matrix
-// field using the lowest-order 2D Johnson--Mercier element and geometric
-// multigrid with vertex-patch Schwarz smoothers. The coarse solver is PCG
+// field using lowest-order 2D Johnson--Mercier or Arnold--Winther elements
+// and geometric multigrid with vertex-patch Schwarz smoothers. The coarse solver is PCG
 // preconditioned by l1 hybrid Gauss-Seidel through HypreSmoother.
 
 #include "ex43.hpp"
@@ -59,6 +59,9 @@ public:
                                        vertex_offsets.end(), global_vertex)
                            - vertex_offsets.begin() - 1;
          set<HYPRE_BigInt> patch;
+         fespace.GetVertexDofs(vertex, dofs);
+         for (int dof : dofs)
+         { patch.insert(fespace.GetGlobalTDofNumber(UnsignIndex(dof))); }
          const int *elements = vertex_elements->GetRow(vertex);
          for (int i = 0; i < vertex_elements->RowSize(vertex); i++)
          {
@@ -71,7 +74,7 @@ public:
             {
                mesh.GetEdgeVertices(edge, edge_vertices);
                if (edge_vertices.Find(vertex) < 0) { continue; }
-               fespace.GetEdgeDofs(edge, dofs);
+               fespace.GetEdgeInteriorDofs(edge, dofs);
                for (int dof : dofs)
                { patch.insert(fespace.GetGlobalTDofNumber(UnsignIndex(dof))); }
             }
@@ -174,13 +177,13 @@ public:
    { MFEM_ABORT("ParVertexPatchSmoother does not support SetOperator"); }
 };
 
-class JohnsonMercierMultigrid : public GeometricMultigrid
+class SymmetricMatrixMultigrid : public GeometricMultigrid
 {
    HypreSmoother coarse_preconditioner;
 
 public:
-   JohnsonMercierMultigrid(ParFiniteElementSpaceHierarchy &fes_hierarchy,
-                           const Array<int> &ess_bdr)
+   SymmetricMatrixMultigrid(ParFiniteElementSpaceHierarchy &fes_hierarchy,
+                            const Array<int> &ess_bdr)
       : GeometricMultigrid(fes_hierarchy, ess_bdr)
    {
       const int num_levels = fes_hierarchy.GetNumLevels();
@@ -233,6 +236,7 @@ int main(int argc, char *argv[])
    int geometric_refinements = 2;
    bool visualization = false;
    bool random_rhs = false;
+   bool use_aw = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input triangle mesh.");
    args.AddOption(&serial_refinements, "-rs", "--serial-refinements",
@@ -247,6 +251,8 @@ int main(int argc, char *argv[])
                   "-constant-rhs", "--constant-rhs",
                   "Use a random algebraic right-hand side reproducible for a fixed "
                   "MPI partition.");
+   args.AddOption(&use_aw, "-aw", "--arnold-winther", "-jm", "--johnson-mercier",
+                  "Use Arnold--Winther or Johnson--Mercier elements.");
    args.ParseCheck();
 
    MFEM_VERIFY(serial_refinements >= 0 && geometric_refinements >= 0,
@@ -274,8 +280,9 @@ int main(int argc, char *argv[])
 
    tic();
 
-   JohnsonMercierFECollection fec;
-   ParFiniteElementSpace coarse_fespace(&pmesh, &fec);
+   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(
+                                              use_aw ? "AW_2D_P3" : "JM_2D_P1"));
+   ParFiniteElementSpace coarse_fespace(&pmesh, fec.get());
    ParFiniteElementSpaceHierarchy fes_hierarchy(
       &pmesh, &coarse_fespace, false, false);
    for (int level = 0; level < geometric_refinements; level++)
@@ -307,7 +314,7 @@ int main(int argc, char *argv[])
    ParGridFunction solution(&fine_fespace);
    solution = 0.0;
    Array<int> ess_bdr;
-   JohnsonMercierMultigrid multigrid(fes_hierarchy, ess_bdr);
+   SymmetricMatrixMultigrid multigrid(fes_hierarchy, ess_bdr);
    multigrid.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
    OperatorHandle A;
    Vector B, X;

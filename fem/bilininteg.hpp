@@ -3176,7 +3176,8 @@ public:
     finite element functions. The optional coefficient @a Q is scalar.
 
     This full-assembly integrator applies its triangle integration rule on
-    every subtriangle of the Alfeld split. */
+    every subtriangle of the Alfeld split for Johnson--Mercier elements.
+    Arnold--Winther elements use an unsplit triangle rule. */
 class MatrixFEMassIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -4080,11 +4081,11 @@ public:
     DiscreteLinearOperator class. */
 class DiscreteInterpolator : public BilinearFormIntegrator { };
 
-/** Construct the Airy map from the Hsieh--Clough--Tocher space to the
-    Johnson--Mercier symmetric matrix space:
+/** Construct the Airy map from HCT to Johnson--Mercier, or from Argyris
+    to Arnold--Winther symmetric matrix elements:
     $u \mapsto \begin{pmatrix}u_{yy}&-u_{xy}\\-u_{xy}&u_{xx}\end{pmatrix}$.
 
-    The resulting Johnson--Mercier field is pointwise divergence free. */
+    The resulting symmetric matrix field is pointwise divergence free. */
 class AiryInterpolator : public DiscreteInterpolator
 {
 public:

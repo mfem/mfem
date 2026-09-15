@@ -193,6 +193,14 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new CrouzeixRaviartFECollection;
    }
+   else if (!strcmp(name, "Argyris_2D_P5"))
+   {
+      fec = new ArgyrisFECollection;
+   }
+   else if (!strcmp(name, "AW_2D_P3"))
+   {
+      fec = new ArnoldWintherFECollection;
+   }
    else if (!strcmp(name, "HCT_2D_P3"))
    {
       fec = new HCT_FECollection;
@@ -1031,6 +1039,72 @@ int JohnsonMercierFECollection::DofForGeometry(
 }
 
 const int *JohnsonMercierFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType != Geometry::SEGMENT) { return nullptr; }
+   // Reversing an edge reverses both n and t: the constant nn and nt
+   // moments are unchanged, while the linear moment polynomial changes sign.
+   static int ind_pos[] = {0, 1, 2, 3};
+   static int ind_neg[] = {0, 1, -3, -4};
+   return Or > 0 ? ind_pos : ind_neg;
+}
+
+const FiniteElement *ArgyrisFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE) { return &TriangleFE; }
+   if (error_mode == RETURN_NULL) { return nullptr; }
+   MFEM_ABORT("ArgyrisFECollection supports triangles only");
+   return nullptr;
+}
+
+int ArgyrisFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT: return 6;
+      case Geometry::SEGMENT: return 1;
+      case Geometry::TRIANGLE: return 0;
+      default: MFEM_ABORT("ArgyrisFECollection supports triangles only");
+   }
+   return 0;
+}
+
+const int *ArgyrisFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType != Geometry::SEGMENT) { return nullptr; }
+   static int ind_pos[] = {0};
+   static int ind_neg[] = {-1};
+   return Or > 0 ? ind_pos : ind_neg;
+}
+
+
+const FiniteElement *
+ArnoldWintherFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE) { return &TriangleFE; }
+   if (error_mode == RETURN_NULL) { return nullptr; }
+   MFEM_ABORT("ArnoldWintherFECollection supports triangles only");
+   return nullptr;
+}
+
+int ArnoldWintherFECollection::DofForGeometry(
+   Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT: return 3;
+      case Geometry::SEGMENT: return 4;
+      case Geometry::TRIANGLE: return 3;
+      default:
+         MFEM_ABORT("ArnoldWintherFECollection supports triangles only");
+   }
+   return 0;
+}
+
+const int *ArnoldWintherFECollection::DofOrderForOrientation(
    Geometry::Type GeomType, int Or) const
 {
    if (GeomType != Geometry::SEGMENT) { return nullptr; }

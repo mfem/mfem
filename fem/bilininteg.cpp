@@ -37,7 +37,7 @@ void HessianIntegrator::AssembleElementMatrix(
    {
       rule = &IntRules.Get(el.GetGeomType(),
                            2*el.GetOrder() - 4 + Trans.OrderW());
-      if (dynamic_cast<const HCTTriangleFiniteElement *>(&el))
+      if (el.GetIntegrationPartition() == FiniteElement::IntegrationPartition::ALFELD)
       {
          split_rule.reset(rule->ApplyToTriangleAlfeldSplit());
          rule = split_rule.get();
@@ -59,42 +59,54 @@ void HessianIntegrator::AssembleElementMatrix(
 }
 
 void AiryInterpolator::AssembleElementMatrix2(
-   const FiniteElement &hct_fe, const FiniteElement &jm_fe,
+   const FiniteElement &potential_fe, const FiniteElement &stress_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   MFEM_VERIFY(dynamic_cast<const HCTTriangleFiniteElement *>(&hct_fe),
-               "AiryInterpolator requires an HCT trial element");
-   MFEM_VERIFY(dynamic_cast<const JohnsonMercierTriangleFiniteElement *>(&jm_fe),
-               "AiryInterpolator requires a Johnson-Mercier range element");
-   const int hct_dof = hct_fe.GetDof();
-   const int jm_dof = jm_fe.GetDof();
-   DenseMatrix mass(jm_dof), cross(jm_dof, hct_dof);
-   DenseMatrix hessian(hct_dof, 3);
-   DenseTensor matrix_shape(2, 2, jm_dof);
+   MFEM_VERIFY((dynamic_cast<const HCTTriangleFiniteElement *>(&potential_fe) &&
+                dynamic_cast<const JohnsonMercierTriangleFiniteElement *>(&stress_fe)) ||
+               (dynamic_cast<const ArgyrisTriangleFiniteElement *>(&potential_fe) &&
+                dynamic_cast<const ArnoldWintherTriangleFiniteElement *>(&stress_fe)),
+               "AiryInterpolator requires HCT/JM or Argyris/AW elements");
+   const int potential_dof = potential_fe.GetDof();
+   const int stress_dof = stress_fe.GetDof();
+   DenseMatrix mass(stress_dof), cross(stress_dof, potential_dof);
+   DenseMatrix hessian(potential_dof, 3);
+   DenseTensor matrix_shape(2, 2, stress_dof);
    mass = 0.0;
    cross = 0.0;
 
-   const IntegrationRule &base = IntRules.Get(Geometry::TRIANGLE, 2);
-   std::unique_ptr<IntegrationRule> rule(base.ApplyToTriangleAlfeldSplit());
+   const IntegrationRule &base = IntRules.Get(Geometry::TRIANGLE,
+                                              std::max(2*stress_fe.GetOrder(),
+                                                       stress_fe.GetOrder()+potential_fe.GetOrder()-2));
+   std::unique_ptr<IntegrationRule> split_rule;
+   const IntegrationRule *rule = &base;
+   if (potential_fe.GetIntegrationPartition() ==
+       FiniteElement::IntegrationPartition::ALFELD ||
+       stress_fe.GetIntegrationPartition() ==
+       FiniteElement::IntegrationPartition::ALFELD)
+   {
+      split_rule.reset(base.ApplyToTriangleAlfeldSplit());
+      rule = split_rule.get();
+   }
    for (int q = 0; q < rule->GetNPoints(); q++)
    {
       const IntegrationPoint &ip = rule->IntPoint(q);
       Trans.SetIntPoint(&ip);
-      hct_fe.CalcPhysHessian(Trans, hessian);
-      jm_fe.CalcMShape(Trans, matrix_shape);
+      potential_fe.CalcPhysHessian(Trans, hessian);
+      stress_fe.CalcMShape(Trans, matrix_shape);
       const real_t weight = ip.weight*Trans.Weight();
-      for (int i = 0; i < jm_dof; i++)
+      for (int i = 0; i < stress_dof; i++)
       {
          const real_t s00 = matrix_shape(0,0,i);
          const real_t s01 = matrix_shape(0,1,i);
          const real_t s11 = matrix_shape(1,1,i);
-         for (int j = 0; j < jm_dof; j++)
+         for (int j = 0; j < stress_dof; j++)
          {
             mass(i,j) += weight*(s00*matrix_shape(0,0,j) +
                                  2.0*s01*matrix_shape(0,1,j) +
                                  s11*matrix_shape(1,1,j));
          }
-         for (int j = 0; j < hct_dof; j++)
+         for (int j = 0; j < potential_dof; j++)
          {
             cross(i,j) += weight*(s00*hessian(j,2) -
                                   2.0*s01*hessian(j,1) +
@@ -2988,7 +3000,13 @@ void MatrixFEMassIntegrator::AssembleElementMatrix(
       base = &IntRules.Get(el.GetGeomType(),
                            Trans.OrderW() + 2*el.GetOrder());
    }
-   std::unique_ptr<IntegrationRule> ir(base->ApplyToTriangleAlfeldSplit());
+   std::unique_ptr<IntegrationRule> split_rule;
+   const IntegrationRule *ir = base;
+   if (el.GetIntegrationPartition() == FiniteElement::IntegrationPartition::ALFELD)
+   {
+      split_rule.reset(base->ApplyToTriangleAlfeldSplit());
+      ir = split_rule.get();
+   }
    for (int q = 0; q < ir->GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir->IntPoint(q);
@@ -3030,7 +3048,13 @@ void MatrixDivDivIntegrator::AssembleElementMatrix(
    {
       base = &IntRules.Get(el.GetGeomType(), 2*el.GetOrder());
    }
-   std::unique_ptr<IntegrationRule> ir(base->ApplyToTriangleAlfeldSplit());
+   std::unique_ptr<IntegrationRule> split_rule;
+   const IntegrationRule *ir = base;
+   if (el.GetIntegrationPartition() == FiniteElement::IntegrationPartition::ALFELD)
+   {
+      split_rule.reset(base->ApplyToTriangleAlfeldSplit());
+      ir = split_rule.get();
+   }
    for (int q = 0; q < ir->GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir->IntPoint(q);

@@ -2,44 +2,35 @@
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 
-#ifndef MFEM_FE_JM
-#define MFEM_FE_JM
+#ifndef MFEM_FE_AW
+#define MFEM_FE_AW
 
 #include "fe_base.hpp"
 
 namespace mfem
 {
 
-/** The lowest-order, two-dimensional Johnson--Mercier element.
-
-    The element consists of symmetric, piecewise-linear matrix fields on the
-    Alfeld split of a triangle. Its 15 degrees of freedom are four traction
-    moments on each edge and three element moments. Matrix fields are mapped
-    using the double contravariant Piola transformation. The physical
-    divergence implementation assumes an affine element transformation. */
-class JohnsonMercierTriangleFiniteElement : public FiniteElement
+/** Lowest-order conforming Arnold--Winther triangle:
+    symmetric cubic tensors whose divergence is linear. Its 24 DOFs are
+    Cartesian tensor components (xx,xy,yy) at each vertex, four traction
+    moments per edge (constant nn, nt, then linear nn, nt), and three cell
+    moments of the double-Piola pullback. Physical evaluation and transfer
+    require affine 2D transformations. */
+class ArnoldWintherTriangleFiniteElement : public FiniteElement
 {
 private:
-   // Rows contain the coefficients of the 15 nodal basis functions in the
-   // 27-dimensional broken, symmetric P1 basis on the Alfeld split.
+   // Rows contain the 24 nodal basis functions in symmetric P3 (30 columns).
    DenseMatrix basis;
 
-   static int GetSubTriangle(const IntegrationPoint &ip);
-   static void CalcRawShape(const IntegrationPoint &ip, Vector &raw);
-   static void CalcRawDivShape(const IntegrationPoint &ip,
-                               DenseMatrix &raw_div);
-   void GetFacetTransform(const DenseMatrix &J, DenseMatrix &A) const;
+   void GetBasisTransform(const DenseMatrix &J, DenseMatrix &A) const;
 
    void CalcShape(const IntegrationPoint &, Vector &) const override
-   { MFEM_ABORT("Johnson-Mercier shape functions are matrix-valued"); }
+   { MFEM_ABORT("Arnold-Winther shape functions are matrix-valued"); }
    void CalcDShape(const IntegrationPoint &, DenseMatrix &) const override
-   { MFEM_ABORT("use CalcDivShape for the Johnson-Mercier element"); }
+   { MFEM_ABORT("use CalcDivShape for the Arnold-Winther element"); }
 
 public:
-   JohnsonMercierTriangleFiniteElement();
-
-   IntegrationPartition GetIntegrationPartition() const override
-   { return IntegrationPartition::ALFELD; }
+   ArnoldWintherTriangleFiniteElement();
 
    void CalcMShape(const IntegrationPoint &ip,
                    DenseTensor &shape) const override;
@@ -52,7 +43,7 @@ public:
                          DenseMatrix &divshape) const override;
 
    /** Project a scalar H1 element with three byVDIM components representing
-       (s00,s01,s11) using the canonical Johnson--Mercier moments. */
+       (s00,s01,s11) using the canonical Arnold--Winther moments. */
    void Project(const FiniteElement &fe, ElementTransformation &Trans,
                 DenseMatrix &I) const override;
 

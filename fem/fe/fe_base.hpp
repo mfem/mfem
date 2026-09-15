@@ -313,6 +313,13 @@ protected:
    mutable Array<DofToQuad *> dof2quad_array;
 
 public:
+   /// Reference-cell subdivision needed to integrate piecewise polynomials.
+   enum class IntegrationPartition
+   {
+      UNSPLIT, ///< No subdivision of the reference cell.
+      ALFELD   ///< Three triangles joining the triangle vertices to its barycenter.
+   };
+
    /// Enumeration for range_type and deriv_range_type
    enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR, MATRIX };
 
@@ -422,6 +429,14 @@ public:
 
    /// Returns an array containing the anisotropic orders/degrees.
    const int *GetAnisotropicOrders() const { return orders; }
+
+   /** @brief Return the partition on which the reference shapes are polynomial.
+
+       Integrators choose the quadrature order. For mixed forms their rule must
+       resolve the partitions of both elements; a shared partition is applied
+       only once. ALFELD currently describes triangular macroelements. */
+   virtual IntegrationPartition GetIntegrationPartition() const
+   { return IntegrationPartition::UNSPLIT; }
 
    /// Returns the type of FunctionSpace on the element.
    int Space() const { return func_space; }
@@ -632,6 +647,27 @@ public:
    virtual void GetTransferMatrix(const FiniteElement &fe,
                                   ElementTransformation &Trans,
                                   DenseMatrix &I) const;
+
+   /** @brief Whether reference refinement matrices need a physical basis
+       correction. The default is false, allowing callers to reuse cached
+       reference matrices without constructing physical transformations. */
+   virtual bool RequiresPhysicalTransfer() const { return false; }
+
+   /** @brief Convert a reference refinement matrix to physical DOF bases.
+
+       @a reference_transfer is the result of GetLocalInterpolation(child, ...)
+       for this finite element. @a child maps the fine reference cell into the
+       coarse reference cell, while @a fine maps it into physical space.
+       The output @a I maps coarse physical DOF coefficients to fine physical
+       DOF coefficients, using this same finite element on both cells.
+
+       The default copies @a reference_transfer unchanged. Elements with
+       geometry-dependent DOF bases override this method and return true from
+       RequiresPhysicalTransfer(). This interface describes h-refinement with
+       the same FE; it does not describe transfer between different FEs. */
+   virtual void GetPhysicalTransferMatrix(
+      const DenseMatrix &reference_transfer, ElementTransformation &child,
+      ElementTransformation &fine, DenseMatrix &I) const;
 
    /** @brief Given a coefficient and a transformation, compute its projection
        (approximation) in the local finite dimensional space in terms

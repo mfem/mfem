@@ -34,7 +34,13 @@ void MatrixFEDomainLFIntegrator::AssembleRHSElementVect(
       base = &IntRules.Get(el.GetGeomType(),
                            Trans.OrderW() + 2*el.GetOrder());
    }
-   std::unique_ptr<IntegrationRule> ir(base->ApplyToTriangleAlfeldSplit());
+   std::unique_ptr<IntegrationRule> split_rule;
+   const IntegrationRule *ir = base;
+   if (el.GetIntegrationPartition() == FiniteElement::IntegrationPartition::ALFELD)
+   {
+      split_rule.reset(base->ApplyToTriangleAlfeldSplit());
+      ir = split_rule.get();
+   }
    for (int q = 0; q < ir->GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir->IntPoint(q);

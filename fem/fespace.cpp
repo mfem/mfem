@@ -1660,15 +1660,14 @@ const FaceQuadratureInterpolator
    }
 }
 
-// JM's canonical traction moments depend on the physical facet frame, so
-// reference-child interpolation needs an element-dependent change of basis.
+// Some physical DOF bases require an element-dependent correction to the
+// cached reference refinement matrix.
 static const DenseMatrix &PhysicalRefinementMatrix(
    const FiniteElementSpace &fes, int element, const DenseMatrix &reference,
    DenseMatrix &physical)
 {
-   const auto *jm = dynamic_cast<const JohnsonMercierTriangleFiniteElement *>(
-                       fes.GetFE(element));
-   if (!jm) { return reference; }
+   const FiniteElement &fe = *fes.GetFE(element);
+   if (!fe.RequiresPhysicalTransfer()) { return reference; }
 
    const auto &refinement = fes.GetMesh()->GetRefinementTransforms();
    const auto &embedding = refinement.embeddings[element];
@@ -1676,8 +1675,8 @@ static const DenseMatrix &PhysicalRefinementMatrix(
    IsoparametricTransformation child;
    child.SetIdentityTransformation(geom);
    child.SetPointMat(refinement.point_matrices[geom](embedding.matrix));
-   jm->GetPhysicalTransferMatrix(reference, child,
-                                 *fes.GetElementTransformation(element), physical);
+   fe.GetPhysicalTransferMatrix(reference, child,
+                                *fes.GetElementTransformation(element), physical);
    return physical;
 }
 

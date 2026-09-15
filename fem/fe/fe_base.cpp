@@ -157,6 +157,13 @@ void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
    MFEM_ABORT("method is not overloaded");
 }
 
+void FiniteElement::GetPhysicalTransferMatrix(
+   const DenseMatrix &reference_transfer, ElementTransformation &,
+   ElementTransformation &, DenseMatrix &I) const
+{
+   I = reference_transfer;
+}
+
 void FiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
