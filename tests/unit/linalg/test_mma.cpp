@@ -16,89 +16,89 @@ using namespace mfem;
 
 real_t obj0(Vector& x)
 {
-   const int n=x.Size();
-   real_t rez=0.0;
-   for (int i=0; i<n; i++)
-   {
-      rez=rez+x[i]*x[i];
-   }
+    const int n=x.Size();
+    real_t rez=0.0;
+    for (int i=0; i<n; i++)
+    {
+        rez=rez+x[i]*x[i];
+    }
 
 #ifdef MFEM_USE_MPI
-   real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 MPI_COMM_WORLD);
-   rez = grez;
+    real_t grez;
+    MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                  MPI_COMM_WORLD);
+    rez = grez;
 #endif
 
-   return rez;
+    return rez;
 }
 
 real_t dobj0(Vector& x, Vector& dx)
 {
-   const int n=x.Size();
-   real_t rez=0.0;
-   for (int i=0; i<n; i++)
-   {
-      rez=rez+x[i]*x[i];
-      dx[i]=2.0*x[i];
-   }
+    const int n=x.Size();
+    real_t rez=0.0;
+    for (int i=0; i<n; i++)
+    {
+        rez=rez+x[i]*x[i];
+        dx[i]=2.0*x[i];
+    }
 #ifdef MFEM_USE_MPI
-   real_t grez;
-   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 MPI_COMM_WORLD);
-   rez = grez;
+    real_t grez;
+    MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                  MPI_COMM_WORLD);
+    rez = grez;
 #endif
 
-   return rez;
+    return rez;
 }
 
 real_t g0(Vector& x)
 {
-   int n=x.Size();
-   real_t rez=0.0;
-   for (int i=0; i<n; i++)
-   {
-      rez=rez+x[i];
-   }
+    int n=x.Size();
+    real_t rez=0.0;
+    for (int i=0; i<n; i++)
+    {
+        rez=rez+x[i];
+    }
 
-   int gn = n;
+    int gn = n;
 #ifdef MFEM_USE_MPI
-   real_t grez;
-   MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 MPI_COMM_WORLD);
-   rez = grez;
+    real_t grez;
+    MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                  MPI_COMM_WORLD);
+    rez = grez;
 #endif
 
-   rez=rez/gn;
-   return rez-2.0;
+    rez=rez/gn;
+    return rez-2.0;
 }
 
 real_t dg0(Vector& x, Vector& dx)
 {
-   int n = x.Size();
+    int n = x.Size();
 
-   int gn = n;
+    int gn = n;
 #ifdef MFEM_USE_MPI
-   MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
-   real_t rez=0.0;
-   for (int i=0; i<n; i++)
-   {
-      rez=rez+x[i];
-      dx[i]=1.0/gn;
-   }
+    real_t rez=0.0;
+    for (int i=0; i<n; i++)
+    {
+        rez=rez+x[i];
+        dx[i]=1.0/gn;
+    }
 
 #ifdef MFEM_USE_MPI
-   real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 MPI_COMM_WORLD);
-   rez = grez;
+    real_t grez;
+    MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                  MPI_COMM_WORLD);
+    rez = grez;
 #endif
 
-   rez=rez/gn;
-   return rez-2.0;
+    rez=rez/gn;
+    return rez-2.0;
 }
 
 
@@ -115,82 +115,87 @@ TEST_CASE("MMA Test", "[Parallel], [MMA]")
 TEST_CASE("MMA Test", "[MMA]")
 {
 #endif
-   int world_size = 1;
+    int world_size = 1;
 #ifdef MFEM_USE_MPI
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 #endif
 
-   int num_var=12 / world_size;
+    int num_var=12 / world_size;
 
-   Vector x(num_var);
-   Vector dx(num_var);
-   Vector xmin(num_var); xmin=-1.0;
-   Vector xmax(num_var); xmax=2.0;
-   x=xmin; x+=0.5;
+    Vector x(num_var);
+    Vector dx(num_var);
+    Vector xmin(num_var);
+    xmin=-1.0;
+    Vector xmax(num_var);
+    xmax=2.0;
+    x=xmin;
+    x+=0.5;
 
-   MMA* mma = nullptr;
+    MMA* mma = nullptr;
 
 #ifdef MFEM_USE_MPI
-   mma = new MMA(MPI_COMM_WORLD,num_var,1,x);
+    mma = new MMA(MPI_COMM_WORLD,num_var,1,x);
 #else
-   mma = new MMA(num_var,1,x);
+    mma = new MMA(num_var,1,x);
 #endif
 
-   Vector g(1); g=-1.0;
-   Vector dg(num_var); dg=0.0;
+    Vector g(1);
+    g=-1.0;
+    Vector dg(num_var);
+    dg=0.0;
 
-   real_t o;
-   for (int it=0; it<30; it++)
-   {
-      o=dobj0(x,dx);
-      g[0]=dg0(x,dg);
+    real_t o;
+    for (int it=0; it<30; it++)
+    {
+        o=dobj0(x,dx);
+        g[0]=dg0(x,dg);
 
-      mma->Update(dx,g,dg,xmin,xmax,x);
-   }
+        mma->Update(dx,g,dg,xmin,xmax,x);
+    }
 
-   o=obj0(x);
+    o=obj0(x);
 
-   delete mma;
+    delete mma;
 
-   REQUIRE( std::fabs(o - 0.00233310583131376) < 1e-12 );
+    REQUIRE( std::fabs(o - 0.00233310583131376) < 1e-12 );
 }
 
 real_t obj0_c(Vector& x)
 {
-   const int n=x.Size();
-   real_t rez=0.0;
-   for (int i=0; i<n; i++)
-   {
-      rez=rez+1.0/x[i]+10.0*x[i];
-   }
+    const int n=x.Size();
+    real_t rez=0.0;
+    for (int i=0; i<n; i++)
+    {
+        rez=rez+1.0/x[i]+10.0*x[i];
+    }
 
 #ifdef MFEM_USE_MPI
-   real_t grez;
-   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 MPI_COMM_WORLD);
-   rez = grez;
+    real_t grez;
+    MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                  MPI_COMM_WORLD);
+    rez = grez;
 #endif
 
-   return rez;
+    return rez;
 }
 
 real_t dobj0_c(Vector& x, Vector& dx)
 {
-   const int n=x.Size();
-   real_t rez=0.0;
-   for (int i=0; i<n; i++)
-   {
-      rez=rez+1.0/x[i]+10.0*x[i];
-      dx[i]= -1.0/(x[i]*x[i]) + 10.0;
-   }
+    const int n=x.Size();
+    real_t rez=0.0;
+    for (int i=0; i<n; i++)
+    {
+        rez=rez+1.0/x[i]+10.0*x[i];
+        dx[i]= -1.0/(x[i]*x[i]) + 10.0;
+    }
 #ifdef MFEM_USE_MPI
-   real_t grez;
-   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                 MPI_COMM_WORLD);
-   rez = grez;
+    real_t grez;
+    MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                  MPI_COMM_WORLD);
+    rez = grez;
 #endif
 
-   return rez;
+    return rez;
 }
 
 /** \brief Unconstrained Unit test
@@ -205,40 +210,43 @@ TEST_CASE("MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR]")
 TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
 {
 #endif
-   int world_size = 1;
+    int world_size = 1;
 #ifdef MFEM_USE_MPI
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 #endif
 
-   const int num_var=12 / world_size;
+    const int num_var=12 / world_size;
 
-   Vector x(num_var);
-   Vector dx(num_var);
-   Vector xmin(num_var); xmin=0.0;
-   Vector xmax(num_var); xmax=2.0;
-   x=xmin; x+=1.5;
+    Vector x(num_var);
+    Vector dx(num_var);
+    Vector xmin(num_var);
+    xmin=0.0;
+    Vector xmax(num_var);
+    xmax=2.0;
+    x=xmin;
+    x+=1.5;
 
-   MMA* mma = nullptr;
+    MMA* mma = nullptr;
 
 #ifdef MFEM_USE_MPI
-   mma = new MMA(MPI_COMM_WORLD,num_var,0,x);
+    mma = new MMA(MPI_COMM_WORLD,num_var,0,x);
 #else
-   mma = new MMA(num_var,0,x);
+    mma = new MMA(num_var,0,x);
 #endif
 
-   real_t o;
-   for (int it=0; it<30; it++)
-   {
-      o=dobj0_c(x,dx);
+    real_t o;
+    for (int it=0; it<30; it++)
+    {
+        o=dobj0_c(x,dx);
 
-      mma->Update(dx,xmin,xmax,x);
-   }
+        mma->Update(dx,xmin,xmax,x);
+    }
 
-   o=obj0_c(x);
+    o=obj0_c(x);
 
-   delete mma;
+    delete mma;
 
-   REQUIRE( std::fabs(o - 75.977534018859) < 1e-12 );
+    REQUIRE( std::fabs(o - 75.977534018859) < 1e-12 );
 }
 
 #ifdef MFEM_USE_MPI
@@ -249,43 +257,44 @@ TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
  * */
 TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
 {
-   int world_size = 1, my_rank;
-   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    int world_size = 1, my_rank;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   const int global_num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
-   const int num_var = (global_num_var/world_size) + static_cast<int>(my_rank < (global_num_var % world_size));
-   int global_var_check = 1;
-   MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   REQUIRE( global_num_var == global_var_check );
+    const int global_num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+    const int num_var = (global_num_var/world_size) + static_cast<int>(my_rank < (global_num_var % world_size));
+    int global_var_check = 1;
+    MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    REQUIRE( global_num_var == global_var_check );
 
-   Vector x(num_var);
-   Vector dx(num_var);
-   Vector xmin(num_var); xmin=0.0;
-   Vector xmax(num_var); xmax=2.0;
-   x=xmin; x+=1.5;
+    Vector x(num_var);
+    Vector dx(num_var);
+    Vector xmin(num_var);
+    xmin=0.0;
+    Vector xmax(num_var);
+    xmax=2.0;
+    x=xmin;
+    x+=1.5;
 
-   ::std::unique_ptr<MMA> mma =
+    ::std::unique_ptr<MMA> mma =
 #if  __cplusplus >= 201402L
-       ::std::make_unique<MMA>
+        ::std::make_unique<MMA>
 #else
-       new MMA
+        new MMA
 #endif
-       (MPI_COMM_WORLD,num_var,0,x);
+        (MPI_COMM_WORLD,num_var,0,x);
 
-   real_t o;
-   if (num_var) {
-     for (int it=0; it<30; it++)
-     {
-       o=dobj0_c(x,dx);
-       
-       mma->Update(dx,xmin,xmax,x);
-     }
-   }
-   o=obj0_c(x);
+    real_t o;
+    for (int it=0; it<30; it++)
+    {
+        o=dobj0_c(x,dx);
 
-   constexpr double amountPerVar = (75.977534018859/12);
-   const double expectedResult = (amountPerVar*num_var);
-   REQUIRE( std::fabs(o - expectedResult) < 1e-12 );
+        mma->Update(dx,xmin,xmax,x);
+    }
+    o=obj0_c(x);
+
+    constexpr double amountPerVar = (75.977534018859/12);
+    const double expectedResult = (amountPerVar*num_var);
+    REQUIRE( std::fabs(o - expectedResult) < 1e-12 );
 }
 #endif
