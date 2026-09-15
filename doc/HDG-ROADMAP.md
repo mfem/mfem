@@ -7,8 +7,26 @@ about how a miniapp is used — in `miniapps/hdg/README.md`. Nothing in the code
 depends on a markdown file for its meaning, and a section that is finished is
 cut down to a pointer rather than left here describing itself.
 
-Sections keep the numbers they had, so earlier commit messages citing "§4"
-still point somewhere sensible. Where a section is gone it says why.
+
+## Section numbers do NOT agree across the branch family
+
+This used to say "Sections keep the numbers they had, so earlier commit
+messages citing §4 still point somewhere sensible. Where a section is gone it
+says why." **That is false for §9 and §10**: they are not gone, they were
+REUSED for what the trunk calls Optional B and Optional A, with no note saying
+so. Neither scheme can be renumbered now without breaking commit messages on
+its own branches, so here is the concordance instead. **Check which branch a
+commit message is on before following a `§` in it.**
+
+| number | here and `gf-interp-hdg-dev` / `gf-hdg-linearise-first` | `gf-hdg-dev`, `gf-hdg-subdomains-dev`, `gf-hdg-p-adaptivity` |
+|---|---|---|
+| §3 | Whether the degenerate order loss is asymptotic | Genuinely general Darcy-like problems (this is its §3(d)) |
+| §4 | Postprocessing for a system | Systems of coupled nonlinear problems (this was part of it) |
+| §9 | Superconvergence at `k = 0` | A driver, attempted and withdrawn (this is their Optional B) |
+| §10 | Interpolatory evaluation | Three loose ends, swept (this is their Optional A) |
+| §11 | NPC | — |
+
+§1, §2, §5, §6, §7 and §8 mean the same thing in both.
 
 ## What this branch family is FOR, and it is narrower than this file reads
 
@@ -319,12 +337,46 @@ the **L2 projection of the potential onto the trace space** rather than on the
 potential itself. `HDGStabilization` is a scalar hook that can rescale `τ` but
 cannot change what `τ` multiplies, so this needs a new face integrator.
 
-## 10. Interpolatory evaluation of the nonlinear coefficient
+## 10. Interpolatory evaluation of the nonlinear coefficient — THIS BRANCH
 
-Optional, and *purely* so — the secondary payoff this entry used to claim, that
-it is what makes the classic local postprocessing general in `vdim`, has been
-overtaken, that postprocessing already being general. Nothing in `fem/darcy`
-interpolates a coefficient or holds a `QuadratureFunction`.
+**Built here, and this is the branch's whole reason to exist.** Chen, Cockburn,
+Singler & Zhang, *J. Sci. Comput.* **81** (2019) 2188-2212; the plan is
+`doc/HDG-INTERPOLATORY-CCSZ.md` and all of its stages 0 to 6 are done.
+
+What is here: `HDGPostprocessBlocks`, splitting the classic postprocessing into
+per-element blocks that can be applied rather than re-solved;
+`fem/darcy/reaction_hdg.{hpp,cpp}` with `HDGInterpolatoryReactionIntegrator`
+and an `HDGQuadratureReactionIntegrator` to measure it against; the Jacobian's
+(1,0) block, which a term evaluated at the postprocessed potential needs and
+which `gf-hdg-linearise-first`'s hybridization did not have;
+`BlockNonlinearFormIntegrator::GetBlockRowMask()`, so a term writing one block
+row keeps the flux mass factored once; and `convdiff`/`pconvdiff` problem 10
+with `-rx`, `-tau0` and `-pp`, whose eight references are what make it
+reproducible outside `tests/unit`.
+
+The `k+1 / k+1 / k+2` ladder reproduces on uniform triangulations, including
+the `k = 0` row that must NOT superconverge, and the `kappa/h` arm reproduces
+the postprocessed error growing rather than falling. The formulation and the
+ladder are in `convdiff.cpp`'s header comment, per the rule that markdown is
+scratch.
+
+**Correcting what this entry said until now, because it was false on the one
+branch it mattered on.** It read "Optional, and *purely* so... Nothing in
+`fem/darcy` interpolates a coefficient or holds a `QuadratureFunction`" — a
+sentence written on the trunk, true there, and carried here unchanged onto the
+branch that built the thing. `gf-hdg-linearise-first`'s copy predicted exactly
+this ("true HERE and false there; it is a statement about this branch, not
+about the family") and the prediction went unactioned for want of anyone
+re-reading this file. The mechanism is visible in the history: lf's §10 was
+updated to point here, and this branch never received it because it merges the
+**trunk**, not lf.
+
+**What CCSZ-I does not give us** is in §6 of the plan and is a property of the
+method rather than a task: no nonlinear diffusion, no theory for systems, no
+steady-problem theorem, and simplices with `P^k` are the theory's mesh. Note
+that the plan's §7, "Claims I could not verify", is a **pre-work** caveat list
+— it ends "Nothing here was compiled or run", which was true when written and
+has not been true since stage 0.
 
 ## 11. NPC — Newton on the full system
 
@@ -336,8 +388,10 @@ and `convdiff`/`pconvdiff` expose it as `-npc`. **The mechanism and every
 measurement are in the code**, on `NPCResidual()`; `doc/HDG-ORDERING-API.md` §3
 is the API reference for a caller.
 
-The reference set exists — 23 serial and 23 parallel `*_npc.txt`, which is what
-takes the suite to 152 + 121. They compare the local nonlinear iteration count
+The reference set exists — 23 serial and 23 parallel `*_npc.txt`. (The suite is
+165 + 132 on this branch; the count used to be quoted here as 152 + 121 and was
+overtaken twice, by the transient references and by this branch's own problem
+10, which is what a total written into prose does.) They compare the local nonlinear iteration count
 as well as the solver, the Krylov count and the two error norms, without which
 an NPC reference would pass even if `-npc` became a no-op, both routes reaching
 the same discrete solution. NPC runs no local nonlinear solve, so the count is
