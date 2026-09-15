@@ -13,8 +13,27 @@ section accreted its own status, measurements and withdrawals until the
 document was mostly a record of work already done — which is precisely what the
 rule above says does not belong here. What was cut is not lost: it is in the
 doxygen of the code it describes, in the miniapps' header comments, and in git.
-Sections keep the numbers they had, so earlier commit messages citing "§4"
-still point somewhere sensible.
+Sections keep the numbers they had, so a commit message on THIS branch citing
+"§4" still points somewhere sensible — but see the concordance below, because
+that is not true across the family.
+
+## Section numbers do NOT agree across the branch family
+
+Two schemes are in use. `gf-hdg-linearise-first` and `gf-interp-hdg-dev` REUSED
+§9 and §10 for what this file calls Optional B and Optional A, and added a §11.
+Neither scheme can be renumbered now without breaking commit messages on its
+own branches, so here is the concordance. **Check which branch a commit message
+is on before following a `§` in it.**
+
+| number | here, `gf-hdg-dev`, `gf-hdg-p-adaptivity` | `gf-hdg-linearise-first`, `gf-interp-hdg-dev` |
+|---|---|---|
+| §3 | Genuinely general Darcy-like problems | Whether the degenerate order loss is asymptotic (our §3(d)) |
+| §4 | Systems of coupled nonlinear problems | Postprocessing for a system (part of ours) |
+| §9 | A driver, attempted and withdrawn | Superconvergence at `k = 0` (our Optional B) |
+| §10 | Three loose ends, swept | Interpolatory evaluation (our Optional A) |
+| §11 | — | NPC |
+
+§1, §2, §5, §6, §7 and §8 mean the same thing in both.
 
 ## What this branch family is FOR, and it is narrower than a requirements list
 
