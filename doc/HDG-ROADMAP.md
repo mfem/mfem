@@ -125,24 +125,54 @@ Two things are left, and neither is what this list used to say:
   result worth having**: the swept regions tile `D_h^c` to 3.7e-11 / 2.0e-11 /
   3.5e-11 / 7.5e-11 at `n` = 8, 16, 24, 32, against 2-D's 1.6e-10 floor, so
   `ExtensionRegionQuadrature` with a TRIANGLE face rule is as exact as with a
-  segment. Without the extension the flux rate is 0.94; with it, 1.81 — so the
-  method earns its keep in 3-D. Order 2 climbs to k+1 (flux 1.63, 2.57;
-  potential 1.36, 2.85).
+  segment.
 
-  What is LEFT is two things:
+  **Two sentences that used to stand here are withdrawn below**, both having
+  been written from the coarse end of a table that now runs four refinements
+  further: that the extension "earns its keep" because the flux rate is 0.94
+  without it and 1.81 with it, and that order 2 "climbs to k+1".
 
-  - **The order-1 flux rate is not settled and looks wrong.** Flux 1.81, 1.59,
-    1.28 over `n` = 4, 8, 16, 24 while the potential converges properly at
-    1.71, 1.75, 1.89. Verified solver-converged — a direct trace solve
-    reproduces the iterative numbers to every printed digit. It is NOT
-    concluded: this branch's own aerofoil went 2.08, 1.46, 1.53, 2.50 and
-    recovered, so a degrading three-increment sequence is exactly the shape
-    that needs the next refinement before it means anything.
-  - **And that next refinement is blocked on the trace solve.** At `n` = 32
-    (407k trace dofs) GMRES + Gauss-Seidel does not converge in 5000
-    iterations, and a 3-D direct factorisation at that size is out of reach
-    here. **A 3-D trace preconditioner is what stands between this and an
-    asymptotic answer**, and it is the actual next task.
+  **The order-1 flux rate is ANSWERED, and the answer moves the question off
+  this section.** The blocker was the trace solve and it is gone: `BlockILU`
+  with one face as its block replaces the Gauss-Seidel smoother, and the study
+  now reaches **n = 64, 3,429,126 trace dofs, in 215 iterations**. On
+  successive doublings n = 4, 8, 16, 32, 64 the potential converges cleanly at
+  k+1 (1.71, 1.75, 1.90, 1.96) and the flux sits at about **1.6** (1.81, 1.59,
+  1.44, 1.63) -- short of k+1 by roughly 0.4, and not collapsing: the dip at
+  16 -> 32 comes back up. Order 2 does the same thing one order up, 1.63, 2.57,
+  2.13 against a design order of 3, so "order 2 climbs to k+1" is withdrawn.
+
+  **Take rates over doublings only.** The recorded 1.81, 1.59, 1.28 mixes a
+  16 -> 24 ratio in with two doublings and is not a comparable sequence; nor is
+  the 1.67 that follows it and reads as a recovery, which is a 24 -> 32 step.
+  Both numbers are correct and the pair of them means nothing. I made this
+  mistake twice more while writing this entry up, once inside the sentence
+  warning against it.
+
+  **The deficit is not the extension's.** `-no-ext` solves the boundary-fitted
+  problem on the same `D_h`, which is what the transfer is trying to match, and
+  it has the same rate: 0.94, 1.39, 1.47, landing at 9.088e-05 against the
+  extended arm's 1.070e-04 at n = 32, with the two potentials indistinguishable
+  (1.7049e-05 against 1.7144e-05). So the transfer costs a constant and nothing
+  in the order, and whatever limits the flux limits it with no extension present
+  at all. `-ctl` reports that constant directly and it is IMPROVING with the
+  mesh: `ratio_u` 2.429, 1.329, 1.158 at n = 4, 8, 16 and 1.177 at n = 32, with
+  `ratio_p` at 1.010, 1.003, 1.004.
+
+  The numbers, the doublings warning and the postprocessing (p* follows the flux
+  down, 2.45, 1.88, 1.77 against two dimensions' 2.83) are in
+  `miniapps/hdg/extension.cpp`'s header comment, on **problem 4**, which is where
+  the three-dimensional case now lives -- it was a scratch probe before and had
+  already been lost once.
+
+  **What is left, and it is a different question from the one this section
+  asked**: why plain HDG on a level-set-carved tetrahedral subdomain gives a
+  flux rate of 1.6 rather than k+1. `dist(Gamma_h, Gamma)` does not halve
+  cleanly here -- 1.65e-01, 8.48e-02, 4.75e-02, a ratio of 1.95 then 1.79,
+  where two dimensions halves cleanly -- and `-d` moves `Gamma_h` and nothing
+  else, so the discriminating sweep is one run. Recorded as an observation and
+  **not** as a cause; this branch has twice built a well-specified fix for a
+  mechanism a sweep then showed innocent.
 
   Generalising the vertex search — `VertexConePath`, the only refusal in the
   whole of `extension_hdg`, at `extension_hdg.cpp:206`, written in `atan2` and

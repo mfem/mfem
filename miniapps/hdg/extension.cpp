@@ -3,6 +3,7 @@
 // Compile with: make extension
 //
 // Sample runs:  extension -o 1 -n 8 -r 3
+//               extension -p 4 -o 1 -n 8 -r 2 -no-vis
 //               extension -o 2 -n 8 -r 3 -path ls
 //               extension -o 3 -n 8 -r 3 -tau 1
 //               extension -o 1 -n 16 -r 2 -no-ext
@@ -81,6 +82,81 @@
 //               Gamma_h itself -- the boundary-fitted problem the extension is
 //               trying to match -- and reports the ratio of the errors.
 //
+//                 4  THREE DIMENSIONS: a ball carved from a tetrahedral mesh
+//                    of the unit cube, the closest-point map onto the sphere,
+//                    p = sin x sin y sin z. Not one of the reference's tables;
+//                    it is problem 1 one dimension up, and it needed no change
+//                    to any file under fem/ -- the only dimension refusal in
+//                    the whole of extension_hdg is VertexConePath's, so the
+//                    paths, the element extension, the integrator and the
+//                    three coefficients are all dimension-generic already.
+//
+//                    THE GEOMETRY CARRIES OVER EXACTLY. The swept regions tile
+//                    D_h^c to 3.67e-11 from n = 8 up, against two dimensions'
+//                    1.6e-10, so ExtensionRegionQuadrature with a TRIANGLE face
+//                    rule is as exact as with a segment. That control needs no
+//                    solve and no exact solution, which is why it is the first
+//                    thing to read. At n = 4 it is 1.2e-07 and that is the mesh
+//                    rather than the method: 48 elements do not resolve a
+//                    sphere.
+//
+//                    THE POTENTIAL CONVERGES AT k+1 AND THE FLUX DOES NOT.
+//                    Order 1 on successive DOUBLINGS, n = 4, 8, 16, 32, 64 --
+//                    3.4M trace dofs at the last, which is four refinements
+//                    past where this study used to stop:
+//
+//                      ||p-p_h||   1.71, 1.75, 1.90, 1.96   -> 2, cleanly
+//                      ||u-u_h||   1.81, 1.59, 1.44, 1.63   -> about 1.6
+//
+//                    So the flux is short of k+1 by about 0.4, and it does not
+//                    collapse: the dip at 16 -> 32 comes back up. Order 2 does
+//                    the same thing one order up, 1.63, 2.57, 2.13 against a
+//                    design order of 3.
+//
+//                    TAKE RATES OVER DOUBLINGS ONLY. The sequence 1.81, 1.59,
+//                    1.28 this branch recorded for several sessions, and read as
+//                    a collapse, mixes a 16 -> 24 ratio in with two doublings
+//                    and is not a comparable sequence; nor is the 1.67 that
+//                    follows it and looks like a recovery, which is a 24 -> 32
+//                    step. Neither number is wrong and the pair of them means
+//                    nothing.
+//
+//                    AND THE DEFICIT IS NOT THE EXTENSION'S. -no-ext solves
+//                    the boundary-fitted problem on the SAME D_h -- the datum
+//                    read on Gamma_h, which the exact solution satisfies there
+//                    -- and it is the thing the transfer is trying to match. It
+//                    has the same flux rate: 0.94, 1.39, 1.47 against 1.81,
+//                    1.59, 1.44, landing at 9.088e-05 against 1.070e-04 at
+//                    n = 32, so the
+//                    transfer costs a constant and nothing in the order, and
+//                    -ctl reports that constant directly: ratio_u falls 2.429,
+//                    1.329, 1.158 as the mesh refines while ratio_p sits at
+//                    1.010, 1.003, 1.004. The potentials are indistinguishable,
+//                    1.7049e-05 against 1.7144e-05. Whatever limits the flux to
+//                    about 1.45 here limits it with no extension present at
+//                    all, and that is a question about HDG on a level-set-carved
+//                    tetrahedral subdomain rather than about this method.
+//
+//                    The postprocessing follows the flux down, as it must: p*
+//                    reads 2.45, 1.88, 1.77 where two dimensions gives 2.83 on
+//                    its way to k+2 = 3. p_h is the only quantity here that
+//                    reaches its design order.
+//
+//                    What has NOT been tested, and is the next thing: whether
+//                    dist(Gamma_h, Gamma) is the mechanism. It does not halve
+//                    cleanly here -- 1.65e-01, 8.48e-02, 4.75e-02 is a ratio of
+//                    1.95 then 1.79, where two dimensions halves cleanly -- and
+//                    -d moves Gamma_h and nothing else, so it is one sweep. It
+//                    is recorded as an observation and NOT as a cause: this
+//                    branch has twice built a well-specified fix for a mechanism
+//                    that a sweep then showed to be innocent.
+//
+//               THE TRACE SOLVE IS WHAT LIMITS A RATE STUDY, and until this
+//               session it was what stopped problem 4 at n = 16. The
+//               preconditioner is BlockILU over faces; -gs keeps the old
+//               Gauss-Seidel arm as a control. Why, and the measurements, are
+//               on the solve itself in Solve().
+//
 //               Reference: B. Cockburn and M. Solano, Solving Dirichlet
 //               boundary-value problems on curved domains by extensions from
 //               subdomains, SIAM J. Sci. Comput. 34 (2012) A497-A519.
@@ -101,7 +177,9 @@ namespace
 // Which experiment of the reference. See the header comment.
 int problem = 1;
 
-// Problem 1: Omega is a disc, immersed in the unit square.
+// Problem 1: Omega is a disc, immersed in the unit square. Problem 4 is the
+// same thing one dimension up -- a ball carved from a tetrahedral mesh of the
+// unit cube -- and reuses the radius.
 real_t disc_R = 0.45;
 
 // Problems 2 and 3: Omega is the unit square less an obstacle -- a disc, or
@@ -118,8 +196,12 @@ real_t foil_lambda = -1.0;   ///< negative takes the reference's R - |s|
 /// makes nonsense of everything downstream.
 int extra_refine = 0;
 bool use_cone = false;   ///< CS-Extensions 2.4.1 cone; see VertexConePath
+bool trace_gs = false;   ///< the old GMRES+GS trace solve; see Solve()
 
-const real_t cx = 0.5, cy = 0.5;
+const real_t cx = 0.5, cy = 0.5, cz = 0.5;
+
+/// Problem 4 is the only three-dimensional one.
+inline int ProblemDim() { return (problem == 4) ? 3 : 2; }
 
 real_t FoilLambda()
 {
@@ -165,6 +247,11 @@ real_t LevelSet(const Vector &x)
             JoukowskyInverse(complex<real_t>(X, Y), FoilLambda());
          return foil_R - abs(z - complex<real_t>(foil_s1, foil_s2));
       }
+      case 4:
+      {
+         const real_t Z = x(2) - cz;
+         return sqrt(X * X + Y * Y + Z * Z) - disc_R;
+      }
    }
    MFEM_ABORT("unknown problem " << problem);
    return 0.0;
@@ -199,6 +286,7 @@ real_t OmegaMeasure()
          }
          return 1.0 - 0.5 * fabs(A);
       }
+      case 4: return 4.0 / 3.0 * M_PI * disc_R * disc_R * disc_R;
    }
    MFEM_ABORT("unknown problem " << problem);
    return 0.0;
@@ -219,6 +307,8 @@ real_t pExact(const Vector &x)
          return -X * (1.0 + obst_R * obst_R / (X * X + Y * Y));
       case 3:
          return sin(3.0 * M_PI * x(0)) * sin(3.0 * M_PI * x(1));
+      case 4:
+         return sin(x(0)) * sin(x(1)) * sin(x(2));
    }
    MFEM_ABORT("unknown problem " << problem);
    return 0.0;
@@ -247,6 +337,11 @@ void uExact(const Vector &x, Vector &u)
          u(1) = -k * sin(k * x(0)) * cos(k * x(1));
          return;
       }
+      case 4:
+         u(0) = -cos(x(0)) * sin(x(1)) * sin(x(2));
+         u(1) = -sin(x(0)) * cos(x(1)) * sin(x(2));
+         u(2) = -sin(x(0)) * sin(x(1)) * cos(x(2));
+         return;
    }
    MFEM_ABORT("unknown problem " << problem);
 }
@@ -259,6 +354,7 @@ real_t gExact(const Vector &x)
       case 1: return -2.0 * pExact(x);
       case 2: return 0.0;
       case 3: return -18.0 * M_PI * M_PI * pExact(x);
+      case 4: return -3.0 * pExact(x);   // laplacian of a product of three sines
    }
    MFEM_ABORT("unknown problem " << problem);
    return 0.0;
@@ -280,6 +376,7 @@ struct Result
    real_t dist{};        ///< the largest distance from Gamma_h to Gamma
    int    widened{};     ///< vertices whose admissible fan had to be widened
    int    dofs{};        ///< size of the hybridized system
+   int    iters{};       ///< iterations the trace solve took
    int    elements{};
    bool   converged{};
 };
@@ -293,9 +390,15 @@ Result Solve(int n, int order, real_t tau, real_t offset,
              PathFamily path_family, bool extend, int line_order,
              bool postprocess = true, bool visualization = false)
 {
-   const int dim = 2;
+   const int dim = ProblemDim();
 
-   Mesh background = Mesh::MakeCartesian2D(n, n, Element::TRIANGLE);
+   // Problem 4 is the same experiment one dimension up, and it needed no
+   // library change at all: the only dimension refusal anywhere in
+   // extension_hdg is VertexConePath's, so ClosestPointPath, ElementExtension,
+   // HDGExtensionIntegrator and the three coefficients all run as they are.
+   Mesh background = (dim == 3)
+                     ? Mesh::MakeCartesian3D(n, n, n, Element::TETRAHEDRON)
+                     : Mesh::MakeCartesian2D(n, n, Element::TRIANGLE);
 
    Array<int> marker;
    const int inside = MarkLevelSetSubdomain(background, LevelSet, offset,
@@ -329,7 +432,7 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    bdr_fitted = 1;
    bdr_gamma_h[gamma_h - 1] = 1;
    bdr_fitted[gamma_h - 1] = 0;
-   const bool any_fitted = (problem != 1);
+   const bool any_fitted = (problem != 1 && problem != 4);
 
    Result res;
 
@@ -338,8 +441,9 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    // tiles the region beyond Gamma_h. The airfoil has no such map, so it is
    // left with the level-set family, which marches along the outward normal
    // and bisects.
-   Vector centre(2);
+   Vector centre(dim);
    centre(0) = cx; centre(1) = cy;
+   if (dim == 3) { centre(2) = cz; }
    unique_ptr<TransferPath> path;
    int widened = 0;
    if (path_family == PathFamily::LevelSet)
@@ -361,9 +465,16 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    else
    {
       MFEM_VERIFY(problem != 3, "the airfoil has no closest-point map");
-      path = make_unique<ClosestPointPath>(
-                ClosestPointPath::Sphere(centre,
-                                         (problem == 1) ? disc_R : obst_R));
+      const real_t R = (problem == 2) ? obst_R : disc_R;
+      // Problem 4 supplies the analytic Jacobian as well; the two-dimensional
+      // problems are left on the map alone, which is what their recorded
+      // numbers were taken with.
+      path = (problem == 4)
+             ? make_unique<ClosestPointPath>(
+                ClosestPointPath::Sphere(centre, R),
+                ClosestPointPath::SphereJacobian(centre, R))
+             : make_unique<ClosestPointPath>(
+                ClosestPointPath::Sphere(centre, R));
    }
    res.widened = widened;
 
@@ -437,16 +548,64 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    res.dofs = X.Size();
    res.elements = D_h->GetNE();
 
-   GSSmoother prec;
-   GMRESSolver solver;
-   solver.SetKDim(500);
-   solver.SetMaxIter(5000);
-   solver.SetRelTol(0.0);
-   solver.SetAbsTol(1e-12);
-   solver.SetPreconditioner(prec);
-   solver.SetOperator(*A);
-   solver.Mult(RHS, X);
-   res.converged = solver.GetConverged();
+   // The trace solve, and it is the thing that decides how far a rate study
+   // can be taken. Two facts about this system fix the choice, and both were
+   // measured on the three-dimensional problem rather than assumed:
+   //
+   // It is NOT symmetric once the datum is transferred. |H - H^T|/|H| is
+   // 5.6e-17 with -no-ext and O(1) with it, because HDGExtensionIntegrator's
+   // lifting is a nonsymmetric addition to the flux mass block and the
+   // condensation carries that into H. So CG and MINRES are unavailable on
+   // the problem this miniapp exists for -- CG bails at iteration 0 -- and
+   // the Krylov method has to be one that tolerates it.
+   //
+   // And a Gauss-Seidel smoother is not enough. On problem 4 it takes 690
+   // iterations at n = 12 and FAILS at n = 16: 5000 iterations, relative
+   // residual 3.5e-05, and ||u-u_h|| = 5.1e-01 where the discretisation
+   // error is 2.9e-04. That is solver error three orders above the quantity
+   // the table is measuring, and it is why the three-dimensional flux rate
+   // read as a degrading sequence for as long as GS was what ran.
+   //
+   // BlockILU with ONE FACE as its block is the fix, and the block structure
+   // is the whole reason: a face's trace dofs are contiguous and are coupled
+   // to each other by the face mass matrix. The count then grows like h^-1
+   // rather than breaking down -- 13, 26, 59, 108 at n = 4, 8, 16, 32 on
+   // problem 4, at the absolute tolerance below. A probe of the same solve at
+   // a relative 1e-12 reached n = 64, 3,429,126 trace dofs, in 215 iterations
+   // and 5.4 GB, which is four refinements past where this study used to stop.
+   //
+   // -gs keeps the old arm, because a solver claim wants a control that can
+   // disagree with it; the two agree to every printed digit wherever GS
+   // converges at all.
+   SparseMatrix *Hm = dynamic_cast<SparseMatrix *>(A.Ptr());
+   MFEM_VERIFY(Hm || trace_gs, "no assembled trace matrix to precondition");
+
+   unique_ptr<Solver> prec;
+   unique_ptr<IterativeSolver> solver;
+   if (trace_gs)
+   {
+      prec.reset(new GSSmoother());
+      auto *gmres = new GMRESSolver();
+      gmres->SetKDim(500);
+      solver.reset(gmres);
+   }
+   else
+   {
+      prec.reset(new BlockILU(*Hm, fes_t.GetFaceElement(0)->GetDof(),
+                              BlockILU::Reordering::MINIMUM_DISCARDED_FILL, 0));
+      solver.reset(new BiCGSTABSolver());
+   }
+   solver->SetMaxIter(5000);
+   solver->SetRelTol(0.0);
+   solver->SetAbsTol(1e-12);
+   solver->SetPreconditioner(*prec);
+   solver->SetOperator(*A);
+   solver->Mult(RHS, X);
+   // CheckFinite() as well as the flag: Vector::Norml2() cannot see a NaN --
+   // fabs(NaN) > 0 is false, so the reduction skips it -- and a residual test
+   // alone therefore passes on a solve that returned nothing but NaN.
+   res.converged = solver->GetConverged() && (X.CheckFinite() == 0);
+   res.iters = solver->GetNumIterations();
 
    darcy.RecoverFEMSolution(X, x);
 
@@ -496,7 +655,10 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    // about the whole of Omega.
    {
       const int iro = 2 * order + 8;
-      const IntegrationRule &fir = IntRules.Get(Geometry::SEGMENT, iro);
+      // The face rule follows the FACE, which is a triangle in three
+      // dimensions; the path rule is always on a segment.
+      const IntegrationRule &fir =
+         IntRules.Get((dim == 3) ? Geometry::TRIANGLE : Geometry::SEGMENT, iro);
       const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, iro);
 
       IsoparametricTransformation el_tr;
@@ -615,9 +777,13 @@ int main(int argc, char *argv[])
                   "Table 5). "
                   "3: the same with a Joukowsky airfoil replacing the disc, "
                   "whose tail is a curved reentrant corner and which has no "
-                  "closest-point map (section 3.4, Table 6).");
+                  "closest-point map (section 3.4, Table 6). "
+                  "4: problem 1 in THREE dimensions -- a ball carved from a "
+                  "tetrahedral mesh of the unit cube, the closest-point map "
+                  "onto the sphere, p = sin x sin y sin z.");
    args.AddOption(&disc_R, "-R", "--radius",
-                  "Radius of the disc of problem 1.");
+                  "Radius of the disc of problem 1, and of the ball of "
+                  "problem 4.");
    args.AddOption(&obst_R, "-Ro", "--obstacle-radius",
                   "Radius of the circular obstacle of problem 2.");
    args.AddOption(&foil_s1, "-s1", "--foil-centre-x",
@@ -660,6 +826,11 @@ int main(int argc, char *argv[])
    args.AddOption(&control, "-ctl", "--control", "-no-ctl", "--no-control",
                   "Also solve with the datum read on Gamma_h and report the "
                   "ratio of the errors.");
+   args.AddOption(&trace_gs, "-gs", "--gauss-seidel", "-ilu", "--block-ilu",
+                  "Precondition the trace solve with a Gauss-Seidel smoother "
+                  "rather than the default BlockILU over faces. The old "
+                  "arm, kept as a control: it breaks down from about 45k "
+                  "trace dofs and takes the rate table with it. See Solve().");
    args.AddOption(&postprocess, "-rec", "--reconstruct", "-no-rec",
                   "--no-reconstruct",
                   "Postprocess flux and potential onto spaces one order "
@@ -668,13 +839,21 @@ int main(int argc, char *argv[])
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
 
-   MFEM_VERIFY(problem >= 1 && problem <= 3, "unknown problem " << problem);
+   MFEM_VERIFY(problem >= 1 && problem <= 4, "unknown problem " << problem);
 
    PathFamily family;
    if (string(path_type) == "cp")      { family = PathFamily::ClosestPoint; }
    else if (string(path_type) == "ls") { family = PathFamily::LevelSet; }
    else if (string(path_type) == "vc") { family = PathFamily::VertexCone; }
    else { MFEM_ABORT("unknown path family '" << path_type << "'"); }
+
+   // VertexConePath is the one dimension refusal in extension_hdg: its
+   // Endpoint assumes a face has exactly two vertices. Refuse it here by name
+   // rather than let the constructor's assertion name a class the caller did
+   // not ask for.
+   MFEM_VERIFY(problem != 4 || family != PathFamily::VertexCone,
+               "the vertex-cone family is two-dimensional only; problem 4 "
+               "wants 'cp' (the sphere's closest-point map) or 'ls'");
 
    if (problem == 3 && family == PathFamily::ClosestPoint)
    {
@@ -693,6 +872,7 @@ int main(int argc, char *argv[])
       cout << "     ||u-u_t||   rate     ||u-u*||    rate     ||p-p*||    rate";
    }
    if (control && extend) { cout << "    ratio_u  ratio_p"; }
+   cout << "   iters";
    cout << "\n";
 
    auto column = [](real_t err, real_t prev)
@@ -732,6 +912,7 @@ int main(int argc, char *argv[])
               << "  " << setw(7) << e.err_p / c.err_p;
          if (!c.converged) { cout << "  [control did not converge]"; }
       }
+      cout << setw(8) << e.iters;
       if (!e.converged) { cout << "  [NOT CONVERGED]"; }
       cout << "\n";
 

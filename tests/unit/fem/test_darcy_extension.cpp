@@ -692,6 +692,110 @@ TEST_CASE("Extension from subdomains: the regions tile the complement",
    REQUIRE(area[1] > 1.2 * truth);
 }
 
+// -- Three dimensions ---------------------------------------------------------
+
+// Every case above this point is two-dimensional, and for a long time so was
+// all of the coverage: the only three-dimensional run this branch had was a
+// scratch probe that survived one session. Nothing in extension_hdg is
+// two-dimensional except VertexConePath, so the question is not whether the
+// code compiles in 3-D but whether ExtensionRegionQuadrature sweeps a TRIANGLE
+// face as exactly as it sweeps a segment.
+//
+// That is the control worth pinning, and it is the cheapest one there is: it
+// needs no solve, no exact solution and no discretisation parameter, so it
+// stays meaningful at meshes where a trace solve would not converge -- which
+// is exactly where the three-dimensional study used to stop.
+
+const real_t ball_R = 0.45;
+static void BallCentre(Vector &c) { c.SetSize(3); c = 0.5; }
+
+real_t BallPhi(const Vector &x)
+{
+   Vector c; BallCentre(c);
+   return std::sqrt((x(0)-c(0))*(x(0)-c(0)) + (x(1)-c(1))*(x(1)-c(1)) +
+                    (x(2)-c(2))*(x(2)-c(2))) - ball_R;
+}
+
+/// D_h as the tetrahedra of an n x n x n mesh of the unit cube lying inside
+/// the ball. The two-dimensional BuildSubdomain() one dimension up.
+Subdomain BuildBallSubdomain(int n)
+{
+   Subdomain s;
+   s.background = std::make_unique<Mesh>(
+                     Mesh::MakeCartesian3D(n, n, n, Element::TETRAHEDRON));
+
+   Array<int> marker;
+   const int count = MarkLevelSetSubdomain(*s.background, BallPhi, 0., marker);
+   REQUIRE(count > 0);
+
+   for (int i = 0; i < s.background->GetNE(); i++)
+   {
+      s.background->SetAttribute(i, marker[i] ? 1 : 2);
+   }
+   s.background->SetAttributes();
+
+   Array<int> domain_attr(1);
+   domain_attr[0] = 1;
+   s.D_h = std::make_unique<SubMesh>(
+              SubMesh::CreateFromDomain(*s.background, domain_attr));
+
+   REQUIRE(s.D_h->bdr_attributes.Size() == 1);
+   s.gamma_h_attr = s.D_h->bdr_attributes.Max();
+   return s;
+}
+
+real_t BallComplementMeasure(Mesh &D_h)
+{
+   real_t vol = 0.;
+   for (int i = 0; i < D_h.GetNE(); i++) { vol += D_h.GetElementVolume(i); }
+   return 4. / 3. * M_PI * ball_R * ball_R * ball_R - vol;
+}
+
+TEST_CASE("Extension from subdomains: the regions tile the complement in "
+          "three dimensions", "[DarcyExtension]")
+{
+   // The three-dimensional twin of "the regions tile the complement", and it
+   // carries the same discriminator, which is what earns it its place: the
+   // closest-point map agrees between adjacent faces because it depends on the
+   // point and not on the face, while a family following each face's own
+   // normal does not and over-counts. Without the second arm this would be a
+   // test that a number is small.
+   const int n = GENERATE(6, 8, 12);
+
+   Subdomain s = BuildBallSubdomain(n);
+   const real_t truth = BallComplementMeasure(*s.D_h);
+   REQUIRE(truth > 0.);
+
+   Vector c; BallCentre(c);
+   ClosestPointPath cp(ClosestPointPath::Sphere(c, ball_R),
+                       ClosestPointPath::SphereJacobian(c, ball_R));
+   LevelSetPath ls(BallPhi, 4.0 / n);
+
+   // The face rule follows the FACE, a triangle here; the path rule is on a
+   // segment in either dimension. Getting that pair wrong is the whole thing
+   // this case exists to catch.
+   const IntegrationRule &fir = IntRules.Get(Geometry::TRIANGLE, 20);
+   const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, 20);
+
+   real_t vol[2] = {0., 0.};
+   const TransferPath *paths[2] = { &cp, &ls };
+   for (int k = 0; k < 2; k++)
+   {
+      for (int be = 0; be < s.D_h->GetNBE(); be++)
+      {
+         FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+         if (!FTr) { continue; }
+         ExtensionRegionQuadrature(*FTr, *paths[k], fir, lir,
+                                   [&](const ExtensionPoint &pt)
+         { vol[k] += pt.weight; });
+      }
+   }
+
+   CAPTURE(n, truth, vol[0], vol[1]);
+   REQUIRE(vol[0] == MFEM_Approx(truth, 1e-8, 1e-8));
+   REQUIRE(vol[1] > 1.2 * truth);
+}
+
 TEST_CASE("Extension from subdomains: the approximation on the whole domain",
           "[DarcyExtension][HDG]")
 {
