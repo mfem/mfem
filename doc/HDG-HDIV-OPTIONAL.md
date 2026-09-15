@@ -18,8 +18,11 @@ the discontinuous spaces*, so where a change would have touched them it was
 scoped away instead. Nothing below is an oversight.
 
 **Most of the H(div) surface already works**, and the open items are a thin
-edge around it: hybridization takes an H(div) flux and 16 of the 152 serial and
-16 of the 121 parallel references exercise it, including a flux-nonlinear one;
+edge around it: hybridization takes an H(div) flux and **16 serial and
+16 parallel references exercise it** -- a count of H(div) cases, deliberately
+carrying no suite total, because the totals differ per branch and move every
+time any reference is added, and a total written into prose is the thing this
+branch keeps having to correct, including a flux-nonlinear one;
 the total-flux reconstruction reads a vector-range flux; the classic potential
 postprocessing reads both flux layouts (contract in
 `fem/darcy/postprocess_hdg.hpp`); threaded assembly is tested on RT; and RT is

@@ -653,39 +653,27 @@ new solver written here.
 
 ## 7. Suspected defects and inconsistencies
 
-**Nine of the eleven entries that stood here are gone**, and this section is
-what is left. They were originally found by reading rather than by running,
-which is why the sections above used to be hedged; the hedging is gone with
-them.
+**Nine of the eleven entries that stood here are gone**, and their write-ups
+went into the code rather than into this file. Items 1, 2, 4, 5, 6 and 7 were
+about `NLOrdering::LineariseThenCondense` and are moot with the mode; what
+replaced item 7 in §6 is runnable as "The line search earns its place on the
+pedestal, and says which" in `tests/unit/fem/test_darcy_npc.cpp`. Item 8 is
+fixed — `GetFluxMassNonlinearIntegrator()` returned the *potential* integrator
+in two headers and returns `m_nlfi_u` now, latent because nothing called
+either accessor. Item 9 is moot with the mode's members. **Item 3 is fixed**
+and the reason lives on `Sf_data`, `SetGradientMode()` and `NPCCheck()`.
 
-Items 1, 2, 4, 5 and 6 were about `NLOrdering::LineariseThenCondense`, its plan
-document or the solver contract it imposed, and are moot with the mode. Item 7
-compared that mode against the condensation and has nothing left to be evidence
-of; what replaced it in §6 — the undamped-versus-backtracking table — is
-runnable as "The line search earns its place on the pedestal, and says which"
-in `tests/unit/fem/test_darcy_npc.cpp`, written to fail loudly if undamped ever
-starts converging. Item 8 is **fixed**:
-`GetFluxMassNonlinearIntegrator()` returned `m_nlfi_p`, the *potential*
-integrator, in both `darcyhybridization.hpp` and `darcyreduction.hpp`, and
-returns `m_nlfi_u` now — pre-existing and latent, because nothing in the tree
-called either accessor. Item 9 is moot: it noted two senses of "lin" in
-adjacent members, and the linearisation-point half (`lin_trace`, `lin_u`,
-`lin_p`, `lin_valid`) went with the mode, leaving only `Af_lin_data` /
-`Df_lin_data`, the linear form's data.
-
-**Item 3 is fixed, and how it was wrong is the part worth keeping.** It said
-`LocalOpType::FluxNL` would let the *assembled* path eliminate with the wrong
-operator and return a silent wrong answer. It could not: the only readers of a
-Schur complement out of `Df_data` are the matrix-free gradient and NPC, and
-**both were themselves refused in that mode** — a hazard real in structure and
-unreachable in practice, held shut by the very refusals the entry complained
-about. Measured: the assembled answer is unchanged by the fix to every digit
-and its regression reference still passes. The real defect was narrower — the
-Schur complement had nowhere to live, so two capabilities were refused rather
-than one answer corrupted. `Sf_data` holds it now and both refusals are lifted;
-the reason is on `Sf_data`, `SetGradientMode()` and `NPCCheck()`. **"X is
-unguarded" is two claims — that the guard is missing, and that something
-reaches the gap — and the second is the one nobody checks.**
+Item 3 left one lesson worth carrying, because it is about how the other ten
+were written: it claimed `LocalOpType::FluxNL` would let the assembled path
+eliminate with the wrong operator and return a silent wrong answer. It could
+not — the only readers of a Schur complement out of `Df_data` were themselves
+refused in that mode, so the hazard was real in structure and unreachable in
+practice, held shut by the very refusals the entry complained about. The real
+defect was narrower: the Schur complement had nowhere to live, so two
+capabilities were refused rather than one answer corrupted. **"X is unguarded"
+is two claims — that the guard is missing, and that something reaches the gap
+— and the second is the one nobody checks.** These eleven were found by
+reading rather than by running, which is why they needed this treatment at all.
 
 Two remain open, both pre-existing and neither reachable with this tree's
 spaces:
