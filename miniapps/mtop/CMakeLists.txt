@@ -13,7 +13,9 @@
 if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
 	list(APPEND PAR_MTOP_SOURCES mtop_solvers.cpp)
+	list(APPEND PAR_MTOP_SOURCES linear_elasticity_solver.cpp)
 	list(APPEND PAR_MTOP_HEADERS mtop_solvers.hpp)
+	list(APPEND PAR_MTOP_HEADERS linear_elasticity_solver.hpp)
 
 	convert_filenames_to_full_paths(PAR_MTOP_SOURCES)
 	convert_filenames_to_full_paths(PAR_MTOP_HEADERS)
@@ -24,6 +26,11 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
 	add_mfem_miniapp(mtop_test_iso_elasticity
 					 MAIN mtop_test_iso_elasticity.cpp
+					 ${PAR_MTOP_COMMON_FILES}
+					 LIBRARIES mfem)
+
+	add_mfem_miniapp(mtop_ex_linear_elasticity_solver
+					 MAIN mtop_ex_linear_elasticity_solver.cpp
 					 ${PAR_MTOP_COMMON_FILES}
 					 LIBRARIES mfem)
 
