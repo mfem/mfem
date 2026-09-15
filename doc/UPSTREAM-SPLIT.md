@@ -169,8 +169,9 @@ the same `lda` defect and is untested here, MAGMA not being installed; an
 outside contributor landed a batched fix on exactly those terms recently, so
 that is an acceptable way to offer it rather than a reason to hold it back.
 
-This is already on `batched-linalg-device-fixes` off `master` with its own
-test, so it is PR-shaped today.
+This is on `batched-linalg-device-fixes` off `master` with its own test, and
+it is **pushed** (`72a035fa92`), so it is PR-shaped today and needs nothing
+from this file.
 
 ## Two process facts worth having written down
 
