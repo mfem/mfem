@@ -137,6 +137,8 @@ public:
    | RT_R1D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 1D. |
    | RT_R2D_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
    | RT_R2D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
+   | Bell_2D_P5 | H2 | 5 | - | VALUE | Quintic Bell elements on triangles |
+   | HZZZ_2D_P3 | H(div;S) | 3 | - | DOUBLE_CONTRAVARIANT_PIOLA | 21-DOF Huang--Zhang--Zhou--Zhu elements on triangles |
    | Argyris_2D_P5 | H2 | 5 | - | VALUE | Quintic Argyris elements on triangles |
    | HZ_2D_P3 | H(div;S) | 3 | - | DOUBLE_CONTRAVARIANT_PIOLA | Lowest-order cubic Hu--Zhang elements on triangles |
    | AW_2D_P3 | H(div;S) | 3 | - | DOUBLE_CONTRAVARIANT_PIOLA | Lowest-order conforming Arnold--Winther elements on triangles |
@@ -1117,6 +1119,58 @@ public:
                                      int Or) const override;
 
    const char *Name() const override { return "JM_2D_P1"; }
+
+   int GetContType() const override { return NORMAL; }
+};
+
+/** @brief Quintic Bell C1 finite elements in 2D.
+
+    This collection is defined only on triangles. It has six degrees of
+    freedom per vertex (value, gradient, and Hessian) and no edge or interior
+    degrees of freedom. Normal derivatives are cubic on each physical edge. */
+class BellFECollection : public FiniteElementCollection
+{
+private:
+   const BellTriangleFiniteElement TriangleFE;
+
+public:
+   BellFECollection() : FiniteElementCollection(5) { }
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return "Bell_2D_P5"; }
+
+   int GetContType() const override { return CONTINUOUS; }
+};
+
+/** @brief Lowest-order Huang--Zhang--Zhou--Zhu finite elements in 2D.
+
+    This collection is defined only on triangles. It provides symmetric
+    matrix-valued H(div) elements with three Cartesian component values per
+    vertex, three traction moments per edge, and three interior moments. */
+class HZZZFECollection : public FiniteElementCollection
+{
+private:
+   const HuangZhangZhouZhuTriangleFiniteElement TriangleFE;
+
+public:
+   HZZZFECollection() : FiniteElementCollection(3) { }
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+
+   const char *Name() const override { return "HZZZ_2D_P3"; }
 
    int GetContType() const override { return NORMAL; }
 };

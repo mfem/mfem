@@ -22,6 +22,8 @@
 #include "fe/fe_h1.hpp"
 #include "fe/fe_hct.hpp"
 #include "fe/fe_argyris.hpp"
+#include "fe/fe_bell.hpp"
+#include "fe/fe_hzzz.hpp"
 #include "fe/fe_aw.hpp"
 #include "fe/fe_hz.hpp"
 #include "fe/fe_jm.hpp"

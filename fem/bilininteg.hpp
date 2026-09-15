@@ -4082,7 +4082,8 @@ public:
 class DiscreteInterpolator : public BilinearFormIntegrator { };
 
 /** Construct the Airy map from HCT to Johnson--Mercier, or from Argyris
-    to Arnold--Winther or Hu--Zhang symmetric matrix elements:
+    to Arnold--Winther or Hu--Zhang, or from Bell to HZZZ symmetric matrix
+    elements:
     $u \mapsto \begin{pmatrix}u_{yy}&-u_{xy}\\-u_{xy}&u_{xx}\end{pmatrix}$.
 
     The resulting symmetric matrix field is pointwise divergence free. */

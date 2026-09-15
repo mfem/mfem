@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
    bool random_rhs = false;
    bool use_aw = false;
    bool use_hz = false;
+   bool use_hzzz = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input triangle mesh.");
    args.AddOption(&geometric_refinements, "-r", "--refinements",
@@ -88,13 +89,17 @@ int main(int argc, char *argv[])
                   "Use Arnold--Winther or Johnson--Mercier elements.");
    args.AddOption(&use_hz, "-hz", "--hu-zhang", "-no-hz", "--no-hu-zhang",
                   "Use cubic Hu--Zhang stress elements (overrides -aw/-jm).");
+   args.AddOption(&use_hzzz, "-hzzz", "--huang-zhang-zhou-zhu",
+                  "-no-hzzz", "--no-huang-zhang-zhou-zhu",
+                  "Use 21-DOF HZZZ stress elements (overrides -hz/-aw/-jm).");
    args.ParseCheck();
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    MFEM_VERIFY(mesh->Dimension() == 2, "");
 
-   const char *fec_name = use_hz ? "HZ_2D_P3" :
-                          (use_aw ? "AW_2D_P3" : "JM_2D_P1");
+   const char *fec_name = use_hzzz ? "HZZZ_2D_P3" :
+                          (use_hz ? "HZ_2D_P3" :
+                           (use_aw ? "AW_2D_P3" : "JM_2D_P1"));
    unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(fec_name));
    FiniteElementSpace *coarse_fespace = new FiniteElementSpace(mesh, fec.get());
    FiniteElementSpaceHierarchy fes_hierarchy(mesh, coarse_fespace, true, true);

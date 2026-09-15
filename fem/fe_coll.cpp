@@ -193,6 +193,14 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new CrouzeixRaviartFECollection;
    }
+   else if (!strcmp(name, "Bell_2D_P5"))
+   {
+      fec = new BellFECollection;
+   }
+   else if (!strcmp(name, "HZZZ_2D_P3"))
+   {
+      fec = new HZZZFECollection;
+   }
    else if (!strcmp(name, "Argyris_2D_P5"))
    {
       fec = new ArgyrisFECollection;
@@ -1050,6 +1058,68 @@ const int *JohnsonMercierFECollection::DofOrderForOrientation(
    // moments are unchanged, while the linear moment polynomial changes sign.
    static int ind_pos[] = {0, 1, 2, 3};
    static int ind_neg[] = {0, 1, -3, -4};
+   return Or > 0 ? ind_pos : ind_neg;
+}
+
+const FiniteElement *BellFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE) { return &TriangleFE; }
+   if (error_mode == RETURN_NULL) { return nullptr; }
+   MFEM_ABORT("BellFECollection supports triangles only");
+   return nullptr;
+}
+
+int BellFECollection::DofForGeometry(Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT: return 6;
+      case Geometry::SEGMENT: return 0;
+      case Geometry::TRIANGLE: return 0;
+      default: MFEM_ABORT("BellFECollection supports triangles only");
+   }
+   return 0;
+}
+
+const int *BellFECollection::DofOrderForOrientation(
+   Geometry::Type, int) const
+{
+   return nullptr;
+}
+
+const FiniteElement *
+HZZZFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE) { return &TriangleFE; }
+   if (error_mode == RETURN_NULL) { return nullptr; }
+   MFEM_ABORT("HZZZFECollection supports triangles only");
+   return nullptr;
+}
+
+int HZZZFECollection::DofForGeometry(
+   Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT: return 3;
+      case Geometry::SEGMENT: return 3;
+      case Geometry::TRIANGLE: return 3;
+      default:
+         MFEM_ABORT("HZZZFECollection supports triangles only");
+   }
+   return 0;
+}
+
+const int *HZZZFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType != Geometry::SEGMENT) { return nullptr; }
+   // Reversing an edge reverses both n and t: the constant nn and nt
+   // moments are unchanged, while the linear moment polynomial changes sign.
+   static int ind_pos[] = {0, 1, 2};
+   static int ind_neg[] = {0, 1, -3};
    return Or > 0 ? ind_pos : ind_neg;
 }
 
