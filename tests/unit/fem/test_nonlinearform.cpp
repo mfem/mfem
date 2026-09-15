@@ -14,6 +14,86 @@
 
 using namespace mfem;
 
+namespace
+{
+
+class DiagonalEAGradientIntegrator : public NonlinearFormIntegrator
+{
+public:
+   real_t value = 1.0;
+
+   void AssemblePA(const FiniteElementSpace &) override { }
+
+   void AssembleGradEA(const Vector &, const FiniteElementSpace &fes,
+                       Vector &ea_data) override
+   {
+      const int ne = fes.GetNE();
+      const int elem_vdofs = fes.GetFE(0)->GetDof() * fes.GetVDim();
+      auto A = Reshape(ea_data.HostReadWrite(), elem_vdofs, elem_vdofs, ne);
+      for (int e = 0; e < ne; ++e)
+      {
+         for (int i = 0; i < elem_vdofs; ++i)
+         {
+            A(i, i, e) += value;
+         }
+      }
+   }
+};
+
+} // namespace
+
+TEST_CASE("NonlinearForm FULL gradient lifecycle",
+          "[NonlinearForm][AssemblyLevel]")
+{
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   CAPTURE(ordering);
+
+   Mesh mesh = Mesh::MakeCartesian1D(2);
+   H1_FECollection fec(1, 1);
+   FiniteElementSpace fes(&mesh, &fec, 2, ordering);
+
+   NonlinearForm nlf(&fes);
+   nlf.SetAssemblyLevel(AssemblyLevel::FULL);
+   auto *integ = new DiagonalEAGradientIntegrator;
+   nlf.AddDomainIntegrator(integ);
+   nlf.Setup();
+
+   auto check_gradient = [&](const real_t value)
+   {
+      integ->value = value;
+      Vector x(nlf.Width()), y(nlf.Height()), expected(nlf.Height());
+      x = 1.0;
+      expected = 0.0;
+
+      Array<int> vdofs;
+      for (int e = 0; e < fes.GetNE(); ++e)
+      {
+         fes.GetElementVDofs(e, vdofs);
+         for (const int vdof : vdofs)
+         {
+            const int i = vdof >= 0 ? vdof : -1 - vdof;
+            expected(i) += value;
+         }
+      }
+
+      nlf.GetGradient(x).Mult(x, y);
+      y -= expected;
+      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+   };
+
+   // Repeated gradients must not free the extension's reusable local matrix.
+   check_gradient(1.0);
+   check_gradient(2.0);
+
+   // Updating the FE space must refresh the restriction and sparse graph.
+   mesh.UniformRefinement();
+   fes.Update();
+   nlf.Update();
+   nlf.Setup();
+   check_gradient(3.0);
+   check_gradient(4.0);
+}
+
 TEST_CASE("NonlinearForm Boundary Integrator", "[NonlinearForm]")
 {
    // See problem description in ex27.
