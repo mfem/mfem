@@ -80,17 +80,26 @@ a 3-D trace preconditioner rather than the method.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
-**Nominally the largest item, and in practice devolved.** No boundary-element
-machinery exists anywhere in MFEM, so the general capability is a from-scratch
-build of the exterior representation. But the only requirement that exists for
-it — `doc/HDG-BEM-COUPLING-FROM-MEQ.md`, on `gf-hdg-linearise-first` — says
-**nothing in this tree has to change for meq to start**; the one integrator
-still wanted is one *meq will write and come back with*; and the auxiliary
-globally-coupled unknowns are "worth doing, not needed yet", with their reason
-recorded.
+**FULLY OPTIONAL, and the plan lives on `gf-hdg-subdomains-dev` as
+`doc/HDG-BEM-COUPLING.md`** -- there because it builds on §1's machinery, which
+is there. It used to be described here as "the largest item by a wide margin";
+nobody is waiting for it.
 
-So this is not open work here. It builds on §1 and belongs to
-`gf-hdg-subdomains-dev` if it is ever taken up.
+**Choosing the artificial boundary to be a circle in 2-D or a sphere in 3-D
+makes the exterior operator exact and diagonal and removes the boundary
+integral machinery entirely** -- Gatica & Hsiao, *The uncoupling of boundary
+integral and finite element methods for nonlinear boundary value problems*,
+J. Math. Anal. Appl. **189** (1995) 442-461. **meq has that implemented and
+working** (`src/meq/ExteriorDtN.hpp`: an exact diagonal Dirichlet-to-Neumann
+map on a semicircle in a Gegenbauer basis, one number per mode, no layer
+potentials); **gffp has it derived and relied upon, not yet coded**
+(`PHYSICS-NOTES.md` §4a, diagonal in Legendre modes on a sphere, and their own
+note calls it "a verification oracle, not a method"). Both known consumers of
+this tree avoid the coupling by choosing the boundary.
+
+The transmission integrator the request did want was written by meq and merged
+(`ExtensionBoundaryQuadrature()`); only the auxiliary globally-coupled
+unknowns are unbuilt, and they are an optimisation rather than a prerequisite.
 
 ## 3. Genuinely general Darcy-like problems
 
