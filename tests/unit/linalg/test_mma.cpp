@@ -240,3 +240,46 @@ TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
 
    REQUIRE( std::fabs(o - 75.977534018859) < 1e-12 );
 }
+
+#ifdef MFEM_USE_MPI
+/** \brief Unconstrained Unit test with fewer variables than MPI ranks
+ *
+ *    minimize   F(x) = \sum[ (1 / x) + 10x ],
+ *
+ * */
+TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
+{
+   int world_size = 1;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+   const int num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+
+   Vector x(num_var);
+   Vector dx(num_var);
+   Vector xmin(num_var); xmin=0.0;
+   Vector xmax(num_var); xmax=2.0;
+   x=xmin; x+=1.5;
+
+                      ::std::unique_ptr<MMA> mma =
+#if  __cplusplus >= 201402L
+       ::std::make_unique<MMA>
+#else
+       new MMA
+#endif
+       (MPI_COMM_WORLD,num_var,0,x);
+
+   real_t o;
+   for (int it=0; it<30; it++)
+   {
+      o=dobj0_c(x,dx);
+
+      mma->Update(dx,xmin,xmax,x);
+   }
+
+   o=obj0_c(x);
+
+   constexpr double amountPerVar = (75.977534018859/12);
+   const double expectedResult = (amountPerVar*num_var);
+   REQUIRE( std::fabs(o - expectedResult) < 1e-12 );
+}
+#endif
