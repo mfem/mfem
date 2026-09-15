@@ -249,10 +249,15 @@ TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
  * */
 TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
 {
-   int world_size = 1;
+   int world_size = 1, my_rank;
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   const int num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+   const int global_num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+   const int num_var = (global_num_var/world_size) + static_cast<int>(my_rank < (global_num_var % world_size));
+   int global_var_check = 1;
+   MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE( global_num_var == global_var_check );
 
    Vector x(num_var);
    Vector dx(num_var);
@@ -260,7 +265,7 @@ TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
    Vector xmax(num_var); xmax=2.0;
    x=xmin; x+=1.5;
 
-                      ::std::unique_ptr<MMA> mma =
+   ::std::unique_ptr<MMA> mma =
 #if  __cplusplus >= 201402L
        ::std::make_unique<MMA>
 #else
@@ -269,13 +274,14 @@ TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
        (MPI_COMM_WORLD,num_var,0,x);
 
    real_t o;
-   for (int it=0; it<30; it++)
-   {
-      o=dobj0_c(x,dx);
-
-      mma->Update(dx,xmin,xmax,x);
+   if (num_var) {
+     for (int it=0; it<30; it++)
+     {
+       o=dobj0_c(x,dx);
+       
+       mma->Update(dx,xmin,xmax,x);
+     }
    }
-
    o=obj0_c(x);
 
    constexpr double amountPerVar = (75.977534018859/12);
