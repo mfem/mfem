@@ -20,6 +20,9 @@
 // low-order DG (-dgo, default 1) and its operator is full/sparse-assembled by
 // default (-adv-fa; -adv-pa for matrix-free partial assembly, better at high
 // -dgo).  The pseudo-transient march is tuned with -cfl / -atf / -atol.
+// -adv-gmres replaces the march by GMRES + BlockILU (full assembly only).  It
+// needs an inflow face on every element, so it fails for the radial rays
+// (-rt 1) on the circular plate, whose axis runs through the mesh.
 //
 // Sample run:  mpirun -np 8 ./ElastTopOpt_3d -r 2 -rf 0.05 -vf 0.4
 // Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m circular_plate_hex_sleeves_embedded_cylinder.msh -vf 0.3 -pv
@@ -135,6 +138,8 @@ int main(int argc, char *argv[])
 
     // advection (ray) thickness-solve controls -- this solve dominates the cost
     int    dg_order     = 1;          // DG order of the advection eval space
+    bool   adv_gmres    = false;      // advection solve: GMRES + BlockILU (true)
+                                     // vs pseudo-transient march (false)
     bool   adv_pa       = false;      // advection operator: partial vs full assembly
                                      // (PA wins at high order; full/sparse at p=1)
     real_t adv_cfl      = 0.5;        // CFL number -> pseudo-time step
@@ -237,6 +242,9 @@ int main(int argc, char *argv[])
     args.AddOption(&adv_pa, "-adv-pa", "--advection-partial-assembly",
                     "-adv-fa", "--advection-full-assembly",
                     "advection operator assembly: partial (matrix-free) or full (sparse)");
+    args.AddOption(&adv_gmres, "-adv-gmres", "--advection-gmres",
+                    "-adv-pt", "--advection-pseudo-transient",
+                    "advection solver: GMRES + BlockILU (needs -adv-fa) or pseudo-transient march");
     args.AddOption(&adv_cfl, "-cfl", "--adv-cfl",
                     "advection pseudo-transient CFL number (larger = bigger time step)");
     args.AddOption(&adv_tfinal, "-atf", "--adv-terminal-time",
@@ -261,10 +269,12 @@ int main(int argc, char *argv[])
     MFEM_VERIFY(elast_residual_check >= 0,
                 "Elasticity residual check interval must be nonnegative.");
     MFEM_VERIFY(ray_type >= 1 && ray_type <= 3, "Ray type must be 1, 2 or 3.");
+    MFEM_VERIFY(!(adv_gmres && adv_pa),
+                "-adv-gmres needs a fully assembled advection operator (-adv-fa).");
     if (myid == 0) { args.PrintOptions(cout); }
 
     // initial (uniform) design density -- depends on the parsed options
-    const real_t domain_init = alpha_max * vol_fraction;
+    const real_t domain_init = vol_fraction;
 
     // 2. Load the mesh and the problem description (domain, loads).
     stage(std::string("loading mesh: ") +
@@ -550,7 +560,7 @@ int main(int argc, char *argv[])
         sub_dg_fes[r] = make_unique<ParFiniteElementSpace>(outflow[r].get(), sub_dg_fec[r].get());
 
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
-        *alpha[r] = domain_init;
+        *alpha[r] = alpha_max;   // placeholder, seeded from rho_a before MMA setup
 
         dualtransfer[r] = make_unique<SubMeshDualTransfer>(*sub_dg_fes[r], dgfes);
     }
@@ -741,10 +751,18 @@ int main(int argc, char *argv[])
     // CG default tol (1e-12) far over-solves relative to -atol, so loosen it.
     // (Minv only affects the pseudo-time path, not the converged rho_a.)
     // Declared before `advect` so they outlive the solvers that borrow them.
-    if (n_dir > 0) { stage("setting up advection (ray) solvers + DG mass inverse"); }
+    if (n_dir > 0)
+    {
+        stage(adv_gmres ? "setting up advection (ray) solvers: GMRES + BlockILU"
+                        : "setting up advection (ray) solvers + DG mass inverse");
+    }
     std::unique_ptr<HypreParMatrix> minv_fa_mat;
     std::unique_ptr<DGMassInverse>  minv_mf;
-    if (minv_fa)
+    if (adv_gmres)
+    {
+        // no pseudo-time march: the DG mass inverse is not needed
+    }
+    else if (minv_fa)
     {
         if (n_dir > 0) { stage("assembling exact block-diagonal DG mass inverse"); }
         ParBilinearForm minv_form(&dgfes);
@@ -773,18 +791,34 @@ int main(int argc, char *argv[])
     const real_t dt = adv_cfl * hmin / (2 * dg_order + 1);   // DG-CFL: degree dg_order
     if (myid == 0 && n_dir > 0)
     {
-        mfem::out << "advection: DG order " << dg_order << ", K "
-                  << (adv_pa ? "partial" : "full") << " assembly, Minv "
-                  << (minv_fa ? "exact block-diagonal" : "matrix-free CG")
-                  << "; pseudo-transient dt = " << dt << ", t_final = " << adv_tfinal
-                  << " (<= " << (int)std::ceil(adv_tfinal / dt) << " steps), tol = "
-                  << adv_tol << defaultfloat << setprecision(6) << std::endl;
+        if (adv_gmres)
+        {
+            mfem::out << "advection: DG order " << dg_order
+                      << ", K full assembly; GMRES + BlockILU (rel tol 1e-8, "
+                         "abs tol 1e-12, max 500 it, restart 50)" << std::endl;
+        }
+        else
+        {
+            mfem::out << "advection: DG order " << dg_order << ", K "
+                      << (adv_pa ? "partial" : "full") << " assembly, Minv "
+                      << (minv_fa ? "exact block-diagonal" : "matrix-free CG")
+                      << "; pseudo-transient dt = " << dt << ", t_final = " << adv_tfinal
+                      << " (<= " << (int)std::ceil(adv_tfinal / dt) << " steps), tol = "
+                      << adv_tol << defaultfloat << setprecision(6) << std::endl;
+        }
     }
 
     for (int r = 0; r < n_dir; r++)
     {
         advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r],
                                                          adv_pa);
+        if (adv_gmres)
+        {
+            // forward + adjoint GMRES and BlockILU
+            // (print level, rel tol, abs tol, max iter, restart)
+            advect[r]->AssembleLinearSolver(solver_print, 1e-8, 1e-12, 500, 50);
+            continue;
+        }
         if (minv_fa) { advect[r]->GetSolver().SetMinv(*minv_fa_mat); }
         else         { advect[r]->SetMinv(*minv_mf); }
         advect[r]->GetSolver().SetTimeStep(dt);          // pseudo-transient time step
@@ -792,6 +826,24 @@ int main(int argc, char *argv[])
         advect[r]->GetSolver().SetTol(adv_tol);          // steady-state rate tolerance
         advect[r]->GetSolver().SetPrintLevel(solver_print);
     }
+
+    // Forward / adjoint advection solve with the selected method.
+    auto advect_fsolve = [&](int r)
+    {
+        if (adv_gmres) { advect[r]->LinearFSolve(); }
+        else           { advect[r]->FSolve(); }
+    };
+    auto advect_asolve = [&](int r)
+    {
+        if (adv_gmres) { advect[r]->LinearASolve(); }
+        else           { advect[r]->ASolve(); }
+    };
+    // GMRES iterations or pseudo-time steps of the last forward solve
+    auto advect_fiters = [&](int r)
+    {
+        return adv_gmres ? advect[r]->GetLinearFIterations()
+                         : advect[r]->GetSolver().GetIterCount();
+    };
 
     // 7. Construct the quantity of interest objects
     stage("constructing quantity-of-interest objects (compliance / volume / thickness)");
@@ -901,7 +953,44 @@ int main(int argc, char *argv[])
     rho_tv.SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals);
 
     rho.SetFromTrueDofs(rho_tv);
-    for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
+    // cold forward advection cost from the seeding solve, reported in 9e
+    std::vector<double> t_advect_seed(n_dir, 0.0);
+    std::vector<int> it_advect_seed(n_dir, 0);
+    if (restart == 2)
+    {
+        for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
+    }
+    else
+    {
+        // Seed alpha_r with the outflow trace of rho_a on the starting design,
+        // clamped to [alpha_min, alpha_max]
+        stage("seeding thickness variables from rho_a on the starting design");
+        Vector rho_filter_tv(nf);
+        filter.Mult(rho_tv, rho_filter_tv);
+        rho_filter_tv += rho_filter_lift_tv;
+        rho_filter.SetFromTrueDofs(rho_filter_tv);
+
+        ParGridFunction rho_dila_gf(&filter_fes);
+        rho_dila_gf.ProjectCoefficient(rho_dila_cf);
+        Vector rho_dila_tv(nf);
+        rho_dila_gf.GetTrueDofs(rho_dila_tv);
+
+        for (int r = 0; r < n_dir; r++)
+        {
+            stage("  forward advection solve, ray " + std::to_string(r));
+            advect[r]->SetRhs(rho_dila_tv);
+            double t_seed = MPI_Wtime();
+            advect_fsolve(r);
+            t_advect_seed[r] = MPI_Wtime() - t_seed;
+            it_advect_seed[r] = advect_fiters(r);
+            ParSubMesh::Transfer(advect[r]->GetRhoA(), *alpha[r]);
+            for (int i = 0; i < alpha[r]->Size(); i++)
+            {
+                (*alpha[r])(i) = std::min(alpha_max, std::max(alpha_min, (*alpha[r])(i)));
+            }
+            alpha[r]->GetTrueDofs(alpha_tv[r]);
+        }
+    }
 
     BlockVector tx_local(toffsets);
     tx_local.GetBlock(0) = rho_tv;
@@ -1085,9 +1174,16 @@ int main(int argc, char *argv[])
 
             advect[r]->SetRhs(rho_dila_tv);
             t0 = MPI_Wtime();
-            advect[r]->FSolve();
+            advect_fsolve(r);
             t_advect[r] = MPI_Wtime() - t0;
-            it_advect[r] = advect[r]->GetSolver().GetIterCount();
+            it_advect[r] = advect_fiters(r);
+            if (restart != 2 && !adv_gmres)
+            {
+                // this pseudo-transient solve is warm-started by the seeding
+                // solve; report that cold solve instead
+                t_advect[r] = t_advect_seed[r];
+                it_advect[r] = it_advect_seed[r];
+            }
             rho_a_init[r] = make_unique<ParGridFunction>(&dgfes);
             *rho_a_init[r] = advect[r]->GetRhoA();
             init_dc.RegisterField("rho_a_" + std::to_string(r), rho_a_init[r].get());
@@ -1284,7 +1380,7 @@ int main(int argc, char *argv[])
             if (trace) { stage("  it 1: advection fwd+adj, ray " + std::to_string(r)); }
             // forward
             advect[r]->SetRhs(rho_dila_tv);
-            advect[r]->FSolve();
+            advect_fsolve(r);
             const real_t thickres = adv_res[r]->Eval();
 
             // record max value of rho_a and alpha
@@ -1315,7 +1411,7 @@ int main(int argc, char *argv[])
 
             // chain rule adjoint solve: dG/drho = M_fc^T N^T g
             advect[r]->SetAdjointRhs(rhs_full);
-            advect[r]->ASolve();
+            advect_asolve(r);
 
             Vector dGdrho_tilde(advect[r]->GetSensitivity());
             dGdrho_tilde *= rho_dila_grad_tv;
@@ -1346,12 +1442,14 @@ int main(int argc, char *argv[])
             tx_min[tdof] = value - real_t(0.5) * passive_bound_gap;
             tx_max[tdof] = value + real_t(0.5) * passive_bound_gap;
         }
+
+        const real_t alpha_move = move * (alpha_max - alpha_min);
         for (int r = 0; r < n_dir; r++)
         {
             for (int i = 0; i < m[r]; i++)
             {
-                tx_min[toffsets[1 + r] + i] = alpha_min;
-                tx_max[toffsets[1 + r] + i] = alpha_max;
+                tx_min[toffsets[1 + r] + i] = std::max(alpha_min, alpha_tv[r][i] - alpha_move);
+                tx_max[toffsets[1 + r] + i] = std::min(alpha_max, alpha_tv[r][i] + alpha_move);
             }
         }
 
