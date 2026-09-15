@@ -3,7 +3,7 @@
 // Compile with: make ex43_hx
 //
 // Description: Solve a div-div plus mass problem for a symmetric matrix
-// field using lowest-order 2D Johnson--Mercier or Arnold--Winther elements
+// field using lowest-order 2D Johnson--Mercier, Arnold--Winther, or Hu--Zhang elements
 // and the auxiliary space preconditioner
 //
 //                 R + Pi B_1 Pi^t + J B_2 J^t.
@@ -68,12 +68,12 @@ private:
 
 public:
    HXPreconditioner(const SparseMatrix &op, FiniteElementSpace &stress_fespace,
-                    bool use_aw)
+                    bool use_argyris)
       : Solver(op.Height()),
         h1_fec(1, 2),
         h1_fespace(stress_fespace.GetMesh(), &h1_fec, 3, Ordering::byVDIM),
         potential_fec(FiniteElementCollection::New(
-                         use_aw ? "Argyris_2D_P5" : "HCT_2D_P3")),
+                         use_argyris ? "Argyris_2D_P5" : "HCT_2D_P3")),
         potential_fespace(stress_fespace.GetMesh(), potential_fec.get()),
         matrix_h1_coefficient(MatrixH1Weight()),
         matrix_h1_form(&h1_fespace),
@@ -156,6 +156,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    bool random_rhs = false;
    bool use_aw = false;
+   bool use_hz = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input triangle mesh.");
    args.AddOption(&refinements, "-r", "--refinements",
@@ -168,6 +169,8 @@ int main(int argc, char *argv[])
                   "Use a reproducible random algebraic right-hand side.");
    args.AddOption(&use_aw, "-aw", "--arnold-winther", "-jm", "--johnson-mercier",
                   "Use Arnold--Winther or Johnson--Mercier elements.");
+   args.AddOption(&use_hz, "-hz", "--hu-zhang", "-no-hz", "--no-hu-zhang",
+                  "Use cubic Hu--Zhang stress elements (overrides -aw/-jm).");
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
@@ -177,8 +180,9 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(
-                                              use_aw ? "AW_2D_P3" : "JM_2D_P1"));
+   const char *fec_name = use_hz ? "HZ_2D_P3" :
+                          (use_aw ? "AW_2D_P3" : "JM_2D_P1");
+   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(fec_name));
    FiniteElementSpace fespace(&mesh, fec.get());
    cout << "\n" << fec->Name() << " space: " << fespace.GetNE()
         << " elements, " << fespace.GetTrueVSize() << " unknowns\n";
@@ -203,7 +207,7 @@ int main(int argc, char *argv[])
    a.FormLinearSystem(ess_tdof_list, solution, b, A, X, B);
    if (random_rhs) { B.Randomize(1); }
 
-   HXPreconditioner hx(A, fespace, use_aw);
+   HXPreconditioner hx(A, fespace, use_aw || use_hz);
    CGSolver solver;
    solver.SetOperator(A);
    solver.SetPreconditioner(hx);

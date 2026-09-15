@@ -3177,7 +3177,7 @@ public:
 
     This full-assembly integrator applies its triangle integration rule on
     every subtriangle of the Alfeld split for Johnson--Mercier elements.
-    Arnold--Winther elements use an unsplit triangle rule. */
+    Arnold--Winther and Hu--Zhang elements use an unsplit triangle rule. */
 class MatrixFEMassIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -4082,7 +4082,7 @@ public:
 class DiscreteInterpolator : public BilinearFormIntegrator { };
 
 /** Construct the Airy map from HCT to Johnson--Mercier, or from Argyris
-    to Arnold--Winther symmetric matrix elements:
+    to Arnold--Winther or Hu--Zhang symmetric matrix elements:
     $u \mapsto \begin{pmatrix}u_{yy}&-u_{xy}\\-u_{xy}&u_{xx}\end{pmatrix}$.
 
     The resulting symmetric matrix field is pointwise divergence free. */

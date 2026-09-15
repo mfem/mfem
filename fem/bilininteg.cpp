@@ -65,8 +65,8 @@ void AiryInterpolator::AssembleElementMatrix2(
    MFEM_VERIFY((dynamic_cast<const HCTTriangleFiniteElement *>(&potential_fe) &&
                 dynamic_cast<const JohnsonMercierTriangleFiniteElement *>(&stress_fe)) ||
                (dynamic_cast<const ArgyrisTriangleFiniteElement *>(&potential_fe) &&
-                dynamic_cast<const ArnoldWintherTriangleFiniteElement *>(&stress_fe)),
-               "AiryInterpolator requires HCT/JM or Argyris/AW elements");
+                dynamic_cast<const CubicSymmetricTriangleFiniteElement *>(&stress_fe)),
+               "AiryInterpolator requires HCT/JM or Argyris with AW or Hu-Zhang");
    const int potential_dof = potential_fe.GetDof();
    const int stress_dof = stress_fe.GetDof();
    DenseMatrix mass(stress_dof), cross(stress_dof, potential_dof);

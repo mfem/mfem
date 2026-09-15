@@ -197,6 +197,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new ArgyrisFECollection;
    }
+   else if (!strcmp(name, "HZ_2D_P3"))
+   {
+      fec = new HuZhangFECollection;
+   }
    else if (!strcmp(name, "AW_2D_P3"))
    {
       fec = new ArnoldWintherFECollection;
@@ -1105,6 +1109,41 @@ int ArnoldWintherFECollection::DofForGeometry(
 }
 
 const int *ArnoldWintherFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType != Geometry::SEGMENT) { return nullptr; }
+   // Reversing an edge reverses both n and t: the constant nn and nt
+   // moments are unchanged, while the linear moment polynomial changes sign.
+   static int ind_pos[] = {0, 1, 2, 3};
+   static int ind_neg[] = {0, 1, -3, -4};
+   return Or > 0 ? ind_pos : ind_neg;
+}
+
+const FiniteElement *
+HuZhangFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   if (GeomType == Geometry::TRIANGLE) { return &TriangleFE; }
+   if (error_mode == RETURN_NULL) { return nullptr; }
+   MFEM_ABORT("HuZhangFECollection supports triangles only");
+   return nullptr;
+}
+
+int HuZhangFECollection::DofForGeometry(
+   Geometry::Type GeomType) const
+{
+   switch (GeomType)
+   {
+      case Geometry::POINT: return 3;
+      case Geometry::SEGMENT: return 4;
+      case Geometry::TRIANGLE: return 9;
+      default:
+         MFEM_ABORT("HuZhangFECollection supports triangles only");
+   }
+   return 0;
+}
+
+const int *HuZhangFECollection::DofOrderForOrientation(
    Geometry::Type GeomType, int Or) const
 {
    if (GeomType != Geometry::SEGMENT) { return nullptr; }

@@ -6,7 +6,7 @@
 //              mpirun -np 4 ex43p -m ../data/inline-tri.mesh -rs 1 -r 3 -random-rhs
 //
 // Description: Parallel div-div plus mass problem for a symmetric matrix
-// field using lowest-order 2D Johnson--Mercier or Arnold--Winther elements
+// field using lowest-order 2D Johnson--Mercier, Arnold--Winther, or Hu--Zhang elements
 // and geometric multigrid with vertex-patch Schwarz smoothers. The coarse solver is PCG
 // preconditioned by l1 hybrid Gauss-Seidel through HypreSmoother.
 
@@ -237,6 +237,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    bool random_rhs = false;
    bool use_aw = false;
+   bool use_hz = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input triangle mesh.");
    args.AddOption(&serial_refinements, "-rs", "--serial-refinements",
@@ -253,6 +254,8 @@ int main(int argc, char *argv[])
                   "MPI partition.");
    args.AddOption(&use_aw, "-aw", "--arnold-winther", "-jm", "--johnson-mercier",
                   "Use Arnold--Winther or Johnson--Mercier elements.");
+   args.AddOption(&use_hz, "-hz", "--hu-zhang", "-no-hz", "--no-hu-zhang",
+                  "Use cubic Hu--Zhang stress elements (overrides -aw/-jm).");
    args.ParseCheck();
 
    MFEM_VERIFY(serial_refinements >= 0 && geometric_refinements >= 0,
@@ -280,8 +283,9 @@ int main(int argc, char *argv[])
 
    tic();
 
-   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(
-                                              use_aw ? "AW_2D_P3" : "JM_2D_P1"));
+   const char *fec_name = use_hz ? "HZ_2D_P3" :
+                          (use_aw ? "AW_2D_P3" : "JM_2D_P1");
+   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(fec_name));
    ParFiniteElementSpace coarse_fespace(&pmesh, fec.get());
    ParFiniteElementSpaceHierarchy fes_hierarchy(
       &pmesh, &coarse_fespace, false, false);

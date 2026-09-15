@@ -77,6 +77,8 @@ set(SRCS
   fe/fe_h1.cpp
   fe/fe_argyris.cpp
   fe/fe_aw.cpp
+  fe/fe_cubic_symmetric.cpp
+  fe/fe_hz.cpp
   fe/fe_hct.cpp
   fe/fe_jm.cpp
   fe/fe_l2.cpp
@@ -240,6 +242,8 @@ set(HDRS
   fe/fe_h1.hpp
   fe/fe_argyris.hpp
   fe/fe_aw.hpp
+  fe/fe_cubic_symmetric.hpp
+  fe/fe_hz.hpp
   fe/fe_hct.hpp
   fe/fe_jm.hpp
   fe/fe_l2.hpp

@@ -132,6 +132,7 @@ set(UNIT_TESTS_SRCS
   fem/test_getgradient.cpp
   fem/test_getgradients.cpp
   fem/test_argyris_aw.cpp
+  fem/test_hu_zhang.cpp
   fem/test_hct.cpp
   fem/test_johnson_mercier.cpp
   fem/test_gslib.cpp

@@ -3,7 +3,7 @@
 // Compile with: make ex43
 //
 // Description: Solve a div-div plus mass problem for a symmetric matrix
-// field using lowest-order 2D Johnson--Mercier or Arnold--Winther elements
+// field using lowest-order 2D Johnson--Mercier, Arnold--Winther, or Hu--Zhang elements
 // and geometric multigrid with vertex-patch Schwarz smoothers.
 
 #include "ex43.hpp"
@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    bool random_rhs = false;
    bool use_aw = false;
+   bool use_hz = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input triangle mesh.");
    args.AddOption(&geometric_refinements, "-r", "--refinements",
@@ -85,13 +86,16 @@ int main(int argc, char *argv[])
                   "Use a reproducible random algebraic right-hand side.");
    args.AddOption(&use_aw, "-aw", "--arnold-winther", "-jm", "--johnson-mercier",
                   "Use Arnold--Winther or Johnson--Mercier elements.");
+   args.AddOption(&use_hz, "-hz", "--hu-zhang", "-no-hz", "--no-hu-zhang",
+                  "Use cubic Hu--Zhang stress elements (overrides -aw/-jm).");
    args.ParseCheck();
 
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    MFEM_VERIFY(mesh->Dimension() == 2, "");
 
-   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(
-                                              use_aw ? "AW_2D_P3" : "JM_2D_P1"));
+   const char *fec_name = use_hz ? "HZ_2D_P3" :
+                          (use_aw ? "AW_2D_P3" : "JM_2D_P1");
+   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(fec_name));
    FiniteElementSpace *coarse_fespace = new FiniteElementSpace(mesh, fec.get());
    FiniteElementSpaceHierarchy fes_hierarchy(mesh, coarse_fespace, true, true);
    for (int level = 0; level < geometric_refinements; level++)

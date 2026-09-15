@@ -2,12 +2,12 @@
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 
-#include "fe_aw.hpp"
+#include "fe_hz.hpp"
 
 namespace mfem
 {
 
-ArnoldWintherTriangleFiniteElement::ArnoldWintherTriangleFiniteElement()
-   : CubicSymmetricTriangleFiniteElement(true) { }
+HuZhangTriangleFiniteElement::HuZhangTriangleFiniteElement()
+   : CubicSymmetricTriangleFiniteElement(false) { }
 
 } // namespace mfem
