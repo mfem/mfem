@@ -60,10 +60,12 @@ public:
    void AddLevel(Mesh* mesh, FiniteElementSpace* fespace, Operator* prolongation,
                  bool ownM, bool ownFES, bool ownP);
 
-   /// @brief Adds one level to the hierarchy by uniformly refining the mesh on the
-   /// previous level
-   /// @param transfer_type Use Operator::ANY_TYPE for the default transfer or
-   /// Operator::MFEM_SPARSEMAT for an assembled true-dof transfer matrix.
+   /// @brief Adds one level to the hierarchy by uniformly refining the mesh on
+   /// the previous level.
+   ///
+   /// The associated prolongation can be matrix-free (if @a transfer_type is
+   /// Operator::ANY_TYPE) and an assembled matrix (if @a transfer_type is
+   /// Operator::MFEM_SPARSEMAT).
    virtual void AddUniformlyRefinedLevel(int dim = 1,
                                          int ordering = Ordering::byVDIM,
                                          Operator::Type transfer_type = Operator::ANY_TYPE);
@@ -103,10 +105,12 @@ public:
                                   bool ownM,
                                   bool ownFES);
 
-   /// @brief Adds one level to the hierarchy by uniformly refining the mesh on the
-   /// previous level
-   /// @param transfer_type Use Operator::ANY_TYPE for the default transfer or
-   /// Operator::Hypre_ParCSR for an assembled true-dof transfer matrix.
+   /// @brief Adds one level to the hierarchy by uniformly refining the mesh on
+   /// the previous level.
+   ///
+   /// The associated prolongation can be matrix-free (if @a transfer_type is
+   /// Operator::ANY_TYPE) and an assembled matrix (if @a transfer_type is
+   /// Operator::Hypre_ParCSR).
    void AddUniformlyRefinedLevel(int dim = 1,
                                  int ordering = Ordering::byVDIM,
                                  Operator::Type transfer_type = Operator::ANY_TYPE) override;
