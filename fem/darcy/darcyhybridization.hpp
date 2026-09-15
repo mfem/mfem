@@ -688,7 +688,14 @@ public:
    BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p.get(); }
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p.get(); }
 
-   NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_p; }
+   /** @brief The nonlinear flux mass integrator, or NULL.
+
+       @note **This returned the *potential* mass integrator until it was
+       fixed** -- the same defect, in the same words, as
+       DarcyReduction::GetFluxMassNonlinearIntegrator(); the two classes each
+       carried their own copy. See that one for why no deprecated alias is
+       offered. */
+   NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_u; }
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
    /** @brief Not available, use AddBdrFluxConstraintIntegrator()

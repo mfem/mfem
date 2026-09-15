@@ -699,11 +699,17 @@ void VectorDivergenceGridFunctionCoefficient::Eval(
       GridFunc->GetSubVector(vdofs, loc_data);
       fe->CalcDivShape(ip, divshape);
 
-      const real_t w = 1.0 / T.Weight();
+      // Divide, rather than multiply by a hoisted reciprocal. That is not a
+      // style choice: GridFunction::GetDivergence() -- what the scalar
+      // DivergenceGridFunctionCoefficient calls -- writes the division, and
+      // x/w and x*(1/w) differ in the last bit. Writing it the same way makes
+      // this coefficient agree with the scalar one TO THE BIT at vdim == 1,
+      // so a caller that dispatches on vdim between the two cannot shift its
+      // answer by doing so.
       for (int e = 0; e < vdim; e++)
       {
          const Vector blk(loc_data.GetData() + e * ndof, ndof);
-         V(e) = (blk * divshape) * w;
+         V(e) = (blk * divshape) / T.Weight();
       }
       return;
    }

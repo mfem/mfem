@@ -360,34 +360,51 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
 
 #ifdef MFEM_USE_SUITESPARSE
 
-TEST_CASE("UMFPack is above its dense-block threshold", "[UMFPack]")
+// Shared by the two cases below. The serial and parallel unit mains PARTITION
+// the suite on the [Parallel] tag -- unit_test_main.cpp runs "~[Parallel]" and
+// punit_test_main.cpp runs "[Parallel]" -- so a single tagged case is present
+// in exactly one of the two binaries. Both trees link their own BLAS through
+// their own config/user.mk, so both need checking, and that takes two cases
+// over one body rather than one case with both tags.
+static void CheckUMFPackAboveDenseBlockThreshold()
 {
    // UMFPACK switches to BLAS level-3 kernels once a frontal matrix is big
    // enough, so a solver that is exact on a small system says nothing about a
-   // large one. This test is sized to cross that threshold deliberately.
+   // large one. This case is sized to cross that threshold deliberately.
    //
-   // The failure this guards against is not an MFEM defect: if libblas.so.3
+   // The failure it guards against is not an MFEM defect: if libblas.so.3
    // resolves to a BLAS whose integer interface or threading layer does not
    // match what UMFPACK was built against, the factorization is silently
-   // wrong -- exact below the threshold, nonsense above it. On a Debian or
-   // Ubuntu machine, check whether the BLAS alternative points at MKL:
+   // wrong -- exact below the threshold, nonsense above it. This tree names
+   // the oneAPI MKL and its threading layer at LINK time in config/user.mk,
+   // which is what stops it; MKL_THREADING_LAYER=GNU was the older
+   // environment-variable workaround and is no longer needed. On any other
+   // Debian or Ubuntu machine, check where the alternative points:
    //
    //    ls -l /etc/alternatives/libblas.so.3-x86_64-linux-gnu
    //
-   // and if so either repoint it or set MKL_THREADING_LAYER=GNU.
-   const int n = 2000;
+   // A 3-D H1 Laplacian, NOT A BANDED SYSTEM, and that choice is measured.
+   // A bandwidth-32 band at n=2000 has frontal matrices too small to reach
+   // the threaded kernels: linked against the bad BLAS it returns 1.2e-14,
+   // so it passed while the defect was fully present. The 3-D operator's
+   // fronts are near-dense, and against the same bad BLAS it gives
+   // |r|/|b| = 3.8e-01 at n=64, 2.7e+45 at n=343 and NaN by n=2197.
+   const int order = 3;
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   H1_FECollection fec(order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
 
-   SparseMatrix A(n, n);
-   for (int i = 0; i < n; i++)
-   {
-      A.Add(i, i, 4.0);
-      if (i > 0)     { A.Add(i, i-1, -1.0); }
-      if (i < n-1)   { A.Add(i, i+1, -1.0); }
-      // A wide band, so the frontal matrices are dense enough to reach BLAS.
-      if (i >= 32)   { A.Add(i, i-32, -0.5); }
-      if (i < n-32)  { A.Add(i, i+32, -0.5); }
-   }
-   A.Finalize();
+   // Diffusion alone on a closed domain with no essential dofs is singular;
+   // the mass term makes it SPD without narrowing the fronts.
+   BilinearForm a(&fes);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.AddDomainIntegrator(new MassIntegrator);
+   a.Assemble();
+   a.Finalize();
+   SparseMatrix &A = a.SpMat();
+
+   const int n = fes.GetTrueVSize();
+   REQUIRE(n == 343);
 
    Vector xex(n), b(n), x(n);
    for (int i = 0; i < n; i++) { xex(i) = std::sin(real_t(i)); }
@@ -398,17 +415,52 @@ TEST_CASE("UMFPack is above its dense-block threshold", "[UMFPack]")
    umf.SetOperator(A);
    umf.Mult(b, x);
 
+   // FINITENESS FIRST, and this ordering is the point rather than tidiness.
+   // Vector::Norml2() guards its reduction with `if (n > 0)`, and
+   // fabs(NaN) > 0 is false, so NaN entries are SKIPPED: measured, one NaN
+   // among three ones gives sqrt(3), and an all-NaN vector gives 0.
+   // Normlinf() uses fmax(), which by specification returns the non-NaN
+   // argument, so it reports 0 too. A residual test alone therefore PASSES
+   // on a solve that returned nothing but NaN -- which is exactly what the
+   // bad BLAS produces at n >= 2197. Norml1() would propagate the NaN;
+   // CheckFinite() says so directly and names the count.
+   //
+   // At THIS size the residual assertion below is the one that fires --
+   // measured 9.708e+91 against a 1.176e-09 bound, with CheckFinite() still
+   // reporting 0. The finiteness guard is here for the larger-n regime and
+   // for the general class of failure, not because it is the discriminator
+   // at n = 343.
+   INFO("UMFPack returned " << x.CheckFinite() << " non-finite entries of "
+        << n << "; the BLAS behind UMFPACK is mismatched if this is nonzero");
+   REQUIRE(x.CheckFinite() == 0);
+
    Vector r(n);
    A.Mult(x, r);
    r -= b;
 
    INFO("UMFPack residual " << r.Norml2() << " on an n=" << n
-        << " banded system; a large value here usually means the BLAS behind "
+        << " 3-D H1 system; a large value here usually means the BLAS behind "
         "UMFPACK is mismatched, not that MFEM is wrong");
    REQUIRE(r.Norml2() < 1e-10 * b.Norml2());
 
    x -= xex;
    REQUIRE(x.Normlinf() < 1e-10);
+}
+
+TEST_CASE("UMFPack is above its dense-block threshold", "[UMFPack]")
+{
+   CheckUMFPackAboveDenseBlockThreshold();
+}
+
+// The same check in the parallel build, which resolves BLAS through its own
+// link line. Every rank runs the same serial factorization; at n = 343 that is
+// cheap, and a per-rank answer is the right granularity anyway, since what is
+// under test is the process's symbol resolution rather than anything
+// distributed.
+TEST_CASE("UMFPack is above its dense-block threshold in a parallel build",
+          "[UMFPack][Parallel]")
+{
+   CheckUMFPackAboveDenseBlockThreshold();
 }
 
 #endif

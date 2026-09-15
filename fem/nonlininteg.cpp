@@ -1016,6 +1016,9 @@ void SumNLFIntegrator::AssembleElementVector(
    Vector &elvect)
 {
    MFEM_ASSERT(integrators.Size() > 0, "empty SumNLFIntegrator.");
+#ifdef MFEM_THREAD_SAFE
+   Vector elem_vect;
+#endif
 
    integrators[0]->AssembleElementVector(el, Trans, elfun, elvect);
    for (int i = 1; i < integrators.Size(); i++)
@@ -1030,6 +1033,9 @@ void SumNLFIntegrator::AssembleFaceVector(
    FaceElementTransformations &Trans, const Vector &elfun, Vector &elvect)
 {
    MFEM_ASSERT(integrators.Size() > 0, "empty SumNLFIntegrator.");
+#ifdef MFEM_THREAD_SAFE
+   Vector elem_vect;
+#endif
 
    integrators[0]->AssembleFaceVector(el1, el2, Trans, elfun, elvect);
    for (int i = 1; i < integrators.Size(); i++)
@@ -1045,6 +1051,9 @@ void SumNLFIntegrator::AssembleHDGFaceVector(
    Vector &elvect)
 {
    MFEM_ASSERT(integrators.Size() > 0, "empty SumNLFIntegrator.");
+#ifdef MFEM_THREAD_SAFE
+   Vector elem_vect;
+#endif
 
    integrators[0]->AssembleHDGFaceVector(type, trace_face_fe, fe, Trans, trfun,
                                          elfun, elvect);
@@ -1062,6 +1071,9 @@ void SumNLFIntegrator::AssembleHDGFaceGrad(
    DenseMatrix &elmat)
 {
    MFEM_ASSERT(integrators.Size() > 0, "empty SumNLFIntegrator.");
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix elem_mat;
+#endif
 
    integrators[0]->AssembleHDGFaceGrad(type, trace_face_fe, fe, Trans, trfun,
                                        elfun, elmat);
@@ -1078,6 +1090,9 @@ void SumNLFIntegrator::AssembleElementGrad(
    DenseMatrix &elmat)
 {
    MFEM_ASSERT(integrators.Size() > 0, "empty SumNLFIntegrator.");
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix elem_mat;
+#endif
 
    integrators[0]->AssembleElementGrad(el, Trans, elfun, elmat);
    for (int i = 1; i < integrators.Size(); i++)
@@ -1092,6 +1107,9 @@ void SumNLFIntegrator::AssembleFaceGrad(
    FaceElementTransformations &Trans, const Vector &elfun, DenseMatrix &elmat)
 {
    MFEM_ASSERT(integrators.Size() > 0, "empty SumNLFIntegrator.");
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix elem_mat;
+#endif
 
    integrators[0]->AssembleFaceGrad(el1, el2, Trans, elfun, elmat);
    for (int i = 1; i < integrators.Size(); i++)
@@ -1172,6 +1190,9 @@ void SumNLFIntegrator::AddMultGradPA(const Vector &x, Vector &y) const
 
 void SumNLFIntegrator::AssembleGradDiagonalPA(Vector &diag) const
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector elem_vect;
+#endif
    MFEM_ASSERT(integrators.Size() > 0, "empty SumNLFIntegrator.");
 
    integrators[0]->AssembleGradDiagonalPA(diag);
