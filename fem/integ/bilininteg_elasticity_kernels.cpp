@@ -165,9 +165,11 @@ ElasticityIntegrator::Kernels::Kernels()
    ElasticityIntegrator::AddSpecialization<3,3,3>();
    ElasticityIntegrator::AddSpecialization<3,3,4>();
    ElasticityIntegrator::AddSpecialization<3,3,5>();
+   ElasticityIntegrator::AddSpecialization<3,3,6>();
    ElasticityIntegrator::AddSpecialization<3,4,4>();
    ElasticityIntegrator::AddSpecialization<3,4,5>();
    ElasticityIntegrator::AddSpecialization<3,4,6>();
+   ElasticityIntegrator::AddSpecialization<3,4,9>();
    ElasticityIntegrator::AddSpecialization<3,5,5>();
    ElasticityIntegrator::AddSpecialization<3,5,6>();
    ElasticityIntegrator::AddSpecialization<3,5,7>();
