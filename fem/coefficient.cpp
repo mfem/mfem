@@ -703,10 +703,9 @@ void VectorDivergenceGridFunctionCoefficient::Eval(
       // style choice: GridFunction::GetDivergence() -- what the scalar
       // DivergenceGridFunctionCoefficient calls -- writes the division, and
       // x/w and x*(1/w) differ in the last bit. Writing it the same way makes
-      // this coefficient agree with the scalar one to the bit at vdim == 1,
-      // which is what lets DarcyForm::ReconstructFluxAndPot() drive both the
-      // one-field and the many-field case through this one path with the
-      // scalar answer provably unmoved.
+      // this coefficient agree with the scalar one TO THE BIT at vdim == 1,
+      // so a caller that dispatches on vdim between the two cannot shift its
+      // answer by doing so.
       for (int e = 0; e < vdim; e++)
       {
          const Vector blk(loc_data.GetData() + e * ndof, ndof);

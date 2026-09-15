@@ -143,8 +143,8 @@ public:
 
    /** @brief The nonlinear flux mass integrator, or NULL.
 
-       @note **This returned the *potential* mass integrator until this branch
-       fixed it**, i.e. exactly what GetPotMassNonlinearIntegrator() below
+       @note **This returned the *potential* mass integrator until it was
+       fixed**, i.e. exactly what GetPotMassNonlinearIntegrator() below
        returns, so the two accessors were indistinguishable and this one never
        gave the flux. The signature is unchanged, so a caller that depended on
        the old value changes behaviour silently on upgrading; it wants
