@@ -912,15 +912,16 @@ struct LocalQFLOBackend
    // ─────────────────────────────────────────────────────
    template<typename WT, typename WI, typename Cache, typename AddY>
    static MFEM_HOST_DEVICE inline void DiagContract(Shared &s,
-                                                    const int num_dof_1d,
+                                                    const int ndx,
+                                                    const int ndy,
+                                                    const int ndz_in,
                                                     const int q1d,
-                                                    const int nz_dof,
                                                     WT wt,
                                                     WI wi,
                                                     Cache cache,
                                                     AddY add_y)
    {
-      MFEM_CONTRACT_VAR(nz_dof);
+      MFEM_CONTRACT_VAR(ndz_in);
       real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
       auto s0 = reinterpret_cast<real_t(*)[Q1D][Q1D]>(base);
 
@@ -930,7 +931,7 @@ struct LocalQFLOBackend
             reinterpret_cast<real_t(*)[Q1D][Q1D]>(base + Q1D * Q1D * Q1D);
 
          // reduce qz → dz : s0[dz][qy][qx]
-         MFEM_FOREACH_THREAD(dz, z, num_dof_1d)
+         MFEM_FOREACH_THREAD(dz, z, ndz_in)
          MFEM_FOREACH_THREAD(qy, y, q1d)
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
@@ -945,8 +946,8 @@ struct LocalQFLOBackend
          MFEM_SYNC_THREAD;
 
          // reduce qy → dy : s1[dz][dy][qx]
-         MFEM_FOREACH_THREAD(dz, z, num_dof_1d)
-         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD(dz, z, ndz_in)
+         MFEM_FOREACH_THREAD(dy, y, ndy)
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
             real_t u = 0.0;
@@ -959,9 +960,9 @@ struct LocalQFLOBackend
          MFEM_SYNC_THREAD;
 
          // reduce qx → dx : Y(dx,dy,dz)
-         MFEM_FOREACH_THREAD(dz, z, num_dof_1d)
-         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
-         MFEM_FOREACH_THREAD(dx, x, num_dof_1d)
+         MFEM_FOREACH_THREAD(dz, z, ndz_in)
+         MFEM_FOREACH_THREAD(dy, y, ndy)
+         MFEM_FOREACH_THREAD(dx, x, ndx)
          {
             real_t u = 0.0;
             for (int qx = 0; qx < q1d; qx++)
@@ -975,7 +976,7 @@ struct LocalQFLOBackend
       else
       {
          // reduce qy → dy : s0[0][dy][qx]
-         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD(dy, y, ndy)
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
             real_t u = 0.0;
@@ -989,8 +990,8 @@ struct LocalQFLOBackend
          MFEM_SYNC_THREAD;
 
          // reduce qx → dx : Y(dx,dy,0)
-         MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
-         MFEM_FOREACH_THREAD(dx, x, num_dof_1d)
+         MFEM_FOREACH_THREAD(dy, y, ndy)
+         MFEM_FOREACH_THREAD(dx, x, ndx)
          {
             real_t u = 0.0;
             for (int qx = 0; qx < q1d; qx++)

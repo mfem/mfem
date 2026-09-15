@@ -358,6 +358,19 @@ public:
       const int num_dofs_per_elem = num_test_dof * test_vdim;
       auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, ne);
 
+      // Check if we have a vector FE (ND/RT) row block.
+      // Needed because we use different layout to handle the
+      // per axis component layout.
+      bool vfe_diagonal = false;
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         if (out_group[static_cast<int>(o)] == row_group &&
+             output_dtq_maps[o].IsVectorFE())
+         {
+            vfe_diagonal = true;
+         }
+      });
+
       dfem::forall<MTPB>(
          [=] MFEM_HOST_DEVICE(const int e, void *)
       {
@@ -375,6 +388,91 @@ public:
          // Backend-owned shared scratch for the sum-factorized contraction.
          MFEM_SHARED typename backend_t::Shared s_diag;
          const int nz_dof = B2D ? 1 : num_test_dof_1d;
+
+         // Assemble diag for vector FE,  with per-axis extents.
+         // Accummulated the diagonal one component at a time.
+         if (vfe_diagonal)
+         {
+            auto Yflat = Reshape(&Ye(0, e), num_test_dof);
+            for_constexpr<n_outputs>([&](auto o)
+            {
+               using test_fop_t = std::decay_t<decltype(get<o>(outputs))>;
+               if constexpr (is_value_fop_v<test_fop_t> ||
+                             is_div_fop_v<test_fop_t>)
+               {
+                  if (out_group[static_cast<int>(o)] != row_group) { return; }
+                  const auto &out_dtq = output_dtq_maps[o];
+                  const int test_op_dim = out_op_dim[static_cast<int>(o)];
+
+                  for (int c = 0; c < out_dtq.range_dim; c++)
+                  {
+                     const int ndx = out_dtq.Extent(c, 0);
+                     const int ndy = out_dtq.Extent(c, 1);
+                     const int ndz = B2D ? 1 : out_dtq.Extent(c, 2);
+                     const int off = out_dtq.Offset(c);
+
+                     // The 1D factor for a given (component, axis, deriv) is
+                     // fixed for the whole contraction, so it is resolved once.
+                     const int tderiv = is_div_fop_v<test_fop_t> ? c : -1;
+                     const real_t *Bo[3] = { out_dtq.Basis(c, 0, tderiv == 0),
+                                             out_dtq.Basis(c, 1, tderiv == 1),
+                                             out_dtq.Basis(c, 2, tderiv == 2)
+                                           };
+
+                     for (int k = 0; k < test_op_dim; k++)
+                     {
+                        // Skip because a Value dof of component c has only its
+                        // c-th spatial component nonzero, so it pairs with
+                        // cache row k only when k == c.
+                        if (is_value_fop_v<test_fop_t> && k != c) { continue; }
+
+                        const int row = out_offsets[static_cast<int>(o)] + k;
+                        int m_offset = 0;
+                        for_constexpr<n_inputs>([&](auto s)
+                        {
+                           using fop_t = std::decay_t<decltype(get<s>(inputs))>;
+                           const int trial_op_dim =
+                              inputs_trial_op_dim[static_cast<int>(s)];
+                           if (trial_op_dim == 0) { return; }
+                           if constexpr (is_value_fop_v<fop_t> ||
+                                         is_div_fop_v<fop_t>)
+                           {
+                              const auto &in_dtq = input_dtq_maps[s];
+                              const int ideriv = is_div_fop_v<fop_t> ? c : -1;
+                              const real_t *Bi[3] =
+                              {
+                                 in_dtq.Basis(c, 0, ideriv == 0),
+                                 in_dtq.Basis(c, 1, ideriv == 1),
+                                 in_dtq.Basis(c, 2, ideriv == 2)
+                              };
+
+                              for (int m = 0; m < trial_op_dim; m++)
+                              {
+                                 if (is_value_fop_v<fop_t> && m != c)
+                                 { continue; }
+                                 const int col = m_offset + m;
+                                 backend_t::DiagContract(
+                                    s_diag, ndx, ndy, ndz, q1d,
+                                    [&](int axis, int q, int d)
+                                 { return Bo[axis][q + q1d * d]; },
+                                 [&](int axis, int q, int d)
+                                 { return Bi[axis][q + q1d * d]; },
+                                 [&](int q) { return qpdc(q, col, 0, row); },
+                                 [&](int dx, int dy, int dz, real_t u)
+                                 {
+                                    const int i = dx + ndx * (dy + ndy * dz);
+                                    Yflat(off + i) += u;
+                                 });
+                              }
+                           }
+                           m_offset += trial_op_dim;
+                        });
+                     }
+                  }
+               }
+            });
+            return;
+         }
 
          for (int vd = 0; vd < test_vdim; vd++)
          {
@@ -466,8 +564,9 @@ public:
                            backend_t::DiagContract(
                               s_diag,
                               num_test_dof_1d,
+                              num_test_dof_1d,
+                              num_test_dof_1d,
                               q1d,
-                              nz_dof,
                               [&](int axis, int q, int d)
                            { return eval_test(k, axis, q, d); },
                            [&](int axis, int q, int d)

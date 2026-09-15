@@ -225,6 +225,25 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, add_reference_t add_ref)
       dRdU->Mult(dX, MdZ);
       REQUIRE(HdivMaxError(comm, dY, dZ) == MFEM_Approx(0.0, 1e-10, 1e-10));
    }
+
+   SECTION("Assemble diagonal")
+   {
+      DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
+      constexpr auto kernels = DerivativeKernels::AssembleDiagonal;
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
+         Derivatives<U> {});
+
+      MultiVector MX{ X, setup.N };
+      auto dRdU = dop.GetDerivative(U, MX);
+
+      Vector dfem_D(tvsize), mfem_D(tvsize);
+      dRdU->AssembleDiagonal(dfem_D);
+      blf_pa.AssembleDiagonal(mfem_D);
+      REQUIRE(mfem_D.Normlinf() > 1e-8); // guard against comparing zeros
+      REQUIRE(HdivMaxError(comm, mfem_D, dfem_D) ==
+              MFEM_Approx(0.0, 1e-10, 1e-10));
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────

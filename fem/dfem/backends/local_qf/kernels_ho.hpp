@@ -735,17 +735,17 @@ struct LocalQFHOBackend
    // ─────────────────────────────────────────────────────
    template<typename WT, typename WI, typename Cache, typename AddY>
    static MFEM_HOST_DEVICE inline void DiagContract(Shared &s,
-                                                    const int num_dof_1d,
+                                                    const int ndx,
+                                                    const int ndy,
+                                                    const int ndz_in,
                                                     const int q1d,
-                                                    const int nz_dof,
                                                     WT wt,
                                                     WI wi,
                                                     Cache cache,
                                                     AddY add_y)
    {
-      MFEM_CONTRACT_VAR(nz_dof);
       const int nqz = (DIM == 3) ? q1d : 1;
-      const int ndz = (DIM == 3) ? num_dof_1d : 1;
+      const int ndz = (DIM == 3) ? ndz_in : 1;
 
       ker::s_regs3d_t<MQ1> rz, ry;
       auto &smem = s.M;
@@ -779,7 +779,7 @@ struct LocalQFHOBackend
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, ndy)
          {
             MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
             {
@@ -796,16 +796,16 @@ struct LocalQFHOBackend
 
       for (int dz = 0; dz < ndz; dz++)
       {
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, ndy)
          {
             MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
             { smem[dy][qx] = ry[dz][dy][qx]; }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD_DIRECT(dy, y, num_dof_1d)
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, ndy)
          {
-            MFEM_FOREACH_THREAD_DIRECT(dx, x, num_dof_1d)
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, ndx)
             {
                real_t u = 0.0;
                for (int qx = 0; qx < q1d; qx++)

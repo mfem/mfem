@@ -2960,12 +2960,6 @@ struct DofToQuadMap
       return off;
    }
 
-   /// Element-vector index of the dof (@a dx, @a dy, @a dz) of component @a c.
-   MFEM_HOST_DEVICE int Index(int c, int dx, int dy, int dz) const
-   {
-      return Offset(c) + dx + Extent(c, 0) * (dy + Extent(c, 1) * dz);
-   }
-
    /// Return basis matrix for component c along direction k, shaped (q1d x d1d).
    /// Useful to retrieve per axis basis factors, and store it in loop, since
    /// it does not change during the sweep.
@@ -2974,21 +2968,6 @@ struct DofToQuadMap
       const bool closed = Closed(c, k);
       return deriv ? (closed ? G : Go) : (closed ? B : Bo);
    }
-
-   /// The 1D factor of component @a c along direction @a k at (@a q, @a d), or
-   /// its derivative when @a deriv is set.
-   MFEM_HOST_DEVICE real_t At(int c, int k, bool deriv, int q, int d) const
-   {
-      const bool closed = Closed(c, k);
-      return deriv ? (closed ? G : Go)(q, 0, d) : (closed ? B : Bo)(q, 0, d);
-   }
-
-   /// Size on qp of a `Value` operator on a vector element.
-   MFEM_HOST_DEVICE int ValueSizeOnQP() const { return range_dim; }
-
-   /// Size on qp of a `Curl` operator: one scalar in 2D, three in 3D.
-   MFEM_HOST_DEVICE int CurlSizeOnQP() const
-   { return (range_dim == 2) ? 1 : 3; }
 
    /// Convenience for creating an empty DofToQuadMap.
    static DofToQuadMap Empty(int nqp = 0, int value_dim = 0, int grad_dim = 0,
