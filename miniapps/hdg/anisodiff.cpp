@@ -947,7 +947,20 @@ int main(int argc, char *argv[])
 
    if (amr_nrefs > 0 && hybridization)
    {
-      amr_bfi.reset(new HDGDiffusionIntegrator(kcoeff, td));
+      // THE SAME STABILIZATION THE SOLVE USES, and the estimator was not
+      // getting it. HDGErrorEstimator measures |p_hat - p| in an energy norm
+      // taken from this integrator, so a bare one evaluates the built-in
+      // {h^-1 Q} while the potential mass form above runs with `stab`
+      // installed -- and with --tau-floor > 0 those are different operators.
+      // The estimate then answers a question the solve is not asking.
+      //
+      // The library half of exactly this was already fixed once, inside
+      // ComputeHDGFaceEnergy(), which used to form the built-in scaling
+      // rather than going through StabValue(); this is the caller half, and
+      // it was missed because the two constructions sit 300 lines apart.
+      auto *amr_hdi = new HDGDiffusionIntegrator(kcoeff, td);
+      if (stab) { amr_hdi->SetStabilization(*stab); }
+      amr_bfi.reset(amr_hdi);
       amr_err.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
       static_cast<HDGErrorEstimator*>(amr_err.get())->SetAnisotropic();
    }
