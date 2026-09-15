@@ -22,9 +22,9 @@ namespace
 {
 // check if C++ 14 or beyond
 #if __cplusplus >= 201402L
-inline ::std::unique_ptr<::mfem::real_t[]> allocArray(int size) { return ::std::make_unique<::mfem::real_t[]>(size); }
+inline ::std::unique_ptr<::mfem::real_t[]> allocArray(int size) { return (size != 0) ? ::std::make_unique<::mfem::real_t[]>(size) : nullptr; }
 #else
-inline ::std::unique_ptr<::mfem::real_t[]> allocArray(int size) { return ::std::unique_ptr<::mfem::real_t[]>(new ::mfem::real_t[size]); }
+inline ::std::unique_ptr<::mfem::real_t[]> allocArray(int size) { return (size != 0) ? ::std::unique_ptr<::mfem::real_t[]>(new ::mfem::real_t[size]) : nullptr; }
 #endif
 }
 
@@ -41,10 +41,10 @@ extern "C" void sgesv_(int* nLAP, int* nrhs, float* AA, int* lda,
 namespace mfem
 {
 
-void solveLU(int nCon, real_t* AA1, real_t* bb1)
+void solveLU(const int nCon, real_t* AA1, real_t* bb1)
 {
    // Solve linear system with LU decomposition ifndef LAPACK
-   int nLAP = nCon + 1;
+   const int nLAP = nCon + 1;
 
    // Convert AA1 to matrix A and bb1 to vector B
    ::std::unique_ptr<::std::unique_ptr<real_t[]>[]> A(
@@ -148,7 +148,7 @@ void solveLU(int nCon, real_t* AA1, real_t* bb1)
    }
 }
 
-void MMA::MMASubSvanberg::AllocSubData(int nvar, int ncon)
+void MMA::MMASubSvanberg::AllocSubData(const int nvar, const int ncon)
 {
    epsi = 1.0;
    ittt = itto = itera = 0;
@@ -234,8 +234,8 @@ void MMA::MMASubSvanberg::Update(const real_t* dfdx,
    MPI_Comm_rank(mma.comm, &rank);
 #endif
 
-   int ncon = mma.nCon;
-   int nvar = mma.nVar;
+   const int ncon = mma.nCon;
+   const int nvar = mma.nVar;
 
    real_t zero = 0.0;
 
@@ -990,7 +990,9 @@ MMA::MMA(int nVar, int nCon, real_t *xval, int iter)
 
 MMA::MMA(const int nVar, int nCon, Vector &xval, int iter) : MMA(nVar, nCon,
                                                                     xval.GetData(), iter)
-{}
+{
+   MFEM_ASSERT(nVar == xval.Size(), "MMA constructor vector sizes don't match!");
+}
 
 #ifdef MFEM_USE_MPI
 MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
@@ -998,20 +1000,8 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
    int rank = 0;
    MPI_Comm_rank(comm_, &rank);
 
-   // create new communicator
-   int colour;
-
-   if ( 0 != nVar)
-   {
-      colour = 0;
-   }
-   else
-   {
-      colour = MPI_UNDEFINED;
-   }
-
    // Split the global communicator
-   MPI_Comm_split(comm_, colour, rank, &comm);
+   MPI_Comm_dup(comm_, &comm);
 
    AllocData(nVar,nCon);
    InitData(xval);
@@ -1021,7 +1011,9 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
 
 MMA::MMA(MPI_Comm comm_, const int nVar, const int nCon,
          const Vector & xval, int iter) : MMA(comm_, nVar, nCon, xval.GetData(), iter)
-{}
+{
+   MFEM_ASSERT(nVar == xval.Size(), "Constructor sizes don't match!");
+}
 #endif
 
 
@@ -1077,6 +1069,13 @@ void MMA::Update( const Vector& dfdx,
                   const Vector& xmin, const Vector& xmax,
                   Vector& xval)
 {
+   MFEM_ASSERT(nCon == gx.Size(), "Constraint sizes don't match");
+   MFEM_ASSERT(nVar == dfdx.Size(), "Objective gradient sizes don't match");
+   MFEM_ASSERT(nVar == xmin.Size(),
+               "Bound size doesn't match number of variables");
+   MFEM_ASSERT(nVar == xmax.Size(),
+               "Bound size doesn't match number of variables");
+   MFEM_ASSERT(nVar == xval.Size(), "Decision variable size doesn't match");
    this->Update(dfdx.GetData(),
                 gx.GetData(),dgdx.GetData(),
                 xmin.GetData(), xmax.GetData(),
@@ -1087,6 +1086,12 @@ void MMA::Update( const Vector& dfdx,
                   const Vector& xmin, const Vector& xmax,
                   Vector& xval)
 {
+   MFEM_ASSERT(nVar == dfdx.Size(), "Objective gradient sizes don't match");
+   MFEM_ASSERT(nVar == xmin.Size(),
+               "Bound size doesn't match number of variables");
+   MFEM_ASSERT(nVar == xmax.Size(),
+               "Bound size doesn't match number of variables");
+   MFEM_ASSERT(nVar == xval.Size(), "Decision variable size doesn't match");
    MFEM_ASSERT(0 == nCon,
                "MMA nCon != 0. Provide constraint values and gradients");
 
