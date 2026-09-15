@@ -165,7 +165,7 @@ int main (int argc, char *argv[])
    int h_metric_id       = -1;
    bool normalization    = false;
    bool visualization    = true;
-   int verbosity_level   = 0;
+   int verbosity_level   = 1;
    bool fdscheme         = false;
    int adapt_eval        = 0;
    bool exactaction      = false;

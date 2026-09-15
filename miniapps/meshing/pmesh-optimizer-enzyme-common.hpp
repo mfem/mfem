@@ -1047,7 +1047,7 @@ struct SurfaceFittingLevelSetEnergy
    MFEM_HOST_DEVICE inline
    auto operator()(const tensor<scalar_t, dim> &x,
                    const tensor<scalar_t,
-                                SurfaceFitDataLayout<dim>::SIZE> &data,
+                   SurfaceFitDataLayout<dim>::SIZE> &data,
                    real_t &f) const
    {
       scalar_t sigma;
@@ -1596,9 +1596,9 @@ void ProjectPhysicalGradientOnDevice(const ParGridFunction &field,
       const int raw_component = component + in_vdim * direction;
       const int output_component = component * dim + direction;
       element_gradient_data[node + nd *
-                            (output_component + in_vdim * dim * element)] =
-         raw_data[node + nd *
-                  (raw_component + in_vdim * dim * element)];
+                                 (output_component + in_vdim * dim * element)] =
+                               raw_data[node + nd *
+                                             (raw_component + in_vdim * dim * element)];
    });
    out_restriction->MultTranspose(element_gradient, gradient);
 
@@ -2426,8 +2426,8 @@ public:
       }
 
       const auto *restriction = dynamic_cast<const ElementRestriction *>(
-         current_fes.GetElementRestriction(
-            ElementDofOrdering::LEXICOGRAPHIC));
+                                   current_fes.GetElementRestriction(
+                                      ElementDofOrdering::LEXICOGRAPHIC));
       MFEM_VERIFY(restriction,
                   "Surface fitting requires an H1 element restriction.");
       const int *gather_map = restriction->GatherMap().Read();
@@ -2459,14 +2459,14 @@ public:
          for (int d = 0; d < dimension; d++)
          {
             data[2 + d] = use_element_derivatives ?
-               gradient_data[q + nq * (d + dimension * e)] :
-               gradient_data[dof + d * ndofs];
+                          gradient_data[q + nq * (d + dimension * e)] :
+                          gradient_data[dof + d * ndofs];
             for (int j = 0; j < dimension; j++)
             {
                data[2 + dimension + d * dimension + j] =
                   use_element_derivatives ?
                   hessian_data[q + nq *
-                               (d + dimension * (j + dimension * e))] :
+                                 (d + dimension * (j + dimension * e))] :
                   hessian_data[dof + (d * dimension + j) * ndofs];
             }
          }
@@ -2842,7 +2842,8 @@ private:
             real_t x[3] = {0.0, 0.0, 0.0};
             real_t gradient[3] = {0.0, 0.0, 0.0};
             real_t hessian[9] = {0.0, 0.0, 0.0, 0.0, 0.0,
-                                 0.0, 0.0, 0.0, 0.0};
+                                 0.0, 0.0, 0.0, 0.0
+                                };
             for (int d = 0; d < dimension; d++)
             {
                x[d] = position_data[i + d * ndofs];
@@ -2877,7 +2878,8 @@ private:
          real_t x[3] = {0.0, 0.0, 0.0};
          real_t gradient[3] = {0.0, 0.0, 0.0};
          real_t hessian[9] = {0.0, 0.0, 0.0, 0.0, 0.0,
-                              0.0, 0.0, 0.0, 0.0};
+                              0.0, 0.0, 0.0, 0.0
+                             };
          for (int d = 0; d < dimension; d++)
          {
             x[d] = position_data[i + d * ndofs];
@@ -3337,6 +3339,7 @@ private:
    void SetupTMOPOperators(const IntegrationRule &ir,
                            const Array<int> &all_domain_attr)
    {
+      dbg("energy #{}", target_id_val);
       if constexpr (target_id_val == 5 || target_id_val == 6 ||
                     target_id_val == 8)
       {
@@ -3380,6 +3383,12 @@ private:
                           Weight{}},
             future::tuple{FunctionalValue<Q>{}},
             ir, all_domain_attr, derivatives);
+
+         using QT = decltype(energy);
+         using IT = future::Inputs<future::Gradient<X>, Identity<TARGET_W>, Weight>;
+         using OT = future::Outputs<future::FunctionalValue<Q>>;
+         dbg("dim:{} q1d:{}", dim, 6);
+         future::AddAction<dim, 6, QT, IT, OT>();
       }
       else
       {
@@ -3409,8 +3418,8 @@ private:
                        target_id_val == 8)
          {
             SetupDiscreteTargetNodeLimitingFunctional<target_id_val,
-                                                       metric_id_val>(
-               ir, all_domain_attr);
+                                                      metric_id_val>(
+                                                         ir, all_domain_attr);
          }
          else if constexpr (target_id_val == 1)
          {
@@ -3423,7 +3432,7 @@ private:
             SetupNodeLimitingFunctional(
                ir, all_domain_attr,
                AnalyticTargetNodeLimitingEnergy<real_t, dim, target_id_val,
-                                                 metric_id_val> {});
+               metric_id_val> {});
          }
       }
 
@@ -3440,6 +3449,7 @@ private:
       const IntegrationRule &ir,
       const Array<int> &all_domain_attr)
    {
+      dbg();
       const std::vector in
       {
          FieldDescriptor{X, &fes},
@@ -3469,6 +3479,7 @@ private:
                                     const Array<int> &all_domain_attr,
                                     Energy energy)
    {
+      dbg();
       const std::vector in
       {
          FieldDescriptor{X, &fes},
@@ -3493,6 +3504,7 @@ private:
    void SetupFrozenTargetEnergy(const IntegrationRule &ir,
                                 const Array<int> &all_domain_attr)
    {
+      dbg();
       const std::vector in
       {
          FieldDescriptor{X, &fes},
@@ -3510,8 +3522,14 @@ private:
          future::tuple{FunctionalValue<Q>{}},
          ir, all_domain_attr, derivatives);
 
+      using QT = decltype(energy);
+      using IT = future::Inputs<future::Gradient<X>, Identity<TARGET_W>, Weight>;
+      using OT = future::Outputs<future::FunctionalValue<Q>>;
+      future::AddAction<dim, 6, QT, IT, OT>();
+
       if (has_node_limiting)
       {
+         dbg("has_node_limiting");
          const std::vector limit_in
          {
             FieldDescriptor{X, &fes},
@@ -3534,6 +3552,7 @@ private:
 
    void SetupSurfaceFittingOperators(const Array<int> &all_domain_attr)
    {
+      dbg();
       const IntegrationRule &node_ir = surface_node_qspace.GetIntRule(0);
       {
          const std::vector in
@@ -3581,7 +3600,7 @@ private:
       const int vdim = dim * dim;
       const DenseMatrix &W =
          Geometries.GetGeomToPerfGeomJac(dim == 2 ? Geometry::SQUARE :
-                                                    Geometry::CUBE);
+                                         Geometry::CUBE);
       MFEM_VERIFY(W.Height() == dim && W.Width() == dim,
                   "Unexpected target matrix dimension.");
       real_t constant_W[9] {};
@@ -4751,9 +4770,9 @@ int RunOptimizer(ParMesh &pmesh,
          }
 
          const real_t factor = std::min(
-            surface_fit_adapt,
-            surface_fit_weight_limit /
-            functional.GetSurfaceFittingCoefficient());
+                                  surface_fit_adapt,
+                                  surface_fit_weight_limit /
+                                  functional.GetSurfaceFittingCoefficient());
          functional.ScaleSurfaceFittingCoefficient(factor);
          if (Mpi::Root() && verbosity_level > 0)
          {

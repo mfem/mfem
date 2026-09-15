@@ -306,7 +306,7 @@ int main (int argc, char *argv[])
                "pmesh-optimizer-enzyme currently supports only pure "
                << (dim == 2 ? "quadrilateral" : "hexahedral")
                << " meshes because the dFEM LocalQF backend uses "
-                  "tensor-product integration rules.");
+               "tensor-product integration rules.");
    if (mesh_poly_deg <= 0) { mesh_poly_deg = 2; }
    const int active_metric_id =
       (metric_id == 0) ? ((dim == 2) ? 2 : 302) : metric_id;
@@ -453,10 +453,10 @@ int main (int argc, char *argv[])
       if (surf_bg_mesh)
       {
          Mesh serial_bg = dim == 2 ?
-                           Mesh::MakeCartesian2D(
-                              4, 4, Element::QUADRILATERAL, true) :
-                           Mesh::MakeCartesian3D(
-                              4, 4, 4, Element::HEXAHEDRON, true);
+                          Mesh::MakeCartesian2D(
+                             4, 4, Element::QUADRILATERAL, true) :
+                          Mesh::MakeCartesian3D(
+                             4, 4, 4, Element::HEXAHEDRON, true);
          serial_bg.EnsureNCMesh();
          pmesh_surf_fit_bg =
             std::make_unique<ParMesh>(MPI_COMM_WORLD, serial_bg);

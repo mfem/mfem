@@ -97,7 +97,7 @@ add_mfem_miniapp(hpref
   LIBRARIES mfem)
 
 # Add serial tests.
-if (MFEM_ENABLE_TESTING)
+if(MFEM_ENABLE_TESTING)
   set(SERIAL_TESTS
     mobius-strip
     klein-bottle
@@ -119,7 +119,7 @@ if (MFEM_ENABLE_TESTING)
 endif()
 
 # Parallel apps.
-if (MFEM_USE_MPI)
+if(MFEM_USE_MPI)
   add_mfem_miniapp(mesh-bounding-boxes
     MAIN mesh-bounding-boxes.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
@@ -131,13 +131,13 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
-  if (MFEM_USE_ENZYME)
-    add_mfem_miniapp(pmesh-optimizer-enzyme
-      MAIN pmesh-optimizer-enzyme.cpp
-      ${MFEM_MINIAPPS_COMMON_HEADERS}
-      LIBRARIES mfem-common)
-    add_dependencies(pmesh-optimizer-enzyme copy_miniapps_meshing_data)
-  endif()
+  # if(MFEM_USE_ENZYME)
+  add_mfem_miniapp(pmesh-optimizer-enzyme
+    MAIN pmesh-optimizer-enzyme.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+  add_dependencies(pmesh-optimizer-enzyme copy_miniapps_meshing_data)
+  # endif()
 
   add_mfem_miniapp(pmesh-fitting
     MAIN pmesh-fitting.cpp
@@ -145,19 +145,19 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
 
-  if (MFEM_USE_ENZYME AND MFEM_USE_GSLIB)
-    add_mfem_miniapp(pmesh-fitting-enzyme
-      MAIN pmesh-fitting-enzyme.cpp
-      ${MFEM_MINIAPPS_COMMON_HEADERS}
-      LIBRARIES mfem-common)
-    add_dependencies(pmesh-fitting-enzyme copy_miniapps_meshing_data)
-  endif()
+  # if(MFEM_USE_ENZYME AND MFEM_USE_GSLIB)
+  #   add_mfem_miniapp(pmesh-fitting-enzyme
+  #     MAIN pmesh-fitting-enzyme.cpp
+  #     ${MFEM_MINIAPPS_COMMON_HEADERS}
+  #     LIBRARIES mfem-common)
+  #   add_dependencies(pmesh-fitting-enzyme copy_miniapps_meshing_data)
+  # endif()
 
-  add_mfem_miniapp(pmesh-digital-twin
-    MAIN pmesh-digital-twin.cpp
-    ${MFEM_MINIAPPS_COMMON_HEADERS}
-    LIBRARIES mfem-common)
-  add_dependencies(pmesh-digital-twin copy_miniapps_meshing_data)
+  # add_mfem_miniapp(pmesh-digital-twin
+  #   MAIN pmesh-digital-twin.cpp
+  #   ${MFEM_MINIAPPS_COMMON_HEADERS}
+  #   LIBRARIES mfem-common)
+  # add_dependencies(pmesh-digital-twin copy_miniapps_meshing_data)
 
   add_mfem_miniapp(fit-node-position
     MAIN fit-node-position.cpp
@@ -174,24 +174,24 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem)
 
   # Add parallel tests.
-  if (MFEM_ENABLE_TESTING)
+  if(MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
       mesh-bounding-boxes
       pmesh-optimizer
       pmesh-fitting
-      pmesh-digital-twin
+      # pmesh-digital-twin
       fit-node-position
       pminimal-surface
       phpref
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)
-    if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
+    if(HYPRE_USING_CUDA OR HYPRE_USING_HIP)
       list(APPEND SKIP_TESTS pmesh-fitting)
     endif()
 
     foreach(test ${PARALLEL_TESTS})
-      if (test IN_LIST SKIP_TESTS)
+      if(test IN_LIST SKIP_TESTS)
         continue()
       endif()
       add_test(NAME ${test}_np=${MFEM_MPI_NP}

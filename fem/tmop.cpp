@@ -318,7 +318,6 @@ void mu342_grad_wrapper(const std::vector<double>& T,
                            enzyme_const, &W,
                            enzyme_dup, &res, &dres);
 }
-;
 
 // W = |J|^3 - 3 sqrt(3) ln(det(J)) - 3 sqrt(3).
 template <typename type>
