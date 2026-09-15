@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -157,8 +157,7 @@ private:
    mutable int nrhs = 0;  // the number of the RHSs
    int nnz = 0;        // the number of non zeros
 
-   // copy and keep the I and J arrays in device memory when skipping analysis
-   // phase
+   // copy and keep the I and J arrays in device memory
    void *csr_offsets_d = NULL; // copy and keep I in device
    void *csr_columns_d = NULL; // copy and keep J in device
    void *csr_values_d = NULL;  // copy and keep csr data in device
