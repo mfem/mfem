@@ -233,6 +233,54 @@ TEST_CASE("HDGErrorEstimator aggregates its local values",
    REQUIRE(est.GetTotalError() == MFEM_Approx(std::sqrt(sum2), 1e-10, 1e-9));
 }
 
+TEST_CASE("HDGErrorEstimator brings itself up to date for GetTotalError",
+          "[HDGErrorEstimator]")
+{
+   using namespace estimators_hdg;
+
+   // ErrorEstimator::GetTotalError() is const, so an estimator holding its
+   // state non-mutably can only return whatever GetLocalErrors() last left
+   // there -- ZERO on a fresh object. That is a silent wrong answer, not an
+   // abort, and it is the defect HDGDatumErrorEstimator's first draft had.
+   //
+   // **Neither case above can see it**, and that is the point of this one:
+   // both ask for the local errors first and so warm the state before reading
+   // the total. This case asks for the TOTAL AND NOTHING ELSE, which is what
+   // a caller assembling the five terms of the SSC estimator does -- it sums
+   // GetTotalError() across estimators and never wants the per-element values.
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   Solution s;
+   Solve(s, 4, order);
+
+   ConstantCoefficient k(1.0);
+   RatioCoefficient ik(1.0, k);
+   HDGDiffusionIntegrator integ(ik, 1.0 / 4);
+
+   HDGErrorEstimator fresh(integ, *s.tr_h, *s.p_h,
+                           HDGErrorEstimator::Type::Energy);
+
+   // Nothing has been asked of `fresh` yet.
+   const real_t total_first = fresh.GetTotalError();
+
+   // The same estimator driven the way the existing cases drive it.
+   HDGErrorEstimator warmed(integ, *s.tr_h, *s.p_h,
+                            HDGErrorEstimator::Type::Energy);
+   const Vector &loc = warmed.GetLocalErrors();
+   REQUIRE(loc.Normlinf() > 0.0);        // there is something to measure
+   const real_t total_warmed = warmed.GetTotalError();
+
+   CAPTURE(total_first, total_warmed);
+   REQUIRE(total_warmed > 0.0);
+   // The value, not a tolerance: a stale-state estimator returns exactly 0
+   // here while the warmed one returns the real total.
+   REQUIRE(total_first == MFEM_Approx(total_warmed, 1e-12, 1e-12));
+
+   // And it stays right when the total is asked for twice.
+   REQUIRE(fresh.GetTotalError() == MFEM_Approx(total_warmed, 1e-12, 1e-12));
+}
+
 namespace estimators_hdg
 {
 
