@@ -594,8 +594,20 @@ class SumNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    int own_integrators;
+#ifndef MFEM_THREAD_SAFE
+   /** Scratch for the second and later integrators of the sum. It is shared
+       across calls, so in a thread-safe build it becomes a local instead --
+       MFEM's usual convention, and here it is load-bearing rather than
+       cosmetic: DarcyHybridization wraps a potential mass form's face
+       integrators in one of these and calls it from a threaded element loop
+       (AssemblyMode::Threaded), where a shared accumulator is resized by one
+       thread while another reads it. The symptom was a DenseMatrix::CopyMN
+       size abort in the base-class AssembleHDGFaceGrad, and only with MORE
+       THAN ONE integrator in the sum, because integrators[0] writes the
+       caller's output directly and never touches this. */
    mutable DenseMatrix elem_mat;
    mutable Vector elem_vect;
+#endif
    Array<NonlinearFormIntegrator*> integrators;
 
 public:
@@ -605,6 +617,18 @@ public:
 
    void AddIntegrator(NonlinearFormIntegrator *integ)
    { integrators.Append(integ); }
+
+   /** @brief The number of integrators added, so a caller can look inside.
+
+       Same reason SumIntegrator has one: DarcyForm::EnableHybridization()
+       wraps a form's face integrators in a sum UNCONDITIONALLY, even when
+       there is exactly one, so a consumer doing dynamic_cast on the result
+       never matches whatever is inside. That made AssemblyMode::Batched dead
+       code once already. */
+   int NumIntegrators() const { return integrators.Size(); }
+   /// The @a i-th integrator added, without transferring ownership.
+   NonlinearFormIntegrator *GetIntegrator(int i) const
+   { return integrators[i]; }
 
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &Tr,
@@ -691,6 +715,12 @@ public:
 
    void AddIntegrator(BlockNonlinearFormIntegrator *integ)
    { integrators.Append(integ); }
+
+   /// The number of integrators added; see SumNLFIntegrator::NumIntegrators().
+   int NumIntegrators() const { return integrators.Size(); }
+   /// The @a i-th integrator added, without transferring ownership.
+   BlockNonlinearFormIntegrator *GetIntegrator(int i) const
+   { return integrators[i]; }
 
    real_t GetElementEnergy(const Array<const FiniteElement *>&el,
                            ElementTransformation &Tr,

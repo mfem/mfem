@@ -547,6 +547,13 @@ TAGS
 
 # Claude Code session notes, deliberately not tracked
 CLAUDE.md
+CLAUDE_*.md
+
+# Correspondence with the consuming projects. These must never be staged: five
+# of them were, and the blobs are reachable in pushed history for good, which
+# takes a history rewrite of two published branches to undo.
+doc/*-FROM-*.md
+doc/*-TO-*.md
 
 # This machine's own regression baseline. The tracked regress_test* sets are
 # upstream's, recorded on their author's configuration; ours go here so that
