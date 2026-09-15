@@ -58,11 +58,36 @@ static int DefaultIROrder(const GridFunction &ut, int ir_order)
    return 2 * fes->GetMaxElementOrder() + 2;
 }
 
+/** @brief Refuse a system, loudly, from entry points that return one number.
+
+    These two functionals return a single real_t, and there is no honest thing
+    for that to be when the total flux carries several fields: returning field
+    0's would be the silent wrong answer this refusal exists to prevent.
+
+    It is a refusal rather than an assertion on purpose. FaceNormalFlux() reads
+    the flux with GridFunction::GetVectorValue(), and at vdim > 1 that lands on
+    one of two size mismatches depending on the space's range type -- a
+    vector-valued element takes GetVectorValue()'s own documented defect,
+    applying a dof-row vshape to a dof*vdim loc_data, while a scalar-valued one
+    returns val at length vdim to meet a nor of length dim in the dot product.
+    BOTH are guarded by MFEM_ASSERT only, and this tree configures
+    MFEM_DEBUG = NO, so in the build anyone here actually runs they are
+    compiled out and a system gets a number rather than a diagnostic. */
+static void VerifyOneField(const FiniteElementSpace *fes)
+{
+   MFEM_VERIFY(fes->GetVDim() == 1,
+               "the total flux carries " << fes->GetVDim() << " fields; these "
+               "functionals return one number and would have to pick a field. "
+               "A per-field version has to take a Vector, one value per "
+               "field, and is not offered here");
+}
+
 real_t ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
                           int ir_order)
 {
    const FiniteElementSpace *fes = ut.FESpace();
    MFEM_VERIFY(fes, "the total flux has no finite element space");
+   VerifyOneField(fes);
    Mesh *mesh = fes->GetMesh();
    MFEM_VERIFY(elem_marker.Size() == mesh->GetNE(),
                "elem_marker must have one entry per element, got "
@@ -99,6 +124,7 @@ real_t ComputeBoundaryFlux(const GridFunction &ut,
 {
    const FiniteElementSpace *fes = ut.FESpace();
    MFEM_VERIFY(fes, "the total flux has no finite element space");
+   VerifyOneField(fes);
    Mesh *mesh = fes->GetMesh();
 
    const int iro = DefaultIROrder(ut, ir_order);
