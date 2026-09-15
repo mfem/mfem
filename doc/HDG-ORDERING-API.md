@@ -243,6 +243,58 @@ apply the Jacobian's `(0,1)` block rather than the linear one.
 `r`'s potential block carries the symmetrized sign convention when that is in
 force. Its norm is unaffected and nothing but the calls above should read it.
 
+### 3.2a Several right-hand sides against one Jacobian
+
+`NPCGradient()` factors the local blocks once and every application
+afterwards only reads them, so one handle may be applied any number of times.
+A bordered, deflated, parameter-continued or adjoint Newton has several
+right-hand sides known at the same moment, and applying `J⁻¹` to them one at
+a time walks the mesh, the face lookups and the factors once per column.
+
+The blocked forms take one column per right-hand side:
+
+```cpp
+void NPCReduce (const Array<const BlockVector *> &r,
+                const Array<const Vector *> &r_tr, Array<Vector *> &b_tr);
+void NPCRecover(const Array<const BlockVector *> &r,
+                const Array<const Vector *> &dtr, Array<BlockVector *> &dx);
+```
+
+and the whole step is one call on the wrapper:
+
+```cpp
+void DarcyNPCSolver::ArrayMult(const Array<const Vector *> &X,
+                               Array<Vector *> &Y) const;   // Operator's
+```
+
+`ArrayMult()` is `Operator`'s own multi-right-hand-side interface, not
+something this class invented, so a bordered solve written against it is not
+tied to hybridized Darcy. It composes the three legs blocked: one pass over
+the mesh to reduce, **one call to the trace solver's `ArrayMult()`**, one pass
+back to recover. A trace solver that overrides `ArrayMult()` — `MUMPSSolver`,
+`SuperLUSolver`, `STRUMPACKSolver`, `CuDSSSolver`, `PardisoSolver` — then
+walks its factors once too; `Operator::ArrayMult()`'s base implementation is
+a loop over `Mult()`, so any other solver still works and saves nothing in
+that leg.
+
+Three things to know before reaching for it.
+
+* **Every column must belong to the same `NPCGradient()` call.** There is no
+  check for this and there cannot be: the factors are the hybridization's
+  state, not the argument's.
+* **The arithmetic on any one column is unchanged.** Each local solve becomes
+  one `LUFactors::Solve()` over all the columns and each face product becomes
+  a matrix-matrix one, so what is saved is the traversal and the memory
+  traffic, not flops. Expect the answers to match the single-vector route to
+  round-off and no better.
+* **This is a different axis from `LocalFactorMode::Batched`**, which blocks
+  the same local solve over *elements* at one column. The two do not compose
+  and the blocked legs take no notice of it. A caller with one right-hand
+  side should stay where it is.
+
+`X.Size() == 1` forwards to `Mult()` and allocates nothing, so nothing about
+the single-right-hand-side path changes.
+
 ### 3.3 The gradient, and not assembling it
 
 `NPCGradient()` honours `SetGradientMode()`:

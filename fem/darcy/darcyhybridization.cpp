@@ -6618,6 +6618,76 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
    else { u -= AiBtSiBAibu; }
 }
 
+void DarcyHybridization::MultInvBlocked(int el, const DenseMatrix &bu,
+                                        const DenseMatrix &bp, DenseMatrix &u,
+                                        DenseMatrix &p, bool with_bnl,
+                                        DenseMatrix *wk) const
+{
+   // A transcription of MultInv() with the column count carried through.
+   // Every line below has a one-column counterpart there and the two are
+   // pinned against each other by a unit case; if one changes, so must the
+   // other.
+   DenseMatrix local_wk;
+   DenseMatrix &AiBtSiBAibu = wk ? *wk : local_wk;
+
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+   const int ncols = bu.Width();
+
+   MFEM_ASSERT(bu.Height() == a_dofs_size && bp.Height() == d_dofs_size &&
+               bp.Width() == ncols, "Incompatible size");
+
+   // Load LU decomposition of A and Schur complement
+
+   LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
+   const bool fluxnl_schur = (with_bnl && lop_type == LocalOpType::FluxNL
+                              && Sf_data.Size() == Df_data.Size());
+   LUFactors LU_S(fluxnl_schur ? &Sf_data[Df_offsets[el]]
+                  : &Df_data[Df_offsets[el]],
+                  fluxnl_schur ? &Sf_ipiv[Df_f_offsets[el]]
+                  : &Df_ipiv[Df_f_offsets[el]]);
+
+   // Load B
+
+   const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                       d_dofs_size, a_dofs_size);
+
+   //u = A^-1 bu -- one LAPACK call for every column, LUFactors::Solve()'s
+   //second argument having been a column count all along
+   u.SetSize(a_dofs_size, ncols);
+   u = bu;
+   LU_A.Solve(a_dofs_size, ncols, u.Data());
+
+   //p = -S^-1 (B A^-1 bu - bp)
+   p.SetSize(d_dofs_size, ncols);
+   // Qualified: DarcyHybridization::Mult() hides the namespace-scope
+   // dense product, and so does AddMult() below.
+   mfem::Mult(B, u, p);
+
+   p -= bp;
+
+   LU_S.Solve(d_dofs_size, ncols, p.Data());
+   p.Neg();
+
+   //u += -A^-1 B^T S^-1 (B A^-1 bu - bp)
+   AiBtSiBAibu.SetSize(a_dofs_size, ncols);
+   mfem::MultAtB(B, p, AiBtSiBAibu);
+
+   if (with_bnl)
+   {
+      DenseMatrix Bnl;
+      if (GetBnlMatrix(el, Bnl))
+      {
+         mfem::AddMult_a((bsym)?(-1.):(1.), Bnl, p, AiBtSiBAibu);
+      }
+   }
+
+   LU_A.Solve(a_dofs_size, ncols, AiBtSiBAibu.Data());
+
+   if (bsym) { u += AiBtSiBAibu; }
+   else { u -= AiBtSiBAibu; }
+}
+
 bool DarcyHybridization::CanBatchLocalSolve() const
 {
    const int NE = fes.GetNE();
@@ -7918,6 +7988,180 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
 
    // The blocks were written, not the parent; see ComputeSolution().
    dx.SyncFromBlocks();
+}
+
+void DarcyHybridization::NPCReduce(const Array<const BlockVector *> &r,
+                                   const Array<const Vector *> &r_tr,
+                                   Array<Vector *> &b_tr) const
+{
+   // The single-vector NPCReduce() with a column count carried through. Read
+   // that one for what the arithmetic is; what this adds is that the mesh,
+   // the face lookups and the gathers are walked once for all the columns.
+   const int ncols = r.Size();
+   MFEM_VERIFY(r_tr.Size() == ncols && b_tr.Size() == ncols,
+               "NPCReduce(): r, r_tr and b_tr must have the same length");
+   if (ncols == 0) { return; }
+
+   const Operator *tr_P = TraceProlongation();
+   const int tr_vsize = c_fes.GetVSize();
+
+   // One local trace accumulator per column. With no prolongation these are
+   // references to the outputs, as in the single-vector routine; MakeRef and
+   // never `v = Vector(ptr, n)`, which move-assigns and aliases.
+   std::vector<Vector> b_tr_l(ncols);
+   for (int j = 0; j < ncols; j++)
+   {
+      MFEM_ASSERT(r[j] && r_tr[j] && b_tr[j], "NPCReduce(): missing Vector");
+      if (tr_P)
+      {
+         b_tr_l[j].SetSize(tr_vsize);
+         if (b_tr[j]->Size() != tr_P->Width()) { b_tr[j]->SetSize(tr_P->Width()); }
+      }
+      else
+      {
+         if (b_tr[j]->Size() != tr_vsize) { b_tr[j]->SetSize(tr_vsize); }
+         b_tr_l[j].MakeRef(*b_tr[j], 0, tr_vsize);
+      }
+      b_tr_l[j] = 0.;
+   }
+
+   const int NE = fes.GetNE();
+   Array<int> u_vdofs, p_dofs, faces, c_dofs;
+   DenseMatrix ru_l, rp_l, du_l, dp_l, b_rl;
+   DenseMatrix mi_wk;   ///< MultInvBlocked()'s one temporary, hoisted
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetFDofs(el, u_vdofs);
+      fes_p.GetElementVDofs(el, p_dofs);
+      ru_l.SetSize(u_vdofs.Size(), ncols);
+      rp_l.SetSize(p_dofs.Size(), ncols);
+      for (int j = 0; j < ncols; j++)
+      {
+         // The raw-pointer gather, so that the column view of the packed
+         // matrix is written in place and no Vector is resized under it.
+         r[j]->GetBlock(0).GetSubVector(u_vdofs, ru_l.GetColumn(j));
+         r[j]->GetBlock(1).GetSubVector(p_dofs, rp_l.GetColumn(j));
+      }
+
+      MultInvBlocked(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
+
+      GetElementFaces(el, faces);
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         int el1, el2;
+         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         DenseMatrix Ct_l;
+         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+
+         b_rl.SetSize(Ct_l.Width(), ncols);
+         mfem::MultAtB(Ct_l, du_l, b_rl);
+
+         if (G_data.Size() > 0)
+         {
+            DenseMatrix G_l;
+            GetGFaceMatrix(faces[f], el1 != el, G_l);
+            mfem::AddMult(G_l, dp_l, b_rl);
+         }
+
+         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         for (int j = 0; j < ncols; j++)
+         {
+            b_tr_l[j].AddElementVector(c_dofs, b_rl.GetColumn(j));
+         }
+      }
+   }
+
+   for (int j = 0; j < ncols; j++)
+   {
+      if (tr_P) { tr_P->MultTranspose(b_tr_l[j], *b_tr[j]); }
+      *b_tr[j] -= *r_tr[j];
+      b_tr[j]->SetSubVector(ess_tdof_list, 0.);
+   }
+}
+
+void DarcyHybridization::NPCRecover(const Array<const BlockVector *> &r,
+                                    const Array<const Vector *> &dtr,
+                                    Array<BlockVector *> &dx) const
+{
+   const int ncols = r.Size();
+   MFEM_VERIFY(dtr.Size() == ncols && dx.Size() == ncols,
+               "NPCRecover(): r, dtr and dx must have the same length");
+   if (ncols == 0) { return; }
+
+   const Operator *tr_P = TraceProlongation();
+   const int tr_vsize = c_fes.GetVSize();
+
+   std::vector<Vector> dtr_l(ncols);
+   for (int j = 0; j < ncols; j++)
+   {
+      MFEM_ASSERT(r[j] && dtr[j] && dx[j], "NPCRecover(): missing Vector");
+      if (tr_P)
+      {
+         dtr_l[j].SetSize(tr_vsize);
+         tr_P->Mult(*dtr[j], dtr_l[j]);
+      }
+      else
+      {
+         dtr_l[j].MakeRef(const_cast<Vector&>(*dtr[j]), 0, dtr[j]->Size());
+      }
+      *dx[j] = 0.;
+   }
+
+   const int NE = fes.GetNE();
+   Array<int> u_vdofs, p_dofs, faces, c_dofs;
+   DenseMatrix ru_l, rp_l, du_l, dp_l, dtr_f;
+   DenseMatrix mi_wk;
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetFDofs(el, u_vdofs);
+      fes_p.GetElementVDofs(el, p_dofs);
+      ru_l.SetSize(u_vdofs.Size(), ncols);
+      rp_l.SetSize(p_dofs.Size(), ncols);
+      for (int j = 0; j < ncols; j++)
+      {
+         r[j]->GetBlock(0).GetSubVector(u_vdofs, ru_l.GetColumn(j));
+         r[j]->GetBlock(1).GetSubVector(p_dofs, rp_l.GetColumn(j));
+      }
+
+      GetElementFaces(el, faces);
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         int el1, el2;
+         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         dtr_f.SetSize(c_dofs.Size(), ncols);
+         for (int j = 0; j < ncols; j++)
+         {
+            dtr_l[j].GetSubVector(c_dofs, dtr_f.GetColumn(j));
+         }
+
+         DenseMatrix Ct_l;
+         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+         mfem::AddMult(Ct_l, dtr_f, ru_l);
+
+         if (E_data.Size() > 0)
+         {
+            DenseMatrix E_l;
+            GetEFaceMatrix(faces[f], el1 != el, E_l);
+            mfem::AddMult(E_l, dtr_f, rp_l);
+         }
+      }
+
+      MultInvBlocked(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
+      du_l.Neg();
+      dp_l.Neg();
+
+      for (int j = 0; j < ncols; j++)
+      {
+         dx[j]->GetBlock(0).SetSubVector(u_vdofs, du_l.GetColumn(j));
+         dx[j]->GetBlock(1).SetSubVector(p_dofs, dp_l.GetColumn(j));
+      }
+   }
+
+   // The blocks were written, not the parent; see ComputeSolution().
+   for (int j = 0; j < ncols; j++) { dx[j]->SyncFromBlocks(); }
 }
 
 void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
@@ -9646,6 +9890,86 @@ void DarcyNPCSolver::Mult(const Vector &b, Vector &x) const
    xb.SyncFromBlocks();
    xb.Neg();
    xb.SyncAliasMemory(x);
+}
+
+void DarcyNPCSolver::ArrayMult(const Array<const Vector *> &X,
+                               Array<Vector *> &Y) const
+{
+   MFEM_VERIFY(jac, "SetOperator() first");
+   MFEM_VERIFY(X.Size() == Y.Size(),
+               "Number of columns mismatch in DarcyNPCSolver::Mult!");
+
+   const int ncols = X.Size();
+   if (ncols == 0) { return; }
+
+   if (ncols == 1)
+   {
+      MFEM_ASSERT(X[0] && Y[0], "Missing Vector in DarcyNPCSolver::Mult!");
+      Mult(*X[0], *Y[0]);
+      return;
+   }
+
+   // Scratch is local and deliberately NOT a member. Mult()'s scratch is a
+   // member because there is one of each; here there are ncols, and a member
+   // array would be a change to this class's layout -- which every caller
+   // that holds a DarcyNPCSolver by value would have to be rebuilt for. The
+   // allocations are a handful per call against a factored trace solve, and
+   // this routine runs once per Newton step, not once per element.
+   std::vector<BlockVector> r_locs(ncols), dx_locs(ncols);
+   std::vector<Vector> r_trs(ncols), b_trs(ncols), dtrs(ncols);
+
+   Array<const BlockVector *> r_ptr(ncols);
+   Array<BlockVector *> dx_ptr(ncols);
+   Array<const Vector *> r_tr_ptr(ncols), dtr_cptr(ncols);
+   Array<Vector *> b_tr_ptr(ncols), dtr_ptr(ncols);
+
+   for (int j = 0; j < ncols; j++)
+   {
+      MFEM_ASSERT(X[j] && Y[j], "Missing Vector in DarcyNPCSolver::Mult!");
+      const BlockVector bb(const_cast<Vector&>(*X[j]), jac->offsets);
+
+      r_locs[j].Update(jac->loc_offsets);
+      r_locs[j].GetBlock(0) = bb.GetBlock(0);
+      r_locs[j].GetBlock(1) = bb.GetBlock(1);
+      r_trs[j] = bb.GetBlock(2);
+      dx_locs[j].Update(jac->loc_offsets);
+
+      r_ptr[j] = &r_locs[j];
+      r_tr_ptr[j] = &r_trs[j];
+      b_tr_ptr[j] = &b_trs[j];
+      dtr_ptr[j] = &dtrs[j];
+      dtr_cptr[j] = &dtrs[j];
+      dx_ptr[j] = &dx_locs[j];
+   }
+
+   // eq (18), all the columns at once: one pass over the mesh to reduce, one
+   // call to the trace solver, one pass back to recover.
+   jac->dh.NPCReduce(r_ptr, r_tr_ptr, b_tr_ptr);
+
+   for (int j = 0; j < ncols; j++)
+   {
+      dtrs[j].SetSize(b_trs[j].Size());
+      dtrs[j] = 0.;
+   }
+   // Solver::ArrayMult() and not a loop over Mult(): a trace solver that
+   // overrides it walks its factors once, and Operator::ArrayMult()'s base
+   // implementation is that loop for one that does not.
+   trace_solver.ArrayMult(b_tr_ptr, dtr_ptr);
+
+   jac->dh.NPCRecover(r_ptr, dtr_cptr, dx_ptr);
+
+   for (int j = 0; j < ncols; j++)
+   {
+      BlockVector xb(*Y[j], jac->offsets);
+      xb.GetBlock(0) = dx_locs[j].GetBlock(0);
+      xb.GetBlock(1) = dx_locs[j].GetBlock(1);
+      xb.GetBlock(2) = dtrs[j];
+      // The sign and the two hops, exactly as in Mult(); see the note there
+      // on why the order of these three is a constraint and not a habit.
+      xb.SyncFromBlocks();
+      xb.Neg();
+      xb.SyncAliasMemory(*Y[j]);
+   }
 }
 
 }

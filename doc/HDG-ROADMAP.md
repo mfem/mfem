@@ -7,8 +7,26 @@ about how a miniapp is used — in `miniapps/hdg/README.md`. Nothing in the code
 depends on a markdown file for its meaning, and a section that is finished is
 cut down to a pointer rather than left here describing itself.
 
-Sections keep the numbers they had, so earlier commit messages citing "§4"
-still point somewhere sensible. Where a section is gone it says why.
+
+## Section numbers do NOT agree across the branch family
+
+This used to say "Sections keep the numbers they had, so earlier commit
+messages citing §4 still point somewhere sensible. Where a section is gone it
+says why." **That is false for §9 and §10**: they are not gone, they were
+REUSED for what the trunk calls Optional B and Optional A, with no note saying
+so. Neither scheme can be renumbered now without breaking commit messages on
+its own branches, so here is the concordance instead. **Check which branch a
+commit message is on before following a `§` in it.**
+
+| number | here and `gf-interp-hdg-dev` / `gf-hdg-linearise-first` | `gf-hdg-dev`, `gf-hdg-subdomains-dev`, `gf-hdg-p-adaptivity` |
+|---|---|---|
+| §3 | Whether the degenerate order loss is asymptotic | Genuinely general Darcy-like problems (this is its §3(d)) |
+| §4 | Postprocessing for a system | Systems of coupled nonlinear problems (this was part of it) |
+| §9 | Superconvergence at `k = 0` | A driver, attempted and withdrawn (this is their Optional B) |
+| §10 | Interpolatory evaluation | Three loose ends, swept (this is their Optional A) |
+| §11 | NPC | — |
+
+§1, §2, §5, §6, §7 and §8 mean the same thing in both.
 
 ## What this branch family is FOR, and it is narrower than this file reads
 
@@ -311,13 +329,19 @@ interpolates a coefficient or holds a `QuadratureFunction`.
 **Built**: `DarcyHybridization::NPCResidual/NPCGradient/NPCReduce/NPCRecover`,
 wrapped as `DarcyNPCOperator` + `DarcyNPCSolver`, serial and parallel, with
 `[NPC]` cases in `tests/unit/fem/test_darcy_npc.cpp` — including this tree's
-first `[Parallel]` Darcy test. `miniapps/hdg/navierstokes.cpp` is driven by it,
+first `[Parallel]` Darcy test. `NPCReduce()` and `NPCRecover()` have blocked
+forms taking one column per right-hand side, and `DarcyNPCSolver::ArrayMult()`
+composes them, for a bordered or adjoint solve applying one factored Jacobian
+to several right-hand sides known at once; `doc/HDG-ORDERING-API.md` §3.2a is
+the contract. `miniapps/hdg/navierstokes.cpp` is driven by it,
 and `convdiff`/`pconvdiff` expose it as `-npc`. **The mechanism and every
 measurement are in the code**, on `NPCResidual()`; `doc/HDG-ORDERING-API.md` §3
 is the API reference for a caller.
 
-The reference set exists — 23 serial and 23 parallel `*_npc.txt`, which is what
-takes the suite to 152 + 121. They compare the local nonlinear iteration count
+The reference set exists — 23 serial and 23 parallel `*_npc.txt`. (The suite
+is 160 + 129 on this branch; the count used to be quoted here as 152 + 121 and
+was overtaken by the sixteen transient references, which is what a total
+written into prose does.) They compare the local nonlinear iteration count
 as well as the solver, the Krylov count and the two error norms, without which
 an NPC reference would pass even if `-npc` became a no-op, both routes reaching
 the same discrete solution. NPC runs no local nonlinear solve, so the count is

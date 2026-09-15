@@ -1412,6 +1412,26 @@ private:
                   is not a fresh allocation per element. See the definition. */
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p, bool with_bnl = false, Vector *wk = NULL) const;
+   /** @brief MultInv() for several right-hand sides at once, on one element.
+
+       @a bu and @a bp carry one column per right-hand side and @a u and @a p
+       come back the same way. Every step of MultInv() is either a
+       LUFactors::Solve(), whose second argument is already a column count, or
+       a dense product, so this is that routine with the column count carried
+       through: matrix-matrix where MultInv() is matrix-vector, and the same
+       arithmetic on any one column. Nothing here is a new algorithm.
+
+       This is a DIFFERENT axis from MultInvBatched(), which blocks the same
+       solve over ELEMENTS at one column. The two do not compose in either
+       direction and this one takes no notice of CanBatchLocalSolve(): a
+       caller with LocalFactorMode::Batched and a single right-hand side
+       should stay on MultInv()/MultInvBatched().
+
+       @param wk optional scratch, hoisted above an element loop exactly as
+                 MultInv()'s is. */
+   void MultInvBlocked(int el, const DenseMatrix &bu, const DenseMatrix &bp,
+                       DenseMatrix &u, DenseMatrix &p, bool with_bnl = false,
+                       DenseMatrix *wk = NULL) const;
    /** @brief MultInv() for every element at once, on element-blocked vectors.
 
        @a bu and @a bp carry the elements' right-hand sides end to end in
@@ -2667,6 +2687,46 @@ public:
    /// @brief The local increments implied by a trace increment @a dtr.
    void NPCRecover(const BlockVector &r, const Vector &dtr,
                    BlockVector &dx) const;
+
+   /** @brief NPCReduce() for several right-hand sides against one Jacobian.
+
+       One pass over the mesh for all of them rather than one pass each. The
+       element-local solve becomes MultInvBlocked() and every face product
+       becomes a matrix-matrix one; what is actually saved is the traversal --
+       GetElementFaces(), GetFaceElements(), GetCtFaceMatrix(),
+       GetFaceVDofs() and the gathers happen once instead of once per column.
+       The arithmetic on any one column is unchanged. In a build without
+       LAPACK -- where mfem::Mult(DenseMatrix, ...) and LUFactors::Solve()
+       are the native column loops -- that makes the answer BIT-IDENTICAL to
+       the single-vector routine, measured at 0 relative difference on every
+       column at three mesh sizes. With LAPACK the dense products become GEMM
+       against the single-vector GEMV and only round-off agreement is claimed;
+       do not write a bitwise assertion that a LAPACK build would fail.
+
+       **What it is worth, measured rather than argued**: 1.24x end to end on
+       4802 triangles at order 2 with 13 columns, against thirteen calls to
+       the single-vector route, with the trace solve unblocked in both arms
+       (UMFPackSolver does not override ArrayMult, so that leg is identical by
+       construction and this is the two HDG legs alone). 1.36x at 2048
+       elements, 1.15x at 4 columns. A trace solver that DOES block adds to
+       this; see DarcyNPCSolver::ArrayMult().
+
+       Every column must belong to the SAME Jacobian, i.e. to one
+       NPCGradient() call, which is the case this exists for: a bordered,
+       deflated, parameter-continued or adjoint solve has several right-hand
+       sides known at once and one operator. Requested by MEQ for a bordered
+       free-boundary Grad-Shafranov Newton, whose border columns are all
+       known before the first application.
+
+       @a r, @a r_tr and @a b_tr must have the same length. */
+   void NPCReduce(const Array<const BlockVector *> &r,
+                  const Array<const Vector *> &r_tr,
+                  Array<Vector *> &b_tr) const;
+   /// @brief NPCRecover() for several trace increments; see the blocked
+   /// NPCReduce().
+   void NPCRecover(const Array<const BlockVector *> &r,
+                   const Array<const Vector *> &dtr,
+                   Array<BlockVector *> &dx) const;
    ///@}
 
    /** @brief The number of local nonlinear iterations performed, summed over
@@ -3238,6 +3298,27 @@ public:
    /// @a b is the outer residual; @a x comes back as the Newton CORRECTION,
    /// in that solver's convention of x_new = x - correction.
    void Mult(const Vector &b, Vector &x) const override;
+
+   /** @brief Apply the same factored Jacobian to several right-hand sides in
+       one pass.
+
+       The three legs block together: one pass over the mesh in
+       DarcyHybridization::NPCReduce(), one call to the trace solver's
+       ArrayMult(), one pass back in NPCRecover(). A trace solver that
+       overrides ArrayMult() -- MUMPSSolver, SuperLUSolver, STRUMPACKSolver,
+       CuDSSSolver, PardisoSolver -- then walks its factors once as well;
+       Operator::ArrayMult()'s base implementation loops Mult(), so any other
+       solver still works and simply saves nothing in that leg.
+
+       This is the entry point for a bordered, deflated, parameter-continued
+       or adjoint solve, which is where several right-hand sides share one
+       Jacobian. Because it is an Operator method, such a caller is written
+       against Operator and is not tied to hybridized Darcy at all.
+
+       @a X.Size() == 1 forwards to Mult() and allocates nothing, so the
+       single-right-hand-side path is exactly what it was. */
+   void ArrayMult(const Array<const Vector *> &X,
+                  Array<Vector *> &Y) const override;
 
 private:
    Solver &trace_solver;

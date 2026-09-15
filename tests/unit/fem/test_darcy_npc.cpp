@@ -2405,6 +2405,121 @@ TEST_CASE("One NPC step is exact on a linear problem, in parallel",
 }
 
 
+TEST_CASE("The blocked NPC legs agree with the single-vector legs in parallel",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC][Parallel]")
+{
+   using namespace darcy_npc;
+
+   // The serial case of the same name covers the element loop and the local
+   // solve. What only more than one rank can reach is the trace: the blocked
+   // legs prolong ncols trace increments on the way in and assemble ncols
+   // reduced right-hand sides on the way out, where the single-vector legs do
+   // one of each. That loop is the whole of what is parallel-specific here,
+   // and a serial case gives it no coverage at all.
+   //
+   // The flux and the potential are L2 and so rank-local; a difference in
+   // them is visible on the rank that owns them, and the trace comparison is
+   // in true dofs, so a per-rank norm of the difference is the right test and
+   // needs no reduction.
+   CAPTURE(Mpi::WorldSize());
+
+   ParPedestalHDG P(8, 1, 0.05, 0.0);
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+
+   BlockVector b = P.load(), x = P.state();
+   Vector &x_tr = P.X;
+
+   // A real residual, so the columns below are the right sizes and carry
+   // something, and a factored Jacobian for the legs to read.
+   BlockVector r0(P.darcy.GetOffsets());
+   Vector r_tr0;
+   dh.NPCResidual(b, x, x_tr, r0, r_tr0);
+   dh.NPCGradient(x, x_tr);
+
+   const int ncols = 3;
+   std::vector<BlockVector> r(ncols), dx_blk(ncols), dx_ref(ncols);
+   std::vector<Vector> r_tr(ncols), b_tr_blk(ncols), b_tr_ref(ncols), dtr(ncols);
+
+   Array<const BlockVector *> r_ptr(ncols);
+   Array<const Vector *> r_tr_ptr(ncols), dtr_ptr(ncols);
+   Array<Vector *> b_tr_ptr(ncols);
+   Array<BlockVector *> dx_ptr(ncols);
+
+   for (int j = 0; j < ncols; j++)
+   {
+      r[j].Update(P.darcy.GetOffsets());
+      r_tr[j] = r_tr0;
+      // Pairwise different, and not multiples of one another, so a column
+      // read from the wrong place cannot be right by symmetry. Written
+      // through the BLOCKS and not the parent, since the legs read the
+      // blocks and a BlockVector's two views have their own Memory flags.
+      for (int blk = 0; blk < 2; blk++)
+      {
+         Vector &rb = r[j].GetBlock(blk);
+         const Vector &r0b = r0.GetBlock(blk);
+         for (int i = 0; i < rb.Size(); i++)
+         {
+            rb(i) = r0b(i) * (1.0 + 0.3 * j) + std::sin(0.41 * i + 1.3 * j);
+         }
+      }
+      r[j].SyncFromBlocks();
+      for (int i = 0; i < r_tr[j].Size(); i++)
+      {
+         r_tr[j](i) = r_tr0(i) * (1.0 + 0.3 * j) + std::cos(0.29 * i + 0.7 * j);
+      }
+      dx_blk[j].Update(P.darcy.GetOffsets());
+      dx_ref[j].Update(P.darcy.GetOffsets());
+
+      r_ptr[j] = &r[j];
+      r_tr_ptr[j] = &r_tr[j];
+      b_tr_ptr[j] = &b_tr_blk[j];
+      dx_ptr[j] = &dx_blk[j];
+   }
+
+   auto require_matches = [](const Vector &got, const Vector &want, int j)
+   {
+      CAPTURE(j);
+      REQUIRE(got.CheckFinite() == 0);
+      Vector d(got);
+      d -= want;
+      REQUIRE(d.Norml2() <= 1e-11 * std::max(want.Norml2(), 1e-12));
+   };
+
+   dh.NPCReduce(r_ptr, r_tr_ptr, b_tr_ptr);
+
+   for (int j = 0; j < ncols; j++)
+   {
+      dh.NPCReduce(r[j], r_tr[j], b_tr_ref[j]);
+      require_matches(b_tr_blk[j], b_tr_ref[j], j);
+
+      dtr[j].SetSize(b_tr_ref[j].Size());
+      for (int i = 0; i < dtr[j].Size(); i++)
+      {
+         dtr[j](i) = std::cos(0.23 * i + 0.9 * j);
+      }
+      dtr_ptr[j] = &dtr[j];
+   }
+
+   dh.NPCRecover(r_ptr, dtr_ptr, dx_ptr);
+
+   for (int j = 0; j < ncols; j++)
+   {
+      dh.NPCRecover(r[j], dtr[j], dx_ref[j]);
+      require_matches(dx_blk[j].GetBlock(0), dx_ref[j].GetBlock(0), j);
+      require_matches(dx_blk[j].GetBlock(1), dx_ref[j].GetBlock(1), j);
+   }
+
+   // The comparison can fail: the three columns are genuinely different, so
+   // a blocked route returning one of them three times would not pass above.
+   for (int j = 1; j < ncols; j++)
+   {
+      Vector d(b_tr_ref[j]);
+      d -= b_tr_ref[0];
+      CAPTURE(j);
+      REQUIRE(d.Norml2() > 1e-8 * std::max(b_tr_ref[0].Norml2(), 1e-12));
+   }
+}
+
 #endif // MFEM_USE_MPI
 
 namespace darcy_npc
@@ -3120,5 +3235,203 @@ TEST_CASE("A load on the skeleton reaches both routes",
       REQUIRE(r.GetBlock(0).Norml2() < 1e-10);
       REQUIRE(r.GetBlock(1).Norml2() < 1e-10);
       REQUIRE(r_tr.Norml2() < 1e-10);
+   }
+}
+
+TEST_CASE("One factored NPC Jacobian applies to several right-hand sides at "
+          "once", "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+
+   // A bordered, deflated, parameter-continued or adjoint Newton has one
+   // Jacobian and several right-hand sides known at the same moment.
+   // DarcyNPCSolver::ArrayMult() is that: one pass over the mesh to reduce,
+   // one call to the trace solver, one pass back to recover.
+   //
+   // The reference is the single-vector route column by column, because that
+   // is the route being replaced and it is what the rest of this file pins.
+   // Two things make the comparison discriminate rather than merely agree:
+   //
+   //  * the right-hand sides are pairwise different and none is a multiple of
+   //    another, so a packing that read the wrong column cannot land on a
+   //    right answer by symmetry; and
+   //  * the same columns are put through a SECOND blocked call in a different
+   //    order and a different count, which is the check no single blocked
+   //    call can make -- a stride or offset error contaminates a column with
+   //    its neighbour, and that only shows when the neighbours change.
+   //
+   // It also pins the premise the whole request rests on: the local blocks
+   // are factored once by NPCGradient() and every application afterwards only
+   // reads them, so the same handle may be applied any number of times.
+   PedestalHDG P(8, 1, 0.05);
+   BlockVector load = P.load();
+   DarcyNPCOperator npc(*P.darcy.GetHybridization(), P.offs, load);
+
+   // The ramp datum has driven the fields to O(1), so the local blocks are
+   // not trivial and the (0,1) coupling is live.
+   Vector x(P.sol.GetData(), npc.Height());
+
+   UMFPackSolver trace;
+   DarcyNPCSolver lin(trace);
+   lin.SetOperator(npc.GetGradient(x));
+
+   const int n = npc.Height();
+   const int ncols = 3;
+
+   std::vector<Vector> B(ncols), Xref(ncols), Xblk(ncols);
+   for (int j = 0; j < ncols; j++)
+   {
+      B[j].SetSize(n);
+      Xref[j].SetSize(n);
+      Xblk[j].SetSize(n);
+      for (int i = 0; i < n; i++)
+      {
+         B[j](i) = std::sin(0.37*i + 1.7*j) + 0.25*(j + 1)*std::cos(0.11*i);
+      }
+      Xref[j] = 0.0;
+      Xblk[j] = 0.0;
+   }
+
+   // The reference, one column at a time.
+   for (int j = 0; j < ncols; j++) { lin.Mult(B[j], Xref[j]); }
+
+   Array<Vector *> BB(ncols), XX(ncols);
+   for (int j = 0; j < ncols; j++) { BB[j] = &B[j]; XX[j] = &Xblk[j]; }
+
+   // A norm is taken below, and Vector::Norml2() cannot see a NaN: its
+   // reduction is guarded by fabs(v) > 0, which is false for NaN, so NaN
+   // entries are skipped and the norm of the remainder is returned.
+   auto require_matches = [&](const Vector &got, const Vector &want, int j)
+   {
+      CAPTURE(j);
+      REQUIRE(got.CheckFinite() == 0);
+      Vector d(got);
+      d -= want;
+      const real_t scale = std::max(want.Norml2(), 1e-12);
+      REQUIRE(d.Norml2() <= 1e-11 * scale);
+   };
+
+   SECTION("Every column is the answer the single-vector route gives")
+   {
+      lin.ArrayMult(BB, XX);
+
+      for (int j = 0; j < ncols; j++)
+      {
+         // There was something to solve, or the comparison is vacuous.
+         REQUIRE(Xref[j].Norml2() > 1e-6);
+         require_matches(Xblk[j], Xref[j], j);
+      }
+
+      // Pairwise different answers, which is what makes the per-column
+      // comparison above capable of failing: if the columns coincided, a
+      // blocked route that returned column 0 three times would pass.
+      for (int j = 1; j < ncols; j++)
+      {
+         Vector d(Xref[j]);
+         d -= Xref[0];
+         CAPTURE(j);
+         REQUIRE(d.Norml2() > 1e-6 * Xref[0].Norml2());
+      }
+   }
+
+   SECTION("A column does not depend on the columns beside it")
+   {
+      lin.ArrayMult(BB, XX);
+
+      // The same two right-hand sides, reversed, in a shorter block. A
+      // stride or offset error survives the first section -- every column is
+      // wrong in the same consistent way only if the packing is right -- but
+      // it cannot survive the neighbours changing.
+      Vector y0(n), y2(n);
+      y0 = 0.0;
+      y2 = 0.0;
+      Array<const Vector *> B2(2);
+      Array<Vector *> X2(2);
+      B2[0] = &B[2];
+      B2[1] = &B[0];
+      X2[0] = &y2;
+      X2[1] = &y0;
+      lin.ArrayMult(B2, X2);
+
+      require_matches(y2, Xref[2], 2);
+      require_matches(y0, Xref[0], 0);
+   }
+
+   SECTION("One column forwards to the single-vector route")
+   {
+      Vector y(n);
+      y = 0.0;
+      Array<const Vector *> B1(1);
+      Array<Vector *> X1(1);
+      B1[0] = &B[1];
+      X1[0] = &y;
+      lin.ArrayMult(B1, X1);
+      require_matches(y, Xref[1], 1);
+   }
+
+   SECTION("The blocked legs are the single-vector legs, column by column")
+   {
+      // The two legs are public, and a caller that wants to do its own thing
+      // between them -- which is what a bordered solve does with the trace
+      // increments -- drives them directly. So they are pinned here as well
+      // as through ArrayMult() above.
+      DarcyHybridization &dh = *P.darcy.GetHybridization();
+      const Array<int> &loc = npc.LocalOffsets();
+
+      std::vector<BlockVector> r(ncols), dx_blk(ncols), dx_ref(ncols);
+      std::vector<Vector> r_tr(ncols), b_tr_blk(ncols), b_tr_ref(ncols);
+      std::vector<Vector> dtr(ncols);
+
+      Array<const BlockVector *> r_ptr(ncols);
+      Array<const Vector *> r_tr_ptr(ncols), dtr_ptr(ncols);
+      Array<Vector *> b_tr_ptr(ncols);
+      Array<BlockVector *> dx_ptr(ncols);
+
+      for (int j = 0; j < ncols; j++)
+      {
+         const BlockVector bb(B[j], P.offs);
+         r[j].Update(loc);
+         r[j].GetBlock(0) = bb.GetBlock(0);
+         r[j].GetBlock(1) = bb.GetBlock(1);
+         r_tr[j] = bb.GetBlock(2);
+         dx_blk[j].Update(loc);
+         dx_ref[j].Update(loc);
+
+         r_ptr[j] = &r[j];
+         r_tr_ptr[j] = &r_tr[j];
+         b_tr_ptr[j] = &b_tr_blk[j];
+         dx_ptr[j] = &dx_blk[j];
+      }
+
+      dh.NPCReduce(r_ptr, r_tr_ptr, b_tr_ptr);
+
+      for (int j = 0; j < ncols; j++)
+      {
+         dh.NPCReduce(r[j], r_tr[j], b_tr_ref[j]);
+         require_matches(b_tr_blk[j], b_tr_ref[j], j);
+         // The reduced right-hand side is not zero, or the next leg is being
+         // handed nothing and the recovery comparison proves nothing.
+         REQUIRE(b_tr_ref[j].Norml2() > 1e-6);
+
+         // Any trace increment will do for the recovery: NPCRecover() is
+         // linear in it and this is a comparison of two routes, not a solve.
+         dtr[j].SetSize(b_tr_ref[j].Size());
+         for (int i = 0; i < dtr[j].Size(); i++)
+         {
+            dtr[j](i) = std::cos(0.23*i + 0.9*j);
+         }
+         dtr_ptr[j] = &dtr[j];
+      }
+
+      dh.NPCRecover(r_ptr, dtr_ptr, dx_ptr);
+
+      for (int j = 0; j < ncols; j++)
+      {
+         dh.NPCRecover(r[j], dtr[j], dx_ref[j]);
+         CAPTURE(j);
+         require_matches(dx_blk[j].GetBlock(0), dx_ref[j].GetBlock(0), j);
+         require_matches(dx_blk[j].GetBlock(1), dx_ref[j].GetBlock(1), j);
+         REQUIRE(dx_ref[j].Norml2() > 1e-6);
+      }
    }
 }
