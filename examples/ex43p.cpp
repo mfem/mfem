@@ -179,14 +179,14 @@ class JohnsonMercierMultigrid : public GeometricMultigrid
    HypreSmoother coarse_preconditioner;
 
 public:
-   JohnsonMercierMultigrid(ParFiniteElementSpaceHierarchy &fespaces,
+   JohnsonMercierMultigrid(ParFiniteElementSpaceHierarchy &fes_hierarchy,
                            const Array<int> &ess_bdr)
-      : GeometricMultigrid(fespaces, ess_bdr)
+      : GeometricMultigrid(fes_hierarchy, ess_bdr)
    {
-      const int num_levels = fespaces.GetNumLevels();
+      const int num_levels = fes_hierarchy.GetNumLevels();
       for (int level = 0; level < num_levels; level++)
       {
-         ParFiniteElementSpace &fespace = fespaces.GetFESpaceAtLevel(level);
+         ParFiniteElementSpace &fespace = fes_hierarchy.GetFESpaceAtLevel(level);
          ParBilinearForm *form = new ParBilinearForm(&fespace);
          form->AddDomainIntegrator(new MatrixDivDivIntegrator);
          form->AddDomainIntegrator(new MatrixFEMassIntegrator);
@@ -276,14 +276,18 @@ int main(int argc, char *argv[])
 
    JohnsonMercierFECollection fec;
    ParFiniteElementSpace coarse_fespace(&pmesh, &fec);
-   ParFiniteElementSpaceHierarchy fespaces(&pmesh, &coarse_fespace, false, false);
+   ParFiniteElementSpaceHierarchy fes_hierarchy(
+      &pmesh, &coarse_fespace, false, false);
    for (int level = 0; level < geometric_refinements; level++)
-   { fespaces.AddUniformlyRefinedLevel(); }
+   {
+      fes_hierarchy.AddUniformlyRefinedLevel(
+         1, Ordering::byVDIM, Operator::Hypre_ParCSR);
+   }
 
    if (Mpi::Root()) { cout << "\nGeometric multigrid hierarchy:\n"; }
-   for (int level = 0; level < fespaces.GetNumLevels(); level++)
+   for (int level = 0; level < fes_hierarchy.GetNumLevels(); level++)
    {
-      ParFiniteElementSpace &fespace = fespaces.GetFESpaceAtLevel(level);
+      ParFiniteElementSpace &fespace = fes_hierarchy.GetFESpaceAtLevel(level);
       const auto elements = fespace.GetParMesh()->GetGlobalNE();
       const auto unknowns = fespace.GlobalTrueVSize();
       if (Mpi::Root())
@@ -292,7 +296,7 @@ int main(int argc, char *argv[])
               << " elements, " << unknowns << " unknowns\n";
       }
    }
-   ParFiniteElementSpace &fine_fespace = fespaces.GetFinestFESpace();
+   ParFiniteElementSpace &fine_fespace = fes_hierarchy.GetFinestFESpace();
    DenseMatrix identity(2);
    identity = 0.0;
    identity(0,0) = identity(1,1) = 1.0;
@@ -303,7 +307,7 @@ int main(int argc, char *argv[])
    ParGridFunction solution(&fine_fespace);
    solution = 0.0;
    Array<int> ess_bdr;
-   JohnsonMercierMultigrid multigrid(fespaces, ess_bdr);
+   JohnsonMercierMultigrid multigrid(fes_hierarchy, ess_bdr);
    multigrid.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
    OperatorHandle A;
    Vector B, X;

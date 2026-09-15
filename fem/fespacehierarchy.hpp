@@ -62,8 +62,11 @@ public:
 
    /// @brief Adds one level to the hierarchy by uniformly refining the mesh on the
    /// previous level
+   /// @param transfer_type Use Operator::ANY_TYPE for the default transfer or
+   /// Operator::MFEM_SPARSEMAT for an assembled true-dof transfer matrix.
    virtual void AddUniformlyRefinedLevel(int dim = 1,
-                                         int ordering = Ordering::byVDIM);
+                                         int ordering = Ordering::byVDIM,
+                                         Operator::Type transfer_type = Operator::ANY_TYPE);
 
    /// @brief Adds one level to the hierarchy by using a different finite element
    /// order defined through FiniteElementCollection
@@ -102,8 +105,11 @@ public:
 
    /// @brief Adds one level to the hierarchy by uniformly refining the mesh on the
    /// previous level
+   /// @param transfer_type Use Operator::ANY_TYPE for the default transfer or
+   /// Operator::Hypre_ParCSR for an assembled true-dof transfer matrix.
    void AddUniformlyRefinedLevel(int dim = 1,
-                                 int ordering = Ordering::byVDIM) override;
+                                 int ordering = Ordering::byVDIM,
+                                 Operator::Type transfer_type = Operator::ANY_TYPE) override;
 
    /// @brief Adds one level to the hierarchy by using a different finite element
    /// order defined through FiniteElementCollection

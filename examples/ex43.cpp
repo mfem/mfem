@@ -16,14 +16,14 @@ class JohnsonMercierMultigrid : public GeometricMultigrid
 {
    std::unique_ptr<Solver> coarse_prec;
 public:
-   JohnsonMercierMultigrid(FiniteElementSpaceHierarchy &fespaces,
+   JohnsonMercierMultigrid(FiniteElementSpaceHierarchy &fes_hierarchy,
                            const Array<int> &ess_bdr)
-      : GeometricMultigrid(fespaces, ess_bdr)
+      : GeometricMultigrid(fes_hierarchy, ess_bdr)
    {
-      const int num_levels = fespaces.GetNumLevels();
+      const int num_levels = fes_hierarchy.GetNumLevels();
       for (int level = 0; level < num_levels; level++)
       {
-         FiniteElementSpace &fespace = fespaces.GetFESpaceAtLevel(level);
+         FiniteElementSpace &fespace = fes_hierarchy.GetFESpaceAtLevel(level);
          BilinearForm *form = new BilinearForm(&fespace);
          form->AddDomainIntegrator(new MatrixDivDivIntegrator);
          form->AddDomainIntegrator(new MatrixFEMassIntegrator);
@@ -89,18 +89,21 @@ int main(int argc, char *argv[])
 
    JohnsonMercierFECollection fec;
    FiniteElementSpace *coarse_fespace = new FiniteElementSpace(mesh, &fec);
-   FiniteElementSpaceHierarchy fespaces(mesh, coarse_fespace, true, true);
+   FiniteElementSpaceHierarchy fes_hierarchy(mesh, coarse_fespace, true, true);
    for (int level = 0; level < geometric_refinements; level++)
-   { fespaces.AddUniformlyRefinedLevel(); }
+   {
+      fes_hierarchy.AddUniformlyRefinedLevel(
+         1, Ordering::byVDIM, Operator::MFEM_SPARSEMAT);
+   }
 
    cout << "\nGeometric multigrid hierarchy:\n";
-   for (int level = 0; level < fespaces.GetNumLevels(); level++)
+   for (int level = 0; level < fes_hierarchy.GetNumLevels(); level++)
    {
-      const FiniteElementSpace &fespace = fespaces.GetFESpaceAtLevel(level);
+      const FiniteElementSpace &fespace = fes_hierarchy.GetFESpaceAtLevel(level);
       cout << "  level " << level << ": " << fespace.GetNE()
            << " elements, " << fespace.GetTrueVSize() << " unknowns\n";
    }
-   FiniteElementSpace &fine_fespace = fespaces.GetFinestFESpace();
+   FiniteElementSpace &fine_fespace = fes_hierarchy.GetFinestFESpace();
    DenseMatrix identity(2); identity = 0.0; identity(0,0) = identity(1,1) = 1.0;
    MatrixConstantCoefficient rhs(identity);
    LinearForm b(&fine_fespace);
@@ -108,7 +111,7 @@ int main(int argc, char *argv[])
    GridFunction solution(&fine_fespace);
    solution = 0.0;
    Array<int> ess_bdr;
-   JohnsonMercierMultigrid multigrid(fespaces, ess_bdr);
+   JohnsonMercierMultigrid multigrid(fes_hierarchy, ess_bdr);
    multigrid.SetCycleType(Multigrid::CycleType::VCYCLE, 1, 1);
    OperatorHandle A; Vector B, X;
    multigrid.FormFineLinearSystem(solution, b, A, X, B);

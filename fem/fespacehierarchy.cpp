@@ -71,16 +71,29 @@ void FiniteElementSpaceHierarchy::AddLevel(Mesh* mesh,
 }
 
 void FiniteElementSpaceHierarchy::AddUniformlyRefinedLevel(int dim,
-                                                           int ordering)
+                                                           int ordering,
+                                                           Operator::Type transfer_type)
 {
+   MFEM_VERIFY(transfer_type == Operator::ANY_TYPE ||
+               transfer_type == Operator::MFEM_SPARSEMAT,
+               "Unsupported transfer operator type");
    MFEM_VERIFY(GetNumLevels() > 0, "There is no level which can be refined");
    Mesh* mesh = new Mesh(*GetFinestFESpace().GetMesh());
    mesh->UniformRefinement();
    FiniteElementSpace& coarseFEspace = GetFinestFESpace();
    FiniteElementSpace* fineFEspace =
       new FiniteElementSpace(mesh, coarseFEspace.FEColl(), dim, ordering);
-   Operator* P = new TransferOperator(coarseFEspace, *fineFEspace);
-   AddLevel(mesh, fineFEspace, P, true, true, true);
+   OperatorHandle P(transfer_type);
+   if (transfer_type == Operator::ANY_TYPE)
+   {
+      P.Reset(new TransferOperator(coarseFEspace, *fineFEspace));
+   }
+   else
+   {
+      fineFEspace->GetTrueTransferOperator(coarseFEspace, P);
+   }
+   AddLevel(mesh, fineFEspace, P.Ptr(), true, true, true);
+   P.SetOperatorOwner(false);
 }
 
 void FiniteElementSpaceHierarchy::AddOrderRefinedLevel(FiniteElementCollection*
@@ -138,15 +151,28 @@ ParFiniteElementSpaceHierarchy::ParFiniteElementSpaceHierarchy(ParMesh* mesh,
 }
 
 void ParFiniteElementSpaceHierarchy::AddUniformlyRefinedLevel(int dim,
-                                                              int ordering)
+                                                              int ordering,
+                                                              Operator::Type transfer_type)
 {
+   MFEM_VERIFY(transfer_type == Operator::ANY_TYPE ||
+               transfer_type == Operator::Hypre_ParCSR,
+               "Unsupported transfer operator type");
    ParMesh* mesh = new ParMesh(*GetFinestFESpace().GetParMesh());
    mesh->UniformRefinement();
    ParFiniteElementSpace& coarseFEspace = GetFinestFESpace();
    ParFiniteElementSpace* fineFEspace =
       new ParFiniteElementSpace(mesh, coarseFEspace.FEColl(), dim, ordering);
-   Operator* P = new TrueTransferOperator(coarseFEspace, *fineFEspace);
-   AddLevel(mesh, fineFEspace, P, true, true, true);
+   OperatorHandle P(transfer_type);
+   if (transfer_type == Operator::ANY_TYPE)
+   {
+      P.Reset(new TrueTransferOperator(coarseFEspace, *fineFEspace));
+   }
+   else
+   {
+      fineFEspace->GetTrueTransferOperator(coarseFEspace, P);
+   }
+   AddLevel(mesh, fineFEspace, P.Ptr(), true, true, true);
+   P.SetOperatorOwner(false);
 }
 
 void ParFiniteElementSpaceHierarchy::AddOrderRefinedLevel(
