@@ -411,20 +411,23 @@ public:
                      const int ndz = B2D ? 1 : out_dtq.Extent(c, 2);
                      const int off = out_dtq.Offset(c);
 
-                     // The 1D factor for a given (component, axis, deriv) is
-                     // fixed for the whole contraction, so it is resolved once.
-                     const int tderiv = is_div_fop_v<test_fop_t> ? c : -1;
-                     const real_t *Bo[3] = { out_dtq.Basis(c, 0, tderiv == 0),
-                                             out_dtq.Basis(c, 1, tderiv == 1),
-                                             out_dtq.Basis(c, 2, tderiv == 2)
-                                           };
+                     // VecTerm holds axis to differentiate, slot where component feeds,
+                     // and the sign of the contribution.
+                     // Value/Div both one term and unit sign, but we might need it for 
+                     // Curl, needs vector_num_terms and sgn.
+                     const VecTerm tvt = vector_term<test_fop_t>(c, 0);
+                     const real_t *Bo[3] =
+                     {
+                        out_dtq.Basis(c, 0, tvt.deriv_dir == 0),
+                        out_dtq.Basis(c, 1, tvt.deriv_dir == 1),
+                        out_dtq.Basis(c, 2, tvt.deriv_dir == 2)
+                     };
 
                      for (int k = 0; k < test_op_dim; k++)
                      {
-                        // Skip because a Value dof of component c has only its
-                        // c-th spatial component nonzero, so it pairs with
-                        // cache row k only when k == c.
-                        if (is_value_fop_v<test_fop_t> && k != c) { continue; }
+                        // A dof of component c feeds exactly one row
+                        // (its own for Value, or single common one for Div)
+                        if (k != tvt.slot) { continue; }
 
                         const int row = out_offsets[static_cast<int>(o)] + k;
                         int m_offset = 0;
@@ -438,18 +441,17 @@ public:
                                          is_div_fop_v<fop_t>)
                            {
                               const auto &in_dtq = input_dtq_maps[s];
-                              const int ideriv = is_div_fop_v<fop_t> ? c : -1;
+                              const VecTerm ivt = vector_term<fop_t>(c, 0);
                               const real_t *Bi[3] =
                               {
-                                 in_dtq.Basis(c, 0, ideriv == 0),
-                                 in_dtq.Basis(c, 1, ideriv == 1),
-                                 in_dtq.Basis(c, 2, ideriv == 2)
+                                 in_dtq.Basis(c, 0, ivt.deriv_dir == 0),
+                                 in_dtq.Basis(c, 1, ivt.deriv_dir == 1),
+                                 in_dtq.Basis(c, 2, ivt.deriv_dir == 2)
                               };
 
                               for (int m = 0; m < trial_op_dim; m++)
                               {
-                                 if (is_value_fop_v<fop_t> && m != c)
-                                 { continue; }
+                                 if (m != ivt.slot) { continue; }
                                  const int col = m_offset + m;
                                  backend_t::DiagContract(
                                     s_diag, ndx, ndy, ndz, q1d,

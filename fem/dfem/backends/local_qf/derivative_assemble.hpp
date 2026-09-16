@@ -80,6 +80,15 @@ trial_basis_weight_gradient(const DeviceTensor<3, const real_t> &B,
    }
 }
 
+// Takes the unified per-axis basis for vector FE and returns weight for given axis, qp, dof
+MFEM_HOST_DEVICE inline real_t
+vector_fe_weight(const real_t *const *basis, const int q1d, const int axis,
+                 const int q, const int d)
+{
+   return basis[axis][q + q1d * d];
+}
+
+
 template<int DIM, int MQ1, typename Shared, typename output_t>
 MFEM_HOST_DEVICE void
 map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
@@ -270,8 +279,50 @@ map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
    }
 }
 
+
+/// Contract fhat against the test basis of a tensor-product vector element,
+/// accumulating one column of the element matrix.
+//
+//
+template<int DIM, typename backend_t, typename output_fop_t, typename Shared>
+MFEM_HOST_DEVICE void
+map_quadrature_data_to_vector_fe(DeviceTensor<2, real_t> &y,
+                                 const DeviceTensor<3, real_t> &f,
+                                 const DofToQuadMap &dtq,
+                                 Shared &s)
+{
+   static_assert(is_value_fop_v<output_fop_t> || is_div_fop_v<output_fop_t>,
+                 "vector FE sparse assembly supports Value and Div outputs");
+
+   const int q1d = dtq.Q1D();
+   for (int c = 0; c < dtq.range_dim; c++)
+   {
+      const VecTerm vt = vector_term<output_fop_t>(c, 0);
+      const real_t *basis[3] = { dtq.Basis(c, 0, vt.deriv_dir == 0),
+                                 dtq.Basis(c, 1, vt.deriv_dir == 1),
+                                 dtq.Basis(c, 2, vt.deriv_dir == 2)
+                               };
+
+      const int ndx = dtq.Extent(c, 0);
+      const int ndy = dtq.Extent(c, 1);
+      const int ndz = (DIM == 2) ? 1 : dtq.Extent(c, 2);
+      const int off = dtq.Offset(c);
+
+      backend_t::DiagContract(
+         s, ndx, ndy, ndz, q1d,
+         [&](int axis, int q, int d)
+      { return vector_fe_weight(basis, q1d, axis, q, d); },
+      [&](int, int, int) { return real_t(1.0); },
+      [&](int q) { return f(0, vt.slot, q); },
+      [&](int dx, int dy, int dz, real_t u)
+      { y(off + dx + ndx * (dy + ndy * dz), 0) += u; });
+   }
+}
+
+
 template<int DIM,
          int MQ1,
+         typename backend_t,
          typename Shared,
          typename input_fop_ts,
          std::size_t n_inputs,
@@ -427,6 +478,131 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
       });
    };
 
+   // ── Vector tensor-product (ND/RT) blocks ─────────────────────────────────
+   
+   // Check if there is a vector finite element among the input fields
+   const DofToQuadMap *tvfe_ptr = nullptr;
+   for_constexpr<n_inputs>([&](auto inp)
+   {
+      if (tvfe_ptr == nullptr &&
+          static_cast<int>(itod(static_cast<int>(inp))) != 0 &&
+          input_dtq_maps[inp].IsVectorFE())
+      {
+         tvfe_ptr = &input_dtq_maps[inp];
+      }
+   });
+
+   // Vector FE assembly branch
+   if (tvfe_ptr != nullptr)
+   {
+      const DofToQuadMap &tvfe = *tvfe_ptr;
+      {
+         for (int cj = 0; cj < tvfe.range_dim; cj++)
+         {
+            const int ex = tvfe.Extent(cj, 0);
+            const int ey = tvfe.Extent(cj, 1);
+            const int ez = (DIM == 2) ? 1 : tvfe.Extent(cj, 2);
+            const int off_j = tvfe.Offset(cj);
+
+            for (int Jz = 0; Jz < ez; Jz++)
+            {
+               for (int Jy = 0; Jy < ey; Jy++)
+               {
+                  for (int Jx = 0; Jx < ex; Jx++)
+                  {
+                     // 1. Select one vector-FE trial dof and its element-matrix column.
+                     const int J = off_j + Jx + ex * (Jy + ey * Jz);
+                     auto bvtfhat =
+                        Reshape(&Ae(0, 0, J, 0, e), num_test_dof, test_vdim);
+                     auto fhat =
+                        Reshape(&fhat_storage[0], test_vdim, test_op_dim, nq);
+
+                     // 2. Zero initialize fhat for the current test component
+                     for (int tod = 0; tod < test_op_dim; tod++)
+                     {
+                        foreach_qp([&](const int qx, const int qy, const int qz)
+                        {
+                           const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
+                           fhat(0, tod, q) = 0.0;
+                        });
+                     }
+                     MFEM_SYNC_THREAD;
+
+                     // 3. Loop over input fields and assemble contributions
+                     int m_offset = 0;
+                     for_constexpr<n_inputs>([&](auto s2)
+                     {
+                        using fop_t =
+                           std::decay_t<decltype(get<s2>(inputs_ref))>;
+                        const int trial_op_dim =
+                           static_cast<int>(itod(static_cast<int>(s2)));
+                        if (trial_op_dim == 0) { return; }
+
+                        if constexpr (is_value_fop_v<fop_t> ||
+                                      is_div_fop_v<fop_t>)
+                        {
+                           const auto &vfe = input_dtq_maps[s2];
+                           const VecTerm vt = vector_term<fop_t>(cj, 0);
+                           const real_t *basis[3] =
+                           {
+                              vfe.Basis(cj, 0, vt.deriv_dir == 0),
+                              vfe.Basis(cj, 1, vt.deriv_dir == 1),
+                              vfe.Basis(cj, 2, vt.deriv_dir == 2)
+                           };
+
+                           foreach_qp([&](const int qx, const int qy,
+                                          const int qz)
+                           {
+                              const int q = tensor_idx<DIM>(qx, qy, qz, q1d);
+                              const real_t w =
+                                 basis[0][qx + q1d * Jx] *
+                                 basis[1][qy + q1d * Jy] *
+                                 ((DIM == 3) ? basis[2][qz + q1d * Jz] : 1.0);
+                              for (int m = 0; m < trial_op_dim; m++)
+                              {
+                                 if (m != vt.slot) { continue; }
+                                 for (int k = 0; k < test_op_dim; k++)
+                                 {
+                                    const real_t f =
+                                       qpdc(q, m + m_offset, 0,
+                                            row_offset + k, e);
+                                    fhat(0, k, q) += f * w;
+                                 }
+                              }
+                           });
+                        }
+                        else
+                        {
+                           MFEM_ABORT_KERNEL(
+                              "sum factorized sparse matrix assemble routine "
+                              "not implemented for field operator");
+                        }
+                        MFEM_SYNC_THREAD;
+                        m_offset += trial_op_dim;
+                     });
+
+                     // 4. Project the quadrature result through the transpose test basis.
+                     if constexpr (is_value_fop_v<output_fop_t> ||
+                                   is_div_fop_v<output_fop_t>)
+                     {
+                        map_quadrature_data_to_vector_fe<
+                        DIM, backend_t, output_fop_t>(
+                           bvtfhat, fhat, output_dtq, smem);
+                     }
+                     else
+                     {
+                        MFEM_ABORT_KERNEL(
+                           "vector FE sparse assembly supports Value and Div outputs");
+                     }
+                  }
+               }
+            }
+         }
+      }
+      return;
+   }
+
+   // Scalar FE assembly branch
    for (int Jz = 0; Jz < ((DIM == 2) ? 1 : num_trial_dof_1d); Jz++)
    {
       for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
@@ -987,21 +1163,22 @@ public:
                // The outputs share fhat_storage, so one has to be done with it
                // before the next zeroes it.
                MFEM_SYNC_THREAD;
-               detail::assemble_element_mat_sumfact<DIM, MQ1>(Ae,
-                                                              qpdc,
-                                                              e,
-                                                              itod,
-                                                              inputs,
-                                                              get<o>(outputs),
-                                                              input_dtq_maps,
-                                                              output_dtq_maps[o],
-                                                              out_offsets[o],
-                                                              out_vdim[o],
-                                                              out_op_dim[o],
-                                                              q1d,
-                                                              num_trial_dof_1d,
-                                                              fhat_storage,
-                                                              s);
+               detail::assemble_element_mat_sumfact<DIM, MQ1, backend_t>(
+                  Ae,
+                  qpdc,
+                  e,
+                  itod,
+                  inputs,
+                  get<o>(outputs),
+                  input_dtq_maps,
+                  output_dtq_maps[o],
+                  out_offsets[o],
+                  out_vdim[o],
+                  out_op_dim[o],
+                  q1d,
+                  num_trial_dof_1d,
+                  fhat_storage,
+                  s);
             }
          });
       },

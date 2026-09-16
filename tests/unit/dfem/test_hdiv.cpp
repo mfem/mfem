@@ -131,9 +131,36 @@ real_t HdivMaxError(MPI_Comm comm, const Vector &a, const Vector &b)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM, typename inputs_t, typename outputs_t, typename qf_t,
-          typename add_reference_t>
-void CheckHdivOperator(HdivSetup &setup, qf_t qf, add_reference_t add_ref)
+/// Which bilinear form MFEM builds as the reference.
+enum class HdivForm { Mass, DivDiv, MassDivDiv };
+
+void AddHdivIntegrators(ParBilinearForm &blf, HdivForm form,
+                        const IntegrationRule *ir)
+{
+   auto add = [&](BilinearFormIntegrator *bfi)
+   {
+      bfi->SetIntRule(ir);
+      blf.AddDomainIntegrator(bfi);
+   };
+
+   switch (form)
+   {
+      case HdivForm::Mass:
+         add(new VectorFEMassIntegrator());
+         break;
+      case HdivForm::DivDiv:
+         add(new DivDivIntegrator());
+         break;
+      case HdivForm::MassDivDiv:
+         add(new VectorFEMassIntegrator());
+         add(new DivDivIntegrator());
+         break;
+   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+template <int DIM, typename inputs_t, typename outputs_t, typename qf_t>
+void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
 {
    ParFiniteElementSpace &pfes = setup.pfes;
    const int tvsize = pfes.GetTrueVSize();
@@ -154,7 +181,7 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, add_reference_t add_ref)
 
    // Reference: the same bilinear form assembled by MFEM.
    ParBilinearForm blf_pa(&pfes);
-   add_ref(blf_pa);
+   AddHdivIntegrators(blf_pa, form, setup.ir);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf_pa.Assemble();
 
@@ -244,6 +271,30 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, add_reference_t add_ref)
       REQUIRE(HdivMaxError(comm, mfem_D, dfem_D) ==
               MFEM_Approx(0.0, 1e-10, 1e-10));
    }
+
+   SECTION("Assemble sparse matrix")
+   {
+      ParBilinearForm blf_fa(&pfes);
+      AddHdivIntegrators(blf_fa, form, setup.ir);
+      blf_fa.Assemble();
+      blf_fa.Finalize();
+
+      DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
+      constexpr auto kernels = DerivativeKernels::AssembleMatrix;
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
+         Derivatives<U> {});
+
+      MultiVector MX{ X, setup.N };
+      auto dRdU = dop.GetDerivative(U, MX);
+
+      SparseMatrix *A = nullptr;
+      dRdU->Assemble(A);
+      REQUIRE(A != nullptr);
+      REQUIRE(A->Width() == blf_fa.SpMat().Width());
+      TestSameMatrices(*A, blf_fa.SpMat());
+      delete A;
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -257,10 +308,7 @@ void hdiv_mass(const char *filename, int p)
    using IT = Inputs<Value<U>, Gradient<Coords>, Weight>;
    using OT = Outputs<Value<U>>;
 
-   CheckHdivOperator<DIM, IT, OT>(
-      setup, hdiv_mass_qf<DIM> {},
-      [](ParBilinearForm &blf)
-   { blf.AddDomainIntegrator(new VectorFEMassIntegrator()); });
+   CheckHdivOperator<DIM, IT, OT>(setup, hdiv_mass_qf<DIM> {}, HdivForm::Mass);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -274,10 +322,7 @@ void hdiv_divdiv(const char *filename, int p)
    using IT = Inputs<Div<U>, Gradient<Coords>, Weight>;
    using OT = Outputs<Div<U>>;
 
-   CheckHdivOperator<DIM, IT, OT>(
-      setup, hdiv_divdiv_qf<DIM> {},
-      [](ParBilinearForm &blf)
-   { blf.AddDomainIntegrator(new DivDivIntegrator()); });
+   CheckHdivOperator<DIM, IT, OT>(setup, hdiv_divdiv_qf<DIM> {}, HdivForm::DivDiv);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -291,13 +336,7 @@ void hdiv_mass_divdiv(const char *filename, int p)
    using IT = Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight>;
    using OT = Outputs<Value<U>, Div<U>>;
 
-   CheckHdivOperator<DIM, IT, OT>(
-      setup, hdiv_mass_divdiv_qf<DIM> {},
-      [](ParBilinearForm &blf)
-   {
-      blf.AddDomainIntegrator(new VectorFEMassIntegrator());
-      blf.AddDomainIntegrator(new DivDivIntegrator());
-   });
+   CheckHdivOperator<DIM, IT, OT>(setup, hdiv_mass_divdiv_qf<DIM> {}, HdivForm::MassDivDiv);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
