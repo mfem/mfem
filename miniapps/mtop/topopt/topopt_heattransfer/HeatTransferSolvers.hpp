@@ -1117,7 +1117,9 @@ class Pseudo3DAdvectionDiffusionOperator : public MixedMultiPhysicsOperator
    Solver *Mf_prec, *Ms_prec;
    CGSolver *Mf_solver, *Ms_solver;
    Implicit_Solver *implicit_solver_solid, *implicit_solver_fluid;
-   LORSolver<HypreBoomerAMG>* lor_solver_solid;
+   // LORSolver<HypreBoomerAMG>* lor_solver_solid;
+   HypreParMatrix *As_precond_mat;
+   HypreBoomerAMG *amg_solid;
    LORSolver<HypreBoomerAMG>* lor_solver_fluid;
    real_t kappa_f, kappa_s;
 
@@ -1194,7 +1196,8 @@ class Pseudo3DAdvectionDiffusionOperator : public MixedMultiPhysicsOperator
    {
       delete implicit_solver_fluid;
       delete implicit_solver_solid;
-      delete lor_solver_solid;
+      delete amg_solid;
+      delete As_precond_mat;
       delete lor_solver_fluid;
       delete Ms_prec; delete Mf_prec;
       delete Ms_solver; delete Mf_solver;
@@ -1271,8 +1274,9 @@ Pseudo3DAdvectionDiffusionOperator::Pseudo3DAdvectionDiffusionOperator(
    RAMP_h(nullptr),
    RAMP_k(nullptr),
    SIMP_cf(nullptr),
-   lor_solver_solid(nullptr),
-   lor_solver_fluid(nullptr)
+   lor_solver_fluid(nullptr),
+   As_precond_mat(nullptr),
+   amg_solid(nullptr)
 {
    int order_solid = solid_heat_fes->GetOrder(0);
    int order_fluid = fluid_heat_fes->GetOrder(0);
@@ -1299,6 +1303,8 @@ void Pseudo3DAdvectionDiffusionOperator::SetInflowBoundaryConditions(Array<int> 
 
 BlockVector Pseudo3DAdvectionDiffusionOperator::InitializeOperators(ParGridFunction &new_rho_til)
 {
+
+   if(Mpi::Root()){std::cout << "ad setting initial condos " << std::endl;}
    qs_gf.SetSpace(solid_heat_fes);
    qf_gf.SetSpace(fluid_heat_fes);
 
@@ -1319,9 +1325,11 @@ BlockVector Pseudo3DAdvectionDiffusionOperator::InitializeOperators(ParGridFunct
 
    const real_t sigma = -1.0;
 
+
    //Coefficients
-   RAMP_h = new RAMPCoefficient(rho_tilde, hf, hs, 0.5);
-   RAMP_k = new RAMPCoefficient(rho_tilde, kf, ks, 1.0);
+   RAMP_h = new RAMPCoefficient(rho_tilde, hf, hs, 8.0);
+   RAMP_k = new RAMPCoefficient(rho_tilde, kf, ks, 50.0);
+
 
    // Mass Matrices
    Ms = new ParBilinearForm(solid_heat_fes);
@@ -1350,7 +1358,7 @@ BlockVector Pseudo3DAdvectionDiffusionOperator::InitializeOperators(ParGridFunct
    velocity_cf = new ScalarVectorProductCoefficient(*SIMP_product_cf, v_base);   
    Kf = new ParBilinearForm(fluid_heat_fes);
    Kf->AddDomainIntegrator(new ConvectionIntegrator(*velocity_cf, alpha));
-   Kf->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity_cf, alpha));                                   
+   Kf->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity_cf, alpha));                             
    Kf->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(*velocity_cf, alpha), inflow_bdr_attr);
    Kf->Assemble();
    Kf->Finalize();
@@ -1377,6 +1385,7 @@ BlockVector Pseudo3DAdvectionDiffusionOperator::InitializeOperators(ParGridFunct
    Af->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dt_diff_cf, sigma, kappa_f));
    Af->Assemble();
    Af->Finalize();
+
    dt_diff_cf_s = new ConstantCoefficient(dt*ks); 
    As = new ParBilinearForm(solid_heat_fes);
    As->AddDomainIntegrator(new MassIntegrator);
@@ -1441,15 +1450,21 @@ BlockVector Pseudo3DAdvectionDiffusionOperator::InitializeOperators(ParGridFunct
    ess_bdr_attr.SetSize(global_max_bdr);   
    ess_bdr_attr = 0;   
    solid_heat_fes->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);  
-   solid_heat_fes->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list_s);  
+   solid_heat_fes->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list_s); 
+   fluid_heat_fes->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);   
    fluid_heat_fes->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list_f);  
 
    // Implicit Solvers
+   if(Mpi::Root()){std::cout << "forming implicit solvers " << std::endl;}
    implicit_solver_solid = new Implicit_Solver(*Ms_no_interp_mat, *S_mat, *solid_heat_fes, dt, comm);
-   lor_solver_solid = new LORSolver<HypreBoomerAMG>(*As, ess_tdof_list_s); 
-   lor_solver_solid->GetSolver().SetSystemsOptions(solid_heat_fes->GetVDim(), true);
-   lor_solver_solid->GetSolver().SetPrintLevel(0);
-   implicit_solver_solid -> SetPreconditioner(*lor_solver_solid);
+   As_precond_mat = As->ParallelAssemble();
+   amg_solid = new HypreBoomerAMG(*As_precond_mat);
+   amg_solid->SetPrintLevel(0);
+   implicit_solver_solid->SetPreconditioner(*amg_solid);
+   // lor_solver_solid = new LORSolver<HypreBoomerAMG>(*As, ess_tdof_list_s); 
+   // lor_solver_solid->GetSolver().SetSystemsOptions(solid_heat_fes->GetVDim(), true);
+   // lor_solver_solid->GetSolver().SetPrintLevel(0);
+   
    implicit_solver_fluid = new Implicit_Solver(*Mf_no_interp_mat, *Sf_mat, *fluid_heat_fes, dt, comm);
    lor_solver_fluid = new LORSolver<HypreBoomerAMG>(*Af, ess_tdof_list_f); 
    lor_solver_fluid->GetSolver().SetSystemsOptions(fluid_heat_fes->GetVDim(), true);
@@ -1475,14 +1490,14 @@ void Pseudo3DAdvectionDiffusionOperator::Mult(const Vector &x, Vector &y) const
    z += *bin_vec;
    Mf_mat->Mult(bx.GetBlock(1), w);
    w *= 1.0 / finn_height;
-   z += w;
+   z -= w;
    qs_gf.SetFromTrueDofs(bx.GetBlock(0));
    GridFunctionCoefficient qs_cf(&qs_gf);
    ParGridFunction qs_gf_f(fluid_heat_fes);
    qs_gf_f.ProjectCoefficient(qs_cf);
    Mf_mat->Mult(qs_gf_f, v);
    v *= 1.0/finn_height;
-   z -= v;
+   z += v;
    Mf_solver->Mult(z, by.GetBlock(1));
 
    z.SetSize(bx.GetBlock(0).Size());
@@ -1564,21 +1579,24 @@ void Pseudo3DAdvectionDiffusionOperator::ImplicitSolve(const real_t dt_pass, con
    BlockVector bk(k, offsets);
    k = 0.0;
 
-   Vector z(bx.GetBlock(1).Size());
+   Vector z(bx.GetBlock(0).Size());
    z = 0.0;
 
-   //Fluid Portion
-   Sf_mat->Mult(bx.GetBlock(1), z);
-   z *= -1.0;
-   implicit_solver_fluid->SetTimeStep(dt_pass);
-   implicit_solver_fluid->Mult(z, bk.GetBlock(1));
-
    //Solid Portion
-   z.SetSize(bx.GetBlock(0).Size());
    S_mat->Mult(bx.GetBlock(0), z);
    z *= -1.0;
    implicit_solver_solid->SetTimeStep(dt_pass);
    implicit_solver_solid->Mult(z, bk.GetBlock(0));
+
+   //Fluid Portion
+   //if(Mpi::Root()){std::cout << "||S_f||_F = " << Sf_mat->FNorm() << std::endl;}
+   z.SetSize(bx.GetBlock(1).Size());
+   z = 0.0;
+   Sf_mat->Mult(bx.GetBlock(1), z);
+   int inf_ctz = z.CheckFinite();
+   z *= -1.0;
+   implicit_solver_fluid->SetTimeStep(dt_pass);
+   implicit_solver_fluid->Mult(z, bk.GetBlock(1));
 }
 
 void Pseudo3DAdvectionDiffusionOperator::AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k)
@@ -1754,6 +1772,7 @@ class Pseudo3DStokesOperator : public MixedMultiPhysicsOperator
    real_t plate_thickness;
    real_t finn_height;
    real_t hs, hf;
+   real_t pressure_drop;
 
    public:
    Pseudo3DStokesOperator(
@@ -1779,6 +1798,7 @@ class Pseudo3DStokesOperator : public MixedMultiPhysicsOperator
       real_t &hs, real_t &hf,
       real_t dt, 
       real_t t_final, 
+      real_t pressure_drop,
       MPI_Comm &comm);
 
    
@@ -1832,6 +1852,7 @@ Pseudo3DStokesOperator::Pseudo3DStokesOperator(
       real_t &hs_, real_t &hf_,
       real_t dt_, 
       real_t t_final_, 
+      real_t pressure_drop_,
       MPI_Comm &comm_) :
    MixedMultiPhysicsOperator(solid_heat_fes_.GetTrueVSize() + fluid_heat_fes_.GetTrueVSize() + V_fes_.GetTrueVSize() + P_fes_.GetTrueVSize(), 
    4, comm_, dt_, t_final_),
@@ -1859,6 +1880,7 @@ Pseudo3DStokesOperator::Pseudo3DStokesOperator(
    u_gf(&V_fes_),
    v_gf(&V_fes_),
    p_gf(&P_fes_),
+   pressure_drop(pressure_drop_),
    brinkman_stokes_solver(nullptr),
    adv_diff_oper(nullptr),
    SIMP_cf(nullptr)
@@ -1911,8 +1933,9 @@ BlockVector Pseudo3DStokesOperator::InitializeOperators(ParGridFunction &new_rho
    if (brinkman_stokes_solver) {
        delete brinkman_stokes_solver;
    }
+
    brinkman_stokes_solver = new BrinkmanStokesSolver(*V_fes, *P_fes);
-   brinkman_stokes_solver->SetSolverType(StokesSolver::KrylovSolver::MINRES);
+   brinkman_stokes_solver->SetSolverType(StokesSolver::KrylovSolver::GMRES);
    brinkman_stokes_solver->SetVelocityPreconditionerType(StokesSolver::VelocityPreconditioner::AMG);
    brinkman_stokes_solver->SetPressurePreconditionerType(StokesSolver::PressurePreconditioner::CAHOUET_CHABARD);
    brinkman_stokes_solver->SetCCDiffusionSolverType(StokesSolver::CCDiffusionSolver::GMRES);
@@ -1921,14 +1944,14 @@ BlockVector Pseudo3DStokesOperator::InitializeOperators(ParGridFunction &new_rho
    brinkman_stokes_solver->SetLSCQPreconditionerType(StokesSolver::LSCQPreconditioner::OPERATOR_JACOBI);
    brinkman_stokes_solver->SetRelTol(1e-10);
    brinkman_stokes_solver->SetAbsTol(0.0);
-   brinkman_stokes_solver->SetMaxIter(500);
+   brinkman_stokes_solver->SetMaxIter(10000);
    brinkman_stokes_solver->SetVelocityAMGElasticityNearNullspace(false);
    brinkman_stokes_solver->SetVelocityPreconditionerCGRelTol(1.0e-8); 
    brinkman_stokes_solver->SetVelocityPreconditionerCGAbsTol(1e-12);
-   brinkman_stokes_solver->SetVelocityPreconditionerCGMaxIter(100);
+   brinkman_stokes_solver->SetVelocityPreconditionerCGMaxIter(1000);
    brinkman_stokes_solver->SetPressurePreconditionerCGRelTol(1e-8);
    brinkman_stokes_solver->SetPressurePreconditionerCGAbsTol(1e-12);
-   brinkman_stokes_solver->SetPressurePreconditionerCGMaxIter(100);
+   brinkman_stokes_solver->SetPressurePreconditionerCGMaxIter(1000);
    brinkman_stokes_solver->SetKDim(50);
    brinkman_stokes_solver->SetPrintLevel(0);
 
@@ -1941,7 +1964,31 @@ BlockVector Pseudo3DStokesOperator::InitializeOperators(ParGridFunction &new_rho
 
    for (int attr = 1; attr <= max_bdr_attr; attr++)
    {
-      if (all_ess_bdr[attr-1] == 1){brinkman_stokes_solver->VelocityBoundary().Add(attr, inlet_cf);}
+      if (inlet_bdr[attr-1] == 1){brinkman_stokes_solver->VelocityBoundary().Add(attr, inlet_cf);}
+   }
+
+   brinkman_stokes_solver->AddVelocityComponentBoundaryID(1, 1); // Bottom wall
+   brinkman_stokes_solver->AddVelocityComponentBoundaryID(3, 1); // Top wall
+
+
+   // for (int attr = 1; attr <= max_bdr_attr; attr++)
+   // {
+   //    if (inlet_bdr[attr-1] == 1)
+   //    {
+   //       brinkman_stokes_solver->AddPressureBoundaryID(attr);
+   //       brinkman_stokes_solver->PressureBoundary().Add(attr, pressure_drop);
+   //    }
+   // }
+
+   real_t out_pressure = 0.0;
+
+   for (int attr = 1; attr <= max_bdr_attr; attr++)
+   {
+      if (all_ess_bdr[attr-1] == 0)
+      {
+         brinkman_stokes_solver->AddPressureBoundaryID(attr);
+         brinkman_stokes_solver->PressureBoundary().Add(attr, out_pressure);
+      }
    }
 
 
@@ -1949,8 +1996,16 @@ BlockVector Pseudo3DStokesOperator::InitializeOperators(ParGridFunction &new_rho
    x = 0.0;
    brinkman_stokes_solver->Solve(x);
    u_gf.SetFromTrueDofs(x.GetBlock(0));
+   u_gf.ExchangeFaceNbrData();
    p_gf.SetFromTrueDofs(x.GetBlock(1));
- 
+
+   if (Mpi::Root())
+   {
+      std::cout << std::setprecision(13)<<  "=============INITIAL Velocity===================" << std::endl;
+      std::cout << std::setprecision(13) << "state vel norm = " << u_gf.Norml2() << std::endl;
+      std::cout << std::setprecision(13)<< "state pressure norm = " << p_gf.Norml2() << std::endl;
+      std::cout << std::setprecision(13)<< "=============INITIAL Velocity===================" << std::endl;
+   }
 
    VectorGridFunctionCoefficient u_cf(&u_gf);
 
@@ -1993,13 +2048,6 @@ BlockVector Pseudo3DStokesOperator::InitializeOperators(ParGridFunction &new_rho
 
    trajectory.EnableStorage();
    trajectory.Store(0, initial_state); 
-   std::cout << std::setprecision(13)<<  "=============INITIAL===================" << std::endl;
-   // std::cout << std::setprecision(13)<< "state heat norm = " << initial_state.GetBlock(0).Norml2() << std::endl;
-   // std::cout << std::setprecision(13)<< "state vel norm = " << initial_state.GetBlock(1).Norml2() << std::endl;
-   std::cout << std::setprecision(13) << "brinkman norm = " << brinkman_gf.Norml2() << std::endl;
-   std::cout << std::setprecision(13) << "state vel norm = " << u_gf.Norml2() << std::endl;
-   // std::cout << std::setprecision(13)<< "state pressure norm = " << initial_state.GetBlock(2).Norml2() << std::endl;
-   std::cout << std::setprecision(13)<< "=============INITIAL===================" << std::endl;
 
    int num_procs = Mpi::WorldSize();   
    int myid = Mpi::WorldRank();   
@@ -2038,6 +2086,7 @@ BlockVector Pseudo3DStokesOperator::InitializeOperators(ParGridFunction &new_rho
 
 void Pseudo3DStokesOperator::Mult(const Vector &x, Vector &y) const
 {
+
    BlockVector bx(const_cast<Vector&>(x), helper_offsets);  
    BlockVector by(y, helper_offsets);
    y = 0.0;

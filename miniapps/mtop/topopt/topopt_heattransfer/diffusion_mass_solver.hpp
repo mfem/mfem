@@ -1314,6 +1314,9 @@ public:
    /// Mark a boundary attribute as an essential velocity boundary.
    void AddVelocityBoundaryID(int id);
 
+   /// Mark a boundary attribute as essential for a specific velocity component (0=x, 1=y, 2=z).
+   void AddVelocityComponentBoundaryID(int id, int component);
+
    /// Mark a boundary attribute as an essential pressure boundary.
    void AddPressureBoundaryID(int id);
 
@@ -1615,6 +1618,9 @@ private:
 
    /// Boundary attributes where velocity Dirichlet conditions are enforced.
    mutable std::set<int> velocity_boundary_ids_;
+   
+   /// Component-specific velocity boundaries (component index -> set of boundary attributes).
+   mutable std::map<int, std::set<int>> velocity_component_boundary_ids_;
 
    /// Boundary attributes where pressure Dirichlet conditions are enforced.
    mutable std::set<int> pressure_boundary_ids_;

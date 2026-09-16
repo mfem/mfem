@@ -3050,6 +3050,13 @@ void StokesSolver::AddVelocityBoundaryID(int id)
    MarkVelocityBoundaryChanged(id);
 }
 
+void StokesSolver::AddVelocityComponentBoundaryID(int id, int component)
+{
+   MFEM_VERIFY(id > 0, "Boundary ids are one-based and must be positive.");
+   velocity_component_boundary_ids_[component].insert(id);
+   MarkVelocityBoundaryChanged(0);
+}
+
 void StokesSolver::AddPressureBoundaryID(int id)
 {
    MFEM_VERIFY(id > 0, "Boundary ids are one-based and must be positive.");
@@ -3059,6 +3066,7 @@ void StokesSolver::AddPressureBoundaryID(int id)
 void StokesSolver::ClearVelocityBoundaryConditions()
 {
    velocity_boundary_ids_.clear();
+   velocity_component_boundary_ids_.clear();
    velocity_boundary_.Clear();
    MarkOperatorChanged();
 }
@@ -3533,6 +3541,24 @@ void StokesSolver::BuildEssentialTrueDofs() const
       velocity_space_.GetEssentialTrueDofs(velocity_marker_,
                                            velocity_ess_tdofs_);
    }
+   // --- ADDED: Process component-specific boundary constraints ---
+   for (const auto& comp_pair : velocity_component_boundary_ids_)
+   {
+      if (GlobalBooleanOr(velocity_space_.GetComm(), !comp_pair.second.empty()))
+      {
+         BuildMarker(comp_pair.second, velocity_marker_,
+                     velocity_space_.GetParMesh()->bdr_attributes);
+         Array<int> comp_tdofs;
+         // Pass the specific component (0 for x, 1 for y) to MFEM
+         velocity_space_.GetEssentialTrueDofs(velocity_marker_, comp_tdofs, comp_pair.first);
+         velocity_ess_tdofs_.Append(comp_tdofs);
+      }
+   }
+   
+   // Ensure no duplicate DOFs if boundaries overlap
+   velocity_ess_tdofs_.Sort();
+   velocity_ess_tdofs_.Unique();
+   // ---------------------------------------------------------------
    if (GlobalBooleanOr(pressure_space_.GetComm(),
                        !pressure_boundary_ids_.empty()))
    {

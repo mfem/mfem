@@ -12,53 +12,59 @@ using namespace mfem;
 
 real_t simple_init_design(const Vector &x)    
 {    
-    real_t x_center1 = 2.0/6.0;
-    real_t x_center3 = 2.0/6.0;
-    real_t x_center4 = 4.0 / 6.0;
-    real_t x_center6 = 4.0 / 6.0;
+    real_t x_center1 = 0.6;
+    real_t x_center3 = 1.5;
+    real_t x_center4 = 2.4;
 
 
-    real_t y_center1 = 4.0/6.0;
-    real_t y_center3 = 2.0/6.0;
-    real_t y_center4 = 4.0/6.0;
-    real_t y_center6 = 2.0/6.0;
+    real_t y_center1 = 0.2;
+    real_t y_center3 = 0.5;
+    real_t y_center4 = 0.8;
+    real_t rad = 0.2;
 
-    real_t sigma_x = 0.05;
-    real_t sigma_y = 0.05;
+    if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else
+    {
+        return 1.0;
+    }
+
+    // real_t sigma_x = 0.1;
+    // real_t sigma_y = 0.1;
+
+    // // Injection 1
+    // // Distance from center (normalized by sigma)
+    // real_t dx1 = (x(0) - x_center1) / sigma_x;
+    // real_t dy1 = (x(1) - y_center1) / sigma_y;
+    // real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
+    // real_t gaussian1 = std::exp(-0.5 * r_squared1);
 
 
-    // Injection 1
-    // Distance from center (normalized by sigma)
-    real_t dx1 = (x(0) - x_center1) / sigma_x;
-    real_t dy1 = (x(1) - y_center1) / sigma_y;
-    real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
-    real_t gaussian1 = std::exp(-0.5 * r_squared1);
+    // // Injection 3
+    // // Distance from center (normalized by sigma)
+    // real_t dx3 = (x(0) - x_center3) / sigma_x;
+    // real_t dy3 = (x(1) - y_center3) / sigma_y;
+    // real_t r_squared3 = dx3 * dx3 + dy3 * dy3;
+    // real_t gaussian3 = std::exp(-0.5 * r_squared3);
 
-
-    // Injection 3
-    // Distance from center (normalized by sigma)
-    real_t dx3 = (x(0) - x_center3) / sigma_x;
-    real_t dy3 = (x(1) - y_center3) / sigma_y;
-    real_t r_squared3 = dx3 * dx3 + dy3 * dy3;
-    real_t gaussian3 = std::exp(-0.5 * r_squared3);
-
-        // Injection 4
-    // Distance from center (normalized by sigma)
-    real_t dx4 = (x(0) - x_center4) / sigma_x;
-    real_t dy4 = (x(1) - y_center4) / sigma_y;
-    real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
-    real_t gaussian4 = std::exp(-0.5 * r_squared4);
-
-
-        // Injection 6
-    // Distance from center (normalized by sigma)
-    real_t dx6 = (x(0) - x_center6) / sigma_x;
-    real_t dy6 = (x(1) - y_center6) / sigma_y;
-    real_t r_squared6 = dx6 * dx6 + dy6 * dy6;
-    real_t gaussian6 = std::exp(-0.5 * r_squared6);
-
+    //     // Injection 4
+    // // Distance from center (normalized by sigma)
+    // real_t dx4 = (x(0) - x_center4) / sigma_x;
+    // real_t dy4 = (x(1) - y_center4) / sigma_y;
+    // real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
+    // real_t gaussian4 = std::exp(-0.5 * r_squared4);
  
-    return 1 - (gaussian1 + gaussian3 + gaussian4 + gaussian6);
+    // return 1 - (gaussian1 + gaussian3 + gaussian4);
 }
 
 bool InitializeDesign(ParGridFunction &rho, real_t x_max, real_t y_max)       
@@ -92,7 +98,43 @@ real_t q0_s_function(const Vector &x)
 
 real_t q0_f_function(const Vector &x)
 {
-    return 50.0;
+    real_t x_center1 = 0.6;
+    real_t x_center3 = 1.5;
+    real_t x_center4 = 2.4;
+
+
+    real_t y_center1 = 0.2;
+    real_t y_center3 = 0.5;
+    real_t y_center4 = 0.8;
+
+    real_t sigma_x = 0.1;
+    real_t sigma_y = 0.1;
+
+    // Injection 1
+    // Distance from center (normalized by sigma)
+    real_t dx1 = (x(0) - x_center1) / sigma_x;
+    real_t dy1 = (x(1) - y_center1) / sigma_y;
+    real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
+    real_t gaussian1 = std::exp(-0.5 * r_squared1);
+
+
+    // Injection 3
+    // Distance from center (normalized by sigma)
+    real_t dx3 = (x(0) - x_center3) / sigma_x;
+    real_t dy3 = (x(1) - y_center3) / sigma_y;
+    real_t r_squared3 = dx3 * dx3 + dy3 * dy3;
+    real_t gaussian3 = std::exp(-0.5 * r_squared3);
+
+        // Injection 4
+    // Distance from center (normalized by sigma)
+    real_t dx4 = (x(0) - x_center4) / sigma_x;
+    real_t dy4 = (x(1) - y_center4) / sigma_y;
+    real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
+    real_t gaussian4 = std::exp(-0.5 * r_squared4);
+
+
+ 
+    return 20.0*(gaussian1 + gaussian3 + gaussian4) + 30.0;
 }
 
 
@@ -106,13 +148,13 @@ int main(int argc, char *argv[])
     Hypre::Init();  
 
     const char *mesh_file = "../../../../data/inline-quad.mesh";   
-    int ser_ref_levels = 1;
-    int par_ref_levels = 1;    
+    int ser_ref_levels = 0;
+    int par_ref_levels = 2;    
     int order_solid_heat = 1; 
     int order_fluid_heat = 2;
     int order_stokes = 2;
 
-    // real_t dynamic_viscosity = 1.94e-5; // 1.94e-5;     
+    //real_t dynamic_viscosity = 1.94e-5; // 1.94e-5;     
     // real_t kf = 0.024; // thermal conductivity of fluid
     // real_t ks = 400; // thermal conductivity of solid;
     // real_t hs = 2e5; 
@@ -123,22 +165,23 @@ int main(int argc, char *argv[])
     // real_t finn_height = 8.0;
     // real_t plate_thickness = 0.2;
 
-    real_t dynamic_viscosity = 1.0; // 1.94e-5;     
-    real_t kf = 0.1; // thermal conductivity of fluid
-    real_t ks = 1.0; // thermal conductivity of solid;
-    real_t hs = 1.0; 
-    real_t hf = 0.1;
-    real_t Q_prod = 0.01; // heat production rate;
+    real_t dynamic_viscosity = 1e-3;     
+    real_t kf = 0.024; // thermal conductivity of fluid
+    real_t ks = 400.0; // thermal conductivity of solid;
+    real_t hs = 2e5; 
+    real_t hf = 50.0;
+    real_t Q_prod = 0.175; // heat production rate;
     real_t cf = 1.0; // fluid heat capacity
-    real_t rf = 1.0; // fluid density
-    real_t finn_height = 1.0;
+    real_t rf = 1.204; // fluid density
+    real_t finn_height = 8.0;
     real_t plate_thickness = 0.2;
+    real_t pressure_drop = 0.1;
     
 
     int ode_solver_type = 1; 
-    real_t t_final = 1.0;           
+    real_t t_final = 5.0;           
     real_t dt = 0.001;                 
-    int vis_steps = 10; 
+    int vis_steps = 50; 
     real_t b_term = 1.0;
     bool pv_vis = false; 
     const char *device_config = "cpu"; 
@@ -192,6 +235,8 @@ int main(int argc, char *argv[])
                     "Visualize every n-th timestep.");   
     args.AddOption(&b_term, "-b", "--brinkman-term",                                  
                     "Brinkman Scaling.");
+    args.AddOption(&pressure_drop, "-pr", "--pressure_drop",                                  
+                    "Pressure Drop.");
     args.AddOption(&device_config, "-d", "--device",
                     "Device configuration string, see Device::Configure().");         
     args.Parse(); 
@@ -279,7 +324,7 @@ int main(int argc, char *argv[])
     toopt::PDEFilterOptions filter_opts;
     filter_opts.print_level = 0; 
     // filter_opts.solver_rtol = 1e-12;
-    filter_opts.filter_radius = 0.01; 
+    filter_opts.filter_radius = 0.02; 
     toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);     
     filter.Assemble();   
     filter.Mult(rho, rho_tilde);     
@@ -317,7 +362,7 @@ int main(int argc, char *argv[])
     }
     
     // 9. Define the Coefficients 
-    BrinkmanCoefficient b_coeff(&rho_tilde, 0.5, b_term); 
+    BrinkmanCoefficient b_coeff(&rho_tilde, 1.0, b_term); 
     ConstantCoefficient visc_cf(dynamic_viscosity);     
     ConstantCoefficient inflow(20.0);   
     FunctionCoefficient q0_f(q0_f_function);   
@@ -369,7 +414,8 @@ int main(int argc, char *argv[])
     finn_height,
     hs, hf,
     dt,
-    t_final, 
+    t_final,
+    pressure_drop, 
     comm);
 
     DesignSolver design_solver(*solid_heat_fes,                 
@@ -391,23 +437,7 @@ int main(int argc, char *argv[])
  
  
     // Free the used memory.  
-    // delete pd;
-    // delete fform;
-    // delete gform;
-    // // delete u;
-    // // delete p;
-    // delete BrinkStokesOp;
-    // delete StokesBrinkmanPr;
-    // delete invA;
-    // delete invS;
-    // delete S;
-    // delete Ad;
-    // delete AinvBt;
-    // delete Bt;
-    // delete B;
-    // delete A;
-    // delete a;
-    // delete b;
+
     delete P_space;
     delete V_space;   
     delete p_coll;
@@ -417,9 +447,7 @@ int main(int argc, char *argv[])
     delete solid_heat_fes;
     delete fluid_heat_fec;
     delete fluid_heat_fes;
-    // delete fes;  
-    // //delete pmesh;
-    // delete fec; 
+
     
     return 0; 
 }
