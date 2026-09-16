@@ -52,6 +52,8 @@
 #include "../../fespace.hpp"   // FiniteElementSpace, ElementDofOrdering (pulls mesh)
 #include "../../fe/fe_h1.hpp"
 #include "../../fe/fe_pos.hpp"
+#include "../../fe/fe_nd.hpp"
+#include "../../fe/fe_rt.hpp"
 #include "../../gridfunc.hpp"  // GetSimplexMeshNodesE
 
 namespace mfem
@@ -165,6 +167,139 @@ inline bool UsesTensorMMA(const FiniteElementSpace &fes)
    // Fragment math needs D1D >= 3; require p >= 3 for MMA competitiveness.
    if (el.GetOrder() < 3) { return false; }
    return true;
+#endif
+}
+
+inline bool IsTensorsMmaHcurlElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const ND_QuadrilateralElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const ND_HexahedronElement *>(&el) != nullptr;
+}
+
+inline bool IsTensorsMmaHdivElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const RT_QuadrilateralElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const RT_HexahedronElement *>(&el) != nullptr;
+}
+
+/** Opt-in tensor MMA for fixed-order ND (Hcurl) quad/hex. ForceMMA; double; p≥3. */
+inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
+{
+   if (!GetForceMMA()) { return false; }
+   if (fes.IsVariableOrder()) { return false; }
+#if defined(MFEM_USE_SINGLE)
+   return false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   if (dim != 2 && dim != 3) { return false; }
+   if (mesh->SpaceDimension() != dim) { return false; }
+   if (mesh->GetNumGeometries(dim) != 1) { return false; }
+   const FiniteElement &el = *fes.GetTypicalFE();
+   if (dim == 2)
+   {
+      if (el.GetGeomType() != Geometry::SQUARE) { return false; }
+   }
+   else if (el.GetGeomType() != Geometry::CUBE) { return false; }
+   if (!IsTensorsMmaHcurlElement(el, dim)) { return false; }
+   if (el.GetOrder() < 3) { return false; }
+   return true;
+#endif
+}
+
+/** Opt-in tensor MMA for fixed-order RT (Hdiv) quad/hex. ForceMMA; double; p≥3. */
+inline bool UsesTensorMmaHdiv(const FiniteElementSpace &fes)
+{
+   if (!GetForceMMA()) { return false; }
+   if (fes.IsVariableOrder()) { return false; }
+#if defined(MFEM_USE_SINGLE)
+   return false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   if (dim != 2 && dim != 3) { return false; }
+   if (mesh->SpaceDimension() != dim) { return false; }
+   if (mesh->GetNumGeometries(dim) != 1) { return false; }
+   const FiniteElement &el = *fes.GetTypicalFE();
+   if (dim == 2)
+   {
+      if (el.GetGeomType() != Geometry::SQUARE) { return false; }
+   }
+   else if (el.GetGeomType() != Geometry::CUBE) { return false; }
+   if (!IsTensorsMmaHdivElement(el, dim)) { return false; }
+   // RT order p means D1D = p+1 for closed; require p >= 3 like H1/ND
+   if (el.GetOrder() < 3) { return false; }
+   return true;
+#endif
+}
+
+inline bool IsSimplexMmaHcurlElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const ND_TriangleElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const ND_TetrahedronElement *>(&el) != nullptr;
+}
+
+inline bool IsSimplexMmaHdivElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const RT_TriangleElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const RT_TetrahedronElement *>(&el) != nullptr;
+}
+
+/** Dense simplex MMA for fixed-order ND on tri/tet. ForceMMA; double. */
+inline bool UsesSimplexMmaHcurl(const FiniteElementSpace &fes)
+{
+   if (!GetForceMMA()) { return false; }
+   if (fes.IsVariableOrder()) { return false; }
+#if defined(MFEM_USE_SINGLE)
+   return false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   if (dim != 2 && dim != 3) { return false; }
+   if (mesh->SpaceDimension() != dim) { return false; }
+   if (mesh->GetNumGeometries(dim) != 1) { return false; }
+   const FiniteElement &el = *fes.GetTypicalFE();
+   if (dim == 2)
+   {
+      if (el.GetGeomType() != Geometry::TRIANGLE) { return false; }
+   }
+   else if (el.GetGeomType() != Geometry::TETRAHEDRON) { return false; }
+   return IsSimplexMmaHcurlElement(el, dim);
+#endif
+}
+
+/** Dense simplex MMA for fixed-order RT on tri/tet. ForceMMA; double. */
+inline bool UsesSimplexMmaHdiv(const FiniteElementSpace &fes)
+{
+   if (!GetForceMMA()) { return false; }
+   if (fes.IsVariableOrder()) { return false; }
+#if defined(MFEM_USE_SINGLE)
+   return false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   if (dim != 2 && dim != 3) { return false; }
+   if (mesh->SpaceDimension() != dim) { return false; }
+   if (mesh->GetNumGeometries(dim) != 1) { return false; }
+   const FiniteElement &el = *fes.GetTypicalFE();
+   if (dim == 2)
+   {
+      if (el.GetGeomType() != Geometry::TRIANGLE) { return false; }
+   }
+   else if (el.GetGeomType() != Geometry::TETRAHEDRON) { return false; }
+   return IsSimplexMmaHdivElement(el, dim);
 #endif
 }
 

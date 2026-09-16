@@ -11,7 +11,7 @@
 #pragma once
 
 /** @file fields.hpp
-    Field value types (eval_t / grad_t / none_t) and QFn trait helpers.
+    Field value types (eval_t / grad_t / curl_t / div_t / none_t) and QFn traits.
 */
 
 #include "../../../../linalg/tensor.hpp"
@@ -24,7 +24,7 @@ namespace mfem::internal::mma::form
 
 using mfem::future::tensor;
 
-enum class field_kind { Eval, Grad, None };
+enum class field_kind { Eval, Grad, Curl, Div, None };
 
 /** Scalar value at a quadrature point.
     Storage is tensor<real_t,1> so scalar*tensor ops apply uniformly. */
@@ -33,6 +33,8 @@ struct eval_t : tensor<real_t, 1>
    static constexpr field_kind kind = field_kind::Eval;
    static constexpr bool needs_basis = true;
    static constexpr bool is_grad = false;
+   static constexpr bool is_curl = false;
+   static constexpr bool is_div = false;
 
    static constexpr int planes(int /*dim*/, int vdim = 1) { return vdim; }
 
@@ -67,6 +69,8 @@ struct grad_t : tensor<real_t, DIM>
    static constexpr field_kind kind = field_kind::Grad;
    static constexpr bool needs_basis = true;
    static constexpr bool is_grad = true;
+   static constexpr bool is_curl = false;
+   static constexpr bool is_div = false;
    static constexpr int spatial_dim = DIM;
 
    static constexpr int planes(int /*dim*/, int vdim = 1)
@@ -91,12 +95,62 @@ struct grad_t : tensor<real_t, DIM>
    }
 };
 
+/** Curl field at a quadrature point.
+    Layout matches handwritten Piola: length 1 in 2D (scalar curl), 3 in 3D. */
+template <int DIM>
+struct curl_t : tensor<real_t, (DIM == 2 ? 1 : 3)>
+{
+   static constexpr field_kind kind = field_kind::Curl;
+   static constexpr bool needs_basis = true;
+   static constexpr bool is_grad = false;
+   static constexpr bool is_curl = true;
+   static constexpr bool is_div = false;
+   static constexpr int spatial_dim = DIM;
+   static constexpr int curl_dim = (DIM == 2 ? 1 : 3);
+
+   static constexpr int planes(int /*dim*/, int vdim = 1)
+   {
+      return curl_dim * vdim;
+   }
+
+   using base = tensor<real_t, curl_dim>;
+   using base::base;
+
+   MFEM_HOST_DEVICE curl_t() : base{}
+   {
+      for (int i = 0; i < curl_dim; ++i) { (*this)[i] = real_t(0); }
+   }
+
+   MFEM_HOST_DEVICE curl_t(const base &t) : base(t) {}
+
+   MFEM_HOST_DEVICE curl_t &operator=(const base &t)
+   {
+      for (int i = 0; i < curl_dim; ++i) { (*this)[i] = t[i]; }
+      return *this;
+   }
+};
+
+/** Divergence (scalar) at a quadrature point — same storage as eval_t. */
+struct div_t : eval_t
+{
+   static constexpr field_kind kind = field_kind::Div;
+   static constexpr bool needs_basis = true;
+   static constexpr bool is_grad = false;
+   static constexpr bool is_curl = false;
+   static constexpr bool is_div = true;
+
+   using eval_t::eval_t;
+   using eval_t::operator=;
+};
+
 /** No trial DOF field (linear-form style). Marker type only. */
 struct none_t
 {
    static constexpr field_kind kind = field_kind::None;
    static constexpr bool needs_basis = false;
    static constexpr bool is_grad = false;
+   static constexpr bool is_curl = false;
+   static constexpr bool is_div = false;
 
    static constexpr int planes(int /*dim*/, int vdim = 1) { return vdim; }
 };
@@ -114,6 +168,16 @@ template <int Dim>
 struct is_grad_field<grad_t<Dim>> : std::true_type {};
 
 template <typename T>
+struct is_curl_field : std::false_type {};
+template <int Dim>
+struct is_curl_field<curl_t<Dim>> : std::true_type {};
+
+template <typename T>
+struct is_div_field : std::false_type {};
+template <>
+struct is_div_field<div_t> : std::true_type {};
+
+template <typename T>
 struct is_none : std::false_type {};
 template <>
 struct is_none<none_t> : std::true_type {};
@@ -122,6 +186,8 @@ template <typename T>
 struct is_field_kind
    : std::integral_constant<bool, is_eval<T>::value ||
      is_grad_field<T>::value ||
+     is_curl_field<T>::value ||
+     is_div_field<T>::value ||
      is_none<T>::value> {};
 
 template <typename T>
@@ -130,6 +196,8 @@ struct field_traits
    static constexpr field_kind kind = T::kind;
    static constexpr bool needs_basis = T::needs_basis;
    static constexpr bool is_grad = T::is_grad;
+   static constexpr bool is_curl = T::is_curl;
+   static constexpr bool is_div = T::is_div;
    static constexpr int planes(int dim, int vdim = 1)
    {
       return T::planes(dim, vdim);
@@ -156,6 +224,10 @@ struct EvalEvalQFnTraits
    static constexpr bool has_trial = true;
    static constexpr bool trial_is_grad = false;
    static constexpr bool test_is_grad = false;
+   static constexpr bool trial_is_curl = false;
+   static constexpr bool test_is_curl = false;
+   static constexpr bool trial_is_div = false;
+   static constexpr bool test_is_div = false;
 
    static constexpr int u_planes(int dim, int vdim = 1)
    {
@@ -174,6 +246,10 @@ struct NoneEvalQFnTraits
    static constexpr bool has_trial = false;
    static constexpr bool trial_is_grad = false;
    static constexpr bool test_is_grad = false;
+   static constexpr bool trial_is_curl = false;
+   static constexpr bool test_is_curl = false;
+   static constexpr bool trial_is_div = false;
+   static constexpr bool test_is_div = false;
 
    static constexpr int u_planes(int dim, int vdim = 1)
    {
@@ -193,6 +269,83 @@ struct GradGradQFnTraits
    static constexpr bool has_trial = true;
    static constexpr bool trial_is_grad = true;
    static constexpr bool test_is_grad = true;
+   static constexpr bool trial_is_curl = false;
+   static constexpr bool test_is_curl = false;
+   static constexpr bool trial_is_div = false;
+   static constexpr bool test_is_div = false;
+   static constexpr bool symmetric_pa = SYM;
+   static constexpr int spatial_dim = DIM;
+
+   static constexpr int u_planes(int /*dim*/, int vdim = 1)
+   {
+      return field_traits<trial_kind>::planes(DIM, vdim);
+   }
+};
+
+/** Curl×Curl: operator()(const curl_t<DIM>&, curl_t<DIM>&, coeff). */
+template <int DIM, bool SYM = true>
+struct CurlCurlQFnTraits
+{
+   using trial_kind = curl_t<DIM>;
+   using test_kind = curl_t<DIM>;
+   using coeff_type = typename std::conditional<
+                      (DIM == 2), real_t, tensor<real_t, 3, 3>>::type;
+
+   static constexpr bool load_x = true;
+   static constexpr bool has_trial = true;
+   static constexpr bool trial_is_grad = false;
+   static constexpr bool test_is_grad = false;
+   static constexpr bool trial_is_curl = true;
+   static constexpr bool test_is_curl = true;
+   static constexpr bool trial_is_div = false;
+   static constexpr bool test_is_div = false;
+   static constexpr bool symmetric_pa = SYM;
+   static constexpr int spatial_dim = DIM;
+
+   static constexpr int u_planes(int /*dim*/, int vdim = 1)
+   {
+      return field_traits<trial_kind>::planes(DIM, vdim);
+   }
+};
+
+/** Div×Div: operator()(const div_t&, div_t&, real_t). */
+struct DivDivQFnTraits
+{
+   using trial_kind = div_t;
+   using test_kind = div_t;
+   using coeff_type = real_t;
+
+   static constexpr bool load_x = true;
+   static constexpr bool has_trial = true;
+   static constexpr bool trial_is_grad = false;
+   static constexpr bool test_is_grad = false;
+   static constexpr bool trial_is_curl = false;
+   static constexpr bool test_is_curl = false;
+   static constexpr bool trial_is_div = true;
+   static constexpr bool test_is_div = true;
+
+   static constexpr int u_planes(int dim, int vdim = 1)
+   {
+      return field_traits<trial_kind>::planes(dim, vdim);
+   }
+};
+
+/** Vector Eval×Eval for H(curl)/H(div) mass at Q (Piola-mapped vector). */
+template <int DIM, bool SYM = true>
+struct VecEvalEvalQFnTraits
+{
+   using trial_kind = grad_t<DIM>; // vector value storage
+   using test_kind = grad_t<DIM>;
+   using coeff_type = tensor<real_t, DIM, DIM>;
+
+   static constexpr bool load_x = true;
+   static constexpr bool has_trial = true;
+   static constexpr bool trial_is_grad = false;
+   static constexpr bool test_is_grad = false;
+   static constexpr bool trial_is_curl = false;
+   static constexpr bool test_is_curl = false;
+   static constexpr bool trial_is_div = false;
+   static constexpr bool test_is_div = false;
    static constexpr bool symmetric_pa = SYM;
    static constexpr int spatial_dim = DIM;
 

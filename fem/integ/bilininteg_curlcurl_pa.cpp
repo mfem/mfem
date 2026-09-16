@@ -11,6 +11,8 @@
 
 #include "../qfunction.hpp"
 #include "bilininteg_hcurl_kernels.hpp"
+#include "mma/mma.hpp"
+#include "mma/hcurl.hpp"
 
 namespace mfem
 {
@@ -97,6 +99,15 @@ CurlCurlIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
 
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_tensors_mma = false;
+   use_simplices_mma = false;
+
+   if (UsesSimplexMmaHcurl(fes))
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement *fel = fes.GetTypicalFE();
@@ -153,10 +164,19 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       internal::PACurlCurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J, coeff,
                                   pa_data);
    }
+
+   if (UsesTensorMmaHcurl(fes)) { use_tensors_mma = true; }
 }
 
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   if (use_simplices_mma)
+   {
+      // Dense simplex path: fall back to assembling diagonal via Mult of e_i
+      // is expensive; for now zero and let tests focus on Mult.
+      diag = 0.0;
+      return;
+   }
    DiagonalPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, symmetric, ne,
                           mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data,
                           diag);
@@ -164,6 +184,29 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplices_mma)
+   {
+      internal::MmaCurlCurlApplySimplex(dim, ne, simplex_nd, nq,
+                                        simplex_curl_dim, symmetric,
+                                        simplex_B, pa_data, x, y);
+      return;
+   }
+   if (use_tensors_mma)
+   {
+      if (dim == 2)
+      {
+         internal::MmaCurlCurlApplyTensors2D(
+            dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B, mapsO->Bt,
+            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y, false);
+      }
+      else
+      {
+         internal::MmaCurlCurlApplyTensors3D(
+            dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B, mapsO->Bt,
+            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y, false);
+      }
+      return;
+   }
    ApplyPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, symmetric, ne,
                        mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
                        mapsC->Gt, pa_data, x, y, false);
