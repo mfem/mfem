@@ -1173,7 +1173,30 @@ private:
        With LAPACK the element side is dgemm_ and only round-off agreement is
        claimed; likewise on the GPU_BLAS and MAGMA backends. Measured
        agreement is on SetLocalFactorMode(). */
-   bool FactorElementsBatched(ComputeHMode mode, Vector &AiBt_all) const;
+   bool FactorElementsBatched(ComputeHMode mode, Vector &AiBt_all,
+                              CondensationCache *cc = NULL) const;
+
+   /** @brief Whether FactorElementsBatched() will do the work: the mode asked
+       for AND the storage it needs, reported through @a na and @a nd.
+
+       **It exists so that two predicates cannot ask different questions about
+       one route**, which this class has paid for once already --
+       CanBatchTraceAssembly() asked the connectivity question and not the
+       destination question, and two tests then passed against a deliberately
+       broken kernel by comparing the serial route with itself.
+
+       The caller here is CanCacheCondensation(), for which the distinction is
+       not academic: a mesh whose A or D blocks are not all one size refuses
+       the batched factorisation on storage, so refusing the condensation
+       cache on the MODE alone left that caller with neither -- the fallback
+       loop and no cache, in exchange for nothing.
+
+       The one refusal of FactorElementsBatched() this does NOT carry is its
+       LocalOpType::FluxNL branch, which needs Sf_data and Df_lin_data sized;
+       that mode and LocalOpType::PotNL are exclusive, so it cannot bear on
+       the cache, whose first test is PotNL. */
+   bool BatchedLocalFactorStorage(int &na, int &nd) const;
+
    /** @brief The (element, local face) index map ComputeElementsHBatched()
        reads: three offsets per entry -- into @a Ct_data, into @a E_data and
        @a G_data, and into @a H_data -- for the whole mesh, laid out
@@ -1251,7 +1274,8 @@ private:
                                 int na, int nd, int nf, int nc,
                                 const Vector &AiBt_all,
                                 const Array<int> &face_map,
-                                ElementHWorkspace &ws, Vector &Hel) const;
+                                ElementHWorkspace &ws, Vector &Hel,
+                                CondensationCache *cc = NULL) const;
    /** @brief Add the blocks ComputeElementH() left in @a Hel to @a H.
        Serial by contract -- see SetAssemblyMode(). */
    /** @brief The per-element scratch the SERIAL ComputeElementH() and
@@ -2295,6 +2319,31 @@ public:
    static void ResetComputeHTime();
    /// How many times ComputeH() has run since ResetComputeHTime().
    static long GetComputeHCalls();
+
+   /** @brief How many times the batched factorisation has SOLVED for
+       A^-1(-/+B^T) rather than replaying it from the condensation cache.
+
+       **A cache cannot be told from a recomputation by its answer** -- that
+       is what a cache is -- so counting is the only way a caller, or a test,
+       can establish that the replay fires at all. Over N gradients of one
+       Newton loop under LocalOpType::PotNL this reads 1 and not N.
+
+       Static, over a function-local accumulator in the .cpp, for the reason
+       GetComputeHTime()'s is: a data member here would be a class-layout
+       change every translation unit including mfem.hpp would see. Always on;
+       it is one increment against a batched triangular solve. */
+   static long GetBatchedAiBtSolves();
+
+   /** @brief How many CHUNKS the batched face-pair route has filled the cache
+       for, rather than replaying. Over N gradients of one Newton loop this
+       reads the chunk count once, not N times.
+
+       The face half is the larger one: at na=12, nd=6, nc=3, nf=3 it is 3888
+       of the ~4770 multiply-adds an element's condensation costs. */
+   static long GetBatchedFaceFills();
+
+   /// Zero both counts; see GetBatchedAiBtSolves() and GetBatchedFaceFills().
+   static void ResetBatchedCacheCounts();
 
    /** @brief Whether TraceAssemblyMode::Batched would actually be taken.
 

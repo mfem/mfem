@@ -1256,7 +1256,8 @@ TEST_CASE("The batched boundary flux mass under a device", "[DebugDevice]")
 static void TwoGradients(DarcyHybridization::AssemblyMode am,
                          DarcyHybridization::LocalFactorMode lfm,
                          DarcyHybridization::TraceAssemblyMode tam,
-                         int order, Vector &first, Vector &second)
+                         int order, Vector &first, Vector &second,
+                         bool linear_face = false)
 {
    const int n = 3, dim = 2;
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
@@ -1280,14 +1281,35 @@ static void TwoGradients(DarcyHybridization::AssemblyMode am,
    // A NONLINEAR interior-face constraint, which is what puts the face
    // gradient on the batchable route at all; a domain nonlinearity alone
    // leaves CanBatchNLFaceGrad() false.
+   //
+   // **@a linear_face is the opposite choice, and it is the only way to reach
+   // the condensation cache from here.** CanCacheCondensation() refuses a
+   // non-linear face constraint outright -- it rewrites E, G and H at every
+   // gradient, and three of the products the cache holds are built from them
+   // -- so the sections above run with the cache OFF however the modes are
+   // set. With the face terms on the linear potential mass and the domain
+   // non-linearity kept, the problem is LocalOpType::PotNL with a linear
+   // constraint, which is the shape the cache exists for.
    NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
    Mnl_p->AddDomainIntegrator(new HyperbolicFormIntegrator(num_flux, 0, -1.0));
-   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
-   Mnl_p->AddInteriorFaceIntegrator(
-      new HyperbolicFormIntegrator(num_flux, 0, -1.0));
-   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
-   Mnl_p->AddBdrFaceIntegrator(
-      new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+   if (linear_face)
+   {
+      // Asked for ONLY here: GetPotentialMassForm() CONSTRUCTS the form, and
+      // constructing it silences a face constraint placed on the non-linear
+      // one.
+      BilinearForm *M_p = darcy.GetPotentialMassForm();
+      M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+      M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+   }
+   else
+   {
+      Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+      Mnl_p->AddInteriorFaceIntegrator(
+         new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+      Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+      Mnl_p->AddBdrFaceIntegrator(
+         new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+   }
 
    darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
 
@@ -1322,6 +1344,11 @@ static void TwoGradients(DarcyHybridization::AssemblyMode am,
       REQUIRE_FALSE(dh->CanBatchNLFaceGrad());
       REQUIRE(dh->CanBatchLocalFactor());
    }
+
+   // The cache is the lever of the linear-face section and is off in every
+   // other one, so both halves are asserted rather than assumed -- the guard
+   // this file already carries for the three modes, applied to a fourth.
+   REQUIRE(dh->CanCacheCondensation() == linear_face);
 
    BlockVector x(darcy.GetOffsets());
    Vector x_tr(Mh.GetVSize());
@@ -1388,6 +1415,20 @@ TEST_CASE("Two gradients in a row are the same operator under a device",
    {
       TwoGradients(AM::Serial, LFM::Serial, TAM::Batched, order, first,
                    second);
+   }
+
+   // **The condensation cache, which only this section can reach**, and the
+   // property is the same one: the second gradient replays A^-1(-/+B^T), the
+   // bracket, C A^-1 B^T + G and -C A^-1 C^T out of buffers a kernel wrote,
+   // so it must produce the operator the first one computed. Under
+   // Device("debug") it also answers the question a host build cannot: every
+   // one of those buffers is written and read through whole-Vector
+   // assignment and alias Memory views, so a raw host pointer into any of
+   // them would fault here rather than quietly returning a stale page.
+   SECTION("LocalFactorMode::Batched with the condensation cache live")
+   {
+      TwoGradients(AM::Serial, LFM::Batched, TAM::Serial, order, first,
+                   second, true);
    }
 
    REQUIRE(first.Size() == second.Size());

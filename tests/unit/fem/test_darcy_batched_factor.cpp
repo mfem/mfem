@@ -329,6 +329,14 @@ struct NPCOutcome
    Vector dtr;
    real_t n0 = 0.0, n1 = 0.0;
    bool can_batch_solve = false;
+   /** @brief Whether the condensation cache is available -- a DIFFERENT
+       question from can_batch_solve, and the point of asking both is that the
+       batched local factorisation and the cache are alternatives. */
+   bool can_cache = false;
+   /// How many times the batched factorisation solved for AiBt; see the test.
+   long aibt_solves = 0;
+   /// How many chunks the batched face-pair route FILLED rather than replayed.
+   long face_fills = 0;
    NPCOutcome() : dx() { }
 };
 
@@ -345,10 +353,17 @@ struct NPCOutcome
 /// What this does NOT cover: the Bnl term inside MultInvBatched(). It is
 /// reached only when the flux law depends on the potential
 /// (LocalOpType::FluxNL), and a potential-mass nonlinearity leaves Bnl empty.
+/** @a linear_face puts the HDG face term on the LINEAR potential mass form
+    rather than the non-linear one, which is what decides whether the
+    condensation cache can be reached: a constraint landing on c_nlfi_p
+    rewrites E, G and H at every gradient and CanCacheCondensation() refuses
+    it. With it linear the problem is LocalOpType::PotNL with a linear
+    constraint, which is the cacheable shape -- and it is meq's. */
 void NPCStep(Mesh &mesh, int order, real_t c,
              DarcyHybridization::LocalFactorMode mode, NPCOutcome &out,
              DarcyHybridization::GradientMode gmode =
-                DarcyHybridization::GradientMode::Assembled)
+                DarcyHybridization::GradientMode::Assembled,
+             bool linear_face = false, int steps = 1)
 {
    const int dim = mesh.Dimension();
 
@@ -374,8 +389,20 @@ void NPCStep(Mesh &mesh, int order, real_t c,
 
    NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
    Mnl_p->AddDomainIntegrator(new SquareSource(c));
-   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
-   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   if (linear_face)
+   {
+      // Asked for ONLY here: GetPotentialMassForm() CONSTRUCTS the form, and
+      // merely constructing it silences a face constraint placed on the
+      // non-linear one.
+      BilinearForm *M_p = darcy.GetPotentialMassForm();
+      M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+      M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   }
+   else
+   {
+      Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+      Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   }
 
    Array<int> ess_flux;
    darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
@@ -408,43 +435,57 @@ void NPCStep(Mesh &mesh, int order, real_t c,
       return std::sqrt(rl*rl + rt*rt);
    };
 
-   dh->NPCResidual(b, x, x_tr, r, r_tr);
-   out.n0 = full_norm(r, r_tr);
+   DarcyHybridization::ResetBatchedCacheCounts();
 
-   Operator &S = dh->NPCGradient(x, x_tr);
-   out.can_batch_solve = dh->CanBatchLocalSolve();
-   dh->NPCReduce(r, r_tr, b_tr);
-
-   dtr.SetSize(b_tr.Size());
-   dtr = 0.0;
+   // **@a steps > 1 is what reaches a REPLAY.** Everything the condensation
+   // cache holds is filled on the first gradient and replayed on the second,
+   // so a one-step harness exercises the fill and never the replay -- and the
+   // replay is the half that can be wrong.
+   for (int it = 0; it < steps; it++)
    {
-      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
-      // GradientMode::MatrixFree carries no matrix, so it runs
-      // unpreconditioned; see SetGradientMode().
-      std::unique_ptr<GSSmoother> prec;
-      if (Sm) { prec.reset(new GSSmoother(*Sm)); }
-      GMRESSolver gmres;
-      gmres.SetOperator(S);
-      if (prec) { gmres.SetPreconditioner(*prec); }
-      gmres.SetKDim(200);
-      gmres.SetMaxIter(2000);
-      gmres.SetRelTol(1e-14);
-      gmres.SetAbsTol(0.0);
-      gmres.SetPrintLevel(-1);
-      gmres.Mult(b_tr, dtr);
-   }
+      dh->NPCResidual(b, x, x_tr, r, r_tr);
+      if (it == 0) { out.n0 = full_norm(r, r_tr); }
 
-   BlockVector dx(darcy.GetOffsets());
-   dh->NPCRecover(r, dtr, dx);
-   x += dx;
-   x_tr += dtr;
+      Operator &S = dh->NPCGradient(x, x_tr);
+      out.can_batch_solve = dh->CanBatchLocalSolve();
+      out.can_cache = dh->CanCacheCondensation();
+      dh->NPCReduce(r, r_tr, b_tr);
+
+      dtr.SetSize(b_tr.Size());
+      dtr = 0.0;
+      {
+         SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+         // GradientMode::MatrixFree carries no matrix, so it runs
+         // unpreconditioned; see SetGradientMode().
+         std::unique_ptr<GSSmoother> prec;
+         if (Sm) { prec.reset(new GSSmoother(*Sm)); }
+         GMRESSolver gmres;
+         gmres.SetOperator(S);
+         if (prec) { gmres.SetPreconditioner(*prec); }
+         gmres.SetKDim(200);
+         gmres.SetMaxIter(2000);
+         gmres.SetRelTol(1e-14);
+         gmres.SetAbsTol(0.0);
+         gmres.SetPrintLevel(-1);
+         gmres.Mult(b_tr, dtr);
+      }
+
+      BlockVector dx(darcy.GetOffsets());
+      dh->NPCRecover(r, dtr, dx);
+      x += dx;
+      x_tr += dtr;
+
+      // The LAST step's, so a two-step run compares the step taken after the
+      // cache was filled rather than the one that filled it.
+      out.dx.Update(darcy.GetOffsets());
+      out.dx = dx;
+      out.dtr = dtr;
+   }
 
    dh->NPCResidual(b, x, x_tr, r, r_tr);
    out.n1 = full_norm(r, r_tr);
-
-   out.dx.Update(darcy.GetOffsets());
-   out.dx = dx;
-   out.dtr = dtr;
+   out.aibt_solves = DarcyHybridization::GetBatchedAiBtSolves();
+   out.face_fills = DarcyHybridization::GetBatchedFaceFills();
 }
 
 /// One NPC Newton step on a LocalOpType::FluxNL problem.
@@ -895,6 +936,105 @@ TEST_CASE("The batched routes agree with the loop in LocalOpType::FluxNL",
    REQUIRE(ref.n0 > 1e-3);
    REQUIRE(ref.n1 < 1e-9 * ref.n0);
 
+   RequireSame(ref.dtr, got.dtr);
+   RequireSame(ref.dx.GetBlock(0), got.dx.GetBlock(0));
+   RequireSame(ref.dx.GetBlock(1), got.dx.GetBlock(1));
+}
+
+TEST_CASE("The batched factorisation and the condensation cache compose",
+          "[DarcyHybridization][BatchedLinAlg][NPC]")
+{
+   using namespace darcy_batched_factor;
+   using LFM = DarcyHybridization::LocalFactorMode;
+
+   // **These two used to be alternatives, and the reason was storage rather
+   // than arithmetic.** CanCacheCondensation() refused LocalFactorMode::
+   // Batched outright, on the grounds that the batched factorisation owns
+   // A^-1(-/+B^T) and the Schur complement and hands them in. But under
+   // LocalOpType::PotNL that route does not refactor A at all, the Schur
+   // complement moves with D and is cacheable in neither route, and the one
+   // thing it recomputes needlessly every gradient is A^-1(-/+B^T) -- which
+   // is precisely what the cache holds. ComputeH() now hands the routine the
+   // cache's own buffer, so there is one owner, and the second gradient
+   // replays instead of solving.
+   //
+   // Three things must hold at once to reach the cache at all, which is why
+   // nothing else in this file can ask this: NPC, because lop_type is
+   // inferred only inside Finalize()'s NPCEnabled() branch and a plain
+   // hybridized solve is therefore never PotNL; a LINEAR face constraint, a
+   // non-linear one rewriting E, G and H at every gradient and being refused
+   // for its own reason; and more than one Newton step, without which the
+   // fill is exercised and the replay is not.
+   const int order = GENERATE(0, 1, 2);
+   const int mixed = GENERATE(0, 1);
+   CAPTURE(order, mixed);
+
+   // Two shapes, because they take different routes through ComputeH() and
+   // only one of them was ever going to be reachable. A uniform mesh batches
+   // the factorisation AND the face-pair loop, so the cache serves only the
+   // AiBt half there. The mixed mesh is 8 triangles and 12 squares: at order
+   // 0 both carry one potential dof so the BLOCKS are uniform and the
+   // factorisation batches, while the face COUNTS differ so the face-pair
+   // kernel refuses and the serial loop runs with the cache in full.
+   auto make = [&]()
+   {
+      return mixed ? Mesh("../../data/square-mixed.mesh", 1, 1)
+             : Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   };
+   Mesh mesh_a = make(), mesh_b = make();
+
+   const int steps = 2;
+   Mesh mesh_c = make();
+   NPCOutcome ref, got, one;
+   NPCStep(mesh_a, order, 5.0, LFM::Serial, ref,
+           DarcyHybridization::GradientMode::Assembled, true, steps);
+   NPCStep(mesh_b, order, 5.0, LFM::Batched, got,
+           DarcyHybridization::GradientMode::Assembled, true, steps);
+   // The SAME configuration at one step, which is what turns the counts below
+   // into a statement about the replay rather than about the mesh: a second
+   // gradient must cost no further fill of either half.
+   NPCStep(mesh_c, order, 5.0, LFM::Batched, one,
+           DarcyHybridization::GradientMode::Assembled, true, 1);
+
+   // The control. Without it this passes on a configuration that is not
+   // cacheable for some unrelated reason -- which is what the linear
+   // fixture's mixed-mesh section is, NPC being absent there.
+   REQUIRE(ref.can_cache);
+
+   // The point: asking for the batched factorisation no longer costs it.
+   REQUIRE(got.can_cache);
+
+   // And the batched route really is taken where it can be, so the line above
+   // is not passing because nothing batched.
+   REQUIRE(got.can_batch_solve == (mixed == 0 || order == 0));
+
+   // There has to be a step to compare.
+   CAPTURE(ref.n0, ref.n1);
+   REQUIRE(ref.n0 > 1e-3);
+
+   // **The count, because the answer cannot tell a replay from a solve.**
+   // Where the batched factorisation runs, two gradients cost ONE solve: the
+   // second replays out of the cache. Where it is refused on storage -- the
+   // mixed mesh at order >= 1 -- it never solves at all, and the per-element
+   // loop fills the same cache instead. The serial arm never enters that
+   // routine in either case, which is the other half of the reading.
+   REQUIRE(ref.aibt_solves == 0);
+   REQUIRE(ref.face_fills == 0);
+   REQUIRE(got.aibt_solves == (got.can_batch_solve ? 1 : 0));
+
+   // **A second gradient fills nothing**, which is the whole claim and is
+   // independent of how many chunks the mesh happens to make.
+   REQUIRE(got.aibt_solves == one.aibt_solves);
+   REQUIRE(got.face_fills == one.face_fills);
+
+   // And the face half is genuinely exercised where its route runs -- a
+   // uniform mesh takes the batched face-pair kernel, the mixed one does not
+   // (its face COUNTS differ, so BuildElementHFaceMap refuses) and there the
+   // serial loop fills the other set of buffers instead.
+   if (mixed == 0) { REQUIRE(one.face_fills > 0); }
+   else { REQUIRE(one.face_fills == 0); }
+
+   // The replayed step, bit for bit against the arm that recomputes it.
    RequireSame(ref.dtr, got.dtr);
    RequireSame(ref.dx.GetBlock(0), got.dx.GetBlock(0));
    RequireSame(ref.dx.GetBlock(1), got.dx.GetBlock(1));

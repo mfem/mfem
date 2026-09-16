@@ -2995,14 +2995,14 @@ void HDGPackElementH(const Vector &Hfull, int nc, int nf, int nel,
    });
 }
 
-bool DarcyHybridization::FactorElementsBatched(ComputeHMode mode,
-                                               Vector &AiBt_all) const
+bool DarcyHybridization::BatchedLocalFactorStorage(int &na, int &nd) const
 {
+   na = nd = 0;
    if (lfac_mode != LocalFactorMode::Batched) { return false; }
 
    const int NE = fes.GetNE();
-   const int na = UniformBlockSize(Af_f_offsets, NE);
-   const int nd = UniformBlockSize(Df_f_offsets, NE);
+   na = UniformBlockSize(Af_f_offsets, NE);
+   nd = UniformBlockSize(Df_f_offsets, NE);
    // The same STORAGE conditions CanBatchLocalSolve() asks for, and for the
    // same reason: what the DenseTensor views need is one block size and the
    // el*n*n layout, not a particular local operator. A zero size is uniform
@@ -3012,6 +3012,133 @@ bool DarcyHybridization::FactorElementsBatched(ComputeHMode mode,
        Df_data.Size() != Df_offsets.Last() ||
        Bf_data.Size() != Bf_offsets.Last()) { return false; }
 
+   return true;
+}
+
+/** @brief The blocks of ComputeElementH() that do not move across a Newton
+    loop; see the declaration for which they are and why.
+
+    Laid out per element with a base offset and a running pointer, rather than
+    one offset array per face, because the fill and the read walk the faces in
+    the same order and a running pointer is then exact whatever the widths.
+    That matters: a per-face trace width is not constant under p-adaptivity. */
+struct DarcyHybridization::CondensationCache
+{
+   Array<int> aict_el;   ///< element -> base offset into AiCt_all
+   Array<int> bc_el;     ///< element -> base offset into BAiCt_all / CAiBt_all
+   Array<int> pair_el;   ///< element -> base offset into CAiCt_all
+   Vector AiBt_all;      ///< A^-1 (-/+B^T), na*nd per element
+   Vector AiCt_all;      ///< A^-1 C^T, na*nc per element face
+   Vector BAiCt_all;     ///< B A^-1 C^T - E, nd*nc per element face
+   Vector CAiBt_all;     ///< C A^-1 B^T + G, nc*nd per element face
+   Vector CAiCt_all;     ///< C A^-1 C^T, nc*nc per element face PAIR
+   Array<char> filled;   ///< per element; the loop fills its own slice
+   /** @brief Whether @a AiBt_all is filled, which is a SEPARATE question from
+       @a filled and needs its own flag.
+
+       @a filled is per element and is about the face half, written at the end
+       of ComputeElementH(). FactorElementsBatched() fills AiBt for the whole
+       mesh in one call and never reaches that loop, so one flag cannot serve
+       both: a batched factorisation would otherwise have to claim the face
+       products it has not computed. */
+   bool aibt_filled = false;
+
+   /** @brief The face-pair half again, in the BATCHED route's layout.
+
+       Separate buffers rather than shared ones, and the reason is layout and
+       not caution. The serial route stores a face's block at
+       `cofs[f]*<rows>` -- a concatenation of nf blocks -- while the kernel
+       wants one (rows, T, nel) tensor per chunk, whose column j spans every
+       face. For BAiCt the two coincide; for C A^-1 B^T + G and for the pair
+       block they do not, and converting between them every gradient would
+       cost more than the solve being saved. Only one of the two routes ever
+       runs for a given mesh, so only one set is ever filled.
+
+       What is kept is what does NOT move across a Newton loop: the bracket
+       (B A^-1 C^T - E) before S^-1 is applied to it, (C A^-1 B^T + G), and
+       -C A^-1 C^T before the state-dependent product is added on top. The
+       Schur solve and that product are all a replayed gradient does. */
+   Vector bt_bracket;    ///< (nd, T) per element
+   Vector bt_CAiBt;      ///< (T, nd) per element
+   Vector bt_Hconst;     ///< (T, T) per element, -C A^-1 C^T only
+   Array<char> bt_filled;///< per element; a chunk fills its own slice
+
+   /// Size the batched slices for this mesh, once; @a T is nf*nc.
+   void SizeBatched(int NE, int nd, int T)
+   {
+      if (bt_filled.Size() == NE &&
+          bt_bracket.Size() == NE*nd*T &&
+          bt_CAiBt.Size() == NE*T*nd &&
+          bt_Hconst.Size() == NE*T*T) { return; }
+      /* **The MemoryType is named, and UseDevice() is not enough to get it.**
+         Vector::SetSize(int) PRESERVES the memory type it already has --
+         MemoryType::HOST on a fresh Vector -- and UseDevice() sets a flag
+         without changing it, so the buffer comes out an unregistered host
+         block. An alias Memory into an unregistered base is unregistered too,
+         and Memory::CopyFrom() then takes its `neither is Registered` branch,
+         which is a straight memcpy between two host pointers. Under
+         Device("debug") one of those pages is protected and it segfaults.
+
+         Measured rather than reasoned, and it took a backtrace: with
+         UseDevice() alone this faults on the REPLAY at
+         `Hfull = Hconst_c`, and at order 0 it silently returns a trace
+         operator of 24 nonzeros where the first gradient gave 132. With no
+         Device configured GetDeviceMemoryType() is HOST, so a host build
+         allocates exactly as it did before. */
+      const MemoryType dmt = Device::GetDeviceMemoryType();
+      bt_bracket.UseDevice(true);
+      bt_CAiBt.UseDevice(true);
+      bt_Hconst.UseDevice(true);
+      bt_bracket.SetSize(NE*nd*T, dmt);
+      bt_CAiBt.SetSize(NE*T*nd, dmt);
+      bt_Hconst.SetSize(NE*T*T, dmt);
+      bt_filled.SetSize(NE);
+      bt_filled = 0;
+   }
+};
+
+// Defined here rather than beside SerialHWorkspace because
+// FactorElementsBatched() below reads it: the batched factorisation
+// fills the cache's AiBt now instead of a local of ComputeH().
+namespace
+{
+/** @brief How many times FactorElementsBatched() has actually SOLVED for
+    A^-1(-/+B^T), as against replaying it from the condensation cache.
+
+    File static rather than a member, for the reason GetComputeHTime()'s
+    accumulator gives: a data member here is a class-layout change that every
+    translation unit including mfem.hpp sees. It exists because a cache cannot
+    be told from a recomputation by its answer -- that is what a cache IS --
+    so the only way to know the replay fires is to count. */
+long &BatchedAiBtSolves() { static long n = 0; return n; }
+/// The same, for the batched face-pair route's constant products.
+long &BatchedFaceFills() { static long n = 0; return n; }
+}
+
+long DarcyHybridization::GetBatchedAiBtSolves()
+{
+   return BatchedAiBtSolves();
+}
+
+long DarcyHybridization::GetBatchedFaceFills()
+{
+   return BatchedFaceFills();
+}
+
+void DarcyHybridization::ResetBatchedCacheCounts()
+{
+   BatchedAiBtSolves() = 0;
+   BatchedFaceFills() = 0;
+}
+
+bool DarcyHybridization::FactorElementsBatched(ComputeHMode mode,
+                                               Vector &AiBt_all,
+                                               CondensationCache *cc) const
+{
+   int na, nd;
+   if (!BatchedLocalFactorStorage(na, nd)) { return false; }
+
+   const int NE = fes.GetNE();
    const bool gradient = (mode != ComputeHMode::Linear);
    // Where the Schur complement goes -- the question ComputeElementH() asks,
    // and for the reason written there: in FluxNL, Df_data holds the factored
@@ -3034,19 +3161,34 @@ bool DarcyHybridization::FactorElementsBatched(ComputeHMode mode,
    // AiBt = A^-1 times the negated (0,1) block, one element's (na, nd) block
    // at Bf_offsets[el] -- the same slot B fills transposed, and the shape Bnl
    // is already stored in.
-   AiBt_all.SetSize(na*nd*NE);
-   AiBt_all.UseDevice(true);
-   TransposeBlocksScaled(Bf_data, na, nd, NE, (bsym)?(1.):(-1.), AiBt_all);
-   if (gradient && !Bnl_empty && Bnl_data.Size() == Bf_offsets.Last())
+   //
+   // **And it does not move across a Newton loop when @a cc says so**, which
+   // is the whole of the cache's overlap with this routine: A is constant
+   // under PotNL (nothing above refactors it) and B is the linear divergence
+   // block, so this product is state-independent and the caller has handed us
+   // its own storage to leave it in. CanCacheCondensation() requires
+   // Bnl_empty, so the subtraction below cannot be live when @a cc is.
+   if (!cc || !cc->aibt_filled)
    {
-      // The guard GetBnlMatrix() applies per element, applied once -- neither
-      // half of it depends on the element.
-      Vector Bnl_v;
-      Bnl_v.NewMemoryAndSize(Bnl_data.GetMemory(), Bnl_data.Size(), false);
-      Bnl_v.UseDevice(true);
-      AiBt_all -= Bnl_v;
+      MFEM_ASSERT(!cc || Bnl_empty,
+                  "a cached AiBt cannot carry a state-dependent (0,1) block");
+      AiBt_all.SetSize(na*nd*NE);
+      AiBt_all.UseDevice(true);
+      TransposeBlocksScaled(Bf_data, na, nd, NE, (bsym)?(1.):(-1.), AiBt_all);
+      if (gradient && !Bnl_empty && Bnl_data.Size() == Bf_offsets.Last())
+      {
+         // The guard GetBnlMatrix() applies per element, applied once --
+         // neither half of it depends on the element.
+         Vector Bnl_v;
+         Bnl_v.NewMemoryAndSize(Bnl_data.GetMemory(), Bnl_data.Size(), false);
+         Bnl_v.UseDevice(true);
+         AiBt_all -= Bnl_v;
+      }
+      BatchedLinAlg::LUSolve(A, Af_ipiv, AiBt_all);
+      BatchedAiBtSolves()++;
+      if (cc) { cc->aibt_filled = true; }
    }
-   BatchedLinAlg::LUSolve(A, Af_ipiv, AiBt_all);
+   MFEM_ASSERT(AiBt_all.Size() == na*nd*NE, "the replayed AiBt is the wrong size");
 
    // Construct and decompose the Schur complement
    DenseTensor B;
@@ -3129,7 +3271,7 @@ bool DarcyHybridization::BuildElementHFaceMap(int na, int nd, bool with_h,
 void DarcyHybridization::ComputeElementsHBatched(
    ComputeHMode mode, int el_0, int nel, int na, int nd, int nf, int nc,
    const Vector &AiBt_all, const Array<int> &face_map,
-   ElementHWorkspace &ws, Vector &Hel) const
+   ElementHWorkspace &ws, Vector &Hel, CondensationCache *cc) const
 {
    const bool gradient = (mode != ComputeHMode::Linear);
    const bool with_eg = (c_bfi_p || mode == ComputeHMode::Gradient);
@@ -3172,52 +3314,113 @@ void DarcyHybridization::ComputeElementsHBatched(
    // enough is free; see ElementHWorkspace for what making these locals cost.
    Vector &Ct_el = ws.Ct, &AiCt = ws.AiCt, &BAiCt = ws.BAiCt,
            &CAiBt = ws.CAiBt, &Hfull = ws.Hfull;
-   Ct_el.SetSize(na*T*nel);
-   AiCt.SetSize(na*T*nel);
    BAiCt.SetSize(nd*T*nel);
    CAiBt.SetSize(T*nd*nel);
    Hfull.SetSize(T*T*nel);
 
-   HDGGatherFaceCols(Ct_data, face_map, 0, na, nc, nf, el_0, nel, Ct_el);
-
-   // A^-1 C^T, for every face of every element of the chunk in one solve.
-   AiCt = Ct_el;
-   BatchedLinAlg::LUSolve(A, A_ipiv, AiCt);
-
-   // S^-1 (B A^-1 C^T - E). The subtraction is its own pass and is NOT folded
-   // into the AddMult's beta: AddMult scales y before accumulating, so a
-   // pre-loaded -E would have the product summed on top of it, where the
-   // element loop sums the product and then subtracts. See MultInvBatched().
-   BatchedLinAlg::AddMult(B, AiCt, BAiCt, 1.0, 0.0);
-   if (with_eg)
+   /** **The chunk's slices of the condensation cache.** Alias Memory views
+       and never GetData(): a raw host pointer into a buffer a kernel wrote
+       is the defect this file records twice, and every read and write below
+       is a whole-Vector assignment, which Vector::operator= performs on
+       whichever side the data is valid -- it calls Write() on the destination
+       when either side has UseDevice, so a device build copies device to
+       device and a host build copies on the host. Neither route ever takes an
+       address here. */
+   Vector bracket_c, CAiBt_c, Hconst_c;
+   bool replay = false;
+   if (cc)
    {
-      Vector &E_el = ws.EG;
-      E_el.SetSize(nd*T*nel);
-      HDGGatherFaceCols(E_data, face_map, 1, nd, nc, nf, el_0, nel, E_el);
-      BAiCt -= E_el;
+      cc->SizeBatched(fes.GetNE(), nd, T);
+      Memory<real_t> br_mem(cc->bt_bracket.GetMemory(), el_0*nd*T, nel*nd*T);
+      bracket_c.NewMemoryAndSize(br_mem, nel*nd*T, false);
+      bracket_c.UseDevice(true);
+      Memory<real_t> cb_mem(cc->bt_CAiBt.GetMemory(), el_0*T*nd, nel*T*nd);
+      CAiBt_c.NewMemoryAndSize(cb_mem, nel*T*nd, false);
+      CAiBt_c.UseDevice(true);
+      Memory<real_t> hc_mem(cc->bt_Hconst.GetMemory(), el_0*T*T, nel*T*T);
+      Hconst_c.NewMemoryAndSize(hc_mem, nel*T*T, false);
+      Hconst_c.UseDevice(true);
+      // Keyed on the chunk's first element. Chunk boundaries are a function
+      // of the mesh size alone (AssemblyChunkSize), so they are the same on
+      // every gradient and a chunk is filled or not as a whole.
+      replay = (cc->bt_filled[el_0] != 0);
    }
+
+   if (!replay)
+   {
+      Ct_el.SetSize(na*T*nel);
+      AiCt.SetSize(na*T*nel);
+
+      HDGGatherFaceCols(Ct_data, face_map, 0, na, nc, nf, el_0, nel, Ct_el);
+
+      // A^-1 C^T, for every face of every element of the chunk in one solve.
+      AiCt = Ct_el;
+      BatchedLinAlg::LUSolve(A, A_ipiv, AiCt);
+
+      // S^-1 (B A^-1 C^T - E). The subtraction is its own pass and is NOT
+      // folded into the AddMult's beta: AddMult scales y before accumulating,
+      // so a pre-loaded -E would have the product summed on top of it, where
+      // the element loop sums the product and then subtracts. See
+      // MultInvBatched().
+      BatchedLinAlg::AddMult(B, AiCt, BAiCt, 1.0, 0.0);
+      if (with_eg)
+      {
+         Vector &E_el = ws.EG;
+         E_el.SetSize(nd*T*nel);
+         HDGGatherFaceCols(E_data, face_map, 1, nd, nc, nf, el_0, nel, E_el);
+         BAiCt -= E_el;
+      }
+      // The BRACKET, taken before S^-1 is applied to it: S moves with D and
+      // this does not.
+      if (cc) { bracket_c = BAiCt; }
+   }
+   else
+   {
+      BAiCt = bracket_c;
+   }
+
    BatchedLinAlg::LUSolve(S, S_ipiv, BAiCt);
 
-   // The tensor views of the two products come after the writes that fill
-   // them, and that is load-bearing on a device: a DenseTensor holds a COPY
-   // of the Memory, so it carries the validity flags as they stood when it
-   // was made. FactorElementsBatched() states the same thing from the other
-   // end, where it has to Sync() back.
-   DenseTensor Ct_t;
-   Ct_t.NewMemoryAndSize(Ct_el.GetMemory(), na, T, nel, false);
-
-   // -C A^-1 C^T
-   BatchedLinAlg::AddMult(Ct_t, AiCt, Hfull, 1.0, 0.0, BatchedLinAlg::Op::T);
-   Hfull.Neg();
-
-   // C A^-1 B^T + G
-   BatchedLinAlg::AddMult(Ct_t, AiBt, CAiBt, 1.0, 0.0, BatchedLinAlg::Op::T);
-   if (with_eg)
+   if (!replay)
    {
-      Vector &G_el = ws.EG;
-      G_el.SetSize(T*nd*nel);
-      HDGGatherFaceRows(G_data, face_map, 1, nc, nd, nf, el_0, nel, G_el);
-      CAiBt += G_el;
+      // The tensor views of the two products come after the writes that fill
+      // them, and that is load-bearing on a device: a DenseTensor holds a
+      // COPY of the Memory, so it carries the validity flags as they stood
+      // when it was made. FactorElementsBatched() states the same thing from
+      // the other end, where it has to Sync() back.
+      DenseTensor Ct_t;
+      Ct_t.NewMemoryAndSize(Ct_el.GetMemory(), na, T, nel, false);
+
+      // -C A^-1 C^T
+      BatchedLinAlg::AddMult(Ct_t, AiCt, Hfull, 1.0, 0.0, BatchedLinAlg::Op::T);
+      Hfull.Neg();
+      // Snapshot HERE and not after the product below, so that a replayed
+      // chunk adds the state-dependent term to the same starting value in the
+      // same order. Folding the H diagonal in as well would reassociate a
+      // three-term sum and cost the bitwise agreement with the element loop
+      // that test_darcy_batched_factor.cpp asserts.
+      if (cc) { Hconst_c = Hfull; }
+
+      // C A^-1 B^T + G
+      BatchedLinAlg::AddMult(Ct_t, AiBt, CAiBt, 1.0, 0.0, BatchedLinAlg::Op::T);
+      if (with_eg)
+      {
+         Vector &G_el = ws.EG;
+         G_el.SetSize(T*nd*nel);
+         HDGGatherFaceRows(G_data, face_map, 1, nc, nd, nf, el_0, nel, G_el);
+         CAiBt += G_el;
+      }
+      if (cc)
+      {
+         CAiBt_c = CAiBt;
+         for (int e = el_0; e < el_0 + nel; e++) { cc->bt_filled[e] = 1; }
+         BatchedFaceFills()++;
+      }
+   }
+   else
+   {
+      Hfull = Hconst_c;
+      CAiBt = CAiBt_c;
    }
 
    DenseTensor CAiBt_t;
@@ -3261,29 +3464,9 @@ struct DarcyHybridization::SerialHWorkspace
        not live, which owns that buffer itself; BAiCt_all always is, the S
        solve being in place and the cache's bracket having to survive it. */
    Vector AiCt_all, BAiCt_all;
-
    Array<int> cofs;     ///< where each face's block starts in @a CAiBt_all
 };
 
-/** @brief The blocks of ComputeElementH() that do not move across a Newton
-    loop; see the declaration for which they are and why.
-
-    Laid out per element with a base offset and a running pointer, rather than
-    one offset array per face, because the fill and the read walk the faces in
-    the same order and a running pointer is then exact whatever the widths.
-    That matters: a per-face trace width is not constant under p-adaptivity. */
-struct DarcyHybridization::CondensationCache
-{
-   Array<int> aict_el;   ///< element -> base offset into AiCt_all
-   Array<int> bc_el;     ///< element -> base offset into BAiCt_all / CAiBt_all
-   Array<int> pair_el;   ///< element -> base offset into CAiCt_all
-   Vector AiBt_all;      ///< A^-1 (-/+B^T), na*nd per element
-   Vector AiCt_all;      ///< A^-1 C^T, na*nc per element face
-   Vector BAiCt_all;     ///< B A^-1 C^T - E, nd*nc per element face
-   Vector CAiBt_all;     ///< C A^-1 B^T + G, nc*nd per element face
-   Vector CAiCt_all;     ///< C A^-1 C^T, nc*nc per element face PAIR
-   Array<char> filled;   ///< per element; the loop fills its own slice
-};
 
 bool DarcyHybridization::CanCacheCondensation() const
 {
@@ -3306,9 +3489,27 @@ bool DarcyHybridization::CanCacheCondensation() const
    if (!boundary_constraint_pot_nonlin_integs.empty()) { return false; }
    if (!boundary_constraint_nonlin_integs.empty()) { return false; }
 
-   // The batched factorisation owns AiBt and the Schur complement itself and
-   // hands them in; caching underneath it would be two owners of one buffer.
-   if (lfac_mode == LocalFactorMode::Batched) { return false; }
+   // **LocalFactorMode::Batched is NOT a refusal, and this is where that
+   // changed.** It used to be one, on the grounds that "the batched
+   // factorisation owns AiBt and the Schur complement itself and hands them
+   // in; caching underneath it would be two owners of one buffer". That was a
+   // true description of the STORAGE and never of the arithmetic: under
+   // PotNL, A is not refactored on a gradient at all (FactorElementsBatched()
+   // has the same guard), the Schur complement genuinely moves with D and is
+   // not cacheable in either route, and the one thing that route recomputes
+   // needlessly is A^-1(-/+B^T) -- which is exactly what this cache holds.
+   //
+   // The ownership question is answered by ComputeH() handing that routine
+   // the cache's own buffer as its destination, so there is one owner and the
+   // second gradient replays instead of solving. The layouts were already the
+   // same: both index element el at Bf_offsets[el], and the batched route
+   // refuses unless Bf_data.Size() == Bf_offsets.Last().
+   //
+   // What does NOT compose yet is the face half under the batched face-pair
+   // kernel: ComputeElementsHBatched() takes no cache and recomputes A^-1C^T,
+   // the bracket and the two products every gradient. A mesh that batches the
+   // factorisation but not the face loop -- mixed elements at order 0, where
+   // the blocks are uniform but the face COUNTS are not -- gets both halves.
 
    return fes.GetNE() > 0;
 }
@@ -3351,7 +3552,12 @@ DarcyHybridization::EnsureCondensationCache() const
       c->pair_el[el+1] = c->pair_el[el] + pair_sum;
    }
 
-   c->AiBt_all.SetSize(Bf_offsets.Last());
+   // UseDevice first, for the reason SizeBatched() gives at length: the
+   // batched factorisation writes this with a kernel and
+   // ComputeElementsHBatched() then reads it through an alias Memory, and an
+   // alias into an unregistered host block cannot carry device validity.
+   c->AiBt_all.UseDevice(true);
+   c->AiBt_all.SetSize(Bf_offsets.Last(), Device::GetDeviceMemoryType());
    c->AiCt_all.SetSize(c->aict_el.Last());
    c->BAiCt_all.SetSize(c->bc_el.Last());
    c->CAiBt_all.SetSize(c->bc_el.Last());
@@ -4733,10 +4939,32 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
    // schedule, and the entries themselves are what the sum is over.
    const int chunk = AssemblyChunkSize(NE);
 
+   // **The cache is acquired BEFORE the factorisation, because the
+   // factorisation is one of its consumers.** It used to be taken inside the
+   // chunk loop and only when `!prefactored`, which is what made the batched
+   // local factorisation and the cache alternatives; the batched routine now
+   // fills A^-1(-/+B^T) into the cache's own buffer on the first gradient and
+   // replays it afterwards. See CanCacheCondensation().
+   //
+   // Still `assemble`: ComputeHMode::GradientFactorOnly returns before the
+   // face loop, so the per-element `filled` flags would be set on a pass that
+   // never computed the face half. That costs a MatrixFree gradient the AiBt
+   // replay it could otherwise have, which needs the two flags separated at
+   // the call site and is not this step.
+   CondensationCache * const cc =
+      (mode == ComputeHMode::Gradient && assemble)
+      ? EnsureCondensationCache() : NULL;
+
    // Every element's factorisation and Schur complement in one batch, when
    // that is asked for; the loop below then does the face pairs only.
-   Vector AiBt_all;
-   const bool prefactored = FactorElementsBatched(mode, AiBt_all);
+   //
+   // The destination is the cache's buffer when there is one, so that the
+   // routine has somewhere to leave the product rather than aliasing a local
+   // -- an alias would carry its own host/device validity flags, which is a
+   // defect this file records twice.
+   Vector AiBt_local;
+   Vector &AiBt_all = cc ? cc->AiBt_all : AiBt_local;
+   const bool prefactored = FactorElementsBatched(mode, AiBt_all, cc);
 
    // And the FACE-PAIR loop batches with it, when the mesh gives one face
    // count per element and one trace size per face. That turns the whole of
@@ -4841,21 +5069,12 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
          MFEM_ASSERT(Hel_offsets[nel] == nel*nf*nc*nf*nc,
                      "the batched face-pair loop needs one trace size");
          ComputeElementsHBatched(mode, el_0, nel, na, nd, nf, nc, AiBt_all,
-                                 face_map, ws, Hel_data);
+                                 face_map, ws, Hel_data, cc);
       }
       else
       {
          real_t * const Hbuf =
             (Hel_data.Size() > 0) ? Hel_data.HostWrite() : NULL;
-
-         // Outside the parallel region below, deliberately; see
-         // ComputeElementH(). Only on the assembling gradient: Linear runs
-         // once so there is nothing to amortise, and GradientFactorOnly
-         // returns before the face loop and would leave the per-face half
-         // unfilled with the `filled` flag already set.
-         CondensationCache * const cc =
-            (mode == ComputeHMode::Gradient && assemble && !prefactored)
-            ? EnsureCondensationCache() : NULL;
 
 #ifdef MFEM_USE_OPENMP
          #pragma omp parallel if (asm_mode == AssemblyMode::Threaded)
