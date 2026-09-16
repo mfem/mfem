@@ -2795,8 +2795,6 @@ StokesSolver::VectorAttributeCoefficientMap::AsCoefficient() const
                        owner_->velocity_space_.GetVDim()));
    for (auto &entry : coefficients_)
    {
-      //std::cout<<"coef v dim = " << entry.second->GetVDim() << std::endl;
-      //std::cout<<"piecewise v dim = " << piecewise_->GetVDim() << std::endl;
       piecewise_->UpdateCoefficient(entry.first, *entry.second);
    }
    return *piecewise_;
@@ -3342,13 +3340,11 @@ void StokesSolver::Solve(BlockVector &solution) const
       acceleration_form_.reset(new ParLinearForm(&velocity_space_));
       if (!acceleration_.Empty())
       {
-         std::cout << "its the acceleration " << std::endl;
          acceleration_form_->AddDomainIntegrator(
             new VectorDomainLFIntegrator(acceleration_.AsCoefficient(),
                                          &GetIntegrationRule(
                                             velocity_space_.GetParMesh()
                                             ->GetElementGeometry(0))));
-         std::cout << "done acceleration " << std::endl;
       }
       rhs_dirty_ = false;
    }
@@ -3358,6 +3354,49 @@ void StokesSolver::Solve(BlockVector &solution) const
    acceleration_form_->ParallelAssemble(rhs_velocity_);
    rhs_pressure_.SetSize(pressure_space_.GetTrueVSize());
    rhs_pressure_ = 0.0;
+   // ---------------- NEW RHS ELIMINATION CODE ----------------
+   if (!velocity_boundary_ids_.empty() || !pressure_boundary_ids_.empty())
+   {
+      // 1. Prepare Local (L-vector) boundary states
+      Vector v_local(velocity_space_.GetVSize());
+      v_local = 0.0;
+      if (velocity_boundary_gf_) v_local = *velocity_boundary_gf_;
+
+      Vector p_local(pressure_space_.GetVSize());
+      p_local = 0.0;
+      if (pressure_boundary_gf_) p_local = *pressure_boundary_gf_;
+
+      // 2. Evaluate unconstrained action on the L-vectors
+      Vector y_v_local(velocity_space_.GetVSize());
+      velocity_form_->Mult(v_local, y_v_local);
+
+      Vector y_p_local(velocity_space_.GetVSize());
+      divergence_form_->MultTranspose(p_local, y_p_local);
+
+      Vector y_div_local(pressure_space_.GetVSize());
+      divergence_form_->Mult(v_local, y_div_local);
+
+      // 3. Restrict back to True-DOFs using the Prolongation Transpose (P^T)
+      Vector y_v_true(velocity_space_.GetTrueVSize());
+      const Operator *Pv = velocity_space_.GetProlongationMatrix();
+      if (Pv) Pv->MultTranspose(y_v_local, y_v_true);
+      else y_v_true = y_v_local;
+
+      Vector y_p_true(velocity_space_.GetTrueVSize());
+      if (Pv) Pv->MultTranspose(y_p_local, y_p_true);
+      else y_p_true = y_p_local;
+
+      Vector y_div_true(pressure_space_.GetTrueVSize());
+      const Operator *Pp = pressure_space_.GetProlongationMatrix();
+      if (Pp) Pp->MultTranspose(y_div_local, y_div_true);
+      else y_div_true = y_div_local;
+
+      // 4. Subtract boundary forcing from the interior RHS
+      rhs_velocity_ -= y_v_true;
+      rhs_velocity_ -= y_p_true;
+      rhs_pressure_ += y_div_true;
+   }
+   // ----------------------------------------------------------
    rhs_block_.Update(block_offsets_);
    rhs_block_.GetBlock(0) = rhs_velocity_;
    rhs_block_.GetBlock(1) = rhs_pressure_;

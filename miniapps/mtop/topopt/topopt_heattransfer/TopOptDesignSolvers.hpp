@@ -17,18 +17,18 @@ class DesignSolver
 {
    private:
    // Finite Element Spaces
-   ParFiniteElementSpace state_fes;
+   ParFiniteElementSpace qoi_fes;
    ParFiniteElementSpace filter_fes;
    ParFiniteElementSpace control_fes;
-
+ 
    // Physics Operator
-   std::unique_ptr<MixedMultiPhysicsOperator> oper;
+   std::unique_ptr<MixedMultiPhysicsOperator> oper;  
 
    std::vector<real_t> times;
 
    // Design Optimization
    toopt::PDEFilter &filter;
-   HeatTransferObjectiveFunction &objective;
+   HeatTransferObjectiveFunction &objective;   
    Vector dJ_drho_tilde;
 
    // Time Integration 
@@ -37,9 +37,12 @@ class DesignSolver
    real_t t_final;
    ParGridFunction &rho;         // working density (also the driver's ParaView field)
    ParGridFunction &rho_tilde;   // filtered density
-   GridFunctionCoefficient q0;          // initial condition
-   ParGridFunction q_gf;
-   HypreParVector *q_vec;
+   ParGridFunction qoi_gf; // to pass into objective
+   BlockVector state_vec;
+   BlockVector lam_vec;
+
+   GridFunctionCoefficient q0;
+   const Array<int> offsets;
 
 
    bool paraview_vis;
@@ -52,9 +55,9 @@ class DesignSolver
    int imex_integrator;
 
    public:
-   DesignSolver(ParFiniteElementSpace &state_fes_,
+   DesignSolver(ParFiniteElementSpace &qoi_fes_,
                          ParFiniteElementSpace &filter_fes_,
-                         ParFiniteElementSpace &control_fes_,
+                         ParFiniteElementSpace &control_fes_,  
                          std::unique_ptr<MixedMultiPhysicsOperator> &oper_, 
                          toopt::PDEFilter &filter_,
                          HeatTransferObjectiveFunction &objective_,
@@ -63,27 +66,27 @@ class DesignSolver
                          ParGridFunction &rho_,
                          ParGridFunction &rho_tilde_,
                          int imex_integrator_, int vis_steps_, MPI_Comm comm_)
-      : state_fes(state_fes_), filter_fes(filter_fes_), control_fes(control_fes_),
+      : qoi_fes(qoi_fes_), filter_fes(filter_fes_), control_fes(control_fes_),
         filter(filter_),
         objective(objective_),  q0(q0_),
         nsteps(nsteps_), dt(dt_), t_final(t_final_),
-        rho(rho_), rho_tilde(rho_tilde_), q_gf(&state_fes_), imex_integrator(imex_integrator_),
-        q_vec(nullptr), oper(std::move(oper_)), vis_steps(vis_steps_), comm(comm_)
+        rho(rho_), rho_tilde(rho_tilde_), qoi_gf(&qoi_fes_), imex_integrator(imex_integrator_),
+      oper(std::move(oper_)), vis_steps(vis_steps_), comm(comm_), offsets(oper->GetSystemOffsets())
    { 
       outer_it = 0;
       dJ_drho_tilde.SetSize(filter_fes.GetTrueVSize());
-      dJ_drho_tilde = 0.0;
-      //q_vec = new HypreParVector(&state_fes);
+      dJ_drho_tilde = 0.0;  
+      // state_vec = new BlockVector(&); 
    }
 
    ~DesignSolver() 
    { 
       //if (oper) delete oper; 
-      if (q_vec) delete q_vec;
+      //if (state_vec) delete state_vec;
    }
 
    void SetNewInitialCondition(GridFunctionCoefficient &q0_new){q0 = q0_new;}
-
+ 
    int NumSteps() const {return nsteps;}
    real_t Time_Step() const {return dt;}
    
@@ -100,23 +103,25 @@ class DesignSolver
    //    the IMEX Forward Integration, store the trajectory, return J.
    real_t PhysicsFSolve()
    {
-      // if (oper) { delete oper; oper = nullptr; }
-      oper->InitializeOperators(rho_tilde);
-      if (q_vec) { delete q_vec; q_vec = nullptr; }
+      // 1. Allocate memory owned by state_vec using the correct block offsets
+      state_vec.Update(offsets);  
+
+      // 2. Safely copy the values from the temporary object into state_vec
+      state_vec = oper->InitializeOperators(rho_tilde);
+
       std::unique_ptr<TopOptRKIMEXSolver> ode_solver = TopOptRKIMEXSolver::SelectTopOptRKIMEX(imex_integrator);
       objective.Reset();
 
-      q_gf.ProjectCoefficient(q0);
-      q_vec = q_gf.GetTrueDofs();
-
-      real_t acc = objective.AccumulateTimestep(q_gf, dt, 0, nsteps);
+      qoi_gf.SetFromTrueDofs(state_vec.GetBlock(0));
+ 
+      real_t acc = objective.AccumulateTimestep(qoi_gf, dt, 0, nsteps);
       ParaViewDataCollection *pd = NULL;
       if (paraview_vis)
       {
-         pd = new ParaViewDataCollection("forward", state_fes.GetParMesh());
+         pd = new ParaViewDataCollection("forward", qoi_fes.GetParMesh());
          pd->SetPrefixPath("ParaView");
-         pd->RegisterField("solution", &q_gf);
-         pd->SetLevelsOfDetail(state_fes.GetOrder(0)); 
+         pd->RegisterField("solution", &qoi_gf);
+         pd->SetLevelsOfDetail(qoi_fes.GetOrder(0)); 
          pd->SetDataFormat(VTKFormat::BINARY);
          pd->SetHighOrderOutput(true);
          pd->SetCycle(0);
@@ -124,38 +129,39 @@ class DesignSolver
          pd->Save();
       }
       real_t t = 0.0;
-      times.resize(nsteps);
+      times.clear(); // Clear the vector instead of using resize()
       ode_solver->Init(*oper);
       oper->SetTime(t);
       bool done = false;
-      int myrank;
-      MPI_Comm_rank(comm, &myrank);
-      for (int ti = 0; !done; )
+      if(Mpi::Root()){std::cout<<"Time: " << t << "; ||q|| = " << qoi_gf.Norml2() << std::endl;}
+      int ti = 0;
+      for (; !done; )
       {
          real_t dt_real = std::min(dt, t_final - t);  
          oper->UpdateDt(dt_real);
-         times[ti] = dt_real;
-         ode_solver->Step(*q_vec, t, dt_real);
-         q_gf.SetFromTrueDofs(*q_vec);
-         acc = objective.AccumulateTimestep(q_gf, dt_real, ti, nsteps);
+         times.push_back(dt_real);
+         ode_solver->Step(state_vec, t, dt_real);
+         qoi_gf.SetFromTrueDofs(state_vec.GetBlock(0));
+         acc = objective.AccumulateTimestep(qoi_gf, dt_real, ti, nsteps);
          ti++;
          oper->SetStep(ti);
-         oper->StoreTraj(ti, *q_vec);
+         oper->StoreTraj(ti, state_vec);
          oper->SetTime(t);
          done = (t >= t_final - 1e-8*dt); 
          if (done || ti % vis_steps == 0)
          {
-         q_gf.SetFromTrueDofs(*q_vec);
-         if (paraview_vis)
-         {
-            pd->SetCycle(ti);
-            pd->SetTime(t);
-            pd->Save();
-         }
+            if(Mpi::Root()){std::cout<<"Time: " << t << "; ||q|| = " << qoi_gf.Norml2() << std::endl;}
+            if (paraview_vis)
+            {
+               pd->SetCycle(ti);
+               pd->SetTime(t);
+               pd->Save();
+            }
          }
       }
-      q_gf.SetFromTrueDofs(*q_vec);
-      //oper->UpdateGridFuncWithStateVec(*q_vec);
+      nsteps = times.size();
+      qoi_gf.SetFromTrueDofs(state_vec.GetBlock(0));
+      delete pd;
       return objective.GetObjective();
    }
 
@@ -164,31 +170,40 @@ class DesignSolver
    {
       std::unique_ptr<TopOptRKIMEXSolver> ode_solver = TopOptRKIMEXSolver::SelectTopOptRKIMEX(imex_integrator);
       MFEM_VERIFY(oper, "PhysicsASolve() requires a preceding PhysicsFSolve().");
-      const int myid = Mpi::WorldRank();
-      ParGridFunction lam_gf(&state_fes);
-      ParLinearForm grad_form(&state_fes);
-      objective.ComputeObjectiveGradient(q_gf, times[nsteps-1], nsteps-1, nsteps,grad_form);
-      HypreParVector* grad_vec = grad_form.ParallelAssemble();
+
+      ParGridFunction lam_gf(&qoi_fes);
+      ParLinearForm grad_form(&qoi_fes);
+      objective.ComputeObjectiveGradient(qoi_gf, times[nsteps-1], nsteps-1, nsteps, grad_form);
+      Vector* grad_vec = grad_form.ParallelAssemble();
 
       // 3. Set the primal GridFunction from the True-Dofs
-      HypreParVector lam_vec = *grad_vec;
+      lam_vec.Update(oper->GetSystemOffsets());
+      lam_vec.GetBlock(0) = *grad_vec;
+      delete grad_vec;
+      for (int idx = 1; idx < oper->GetSystemOffsets().Size() - 1; idx++)
+      {
+         lam_vec.GetBlock(idx) = 0.0;
+      }
       lam_vec *= -1.0;
-      lam_gf.SetFromTrueDofs(lam_vec);
+
+      lam_gf.SetFromTrueDofs(lam_vec.GetBlock(0));
+
       oper->SetStep(nsteps);
       ode_solver->Init(*oper);
-      ParaViewDataCollection *pd_adj = NULL;
-      if (paraview_vis)
-      {
-         pd_adj = new ParaViewDataCollection("adjoint", state_fes.GetParMesh());
-         pd_adj->SetPrefixPath("ParaView");
-         pd_adj->RegisterField("solution", &lam_gf);
-         pd_adj->SetLevelsOfDetail(state_fes.GetOrder(0));
-         pd_adj->SetDataFormat(VTKFormat::BINARY);
-         pd_adj->SetHighOrderOutput(false); 
-         pd_adj->SetCycle(0);
-         pd_adj->SetTime(t_final);
-         pd_adj->Save();
-      } 
+
+      // ParaViewDataCollection *pd_adj = NULL;
+      // if (paraview_vis)
+      // {
+      //    pd_adj = new ParaViewDataCollection("adjoint", qoi_fes.GetParMesh());
+      //    pd_adj->SetPrefixPath("ParaView");
+      //    pd_adj->RegisterField("solution", &lam_gf);
+      //    pd_adj->SetLevelsOfDetail(qoi_fes.GetOrder(0));
+      //    pd_adj->SetDataFormat(VTKFormat::BINARY);
+      //    pd_adj->SetHighOrderOutput(false); 
+      //    pd_adj->SetCycle(0);
+      //    pd_adj->SetTime(t_final);
+      //    pd_adj->Save();
+      // } 
       real_t t = t_final;
       bool done = false;
       for (int ti = 0; !done;)
@@ -196,36 +211,38 @@ class DesignSolver
          real_t dti = times[nsteps-ti-1]; 
          oper->UpdateDt(dti);
          real_t t_dummy = t;
-         oper->GetTraj(oper->GetStep() - 1, *q_vec);
-         q_gf.SetFromTrueDofs(*q_vec);
-         ode_solver->AdjointStep(lam_vec,*q_vec, dJ_drho_tilde, t_dummy, dti);
-         ParLinearForm grad_form2(&state_fes);
-         objective.ComputeObjectiveGradient(q_gf, times[nsteps-ti-2], nsteps - ti - 2, nsteps, grad_form2);
-         grad_vec = grad_form2.ParallelAssemble();
-         lam_vec.Add(-1.0, *grad_vec);
-         ti++;
+         oper->GetTraj(oper->GetStep() - 1, state_vec);
+
+         BlockVector pristine_state(offsets);
+         pristine_state = state_vec;
+
+         ode_solver->AdjointStep(lam_vec, state_vec, dJ_drho_tilde, t_dummy, dti);
+         ParLinearForm grad_form2(&qoi_fes);
+         qoi_gf.SetFromTrueDofs(pristine_state.GetBlock(0));
+         int prev_step_idx = nsteps - ti - 2;
+         real_t prev_dt = (prev_step_idx >= 0) ? times[prev_step_idx] : dt;
+         objective.ComputeObjectiveGradient(qoi_gf, prev_dt, prev_step_idx, nsteps, grad_form2);
+         Vector* loop_grad_vec = grad_form2.ParallelAssemble();
+         lam_vec.GetBlock(0).Add(-1.0, *loop_grad_vec);
+         delete loop_grad_vec;
+         ti++; 
          oper->SetStep(nsteps-ti);
          t -= dti;
          oper->SetTime(t);
          done = (t <= 1e-8*dt); 
          if (done || ti % vis_steps == 0)
          {
-            if (Mpi::Root())
-            {
-               // std::cout << "time step: " << ti << ", time: " << t << ", dt = " << dti << std::endl;  
-            }
-            // lam_gf = *lambda;
-            lam_gf.SetFromTrueDofs(lam_vec);
-            if (paraview_vis)
-            {
-               pd_adj->SetCycle(ti);
-               pd_adj->SetTime(t_final-t);
-               pd_adj->Save();
-            }
+            lam_gf.SetFromTrueDofs(lam_vec.GetBlock(0));
+            // if (paraview_vis)
+            // {
+            //    pd_adj->SetCycle(ti);
+            //    pd_adj->SetTime(t_final-t);
+            //    pd_adj->Save();
+            // }
          }
       }
-      //dJ_drho_tilde = oper->GetDesignGrad();
-      delete grad_vec;
+      oper->AddStaticDesignGradient(lam_vec, dJ_drho_tilde);
+      //delete pd_adj;
    } 
 
    // 4. Adjoint filter: transpose the filter, dJ/d(rho_tilde) -> dJ/d(rho).

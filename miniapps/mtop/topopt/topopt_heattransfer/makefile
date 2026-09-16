@@ -26,13 +26,13 @@ MFEM_LIB_FILE = mfem_is_not_built
 COMMON_OBJ = $(MTOP_OBJ)
 
 # Shared source compiled into local objects
-MTOP_OBJ = mtop_solvers.o pde_filter.o MMA_MFEM.o
+MTOP_OBJ = mtop_solvers.o pde_filter.o MMA_MFEM.o diffusion_mass_solver.o
 # MMA_OBJ = MMA_MFEM.o
 # MMA_LIBS ?= -llapack -lblas
 # TRANSIENT_HEADERS = ObjectiveFunctional.hpp 
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck 2D_NatConv test_imex_heattransfer TestForwardIMEX StokesBrinkman
+PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck test_imex_heattransfer VelocityGradGradCheck CheckStokesBrinkmanGradient
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else
