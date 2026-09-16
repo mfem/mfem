@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
-   int mOrder = -1;
+   int mesh_order = -1;
    const char *per_file  = "none";
    const char *ref_file  = "";
    int ref_levels = -1;
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&mOrder, "-mo", "--mesh-order",
+   args.AddOption(&mesh_order, "-mo", "--mesh-order",
                   "Order for the isoparametric  mesh");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
@@ -246,11 +246,11 @@ int main(int argc, char *argv[])
    {
       if (mesh->NURBSext)
       {
-         int mOrder_cur = mesh->NURBSext->GetOrder();
-         if ((mOrder_cur != NURBSFECollection::VariableOrder) &&
-             (mOrder > 0))
+         const int mesh_order_cur = mesh->NURBSext->GetOrder();
+         if ((mesh_order_cur != NURBSFECollection::VariableOrder) &&
+             (mesh_order > 0))
          {
-            mesh->DegreeElevate(mOrder - mOrder_cur);
+            mesh->DegreeElevate(mesh_order - mesh_order_cur);
          }
       }
 
