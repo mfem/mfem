@@ -391,6 +391,45 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][GPU]")
    }
 }
 
+TEST_CASE("Elasticity partial assembly refreshes geometry",
+          "[AssemblyLevel][PartialAssembly][Elasticity]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec, 2, Ordering::byNODES);
+   ConstantCoefficient lambda(1.0), mu(2.0);
+
+   BilinearForm assembled(&fes);
+   assembled.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   assembled.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+
+   auto check_action = [&]()
+   {
+      assembled.Assemble();
+
+      BilinearForm reference(&fes);
+      reference.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+      reference.Assemble();
+      reference.Finalize();
+
+      GridFunction x(&fes), y_reference(&fes), y_assembled(&fes);
+      x.Randomize(1);
+      reference.Mult(x, y_reference);
+      assembled.Mult(x, y_assembled);
+      y_assembled -= y_reference;
+      REQUIRE(y_assembled.Normlinf() == MFEM_Approx(0.0));
+   };
+
+   check_action();
+   mesh.Transform([](const Vector &x_old, Vector &x_new)
+   {
+      x_new.SetSize(2);
+      x_new(0) = x_old(0) * (1.0 + 0.2*x_old(1));
+      x_new(1) = 1.25*x_old(1);
+   });
+   check_action();
+}
+
 TEST_CASE("L2 Assembly Levels", "[AssemblyLevel], [PartialAssembly], [GPU]")
 {
    const bool dg = true;
