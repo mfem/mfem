@@ -3255,6 +3255,13 @@ struct DarcyHybridization::SerialHWorkspace
    DenseMatrix AiBt, AiCt, BAiCt, CAiBt;
    /// The f2-only half of the face-PAIR loop, hoisted; see ComputeElementH().
    Vector CAiBt_all;
+   /** @brief The element's faces' A^-1 C^T and S^-1 (B A^-1 C^T - E) end to
+       end, so each is one multi-column solve rather than one a face; see
+       ComputeElementH(). AiCt_all is used only when the condensation cache is
+       not live, which owns that buffer itself; BAiCt_all always is, the S
+       solve being in place and the cache's bracket having to survive it. */
+   Vector AiCt_all, BAiCt_all;
+
    Array<int> cofs;     ///< where each face's block starts in @a CAiBt_all
 };
 
@@ -3568,6 +3575,87 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    // is exact whatever the per-face widths are.
    real_t *pair_p = cc ? (cc->CAiCt_all.GetData() + cc->pair_el[el]) : NULL;
 
+   // **The two condensation solves are ONE multi-column solve an element, not
+   // one a face.** A^-1 C^T and S^-1 (B A^-1 C^T - E) apply the same
+   // factorisation to every face's C^T, and a face's block sits contiguously
+   // with leading dimension a_dofs_size / d_dofs_size -- so the element's
+   // faces together ARE the right-hand side of a single
+   // LUFactors::Solve(m, n, X), whose n has always been the column count.
+   //
+   // Without LAPACK Solve() is LSolve() then USolve() over columns and every
+   // column is independent, so the result is bitwise what the per-face loop
+   // gave -- which is what this tree's suite checks, MFEM_USE_LAPACK being NO
+   // here. With LAPACK it is one dgetrs an element instead of one a face, and
+   // one dgemm instead of nf; that is where the saving is, and it is a
+   // configuration this tree cannot measure.
+   //
+   // **And on LAPACK the last bits may move, which is a caveat and not a
+   // defect.** A triangular solve and a GEMM are free to block differently
+   // for nine columns than for three, so the reduction can reassociate. A
+   // caller holding two configurations to a BITWISE comparison -- as meq does
+   // -- should expect the same footnote TraceAssemblyMode::Batched already
+   // carries, and compare to a tolerance across a library change.
+   //
+   // **The S solve is the one that pays on EVERY gradient.** The condensation
+   // cache holds the bracket (B A^-1 C^T - E), which does not move across a
+   // Newton loop, but S moves with D -- so this runs whether the cache is
+   // live or not, and it acts on a COPY for exactly that reason,
+   // LUFactors::Solve being in place.
+   MFEM_ASSERT(B.Height() == d_dofs_size, "the Schur block and B disagree");
+   const int cw = cofs.Last();
+
+   real_t *AiCt_p;
+   if (cc) { AiCt_p = cc->AiCt_all.GetData() + cc->aict_el[el]; }
+   else
+   {
+      ws.AiCt_all.SetSize(cw * a_dofs_size);
+      AiCt_p = ws.AiCt_all.GetData();
+   }
+
+   ws.BAiCt_all.SetSize(cw * d_dofs_size);
+   real_t * const BAiCt_p = ws.BAiCt_all.GetData();
+   // Where the bracket lives: the cache's own storage when it is live, so the
+   // fill lands where the next gradient reads it, and the workspace otherwise
+   // -- in which case the solve below is in place and there is nothing to
+   // copy, which is what the original per-face code did.
+   real_t * const bracket_p =
+      cc ? (cc->BAiCt_all.GetData() + cc->bc_el[el]) : BAiCt_p;
+
+   if (!cc_read)
+   {
+      for (int f = 0; f < nfaces; f++)
+      {
+         int e1, e2;
+         fes.GetMesh()->GetFaceElements(faces[f], &e1, &e2);
+         DenseMatrix Ctf;
+         GetCtFaceMatrix(faces[f], e1 != el, Ctf);
+         DenseMatrix AiCt_f(AiCt_p + cofs[f]*a_dofs_size,
+                            a_dofs_size, Ctf.Width());
+         AiCt_f = Ctf;
+      }
+      LU_A.Solve(a_dofs_size, cw, AiCt_p);
+
+      DenseMatrix AiCt_w(AiCt_p, a_dofs_size, cw);
+      DenseMatrix bracket_w(bracket_p, d_dofs_size, cw);
+      mfem::Mult(B, AiCt_w, bracket_w);
+
+      if (c_bfi_p || mode == ComputeHMode::Gradient)
+      {
+         for (int f = 0; f < nfaces; f++)
+         {
+            int e1, e2;
+            fes.GetMesh()->GetFaceElements(faces[f], &e1, &e2);
+            DenseMatrix E;
+            GetEFaceMatrix(faces[f], e1 != el, E);
+            DenseMatrix bracket_f(bracket_p + cofs[f]*d_dofs_size,
+                                  d_dofs_size, cofs[f+1] - cofs[f]);
+            bracket_f -= E;
+         }
+      }
+   }
+   if (cc) { std::copy(bracket_p, bracket_p + cw*d_dofs_size, BAiCt_p); }
+   LU_S.Solve(d_dofs_size, cw, BAiCt_p);
+
    // Mult C^T
    for (int f1 = 0; f1 < faces.Size(); f1++)
    {
@@ -3576,56 +3664,12 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
       DenseMatrix Ct1;
       GetCtFaceMatrix(faces[f1], el1_1 != el, Ct1);
 
-      //A^-1 C^T
-      if (cc)
-      {
-         AiCt.UseExternalData(cc->AiCt_all.GetData() + cc->aict_el[el]
-                              + cofs[f1]*a_dofs_size,
-                              Ct1.Height(), Ct1.Width());
-      }
-      else
-      {
-         AiCt.SetSize(Ct1.Height(), Ct1.Width());
-      }
-      if (!cc_read)
-      {
-         AiCt = Ct1;
-         LU_A.Solve(Ct1.Height(), Ct1.Width(), AiCt.GetData());
-      }
-
-      //S^-1 (B A^-1 C^T - E), the bracket being the constant half
-      BAiCt.SetSize(B.Height(), Ct1.Width());
-      if (cc)
-      {
-         DenseMatrix BAiCt0(cc->BAiCt_all.GetData() + cc->bc_el[el]
-                            + cofs[f1]*d_dofs_size,
-                            B.Height(), Ct1.Width());
-         if (!cc_read)
-         {
-            mfem::Mult(B, AiCt, BAiCt0);
-            if (c_bfi_p || mode == ComputeHMode::Gradient)
-            {
-               DenseMatrix E;
-               GetEFaceMatrix(faces[f1], el1_1 != el, E);
-               BAiCt0 -= E;
-            }
-         }
-         BAiCt = BAiCt0;
-      }
-      else
-      {
-         mfem::Mult(B, AiCt, BAiCt);
-
-         if (c_bfi_p || mode == ComputeHMode::Gradient)
-         {
-            DenseMatrix E;
-            GetEFaceMatrix(faces[f1], el1_1 != el, E);
-
-            BAiCt -= E;
-         }
-      }
-
-      LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
+      // Views on the element-wide blocks solved above; the f2 loop reads
+      // AiCt for the -C A^-1 C^T term and BAiCt for the other one.
+      AiCt.UseExternalData(AiCt_p + cofs[f1]*a_dofs_size,
+                           a_dofs_size, Ct1.Width());
+      BAiCt.UseExternalData(BAiCt_p + cofs[f1]*d_dofs_size,
+                            d_dofs_size, Ct1.Width());
 
       for (int f2 = 0; f2 < faces.Size(); f2++)
       {
