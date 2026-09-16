@@ -258,8 +258,8 @@ void BatchedLOR_DG::Assemble2D()
                   const int w_idx = (n_idx == 0) ? iy : ix;
                   const int x_idx = (n_idx == 0) ? i_0 : j_0;
 
-                  const real_t J1 = J(ix, iy, n_idx, !n_idx, iel_ho);
-                  const real_t J2 = J(ix, iy, !n_idx, !n_idx, iel_ho);
+                  const real_t J1 = J(ix, iy, n_idx, (int)!n_idx, iel_ho);
+                  const real_t J2 = J(ix, iy, (int)!n_idx, (int)!n_idx, iel_ho);
                   const real_t Jh = (J1*J1 + J2*J2) / detJ(ix, iy, iel_ho);
 
                   V(v_idx, ix, iy, iel_ho) =
