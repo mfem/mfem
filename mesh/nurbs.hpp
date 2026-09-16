@@ -57,7 +57,7 @@ protected:
    /// Compute all the Demko points
    /** @brief Checks if demko vector is already defined. If vector has the
        correct size the computation is skipped, unless @a force is set to true.
-       in that case the computation is done regardless.*/
+       In that case the computation is done regardless.*/
    void ComputeDemko(bool force = false) const;
 
 public:
@@ -245,8 +245,7 @@ public:
        the underlying matrix is build and deleted in each routine. When
        multiple calls to this routines are made consider using
        GetInterpolationMatrix() or GetInverseInterpolationMatrix() instead.
-
-       For the knot location one can use  for instance GetBotella, GetDemko or
+       For the knot location @a u one can use for instance GetBotella, GetDemko or
        GetGreville. The Demko points might be most appropriate. If no knots are
        specified the routine will use the Demko points*/
    ///@{

@@ -47,14 +47,14 @@ BandMatrix::BandMatrix(int h, int w, int bw) : Matrix(h,w)
    }
 }
 
-BandMatrix::BandMatrix(const DenseMatrix &dm, int bw) : Matrix(dm.Height(),
-                                                                  dm.Width())
+BandMatrix::BandMatrix(const DenseMatrix &dm, int bw)
+   : Matrix(dm.Height(), dm.Width())
 {
    Reset(dm, bw);
 }
 
-BandMatrix::BandMatrix(const BandMatrix &bm, int bw) : Matrix(bm.Height(),
-                                                                 bm.Width())
+BandMatrix::BandMatrix(const BandMatrix &bm, int bw)
+   : Matrix(bm.Height(), bm.Width())
 {
    bandwidth = bw;
    stride = 2*bandwidth + 1;

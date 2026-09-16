@@ -203,7 +203,7 @@ public:
    /// Caller gets ownership.
    MatrixInverse *Inverse() const override;
 
-   /// Returns a pointer to (an approximation) of the matrix inverse.
+   /// Returns a pointer to (an approximation of) the matrix inverse.
    /** If @a tol is zero or negative the exact inverse is computed.
        Otherwise the factorisation is computed with a matrix
        with a reduced bandwidth. The bandwidth is the minimum bandwidth
@@ -215,15 +215,15 @@ public:
 
    MatrixInverse *Inverse(real_t tol) const
    {
-      int bw;
+      int bw = -1;
       return Inverse(tol, bw);
    }
 
    /// Replaces the current matrix with its inverse
-   /** If @a tol is negative the exact inverse is computed, oteherwise the
+   /** If @a tol is negative the exact inverse is computed, otherwise the
        resulting matrix has the minimum bandwidth to achieve the specified
        tolerance, when computing the Frobenius norm of approx(inv(A))*A - I.
-       If @a bw is specified this is thebandwidth used, the result is compared
+       If @a bw is specified this is the bandwidth used, the result is compared
        with the tolerance. Note that in general the inverse is fully dense.
        Note: the OUTPUT matrix of the factorisation is reduced in bandwidth.*/
    void Invert(real_t tol = -1.0, int bw = -1);
@@ -310,11 +310,10 @@ public:
    /// Default constructor.
    BandMatrixInverse(bool spd_=false) : a(NULL) { Init(0, 0); }
 
-   /** Creates square dense matrix. Computes factorization of mat
-       and stores its factors. */
+   // Computes factorization of mat and stores its factors.
    BandMatrixInverse(const BandMatrix &mat);
 
-   /// Same as above but does not factorize the matrix.
+   /// Allocates factorization memory, but does not compute factorization
    BandMatrixInverse(const BandMatrix *mat);
 
    /// Get the bandwidth of the input matrix

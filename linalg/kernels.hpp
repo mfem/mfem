@@ -186,8 +186,8 @@ void Mult(const int height, const int width, const TA *data, const TX *x, TY *y)
 }
 
 /** @brief Matrix vector multiplication: y = A x, where the matrix A is of size
-    @a height x @a width and @a bandwidth with given @a data, while @a x and @a y specify the
-    data of the input and output vectors. */
+    @a height x @a width and @a bandwidth with given @a data, while @a x and @a
+    y specify the data of the input and output vectors. */
 template<typename TA, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
 void BandMult(const int height, const int width, const int bandwidth,

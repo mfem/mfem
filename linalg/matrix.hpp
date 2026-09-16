@@ -68,7 +68,7 @@ public:
    MatrixInverse(const Matrix &mat)
       : Solver(mat.height, mat.width) { }
 
-   /// Compute the determinant
+   /// Compute the determinant of the original matrix
    virtual real_t Det() const
    {
       mfem_error("MatrixInverse::Det not implemented");
