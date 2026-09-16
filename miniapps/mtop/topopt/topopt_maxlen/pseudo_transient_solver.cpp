@@ -140,7 +140,10 @@ void MaterialThicknessSolver::Assemble()
     Nopt.Reset(Nmix.ParallelAssemble());
 }
 
-void MaterialThicknessSolver::AssembleLinearSolver()
+void MaterialThicknessSolver::AssembleLinearSolver(int print_level,
+                                                   real_t rel_tol,
+                                                   real_t abs_tol,
+                                                   int max_iter, int kdim)
 {
     MFEM_VERIFY(!pa, "MaterialThicknessSolver: AssembleLinearSolver requires full assembly (pa = false)");
 
@@ -148,11 +151,11 @@ void MaterialThicknessSolver::AssembleLinearSolver()
     fwd_gmres = std::make_unique<GMRESSolver>(sol_fes->GetComm());
     fwd_gmres->SetOperator(*Kopt);
     fwd_gmres->SetPreconditioner(*fwd_prec);
-    fwd_gmres->SetRelTol(1e-12);
-    fwd_gmres->SetAbsTol(1e-14);
-    fwd_gmres->SetMaxIter(2000);
-    fwd_gmres->SetPrintLevel(0);
-    fwd_gmres->SetKDim(50);
+    fwd_gmres->SetRelTol(rel_tol);
+    fwd_gmres->SetAbsTol(abs_tol);
+    fwd_gmres->SetMaxIter(max_iter);
+    fwd_gmres->SetPrintLevel(print_level);
+    fwd_gmres->SetKDim(kdim);
 
     Kt = std::make_unique<TransposeOperator>(*Kopt);
     KoptT.reset(Kopt.As<HypreParMatrix>()->Transpose());
@@ -161,11 +164,11 @@ void MaterialThicknessSolver::AssembleLinearSolver()
     adj_gmres = std::make_unique<GMRESSolver>(sol_fes->GetComm());
     adj_gmres->SetOperator(*Kt);
     adj_gmres->SetPreconditioner(*adj_prec);
-    adj_gmres->SetRelTol(1e-12);
-    adj_gmres->SetAbsTol(1e-14);
-    adj_gmres->SetMaxIter(2000);
-    adj_gmres->SetPrintLevel(0);
-    adj_gmres->SetKDim(50);
+    adj_gmres->SetRelTol(rel_tol);
+    adj_gmres->SetAbsTol(abs_tol);
+    adj_gmres->SetMaxIter(max_iter);
+    adj_gmres->SetPrintLevel(print_level);
+    adj_gmres->SetKDim(kdim);
 }
 
 void MaterialThicknessSolver::BuildRhs(const Vector &design_tv,

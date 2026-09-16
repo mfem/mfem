@@ -12,6 +12,11 @@ test_continuous_temporal_refinement
 test_continuous_forward_finer
 test_rk4_stage_adjoint
 test_rk4_stage_sensitive_oscillator
+test_boundary_displacement_tracking
+test_pde_filter_prescribed_output
+test_elastic_inclusion_configuration
+test_elastic_inclusion_3d_configuration
+test_reference_boundary_convergence
 ForwardElastodynamics
 ElastTopOpt_static
 
@@ -52,6 +57,7 @@ gmsh/
 gmsh-*/
 *.geo
 *.sh
+!run_pyramid_inverse_dane.sh
 *.sbatch
 *.tar
 *.tar.gz

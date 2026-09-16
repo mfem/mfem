@@ -28,7 +28,9 @@ public:
    {
       Jacobi,
       LORDiagonalAMG,
-      LORMonolithicAMG
+      LORMonolithicAMG,
+      FullDiagonalAMG,
+      FullMonolithicAMG
    };
 
    /// Construct a solver on @a fespace without taking ownership.
@@ -110,6 +112,9 @@ public:
    /// Assemble the PA operator, constrained system, preconditioner, and CG.
    void Assemble() const;
 
+   /// Select partial or conventional full assembly for the system operator.
+   void SetAssemblyLevel(AssemblyLevel assembly_level);
+
    /// Set the CG relative tolerance.
    void SetRelTol(real_t rel_tol);
 
@@ -118,6 +123,13 @@ public:
 
    /// Set the maximum number of CG iterations.
    void SetMaxIter(int max_iter);
+
+   /// Check the recomputed true residual every @a interval CG iterations.
+   ///
+   /// A positive interval replaces CG's native preconditioned-residual
+   /// stopping test with ||b-Ax|| relative to its value at iteration zero.
+   /// Zero (the default) keeps the native CG stopping test.
+   void SetTrueResidualCheckInterval(int interval);
 
    /// Set the CG print level.
    void SetPrintLevel(int print_level);
@@ -142,12 +154,19 @@ public:
    /// Return the maximum number of CG iterations.
    int GetMaxIter() const { return max_iter_; }
 
+   /// Return the true-residual check interval (zero means disabled).
+   int GetTrueResidualCheckInterval() const
+   { return true_residual_check_interval_; }
+
    /// Return the CG print level.
    int GetPrintLevel() const { return print_level_; }
 
    /// Return the selected preconditioner type.
    PreconditionerType GetPreconditionerType() const
    { return preconditioner_type_; }
+
+   /// Return the elasticity system operator assembly level.
+   AssemblyLevel GetAssemblyLevel() const { return assembly_level_; }
 
    /// Return the selected monolithic LOR vector ordering.
    Ordering::Type GetMonolithicLOROrdering() const
@@ -227,8 +246,18 @@ private:
    /// Build independent scalar LOR/AMG blocks for displacement components.
    void BuildLORDiagonalAMG() const;
 
+   /// Build independent full-order AMG blocks for displacement components.
+   void BuildFullDiagonalAMG() const;
+
+   /// Assemble and configure diagonal component AMG on the supplied space.
+   void BuildDiagonalAMG(ParFiniteElementSpace &vector_fespace,
+                         const char *description) const;
+
    /// Build AMG on the fully coupled LOR elasticity matrix.
    void BuildLORMonolithicAMG() const;
+
+   /// Build AMG on the fully coupled full-order elasticity matrix.
+   void BuildFullMonolithicAMG() const;
 
    /// Project all prescribed displacement components into @a solution.
    void ProjectBoundaryValues(ParGridFunction &solution) const;
@@ -262,7 +291,9 @@ private:
    real_t rel_tol_ = 1.0e-12;
    real_t abs_tol_ = 0.0;
    int max_iter_ = 500;
+   int true_residual_check_interval_ = 0;
    int print_level_ = -1;
+   AssemblyLevel assembly_level_ = AssemblyLevel::PARTIAL;
    PreconditionerType preconditioner_type_ = PreconditionerType::Jacobi;
    Ordering::Type monolithic_lor_ordering_ = Ordering::byNODES;
 
@@ -271,17 +302,22 @@ private:
    mutable OperatorHandle system_operator_;
 
    mutable std::unique_ptr<ParLORDiscretization> lor_disc_;
-   mutable std::unique_ptr<ParFiniteElementSpace> lor_scalar_fespace_;
-   mutable std::unique_ptr<ElasticityIntegrator> lor_integrator_;
-   mutable std::vector<std::unique_ptr<ParBilinearForm> > lor_forms_;
-   mutable std::vector<std::unique_ptr<HypreParMatrix> > lor_blocks_;
-   mutable std::vector<std::unique_ptr<HypreBoomerAMG> > lor_amg_blocks_;
+   mutable std::unique_ptr<ParFiniteElementSpace> diagonal_scalar_fespace_;
+   mutable std::unique_ptr<ElasticityIntegrator> diagonal_integrator_;
+   mutable std::vector<std::unique_ptr<ParBilinearForm> > diagonal_forms_;
+   mutable std::vector<std::unique_ptr<HypreParMatrix> > diagonal_blocks_;
+   mutable std::vector<std::unique_ptr<HypreBoomerAMG> > diagonal_amg_blocks_;
    mutable std::unique_ptr<ParFiniteElementSpace> lor_monolithic_fespace_;
    mutable std::unique_ptr<ParBilinearForm> lor_monolithic_form_;
    mutable std::unique_ptr<HypreParMatrix> lor_monolithic_matrix_;
-   mutable Array<int> lor_block_offsets_;
+   mutable std::unique_ptr<ParFiniteElementSpace> full_monolithic_fespace_;
+   mutable std::unique_ptr<ParBilinearForm> full_monolithic_form_;
+   mutable std::unique_ptr<HypreParMatrix> full_monolithic_matrix_;
+   mutable Array<int> diagonal_block_offsets_;
    mutable std::unique_ptr<Solver> preconditioner_;
    mutable std::unique_ptr<CGSolver> cg_;
+   mutable std::unique_ptr<IterativeSolverController>
+   true_residual_controller_;
    mutable Vector boundary_true_values_;
    mutable Vector solve_rhs_;
    mutable Vector previous_solution_;

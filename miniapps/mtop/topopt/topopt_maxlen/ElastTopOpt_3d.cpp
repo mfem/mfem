@@ -20,6 +20,9 @@
 // low-order DG (-dgo, default 1) and its operator is full/sparse-assembled by
 // default (-adv-fa; -adv-pa for matrix-free partial assembly, better at high
 // -dgo).  The pseudo-transient march is tuned with -cfl / -atf / -atol.
+// -adv-gmres replaces the march by GMRES + BlockILU (full assembly only).  It
+// needs an inflow face on every element, so it fails for the radial rays
+// (-rt 1) on the circular plate, whose axis runs through the mesh.
 //
 // Sample run:  mpirun -np 8 ./ElastTopOpt_3d -r 2 -rf 0.05 -vf 0.4
 // Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m circular_plate_hex_sleeves_embedded_cylinder.msh -vf 0.3 -pv
@@ -87,7 +90,7 @@ struct MeshProblem
     std::vector<LoadCase> cases;
 };
 
-MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh);
+MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh, int ray_type);
 
 // Extract Mesh with non-zero density
 void SaveSolidSubmesh(ParMesh &pmesh, ParGridFunction &desi_density,
@@ -130,10 +133,13 @@ int main(int argc, char *argv[])
     int    max_it       = 300;
     real_t tol          = 1e-4;       // stopping tol on iteration error
     real_t move         = 0.1;        // MMA move limit
+    const real_t passive_bound_gap = 1e-4; // total width around fixed MMA variables
     real_t epsilon      = 1e-2;       // thickness residual tolerance
 
     // advection (ray) thickness-solve controls -- this solve dominates the cost
     int    dg_order     = 1;          // DG order of the advection eval space
+    bool   adv_gmres    = false;      // advection solve: GMRES + BlockILU (true)
+                                     // vs pseudo-transient march (false)
     bool   adv_pa       = false;      // advection operator: partial vs full assembly
                                      // (PA wins at high order; full/sparse at p=1)
     real_t adv_cfl      = 0.5;        // CFL number -> pseudo-time step
@@ -147,11 +153,18 @@ int main(int argc, char *argv[])
     int  restart     = 0;       // 0 = off, 1 = rho only, 2 = full state
     int  pc_type     = 2;       // 0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG
     bool lor_by_vdim = true;    // monolithic LOR (-pc 2) ordering: byVDIM vs byNODES
+    bool elast_pa    = true;    // matrix-free vs fully assembled elasticity operator
+    real_t elast_rel_tol = 1e-5;
+    int elast_residual_check = 0; // 0 = native CG test; N > 0 = true residual every N
     const int seed   = 0;
 
     bool visualization = true;
     bool paraview      = false;
+    int  paraview_interval = 0; // intermediate output interval; 0 disables it
     bool optimize      = true;   // run the optimization loop after the initial eval
+    bool thickness     = true;   // enforce accumulated-density constraints
+    int  ray_type      = 1;      // circular plate rays: 1 radial outward,
+                                 // 2 vertical (+z), 3 parallel xy rays toward center
     int  solver_print  = 1;      // iterative-solver report: 0 off, 1 on
                                  // (CG history / PT summary), 2 verbose
                                  // (+ AMG, + every pseudo-time step)
@@ -191,19 +204,36 @@ int main(int argc, char *argv[])
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
     args.AddOption(&pc_type, "-pc", "--elast-precond", "elasticity preconditioner: "
-                    "0 = Jacobi, 1 = LOR diagonal AMG,  2 = LOR monolithic AMG");
+                    "0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG, "
+                    "3 = full-order diagonal AMG, 4 = full-order monolithic AMG");
     args.AddOption(&lor_by_vdim, "-vdim", "--by-vdim", "-nodes", "--by-nodes",
-                    "monolithic LOR ordering: byVDIM / byNODES");
+                    "monolithic AMG ordering: byVDIM / byNODES");
+    args.AddOption(&elast_pa, "-elast-pa", "--elasticity-partial-assembly",
+                    "-elast-fa", "--elasticity-full-assembly",
+                    "elasticity system operator assembly: partial or full");
+    args.AddOption(&elast_rel_tol, "-ert", "--elasticity-rel-tol",
+                    "elasticity relative residual tolerance");
+    args.AddOption(&elast_residual_check, "-erc", "--elasticity-residual-check",
+                    "recompute the elasticity true residual every N CG iterations; "
+                    "0 uses the native preconditioned-residual test");
     args.AddOption(&cp, "-cp", "--checkpoint",
                     "checkpointing: 0 = off, 1 = rho only, 2 = rho + alpha + MMA state");
     args.AddOption(&restart, "-restart", "--restart",
                     "restart: 0 = off, 1 = load rho only, 2 = load full state and resume");
     args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                     "store solution in paraview");
+    args.AddOption(&paraview_interval, "-pvi", "--paraview-interval",
+                    "write ParaView fields every N optimization iterations; 0 disables intermediate output");
     args.AddOption(&visualization, "-vis", "--visualization",
                     "-no-vis", "--no-visualization", "enable GLVis visualization");
     args.AddOption(&optimize, "-opt", "--optimize", "-no-opt", "--no-optimize",
                     "run the optimization loop (off: initial timed evaluation only)");
+    args.AddOption(&thickness, "-thickness", "--thickness",
+                    "-no-thickness", "--no-thickness",
+                    "enable accumulated-density thickness constraints");
+    args.AddOption(&ray_type, "-rt", "--ray-type",
+                    "circular plate thickness rays: 1 = radial outward, 2 = vertical (+z), "
+                    "3 = parallel rays in several xy directions pointing toward the center");
     args.AddOption(&solver_print, "-spl", "--solver-print-level",
                     "iterative-solver report (filter / elasticity / advection): "
                     "0 = off, 1 = on, 2 = verbose");
@@ -212,6 +242,9 @@ int main(int argc, char *argv[])
     args.AddOption(&adv_pa, "-adv-pa", "--advection-partial-assembly",
                     "-adv-fa", "--advection-full-assembly",
                     "advection operator assembly: partial (matrix-free) or full (sparse)");
+    args.AddOption(&adv_gmres, "-adv-gmres", "--advection-gmres",
+                    "-adv-pt", "--advection-pseudo-transient",
+                    "advection solver: GMRES + BlockILU (needs -adv-fa) or pseudo-transient march");
     args.AddOption(&adv_cfl, "-cfl", "--adv-cfl",
                     "advection pseudo-transient CFL number (larger = bigger time step)");
     args.AddOption(&adv_tfinal, "-atf", "--adv-terminal-time",
@@ -229,16 +262,30 @@ int main(int argc, char *argv[])
         if (myid == 0) { args.PrintUsage(cout); }
         return 1;
     }
+    MFEM_VERIFY(paraview_interval >= 0,
+                "ParaView output interval must be nonnegative.");
+    MFEM_VERIFY(elast_rel_tol >= 0.0,
+                "Elasticity relative tolerance must be nonnegative.");
+    MFEM_VERIFY(elast_residual_check >= 0,
+                "Elasticity residual check interval must be nonnegative.");
+    MFEM_VERIFY(ray_type >= 1 && ray_type <= 3, "Ray type must be 1, 2 or 3.");
+    MFEM_VERIFY(!(adv_gmres && adv_pa),
+                "-adv-gmres needs a fully assembled advection operator (-adv-fa).");
     if (myid == 0) { args.PrintOptions(cout); }
 
     // initial (uniform) design density -- depends on the parsed options
-    const real_t domain_init = alpha_max * vol_fraction;
+    const real_t domain_init = vol_fraction;
 
     // 2. Load the mesh and the problem description (domain, loads).
     stage(std::string("loading mesh: ") +
           (mesh_file[0] ? mesh_file : "<built-in Cartesian beam>"));
     Mesh mesh;
-    MeshProblem prob = loadMesh(myid, mesh_file, mesh);
+    MeshProblem prob = loadMesh(myid, mesh_file, mesh, ray_type);
+    if (!thickness)
+    {
+        prob.rays.clear();
+        stage("accumulated-density thickness constraints disabled");
+    }
     stage("mesh loaded (serial: " + std::to_string(mesh.GetNE()) + " elements, "
           + std::to_string(mesh.GetNBE()) + " bdr elements)");
 
@@ -513,7 +560,7 @@ int main(int argc, char *argv[])
         sub_dg_fes[r] = make_unique<ParFiniteElementSpace>(outflow[r].get(), sub_dg_fec[r].get());
 
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
-        *alpha[r] = domain_init;
+        *alpha[r] = alpha_max;   // placeholder, seeded from rho_a before MMA setup
 
         dualtransfer[r] = make_unique<SubMeshDualTransfer>(*sub_dg_fes[r], dgfes);
     }
@@ -561,10 +608,19 @@ int main(int argc, char *argv[])
     {
         elast_pc = LinearElasticitySolver::PreconditionerType::LORMonolithicAMG;
     }
+    else if (pc_type == 3)
+    {
+        elast_pc = LinearElasticitySolver::PreconditionerType::FullDiagonalAMG;
+    }
+    else if (pc_type == 4)
+    {
+        elast_pc = LinearElasticitySolver::PreconditionerType::FullMonolithicAMG;
+    }
     else
     {
         MFEM_ABORT("Unknown preconditioner! Elasticity preconditioner: "
-                    "0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG");
+                    "0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG, "
+                    "3 = full-order diagonal AMG, 4 = full-order monolithic AMG");
     }
 
     stage("configuring " + std::to_string(n_elast_solve) +
@@ -618,13 +674,16 @@ int main(int argc, char *argv[])
         // configurate the elast solver
         elast[i]->SetLambda(lambda_simp_cf);
         elast[i]->SetMu(mu_simp_cf);
+        elast[i]->SetAssemblyLevel(elast_pa ? AssemblyLevel::PARTIAL :
+                                   AssemblyLevel::LEGACY);
         elast[i]->SetPreconditionerType(elast_pc);
         elast[i]->SetMonolithicLOROrdering(
             lor_by_vdim ? Ordering::byVDIM : Ordering::byNODES);
         elast[i]->SetPrintLevel(solver_print);
-        elast[i]->SetRelTol(1e-7);
-        elast[i]->SetAbsTol(1e-14);
+        elast[i]->SetRelTol(elast_rel_tol);
+        elast[i]->SetAbsTol(1e-9);
         elast[i]->SetMaxIter(1000);
+        elast[i]->SetTrueResidualCheckInterval(elast_residual_check);
     }
 
     ParGridFunction u(&state_fes);
@@ -692,10 +751,18 @@ int main(int argc, char *argv[])
     // CG default tol (1e-12) far over-solves relative to -atol, so loosen it.
     // (Minv only affects the pseudo-time path, not the converged rho_a.)
     // Declared before `advect` so they outlive the solvers that borrow them.
-    if (n_dir > 0) { stage("setting up advection (ray) solvers + DG mass inverse"); }
+    if (n_dir > 0)
+    {
+        stage(adv_gmres ? "setting up advection (ray) solvers: GMRES + BlockILU"
+                        : "setting up advection (ray) solvers + DG mass inverse");
+    }
     std::unique_ptr<HypreParMatrix> minv_fa_mat;
     std::unique_ptr<DGMassInverse>  minv_mf;
-    if (minv_fa)
+    if (adv_gmres)
+    {
+        // no pseudo-time march: the DG mass inverse is not needed
+    }
+    else if (minv_fa)
     {
         if (n_dir > 0) { stage("assembling exact block-diagonal DG mass inverse"); }
         ParBilinearForm minv_form(&dgfes);
@@ -724,18 +791,34 @@ int main(int argc, char *argv[])
     const real_t dt = adv_cfl * hmin / (2 * dg_order + 1);   // DG-CFL: degree dg_order
     if (myid == 0 && n_dir > 0)
     {
-        mfem::out << "advection: DG order " << dg_order << ", K "
-                  << (adv_pa ? "partial" : "full") << " assembly, Minv "
-                  << (minv_fa ? "exact block-diagonal" : "matrix-free CG")
-                  << "; pseudo-transient dt = " << dt << ", t_final = " << adv_tfinal
-                  << " (<= " << (int)std::ceil(adv_tfinal / dt) << " steps), tol = "
-                  << adv_tol << defaultfloat << setprecision(6) << std::endl;
+        if (adv_gmres)
+        {
+            mfem::out << "advection: DG order " << dg_order
+                      << ", K full assembly; GMRES + BlockILU (rel tol 1e-8, "
+                         "abs tol 1e-12, max 500 it, restart 50)" << std::endl;
+        }
+        else
+        {
+            mfem::out << "advection: DG order " << dg_order << ", K "
+                      << (adv_pa ? "partial" : "full") << " assembly, Minv "
+                      << (minv_fa ? "exact block-diagonal" : "matrix-free CG")
+                      << "; pseudo-transient dt = " << dt << ", t_final = " << adv_tfinal
+                      << " (<= " << (int)std::ceil(adv_tfinal / dt) << " steps), tol = "
+                      << adv_tol << defaultfloat << setprecision(6) << std::endl;
+        }
     }
 
     for (int r = 0; r < n_dir; r++)
     {
         advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r],
                                                          adv_pa);
+        if (adv_gmres)
+        {
+            // forward + adjoint GMRES and BlockILU
+            // (print level, rel tol, abs tol, max iter, restart)
+            advect[r]->AssembleLinearSolver(solver_print, 1e-8, 1e-12, 500, 50);
+            continue;
+        }
         if (minv_fa) { advect[r]->GetSolver().SetMinv(*minv_fa_mat); }
         else         { advect[r]->SetMinv(*minv_mf); }
         advect[r]->GetSolver().SetTimeStep(dt);          // pseudo-transient time step
@@ -743,6 +826,24 @@ int main(int argc, char *argv[])
         advect[r]->GetSolver().SetTol(adv_tol);          // steady-state rate tolerance
         advect[r]->GetSolver().SetPrintLevel(solver_print);
     }
+
+    // Forward / adjoint advection solve with the selected method.
+    auto advect_fsolve = [&](int r)
+    {
+        if (adv_gmres) { advect[r]->LinearFSolve(); }
+        else           { advect[r]->FSolve(); }
+    };
+    auto advect_asolve = [&](int r)
+    {
+        if (adv_gmres) { advect[r]->LinearASolve(); }
+        else           { advect[r]->ASolve(); }
+    };
+    // GMRES iterations or pseudo-time steps of the last forward solve
+    auto advect_fiters = [&](int r)
+    {
+        return adv_gmres ? advect[r]->GetLinearFIterations()
+                         : advect[r]->GetSolver().GetIterCount();
+    };
 
     // 7. Construct the quantity of interest objects
     stage("constructing quantity-of-interest objects (compliance / volume / thickness)");
@@ -852,7 +953,44 @@ int main(int argc, char *argv[])
     rho_tv.SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals);
 
     rho.SetFromTrueDofs(rho_tv);
-    for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
+    // cold forward advection cost from the seeding solve, reported in 9e
+    std::vector<double> t_advect_seed(n_dir, 0.0);
+    std::vector<int> it_advect_seed(n_dir, 0);
+    if (restart == 2)
+    {
+        for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
+    }
+    else
+    {
+        // Seed alpha_r with the outflow trace of rho_a on the starting design,
+        // clamped to [alpha_min, alpha_max]
+        stage("seeding thickness variables from rho_a on the starting design");
+        Vector rho_filter_tv(nf);
+        filter.Mult(rho_tv, rho_filter_tv);
+        rho_filter_tv += rho_filter_lift_tv;
+        rho_filter.SetFromTrueDofs(rho_filter_tv);
+
+        ParGridFunction rho_dila_gf(&filter_fes);
+        rho_dila_gf.ProjectCoefficient(rho_dila_cf);
+        Vector rho_dila_tv(nf);
+        rho_dila_gf.GetTrueDofs(rho_dila_tv);
+
+        for (int r = 0; r < n_dir; r++)
+        {
+            stage("  forward advection solve, ray " + std::to_string(r));
+            advect[r]->SetRhs(rho_dila_tv);
+            double t_seed = MPI_Wtime();
+            advect_fsolve(r);
+            t_advect_seed[r] = MPI_Wtime() - t_seed;
+            it_advect_seed[r] = advect_fiters(r);
+            ParSubMesh::Transfer(advect[r]->GetRhoA(), *alpha[r]);
+            for (int i = 0; i < alpha[r]->Size(); i++)
+            {
+                (*alpha[r])(i) = std::min(alpha_max, std::max(alpha_min, (*alpha[r])(i)));
+            }
+            alpha[r]->GetTrueDofs(alpha_tv[r]);
+        }
+    }
 
     BlockVector tx_local(toffsets);
     tx_local.GetBlock(0) = rho_tv;
@@ -1036,9 +1174,16 @@ int main(int argc, char *argv[])
 
             advect[r]->SetRhs(rho_dila_tv);
             t0 = MPI_Wtime();
-            advect[r]->FSolve();
+            advect_fsolve(r);
             t_advect[r] = MPI_Wtime() - t0;
-            it_advect[r] = advect[r]->GetSolver().GetIterCount();
+            it_advect[r] = advect_fiters(r);
+            if (restart != 2 && !adv_gmres)
+            {
+                // this pseudo-transient solve is warm-started by the seeding
+                // solve; report that cold solve instead
+                t_advect[r] = t_advect_seed[r];
+                it_advect[r] = it_advect_seed[r];
+            }
             rho_a_init[r] = make_unique<ParGridFunction>(&dgfes);
             *rho_a_init[r] = advect[r]->GetRhoA();
             init_dc.RegisterField("rho_a_" + std::to_string(r), rho_a_init[r].get());
@@ -1235,7 +1380,7 @@ int main(int argc, char *argv[])
             if (trace) { stage("  it 1: advection fwd+adj, ray " + std::to_string(r)); }
             // forward
             advect[r]->SetRhs(rho_dila_tv);
-            advect[r]->FSolve();
+            advect_fsolve(r);
             const real_t thickres = adv_res[r]->Eval();
 
             // record max value of rho_a and alpha
@@ -1266,7 +1411,7 @@ int main(int argc, char *argv[])
 
             // chain rule adjoint solve: dG/drho = M_fc^T N^T g
             advect[r]->SetAdjointRhs(rhs_full);
-            advect[r]->ASolve();
+            advect_asolve(r);
 
             Vector dGdrho_tilde(advect[r]->GetSensitivity());
             dGdrho_tilde *= rho_dila_grad_tv;
@@ -1287,18 +1432,24 @@ int main(int argc, char *argv[])
             tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
             tx_max[i] = std::min(real_t(1), rho_tv[i] + move);
         }
-        // Option C: freeze the passive regions (xmin = xmax = pinned value).
+        // MMA's rational model requires a nonzero interval.  Give each passive
+        // variable a small interval centered on its prescribed value, then
+        // restore that exact value immediately after the MMA update below.
         for (int k = 0; k < passive_ctrl_tdofs.Size(); k++)
         {
-            tx_min[passive_ctrl_tdofs[k]] = passive_ctrl_vals(k);
-            tx_max[passive_ctrl_tdofs[k]] = passive_ctrl_vals(k);
+            const int tdof = passive_ctrl_tdofs[k];
+            const real_t value = passive_ctrl_vals(k);
+            tx_min[tdof] = value - real_t(0.5) * passive_bound_gap;
+            tx_max[tdof] = value + real_t(0.5) * passive_bound_gap;
         }
+
+        const real_t alpha_move = move * (alpha_max - alpha_min);
         for (int r = 0; r < n_dir; r++)
         {
             for (int i = 0; i < m[r]; i++)
             {
-                tx_min[toffsets[1 + r] + i] = alpha_min;
-                tx_max[toffsets[1 + r] + i] = alpha_max;
+                tx_min[toffsets[1 + r] + i] = std::max(alpha_min, alpha_tv[r][i] - alpha_move);
+                tx_max[toffsets[1 + r] + i] = std::min(alpha_max, alpha_tv[r][i] + alpha_move);
             }
         }
 
@@ -1314,6 +1465,7 @@ int main(int argc, char *argv[])
 
         if (trace) { stage("  it 1: MMA update"); }
         mma.Update(tx_local, df0dx, compliance, fival, dfidx.data(), tx_min, tx_max);
+        tx_local.GetBlock(0).SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals);
         rho.SetFromTrueDofs(tx_local.GetBlock(0));
         for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(tx_local.GetBlock(1 + r)); }
 
@@ -1423,13 +1575,13 @@ int main(int argc, char *argv[])
                 << "solution\n" << pmesh << phys_density << flush;
         }
 
-        // save every 50 iterations
-        // if (paraview && it % 50 == 0)
-        // {
-        //     paraview_dc.SetCycle(it);
-        //     paraview_dc.SetTime(it);
-        //     paraview_dc.Save();
-        // }
+        if (paraview && paraview_interval > 0 && it % paraview_interval == 0)
+        {
+            stage("writing ParaView fields for iteration " + std::to_string(it));
+            paraview_dc.SetCycle(it);
+            paraview_dc.SetTime(it);
+            paraview_dc.Save();
+        }
     }
 
     stage("optimization loop finished");
@@ -1473,6 +1625,14 @@ static void RadialOutwardRay(const Vector &x, Vector &v)
     v = 0.0;
     const real_t r = std::sqrt(x[0]*x[0] + x[1]*x[1]);
     if (r > 1e-12) { v[0] = x[0]/r; v[1] = x[1]/r; }
+}
+
+// Unit vector field pointing at +z direction
+void VerticalRay(const Vector &x, Vector &v)
+{
+    v.SetSize(x.Size());
+    v = 0.0;
+    v(2) = 1.0;
 }
 
 // save the thresholded design by clipping from the max value
@@ -1589,7 +1749,8 @@ static MeshProblem SetupCartesianBeam(Mesh &mesh)
 //              11-22  PerimeterSleeveSurface_1..12 -> u = 0
 //              31-36  TopSleeveSurface_1..6        -> filter rho~ = 1 (default)
 // The mesh is centred on the z-axis, so "radial" == outward from (0,0).
-static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
+static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file,
+                                      int ray_type)
 {
     mesh = Mesh(mesh_file);
 
@@ -1608,12 +1769,35 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
     // every other surface -> rho~ = 1
 
     // --- max-thickness rays ------------------------------------------------
-    // One radial-outward field: the advection accumulates from the central hole
-    // outward, and rho_a is read on the outer free surface (surface 1) where
-    // v.n > 0, giving the radial material span from hub to rim.
+    // rho_a is read on the outer free surface (surface 1) where v.n > 0.
+    //   ray_type 1: one radial-outward field; the advection accumulates from the
+    //               central hole outward, giving the radial span from hub to rim.
+    //   ray_type 2: one vertical (+z) field, giving the through-thickness span.
+    //   ray_type 3: four parallel fields in the xy plane, v = -(cos t, sin t, 0)
+    //               for t = 0, 45, 90, 135 deg, entering at the rim and
+    //               pointing toward the center.
     const int dim = mesh.Dimension();
-    p.rays.push_back(
-        std::make_unique<VectorFunctionCoefficient>(dim, RadialOutwardRay));
+    if (ray_type == 1)
+    {
+        p.rays.push_back(
+            std::make_unique<VectorFunctionCoefficient>(dim, RadialOutwardRay));
+    }
+    else if (ray_type == 2)
+    {
+        p.rays.push_back(
+            std::make_unique<VectorFunctionCoefficient>(dim, VerticalRay));
+    }
+    else if (ray_type == 3)
+    {
+        const int n_xy_dir = 6;
+        for (int k = 0; k < n_xy_dir; k++)
+        {
+            const real_t t = M_PI * k / n_xy_dir;
+            Vector v(dim);  v = 0.0;
+            v(0) = -std::cos(t);  v(1) = -std::sin(t);
+            p.rays.push_back(std::make_unique<VectorConstantCoefficient>(v));
+        }
+    }
 
     // --- load cases ----------------------------------------------------
     Array<int> clamp_bdr;                       // u = 0 on the perimeter sleeves
@@ -1624,7 +1808,7 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
     Array<int> all_sleeves;
     for (int k = 0; k < n_sleeve; k++) { all_sleeves.Append(first_sleeve_attr + k); }
 
-    p.cases.resize(3);
+    p.cases.resize(4);
 
     // LC1: outward radial body force, unit magnitude, on every top sleeve.
     {
@@ -1665,11 +1849,30 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
         }
     }
 
+    // LC4: unit tangential body force on every top sleeve.  The direction
+    // (-y/r, x/r, 0) is counterclockwise about the central z-axis and therefore
+    // creates a positive rotational moment about the centre.
+    {
+        LoadCase &lc = p.cases[3];
+        lc.clamp_attrs = clamp_bdr;
+
+        LoadCase::VolumeLoad vl;
+        vl.attrs = all_sleeves;
+        vl.fn = [](const Vector &x, Vector &f)
+        {
+            f.SetSize(x.Size());
+            f = 0.0;
+            const real_t r = std::sqrt(x[0]*x[0] + x[1]*x[1]);
+            if (r > 1e-12) { f[0] = -x[1]/r; f[1] = x[0]/r; }
+        };
+        lc.vol_loads.push_back(vl);
+    }
+
     return p;
 }
 
 // select the per-mesh setup from the mesh file name
-MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh)
+MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh, int ray_type)
 {
     // no -m: fall back to the built-in Cartesian beam
     if (!mesh_file || mesh_file[0] == '\0')
@@ -1679,7 +1882,7 @@ MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh)
 
     if (strstr(mesh_file, "circular_plate_hex_sleeves_embedded_cylinder") != NULL)
     {
-        return SetupCircularPlate(mesh, mesh_file);
+        return SetupCircularPlate(mesh, mesh_file, ray_type);
     }
 
     if (myid == 0) { mfem::out << "invalid mesh file" << endl; }

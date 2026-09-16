@@ -131,6 +131,14 @@ enum class MassSolverType
    ITERATIVE   // CG + AMG, for verification/comparison
 };
 
+// FULL assembles HYPRE matrices. PARTIAL_ASSEMBLY retains only MFEM's
+// quadrature data and applies the fine-grid operators matrix-free.
+enum class SpatialOperatorMode
+{
+   FULL,
+   PARTIAL_ASSEMBLY
+};
+
 // =============================================================================
 // ELASTODYNAMICS OPERATOR (Forward and Adjoint)
 // =============================================================================
@@ -147,6 +155,7 @@ private:
    ParFiniteElementSpace &fespace;
    ParBilinearForm *M, *K, *C_vol, *C_abs;
    HypreParMatrix *Mmat, *Kmat, *Cvol_mat, *Cabs_mat;
+   SpatialOperatorMode spatial_operator_mode;
 
    // Mass solver strategy
    MassSolverType mass_solver_type;
@@ -173,6 +182,8 @@ private:
    // time_profile(t), assembled once so the inner loop never re-assembles.
    Vector load_base_vector;
    real_t load_duration, load_amplitude, load_phase, load_frequency;
+   std::vector<real_t> load_frequencies;
+   real_t load_time_factor_normalization;
    LoadTimeProfile load_time_profile;
    bool load_on_domain;   // true: body force over Omega; false: boundary traction
    Array<int> load_bdr_markers;
@@ -195,7 +206,9 @@ public:
       Array<int> &exterior_bdr_attr,
       Array<int> &ess_bdr_attr,
       MassSolverType mass_type = MassSolverType::LUMPED,
-      bool print_banner = true);
+      bool print_banner = true,
+      const std::vector<real_t> &frequencies = {},
+      SpatialOperatorMode spatial_mode = SpatialOperatorMode::FULL);
 
    void SetTime(real_t t) override { TimeDependentOperator::SetTime(t); }
 
@@ -214,6 +227,10 @@ public:
    Array<int>& GetBlockOffsets() { return block_true_offsets; }
 
    MassSolverType GetMassSolverType() const { return mass_solver_type; }
+   bool IsMatrixFree() const
+   {
+      return spatial_operator_mode == SpatialOperatorMode::PARTIAL_ASSEMBLY;
+   }
    bool UsesScaledDiagonalLumping() const
    {
       return mass_solver_type == MassSolverType::LUMPED &&
@@ -226,6 +243,32 @@ public:
    HypreParMatrix* GetVolDampingMatrix() const { return Cvol_mat; }
    HypreParMatrix* GetAbsDampingMatrix() const { return Cabs_mat; }
    const Vector &GetLoadBaseVector() const { return load_base_vector; }
+
+   // Matrix-free partial assembly and assembled HYPRE matrices expose the
+   // same true-DOF action here. Elasticity and both damping forms are
+   // symmetric for the real material model used in this miniapp, so their
+   // transpose action is identical.
+   void MultStiffness(const Vector &x, Vector &y) const
+   {
+      y = 0.0;
+      if (IsMatrixFree()) { K->TrueAddMult(x, y); }
+      else { Kmat->Mult(x, y); }
+   }
+   void MultVolumetricDamping(const Vector &x, Vector &y) const
+   {
+      y = 0.0;
+      if (IsMatrixFree()) { C_vol->TrueAddMult(x, y); }
+      else { Cvol_mat->Mult(x, y); }
+   }
+   void MultAbsorbingDamping(const Vector &x, Vector &y) const
+   {
+      y = 0.0;
+      // MFEM's VectorMassIntegrator does not currently provide a partial-
+      // assembly boundary action.  Keep only this surface-sized ABC operator
+      // assembled; the volume mass, stiffness, and sponge damping operators
+      // remain matrix-free.
+      Cabs_mat->Mult(x, y);
+   }
 
    void MultInvMass(const Vector &rhs, Vector &sol) const
    {
@@ -274,7 +317,9 @@ public:
       }
       else
       {
-         Mmat->Mult(x, y);
+         y = 0.0;
+         if (IsMatrixFree()) { M->TrueAddMult(x, y); }
+         else { Mmat->Mult(x, y); }
       }
    }
 
@@ -336,7 +381,7 @@ public:
          {
             scaled(i) = std::sqrt(M_lumped_inv(i)) * v(i);
          }
-         Kmat->Mult(scaled, w);
+         MultStiffness(scaled, w);
          for (int i = 0; i < true_size; i++)
          {
             w(i) *= std::sqrt(M_lumped_inv(i));
@@ -358,7 +403,7 @@ public:
       {
          scaled(i) = std::sqrt(M_lumped_inv(i)) * v(i);
       }
-      Kmat->Mult(scaled, w);
+      MultStiffness(scaled, w);
       for (int i = 0; i < true_size; i++)
       {
          w(i) *= std::sqrt(M_lumped_inv(i));
@@ -418,8 +463,8 @@ public:
          {
             scaled(i) = std::sqrt(M_lumped_inv(i)) * input(i);
          }
-         Cvol_mat->Mult(scaled, output);
-         Cabs_mat->Mult(scaled, work);
+         MultVolumetricDamping(scaled, output);
+         MultAbsorbingDamping(scaled, work);
          output += work;
          for (int i = 0; i < true_size; i++)
          {
@@ -512,14 +557,14 @@ public:
       v /= mass_norm(v);
       for (int it = 0; it < power_iterations; it++)
       {
-         Kmat->Mult(v, stiffness_v);
+         MultStiffness(v, stiffness_v);
          ProjectEssentialField(stiffness_v);
          MultInvMass(stiffness_v, w);
          const real_t norm = mass_norm(w);
          v.Set(1.0 / norm, w);
       }
 
-      Kmat->Mult(v, stiffness_v);
+      MultStiffness(v, stiffness_v);
       MultMass(v, mass_work);
       const real_t denominator = global_dot(v, mass_work);
       const real_t lambda_max = global_dot(v, stiffness_v) / denominator;
@@ -571,8 +616,8 @@ public:
       };
       const auto apply_damping = [&](const Vector &x, Vector &result)
       {
-         Cvol_mat->Mult(x, result);
-         Cabs_mat->Mult(x, damping_work);
+         MultVolumetricDamping(x, result);
+         MultAbsorbingDamping(x, damping_work);
          result += damping_work;
          ProjectEssentialField(result);
       };
@@ -649,10 +694,15 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    Array<int> &exterior_bdr_attr,
    Array<int> &ess_bdr_attr,
    MassSolverType mass_type,
-   bool print_banner)
+   bool print_banner,
+   const std::vector<real_t> &frequencies,
+   SpatialOperatorMode spatial_mode)
    : TimeDependentOperator(2 * f.GetTrueVSize(), 0.0),
      fespace(f),
+     M(nullptr), K(nullptr), C_vol(nullptr), C_abs(nullptr),
+     Mmat(nullptr), Kmat(nullptr), Cvol_mat(nullptr), Cabs_mat(nullptr),
      mass_solver_type(mass_type),
+     spatial_operator_mode(spatial_mode),
      use_scaled_diagonal_lumping(false),
      lumped_diagonal_scale(1.0),
      M_free_mat(nullptr),
@@ -667,10 +717,41 @@ ElastodynamicsOperator::ElastodynamicsOperator(
      load_amplitude(amplitude),
      load_phase(phase),
      load_frequency(frequency),
+     load_frequencies(frequencies),
+     load_time_factor_normalization(1.0),
      load_time_profile(load_profile),
      load_on_domain(domain_load)
 {
    int myid = Mpi::WorldRank();
+   MFEM_VERIFY(
+      spatial_operator_mode != SpatialOperatorMode::PARTIAL_ASSEMBLY ||
+      mass_solver_type == MassSolverType::LUMPED,
+      "Matrix-free transient elastodynamics requires a local lumped mass "
+      "inverse; consistent CG/AMG mass solves are not a matrix-free path.");
+   if (IsMatrixFree())
+   {
+      // This MFEM build implements the required vector mass/elasticity PA
+      // kernels for tensor-product H1 elements.  Fail before the opaque
+      // DofToQuad assertion emitted for triangles/tetrahedra.
+      int local_tensor_product_mesh = 1;
+      for (int element = 0; element < fespace.GetNE(); element++)
+      {
+         const Geometry::Type geometry =
+            fespace.GetFE(element)->GetGeomType();
+         if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE)
+         {
+            local_tensor_product_mesh = 0;
+            break;
+         }
+      }
+      int tensor_product_mesh = 0;
+      MPI_Allreduce(&local_tensor_product_mesh, &tensor_product_mesh, 1,
+                    MPI_INT, MPI_MIN, fespace.GetComm());
+      MFEM_VERIFY(tensor_product_mesh != 0,
+                  "The MFEM partial-assembly inverse currently requires "
+                  "quadrilateral or hexahedral state elements; use the "
+                  "generated inclusion meshes or an all-tensor mesh.");
+   }
 
    // Block structure: [displacement, velocity]
    block_true_offsets.SetSize(3);
@@ -682,6 +763,14 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    tmp = 0.0;
    mass_rhs = 0.0;
    load_base_vector = 0.0;
+
+   if (load_frequencies.size() > 1)
+   {
+      load_time_factor_normalization =
+         ComputeMultiCarrierEnergyNormalization(
+            load_time_profile, load_duration, load_frequency,
+            load_frequencies, load_phase);
+   }
 
    fespace.GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);
 
@@ -730,28 +819,43 @@ ElastodynamicsOperator::ElastodynamicsOperator(
       }
       else { std::cout << "ITERATIVE"; }
       std::cout << std::endl;
+      std::cout << "Spatial operator: "
+                << (IsMatrixFree() ? "MFEM partial assembly (matrix-free)" :
+                    "assembled HYPRE matrices") << std::endl;
    }
 
    // Assemble design-dependent mass matrix: M(ρ)
    M = new ParBilinearForm(&fespace);
+   if (IsMatrixFree()) { M->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    M->AddDomainIntegrator(new VectorMassIntegrator(mass_coef));
    M->Assemble();
-   M->Finalize();
-   Mmat = M->ParallelAssemble();
+   if (!IsMatrixFree())
+   {
+      M->Finalize();
+      Mmat = M->ParallelAssemble();
+   }
 
    // Assemble design-dependent stiffness matrix: K(ρ)
    K = new ParBilinearForm(&fespace);
+   if (IsMatrixFree()) { K->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    K->AddDomainIntegrator(new ElasticityIntegrator(lambda_coef, mu_coef));
    K->Assemble();
-   K->Finalize();
-   Kmat = K->ParallelAssemble();
+   if (!IsMatrixFree())
+   {
+      K->Finalize();
+      Kmat = K->ParallelAssemble();
+   }
 
    // Assemble volumetric damping matrix
    C_vol = new ParBilinearForm(&fespace);
+   if (IsMatrixFree()) { C_vol->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    C_vol->AddDomainIntegrator(new VectorMassIntegrator(*gamma_coef));
    C_vol->Assemble();
-   C_vol->Finalize();
-   Cvol_mat = C_vol->ParallelAssemble();
+   if (!IsMatrixFree())
+   {
+      C_vol->Finalize();
+      Cvol_mat = C_vol->ParallelAssemble();
+   }
 
    // Assemble absorbing boundary condition matrix
    C_abs = new ParBilinearForm(&fespace);
@@ -760,19 +864,22 @@ ElastodynamicsOperator::ElastodynamicsOperator(
    C_abs->Assemble();
    C_abs->Finalize();
    Cabs_mat = C_abs->ParallelAssemble();
-
-   HYPRE_BigInt mass_nnz = Mmat->NNZ();
-   HYPRE_BigInt stiff_nnz = Kmat->NNZ();
-   HYPRE_BigInt cvol_nnz = Cvol_mat->NNZ();
-   HYPRE_BigInt cabs_nnz = Cabs_mat->NNZ();
-
-   if (myid == 0)
+   if (!IsMatrixFree())
    {
-      std::cout << "Matrix assembly complete:" << std::endl;
-      std::cout << "  Mass NNZ:     " << mass_nnz << std::endl;
-      std::cout << "  Stiffness NNZ: " << stiff_nnz << std::endl;
-      std::cout << "  Damping NNZ:   " << cvol_nnz << std::endl;
-      std::cout << "  ABC NNZ:       " << cabs_nnz << std::endl;
+      if (myid == 0)
+      {
+         std::cout << "Matrix assembly complete:" << std::endl;
+         std::cout << "  Mass NNZ:     " << Mmat->NNZ() << std::endl;
+         std::cout << "  Stiffness NNZ: " << Kmat->NNZ() << std::endl;
+         std::cout << "  Damping NNZ:   " << Cvol_mat->NNZ() << std::endl;
+         std::cout << "  ABC NNZ:       " << Cabs_mat->NNZ() << std::endl;
+      }
+   }
+   else if (myid == 0)
+   {
+      std::cout << "Partial-assembly setup complete: no global volume mass, "
+                   "stiffness, or sponge-damping matrices were formed; the "
+                   "absorbing-boundary damping operator remains assembled.\n";
    }
 
    // Set up mass matrix solver based on selected strategy
@@ -847,7 +954,8 @@ ElastodynamicsOperator::ElastodynamicsOperator(
                      1e-12 * std::max(real_t(1.0), lumped_diagonal_scale),
                      "High-order lumping scale differs across MPI ranks.");
 
-         Mmat->GetDiag(M_lumped_inv);
+         if (IsMatrixFree()) { M->AssembleDiagonal(M_lumped_inv); }
+         else { Mmat->GetDiag(M_lumped_inv); }
          M_lumped_inv *= lumped_diagonal_scale;
       }
       else
@@ -855,7 +963,9 @@ ElastodynamicsOperator::ElastodynamicsOperator(
          // Linear simplex elements retain standard row-sum lumping.
          Vector ones(true_size);
          ones = 1.0;
-         Mmat->Mult(ones, M_lumped_inv);
+         M_lumped_inv = 0.0;
+         if (IsMatrixFree()) { M->TrueAddMult(ones, M_lumped_inv); }
+         else { Mmat->Mult(ones, M_lumped_inv); }
       }
 
       real_t local_min_mass = M_lumped_inv.Min();
@@ -982,8 +1092,24 @@ ElastodynamicsOperator::ElastodynamicsOperator(
          std::cout << "  Pulse duration: " << duration << " s" << std::endl;
          if (load_time_profile == LoadTimeProfile::MODULATED_GAUSSIAN)
          {
-            std::cout << "  Carrier frequency: " << load_frequency
-                      << ",  phase: " << load_phase << std::endl;
+            if (load_frequencies.size() <= 1)
+            {
+               std::cout << "  Carrier frequency: " << load_frequency
+                         << ",  phase: " << load_phase << std::endl;
+            }
+            else
+            {
+               std::cout << "  Coherent carrier frequencies: [";
+               for (std::size_t i = 0; i < load_frequencies.size(); i++)
+               {
+                  if (i > 0) { std::cout << ", "; }
+                  std::cout << load_frequencies[i];
+               }
+               std::cout << "] (common envelope, aligned phase "
+                         << load_phase << ")\n"
+                         << "  Temporal L2 normalization: "
+                         << load_time_factor_normalization << std::endl;
+            }
          }
       }
       else if (load_time_profile == LoadTimeProfile::HARMONIC)
@@ -1017,21 +1143,24 @@ void ElastodynamicsOperator::Mult(const Vector &x, Vector &y) const
    res = 0.0;
 
    // Elastic restoring force: -K u
-   Kmat->Mult(u_true, tmp);
+   MultStiffness(u_true, tmp);
    res.Add(-1.0, tmp);
 
    // Volumetric damping: -C_vol v
-   Cvol_mat->Mult(v_true, tmp);
+   MultVolumetricDamping(v_true, tmp);
    res.Add(-1.0, tmp);
 
    // Absorbing boundary damping: -C_abs v
-   Cabs_mat->Mult(v_true, tmp);
+   MultAbsorbingDamping(v_true, tmp);
    res.Add(-1.0, tmp);
 
    // Time-dependent applied load (optimization B: precomputed base vector)
-   const real_t time_factor =
+   const real_t time_factor = load_frequencies.empty() ?
       EvaluateLoadTimeFactor(load_time_profile, time, load_duration,
-                             load_frequency, load_phase);
+                             load_frequency, load_phase) :
+      load_time_factor_normalization *
+      EvaluateLoadTimeFactor(load_time_profile, time, load_duration,
+                             load_frequencies, load_phase);
    const real_t current_amplitude = load_amplitude * time_factor;
 
    // Scale precomputed load: res += current_amplitude * load_base_vector
@@ -1074,15 +1203,15 @@ void ElastodynamicsOperator::JacobianMultTranspose(const Vector &x,
    m_inv_lambda = 0.0;
    MultInvMass(lambda_new, m_inv_lambda);
 
-   Kmat->MultTranspose(m_inv_lambda, tmp);
+   MultStiffness(m_inv_lambda, tmp);
    b_eta_rhs_new.GetBlock(0).Add(-1.0, tmp);
 
    b_eta_rhs_new.GetBlock(1) = mu_new;
 
-   Cvol_mat->MultTranspose(m_inv_lambda, tmp);
+   MultVolumetricDamping(m_inv_lambda, tmp);
    b_eta_rhs_new.GetBlock(1).Add(-1.0, tmp);
 
-   Cabs_mat->MultTranspose(m_inv_lambda, tmp);
+   MultAbsorbingDamping(m_inv_lambda, tmp);
    b_eta_rhs_new.GetBlock(1).Add(-1.0, tmp);
 }
 
@@ -1399,6 +1528,59 @@ inline void ValidateLumpedRK4TimeStep(ElastodynamicsOperator &oper,
    ValidateRK4TimeStep(oper, requested_dt, print_report);
 }
 
+// Kick--drift (symplectic) Euler has the imaginary-axis limit
+// dt*omega_max < 2, rather than 2*sqrt(2) for RK4.  The diagnostic rollout
+// below treats the physical damping explicitly, so use the conservative
+// scalar bound gamma_max*dt + (omega_max*dt)^2/2 < 2 as well.  The default
+// production path remains RK4; the experimental matrix-free inverse uses
+// this guard for its kick--drift forward/adjoint pair.
+inline void ValidateKickDriftEulerTimeStep(ElastodynamicsOperator &oper,
+                                           real_t requested_dt,
+                                           bool print_report = true)
+{
+   const bool lumped = oper.GetMassSolverType() == MassSolverType::LUMPED;
+   const real_t rk4_wave_dt = lumped ?
+      oper.EstimateLumpedRK4TimeStep() :
+      oper.EstimateConsistentRK4TimeStep();
+   const real_t rk4_damping_dt = lumped ?
+      oper.EstimateLumpedRK4DampingTimeStep() :
+      oper.EstimateConsistentRK4DampingTimeStep();
+   const real_t omega_max = 2.0 * std::sqrt(real_t(2.0)) / rk4_wave_dt;
+   const real_t damping_rate_max = std::isfinite(rk4_damping_dt) ?
+      real_t(2.7852935634052816) / rk4_damping_dt : 0.0;
+   const real_t raw_dt = damping_rate_max > 0.0 ?
+      (std::sqrt(damping_rate_max * damping_rate_max +
+                 4.0 * omega_max * omega_max) - damping_rate_max) /
+         (omega_max * omega_max) :
+      2.0 / omega_max;
+   const real_t recommended_dt = 0.8 * raw_dt;
+
+   const bool above_recommended = requested_dt > recommended_dt;
+   if (Mpi::Root() && (print_report || above_recommended))
+   {
+      std::cout << "Kick-drift Euler timestep spectral estimate ("
+                << (lumped ? "lumped" : "consistent") << " mass):\n"
+                << "  omega_max = " << std::scientific
+                << std::setprecision(6) << omega_max
+                << ", damping-rate upper bound = " << damping_rate_max << "\n"
+                << "  raw dt_max = " << raw_dt
+                << ", recommended dt <= " << recommended_dt
+                << " (80% safety), requested dt = " << requested_dt << "\n";
+      if (above_recommended)
+      {
+         std::cout << "  Diagnostic warning: requested dt is inside the raw "
+                     "bound but above the 80% production safety margin.\n";
+      }
+   }
+   // A smoke comparison at the exact production-RK4 timestep is informative
+   // as long as it lies inside the raw bound.  Keep the 80% value as the
+   // production recommendation, but do not prevent this diagnostic from
+   // measuring an otherwise linearly stable same-dt trajectory.
+   MFEM_VERIFY(requested_dt <= raw_dt,
+               "Requested timestep exceeds the raw kick-drift Euler "
+               "wave/damping estimate. Use a smaller dt for this comparison.");
+}
+
 // =============================================================================
 // REUSABLE ADJOINT + DESIGN SENSITIVITY
 // =============================================================================
@@ -1625,6 +1807,258 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+// Workspace and element-local design sensitivity for the inverse-only
+// rho_phys=rho in DG(Q0) path.  The generic sensitivity above assembles two
+// filter-space linear forms at every reverse step.  In this special case each
+// physical-density element has exactly one unshared constant basis function,
+// so the mass and stiffness contractions can be accumulated directly into its
+// true DOF.  This retains the generic quadrature rules exactly while avoiding
+// ParLinearForm construction and parallel assembly in the inner adjoint loop.
+class DGQ0StageDesignWorkspace
+{
+private:
+   ParFiniteElementSpace &state_fes_;
+   ParFiniteElementSpace &density_fes_;
+   ParGridFunction u_gf_;
+   ParGridFunction accel_gf_;
+   ParGridFunction z_gf_;
+   Vector projected_velocity_seed_;
+   Vector z_true_;
+   Vector state_shape_;
+   Vector g_nodal_;
+   Vector accel_edof_;
+   Vector z_edof_;
+   DenseMatrix grad_u_;
+   DenseMatrix grad_z_;
+   Array<int> state_vdofs_;
+   Array<int> density_ldof_by_element_;
+   Array<int> density_tdof_by_element_;
+
+public:
+   DGQ0StageDesignWorkspace(ParFiniteElementSpace &state_fes,
+                             ParFiniteElementSpace &density_fes)
+      : state_fes_(state_fes), density_fes_(density_fes),
+        u_gf_(&state_fes), accel_gf_(&state_fes), z_gf_(&state_fes)
+   {
+      MFEM_VERIFY(state_fes_.GetParMesh() == density_fes_.GetParMesh() &&
+                  state_fes_.GetNE() == density_fes_.GetNE(),
+                  "DG(Q0) design sensitivity requires state and density "
+                  "spaces on the same distributed mesh.");
+      MFEM_VERIFY(density_fes_.GetVSize() == density_fes_.GetTrueVSize(),
+                  "DG(Q0) design sensitivity requires one owned true DOF "
+                  "per local density DOF.");
+
+      density_ldof_by_element_.SetSize(density_fes_.GetNE());
+      density_tdof_by_element_.SetSize(density_fes_.GetNE());
+      Array<int> density_dofs;
+      for (int e = 0; e < density_fes_.GetNE(); e++)
+      {
+         MFEM_VERIFY(density_fes_.GetFE(e)->GetDof() == 1,
+                     "The direct inverse sensitivity is restricted to DG(Q0).");
+         density_fes_.GetElementDofs(e, density_dofs);
+         MFEM_VERIFY(density_dofs.Size() == 1 && density_dofs[0] >= 0,
+                     "DG(Q0) element has an invalid local density DOF.");
+         const int tdof = density_fes_.GetLocalTDofNumber(density_dofs[0]);
+         MFEM_VERIFY(tdof >= 0,
+                     "DG(Q0) element density DOF is unexpectedly unowned.");
+         density_ldof_by_element_[e] = density_dofs[0];
+         density_tdof_by_element_[e] = tdof;
+      }
+   }
+
+   ParGridFunction &Displacement() { return u_gf_; }
+   ParGridFunction &Acceleration() { return accel_gf_; }
+   ParGridFunction &MassAdjointField() { return z_gf_; }
+   Vector &ProjectedVelocitySeed() { return projected_velocity_seed_; }
+   Vector &MassAdjointTrueDofs() { return z_true_; }
+   Vector &StateShape() { return state_shape_; }
+   Vector &NodalMassContraction() { return g_nodal_; }
+   Vector &AccelerationElementDofs() { return accel_edof_; }
+   Vector &MassAdjointElementDofs() { return z_edof_; }
+   DenseMatrix &DisplacementGradient() { return grad_u_; }
+   DenseMatrix &MassAdjointGradient() { return grad_z_; }
+   Array<int> &StateVDofs() { return state_vdofs_; }
+   int DensityLocalDof(int e) const { return density_ldof_by_element_[e]; }
+   int DensityTrueDof(int e) const { return density_tdof_by_element_[e]; }
+};
+
+inline void AddStageDesignGradientDGQ0(
+   ElastodynamicsOperator &oper,
+   ParFiniteElementSpace &state_fes,
+   ParFiniteElementSpace &density_fes,
+   ParGridFunction &rho_phys,
+   const MaterialParams &mat,
+   const Vector &stage_state,
+   const Vector &stage_rhs,
+   const Vector &stage_seed,
+   Vector &dJ_drho_phys,
+   DGQ0StageDesignWorkspace &workspace,
+   real_t temporal_weight = 1.0)
+{
+   MFEM_VERIFY(std::isfinite(temporal_weight),
+               "DG(Q0) design-gradient stage has a non-finite temporal weight.");
+   MFEM_VERIFY(dJ_drho_phys.Size() == density_fes.GetTrueVSize(),
+               "DG(Q0) design-gradient vector has incompatible size.");
+   const Array<int> &offsets = oper.GetBlockOffsets();
+   BlockVector state_blocks(const_cast<Vector&>(stage_state), offsets);
+   BlockVector rhs_blocks(const_cast<Vector&>(stage_rhs), offsets);
+   BlockVector seed_blocks(const_cast<Vector&>(stage_seed), offsets);
+
+   // Match the transpose mass action in AddStageDesignGradientTilde exactly.
+   Vector &projected_velocity_seed = workspace.ProjectedVelocitySeed();
+   projected_velocity_seed = seed_blocks.GetBlock(1);
+   oper.ProjectEssentialField(projected_velocity_seed);
+   Vector &z_true = workspace.MassAdjointTrueDofs();
+   oper.MultInvMass(projected_velocity_seed, z_true);
+   z_true *= temporal_weight;
+
+   ParGridFunction &u_gf = workspace.Displacement();
+   ParGridFunction &accel_gf = workspace.Acceleration();
+   ParGridFunction &z_gf = workspace.MassAdjointField();
+   u_gf.SetFromTrueDofs(state_blocks.GetBlock(0));
+   accel_gf.SetFromTrueDofs(rhs_blocks.GetBlock(1));
+   z_gf.SetFromTrueDofs(z_true);
+
+   const bool lumped = (oper.GetMassSolverType() == MassSolverType::LUMPED);
+   const bool scaled_diagonal = oper.UsesScaledDiagonalLumping();
+   const real_t diagonal_scale = oper.GetLumpedDiagonalScale();
+   const int vdim = state_fes.GetVDim();
+   const int ordering = state_fes.GetOrdering();
+
+   for (int e = 0; e < state_fes.GetNE(); e++)
+   {
+      const real_t rho = std::min(
+         std::max(rho_phys[workspace.DensityLocalDof(e)], real_t(0.0)),
+         real_t(1.0));
+      if (rho <= 0.0) { continue; }
+      const real_t simp_derivative =
+         mat.simp_p * std::pow(rho, mat.simp_p - 1.0) *
+         (mat.r_max - mat.r_min);
+
+      const FiniteElement *state_el = state_fes.GetFE(e);
+      ElementTransformation *T = state_fes.GetElementTransformation(e);
+      MFEM_VERIFY(T != nullptr, "DG(Q0) sensitivity received a null element map.");
+      const int state_dof = state_el->GetDof();
+      real_t contribution = 0.0;
+
+      if (lumped)
+      {
+         Array<int> &state_vdofs = workspace.StateVDofs();
+         Vector &accel_edof = workspace.AccelerationElementDofs();
+         Vector &z_edof = workspace.MassAdjointElementDofs();
+         Vector &g_nodal = workspace.NodalMassContraction();
+         state_fes.GetElementVDofs(e, state_vdofs);
+         accel_gf.GetSubVector(state_vdofs, accel_edof);
+         z_gf.GetSubVector(state_vdofs, z_edof);
+         g_nodal.SetSize(state_dof);
+         for (int i = 0; i < state_dof; i++)
+         {
+            real_t nodal_dot = 0.0;
+            for (int c = 0; c < vdim; c++)
+            {
+               const int index = (ordering == Ordering::byNODES) ?
+                                 (c * state_dof + i) : (i * vdim + c);
+               nodal_dot += accel_edof(index) * z_edof(index);
+            }
+            g_nodal(i) = nodal_dot;
+         }
+      }
+
+      // This is the mass-rule used by StageMassDesignLFIntegrator and by the
+      // state VectorMassIntegrator.  The DG(Q0) test function is one, hence
+      // no filter-space shape multiplication remains.
+      const int mass_order = 2 * state_el->GetOrder() + T->OrderW();
+      const IntegrationRule &mass_ir =
+         IntRules.Get(state_el->GetGeomType(), mass_order);
+      for (int q = 0; q < mass_ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = mass_ir.IntPoint(q);
+         T->SetIntPoint(&ip);
+         real_t az = 0.0;
+         if (lumped)
+         {
+            Vector &state_shape = workspace.StateShape();
+            Vector &g_nodal = workspace.NodalMassContraction();
+            state_shape.SetSize(state_dof);
+            state_el->CalcPhysShape(*T, state_shape);
+            if (scaled_diagonal)
+            {
+               for (int i = 0; i < state_dof; i++)
+               {
+                  az += g_nodal(i) * state_shape(i) * state_shape(i);
+               }
+               az *= diagonal_scale;
+            }
+            else
+            {
+               az = g_nodal * state_shape;
+            }
+         }
+         else
+         {
+            Vector accel_value, z_value;
+            accel_gf.GetVectorValue(*T, ip, accel_value);
+            z_gf.GetVectorValue(*T, ip, z_value);
+            az = accel_value * z_value;
+         }
+         contribution += -mat.rho0 * simp_derivative * az *
+                         ip.weight * T->Weight();
+      }
+
+      // Preserve the stiffness quadrature selected by
+      // StageStiffnessDesignLFIntegrator / ElasticityIntegrator.
+      const int stiffness_order = 2 * T->OrderGrad(state_el);
+      const IntegrationRule &stiffness_ir =
+         IntRules.Get(state_el->GetGeomType(), stiffness_order);
+      DenseMatrix &grad_u = workspace.DisplacementGradient();
+      DenseMatrix &grad_z = workspace.MassAdjointGradient();
+      for (int q = 0; q < stiffness_ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = stiffness_ir.IntPoint(q);
+         T->SetIntPoint(&ip);
+         u_gf.GetVectorGradient(*T, grad_u);
+         z_gf.GetVectorGradient(*T, grad_z);
+
+         const int dim = T->GetSpaceDim();
+         real_t elastic_density = mat.lambda0 * grad_u.Trace() * grad_z.Trace();
+         for (int i = 0; i < dim; i++)
+         {
+            for (int j = 0; j < dim; j++)
+            {
+               elastic_density += mat.mu0 * grad_z(i, j) *
+                                  (grad_u(i, j) + grad_u(j, i));
+            }
+         }
+         contribution += -simp_derivative * elastic_density *
+                         ip.weight * T->Weight();
+      }
+
+      dJ_drho_phys[workspace.DensityTrueDof(e)] += contribution;
+   }
+}
+
+// State-sized reverse-step vectors are deliberately kept outside the 4,000
+// step production loop.  The generic compatibility path may omit this
+// workspace, but the matrix-free inverse always supplies it.
+class KickDriftEulerAdjointWorkspace
+{
+private:
+   Vector rhs_;
+   Vector lambda_projected_;
+   Vector kick_seed_;
+   Vector jacobian_transpose_action_;
+
+public:
+   explicit KickDriftEulerAdjointWorkspace(int state_size)
+      : rhs_(state_size), lambda_projected_(state_size),
+        kick_seed_(state_size), jacobian_transpose_action_(state_size) {}
+
+   Vector &RHS() { return rhs_; }
+   Vector &ProjectedLambda() { return lambda_projected_; }
+   Vector &KickSeed() { return kick_seed_; }
+   Vector &JacobianTransposeAction() { return jacobian_transpose_action_; }
+};
+
 inline void EvalRHS(ElastodynamicsOperator &oper,
                     const Vector &x, real_t t, Vector &y)
 {
@@ -1801,6 +2235,111 @@ inline void RK4AdjointOneStepWithDesign(ElastodynamicsOperator &oper,
    adj_x0.Add(1.0, jt);
 
    lambda_prev = adj_x0;
+}
+
+// One kick--drift (symplectic Euler) step for x=[u,v].  The update is explicit
+// with a lumped mass: "semi-implicit" refers only to using v^{n+1} in the
+// displacement drift, not to a global linear solve.
+inline void KickDriftEulerStep(ElastodynamicsOperator &oper,
+                               Vector &state, real_t time, real_t h,
+                               Vector &rhs)
+{
+   MFEM_VERIFY(state.Size() == oper.Height() && state.Size() % 2 == 0 &&
+               std::isfinite(time) && std::isfinite(h) && h > 0.0,
+               "Kick-drift Euler step received an invalid state or timestep.");
+   const int displacement_size = state.Size() / 2;
+   oper.SetTime(time);
+   oper.Mult(state, rhs);
+   for (int i = 0; i < displacement_size; i++)
+   {
+      state[displacement_size + i] += h * rhs[displacement_size + i];
+   }
+   for (int i = 0; i < displacement_size; i++)
+   {
+      state[i] += h * state[displacement_size + i];
+   }
+   oper.ProjectEssentialBC(state);
+}
+
+// Exact reverse of KickDriftEulerStep, including the design derivative of the
+// mass and stiffness in the kick.  Reverse the final essential projection,
+// then the drift, then the kick.  This is the discrete adjoint used by the
+// matrix-free symplectic-Euler inverse path; it is not a continuous-adjoint
+// approximation.
+inline void KickDriftEulerAdjointOneStepWithDesign(
+   ElastodynamicsOperator &oper,
+   ParFiniteElementSpace &state_fes,
+   ParFiniteElementSpace &filter_fes,
+   ParGridFunction &rho_tilde,
+   const MaterialParams &mat,
+   const Vector &state_n, real_t time, real_t h,
+   const Vector &lambda_next,
+   Vector &lambda_prev,
+   Vector &dJ_drho_tilde,
+   DGQ0StageDesignWorkspace *dgq0_workspace = nullptr,
+   KickDriftEulerAdjointWorkspace *reverse_workspace = nullptr)
+{
+   MFEM_VERIFY(state_n.Size() == oper.Height() &&
+               lambda_next.Size() == state_n.Size() &&
+               state_n.Size() % 2 == 0,
+               "Kick-drift discrete adjoint received incompatible vectors.");
+   const int displacement_size = state_n.Size() / 2;
+
+   Vector local_rhs;
+   Vector &rhs = reverse_workspace ? reverse_workspace->RHS() : local_rhs;
+   rhs.SetSize(state_n.Size());
+   oper.SetTime(time);
+   oper.Mult(state_n, rhs);
+
+   // x_{n+1}=P[u_n+h v_{n+1}, v_{n+1}]: transpose the final projection P.
+   Vector local_lambda_projected;
+   Vector &lambda_projected = reverse_workspace ?
+                              reverse_workspace->ProjectedLambda() :
+                              local_lambda_projected;
+   lambda_projected = lambda_next;
+   oper.ProjectEssentialBC(lambda_projected);
+
+   // Reverse drift: u_{n+1}=u_n+h v_{n+1}.
+   lambda_prev = lambda_projected;
+   for (int i = 0; i < displacement_size; i++)
+   {
+      lambda_prev[displacement_size + i] += h * lambda_projected[i];
+   }
+
+   // Reverse kick: v_{n+1}=v_n+h a(u_n,v_n,rho).  The seed is nonzero only
+   // in the acceleration block, so both the state transpose and the existing
+   // local SIMP sensitivity accumulation apply exactly once.
+   Vector local_kick_seed;
+   Vector &kick_seed = reverse_workspace ? reverse_workspace->KickSeed() :
+                       local_kick_seed;
+   kick_seed.SetSize(state_n.Size());
+   kick_seed = 0.0;
+   for (int i = 0; i < displacement_size; i++)
+   {
+      kick_seed[displacement_size + i] =
+         h * lambda_prev[displacement_size + i];
+   }
+   if (dgq0_workspace)
+   {
+      AddStageDesignGradientDGQ0(
+         oper, state_fes, filter_fes, rho_tilde, mat, state_n, rhs,
+         kick_seed, dJ_drho_tilde, *dgq0_workspace);
+   }
+   else
+   {
+      AddStageDesignGradientTilde(
+         oper, state_fes, filter_fes, rho_tilde, mat, state_n, rhs,
+         kick_seed, dJ_drho_tilde);
+   }
+
+   Vector local_jacobian_transpose_action;
+   Vector &jacobian_transpose_action = reverse_workspace ?
+      reverse_workspace->JacobianTransposeAction() :
+      local_jacobian_transpose_action;
+   jacobian_transpose_action.SetSize(state_n.Size());
+   EvalJacobianTranspose(
+      oper, state_n, time, kick_seed, jacobian_transpose_action);
+   lambda_prev += jacobian_transpose_action;
 }
 
 inline real_t AddObjectiveContributionAtTime(
@@ -2017,7 +2556,8 @@ inline real_t RK4StageObjectiveForwardSweepStreaming(
    int forward_steps,
    real_t start_time,
    real_t forward_step,
-   const std::function<void(int, real_t, const Vector&)> &endpoint = {})
+   const std::function<void(int, real_t, const Vector&)> &endpoint = {},
+   Vector *final_state = nullptr)
 {
    MFEM_VERIFY(forward_steps > 0 && std::isfinite(start_time) &&
                std::isfinite(forward_step) && forward_step > 0.0,
@@ -2038,6 +2578,7 @@ inline real_t RK4StageObjectiveForwardSweepStreaming(
    }
    MFEM_VERIFY(std::isfinite(objective_value),
                "Streaming RK4 stage-objective is non-finite.");
+   if (final_state) { *final_state = state; }
    return objective_value;
 }
 
@@ -3870,7 +4411,10 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
                                int nsteps, real_t t_init, real_t h,
                                std::vector<Vector> *states,
                                std::vector<real_t> *times,
-                               const char *progress_label = nullptr)
+                               const char *progress_label = nullptr,
+                               Vector *final_state = nullptr,
+                               const std::function<void(
+                                  int, real_t, const Vector &)> &state_observer = {})
 {
    const int n = x_init.Size();
    Vector x(x_init);
@@ -3904,6 +4448,7 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
 
    AddObjectiveContributionAtTime(
       state_fes, offsets, objective, x, t, h, 0, total_steps);
+   if (state_observer) { state_observer(0, t, x); }
 
    for (int i = 0; i < nsteps; i++)
    {
@@ -3915,6 +4460,7 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
 
       if (states) { (*states)[i + 1] = x; }
       if (times)  { (*times)[i + 1] = t; }
+      if (state_observer) { state_observer(i + 1, t, x); }
 
       if (report && ((i + 1) % report_every == 0 || i + 1 == nsteps))
       {
@@ -3955,6 +4501,52 @@ inline real_t RolloutObjective(ElastodynamicsOperator &oper,
       }
    }
 
+   if (final_state) { *final_state = x; }
+   return objective.GetObjective();
+}
+
+// Forward-only kick--drift Euler rollout.  For the undamped semi-discrete
+// system this is the symplectic Euler update, v^{n+1}=v^n+h a(u^n,v^n,t_n),
+// u^{n+1}=u^n+h v^{n+1}.  Damping is evaluated explicitly at t_n, matching
+// the inexpensive one-RHS-evaluation smoke-test variant; it is therefore not
+// symplectic when damping is enabled.
+inline real_t RolloutKickDriftEulerObjective(
+   ElastodynamicsOperator &oper,
+   ParFiniteElementSpace &state_fes,
+   const Array<int> &offsets,
+   TimeIntegratedObjective &objective,
+   const Vector &x_init,
+   int nsteps, real_t t_init, real_t h,
+   Vector *final_state = nullptr,
+   const std::function<void(int, real_t, const Vector &)> &state_observer = {})
+{
+   MFEM_VERIFY(offsets.Size() == 3 && offsets[0] == 0 &&
+               offsets[2] == x_init.Size(),
+               "Kick-drift Euler received invalid displacement/velocity offsets.");
+   const int displacement_size = offsets[1] - offsets[0];
+   MFEM_VERIFY(displacement_size > 0 && offsets[2] - offsets[1] ==
+               displacement_size,
+               "Kick-drift Euler requires equally sized displacement and velocity blocks.");
+
+   Vector x(x_init), rhs(x_init.Size());
+   real_t t = t_init;
+   const int total_steps = nsteps + 1;
+   objective.Reset();
+   AddObjectiveContributionAtTime(
+      state_fes, offsets, objective, x, t, h, 0, total_steps);
+   if (state_observer) { state_observer(0, t, x); }
+
+   for (int i = 0; i < nsteps; i++)
+   {
+      KickDriftEulerStep(oper, x, t, h, rhs);
+      t += h;
+
+      AddObjectiveContributionAtTime(
+         state_fes, offsets, objective, x, t, h, i + 1, total_steps);
+      if (state_observer) { state_observer(i + 1, t, x); }
+   }
+
+   if (final_state) { *final_state = x; }
    return objective.GetObjective();
 }
 
@@ -4001,7 +4593,7 @@ inline real_t EvaluateDesignObjective(const Vector &rho_tv,
       load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
       load_spec.domain_load,
       &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
-      mass_type);
+      mass_type, /*print_banner=*/true, load_spec.frequencies);
 
    if (validate_cfl)
    {
@@ -4185,7 +4777,7 @@ inline real_t DesignObjectiveAdjointGradient(const Vector &rho_tv,
       load_spec.phase, load_spec.frequency, load_spec.bdr_attributes, load_coef,
       load_spec.domain_load,
       &gamma_coef, impedance, exterior_bdr_attr, empty_bdr_attr,
-      mass_type);
+      mass_type, /*print_banner=*/true, load_spec.frequencies);
 
    if (myid == 0)
    {
@@ -4239,6 +4831,27 @@ struct ContinuousStorageTelemetry
    long long locally_replayed_intervals = 0;
 };
 
+// Results from the forward-only RK4 versus kick--drift Euler diagnostic.  The
+// timings cover the integration and objective accumulation only, with the
+// operator assembly and CFL estimates deliberately excluded.
+struct ForwardIntegratorSmokeResult
+{
+   // Timed RK4 uses its production stage quadrature when that is selected.
+   real_t rk4_timed_objective = 0.0;
+   // These two values are recomputed with the common endpoint-trapezoid rule,
+   // so their difference is an integrator comparison rather than a quadrature
+   // comparison.
+   real_t rk4_objective = 0.0;
+   real_t kick_drift_objective = 0.0;
+   real_t objective_relative_difference = 0.0;
+   real_t terminal_displacement_relative_difference = 0.0;
+   real_t terminal_velocity_relative_difference = 0.0;
+   real_t receiver_trace_relative_difference = 0.0;
+   bool has_receiver_trace = false;
+   double rk4_seconds = 0.0;
+   double kick_drift_seconds = 0.0;
+};
+
 class TransientDesignSolver
 {
 private:
@@ -4262,14 +4875,20 @@ private:
    int adjoint_refinement_;
    int adjoint_coarsening_;
    bool rk4_stage_objective_;
+   bool matrix_free_symplectic_euler_;
+   // In the inverse-only identity mode the physical density is the same
+   // discontinuous Q0 field as the MMA control.  Otherwise rho_tilde_ is the
+   // usual H1 output of PDEFilter (including its r=0 mass projection).
+   bool identity_density_transfer_;
    NestedTimeGrid time_grid_{};
    ParGridFunction &rho_;         // working density (also the driver's ParaView field)
-   ParGridFunction &rho_tilde_;   // filtered density
+   ParGridFunction &rho_tilde_;   // physical density (H1 filter output or DG Q0)
    Vector x0_;                    // rest initial state [u, v] = 0
 
    // Design-dependent SIMP material coefficients; built once, they evaluate the
-   // live rho_tilde_, so the operator re-assembled each PhysicsFSolve picks up the
-   // current design. (Declared after rho_tilde_ / mat_ that they reference.)
+   // live physical density, so the operator re-assembled each PhysicsFSolve
+   // picks up the current design. (Declared after rho_tilde_ / mat_ that they
+   // reference.)
    ConstantCoefficient rho0_coef_, lambda0_coef_, mu0_coef_;
    SIMPCoefficient simp_mass_, simp_stiff_;
    ProductCoefficient mass_coef_, lambda_coef_, mu_coef_;
@@ -4401,14 +5020,29 @@ private:
       objective_.Reset();
 
       RK4Solver solver;
-      solver.Init(*oper_);
+      Vector kick_drift_rhs;
+      if (matrix_free_symplectic_euler_)
+      {
+         kick_drift_rhs.SetSize(x0_.Size());
+      }
+      else
+      {
+         solver.Init(*oper_);
+      }
 
       // Primal step lambda for REVOLVE
       auto primal_step = [&](int i, Vector &state)
       {
-         real_t dt = h_;
          real_t ti = i * h_;
-         solver.Step(state, ti, dt);
+         if (matrix_free_symplectic_euler_)
+         {
+            KickDriftEulerStep(*oper_, state, ti, h_, kick_drift_rhs);
+         }
+         else
+         {
+            real_t dt = h_;
+            solver.Step(state, ti, dt);
+         }
       };
 
       // Add initial objective contribution
@@ -4501,19 +5135,49 @@ private:
             h_, nsteps_, total_steps, lambda);
       }
 
-      // Primal step lambda for REVOLVE (re-evaluation during adjoint).  Keep
-      // one initialized solver for the entire reverse sweep: constructing an
-      // RK4Solver inside this callback would repeatedly allocate all of its
-      // stage vectors for every recomputed step (tens of thousands of large
-      // allocations in production spherical runs).
+      // Primal re-evaluation for REVOLVE. Both schemes retain their scratch
+      // vector across callbacks: checkpoint replay must not allocate a large
+      // state-sized workspace at every recomputed interval.
       RK4Solver reeval_solver;
-      reeval_solver.Init(*oper_);
+      Vector kick_drift_rhs;
+      if (matrix_free_symplectic_euler_)
+      {
+         kick_drift_rhs.SetSize(n);
+      }
+      else
+      {
+         reeval_solver.Init(*oper_);
+      }
       auto primal_step = [&](int i, Vector &state)
       {
-         real_t dt = h_;
          real_t ti = i * h_;
-         reeval_solver.Step(state, ti, dt);
+         if (matrix_free_symplectic_euler_)
+         {
+            KickDriftEulerStep(*oper_, state, ti, h_, kick_drift_rhs);
+         }
+         else
+         {
+            real_t dt = h_;
+            reeval_solver.Step(state, ti, dt);
+         }
       };
+
+      // The large inverse keeps rho_phys directly in DG(Q0).  Build its
+      // reusable element-local sensitivity workspace once per reverse sweep;
+      // the generic H1/filter path below remains unchanged for every other
+      // experiment.
+      std::unique_ptr<DGQ0StageDesignWorkspace> dgq0_workspace;
+      if (identity_density_transfer_)
+      {
+         dgq0_workspace = std::make_unique<DGQ0StageDesignWorkspace>(
+            state_fes_, filter_fes_);
+      }
+      std::unique_ptr<KickDriftEulerAdjointWorkspace> reverse_workspace;
+      if (matrix_free_symplectic_euler_)
+      {
+         reverse_workspace =
+            std::make_unique<KickDriftEulerAdjointWorkspace>(n);
+      }
 
       // Adjoint step lambda for REVOLVE
       auto adjoint_step = [&](int i, const Vector &state_i, Vector &lambda_current)
@@ -4529,9 +5193,19 @@ private:
          }
          else
          {
-            RK4AdjointOneStepWithDesign(
-               *oper_, state_fes_, filter_fes_, rho_tilde_, mat_, state_i,
-               ti, h_, lambda_current, lambda_prev, dJ_drho_tilde_);
+            if (matrix_free_symplectic_euler_)
+            {
+               KickDriftEulerAdjointOneStepWithDesign(
+                  *oper_, state_fes_, filter_fes_, rho_tilde_, mat_, state_i,
+                  ti, h_, lambda_current, lambda_prev, dJ_drho_tilde_,
+                  dgq0_workspace.get(), reverse_workspace.get());
+            }
+            else
+            {
+               RK4AdjointOneStepWithDesign(
+                  *oper_, state_fes_, filter_fes_, rho_tilde_, mat_, state_i,
+                  ti, h_, lambda_current, lambda_prev, dJ_drho_tilde_);
+            }
             ObjectiveGradientAtState(
                state_fes_, oper_->GetBlockOffsets(), objective_, state_i,
                h_, i, total_steps, q);
@@ -4750,7 +5424,9 @@ public:
                          TrajectoryStorageMode trajectory_storage_mode =
                             TrajectoryStorageMode::REVOLVE,
                          int adjoint_coarsening = 1,
-                         bool rk4_stage_objective = false)
+                         bool rk4_stage_objective = false,
+                         bool matrix_free_symplectic_euler = false,
+                         bool identity_density_transfer = false)
       : state_fes_(state_fes), filter_fes_(filter_fes), control_fes_(control_fes),
         filter_(filter), gamma_coef_(gamma_coef),
         exterior_bdr_attr_(exterior_bdr_attr), ess_bdr_attr_(ess_bdr_attr),
@@ -4762,11 +5438,15 @@ public:
         adjoint_refinement_(adjoint_refinement),
         adjoint_coarsening_(adjoint_coarsening),
         rk4_stage_objective_(rk4_stage_objective),
+        matrix_free_symplectic_euler_(matrix_free_symplectic_euler),
+        identity_density_transfer_(identity_density_transfer),
         rho_(rho), rho_tilde_(rho_tilde),
         x0_(2 * state_fes.GetTrueVSize()),
         rho0_coef_(mat.rho0), lambda0_coef_(mat.lambda0), mu0_coef_(mat.mu0),
-        simp_mass_(&rho_tilde_, mat.r_min, mat.r_max, mat.simp_p),
-        simp_stiff_(&rho_tilde_, mat.r_min, mat.r_max, mat.simp_p),
+        simp_mass_(identity_density_transfer ? &rho : &rho_tilde,
+                   mat.r_min, mat.r_max, mat.simp_p),
+        simp_stiff_(identity_density_transfer ? &rho : &rho_tilde,
+                    mat.r_min, mat.r_max, mat.simp_p),
         mass_coef_(simp_mass_, rho0_coef_),
         lambda_coef_(simp_stiff_, lambda0_coef_),
         mu_coef_(simp_stiff_, mu0_coef_),
@@ -4784,6 +5464,21 @@ public:
                   (adjoint_refinement_ == 1 && adjoint_coarsening_ == 1),
                   "The RK4-stage objective experiment requires one common "
                   "same-grid forward/adjoint timestep.");
+      MFEM_VERIFY(!matrix_free_symplectic_euler_ ||
+                  (!rk4_stage_objective_ &&
+                   mass_type_ == MassSolverType::LUMPED &&
+                   adjoint_mode_ == TransientAdjointMode::DISCRETE &&
+                   trajectory_storage_mode_ == TrajectoryStorageMode::REVOLVE &&
+                   adjoint_refinement_ == 1 && adjoint_coarsening_ == 1),
+                  "The matrix-free symplectic-Euler inverse requires lumped "
+                  "mass, the endpoint-trapezoid discrete objective, and "
+                  "same-grid REVOLVE discrete adjoints.");
+      MFEM_VERIFY(!identity_density_transfer_ ||
+                  (matrix_free_symplectic_euler_ &&
+                   filter_fes_.GetTrueVSize() == control_fes_.GetTrueVSize()),
+                  "The identity-density transfer is reserved for the "
+                  "matrix-free inverse and requires the physical DG(Q0) "
+                  "space to be the control space.");
 
       int adjoint_steps = nsteps_;
       if (adjoint_mode_ == TransientAdjointMode::DISCRETE)
@@ -4841,6 +5536,10 @@ public:
    real_t TimeStep() const { return h_; }
    int AdjointRefinement() const { return adjoint_refinement_; }
    int AdjointCoarsening() const { return adjoint_coarsening_; }
+   bool UsesMatrixFreeSymplecticEuler() const
+   {
+      return matrix_free_symplectic_euler_;
+   }
    TransientAdjointMode AdjointMode() const { return adjoint_mode_; }
    TrajectoryStorageMode TrajectoryStorage() const
    {
@@ -4907,7 +5606,7 @@ public:
          load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
          load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
          exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-         /*print_banner=*/true);
+         /*print_banner=*/true, load_spec_.frequencies);
       ValidateLumpedRK4TimeStep(oper, h_, /*print_report=*/true);
 
       const auto global_max = [&](real_t local_value)
@@ -5331,10 +6030,10 @@ public:
                state_fes_, mass_coef_, lambda_coef_, mu_coef_,
                load_spec_.amplitude, load_spec_.duration,
                load_spec_.time_profile, load_spec_.phase,
-               load_spec_.frequency, load_spec_.bdr_attributes,
-               load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
-               exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-               /*print_banner=*/false);
+            load_spec_.frequency, load_spec_.bdr_attributes,
+            load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
+            exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
+            /*print_banner=*/false, load_spec_.frequencies);
             return RK4StageObjectiveForwardSweepStreaming(
                perturbed_oper, state_fes_, objective_, x0_, nsteps_,
                /*start_time=*/0.0, h_);
@@ -5409,7 +6108,7 @@ public:
          load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
          load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
          exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-         /*print_banner=*/true);
+         /*print_banner=*/true, load_spec_.frequencies);
 
       const Vector forward_rhs(spectral_oper.GetLoadBaseVector());
 
@@ -5529,7 +6228,7 @@ public:
          load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
          load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
          exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-         /*print_banner=*/true);
+         /*print_banner=*/true, load_spec_.frequencies);
 
       ValidateLumpedRK4TimeStep(oper, h_, /*print_report=*/true);
 
@@ -5681,7 +6380,7 @@ public:
          load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
          load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
          exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-         /*print_banner=*/true);
+         /*print_banner=*/true, load_spec_.frequencies);
 
       ValidateLumpedRK4TimeStep(oper, h_, /*print_report=*/true);
 
@@ -6089,11 +6788,16 @@ public:
       }
    }
 
-   // 1. Forward filter: raw control density -> filtered density (Helmholtz solve).
+   // 1. Forward density transfer.  The default maps raw DG control to the H1
+   // physical field through PDEFilter.  The inverse identity mode deliberately
+   // leaves rho_phys=rho_h in DG(Q0), with no mass projection or filter solve.
    void FilterFSolve(const Vector &rho_tv)
    {
       rho_.SetFromTrueDofs(rho_tv);
-      filter_.Mult(rho_, rho_tilde_);
+      if (!identity_density_transfer_)
+      {
+         filter_.Mult(rho_, rho_tilde_);
+      }
    }
 
    // 2. Forward physics: (re)assemble the operator for the current rho_tilde_, run
@@ -6108,7 +6812,10 @@ public:
                  load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
                  load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
                  exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-                 /*print_banner=*/first_operator);
+                 /*print_banner=*/first_operator, load_spec_.frequencies,
+                 matrix_free_symplectic_euler_ ?
+                 SpatialOperatorMode::PARTIAL_ASSEMBLY :
+                 SpatialOperatorMode::FULL);
 
       // The design-dependent M/K pair changes after every MMA update.  Recheck
       // the assembled operator each iteration; only the first (or a noteworthy
@@ -6117,8 +6824,16 @@ public:
          (adjoint_mode_ == TransientAdjointMode::CONTINUOUS) ?
          std::max(time_grid_.dt_forward, time_grid_.dt_adjoint) :
          time_grid_.dt_forward;
-      ValidateLumpedRK4TimeStep(
-         *oper_, stability_dt, /*print_report=*/first_operator);
+      if (matrix_free_symplectic_euler_)
+      {
+         ValidateKickDriftEulerTimeStep(
+            *oper_, stability_dt, /*print_report=*/first_operator);
+      }
+      else
+      {
+         ValidateLumpedRK4TimeStep(
+            *oper_, stability_dt, /*print_report=*/first_operator);
+      }
       banner_printed_ = true;
 
       checkpoint_.reset();
@@ -6264,10 +6979,18 @@ public:
       }
    }
 
-   // 4. Adjoint filter: transpose the filter, dJ/d(rho_tilde) -> dJ/d(rho).
+   // 4. Adjoint density transfer: pull dJ/d(rho_phys) back to the raw DG
+   // control.  The identity mode has the exact identity transpose.
    void FilterASolve(Vector &dJ_drho)
    {
-      filter_.MultTranspose(dJ_drho_tilde_, dJ_drho);
+      if (identity_density_transfer_)
+      {
+         dJ_drho = dJ_drho_tilde_;
+      }
+      else
+      {
+         filter_.MultTranspose(dJ_drho_tilde_, dJ_drho);
+      }
       MFEM_VERIFY(dJ_drho.Size() == control_fes_.GetTrueVSize(),
                   "Raw design gradient has unexpected size.");
    }
@@ -6283,6 +7006,16 @@ public:
       oper_.reset();
       checkpoint_state_.SetSize(0);
       full_forward_states_.clear();
+   }
+
+   // A multi-shot inverse consumes each shot's filtered gradient immediately
+   // into a shared accumulator. Its terminal gradient and p(0) are otherwise
+   // dead after that addition; explicitly release them so N shots do not keep
+   // N filter/state-sized vectors between sequential sweeps.
+   void ReleaseAdjointIterationVectors()
+   {
+      dJ_drho_tilde_.SetSize(0);
+      initial_adjoint_.SetSize(0);
    }
 
    // Convenience: the four steps in sequence (forward filter + physics, adjoint
@@ -6588,6 +7321,26 @@ public:
    // Forward-only objective J(rho) (no gradient / no stored trajectory).
    real_t Objective(const Vector &rho_tv, const char *progress_label = nullptr)
    {
+      if (matrix_free_symplectic_euler_)
+      {
+         FilterFSolve(rho_tv);
+         const bool first_operator = !banner_printed_;
+         ElastodynamicsOperator objective_oper(
+            state_fes_, mass_coef_, lambda_coef_, mu_coef_,
+            load_spec_.amplitude, load_spec_.duration,
+            load_spec_.time_profile, load_spec_.phase, load_spec_.frequency,
+            load_spec_.bdr_attributes, load_coef_, load_spec_.domain_load,
+            &gamma_coef_, impedance_, exterior_bdr_attr_, ess_bdr_attr_,
+            MassSolverType::LUMPED, /*print_banner=*/first_operator,
+            load_spec_.frequencies, SpatialOperatorMode::PARTIAL_ASSEMBLY);
+         ValidateKickDriftEulerTimeStep(
+            objective_oper, h_, /*print_report=*/first_operator);
+         banner_printed_ = true;
+         (void)progress_label;
+         return RolloutKickDriftEulerObjective(
+            objective_oper, state_fes_, objective_oper.GetBlockOffsets(),
+            objective_, x0_, nsteps_, /*t_init=*/0.0, h_);
+      }
       if (rk4_stage_objective_)
       {
          FilterFSolve(rho_tv);
@@ -6598,7 +7351,8 @@ public:
             load_spec_.time_profile, load_spec_.phase, load_spec_.frequency,
             load_spec_.bdr_attributes, load_coef_, load_spec_.domain_load,
             &gamma_coef_, impedance_, exterior_bdr_attr_, ess_bdr_attr_,
-            mass_type_, /*print_banner=*/first_operator);
+            mass_type_, /*print_banner=*/first_operator,
+            load_spec_.frequencies);
          ValidateLumpedRK4TimeStep(
             objective_oper, h_, /*print_report=*/first_operator);
          banner_printed_ = true;
@@ -6619,6 +7373,221 @@ public:
                 load_spec_, load_coef_, impedance_, nsteps_, h_, mass_type_,
                 progress_label, /*validate_cfl=*/true,
                 continuous_substeps, stability_step);
+   }
+
+   // Diagnostic only: compare the existing RK4 forward march against the
+   // one-RHS kick--drift Euler update at the identical mesh, design, load and
+   // timestep.  It neither changes the production RK4 trajectory nor invokes
+   // any adjoint calculation.
+   ForwardIntegratorSmokeResult CompareForwardIntegrators(const Vector &rho_tv)
+   {
+      const MPI_Comm comm = state_fes_.GetComm();
+      FilterFSolve(rho_tv);
+      ElastodynamicsOperator oper(
+         state_fes_, mass_coef_, lambda_coef_, mu_coef_,
+         load_spec_.amplitude, load_spec_.duration, load_spec_.time_profile,
+         load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
+         load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
+         exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
+         /*print_banner=*/true, load_spec_.frequencies);
+      ValidateLumpedRK4TimeStep(oper, h_, /*print_report=*/true);
+      ValidateKickDriftEulerTimeStep(oper, h_, /*print_report=*/true);
+
+      ForwardIntegratorSmokeResult result;
+      Vector rk4_final(x0_.Size()), kick_drift_final(x0_.Size());
+      const auto timed_rollout = [&](const bool use_rk4, Vector &final_state)
+      {
+         MPI_Barrier(comm);
+         const double start = MPI_Wtime();
+         const real_t value = use_rk4 ?
+            (rk4_stage_objective_ ?
+               RK4StageObjectiveForwardSweepStreaming(
+                  oper, state_fes_, objective_, x0_, nsteps_, 0.0, h_, {},
+                  &final_state) :
+               RolloutObjective(
+                  oper, state_fes_, oper.GetBlockOffsets(), objective_, x0_,
+                  nsteps_, 0.0, h_, nullptr, nullptr, nullptr, &final_state)) :
+            RolloutKickDriftEulerObjective(
+               oper, state_fes_, oper.GetBlockOffsets(), objective_, x0_,
+               nsteps_, 0.0, h_, &final_state);
+         MPI_Barrier(comm);
+         double local_seconds = MPI_Wtime() - start;
+         double max_seconds = 0.0;
+         MPI_Allreduce(&local_seconds, &max_seconds, 1, MPI_DOUBLE, MPI_MAX,
+                       comm);
+         return std::make_pair(value, max_seconds);
+      };
+
+      const auto rk4_timed = timed_rollout(true, rk4_final);
+      result.rk4_timed_objective = rk4_timed.first;
+      result.rk4_seconds = rk4_timed.second;
+      const auto kick_drift_timed = timed_rollout(false, kick_drift_final);
+      result.kick_drift_objective = kick_drift_timed.first;
+      result.kick_drift_seconds = kick_drift_timed.second;
+
+      const int displacement_size = state_fes_.GetTrueVSize();
+      Vector displacement_difference(displacement_size);
+      Vector velocity_difference(displacement_size);
+      for (int i = 0; i < displacement_size; i++)
+      {
+         displacement_difference[i] = kick_drift_final[i] - rk4_final[i];
+         velocity_difference[i] = kick_drift_final[displacement_size + i] -
+                                  rk4_final[displacement_size + i];
+      }
+      Vector rk4_displacement(const_cast<real_t *>(rk4_final.GetData()),
+                              displacement_size);
+      Vector rk4_velocity(
+         const_cast<real_t *>(rk4_final.GetData()) + displacement_size,
+         displacement_size);
+      const real_t state_scale =
+         std::sqrt(std::numeric_limits<real_t>::epsilon());
+      result.terminal_displacement_relative_difference =
+         GlobalVectorNorm(comm, displacement_difference) /
+         std::max(GlobalVectorNorm(comm, rk4_displacement), state_scale);
+      result.terminal_velocity_relative_difference =
+         GlobalVectorNorm(comm, velocity_difference) /
+         std::max(GlobalVectorNorm(comm, rk4_velocity), state_scale);
+      Vector agreement_final(x0_.Size());
+
+      // For elastic-inclusion inversions, also compare the entire simulated
+      // receiver trace directly.  Keep only marked-boundary local DOFs from
+      // RK4, never the full state history, so this remains a useful smoke-test
+      // diagnostic even when the volume state is large.
+      auto *tracking_objective =
+         dynamic_cast<BoundaryDisplacementTrackingObjective *>(&objective_);
+      const auto set_common_objective_difference = [&]()
+      {
+         const real_t objective_scale = std::max(
+            std::abs(result.rk4_objective),
+            std::sqrt(std::numeric_limits<real_t>::epsilon()));
+         result.objective_relative_difference =
+            std::abs(result.kick_drift_objective - result.rk4_objective) /
+            objective_scale;
+      };
+      if (!tracking_objective)
+      {
+         result.rk4_objective = RolloutObjective(
+            oper, state_fes_, oper.GetBlockOffsets(), objective_, x0_, nsteps_,
+            0.0, h_, nullptr, nullptr, nullptr, &agreement_final);
+         result.kick_drift_objective = RolloutKickDriftEulerObjective(
+            oper, state_fes_, oper.GetBlockOffsets(), objective_, x0_, nsteps_,
+            0.0, h_, &agreement_final);
+         set_common_objective_difference();
+         return result;
+      }
+
+      const Array<int> &observation_marker =
+         tracking_objective->TraceHistory().ObservationMarker();
+      Array<int> is_trace_vdof(state_fes_.GetVSize());
+      is_trace_vdof = 0;
+      Array<int> boundary_vdofs;
+      ParMesh *pmesh = state_fes_.GetParMesh();
+      for (int be = 0; be < pmesh->GetNBE(); be++)
+      {
+         if (observation_marker[pmesh->GetBdrAttribute(be) - 1] == 0)
+         {
+            continue;
+         }
+         state_fes_.GetBdrElementVDofs(be, boundary_vdofs);
+         for (int i = 0; i < boundary_vdofs.Size(); i++)
+         {
+            const int vdof = boundary_vdofs[i] >= 0 ? boundary_vdofs[i] :
+                             -1 - boundary_vdofs[i];
+            is_trace_vdof[vdof] = 1;
+         }
+      }
+      Array<int> trace_vdofs;
+      for (int vdof = 0; vdof < is_trace_vdof.Size(); vdof++)
+      {
+         if (is_trace_vdof[vdof]) { trace_vdofs.Append(vdof); }
+      }
+      int global_trace_vdof_count = 0;
+      const int local_trace_vdof_count = trace_vdofs.Size();
+      MPI_Allreduce(&local_trace_vdof_count, &global_trace_vdof_count, 1,
+                    MPI_INT, MPI_SUM, comm);
+      MFEM_VERIFY(global_trace_vdof_count > 0,
+                  "Forward integrator smoke test found no receiver DOFs.");
+
+      std::vector<Vector> rk4_trace(nsteps_ + 1);
+      ParGridFunction sampled_u(&state_fes_);
+      const auto store_rk4_trace =
+         [&](int step, real_t, const Vector &state)
+      {
+         Vector u_view(const_cast<real_t *>(state.GetData()),
+                       displacement_size);
+         sampled_u.SetFromTrueDofs(u_view);
+         rk4_trace[step].SetSize(trace_vdofs.Size());
+         for (int i = 0; i < trace_vdofs.Size(); i++)
+         {
+            rk4_trace[step][i] = sampled_u[trace_vdofs[i]];
+         }
+      };
+      // These two untimed replays exist only to measure agreement; the timings
+      // above remain an apples-to-apples integration cost comparison.
+      result.rk4_objective = RolloutObjective(
+         oper, state_fes_, oper.GetBlockOffsets(), objective_, x0_, nsteps_,
+         0.0, h_, nullptr, nullptr, nullptr, &agreement_final,
+         store_rk4_trace);
+
+      ParGridFunction rk4_receiver_u(&state_fes_);
+      real_t receiver_difference_sq = 0.0;
+      real_t receiver_rk4_sq = 0.0;
+      const auto accumulate_receiver_difference =
+         [&](int step, real_t, const Vector &state)
+      {
+         Vector u_view(const_cast<real_t *>(state.GetData()),
+                       displacement_size);
+         sampled_u.SetFromTrueDofs(u_view);
+         rk4_receiver_u = 0.0;
+         for (int i = 0; i < trace_vdofs.Size(); i++)
+         {
+            rk4_receiver_u[trace_vdofs[i]] = rk4_trace[step][i];
+         }
+
+         real_t local_difference_sq = 0.0;
+         real_t local_rk4_sq = 0.0;
+         Vector u_value, rk4_value;
+         for (int be = 0; be < pmesh->GetNBE(); be++)
+         {
+            if (observation_marker[pmesh->GetBdrAttribute(be) - 1] == 0)
+            {
+               continue;
+            }
+            const FiniteElement *element = state_fes_.GetBE(be);
+            ElementTransformation *transformation =
+               state_fes_.GetBdrElementTransformation(be);
+            const IntegrationRule &rule = IntRules.Get(
+               element->GetGeomType(), 2 * element->GetOrder() + 2);
+            for (int q = 0; q < rule.GetNPoints(); q++)
+            {
+               const IntegrationPoint &ip = rule.IntPoint(q);
+               transformation->SetIntPoint(&ip);
+               sampled_u.GetVectorValue(*transformation, ip, u_value);
+               rk4_receiver_u.GetVectorValue(*transformation, ip, rk4_value);
+               u_value -= rk4_value;
+               const real_t weight = ip.weight * transformation->Weight();
+               local_difference_sq += weight * (u_value * u_value);
+               local_rk4_sq += weight * (rk4_value * rk4_value);
+            }
+         }
+         real_t local_values[2] = {local_difference_sq, local_rk4_sq};
+         real_t global_values[2] = {0.0, 0.0};
+         MPI_Allreduce(local_values, global_values, 2,
+                       MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+         const real_t time_weight =
+            (step == 0 || step == nsteps_) ? 0.5 * h_ : h_;
+         receiver_difference_sq += time_weight * global_values[0];
+         receiver_rk4_sq += time_weight * global_values[1];
+      };
+      result.kick_drift_objective = RolloutKickDriftEulerObjective(
+         oper, state_fes_, oper.GetBlockOffsets(), objective_, x0_, nsteps_,
+         0.0, h_, &agreement_final, accumulate_receiver_difference);
+      set_common_objective_difference();
+      result.receiver_trace_relative_difference =
+         std::sqrt(receiver_difference_sq) /
+         std::max(std::sqrt(receiver_rk4_sq), state_scale);
+      result.has_receiver_trace = true;
+      return result;
    }
 
    // Forward-only sweep with sampled-state callbacks. Unlike
@@ -6647,7 +7616,7 @@ public:
          load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
          load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
          exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-         /*print_banner=*/first_operator);
+         /*print_banner=*/first_operator, load_spec_.frequencies);
       const real_t stability_step =
          adjoint_mode_ == TransientAdjointMode::CONTINUOUS ?
          std::max(time_grid_.dt_forward, time_grid_.dt_adjoint) : h_;
@@ -6783,7 +7752,7 @@ public:
          load_spec_.phase, load_spec_.frequency, load_spec_.bdr_attributes,
          load_coef_, load_spec_.domain_load, &gamma_coef_, impedance_,
          exterior_bdr_attr_, ess_bdr_attr_, mass_type_,
-         /*print_banner=*/false);
+         /*print_banner=*/false, load_spec_.frequencies);
 
       // RK4 time integration
       RK4Solver solver;

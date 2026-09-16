@@ -163,8 +163,11 @@ public:
     void Assemble();
 
     // assembles and caches the GMRES solvers (and preconditioners) used by
-    // Mult() and MultTranspose()
-    void AssembleLinearSolver();
+    // Mult() and MultTranspose(); the solver parameters are applied to both
+    // the forward and adjoint GMRES solvers
+    void AssembleLinearSolver(int print_level = 0, real_t rel_tol = 1e-12,
+                              real_t abs_tol = 1e-14, int max_iter = 2000,
+                              int kdim = 50);
 
     // Mult() and MultTranspose() perform linear solve using GMRES
     void Mult(const Vector &x, Vector &y) const override;
@@ -173,6 +176,9 @@ public:
     // LinearFSolve() and LinearAsolve() uses GMRES
     void LinearFSolve();
     void LinearASolve();
+
+    // GMRES iterations of the last LinearFSolve()
+    int GetLinearFIterations() const { return fwd_gmres ? fwd_gmres->GetNumIterations() : 0; }
 
     // FSolve() and Asolve() uses the pseudoTransientSovler
     void FSolve();

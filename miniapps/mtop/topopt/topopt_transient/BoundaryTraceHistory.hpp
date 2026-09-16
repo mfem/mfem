@@ -10,7 +10,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <istream>
 #include <limits>
+#include <ostream>
 #include <vector>
 
 namespace mfem
@@ -264,6 +267,67 @@ public:
                   "BoundaryTraceHistory is incomplete: stored "
                   << StoredSampleCount() << " of " << SampleCount()
                   << " samples.");
+   }
+
+   /// Persist only the local packed receiver values.  The owning finite-element
+   /// space and observation marker are reconstructed by the caller, so this is
+   /// deliberately independent of ParGridFunction's distributed layout.
+   bool WriteBinary(std::ostream &stream) const
+   {
+      CheckSpaceUnchanged();
+      if (StoredSampleCount() != SampleCount()) { return false; }
+
+      const int64_t sample_count = SampleCount();
+      const int64_t trace_vdof_count = LocalTraceVDofCount();
+      stream.write(reinterpret_cast<const char *>(&sample_count),
+                   sizeof(sample_count));
+      stream.write(reinterpret_cast<const char *>(&trace_vdof_count),
+                   sizeof(trace_vdof_count));
+      for (const Vector &sample : samples_)
+      {
+         stream.write(reinterpret_cast<const char *>(sample.GetData()),
+                      sample.Size() * sizeof(real_t));
+      }
+      return stream.good();
+   }
+
+   /// Restore a local packed receiver history written by WriteBinary().  This
+   /// method is intentionally local: its cache owner performs unconditional
+   /// collective success checks between sources, avoiding a deadlock when one
+   /// rank encounters damaged or incompatible cache data.
+   bool ReadBinary(std::istream &stream)
+   {
+      CheckSpaceUnchanged();
+      int64_t sample_count = -1;
+      int64_t trace_vdof_count = -1;
+      stream.read(reinterpret_cast<char *>(&sample_count), sizeof(sample_count));
+      stream.read(reinterpret_cast<char *>(&trace_vdof_count),
+                  sizeof(trace_vdof_count));
+      if (!stream.good() || sample_count != SampleCount() ||
+          trace_vdof_count != LocalTraceVDofCount())
+      {
+         return false;
+      }
+
+      bool finite = true;
+      for (int sample_index = 0; sample_index < SampleCount(); sample_index++)
+      {
+         Vector &sample = samples_[sample_index];
+         stream.read(reinterpret_cast<char *>(sample.GetData()),
+                     sample.Size() * sizeof(real_t));
+         if (!stream.good()) { return false; }
+         for (int i = 0; i < sample.Size(); i++)
+         {
+            finite = finite && std::isfinite(sample[i]);
+         }
+      }
+      if (!finite) { return false; }
+
+      std::fill(sample_is_set_.begin(), sample_is_set_.end(),
+                static_cast<unsigned char>(1));
+      reconstructed_sample_ = 0.0;
+      reconstructed_index_ = -1;
+      return true;
    }
 };
 

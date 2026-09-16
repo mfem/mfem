@@ -50,6 +50,14 @@ doc/warnings.log
 # Temporary files created by the tests.
 *.stderr
 
+# Scheduler and crash artifacts. Keep them outside version control even when a
+# job was submitted from the repository root by mistake.
+*.out
+*.err
+*.core
+core
+core.*
+
 # Totalview breakpoint files
 *.TVD.*breakpoints
 

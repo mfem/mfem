@@ -36,6 +36,7 @@
 #include <ostream>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace mfem
 {
@@ -109,6 +110,91 @@ inline real_t EvaluateLoadTimeFactor(LoadTimeProfile profile,
    return envelope * std::cos(two_pi * frequency * t_diff + phase);
 }
 
+/// Evaluate a coherent multi-carrier source under one common Gaussian
+/// envelope. An empty frequency list recovers the usual single-carrier
+/// profile. The individual phases are deliberately shared: a phase of zero
+/// aligns all carriers at the centre of the envelope.
+inline real_t EvaluateLoadTimeFactor(LoadTimeProfile profile,
+                                     real_t time,
+                                     real_t duration,
+                                     const std::vector<real_t> &frequencies,
+                                     real_t phase)
+{
+   if (frequencies.empty())
+   {
+      return EvaluateLoadTimeFactor(profile, time, duration,
+                                    real_t(1.0), phase);
+   }
+   if (frequencies.size() == 1)
+   {
+      return EvaluateLoadTimeFactor(profile, time, duration,
+                                    frequencies.front(), phase);
+   }
+
+   constexpr real_t two_pi =
+      2.0 * 3.1415926535897932384626433832795;
+   MFEM_VERIFY(profile == LoadTimeProfile::MODULATED_GAUSSIAN,
+               "A multi-carrier load requires a modulated Gaussian time "
+               "profile.");
+   MFEM_VERIFY(duration > 0.0,
+               "Gaussian load duration must be strictly positive.");
+   const real_t t_center = duration / 2.0;
+   const real_t sigma = duration / 4.0;
+   const real_t t_diff = time - t_center;
+   const real_t envelope =
+      std::exp(-t_diff * t_diff / (2.0 * sigma * sigma));
+   real_t carrier_sum = 0.0;
+   for (const real_t frequency : frequencies)
+   {
+      carrier_sum += std::cos(two_pi * frequency * t_diff + phase);
+   }
+   return envelope * carrier_sum;
+}
+
+/// Scale a coherent multi-carrier source so its temporal L2 energy matches a
+/// unit-amplitude single carrier with the same common envelope.  The integral
+/// is deterministic midpoint quadrature from simulation start through twelve
+/// Gaussian standard deviations after the pulse centre, which leaves a
+/// negligible positive-time tail while
+/// resolving the largest carrier with at least 128 samples per cycle.
+inline real_t ComputeMultiCarrierEnergyNormalization(
+   LoadTimeProfile profile, real_t duration, real_t reference_frequency,
+   const std::vector<real_t> &frequencies, real_t phase)
+{
+   if (frequencies.size() <= 1) { return 1.0; }
+   MFEM_VERIFY(profile == LoadTimeProfile::MODULATED_GAUSSIAN &&
+               duration > 0.0 && reference_frequency > 0.0,
+               "Multi-carrier normalization needs positive duration and "
+               "reference frequency with a modulated Gaussian profile.");
+
+   real_t max_frequency = reference_frequency;
+   for (const real_t frequency : frequencies)
+   {
+      MFEM_VERIFY(std::isfinite(frequency) && frequency > 0.0,
+                  "Multi-carrier frequencies must be finite and positive.");
+      max_frequency = std::max(max_frequency, frequency);
+   }
+   const real_t integration_end = 3.5 * duration;
+   const int samples = std::max(8192, static_cast<int>(
+      std::ceil(128.0 * max_frequency * integration_end)));
+   const real_t step = integration_end / samples;
+   real_t reference_energy = 0.0;
+   real_t multi_energy = 0.0;
+   for (int i = 0; i < samples; i++)
+   {
+      const real_t time = (i + real_t(0.5)) * step;
+      const real_t reference = EvaluateLoadTimeFactor(
+         profile, time, duration, reference_frequency, phase);
+      const real_t multi = EvaluateLoadTimeFactor(
+         profile, time, duration, frequencies, phase);
+      reference_energy += reference * reference;
+      multi_energy += multi * multi;
+   }
+   MFEM_VERIFY(reference_energy > 0.0 && multi_energy > 0.0,
+               "Multi-carrier temporal energy must be positive.");
+   return std::sqrt(reference_energy / multi_energy);
+}
+
 struct BoundaryLoadSpec
 {
    Array<int> bdr_attributes;
@@ -118,6 +204,9 @@ struct BoundaryLoadSpec
    real_t duration = 0.005;
    real_t phase = 0.0;
    real_t frequency = 1.0;
+   // Empty: one carrier at frequency. Otherwise all listed carriers share one
+   // envelope and phase, and the operator normalizes their combined energy.
+   std::vector<real_t> frequencies;
    // false: boundary traction on bdr_attributes; true: body force over the domain
    // (the load coefficient then supplies its own spatial support, e.g. a disc).
    bool domain_load = false;
@@ -743,6 +832,169 @@ public:
    }
 };
 
+// Cartesian sponge for a 3D box.  The 2D DampingProfile deliberately only
+// knows about x/y faces, so keeping this separate makes the dimensional
+// extension explicit and prevents a new 3D problem from silently leaving its
+// front/back faces undamped.  The maximum of the one-face profiles is used at
+// corners, matching the existing 2D Cartesian sponge convention.
+class CartesianDampingProfile3D : public DampingProfileBase
+{
+private:
+   real_t thickness_;
+   real_t x_max_, y_max_, z_max_;
+   real_t phi_max_;
+   bool damp_left_, damp_right_, damp_bottom_, damp_top_;
+   bool damp_front_, damp_back_;
+
+   real_t FaceProfile(real_t depth) const
+   {
+      return thickness_ * depth - 0.5 * depth * depth;
+   }
+
+public:
+   CartesianDampingProfile3D(real_t thickness, real_t x_max, real_t y_max,
+                             real_t z_max, bool damp_left, bool damp_right,
+                             bool damp_bottom, bool damp_top,
+                             bool damp_front, bool damp_back)
+      : thickness_(thickness), x_max_(x_max), y_max_(y_max), z_max_(z_max),
+        phi_max_(0.5 * thickness * thickness),
+        damp_left_(damp_left), damp_right_(damp_right),
+        damp_bottom_(damp_bottom), damp_top_(damp_top),
+        damp_front_(damp_front), damp_back_(damp_back)
+   {
+      MFEM_VERIFY(thickness_ > 0.0,
+                  "Cartesian 3D damping requires positive layer thickness.");
+      MFEM_VERIFY(x_max_ > 0.0 && y_max_ > 0.0 && z_max_ > 0.0,
+                  "Cartesian 3D damping requires positive box extents.");
+   }
+
+   real_t GetPhiMax() const override { return phi_max_; }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+
+      real_t phi = 0.0;
+      if (damp_left_ && x(0) < thickness_)
+      {
+         phi = std::max(phi, FaceProfile(thickness_ - x(0)));
+      }
+      if (damp_right_ && x(0) > x_max_ - thickness_)
+      {
+         phi = std::max(phi, FaceProfile(x(0) - (x_max_ - thickness_)));
+      }
+      if (damp_bottom_ && x(1) < thickness_)
+      {
+         phi = std::max(phi, FaceProfile(thickness_ - x(1)));
+      }
+      if (damp_top_ && x(1) > y_max_ - thickness_)
+      {
+         phi = std::max(phi, FaceProfile(x(1) - (y_max_ - thickness_)));
+      }
+      if (damp_front_ && x(2) < thickness_)
+      {
+         phi = std::max(phi, FaceProfile(thickness_ - x(2)));
+      }
+      if (damp_back_ && x(2) > z_max_ - thickness_)
+      {
+         phi = std::max(phi, FaceProfile(x(2) - (z_max_ - thickness_)));
+      }
+      return phi;
+   }
+};
+
+class CartesianDampingField3D : public DampingFieldBase
+{
+private:
+   std::unique_ptr<CartesianDampingProfile3D> profile_;
+   std::unique_ptr<SpatialDampingCoefficient> sponge_;
+   std::unique_ptr<ConstantCoefficient> uniform_;
+   std::unique_ptr<SumCoefficient> combined_;
+   Coefficient *effective_;
+   real_t p_wave_speed_;
+   real_t impedance_;
+   real_t passive_mass_density_;
+   real_t shape_integral_;
+   real_t gamma_rate_max_;
+   real_t uniform_gamma_;
+   bool enabled_;
+
+public:
+   CartesianDampingField3D(const MaterialParams &material,
+                           const DampingParameters &damping, real_t z_max,
+                           bool damp_front, bool damp_back,
+                           bool enabled = true,
+                           real_t passive_material_scale = 1.0)
+      : effective_(nullptr), p_wave_speed_(0.0), impedance_(0.0),
+        passive_mass_density_(material.rho0 * passive_material_scale),
+        shape_integral_(damping.scale_length), gamma_rate_max_(0.0),
+        uniform_gamma_(damping.uniform), enabled_(enabled)
+   {
+      p_wave_speed_ = std::sqrt((material.lambda0 + 2.0 * material.mu0) /
+                                material.rho0);
+      MFEM_VERIFY(passive_mass_density_ > 0.0,
+                  "Damping requires positive passive mass density.");
+
+      if (!enabled_)
+      {
+         uniform_ = std::make_unique<ConstantCoefficient>(0.0);
+         effective_ = uniform_.get();
+         return;
+      }
+
+      MFEM_VERIFY(shape_integral_ > 0.0,
+                  "Damping requires a positive ramp integral.");
+      MFEM_VERIFY(damping.reflection > 0.0 && damping.reflection < 1.0,
+                  "Damping reflection target must be in (0, 1).");
+      gamma_rate_max_ = (2.0 * p_wave_speed_ / shape_integral_) *
+                        std::log(1.0 / damping.reflection);
+
+      profile_ = std::make_unique<CartesianDampingProfile3D>(
+         damping.thickness, damping.x_max, damping.y_max, z_max,
+         damping.damp_left, damping.damp_right,
+         damping.damp_bottom, damping.damp_top, damp_front, damp_back);
+      sponge_ = std::make_unique<SpatialDampingCoefficient>(
+         profile_.get(), gamma_rate_max_, passive_mass_density_,
+         damping.beta, damping.exponent);
+      impedance_ = passive_mass_density_ * p_wave_speed_;
+
+      if (damping.uniform > 0.0)
+      {
+         uniform_ = std::make_unique<ConstantCoefficient>(damping.uniform);
+         combined_ = std::make_unique<SumCoefficient>(*sponge_, *uniform_);
+         effective_ = combined_.get();
+      }
+      else
+      {
+         effective_ = sponge_.get();
+      }
+   }
+
+   Coefficient &GetCoefficient() override { return *effective_; }
+   real_t GetImpedance() const override { return impedance_; }
+   real_t GetPWaveSpeed() const override { return p_wave_speed_; }
+
+   void PrintSummary(std::ostream &out) const override
+   {
+      if (!enabled_)
+      {
+         out << "Cartesian 3D damping: disabled; ABC Zp = 0\n";
+         return;
+      }
+      out << "Cartesian 3D damping: normalized parabolic coordinate, target amplitude "
+          << "reflection = " << std::scientific << std::setprecision(3)
+          << std::exp(-gamma_rate_max_ * shape_integral_ /
+                      (2.0 * p_wave_speed_))
+          << ", passive mass density = " << passive_mass_density_
+          << ", shape integral = " << shape_integral_
+          << ", gamma_rate_max = " << gamma_rate_max_
+          << ", gamma_max = " << passive_mass_density_ * gamma_rate_max_
+          << ", uniform gamma = " << uniform_gamma_
+          << ", ABC Zp = " << impedance_ << std::defaultfloat << "\n";
+   }
+};
+
 // Spherical damping field - radial sponge layer for 3D spherical geometry
 // Same ownership pattern as DampingField, but uses SphericalDampingProfile
 class SphericalDampingField : public DampingFieldBase
@@ -838,6 +1090,15 @@ struct TransientTopOptConfig
    bool time_step_is_user = false;
    bool filter_radius_is_user = false;
    bool volume_fraction_is_user = false;
+   // The control-to-physical-density map remains an L2-to-H1 mass projection
+   // when Helmholtz smoothing is disabled, so the adjoint still receives the
+   // exact transpose of the design transfer.
+   bool helmholtz_filter_enabled = true;
+   bool volume_constraint_enabled = true;
+   // Negative retains the material-scale-preserving inclusion truth. A
+   // nonnegative value specifies the raw density inside the single disk.
+   real_t inclusion_truth_density = -1.0;
+   bool inclusion_truth_density_is_user = false;
    int ref_levels = 0;
    int order = 1;
 
@@ -938,6 +1199,18 @@ public:
       return GetConfig().boundary_load;
    }
 
+   /// Number of independent loading/measurement shots in this experiment.
+   /// A multi-shot inverse shares one material field but owns one reference
+   /// trace, forward state, and adjoint sweep per source.
+   virtual int GetNumberOfSources() const { return 1; }
+
+   virtual const BoundaryLoadSpec &GetBoundaryLoad(int source) const
+   {
+      MFEM_VERIFY(source == 0,
+                  "A single-source problem received an invalid source index.");
+      return GetBoundaryLoad();
+   }
+
    virtual void GetReferenceDomainExtents(real_t &x_max,
                                           real_t &y_max) const
    {
@@ -996,8 +1269,25 @@ public:
    virtual std::unique_ptr<VectorCoefficient>
    CreateBoundaryLoadCoefficient() const = 0;
 
+   virtual std::unique_ptr<VectorCoefficient>
+   CreateBoundaryLoadCoefficient(int source) const
+   {
+      MFEM_VERIFY(source == 0,
+                  "A single-source problem received an invalid source index.");
+      return CreateBoundaryLoadCoefficient();
+   }
+
    virtual std::unique_ptr<TimeIntegratedObjective>
    CreateObjective(ParFiniteElementSpace *state_fes, MPI_Comm comm) const = 0;
+
+   virtual std::unique_ptr<TimeIntegratedObjective>
+   CreateObjective(int source, ParFiniteElementSpace *state_fes,
+                   MPI_Comm comm) const
+   {
+      MFEM_VERIFY(source == 0,
+                  "A single-source problem received an invalid source index.");
+      return CreateObjective(state_fes, comm);
+   }
 
    /// Optional inverse-problem truth.  A non-null coefficient is projected to
    /// the ordinary raw-control space, then passed through the same filter/SIMP
@@ -1018,6 +1308,14 @@ public:
       attrs.SetSize(0);
    }
 
+   virtual void GetObservationBoundaryAttributes(int source,
+                                                  Array<int> &attrs) const
+   {
+      MFEM_VERIFY(source == 0,
+                  "A single-source problem received an invalid source index.");
+      GetObservationBoundaryAttributes(attrs);
+   }
+
    /// Complete the mesh-dependent truth-volume calculation.  Only problems
    /// with a prescribed truth accept this lifecycle callback.
    virtual void SetComputedTruthVolumeFraction(real_t)
@@ -1028,11 +1326,24 @@ public:
    /// Whether CreateObjective() requires a finalized reference trace history.
    virtual bool RequiresReferenceBoundaryData() const { return false; }
 
+   /// Standard single-shot inclusions retain the three-solve convergence
+   /// audit.  A multi-source acquisition can deliberately request one costly
+   /// high-fidelity baseline per shot instead, and may opt out here.
+   virtual bool DefaultReferenceConvergenceAudit() const { return true; }
+
    /// Attach immutable reference observations after their high-fidelity solve.
    virtual void SetBoundaryTraceHistory(
       std::shared_ptr<const BoundaryTraceHistory>)
    {
       MFEM_ABORT("The selected problem does not accept boundary trace data.");
+   }
+
+   virtual void SetBoundaryTraceHistory(
+      int source, std::shared_ptr<const BoundaryTraceHistory> history)
+   {
+      MFEM_VERIFY(source == 0,
+                  "A single-source problem received an invalid source index.");
+      SetBoundaryTraceHistory(std::move(history));
    }
 
    /// Optional spatial mode used only to report a forward temporal-convergence
@@ -1108,14 +1419,315 @@ public:
          err << "Error: boundary load direction is empty.\n";
          return false;
       }
+      for (const real_t frequency : cfg.boundary_load.frequencies)
+      {
+         if (!std::isfinite(frequency) || frequency <= 0.0)
+         {
+            err << "Error: every multi-carrier frequency must be finite and "
+                   "positive.\n";
+            return false;
+         }
+      }
+      if (cfg.boundary_load.frequencies.size() > 1 &&
+          cfg.boundary_load.time_profile !=
+             LoadTimeProfile::MODULATED_GAUSSIAN)
+      {
+         err << "Error: multiple carrier frequencies require a modulated "
+                "Gaussian load.\n";
+         return false;
+      }
       return true;
    }
 };
 
 // =============================================================================
-// ELASTIC-INCLUSION TRUTH: background solid with three interior inclusions
+// ELASTIC-INCLUSION TRUTHS
 // =============================================================================
-class ElasticInclusionTruthCoefficient final : public Coefficient
+enum class ElasticInclusionTruthPreset
+{
+   SINGLE_DISK,
+   THREE_SHAPE
+};
+
+inline const char *ElasticInclusionTruthPresetName(
+   ElasticInclusionTruthPreset preset)
+{
+   switch (preset)
+   {
+      case ElasticInclusionTruthPreset::SINGLE_DISK: return "single-disk";
+      case ElasticInclusionTruthPreset::THREE_SHAPE: return "three-shape";
+   }
+   return "unknown";
+}
+
+/// A single circular inclusion whose *unfiltered* SIMP material scale is kept
+/// fixed while the raw density is adjusted to the selected SIMP endpoints and
+/// exponent.  With the inverse-problem defaults this gives
+/// rho_disk=((0.125-0.1)/(1.0-0.1))^(1/3) ~= 0.302853.
+class ElasticInclusionSingleDiskTruthCoefficient final : public Coefficient
+{
+private:
+   real_t disk_density_;
+
+public:
+   static constexpr real_t BackgroundDensity() { return 1.0; }
+   static constexpr real_t DiskCenterX() { return 0.750; }
+   static constexpr real_t DiskCenterY() { return 0.450; }
+   static constexpr real_t DiskRadius() { return 0.100; }
+   static constexpr real_t DiskTargetMaterialScale() { return 0.125; }
+
+   static bool TargetScaleIsRepresentable(const MaterialParams &material)
+   {
+      return std::isfinite(material.r_min) &&
+             std::isfinite(material.r_max) &&
+             std::isfinite(material.simp_p) &&
+             material.r_min < DiskTargetMaterialScale() &&
+             DiskTargetMaterialScale() < material.r_max &&
+             material.simp_p > 0.0;
+   }
+
+   static real_t DiskDensity(const MaterialParams &material,
+                             real_t raw_density = -1.0)
+   {
+      if (raw_density >= 0.0)
+      {
+         MFEM_VERIFY(raw_density <= 1.0,
+                     "The requested single-disk raw density must lie in [0,1].");
+         return raw_density;
+      }
+      MFEM_VERIFY(TargetScaleIsRepresentable(material),
+                  "The single-disk target material scale must lie strictly "
+                  "between the SIMP endpoints, with a positive exponent.");
+      const real_t normalized_scale =
+         (DiskTargetMaterialScale() - material.r_min) /
+         (material.r_max - material.r_min);
+      return std::pow(normalized_scale, 1.0 / material.simp_p);
+   }
+
+   static constexpr real_t DiskArea()
+   {
+      return 3.1415926535897932384626433832795 *
+             DiskRadius() * DiskRadius();
+   }
+
+   static real_t DensityDeficitArea(const MaterialParams &material,
+                                    real_t raw_density = -1.0)
+   {
+      return (BackgroundDensity() - DiskDensity(material, raw_density)) *
+             DiskArea();
+   }
+
+   explicit ElasticInclusionSingleDiskTruthCoefficient(
+      const MaterialParams &material, real_t raw_density = -1.0)
+      : disk_density_(DiskDensity(material, raw_density)) { }
+
+   real_t GetDiskDensity() const { return disk_density_; }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      Vector x(2);
+      T.Transform(ip, x);
+      const real_t dx = x[0] - DiskCenterX();
+      const real_t dy = x[1] - DiskCenterY();
+      return dx * dx + dy * dy <= DiskRadius() * DiskRadius() ?
+             disk_density_ : BackgroundDensity();
+   }
+};
+
+enum class ElasticInclusion3DTruthPreset
+{
+   SINGLE_BALL,
+   SQUARE_PYRAMID
+};
+
+inline const char *ElasticInclusion3DTruthPresetName(
+   ElasticInclusion3DTruthPreset preset)
+{
+   switch (preset)
+   {
+      case ElasticInclusion3DTruthPreset::SINGLE_BALL: return "single-ball";
+      case ElasticInclusion3DTruthPreset::SQUARE_PYRAMID:
+         return "square-pyramid";
+   }
+   return "unknown";
+}
+
+/// 3D counterpart of the single-disk truth.  It deliberately retains the
+/// same unfiltered material scale (0.125), so changing dimension changes the
+/// geometry and the volume constraint, not the material contrast.
+class ElasticInclusionSingleBallTruthCoefficient final : public Coefficient
+{
+private:
+   real_t ball_density_;
+
+public:
+   static constexpr real_t BackgroundDensity() { return 1.0; }
+   static constexpr real_t BallCenterX() { return 0.750; }
+   static constexpr real_t BallCenterY() { return 0.450; }
+   static constexpr real_t BallCenterZ() { return 0.500; }
+   static constexpr real_t BallRadius() { return 0.100; }
+   static constexpr real_t BallTargetMaterialScale() { return 0.125; }
+
+   static bool TargetScaleIsRepresentable(const MaterialParams &material)
+   {
+      return std::isfinite(material.r_min) &&
+             std::isfinite(material.r_max) &&
+             std::isfinite(material.simp_p) &&
+             material.r_min < BallTargetMaterialScale() &&
+             BallTargetMaterialScale() < material.r_max &&
+             material.simp_p > 0.0;
+   }
+
+   static real_t BallDensity(const MaterialParams &material)
+   {
+      MFEM_VERIFY(TargetScaleIsRepresentable(material),
+                  "The single-ball target material scale must lie strictly "
+                  "between the SIMP endpoints, with a positive exponent.");
+      const real_t normalized_scale =
+         (BallTargetMaterialScale() - material.r_min) /
+         (material.r_max - material.r_min);
+      return std::pow(normalized_scale, 1.0 / material.simp_p);
+   }
+
+   static constexpr real_t BallVolume()
+   {
+      return (4.0 / 3.0) * 3.1415926535897932384626433832795 *
+             BallRadius() * BallRadius() * BallRadius();
+   }
+
+   static real_t DensityDeficitVolume(const MaterialParams &material)
+   {
+      return (BackgroundDensity() - BallDensity(material)) * BallVolume();
+   }
+
+   explicit ElasticInclusionSingleBallTruthCoefficient(
+      const MaterialParams &material)
+      : ball_density_(BallDensity(material)) { }
+
+   real_t GetBallDensity() const { return ball_density_; }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      const real_t dx = x[0] - BallCenterX();
+      const real_t dy = x[1] - BallCenterY();
+      const real_t dz = x[2] - BallCenterZ();
+      return dx * dx + dy * dy + dz * dz <= BallRadius() * BallRadius() ?
+             ball_density_ : BackgroundDensity();
+   }
+};
+
+/// A square-based pyramid with its apex pointing toward the accessible top
+/// source surface.  Its centroid and volume equal those of the default ball,
+/// making the multi-shot comparison a pure shape-identification experiment.
+class ElasticInclusionSquarePyramidTruthCoefficient final : public Coefficient
+{
+private:
+   real_t pyramid_density_;
+
+public:
+   static constexpr real_t BackgroundDensity() { return 1.0; }
+   static constexpr real_t CenterX() { return 0.750; }
+   static constexpr real_t CenterZ() { return 0.500; }
+   static constexpr real_t BaseY() { return 0.400; }
+   static constexpr real_t ApexY() { return 0.600; }
+   static constexpr real_t Height() { return ApexY() - BaseY(); }
+   // sqrt(4*pi*(0.1)^3/Height()), chosen so BaseSide^2*Height/3 equals
+   // the volume of the radius-0.1 reference ball.
+   static constexpr real_t BaseSide() { return 0.25066282746310004; }
+   static constexpr real_t CentroidY()
+   {
+      return (3.0 * BaseY() + ApexY()) / 4.0;
+   }
+   static constexpr real_t PyramidTargetMaterialScale()
+   {
+      return ElasticInclusionSingleBallTruthCoefficient::
+         BallTargetMaterialScale();
+   }
+
+   static bool TargetScaleIsRepresentable(const MaterialParams &material)
+   {
+      return ElasticInclusionSingleBallTruthCoefficient::
+         TargetScaleIsRepresentable(material);
+   }
+
+   static real_t PyramidDensity(const MaterialParams &material)
+   {
+      return ElasticInclusionSingleBallTruthCoefficient::BallDensity(material);
+   }
+
+   static constexpr real_t PyramidVolume()
+   {
+      return BaseSide() * BaseSide() * Height() / 3.0;
+   }
+
+   static real_t DensityDeficitVolume(const MaterialParams &material)
+   {
+      return (BackgroundDensity() - PyramidDensity(material)) *
+             PyramidVolume();
+   }
+
+   explicit ElasticInclusionSquarePyramidTruthCoefficient(
+      const MaterialParams &material)
+      : pyramid_density_(PyramidDensity(material)) { }
+
+   real_t GetPyramidDensity() const { return pyramid_density_; }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      if (x[1] < BaseY() || x[1] > ApexY())
+      {
+         return BackgroundDensity();
+      }
+      // q=1 at the square base and q=0 at the source-facing apex.
+      const real_t q = (ApexY() - x[1]) / Height();
+      const real_t half_side = 0.5 * BaseSide() * q;
+      return std::abs(x[0] - CenterX()) <= half_side &&
+             std::abs(x[2] - CenterZ()) <= half_side ?
+             pyramid_density_ : BackgroundDensity();
+   }
+};
+
+/// Passive complement of a single rectangular 3D design box.  A custom
+/// indicator keeps the six collars in one place and is exact at shared edges
+/// and corners, where separate box coefficients would overlap.
+class ElasticInclusionPassiveRegion3D final : public Coefficient
+{
+private:
+   real_t active_x_min_, active_x_max_;
+   real_t active_y_min_, active_y_max_;
+   real_t active_z_min_, active_z_max_;
+
+public:
+   ElasticInclusionPassiveRegion3D(real_t active_x_min, real_t active_x_max,
+                                   real_t active_y_min, real_t active_y_max,
+                                   real_t active_z_min, real_t active_z_max)
+      : active_x_min_(active_x_min), active_x_max_(active_x_max),
+        active_y_min_(active_y_min), active_y_max_(active_y_max),
+        active_z_min_(active_z_min), active_z_max_(active_z_max)
+   {
+   }
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      Vector x(3);
+      T.Transform(ip, x);
+      return x[0] < active_x_min_ || x[0] > active_x_max_ ||
+             x[1] < active_y_min_ || x[1] > active_y_max_ ||
+             x[2] < active_z_min_ || x[2] > active_z_max_ ? 1.0 : 0.0;
+   }
+};
+
+/// Legacy square/triangle/disk target retained as an explicit comparison
+/// preset.  Its densities are raw design-variable values.
+class ElasticInclusionThreeShapeTruthCoefficient final : public Coefficient
 {
 private:
    static real_t OrientedAreaTwice(real_t ax, real_t ay,
@@ -1225,12 +1837,15 @@ private:
    static constexpr int ny_ = 30;
 
    // Mesh::MakeCartesian2D starts with bottom/right/top/left = 1/2/3/4.
-   // CreateMesh splits one contiguous part of the top edge into attribute 5.
+   // CreateMesh splits the source and accessible receiver windows out of the
+   // top edge as attributes 5 and 6, respectively.  The remaining outer top
+   // segments keep attribute 3 and are deliberately unobserved.
    static constexpr int bottom_attr_ = 1;
    static constexpr int right_attr_ = 2;
    static constexpr int top_attr_ = 3;
    static constexpr int left_attr_ = 4;
    static constexpr int source_attr_ = 5;
+   static constexpr int receiver_attr_ = 6;
 
    static constexpr real_t source_x_min_ = 0.65;
    static constexpr real_t source_x_max_ = 0.85;
@@ -1240,8 +1855,13 @@ private:
    static constexpr real_t active_x_max_ = length_ - sponge_thickness_;
    static constexpr real_t active_y_min_ = sponge_thickness_;
    static constexpr real_t active_y_max_ = height_ - top_passive_thickness_;
+   static constexpr real_t receiver_left_x_min_ = active_x_min_;
+   static constexpr real_t receiver_left_x_max_ = source_x_min_;
+   static constexpr real_t receiver_right_x_min_ = source_x_max_;
+   static constexpr real_t receiver_right_x_max_ = active_x_max_;
 
    TransientTopOptConfig cfg_;
+   ElasticInclusionTruthPreset truth_preset_;
    std::string mesh_description_ =
       "<generated 2D elastic-inclusion-identification rectangle>";
    real_t truth_volume_fraction_;
@@ -1260,16 +1880,25 @@ private:
              (active_y_max_ - active_y_min_);
    }
 
-   static constexpr real_t AnalyticTruthVolumeFraction()
+   real_t AnalyticTruthVolumeFraction() const
    {
-      return 1.0 - ElasticInclusionTruthCoefficient::DensityDeficitArea() /
-                   ActiveArea();
+      if (truth_preset_ == ElasticInclusionTruthPreset::SINGLE_DISK)
+      {
+         return 1.0 -
+                ElasticInclusionSingleDiskTruthCoefficient::DensityDeficitArea(
+                   cfg_.material, cfg_.inclusion_truth_density) / ActiveArea();
+      }
+      return 1.0 -
+             ElasticInclusionThreeShapeTruthCoefficient::DensityDeficitArea() /
+             ActiveArea();
    }
 
 public:
    explicit ElasticInclusionIdentificationProblem(
-      const TransientTopOptConfig &base)
-      : cfg_(base), truth_volume_fraction_(AnalyticTruthVolumeFraction())
+      const TransientTopOptConfig &base,
+      ElasticInclusionTruthPreset truth_preset =
+         ElasticInclusionTruthPreset::SINGLE_DISK)
+      : cfg_(base), truth_preset_(truth_preset), truth_volume_fraction_(1.0)
    {
       cfg_.x_max = length_;
       cfg_.y_max = height_;
@@ -1280,9 +1909,19 @@ public:
       if (!cfg_.t_final_is_user) { cfg_.t_final = 1.5; }
       if (!cfg_.time_step_is_user) { cfg_.dt = 1.0e-3; }
       if (!cfg_.filter_radius_is_user) { cfg_.filter_radius = 0.05; }
+      if (!cfg_.simp_r_min_is_user) { cfg_.material.r_min = 0.10; }
+      if (!cfg_.simp_r_max_is_user) { cfg_.material.r_max = 1.0; }
+      if (!cfg_.simp_p_is_user) { cfg_.material.simp_p = 3.0; }
 
       // Keep a valid analytic value until the driver projects rho_dagger to its
       // actual control space and supplies the exact discrete weighted value.
+      if (truth_preset_ != ElasticInclusionTruthPreset::SINGLE_DISK ||
+          cfg_.inclusion_truth_density_is_user ||
+          ElasticInclusionSingleDiskTruthCoefficient::
+             TargetScaleIsRepresentable(cfg_.material))
+      {
+         truth_volume_fraction_ = AnalyticTruthVolumeFraction();
+      }
       cfg_.vol_frac = truth_volume_fraction_;
 
       cfg_.boundary_load.domain_load = false;
@@ -1290,11 +1929,15 @@ public:
       cfg_.boundary_load.amplitude = 1.0;
       if (!cfg_.load_frequency_is_user)
       {
-         cfg_.boundary_load.frequency = 6.0;
+         cfg_.boundary_load.frequency =
+            truth_preset_ == ElasticInclusionTruthPreset::SINGLE_DISK ?
+            4.0 : 6.0;
       }
       if (!cfg_.load_duration_is_user)
       {
-         cfg_.boundary_load.duration = 0.5;
+         cfg_.boundary_load.duration =
+            truth_preset_ == ElasticInclusionTruthPreset::SINGLE_DISK ?
+            0.75 : 0.5;
       }
       cfg_.boundary_load.phase = 0.0;
       cfg_.boundary_load.bdr_attributes.SetSize(1);
@@ -1343,6 +1986,16 @@ public:
       return truth_volume_is_discrete_;
    }
 
+   ElasticInclusionTruthPreset GetTruthPreset() const
+   {
+      return truth_preset_;
+   }
+
+   const char *GetTruthPresetName() const
+   {
+      return ElasticInclusionTruthPresetName(truth_preset_);
+   }
+
    real_t GetActiveXMin() const { return active_x_min_; }
    real_t GetActiveXMax() const { return active_x_max_; }
    real_t GetActiveYMin() const { return active_y_min_; }
@@ -1351,7 +2004,12 @@ public:
    real_t GetTopPassiveThickness() const { return top_passive_thickness_; }
    real_t GetSourceXMin() const { return source_x_min_; }
    real_t GetSourceXMax() const { return source_x_max_; }
+   real_t GetReceiverLeftXMin() const { return receiver_left_x_min_; }
+   real_t GetReceiverLeftXMax() const { return receiver_left_x_max_; }
+   real_t GetReceiverRightXMin() const { return receiver_right_x_min_; }
+   real_t GetReceiverRightXMax() const { return receiver_right_x_max_; }
    int GetSourceBoundaryAttribute() const { return source_attr_; }
+   int GetReceiverBoundaryAttribute() const { return receiver_attr_; }
    int GetMeshNX() const { return nx_; }
    int GetMeshNY() const { return ny_; }
 
@@ -1361,7 +2019,7 @@ public:
          nx_, ny_, Element::QUADRILATERAL,
          /*generate_edges=*/true, length_, height_);
 
-      Array<int> boundary_counts(source_attr_);
+      Array<int> boundary_counts(receiver_attr_);
       boundary_counts = 0;
       const real_t tolerance = 1.0e-12 * std::max(length_, height_);
       for (int be_index = 0; be_index < mesh.GetNBE(); be_index++)
@@ -1388,8 +2046,15 @@ public:
          }
          else if (std::abs(y_mid - height_) <= tolerance)
          {
-            attribute = (x_mid >= source_x_min_ && x_mid <= source_x_max_) ?
-                        source_attr_ : top_attr_;
+            const bool on_source =
+               x_mid >= source_x_min_ && x_mid <= source_x_max_;
+            const bool on_receiver =
+               (x_mid >= receiver_left_x_min_ &&
+                x_mid <= receiver_left_x_max_) ||
+               (x_mid >= receiver_right_x_min_ &&
+                x_mid <= receiver_right_x_max_);
+            attribute = on_source ? source_attr_ :
+                        (on_receiver ? receiver_attr_ : top_attr_);
          }
          else if (std::abs(x_mid) <= tolerance)
          {
@@ -1402,7 +2067,7 @@ public:
       }
       mesh.SetAttributes();
 
-      for (int attribute = 1; attribute <= source_attr_; attribute++)
+      for (int attribute = 1; attribute <= receiver_attr_; attribute++)
       {
          MFEM_VERIFY(boundary_counts[attribute - 1] > 0,
                      "Elastic inclusion boundary attribute " << attribute
@@ -1423,11 +2088,8 @@ public:
 
    void GetObservationBoundaryAttributes(Array<int> &attrs) const override
    {
-      attrs.SetSize(4);
-      attrs[0] = bottom_attr_;
-      attrs[1] = right_attr_;
-      attrs[2] = top_attr_;
-      attrs[3] = left_attr_;
+      attrs.SetSize(1);
+      attrs[0] = receiver_attr_;
    }
 
    std::unique_ptr<VectorCoefficient>
@@ -1468,7 +2130,14 @@ public:
    std::unique_ptr<Coefficient>
    CreateTruthDensityCoefficient() const override
    {
-      return std::make_unique<ElasticInclusionTruthCoefficient>();
+      if (truth_preset_ == ElasticInclusionTruthPreset::SINGLE_DISK)
+      {
+         return std::make_unique<
+            ElasticInclusionSingleDiskTruthCoefficient>(
+               cfg_.material, cfg_.inclusion_truth_density);
+      }
+      return std::make_unique<
+         ElasticInclusionThreeShapeTruthCoefficient>();
    }
 
    void SetComputedTruthVolumeFraction(real_t volume_fraction) override
@@ -1491,17 +2160,19 @@ public:
                   "Elastic inclusion problem requires non-null trace data.");
       history->ValidateComplete();
       const Array<int> &marker = history->ObservationMarker();
-      MFEM_VERIFY(marker.Size() >= source_attr_,
+      MFEM_VERIFY(marker.Size() >= receiver_attr_,
                   "Elastic inclusion trace marker does not cover all mesh "
                   "boundary attributes.");
-      for (int attribute = bottom_attr_; attribute <= left_attr_; attribute++)
+      MFEM_VERIFY(marker[receiver_attr_ - 1] == 1,
+                  "Elastic inclusion trace marker is missing the top "
+                  "receiver windows.");
+      for (int attribute = bottom_attr_;
+           attribute <= source_attr_; attribute++)
       {
-         MFEM_VERIFY(marker[attribute - 1] == 1,
-                     "Elastic inclusion trace marker is missing observation "
+         MFEM_VERIFY(marker[attribute - 1] == 0,
+                     "Elastic inclusion trace marker must exclude boundary "
                      "attribute " << attribute << ".");
       }
-      MFEM_VERIFY(marker[source_attr_ - 1] == 0,
-                  "Elastic inclusion source boundary must not be observed.");
       trace_history_ = std::move(history);
    }
 
@@ -1537,10 +2208,22 @@ public:
                 "fraction from rho_dagger; do not supply -vf.\n";
          return false;
       }
-      if (!std::isfinite(cfg_.filter_radius) || cfg_.filter_radius <= 0.0)
+      if (cfg_.helmholtz_filter_enabled &&
+          (!std::isfinite(cfg_.filter_radius) || cfg_.filter_radius <= 0.0))
       {
          err << "Error: elastic inclusion filter radius must be finite and "
                 "positive.\n";
+         return false;
+      }
+      if (!std::isfinite(cfg_.material.r_min) ||
+          !std::isfinite(cfg_.material.r_max) ||
+          !std::isfinite(cfg_.material.simp_p) ||
+          cfg_.material.r_min <= 0.0 ||
+          cfg_.material.r_max <= cfg_.material.r_min ||
+          cfg_.material.simp_p <= 0.0)
+      {
+         err << "Error: elastic inclusion SIMP parameters must satisfy "
+                "0 < r_min < r_max with a finite positive exponent.\n";
          return false;
       }
       if (cfg_.boundary_load.domain_load ||
@@ -1573,67 +2256,103 @@ public:
          return false;
       }
 
-      // The minimum listed distance is to a sponge interface, another shape,
-      // or Gamma_src.  The separate 0.10 top collar keeps every exterior DOF
-      // passive; it is not a damping sponge.
-      const real_t clearances[] =
+      if (truth_preset_ == ElasticInclusionTruthPreset::SINGLE_DISK)
       {
-         ElasticInclusionTruthCoefficient::SquareXMin() - active_x_min_,
-         ElasticInclusionTruthCoefficient::SquareYMin() - active_y_min_,
-         ElasticInclusionTruthCoefficient::TriangleY1() - active_y_min_,
-         ElasticInclusionTruthCoefficient::DiskCenterX() -
-            ElasticInclusionTruthCoefficient::DiskRadius() -
-            ElasticInclusionTruthCoefficient::TriangleX2(),
-         active_x_max_ - ElasticInclusionTruthCoefficient::DiskCenterX() -
-            ElasticInclusionTruthCoefficient::DiskRadius(),
-         ElasticInclusionTruthCoefficient::TriangleX1() -
-            ElasticInclusionTruthCoefficient::SquareXMax(),
-         height_ - ElasticInclusionTruthCoefficient::SquareYMax(),
-         height_ - ElasticInclusionTruthCoefficient::TriangleY3(),
-         height_ - ElasticInclusionTruthCoefficient::DiskCenterY() -
-            ElasticInclusionTruthCoefficient::DiskRadius()
-      };
-      const real_t minimum_clearance =
-         *std::min_element(std::begin(clearances), std::end(clearances));
-      if (minimum_clearance + 1.0e-12 < 2.0 * cfg_.filter_radius)
-      {
-         err << "Error: elastic-inclusion geometry has minimum source/shape/"
-                "sponge clearance " << minimum_clearance
-             << ", smaller than two filter radii "
-             << 2.0 * cfg_.filter_radius << ".\n";
-         return false;
+         using Disk = ElasticInclusionSingleDiskTruthCoefficient;
+         if (!cfg_.inclusion_truth_density_is_user &&
+             !Disk::TargetScaleIsRepresentable(cfg_.material))
+         {
+            err << "Error: the single-disk target SIMP material scale "
+                << Disk::DiskTargetMaterialScale()
+                << " must lie strictly between r_min="
+                << cfg_.material.r_min << " and r_max="
+                << cfg_.material.r_max
+                << ", with a finite positive SIMP exponent.\n";
+            return false;
+         }
+
+         const real_t clearances[] =
+         {
+            Disk::DiskCenterX() - Disk::DiskRadius() - active_x_min_,
+            active_x_max_ - Disk::DiskCenterX() - Disk::DiskRadius(),
+            Disk::DiskCenterY() - Disk::DiskRadius() - active_y_min_,
+            active_y_max_ - Disk::DiskCenterY() - Disk::DiskRadius()
+         };
+         const real_t minimum_clearance =
+            *std::min_element(std::begin(clearances), std::end(clearances));
+         if (minimum_clearance < -1.0e-12)
+         {
+            err << "Error: the single disk lies outside the active interior.\n";
+            return false;
+         }
+         if (cfg_.helmholtz_filter_enabled &&
+             minimum_clearance + 1.0e-12 < 2.0 * cfg_.filter_radius)
+         {
+            err << "Error: single-disk geometry has minimum active-interface "
+                   "clearance " << minimum_clearance
+                << ", smaller than two filter radii "
+                << 2.0 * cfg_.filter_radius << ".\n";
+            return false;
+         }
       }
-      const bool square_inside =
-         ElasticInclusionTruthCoefficient::SquareXMin() >= active_x_min_ &&
-         ElasticInclusionTruthCoefficient::SquareXMax() <= active_x_max_ &&
-         ElasticInclusionTruthCoefficient::SquareYMin() >= active_y_min_ &&
-         ElasticInclusionTruthCoefficient::SquareYMax() <= active_y_max_;
-      const bool triangle_inside =
-         ElasticInclusionTruthCoefficient::TriangleX1() >= active_x_min_ &&
-         ElasticInclusionTruthCoefficient::TriangleX1() <= active_x_max_ &&
-         ElasticInclusionTruthCoefficient::TriangleX2() >= active_x_min_ &&
-         ElasticInclusionTruthCoefficient::TriangleX2() <= active_x_max_ &&
-         ElasticInclusionTruthCoefficient::TriangleX3() >= active_x_min_ &&
-         ElasticInclusionTruthCoefficient::TriangleX3() <= active_x_max_ &&
-         ElasticInclusionTruthCoefficient::TriangleY1() >= active_y_min_ &&
-         ElasticInclusionTruthCoefficient::TriangleY1() <= active_y_max_ &&
-         ElasticInclusionTruthCoefficient::TriangleY2() >= active_y_min_ &&
-         ElasticInclusionTruthCoefficient::TriangleY2() <= active_y_max_ &&
-         ElasticInclusionTruthCoefficient::TriangleY3() >= active_y_min_ &&
-         ElasticInclusionTruthCoefficient::TriangleY3() <= active_y_max_;
-      const bool disk_inside =
-         ElasticInclusionTruthCoefficient::DiskCenterX() -
-            ElasticInclusionTruthCoefficient::DiskRadius() >= active_x_min_ &&
-         ElasticInclusionTruthCoefficient::DiskCenterX() +
-            ElasticInclusionTruthCoefficient::DiskRadius() <= active_x_max_ &&
-         ElasticInclusionTruthCoefficient::DiskCenterY() -
-            ElasticInclusionTruthCoefficient::DiskRadius() >= active_y_min_ &&
-         ElasticInclusionTruthCoefficient::DiskCenterY() +
-            ElasticInclusionTruthCoefficient::DiskRadius() <= active_y_max_;
-      if (!square_inside || !triangle_inside || !disk_inside)
+      else
       {
-         err << "Error: an elastic inclusion lies outside the active interior.\n";
-         return false;
+         using Truth = ElasticInclusionThreeShapeTruthCoefficient;
+         // The minimum listed distance is to a sponge interface, another
+         // shape, or Gamma_src.  The separate top collar is passive but is not
+         // a damping sponge.
+         const real_t clearances[] =
+         {
+            Truth::SquareXMin() - active_x_min_,
+            Truth::SquareYMin() - active_y_min_,
+            Truth::TriangleY1() - active_y_min_,
+            Truth::DiskCenterX() - Truth::DiskRadius() - Truth::TriangleX2(),
+            active_x_max_ - Truth::DiskCenterX() - Truth::DiskRadius(),
+            Truth::TriangleX1() - Truth::SquareXMax(),
+            height_ - Truth::SquareYMax(),
+            height_ - Truth::TriangleY3(),
+            height_ - Truth::DiskCenterY() - Truth::DiskRadius()
+         };
+         const real_t minimum_clearance =
+            *std::min_element(std::begin(clearances), std::end(clearances));
+         if (cfg_.helmholtz_filter_enabled &&
+             minimum_clearance + 1.0e-12 < 2.0 * cfg_.filter_radius)
+         {
+            err << "Error: three-shape geometry has minimum source/shape/"
+                   "sponge clearance " << minimum_clearance
+                << ", smaller than two filter radii "
+                << 2.0 * cfg_.filter_radius << ".\n";
+            return false;
+         }
+         const bool square_inside =
+            Truth::SquareXMin() >= active_x_min_ &&
+            Truth::SquareXMax() <= active_x_max_ &&
+            Truth::SquareYMin() >= active_y_min_ &&
+            Truth::SquareYMax() <= active_y_max_;
+         const bool triangle_inside =
+            Truth::TriangleX1() >= active_x_min_ &&
+            Truth::TriangleX1() <= active_x_max_ &&
+            Truth::TriangleX2() >= active_x_min_ &&
+            Truth::TriangleX2() <= active_x_max_ &&
+            Truth::TriangleX3() >= active_x_min_ &&
+            Truth::TriangleX3() <= active_x_max_ &&
+            Truth::TriangleY1() >= active_y_min_ &&
+            Truth::TriangleY1() <= active_y_max_ &&
+            Truth::TriangleY2() >= active_y_min_ &&
+            Truth::TriangleY2() <= active_y_max_ &&
+            Truth::TriangleY3() >= active_y_min_ &&
+            Truth::TriangleY3() <= active_y_max_;
+         const bool disk_inside =
+            Truth::DiskCenterX() - Truth::DiskRadius() >= active_x_min_ &&
+            Truth::DiskCenterX() + Truth::DiskRadius() <= active_x_max_ &&
+            Truth::DiskCenterY() - Truth::DiskRadius() >= active_y_min_ &&
+            Truth::DiskCenterY() + Truth::DiskRadius() <= active_y_max_;
+         if (!square_inside || !triangle_inside || !disk_inside)
+         {
+            err << "Error: an elastic inclusion lies outside the active "
+                   "interior.\n";
+            return false;
+         }
       }
       return true;
    }
@@ -1644,30 +2363,807 @@ public:
           << "]x[0," << height_ << "], mesh=" << nx_ << 'x' << ny_
           << " Q, active=[" << active_x_min_ << ',' << active_x_max_
           << "]x[" << active_y_min_ << ',' << active_y_max_
-          << "], passive=left/right/bottom sponge collars plus top source "
+          << "], passive=left/right/bottom sponge collars plus top passive "
              "collar, source_attr=" << source_attr_ << " source_x=["
           << source_x_min_ << ',' << source_x_max_
-          << "], observation_attrs=[1,2,3,4], traction_direction=["
+          << "], receiver_attr=" << receiver_attr_
+          << " receiver_x=[" << receiver_left_x_min_ << ','
+          << receiver_left_x_max_ << "]U[" << receiver_right_x_min_ << ','
+          << receiver_right_x_max_
+          << "] at y=" << height_
+          << ", unobserved_attrs=[1,2,3,4,5], traction_direction=["
           << cfg_.boundary_load.direction[0] << ','
-          << cfg_.boundary_load.direction[1] << "], square=["
-          << ElasticInclusionTruthCoefficient::SquareXMin() << ','
-          << ElasticInclusionTruthCoefficient::SquareXMax() << "]x["
-          << ElasticInclusionTruthCoefficient::SquareYMin() << ','
-          << ElasticInclusionTruthCoefficient::SquareYMax() << "] rho="
-          << ElasticInclusionTruthCoefficient::SquareDensity()
-          << ", triangle=[(" << ElasticInclusionTruthCoefficient::TriangleX1()
-          << ',' << ElasticInclusionTruthCoefficient::TriangleY1() << "),("
-          << ElasticInclusionTruthCoefficient::TriangleX2() << ','
-          << ElasticInclusionTruthCoefficient::TriangleY2() << "),("
-          << ElasticInclusionTruthCoefficient::TriangleX3() << ','
-          << ElasticInclusionTruthCoefficient::TriangleY3() << ")] rho="
-          << ElasticInclusionTruthCoefficient::TriangleDensity()
-          << ", disk=center(" << ElasticInclusionTruthCoefficient::DiskCenterX()
-          << ',' << ElasticInclusionTruthCoefficient::DiskCenterY() << ") r="
-          << ElasticInclusionTruthCoefficient::DiskRadius() << " rho="
-          << ElasticInclusionTruthCoefficient::DiskDensity()
-          << ", truth_volume_fraction=" << truth_volume_fraction_
+          << cfg_.boundary_load.direction[1] << "], truth_preset="
+          << GetTruthPresetName();
+      if (truth_preset_ == ElasticInclusionTruthPreset::SINGLE_DISK)
+      {
+         using Disk = ElasticInclusionSingleDiskTruthCoefficient;
+         const real_t disk_density =
+            Disk::DiskDensity(cfg_.material, cfg_.inclusion_truth_density);
+         const real_t disk_material_scale = cfg_.material.r_min +
+            std::pow(disk_density, cfg_.material.simp_p) *
+            (cfg_.material.r_max - cfg_.material.r_min);
+         out << ", disk=center(" << Disk::DiskCenterX() << ','
+             << Disk::DiskCenterY() << ") r=" << Disk::DiskRadius()
+             << " raw_density=" << disk_density
+             << " unfiltered_material_scale="
+             << disk_material_scale;
+      }
+      else
+      {
+         using Truth = ElasticInclusionThreeShapeTruthCoefficient;
+         out << ", square=[" << Truth::SquareXMin() << ','
+             << Truth::SquareXMax() << "]x[" << Truth::SquareYMin() << ','
+             << Truth::SquareYMax() << "] rho=" << Truth::SquareDensity()
+             << ", triangle=[(" << Truth::TriangleX1() << ','
+             << Truth::TriangleY1() << "),(" << Truth::TriangleX2() << ','
+             << Truth::TriangleY2() << "),(" << Truth::TriangleX3() << ','
+             << Truth::TriangleY3() << ")] rho="
+             << Truth::TriangleDensity() << ", disk=center("
+             << Truth::DiskCenterX() << ',' << Truth::DiskCenterY() << ") r="
+             << Truth::DiskRadius() << " rho=" << Truth::DiskDensity();
+      }
+      out << ", truth_volume_fraction=" << truth_volume_fraction_
           << (truth_volume_is_discrete_ ? " (discrete)" : " (analytic provisional)")
+          << "\n";
+   }
+};
+
+// =============================================================================
+// 3D ELASTIC INCLUSION IDENTIFICATION: recover one embedded ball from the
+// accessible top surface.  This is a true 3D continuation of the 2D disk
+// experiment, not a periodic/extruded 2D calculation.
+// =============================================================================
+class ElasticInclusionIdentification3DProblem final
+   : public TransientTopOptProblem
+{
+private:
+   static constexpr real_t length_ = 1.5;
+   static constexpr real_t height_ = 0.75;
+   static constexpr real_t width_ = 1.0;
+
+   // The native h=0.025 mesh resolves the radius-0.10 ball and the circular
+   // source patch with four elements per radius.  Boundary attributes are
+   // assigned while generating the mesh, so this must be the base resolution
+   // rather than a later uniform refinement of a coarser labelled mesh.
+   static constexpr int nx_ = 60;
+   static constexpr int ny_ = 30;
+   static constexpr int nz_ = 40;
+
+   // The first six attributes identify the inaccessible exterior faces.  The
+   // source and receiver are disjoint pieces of the free top face.
+   static constexpr int bottom_attr_ = 1;
+   static constexpr int right_attr_ = 2;
+   static constexpr int top_attr_ = 3;
+   static constexpr int left_attr_ = 4;
+   static constexpr int front_attr_ = 5;
+   static constexpr int back_attr_ = 6;
+   static constexpr int source_attr_ = 7;
+   static constexpr int receiver_attr_ = 8;
+   static constexpr int corner_source_a_attr_ = 9;
+   static constexpr int corner_source_b_attr_ = 10;
+
+   // The top source is a circular patch in the x-z plane.
+   static constexpr real_t source_center_x_ = 0.75;
+   static constexpr real_t source_center_z_ = 0.50;
+   // The two additional disks are opposite about the central source and sit
+   // one half-element-width farther than their radius from every active-top
+   // boundary.  Their centroidal mesh patches are therefore not clipped by a
+   // passive collar.
+   static constexpr real_t corner_source_a_x_ = 0.375;
+   static constexpr real_t corner_source_a_z_ = 0.375;
+   static constexpr real_t corner_source_b_x_ = 1.125;
+   static constexpr real_t corner_source_b_z_ = 0.625;
+   static constexpr real_t source_radius_ = 0.10;
+   static constexpr real_t sponge_thickness_ = 0.25;
+   static constexpr real_t top_passive_thickness_ = 0.10;
+   static constexpr real_t active_x_min_ = sponge_thickness_;
+   static constexpr real_t active_x_max_ = length_ - sponge_thickness_;
+   static constexpr real_t active_y_min_ = sponge_thickness_;
+   static constexpr real_t active_y_max_ = height_ - top_passive_thickness_;
+   static constexpr real_t active_z_min_ = sponge_thickness_;
+   static constexpr real_t active_z_max_ = width_ - sponge_thickness_;
+
+   TransientTopOptConfig cfg_;
+   bool multi_source_;
+   ElasticInclusion3DTruthPreset truth_preset_;
+   std::vector<BoundaryLoadSpec> source_loads_;
+   std::string mesh_description_ =
+      "<generated 3D elastic-inclusion-identification box>";
+   real_t truth_volume_fraction_;
+   bool truth_volume_is_discrete_ = false;
+   std::shared_ptr<const BoundaryTraceHistory> trace_history_;
+   std::vector<std::shared_ptr<const BoundaryTraceHistory>>
+      source_trace_histories_;
+
+   static void CopyAttributes(const Array<int> &source, Array<int> &target)
+   {
+      target.SetSize(source.Size());
+      for (int i = 0; i < source.Size(); i++) { target[i] = source[i]; }
+   }
+
+   static constexpr real_t ActiveVolume()
+   {
+      return (active_x_max_ - active_x_min_) *
+             (active_y_max_ - active_y_min_) *
+             (active_z_max_ - active_z_min_);
+   }
+
+   int SourceAttribute(int source) const
+   {
+      MFEM_VERIFY(source >= 0 && source < GetNumberOfSources(),
+                  "Elastic-inclusion 3D received an invalid source index.");
+      if (source == 0) { return source_attr_; }
+      if (source == 1) { return corner_source_a_attr_; }
+      return corner_source_b_attr_;
+   }
+
+   static constexpr real_t SourceCenterX(int source)
+   {
+      return source == 0 ? source_center_x_ :
+             (source == 1 ? corner_source_a_x_ : corner_source_b_x_);
+   }
+
+   static constexpr real_t SourceCenterZ(int source)
+   {
+      return source == 0 ? source_center_z_ :
+             (source == 1 ? corner_source_a_z_ : corner_source_b_z_);
+   }
+
+   bool IsInSourcePatch(int source, real_t x, real_t z) const
+   {
+      const real_t dx = x - SourceCenterX(source);
+      const real_t dz = z - SourceCenterZ(source);
+      return dx * dx + dz * dz <= source_radius_ * source_radius_;
+   }
+
+   real_t AnalyticTruthVolumeFraction() const
+   {
+      switch (truth_preset_)
+      {
+         case ElasticInclusion3DTruthPreset::SINGLE_BALL:
+            return 1.0 - ElasticInclusionSingleBallTruthCoefficient::
+                   DensityDeficitVolume(cfg_.material) / ActiveVolume();
+         case ElasticInclusion3DTruthPreset::SQUARE_PYRAMID:
+            return 1.0 - ElasticInclusionSquarePyramidTruthCoefficient::
+                   DensityDeficitVolume(cfg_.material) / ActiveVolume();
+      }
+      MFEM_ABORT("Unknown 3D elastic-inclusion truth preset.");
+   }
+
+   bool TruthTargetScaleIsRepresentable() const
+   {
+      switch (truth_preset_)
+      {
+         case ElasticInclusion3DTruthPreset::SINGLE_BALL:
+            return ElasticInclusionSingleBallTruthCoefficient::
+                   TargetScaleIsRepresentable(cfg_.material);
+         case ElasticInclusion3DTruthPreset::SQUARE_PYRAMID:
+            return ElasticInclusionSquarePyramidTruthCoefficient::
+                   TargetScaleIsRepresentable(cfg_.material);
+      }
+      MFEM_ABORT("Unknown 3D elastic-inclusion truth preset.");
+   }
+
+   real_t TruthTargetMaterialScale() const
+   {
+      switch (truth_preset_)
+      {
+         case ElasticInclusion3DTruthPreset::SINGLE_BALL:
+            return ElasticInclusionSingleBallTruthCoefficient::
+                   BallTargetMaterialScale();
+         case ElasticInclusion3DTruthPreset::SQUARE_PYRAMID:
+            return ElasticInclusionSquarePyramidTruthCoefficient::
+                   PyramidTargetMaterialScale();
+      }
+      MFEM_ABORT("Unknown 3D elastic-inclusion truth preset.");
+   }
+
+   real_t TruthMinimumActiveClearance() const
+   {
+      switch (truth_preset_)
+      {
+         case ElasticInclusion3DTruthPreset::SINGLE_BALL:
+         {
+            using Ball = ElasticInclusionSingleBallTruthCoefficient;
+            const real_t clearances[] =
+            {
+               Ball::BallCenterX() - Ball::BallRadius() - active_x_min_,
+               active_x_max_ - Ball::BallCenterX() - Ball::BallRadius(),
+               Ball::BallCenterY() - Ball::BallRadius() - active_y_min_,
+               active_y_max_ - Ball::BallCenterY() - Ball::BallRadius(),
+               Ball::BallCenterZ() - Ball::BallRadius() - active_z_min_,
+               active_z_max_ - Ball::BallCenterZ() - Ball::BallRadius()
+            };
+            return *std::min_element(std::begin(clearances),
+                                     std::end(clearances));
+         }
+         case ElasticInclusion3DTruthPreset::SQUARE_PYRAMID:
+         {
+            using Pyramid = ElasticInclusionSquarePyramidTruthCoefficient;
+            const real_t half_base = 0.5 * Pyramid::BaseSide();
+            const real_t clearances[] =
+            {
+               Pyramid::CenterX() - half_base - active_x_min_,
+               active_x_max_ - Pyramid::CenterX() - half_base,
+               Pyramid::BaseY() - active_y_min_,
+               active_y_max_ - Pyramid::ApexY(),
+               Pyramid::CenterZ() - half_base - active_z_min_,
+               active_z_max_ - Pyramid::CenterZ() - half_base
+            };
+            return *std::min_element(std::begin(clearances),
+                                     std::end(clearances));
+         }
+      }
+      MFEM_ABORT("Unknown 3D elastic-inclusion truth preset.");
+   }
+
+public:
+   explicit ElasticInclusionIdentification3DProblem(
+      const TransientTopOptConfig &base, bool multi_source = false,
+      ElasticInclusion3DTruthPreset truth_preset =
+         ElasticInclusion3DTruthPreset::SINGLE_BALL)
+      : cfg_(base), multi_source_(multi_source), truth_preset_(truth_preset),
+        truth_volume_fraction_(1.0)
+   {
+      cfg_.x_max = length_;
+      cfg_.y_max = height_;
+
+      if (!cfg_.order_is_user) { cfg_.order = 2; }
+      if (!cfg_.t_final_is_user) { cfg_.t_final = 1.5; }
+      if (!cfg_.time_step_is_user) { cfg_.dt = 1.0e-3; }
+      if (!cfg_.filter_radius_is_user) { cfg_.filter_radius = 0.05; }
+      if (!cfg_.simp_r_min_is_user) { cfg_.material.r_min = 0.10; }
+      if (!cfg_.simp_r_max_is_user) { cfg_.material.r_max = 1.0; }
+      if (multi_source_)
+      {
+         // This acquisition deliberately removes both regularizers: no
+         // volume prior and no Helmholtz smoothing.  p=1 makes the material
+         // interpolation linear while preserving the calibrated target-scale
+         // truth through the selected calibrated inclusion coefficient.
+         cfg_.helmholtz_filter_enabled = false;
+         cfg_.volume_constraint_enabled = false;
+         if (!cfg_.simp_p_is_user) { cfg_.material.simp_p = 1.0; }
+      }
+      else if (!cfg_.simp_p_is_user)
+      {
+         cfg_.material.simp_p = 3.0;
+      }
+
+      if (TruthTargetScaleIsRepresentable())
+      {
+         truth_volume_fraction_ = AnalyticTruthVolumeFraction();
+      }
+      cfg_.vol_frac = truth_volume_fraction_;
+
+      cfg_.boundary_load.domain_load = false;
+      cfg_.boundary_load.time_profile = LoadTimeProfile::MODULATED_GAUSSIAN;
+      cfg_.boundary_load.amplitude = 1.0;
+      if (!cfg_.load_frequency_is_user) { cfg_.boundary_load.frequency = 4.0; }
+      if (!cfg_.load_duration_is_user) { cfg_.boundary_load.duration = 0.75; }
+      cfg_.boundary_load.phase = 0.0;
+      cfg_.boundary_load.bdr_attributes.SetSize(1);
+      cfg_.boundary_load.bdr_attributes[0] = source_attr_;
+      cfg_.boundary_load.direction.SetSize(3);
+      cfg_.boundary_load.direction = 0.0;
+      const real_t inverse_sqrt_two = 1.0 / std::sqrt(2.0);
+      cfg_.boundary_load.direction[0] = inverse_sqrt_two;
+      cfg_.boundary_load.direction[1] = -inverse_sqrt_two;
+
+      source_loads_.resize(GetNumberOfSources());
+      for (int source = 0; source < GetNumberOfSources(); source++)
+      {
+         source_loads_[source] = cfg_.boundary_load;
+         source_loads_[source].bdr_attributes.SetSize(1);
+         source_loads_[source].bdr_attributes[0] = SourceAttribute(source);
+      }
+      source_trace_histories_.resize(GetNumberOfSources());
+
+      // The accessible top is a free surface.  The other five box faces are
+      // inaccessible subsoil boundaries, each backed by a passive sponge and
+      // an absorbing Robin condition.
+      cfg_.essential_bdr_attributes.SetSize(0);
+      cfg_.absorbing_bdr_attributes.SetSize(5);
+      cfg_.absorbing_bdr_attributes[0] = bottom_attr_;
+      cfg_.absorbing_bdr_attributes[1] = right_attr_;
+      cfg_.absorbing_bdr_attributes[2] = left_attr_;
+      cfg_.absorbing_bdr_attributes[3] = front_attr_;
+      cfg_.absorbing_bdr_attributes[4] = back_attr_;
+      cfg_.damping_thickness = sponge_thickness_;
+      cfg_.damping_left = true;
+      cfg_.damping_right = true;
+      cfg_.damping_bottom = true;
+      cfg_.damping_top = false;
+      cfg_.damping_uniform = 0.0;
+      cfg_.damping_scale_length = CartesianDampingRampIntegral(
+         cfg_.damping_thickness, cfg_.damping_beta, cfg_.damping_exponent);
+   }
+
+   const TransientTopOptConfig &GetConfig() const override { return cfg_; }
+   const std::string &GetMeshFile() const override { return mesh_description_; }
+   int GetNumberOfSources() const override { return multi_source_ ? 3 : 1; }
+   const BoundaryLoadSpec &GetBoundaryLoad() const override
+   {
+      return cfg_.boundary_load;
+   }
+   const BoundaryLoadSpec &GetBoundaryLoad(int source) const override
+   {
+      MFEM_VERIFY(source >= 0 && source < GetNumberOfSources(),
+                  "Elastic-inclusion 3D received an invalid source index.");
+      return source_loads_[source];
+   }
+   real_t GetVolumeFraction() const override { return truth_volume_fraction_; }
+   real_t GetAnalyticTruthVolumeFraction() const
+   {
+      return AnalyticTruthVolumeFraction();
+   }
+   bool HasComputedTruthVolumeFraction() const { return truth_volume_is_discrete_; }
+   ElasticInclusion3DTruthPreset GetTruthPreset() const
+   {
+      return truth_preset_;
+   }
+   const char *GetTruthPresetName() const
+   {
+      return ElasticInclusion3DTruthPresetName(truth_preset_);
+   }
+
+   real_t GetWidth() const { return width_; }
+   real_t GetActiveXMin() const { return active_x_min_; }
+   real_t GetActiveXMax() const { return active_x_max_; }
+   real_t GetActiveYMin() const { return active_y_min_; }
+   real_t GetActiveYMax() const { return active_y_max_; }
+   real_t GetActiveZMin() const { return active_z_min_; }
+   real_t GetActiveZMax() const { return active_z_max_; }
+   real_t GetSpongeThickness() const { return sponge_thickness_; }
+   real_t GetTopPassiveThickness() const { return top_passive_thickness_; }
+   real_t GetSourceCenterX() const { return source_center_x_; }
+   real_t GetSourceCenterZ() const { return source_center_z_; }
+   real_t GetSourceCenterX(int source) const { return SourceCenterX(source); }
+   real_t GetSourceCenterZ(int source) const { return SourceCenterZ(source); }
+   real_t GetSourceRadius() const { return source_radius_; }
+   int GetSourceBoundaryAttribute() const { return source_attr_; }
+   int GetSourceBoundaryAttribute(int source) const
+   {
+      return SourceAttribute(source);
+   }
+   int GetReceiverBoundaryAttribute() const { return receiver_attr_; }
+   int GetMeshNX() const { return nx_; }
+   int GetMeshNY() const { return ny_; }
+   int GetMeshNZ() const { return nz_; }
+
+   Mesh CreateMesh() const override
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(
+         nx_, ny_, nz_, Element::HEXAHEDRON, length_, height_, width_);
+
+      const int maximum_boundary_attribute = multi_source_ ?
+         corner_source_b_attr_ : receiver_attr_;
+      Array<int> boundary_counts(maximum_boundary_attribute);
+      boundary_counts = 0;
+      const real_t tolerance =
+         1.0e-12 * std::max({length_, height_, width_});
+      for (int be_index = 0; be_index < mesh.GetNBE(); be_index++)
+      {
+         Element *boundary_element = mesh.GetBdrElement(be_index);
+         Array<int> vertices;
+         boundary_element->GetVertices(vertices);
+         MFEM_VERIFY(vertices.Size() == 4,
+                     "Elastic-inclusion 3D mesh expects quadrilateral faces.");
+
+         Vector centroid(3);
+         centroid = 0.0;
+         for (int i = 0; i < vertices.Size(); i++)
+         {
+            const real_t *vertex = mesh.GetVertex(vertices[i]);
+            for (int d = 0; d < 3; d++) { centroid[d] += vertex[d]; }
+         }
+         centroid /= static_cast<real_t>(vertices.Size());
+
+         int attribute = 0;
+         if (std::abs(centroid[1]) <= tolerance)
+         {
+            attribute = bottom_attr_;
+         }
+         else if (std::abs(centroid[0] - length_) <= tolerance)
+         {
+            attribute = right_attr_;
+         }
+         else if (std::abs(centroid[1] - height_) <= tolerance)
+         {
+            int source = -1;
+            for (int candidate = 0;
+                 candidate < GetNumberOfSources(); candidate++)
+            {
+               if (IsInSourcePatch(candidate, centroid[0], centroid[2]))
+               {
+                  MFEM_VERIFY(source < 0,
+                              "Two 3D source patches overlap on the top surface.");
+                  source = candidate;
+               }
+            }
+            const bool on_receiver = centroid[0] >= active_x_min_ &&
+                                     centroid[0] <= active_x_max_ &&
+                                     centroid[2] >= active_z_min_ &&
+                                     centroid[2] <= active_z_max_;
+            attribute = source >= 0 ? SourceAttribute(source) :
+                        (on_receiver ? receiver_attr_ : top_attr_);
+         }
+         else if (std::abs(centroid[0]) <= tolerance)
+         {
+            attribute = left_attr_;
+         }
+         else if (std::abs(centroid[2]) <= tolerance)
+         {
+            attribute = front_attr_;
+         }
+         else if (std::abs(centroid[2] - width_) <= tolerance)
+         {
+            attribute = back_attr_;
+         }
+         MFEM_VERIFY(attribute > 0,
+                     "Could not classify an elastic-inclusion 3D boundary face.");
+         boundary_element->SetAttribute(attribute);
+         boundary_counts[attribute - 1]++;
+      }
+      mesh.SetAttributes();
+
+      for (int attribute = 1;
+           attribute <= maximum_boundary_attribute; attribute++)
+      {
+         MFEM_VERIFY(boundary_counts[attribute - 1] > 0,
+                     "Elastic-inclusion 3D boundary attribute " << attribute
+                     << " has no elements.");
+      }
+      return mesh;
+   }
+
+   void GetEssentialBoundaryAttributes(Array<int> &attrs) const override
+   {
+      CopyAttributes(cfg_.essential_bdr_attributes, attrs);
+   }
+
+   void GetAbsorbingBoundaryAttributes(Array<int> &attrs) const override
+   {
+      CopyAttributes(cfg_.absorbing_bdr_attributes, attrs);
+   }
+
+   void GetObservationBoundaryAttributes(Array<int> &attrs) const override
+   {
+      attrs.SetSize(1);
+      attrs[0] = receiver_attr_;
+   }
+
+   std::unique_ptr<VectorCoefficient>
+   CreateBoundaryLoadCoefficient() const override
+   {
+      return std::make_unique<DirectionalBoundaryLoadCoefficient>(
+         cfg_.boundary_load.direction);
+   }
+
+   std::unique_ptr<VectorCoefficient>
+   CreateBoundaryLoadCoefficient(int source) const override
+   {
+      MFEM_VERIFY(source >= 0 && source < GetNumberOfSources(),
+                  "Elastic-inclusion 3D received an invalid source index.");
+      return std::make_unique<DirectionalBoundaryLoadCoefficient>(
+         source_loads_[source].direction);
+   }
+
+   void GetObservationBoundaryAttributes(int source,
+                                         Array<int> &attrs) const override
+   {
+      MFEM_VERIFY(source >= 0 && source < GetNumberOfSources(),
+                  "Elastic-inclusion 3D received an invalid source index.");
+      if (!multi_source_)
+      {
+         GetObservationBoundaryAttributes(attrs);
+         return;
+      }
+      // Gamma_obs^(s) is the whole accessible top surface except only its
+      // active traction patch. The other two candidate pads are load-free
+      // during shot s and are included in the measurement.
+      attrs.SetSize(3);
+      attrs[0] = receiver_attr_;
+      int position = 1;
+      for (int candidate = 0; candidate < GetNumberOfSources(); candidate++)
+      {
+         if (candidate != source) { attrs[position++] = SourceAttribute(candidate); }
+      }
+      MFEM_VERIFY(position == attrs.Size(),
+                  "Multi-source observation marker has the wrong size.");
+   }
+
+   std::unique_ptr<Coefficient>
+   CreatePassiveRegionCoefficient() const override
+   {
+      return std::make_unique<ElasticInclusionPassiveRegion3D>(
+         active_x_min_, active_x_max_, active_y_min_, active_y_max_,
+         active_z_min_, active_z_max_);
+   }
+
+   real_t GetPassiveDensity() const override { return 1.0; }
+
+   std::unique_ptr<DampingFieldBase>
+   CreateDampingField(bool enabled = true) const override
+   {
+      return std::make_unique<CartesianDampingField3D>(
+         GetMaterialParams(), GetDampingParameters(), width_,
+         /*damp_front=*/true, /*damp_back=*/true, enabled,
+         GetMaterialParams().r_max);
+   }
+
+   bool HasReferenceTruth() const override { return true; }
+
+   std::unique_ptr<Coefficient>
+   CreateTruthDensityCoefficient() const override
+   {
+      switch (truth_preset_)
+      {
+         case ElasticInclusion3DTruthPreset::SINGLE_BALL:
+            return std::make_unique<ElasticInclusionSingleBallTruthCoefficient>(
+               cfg_.material);
+         case ElasticInclusion3DTruthPreset::SQUARE_PYRAMID:
+            return std::make_unique<ElasticInclusionSquarePyramidTruthCoefficient>(
+               cfg_.material);
+      }
+      MFEM_ABORT("Unknown 3D elastic-inclusion truth preset.");
+   }
+
+   void SetComputedTruthVolumeFraction(real_t volume_fraction) override
+   {
+      MFEM_VERIFY(std::isfinite(volume_fraction) && volume_fraction > 0.0 &&
+                     volume_fraction <= 1.0,
+                  "Computed 3D elastic-inclusion truth volume fraction must "
+                  "lie in (0,1].");
+      truth_volume_fraction_ = volume_fraction;
+      cfg_.vol_frac = volume_fraction;
+      truth_volume_is_discrete_ = true;
+   }
+
+   bool RequiresReferenceBoundaryData() const override { return true; }
+
+   bool DefaultReferenceConvergenceAudit() const override
+   {
+      // The multi-shot example deliberately creates exactly one costly truth
+      // trace per shot before MMA; it does not silently multiply that cost by
+      // the usual three-run temporal/order audit.
+      return !multi_source_;
+   }
+
+   void SetBoundaryTraceHistory(
+      std::shared_ptr<const BoundaryTraceHistory> history) override
+   {
+      SetBoundaryTraceHistory(/*source=*/0, std::move(history));
+   }
+
+   void SetBoundaryTraceHistory(
+      int source, std::shared_ptr<const BoundaryTraceHistory> history) override
+   {
+      MFEM_VERIFY(source >= 0 && source < GetNumberOfSources(),
+                  "Elastic-inclusion 3D received an invalid source index.");
+      MFEM_VERIFY(history,
+                  "Elastic-inclusion 3D problem requires non-null trace data.");
+      history->ValidateComplete();
+      const Array<int> &marker = history->ObservationMarker();
+      MFEM_VERIFY(marker.Size() >= (multi_source_ ? corner_source_b_attr_ :
+                                                   receiver_attr_),
+                  "Elastic-inclusion 3D trace marker does not cover all "
+                  "boundary attributes.");
+      MFEM_VERIFY(marker[receiver_attr_ - 1] == 1,
+                  "Elastic-inclusion 3D trace marker is missing the "
+                  "top receiver surface.");
+      for (int attribute = bottom_attr_; attribute <= back_attr_; attribute++)
+      {
+         MFEM_VERIFY(marker[attribute - 1] == 0,
+                     "Elastic-inclusion 3D trace marker must exclude boundary "
+                     "attribute " << attribute << ".");
+      }
+      for (int candidate = 0; candidate < GetNumberOfSources(); candidate++)
+      {
+         const bool should_observe = candidate != source;
+         MFEM_VERIFY(marker[SourceAttribute(candidate) - 1] ==
+                     (should_observe ? 1 : 0),
+                     "Multi-source trace marker must observe exactly the "
+                     "load-free source pads.");
+      }
+      source_trace_histories_[source] = std::move(history);
+      if (source == 0) { trace_history_ = source_trace_histories_[source]; }
+   }
+
+   std::unique_ptr<TimeIntegratedObjective>
+   CreateObjective(ParFiniteElementSpace *state_fes,
+                   MPI_Comm comm) const override
+   {
+      return CreateObjective(/*source=*/0, state_fes, comm);
+   }
+
+   std::unique_ptr<TimeIntegratedObjective>
+   CreateObjective(int source, ParFiniteElementSpace *state_fes,
+                   MPI_Comm comm) const override
+   {
+      MFEM_VERIFY(source >= 0 && source < GetNumberOfSources() &&
+                  source_trace_histories_[source],
+                  "Generate and attach elastic-inclusion 3D reference "
+                  "data before creating its tracking objective.");
+      return std::make_unique<BoundaryDisplacementTrackingObjective>(
+         state_fes, source_trace_histories_[source], comm);
+   }
+
+   bool Validate(std::ostream &err) const override
+   {
+      if (!TransientTopOptProblem::Validate(err)) { return false; }
+      if (cfg_.mesh_file_is_user)
+      {
+         err << "Error: elastic-inclusion-identification-3d uses its generated "
+                "box mesh; do not supply -mesh.\n";
+         return false;
+      }
+      if (!multi_source_ && cfg_.volume_fraction_is_user)
+      {
+         err << "Error: elastic-inclusion-identification-3d fixes the volume "
+                "fraction from rho_dagger; do not supply -vf.\n";
+         return false;
+      }
+      if (!multi_source_ &&
+          (!std::isfinite(cfg_.filter_radius) || cfg_.filter_radius <= 0.0))
+      {
+         err << "Error: elastic-inclusion 3D filter radius must be finite and "
+                "positive.\n";
+         return false;
+      }
+      if (multi_source_ &&
+          (cfg_.helmholtz_filter_enabled || cfg_.volume_constraint_enabled ||
+           std::abs(cfg_.material.simp_p - 1.0) > 1e-14))
+      {
+         err << "Error: the 3D multi-source inverse requires no Helmholtz "
+                "filter, no volume constraint, and linear SIMP p=1.\n";
+         return false;
+      }
+      if (!TruthTargetScaleIsRepresentable())
+      {
+         err << "Error: the " << GetTruthPresetName()
+             << " target SIMP material scale " << TruthTargetMaterialScale()
+             << " must lie strictly between r_min=" << cfg_.material.r_min
+             << " and r_max=" << cfg_.material.r_max
+             << ", with a finite positive SIMP exponent.\n";
+         return false;
+      }
+      if (cfg_.boundary_load.domain_load ||
+          cfg_.boundary_load.time_profile !=
+             LoadTimeProfile::MODULATED_GAUSSIAN ||
+          cfg_.boundary_load.bdr_attributes.Size() != 1 ||
+          cfg_.boundary_load.bdr_attributes[0] != source_attr_)
+      {
+         err << "Error: elastic-inclusion 3D requires one modulated-Gaussian "
+                "traction on boundary attribute 7.\n";
+         return false;
+      }
+      if (cfg_.boundary_load.direction.Size() != 3 ||
+          !std::isfinite(cfg_.boundary_load.direction[0]) ||
+          !std::isfinite(cfg_.boundary_load.direction[1]) ||
+          !std::isfinite(cfg_.boundary_load.direction[2]) ||
+          std::abs(cfg_.boundary_load.direction[0]) <= 0.0 ||
+          std::abs(cfg_.boundary_load.direction[1]) <= 0.0)
+      {
+         err << "Error: elastic-inclusion 3D source must have nonzero normal "
+                "and x-tangential components.\n";
+         return false;
+      }
+      if (!std::isfinite(cfg_.boundary_load.frequency) ||
+          !std::isfinite(cfg_.boundary_load.duration) ||
+          cfg_.boundary_load.frequency <= 0.0 ||
+          cfg_.boundary_load.duration <= 0.0)
+      {
+         err << "Error: elastic-inclusion 3D source frequency and duration "
+                "must be finite and positive.\n";
+         return false;
+      }
+
+      for (int source = 0; source < GetNumberOfSources(); source++)
+      {
+         const BoundaryLoadSpec &load = source_loads_[source];
+         if (load.domain_load || load.bdr_attributes.Size() != 1 ||
+             load.bdr_attributes[0] != SourceAttribute(source) ||
+             load.direction.Size() != 3 ||
+             load.time_profile != LoadTimeProfile::MODULATED_GAUSSIAN ||
+             !std::isfinite(load.frequency) || load.frequency <= 0.0 ||
+             !std::isfinite(load.duration) || load.duration <= 0.0)
+         {
+            err << "Error: invalid 3D source specification for shot "
+                << source << ".\n";
+            return false;
+         }
+      }
+
+      const real_t minimum_clearance = TruthMinimumActiveClearance();
+      if (minimum_clearance < -1.0e-12)
+      {
+         err << "Error: the " << GetTruthPresetName()
+             << " lies outside the active interior.\n";
+         return false;
+      }
+      if (!multi_source_ && cfg_.helmholtz_filter_enabled &&
+          minimum_clearance + 1.0e-12 < 2.0 * cfg_.filter_radius)
+      {
+         err << "Error: " << GetTruthPresetName()
+             << " geometry has minimum active-interface "
+                "clearance " << minimum_clearance
+             << ", smaller than two filter radii "
+             << 2.0 * cfg_.filter_radius << ".\n";
+         return false;
+      }
+      for (int source = 0; source < GetNumberOfSources(); source++)
+      {
+         const real_t source_clearances[] =
+         {
+            SourceCenterX(source) - source_radius_ - active_x_min_,
+            active_x_max_ - SourceCenterX(source) - source_radius_,
+            SourceCenterZ(source) - source_radius_ - active_z_min_,
+            active_z_max_ - SourceCenterZ(source) - source_radius_
+         };
+         const real_t source_minimum = *std::min_element(
+            std::begin(source_clearances), std::end(source_clearances));
+         if (source_minimum < -1.0e-12)
+         {
+            err << "Error: a 3D source patch leaves the active top footprint.\n";
+            return false;
+         }
+      }
+      return true;
+   }
+
+   void PrintSummary(std::ostream &out) const override
+   {
+      out << "Elastic inclusion identification 3D"
+          << (multi_source_ ? " multi-source" : "")
+          << ": domain=[0," << length_
+          << "]x[0," << height_ << "]x[0," << width_ << "], mesh="
+          << nx_ << 'x' << ny_ << 'x' << nz_ << " Q, active=["
+          << active_x_min_ << ',' << active_x_max_ << "]x["
+          << active_y_min_ << ',' << active_y_max_ << "]x["
+          << active_z_min_ << ',' << active_z_max_
+          << "], passive=left/right/front/back/bottom sponge collars plus "
+             "top passive collar, sources=" << GetNumberOfSources()
+          << ", receiver_attr="
+          << receiver_attr_ << " receiver={y=" << height_ << ", x=["
+          << active_x_min_ << ',' << active_x_max_ << "], z=["
+          << active_z_min_ << ',' << active_z_max_
+          << "]} minus the active source of each shot, unobserved_attrs=[1,2,3,4,5,6]";
+      for (int source = 0; source < GetNumberOfSources(); source++)
+      {
+         out << ", source" << source << "={attr=" << SourceAttribute(source)
+             << ", y=" << height_ << ", disk_center=("
+             << SourceCenterX(source) << ',' << SourceCenterZ(source)
+             << "), r=" << source_radius_ << '}';
+      }
+      out
+          << ", traction_direction=[" << cfg_.boundary_load.direction[0]
+          << ',' << cfg_.boundary_load.direction[1] << ','
+          << cfg_.boundary_load.direction[2] << "], truth="
+          << GetTruthPresetName();
+      if (truth_preset_ == ElasticInclusion3DTruthPreset::SINGLE_BALL)
+      {
+         using Ball = ElasticInclusionSingleBallTruthCoefficient;
+         out << "=center(" << Ball::BallCenterX() << ','
+             << Ball::BallCenterY() << ',' << Ball::BallCenterZ()
+             << ") r=" << Ball::BallRadius()
+             << " raw_density=" << Ball::BallDensity(cfg_.material);
+      }
+      else
+      {
+         using Pyramid = ElasticInclusionSquarePyramidTruthCoefficient;
+         out << "=base{y=" << Pyramid::BaseY() << ", center=("
+             << Pyramid::CenterX() << ',' << Pyramid::CenterZ()
+             << "), side=" << Pyramid::BaseSide() << "}, apex=("
+             << Pyramid::CenterX() << ',' << Pyramid::ApexY() << ','
+             << Pyramid::CenterZ() << ") raw_density="
+             << Pyramid::PyramidDensity(cfg_.material);
+      }
+      out << " unfiltered_material_scale=" << TruthTargetMaterialScale()
+          << ", truth_volume_fraction=" << truth_volume_fraction_
+          << (truth_volume_is_discrete_ ? " (discrete)" :
+                                         " (analytic provisional)")
+          << (multi_source_ ? ", no-volume/no-Helmholtz/linear-SIMP" : "")
           << "\n";
    }
 };
@@ -2677,9 +4173,9 @@ public:
       cfg.material.rho0 = 1.0;
       cfg.material.lambda0 = 2.0;
       cfg.material.mu0 = 1.0;
-      cfg.material.r_min = 0.10;    // Finite contrast, avoid complete voids
-      cfg.material.r_max = 1.0;
-      cfg.material.simp_p = 3.0;
+      if (!cfg.simp_r_min_is_user) { cfg.material.r_min = 0.10; }
+      if (!cfg.simp_r_max_is_user) { cfg.material.r_max = 1.0; }
+      if (!cfg.simp_p_is_user) { cfg.material.simp_p = 3.0; }
 
       // Source: narrowband radial tone burst (modulated Gaussian) in the
       // central sphere. The spatial monopole coefficient is unit-amplitude;
