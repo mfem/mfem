@@ -11,7 +11,7 @@
 #pragma once
 
 /** @file hcurl.hpp
-    H(curl) PA MMA — QFns + tensor/simplex apply for VectorFEMass / CurlCurl.
+    H(curl) PA MMA — QFns + thin ApplyTensor / ApplySimplex callers.
 */
 
 #include "../../bilininteg.hpp"
@@ -39,7 +39,8 @@ struct HcurlMass
 };
 
 template <int DIM, bool SYM>
-struct qfn_traits<HcurlMass<DIM, SYM>> : VecEvalEvalQFnTraits<DIM, SYM> {};
+struct qfn_traits<HcurlMass<DIM, SYM>>
+   : VecEvalEvalQFnTraits<DIM, SYM, true, true> {};
 
 /** Curl-curl at Q: y = A * curl(u). 2D: scalar A; 3D: 3×3 A. */
 template <int DIM, bool SYM = true>
@@ -79,50 +80,164 @@ struct qfn_traits<CurlCurlQFn<3, SYM>> : CurlCurlQFnTraits<3, SYM> {};
 namespace internal
 {
 
-/** Owned tensor H(curl) mass — Bo/Bc sum-fact PA apply (not a PAHcurl* wrap). */
-void MmaHcurlMassApplyTensors2D(
-   const int NE, const bool symmetric, const bool scalar_coeff,
+template <int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void MmaHcurlMassApplyTensors(
+   const int NE, const bool symmetric,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d);
+   const int d1d, const int q1d)
+{
+   using mma::form::ApplyTensor;
+   using mma::form::HcurlMass;
+   if (symmetric)
+   {
+      ApplyTensor<HcurlMass<DIM, true>, DIM, T_D1D, T_Q1D>(
+         NE, bo, bc, bot, bct, pa_data, x, y, d1d, q1d);
+   }
+   else
+   {
+      ApplyTensor<HcurlMass<DIM, false>, DIM, T_D1D, T_Q1D>(
+         NE, bo, bc, bot, bct, pa_data, x, y, d1d, q1d);
+   }
+}
 
-void MmaHcurlMassApplyTensors3D(
-   const int NE, const bool symmetric, const bool scalar_coeff,
+inline void MmaHcurlMassApplyTensors2D(
+   const int NE, const bool symmetric, const bool /*scalar_coeff*/,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d);
+   const int d1d, const int /*test_d1d*/, const int q1d)
+{
+   MmaHcurlMassApplyTensors<2>(NE, symmetric, bo, bc, bot, bct,
+                               pa_data, x, y, d1d, q1d);
+}
 
-/** Owned tensor curl-curl — Bo/Bc/Gc sum-fact PA apply (not a PACurlCurl* wrap). */
-void MmaCurlCurlApplyTensors2D(
+inline void MmaHcurlMassApplyTensors3D(
+   const int NE, const bool symmetric, const bool /*scalar_coeff*/,
+   const Array<real_t> &bo, const Array<real_t> &bc,
+   const Array<real_t> &bot, const Array<real_t> &bct,
+   const Vector &pa_data, const Vector &x, Vector &y,
+   const int d1d, const int /*test_d1d*/, const int q1d)
+{
+   MmaHcurlMassApplyTensors<3>(NE, symmetric, bo, bc, bot, bct,
+                               pa_data, x, y, d1d, q1d);
+}
+
+template <int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void MmaCurlCurlApplyTensors(
+   const int NE, const bool symmetric,
+   const Array<real_t> &bo, const Array<real_t> &bc,
+   const Array<real_t> &bot, const Array<real_t> &bct,
+   const Array<real_t> &gc, const Array<real_t> &gct,
+   const Vector &pa_data, const Vector &x, Vector &y,
+   const int d1d, const int q1d)
+{
+   using mma::form::ApplyTensor;
+   using mma::form::CurlCurlQFn;
+   if (symmetric)
+   {
+      ApplyTensor<CurlCurlQFn<DIM, true>, DIM, T_D1D, T_Q1D>(
+         NE, bo, bc, bot, bct, gc, gct, pa_data, x, y, d1d, q1d);
+   }
+   else
+   {
+      ApplyTensor<CurlCurlQFn<DIM, false>, DIM, T_D1D, T_Q1D>(
+         NE, bo, bc, bot, bct, gc, gct, pa_data, x, y, d1d, q1d);
+   }
+}
+
+inline void MmaCurlCurlApplyTensors2D(
    const int d1d, const int q1d, const bool symmetric, const int NE,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Array<real_t> &gc, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y, const bool use_abs);
+   const Vector &pa_data, const Vector &x, Vector &y, const bool /*use_abs*/)
+{
+   MmaCurlCurlApplyTensors<2>(NE, symmetric, bo, bc, bot, bct, gc, gct,
+                              pa_data, x, y, d1d, q1d);
+}
 
-void MmaCurlCurlApplyTensors3D(
+inline void MmaCurlCurlApplyTensors3D(
    const int d1d, const int q1d, const bool symmetric, const int NE,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Array<real_t> &gc, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y, const bool use_abs);
+   const Vector &pa_data, const Vector &x, Vector &y, const bool /*use_abs*/)
+{
+   MmaCurlCurlApplyTensors<3>(NE, symmetric, bo, bc, bot, bct, gc, gct,
+                              pa_data, x, y, d1d, q1d);
+}
 
-/** Dense simplex H(curl) mass / curl-curl apply (host Q-space PA). */
-void MmaHcurlMassApplySimplex(const int dim, const int NE, const int nd,
-                              const int nq, const int sdim,
-                              const bool symmetric,
-                              const Array<real_t> &B,
-                              const Vector &pa_data,
-                              const Vector &x, Vector &y);
+inline void MmaHcurlMassApplySimplex(const int dim, const int NE, const int nd,
+                                    const int nq, const int sdim,
+                                    const bool symmetric,
+                                    const Array<real_t> &B,
+                                    const Vector &pa_data,
+                                    const Vector &x, Vector &y)
+{
+   using mma::form::ApplySimplex;
+   using mma::form::HcurlMass;
+   MFEM_VERIFY(dim == sdim, "");
+   MFEM_VERIFY(nd * NE == x.Size(), "");
+   (void)nq;
+   if (dim == 2)
+   {
+      if (symmetric)
+      {
+         ApplySimplex<HcurlMass<2, true>, 2>(NE, B, pa_data, x, y);
+      }
+      else
+      {
+         ApplySimplex<HcurlMass<2, false>, 2>(NE, B, pa_data, x, y);
+      }
+   }
+   else
+   {
+      if (symmetric)
+      {
+         ApplySimplex<HcurlMass<3, true>, 3>(NE, B, pa_data, x, y);
+      }
+      else
+      {
+         ApplySimplex<HcurlMass<3, false>, 3>(NE, B, pa_data, x, y);
+      }
+   }
+}
 
-void MmaCurlCurlApplySimplex(const int dim, const int NE, const int nd,
-                             const int nq, const int curl_dim,
-                             const bool symmetric,
-                             const Array<real_t> &C,
-                             const Vector &pa_data,
-                             const Vector &x, Vector &y);
+inline void MmaCurlCurlApplySimplex(const int dim, const int NE, const int nd,
+                                   const int nq, const int curl_dim,
+                                   const bool symmetric,
+                                   const Array<real_t> &C,
+                                   const Vector &pa_data,
+                                   const Vector &x, Vector &y)
+{
+   using mma::form::ApplySimplex;
+   using mma::form::CurlCurlQFn;
+   (void)nd; (void)nq; (void)curl_dim;
+   if (dim == 2)
+   {
+      if (symmetric)
+      {
+         ApplySimplex<CurlCurlQFn<2, true>, 2>(NE, C, pa_data, x, y);
+      }
+      else
+      {
+         ApplySimplex<CurlCurlQFn<2, false>, 2>(NE, C, pa_data, x, y);
+      }
+   }
+   else
+   {
+      if (symmetric)
+      {
+         ApplySimplex<CurlCurlQFn<3, true>, 3>(NE, C, pa_data, x, y);
+      }
+      else
+      {
+         ApplySimplex<CurlCurlQFn<3, false>, 3>(NE, C, pa_data, x, y);
+      }
+   }
+}
 
 } // namespace internal
 

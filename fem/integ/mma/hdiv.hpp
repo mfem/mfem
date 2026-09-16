@@ -11,11 +11,12 @@
 #pragma once
 
 /** @file hdiv.hpp
-    H(div) PA MMA — QFns + tensor/simplex apply for VectorFEMass / DivDiv.
+    H(div) PA MMA — QFns + thin ApplyTensor / ApplySimplex callers.
 */
 
 #include "../../bilininteg.hpp"
 #include "form/form.hpp"
+#include "hcurl.hpp" // MmaHcurlMassApplySimplex shared dense vec path via ApplySimplex
 
 namespace mfem
 {
@@ -39,7 +40,8 @@ struct HdivMass
 };
 
 template <int DIM, bool SYM>
-struct qfn_traits<HdivMass<DIM, SYM>> : VecEvalEvalQFnTraits<DIM, SYM> {};
+struct qfn_traits<HdivMass<DIM, SYM>>
+   : VecEvalEvalQFnTraits<DIM, SYM, false, false> {};
 
 /** Div-div at Q: y = d * div(u). */
 struct DivDivQFn
@@ -58,45 +60,128 @@ struct qfn_traits<DivDivQFn> : DivDivQFnTraits {};
 namespace internal
 {
 
-/** Owned tensor H(div) mass — Bo/Bc sum-fact PA apply (not a PAHdiv* wrap). */
-void MmaHdivMassApplyTensors2D(
-   const int NE, const bool symmetric, const bool scalar_coeff,
+template <int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void MmaHdivMassApplyTensors(
+   const int NE, const bool symmetric,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d);
+   const int d1d, const int q1d)
+{
+   using mma::form::ApplyTensor;
+   using mma::form::HdivMass;
+   if (symmetric)
+   {
+      ApplyTensor<HdivMass<DIM, true>, DIM, T_D1D, T_Q1D>(
+         NE, bo, bc, bot, bct, pa_data, x, y, d1d, q1d);
+   }
+   else
+   {
+      ApplyTensor<HdivMass<DIM, false>, DIM, T_D1D, T_Q1D>(
+         NE, bo, bc, bot, bct, pa_data, x, y, d1d, q1d);
+   }
+}
 
-void MmaHdivMassApplyTensors3D(
-   const int NE, const bool symmetric, const bool scalar_coeff,
+inline void MmaHdivMassApplyTensors2D(
+   const int NE, const bool symmetric, const bool /*scalar_coeff*/,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d);
+   const int d1d, const int /*test_d1d*/, const int q1d)
+{
+   MmaHdivMassApplyTensors<2>(NE, symmetric, bo, bc, bot, bct,
+                              pa_data, x, y, d1d, q1d);
+}
 
-/** Owned tensor div-div — Bo/Gc sum-fact PA apply (not a PADivDiv* wrap). */
-void MmaDivDivApplyTensors2D(
+inline void MmaHdivMassApplyTensors3D(
+   const int NE, const bool symmetric, const bool /*scalar_coeff*/,
+   const Array<real_t> &bo, const Array<real_t> &bc,
+   const Array<real_t> &bot, const Array<real_t> &bct,
+   const Vector &pa_data, const Vector &x, Vector &y,
+   const int d1d, const int /*test_d1d*/, const int q1d)
+{
+   MmaHdivMassApplyTensors<3>(NE, symmetric, bo, bc, bot, bct,
+                              pa_data, x, y, d1d, q1d);
+}
+
+template <int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void MmaDivDivApplyTensors(
+   const int NE,
+   const Array<real_t> &bo, const Array<real_t> &gc,
+   const Array<real_t> &bot, const Array<real_t> &gct,
+   const Vector &pa_data, const Vector &x, Vector &y,
+   const int d1d, const int q1d)
+{
+   using mma::form::ApplyTensor;
+   using mma::form::DivDivQFn;
+   ApplyTensor<DivDivQFn, DIM, T_D1D, T_Q1D>(
+      NE, bo, gc, bot, gct, pa_data, x, y, d1d, q1d);
+}
+
+inline void MmaDivDivApplyTensors2D(
    const int d1d, const int q1d, const int NE,
    const Array<real_t> &bo, const Array<real_t> &gc,
    const Array<real_t> &bot, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y);
+   const Vector &pa_data, const Vector &x, Vector &y)
+{
+   MmaDivDivApplyTensors<2>(NE, bo, gc, bot, gct, pa_data, x, y, d1d, q1d);
+}
 
-void MmaDivDivApplyTensors3D(
+inline void MmaDivDivApplyTensors3D(
    const int d1d, const int q1d, const int NE,
    const Array<real_t> &bo, const Array<real_t> &gc,
    const Array<real_t> &bot, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y);
+   const Vector &pa_data, const Vector &x, Vector &y)
+{
+   MmaDivDivApplyTensors<3>(NE, bo, gc, bot, gct, pa_data, x, y, d1d, q1d);
+}
 
-void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
-                             const int nq, const int sdim,
-                             const bool symmetric,
-                             const Array<real_t> &B,
-                             const Vector &pa_data,
-                             const Vector &x, Vector &y);
+inline void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
+                                   const int nq, const int sdim,
+                                   const bool symmetric,
+                                   const Array<real_t> &B,
+                                   const Vector &pa_data,
+                                   const Vector &x, Vector &y)
+{
+   using mma::form::ApplySimplex;
+   using mma::form::HdivMass;
+   MFEM_VERIFY(dim == sdim, "");
+   (void)nd; (void)nq;
+   if (dim == 2)
+   {
+      if (symmetric)
+      {
+         ApplySimplex<HdivMass<2, true>, 2>(NE, B, pa_data, x, y);
+      }
+      else
+      {
+         ApplySimplex<HdivMass<2, false>, 2>(NE, B, pa_data, x, y);
+      }
+   }
+   else
+   {
+      if (symmetric)
+      {
+         ApplySimplex<HdivMass<3, true>, 3>(NE, B, pa_data, x, y);
+      }
+      else
+      {
+         ApplySimplex<HdivMass<3, false>, 3>(NE, B, pa_data, x, y);
+      }
+   }
+}
 
-void MmaDivDivApplySimplex(const int NE, const int nd, const int nq,
-                           const Array<real_t> &Div,
-                           const Vector &pa_data,
-                           const Vector &x, Vector &y);
+inline void MmaDivDivApplySimplex(const int NE, const int nd, const int nq,
+                                 const Array<real_t> &Div,
+                                 const Vector &pa_data,
+                                 const Vector &x, Vector &y)
+{
+   using mma::form::ApplySimplex;
+   using mma::form::DivDivQFn;
+   (void)nd; (void)nq;
+   // DIM unused by DivDiv engine inference; mesh is 2 or 3 — use 3 as tag
+   ApplySimplex<DivDivQFn, 3>(NE, Div, pa_data, x, y);
+}
 
 } // namespace internal
 

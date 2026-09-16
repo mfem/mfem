@@ -228,6 +228,7 @@ struct EvalEvalQFnTraits
    static constexpr bool test_is_curl = false;
    static constexpr bool trial_is_div = false;
    static constexpr bool test_is_div = false;
+   static constexpr bool trial_is_vec_eval = false;
 
    static constexpr int u_planes(int dim, int vdim = 1)
    {
@@ -250,6 +251,7 @@ struct NoneEvalQFnTraits
    static constexpr bool test_is_curl = false;
    static constexpr bool trial_is_div = false;
    static constexpr bool test_is_div = false;
+   static constexpr bool trial_is_vec_eval = false;
 
    static constexpr int u_planes(int dim, int vdim = 1)
    {
@@ -273,6 +275,7 @@ struct GradGradQFnTraits
    static constexpr bool test_is_curl = false;
    static constexpr bool trial_is_div = false;
    static constexpr bool test_is_div = false;
+   static constexpr bool trial_is_vec_eval = false;
    static constexpr bool symmetric_pa = SYM;
    static constexpr int spatial_dim = DIM;
 
@@ -299,6 +302,7 @@ struct CurlCurlQFnTraits
    static constexpr bool test_is_curl = true;
    static constexpr bool trial_is_div = false;
    static constexpr bool test_is_div = false;
+   static constexpr bool trial_is_vec_eval = false;
    static constexpr bool symmetric_pa = SYM;
    static constexpr int spatial_dim = DIM;
 
@@ -323,6 +327,7 @@ struct DivDivQFnTraits
    static constexpr bool test_is_curl = false;
    static constexpr bool trial_is_div = true;
    static constexpr bool test_is_div = true;
+   static constexpr bool trial_is_vec_eval = false;
 
    static constexpr int u_planes(int dim, int vdim = 1)
    {
@@ -330,8 +335,11 @@ struct DivDivQFnTraits
    }
 };
 
-/** Vector Eval×Eval for H(curl)/H(div) mass at Q (Piola-mapped vector). */
-template <int DIM, bool SYM = true>
+/** Vector Eval×Eval for H(curl)/H(div) mass at Q (Piola-mapped vector).
+    OPEN_ON_COMP: true = H(curl) (open along component axis); false = H(div).
+    SYM_PACK_O21: true = Diffusion/Hcurl packed [11,21,22]; false = Hdiv [11,12,22]. */
+template <int DIM, bool SYM = true, bool OPEN_ON_COMP = true,
+          bool SYM_PACK_O21 = OPEN_ON_COMP>
 struct VecEvalEvalQFnTraits
 {
    using trial_kind = grad_t<DIM>; // vector value storage
@@ -346,6 +354,9 @@ struct VecEvalEvalQFnTraits
    static constexpr bool test_is_curl = false;
    static constexpr bool trial_is_div = false;
    static constexpr bool test_is_div = false;
+   static constexpr bool trial_is_vec_eval = true;
+   static constexpr bool open_on_component = OPEN_ON_COMP;
+   static constexpr bool sym_pack_o21 = SYM_PACK_O21;
    static constexpr bool symmetric_pa = SYM;
    static constexpr int spatial_dim = DIM;
 
@@ -380,7 +391,9 @@ template <typename QFn>
 MFEM_HOST_DEVICE inline void ApplyEvalQFn(real_t &u, real_t d)
 {
    using Tr = qfn_traits<QFn>;
-   static_assert(!Tr::trial_is_grad, "ApplyEvalQFn expects Eval (or None) trial");
+   static_assert(!Tr::trial_is_grad && !Tr::trial_is_curl && !Tr::trial_is_div &&
+                  !Tr::trial_is_vec_eval,
+                  "ApplyEvalQFn expects scalar Eval (or None) trial");
    if constexpr (Tr::has_trial)
    {
       eval_t trial(u), test;

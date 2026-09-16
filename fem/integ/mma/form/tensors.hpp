@@ -1754,7 +1754,11 @@ namespace mfem::internal::mma::form
 /** Tensor Eval apply. bt is accepted for API symmetry with registration; unused.
     vdim>1: block-diagonal multi-component (layout D… × vdim × NE). */
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
-inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+inline std::enable_if_t<
+   !qfn_traits<QFn>::trial_is_grad &&
+   !qfn_traits<QFn>::trial_is_curl &&
+   !qfn_traits<QFn>::trial_is_div &&
+   !qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplyTensor(const int NE,
             const Array<real_t> &b,
             const Array<real_t> &bt,
@@ -1794,3 +1798,5 @@ ApplyTensor(const int NE,
 } // namespace mfem::internal::mma::form
 
 /// \endcond
+
+#include "tensors_derham.hpp"

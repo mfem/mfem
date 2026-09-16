@@ -322,7 +322,11 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
 /** Specialized simplex Eval×Eval ApplySimplex (mass-like).
     Signature matches MassIntegrator::ApplySimplexMmaKernelType. */
 template <typename QFn, int DIM, int D1D, int QND>
-inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+inline std::enable_if_t<
+   !qfn_traits<QFn>::trial_is_grad &&
+   !qfn_traits<QFn>::trial_is_curl &&
+   !qfn_traits<QFn>::trial_is_div &&
+   !qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -384,7 +388,11 @@ ApplySimplex(const int NE,
 
 /** Specialized Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM, int D1D, int QND>
-inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+inline std::enable_if_t<
+   !qfn_traits<QFn>::trial_is_grad &&
+   !qfn_traits<QFn>::trial_is_curl &&
+   !qfn_traits<QFn>::trial_is_div &&
+   !qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -437,7 +445,11 @@ ApplySimplex(const int NE,
 
 /** Runtime Fallback Eval×Eval ApplySimplex. */
 template <typename QFn, int DIM>
-inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+inline std::enable_if_t<
+   !qfn_traits<QFn>::trial_is_grad &&
+   !qfn_traits<QFn>::trial_is_curl &&
+   !qfn_traits<QFn>::trial_is_div &&
+   !qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -495,7 +507,11 @@ ApplySimplex(const int NE,
 
 /** Runtime Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM>
-inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+inline std::enable_if_t<
+   !qfn_traits<QFn>::trial_is_grad &&
+   !qfn_traits<QFn>::trial_is_curl &&
+   !qfn_traits<QFn>::trial_is_div &&
+   !qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -1654,3 +1670,5 @@ ApplySimplex(const int NE,
 } // namespace mfem::internal::mma::form
 
 /// \endcond
+
+#include "simplex_derham.hpp"
