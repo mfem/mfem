@@ -651,7 +651,7 @@ public:
    const NURBSExtension *GetNURBSext() const { return NURBSext; }
    NURBSExtension *GetNURBSext() { return NURBSext; }
    NURBSExtension *StealNURBSext();
-   void OwnNURBSext(NURBSExtension *NURBSext = NULL);
+   void OwnNURBSext(NURBSExtension *ext = NULL);
 
    bool Conforming() const
    {
