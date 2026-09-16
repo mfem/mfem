@@ -150,7 +150,9 @@ int main(int argc, char *argv[])
    {
       x[i]  = (u[i] - 0.5)*l;
    }
-   kv->GetInterpolant(x,u,interp);
+
+   MatrixInverse *A_coll_inv = kv->GetInverseInterpolationMatrix(u);
+   A_coll_inv->Mult(x, interp);
    for (int i = 0; i < ncp; i++)
    {
       patch(i,0,0) = interp[i];
@@ -160,7 +162,7 @@ int main(int argc, char *argv[])
    {
       x[i] = a * sin(u[i]*2*M_PI)-0.5*l;
    }
-   kv->GetInterpolant(x,u,interp);
+   A_coll_inv->Mult(x, interp);
    for (int i = 0; i < ncp; i++)
    {
       patch(i,0,1) = interp[i];
@@ -239,6 +241,7 @@ int main(int argc, char *argv[])
    delete mesh;
    delete kv_o1;
    delete kv;
+   delete A_coll_inv;
 
    return 0;
 }
