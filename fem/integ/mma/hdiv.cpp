@@ -21,6 +21,631 @@ namespace mfem
 namespace internal
 {
 
+// Owned MMA tensor PA apply (Bo/Bc/Gc sum-fact). Algorithm matches stock PAHdivMassApply2D;
+// not a call wrapper.
+void MmaHdivMassApplyTensors2D(const int NE, const bool symmetric, const bool,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int TestD1D, const int Q1D)
+{
+   MFEM_VERIFY(D1D == TestD1D,
+               "Trial and test spaces must have same number of dofs");
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
+   auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
+      real_t mass[MAX_Q1D][MAX_Q1D][VDIM];
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               mass[qy][qx][c] = 0.0;
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dx = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            real_t massX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               massX[qx] = 0.0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const real_t t = x(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] += t * ((c == 0) ? Bc(qx,dx) : Bo(qx,dx));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  mass[qy][qx][c] += massX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            const real_t O11 = op(qx,qy,0,e);
+            const real_t O12 = op(qx,qy,1,e);
+            const real_t O21 = symmetric ? O12 : op(qx,qy,2,e);
+            const real_t O22 = symmetric ? op(qx,qy,2,e) : op(qx,qy,3,e);
+            const real_t massX = mass[qy][qx][0];
+            const real_t massY = mass[qy][qx][1];
+            mass[qy][qx][0] = (O11*massX)+(O12*massY);
+            mass[qy][qx][1] = (O21*massX)+(O22*massY);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+         {
+            const int D1Dx = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 0) ? D1D - 1 : D1D;
+
+            real_t massX[MAX_D1D];
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               massX[dx] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  massX[dx] += mass[qy][qx][c] * ((c == 0) ? Bct(dx,qx) :
+                                                  Bot(dx,qx));
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               const real_t wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  y(dx + (dy * D1Dx) + osc, e) += massX[dx] * wy;
+               }
+            }
+
+            osc += D1Dx * D1Dy;
+         }  // loop c
+      }  // loop qy
+   }); // end of element loop
+}
+
+// Owned MMA tensor PA apply (Bo/Bc/Gc sum-fact). Algorithm matches stock PAHdivMassApply3D;
+// not a call wrapper.
+void MmaHdivMassApplyTensors3D(const int NE, const bool symmetric, const bool,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int TestD1D, const int Q1D)
+{
+   MFEM_VERIFY(D1D == TestD1D,
+               "Trial and test spaces must have same number of dofs");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
+   constexpr static int VDIM = 3;
+
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(Bct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t mass[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][VDIM];
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int c = 0; c < VDIM; ++c)
+               {
+                  mass[qz][qy][qx][c] = 0.0;
+               }
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D : D1D - 1;
+         const int D1Dy = (c == 1) ? D1D : D1D - 1;
+         const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            real_t massXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massXY[qy][qx] = 0.0;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               real_t massX[DofQuadLimits::HDIV_MAX_Q1D];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  massX[qx] = 0.0;
+               }
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  const real_t t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     massX[qx] += t * ((c == 0) ? Bc(qx,dx) : Bo(qx,dx));
+                  }
+               }
+
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const real_t wx = massX[qx];
+                     massXY[qy][qx] += wx * wy;
+                  }
+               }
+            }
+
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const real_t wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     mass[qz][qy][qx][c] += massXY[qy][qx] * wz;
+                  }
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               const real_t O11 = op(qx,qy,qz,0,e);
+               const real_t O12 = op(qx,qy,qz,1,e);
+               const real_t O13 = op(qx,qy,qz,2,e);
+               const real_t O21 = symmetric ? O12 : op(qx,qy,qz,3,e);
+               const real_t O22 = symmetric ? op(qx,qy,qz,3,e) : op(qx,qy,qz,4,e);
+               const real_t O23 = symmetric ? op(qx,qy,qz,4,e) : op(qx,qy,qz,5,e);
+               const real_t O31 = symmetric ? O13 : op(qx,qy,qz,6,e);
+               const real_t O32 = symmetric ? O23 : op(qx,qy,qz,7,e);
+               const real_t O33 = symmetric ? op(qx,qy,qz,5,e) : op(qx,qy,qz,8,e);
+
+               const real_t massX = mass[qz][qy][qx][0];
+               const real_t massY = mass[qz][qy][qx][1];
+               const real_t massZ = mass[qz][qy][qx][2];
+               mass[qz][qy][qx][0] = (O11*massX)+(O12*massY)+(O13*massZ);
+               mass[qz][qy][qx][1] = (O21*massX)+(O22*massY)+(O23*massZ);
+               mass[qz][qy][qx][2] = (O31*massX)+(O32*massY)+(O33*massZ);
+            }
+         }
+      }
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         real_t massXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+
+         osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D : D1D - 1;
+            const int D1Dy = (c == 1) ? D1D : D1D - 1;
+            const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  massXY[dy][dx] = 0;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               real_t massX[DofQuadLimits::HDIV_MAX_D1D];
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  massX[dx] = 0;
+               }
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     massX[dx] += mass[qz][qy][qx][c] *
+                                  ((c == 0) ? Bct(dx,qx) : Bot(dx,qx));
+                  }
+               }
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  const real_t wy = (c == 1) ? Bct(dy,qy) : Bot(dy,qy);
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     massXY[dy][dx] += massX[dx] * wy;
+                  }
+               }
+            }
+
+            for (int dz = 0; dz < D1Dz; ++dz)
+            {
+               const real_t wz = (c == 2) ? Bct(dz,qz) : Bot(dz,qz);
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
+                        massXY[dy][dx] * wz;
+                  }
+               }
+            }
+
+            osc += D1Dx * D1Dy * D1Dz;
+         }  // loop c
+      }  // loop qz
+   }); // end of element loop
+}
+
+// Owned MMA tensor PA apply (Bo/Bc/Gc sum-fact). Algorithm matches stock PADivDivApply2D;
+// not a call wrapper.
+void MmaDivDivApplyTensors2D(const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const Array<real_t> &Bo_,
+                     const Array<real_t> &Gc_,
+                     const Array<real_t> &Bot_,
+                     const Array<real_t> &Gct_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
+{
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 2*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 2*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr static int VDIM = 2;
+      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+
+      real_t div[MAX_Q1D][MAX_Q1D];
+
+      // div[qy][qx] will be computed as du_x/dx + du_y/dy
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            div[qy][qx] = 0;
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+      {
+         const int D1Dx = (c == 1) ? D1D - 1 : D1D;
+         const int D1Dy = (c == 0) ? D1D - 1 : D1D;
+
+         for (int dy = 0; dy < D1Dy; ++dy)
+         {
+            real_t gradX[MAX_Q1D];
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               gradX[qx] = 0;
+            }
+
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               const real_t t = x(dx + (dy * D1Dx) + osc, e);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  gradX[qx] += t * ((c == 0) ? Gc(qx,dx) : Bo(qx,dx));
+               }
+            }
+
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const real_t wy = (c == 0) ? Bo(qy,dy) : Gc(qy,dy);
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  div[qy][qx] += gradX[qx] * wy;
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         for (int qx = 0; qx < Q1D; ++qx)
+         {
+            div[qy][qx] *= op(qx,qy,e);
+         }
+      }
+
+      for (int qy = 0; qy < Q1D; ++qy)
+      {
+         osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y components
+         {
+            const int D1Dx = (c == 1) ? D1D - 1 : D1D;
+            const int D1Dy = (c == 0) ? D1D - 1 : D1D;
+
+            real_t gradX[MAX_D1D];
+            for (int dx = 0; dx < D1Dx; ++dx)
+            {
+               gradX[dx] = 0;
+            }
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  gradX[dx] += div[qy][qx] * (c == 0 ? Gct(dx,qx) : Bot(dx,qx));
+               }
+            }
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               const real_t wy = (c == 0) ? Bot(dy,qy) : Gct(dy,qy);
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  y(dx + (dy * D1Dx) + osc, e) += gradX[dx] * wy;
+               }
+            }
+
+            osc += D1Dx * D1Dy;
+         }  // loop c
+      }  // loop qy
+   }); // end of element loop
+}
+
+// Owned MMA tensor PA apply (Bo/Bc/Gc sum-fact). Algorithm matches stock PADivDivApply3D;
+// not a call wrapper.
+void MmaDivDivApplyTensors3D(const int D1D,
+                     const int Q1D,
+                     const int NE,
+                     const Array<real_t> &Bo_,
+                     const Array<real_t> &Gc_,
+                     const Array<real_t> &Bot_,
+                     const Array<real_t> &Gct_,
+                     const Vector &op_,
+                     const Vector &x_,
+                     Vector &y_)
+{
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
+   constexpr static int VDIM = 3;
+
+   auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
+   auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
+   auto Gct = Reshape(Gct_.Read(), D1D, Q1D);
+   auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   auto x = Reshape(x_.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+   auto y = Reshape(y_.ReadWrite(), 3*(D1D-1)*(D1D-1)*D1D, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               div[qz][qy][qx] = 0.0;
+            }
+         }
+      }
+
+      int osc = 0;
+
+      for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+      {
+         const int D1Dz = (c == 2) ? D1D : D1D - 1;
+         const int D1Dy = (c == 1) ? D1D : D1D - 1;
+         const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+         for (int dz = 0; dz < D1Dz; ++dz)
+         {
+            real_t aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  aXY[qy][qx] = 0.0;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               real_t aX[DofQuadLimits::HDIV_MAX_Q1D];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  aX[qx] = 0.0;
+               }
+
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  const real_t t = x(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     aX[qx] += t * ((c == 0) ? Gc(qx,dx) : Bo(qx,dx));
+                  }
+               }
+
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const real_t wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const real_t wx = aX[qx];
+                     aXY[qy][qx] += wx * wy;
+                  }
+               }
+            }
+
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const real_t wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     div[qz][qy][qx] += aXY[qy][qx] * wz;
+                  }
+               }
+            }
+         }
+
+         osc += D1Dx * D1Dy * D1Dz;
+      }  // loop (c) over components
+
+      // Apply D operator.
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            for (int qx = 0; qx < Q1D; ++qx)
+            {
+               div[qz][qy][qx] *= op(qx,qy,qz,e);
+            }
+         }
+      }
+
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         real_t aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+
+         osc = 0;
+
+         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
+         {
+            const int D1Dz = (c == 2) ? D1D : D1D - 1;
+            const int D1Dy = (c == 1) ? D1D : D1D - 1;
+            const int D1Dx = (c == 0) ? D1D : D1D - 1;
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  aXY[dy][dx] = 0;
+               }
+            }
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               real_t aX[DofQuadLimits::HDIV_MAX_D1D];
+               for (int dx = 0; dx < D1Dx; ++dx)
+               {
+                  aX[dx] = 0;
+               }
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     aX[dx] += div[qz][qy][qx] *
+                               (c == 0 ? Gct(dx,qx) : Bot(dx,qx));
+                  }
+               }
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  const real_t wy = (c == 1) ? Gct(dy,qy) : Bot(dy,qy);
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     aXY[dy][dx] += aX[dx] * wy;
+                  }
+               }
+            }
+
+            for (int dz = 0; dz < D1Dz; ++dz)
+            {
+               const real_t wz = (c == 2) ? Gct(dz,qz) : Bot(dz,qz);
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  for (int dx = 0; dx < D1Dx; ++dx)
+                  {
+                     y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) +=
+                        aXY[dy][dx] * wz;
+                  }
+               }
+            }
+
+            osc += D1Dx * D1Dy * D1Dz;
+         }  // loop c
+      }  // loop qz
+   }); // end of element loop
+}
+
 void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
                              const int nq, const int sdim,
                              const bool symmetric,

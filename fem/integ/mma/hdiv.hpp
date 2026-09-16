@@ -16,7 +16,6 @@
 
 #include "../../bilininteg.hpp"
 #include "form/form.hpp"
-#include "../bilininteg_hdiv_kernels.hpp"
 
 namespace mfem
 {
@@ -59,45 +58,33 @@ struct qfn_traits<DivDivQFn> : DivDivQFnTraits {};
 namespace internal
 {
 
-inline void MmaHdivMassApplyTensors2D(
+/** Owned tensor H(div) mass — Bo/Bc sum-fact PA apply (not a PAHdiv* wrap). */
+void MmaHdivMassApplyTensors2D(
    const int NE, const bool symmetric, const bool scalar_coeff,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d)
-{
-   PAHdivMassApply2D(NE, symmetric, scalar_coeff, bo, bc, bot, bct,
-                     pa_data, x, y, d1d, test_d1d, q1d);
-}
+   const int d1d, const int test_d1d, const int q1d);
 
-inline void MmaHdivMassApplyTensors3D(
+void MmaHdivMassApplyTensors3D(
    const int NE, const bool symmetric, const bool scalar_coeff,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d)
-{
-   PAHdivMassApply3D(NE, symmetric, scalar_coeff, bo, bc, bot, bct,
-                     pa_data, x, y, d1d, test_d1d, q1d);
-}
+   const int d1d, const int test_d1d, const int q1d);
 
-inline void MmaDivDivApplyTensors2D(
+/** Owned tensor div-div — Bo/Gc sum-fact PA apply (not a PADivDiv* wrap). */
+void MmaDivDivApplyTensors2D(
    const int d1d, const int q1d, const int NE,
    const Array<real_t> &bo, const Array<real_t> &gc,
    const Array<real_t> &bot, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y)
-{
-   PADivDivApply2D(d1d, q1d, NE, bo, gc, bot, gct, pa_data, x, y);
-}
+   const Vector &pa_data, const Vector &x, Vector &y);
 
-inline void MmaDivDivApplyTensors3D(
+void MmaDivDivApplyTensors3D(
    const int d1d, const int q1d, const int NE,
    const Array<real_t> &bo, const Array<real_t> &gc,
    const Array<real_t> &bot, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y)
-{
-   PADivDivApply3D(d1d, q1d, NE, bo, gc, bot, gct, pa_data, x, y);
-}
+   const Vector &pa_data, const Vector &x, Vector &y);
 
 void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
                              const int nq, const int sdim,
@@ -107,7 +94,7 @@ void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
                              const Vector &x, Vector &y);
 
 void MmaDivDivApplySimplex(const int NE, const int nd, const int nq,
-                           const Array<real_t> &Div, // (nq, nd) ref div
+                           const Array<real_t> &Div,
                            const Vector &pa_data,
                            const Vector &x, Vector &y);
 

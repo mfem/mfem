@@ -16,7 +16,6 @@
 
 #include "../../bilininteg.hpp"
 #include "form/form.hpp"
-#include "../bilininteg_hcurl_kernels.hpp"
 
 namespace mfem
 {
@@ -80,64 +79,48 @@ struct qfn_traits<CurlCurlQFn<3, SYM>> : CurlCurlQFnTraits<3, SYM> {};
 namespace internal
 {
 
-/** Tensor H(curl) mass — matches PAHcurlMassApply* (oracle path). */
-inline void MmaHcurlMassApplyTensors2D(
+/** Owned tensor H(curl) mass — Bo/Bc sum-fact PA apply (not a PAHcurl* wrap). */
+void MmaHcurlMassApplyTensors2D(
    const int NE, const bool symmetric, const bool scalar_coeff,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d)
-{
-   PAHcurlMassApply2D(NE, symmetric, scalar_coeff, bo, bc, bot, bct,
-                      pa_data, x, y, d1d, test_d1d, q1d);
-}
+   const int d1d, const int test_d1d, const int q1d);
 
-inline void MmaHcurlMassApplyTensors3D(
+void MmaHcurlMassApplyTensors3D(
    const int NE, const bool symmetric, const bool scalar_coeff,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int test_d1d, const int q1d)
-{
-   PAHcurlMassApply3D(NE, symmetric, scalar_coeff, bo, bc, bot, bct,
-                      pa_data, x, y, d1d, test_d1d, q1d);
-}
+   const int d1d, const int test_d1d, const int q1d);
 
-/** Tensor curl-curl — matches PACurlCurlApply*. */
-inline void MmaCurlCurlApplyTensors2D(
+/** Owned tensor curl-curl — Bo/Bc/Gc sum-fact PA apply (not a PACurlCurl* wrap). */
+void MmaCurlCurlApplyTensors2D(
    const int d1d, const int q1d, const bool symmetric, const int NE,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Array<real_t> &gc, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y, const bool use_abs)
-{
-   PACurlCurlApply2D(d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct,
-                     pa_data, x, y, use_abs);
-}
+   const Vector &pa_data, const Vector &x, Vector &y, const bool use_abs);
 
-inline void MmaCurlCurlApplyTensors3D(
+void MmaCurlCurlApplyTensors3D(
    const int d1d, const int q1d, const bool symmetric, const int NE,
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Array<real_t> &gc, const Array<real_t> &gct,
-   const Vector &pa_data, const Vector &x, Vector &y, const bool use_abs)
-{
-   PACurlCurlApply3D(d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct,
-                     pa_data, x, y, use_abs);
-}
+   const Vector &pa_data, const Vector &x, Vector &y, const bool use_abs);
 
-/** Dense simplex H(curl) mass / curl-curl apply (host). */
+/** Dense simplex H(curl) mass / curl-curl apply (host Q-space PA). */
 void MmaHcurlMassApplySimplex(const int dim, const int NE, const int nd,
                               const int nq, const int sdim,
                               const bool symmetric,
-                              const Array<real_t> &B, // (nq, nd, sdim) ref vshape
-                              const Vector &pa_data, // (nq, ncomp, NE)
+                              const Array<real_t> &B,
+                              const Vector &pa_data,
                               const Vector &x, Vector &y);
 
 void MmaCurlCurlApplySimplex(const int dim, const int NE, const int nd,
                              const int nq, const int curl_dim,
                              const bool symmetric,
-                             const Array<real_t> &C, // (nq, nd, curl_dim) ref
+                             const Array<real_t> &C,
                              const Vector &pa_data,
                              const Vector &x, Vector &y);
 
