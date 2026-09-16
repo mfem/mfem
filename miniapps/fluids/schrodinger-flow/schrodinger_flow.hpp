@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,7 +105,7 @@ struct Options: public OptionsParser
       AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                 "--no-visualization", "Enable or not GLVis visualization");
       AddOption(&paraview, "-pv", "--paraview", "-no-pv",
-                "--no-paraview", "Enable or not Paraview visualization");
+                "--no-paraview", "Enable or not ParaView visualization");
       AddOption(&vis_steps, "-vs", "--vis-steps", "Visualization steps");
       AddOption(&vis_width, "-vw", "--vis-width", "vis width");
       AddOption(&vis_height, "-vh", "--vis-height", "vis height");
