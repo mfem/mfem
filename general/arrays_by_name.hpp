@@ -245,11 +245,13 @@ inline void ArraysByName<T>::UniqueAll()
 template <class T>
 inline void ArraysByName<T>::Print(std::ostream &os, int width) const
 {
+   char sep = (width > 1) ? ' ' : '\n';
+
    os << data.size() << '\n';
    for (auto const &it : data)
    {
       // Note: The method Load() can read any string formatted with std::quoted.
-      os << std::quoted(it.first) << '\n' << it.second.Size() << '\n';
+      os << std::quoted(it.first) << sep << it.second.Size() << sep;
       it.second.Print(os, width > 0 ? width : it.second.Size());
    }
 }
