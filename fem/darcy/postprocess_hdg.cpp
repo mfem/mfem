@@ -130,7 +130,7 @@ void HDGPotentialPostprocessor::Compute(GridFunction &p_s) const
                << ", expected " << neq);
 
    Array<int> vdofs_q, vdofs_p, vdofs_s;
-   Vector loc_q, loc_p, q_e, shape_p, shape_s, rhs, sol;
+   Vector loc_q, loc_p, q_e, shape_p, shape_s;
    DenseMatrix dshape_s, A;
    DenseMatrixInverse Ai;
 
@@ -222,20 +222,31 @@ void HDGPotentialPostprocessor::Compute(GridFunction &p_s) const
       for (int j = 0; j < nd_s; j++) { A(i_c, j) = mass_s(j); }
       Ai.Factor(A);
 
+      // **One solve for all neq fields, not one a field.** The local matrix
+      // is the Neumann stiffness with the mean constraint substituted in, and
+      // the physics is entirely in the right-hand side -- so every field of a
+      // system is the same matrix against a different column, which is what
+      // DenseMatrixInverse::Mult(DenseMatrix&) takes. rhs_all is already
+      // (nd_s x neq), so the columns need no gathering; only the constrained
+      // row differs per field and it is written in place.
+      //
+      // At neq == 1 this is the identical call the loop made. Above it, it is
+      // one dgetrs of neq columns instead of neq of one -- the same reason
+      // DarcyHybridization blocks its condensation solves over an element's
+      // faces.
       for (int e = 0; e < neq; e++)
       {
-         rhs.SetSize(nd_s);
-         for (int i = 0; i < nd_s; i++) { rhs(i) = rhs_all(i, e); }
-
          const Vector p_e(loc_p.GetData() + e * nd_p, nd_p);
-         rhs(i_c) = mass_p * p_e;
+         rhs_all(i_c, e) = mass_p * p_e;
+      }
+      Ai.Mult(rhs_all);
 
-         sol.SetSize(nd_s);
-         Ai.Mult(rhs, sol);
-
+      for (int e = 0; e < neq; e++)
+      {
          const Array<int> dofs_e(const_cast<int*>(vdofs_s.GetData()) + e * nd_s,
                                  nd_s);
-         p_s.SetSubVector(dofs_e, sol);
+         const Vector sol_e(rhs_all.GetData() + e * nd_s, nd_s);
+         p_s.SetSubVector(dofs_e, sol_e);
       }
    }
 }
