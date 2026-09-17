@@ -810,6 +810,12 @@ void PADivDivApply2D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
+   // RT_p tensor GL q=p+2 uses D1D=Q1D=p+2 (p=6 → 8), above CUDA HDIV_MAX_*=5/6
+   constexpr int MD = 8;
+   constexpr int MQ = 8;
+   MFEM_VERIFY(D1D <= MD, "Error: D1D > 8");
+   MFEM_VERIFY(Q1D <= MQ, "Error: Q1D > 8");
+
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
    auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
@@ -821,10 +827,8 @@ void PADivDivApply2D(const int D1D,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int VDIM = 2;
-      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
-      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
 
-      real_t div[MAX_Q1D][MAX_Q1D];
+      real_t div[MQ][MQ];
 
       // div[qy][qx] will be computed as du_x/dx + du_y/dy
 
@@ -845,7 +849,7 @@ void PADivDivApply2D(const int D1D,
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
-            real_t gradX[MAX_Q1D];
+            real_t gradX[MQ];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx] = 0;
@@ -891,7 +895,7 @@ void PADivDivApply2D(const int D1D,
             const int D1Dx = (c == 1) ? D1D - 1 : D1D;
             const int D1Dy = (c == 0) ? D1D - 1 : D1D;
 
-            real_t gradX[MAX_D1D];
+            real_t gradX[MD];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
                gradX[dx] = 0;
@@ -929,10 +933,11 @@ void PADivDivApply3D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
-               "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
-               "Error: Q1D > HDIV_MAX_Q1D");
+   // RT_p tensor GL q=p+2 uses D1D=Q1D=p+2 (p=6 → 8), above CUDA HDIV_MAX_*=5/6
+   constexpr int MD = 8;
+   constexpr int MQ = 8;
+   MFEM_VERIFY(D1D <= MD, "Error: D1D > 8");
+   MFEM_VERIFY(Q1D <= MQ, "Error: Q1D > 8");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -945,7 +950,7 @@ void PADivDivApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+      real_t div[MQ][MQ][MQ];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -968,7 +973,7 @@ void PADivDivApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            real_t aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            real_t aXY[MQ][MQ];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -979,7 +984,7 @@ void PADivDivApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               real_t aX[DofQuadLimits::HDIV_MAX_Q1D];
+               real_t aX[MQ];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] = 0.0;
@@ -1035,7 +1040,7 @@ void PADivDivApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         real_t aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+         real_t aXY[MD][MD];
 
          osc = 0;
 
@@ -1054,7 +1059,7 @@ void PADivDivApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               real_t aX[DofQuadLimits::HDIV_MAX_D1D];
+               real_t aX[MD];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aX[dx] = 0;

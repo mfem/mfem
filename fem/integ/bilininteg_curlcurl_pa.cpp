@@ -47,10 +47,20 @@ CurlCurlIntegrator::CurlCurlIntegrator(MatrixCoefficient &mq,
 
 CurlCurlIntegrator::Kernels::Kernels()
 {
+   // Tensor GL q=p+2: (D1D,Q1D)=(p+1,p+2) for p = 1…6
+   CurlCurlIntegrator::AddSpecialization<2, 2, 3>();
+   CurlCurlIntegrator::AddSpecialization<2, 3, 4>();
+   CurlCurlIntegrator::AddSpecialization<2, 4, 5>();
+   CurlCurlIntegrator::AddSpecialization<2, 5, 6>();
+   CurlCurlIntegrator::AddSpecialization<2, 6, 7>();
+   CurlCurlIntegrator::AddSpecialization<2, 7, 8>();
+
    CurlCurlIntegrator::AddSpecialization<3, 2, 3>();
    CurlCurlIntegrator::AddSpecialization<3, 3, 4>();
    CurlCurlIntegrator::AddSpecialization<3, 4, 5>();
    CurlCurlIntegrator::AddSpecialization<3, 5, 6>();
+   CurlCurlIntegrator::AddSpecialization<3, 6, 7>();
+   CurlCurlIntegrator::AddSpecialization<3, 7, 8>();
 }
 
 CurlCurlIntegrator::ApplyKernelType

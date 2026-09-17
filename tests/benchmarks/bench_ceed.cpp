@@ -15,6 +15,9 @@
 //  of high-order codes.
 //
 //  See: https://ceed.exascaleproject.org/bps
+//
+//  Official CEED BPs are BP1–BP6 (H1). BP7 (Hcurl curl-curl) and BP9 (Hdiv
+//  div-div) are MFEM-local names in this file (BP8 unused). No BK7/BK9.
 
 #include "bench.hpp" // IWYU pragma: keep
 
@@ -24,12 +27,14 @@
 #include <cmath>
 #include <functional>
 #include <string>
+#include <type_traits>
 
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "fem/integ/mma/mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_hcurl_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/mma/domain_lf.hpp" // IWYU pragma: keep
 
 // CG verification for BP setups; enabled via --benchmark_context=cg=true
@@ -156,6 +161,72 @@ static void AddKernelSpecializations()
    VDIFF::Specialization<3, 3, 6, 6>::Add();
    VDIFF::Specialization<3, 3, 7, 7>::Add();
    VDIFF::Specialization<3, 3, 8, 8>::Add();
+
+   // BP7 curl-curl apply: tensor GL q=p+2, p = 1…6
+   using CC = CurlCurlIntegrator::ApplyPAKernels;
+   CC::Specialization<2, 2, 3>::Add();
+   CC::Specialization<2, 3, 4>::Add();
+   CC::Specialization<2, 4, 5>::Add();
+   CC::Specialization<2, 5, 6>::Add();
+   CC::Specialization<2, 6, 7>::Add();
+   CC::Specialization<2, 7, 8>::Add();
+   CC::Specialization<3, 2, 3>::Add();
+   CC::Specialization<3, 3, 4>::Add();
+   CC::Specialization<3, 4, 5>::Add();
+   CC::Specialization<3, 5, 6>::Add();
+   CC::Specialization<3, 6, 7>::Add();
+   CC::Specialization<3, 7, 8>::Add();
+
+   // BP7/BP9 VectorFE RHS: 2p rule (D1D=Q1D=p+1) and GL (Q1D=p+2)
+   using VFE_LF = VectorFEDomainLFIntegrator;
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 2, 2>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 3, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 4, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 5, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 6, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 7, 7>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 2, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 3, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 4, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 5, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 6, 7>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 2, 7, 8>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 2, 2>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 3, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 4, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 5, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 6, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 7, 7>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 2, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 3, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 4, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 5, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 6, 7>();
+   VFE_LF::AddSpecialization<FiniteElement::CURL, 3, 7, 8>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 2, 2>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 3, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 4, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 5, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 6, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 7, 7>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 3, 2>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 4, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 5, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 6, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 7, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 2, 8, 7>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 2, 2>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 3, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 4, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 5, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 6, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 7, 7>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 3, 2>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 4, 3>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 5, 4>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 6, 5>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 7, 6>();
+   VFE_LF::AddSpecialization<FiniteElement::DIV, 3, 8, 7>();
 }
 
 // Map CEED BP/BK index to the concrete bilinear-form integrator type
@@ -451,6 +522,196 @@ struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
    }
 };
 
+// MFEM-local BP7 (ND curl-curl) / BP9 (RT div-div). Tensor GL q=p+2 or
+// simplex MassIntegrator::GetRule. No BK; no simplex pos_sum.
+template <int BFI, int DIM, bool SIMPLEX, bool MMA>
+struct BakeOffDeRham
+{
+   static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+   static_assert(BFI == 7 || BFI == 9, "De Rham BFI must be 7 or 9");
+   static_assert(!SIMPLEX || MMA, "De Rham simplices are dense MMA only");
+
+   using FecType = std::conditional_t<BFI == 7, ND_FECollection, RT_FECollection>;
+   using IntegratorType =
+      std::conditional_t<BFI == 7, CurlCurlIntegrator, DivDivIntegrator>;
+
+   static constexpr bool visualization = false;
+   static constexpr bool simplex = SIMPLEX;
+   static constexpr bool mma = MMA;
+
+   const int p, c, n, nx, ny, nz;
+
+   Mesh mesh;
+   FecType fec;
+   FiniteElementSpace fes;
+   const Geometry::Type geom_type;
+   IntegrationRules irs;
+   const IntegrationRule *ir, *ir_rhs;
+   const int q, qnd;
+   int q1d;
+   ConstantCoefficient one;
+   Vector uvec;
+   VectorConstantCoefficient unit_vec;
+   const int dofs;
+   GridFunction x, y;
+   BilinearForm a;
+   double mdofs{};
+   BilinearFormIntegrator *bfi;
+   int cg_final_iter{-1};
+   real_t cg_final_norm{-1.0};
+
+   static const IntegrationRule *SelectIr(int p_, Mesh &mesh_,
+                                          FiniteElementSpace &fes_,
+                                          IntegrationRules &irs_,
+                                          Geometry::Type geom)
+   {
+      if constexpr (!SIMPLEX)
+      {
+         return &irs_.Get(geom, 2 * p_ + 3);
+      }
+      return &MassIntegrator::GetRule(*fes_.GetTypicalFE(),
+                                      *fes_.GetTypicalFE(),
+                                      *mesh_.GetTypicalElementTransformation());
+   }
+
+   BakeOffDeRham(int p_, int side)
+      : BakeOffDeRham(p_, side, MeshExtentsFromHexRef<DIM>(p_, side)) {}
+
+   BakeOffDeRham(int p_, int side, MeshExtents e): p(p_), c(side),
+      n(e.n), nx(e.nx), ny(e.ny), nz(e.nz),
+      mesh([&]()
+   {
+      if constexpr (DIM == 2)
+      {
+         return Mesh::MakeCartesian2D(e.nx, e.ny,
+                                      SIMPLEX ? Element::TRIANGLE
+                                      : Element::QUADRILATERAL);
+      }
+      else
+      {
+         return Mesh::MakeCartesian3D(e.nx, e.ny, e.nz,
+                                      SIMPLEX ? Element::TETRAHEDRON
+                                      : Element::HEXAHEDRON);
+      }
+   }()),
+   fec(p_, DIM),
+   fes(&mesh, &fec),
+   geom_type(mesh.GetTypicalElementGeometry()),
+   irs(0, Quadrature1D::GaussLegendre),
+   ir(SelectIr(p_, mesh, fes, irs, geom_type)),
+   ir_rhs(&IntRules.Get(geom_type, 2 * p_)),
+   q(ir->GetOrder()),
+   qnd(ir->GetNPoints()),
+   q1d(0),
+   one(1.0),
+   uvec(DIM),
+   unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
+   dofs(fes.GetTrueVSize()),
+   x(&fes),
+   y(&fes),
+   a(&fes)
+   {
+      constexpr auto ipow = [](int b, int e)
+      {
+         int r = 1;
+         for (int i = 0; i < e; i++) { r *= b; }
+         return r;
+      };
+
+      if constexpr (!SIMPLEX)
+      {
+         q1d = p + 2;
+         MFEM_VERIFY(q == 2 * p + 3, "tensor De Rham GL rule order");
+         MFEM_VERIFY(q1d == p + 2, "tensor De Rham Q1D must be p+2");
+         MFEM_VERIFY(qnd == ipow(q1d, DIM), "tensor QND must be Q1D^dim");
+      }
+      else
+      {
+         const FiniteElement &el = *fes.GetTypicalFE();
+         ElementTransformation &T0 = *mesh.GetTypicalElementTransformation();
+         const IntegrationRule &fa_ir = MassIntegrator::GetRule(el, el, T0);
+         MFEM_VERIFY(qnd == fa_ir.GetNPoints(),
+                     "simplex De Rham qnd must match Mass GetRule nq");
+      }
+
+      x = 0.0;
+      bfi = new IntegratorType(one, ir);
+      a.AddDomainIntegrator(bfi);
+   }
+
+   void VerifyIntegratorNq() const
+   {
+      const int integ_nq = static_cast<const IntegratorType *>(bfi)->GetNq();
+      MFEM_VERIFY(integ_nq == qnd, "integrator nq must match BakeOff qnd");
+   }
+
+   virtual void benchmark() = 0;
+
+   [[nodiscard]] double SumMdofs() const noexcept { return mdofs; }
+
+   [[nodiscard]] double MDofs() const noexcept { return 1e-6 * dofs; }
+};
+
+template <int BFI, int DIM, bool SIMPLEX, bool MMA>
+struct BPDeRham : public BakeOffDeRham<BFI, DIM, SIMPLEX, MMA>
+{
+   const int max_it = 32, print_lvl = -1;
+
+   Array<int> ess_tdof_list;
+   Array<int> ess_bdr;
+   LinearForm b;
+   OperatorPtr A;
+   Vector B, X;
+   CGSolver cg;
+
+   using base = BakeOffDeRham<BFI, DIM, SIMPLEX, MMA>;
+   using base::a;
+   using base::ir_rhs;
+   using base::mesh;
+   using base::fes;
+   using base::x;
+   using base::dofs;
+   using base::mdofs;
+   using base::unit_vec;
+   using base::bfi;
+
+   BPDeRham(int p_, int side) noexcept: base(p_, side),
+      ess_bdr(mesh.bdr_attributes.Max()),
+      b(&fes)
+   {
+      ess_bdr = 1;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(unit_vec, ir_rhs));
+      // Device VectorFE LF is tensor-only (VectorTensorFiniteElement)
+      b.UseFastAssembly(!SIMPLEX);
+      b.Assemble();
+
+      a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a.Assemble();
+      a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      this->VerifyIntegratorNq();
+
+      cg.SetOperator(*A);
+      cg.iterative_mode = false;
+      // curl-curl / div-div are singular: --cg=true is not a converge check
+      cg.SetRelTol(0.0);
+      cg.SetAbsTol(0.0);
+      cg.SetMaxIter(max_it);
+      cg.SetPrintLevel(print_lvl);
+
+      benchmark();
+      mdofs = 0.0;
+   }
+
+   void benchmark() override
+   {
+      cg.Mult(B, X);
+      MFEM_DEVICE_SYNC;
+      mdofs += this->MDofs() * cg.GetNumIterations();
+   }
+};
+
 // Benchmarks
 template <typename T>
 static void Benchmark(bm::State& state) noexcept
@@ -584,16 +845,42 @@ REGISTER(BK, 5, QuadSum);
 REGISTER(BK, 6, HexSum);
 REGISTER(BK, 6, QuadSum);
 
+#define REGISTER_DERHAM(BFI, GEOM) \
+   BENCHMARK_TEMPLATE(Benchmark, \
+      BPDeRham<BFI, GEOM::dim, GEOM::simplex, GEOM::mma>) \
+   ->Name(std::string("BP") + #BFI + GEOM::suffix) \
+   ->Apply(CustomArguments)->Unit(bm::kMillisecond)
+
+// BP7: H(curl) CG with curl-curl kernel (MFEM-local; not official CEED)
+REGISTER_DERHAM(7, HexSum);
+REGISTER_DERHAM(7, HexMma);
+REGISTER_DERHAM(7, QuadSum);
+REGISTER_DERHAM(7, QuadMma);
+REGISTER_DERHAM(7, TetGllMma);
+REGISTER_DERHAM(7, TriGllMma);
+
+// BP9: H(div) CG with div-div kernel (MFEM-local; not official CEED)
+REGISTER_DERHAM(9, HexSum);
+REGISTER_DERHAM(9, HexMma);
+REGISTER_DERHAM(9, QuadSum);
+REGISTER_DERHAM(9, QuadMma);
+REGISTER_DERHAM(9, TetGllMma);
+REGISTER_DERHAM(9, TriGllMma);
+
 /**
  * @brief CEED Bake-off Problems main entry point
  * Command line options:
  *    --benchmark_context=device=gpu
- *    --benchmark_context=cg=true|false  (default false)
+ *    --benchmark_context=cg=true|false  (default false; skipped for BP7/BP9)
  *    --benchmark_filter=BP1hex_sum
  *    --benchmark_filter=BP3hex_mma
  *    --benchmark_filter=BP1tet_gll_mma
  *    --benchmark_filter=BP1tri_pos_sum
  *    --benchmark_filter=BP1tri_pos_mma
+ *    --benchmark_filter=BP7hex_mma
+ *    --benchmark_filter=BP7tet_gll_mma
+ *    --benchmark_filter=BP9quad_sum
+ *    --benchmark_filter=BP9tri_gll_mma
  *    --benchmark_out_format=csv
  *    --benchmark_out=bp1.csv
  *
@@ -605,6 +892,7 @@ REGISTER(BK, 6, QuadSum);
  *    tet_pos_mma / tri_pos_mma — simplex Positive, dense MMA
  *
  * QGL (template): true for BP/BK 1–4 (GL q=p+2), false for 5–6 (GLL q=p+1).
+ * BP7 / BP9: tensor GL q=p+2; tet/tri use MassIntegrator::GetRule (dense MMA).
  */
 int main(int argc, char *argv[])
 {

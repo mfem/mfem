@@ -150,7 +150,7 @@ void DivDivIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
       nodes_e, coeff, pa_data);
 
    simplex_nd = el.GetDof();
-   simplex_nq = ir.GetNPoints();
+   nq = simplex_nq = ir.GetNPoints();
    simplex_sdim = dim;
    simplex_curl_dim = 0;
 }

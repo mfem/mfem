@@ -44,7 +44,7 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 

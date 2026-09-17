@@ -3095,6 +3095,8 @@ public:
    void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
+   int GetNq() const { return nq; }
+
    const Coefficient *GetCoefficient() const { return Q; }
 
    /// arguments: d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct, pa_data,
@@ -3367,7 +3369,7 @@ private:
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, ne, nq = 0, dofs1D, quad1D;
    bool use_tensors_mma = false;
    bool use_simplices_mma = false;
    Array<real_t> simplex_B; ///< Dense ref div basis at Q
@@ -3394,6 +3396,8 @@ public:
    void AssembleDiagonalPA(Vector& diag) override;
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
+
+   int GetNq() const { return nq; }
 
    const Coefficient *GetCoefficient() const { return Q; }
 };
