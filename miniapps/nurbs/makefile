@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex10 \
    nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh \
-   nurbs_mesh_info
+   nurbs_mesh_info nurbs_vector_diffusion nurbs_stokes
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex10p nurbs_ex11p
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -167,6 +167,24 @@ nurbs_surface-test-seq: nurbs_surface
 	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_1))
 	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_2))
 
+VECT_DIFF_ARGS_1 := -r 1 -o 2
+VECT_DIFF_ARGS_2 := -r 1 -o 2 --hcurl
+VECT_DIFF_ARGS_3 := -r 1 -o 2 -m ../../data/cube-nurbs.mesh
+VECT_DIFF_ARGS_4 := -r 1 -o 2 -m ../../data/cube-nurbs.mesh --hcurl
+
+nurbs_vector_diffusion-test-seq: nurbs_vector_diffusion
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_2))
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_3))
+	@$(call mfem-test,$<,, NURBS miniapp,$(VECT_DIFF_ARGS_4))
+
+STOKES_ARGS_1 := -r 1 --boundary-conditions 0
+STOKES_ARGS_2 := -r 1 --boundary-conditions 1
+
+nurbs_stokes-test-seq: nurbs_stokes 
+	@$(call mfem-test,$<,, NURBS miniapp,$(STOKES_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(STOKES_ARGS_2))
+
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
@@ -205,3 +223,5 @@ clean-exec:
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
 	@rm -rf velocity.* elastic_energy.* deformed.*
+	@rm -rf vdif.mesh stokes.mesh Stokes* VectorDiffusion*
+
