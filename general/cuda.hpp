@@ -76,9 +76,9 @@
 namespace mfem
 {
 
-/// X-only thread index (tensor-product / 1D launches). Host returns 0.
 #ifndef MFEM_HAS_DEVICE_THREAD_IDX_X
 #define MFEM_HAS_DEVICE_THREAD_IDX_X
+/// X-only thread index (tensor-product / 1D launches). Host returns 0.
 MFEM_HOST_DEVICE inline int DeviceThreadIdxX()
 {
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
@@ -99,9 +99,9 @@ MFEM_HOST_DEVICE inline int DeviceBlockNthreadsX()
 }
 #endif // MFEM_HAS_DEVICE_THREAD_IDX_X
 
-/// X-only thread index (tensor-product / 1D launches). Host returns 0.
 #ifndef MFEM_HAS_DEVICE_THREAD_IDX_X
 #define MFEM_HAS_DEVICE_THREAD_IDX_X
+/// X-only thread index (tensor-product / 1D launches). Host returns 0.
 MFEM_HOST_DEVICE inline int DeviceThreadIdxX()
 {
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
