@@ -442,6 +442,27 @@ public:
    {
       AssembleKernels::Specialization<TestType, DIM, TEST_D1D, Q1D>::Add();
    }
+
+   using AssembleSimplexMmaKernelType = void (*)(const int NE, const int nd,
+                                                 const int nq, const int sdim,
+                                                 const Array<real_t> &B,
+                                                 const Vector &D, Vector &y);
+
+   /// parameters: DIM, D1D, QND (QND = ir.GetNPoints())
+   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels, AssembleSimplexMmaKernelType,
+                         (int, int, int));
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         AssembleSimplexMmaKernels::Specialization<DIM, D1D, QND>::Add();
+      }
+   }
+
+   /// Register specialized simplex MMA VectorFE DomainLF kernels
+   static void RegisterSimplexMmaKernels();
 };
 
 /// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements

@@ -11,7 +11,7 @@
 #pragma once
 
 /** @file domain_lf.hpp
-    DomainLF PA MMA — IdentityLoad QFn + simplex Kernel decls.
+    DomainLF / VectorFE DomainLF PA MMA — IdentityLoad QFn + simplex Kernel decls.
 */
 
 #include "../../lininteg.hpp"
@@ -28,6 +28,13 @@ void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
                                const Array<int> &markers,
                                const Vector &coeff,
                                Vector &y);
+
+/** Assemble VectorFE DomainLF PA data for simplex MMA (ND adj(J)f, RT J^T f). */
+void VectorFEDLFAssembleSimplexMma(const FiniteElementSpace &fes,
+                                   const IntegrationRule *ir,
+                                   const Array<int> &markers,
+                                   const Vector &coeff,
+                                   Vector &y);
 
 namespace internal::mma::form
 {
@@ -80,6 +87,29 @@ DomainLFIntegrator::AssembleSimplexMmaKernels::Fallback(int dim, int, int)
       return static_cast<Fn>(ApplyLF<IdentityLoad, 2>);
    }
    return static_cast<Fn>(ApplyLF<IdentityLoad, 3>);
+}
+
+inline void ApplyVecLF(const int NE, const int nd, const int nq, const int sdim,
+                       const Array<real_t> &B, const Vector &D, Vector &y)
+{
+   internal::mma::form::detail::SimplexVecLFApply(NE, nd, nq, sdim, B, D, y);
+}
+
+template<int DIM, int D1D, int QND>
+VectorFEDomainLFIntegrator::AssembleSimplexMmaKernelType
+VectorFEDomainLFIntegrator::AssembleSimplexMmaKernels::Kernel()
+{
+   static_assert(DIM == 2 || DIM == 3, "VectorFE simplex LF DIM 2 or 3");
+   static_assert(D1D > 0 && QND > 0, "requires specialized D1D/QND");
+   return ApplyVecLF;
+}
+
+inline VectorFEDomainLFIntegrator::AssembleSimplexMmaKernelType
+VectorFEDomainLFIntegrator::AssembleSimplexMmaKernels::Fallback(int dim, int, int)
+{
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "Simplex MMA VectorFE DomainLF is only implemented for triangles/tets");
+   return ApplyVecLF;
 }
 
 /// \endcond DO_NOT_DOCUMENT

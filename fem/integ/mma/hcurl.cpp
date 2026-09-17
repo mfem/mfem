@@ -15,6 +15,8 @@
 #include "../../fe/fe_nd.hpp"
 #include "../../doftrans.hpp"
 
+#include <limits>
+
 namespace mfem
 {
 
@@ -28,71 +30,6 @@ void ProjectVecFeCoeff(Coefficient *Q, DiagonalMatrixCoefficient *DQ,
    else if (MQ) { coeff.ProjectTranspose(*MQ); }
    else if (DQ) { coeff.Project(*DQ); }
    else { coeff.SetConstant(1.0); }
-}
-
-/** Apply TransformDual on the nd-axis of a (nq,nd,ncomp[,NE]) basis so that
-    B_eff @ x_E = B_native @ InvTransformPrimal(x_E) and the dual pullback
-    matches FA TransformDual without an EA Mult path. */
-void BakeNdDofTransformation(const FiniteElementSpace &fes,
-                             Array<real_t> &B, int nq, int nd, int ncomp)
-{
-   const int NE = fes.GetNE();
-   MFEM_VERIFY(B.Size() == nq * nd * ncomp * NE || B.Size() == nq * nd * ncomp,
-               "unexpected simplex basis size");
-   if (B.Size() == nq * nd * ncomp)
-   {
-      Array<real_t> B0 = B;
-      B.SetSize(nq * nd * ncomp * NE);
-      const auto Bin = Reshape(B0.Read(), nq, nd, ncomp);
-      auto Bout = Reshape(B.Write(), nq, nd, ncomp, NE);
-      mfem::forall(nq * nd * ncomp * NE, [=] MFEM_HOST_DEVICE (int idx)
-      {
-         const int q = idx % nq;
-         int t = idx / nq;
-         const int i = t % nd;
-         t /= nd;
-         const int c = t % ncomp;
-         const int e = t / ncomp;
-         Bout(q, i, c, e) = Bin(q, i, c);
-      });
-   }
-   // TransformDual is a host DofTransformation API.
-   auto Bb = Reshape(B.HostReadWrite(), nq, nd, ncomp, NE);
-   Array<int> vdofs;
-   Vector col(nd);
-   for (int e = 0; e < NE; ++e)
-   {
-      DofTransformation *dt = fes.GetElementVDofs(e, vdofs);
-      if (!dt) { continue; }
-      for (int q = 0; q < nq; ++q)
-         for (int c = 0; c < ncomp; ++c)
-         {
-            for (int i = 0; i < nd; ++i) { col(i) = Bb(q, i, c, e); }
-            dt->TransformDual(col);
-            for (int i = 0; i < nd; ++i) { Bb(q, i, c, e) = col(i); }
-         }
-   }
-}
-
-/** Reference ND / RT vector shapes at IR: B(q,i,c). Host FE eval, once. */
-void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
-                    Array<real_t> &B)
-{
-   const int nd = el.GetDof();
-   const int nq = ir.GetNPoints();
-   const int sdim = el.GetDim();
-   B.SetSize(nq * nd * sdim);
-   DenseMatrix vshape(nd, sdim);
-   auto Bb = Reshape(B.HostWrite(), nq, nd, sdim);
-   for (int q = 0; q < nq; ++q)
-   {
-      el.CalcVShape(ir.IntPoint(q), vshape);
-      for (int i = 0; i < nd; ++i)
-         for (int c = 0; c < sdim; ++c)
-         {
-            Bb(q, i, c) = vshape(i, c);
-         }
-   }
 }
 
 /** Reference curl shapes at IR: C(q,i,c). Host FE eval, once. */
@@ -117,6 +54,92 @@ void BuildNdRefCurlShape(const FiniteElement &el, const IntegrationRule &ir,
 }
 
 } // namespace
+
+namespace internal
+{
+
+void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
+                    Array<real_t> &B)
+{
+   const int nd = el.GetDof();
+   const int nq = ir.GetNPoints();
+   const int sdim = el.GetDim();
+   B.SetSize(nq * nd * sdim);
+   DenseMatrix vshape(nd, sdim);
+   auto Bb = Reshape(B.HostWrite(), nq, nd, sdim);
+   for (int q = 0; q < nq; ++q)
+   {
+      el.CalcVShape(ir.IntPoint(q), vshape);
+      for (int i = 0; i < nd; ++i)
+         for (int c = 0; c < sdim; ++c)
+         {
+            Bb(q, i, c) = vshape(i, c);
+         }
+   }
+}
+
+void TransformDualEVector(const FiniteElementSpace &fes, Vector &y)
+{
+   const int NE = fes.GetNE();
+   const int nd = fes.GetTypicalFE()->GetDof();
+   MFEM_VERIFY(y.Size() == nd * NE, "TransformDualEVector size");
+   auto Y = Reshape(y.HostReadWrite(), nd, NE);
+   Array<int> vdofs;
+   Vector col(nd);
+   for (int e = 0; e < NE; ++e)
+   {
+      DofTransformation *dt = fes.GetElementVDofs(e, vdofs);
+      if (!dt) { continue; }
+      for (int i = 0; i < nd; ++i) { col(i) = Y(i, e); }
+      dt->TransformDual(col);
+      for (int i = 0; i < nd; ++i) { Y(i, e) = col(i); }
+   }
+}
+
+void BakeNdDofTransformation(const FiniteElementSpace &fes,
+                             Array<real_t> &B, int nq, int nd, int ncomp)
+{
+   const int NE = fes.GetNE();
+   MFEM_VERIFY(B.Size() == nq * nd * ncomp * NE || B.Size() == nq * nd * ncomp,
+               "unexpected simplex basis size");
+   if (B.Size() == nq * nd * ncomp)
+   {
+      const long long nB = (long long)nq * nd * ncomp * NE;
+      // Array::SetSize is int; skip per-element bake when it cannot fit.
+      if (nB > std::numeric_limits<int>::max()) { return; }
+      Array<real_t> B0 = B;
+      B.SetSize(static_cast<int>(nB));
+      const auto Bin = Reshape(B0.Read(), nq, nd, ncomp);
+      auto Bout = Reshape(B.Write(), nq, nd, ncomp, NE);
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int c = 0; c < ncomp; ++c)
+            for (int i = 0; i < nd; ++i)
+               for (int q = 0; q < nq; ++q)
+               {
+                  Bout(q, i, c, e) = Bin(q, i, c);
+               }
+      });
+   }
+   // TransformDual is a host DofTransformation API.
+   auto Bb = Reshape(B.HostReadWrite(), nq, nd, ncomp, NE);
+   Array<int> vdofs;
+   Vector col(nd);
+   for (int e = 0; e < NE; ++e)
+   {
+      DofTransformation *dt = fes.GetElementVDofs(e, vdofs);
+      if (!dt) { continue; }
+      for (int q = 0; q < nq; ++q)
+         for (int c = 0; c < ncomp; ++c)
+         {
+            for (int i = 0; i < nd; ++i) { col(i) = Bb(q, i, c, e); }
+            dt->TransformDual(col);
+            for (int i = 0; i < nd; ++i) { Bb(q, i, c, e) = col(i); }
+         }
+   }
+}
+
+} // namespace internal
 
 void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    const FiniteElementSpace &fes)
@@ -146,10 +169,10 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    simplex_sdim = dim;
    simplex_curl_dim = 0;
 
-   BuildRefVShape(el, ir, simplex_B);
+   internal::BuildRefVShape(el, ir, simplex_B);
    if (el.GetDofTransformation() != nullptr)
    {
-      BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_sdim);
+      internal::BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_sdim);
    }
 
    QuadratureSpace qs(*mesh, ir);
@@ -197,7 +220,7 @@ void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    BuildNdRefCurlShape(el, ir, simplex_B);
    if (el.GetDofTransformation() != nullptr)
    {
-      BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_curl_dim);
+      internal::BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_curl_dim);
    }
 
    QuadratureSpace qs(*mesh, ir);

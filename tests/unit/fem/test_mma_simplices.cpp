@@ -619,6 +619,141 @@ TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
    }
 }
 
+static void fvec_dim(const Vector &xvec, Vector &v)
+{
+   const int dim = xvec.Size();
+   real_t val = 2 * xvec[0];
+   if (dim >= 2) { val += 3 * xvec[1] * xvec[0]; }
+   if (dim >= 3) { val += real_t(0.25) * xvec[2] * xvec[1]; }
+   v.SetSize(dim);
+   for (int d = 0; d < dim; ++d) { v[d] = val / real_t(d + 1); }
+}
+
+/** ir_order < 0 → default (use_2p_ir ? 2*GetOrder() : MassIntegrator::GetRule). */
+void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p, bool hcurl,
+                                         bool use_2p_ir, int ir_order = -1)
+{
+   CAPTURE(filename, p, hcurl, use_2p_ir, ir_order);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   const int dim = mesh.Dimension();
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (hcurl) { fec.reset(new ND_FECollection(p, dim)); }
+   else { fec.reset(new RT_FECollection(p, dim)); }
+   FiniteElementSpace fes(&mesh, fec.get());
+
+   {
+      MMAForce on(true);
+      if (hcurl) { REQUIRE(UsesSimplexMmaHcurl(fes)); }
+      else { REQUIRE(UsesSimplexMmaHdiv(fes)); }
+   }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const IntegrationRule *ir = nullptr;
+   if (ir_order >= 0)
+   {
+      ir = &IntRules.Get(fe.GetGeomType(), ir_order);
+   }
+   else if (use_2p_ir)
+   {
+      ir = &IntRules.Get(fe.GetGeomType(), 2 * fe.GetOrder());
+   }
+   else
+   {
+      ir = &MassIntegrator::GetRule(fe, fe, Tr);
+   }
+   CAPTURE(ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (dim == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   for (int e = 0; e < mesh.GetNE(); e++) { mesh.SetAttribute(e, e % 2 ? 1 : 2); }
+   mesh.SetAttributes();
+   Array<int> elem_marker(mesh.attributes.Max());
+   elem_marker = 1;
+   if (elem_marker.Size() >= 2) { elem_marker[0] = 0; }
+
+   Vector cst(dim);
+   cst = M_2_SQRTPI;
+   VectorConstantCoefficient const_coeff(cst);
+   VectorFunctionCoefficient funct_coeff(dim, fvec_dim);
+
+   auto compare = [&](VectorCoefficient &Q)
+   {
+      MMAForce on(true);
+      LinearForm lf_dev(&fes), lf_std(&fes);
+      lf_dev.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Q, ir),
+                                 elem_marker);
+      lf_std.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Q, ir),
+                                 elem_marker);
+
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.UseFastAssembly(true);
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.Assemble();
+
+      lf_std.UseFastAssembly(false);
+      lf_std.Assemble();
+
+      lf_std -= lf_dev;
+      REQUIRE(lf_std.Norml2() == MFEM_Approx(0.0, 1e-10));
+   };
+
+   compare(const_coeff);
+   compare(funct_coeff);
+}
+
+TEST_CASE("VectorFE DomainLF Simplices MMA",
+          "[LinearFormExtension][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+   const auto use_2p_ir = GENERATE(false, true);
+   const auto hcurl = GENERATE(true, false);
+
+   SECTION("2D")
+   {
+      auto meshs = { "../../data/inline-tri.mesh",
+                     "../../data/ref-triangle.mesh"
+                   };
+      test_vectorfe_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p,
+                                          hcurl, use_2p_ir);
+   }
+
+   SECTION("3D")
+   {
+      auto meshs = { "../../data/inline-tet.mesh",
+                     "../../data/ref-tetrahedron.mesh"
+                   };
+      test_vectorfe_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p,
+                                          hcurl, use_2p_ir);
+   }
+
+   // Unregistered (D1D,nq) → AssembleSimplexMmaKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      test_vectorfe_domain_lf_simplex_mma("../../data/ref-triangle.mesh", 1,
+                                          hcurl, false, 5);
+      test_vectorfe_domain_lf_simplex_mma("../../data/inline-tri.mesh", 1,
+                                          hcurl, false, 5);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      test_vectorfe_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh", 1,
+                                          hcurl, false, 7);
+      test_vectorfe_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1,
+                                          hcurl, false, 7);
+   }
+}
+
 enum class VecFeOp { Mass, CurlCurl, DivDiv };
 
 void test_hcurl_hdiv_simplex_fa_vs_mma(Mesh &mesh, int p, bool hcurl, VecFeOp op)

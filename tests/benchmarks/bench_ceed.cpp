@@ -18,6 +18,8 @@
 //
 //  Official CEED BPs are BP1–BP6 (H1). BP7 (Hcurl curl-curl) and BP9 (Hdiv
 //  div-div) are MFEM-local names in this file (BP8 unused). No BK7/BK9.
+//  hex_sum / quad_sum are stock MFEM PA (not MMA); *_mma is MMA; tet/tri
+//  are simplex MMA additions.
 
 #include "bench.hpp" // IWYU pragma: keep
 
@@ -524,6 +526,7 @@ struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
 
 // MFEM-local BP7 (ND curl-curl) / BP9 (RT div-div). Tensor GL q=p+2 or
 // simplex MassIntegrator::GetRule. No BK; no simplex pos_sum.
+// hex_sum/quad_sum: stock PA (MMAForce false). *_mma: MMA. tet/tri: simplex MMA.
 template <int BFI, int DIM, bool SIMPLEX, bool MMA>
 struct BakeOffDeRham
 {
@@ -683,8 +686,8 @@ struct BPDeRham : public BakeOffDeRham<BFI, DIM, SIMPLEX, MMA>
       fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(unit_vec, ir_rhs));
-      // Device VectorFE LF is tensor-only (VectorTensorFiniteElement)
-      b.UseFastAssembly(!SIMPLEX);
+      // hex_sum/quad_sum: stock tensor VectorFE LF; tet/tri: simplex MMA LF
+      b.UseFastAssembly(true);
       b.Assemble();
 
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -885,7 +888,7 @@ REGISTER_DERHAM(9, TriGllMma);
  *    --benchmark_out=bp1.csv
  *
  * Names: {geom}[_{basis}]_{algo}
- *    hex_sum / quad_sum     — classic tensor sum-factorization
+ *    hex_sum / quad_sum     — stock MFEM tensor PA (MMAForce off)
  *    hex_mma / quad_mma     — tensor sum-fact + small per-direction MMA
  *    tet_gll_mma / tri_gll_mma — simplex GLL nodal, dense MMA GEMM
  *    tet_pos_sum / tri_pos_sum — simplex Positive, Stroud sum-fact

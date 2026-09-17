@@ -14,6 +14,8 @@
 #include "../fem.hpp"
 
 #include "lininteg_domain_kernels.hpp"
+#include "mma/mma.hpp"
+#include "mma/domain_lf.hpp"
 
 namespace mfem
 {
@@ -84,6 +86,8 @@ VectorFEDomainLFIntegrator::Kernels::Kernels()
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 5, 6>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 6, 7>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 7, 8>();
+
+   RegisterSimplexMmaKernels();
 }
 
 /// \cond DO_NOT_DOCUMENT
@@ -128,6 +132,12 @@ void VectorFEDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
 
    QuadratureSpace qs(*fes.GetMesh(), *ir);
    CoefficientVector coeff(QF, qs, CoefficientStorage::COMPRESSED);
+
+   if (UsesSimplexMmaHcurl(fes) || UsesSimplexMmaHdiv(fes))
+   {
+      VectorFEDLFAssembleSimplexMma(fes, ir, markers, coeff, b);
+      return;
+   }
 
    const FiniteElement::DerivType fe_type =
       static_cast<FiniteElement::DerivType>(fe.GetDerivType());

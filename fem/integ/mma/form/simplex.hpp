@@ -13,7 +13,8 @@
 /** @file simplex.hpp
     Simplex dense form apply (integrator-agnostic).
 
-    Eval×Eval / Grad×Grad / De Rham vec-eval curl div ApplySimplex and ApplyLF.
+    Eval×Eval / Grad×Grad / De Rham vec-eval curl div ApplySimplex, ApplyLF,
+    and SimplexVecLFApply (VectorFE DomainLF).
     Companion to tensors.hpp (tensor-product sum-fact ApplyTensor).
 */
 
@@ -1763,6 +1764,35 @@ inline void SimplexVecEvalApply(const int dim, const int NE, const int nd,
             for (int c = 0; c < sdim; ++c) { s += Bb4(q, i, c, be) * v[c]; }
             Y(i, e) += s;
          }
+      }
+   });
+}
+
+/** Y(i,e) += sum_{q,c} B(q,i,c[,e]) * D(q,c,e). VectorFE DomainLF on simplices. */
+inline void SimplexVecLFApply(const int NE, const int nd, const int nq,
+                              const int sdim, const Array<real_t> &B,
+                              const Vector &D, Vector &y)
+{
+   MFEM_VERIFY(B.Size() == nq * nd * sdim || B.Size() == nq * nd * sdim * NE,
+               "Simplex VectorFE LF basis size");
+   MFEM_VERIFY(D.Size() == nq * sdim * NE, "Simplex VectorFE LF D size");
+   const bool per_elem_B = (B.Size() == nq * nd * sdim * NE);
+   const auto Bb = Reshape(B.Read(), nq, nd, sdim, per_elem_B ? NE : 1);
+   const auto Dv = Reshape(D.Read(), nq, sdim, NE);
+   auto Y = Reshape(y.ReadWrite(), nd, NE);
+
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int be = per_elem_B ? e : 0;
+      for (int i = 0; i < nd; ++i)
+      {
+         real_t s = 0.0;
+         for (int q = 0; q < nq; ++q)
+            for (int c = 0; c < sdim; ++c)
+            {
+               s += Bb(q, i, c, be) * Dv(q, c, e);
+            }
+         Y(i, e) += s;
       }
    });
 }

@@ -20,26 +20,6 @@ namespace mfem
 namespace
 {
 
-void BuildRtRefVShape(const FiniteElement &el, const IntegrationRule &ir,
-                      Array<real_t> &B)
-{
-   const int nd = el.GetDof();
-   const int nq = ir.GetNPoints();
-   const int sdim = el.GetDim();
-   B.SetSize(nq * nd * sdim);
-   DenseMatrix vshape(nd, sdim);
-   auto Bb = Reshape(B.HostWrite(), nq, nd, sdim);
-   for (int q = 0; q < nq; ++q)
-   {
-      el.CalcVShape(ir.IntPoint(q), vshape);
-      for (int i = 0; i < nd; ++i)
-         for (int c = 0; c < sdim; ++c)
-         {
-            Bb(q, i, c) = vshape(i, c);
-         }
-   }
-}
-
 void BuildRtRefDivShape(const FiniteElement &el, const IntegrationRule &ir,
                         Array<real_t> &Div)
 {
@@ -90,7 +70,7 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHdivPA(
    use_simplices_mma = true;
    use_tensors_mma = false;
 
-   BuildRtRefVShape(el, ir, simplex_B);
+   internal::BuildRefVShape(el, ir, simplex_B);
 
    QuadratureSpace qs(*mesh, ir);
    CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);

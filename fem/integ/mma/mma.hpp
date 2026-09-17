@@ -40,7 +40,7 @@
 
     ## Adding a specialization:
     Edit shared tables in form/register.hpp (Mass/Diffusion simplex + tensors),
-    or DomainLF's RegisterSimplexMmaKernels() in domain_lf.cpp.
+    or DomainLF / VectorFE DomainLF RegisterSimplexMmaKernels() in domain_lf.cpp.
     Order: DIM, then D1D, then QND/Q1D.
     Unregistered sizes use Fallback (runtime shell).
     See mode/README.md and form/README.md.
@@ -347,6 +347,19 @@ inline void GetSimplexSetupGeom(Mesh &mesh, const IntegrationRule &ir,
    MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == ir.GetNPoints(), "");
    G = &nmaps.G;
 }
+
+/** Reference ND / RT vector shapes at IR: B(q,i,c). Host FE eval, once. */
+void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
+                    Array<real_t> &B);
+
+/** Apply TransformDual on the nd-axis of a (nq,nd,ncomp[,NE]) basis so that
+    B_eff @ x_E matches FA TransformDual without an EA Mult path. */
+void BakeNdDofTransformation(const FiniteElementSpace &fes,
+                             Array<real_t> &B, int nq, int nd, int ncomp);
+
+/** TransformDual each native E-vector column. Used when per-element baked B
+    does not fit in Array (int size). */
+void TransformDualEVector(const FiniteElementSpace &fes, Vector &y);
 
 /** Build 2D Jacobian at (q,e) from mesh nodes E and GradP slice G. */
 template <typename EAcc, typename GAcc>
