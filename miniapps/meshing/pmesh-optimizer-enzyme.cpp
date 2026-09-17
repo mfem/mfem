@@ -34,10 +34,10 @@
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -no-vis
 //   Target 4 annular shape ($\mu_{2}$, Enzyme includes W derivatives vs classic ignores W derivatives): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -ex -no-vis
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -no-vis
-//   Target 4 size+alignment ($\mu_{14}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
-//   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
-//   Target 4 size+alignment ($\mu_{14}$, Enzyme includes W derivatives vs classic ignores W derivatives): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -ex -no-vis
-//   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
+//   Target 4 size+alignment ($\mu_{36}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
+//   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
+//   Target 4 size+alignment ($\mu_{36}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -ex -no-vis
+//   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -ex -no-vis
 //   Target 4 shape+alignment ($\mu_{85}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
 //   Target 4 shape+alignment ($\mu_{85}$, Enzyme includes W derivatives vs classic ignores W derivatives): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -ex -no-vis
@@ -319,8 +319,9 @@ int main (int argc, char *argv[])
        (active_metric_id == 2 || active_metric_id == 58 ||
         active_metric_id == 80)) ||
       (dim == 2 && target_id == 4 &&
-       (active_metric_id == 2 || active_metric_id == 14 ||
-        active_metric_id == 80 || active_metric_id == 85)) ||
+       (active_metric_id == 2 || active_metric_id == 36 ||
+        active_metric_id == 80 ||
+        active_metric_id == 85)) ||
       (dim == 2 && target_id == 6 && active_metric_id == 80) ||
       (dim == 2 && target_id == 8 && active_metric_id == 36) ||
       (dim == 3 && target_id == 5 && active_metric_id == 321) ||
@@ -555,7 +556,7 @@ int main (int argc, char *argv[])
                 << min_detJ << '\n';
       const char *target_descr =
          (target_id == 1) ? "constant ideal target W" :
-         (target_id == 4 && active_metric_id == 14)
+         (target_id == 4 && active_metric_id == 36)
          ? "analytic size+alignment target W" :
          (target_id == 4 && active_metric_id == 85)
          ? "analytic shape+alignment target W" :

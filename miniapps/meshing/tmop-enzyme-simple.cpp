@@ -41,8 +41,8 @@
 //     mpirun -np 4 tmop-enzyme-simple -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //     mpirun -np 4 pmesh-optimizer     -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Analytic size+alignment target:
-//     mpirun -np 4 tmop-enzyme-simple -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
-//     mpirun -np 4 pmesh-optimizer     -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 tmop-enzyme-simple -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer     -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Analytic shape+alignment target:
 //     mpirun -np 4 tmop-enzyme-simple -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //     mpirun -np 4 pmesh-optimizer     -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
@@ -106,14 +106,17 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
    {
       return 0.5_r * norm2 / tau - 1.0_r;
    }
-   else if constexpr (dim == 2 && metric_id == 14)
+   else if constexpr (dim == 2 && metric_id == 36)
    {
       const auto TminusI_00 = T(0,0) - 1.0_r;
       const auto TminusI_01 = T(0,1);
       const auto TminusI_10 = T(1,0);
       const auto TminusI_11 = T(1,1) - 1.0_r;
-      return TminusI_00 * TminusI_00 + TminusI_01 * TminusI_01 +
-             TminusI_10 * TminusI_10 + TminusI_11 * TminusI_11;
+      const auto fnorm2 = TminusI_00 * TminusI_00 +
+                          TminusI_01 * TminusI_01 +
+                          TminusI_10 * TminusI_10 +
+                          TminusI_11 * TminusI_11;
+      return fnorm2 / tau;
    }
    else if constexpr (dim == 2 && metric_id == 80)
    {
@@ -166,7 +169,7 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
    else
    {
       static_assert((dim == 2 &&
-                     (metric_id == 2 || metric_id == 14 ||
+                     (metric_id == 2 || metric_id == 36 ||
                       metric_id == 80 || metric_id == 85)) ||
                     (dim == 3 &&
                      (metric_id == 301 || metric_id == 302 ||
@@ -200,12 +203,13 @@ TargetMatrix(const tensor<scalar_t, dim> &x,
       static_assert(dim == 2, "Analytic target id 4 is 2D only.");
       MFEM_CONTRACT_VAR(constant_W);
 
-      if constexpr (metric_id == 14)
+      if constexpr (metric_id == 36)
       {
          const auto xc = x(0);
          const auto yc = x(1);
          const auto theta = M_PI * yc * (1.0_r - yc) * cos(2.0_r * M_PI * xc);
-         const auto alpha_bar = 0.1_r;
+         const auto alpha_bar = 0.14_r - 0.08_r * sin(M_PI * xc) *
+                                sin(M_PI * yc);
 
          W(0,0) =  alpha_bar * cos(theta);
          W(1,0) =  alpha_bar * sin(theta);
@@ -478,7 +482,7 @@ private:
                switch (metric_id)
                {
                   case 2:  return SetupTMOPOperators<4, 2>(ir, all_domain_attr);
-                  case 14: return SetupTMOPOperators<4, 14>(ir, all_domain_attr);
+                  case 36: return SetupTMOPOperators<4, 36>(ir, all_domain_attr);
                   case 80: return SetupTMOPOperators<4, 80>(ir, all_domain_attr);
                   case 85: return SetupTMOPOperators<4, 85>(ir, all_domain_attr);
                   default:
@@ -769,9 +773,9 @@ TMOPVisualizationData MakeVisualizationData(int dim,
 {
    TMOPVisualizationData data;
 
-   if (dim == 2 && metric_id == 14)
+   if (dim == 2 && metric_id == 36)
    {
-      data.metric = std::make_unique<TMOP_Metric_014>();
+      data.metric = std::make_unique<TMOP_AMetric_036>();
    }
    else if (dim == 2 && metric_id == 80)
    {
@@ -1182,7 +1186,7 @@ int main(int argc, char *argv[])
    const bool target_metric_ok =
       (dim == 2 && target_id == 1 && active_metric_id == 2) ||
       (dim == 2 && target_id == 4 &&
-       (active_metric_id == 2 || active_metric_id == 14 ||
+       (active_metric_id == 2 || active_metric_id == 36 ||
                           active_metric_id == 80 ||
                           active_metric_id == 85)) ||
       (dim == 3 && target_id == 1 &&
@@ -1190,7 +1194,7 @@ int main(int argc, char *argv[])
       (dim == 3 && target_id == 9 && active_metric_id == 321);
    MFEM_VERIFY(target_metric_ok,
                "Supported pairs: 2D -tid 1 with -mid 2; "
-               "2D -tid 4 with -mid 2, 14, 80, or 85; "
+               "2D -tid 4 with -mid 2, 36, 80, or 85; "
                "3D -tid 1 with -mid 301 or 302; "
                "3D -tid 9 with -mid 321.");
    MFEM_VERIFY(solver_art_type >= 0 && solver_art_type <= 2,
@@ -1232,7 +1236,7 @@ int main(int argc, char *argv[])
       const char *target_descr =
          (target_id == 1) ? "constant ideal target W" :
          (target_id == 9) ? "analytic spherical size target W" :
-         (active_metric_id == 14)
+         (active_metric_id == 36)
          ? "analytic size+alignment target W" :
          (active_metric_id == 85) ? "analytic shape+alignment target W" :
          "analytic annular shape target W";

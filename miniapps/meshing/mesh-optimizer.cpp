@@ -35,7 +35,7 @@
 //   Adapted analytic shape:
 //     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
 //   Adapted analytic size+orientation:
-//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 100 -bnd -qt 1 -qo 8
+//     mesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -bnd -qt 1 -qo 8
 //   Adapted analytic shape+orientation (AD):
 //     mesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
 //
@@ -476,7 +476,6 @@ int main(int argc, char *argv[])
       case 4: metric = new TMOP_Metric_004; break;
       case 7: metric = new TMOP_Metric_007; break;
       case 9: metric = new TMOP_Metric_009; break;
-      case 14: metric = new TMOP_Metric_014; break;
       case 22: metric = new TMOP_Metric_022(min_detJ); break;
       case 50: metric = new TMOP_Metric_050; break;
       case 55: metric = new TMOP_Metric_055; break;
@@ -574,7 +573,7 @@ int main(int argc, char *argv[])
    {
       if (barrier_type > 0)
       {
-         MFEM_VERIFY(metric_id == 4 || metric_id == 14 || metric_id == 66,
+         MFEM_VERIFY(metric_id == 4 || metric_id == 66,
                      "Metric not supported for shifted/pseudo barriers.");
       }
       untangler_metric = new TMOP_WorstCaseUntangleOptimizer_Metric(*metric,
@@ -782,7 +781,7 @@ int main(int argc, char *argv[])
 #endif
          }
 
-         ConstantCoefficient size_coeff(0.1*0.1);
+         FunctionCoefficient size_coeff(discrete_size_2d);
          size.ProjectCoefficient(size_coeff);
          tc->SetSerialDiscreteTargetSize(size);
          tc->SetMinSizeForTargets(size.Min());

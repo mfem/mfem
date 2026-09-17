@@ -168,6 +168,19 @@ real_t discrete_ori_2d(const Vector &x)
    return M_PI * x(1) * (1.0 - x(1)) * cos(2 * M_PI * x(0));
 }
 
+real_t size_and_orientation_scale_2d(const Vector &x)
+{
+   // Concentrate target resolution smoothly near the center of the unit square.
+   return 0.14 - 0.08 * sin(M_PI * x(0)) * sin(M_PI * x(1));
+}
+
+real_t discrete_size_2d(const Vector &x)
+{
+   const real_t scale = size_and_orientation_scale_2d(x);
+   // Target 8 stores area, so a linear scale of 0.1 is stored as 0.1^2 = 0.01.
+   return scale * scale;
+}
+
 void discrete_aspr_3d(const Vector &x, Vector &v)
 {
    int dim = x.Size();
@@ -195,7 +208,7 @@ public:
    {
       Vector pos(3);
       T.Transform(ip, pos);
-      if (metric != 14 && metric != 36 && metric != 85)
+      if (metric != 36 && metric != 85)
       {
          const real_t xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const real_t r = sqrt(xc*xc + yc*yc);
@@ -210,11 +223,11 @@ public:
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
       }
-      else if (metric == 14 || metric == 36) // Size + Alignment
+      else if (metric == 36) // Size + Alignment
       {
          const real_t xc = pos(0), yc = pos(1);
          real_t theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
-         real_t alpha_bar = 0.1;
+         const real_t alpha_bar = size_and_orientation_scale_2d(pos);
 
          K(0, 0) =  cos(theta);
          K(1, 0) =  sin(theta);
@@ -263,7 +276,7 @@ public:
       Vector pos(3);
       T.Transform(ip, pos);
       K = 0.;
-      if (metric != 14 && metric != 85)
+      if (metric != 36 && metric != 85)
       {
          const real_t xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const real_t r = sqrt(xc*xc + yc*yc);
@@ -280,9 +293,71 @@ public:
 
          K(0, 1) = 0.0;
          K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
          if (comp == 0) { K(0, 0) = tan1d*xc - tan2d*xc; }
          else if (comp == 1) { K(0, 0) = tan1d*yc - tan2d*yc; }
+      }
+      else if (metric == 36)
+      {
+         const real_t xc = pos(0), yc = pos(1);
+         const real_t theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+         const real_t alpha_bar = size_and_orientation_scale_2d(pos);
+         const real_t dalpha =
+            (comp == 0) ?
+            -0.08 * M_PI * cos(M_PI * xc) * sin(M_PI * yc) :
+            -0.08 * M_PI * sin(M_PI * xc) * cos(M_PI * yc);
+         const real_t dtheta =
+            (comp == 0) ?
+            -2 * M_PI * M_PI * yc * (1.0 - yc) * sin(2 * M_PI * xc) :
+            M_PI * (1.0 - 2.0 * yc) * cos(2 * M_PI * xc);
+         const real_t c = cos(theta), s = sin(theta);
+
+         K(0, 0) =  dalpha * c - alpha_bar * s * dtheta;
+         K(1, 0) =  dalpha * s + alpha_bar * c * dtheta;
+         K(0, 1) = -dalpha * s - alpha_bar * c * dtheta;
+         K(1, 1) =  dalpha * c - alpha_bar * s * dtheta;
+      }
+      else if (metric == 85)
+      {
+         const real_t x = pos(0), y = pos(1);
+         const real_t th = 22.5 * M_PI / 180.0;
+         const real_t ct = cos(th), st = sin(th);
+         const real_t xc = x - 0.5, yc = y - 0.5;
+         const real_t xn = ct * xc + st * yc;
+         const real_t yn = -st * xc + ct * yc;
+         const real_t dxn = (comp == 0) ? ct : st;
+         const real_t dyn = (comp == 0) ? -st : ct;
+         const real_t tfac = 20.0, s1 = 3.0, s2 = 2.0;
+         const real_t u = tfac * yn + s2 * sin(s1 * M_PI * xn);
+         const real_t du = tfac * dyn +
+                           s2 * s1 * M_PI * cos(s1 * M_PI * xn) * dxn;
+         const real_t tanh_plus = std::tanh(u + 1.0);
+         const real_t tanh_minus = std::tanh(u - 1.0);
+         const real_t raw_wgt = tanh_plus - tanh_minus;
+         const real_t wgt = std::max(0.0, std::min(1.0, raw_wgt));
+         const real_t dwgt = (raw_wgt > 0.0 && raw_wgt < 1.0) ?
+            ((1.0 - tanh_plus * tanh_plus) -
+             (1.0 - tanh_minus * tanh_minus)) * du : 0.0;
+
+         const real_t aspect = 0.1 + (1.0 - wgt) * (1.0 - wgt);
+         const real_t daspect = -2.0 * (1.0 - wgt) * dwgt;
+         const real_t sqrt_aspect = sqrt(aspect);
+         const real_t inv_sqrt_aspect = 1.0 / sqrt_aspect;
+         const real_t dsqrt_aspect = 0.5 * daspect * inv_sqrt_aspect;
+         const real_t dinv_sqrt_aspect =
+            -0.5 * daspect * inv_sqrt_aspect / aspect;
+
+         const real_t theta = M_PI * y * (1.0 - y) * cos(2 * M_PI * x);
+         const real_t dtheta =
+            (comp == 0) ?
+            -2 * M_PI * M_PI * y * (1.0 - y) * sin(2 * M_PI * x) :
+            M_PI * (1.0 - 2.0 * y) * cos(2 * M_PI * x);
+         const real_t c = cos(theta), s = sin(theta);
+         const real_t dc = -s * dtheta, ds = c * dtheta;
+
+         K(0, 0) = dc * inv_sqrt_aspect + c * dinv_sqrt_aspect;
+         K(1, 0) = ds * inv_sqrt_aspect + s * dinv_sqrt_aspect;
+         K(0, 1) = -ds * sqrt_aspect - s * dsqrt_aspect;
+         K(1, 1) = dc * sqrt_aspect + c * dsqrt_aspect;
       }
    }
 };

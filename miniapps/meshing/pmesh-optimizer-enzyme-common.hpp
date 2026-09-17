@@ -504,13 +504,14 @@ TargetMatrix(const tensor<scalar_t, dim> &x,
       MFEM_CONTRACT_VAR(constant_W);
       MFEM_CONTRACT_VAR(target_data);
 
-      if constexpr (metric_id == 14)
+      if constexpr (metric_id == 36)
       {
          const auto xc = x(0);
          const auto yc = x(1);
          const auto theta = M_PI * yc * (1.0_r - yc) *
                             cos(2.0_r * M_PI * xc);
-         const auto alpha_bar = 0.1_r;
+         const auto alpha_bar = 0.14_r - 0.08_r * sin(M_PI * xc) *
+                                sin(M_PI * yc);
 
          W(0,0) =  alpha_bar * cos(theta);
          W(1,0) =  alpha_bar * sin(theta);
@@ -666,7 +667,7 @@ TargetMatrix(const tensor<scalar_t, dim> &x,
    return W;
 }
 
-// Compile-time TMOP metric dispatch: 2D {2,14,36,58,80,85};
+// Compile-time TMOP metric dispatch: 2D {2,36,58,80,85};
 // 3D {301,302,303,321}.
 // T = A W^{-1}; shape_weight applies only to composite metrics.
 template <typename scalar_t, int dim, int metric_id>
@@ -682,15 +683,6 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
       // mu_2 = 0.5 |T|^2 / det(T) - 1
       return 0.5_r * norm2 / tau - 1.0_r;
    }
-   else if constexpr (dim == 2 && metric_id == 14)
-   {
-      const auto TminusI_00 = T(0,0) - 1.0_r;
-      const auto TminusI_01 = T(0,1);
-      const auto TminusI_10 = T(1,0);
-      const auto TminusI_11 = T(1,1) - 1.0_r;
-      return TminusI_00 * TminusI_00 + TminusI_01 * TminusI_01 +
-             TminusI_10 * TminusI_10 + TminusI_11 * TminusI_11;
-   }
    else if constexpr (dim == 2 && metric_id == 58)
    {
       const auto i1b = norm2 / tau;
@@ -698,8 +690,7 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
    }
    else if constexpr (dim == 2 && metric_id == 36)
    {
-      // For identity W, mu_36 = |T-I|^2/det(T); nonidentity W is handled by
-      // DiscreteTarget8.
+      // For the conformal targets 4 and 8, mu_36 = |T-I|^2/det(T).
       const auto TminusI_00 = T(0,0) - 1.0_r;
       const auto TminusI_01 = T(0,1);
       const auto TminusI_10 = T(1,0);
@@ -765,8 +756,7 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T,
    else
    {
       static_assert((dim == 2 &&
-                     (metric_id == 2 || metric_id == 14 ||
-                      metric_id == 36 || metric_id == 58 ||
+                     (metric_id == 2 || metric_id == 36 || metric_id == 58 ||
                       metric_id == 80 || metric_id == 85)) ||
                     (dim == 3 &&
                      (metric_id == 301 || metric_id == 302 ||
@@ -2242,8 +2232,7 @@ private:
       ParGridFunction &size = *fields[SIZE];
       ParGridFunction &ori = *fields[ORI];
 
-      // Constant small size and analytic orientation from mesh-optimizer.hpp.
-      ConstantCoefficient size_coeff(0.1 * 0.1);
+      FunctionCoefficient size_coeff(discrete_size_2d);
       size.ProjectCoefficient(size_coeff);
 
       auto ori_func = [](const Vector &x_vec)
@@ -3269,11 +3258,12 @@ private:
                switch (metric_id_val)
                {
                   case 2:  return SetupTMOPOperators<4, 2>(ir, all_domain_attr);
-                  case 14: return SetupTMOPOperators<4, 14>(ir, all_domain_attr);
+                  case 36: return SetupTMOPOperators<4, 36>(ir, all_domain_attr);
                   case 80: return SetupTMOPOperators<4, 80>(ir, all_domain_attr);
                   case 85: return SetupTMOPOperators<4, 85>(ir, all_domain_attr);
                   default:
-                     MFEM_ABORT("Target id 4 supports metric ids 2, 14, 80, and 85.");
+                     MFEM_ABORT("Target id 4 supports metric ids 2, 36, 80, "
+                                "and 85.");
                }
             case 6:
                switch (metric_id_val)
@@ -4165,10 +4155,6 @@ TMOPVisualizationData MakeVisualizationData(int dim,
    if (dim == 2 && metric_id == 36)
    {
       data.metric = std::make_unique<TMOP_AMetric_036>();
-   }
-   else if (dim == 2 && metric_id == 14)
-   {
-      data.metric = std::make_unique<TMOP_Metric_014>();
    }
    else if (dim == 2 && metric_id == 58)
    {
