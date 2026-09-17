@@ -16,8 +16,8 @@
 //
 //  See: https://ceed.exascaleproject.org/bps
 //
-//  Official CEED BPs are BP1–BP6 (H1). BP7 (Hcurl curl-curl) and BP9 (Hdiv
-//  div-div) are MFEM-local names in this file (BP8 unused). No BK7/BK9.
+//  Official CEED BPs are BP1–BP6 (H1). MFEM-local: BP7 curl-curl, BP8 Hcurl
+//  mass, BP9 div-div, BP10 Hdiv mass. No BK7–BK10.
 //  hex_sum / quad_sum are stock MFEM PA (not MMA); *_mma is MMA; tet/tri
 //  are simplex MMA additions.
 
@@ -37,6 +37,7 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_hcurl_kernels.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_vectorfemass_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/mma/domain_lf.hpp" // IWYU pragma: keep
 
 // CG verification for BP setups; enabled via --benchmark_context=cg=true
@@ -178,6 +179,33 @@ static void AddKernelSpecializations()
    CC::Specialization<3, 5, 6>::Add();
    CC::Specialization<3, 6, 7>::Add();
    CC::Specialization<3, 7, 8>::Add();
+
+   // BP8 ND mass: closed D1D=p+1, Q1D=p+2. BP10 RT mass: D1D=Q1D=p+2.
+   using VFM = VectorFEMassIntegrator;
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 2, 2, 3>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 3, 3, 4>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 4, 4, 5>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 5, 5, 6>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 6, 6, 7>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 7, 7, 8>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 3>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 4>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 5>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 5, 5, 6>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 6, 6, 7>();
+   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 7, 7, 8>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 3, 3, 3>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 4, 4, 4>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 5, 5, 5>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 6, 6, 6>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 7, 7, 7>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 8, 8, 8>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 3, 3, 3, 3>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 3, 4, 4, 4>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 3, 5, 5, 5>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 3, 6, 6, 6>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 3, 7, 7, 7>();
+   VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 3, 8, 8, 8>();
 
    // BP7/BP9 VectorFE RHS: 2p rule (D1D=Q1D=p+1) and GL (Q1D=p+2)
    using VFE_LF = VectorFEDomainLFIntegrator;
@@ -524,19 +552,26 @@ struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
    }
 };
 
-// MFEM-local BP7 (ND curl-curl) / BP9 (RT div-div). Tensor GL q=p+2 or
-// simplex MassIntegrator::GetRule. No BK; no simplex pos_sum.
+// MFEM-local BP7 (ND curl-curl) / BP8 (ND mass) / BP9 (RT div-div) /
+// BP10 (RT mass). Tensor GL q=p+2 or simplex MassIntegrator::GetRule.
+// No BK; no simplex pos_sum.
 // hex_sum/quad_sum: stock PA (MMAForce false). *_mma: MMA. tet/tri: simplex MMA.
 template <int BFI, int DIM, bool SIMPLEX, bool MMA>
 struct BakeOffDeRham
 {
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
-   static_assert(BFI == 7 || BFI == 9, "De Rham BFI must be 7 or 9");
+   static_assert(BFI == 7 || BFI == 8 || BFI == 9 || BFI == 10,
+                 "De Rham BFI must be 7, 8, 9, or 10");
    static_assert(!SIMPLEX || MMA, "De Rham simplices are dense MMA only");
 
-   using FecType = std::conditional_t<BFI == 7, ND_FECollection, RT_FECollection>;
-   using IntegratorType =
-      std::conditional_t<BFI == 7, CurlCurlIntegrator, DivDivIntegrator>;
+   static constexpr bool is_hcurl = (BFI == 7 || BFI == 8);
+   static constexpr bool is_mass = (BFI == 8 || BFI == 10);
+
+   using FecType = std::conditional_t<is_hcurl, ND_FECollection, RT_FECollection>;
+   using IntegratorType = std::conditional_t<
+                          BFI == 7, CurlCurlIntegrator,
+                          std::conditional_t<BFI == 9, DivDivIntegrator,
+                          VectorFEMassIntegrator>>;
 
    static constexpr bool visualization = false;
    static constexpr bool simplex = SIMPLEX;
@@ -638,7 +673,16 @@ struct BakeOffDeRham
       }
 
       x = 0.0;
-      bfi = new IntegratorType(one, ir);
+      if constexpr (is_mass)
+      {
+         auto *mass = new VectorFEMassIntegrator(one);
+         mass->SetIntRule(ir);
+         bfi = mass;
+      }
+      else
+      {
+         bfi = new IntegratorType(one, ir);
+      }
       a.AddDomainIntegrator(bfi);
    }
 
@@ -697,7 +741,8 @@ struct BPDeRham : public BakeOffDeRham<BFI, DIM, SIMPLEX, MMA>
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
-      // curl-curl / div-div are singular: --cg=true is not a converge check
+      // curl-curl / div-div are singular; mass is SPD. Apply-only bakeoff:
+      // --cg=true is not a converge check for De Rham BPs.
       cg.SetRelTol(0.0);
       cg.SetAbsTol(0.0);
       cg.SetMaxIter(max_it);
@@ -862,6 +907,14 @@ REGISTER_DERHAM(7, QuadMma);
 REGISTER_DERHAM(7, TetGllMma);
 REGISTER_DERHAM(7, TriGllMma);
 
+// BP8: H(curl) CG with VectorFE mass kernel (MFEM-local)
+REGISTER_DERHAM(8, HexSum);
+REGISTER_DERHAM(8, HexMma);
+REGISTER_DERHAM(8, QuadSum);
+REGISTER_DERHAM(8, QuadMma);
+REGISTER_DERHAM(8, TetGllMma);
+REGISTER_DERHAM(8, TriGllMma);
+
 // BP9: H(div) CG with div-div kernel (MFEM-local; not official CEED)
 REGISTER_DERHAM(9, HexSum);
 REGISTER_DERHAM(9, HexMma);
@@ -870,11 +923,19 @@ REGISTER_DERHAM(9, QuadMma);
 REGISTER_DERHAM(9, TetGllMma);
 REGISTER_DERHAM(9, TriGllMma);
 
+// BP10: H(div) CG with VectorFE mass kernel (MFEM-local)
+REGISTER_DERHAM(10, HexSum);
+REGISTER_DERHAM(10, HexMma);
+REGISTER_DERHAM(10, QuadSum);
+REGISTER_DERHAM(10, QuadMma);
+REGISTER_DERHAM(10, TetGllMma);
+REGISTER_DERHAM(10, TriGllMma);
+
 /**
  * @brief CEED Bake-off Problems main entry point
  * Command line options:
  *    --benchmark_context=device=gpu
- *    --benchmark_context=cg=true|false  (default false; skipped for BP7/BP9)
+ *    --benchmark_context=cg=true|false  (default false; skipped for BP7–BP10)
  *    --benchmark_filter=BP1hex_sum
  *    --benchmark_filter=BP3hex_mma
  *    --benchmark_filter=BP1tet_gll_mma
@@ -882,8 +943,12 @@ REGISTER_DERHAM(9, TriGllMma);
  *    --benchmark_filter=BP1tri_pos_mma
  *    --benchmark_filter=BP7hex_mma
  *    --benchmark_filter=BP7tet_gll_mma
+ *    --benchmark_filter=BP8hex_mma
+ *    --benchmark_filter=BP8tet_gll_mma
  *    --benchmark_filter=BP9quad_sum
  *    --benchmark_filter=BP9tri_gll_mma
+ *    --benchmark_filter=BP10hex_mma
+ *    --benchmark_filter=BP10tet_gll_mma
  *    --benchmark_out_format=csv
  *    --benchmark_out=bp1.csv
  *
@@ -895,14 +960,12 @@ REGISTER_DERHAM(9, TriGllMma);
  *    tet_pos_mma / tri_pos_mma — simplex Positive, dense MMA
  *
  * QGL (template): true for BP/BK 1–4 (GL q=p+2), false for 5–6 (GLL q=p+1).
- * BP7 / BP9: tensor GL q=p+2; tet/tri use MassIntegrator::GetRule (dense MMA).
+ * BP7–BP10: tensor GL q=p+2; tet/tri use MassIntegrator::GetRule (dense MMA).
  */
 int main(int argc, char *argv[])
 {
    ColorConsoleReporter CR;
    bm::Initialize(&argc, argv);
-
-   AddKernelSpecializations();
 
    // Device setup, cpu by default
    std::string device_config = "cpu";
@@ -925,6 +988,9 @@ int main(int argc, char *argv[])
 
    Device device(device_config.c_str());
    device.Print();
+
+   // After Device: VectorFEMass/CurlCurl Kernel() picks Smem vs host apply.
+   AddKernelSpecializations();
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return EXIT_FAILURE; }
 

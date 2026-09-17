@@ -110,6 +110,27 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::DIV, 2, 4, 4, 4>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 2, 5, 5, 5>();
+   // Q = P (2D) RT GL q=p+2 uses D1D=Q1D=p+2 through p=6
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 2, 6, 6, 6>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 2, 7, 7, 7>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 2, 8, 8, 8>();
+
+   // Q = P (3D) RT GL q=p+2 uses D1D=Q1D=p+2
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 3, 3, 3>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 4, 4, 4>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 5, 5, 5>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 6, 6, 6>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 7, 7, 7>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 8, 8, 8>();
 
    // Q = P + 1 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,

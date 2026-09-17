@@ -3258,6 +3258,8 @@ public:
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
+   int GetNq() const { return nq; }
+
    const Coefficient *GetCoefficient() const { return Q; }
 
    using ApplyKernelType =
