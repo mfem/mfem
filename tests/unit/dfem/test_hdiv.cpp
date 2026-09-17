@@ -86,6 +86,32 @@ template <int DIM> struct hdiv_mass_divdiv_qf
    }
 };
 
+// TODO: to add full RT-L2 support we might want to modify restriction.cpp
+// to allow FillSparseMatrix to accept L2ElementRestriction as well.
+
+
+// (div u, p), with an H(div) trial field and an H1 test field.
+struct hdiv_to_h1_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(const dscalar_t &du,
+                                           const real_t &w,
+                                           dscalar_t &p) const
+   {
+      p = w * du;
+   }
+};
+
+// (p, div u), the transpose block with an H1 trial field and H(div) test field.
+struct h1_to_hdiv_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(const dscalar_t &p,
+                                           const real_t &w,
+                                           dscalar_t &du) const
+   {
+      du = w * p;
+   }
+};
+
 // ────────────────────────────────────────────────────────────────────────────
 struct HdivSetup
 {
@@ -339,6 +365,66 @@ void hdiv_mass_divdiv(const char *filename, int p)
    CheckHdivOperator<DIM, IT, OT>(setup, hdiv_mass_divdiv_qf<DIM> {}, HdivForm::MassDivDiv);
 }
 
+template <int DIM>
+void hdiv_mixed_assembly(const char *filename, int p)
+{
+   CAPTURE(filename, DIM, p);
+   HdivSetup setup(filename, DIM, p);
+   H1_FECollection h1_fec(p + 1, DIM);
+   ParFiniteElementSpace h1_fes(&setup.pmesh, &h1_fec);
+
+   static constexpr int U = 0, P = 1;
+   const auto assemble_and_check = [&](auto qf, auto inputs, auto outputs,
+                                       ParFiniteElementSpace &trial_fes,
+                                       ParFiniteElementSpace &test_fes,
+                                       BilinearFormIntegrator *integrator)
+   {
+      integrator->SetIntRule(setup.ir);
+      ParMixedBilinearForm reference(&trial_fes, &test_fes);
+      reference.AddDomainIntegrator(integrator);
+      reference.Assemble();
+      reference.Finalize();
+
+      DifferentiableOperator dop(
+         std::vector{FieldDescriptor{inputs.GetFieldId(), &trial_fes}},
+         std::vector{FieldDescriptor{outputs.GetFieldId(), &test_fes}},
+         setup.pmesh);
+      constexpr auto kernels = DerivativeKernels::AssembleMatrix;
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, tuple{inputs, Weight{}}, tuple{outputs}, *setup.ir,
+         setup.all_domain_attr, Derivatives<inputs.GetFieldId()> {});
+
+      Vector X(trial_fes.GetTrueVSize());
+      X.Randomize(3);
+      MultiVector MX{X};
+      auto derivative = dop.GetDerivative(inputs.GetFieldId(), MX);
+
+      SparseMatrix *A = nullptr;
+      derivative->Assemble(A);
+      REQUIRE(A != nullptr);
+      REQUIRE(A->Height() == reference.SpMat().Height());
+      REQUIRE(A->Width() == reference.SpMat().Width());
+      TestSameMatrices(*A, reference.SpMat());
+      TestSameMatrices(reference.SpMat(), *A);
+      delete A;
+   };
+
+   SECTION("RT trial, H1 test")
+   {
+      assemble_and_check(hdiv_to_h1_qf {}, Div<U> {}, Value<P> {}, setup.pfes,
+                         h1_fes, new VectorFEDivergenceIntegrator());
+   }
+
+   SECTION("H1 trial, RT test")
+   {
+      assemble_and_check(h1_to_hdiv_qf {}, Value<P> {}, Div<U> {}, h1_fes,
+                         setup.pfes,
+                         new TransposeIntegrator(
+                            new VectorFEDivergenceIntegrator()));
+   }
+
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
 {
@@ -349,6 +435,7 @@ TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
    SECTION("Mass") { hdiv_mass<2>(GenAll(meshs, extra), p); }
    SECTION("DivDiv") { hdiv_divdiv<2>(GenAll(meshs, extra), p); }
    SECTION("Mass+DivDiv") { hdiv_mass_divdiv<2>(GenAll(meshs, extra), p); }
+   SECTION("Mixed assembly") { hdiv_mixed_assembly<2>(GenAll(meshs, extra), p); }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -361,6 +448,7 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE]")
    SECTION("Mass") { hdiv_mass<3>(GenAll(meshs, extra), p); }
    SECTION("DivDiv") { hdiv_divdiv<3>(GenAll(meshs, extra), p); }
    SECTION("Mass+DivDiv") { hdiv_mass_divdiv<3>(GenAll(meshs, extra), p); }
+   SECTION("Mixed assembly") { hdiv_mixed_assembly<3>(GenAll(meshs, extra), p); }
 }
 
 #endif // MFEM_USE_MPI

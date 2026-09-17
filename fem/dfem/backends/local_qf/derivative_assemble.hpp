@@ -492,7 +492,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
       }
    });
 
-   // Vector FE assembly branch
+   // Vector trial FE assembly branch
    if (tvfe_ptr != nullptr)
    {
       const DofToQuadMap &tvfe = *tvfe_ptr;
@@ -582,17 +582,25 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      });
 
                      // 4. Project the quadrature result through the transpose test basis.
-                     if constexpr (is_value_fop_v<output_fop_t> ||
-                                   is_div_fop_v<output_fop_t>)
+                     if (output_dtq.IsVectorFE())
                      {
-                        map_quadrature_data_to_vector_fe<
-                        DIM, backend_t, output_fop_t>(
-                           bvtfhat, fhat, output_dtq, smem);
+                        if constexpr (is_value_fop_v<output_fop_t> ||
+                                      is_div_fop_v<output_fop_t>)
+                        {
+                           map_quadrature_data_to_vector_fe<
+                           DIM, backend_t, output_fop_t>(
+                              bvtfhat, fhat, output_dtq, smem);
+                        }
+                        else
+                        {
+                           MFEM_ABORT_KERNEL(
+                              "vector FE sparse assembly supports Value and Div outputs");
+                        }
                      }
                      else
                      {
-                        MFEM_ABORT_KERNEL(
-                           "vector FE sparse assembly supports Value and Div outputs");
+                        map_quadrature_data_to_fields<DIM, MQ1>(
+                           bvtfhat, fhat, output, output_dtq, smem);
                      }
                   }
                }
@@ -602,7 +610,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
       return;
    }
 
-   // Scalar FE assembly branch
+   // Scalar trial FE assembly branch
    for (int Jz = 0; Jz < ((DIM == 2) ? 1 : num_trial_dof_1d); Jz++)
    {
       for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
@@ -696,8 +704,26 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      MFEM_SYNC_THREAD;
                      m_offset += trial_op_dim;
                   });
-                  map_quadrature_data_to_fields<DIM, MQ1>(
-                     bvtfhat, fhat, output, output_dtq, smem);
+                  if (output_dtq.IsVectorFE())
+                  {
+                     if constexpr (is_value_fop_v<output_fop_t> ||
+                                   is_div_fop_v<output_fop_t>)
+                     {
+                        map_quadrature_data_to_vector_fe<
+                        DIM, backend_t, output_fop_t>(
+                           bvtfhat, fhat, output_dtq, smem);
+                     }
+                     else
+                     {
+                        MFEM_ABORT_KERNEL(
+                           "vector FE sparse assembly supports Value and Div outputs");
+                     }
+                  }
+                  else
+                  {
+                     map_quadrature_data_to_fields<DIM, MQ1>(
+                        bvtfhat, fhat, output, output_dtq, smem);
+                  }
                }
                else if constexpr (ident_out)
                {
@@ -989,6 +1015,8 @@ public:
                   "ParFiniteElementSpace, so the columns of the derivative "
                   "have no basis to be assembled against");
 
+      // TODO: Support ElementRestriction x L2ElementRestriction by moving
+      // rectangular element-matrix assembly to ElementRestrictionOperator.
       const auto *trial_restr = dynamic_cast<const ElementRestriction *>(
                                    trial_fes->GetElementRestriction(
                                       ElementDofOrdering::LEXICOGRAPHIC));
