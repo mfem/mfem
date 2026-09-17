@@ -1079,8 +1079,8 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
    d2shape1_y.SetSize(orders[1]+2);
 
    order = max(orders[0]+1, orders[1]+1);
-   SetDof ((orders[0] + 1)*(orders[1] + 2) +
-           (orders[1] + 2)*(orders[1] + 1));
+   SetDof((orders[0] + 1)*(orders[1] + 2) +
+          (orders[1] + 2)*(orders[1] + 1));
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -1264,9 +1264,9 @@ void NURBS_HCurl3DFiniteElement::SetOrder() const
    d2shape1_z.SetSize(orders[2]+2);
 
    order = max(orders[0]+1, max( orders[1]+1, orders[2]+1));
-   dof = (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 2) +
-         (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 2) +
-         (orders[0] + 2)*(orders[1] + 2)*(orders[2] + 1);
+   SetDof((orders[0] + 1)*(orders[1] + 2)*(orders[2] + 2) +
+          (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 2) +
+          (orders[0] + 2)*(orders[1] + 2)*(orders[2] + 1));
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
