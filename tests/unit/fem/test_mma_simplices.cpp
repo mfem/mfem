@@ -708,7 +708,7 @@ void test_hcurl_hdiv_simplex_fa_vs_mma(Mesh &mesh, int p, bool hcurl, VecFeOp op
 }
 
 TEST_CASE("Hcurl/Hdiv simplex MMA PA vs FA",
-          "[PA][MMA][Hcurl][Hdiv][Simplex][CPU]")
+          "[PA][MMA][Hcurl][Hdiv][Simplex][GPU]")
 {
    const int p = GENERATE(1, 2, 3);
    SECTION("2D ND triangle")
@@ -725,13 +725,13 @@ TEST_CASE("Hcurl/Hdiv simplex MMA PA vs FA",
    }
    SECTION("3D ND tet")
    {
-      Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::TETRAHEDRON);
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
       test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::Mass);
       test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::CurlCurl);
    }
    SECTION("3D RT tet")
    {
-      Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::TETRAHEDRON);
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
       test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::Mass);
       test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::DivDiv);
    }

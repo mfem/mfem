@@ -138,8 +138,8 @@ inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
 }
 
 /** Opt-in sum-factored tensor MMA for fixed-order H1 GLL quad/hex.
-    GPU: MMA smem shell (Interp/Grad + dmma/mfma when TensorMmaEnabled, else
-    fine-grained blas::Sumf / blas::GemmMbyK).
+    GPU: MMA smem shell (Interp/Grad/GemmMbyK + dmma/mfma when TensorMmaEnabled,
+    else fine-grained blas::Sumf / blas::GemmMbyK).
     CPU: 1D LAPACK GEMM when profitable (mass), else same MMA shell + dense blas_*.
     Unregistered (D1D,Q1D) Fallback is the runtime MMA shell.
     Requires ForceMMA / MFEM_USE_MMA; double precision only; p >= 3. */
@@ -191,9 +191,8 @@ inline bool IsTensorsMmaHdivElement(const FiniteElement &el, int dim)
 }
 
 /** Opt-in tensor MMA for fixed-order ND (Hcurl) quad/hex. ForceMMA; double; p≥3.
-    GPU: MMA smem shell (Interp/Grad + dmma/mfma when TensorMmaEnabled, else
-    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread;
-    LAPACK routes InterpAx/GradX/GemmMbyK through vendor GEMM. */
+    GPU: MMA smem shell (InterpAx/GradX/GemmMbyK via MMA_BACKEND_PICK).
+    Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
 inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }
@@ -219,9 +218,8 @@ inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
 }
 
 /** Opt-in tensor MMA for fixed-order RT (Hdiv) quad/hex. ForceMMA; double; p≥3.
-    GPU: MMA smem shell (Interp/Grad + dmma/mfma when TensorMmaEnabled, else
-    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread;
-    LAPACK routes InterpAx/GradX/GemmMbyK through vendor GEMM. */
+    GPU: MMA smem shell (InterpAx/GradX/GemmMbyK via MMA_BACKEND_PICK).
+    Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
 inline bool UsesTensorMmaHdiv(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }

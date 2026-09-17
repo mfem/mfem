@@ -214,6 +214,8 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(!use_simplices_mma,
+               "AbsMultPA not implemented for simplex MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
    auto absO = mapsO->Abs();

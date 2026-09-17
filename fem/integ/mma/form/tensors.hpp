@@ -1882,7 +1882,31 @@ MFEM_HOST_DEVICE inline void ApplyVecEvalO3D(const real_t u[3],
    y[2] = A(2, 0) * u[0] + A(2, 1) * u[1] + A(2, 2) * u[2];
 }
 
+/** Y += sign * (Byt ⊗ Bxt) qq. qq is qx + Q*qy. */
+template <int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void CurlTranspAdd2D(
+   const int Dx, const int Dy, const int Q1D,
+   const real_t *Bxt, const real_t *Byt,
+   const real_t *qq, real_t *sm0, real_t *sm1,
+   const DeviceTensor<2> &Y, const int osc, const int e,
+   const real_t sign, const int tid, const int stride)
+{
+   mma::GemmMbyK<false>(Q1D, Q1D, Dy, qq, Byt, sm0);
+   MFEM_SYNC_THREAD;
+   mma::InterpAx<MD1, MQ1>(Dx, Dy, Q1D, sm0, Bxt, sm1);
+   MFEM_SYNC_THREAD;
+   const int n = Dx * Dy;
+   for (int t = tid; t < n; t += stride)
+   {
+      const int dx = t % Dx;
+      const int dy = t / Dx;
+      Y(dx + dy * Dx + osc, e) += sign * sm1[dx + Dx * dy];
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /** Y += sign * (Bzt ⊗ Byt ⊗ Bxt) qqq. qqq is (qx+Q*qy)+Q*Q*qz. */
+template <int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void CurlTranspAdd3D(
    const int Dx, const int Dy, const int Dz, const int Q1D,
    const real_t *Bxt, const real_t *Byt, const real_t *Bzt,
@@ -1890,25 +1914,16 @@ MFEM_HOST_DEVICE inline void CurlTranspAdd3D(
    const DeviceTensor<2> &Y, const int osc, const int e,
    const real_t sign, const int tid, const int stride)
 {
-   blas::GemmMbyK<false>(Q1D * Q1D, Q1D, Dz, qqq, Bzt, sm0);
+   mma::GemmMbyK<false>(Q1D * Q1D, Q1D, Dz, qqq, Bzt, sm0);
    MFEM_SYNC_THREAD;
-   ConstDeviceMatrix BtY(Byt, Q1D, Dy);
-   const int nyt = Q1D * Dy * Dz;
-   for (int t = tid; t < nyt; t += stride)
+   for (int dz = 0; dz < Dz; ++dz)
    {
-      const int qx = t % Q1D;
-      const int rest = t / Q1D;
-      const int dy = rest % Dy;
-      const int dz = rest / Dy;
-      real_t s = 0.0;
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         s += sm0[(qx + Q1D * qy) + Q1D * Q1D * dz] * BtY(qy, dy);
-      }
-      sm1[qx + Q1D * (dy + Dy * dz)] = s;
+      mma::GemmMbyK<false>(Q1D, Q1D, Dy, sm0 + Q1D * Q1D * dz, Byt,
+                           sm1 + Q1D * Dy * dz);
    }
    MFEM_SYNC_THREAD;
-   ConstDeviceMatrix BtX(Bxt, Q1D, Dx);
+   mma::InterpAx<MD1, MQ1>(Dx, Dy * Dz, Q1D, sm1, Bxt, sm0);
+   MFEM_SYNC_THREAD;
    const int n = Dx * Dy * Dz;
    for (int t = tid; t < n; t += stride)
    {
@@ -1916,12 +1931,8 @@ MFEM_HOST_DEVICE inline void CurlTranspAdd3D(
       const int rest = t / Dx;
       const int dy = rest % Dy;
       const int dz = rest / Dy;
-      real_t s = 0.0;
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         s += sm1[qx + Q1D * (dy + Dy * dz)] * BtX(qx, dx);
-      }
-      Y(dx + (dy + dz * Dy) * Dx + osc, e) += sign * s;
+      Y(dx + (dy + dz * Dy) * Dx + osc, e) +=
+         sign * sm0[dx + Dx * (dy + Dy * dz)];
    }
    MFEM_SYNC_THREAD;
 }
@@ -1936,6 +1947,7 @@ MFEM_HOST_DEVICE inline void CurlAccum(real_t *dst, const real_t *src,
    }
 }
 
+template <int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void DivTranspAdd3D(
    const int Dx, const int Dy, const int Dz, const int Q1D,
    const real_t *Bxt, const real_t *Byt, const real_t *Bzt,
@@ -1943,8 +1955,8 @@ MFEM_HOST_DEVICE inline void DivTranspAdd3D(
    const DeviceTensor<2> &Y, const int osc, const int e,
    const real_t sign, const int tid, const int stride)
 {
-   CurlTranspAdd3D(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt, qqq, sm0, sm1,
-                   Y, osc, e, sign, tid, stride);
+   CurlTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt, qqq, sm0, sm1,
+                             Y, osc, e, sign, tid, stride);
 }
 
 MFEM_HOST_DEVICE inline void DivAccum(real_t *dst, const real_t *src,
@@ -2038,31 +2050,11 @@ struct TensorVecEvalKernel2D
             int Dx, Dy;
             if constexpr (OPEN) { CurlCompSizes2D(D1D, c, Dx, Dy); }
             else { DivCompSizes2D(D1D, c, Dx, Dy); }
-            for (int t = tid; t < nq; t += stride)
-            {
-               sm1[t] = ucomp[t + nq * c];
-            }
-            MFEM_SYNC_THREAD;
-
             const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBot : sBct;
             const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBot : sBct;
-            blas::GemmMbyK<false>(Q1D, Q1D, Dy, sm1, Byt, sm0);
-            MFEM_SYNC_THREAD;
-
-            ConstDeviceMatrix Bt(Bxt, Q1D, Dx);
-            const int n = Dx * Dy;
-            for (int t = tid; t < n; t += stride)
-            {
-               const int dx = t % Dx;
-               const int dy = t / Dx;
-               real_t s = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  s += sm0[qx + Q1D * dy] * Bt(qx, dx);
-               }
-               Y(dx + dy * Dx + c * osc_c, e) += s;
-            }
-            MFEM_SYNC_THREAD;
+            CurlTranspAdd2D<MD1, MQ1>(Dx, Dy, Q1D, Bxt, Byt, ucomp + nq * c,
+                                      sm0, sm1, Y, c * osc_c, e, 1.0,
+                                      tid, stride);
          }
       }
    }
@@ -2156,51 +2148,12 @@ struct TensorVecEvalKernel3D
             int Dx, Dy, Dz;
             if constexpr (OPEN) { CurlCompSizes3D(D1D, c, Dx, Dy, Dz); }
             else { DivCompSizes3D(D1D, c, Dx, Dy, Dz); }
-            for (int t = tid; t < nq; t += stride)
-            {
-               sm1[t] = ucomp[t + nq * c];
-            }
-            MFEM_SYNC_THREAD;
-
             const real_t *Bzt = (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2, c)) ? sBot : sBct;
             const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBot : sBct;
             const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBot : sBct;
-            blas::GemmMbyK<false>(Q1D * Q1D, Q1D, Dz, sm1, Bzt, sm0);
-            MFEM_SYNC_THREAD;
-
-            ConstDeviceMatrix BtY(Byt, Q1D, Dy);
-            const int nyt = Q1D * Dy * Dz;
-            for (int t = tid; t < nyt; t += stride)
-            {
-               const int qx = t % Q1D;
-               const int rest = t / Q1D;
-               const int dy = rest % Dy;
-               const int dz = rest / Dy;
-               real_t s = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  s += sm0[(qx + Q1D * qy) + Q1D * Q1D * dz] * BtY(qy, dy);
-               }
-               sm1[qx + Q1D * (dy + Dy * dz)] = s;
-            }
-            MFEM_SYNC_THREAD;
-
-            ConstDeviceMatrix BtX(Bxt, Q1D, Dx);
-            const int n = Dx * Dy * Dz;
-            for (int t = tid; t < n; t += stride)
-            {
-               const int dx = t % Dx;
-               const int rest = t / Dx;
-               const int dy = rest % Dy;
-               const int dz = rest / Dy;
-               real_t s = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  s += sm1[qx + Q1D * (dy + Dy * dz)] * BtX(qx, dx);
-               }
-               Y(dx + (dy + dz * Dy) * Dx + c * osc_c, e) += s;
-            }
-            MFEM_SYNC_THREAD;
+            CurlTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt,
+                                      ucomp + nq * c, sm0, sm1, Y,
+                                      c * osc_c, e, 1.0, tid, stride);
          }
       }
    }
@@ -2361,45 +2314,11 @@ struct TensorCurlCurlKernel2D
          MFEM_SYNC_THREAD;
 
          // ux adjoint: Yt Gct, Xt Bot, minus
-         {
-            const int Dx = D1D - 1, Dy = D1D;
-            blas::GemmMbyK<false>(Q1D, Q1D, Dy, curl, sGct, sm0);
-            MFEM_SYNC_THREAD;
-            ConstDeviceMatrix Bt(sBot, Q1D, Dx);
-            const int n = Dx * Dy;
-            for (int t = tid; t < n; t += stride)
-            {
-               const int dx = t % Dx;
-               const int dy = t / Dx;
-               real_t s = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  s += sm0[qx + Q1D * dy] * Bt(qx, dx);
-               }
-               Y(dx + dy * Dx, e) -= s;
-            }
-            MFEM_SYNC_THREAD;
-         }
+         CurlTranspAdd2D<MD1, MQ1>(D1D - 1, D1D, Q1D, sBot, sGct, curl,
+                                   sm0, sm1, Y, 0, e, -1.0, tid, stride);
          // uy adjoint: Yt Bot, Xt Gct
-         {
-            const int Dx = D1D, Dy = D1D - 1;
-            blas::GemmMbyK<false>(Q1D, Q1D, Dy, curl, sBot, sm0);
-            MFEM_SYNC_THREAD;
-            ConstDeviceMatrix Gt(sGct, Q1D, Dx);
-            const int n = Dx * Dy;
-            for (int t = tid; t < n; t += stride)
-            {
-               const int dx = t % Dx;
-               const int dy = t / Dx;
-               real_t s = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  s += sm0[qx + Q1D * dy] * Gt(qx, dx);
-               }
-               Y(dx + dy * Dx + osc_c, e) += s;
-            }
-            MFEM_SYNC_THREAD;
-         }
+         CurlTranspAdd2D<MD1, MQ1>(D1D, D1D - 1, Q1D, sGct, sBot, curl,
+                                   sm0, sm1, Y, osc_c, e, 1.0, tid, stride);
       }
    }
 };
@@ -2554,20 +2473,26 @@ struct TensorCurlCurlKernel3D
          MFEM_SYNC_THREAD;
 
          // u0 adjoint: curl_y → (Bot, Bct, Gct); curl_z → -(Bot, Gct, Bct)
-         CurlTranspAdd3D(D1D - 1, D1D, D1D, Q1D, sBot, sBct, sGct,
-                           curl[1], smA[0], smC[0], Y, 0, e, 1.0, tid, stride);
-         CurlTranspAdd3D(D1D - 1, D1D, D1D, Q1D, sBot, sGct, sBct,
-                           curl[2], smA[0], smC[0], Y, 0, e, -1.0, tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D - 1, D1D, D1D, Q1D, sBot, sBct, sGct,
+                                   curl[1], smA[0], smC[0], Y, 0, e, 1.0,
+                                   tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D - 1, D1D, D1D, Q1D, sBot, sGct, sBct,
+                                   curl[2], smA[0], smC[0], Y, 0, e, -1.0,
+                                   tid, stride);
          // u1: curl_x → -(Bct, Bot, Gct); curl_z → (Gct, Bot, Bct)
-         CurlTranspAdd3D(D1D, D1D - 1, D1D, Q1D, sBct, sBot, sGct,
-                           curl[0], smA[0], smC[0], Y, osc_c, e, -1.0, tid, stride);
-         CurlTranspAdd3D(D1D, D1D - 1, D1D, Q1D, sGct, sBot, sBct,
-                           curl[2], smA[0], smC[0], Y, osc_c, e, 1.0, tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D - 1, D1D, Q1D, sBct, sBot, sGct,
+                                   curl[0], smA[0], smC[0], Y, osc_c, e, -1.0,
+                                   tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D - 1, D1D, Q1D, sGct, sBot, sBct,
+                                   curl[2], smA[0], smC[0], Y, osc_c, e, 1.0,
+                                   tid, stride);
          // u2: curl_x → (Bct, Gct, Bot); curl_y → -(Gct, Bct, Bot)
-         CurlTranspAdd3D(D1D, D1D, D1D - 1, Q1D, sBct, sGct, sBot,
-                           curl[0], smA[0], smC[0], Y, 2 * osc_c, e, 1.0, tid, stride);
-         CurlTranspAdd3D(D1D, D1D, D1D - 1, Q1D, sGct, sBct, sBot,
-                           curl[1], smA[0], smC[0], Y, 2 * osc_c, e, -1.0, tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D, D1D - 1, Q1D, sBct, sGct, sBot,
+                                   curl[0], smA[0], smC[0], Y, 2 * osc_c, e, 1.0,
+                                   tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D, D1D - 1, Q1D, sGct, sBct, sBot,
+                                   curl[1], smA[0], smC[0], Y, 2 * osc_c, e, -1.0,
+                                   tid, stride);
       }
    }
 };
@@ -2719,22 +2644,8 @@ struct TensorDivDivKernel2D
             DivCompSizes2D(D1D, c, Dx, Dy);
             const real_t *Byt = (c == 1) ? sGct : sBot;
             const real_t *Bxt = (c == 0) ? sGct : sBot;
-            blas::GemmMbyK<false>(Q1D, Q1D, Dy, divq, Byt, sm0);
-            MFEM_SYNC_THREAD;
-            ConstDeviceMatrix Bt(Bxt, Q1D, Dx);
-            const int n = Dx * Dy;
-            for (int t = tid; t < n; t += stride)
-            {
-               const int dx = t % Dx;
-               const int dy = t / Dx;
-               real_t s = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  s += sm0[qx + Q1D * dy] * Bt(qx, dx);
-               }
-               Y(dx + dy * Dx + c * osc_c, e) += s;
-            }
-            MFEM_SYNC_THREAD;
+            CurlTranspAdd2D<MD1, MQ1>(Dx, Dy, Q1D, Bxt, Byt, divq, sm0, sm1,
+                                      Y, c * osc_c, e, 1.0, tid, stride);
          }
       }
    }
@@ -2818,9 +2729,9 @@ struct TensorDivDivKernel3D
             const real_t *Bxt = (c == 0) ? sGct : sBot;
             const real_t *Byt = (c == 1) ? sGct : sBot;
             const real_t *Bzt = (c == 2) ? sGct : sBot;
-            DivTranspAdd3D(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt,
-                              divq, sm0, sm1, Y, c * osc_c, e, 1.0,
-                              tid, stride);
+            DivTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt,
+                                     divq, sm0, sm1, Y, c * osc_c, e, 1.0,
+                                     tid, stride);
          }
       }
    }
@@ -2910,7 +2821,7 @@ ApplyTensor(const int NE,
 // ---------------------------------------------------------------------------
 // ApplyTensor — Curl×Curl (Bo/Bc/Gc)
 // Host: InterpAx / GradX / GemmMbyK → blas (LAPACK GEMM when enabled).
-// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA).
+// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA), including adjoints.
 // ---------------------------------------------------------------------------
 
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
@@ -2931,7 +2842,7 @@ ApplyTensor(const int NE,
 // ---------------------------------------------------------------------------
 // ApplyTensor — Div×Div (Bo/Gc)
 // Host: InterpAx / GemmMbyK → blas (LAPACK GEMM when enabled).
-// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA).
+// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA), including adjoints.
 // ---------------------------------------------------------------------------
 
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>

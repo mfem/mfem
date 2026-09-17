@@ -1673,6 +1673,26 @@ ApplySimplex(const int NE,
 namespace detail
 {
 
+/** Unpack 2D PA metric: SYM [11,12,22], non-SYM [11,12,21,22] (matches setup). */
+template <typename DAcc>
+MFEM_HOST_DEVICE inline void UnpackSimplexPaMetric2D(
+   DAcc D, int q, int e, bool symmetric,
+   real_t &O11, real_t &O12, real_t &O21, real_t &O22)
+{
+   O11 = D(q, 0, e);
+   O12 = D(q, 1, e);
+   if (symmetric)
+   {
+      O21 = O12;
+      O22 = D(q, 2, e);
+   }
+   else
+   {
+      O21 = D(q, 2, e);
+      O22 = D(q, 3, e);
+   }
+}
+
 inline void SimplexVecEvalApply(const int dim, const int NE, const int nd,
                               const int nq, const int sdim,
                               const bool symmetric,
@@ -1706,10 +1726,8 @@ inline void SimplexVecEvalApply(const int dim, const int NE, const int nd,
          real_t v[3] = {};
          if (sdim == 2)
          {
-            const real_t O11 = D(q, 0, e);
-            const real_t O21 = D(q, 1, e);
-            const real_t O12 = symmetric ? O21 : D(q, 2, e);
-            const real_t O22 = symmetric ? D(q, 2, e) : D(q, 3, e);
+            real_t O11, O12, O21, O22;
+            UnpackSimplexPaMetric2D(D, q, e, symmetric, O11, O12, O21, O22);
             v[0] = O11 * u[0] + O12 * u[1];
             v[1] = O21 * u[0] + O22 * u[1];
          }

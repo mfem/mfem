@@ -426,6 +426,8 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(!use_simplices_mma,
+               "AbsMultPA not implemented for simplex MMA PA");
    const bool scalar_coeff = !(DQ || MQ);
 
    Vector abs_pa_data(pa_data);

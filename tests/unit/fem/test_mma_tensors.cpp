@@ -421,7 +421,7 @@ void test_hcurl_hdiv_tensor_fa_vs_mma(Mesh &mesh, int p, bool hcurl, VecFeOp op)
    REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
 }
 
-TEST_CASE("Hcurl/Hdiv tensor MMA PA vs FA", "[PA][MMA][Hcurl][Hdiv][CPU]")
+TEST_CASE("Hcurl/Hdiv tensor MMA PA vs FA", "[PA][MMA][Hcurl][Hdiv][GPU]")
 {
    const int p = GENERATE(3, 4);
    SECTION("2D ND mass + curlcurl")
@@ -438,47 +438,114 @@ TEST_CASE("Hcurl/Hdiv tensor MMA PA vs FA", "[PA][MMA][Hcurl][Hdiv][CPU]")
    }
    SECTION("3D ND mass + curlcurl")
    {
-      Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
       test_hcurl_hdiv_tensor_fa_vs_mma(mesh, p, true, VecFeOp::Mass);
       test_hcurl_hdiv_tensor_fa_vs_mma(mesh, p, true, VecFeOp::CurlCurl);
    }
    SECTION("3D RT mass + divdiv")
    {
-      Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
       test_hcurl_hdiv_tensor_fa_vs_mma(mesh, p, false, VecFeOp::Mass);
       test_hcurl_hdiv_tensor_fa_vs_mma(mesh, p, false, VecFeOp::DivDiv);
    }
 }
 
+TEST_CASE("Hcurl/Hdiv tensor MMA eligibility", "[PA][MMA][Hcurl][Hdiv][GPU]")
+{
+   Mesh mesh2 = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   Mesh mesh3 = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   SECTION("p=1,2 stay on stock PA")
+   {
+      MMAForce on(true);
+      for (int p : {1, 2})
+      {
+         ND_FECollection nd2(p, 2);
+         FiniteElementSpace fes_nd2(&mesh2, &nd2);
+         REQUIRE_FALSE(UsesTensorMmaHcurl(fes_nd2));
+         ND_FECollection nd3(p, 3);
+         FiniteElementSpace fes_nd3(&mesh3, &nd3);
+         REQUIRE_FALSE(UsesTensorMmaHcurl(fes_nd3));
+      }
+      // RT_FECollection(p) has FiniteElement::GetOrder() == p+1.
+      for (int p : {0, 1})
+      {
+         RT_FECollection rt2(p, 2);
+         FiniteElementSpace fes_rt2(&mesh2, &rt2);
+         REQUIRE_FALSE(UsesTensorMmaHdiv(fes_rt2));
+         RT_FECollection rt3(p, 3);
+         FiniteElementSpace fes_rt3(&mesh3, &rt3);
+         REQUIRE_FALSE(UsesTensorMmaHdiv(fes_rt3));
+      }
+   }
+   SECTION("p=3 is eligible under ForceMMA")
+   {
+      ND_FECollection nd(3, 2);
+      FiniteElementSpace fes(&mesh2, &nd);
+      {
+         MMAForce on(true);
+         REQUIRE(UsesTensorMmaHcurl(fes));
+      }
+      REQUIRE_FALSE(UsesTensorMmaHcurl(fes));
+   }
+}
+
 TEST_CASE("Hcurl/Hdiv ForceMMA off keeps stock tensor PA",
-          "[PA][MMA][Hcurl][Hdiv][CPU]")
+          "[PA][MMA][Hcurl][Hdiv][GPU]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
-   ND_FECollection fec(3, 2);
-   FiniteElementSpace fes(&mesh, &fec);
-   GridFunction x(&fes), y_stock(&fes), y_off(&fes);
-   x.Randomize(7);
-   y_stock = 0.0;
-   y_off = 0.0;
    ConstantCoefficient c(1.25);
-
-   BilinearForm stock(&fes), off(&fes);
-   stock.AddDomainIntegrator(new VectorFEMassIntegrator(c));
-   stock.AddDomainIntegrator(new CurlCurlIntegrator(c));
-   off.AddDomainIntegrator(new VectorFEMassIntegrator(c));
-   off.AddDomainIntegrator(new CurlCurlIntegrator(c));
-   stock.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   off.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   SECTION("2D ND mass + curlcurl")
    {
-      MMAForce force(false);
-      stock.Assemble();
-      off.Assemble();
+      ND_FECollection fec(3, 2);
+      FiniteElementSpace fes(&mesh, &fec);
+      GridFunction x(&fes), y_stock(&fes), y_off(&fes);
+      x.Randomize(7);
+      y_stock = 0.0;
+      y_off = 0.0;
+      BilinearForm stock(&fes), off(&fes);
+      stock.AddDomainIntegrator(new VectorFEMassIntegrator(c));
+      stock.AddDomainIntegrator(new CurlCurlIntegrator(c));
+      off.AddDomainIntegrator(new VectorFEMassIntegrator(c));
+      off.AddDomainIntegrator(new CurlCurlIntegrator(c));
+      stock.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      off.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      {
+         MMAForce force(false);
+         stock.Assemble();
+         off.Assemble();
+      }
+      stock.Mult(x, y_stock);
+      off.Mult(x, y_off);
+      y_stock -= y_off;
+      REQUIRE(y_stock.Normlinf() == MFEM_Approx(0.0, 1e-12, 1e-12));
+      REQUIRE_FALSE(UsesTensorMmaHcurl(fes));
    }
-   stock.Mult(x, y_stock);
-   off.Mult(x, y_off);
-   y_stock -= y_off;
-   REQUIRE(y_stock.Normlinf() == MFEM_Approx(0.0, 1e-12, 1e-12));
-   REQUIRE_FALSE(UsesTensorMmaHcurl(fes));
+   SECTION("2D RT mass + divdiv")
+   {
+      RT_FECollection fec(3, 2);
+      FiniteElementSpace fes(&mesh, &fec);
+      GridFunction x(&fes), y_stock(&fes), y_off(&fes);
+      x.Randomize(7);
+      y_stock = 0.0;
+      y_off = 0.0;
+      BilinearForm stock(&fes), off(&fes);
+      stock.AddDomainIntegrator(new VectorFEMassIntegrator(c));
+      stock.AddDomainIntegrator(new DivDivIntegrator(c));
+      off.AddDomainIntegrator(new VectorFEMassIntegrator(c));
+      off.AddDomainIntegrator(new DivDivIntegrator(c));
+      stock.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      off.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      {
+         MMAForce force(false);
+         stock.Assemble();
+         off.Assemble();
+      }
+      stock.Mult(x, y_stock);
+      off.Mult(x, y_off);
+      y_stock -= y_off;
+      REQUIRE(y_stock.Normlinf() == MFEM_Approx(0.0, 1e-12, 1e-12));
+      REQUIRE_FALSE(UsesTensorMmaHdiv(fes));
+   }
 }
 
 } // namespace pa_tensors_mma

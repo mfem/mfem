@@ -937,6 +937,60 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    }
 }
 
+/** C(M,N) =[/+=] A(M,K) * B(K,N). A is DeviceMatrix(M,K). Sibling of InterpYt2D. */
+template <bool ACCUM>
+MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
+                                      const int N, const real_t *A,
+                                      const real_t *B1d, real_t *C)
+{
+   ConstDeviceMatrix B(B1d, K, N);
+   ConstDeviceMatrix aA(A, M, K);
+   DeviceMatrix cC(C, M, N);
+   const int thread = getThreadIdxX();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int tinG = getThreadIdInGroup(laneId);
+   const int bankMap = BankMap(N);
+   const int mPass = (M + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < N; n0 += mmaN)
+      {
+         double cReg[2] = {};
+         for (int mK = 0; mK < (K + mmaK - 1) / mmaK; mK++)
+         {
+            double bReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            bReg[0] = (bColumn < N && bRow < K) ? B(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM);
+            const int aColumn = tinG + mK * mmaK;
+            aReg[0] = (aRow < M && aColumn < K) ? aA(aRow, aColumn) : 0.0;
+            Sync(aReg, bReg, cReg);
+         }
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = MapM(groupId, mM);
+            const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
+            if (cRow < M && cColumn < N)
+            {
+               if constexpr (ACCUM)
+               {
+                  cC(cRow, cColumn) += cReg[i];
+               }
+               else
+               {
+                  cC(cRow, cColumn) = cReg[i];
+               }
+            }
+         }
+      }
+   }
+}
+
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
                                         const real_t *sBt,

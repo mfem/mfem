@@ -374,6 +374,50 @@ TEST_CASE("MMA host Sumf GemmMbyK", "[MMA][Form]")
          REQUIRE(C[i] == MFEM_Approx(Cref[i]));
       }
    }
+
+   SECTION("mma::GemmMbyK C = A B")
+   {
+      std::vector<real_t> BN(k * n);
+      for (int i = 0; i < k * n; ++i) { BN[i] = real_t(0.03) * (i + 1); }
+      for (int col = 0; col < n; ++col)
+      {
+         for (int row = 0; row < m; ++row)
+         {
+            real_t s = 0.0;
+            for (int p = 0; p < k; ++p)
+            {
+               s += AMK[row + m * p] * BN[p + k * col];
+            }
+            Cref[row + m * col] = s;
+         }
+      }
+      GemmMbyK<false>(m, k, n, AMK.data(), BN.data(), C.data());
+      for (int i = 0; i < m * n; ++i)
+      {
+         REQUIRE(C[i] == MFEM_Approx(Cref[i]));
+      }
+   }
+
+   SECTION("mma::InterpAx C = A^T B")
+   {
+      for (int col = 0; col < n; ++col)
+      {
+         for (int row = 0; row < m; ++row)
+         {
+            real_t s = 0.0;
+            for (int p = 0; p < k; ++p)
+            {
+               s += A[p + k * row] * B[p + k * col];
+            }
+            Cref[row + m * col] = s;
+         }
+      }
+      InterpAx<9, 9>(m, n, k, B.data(), A.data(), C.data());
+      for (int i = 0; i < m * n; ++i)
+      {
+         REQUIRE(C[i] == MFEM_Approx(Cref[i]));
+      }
+   }
 }
 
 

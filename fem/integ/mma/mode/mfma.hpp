@@ -817,6 +817,18 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
                      SumfBFromKbyN{sBt, Q1D, D1D}, Y2Acc{&Y, e}, nd);
 }
 
+/** C(M,N) =[/+=] A(M,K) * B(K,N). A is DeviceMatrix(M,K). */
+template <bool ACCUM>
+MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
+                                      const int N, const real_t *A,
+                                      const real_t *B1d, real_t *C)
+{
+   SumfNullD nd;
+   Sumf<false, ACCUM>(M, K, N, SumfAFromMbyK{A, M, K},
+                      SumfBFromKbyN{B1d, K, N},
+                      SumfCToMbyN{C, M, N}, nd);
+}
+
 #endif // __HIP_DEVICE_COMPILE__ && !MFEM_USE_SINGLE
 
 
