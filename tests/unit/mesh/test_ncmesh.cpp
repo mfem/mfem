@@ -2960,8 +2960,7 @@ TEST_CASE("NCMesh high-valence vertex refcount", "[NCMesh]")
    // and NCMesh::OnMeshUpdated() dereferenced a null node -> assert/segfault.
    //
    // Build a "spindle" of K tetrahedra sharing the central axis edge so the
-   // two axis vertices each have valence K. K == 256 triggered the overflow;
-   // K == 255 did not.
+   // two axis vertices each have valence K.
    auto make_spindle = [](int K)
    {
       Mesh mesh(3, K + 2, K);
