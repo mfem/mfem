@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -27,7 +27,7 @@
 //
 // The solvers being compared include:
 //    1. MINRES preconditioned by a block diagonal preconditioner
-//    2. The divergence free solver (couple and decoupled modes)
+//    2. The divergence free solver (coupled and decoupled modes)
 //    3. The Bramble-Pasciak solver (using BPCG or regular PCG)
 //
 // We recommend viewing example 5 before viewing this miniapp.

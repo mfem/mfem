@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -825,7 +825,7 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<real_t> & coordx,
 
 void ExodusIIWriter::WriteFileSize()
 {
-   // Store Exodus file size (normal==0; large==1). NB: coordinates specifed
+   // Store Exodus file size (normal==0; large==1). NB: coordinates specified
    // separately as components for large file.
    const int file_size = 1;
 
@@ -850,7 +850,7 @@ void ExodusIIWriter::WriteNodeSets()
 
 void ExodusIIWriter::WriteTimesteps()
 {
-   // Set number of timesteps (ASSUME single timestep for initial verision).
+   // Set number of timesteps (ASSUME single timestep for initial version).
    int timesteps_dim;
    DefineDimension(ExodusIILabels::EXODUS_TIME_STEP_LABEL, 1, &timesteps_dim);
 }

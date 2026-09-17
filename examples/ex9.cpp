@@ -18,6 +18,7 @@
 //    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
 //    ex9 -m ../data/periodic-square.msh -p 0 -r 2 -dt 0.005 -tf 2
 //    ex9 -m ../data/periodic-cube.msh -p 0 -r 1 -o 2 -tf 2
+//    ex9 -m ../data/amr-hex.mesh -p 1 -r 1 -dt 0.005 -tf 0.5 -s 21  -imp-state
 //
 // Device sample runs:
 //    ex9 -pa
@@ -160,6 +161,7 @@ int main(int argc, char *argv[])
    bool paraview = false;
    bool binary = false;
    int vis_steps = 5;
+   bool solve_implicit_state = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -187,6 +189,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&solve_implicit_state, "-imp-state", "--implicit-state",
+                  "-imp-slope", "--implicit-slope",
+                  "Implicitly solve for stage state or slope.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -366,10 +371,15 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv(m, k, b);
+   using ImplicitVariableType = FE_Evolution::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
 
    real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
+   ode_solver->SetImplicitVariableType(imp_var);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -459,8 +469,20 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
-   K.Mult(x, z);
-   z += b;
+   // Construct current right-hand side for stage state vs. slope solve
+   real_t c = 1.0;
+   if (ImplicitVarTypeIsState())
+   {
+      // k, on return, is the stage value u
+      M.Mult(x, z);
+      c = dt;
+   }
+   else
+   {
+      // k, on return, is the stage slope du/dt
+      K.Mult(x, z);
+   }
+   z.Add(c, b);
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
 }

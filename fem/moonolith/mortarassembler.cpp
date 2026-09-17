@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,10 +78,7 @@ template <int Dim>
 void BuildBoxes(const Mesh &mesh,
                 std::vector<::moonolith::AABB<Dim, double>> &element_boxes)
 {
-#ifndef NDEBUG
-   const int dim = mesh.Dimension();
-   assert(dim == Dim);
-#endif
+   MFEM_ASSERT(mesh.Dimension() == Dim, "Mesh and box dimensions mismatched");
    element_boxes.resize(mesh.GetNE());
 
    DenseMatrix pts;

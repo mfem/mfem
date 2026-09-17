@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1019,7 +1019,7 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
    mSubProblem.reset(new MMA::MMASubSvanberg(*this, nVar, nCon));
 }
 
-MMA::MMA(MPI_Comm comm_, const int & nVar, const int & nCon,
+MMA::MMA(MPI_Comm comm_, const int nVar, const int nCon,
          const Vector & xval, int iter) : MMA(comm_, nVar, nCon, xval.GetData(), iter)
 {}
 #endif

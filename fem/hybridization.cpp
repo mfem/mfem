@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -789,7 +789,6 @@ void Hybridization::ComputeH()
    }
    else
    {
-      // TODO: add ones on the diagonal of zero rows
       V->Finalize();
       Array<HYPRE_BigInt> V_J(V->NumNonZeroElems());
       MFEM_ASSERT(c_pfes, "");
@@ -823,6 +822,13 @@ void Hybridization::ComputeH()
       MFEM_VERIFY(pH.Type() != Operator::PETSC_MATIS, "To be implemented");
       pH.MakePtAP(plpH, pP);
       delete lpH;
+
+      HypreParMatrix *hH = pH.As<HypreParMatrix>();
+      MFEM_ASSERT(hH, "");
+
+      SparseMatrix H_diag;
+      hH->GetDiag(H_diag);
+      H_diag.SetDiagIdentity();
    }
 #endif
 }

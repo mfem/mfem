@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 #include "../general/forall.hpp"
 #include "../general/reducers.hpp"
 #include "../general/hash.hpp"
+#include "../general/scan.hpp"
 #include "vector.hpp"
 
 #ifdef MFEM_USE_OPENMP
@@ -35,7 +36,7 @@ namespace mfem
  * a1 = max(a1, b1)
  * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^2)
  *
- * This form is resiliant against overflow/underflow, similar to std::hypot
+ * This form is resilient against overflow/underflow, similar to std::hypot
  */
 struct L2Reducer
 {
@@ -68,7 +69,7 @@ struct L2Reducer
  * a1 = max(a1, b1)
  * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^p)
  *
- * This form is resiliant against overflow/underflow, similar to std::hypot
+ * This form is resilient against overflow/underflow, similar to std::hypot
  */
 struct LpReducer
 {
@@ -117,9 +118,10 @@ Vector::Vector(const Vector &v)
    UseDevice(v.UseDevice());
 }
 
-Vector::Vector(Vector &&v) : Vector()
+Vector::Vector(Vector &&v)
+   : data(std::move(v.data)), size(v.size)
 {
-   *this = std::move(v);
+   v.size = 0;
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
@@ -221,8 +223,11 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(Vector &&v)
 {
-   v.Swap(*this);
-   if (this != &v) { v.Destroy(); }
+   if (this != &v)
+   {
+      v.Swap(*this);
+      v.Destroy();
+   }
    return *this;
 }
 
@@ -1264,6 +1269,35 @@ real_t Vector::Sum() const
    },
    SumReducer<real_t> {}, UseDevice(), vector_workspace());
    return res;
+}
+
+void Vector::DeleteAt(const Array<int> &indices)
+{
+   if (indices.Size())
+   {
+      const bool use_dev = UseDevice();
+
+      // extra entry for number of selected out
+      Array<int> workspace(size + 1);
+      const auto d_flag = workspace.Write(use_dev);
+      mfem::forall_switch(use_dev, size,
+      [=] MFEM_HOST_DEVICE(int i) { d_flag[i] = true; });
+      const auto d_indices = indices.Read(use_dev);
+      mfem::forall_switch(use_dev, indices.Size(), [=] MFEM_HOST_DEVICE(int i)
+      {
+         // fine as long as indices are unique; to support non-unique indices
+         // assignment to d_flag must be atomic
+         d_flag[d_indices[i]] = false;
+      });
+
+      Vector copy(*this);
+      auto d_in = copy.Read(use_dev);
+      auto d_out = Write(use_dev);
+      CopyFlagged(use_dev, d_in, d_flag, d_out, d_flag + size, size);
+
+      // assumes indices are unique
+      size -= indices.Size();
+   }
 }
 
 } // namespace mfem

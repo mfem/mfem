@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -33,6 +33,19 @@ void LinearFormIntegrator::AssembleRHSElementVect(
    FaceElementTransformations &Tr, Vector &elvect)
 {
    mfem_error("LinearFormIntegrator::AssembleRHSElementVect(...)");
+}
+
+DomainLFIntegrator::DomainLFIntegrator(Coefficient &QF, int a, int b)
+   : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b)
+{
+   static Kernels kernels;
+}
+
+DomainLFIntegrator::DomainLFIntegrator(Coefficient &QF,
+                                       const IntegrationRule *ir)
+   : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1)
+{
+   static Kernels kernels;
 }
 
 void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
@@ -266,6 +279,13 @@ void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+VectorDomainLFIntegrator::VectorDomainLFIntegrator(VectorCoefficient &QF,
+                                                   const IntegrationRule *ir)
+   : DeltaLFIntegrator(QF, ir), Q(QF)
+{
+   static DomainLFIntegrator::Kernels kernels;
+}
+
 void VectorDomainLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
@@ -449,6 +469,13 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
          }
       }
    }
+}
+
+VectorFEDomainLFIntegrator::VectorFEDomainLFIntegrator(
+   VectorCoefficient &F, const IntegrationRule *ir)
+   : DeltaLFIntegrator(F, ir), QF(F)
+{
+   static Kernels kernels{};
 }
 
 void VectorFEDomainLFIntegrator::AssembleRHSElementVect(

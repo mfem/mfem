@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -156,5 +156,11 @@ constexpr real_t operator""_r(unsigned long long v)
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #endif // MFEM_USE_MPI not defined
+
+#ifndef MFEM_USE_CUDA
+#ifdef MFEM_USE_CUDSS
+#error Building with cuDSS (MFEM_USE_CUDSS=YES) requires CUDA (MFEM_USE_CUDA=YES)
+#endif
+#endif // MFEM_USE_CUDSS not defined
 
 #endif // MFEM_CONFIG_HPP

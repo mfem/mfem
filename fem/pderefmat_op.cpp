@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -332,7 +332,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
    pack_col_idcs.SetSize(send_len);
    // memory manager doesn't appear to have a graceful fallback for
    // HOST_PINNED if not built with CUDA or HIP
-#if defined(MFEM_USE_CUDA) or defined(MFEM_USE_HIP)
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    xghost_send.SetSize(send_len * fespace->GetVDim(),
                        Device::GetGPUAwareMPI() ? MemoryType::DEFAULT
                        : MemoryType::HOST_PINNED);

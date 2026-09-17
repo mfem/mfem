@@ -1,0 +1,79 @@
+MFEM NURBS mesh v1.0
+
+#
+# MFEM Geometry Types (see fem/geom.hpp):
+#
+# SEGMENT     = 1
+# SQUARE      = 3
+# CUBE        = 5
+#
+
+dimension
+1
+
+# Three segments with different NURBS orders, described via patches.
+elements
+3
+1 1 0 1
+2 1 2 3
+3 1 4 5
+
+boundary
+6
+1 0 0
+1 0 1
+1 0 2
+1 0 3
+1 0 4
+1 0 5
+
+edges
+3
+0 0 1
+1 2 3
+2 4 5
+
+vertices
+6
+
+patches
+
+# Patch 0: linear (order 1, 2 control points)
+knotvectors
+1
+1 2  0 0  1 1
+
+dimension
+2
+
+controlpoints
+0.0  0.0  1.0
+1.0  1.0  1.0
+
+# Patch 1: quadratic (order 2, 3 control points)
+knotvectors
+1
+2 3  0 0 0  1 1 1
+
+dimension
+2
+
+controlpoints
+1.0  0.0   1.0
+1.02 1.02  1.2
+2.0  1.0   1.0
+
+# Patch 2: cubic (order 3, 4 control points)
+knotvectors
+1
+3 4  0 0 0 0  1 1 1 1
+
+dimension
+2
+
+controlpoints
+2.0   0.0   1.0
+2.03  0.83  1.31
+2.33  1.03  1.32
+3.0   1.0   1.0
+

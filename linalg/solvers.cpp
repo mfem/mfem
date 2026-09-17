@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,6 +31,7 @@ IterativeSolver::IterativeSolver()
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
 #ifdef MFEM_USE_MPI
@@ -45,6 +46,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 {
    oper = NULL;
    prec = NULL;
+   dot_oper = NULL;
    max_iter = 10;
    rel_tol = abs_tol = 0.0;
    dot_prod_type = 1;
@@ -56,6 +58,7 @@ IterativeSolver::IterativeSolver(MPI_Comm comm_)
 real_t IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
    MFEM_PERF_FUNCTION;
+   if (dot_oper) { return dot_oper->Eval(x,y); } // Use custom inner product (if provided)
 
 #ifndef MFEM_USE_MPI
    return (x * y);
@@ -204,6 +207,119 @@ bool IterativeSolver::Monitor(int it, real_t norm, const Vector& r,
       return controller->HasConverged();
    }
    return false;
+}
+
+void ConstrainedInnerProduct::SetIndices(const Array<int> &list)
+{
+   list.Read(); // TODO: just ensure 'list' is registered, no need to copy it
+   constraint_list.MakeRef(list);
+   const int csz = constraint_list.Size();
+   xr.SetSize(csz); xr.UseDevice(true);
+   yr.SetSize(csz); yr.UseDevice(true);
+}
+
+real_t ConstrainedInnerProduct::Eval(const Vector &x, const Vector &y)
+{
+   const int csz = constraint_list.Size();
+
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   auto d_y = y.Read();
+   auto d_xr = xr.ReadWrite();
+   auto d_yr = yr.ReadWrite();
+
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_xr[i] = d_x[idx[i]];
+      d_yr[i] = d_y[idx[i]];
+   });
+
+   return Dot(xr, yr);
+}
+
+void ConstrainedInnerProduct::Mult(const Vector &x, Vector &y) const
+{
+   const int csz = constraint_list.Size();
+   y.SetSize(csz);
+
+   auto idx = constraint_list.Read();
+   auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+
+   mfem::forall(csz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_y[i] = d_x[idx[i]];
+   });
+}
+
+void WeightedInnerProduct::SetOperator(Operator *X, Operator *Y)
+{
+   if (X && Y)
+   {
+      MFEM_VERIFY(X->Height() == Y->Height(),
+                  "Incompatible operator heights in WeightedInnerProduct");
+   }
+
+   operX = X;
+   operY = Y;
+   if (operX)
+   {
+      mem_class = operX->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operX->Height();
+      wx.SetSize(ht, mem_type);
+      wx.UseDevice(true);
+   }
+
+   if (operY)
+   {
+      mem_class = operY->GetMemoryClass()*Device::GetMemoryClass();
+      MemoryType mem_type = GetMemoryType(mem_class);
+      const int ht = operY->Height();
+      wy.SetSize(ht, mem_type);
+      wy.UseDevice(true);
+   }
+}
+
+real_t WeightedInnerProduct::Eval(const Vector &x, const Vector &y)
+{
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
+
+   if (operY && operX)
+   {
+      operX->Mult(x, wx);
+      operY->Mult(y, wy);
+      return Dot(wy,wx);
+   }
+   else if (operY)
+   {
+      operY->Mult(y, wy);
+      return Dot(wy,x);
+   }
+   // if(operX)
+   operX->Mult(x, wx);
+   return Dot(y,wx);
+}
+
+void WeightedInnerProduct::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY((operX || operY),
+               "Weighting operator not set; set using ::SetOperator")
+
+   if (operY && operX)
+   {
+      operX->Mult(x, wx);
+      operY->Mult(wx, y);
+      return;
+   }
+   else if (operY)
+   {
+      operY->Mult(x, y);
+      return;
+   }
+   // if(operX)
+   operX->Mult(x, y);
 }
 
 OperatorJacobiSmoother::OperatorJacobiSmoother(const real_t dmpng)

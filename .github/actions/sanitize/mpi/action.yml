@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -11,6 +11,11 @@
 ---
 name: 'Install MPI'
 description: 'Installs MPI and set up its environment variables'
+
+inputs:
+  NO_FLAGS:
+    description: If true, do not set any CXXFLAGS or LDFLAGS.
+    default: false
 
 runs:
   using: 'composite'
@@ -27,6 +32,7 @@ runs:
       shell: bash
 
     - name: Env (bis)
+      if: ${{ inputs.NO_FLAGS != 'true' }}
       run: |
         echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.MPI_INC}} >> $GITHUB_ENV
         echo LDFLAGS=${{env.LDFLAGS}} ${{env.MPI_LIB}} >> $GITHUB_ENV

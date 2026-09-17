@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -111,6 +111,21 @@ void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
       MFEM_ASSERT(X[i] && Y[i], "Missing Vector in Operator::AddMultTranspose!");
       AddMultTranspose(*X[i], *Y[i], a);
    }
+}
+
+void Operator::MultMV(const MultiVector &, MultiVector &) const
+{
+   MFEM_ABORT("this method is not overridden for this class!");
+}
+
+void Operator::MultTransposeMV(const MultiVector &x, MultiVector &y) const
+{
+   MFEM_ABORT("this method is not overridden for this class!");
+}
+
+Operator &Operator::GetGradientMV(const MultiVector &) const
+{
+   MFEM_ABORT("this method is not overridden for this class!");
 }
 
 void Operator::FormLinearSystem(const Array<int> &ess_tdof_list,
@@ -858,6 +873,22 @@ void RectangularConstrainedOperator::MultTranspose(const Vector &x,
          d_y[idx[i]] = 0.0;
       });
    }
+}
+
+real_t InnerProductOperator::Dot(const Vector &x, const Vector &y) const
+{
+#ifndef MFEM_USE_MPI
+   return (x * y);
+#else
+   if (dot_prod_type == 0)
+   {
+      return (x * y);
+   }
+   else
+   {
+      return InnerProduct(comm, x, y);
+   }
+#endif
 }
 
 real_t PowerMethod::EstimateLargestEigenvalue(Operator& opr, Vector& v0,

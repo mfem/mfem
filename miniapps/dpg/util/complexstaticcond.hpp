@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,6 +36,7 @@ class ComplexBlockStaticCondensation
    // New set of "reduced" Finite Element Spaces
    // (after static condensation)
    Array<FiniteElementSpace *> tr_fes;
+   Array<FiniteElementCollection *> tr_fec;
 
    Array<int> dof_offsets;
    Array<int> tdof_offsets;
@@ -210,9 +211,14 @@ public:
    void ConvertListToReducedTrueDofs(const Array<int> &ess_tdof_list,
                                      Array<int> &ess_rtdof_list) const;
 
-   /** Given a solution of the reduced system 'sc_sol' and the RHS 'b' for the
-       full linear system, compute the solution of the full system 'sol'. */
+   /** Given a solution of the reduced system 'sc_sol', compute the solution
+       of the full system 'sol'. */
    void ComputeSolution(const Vector &sc_sol, Vector &sol) const;
+
+   void GetTraceFESpaces(Array<FiniteElementSpace *> & trace_fes) const
+   {
+      trace_fes = tr_fes;
+   }
 
 };
 

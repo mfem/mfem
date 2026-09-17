@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@ namespace mfem::future
 ///
 /// This class serves as a base for different FieldOperator types which can be
 /// applied to fields that are used with inputs to a quadrature point function.
-/// See DifferentialOperator.
+/// See DifferentiableOperator.
 template <int FIELD_ID = -1>
 class FieldOperator
 {

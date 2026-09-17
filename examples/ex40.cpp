@@ -29,7 +29,7 @@
 //              different algorithm. We then adaptively regularize the optimization
 //              problem (⋆) with the Bregman divergence of the Hellinger entropy,
 //
-//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ D(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = 0 on Ω.
+//                 maximize  ∫_Ω 𝑢 d𝑥 - αₖ⁻¹ D(∇𝑢,∇𝑢ₖ₋₁)  subject to  𝑢 = 0 on ∂Ω.
 //
 //              This results in a sequence of functions ( 𝜓ₖ , 𝑢ₖ ),
 //

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -444,7 +444,7 @@ bool ComplexLUFactors::Factor(int m, real_t TOL)
                piv = j;
             }
          }
-         ipiv[i] = piv;
+         ipiv[i] = piv + 1;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
@@ -870,7 +870,7 @@ void ComplexCholeskyFactors::USolve(int m, int n, real_t * X_r,
                                &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:USolve:: info");
 #else
-   // X <- L^{-t} X
+   // X <- L^{-H} X
    for (int k = 0; k < n; k++)
    {
       for (int j = m-1; j >= 0; j--)
