@@ -55,116 +55,13 @@ void BuildRtRefDivShape(const FiniteElement &el, const IntegrationRule &ir,
    }
 }
 
-/** H(div) mass: phys = (1/|J|) J û  → metric w/|J| * J^T Q J on ref shapes. */
-void SetupHdivMassPaSimplex(const FiniteElementSpace &fes,
-                            const IntegrationRule &ir,
-                            Coefficient *Q,
-                            DiagonalMatrixCoefficient *DQ,
-                            MatrixCoefficient *MQ,
-                            bool &symmetric,
-                            Vector &pa_data)
+void ProjectVecFeCoeff(Coefficient *Q, DiagonalMatrixCoefficient *DQ,
+                       MatrixCoefficient *MQ, CoefficientVector &coeff)
 {
-   Mesh *mesh = fes.GetMesh();
-   const int dim = mesh->Dimension();
-   const int NE = fes.GetNE();
-   const int nq = ir.GetNPoints();
-   const int symmDims = (dim * (dim + 1)) / 2;
-   symmetric = true;
-   if (MQ && !dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
-   {
-      symmetric = false;
-   }
-   const int ncomp = symmetric ? symmDims : dim * dim;
-   pa_data.SetSize(ncomp * nq * NE, Device::GetMemoryType());
-   auto D = Reshape(pa_data.HostWrite(), nq, ncomp, NE);
-
-   DenseMatrix Qm(dim), tmp(dim), A(dim), M;
-   Vector Dv;
-   for (int e = 0; e < NE; ++e)
-   {
-      ElementTransformation &T = *fes.GetElementTransformation(e);
-      for (int q = 0; q < nq; ++q)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         T.SetIntPoint(&ip);
-         const DenseMatrix &J = T.Jacobian();
-         Qm = 0.0;
-         if (MQ)
-         {
-            MQ->Eval(M, T, ip);
-            Qm = M;
-         }
-         else if (DQ)
-         {
-            DQ->Eval(Dv, T, ip);
-            for (int i = 0; i < dim; ++i) { Qm(i, i) = Dv(i); }
-         }
-         else if (Q)
-         {
-            const real_t qv = Q->Eval(T, ip);
-            for (int i = 0; i < dim; ++i) { Qm(i, i) = qv; }
-         }
-         else
-         {
-            for (int i = 0; i < dim; ++i) { Qm(i, i) = 1.0; }
-         }
-         // A = (w/|J|) * J^T Q J
-         MultAtB(J, Qm, tmp);
-         Mult(tmp, J, A);
-         A *= (ip.weight / T.Weight());
-
-         if (symmetric)
-         {
-            if (dim == 2)
-            {
-               D(q, 0, e) = A(0, 0);
-               D(q, 1, e) = A(1, 0);
-               D(q, 2, e) = A(1, 1);
-            }
-            else
-            {
-               D(q, 0, e) = A(0, 0);
-               D(q, 1, e) = A(1, 0);
-               D(q, 2, e) = A(2, 0);
-               D(q, 3, e) = A(1, 1);
-               D(q, 4, e) = A(2, 1);
-               D(q, 5, e) = A(2, 2);
-            }
-         }
-         else
-         {
-            for (int i = 0; i < dim; ++i)
-               for (int j = 0; j < dim; ++j)
-               {
-                  D(q, i * dim + j, e) = A(i, j);
-               }
-         }
-      }
-   }
-}
-
-void SetupDivDivPaSimplex(const FiniteElementSpace &fes,
-                          const IntegrationRule &ir,
-                          Coefficient *Q,
-                          Vector &pa_data)
-{
-   Mesh *mesh = fes.GetMesh();
-   const int NE = fes.GetNE();
-   const int nq = ir.GetNPoints();
-   // phys_div = ref_div / |J|; FA weight*|J|*Q*phys^2 = Q*w/|J| * ref^2
-   pa_data.SetSize(nq * NE, Device::GetMemoryType());
-   auto D = Reshape(pa_data.HostWrite(), nq, NE);
-   for (int e = 0; e < NE; ++e)
-   {
-      ElementTransformation &T = *fes.GetElementTransformation(e);
-      for (int q = 0; q < nq; ++q)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         T.SetIntPoint(&ip);
-         const real_t coeff = Q ? Q->Eval(T, ip) : real_t(1.0);
-         D(q, e) = coeff * ip.weight / T.Weight();
-      }
-   }
+   if (Q) { coeff.Project(*Q); }
+   else if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
 }
 
 } // namespace
@@ -172,6 +69,8 @@ void SetupDivDivPaSimplex(const FiniteElementSpace &fes,
 void VectorFEMassIntegrator::AssembleSimplexMmaHdivPA(
    const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
@@ -192,7 +91,22 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHdivPA(
    use_tensors_mma = false;
 
    BuildRtRefVShape(el, ir, simplex_B);
-   SetupHdivMassPaSimplex(fes, ir, Q, DQ, MQ, symmetric, pa_data);
+
+   QuadratureSpace qs(*mesh, ir);
+   CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
+   ProjectVecFeCoeff(Q, DQ, MQ, coeff);
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dim * dim);
+   const int ncomp = symmetric ? (dim * (dim + 1)) / 2 : dim * dim;
+   pa_data.SetSize(ncomp * nq * ne, mt);
+
+   Vector nodes_e;
+   const Array<real_t> *G = nullptr;
+   int nd_n = 0;
+   internal::GetSimplexSetupGeom(*mesh, ir, mt, nodes_e, G, nd_n);
+   internal::PAJTQJSetupSimplexFromNodes(
+      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e, coeff, pa_data);
+
    simplex_nd = el.GetDof();
    simplex_sdim = dim;
    simplex_curl_dim = 0;
@@ -200,6 +114,8 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHdivPA(
 
 void DivDivIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
@@ -216,9 +132,23 @@ void DivDivIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    geom = nullptr;
    use_simplices_mma = true;
    use_tensors_mma = false;
-   // DivDivIntegrator has no nq member — store via pa_data geometry only
+
    BuildRtRefDivShape(el, ir, simplex_B);
-   SetupDivDivPaSimplex(fes, ir, Q, pa_data);
+
+   QuadratureSpace qs(*mesh, ir);
+   CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
+   if (Q) { coeff.Project(*Q); }
+   else { coeff.SetConstant(1.0); }
+   pa_data.SetSize(ir.GetNPoints() * ne, mt);
+
+   Vector nodes_e;
+   const Array<real_t> *G = nullptr;
+   int nd_n = 0;
+   internal::GetSimplexSetupGeom(*mesh, ir, mt, nodes_e, G, nd_n);
+   internal::PAInvDetJSetupSimplexFromNodes(
+      dim, coeff.GetVDim(), ne, ir.GetNPoints(), nd_n, ir.GetWeights(), *G,
+      nodes_e, coeff, pa_data);
+
    simplex_nd = el.GetDof();
    simplex_nq = ir.GetNPoints();
    simplex_sdim = dim;

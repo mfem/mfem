@@ -188,7 +188,9 @@ inline bool IsTensorsMmaHdivElement(const FiniteElement &el, int dim)
    return dynamic_cast<const RT_HexahedronElement *>(&el) != nullptr;
 }
 
-/** Opt-in tensor MMA for fixed-order ND (Hcurl) quad/hex. ForceMMA; double; p≥3. */
+/** Opt-in tensor MMA for fixed-order ND (Hcurl) quad/hex. ForceMMA; double; p≥3.
+    GPU: MMA smem shell (Interp/Grad + dmma/mfma when TensorMmaEnabled, else
+    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread. */
 inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }
@@ -213,7 +215,9 @@ inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
 #endif
 }
 
-/** Opt-in tensor MMA for fixed-order RT (Hdiv) quad/hex. ForceMMA; double; p≥3. */
+/** Opt-in tensor MMA for fixed-order RT (Hdiv) quad/hex. ForceMMA; double; p≥3.
+    GPU: MMA smem shell (Interp/Grad + dmma/mfma when TensorMmaEnabled, else
+    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread. */
 inline bool UsesTensorMmaHdiv(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }
@@ -328,6 +332,20 @@ inline void GetSimplexMeshNodesE(Mesh &mesh, MemoryType mt, Vector &nodes_e,
    nR->Mult(*nodes, nodes_e);
 }
 
+/** Mesh-node E-vector plus FULL DofToQuad G for a simplex IR. */
+inline void GetSimplexSetupGeom(Mesh &mesh, const IntegrationRule &ir,
+                                MemoryType mt, Vector &nodes_e,
+                                const Array<real_t> *&G, int &nd_n)
+{
+   int sdim = 0;
+   GetSimplexMeshNodesE(mesh, mt, nodes_e, nd_n, sdim);
+   MFEM_VERIFY(sdim == mesh.Dimension(), "");
+   const FiniteElement &nfe = *mesh.GetNodes()->FESpace()->GetTypicalFE();
+   const DofToQuad &nmaps = nfe.GetDofToQuad(ir, DofToQuad::FULL);
+   MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == ir.GetNPoints(), "");
+   G = &nmaps.G;
+}
+
 /** Build 2D Jacobian at (q,e) from mesh nodes E and GradP slice G. */
 template <typename EAcc, typename GAcc>
 MFEM_HOST_DEVICE inline void EvalSimplexJ2(EAcc E, GAcc G, const int q,
@@ -364,6 +382,27 @@ MFEM_HOST_DEVICE inline void EvalSimplexJ3(EAcc E, GAcc G, const int q,
    }
 }
 
+/** Adjugate of J (J^{-1} = adj(J) / detJ). */
+MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
+                                         const real_t J31, const real_t J12,
+                                         const real_t J22, const real_t J32,
+                                         const real_t J13, const real_t J23,
+                                         const real_t J33,
+                                         real_t &C11, real_t &C12, real_t &C13,
+                                         real_t &C21, real_t &C22, real_t &C23,
+                                         real_t &C31, real_t &C32, real_t &C33)
+{
+   C11 = (J22 * J33) - (J23 * J32);
+   C12 = (J32 * J13) - (J12 * J33);
+   C13 = (J12 * J23) - (J22 * J13);
+   C21 = (J31 * J23) - (J21 * J33);
+   C22 = (J11 * J33) - (J13 * J31);
+   C23 = (J21 * J13) - (J11 * J23);
+   C31 = (J21 * J32) - (J31 * J22);
+   C32 = (J31 * J12) - (J11 * J32);
+   C33 = (J11 * J22) - (J12 * J21);
+}
+
 void PADetJSetupSimplexFromNodes(const int dim,
                                  const int NE,
                                  const int NQ,
@@ -374,6 +413,43 @@ void PADetJSetupSimplexFromNodes(const int dim,
                                  const Vector &nodes_e,
                                  const Vector &c,
                                  Vector &d);
+
+/** D(q,e) = w(q) * C_0(q,e) / |J|  (2D curl-curl, div-div).
+    C layout: (coeffDim, NQ, NE) or constant (coeffDim). */
+void PAInvDetJSetupSimplexFromNodes(const int dim,
+                                    const int coeffDim,
+                                    const int NE,
+                                    const int NQ,
+                                    const int ND,
+                                    const Array<real_t> &w,
+                                    const Array<real_t> &g,
+                                    const Vector &nodes_e,
+                                    const Vector &c,
+                                    Vector &d);
+
+/** D = (w/|J|) J^T C J  (H(div) mass, 3D curl-curl). Packed like simplex apply. */
+void PAJTQJSetupSimplexFromNodes(const int dim,
+                                 const int coeffDim,
+                                 const int NE,
+                                 const int NQ,
+                                 const int ND,
+                                 const Array<real_t> &w,
+                                 const Array<real_t> &g,
+                                 const Vector &nodes_e,
+                                 const Vector &c,
+                                 Vector &d);
+
+/** D = w |J| J^{-1} C J^{-T}  (H(curl) mass with reference V-shapes). */
+void PAJinvQJinvTSetupSimplexFromNodes(const int dim,
+                                       const int coeffDim,
+                                       const int NE,
+                                       const int NQ,
+                                       const int ND,
+                                       const Array<real_t> &w,
+                                       const Array<real_t> &g,
+                                       const Vector &nodes_e,
+                                       const Vector &c,
+                                       Vector &d);
 
 } // namespace mfem::internal
 

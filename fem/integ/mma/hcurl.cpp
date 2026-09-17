@@ -21,6 +21,14 @@ namespace mfem
 namespace
 {
 
+void ProjectVecFeCoeff(Coefficient *Q, DiagonalMatrixCoefficient *DQ,
+                       MatrixCoefficient *MQ, CoefficientVector &coeff)
+{
+   if (Q) { coeff.Project(*Q); }
+   else if (MQ) { coeff.ProjectTranspose(*MQ); }
+   else if (DQ) { coeff.Project(*DQ); }
+   else { coeff.SetConstant(1.0); }
+}
 
 /** Apply TransformDual on the nd-axis of a (nq,nd,ncomp[,NE]) basis so that
     B_eff @ x_E = B_native @ InvTransformPrimal(x_E) and the dual pullback
@@ -35,17 +43,20 @@ void BakeNdDofTransformation(const FiniteElementSpace &fes,
    {
       Array<real_t> B0 = B;
       B.SetSize(nq * nd * ncomp * NE);
-      const auto Bin = Reshape(B0.HostRead(), nq, nd, ncomp);
-      auto Bout = Reshape(B.HostWrite(), nq, nd, ncomp, NE);
-      for (int e = 0; e < NE; ++e)
-         for (int q = 0; q < nq; ++q)
-            for (int c = 0; c < ncomp; ++c)
-               for (int i = 0; i < nd; ++i)
-               {
-                  Bout(q, i, c, e) = Bin(q, i, c);
-               }
+      const auto Bin = Reshape(B0.Read(), nq, nd, ncomp);
+      auto Bout = Reshape(B.Write(), nq, nd, ncomp, NE);
+      mfem::forall(nq * nd * ncomp * NE, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int q = idx % nq;
+         int t = idx / nq;
+         const int i = t % nd;
+         t /= nd;
+         const int c = t % ncomp;
+         const int e = t / ncomp;
+         Bout(q, i, c, e) = Bin(q, i, c);
+      });
    }
-   // In-place transform on host memory
+   // TransformDual is a host DofTransformation API.
    auto Bb = Reshape(B.HostReadWrite(), nq, nd, ncomp, NE);
    Array<int> vdofs;
    Vector col(nd);
@@ -63,120 +74,28 @@ void BakeNdDofTransformation(const FiniteElementSpace &fes,
    }
 }
 
-/** Pack physical ND vector shapes at IR into B: layout (nq, nd, sdim, NE). */
-void BuildNdPhysVShape(const FiniteElementSpace &fes, const IntegrationRule &ir,
-                       Array<real_t> &B)
+/** Reference ND / RT vector shapes at IR: B(q,i,c). Host FE eval, once. */
+void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
+                    Array<real_t> &B)
 {
-   const FiniteElement &el = *fes.GetTypicalFE();
    const int nd = el.GetDof();
    const int nq = ir.GetNPoints();
    const int sdim = el.GetDim();
-   const int NE = fes.GetNE();
-   B.SetSize(nq * nd * sdim * NE);
+   B.SetSize(nq * nd * sdim);
    DenseMatrix vshape(nd, sdim);
-   auto Bb = Reshape(B.HostWrite(), nq, nd, sdim, NE);
-   for (int e = 0; e < NE; ++e)
+   auto Bb = Reshape(B.HostWrite(), nq, nd, sdim);
+   for (int q = 0; q < nq; ++q)
    {
-      ElementTransformation &T = *fes.GetElementTransformation(e);
-      for (int q = 0; q < nq; ++q)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         T.SetIntPoint(&ip);
-         el.CalcVShape(T, vshape); // physical Piola
-         for (int i = 0; i < nd; ++i)
-            for (int c = 0; c < sdim; ++c)
-            {
-               Bb(q, i, c, e) = vshape(i, c);
-            }
-      }
+      el.CalcVShape(ir.IntPoint(q), vshape);
+      for (int i = 0; i < nd; ++i)
+         for (int c = 0; c < sdim; ++c)
+         {
+            Bb(q, i, c) = vshape(i, c);
+         }
    }
 }
 
-/** Physical-space mass metric D = Q * w * |J| (FA VectorFEMass weight). */
-void SetupHcurlMassPaSimplex(const FiniteElementSpace &fes,
-                             const IntegrationRule &ir,
-                             Coefficient *Q,
-                             DiagonalMatrixCoefficient *DQ,
-                             MatrixCoefficient *MQ,
-                             bool &symmetric,
-                             Vector &pa_data)
-{
-   Mesh *mesh = fes.GetMesh();
-   const int dim = mesh->Dimension();
-   const int NE = fes.GetNE();
-   const int nq = ir.GetNPoints();
-   const int symmDims = (dim * (dim + 1)) / 2;
-   if (MQ && !dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
-   {
-      symmetric = false;
-   }
-   else
-   {
-      symmetric = true;
-   }
-   const int ncomp = symmetric ? symmDims : dim * dim;
-   pa_data.SetSize(ncomp * nq * NE, Device::GetMemoryType());
-   auto D = Reshape(pa_data.HostWrite(), nq, ncomp, NE);
-
-   DenseMatrix M, A(dim);
-   Vector Dvec;
-   for (int e = 0; e < NE; ++e)
-   {
-      ElementTransformation &T = *fes.GetElementTransformation(e);
-      for (int q = 0; q < nq; ++q)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         T.SetIntPoint(&ip);
-         const real_t wdet = ip.weight * T.Weight();
-         A = 0.0;
-         if (MQ)
-         {
-            MQ->Eval(M, T, ip);
-            A = M;
-            A *= wdet;
-         }
-         else if (DQ)
-         {
-            DQ->Eval(Dvec, T, ip);
-            for (int i = 0; i < dim; ++i) { A(i, i) = Dvec(i) * wdet; }
-         }
-         else
-         {
-            const real_t qv = Q ? Q->Eval(T, ip) : real_t(1.0);
-            for (int i = 0; i < dim; ++i) { A(i, i) = qv * wdet; }
-         }
-
-         if (symmetric)
-         {
-            if (dim == 2)
-            {
-               D(q, 0, e) = A(0, 0);
-               D(q, 1, e) = A(1, 0);
-               D(q, 2, e) = A(1, 1);
-            }
-            else
-            {
-               D(q, 0, e) = A(0, 0);
-               D(q, 1, e) = A(1, 0);
-               D(q, 2, e) = A(2, 0);
-               D(q, 3, e) = A(1, 1);
-               D(q, 4, e) = A(2, 1);
-               D(q, 5, e) = A(2, 2);
-            }
-         }
-         else
-         {
-            for (int i = 0; i < dim; ++i)
-               for (int j = 0; j < dim; ++j)
-               {
-                  D(q, i * dim + j, e) = A(i, j);
-               }
-         }
-      }
-   }
-}
-
-/** Build reference curl shapes at IR: C(q,i,c). */
+/** Reference curl shapes at IR: C(q,i,c). Host FE eval, once. */
 void BuildNdRefCurlShape(const FiniteElement &el, const IntegrationRule &ir,
                          Array<real_t> &C)
 {
@@ -197,122 +116,13 @@ void BuildNdRefCurlShape(const FiniteElement &el, const IntegrationRule &ir,
    }
 }
 
-void SetupCurlCurlPaSimplex(const FiniteElementSpace &fes,
-                            const IntegrationRule &ir,
-                            Coefficient *Q,
-                            DiagonalMatrixCoefficient *DQ,
-                            MatrixCoefficient *MQ,
-                            bool &symmetric,
-                            Vector &pa_data)
-{
-   Mesh *mesh = fes.GetMesh();
-   const int dim = mesh->Dimension();
-   const int NE = fes.GetNE();
-   const int nq = ir.GetNPoints();
-   symmetric = true;
-   if (MQ && !dynamic_cast<SymmetricMatrixCoefficient *>(MQ))
-   {
-      symmetric = false;
-   }
-
-   if (dim == 2)
-   {
-      // D(q,e) = Q * w / |J|  so that (ref_curl)^T D (ref_curl) matches FA
-      pa_data.SetSize(nq * NE, Device::GetMemoryType());
-      auto D = Reshape(pa_data.HostWrite(), nq, NE);
-      for (int e = 0; e < NE; ++e)
-      {
-         ElementTransformation &T = *fes.GetElementTransformation(e);
-         for (int q = 0; q < nq; ++q)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(q);
-            T.SetIntPoint(&ip);
-            real_t coeff = 1.0;
-            if (Q) { coeff = Q->Eval(T, ip); }
-            else if (DQ)
-            {
-               Vector d(1);
-               DQ->Eval(d, T, ip);
-               coeff = d(0);
-            }
-            else if (MQ)
-            {
-               DenseMatrix M(1);
-               MQ->Eval(M, T, ip);
-               coeff = M(0, 0);
-            }
-            D(q, e) = coeff * ip.weight / T.Weight();
-         }
-      }
-      return;
-   }
-
-   // 3D: phys_curl = J * curl_ref / |J|
-   // FA: w*|J|*Q * phys·phys = w/|J| * curl_ref^T (J^T Q J) curl_ref
-   const int ncomp = symmetric ? 6 : 9;
-   pa_data.SetSize(ncomp * nq * NE, Device::GetMemoryType());
-   auto D = Reshape(pa_data.HostWrite(), nq, ncomp, NE);
-   DenseMatrix M, Qm(3), JJ(3), tmp(3), A(3);
-   Vector Dv;
-   for (int e = 0; e < NE; ++e)
-   {
-      ElementTransformation &T = *fes.GetElementTransformation(e);
-      for (int q = 0; q < nq; ++q)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         T.SetIntPoint(&ip);
-         const DenseMatrix &J = T.Jacobian();
-         Qm = 0.0;
-         if (MQ)
-         {
-            MQ->Eval(M, T, ip);
-            Qm = M;
-         }
-         else if (DQ)
-         {
-            DQ->Eval(Dv, T, ip);
-            for (int i = 0; i < 3; ++i) { Qm(i, i) = Dv(i); }
-         }
-         else if (Q)
-         {
-            const real_t qv = Q->Eval(T, ip);
-            for (int i = 0; i < 3; ++i) { Qm(i, i) = qv; }
-         }
-         else
-         {
-            for (int i = 0; i < 3; ++i) { Qm(i, i) = 1.0; }
-         }
-         // A = (w/|J|) * J^T Q J
-         MultAtB(J, Qm, tmp); // J^T Q
-         Mult(tmp, J, A);     // J^T Q J
-         A *= (ip.weight / T.Weight());
-         if (symmetric)
-         {
-            D(q, 0, e) = A(0, 0);
-            D(q, 1, e) = A(1, 0);
-            D(q, 2, e) = A(2, 0);
-            D(q, 3, e) = A(1, 1);
-            D(q, 4, e) = A(2, 1);
-            D(q, 5, e) = A(2, 2);
-         }
-         else
-         {
-            for (int i = 0; i < 3; ++i)
-               for (int j = 0; j < 3; ++j)
-               {
-                  D(q, i * 3 + j, e) = A(i, j);
-               }
-         }
-      }
-   }
-}
-
 } // namespace
-
 
 void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
@@ -336,16 +146,32 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    simplex_sdim = dim;
    simplex_curl_dim = 0;
 
-   BuildNdPhysVShape(fes, ir, simplex_B);
+   BuildRefVShape(el, ir, simplex_B);
    if (el.GetDofTransformation() != nullptr)
    {
       BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_sdim);
    }
-   SetupHcurlMassPaSimplex(fes, ir, Q, DQ, MQ, symmetric, pa_data);
+
+   QuadratureSpace qs(*mesh, ir);
+   CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
+   ProjectVecFeCoeff(Q, DQ, MQ, coeff);
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dim * dim);
+   const int ncomp = symmetric ? (dim * (dim + 1)) / 2 : dim * dim;
+   pa_data.SetSize(ncomp * nq * ne, mt);
+
+   Vector nodes_e;
+   const Array<real_t> *G = nullptr;
+   int nd_n = 0;
+   internal::GetSimplexSetupGeom(*mesh, ir, mt, nodes_e, G, nd_n);
+   internal::PAJinvQJinvTSetupSimplexFromNodes(
+      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e, coeff, pa_data);
 }
 
 void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 {
+   const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
+                         Device::GetDeviceMemoryType() : pa_mt;
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
@@ -373,7 +199,31 @@ void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    {
       BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_curl_dim);
    }
-   SetupCurlCurlPaSimplex(fes, ir, Q, DQ, MQ, symmetric, pa_data);
+
+   QuadratureSpace qs(*mesh, ir);
+   CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
+   ProjectVecFeCoeff(Q, DQ, MQ, coeff);
+   const int coeff_dim = coeff.GetVDim();
+   symmetric = (coeff_dim != dim * dim);
+
+   Vector nodes_e;
+   const Array<real_t> *G = nullptr;
+   int nd_n = 0;
+   internal::GetSimplexSetupGeom(*mesh, ir, mt, nodes_e, G, nd_n);
+
+   if (dim == 2)
+   {
+      pa_data.SetSize(nq * ne, mt);
+      internal::PAInvDetJSetupSimplexFromNodes(
+         dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e, coeff,
+         pa_data);
+      return;
+   }
+
+   const int ncomp = symmetric ? 6 : 9;
+   pa_data.SetSize(ncomp * nq * ne, mt);
+   internal::PAJTQJSetupSimplexFromNodes(
+      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e, coeff, pa_data);
 }
 
 } // namespace mfem

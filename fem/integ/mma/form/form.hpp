@@ -24,7 +24,7 @@
 
     Layout:
       fields.hpp | plan.hpp | simplex.hpp — simplex dense Apply / ApplyLF
-      tensors.hpp                          — tensor-product ApplyTensor + engines
+      tensors.hpp                          — tensor ApplyTensor (H1 + H(curl)/H(div) smem)
 
     Authoring guide: form/README.md
     Design: docs/design/mma-declarative-kernels.md

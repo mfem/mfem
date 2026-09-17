@@ -1680,8 +1680,8 @@ inline void SimplexVecEvalApply(const int dim, const int NE, const int nd,
                               const Vector &pa_data,
                               const Vector &x, Vector &y)
 {
-   // B: (nq, nd, sdim[, NE]) physical vector shapes (Piola already applied)
-   // pa_data: (nq, ncomp, NE) physical mass metric Q*w*|J|
+   // B: (nq, nd, sdim[, NE]) reference vector shapes (Piola is in pa_data)
+   // pa_data: H(curl) w|J| J^{-1} Q J^{-T}; H(div) (w/|J|) J^T Q J
    MFEM_VERIFY(B.Size() > 0, "Simplex H(curl) mass MMA requires Q-space bases");
    const int ncomp = symmetric ? (sdim * (sdim + 1)) / 2 : sdim * sdim;
    const bool per_elem_B = (B.Size() == nq * nd * sdim * NE);

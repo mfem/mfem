@@ -16,11 +16,15 @@
 #include "fem/integ/mma/mass.hpp"
 #include "fem/integ/mma/diffusion.hpp"
 #include "fem/integ/mma/domain_lf.hpp"
+#include "fem/integ/mma/hcurl.hpp"
+#include "fem/integ/mma/hdiv.hpp"
 
 using namespace mfem;
 using namespace mfem::internal::mma;
 using namespace mfem::internal::mma::form;
 using mfem::future::tensor;
+// Avoid clash with C stdlib ::div_t
+using mma_div_t = mfem::internal::mma::form::div_t;
 
 TEST_CASE("MMA form QFn tensor algebra", "[MMA][Form]")
 {
@@ -57,6 +61,80 @@ TEST_CASE("MMA form QFn tensor algebra", "[MMA][Form]")
       REQUIRE(y[0] == MFEM_Approx(2.0));
       REQUIRE(y[1] == MFEM_Approx(6.0));
    }
+
+   SECTION("HcurlMass y = A * u (2D)")
+   {
+      HcurlMass<2> q;
+      grad_t<2> u;
+      u[0] = 1.0;
+      u[1] = 2.0;
+      tensor<real_t, 2, 2> A{};
+      A(0, 0) = 2.0;
+      A(0, 1) = 0.5;
+      A(1, 0) = 0.5;
+      A(1, 1) = 3.0;
+      grad_t<2> y;
+      q(u, y, A);
+      REQUIRE(y[0] == MFEM_Approx(3.0));
+      REQUIRE(y[1] == MFEM_Approx(6.5));
+   }
+
+   SECTION("HdivMass y = A * u (3D)")
+   {
+      HdivMass<3> q;
+      grad_t<3> u;
+      u[0] = 1.0;
+      u[1] = 0.0;
+      u[2] = 2.0;
+      tensor<real_t, 3, 3> A{};
+      A(0, 0) = 2.0;
+      A(1, 1) = 3.0;
+      A(2, 2) = 4.0;
+      A(0, 2) = 1.0;
+      A(2, 0) = 1.0;
+      grad_t<3> y;
+      q(u, y, A);
+      REQUIRE(y[0] == MFEM_Approx(4.0));
+      REQUIRE(y[1] == MFEM_Approx(0.0));
+      REQUIRE(y[2] == MFEM_Approx(9.0));
+   }
+
+   SECTION("CurlCurlQFn<2> y = A * curl (scalar)")
+   {
+      CurlCurlQFn<2> q;
+      curl_t<2> u;
+      u[0] = 2.5;
+      curl_t<2> y;
+      q(u, y, real_t(3.0));
+      REQUIRE(y[0] == MFEM_Approx(7.5));
+   }
+
+   SECTION("CurlCurlQFn<3> y = A * curl")
+   {
+      CurlCurlQFn<3> q;
+      curl_t<3> u;
+      u[0] = 1.0;
+      u[1] = 2.0;
+      u[2] = 3.0;
+      tensor<real_t, 3, 3> A{};
+      A(0, 0) = 2.0;
+      A(1, 1) = 3.0;
+      A(2, 2) = 4.0;
+      curl_t<3> y;
+      q(u, y, A);
+      REQUIRE(y[0] == MFEM_Approx(2.0));
+      REQUIRE(y[1] == MFEM_Approx(6.0));
+      REQUIRE(y[2] == MFEM_Approx(12.0));
+   }
+
+   SECTION("DivDivQFn y = d * div")
+   {
+      DivDivQFn q;
+      mma_div_t u(2.5);
+      mma_div_t y;
+      q(u, y, real_t(3.0));
+      REQUIRE(real_t(y) == MFEM_Approx(7.5));
+   }
 }
 
 TEST_CASE("MMA form qfn_traits presets", "[MMA][Form]")
@@ -87,6 +165,55 @@ TEST_CASE("MMA form qfn_traits presets", "[MMA][Form]")
       static_assert(Tr::trial_is_grad);
       static_assert(Tr::spatial_dim == 3);
       REQUIRE(Tr::u_planes(3) == 3);
+   }
+
+   SECTION("HcurlMass")
+   {
+      using Tr = qfn_traits<HcurlMass<2, true>>;
+      static_assert(Tr::load_x);
+      static_assert(Tr::trial_is_vec_eval);
+      static_assert(Tr::open_on_component);
+      static_assert(!Tr::trial_is_grad);
+      static_assert(!Tr::trial_is_curl);
+      static_assert(!Tr::trial_is_div);
+      REQUIRE(Tr::u_planes(2) == 2);
+   }
+
+   SECTION("HdivMass")
+   {
+      using Tr = qfn_traits<HdivMass<3, true>>;
+      static_assert(Tr::trial_is_vec_eval);
+      static_assert(!Tr::open_on_component);
+      static_assert(Tr::spatial_dim == 3);
+      REQUIRE(Tr::u_planes(3) == 3);
+   }
+
+   SECTION("CurlCurlQFn<2>")
+   {
+      using Tr = qfn_traits<CurlCurlQFn<2, true>>;
+      static_assert(Tr::trial_is_curl);
+      static_assert(Tr::test_is_curl);
+      static_assert(!Tr::trial_is_grad);
+      static_assert(Tr::spatial_dim == 2);
+      REQUIRE(Tr::u_planes(2) == 1);
+   }
+
+   SECTION("CurlCurlQFn<3>")
+   {
+      using Tr = qfn_traits<CurlCurlQFn<3, true>>;
+      static_assert(Tr::trial_is_curl);
+      static_assert(Tr::spatial_dim == 3);
+      REQUIRE(Tr::u_planes(3) == 3);
+   }
+
+   SECTION("DivDivQFn")
+   {
+      using Tr = qfn_traits<DivDivQFn>;
+      static_assert(Tr::trial_is_div);
+      static_assert(Tr::test_is_div);
+      static_assert(!Tr::trial_is_curl);
+      static_assert(!Tr::trial_is_vec_eval);
+      REQUIRE(Tr::u_planes(3) == 1);
    }
 }
 
@@ -382,6 +509,211 @@ TEST_CASE("MMA form Grad Apply dense vs ref", "[MMA][Form][Pipeline]")
    }
 
    form::ApplySimplex<Diffusion<2, true>, 2>(NE, G, D, X, Y_pipe);
+
+   for (int i = 0; i < ndof * NE; ++i)
+   {
+      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+   }
+}
+
+TEST_CASE("MMA form VecEval ApplySimplex vs ref", "[MMA][Form][Pipeline]")
+{
+   constexpr int DIM = 2;
+   constexpr int nq = 3;
+   constexpr int ndof = 4;
+   constexpr int NE = 2;
+   constexpr int PA = 3; // SYM 2D
+
+   Array<real_t> B(nq * ndof * DIM);
+   Vector D(nq * PA * NE), X(ndof * NE), Y_ref(ndof * NE), Y_pipe(ndof * NE);
+   for (int i = 0; i < B.Size(); ++i) { B[i] = real_t(0.1) * (i % 7 + 1); }
+   for (int i = 0; i < D.Size(); ++i) { D(i) = real_t(0.2) * (i % 5 + 1); }
+   for (int i = 0; i < X.Size(); ++i) { X(i) = real_t(0.3) * (i % 4 + 1); }
+   Y_ref = 0.0;
+   Y_pipe = 0.0;
+
+   // Independent ref: U = B X, V = A U (SYM), Y += B^T V
+   for (int e = 0; e < NE; ++e)
+   {
+      real_t U[DIM * nq];
+      for (int c = 0; c < DIM; ++c)
+         for (int q = 0; q < nq; ++q)
+         {
+            real_t s = 0.0;
+            for (int i = 0; i < ndof; ++i)
+            {
+               s += B[q + nq * (i + ndof * c)] * X(i + ndof * e);
+            }
+            U[c * nq + q] = s;
+         }
+      for (int q = 0; q < nq; ++q)
+      {
+         const real_t O11 = D(q + nq * (0 + PA * e));
+         const real_t O21 = D(q + nq * (1 + PA * e));
+         const real_t O22 = D(q + nq * (2 + PA * e));
+         const real_t u0 = U[0 * nq + q], u1 = U[1 * nq + q];
+         U[0 * nq + q] = O11 * u0 + O21 * u1;
+         U[1 * nq + q] = O21 * u0 + O22 * u1;
+      }
+      for (int i = 0; i < ndof; ++i)
+      {
+         real_t s = 0.0;
+         for (int c = 0; c < DIM; ++c)
+            for (int q = 0; q < nq; ++q)
+            {
+               s += B[q + nq * (i + ndof * c)] * U[c * nq + q];
+            }
+         Y_ref(i + ndof * e) += s;
+      }
+   }
+
+   form::ApplySimplex<HcurlMass<2, true>, 2>(NE, B, D, X, Y_pipe);
+
+   for (int i = 0; i < ndof * NE; ++i)
+   {
+      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+   }
+}
+
+TEST_CASE("MMA form Curl ApplySimplex vs ref", "[MMA][Form][Pipeline]")
+{
+   SECTION("2D scalar curl")
+   {
+      constexpr int nq = 3;
+      constexpr int ndof = 4;
+      constexpr int NE = 2;
+
+      Array<real_t> C(nq * ndof);
+      Vector D(nq * NE), X(ndof * NE), Y_ref(ndof * NE), Y_pipe(ndof * NE);
+      for (int i = 0; i < C.Size(); ++i) { C[i] = real_t(0.1) * (i % 5 + 1); }
+      for (int i = 0; i < D.Size(); ++i) { D(i) = real_t(0.2) * (i % 3 + 1); }
+      for (int i = 0; i < X.Size(); ++i) { X(i) = real_t(0.3) * (i % 4 + 1); }
+      Y_ref = 0.0;
+      Y_pipe = 0.0;
+
+      // Independent ref: Y += C^T (d ⊙ (C X))
+      for (int e = 0; e < NE; ++e)
+      {
+         for (int i = 0; i < ndof; ++i)
+         {
+            real_t yi = 0.0;
+            for (int q = 0; q < nq; ++q)
+            {
+               real_t curl = 0.0;
+               for (int j = 0; j < ndof; ++j)
+               {
+                  curl += C[q + nq * j] * X(j + ndof * e);
+               }
+               yi += C[q + nq * i] * (D(q + nq * e) * curl);
+            }
+            Y_ref(i + ndof * e) += yi;
+         }
+      }
+
+      form::ApplySimplex<CurlCurlQFn<2, true>, 2>(NE, C, D, X, Y_pipe);
+
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      }
+   }
+
+   SECTION("3D SYM curl")
+   {
+      constexpr int nq = 2;
+      constexpr int ndof = 3;
+      constexpr int NE = 2;
+      constexpr int PA = 6;
+
+      Array<real_t> C(nq * ndof * 3);
+      Vector D(nq * PA * NE), X(ndof * NE), Y_ref(ndof * NE), Y_pipe(ndof * NE);
+      for (int i = 0; i < C.Size(); ++i) { C[i] = real_t(0.1) * (i % 7 + 1); }
+      for (int i = 0; i < D.Size(); ++i) { D(i) = real_t(0.2) * (i % 5 + 1); }
+      for (int i = 0; i < X.Size(); ++i) { X(i) = real_t(0.3) * (i % 4 + 1); }
+      Y_ref = 0.0;
+      Y_pipe = 0.0;
+
+      for (int e = 0; e < NE; ++e)
+      {
+         real_t U[3 * nq];
+         for (int c = 0; c < 3; ++c)
+            for (int q = 0; q < nq; ++q)
+            {
+               real_t s = 0.0;
+               for (int i = 0; i < ndof; ++i)
+               {
+                  s += C[q + nq * (i + ndof * c)] * X(i + ndof * e);
+               }
+               U[c * nq + q] = s;
+            }
+         for (int q = 0; q < nq; ++q)
+         {
+            const real_t a00 = D(q + nq * (0 + PA * e));
+            const real_t a10 = D(q + nq * (1 + PA * e));
+            const real_t a20 = D(q + nq * (2 + PA * e));
+            const real_t a11 = D(q + nq * (3 + PA * e));
+            const real_t a21 = D(q + nq * (4 + PA * e));
+            const real_t a22 = D(q + nq * (5 + PA * e));
+            const real_t u0 = U[0 * nq + q], u1 = U[1 * nq + q], u2 = U[2 * nq + q];
+            U[0 * nq + q] = a00 * u0 + a10 * u1 + a20 * u2;
+            U[1 * nq + q] = a10 * u0 + a11 * u1 + a21 * u2;
+            U[2 * nq + q] = a20 * u0 + a21 * u1 + a22 * u2;
+         }
+         for (int i = 0; i < ndof; ++i)
+         {
+            real_t s = 0.0;
+            for (int c = 0; c < 3; ++c)
+               for (int q = 0; q < nq; ++q)
+               {
+                  s += C[q + nq * (i + ndof * c)] * U[c * nq + q];
+               }
+            Y_ref(i + ndof * e) += s;
+         }
+      }
+
+      form::ApplySimplex<CurlCurlQFn<3, true>, 3>(NE, C, D, X, Y_pipe);
+
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      }
+   }
+}
+
+TEST_CASE("MMA form Div ApplySimplex vs ref", "[MMA][Form][Pipeline]")
+{
+   constexpr int nq = 3;
+   constexpr int ndof = 4;
+   constexpr int NE = 2;
+
+   Array<real_t> Div(nq * ndof);
+   Vector D(nq * NE), X(ndof * NE), Y_ref(ndof * NE), Y_pipe(ndof * NE);
+   for (int i = 0; i < Div.Size(); ++i) { Div[i] = real_t(0.1) * (i % 5 + 1); }
+   for (int i = 0; i < D.Size(); ++i) { D(i) = real_t(0.2) * (i % 3 + 1); }
+   for (int i = 0; i < X.Size(); ++i) { X(i) = real_t(0.3) * (i % 4 + 1); }
+   Y_ref = 0.0;
+   Y_pipe = 0.0;
+
+   // Independent ref: Y += Div^T (d ⊙ (Div X))
+   for (int e = 0; e < NE; ++e)
+   {
+      for (int i = 0; i < ndof; ++i)
+      {
+         real_t yi = 0.0;
+         for (int q = 0; q < nq; ++q)
+         {
+            real_t dv = 0.0;
+            for (int j = 0; j < ndof; ++j)
+            {
+               dv += Div[q + nq * j] * X(j + ndof * e);
+            }
+            yi += Div[q + nq * i] * (D(q + nq * e) * dv);
+         }
+         Y_ref(i + ndof * e) += yi;
+      }
+   }
+
+   form::ApplySimplex<DivDivQFn, 3>(NE, Div, D, X, Y_pipe);
 
    for (int i = 0; i < ndof * NE; ++i)
    {
