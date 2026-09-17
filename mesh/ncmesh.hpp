@@ -602,7 +602,7 @@ protected: // implementation
        off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      char vert_refc, edge_refc;
+      std::int16_t vert_refc, edge_refc;
       int vert_index, edge_index;
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),

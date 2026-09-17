@@ -2952,4 +2952,55 @@ TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh high-valence vertex refcount", "[NCMesh]")
+{
+   // A vertex whose valence is a multiple of 256 (unsigned char) or >= 128
+   // (signed char) overflowed the 8-bit NCMesh::Node::vert_refc counter.
+   // HasVertex() then returned false, vertex_nodeId[] was left uninitialized,
+   // and NCMesh::OnMeshUpdated() dereferenced a null node -> assert/segfault.
+   //
+   // Build a "spindle" of K tetrahedra sharing the central axis edge so the
+   // two axis vertices each have valence K.
+   auto make_spindle = [](int K)
+   {
+      Mesh mesh(3, K + 2, K);
+      Array<int> ring(K);
+      for (int i = 0; i < K; i++)
+      {
+         const real_t t = 2.0 * M_PI * i / K;
+         ring[i] = mesh.AddVertex(std::cos(t), std::sin(t), 0.0);
+      }
+      const int c = mesh.AddVertex(0.0, 0.0, -1.0);
+      const int a = mesh.AddVertex(0.0, 0.0,  1.0);
+      for (int i = 0; i < K; i++)
+      {
+         int v[4] = {c, a, ring[i], ring[(i + 1) % K]};
+         mesh.AddTet(v, 1);
+      }
+      mesh.FinalizeTetMesh(1, 0, true);
+      return mesh;
+   };
+
+   const int K = GENERATE(255, 256, 512);
+
+   Mesh mesh = make_spindle(K);
+   const int nv = mesh.GetNV();
+   REQUIRE(mesh.GetNE() == K);
+
+   // Would assert ("edge not found") / segfault in OnMeshUpdated before the
+   // char -> int16_t refcount fix when K is a multiple of 256.
+   mesh.EnsureNCMesh(true);
+
+   REQUIRE(mesh.GetNV() == nv);
+   REQUIRE_FALSE(mesh.Conforming());
+
+   // The (previously corrupted) non-conforming structure must be usable.
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   REQUIRE(fes.GetVSize() == nv);
+
+   mesh.UniformRefinement();
+   REQUIRE(mesh.GetNE() == 8 * K);
+}
+
 } // namespace mfem
