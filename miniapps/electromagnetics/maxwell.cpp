@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
    imesh.close();
 
    // Project a NURBS mesh to a piecewise-quadratic curved mesh
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       mesh->UniformRefinement();
       if (serial_ref_levels > 0) { serial_ref_levels--; }

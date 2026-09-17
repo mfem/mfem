@@ -2935,7 +2935,7 @@ void NCNURBSExtension::ReadCoarsePatchCP(std::istream &input)
          for (int j=0; j<Dimension(); ++j) { input >> patchCP(p, i, j); }
 }
 
-void NCNURBSExtension::PrintCoarsePatches(std::ostream &os)
+void NCNURBSExtension::PrintCoarsePatches(std::ostream &os) const
 {
    const int maxOrder = mOrders.Max();
    const int patchCP_size1 = patchCP.GetSize1();

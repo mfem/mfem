@@ -314,7 +314,6 @@ public:
    /// Named sets of boundary element attributes
    AttributeSets bdr_attribute_sets;
 
-   NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional nonconforming mesh extension.
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*> face_geom_factors; /**< Optional face geometric
@@ -1376,6 +1375,13 @@ public:
    void GetCharacteristics(real_t &h_min, real_t &h_max,
                            real_t &kappa_min, real_t &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
+
+   /// Return true if the mesh is a NURBS mesh.
+   bool IsNURBS() const;
+
+   NURBSExtension* NURBSExt();
+   const NURBSExtension* NURBSExt() const;
+
 
    /// @}
 
