@@ -18,6 +18,7 @@
 #include "fem/integ/mma/domain_lf.hpp"
 #include "fem/integ/mma/hcurl.hpp"
 #include "fem/integ/mma/hdiv.hpp"
+#include <vector>
 
 using namespace mfem;
 using namespace mfem::internal::mma;
@@ -294,6 +295,85 @@ TEST_CASE("MMA form host multi-RHS gate", "[MMA][Form]")
 #else
    SUCCEED("host multi-RHS gate requires MFEM_USE_LAPACK");
 #endif
+}
+
+/** Host InterpAx/GradX/GemmMbyK contractions (LAPACK: vendor GEMM). */
+TEST_CASE("MMA host Sumf GemmMbyK", "[MMA][Form]")
+{
+   // Rectangular like H(curl) InterpAx(D-1, Q, D).
+   const int m = 4, n = 5, k = 6;
+   std::vector<real_t> A(k * m), B(k * n), C(m * n), Cref(m * n);
+   std::vector<real_t> AMK(m * k), D(m * n);
+   for (int i = 0; i < k * m; ++i) { A[i] = real_t(0.1) * (i + 1); }
+   for (int i = 0; i < k * n; ++i) { B[i] = real_t(0.01) * (i + 3); }
+   for (int i = 0; i < m * k; ++i) { AMK[i] = real_t(0.07) * (i + 2); }
+   for (int i = 0; i < m * n; ++i) { D[i] = real_t(1.1) + real_t(0.01) * i; }
+
+   SECTION("Sumf C = A^T B")
+   {
+      for (int col = 0; col < n; ++col)
+      {
+         for (int row = 0; row < m; ++row)
+         {
+            real_t s = 0.0;
+            for (int p = 0; p < k; ++p)
+            {
+               s += A[p + k * row] * B[p + k * col];
+            }
+            Cref[row + m * col] = s;
+         }
+      }
+      blas::Sumf<false, false>(m, n, k, A.data(), B.data(), C.data());
+      for (int i = 0; i < m * n; ++i)
+      {
+         REQUIRE(C[i] == MFEM_Approx(Cref[i]));
+      }
+   }
+
+   SECTION("Sumf SCALE C = (A^T B) ⊙ D")
+   {
+      const DeviceTensor<2, const real_t> Dv(D.data(), m * n, 1);
+      for (int col = 0; col < n; ++col)
+      {
+         for (int row = 0; row < m; ++row)
+         {
+            real_t s = 0.0;
+            for (int p = 0; p < k; ++p)
+            {
+               s += A[p + k * row] * B[p + k * col];
+            }
+            Cref[row + m * col] = s * D[row + m * col];
+         }
+      }
+      blas::Sumf<true, false>(m, n, k, A.data(), B.data(), C.data(), &Dv, 0);
+      for (int i = 0; i < m * n; ++i)
+      {
+         REQUIRE(C[i] == MFEM_Approx(Cref[i]));
+      }
+   }
+
+   SECTION("GemmMbyK C = A B")
+   {
+      std::vector<real_t> BN(k * n);
+      for (int i = 0; i < k * n; ++i) { BN[i] = real_t(0.03) * (i + 1); }
+      for (int col = 0; col < n; ++col)
+      {
+         for (int row = 0; row < m; ++row)
+         {
+            real_t s = 0.0;
+            for (int p = 0; p < k; ++p)
+            {
+               s += AMK[row + m * p] * BN[p + k * col];
+            }
+            Cref[row + m * col] = s;
+         }
+      }
+      blas::GemmMbyK<false>(m, k, n, AMK.data(), BN.data(), C.data());
+      for (int i = 0; i < m * n; ++i)
+      {
+         REQUIRE(C[i] == MFEM_Approx(Cref[i]));
+      }
+   }
 }
 
 

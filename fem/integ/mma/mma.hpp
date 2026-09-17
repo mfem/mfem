@@ -22,6 +22,8 @@
     ## Host apply tree
     - Tensor: PreferTensorDense → dense sum-fact vs Emulate shell
       (diffusion 2D may use lapack fat GEMM when LAPACK is on)
+    - Tensor H(curl)/H(div) shells: InterpAx / GradX / GemmMbyK
+      (LAPACK: vendor GEMM on host; CUDA/HIP: DMMA/MFMA via MMA_BACKEND_PICK)
     - Simplex host: PreferMultiRhs(nq, ndof, NE) → lapack multi-RHS (size gate)
       else → dense / form simplex host path
 
@@ -190,7 +192,8 @@ inline bool IsTensorsMmaHdivElement(const FiniteElement &el, int dim)
 
 /** Opt-in tensor MMA for fixed-order ND (Hcurl) quad/hex. ForceMMA; double; p≥3.
     GPU: MMA smem shell (Interp/Grad + dmma/mfma when TensorMmaEnabled, else
-    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread. */
+    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread;
+    LAPACK routes InterpAx/GradX/GemmMbyK through vendor GEMM. */
 inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }
@@ -217,7 +220,8 @@ inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
 
 /** Opt-in tensor MMA for fixed-order RT (Hdiv) quad/hex. ForceMMA; double; p≥3.
     GPU: MMA smem shell (Interp/Grad + dmma/mfma when TensorMmaEnabled, else
-    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread. */
+    fine-grained blas::InterpAx / GemmMbyK). Host: same shell, 1 thread;
+    LAPACK routes InterpAx/GradX/GemmMbyK through vendor GEMM. */
 inline bool UsesTensorMmaHdiv(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }

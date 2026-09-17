@@ -2909,6 +2909,8 @@ ApplyTensor(const int NE,
 
 // ---------------------------------------------------------------------------
 // ApplyTensor — Curl×Curl (Bo/Bc/Gc)
+// Host: InterpAx / GradX / GemmMbyK → blas (LAPACK GEMM when enabled).
+// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA).
 // ---------------------------------------------------------------------------
 
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
@@ -2928,6 +2930,8 @@ ApplyTensor(const int NE,
 
 // ---------------------------------------------------------------------------
 // ApplyTensor — Div×Div (Bo/Gc)
+// Host: InterpAx / GemmMbyK → blas (LAPACK GEMM when enabled).
+// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA).
 // ---------------------------------------------------------------------------
 
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
