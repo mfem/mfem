@@ -78,61 +78,142 @@ void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
    }
 }
 
-namespace
+// Same layout as ND_DofTransformation::T_data / TInv_data (column-major 2x2).
+MFEM_HOST_DEVICE inline void NdApplyFacePair(int mode, int ori,
+                                             real_t &x0, real_t &x1)
 {
+   constexpr real_t T[24] =
+   {
+      1.0,  0.0,  0.0,  1.0,
+      -1.0, -1.0,  0.0,  1.0,
+      0.0,  1.0, -1.0, -1.0,
+      1.0,  0.0, -1.0, -1.0,
+      -1.0, -1.0,  1.0,  0.0,
+      0.0,  1.0,  1.0,  0.0
+   };
+   constexpr real_t TInv[24] =
+   {
+      1.0,  0.0,  0.0,  1.0,
+      -1.0, -1.0,  0.0,  1.0,
+      -1.0, -1.0,  1.0,  0.0,
+      1.0,  0.0, -1.0, -1.0,
+      0.0,  1.0, -1.0, -1.0,
+      0.0,  1.0,  1.0,  0.0
+   };
+   const int o = 4 * ori;
+   const real_t a00 = (mode <= 1) ? TInv[o] : T[o];
+   const real_t a10 = (mode <= 1) ? TInv[o + 1] : T[o + 1];
+   const real_t a01 = (mode <= 1) ? TInv[o + 2] : T[o + 2];
+   const real_t a11 = (mode <= 1) ? TInv[o + 3] : T[o + 3];
+   real_t y0, y1;
+   if (mode == 0 || mode == 2) // Mult
+   {
+      y0 = a00 * x0 + a01 * x1;
+      y1 = a10 * x0 + a11 * x1;
+   }
+   else // MultTranspose
+   {
+      y0 = a00 * x0 + a10 * x1;
+      y1 = a01 * x0 + a11 * x1;
+   }
+   x0 = y0;
+   x1 = y1;
+}
 
-template <typename Op>
-void TransformEVectorColumns(const FiniteElementSpace &fes, Vector &y, Op op,
-                             const char *name)
+void GatherNdFaceOrientations(const FiniteElementSpace &fes, Array<int> &fo)
 {
+   fo.SetSize(0);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   const StatelessDofTransformation *sdt = el.GetDofTransformation();
+   if (!sdt || sdt->IsIdentity()) { return; }
+
    const int NE = fes.GetNE();
-   const int nd = fes.GetTypicalFE()->GetDof();
-   MFEM_VERIFY(y.Size() == nd * NE, name);
-   auto Y = Reshape(y.HostReadWrite(), nd, NE);
+   if (NE < 1) { return; }
+
    Array<int> vdofs;
-   Vector col(nd);
-   for (int e = 0; e < NE; ++e)
+   DofTransformation *dt0 = fes.GetElementVDofs(0, vdofs);
+   if (!dt0) { return; }
+   const Array<int> fo0 = dt0->GetFaceOrientations();
+   const int nfaces = fo0.Size();
+   if (nfaces < 1) { return; }
+
+   fo.SetSize(nfaces * NE);
+   fo.UseDevice(true);
+   auto Fo = Reshape(fo.HostWrite(), nfaces, NE);
+   for (int f = 0; f < nfaces; ++f) { Fo(f, 0) = fo0[f]; }
+   for (int e = 1; e < NE; ++e)
    {
       DofTransformation *dt = fes.GetElementVDofs(e, vdofs);
-      if (!dt) { continue; }
-      for (int i = 0; i < nd; ++i) { col(i) = Y(i, e); }
-      op(*dt, col);
-      for (int i = 0; i < nd; ++i) { Y(i, e) = col(i); }
+      MFEM_VERIFY(dt, "ND face orientations missing on simplex element");
+      const Array<int> &row = dt->GetFaceOrientations();
+      MFEM_VERIFY(row.Size() == nfaces, "ND Fo size");
+      for (int f = 0; f < nfaces; ++f) { Fo(f, e) = row[f]; }
    }
 }
 
-} // namespace
+void ApplyNdDofTransEVector(NdDofTransOp op, const FiniteElementSpace &fes,
+                            const Array<int> &fo, Vector &y)
+{
+   if (fo.Size() == 0) { return; }
+
+   const int NE = fes.GetNE();
+   const FiniteElement &el = *fes.GetTypicalFE();
+   const int nd = el.GetDof();
+   const int p = el.GetOrder();
+   const int dim = fes.GetMesh()->Dimension();
+   MFEM_VERIFY(y.Size() == nd * NE, "ApplyNdDofTransEVector size");
+   MFEM_VERIFY(NE > 0 && fo.Size() % NE == 0, "ND Fo packing");
+   const int nfaces = fo.Size() / NE;
+   const int nedges = (dim == 2) ? 3 : 6;
+   const int nedofs = p;
+   const int ntdofs = p * (p - 1);
+   if (ntdofs < 2) { return; }
+   const int face_base = nedges * nedofs;
+   const int npairs = ntdofs / 2;
+   const int mode = static_cast<int>(op);
+
+   const int nwork = nfaces * npairs;
+   const auto Fo = Reshape(fo.Read(), nfaces, NE);
+   auto Y = Reshape(y.ReadWrite(), nd, NE);
+   mfem::forall(nwork, NE, [=] MFEM_HOST_DEVICE (int w, int e)
+   {
+      const int f = w / npairs;
+      const int i = w - f * npairs;
+      const int ori = Fo(f, e);
+      const int idx = face_base + f * ntdofs + 2 * i;
+      real_t x0 = Y(idx, e), x1 = Y(idx + 1, e);
+      NdApplyFacePair(mode, ori, x0, x1);
+      Y(idx, e) = x0;
+      Y(idx + 1, e) = x1;
+   });
+}
 
 void TransformDualEVector(const FiniteElementSpace &fes, Vector &y)
 {
-   TransformEVectorColumns(fes, y,
-                           [](DofTransformation &dt, Vector &col)
-   { dt.TransformDual(col); },
-   "TransformDualEVector size");
+   Array<int> fo;
+   GatherNdFaceOrientations(fes, fo);
+   ApplyNdDofTransEVector(NdDofTransOp::Dual, fes, fo, y);
 }
 
 void TransformPrimalEVector(const FiniteElementSpace &fes, Vector &y)
 {
-   TransformEVectorColumns(fes, y,
-                           [](DofTransformation &dt, Vector &col)
-   { dt.TransformPrimal(col); },
-   "TransformPrimalEVector size");
+   Array<int> fo;
+   GatherNdFaceOrientations(fes, fo);
+   ApplyNdDofTransEVector(NdDofTransOp::Primal, fes, fo, y);
 }
 
 void InvTransformPrimalEVector(const FiniteElementSpace &fes, Vector &y)
 {
-   TransformEVectorColumns(fes, y,
-                           [](DofTransformation &dt, Vector &col)
-   { dt.InvTransformPrimal(col); },
-   "InvTransformPrimalEVector size");
+   Array<int> fo;
+   GatherNdFaceOrientations(fes, fo);
+   ApplyNdDofTransEVector(NdDofTransOp::InvPrimal, fes, fo, y);
 }
 
 void InvTransformDualEVector(const FiniteElementSpace &fes, Vector &y)
 {
-   TransformEVectorColumns(fes, y,
-                           [](DofTransformation &dt, Vector &col)
-   { dt.InvTransformDual(col); },
-   "InvTransformDualEVector size");
+   Array<int> fo;
+   GatherNdFaceOrientations(fes, fo);
+   ApplyNdDofTransEVector(NdDofTransOp::InvDual, fes, fo, y);
 }
 
 void BakeNdDofTransformation(const FiniteElementSpace &fes,
@@ -204,6 +285,7 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    use_simplices_mma = true;
    use_tensors_mma = false;
    simplex_fes = &fes;
+   internal::GatherNdFaceOrientations(fes, simplex_nd_fo);
 
    simplex_nd = el.GetDof();
    simplex_sdim = dim;
@@ -249,6 +331,7 @@ void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    use_simplices_mma = true;
    use_tensors_mma = false;
    simplex_fes = &fes;
+   internal::GatherNdFaceOrientations(fes, simplex_nd_fo);
 
    simplex_nd = el.GetDof();
    simplex_sdim = dim;

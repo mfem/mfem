@@ -357,30 +357,44 @@ void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
 void BakeNdDofTransformation(const FiniteElementSpace &fes,
                              Array<real_t> &B, int nq, int nd, int ncomp);
 
-/** TransformDual each native E-vector column. Used when per-element baked B
-    does not fit in Array (int size). */
+/** Face orientations Fo(f,e) packed as nfaces*NE; empty if identity (p<2). */
+void GatherNdFaceOrientations(const FiniteElementSpace &fes, Array<int> &fo);
+
+enum class NdDofTransOp : int { InvPrimal, Dual, Primal, InvDual };
+
+/** Apply ND 2x2 face maps in-place on E-vector columns using precomputed Fo. */
+void ApplyNdDofTransEVector(NdDofTransOp op, const FiniteElementSpace &fes,
+                            const Array<int> &fo, Vector &y);
+
+/** TransformDual each native E-vector column (gathers Fo, then device apply). */
 void TransformDualEVector(const FiniteElementSpace &fes, Vector &y);
 void TransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
 void InvTransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
 void InvTransformDualEVector(const FiniteElementSpace &fes, Vector &y);
 
 /** Y += Dual( A_ref · InvPrimal(X) ). Matches bake of TransformDual into C:
-    A_t = T^{-T} A_ref T^{-1}. */
+    A_t = T^{-T} A_ref T^{-1}. Empty fo → identity (apply x into y). */
 template <typename ApplyFn>
 inline void AddMultSimplexNdDual(const FiniteElementSpace &fes,
+                                 const Array<int> &fo,
                                  Vector &xhat, Vector &yinc,
                                  const Vector &x, Vector &y,
                                  ApplyFn &&apply)
 {
+   if (fo.Size() == 0)
+   {
+      apply(x, y);
+      return;
+   }
    xhat.SetSize(x.Size());
    xhat.UseDevice(true);
    xhat = x;
-   InvTransformPrimalEVector(fes, xhat);
+   ApplyNdDofTransEVector(NdDofTransOp::InvPrimal, fes, fo, xhat);
    yinc.SetSize(y.Size());
    yinc.UseDevice(true);
    yinc = 0.0;
    apply(xhat, yinc);
-   TransformDualEVector(fes, yinc);
+   ApplyNdDofTransEVector(NdDofTransOp::Dual, fes, fo, yinc);
    y += yinc;
 }
 

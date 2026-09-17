@@ -3058,6 +3058,7 @@ protected:
    Array<real_t> simplex_B; ///< Dense ref curl (or value) basis at Q
    int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
    const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
+   Array<int> simplex_nd_fo; ///< ND face orients Fo(f,e); empty if identity
    mutable Vector simplex_xhat, simplex_yinc;
 
 public:
@@ -3225,6 +3226,7 @@ protected:
    Array<real_t> simplex_B; ///< Dense ref vector basis at Q
    int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
    const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
+   Array<int> simplex_nd_fo; ///< ND face orients Fo(f,e); empty if identity
    mutable Vector simplex_xhat, simplex_yinc;
 
 public:

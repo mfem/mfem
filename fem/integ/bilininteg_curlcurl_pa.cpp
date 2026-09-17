@@ -205,7 +205,8 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
       if (simplex_fes &&
           simplex_fes->GetTypicalFE()->GetDofTransformation() != nullptr)
       {
-         internal::AddMultSimplexNdDual(*simplex_fes, simplex_xhat, simplex_yinc,
+         internal::AddMultSimplexNdDual(*simplex_fes, simplex_nd_fo,
+                                        simplex_xhat, simplex_yinc,
                                         x, y, apply);
       }
       else
