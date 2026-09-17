@@ -104,8 +104,9 @@ sub formatSize {
 my $total_size = 0;
 foreach my $sha (@commits) {
   my @blobs = `git diff-tree -r -c --root --no-commit-id --find-renames $sha`;
+  my $is_merge = int(`git rev-list --no-walk --count --merges $sha`);
   my $nfiles_changed = scalar @blobs;
-  if ($nfiles_changed > $commit_max_files_changed) {
+  if (!$is_merge && $nfiles_changed > $commit_max_files_changed) {
     printf STDERR
       "\033[31mNumber of files changed in one commit (%d) exceeds maximum allowable (%d).\033[0m\n",
       $nfiles_changed, $commit_max_files_changed;
