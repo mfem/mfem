@@ -163,8 +163,9 @@ int main(int argc, char *argv[])
     int  paraview_interval = 0; // intermediate output interval; 0 disables it
     bool optimize      = true;   // run the optimization loop after the initial eval
     bool thickness     = true;   // enforce accumulated-density constraints
-    int  ray_type      = 1;      // circular plate rays: 1 radial outward,
-                                 // 2 vertical (+z), 3 parallel xy rays toward center
+    int  ray_type      = 2;      // circular plate rays: 1 radial outward,
+                                 // 2 vertical (+z), 3 parallel xy rays toward center,
+                                 // 4 vertical + the xy rays of 3
     int  solver_print  = 1;      // iterative-solver report: 0 off, 1 on
                                  // (CG history / PT summary), 2 verbose
                                  // (+ AMG, + every pseudo-time step)
@@ -233,7 +234,8 @@ int main(int argc, char *argv[])
                     "enable accumulated-density thickness constraints");
     args.AddOption(&ray_type, "-rt", "--ray-type",
                     "circular plate thickness rays: 1 = radial outward, 2 = vertical (+z), "
-                    "3 = parallel rays in several xy directions pointing toward the center");
+                    "3 = parallel rays in several xy directions pointing toward the center, "
+                    "4 = vertical (+z) together with the xy directions of 3");
     args.AddOption(&solver_print, "-spl", "--solver-print-level",
                     "iterative-solver report (filter / elasticity / advection): "
                     "0 = off, 1 = on, 2 = verbose");
@@ -268,7 +270,7 @@ int main(int argc, char *argv[])
                 "Elasticity relative tolerance must be nonnegative.");
     MFEM_VERIFY(elast_residual_check >= 0,
                 "Elasticity residual check interval must be nonnegative.");
-    MFEM_VERIFY(ray_type >= 1 && ray_type <= 3, "Ray type must be 1, 2 or 3.");
+    MFEM_VERIFY(ray_type >= 1 && ray_type <= 4, "Ray type must be 1, 2, 3 or 4.");
     MFEM_VERIFY(!(adv_gmres && adv_pa),
                 "-adv-gmres needs a fully assembled advection operator (-adv-fa).");
     if (myid == 0) { args.PrintOptions(cout); }
@@ -816,7 +818,7 @@ int main(int argc, char *argv[])
         {
             // forward + adjoint GMRES and BlockILU
             // (print level, rel tol, abs tol, max iter, restart)
-            advect[r]->AssembleLinearSolver(solver_print, 1e-8, 1e-12, 500, 50);
+            advect[r]->AssembleLinearSolver(solver_print, 1e-8, 1e-12, 1000, 100);
             continue;
         }
         if (minv_fa) { advect[r]->GetSolver().SetMinv(*minv_fa_mat); }
@@ -1028,6 +1030,12 @@ int main(int argc, char *argv[])
     // block(0) (drho) and block(1+r) (dalpha_r) are ever nonzero.
     vector<BlockVector> dthick(n_dir, BlockVector(toffsets));
 
+    // ray-0 thickness-constraint gradient for ParaView (refreshed before each save)
+    ParGridFunction dthick_rho(&control_fes);          // block(0): on pmesh
+    dthick_rho = 0.0;
+    ParGridFunction dthick_alpha(sub_dg_fes[0].get()); // block(1): on outflow[0]
+    dthick_alpha = 0.0;
+
     // --- PLAIN SIMP ---  the linear volume gradient is constant:  [ L^T w/Vstar ; 0 ; ... ]
     // dvol.GetBlock(0) = dvol_drho;
     // dvol.GetBlock(0) /= Vstar;
@@ -1060,6 +1068,9 @@ int main(int argc, char *argv[])
     std::ostringstream run_tag;
     run_tag << "3d_amax" << alpha_max << "_vf" << vol_fraction;
     ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
+    // ParaViewDataCollection paraview_out_dc(run_tag.str() + "_outflow0", outflow[0].get());
+    // ParGridFunction rho_a_out(sub_dg_fes[0].get());   // outflow trace of rho_a, ray 0
+    // rho_a_out = 0.0;
 
     if (paraview) {
         paraview_dc.SetPrefixPath("ParaView");
@@ -1068,6 +1079,15 @@ int main(int argc, char *argv[])
         paraview_dc.SetHighOrderOutput(true);
         paraview_dc.RegisterField("density", &phys_density);
         paraview_dc.RegisterField("rho_filter", &rho_filter);
+        // paraview_dc.RegisterField("rho_a", const_cast<ParGridFunction *>(&advect[0]->GetRhoA()));
+        // paraview_dc.RegisterField("dthick_drho", &dthick_rho);
+
+        // paraview_out_dc.SetPrefixPath("ParaView");
+        // paraview_out_dc.SetLevelsOfDetail(order);
+        // paraview_out_dc.SetDataFormat(VTKFormat::BINARY);
+        // paraview_out_dc.SetHighOrderOutput(true);
+        // paraview_out_dc.RegisterField("rho_a", &rho_a_out);
+        // paraview_out_dc.RegisterField("dthick_dalpha", &dthick_alpha);
     }
 
     // 9c. Initialization block runtime.
@@ -1443,7 +1463,7 @@ int main(int argc, char *argv[])
             tx_max[tdof] = value + real_t(0.5) * passive_bound_gap;
         }
 
-        const real_t alpha_move = move * (alpha_max - alpha_min);
+        const real_t alpha_move = 0.2 * (alpha_max - alpha_min);
         for (int r = 0; r < n_dir; r++)
         {
             for (int i = 0; i < m[r]; i++)
@@ -1578,9 +1598,19 @@ int main(int argc, char *argv[])
         if (paraview && paraview_interval > 0 && it % paraview_interval == 0)
         {
             stage("writing ParaView fields for iteration " + std::to_string(it));
+            // gradient from this iteration's (pre-MMA-update) design
+            // dthick_rho.SetFromTrueDofs(dthick[0].GetBlock(0));
+            // dthick_alpha.SetFromTrueDofs(dthick[0].GetBlock(1));
+
             paraview_dc.SetCycle(it);
             paraview_dc.SetTime(it);
             paraview_dc.Save();
+
+            // rho_a still holds this iteration's forward solve
+            // ParSubMesh::Transfer(advect[0]->GetRhoA(), rho_a_out);
+            // paraview_out_dc.SetCycle(it);
+            // paraview_out_dc.SetTime(it);
+            // paraview_out_dc.Save();
         }
     }
 
@@ -1770,12 +1800,10 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file,
 
     // --- max-thickness rays ------------------------------------------------
     // rho_a is read on the outer free surface (surface 1) where v.n > 0.
-    //   ray_type 1: one radial-outward field; the advection accumulates from the
-    //               central hole outward, giving the radial span from hub to rim.
-    //   ray_type 2: one vertical (+z) field, giving the through-thickness span.
-    //   ray_type 3: four parallel fields in the xy plane, v = -(cos t, sin t, 0)
-    //               for t = 0, 45, 90, 135 deg, entering at the rim and
-    //               pointing toward the center.
+    //   1: radial outward, hub to rim
+    //   2: vertical (+z), through-thickness
+    //   3: six parallel xy fields toward the center, t = 0..150 deg
+    //   4: 2 plus 3 (n_dir = 7)
     const int dim = mesh.Dimension();
     if (ray_type == 1)
     {
@@ -1789,6 +1817,20 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file,
     }
     else if (ray_type == 3)
     {
+        const int n_xy_dir = 6;
+        for (int k = 0; k < n_xy_dir; k++)
+        {
+            const real_t t = M_PI * k / n_xy_dir;
+            Vector v(dim);  v = 0.0;
+            v(0) = -std::cos(t);  v(1) = -std::sin(t);
+            p.rays.push_back(std::make_unique<VectorConstantCoefficient>(v));
+        }
+    }
+    else if (ray_type == 4)
+    {
+        p.rays.push_back(
+            std::make_unique<VectorFunctionCoefficient>(dim, VerticalRay));
+
         const int n_xy_dir = 6;
         for (int k = 0; k < n_xy_dir; k++)
         {
