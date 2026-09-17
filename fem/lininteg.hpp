@@ -144,14 +144,34 @@ public:
                                        const real_t *, const Vector &coeff,
                                        real_t *y);
 
-   /// parameters: use DIM, T_D1D, T_Q1D
+   using AssembleSimplexMmaKernelType = void (*)(const int,
+                                                 const Array<real_t> &,
+                                                 const Vector &,
+                                                 real_t *,
+                                                 const int, const int);
+
+   /// parameters: DIM, D1D, QND (QND = ir.GetNPoints())
    MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels, AssembleSimplexMmaKernelType,
+                         (int, int, int));
    struct Kernels { Kernels(); };
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
       AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         AssembleSimplexMmaKernels::Specialization<DIM, D1D, QND>::Add();
+      }
+   }
+
+   /// Register specialized simplex MMA DomainLF kernels
+   static void RegisterSimplexMmaKernels();
 };
 
 /// Class for domain integrator $ L(v) := (f, \nabla v) $

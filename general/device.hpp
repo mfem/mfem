@@ -336,6 +336,12 @@ public:
    /// Same as WarpSize(int), for the currently active device.
    static int WarpSize();
 
+   /// Max shared memory (bytes) per block on @a device_id.
+   static int SharedMemoryPerBlock(int device_id);
+
+   /// Same as SharedMemoryPerBlock(int), for the currently active device.
+   static int SharedMemoryPerBlock();
+
    /** @brief Gets the @a free and @a total memory on the device. */
    static void DeviceMem(size_t *free, size_t *total);
 };

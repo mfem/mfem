@@ -191,4 +191,25 @@ int HipGetDeviceCount()
    return num_gpus;
 }
 
+int HipGetDevice()
+{
+   int dev = 0;
+#ifdef MFEM_USE_HIP
+   MFEM_GPU_CHECK(hipGetDevice(&dev));
+#endif
+   return dev;
+}
+
+int HipSharedMemoryPerBlock(int dev)
+{
+   int res = 0;
+#ifdef MFEM_USE_HIP
+   MFEM_GPU_CHECK(hipDeviceGetAttribute(
+                     &res, hipDeviceAttributeMaxSharedMemoryPerBlock, dev));
+#else
+   MFEM_CONTRACT_VAR(dev);
+#endif
+   return res;
+}
+
 } // namespace mfem
