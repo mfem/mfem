@@ -362,7 +362,8 @@ void hdiv_mass_divdiv(const char *filename, int p)
    using IT = Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight>;
    using OT = Outputs<Value<U>, Div<U>>;
 
-   CheckHdivOperator<DIM, IT, OT>(setup, hdiv_mass_divdiv_qf<DIM> {}, HdivForm::MassDivDiv);
+   CheckHdivOperator<DIM, IT, OT>(setup, hdiv_mass_divdiv_qf<DIM> {},
+                                  HdivForm::MassDivDiv);
 }
 
 template <int DIM>

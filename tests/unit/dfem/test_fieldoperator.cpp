@@ -72,11 +72,11 @@ void CheckVectorFieldMetadata(int dim)
    REQUIRE_FALSE(IsCompatible<Entity::Element, Gradient<U>>(rt_fd));
    REQUIRE_FALSE(IsCompatible<Entity::Element, Curl<U>>(rt_fd));
 
-   REQUIRE(GetSizeOnQP<Entity::Element>(Value<U>{}, nd_fd) == dim);
-   REQUIRE(GetSizeOnQP<Entity::Element>(Curl<U>{}, nd_fd) ==
+   REQUIRE(GetSizeOnQP<Entity::Element>(Value<U> {}, nd_fd) == dim);
+   REQUIRE(GetSizeOnQP<Entity::Element>(Curl<U> {}, nd_fd) ==
            (dim == 2 ? 1 : 3));
-   REQUIRE(GetSizeOnQP<Entity::Element>(Value<U>{}, rt_fd) == dim);
-   REQUIRE(GetSizeOnQP<Entity::Element>(Div<U>{}, rt_fd) == 1);
+   REQUIRE(GetSizeOnQP<Entity::Element>(Value<U> {}, rt_fd) == dim);
+   REQUIRE(GetSizeOnQP<Entity::Element>(Div<U> {}, rt_fd) == 1);
 }
 
 } // namespace

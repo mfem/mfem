@@ -479,7 +479,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    };
 
    // ── Vector tensor-product (ND/RT) blocks ─────────────────────────────────
-   
+
    // Check if there is a vector finite element among the input fields
    const DofToQuadMap *tvfe_ptr = nullptr;
    for_constexpr<n_inputs>([&](auto inp)

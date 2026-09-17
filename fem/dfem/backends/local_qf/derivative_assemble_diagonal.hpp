@@ -413,7 +413,7 @@ public:
 
                      // VecTerm holds axis to differentiate, slot where component feeds,
                      // and the sign of the contribution.
-                     // Value/Div both one term and unit sign, but we might need it for 
+                     // Value/Div both one term and unit sign, but we might need it for
                      // Curl, needs vector_num_terms and sgn.
                      const VecTerm tvt = vector_term<test_fop_t>(c, 0);
                      const real_t *Bo[3] =
