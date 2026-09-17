@@ -386,6 +386,40 @@ covered. It is also not ours by the scope note. The numbers are on
   that closed it by two sessions, which is the reason for the scope note at
   the top of this file about what markdown is for.
 
+## 12. A flux that carries fewer directions than the mesh has
+
+**Built**, on the NPC path only: `RestrictedVectorDivergenceIntegrator` and
+`RestrictedNormalTraceJumpIntegrator` in `fem/darcy/bilininteg_hdg.hpp`, with
+`tests/unit/fem/test_darcy_restricted_flux.cpp` serial and parallel. Asked for
+by gffp, whose collision operator diffuses in the velocity coordinates only, so
+the parallel direction has a structural zero diffusion at every point and
+permanently — `VectorMassIntegrator(1/kappa)` asks for an infinite coefficient
+there and no floor is a limit, only a window. **The mechanism, the slice
+identity and every measurement are in the code**, on the two classes and on the
+guards in `AssembleDivMatrix()`, `ConstructC()` and `AssembleFluxMassMatrix()`.
+
+`vdim = 0` — no flux unknown at all, i.e. pure HDG advection — needed nothing
+new and is pinned in the same file.
+
+What is left:
+
+* **No miniapp and no regression reference.** No `convdiff` problem is
+  direction-degenerate, so covering this in the suite means adding a problem
+  rather than a flag, and that is a physics choice somebody should make
+  deliberately. Until then the feature is reachable from the library and from
+  `tests/unit` and nowhere else — this branch's recurring gap between
+  "unit-tested" and "covered".
+* **Only an axis-aligned subset of directions.** A general injection matrix is
+  a linear combination of directional derivatives rather than a column slice,
+  so it is not a wrapper. Nobody has asked for it.
+* **The reduced route refuses it**, at `DarcyHybridization::Mult()`. Out of
+  scope rather than known broken: the same blocks would be eliminated by the
+  same algebra and nothing has run it. One measurement would settle whether
+  the refusal is load-bearing or policy.
+* **A one-sided physical inflow/outflow trace** is what a genuinely advective
+  direction wants and is unbuilt — the same gap `navierstokes -bcphys` has.
+  Everything measured here uses an essential trace on the whole boundary.
+
 ## Deliberately not being done here
 
 The miniapps still default to the weak route for DG. Moving `convdiff` and its

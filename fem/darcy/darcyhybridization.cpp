@@ -378,6 +378,12 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    Af_data.SetSize(Af_offsets[NE]); Af_data = 0.;
    Af_ipiv.SetSize(Af_f_offsets[NE]);
 
+   // Everything about a restricted flux that does NOT depend on EnableNPC()
+   // having been called yet, so that ConstructC()'s shape guard below reports
+   // a wrong number of equations or a vector-range space as what it is rather
+   // than as a block of the wrong height.
+   CheckRestrictedFluxConfiguration(false);
+
    // Assemble the constraint matrix C
    ConstructC();
 
@@ -506,6 +512,50 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
                "flux mass element matrix is " << A.Height() << "x" << A.Width()
                << ", expected " << s << "x" << s
                << " -- see the note above on VectorMassIntegrator's vdim");
+
+   // **A non-finite entry, refused by name, and this is gffp's report.**
+   // It is the whole of what kappa = 0 does: VectorMassIntegrator(1/kappa)
+   // writes infinities, the LU turns them into NaNs, the trace solve returns
+   // NaNs -- and NOTHING SAYS SO. Vector::Norml2() guards its reduction with
+   // `fabs(v) > 0`, which is false for a NaN, so it SKIPS NaN entries and
+   // returns the norm of the remainder; an all-NaN vector reads as exactly 0.
+   // A caller checking a residual norm is therefore told the solve was
+   // perfect. Their measurement: an error norm of NaN, no abort, no exception
+   // and no solver failure flag.
+   //
+   // Here rather than in InvertA(), which is where the asymmetry with
+   // InvertD()'s two MFEM_ABORTs was reported: this is where the value
+   // ARRIVES from the integrator, it is host-resident by construction so no
+   // device sync is forced, it names the coefficient rather than a symptom
+   // three routines downstream, and it runs once per element per assembly
+   // rather than once per Newton step. An O(s^2) scan in front of an O(s^3)
+   // factorisation.
+   //
+   // Finiteness ONLY, and the non-positivity gffp also asked for is
+   // deliberately not checked: this routine ACCUMULATES -- domain integrators
+   // first, then any boundary face integrator -- so it cannot tell which pass
+   // it is looking at, and the flux mass legitimately receives nonsymmetric
+   // additions with no sign property at all (HDGExtensionIntegrator's lifting,
+   // on gf-hdg-subdomains-dev). A check that is right here and wrong on a
+   // sibling branch is worse than no check.
+   for (int j = 0; j < s; j++)
+   {
+      for (int i = 0; i < s; i++)
+      {
+         MFEM_VERIFY(IsFinite(A(i, j)),
+                     "the flux mass element matrix on element " << el
+                     << " has a non-finite entry at (" << i << ", " << j
+                     << "). A VectorMassIntegrator built on 1/kappa produces "
+                     "exactly this from kappa = 0: a direction in which the "
+                     "medium does not diffuse asks for an infinite "
+                     "coefficient. A flux that does not CARRY that direction "
+                     "is what such a problem wants -- see "
+                     "RestrictedVectorDivergenceIntegrator. Left alone this is "
+                     "silent, the NaNs it becomes being invisible to "
+                     "Vector::Norml2().");
+      }
+   }
+
    int Af_el_idx = Af_offsets[el];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    int Ae_el_idx = Ae_offsets[el];
@@ -572,6 +622,25 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
    const int o = hat_offsets[el];
    const int w = hat_offsets[el+1] - o;
    const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+   // **The shape, and this is a release-build VERIFY rather than an assert.**
+   // The loop below reads B(i, j) over the block it has SIZED, so an element
+   // matrix that is wider than the flux space owns is read as a prefix and
+   // the extra columns are silently discarded. That is not hypothetical: a
+   // scalar-range flux of vdim < sdim assembled with the stock
+   // VectorDivergenceIntegrator -- which sizes its block from
+   // Trans.GetSpaceDim() and not from the space -- returned err_p = 6.8e-01
+   // on a problem whose exact answer is in the discrete space and whose
+   // correct answer is 1.5e-15, with no abort anywhere and CheckFinite() == 0.
+   // One comparison per element per assembly buys the refusal.
+   MFEM_VERIFY(B.Height() == h && B.Width() == w,
+               "the divergence element matrix on element " << el << " is "
+               << B.Height() << " x " << B.Width() << " where the flux and "
+               "potential spaces own " << h << " x " << w << ". A flux space "
+               "carrying fewer components than the mesh has dimensions needs "
+               "RestrictedVectorDivergenceIntegrator, the stock "
+               "VectorDivergenceIntegrator sizing its block from the space "
+               "dimension.");
    int Bf_el_idx = Bf_offsets[el];
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
    int Be_el_idx = Be_offsets[el];
@@ -2432,6 +2501,40 @@ void DarcyHybridization::AssembleNCSlaveHFaceMatrix(int face,
    [this](int f, DenseMatrix &m) { GetHFaceMatrix(f, m); }, &H);
 }
 
+/** @brief The flux-constraint element matrix has to have the shape
+    ConstructC() sized for, and until this existed nothing checked it.
+
+    AssembleCtSubMatrix() reads `elmat(i + ioff, j)` with @a ioff the FIRST
+    element's hat size, so an element matrix laid out at a larger stride --
+    which is what the stock NormalTraceJumpIntegrator produces for a flux
+    space of `vdim < dim`, it indexing its rows by the mesh dimension -- puts
+    element 2's block on top of element 1's second component. Measured: the
+    answer comes back finite, unflagged and 100% wrong. Once per face at
+    assembly.
+
+    The expected height is `(nd1 + nd2) * fes.GetVDim()` and that spelling is
+    right for both range types: a scalar-range space of vdim m owns
+    `GetDof() * m` per element, and an H(div) element owns `GetDof()` against
+    a vdim of 1. */
+static void CheckConstraintBlockShape(const DenseMatrix &elmat,
+                                      const FiniteElement &fe1,
+                                      const FiniteElement &fe2,
+                                      const FaceElementTransformations &FTr,
+                                      int flux_vdim, int c_size, int face)
+{
+   const int nd1 = fe1.GetDof();
+   const int nd2 = (FTr.Elem2No >= 0) ? fe2.GetDof() : 0;
+   const int expect = (nd1 + nd2) * flux_vdim;
+   MFEM_VERIFY(elmat.Height() == expect && elmat.Width() == c_size,
+               "the flux constraint element matrix on face " << face << " is "
+               << elmat.Height() << " x " << elmat.Width() << " where the flux "
+               "and trace spaces own " << expect << " x " << c_size << ". A "
+               "flux space carrying fewer components than the mesh has "
+               "dimensions needs RestrictedNormalTraceJumpIntegrator, the "
+               "stock NormalTraceJumpIntegrator indexing its rows by the mesh "
+               "dimension.");
+}
+
 void DarcyHybridization::ConstructC()
 {
    Mesh *mesh = fes.GetMesh();
@@ -2484,6 +2587,9 @@ void DarcyHybridization::ConstructC()
 
          c_bfi->AssembleFaceMatrix(*c_fes.GetFaceElement(f),
                                    *fe1, *fe2, *FTr, elmat);
+         CheckConstraintBlockShape(elmat, *fe1, *fe2, *FTr, fes.GetVDim(),
+                                   c_fes.GetFaceElement(f)->GetDof()
+                                   * c_fes.GetVDim(), f);
          // zero-out small elements in elmat
          elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
@@ -2512,6 +2618,9 @@ void DarcyHybridization::ConstructC()
 
             c_bfi->AssembleFaceMatrix(*c_fes.GetFaceElement(f),
                                       *fe1, *fe2, *FTr, elmat);
+            CheckConstraintBlockShape(elmat, *fe1, *fe2, *FTr, fes.GetVDim(),
+                                      c_fes.GetFaceElement(f)->GetDof()
+                                      * c_fes.GetVDim(), f);
             // zero-out small elements in elmat
             elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
@@ -2569,6 +2678,9 @@ void DarcyHybridization::ConstructC()
 
                boundary_constraint_integs[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr,
                                                                  elmat);
+               CheckConstraintBlockShape(elmat, *fe1, *fe2, *FTr, fes.GetVDim(),
+                                         face_el->GetDof() * c_fes.GetVDim(),
+                                         iface);
                // zero-out small elements in elmat
                elmat.Threshold(mtol * elmat.MaxMaxNorm());
 
@@ -5358,6 +5470,27 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       return;
    }
 
+   // **The condensation route, and a restricted flux is not supported on it.**
+   // This is the exact entry rather than an inference: NPC reaches the trace
+   // through NPCResidual()/NPCGradient() and never through here, and
+   // DarcyNPCOperator::Mult() calls NPCResidual() directly. The Finalize()
+   // check cannot do this job on its own, because NPCEnabled() is
+   // `bnpc || IsNonlinear()` -- a nonlinear form is on the NPC path as far as
+   // that predicate is concerned whether or not the caller ever calls
+   // EnableNPC(), and DarcyOperator's own NPC branch does not (it runs
+   // FormLinearSystem() first, after which EnableNPC() is refused). So the
+   // linear reduced route is refused there and the nonlinear one is refused
+   // here.
+   //
+   // Out of scope rather than known broken: the two restricted integrators
+   // assemble blocks the condensation route would eliminate by the same
+   // algebra, and nothing has run it.
+   MFEM_VERIFY(!GetRestrictedFluxComponents(c_bfi.get()),
+               "the reduced (condense-then-linearise) operator does not "
+               "support a flux that carries fewer components than the mesh "
+               "has dimensions. Drive it with NPCResidual()/NPCGradient()/"
+               "NPCReduce()/NPCRecover(), or DarcyNPCOperator.");
+
    MultNL(MultNlMode::Mult, darcy_rhs, x, y);
 
    // Essential trace dofs. There is no assembled matrix on this path to move
@@ -6100,9 +6233,58 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    }
 }
 
+void DarcyHybridization::CheckRestrictedFluxConfiguration(bool require_npc)
+const
+{
+   const Array<int> *comps = GetRestrictedFluxComponents(c_bfi.get());
+   if (!comps) { return; }
+
+   const int sdim = fes.GetMesh()->SpaceDimension();
+   CheckFluxComponents(*comps, sdim, "DarcyHybridization");
+
+   MFEM_VERIFY(fes.GetVDim() == comps->Size(),
+               "the flux constraint restricts the flux to " << comps->Size()
+               << " component(s) and the flux space has vdim "
+               << fes.GetVDim() << "; they are the same number by definition");
+
+   MFEM_VERIFY(fes.GetNE() == 0 ||
+               fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR,
+               "a component-restricted flux needs a SCALAR-range space -- one "
+               "scalar basis per direction. An H(div) element's components are "
+               "intrinsic to it and cannot be dropped one at a time.");
+
+   MFEM_VERIFY(!require_npc || NPCEnabled(),
+               "a component-restricted flux is supported on the NPC path only. "
+               "Call EnableNPC() before Finalize(). The condensation route is "
+               "out of scope rather than known broken -- nothing there has been "
+               "run with a flux that carries fewer components than the mesh has "
+               "dimensions.");
+
+   MFEM_VERIFY(fes_p.GetVDim() == 1,
+               "a component-restricted flux is supported for one equation only; "
+               "the potential space has vdim " << fes_p.GetVDim() << ". A "
+               "system lays its flux out equation outermost and then component, "
+               "which is a different slice from the one the restricted "
+               "integrators take.");
+
+   MFEM_VERIFY(!m_nlfi,
+               "a component-restricted flux cannot be used with a BLOCK "
+               "nonlinear flux law. MixedConductionNLFIntegrator sizes its "
+               "element vector from the SPACE dimension and checks it only "
+               "under MFEM_DEBUG, so it would be silently wrong. A linear flux "
+               "mass is supported -- VectorMassIntegrator::SetVDim() takes the "
+               "component count from the caller.");
+}
+
 void DarcyHybridization::Finalize()
 {
    if (bfin) { return; }
+
+   // Before anything is factored: the restricted-flux combinations that are
+   // not supported, refused by name. Here rather than in Init() because
+   // EnableNPC() is normally called AFTER EnableHybridization(), so Init()
+   // cannot see the answer to the question this asks.
+   CheckRestrictedFluxConfiguration(true);
 
    // ComputeH(Linear) factors each element's A and D IN PLACE and keeps no
    // copy, which is right when the only thing ever asked of the hybridization

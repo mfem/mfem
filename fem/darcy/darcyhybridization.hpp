@@ -1049,6 +1049,47 @@ private:
    /// the Mesh's shared cache, so it is safe on a threaded element loop.
    FaceElementTransformations *GetFaceTransformation(int f,
                                                      TransWorkspace &ws) const;
+   /** @brief Refuse the combinations a component-RESTRICTED flux is not
+       supported in, once, at Finalize().
+
+       Fires only when the flux constraint integrator is one of the restricted
+       pair -- a caller who has not asked for a restricted flux is not
+       affected, and the SHAPE guards in AssembleDivMatrix() and
+       ConstructC() are what catch a flux space that is short without having
+       said so.
+
+       What it refuses, and every one of them is a thing that was measured or
+       read rather than guessed:
+
+       * a non-NPC assembly, and only HALF of that -- the LINEAR reduced
+         route, which is the one Finalize() itself takes. NPCEnabled() is
+         `bnpc || IsNonlinear()`, so a nonlinear form reads as NPC here
+         whether or not EnableNPC() was ever called, and requiring @a bnpc
+         instead would refuse DarcyOperator's own NPC branch, which cannot
+         call it (it runs FormLinearSystem() first, and EnableNPC() after
+         Finalize() is refused). The nonlinear reduced route is therefore
+         refused at its own entry, DarcyHybridization::Mult(), which NPC
+         never reaches. Out of scope rather than known broken.
+       * a VECTOR-range flux space. An H(div) element's components are
+         intrinsic; there is no block to drop.
+       * more than one equation. The flux of a system is laid out equation
+         outermost and then component, so the slice arithmetic in the two
+         restricted integrators is a different expression.
+       * a BLOCK nonlinear flux law. MixedConductionNLFIntegrator sizes its
+         element vector as `neq * sdim * ndof_u` from Trans.GetSpaceDim() and
+         asserts it only under MFEM_DEBUG, so a restricted flux would be
+         silently wrong there. The LINEAR flux mass is fine --
+         VectorMassIntegrator::SetVDim() has always taken the count from the
+         caller.
+       * a component list that disagrees with the space it is describing.
+
+       Called TWICE: from Init() with @a require_npc false, so that a wrong
+       equation count or a vector-range space is named before ConstructC()'s
+       shape guard reports it as a block of the wrong height; and from
+       Finalize() with it true, EnableNPC() normally being called after
+       EnableHybridization() and so invisible to the first. */
+   void CheckRestrictedFluxConfiguration(bool require_npc) const;
+
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);

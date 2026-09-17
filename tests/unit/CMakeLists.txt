@@ -131,6 +131,7 @@ set(UNIT_TESTS_SRCS
   fem/test_darcy_postprocess.cpp
   fem/test_darcy_reconstruction.cpp
   fem/test_darcy_reduction.cpp
+  fem/test_darcy_restricted_flux.cpp
   fem/test_darcy_system.cpp
   fem/test_darcy_threaded_assembly.cpp
   fem/test_datacollection.cpp

@@ -654,6 +654,46 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    hybridization->Init(ess_flux_tdof_list);
 }
 
+/** @brief The flux components stated on the divergence and on the flux
+    constraint have to agree.
+
+    The two shape guards inside DarcyHybridization compare each block against
+    what the SPACE owns, which catches an unrestricted integrator on a short
+    flux space and catches a restriction of the wrong SIZE. It cannot catch a
+    restriction of the right size to the wrong DIRECTIONS, because both blocks
+    are then exactly the shape the space expects. This can, and it is the only
+    place that sees both objects.
+
+    Silent on a configuration that restricts neither. */
+static void CheckRestrictedFluxAgreement(MixedBilinearForm *B,
+                                         const BilinearFormIntegrator *c_bfi)
+{
+   const Array<int> *cc = GetRestrictedFluxComponents(c_bfi);
+   Array<BilinearFormIntegrator*> *dbfi = B->GetDBFI();
+   for (int k = 0; k < dbfi->Size(); k++)
+   {
+      const Array<int> *bc = GetRestrictedFluxComponents((*dbfi)[k]);
+      if (!bc && !cc) { continue; }
+      MFEM_VERIFY(bc && cc,
+                  "one of the flux divergence and the flux constraint restricts "
+                  "the flux to a subset of the Cartesian directions and the "
+                  "other does not. Both take the same list, or neither: "
+                  "RestrictedVectorDivergenceIntegrator on the divergence form "
+                  "and RestrictedNormalTraceJumpIntegrator as the constraint.");
+      MFEM_VERIFY(bc->Size() == cc->Size(),
+                  "the flux divergence restricts to " << bc->Size()
+                  << " component(s) and the flux constraint to " << cc->Size());
+      for (int i = 0; i < bc->Size(); i++)
+      {
+         MFEM_VERIFY((*bc)[i] == (*cc)[i],
+                     "the flux divergence and the flux constraint disagree on "
+                     "flux component " << i << ": direction " << (*bc)[i]
+                     << " against " << (*cc)[i] << ". They describe one space "
+                     "and its component order is part of it.");
+      }
+   }
+}
+
 void DarcyForm::Assemble(int skip_zeros)
 {
    if (M_u)
@@ -710,6 +750,16 @@ void DarcyForm::Assemble(int skip_zeros)
    {
       if (hybridization)
       {
+         // **The divergence and the constraint have to name the SAME
+         // directions, and shapes alone cannot say so.** Two lists of equal
+         // length that differ in their entries -- {0,1} against {1,2} of
+         // three -- pass every size check in the tree and assemble a
+         // divergence of one pair of directions against a normal trace of
+         // another. The result is a consistent-looking operator for a problem
+         // nobody posed. One comparison per assembly.
+         CheckRestrictedFluxAgreement(B.get(),
+                                      hybridization->GetFluxConstraintIntegrator());
+
          // As for the two masses: the domain integrators only. B's FACE
          // integrators are a marker for the constraint on the hybridized path
          // and are never evaluated here, so there is nothing for the kernel to

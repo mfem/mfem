@@ -4946,4 +4946,116 @@ void HDGNLFaceGradScatterBatched(
    }
 }
 
+
+const Array<int> *GetRestrictedFluxComponents(const BilinearFormIntegrator *bfi)
+{
+   if (auto *d = dynamic_cast<const RestrictedVectorDivergenceIntegrator*>(bfi))
+   {
+      return &d->GetFluxComponents();
+   }
+   if (auto *c = dynamic_cast<const RestrictedNormalTraceJumpIntegrator*>(bfi))
+   {
+      return &c->GetFluxComponents();
+   }
+   return NULL;
+}
+
+void CheckFluxComponents(const Array<int> &comps, int sdim, const char *what)
+{
+   for (int c = 0; c < comps.Size(); c++)
+   {
+      MFEM_VERIFY(comps[c] >= 0 && comps[c] < sdim,
+                  what << ": flux component " << c << " names direction "
+                  << comps[c] << ", which is not in [0, " << sdim << ")");
+      MFEM_VERIFY(c == 0 || comps[c] > comps[c-1],
+                  what << ": the flux components must be strictly increasing, "
+                  "the order being the layout of the flux space itself; got "
+                  << comps[c-1] << " then " << comps[c]);
+   }
+   MFEM_VERIFY(comps.Size() <= sdim,
+               what << ": " << comps.Size() << " flux components in "
+               << sdim << " dimensions");
+}
+
+void RestrictedVectorDivergenceIntegrator::AssembleElementMatrix2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix full;
+#endif
+   MFEM_VERIFY(trial_fe.GetRangeType() == FiniteElement::SCALAR,
+               "RestrictedVectorDivergenceIntegrator needs a SCALAR-range flux "
+               "space -- one scalar basis per direction. An H(div) element's "
+               "components are intrinsic and there is no column block to drop; "
+               "use VectorFEDivergenceIntegrator and a full flux.");
+   const int sdim = Trans.GetSpaceDim();
+   CheckFluxComponents(comps, sdim, "RestrictedVectorDivergenceIntegrator");
+
+   base.AssembleElementMatrix2(trial_fe, test_fe, Trans, full);
+
+   const int nd = trial_fe.GetDof();
+   const int m = comps.Size();
+   MFEM_ASSERT(full.Width() == sdim * nd, "the base block is not sdim wide");
+   elmat.SetSize(full.Height(), m * nd);
+   for (int c = 0; c < m; c++)
+   {
+      const int off = comps[c] * nd;
+      for (int j = 0; j < nd; j++)
+         for (int i = 0; i < full.Height(); i++)
+         {
+            elmat(i, c * nd + j) = full(i, off + j);
+         }
+   }
+}
+
+void RestrictedNormalTraceJumpIntegrator::AssembleFaceMatrix(
+   const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
+   const FiniteElement &test_fe2, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix full;
+#endif
+   MFEM_VERIFY(test_fe1.GetRangeType() == FiniteElement::SCALAR,
+               "RestrictedNormalTraceJumpIntegrator needs a SCALAR-range flux "
+               "space -- one scalar basis per direction. An H(div) element's "
+               "components are intrinsic and there are no rows to drop; use "
+               "NormalTraceJumpIntegrator and a full flux.");
+   // test_fe1.GetDim() and not Trans.GetSpaceDim(): the base indexes its rows
+   // by the ELEMENT's dimension, which is what its own `const int dim =
+   // test_fe1.GetDim()` says, so the slice has to agree with that and not with
+   // the space dimension it may differ from on a surface mesh.
+   const int dim = test_fe1.GetDim();
+   CheckFluxComponents(comps, dim, "RestrictedNormalTraceJumpIntegrator");
+
+   base.AssembleFaceMatrix(trial_face_fe, test_fe1, test_fe2, Trans, full);
+
+   const int nd1 = test_fe1.GetDof();
+   const int nd2 = (Trans.Elem2No >= 0) ? test_fe2.GetDof() : 0;
+   const int nf = trial_face_fe.GetDof();
+   const int m = comps.Size();
+   MFEM_ASSERT(full.Height() == (nd1 + nd2) * dim,
+               "the base block is not dim tall");
+   elmat.SetSize((nd1 + nd2) * m, nf);
+   elmat = 0.0;
+   for (int c = 0; c < m; c++)
+   {
+      const int off1 = comps[c] * nd1;
+      for (int i = 0; i < nd1; i++)
+         for (int j = 0; j < nf; j++)
+         {
+            elmat(c * nd1 + i, j) = full(off1 + i, j);
+         }
+      // Element 2 sits at dim*nd1 in the base and at m*nd1 here, which is the
+      // whole reason the unrestricted block cannot simply be truncated.
+      const int off2 = dim * nd1 + comps[c] * nd2;
+      for (int i = 0; i < nd2; i++)
+         for (int j = 0; j < nf; j++)
+         {
+            elmat(m * nd1 + c * nd2 + i, j) = full(off2 + i, j);
+         }
+   }
+}
+
 }

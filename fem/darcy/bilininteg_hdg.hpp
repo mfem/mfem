@@ -840,6 +840,152 @@ public:
                                Vector *d_energy = NULL) override;
 };
 
+/** @brief The flux components a restricted integrator carries, or NULL when
+    @a bfi is not one of them.
+
+    ONE place that knows which classes below are "restricted", so that
+    DarcyForm and DarcyHybridization ask the same question rather than each
+    keeping its own list of types to try. */
+const Array<int> *GetRestrictedFluxComponents(const BilinearFormIntegrator
+                                              *bfi);
+
+/** @brief Check a flux component list against a space dimension: non-empty or
+    empty, strictly increasing, and every entry in [0, @a sdim).
+
+    Strictly increasing rather than merely distinct, because the component
+    order IS the layout of the flux space: component @a c of the space is the
+    physical direction `comps[c]`, and two lists that are permutations of each
+    other describe different spaces. Aborts with a message naming @a what. */
+void CheckFluxComponents(const Array<int> &comps, int sdim, const char *what);
+
+/** @brief The divergence of a flux that carries only SOME of the Cartesian
+    directions,
+    $$ \Big(Q \sum_{d \in S} \partial_d u_d,\ v\Big), $$
+    for a scalar-range flux space of `vdim = |S|` whose component @a c is the
+    physical direction `S[c]`.
+
+    **What this is for, and why a small coefficient is not the answer.**
+    DarcyForm's flux mass is a VectorMassIntegrator$(1/\kappa)$, so a direction
+    in which the medium does not diffuse asks for an infinite coefficient. A
+    kinetic equation whose collision operator diffuses in the velocity
+    coordinates only is exactly that: along the field line the operator is pure
+    advection, so the diffusion tensor carries a structural zero eigenvalue at
+    every point and permanently, not in some limit. Floored, the answer is
+    reported insensitive to $\kappa$ over eight decades and then breaks -- there
+    is a window in which it is right and a cliff below it, and a floored
+    stabilization moves the cliff and turns an astronomical failure into a
+    plausible-looking one. The fix is a flux unknown that does not exist in that
+    direction, which is what this and RestrictedNormalTraceJumpIntegrator build.
+
+    **It is a SLICE of the full block, and that is arithmetic rather than a
+    claim.** MFEM lays a scalar-range vector space out component-outermost, so
+    column block @a d of VectorDivergenceIntegrator's element matrix is exactly
+    $(Q\,\partial_d u_d, v)$. Measured against DerivativeIntegrator(1, d) forced
+    onto the same rule: `max|slice - DerivativeIntegrator(d)| = 0` in both
+    components on a 2-D quad. So this DELEGATES and slices rather than
+    reproducing the loop -- the base's rule, its adjugate and its `dim != sdim`
+    scaling cannot drift from a copy that does not exist, which is the
+    one-source-of-truth argument the batched kernels in this file make about
+    quadrature rules.
+
+    The cost of delegating is the $|S|/\mathrm{sdim}$ of the block that is
+    thrown away. B is assembled once, so that is a one-off; a native loop is
+    available the day it is not.
+
+    @note `|S| == sdim` is the identity and is supported deliberately, so that
+          a test can run the wrapper against the stock integrator on the same
+          problem and require them equal. Measured: bit-identical.
+    @note A VECTOR-range (RT or broken-RT) flux is REFUSED. Its components are
+          intrinsic to the element and there is no column block to drop; the
+          whole idea only makes sense for a scalar-range space carrying one
+          basis per direction. */
+class RestrictedVectorDivergenceIntegrator : public BilinearFormIntegrator
+{
+   Array<int> comps;
+   VectorDivergenceIntegrator base;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix full;
+#endif
+
+public:
+   RestrictedVectorDivergenceIntegrator(const Array<int> &comps_)
+   { comps_.Copy(comps); }
+   RestrictedVectorDivergenceIntegrator(const Array<int> &comps_, Coefficient &q)
+      : base(q) { comps_.Copy(comps); }
+
+   /// The physical directions the flux carries, in the space's own order.
+   const Array<int> &GetFluxComponents() const { return comps; }
+
+   /// The scalar coefficient handed to the base, or null.
+   Coefficient *GetCoefficient() const { return base.GetCoefficient(); }
+
+   /// Forwarded, so a caller-set rule reaches the integrator that uses it.
+   void SetIntRule(const IntegrationRule *ir) override
+   { BilinearFormIntegrator::SetIntRule(ir); base.SetIntRule(ir); }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override;
+};
+
+/** @brief The normal trace of a flux that carries only SOME of the Cartesian
+    directions,
+    $$ \Big\langle \lambda,\ \sum_{d \in S} u_d n_d \Big\rangle, $$
+    the constraint matching RestrictedVectorDivergenceIntegrator.
+
+    A ROW slice of NormalTraceJumpIntegrator, by the same argument and with the
+    same delegation: its scalar-range branch accumulates
+    `elmat(i + d*ndof1, j) += shape1(i) face_shape(j) normal(d)` and the
+    element-2 block the same at an offset of `dim*ndof1`, so the rows belonging
+    to direction @a d are exactly $\langle \lambda, u_d n_d \rangle$.
+
+    **The two offsets are the whole content of the class**, and getting them
+    wrong is silent: DarcyHybridization::AssembleCtFaceMatrix() places
+    element 2 at `hat_size_1`, which is `ndof1*|S|`, while the base placed it
+    at `ndof1*sdim`. Handed the unrestricted block at `|S| < sdim` the
+    hybridization therefore reads element 2's rows out of element 1's SECOND
+    COMPONENT -- measured on a problem whose exact answer is in the discrete
+    space, it returns `err_p = 6.8e-01` against a correct `1.5e-15`, finite,
+    with no abort anywhere. That is why the shape guards in
+    AssembleDivMatrix() and AssembleCtFaceMatrix() exist regardless of this
+    class.
+
+    @note The same object serves the interior and the boundary faces:
+          DarcyForm::Assemble() installs the flux constraint integrator it was
+          given as the boundary constraint on the attributes carrying a face
+          integrator on B. A boundary face has `ndof2 == 0` and the base sizes
+          for it, so nothing here is conditional on which it is.
+    @note A VECTOR-range flux is REFUSED, for the reason given on
+          RestrictedVectorDivergenceIntegrator. */
+class RestrictedNormalTraceJumpIntegrator : public BilinearFormIntegrator
+{
+   Array<int> comps;
+   NormalTraceJumpIntegrator base;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix full;
+#endif
+
+public:
+   RestrictedNormalTraceJumpIntegrator(const Array<int> &comps_,
+                                       real_t sign_ = 1.)
+      : base(sign_) { comps_.Copy(comps); }
+
+   /// The physical directions the flux carries, in the space's own order.
+   const Array<int> &GetFluxComponents() const { return comps; }
+
+   /// Forwarded, so a caller-set rule reaches the integrator that uses it.
+   void SetIntRule(const IntegrationRule *ir) override
+   { BilinearFormIntegrator::SetIntRule(ir); base.SetIntRule(ir); }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+};
+
 /** @brief Whether HDGNLFaceGradScatterBatched() can take these integrators.
 
     False means the caller keeps its per-element-face loop, not that anything
