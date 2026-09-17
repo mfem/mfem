@@ -170,71 +170,80 @@ inline void MmaCurlCurlApplyTensors3D(
 }
 
 inline void MmaHcurlMassApplySimplex(const int dim, const int NE, const int nd,
-                                    const int nq, const int sdim,
+                                    const int nq, const int d1d,
+                                    const int sdim,
                                     const bool symmetric,
                                     const Array<real_t> &B,
                                     const Vector &pa_data,
                                     const Vector &x, Vector &y)
 {
-   using mma::form::ApplySimplex;
+   using mma::form::ApplySimplexRegistered;
    using mma::form::HcurlMass;
    MFEM_VERIFY(dim == sdim, "");
    MFEM_VERIFY(nd * NE == x.Size(), "");
-   (void)nq;
    if (dim == 2)
    {
       if (symmetric)
       {
-         ApplySimplex<HcurlMass<2, true>, 2>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HcurlMass<2, true>, 2>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
       else
       {
-         ApplySimplex<HcurlMass<2, false>, 2>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HcurlMass<2, false>, 2>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
    }
    else
    {
       if (symmetric)
       {
-         ApplySimplex<HcurlMass<3, true>, 3>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HcurlMass<3, true>, 3>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
       else
       {
-         ApplySimplex<HcurlMass<3, false>, 3>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HcurlMass<3, false>, 3>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
    }
 }
 
 inline void MmaCurlCurlApplySimplex(const int dim, const int NE, const int nd,
-                                   const int nq, const int curl_dim,
+                                   const int nq, const int d1d,
+                                   const int curl_dim,
                                    const bool symmetric,
                                    const Array<real_t> &C,
                                    const Vector &pa_data,
                                    const Vector &x, Vector &y)
 {
-   using mma::form::ApplySimplex;
+   using mma::form::ApplySimplexRegistered;
    using mma::form::CurlCurlQFn;
-   (void)nd; (void)nq; (void)curl_dim;
+   (void)nd; (void)curl_dim;
    if (dim == 2)
    {
       if (symmetric)
       {
-         ApplySimplex<CurlCurlQFn<2, true>, 2>(NE, C, pa_data, x, y);
+         ApplySimplexRegistered<CurlCurlQFn<2, true>, 2>(
+            d1d, nq, NE, C, pa_data, x, y);
       }
       else
       {
-         ApplySimplex<CurlCurlQFn<2, false>, 2>(NE, C, pa_data, x, y);
+         ApplySimplexRegistered<CurlCurlQFn<2, false>, 2>(
+            d1d, nq, NE, C, pa_data, x, y);
       }
    }
    else
    {
       if (symmetric)
       {
-         ApplySimplex<CurlCurlQFn<3, true>, 3>(NE, C, pa_data, x, y);
+         ApplySimplexRegistered<CurlCurlQFn<3, true>, 3>(
+            d1d, nq, NE, C, pa_data, x, y);
       }
       else
       {
-         ApplySimplex<CurlCurlQFn<3, false>, 3>(NE, C, pa_data, x, y);
+         ApplySimplexRegistered<CurlCurlQFn<3, false>, 3>(
+            d1d, nq, NE, C, pa_data, x, y);
       }
    }
 }

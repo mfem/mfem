@@ -14,6 +14,9 @@
 #include <cmath>
 #endif
 
+#include <limits>
+#include <cmath>
+
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 #include "fem/integ/mma/mma.hpp"
@@ -845,7 +848,7 @@ void test_hcurl_hdiv_simplex_fa_vs_mma(Mesh &mesh, int p, bool hcurl, VecFeOp op
 TEST_CASE("Hcurl/Hdiv simplex MMA PA vs FA",
           "[PA][MMA][Hcurl][Hdiv][Simplex][GPU]")
 {
-   const int p = GENERATE(1, 2, 3);
+   const int p = GENERATE(1, 2, 3, 4, 5, 6);
    SECTION("2D ND triangle")
    {
       Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE);
@@ -869,6 +872,76 @@ TEST_CASE("Hcurl/Hdiv simplex MMA PA vs FA",
       Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
       test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::Mass);
       test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::DivDiv);
+   }
+}
+
+TEST_CASE("Hcurl simplex MMA PA vs FA large NE tet",
+          "[PA][MMA][Hcurl][Simplex][GPU]")
+{
+   // Old bake used nq*nd*curl_dim*NE and skipped Dual when that overflowed
+   // int Array::SetSize (p=6 tet, ~27k elements). Shared-C + E-vector dual
+   // must still run, and FA vs MMA must match on a large-but-FA-feasible mesh.
+   auto run_mma = [](Mesh &mesh, bool require_overflow)
+   {
+      const int p = 6;
+      ND_FECollection fec(p, mesh.Dimension());
+      FiniteElementSpace fes(&mesh, &fec);
+      {
+         MMAForce on(true);
+         REQUIRE(UsesSimplexMmaHcurl(fes));
+      }
+      const auto &fe = *fes.GetTypicalFE();
+      ElementTransformation &T = *mesh.GetTypicalElementTransformation();
+      const IntegrationRule *ir = &MassIntegrator::GetRule(fe, fe, T);
+      const long long nB = (long long)ir->GetNPoints() * fe.GetDof() *
+                           fe.GetCurlDim() * mesh.GetNE();
+      if (require_overflow)
+      {
+         REQUIRE(nB > static_cast<long long>(std::numeric_limits<int>::max()));
+      }
+
+      GridFunction x(&fes), y_mma(&fes);
+      x.Randomize(0x100001b3);
+      y_mma = 0.0;
+      BilinearForm pa(&fes);
+      auto *ipa = new CurlCurlIntegrator;
+      ipa->SetIntRule(ir);
+      pa.AddDomainIntegrator(ipa);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      {
+         MMAForce on(true);
+         pa.Assemble();
+      }
+      pa.Mult(x, y_mma);
+      REQUIRE(std::isfinite(y_mma.Norml2()));
+      REQUIRE(y_mma.Norml2() > 0.0);
+
+      if (!require_overflow)
+      {
+         GridFunction y_fa(&fes);
+         y_fa = 0.0;
+         BilinearForm fa(&fes);
+         auto *ifa = new CurlCurlIntegrator;
+         ifa->SetIntRule(ir);
+         fa.AddDomainIntegrator(ifa);
+         fa.Assemble();
+         fa.Finalize();
+         fa.Mult(x, y_fa);
+         y_fa -= y_mma;
+         REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+      }
+   };
+
+   SECTION("bake would overflow")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(18, 18, 18, Element::TETRAHEDRON);
+      run_mma(mesh, true);
+   }
+   SECTION("FA vs MMA on large NE")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(8, 8, 8, Element::TETRAHEDRON);
+      REQUIRE(mesh.GetNE() > 2700);
+      run_mma(mesh, false);
    }
 }
 

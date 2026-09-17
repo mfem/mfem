@@ -54,10 +54,13 @@ MFEM_HOST_DEVICE inline void ApplyEvalQFnSmem(
       const int q = idx - b * nq;
       const int e = e0 + b;
       if (e >= NE) { continue; }
-      eval_t u(Us[q + u_ld * b]);
-      eval_t y;
+      using Trial = typename qfn_traits<QFn>::trial_kind;
+      using Test = typename qfn_traits<QFn>::test_kind;
+      Trial u{};
+      u[0] = Us[q + u_ld * b];
+      Test y{};
       InvokeQFn(qfn, u, y, D(q, e));
-      Us[q + u_ld * b] = real_t(y);
+      Us[q + u_ld * b] = y[0];
    }
 }
 
@@ -76,9 +79,13 @@ MFEM_HOST_DEVICE inline void EvalApplyDenseElement(
       {
          s += P[q + nq * i] * X_e[i];
       }
-      eval_t u(s), y;
+      using Trial = typename qfn_traits<QFn>::trial_kind;
+      using Test = typename qfn_traits<QFn>::test_kind;
+      Trial u{};
+      u[0] = s;
+      Test y{};
       InvokeQFn(qfn, u, y, D_e[q]);
-      u_scratch[q] = real_t(y);
+      u_scratch[q] = y[0];
    }
    for (int i = 0; i < ndof; ++i)
    {
@@ -664,6 +671,144 @@ inline void HostLFApply(QFn qfn, const int NE, const int nq, const int ndof,
    }
 }
 
+/** Host: Y += P^T QFn(P X, D). Multi-RHS GEMM when PreferMultiRhs. */
+template <typename QFn>
+inline void HostScalarEvalApply(QFn qfn, const int NE, const int nq,
+                                const int ndof,
+                                const real_t *P, const real_t *D,
+                                const real_t *X, real_t *Y)
+{
+#ifdef MFEM_USE_LAPACK
+   if (lapack::PreferMultiRhs(nq, ndof, NE))
+   {
+      using Trial = typename qfn_traits<QFn>::trial_kind;
+      using Test = typename qfn_traits<QFn>::test_kind;
+      const int NB = lapack::NB(nq, ndof);
+      const int ntiles = (NE + NB - 1) / NB;
+      std::vector<real_t> xloc(static_cast<size_t>(ndof) * NB);
+      std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
+      std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
+      for (int tile = 0; tile < ntiles; ++tile)
+      {
+         const int e0 = tile * NB;
+         lapack::PackX(X, ndof, e0, NE, NB, xloc.data());
+         lapack::Gemm('N', 'N', nq, NB, ndof, real_t(1), P, nq,
+                      xloc.data(), ndof, real_t(0), uloc.data(), nq);
+         for (int b = 0; b < NB; ++b)
+         {
+            const int e = e0 + b;
+            if (e >= NE) { break; }
+            for (int q = 0; q < nq; ++q)
+            {
+               Trial u{};
+               u[0] = uloc[static_cast<size_t>(q) +
+                           static_cast<size_t>(nq) * b];
+               Test ye{};
+               InvokeQFn(qfn, u, ye, D[q + nq * e]);
+               uloc[static_cast<size_t>(q) +
+                    static_cast<size_t>(nq) * b] = ye[0];
+            }
+         }
+         lapack::Gemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
+                      uloc.data(), nq, real_t(0), ytmp.data(), ndof);
+         lapack::ScatterAddY(ytmp.data(), ndof, e0, NE, NB, Y);
+      }
+      return;
+   }
+#endif
+   HostEvalApply(qfn, NE, nq, ndof, P, D, X, Y);
+}
+
+/** Host multi-plane: U_c = B_c X, QFn mixes planes, Y += B_c^T V_c. */
+template <int NCOMP, typename Metric>
+inline void HostPlaneEvalApply(const int NE, const int nq, const int ndof,
+                               const real_t *B, const real_t *X, real_t *Y,
+                               Metric metric)
+{
+#ifdef MFEM_USE_LAPACK
+   if (lapack::PreferMultiRhs(nq, ndof, NE))
+   {
+      const int NB = lapack::NB(nq, ndof);
+      const int ntiles = (NE + NB - 1) / NB;
+      std::vector<real_t> xloc(static_cast<size_t>(ndof) * NB);
+      std::vector<real_t> uloc(static_cast<size_t>(NCOMP) * nq * NB);
+      std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
+      for (int tile = 0; tile < ntiles; ++tile)
+      {
+         const int e0 = tile * NB;
+         lapack::PackX(X, ndof, e0, NE, NB, xloc.data());
+         for (int c = 0; c < NCOMP; ++c)
+         {
+            const real_t *Bc = B + static_cast<size_t>(nq) * ndof * c;
+            real_t *Uc = uloc.data() + static_cast<size_t>(c) * nq * NB;
+            lapack::Gemm('N', 'N', nq, NB, ndof, real_t(1), Bc, nq,
+                         xloc.data(), ndof, real_t(0), Uc, nq);
+         }
+         for (int b = 0; b < NB; ++b)
+         {
+            const int e = e0 + b;
+            if (e >= NE) { break; }
+            for (int q = 0; q < nq; ++q)
+            {
+               real_t u[NCOMP], v[NCOMP];
+               for (int c = 0; c < NCOMP; ++c)
+               {
+                  u[c] = uloc[static_cast<size_t>(c) * nq * NB +
+                              static_cast<size_t>(q) +
+                              static_cast<size_t>(nq) * b];
+               }
+               metric(u, v, q, e);
+               for (int c = 0; c < NCOMP; ++c)
+               {
+                  uloc[static_cast<size_t>(c) * nq * NB +
+                       static_cast<size_t>(q) +
+                       static_cast<size_t>(nq) * b] = v[c];
+               }
+            }
+         }
+         std::fill(ytmp.begin(), ytmp.end(), real_t(0));
+         for (int c = 0; c < NCOMP; ++c)
+         {
+            const real_t *Bc = B + static_cast<size_t>(nq) * ndof * c;
+            const real_t *Vc = uloc.data() + static_cast<size_t>(c) * nq * NB;
+            lapack::Gemm('T', 'N', ndof, NB, nq, real_t(1), Bc, nq,
+                         Vc, nq, real_t(1), ytmp.data(), ndof);
+         }
+         lapack::ScatterAddY(ytmp.data(), ndof, e0, NE, NB, Y);
+      }
+      return;
+   }
+#endif
+   for (int e = 0; e < NE; ++e)
+   {
+      for (int q = 0; q < nq; ++q)
+      {
+         real_t u[NCOMP] = {}, v[NCOMP] = {};
+         for (int c = 0; c < NCOMP; ++c)
+         {
+            const real_t *Bc = B + static_cast<size_t>(nq) * ndof * c;
+            real_t s = 0.0;
+            for (int i = 0; i < ndof; ++i)
+            {
+               s += Bc[q + nq * i] * X[i + ndof * e];
+            }
+            u[c] = s;
+         }
+         metric(u, v, q, e);
+         for (int i = 0; i < ndof; ++i)
+         {
+            real_t s = 0.0;
+            for (int c = 0; c < NCOMP; ++c)
+            {
+               const real_t *Bc = B + static_cast<size_t>(nq) * ndof * c;
+               s += Bc[q + nq * i] * v[c];
+            }
+            Y[i + ndof * e] += s;
+         }
+      }
+   }
+}
+
 template <typename QFn, int MAP>
 MFEM_HOST_DEVICE inline void LFBatchBody(
    QFn qfn,
@@ -927,7 +1072,10 @@ MFEM_HOST_DEVICE inline void ApplyGradQFnSmem(
       const int q_g = q0 + q_loc;
       if (e >= NE || q_g >= nq_total) { continue; }
 
-      grad_t<DIM> u, y;
+      using Trial = typename qfn_traits<QFn>::trial_kind;
+      using Test = typename qfn_traits<QFn>::test_kind;
+      Trial u{};
+      Test y{};
       for (int c = 0; c < DIM; ++c)
       {
          u[c] = UV[c * u_ld * nb + q_loc + u_ld * b];
@@ -1015,7 +1163,10 @@ MFEM_HOST_DEVICE inline void GradApplyDenseElement(
    GradInterpGX<DIM>(nq, ndof, G, X_e, u_scratch);
    for (int q = 0; q < nq; ++q)
    {
-      grad_t<DIM> u, y;
+      using Trial = typename qfn_traits<QFn>::trial_kind;
+      using Test = typename qfn_traits<QFn>::test_kind;
+      Trial u{};
+      Test y{};
       for (int d = 0; d < DIM; ++d) { u[d] = u_scratch[d * nq + q]; }
       struct D1
       {
@@ -1894,6 +2045,211 @@ inline void SimplexDivDivApply(const int NE, const int nd, const int nq,
 
 } // namespace detail
 
+// ND tet p=6 is 216 dofs; RT tet p=6 is 280; BP9 tet p=6 nq is 175.
+constexpr int SimplexVecMaxNdof = 320;
+constexpr int SimplexVecMaxNq = 256;
+
+template <typename QFn, int DIM>
+inline void HostApplyPlaneQFn(QFn qfn, const real_t *D, const int nq,
+                              const int NE, const int q, const int e,
+                              const real_t *u_in, real_t *v_out)
+{
+   using Tr = qfn_traits<QFn>;
+   constexpr bool SYM = Tr::symmetric_pa;
+   const int ncomp = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   const auto Dd = Reshape(D, nq, ncomp, NE);
+   tensor<real_t, DIM, DIM> A{};
+   LoadMetricTensor<DIM, SYM>(A, Dd, q, e);
+   typename Tr::trial_kind u{};
+   typename Tr::test_kind y{};
+   for (int c = 0; c < DIM; ++c) { u[c] = u_in[c]; }
+   InvokeQFn(qfn, u, y, A);
+   for (int c = 0; c < DIM; ++c) { v_out[c] = y[c]; }
+}
+
+/** CUDA dyn-smem / host-alloca scalar Eval batch (ND/RT ndof, not H1 caps). */
+template <typename QFn, int DIM>
+struct VecScalarEvalRuntimeKernel
+{
+   QFn qfn;
+   int NE, nq, ndof, x_ld, u_ld, nb;
+   const real_t *P;
+   const real_t *D;
+   const real_t *X;
+   real_t *Y;
+
+   MFEM_HOST_DEVICE void operator()(int batch) const
+   {
+#if defined(__CUDA_ARCH__)
+      real_t *XY = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
+      real_t *Us = XY + x_ld * nb;
+#else
+      real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                                static_cast<size_t>(x_ld) * nb));
+      real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                                static_cast<size_t>(u_ld) * nb));
+#endif
+      const int tid = getThreadIdx();
+      const int nthr = getBlockNthreads();
+      EvalBatchBody<QFn, MmaMapDefault>(
+         qfn, batch * nb, NE, nq, ndof, x_ld, u_ld, nb,
+         P, D, X, Y, XY, Us, tid, nthr);
+   }
+};
+
+template <typename QFn, int DIM>
+struct VecPlaneEvalRuntimeKernel
+{
+   using Tr = qfn_traits<QFn>;
+   static constexpr bool SYM = Tr::symmetric_pa;
+   static constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+
+   QFn qfn;
+   int NE, nq, ndof, x_ld, u_ld, nb;
+   const real_t *G;
+   const real_t *Dv;
+   const real_t *X;
+   real_t *Y;
+
+   MFEM_HOST_DEVICE void operator()(int batch) const
+   {
+#if defined(__CUDA_ARCH__)
+      real_t *XY = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
+      real_t *UV = XY + x_ld * nb;
+#else
+      real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                                static_cast<size_t>(x_ld) * nb));
+      real_t *UV = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                                static_cast<size_t>(DIM) *
+                                                u_ld * nb));
+#endif
+      const int tid = getThreadIdx();
+      const int nthr = getBlockNthreads();
+      const auto D = Reshape(Dv, nq, PA_SIZE, NE);
+      const auto Xm = ConstDeviceMatrix(X, ndof, NE);
+      if (DeviceGemmEnabled())
+      {
+         GradFullNqGemm<DIM, SYM, MmaMapDefault>(
+            qfn, XY, UV, D, G, Y, Xm, batch * nb, NE, nq, ndof,
+            x_ld, u_ld, nb, tid, nthr);
+      }
+      else if (tid == 0)
+      {
+         real_t u_scratch[DIM * SimplexVecMaxNq];
+         GradBatchEmulate<DIM, SYM>(
+            qfn, batch * nb, NE, nq, ndof, x_ld, nb,
+            G, D, Xm, Y, XY, u_scratch);
+      }
+      MFEM_SYNC_THREAD;
+   }
+};
+
+template <typename QFn, int DIM>
+inline void DeviceScalarEvalApply(const int NE, const int nq, const int ndof,
+                                  const real_t *P, const real_t *D,
+                                  const real_t *X, real_t *Y)
+{
+   MFEM_VERIFY(nq <= SimplexVecMaxNq && ndof <= SimplexVecMaxNdof,
+               "VectorFE scalar Eval exceeds size caps");
+   const SmemPlan plan = MakeEvalPlanRuntime(ndof, nq, true);
+   VerifySharedMemBytes(plan.smem_bytes);
+   const int nthreads = plan.nthreads;
+   const int nbatches = (NE + plan.nb - 1) / plan.nb;
+   QFn qfn{};
+   VecScalarEvalRuntimeKernel<QFn, DIM> body{
+      qfn, NE, nq, ndof, plan.x_ld, plan.u_ld, plan.nb, P, D, X, Y};
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, plan.smem_bytes, body);
+}
+
+template <typename QFn, int DIM>
+inline void DevicePlaneEvalApply(const int NE, const int nq, const int ndof,
+                                 const real_t *G, const real_t *Dv,
+                                 const real_t *X, real_t *Y)
+{
+   MFEM_VERIFY(nq <= SimplexVecMaxNq && ndof <= SimplexVecMaxNdof,
+               "VectorFE plane Eval exceeds size caps");
+   const int x_ld = PadLdBankRuntime(ndof);
+   const int u_ld = PadLdBankRuntime(nq);
+   int nb = BatchNBFullNqRuntime(DIM, ndof, nq, DIM);
+   if (nb < 1) { nb = 1; }
+   const int smem_bytes = int(sizeof(real_t)) * (x_ld + DIM * u_ld) * nb;
+   VerifySharedMemBytes(smem_bytes);
+   const int nthreads = LaunchNthreads(nq, ndof);
+   const int nbatches = (NE + nb - 1) / nb;
+   QFn qfn{};
+   VecPlaneEvalRuntimeKernel<QFn, DIM> body{
+      qfn, NE, nq, ndof, x_ld, u_ld, nb, G, Dv, X, Y};
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes, body);
+}
+
+template <typename QFn, int DIM>
+inline void ApplySimplexScalarEval(const int NE, const int nq, const int nd,
+                                   const Array<real_t> &basis,
+                                   const Vector &d,
+                                   const Vector &x, Vector &y)
+{
+   QFn qfn{};
+   DumpFormApplyRuntime<QFn, DIM>("ApplySimplex", NE, nq, nd);
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      HostScalarEvalApply(qfn, NE, nq, nd,
+                          basis.Read(), d.Read(), x.Read(), y.ReadWrite());
+      return;
+   }
+#if defined(MFEM_USE_HIP) && !defined(MFEM_USE_CUDA)
+   if constexpr (qfn_traits<QFn>::trial_is_div)
+   {
+      detail::SimplexDivDivApply(NE, nd, nq, basis, d, x, y);
+   }
+   else
+   {
+      detail::SimplexCurlCurlApply(DIM, NE, nd, nq, 1, true, basis, d, x, y);
+   }
+#else
+   DeviceScalarEvalApply<QFn, DIM>(NE, nq, nd,
+                                   basis.Read(), d.Read(), x.Read(),
+                                   y.ReadWrite());
+#endif
+}
+
+template <typename QFn, int DIM>
+inline void ApplySimplexPlaneEval(const int NE, const int nq, const int nd,
+                                  const Array<real_t> &basis,
+                                  const Vector &d,
+                                  const Vector &x, Vector &y)
+{
+   QFn qfn{};
+   DumpFormApplyRuntime<QFn, DIM>("ApplyGrad", NE, nq, nd);
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      const real_t *Dv = d.Read();
+      HostPlaneEvalApply<DIM>(NE, nq, nd, basis.Read(), x.Read(), y.ReadWrite(),
+      [qfn, Dv, nq, NE](const real_t *u, real_t *v, int q, int e)
+      {
+         HostApplyPlaneQFn<QFn, DIM>(qfn, Dv, nq, NE, q, e, u, v);
+      });
+      return;
+   }
+#if defined(MFEM_USE_HIP) && !defined(MFEM_USE_CUDA)
+   if constexpr (qfn_traits<QFn>::trial_is_curl)
+   {
+      detail::SimplexCurlCurlApply(DIM, NE, nd, nq, DIM,
+                                   qfn_traits<QFn>::symmetric_pa,
+                                   basis, d, x, y);
+   }
+   else
+   {
+      detail::SimplexVecEvalApply(DIM, NE, nd, nq, DIM,
+                                  qfn_traits<QFn>::symmetric_pa,
+                                  basis, d, x, y);
+   }
+#else
+   DevicePlaneEvalApply<QFn, DIM>(NE, nq, nd,
+                                  basis.Read(), d.Read(), x.Read(),
+                                  y.ReadWrite());
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // ApplySimplex — Vector FE mass (multi-plane value basis)
 // ---------------------------------------------------------------------------
@@ -1908,20 +2264,8 @@ ApplySimplex(const int NE,
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplySimplex DIM");
-   constexpr bool SYM = Tr::symmetric_pa;
-   // QND is the specialized nq; nd from x layout / basis
-   const int nq = QND;
-   const int sdim = DIM;
-   const int nd = [&]() {
-      const int ncomp_planes = sdim;
-      if (basis.Size() == nq * (x.Size()/NE) * ncomp_planes * NE ||
-          basis.Size() == nq * (x.Size()/NE) * ncomp_planes)
-      {
-         return x.Size() / NE;
-      }
-      return x.Size() / NE;
-   }();
-   detail::SimplexVecEvalApply(DIM, NE, nd, nq, sdim, SYM, basis, d, x, y);
+   const int nd = x.Size() / NE;
+   ApplySimplexPlaneEval<QFn, DIM>(NE, QND, nd, basis, d, x, y);
 }
 
 template <typename QFn, int DIM>
@@ -1936,11 +2280,10 @@ ApplySimplex(const int NE,
    static_assert(Tr::spatial_dim == DIM, "");
    constexpr bool SYM = Tr::symmetric_pa;
    const int nd = x.Size() / NE;
-   // Infer nq from pa_data: ncomp*nq*NE
    const int ncomp = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    MFEM_VERIFY(d.Size() % (ncomp * NE) == 0, "pa_data size");
    const int nq = d.Size() / (ncomp * NE);
-   detail::SimplexVecEvalApply(DIM, NE, nd, nq, DIM, SYM, basis, d, x, y);
+   ApplySimplexPlaneEval<QFn, DIM>(NE, nq, nd, basis, d, x, y);
 }
 
 // ---------------------------------------------------------------------------
@@ -1955,13 +2298,16 @@ ApplySimplex(const int NE,
              const Vector &x,
              Vector &y)
 {
-   using Tr = qfn_traits<QFn>;
-   static_assert(Tr::spatial_dim == DIM, "");
-   constexpr bool SYM = Tr::symmetric_pa;
+   static_assert(qfn_traits<QFn>::spatial_dim == DIM, "");
    const int nd = x.Size() / NE;
-   const int curl_dim = curl_t<DIM>::curl_dim;
-   detail::SimplexCurlCurlApply(DIM, NE, nd, QND, curl_dim, SYM,
-                                curl_basis, d, x, y);
+   if constexpr (DIM == 2)
+   {
+      ApplySimplexScalarEval<QFn, DIM>(NE, QND, nd, curl_basis, d, x, y);
+   }
+   else
+   {
+      ApplySimplexPlaneEval<QFn, DIM>(NE, QND, nd, curl_basis, d, x, y);
+   }
 }
 
 template <typename QFn, int DIM>
@@ -1976,21 +2322,20 @@ ApplySimplex(const int NE,
    static_assert(Tr::spatial_dim == DIM, "");
    constexpr bool SYM = Tr::symmetric_pa;
    const int nd = x.Size() / NE;
-   const int curl_dim = curl_t<DIM>::curl_dim;
    int nq;
-   if (DIM == 2)
+   if constexpr (DIM == 2)
    {
       MFEM_VERIFY(d.Size() % NE == 0, "");
       nq = d.Size() / NE;
+      ApplySimplexScalarEval<QFn, DIM>(NE, nq, nd, curl_basis, d, x, y);
    }
    else
    {
       const int ncomp = SYM ? 6 : 9;
       MFEM_VERIFY(d.Size() % (ncomp * NE) == 0, "");
       nq = d.Size() / (ncomp * NE);
+      ApplySimplexPlaneEval<QFn, DIM>(NE, nq, nd, curl_basis, d, x, y);
    }
-   detail::SimplexCurlCurlApply(DIM, NE, nd, nq, curl_dim, SYM,
-                                curl_basis, d, x, y);
 }
 
 // ---------------------------------------------------------------------------
@@ -2006,7 +2351,7 @@ ApplySimplex(const int NE,
              Vector &y)
 {
    const int nd = x.Size() / NE;
-   detail::SimplexDivDivApply(NE, nd, QND, div_basis, d, x, y);
+   ApplySimplexScalarEval<QFn, DIM>(NE, QND, nd, div_basis, d, x, y);
 }
 
 template <typename QFn, int DIM>
@@ -2020,7 +2365,58 @@ ApplySimplex(const int NE,
    const int nd = x.Size() / NE;
    MFEM_VERIFY(d.Size() % NE == 0, "");
    const int nq = d.Size() / NE;
-   detail::SimplexDivDivApply(NE, nd, nq, div_basis, d, x, y);
+   ApplySimplexScalarEval<QFn, DIM>(NE, nq, nd, div_basis, d, x, y);
+}
+
+/** Specialized (DIM,D1D,QND) then runtime Fallback (same GEMM). */
+template <typename QFn, int DIM>
+inline void ApplySimplexRegistered(const int d1d, const int nq, const int NE,
+                                   const Array<real_t> &basis,
+                                   const Vector &d,
+                                   const Vector &x, Vector &y)
+{
+#define MFEM_TRY_SIMPLEX(D1, Q) \
+   if (d1d == (D1) && nq == (Q)) \
+   { ApplySimplex<QFn, DIM, D1, Q>(NE, basis, d, x, y); return; }
+   if constexpr (DIM == 2)
+   {
+      MFEM_TRY_SIMPLEX(2, 3)
+      MFEM_TRY_SIMPLEX(2, 4)
+      MFEM_TRY_SIMPLEX(2, 6)
+      MFEM_TRY_SIMPLEX(3, 6)
+      MFEM_TRY_SIMPLEX(3, 7)
+      MFEM_TRY_SIMPLEX(3, 12)
+      MFEM_TRY_SIMPLEX(4, 12)
+      MFEM_TRY_SIMPLEX(4, 16)
+      MFEM_TRY_SIMPLEX(5, 16)
+      MFEM_TRY_SIMPLEX(5, 25)
+      MFEM_TRY_SIMPLEX(6, 25)
+      MFEM_TRY_SIMPLEX(6, 33)
+      MFEM_TRY_SIMPLEX(7, 33)
+      MFEM_TRY_SIMPLEX(7, 49)
+   }
+   else
+   {
+      MFEM_TRY_SIMPLEX(2, 4)
+      MFEM_TRY_SIMPLEX(2, 5)
+      MFEM_TRY_SIMPLEX(2, 8)
+      MFEM_TRY_SIMPLEX(2, 14)
+      MFEM_TRY_SIMPLEX(3, 4)
+      MFEM_TRY_SIMPLEX(3, 8)
+      MFEM_TRY_SIMPLEX(3, 14)
+      MFEM_TRY_SIMPLEX(3, 24)
+      MFEM_TRY_SIMPLEX(4, 24)
+      MFEM_TRY_SIMPLEX(4, 46)
+      MFEM_TRY_SIMPLEX(5, 46)
+      MFEM_TRY_SIMPLEX(5, 81)
+      MFEM_TRY_SIMPLEX(6, 81)
+      MFEM_TRY_SIMPLEX(6, 175)
+      MFEM_TRY_SIMPLEX(7, 123)
+      MFEM_TRY_SIMPLEX(7, 175)
+      MFEM_TRY_SIMPLEX(8, 175)
+   }
+#undef MFEM_TRY_SIMPLEX
+   ApplySimplex<QFn, DIM>(NE, basis, d, x, y);
 }
 
 } // namespace mfem::internal::mma::form

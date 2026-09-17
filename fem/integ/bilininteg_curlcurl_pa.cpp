@@ -196,9 +196,22 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (use_simplices_mma)
    {
-      internal::MmaCurlCurlApplySimplex(dim, ne, simplex_nd, nq,
-                                        simplex_curl_dim, symmetric,
-                                        simplex_B, pa_data, x, y);
+      auto apply = [&](const Vector &xh, Vector &yh)
+      {
+         internal::MmaCurlCurlApplySimplex(dim, ne, simplex_nd, nq, dofs1D,
+                                           simplex_curl_dim, symmetric,
+                                           simplex_B, pa_data, xh, yh);
+      };
+      if (simplex_fes &&
+          simplex_fes->GetTypicalFE()->GetDofTransformation() != nullptr)
+      {
+         internal::AddMultSimplexNdDual(*simplex_fes, simplex_xhat, simplex_yinc,
+                                        x, y, apply);
+      }
+      else
+      {
+         apply(x, y);
+      }
       return;
    }
    if (use_tensors_mma)

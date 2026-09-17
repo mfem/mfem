@@ -360,6 +360,29 @@ void BakeNdDofTransformation(const FiniteElementSpace &fes,
 /** TransformDual each native E-vector column. Used when per-element baked B
     does not fit in Array (int size). */
 void TransformDualEVector(const FiniteElementSpace &fes, Vector &y);
+void TransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
+void InvTransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
+void InvTransformDualEVector(const FiniteElementSpace &fes, Vector &y);
+
+/** Y += Dual( A_ref · InvPrimal(X) ). Matches bake of TransformDual into C:
+    A_t = T^{-T} A_ref T^{-1}. */
+template <typename ApplyFn>
+inline void AddMultSimplexNdDual(const FiniteElementSpace &fes,
+                                 Vector &xhat, Vector &yinc,
+                                 const Vector &x, Vector &y,
+                                 ApplyFn &&apply)
+{
+   xhat.SetSize(x.Size());
+   xhat.UseDevice(true);
+   xhat = x;
+   InvTransformPrimalEVector(fes, xhat);
+   yinc.SetSize(y.Size());
+   yinc.UseDevice(true);
+   yinc = 0.0;
+   apply(xhat, yinc);
+   TransformDualEVector(fes, yinc);
+   y += yinc;
+}
 
 /** Build 2D Jacobian at (q,e) from mesh nodes E and GradP slice G. */
 template <typename EAcc, typename GAcc>

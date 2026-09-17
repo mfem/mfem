@@ -3057,6 +3057,8 @@ protected:
    bool use_simplices_mma = false;
    Array<real_t> simplex_B; ///< Dense ref curl (or value) basis at Q
    int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
+   const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
+   mutable Vector simplex_xhat, simplex_yinc;
 
 public:
    CurlCurlIntegrator();
@@ -3222,6 +3224,8 @@ protected:
    bool use_simplices_mma = false;
    Array<real_t> simplex_B; ///< Dense ref vector basis at Q
    int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
+   const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
+   mutable Vector simplex_xhat, simplex_yinc;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }

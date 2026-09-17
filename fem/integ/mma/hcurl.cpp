@@ -78,11 +78,16 @@ void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
    }
 }
 
-void TransformDualEVector(const FiniteElementSpace &fes, Vector &y)
+namespace
+{
+
+template <typename Op>
+void TransformEVectorColumns(const FiniteElementSpace &fes, Vector &y, Op op,
+                             const char *name)
 {
    const int NE = fes.GetNE();
    const int nd = fes.GetTypicalFE()->GetDof();
-   MFEM_VERIFY(y.Size() == nd * NE, "TransformDualEVector size");
+   MFEM_VERIFY(y.Size() == nd * NE, name);
    auto Y = Reshape(y.HostReadWrite(), nd, NE);
    Array<int> vdofs;
    Vector col(nd);
@@ -91,9 +96,43 @@ void TransformDualEVector(const FiniteElementSpace &fes, Vector &y)
       DofTransformation *dt = fes.GetElementVDofs(e, vdofs);
       if (!dt) { continue; }
       for (int i = 0; i < nd; ++i) { col(i) = Y(i, e); }
-      dt->TransformDual(col);
+      op(*dt, col);
       for (int i = 0; i < nd; ++i) { Y(i, e) = col(i); }
    }
+}
+
+} // namespace
+
+void TransformDualEVector(const FiniteElementSpace &fes, Vector &y)
+{
+   TransformEVectorColumns(fes, y,
+                           [](DofTransformation &dt, Vector &col)
+   { dt.TransformDual(col); },
+   "TransformDualEVector size");
+}
+
+void TransformPrimalEVector(const FiniteElementSpace &fes, Vector &y)
+{
+   TransformEVectorColumns(fes, y,
+                           [](DofTransformation &dt, Vector &col)
+   { dt.TransformPrimal(col); },
+   "TransformPrimalEVector size");
+}
+
+void InvTransformPrimalEVector(const FiniteElementSpace &fes, Vector &y)
+{
+   TransformEVectorColumns(fes, y,
+                           [](DofTransformation &dt, Vector &col)
+   { dt.InvTransformPrimal(col); },
+   "InvTransformPrimalEVector size");
+}
+
+void InvTransformDualEVector(const FiniteElementSpace &fes, Vector &y)
+{
+   TransformEVectorColumns(fes, y,
+                           [](DofTransformation &dt, Vector &col)
+   { dt.InvTransformDual(col); },
+   "InvTransformDualEVector size");
 }
 
 void BakeNdDofTransformation(const FiniteElementSpace &fes,
@@ -164,16 +203,13 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    trial_fetype = test_fetype = FiniteElement::CURL;
    use_simplices_mma = true;
    use_tensors_mma = false;
+   simplex_fes = &fes;
 
    simplex_nd = el.GetDof();
    simplex_sdim = dim;
    simplex_curl_dim = 0;
 
    internal::BuildRefVShape(el, ir, simplex_B);
-   if (el.GetDofTransformation() != nullptr)
-   {
-      internal::BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_sdim);
-   }
 
    QuadratureSpace qs(*mesh, ir);
    CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
@@ -212,16 +248,13 @@ void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    geom = nullptr;
    use_simplices_mma = true;
    use_tensors_mma = false;
+   simplex_fes = &fes;
 
    simplex_nd = el.GetDof();
    simplex_sdim = dim;
    simplex_curl_dim = el.GetCurlDim();
 
    BuildNdRefCurlShape(el, ir, simplex_B);
-   if (el.GetDofTransformation() != nullptr)
-   {
-      internal::BakeNdDofTransformation(fes, simplex_B, nq, simplex_nd, simplex_curl_dim);
-   }
 
    QuadratureSpace qs(*mesh, ir);
    CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);

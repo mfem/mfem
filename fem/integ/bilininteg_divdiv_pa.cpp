@@ -103,8 +103,8 @@ void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (use_simplices_mma)
    {
-      internal::MmaDivDivApplySimplex(ne, simplex_nd, simplex_nq, simplex_B,
-                                      pa_data, x, y);
+      internal::MmaDivDivApplySimplex(dim, ne, simplex_nd, simplex_nq, dofs1D,
+                                      simplex_B, pa_data, x, y);
       return;
    }
    if (use_tensors_mma)

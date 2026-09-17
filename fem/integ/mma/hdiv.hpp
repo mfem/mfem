@@ -137,50 +137,62 @@ inline void MmaDivDivApplyTensors3D(
 }
 
 inline void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
-                                   const int nq, const int sdim,
+                                   const int nq, const int d1d,
+                                   const int sdim,
                                    const bool symmetric,
                                    const Array<real_t> &B,
                                    const Vector &pa_data,
                                    const Vector &x, Vector &y)
 {
-   using mma::form::ApplySimplex;
+   using mma::form::ApplySimplexRegistered;
    using mma::form::HdivMass;
    MFEM_VERIFY(dim == sdim, "");
-   (void)nd; (void)nq;
+   (void)nd;
    if (dim == 2)
    {
       if (symmetric)
       {
-         ApplySimplex<HdivMass<2, true>, 2>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HdivMass<2, true>, 2>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
       else
       {
-         ApplySimplex<HdivMass<2, false>, 2>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HdivMass<2, false>, 2>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
    }
    else
    {
       if (symmetric)
       {
-         ApplySimplex<HdivMass<3, true>, 3>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HdivMass<3, true>, 3>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
       else
       {
-         ApplySimplex<HdivMass<3, false>, 3>(NE, B, pa_data, x, y);
+         ApplySimplexRegistered<HdivMass<3, false>, 3>(
+            d1d, nq, NE, B, pa_data, x, y);
       }
    }
 }
 
-inline void MmaDivDivApplySimplex(const int NE, const int nd, const int nq,
+inline void MmaDivDivApplySimplex(const int dim, const int NE, const int nd,
+                                 const int nq, const int d1d,
                                  const Array<real_t> &Div,
                                  const Vector &pa_data,
                                  const Vector &x, Vector &y)
 {
-   using mma::form::ApplySimplex;
+   using mma::form::ApplySimplexRegistered;
    using mma::form::DivDivQFn;
-   (void)nd; (void)nq;
-   // DIM unused by DivDiv engine inference; mesh is 2 or 3 — use 3 as tag
-   ApplySimplex<DivDivQFn, 3>(NE, Div, pa_data, x, y);
+   (void)nd;
+   if (dim == 2)
+   {
+      ApplySimplexRegistered<DivDivQFn, 2>(d1d, nq, NE, Div, pa_data, x, y);
+   }
+   else
+   {
+      ApplySimplexRegistered<DivDivQFn, 3>(d1d, nq, NE, Div, pa_data, x, y);
+   }
 }
 
 } // namespace internal
