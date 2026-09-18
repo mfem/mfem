@@ -31,6 +31,99 @@ void Monomials(const IntegrationPoint &ip, int dx, int dy, Vector &values)
       }
    }
 }
+// Fill @a I with the values of a C1 triangle's physical degrees of freedom
+// applied to the shape functions of @a coarse_fe. The element has
+// @a vertex_dofs degrees of freedom at each vertex, ordered value, gradient
+// and then Hessian, and one oriented normal derivative on each edge when
+// @a edge_dofs is true. @a child maps the child reference cell into the
+// reference cell of @a coarse_fe, and @a coarse maps that cell into the frame
+// in which the degrees of freedom are expressed.
+void InterpolateC1Dofs(const FiniteElement &coarse_fe, int vertex_dofs,
+                       bool edge_dofs, ElementTransformation &child,
+                       ElementTransformation &coarse, DenseMatrix &I)
+{
+   const IntegrationPoint &center = Geometries.GetCenter(Geometry::TRIANGLE);
+   child.SetIntPoint(&center);
+   coarse.SetIntPoint(&center);
+   DenseMatrix jacobian(2);
+   Mult(coarse.Jacobian(), child.Jacobian(), jacobian);
+
+   const int coarse_dof = coarse_fe.GetDof();
+   I.SetSize(3*vertex_dofs + (edge_dofs ? 3 : 0), coarse_dof);
+   I = 0.0;
+   Vector point(2), value(coarse_dof);
+   DenseMatrix grad(coarse_dof, 2), hessian(coarse_dof, 3);
+   IntegrationPoint fine_ip, coarse_ip;
+   for (int vertex = 0; vertex < 3; vertex++)
+   {
+      fine_ip.Set2(vertices[vertex][0], vertices[vertex][1]);
+      child.Transform(fine_ip, point);
+      coarse_ip.Set2(point(0), point(1));
+      coarse.SetIntPoint(&coarse_ip);
+      coarse_fe.CalcPhysShape(coarse, value);
+      coarse_fe.CalcPhysDShape(coarse, grad);
+      if (vertex_dofs > 3) { coarse_fe.CalcPhysHessian(coarse, hessian); }
+      const int row = vertex_dofs*vertex;
+      for (int j = 0; j < coarse_dof; j++)
+      {
+         I(row, j) = value(j);
+         I(row + 1, j) = grad(j, 0);
+         I(row + 2, j) = grad(j, 1);
+         for (int d = 3; d < vertex_dofs; d++)
+         {
+            I(row + d, j) = hessian(j, d - 3);
+         }
+      }
+   }
+   for (int edge = 0; edge_dofs && edge < 3; edge++)
+   {
+      const int v0 = edge_vertices[edge][0], v1 = edge_vertices[edge][1];
+      fine_ip.Set2(0.5*(vertices[v0][0] + vertices[v1][0]),
+                   0.5*(vertices[v0][1] + vertices[v1][1]));
+      child.Transform(fine_ip, point);
+      coarse_ip.Set2(point(0), point(1));
+      coarse.SetIntPoint(&coarse_ip);
+      coarse_fe.CalcPhysDShape(coarse, grad);
+      const real_t tx = vertices[v1][0] - vertices[v0][0];
+      const real_t ty = vertices[v1][1] - vertices[v0][1];
+      // The same oriented, unnormalized physical normal as the edge DOF.
+      const real_t nx = jacobian(1,0)*tx + jacobian(1,1)*ty;
+      const real_t ny = -jacobian(0,0)*tx - jacobian(0,1)*ty;
+      const int row = 3*vertex_dofs + edge;
+      for (int j = 0; j < coarse_dof; j++)
+      {
+         I(row, j) = nx*grad(j, 0) + ny*grad(j, 1);
+      }
+   }
+   coarse.SetIntPoint(&center);
+}
+
+// Place the coarse reference cell in the frame in which physical degrees of
+// freedom are measured: the child cell maps onto the true fine element.
+void SetRelativeCoarseTransformation(ElementTransformation &child,
+                                     ElementTransformation &fine,
+                                     IsoparametricTransformation &coarse)
+{
+   const IntegrationPoint &center = Geometries.GetCenter(Geometry::TRIANGLE);
+   child.SetIntPoint(&center);
+   fine.SetIntPoint(&center);
+   MFEM_VERIFY(child.GetSpaceDim() == 2 && fine.GetSpaceDim() == 2 &&
+               child.Hessian().FNorm2() < 1e-20 &&
+               fine.Hessian().FNorm2() < 1e-20,
+               "C1 transfer requires affine two-dimensional transformations");
+   DenseMatrix inverse(2), jacobian(2), points(2, 3);
+   CalcInverse(child.Jacobian(), inverse);
+   Mult(fine.Jacobian(), inverse, jacobian);
+   points = 0.0;
+   for (int d = 0; d < 2; d++)
+   {
+      points(d, 1) = jacobian(d, 0);
+      points(d, 2) = jacobian(d, 1);
+   }
+   coarse.SetIdentityTransformation(Geometry::TRIANGLE);
+   coarse.SetPointMat(points);
+}
+
 } // namespace
 
 ArgyrisTriangleFiniteElement::ArgyrisTriangleFiniteElement()
@@ -183,6 +276,32 @@ void ArgyrisTriangleFiniteElement::CalcPhysHessian(
       hessian(i,1) = a*b*xx + (a*d + b*c)*xy + c*d*yy;
       hessian(i,2) = b*b*xx + 2.0*b*d*xy + d*d*yy;
    }
+}
+
+
+void ArgyrisTriangleFiniteElement::GetTransferMatrix(const FiniteElement &fe,
+                                                     ElementTransformation &T, DenseMatrix &I) const
+{
+   MFEM_VERIFY(dynamic_cast<const ArgyrisTriangleFiniteElement *>(&fe),
+               "Argyris transfer requires a Argyris source element");
+   T.SetIntPoint(&Geometries.GetCenter(Geometry::TRIANGLE));
+   MFEM_VERIFY(T.GetSpaceDim() == 2 && T.Hessian().FNorm2() < 1e-20,
+               "Argyris transfer requires affine two-dimensional "
+               "transformations");
+   IsoparametricTransformation coarse;
+   coarse.SetIdentityTransformation(Geometry::TRIANGLE);
+   InterpolateC1Dofs(fe, 6, true, T, coarse, I);
+}
+
+void ArgyrisTriangleFiniteElement::GetPhysicalTransferMatrix(
+   const DenseMatrix &, ElementTransformation &child,
+   ElementTransformation &fine, DenseMatrix &I) const
+{
+   // The reference matrix cannot carry the physical DOF bases; interpolate the
+   // coarse physical jets at the child nodes instead.
+   IsoparametricTransformation coarse;
+   SetRelativeCoarseTransformation(child, fine, coarse);
+   InterpolateC1Dofs(*this, 6, true, child, coarse, I);
 }
 
 } // namespace mfem

@@ -31,6 +31,18 @@ public:
                        DenseMatrix &dshape) const override;
    void CalcPhysHessian(ElementTransformation &Trans,
                         DenseMatrix &hessian) const override;
+
+   /// Transfer by interpolation of the degrees of freedom.
+   void GetTransferMatrix(const FiniteElement &fe, ElementTransformation &T,
+                          DenseMatrix &I) const override;
+   void GetLocalInterpolation(ElementTransformation &T,
+                              DenseMatrix &I) const override
+   { GetTransferMatrix(*this, T, I); }
+   bool RequiresPhysicalTransfer() const override { return true; }
+   void GetPhysicalTransferMatrix(const DenseMatrix &reference_transfer,
+                                  ElementTransformation &child,
+                                  ElementTransformation &fine,
+                                  DenseMatrix &I) const override;
 };
 
 } // namespace mfem
