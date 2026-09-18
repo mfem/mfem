@@ -696,6 +696,14 @@ static void CheckRestrictedFluxAgreement(MixedBilinearForm *B,
 
 void DarcyForm::Assemble(int skip_zeros)
 {
+   // Checked here rather than where the load is assembled, because the load is
+   // usually assembled by the CALLER -- convdiff's gform is Update()d onto a
+   // block of its own right-hand side -- while every caller reaches this. It
+   // is a check on the REGISTRATION, so it costs one dynamic_cast per boundary
+   // face integrator per assembly and fires before any arithmetic happens.
+   CheckRestrictedFluxLoad(b_u.get(), fes_u->GetVDim(),
+                           fes_u->GetMesh()->SpaceDimension());
+
    if (M_u)
    {
       if (hybridization)

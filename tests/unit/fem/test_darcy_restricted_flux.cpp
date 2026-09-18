@@ -634,3 +634,166 @@ TEST_CASE("A restricted flux is exact on more than one rank",
    }
 }
 #endif // MFEM_USE_MPI
+
+namespace darcy_restricted_weak_bc
+{
+
+// p = x y + y^2: d_xx p = 0, d_yy p = 2, d_x p = y, so the problem
+// -d_yy p + d_x(c p) = -2 + y is solved by it and a flux carrying {y} alone
+// is the right flux for it. Degree 2, so exact in the discrete spaces.
+//
+// **What this adds to the file, and it is the boundary and not the flux.**
+// Every case above imposes the trace ESSENTIALLY on the whole boundary. The
+// caller who asked for a restricted flux does not: the datum goes in weakly,
+// through VectorBoundaryFluxLFIntegrator on the flux load and
+// BoundaryFlowIntegrator on the potential load, which is what
+// miniapps/hdg/convdiff.cpp does by default. That route sizes its element
+// vector from the MESH dimension, so at vdim < dim it writes the datum into
+// the wrong component and LinearForm::Assemble() truncates in silence.
+real_t PExact(const Vector &x) { return x(0)*x(1) + x(1)*x(1); }
+real_t FExact(const Vector &x) { return -2.0 + x(1); }
+
+/** One NPC step with the datum imposed WEAKLY on every attribute.
+
+    @a lf_comps is what the boundary flux load is told the space carries. It
+    is normally @a comps; passing something else is the falsification, and it
+    is a mis-specification a caller can actually make. */
+real_t Solve(int order, int n, const Array<int> &comps,
+             const Array<int> &lf_comps)
+{
+   const int dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, comps.Size()), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), zero(0.0);
+   FunctionCoefficient pcoeff(PExact), fcoeff(FExact);
+   ProductCoefficient mpcoeff(-1.0, pcoeff);
+   Vector cvec(dim); cvec(0) = 1.0; cvec(1) = 0.0;
+   VectorConstantCoefficient ccoeff(cvec);
+
+   VectorMassIntegrator *vm = new VectorMassIntegrator(one);
+   vm->SetVDim(comps.Size());
+   darcy.GetFluxMassForm()->AddDomainIntegrator(vm);
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new RestrictedVectorDivergenceIntegrator(comps));
+
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new MassIntegrator(zero));
+   Mnl_p->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+   Mnl_p->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+   // The two halves of a weak Dirichlet datum, on two different forms and
+   // with OPPOSITE signs in this convention -- see convdiff.cpp, whose
+   // gcoeff is -tcoeff while its BoundaryFlowIntegrator takes tcoeff.
+   darcy.GetFluxRHS()->AddBdrFaceIntegrator(
+      new RestrictedVectorBoundaryFluxLFIntegrator(lf_comps, pcoeff), all);
+   darcy.GetPotentialRHS()->AddBdrFaceIntegrator(
+      new BoundaryFlowIntegrator(mpcoeff, ccoeff, +1.0), all);
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new RestrictedNormalTraceJumpIntegrator(comps),
+                             ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->EnableNPC();
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   darcy.GetFluxRHS()->Assemble();
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(0) -= *darcy.GetFluxRHS();
+   b.GetBlock(1) -= *darcy.GetPotentialRHS();
+   b.GetBlock(0).SyncAliasMemory(b);
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   x = 1.0;
+   Vector x_tr(Mh.GetVSize());
+   x_tr = 0.0;
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+   Operator &S = dh->NPCGradient(x, x_tr);
+   dh->NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+   REQUIRE(Sm != nullptr);
+#ifdef MFEM_USE_SUITESPARSE
+   UMFPackSolver umf(*Sm);
+   umf.Mult(b_tr, dtr);
+#else
+   GSSmoother prec(*Sm);
+   GMRESSolver gmres;
+   gmres.SetOperator(S);
+   gmres.SetPreconditioner(prec);
+   gmres.SetKDim(200);
+   gmres.SetMaxIter(5000);
+   gmres.SetRelTol(1e-14);
+   gmres.SetAbsTol(0.0);
+   gmres.SetPrintLevel(-1);
+   gmres.Mult(b_tr, dtr);
+#endif
+
+   BlockVector dx(darcy.GetOffsets());
+   dx = 0.0;
+   dh->NPCRecover(r, dtr, dx);
+   x += dx;
+
+   // Norml2() cannot see a NaN; assert finiteness before believing any norm.
+   REQUIRE(x.CheckFinite() == 0);
+   REQUIRE(dtr.CheckFinite() == 0);
+
+   GridFunction p(&Wh);
+   p.MakeRef(&Wh, x.GetBlock(1), 0);
+   return p.ComputeL2Error(pcoeff);
+}
+
+} // namespace darcy_restricted_weak_bc
+
+TEST_CASE("A restricted flux takes its Dirichlet datum weakly",
+          "[DarcyForm][NonlinearDarcy][HDG][RestrictedFlux]")
+{
+   using namespace darcy_restricted_weak_bc;
+
+   Array<int> keep_y(1); keep_y[0] = 1;
+   Array<int> keep_x(1); keep_x[0] = 0;
+
+   SECTION("the load names the direction the space carries")
+   {
+      // The whole boundary weak, the trace non-essential everywhere, and the
+      // solution not zero on any of it: 1 + y at the outflow, y + 1 at the
+      // top. Exact because p is degree 2 and in the space.
+      const real_t err = Solve(2, 4, keep_y, keep_y);
+      CAPTURE(err);
+      REQUIRE(err < 1e-10);
+   }
+
+   SECTION("and naming the wrong one is not a no-op")
+   {
+      // The falsification, and it is a mis-specification a caller can make:
+      // the space carries y and the load is told x, so the datum multiplies
+      // n_x on faces where the flux has no x component. Without it the
+      // section above would pass just as well with the load doing nothing.
+      const real_t err = Solve(2, 4, keep_y, keep_x);
+      CAPTURE(err);
+      REQUIRE(err > 1e-3);
+   }
+}

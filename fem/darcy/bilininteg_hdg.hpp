@@ -13,6 +13,7 @@
 #define MFEM_BILININTEG_HDG
 
 #include "../bilininteg.hpp"
+#include "../lininteg.hpp"
 
 #include <vector>
 
@@ -985,6 +986,97 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 };
+
+/** @brief The boundary term $\langle g,\ \sum_{d \in S} v_d n_d \rangle$ of the
+    FLUX load, for a flux space carrying only the directions in @a S.
+
+    The third member of the restricted family, and the one that decides whether
+    a restricted flux can take its Dirichlet datum WEAKLY. The other two make
+    the operator right on a non-essential trace; this makes the load right, and
+    without it the two cannot be used together at all.
+
+    **It is a row slice, by the same delegation argument the other two make.**
+    VectorBoundaryFluxLFIntegrator's scalar-coefficient branch accumulates
+    `elvect(dof*k + j) += w nor(k) shape(j)`, so the entries belonging to
+    direction @a d are exactly $\langle g, v_d n_d \rangle$ and the slice is
+    contiguous.
+
+    **Why it has to exist, measured rather than argued.** That integrator sizes
+    its element vector `dim*dof` from the ELEMENT dimension while the flux space
+    owns `|S|*dof` vdofs, and LinearForm::Assemble() hands the two to
+    Vector::AddElementVector(), which reads the first `|S|*dof` entries and
+    returns. At `|S| < dim` the load therefore lands in the wrong direction --
+    the k = 0 block, i.e. $n_x$ -- with no abort and no NaN. On a problem whose
+    discrete answer is exact (p = xy + y^2 on the unit square, diffusion in y
+    only, weak Dirichlet on every attribute, order 2 on 4x4 quads) it returns
+    `err_p = 9.3e-01` where this class returns `2.1e-15`. That is the same
+    `dim` versus `vdim` confusion RestrictedNormalTraceJumpIntegrator's
+    doxygen records for the constraint, in a third place, and it is silent for
+    the same reason.
+
+    **And it is what makes a genuine outflow work.** With no flux component
+    along the outflow normal there is nothing for the one-sided constraint row
+    to impose -- the row is the upwinded convective one alone, which reads
+    $\hat u = u_h$ -- so the outflow needs no datum, no constraint and no
+    special treatment. Measured on the problem above with the outflow at
+    x = 1 given, in turn, the Dirichlet datum, nothing at all, and a flux
+    constraint with nothing at all: **2.1139e-15 in all three, bit-identical**.
+    A flux that DOES carry the outflow normal has no such luck and needs the
+    prescribed numerical flux on DarcyForm::GetTraceRHS(); see there.
+
+    @note A VECTOR-valued datum is REFUSED. The base interleaves it as
+          `(v*dim + k)*dof + j`, so a vector datum on a restricted space is a
+          different expression rather than a slice, and nothing asks for one.
+    @note A VECTOR-range (RT or broken-RT) flux is REFUSED, for the reason
+          given on RestrictedVectorDivergenceIntegrator. */
+class RestrictedVectorBoundaryFluxLFIntegrator : public LinearFormIntegrator
+{
+   Array<int> comps;
+   VectorBoundaryFluxLFIntegrator base;
+#ifndef MFEM_THREAD_SAFE
+   Vector full;
+#endif
+
+public:
+   RestrictedVectorBoundaryFluxLFIntegrator(const Array<int> &comps_,
+                                            Coefficient &f, real_t s = 1.0)
+      : base(f, s) { comps_.Copy(comps); }
+
+   /// The physical directions the flux carries, in the space's own order.
+   const Array<int> &GetFluxComponents() const { return comps; }
+
+   /// Forwarded, so a caller-set rule reaches the integrator that uses it.
+   void SetIntRule(const IntegrationRule *ir) override
+   { LinearFormIntegrator::SetIntRule(ir); base.SetIntRule(ir); }
+
+   /** @brief Refused: the datum belongs on the faces, where the normal is.
+
+       LinearForm::Assemble() reaches this overload from
+       AddBoundaryIntegrator() and the face one from AddBdrFaceIntegrator();
+       a flux space here is L2, so it is the second that a caller wants and
+       the first would silently assemble nothing useful. */
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+class LinearForm;
+
+/** @brief Refuse a flux load that is not restriction-aware, naming the repair.
+
+    Called by DarcyForm::Assemble() when the flux space carries fewer
+    components than the mesh has dimensions. Precise rather than general on
+    purpose: VectorBoundaryFluxLFIntegrator is the one class in the tree that
+    is wrong in this configuration and is the one every caller reaches for,
+    `miniapps/hdg/convdiff.cpp` included, so naming it is worth more than a
+    predicate over everything a caller might write. */
+void CheckRestrictedFluxLoad(LinearForm *b_u, int vdim, int sdim);
 
 /** @brief Whether HDGNLFaceGradScatterBatched() can take these integrators.
 

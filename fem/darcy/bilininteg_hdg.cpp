@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_hdg.hpp"
+#include "../linearform.hpp"
 #include "../hyperbolic.hpp"
 #include "../nonlininteg_mixed.hpp"
 #include "../../general/forall.hpp"
@@ -5055,6 +5056,73 @@ void RestrictedNormalTraceJumpIntegrator::AssembleFaceMatrix(
          {
             elmat(m * nd1 + c * nd2 + i, j) = full(off2 + i, j);
          }
+   }
+}
+
+void RestrictedVectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   MFEM_CONTRACT_VAR(el);
+   MFEM_CONTRACT_VAR(Tr);
+   MFEM_CONTRACT_VAR(elvect);
+   MFEM_ABORT("RestrictedVectorBoundaryFluxLFIntegrator carries a normal, so "
+              "it belongs on the FACES: use "
+              "LinearForm::AddBdrFaceIntegrator() and not "
+              "AddBoundaryIntegrator().");
+}
+
+void RestrictedVectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector full;
+#endif
+   MFEM_VERIFY(el.GetRangeType() == FiniteElement::SCALAR,
+               "RestrictedVectorBoundaryFluxLFIntegrator needs a SCALAR-range "
+               "flux space -- one scalar basis per direction. An H(div) "
+               "element's components are intrinsic and there is nothing to "
+               "slice; use VectorFEBoundaryFluxLFIntegrator and a full flux.");
+   // el.GetDim() and not Tr.GetSpaceDim(), for the reason
+   // RestrictedNormalTraceJumpIntegrator::AssembleFaceMatrix() gives: the base
+   // indexes by the ELEMENT dimension and the slice has to agree with it.
+   const int dim = el.GetDim();
+   CheckFluxComponents(comps, dim, "RestrictedVectorBoundaryFluxLFIntegrator");
+
+   base.AssembleRHSElementVect(el, Tr, full);
+
+   const int dof = el.GetDof();
+   const int m = comps.Size();
+   MFEM_ASSERT(full.Size() == dim * dof, "the base vector is not dim tall");
+   elvect.SetSize(m * dof);
+   for (int c = 0; c < m; c++)
+   {
+      const int off = comps[c] * dof;
+      for (int j = 0; j < dof; j++)
+      {
+         elvect(c * dof + j) = full(off + j);
+      }
+   }
+}
+
+void CheckRestrictedFluxLoad(LinearForm *b_u, int vdim, int sdim)
+{
+   if (!b_u || vdim >= sdim) { return; }
+
+   // The boundary FACE list is the one a DG flux space uses; the boundary
+   // ELEMENT list cannot carry a normal-trace datum at all and the class
+   // above refuses it by name, so there is nothing to check there.
+   const Array<LinearFormIntegrator*> *bfli = b_u->GetBFLFI();
+   if (!bfli) { return; }
+   for (int i = 0; i < bfli->Size(); i++)
+   {
+      MFEM_VERIFY(!dynamic_cast<VectorBoundaryFluxLFIntegrator*>((*bfli)[i]),
+                  "the flux space carries " << vdim << " of " << sdim
+                  << " directions, and VectorBoundaryFluxLFIntegrator sizes "
+                  "its element vector from the MESH dimension: the load would "
+                  "be read into the wrong component and no size check would "
+                  "notice. Use RestrictedVectorBoundaryFluxLFIntegrator with "
+                  "the same component list the divergence and the constraint "
+                  "carry.");
    }
 }
 
