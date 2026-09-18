@@ -236,6 +236,12 @@ enum Problem
    NonsteadyBurgers,
    SteadyLinearKappa,
    NonsteadyLinearKappa,
+   /** @brief A flux that carries fewer directions than the mesh has.
+
+       11 and not 10: `gf-interp-hdg-dev` uses 10 for its interpolatory-HDG
+       reaction problem, and both branches are merged into `meq-integration`.
+       A number is free; a silent clash between two reference sets is not. */
+   DegenerateAdvectionDiffusion = 11,
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
@@ -286,6 +292,8 @@ int main(int argc, char *argv[])
    pars.c = 1.;
    real_t td = 0.5;
    bool bc_neumann = false;
+   const char *flux_comps = "";
+   bool free_outflow = false;
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
@@ -346,7 +354,31 @@ int main(int argc, char *argv[])
                   "6=steady Burgers\n\t\t"
                   "7=nonsteady Burgers\n\t\t"
                   "8=steady linear kappa\n\t\t"
-                  "9=nonsteady linear kappa\n\t\t");
+                  "9=nonsteady linear kappa\n\t\t"
+                  "11=degenerate adv-diff, for a restricted flux\n\t\t");
+   args.AddOption(&flux_comps, "-fc", "--flux-components",
+                  "Cartesian directions the flux carries, e.g. \"y\" or \"xy\";"
+                  " empty means all of them, \"none\" means no flux unknown at"
+                  " all. A flux that does not carry a direction has NO"
+                  " diffusion there and asks for no 1/kappa, which is what a"
+                  " structural zero in the diffusion tensor wants -- see"
+                  " RestrictedVectorDivergenceIntegrator. Needs -dg -hb -npc;"
+                  " refused otherwise, the restricted flux being supported on"
+                  " the NPC path only. \"x\" on problem 11 is the"
+                  " FALSIFICATION arm: it restricts to the direction the"
+                  " problem does not diffuse in and must NOT reproduce the"
+                  " others.");
+   args.AddOption(&free_outflow, "-ofl", "--free-outflow", "-no-ofl",
+                  "--no-free-outflow",
+                  "Leave the outflow attribute with no datum at all, instead"
+                  " of the weak Dirichlet every other attribute takes. Exact"
+                  " when the flux carries no component along that normal --"
+                  " the one-sided constraint row is then the upwinded"
+                  " convective one alone, which reads uhat = u_h -- and WRONG"
+                  " when it does, by 3.0e-01 on this problem at every order"
+                  " and every mesh. A second-order operator has no free"
+                  " boundary; if the flux reaches the outflow the datum there"
+                  " is the numerical flux, on DarcyForm::GetTraceRHS().");
    args.AddOption(&tf, "-tf", "--time-final",
                   "Final time.");
    args.AddOption(&nt, "-nt", "--ntimesteps",
@@ -485,6 +517,51 @@ int main(int argc, char *argv[])
       return 1;
    }
 
+   // The flux components, parsed once. An EMPTY string is "all of them", which
+   // is every existing invocation and takes the stock integrators unchanged;
+   // anything else selects the restricted family.
+   Array<int> fcomps;
+   const bool restricted = (strlen(flux_comps) > 0);
+   if (restricted)
+   {
+      if (strcmp(flux_comps, "none") != 0)
+      {
+         for (const char *cp = flux_comps; *cp; cp++)
+         {
+            const int d = (*cp == 'x')?(0):((*cp == 'y')?(1):((*cp == 'z')?(2):(-1)));
+            if (d < 0)
+            {
+               cerr << "-fc takes x, y, z, or \"none\"; got '" << *cp << "'"
+                    << endl;
+               return 1;
+            }
+            fcomps.Append(d);
+         }
+      }
+   }
+
+   if (free_outflow && !upwinded)
+   {
+      cerr << "-ofl needs -up: with the CENTERED scheme the hybridized route "
+           "installs the boundary face convection on the Neumann "
+           "attributes only, so an outflow with no datum has no equation "
+           "of its own at all and the flag would not mean what it says."
+           << endl;
+      return 1;
+   }
+
+   if (restricted && !(dg && hybridization && use_npc))
+   {
+      cerr << "-fc needs -dg -hb -npc: a restricted flux is a SCALAR-range "
+           "space (an H(div) element's components are intrinsic), reaches "
+           "the constraint only through the hybridization, and is "
+           "supported on the NPC path alone -- "
+           "DarcyHybridization::CheckRestrictedFluxConfiguration() refuses "
+           "the rest." << endl;
+      return 1;
+   }
+
+
    // 2. Set the problem options
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
@@ -498,6 +575,7 @@ int main(int argc, char *argv[])
          btime = true;
       case Problem::SteadyAdvectionDiffusion:
       case Problem::SteadyAdvection:
+      case Problem::DegenerateAdvectionDiffusion:
          bconv = !nonlinear_conv;
          bnlconv = nonlinear_conv;
          break;
@@ -621,6 +699,14 @@ int main(int argc, char *argv[])
          bdr_is_neumann = -1; // Outflow
          bdr_is_neumann[3] = 0; // Inflow
          break;
+      case Problem::DegenerateAdvectionDiffusion:
+         // Weak Dirichlet on every attribute, which is the route a flux that
+         // does not carry a direction has to take there: with no component
+         // along that normal an essential trace has nothing to be essential
+         // about. -ofl then frees the OUTFLOW alone; see its help text.
+         bdr_is_dirichlet = -1;
+         if (free_outflow) { bdr_is_dirichlet[1] = 0; }
+         break;
    }
 
    Array<int> bdr_is_free(bdr_attrs);
@@ -675,8 +761,9 @@ int main(int argc, char *argv[])
    auto W_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
 
    // Heat flux FE space
-   auto V_space = make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
-                                                  (dg)?(dim):(1));
+   auto V_space = make_unique<FiniteElementSpace>(
+                     &mesh, V_coll.get(),
+                     (dg)?((restricted)?(fcomps.Size()):(dim)):(1));
    auto V_space_dg = (V_coll_dg)?(make_unique<FiniteElementSpace>(
                                      &mesh, V_coll_dg.get(), dim)):(nullptr);
    // Temperature FE space
@@ -704,6 +791,20 @@ int main(int argc, char *argv[])
 
    auto qFun = GetQFun(pars);
    VectorFunctionCoefficient qcoeff(dim, qFun); // Analytic heat flux
+   // The exact flux restricted to the components the space actually carries,
+   // so the error norm compares like with like. Built unconditionally and
+   // used only when -fc is given; a VectorFunctionCoefficient of vdim 0 is
+   // not constructible, hence the max().
+   VecTFunc qrFun = [qFun, &fcomps](const Vector &x, real_t t, Vector &v)
+   {
+      Vector full;
+      qFun(x, t, full);
+      v.SetSize(fcomps.Size());
+      for (int i = 0; i < fcomps.Size(); i++) { v(i) = full(fcomps[i]); }
+   };
+   VectorFunctionCoefficient qrcoeff(max(fcomps.Size(), 1), qrFun);
+   VectorCoefficient &qecoeff = (restricted)?((VectorCoefficient&)qrcoeff)
+                                :((VectorCoefficient&)qcoeff);
    ConstantCoefficient one;
    VectorSumCoefficient qtcoeff_(ccoeff, qcoeff, tcoeff,
                                  one); // Analytic total flux
@@ -742,7 +843,20 @@ int main(int argc, char *argv[])
          BilinearForm *Mq = darcy->GetFluxMassForm();
          if (dg)
          {
-            Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+            // SetVDim() and not the default, which is the SPACE dimension.
+            // At fcomps.Size() == 0 there is no flux unknown at all and no
+            // mass form to build -- 1/kappa is never asked for, which is the
+            // whole point of carrying no direction.
+            if (!restricted)
+            {
+               Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+            }
+            else if (fcomps.Size() > 0)
+            {
+               VectorMassIntegrator *vm = new VectorMassIntegrator(ikcoeff);
+               vm->SetVDim(fcomps.Size());
+               Mq->AddDomainIntegrator(vm);
+            }
          }
          else
          {
@@ -754,7 +868,18 @@ int main(int argc, char *argv[])
          NonlinearForm *Mqnl = darcy->GetFluxMassNonlinearForm();
          if (dg)
          {
-            Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+            // -nl routes the flux mass HERE and not to Mq; see above for why
+            // SetVDim() is needed and why vdim 0 installs nothing.
+            if (!restricted)
+            {
+               Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+            }
+            else if (fcomps.Size() > 0)
+            {
+               VectorMassIntegrator *vm = new VectorMassIntegrator(ikcoeff);
+               vm->SetVDim(fcomps.Size());
+               Mqnl->AddDomainIntegrator(vm);
+            }
          }
          else
          {
@@ -848,7 +973,14 @@ int main(int argc, char *argv[])
    MixedBilinearForm *B = darcy->GetFluxDivForm();
    if (dg)
    {
-      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      if (restricted)
+      {
+         B->AddDomainIntegrator(new RestrictedVectorDivergenceIntegrator(fcomps));
+      }
+      else
+      {
+         B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      }
    }
    else
    {
@@ -1017,9 +1149,12 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
-      darcy->EnableHybridization(trace_space.get(),
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      darcy->EnableHybridization(
+         trace_space.get(),
+         (restricted)?((BilinearFormIntegrator*)
+                       new RestrictedNormalTraceJumpIntegrator(fcomps))
+         :((BilinearFormIntegrator*) new NormalTraceJumpIntegrator()),
+         ess_flux_tdofs_list);
       // Set essential BC
       if (trace_ess_bc)
       {
@@ -1194,8 +1329,25 @@ int main(int argc, char *argv[])
       // Dirichlet BC
       if (dg)
       {
-         gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
-                                     bdr_is_dirichlet);
+         // The restricted counterpart, and it is not optional: the stock
+         // integrator sizes its element vector from the MESH dimension while
+         // the space owns |S|*dof, so the load lands in the wrong direction
+         // with no size check anywhere to notice. See
+         // RestrictedVectorBoundaryFluxLFIntegrator.
+         if (restricted)
+         {
+            if (fcomps.Size() > 0)
+            {
+               gform->AddBdrFaceIntegrator(
+                  new RestrictedVectorBoundaryFluxLFIntegrator(fcomps, gcoeff),
+                  bdr_is_dirichlet);
+            }
+         }
+         else
+         {
+            gform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(gcoeff),
+                                        bdr_is_dirichlet);
+         }
       }
       else if (brt)
       {
@@ -1363,8 +1515,13 @@ int main(int argc, char *argv[])
       tcoeff.SetTime(t);
       qtcoeff.SetTime(t);
 
-      real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
-      real_t norm_q = ComputeLpNorm(2., qcoeff, mesh, irs);
+      // Against the restricted exact flux when the space carries a subset;
+      // with no flux unknown at all both are zero and the ratio below is
+      // reported as zero rather than as a NaN.
+      real_t err_q  = (restricted && fcomps.Size() == 0)?(0.)
+                      :(q_h.ComputeL2Error(qecoeff, irs));
+      real_t norm_q = (restricted && fcomps.Size() == 0)?(1.)
+                      :(ComputeLpNorm(2., qecoeff, mesh, irs));
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
       real_t norm_t = ComputeLpNorm(2., tcoeff, mesh, irs);
 
@@ -1416,16 +1573,34 @@ int main(int argc, char *argv[])
 
       static GridFunction q_a, qt_a, t_a, c_gf;
 
-      q_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
-      q_a.ProjectCoefficient(qcoeff);
+      // Against the restricted exact flux when the space carries a subset --
+      // GridFunction::ProjectCoefficient() checks the vdims and ABORTS, after
+      // the error norms have already been printed, which reads as a run that
+      // succeeded and then died. With no flux unknown there is nothing to
+      // project at all.
+      if (!restricted || fcomps.Size() > 0)
+      {
+         q_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
+         q_a.ProjectCoefficient(qecoeff);
+      }
 
-      qt_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
-      qt_a.ProjectCoefficient(qtcoeff);
+      // The TOTAL flux is c*u + q and is full-dimensional whatever the flux
+      // space carries, so there is no restricted form of it and it is simply
+      // not built. Nothing downstream reads it unless -rec or a visualization
+      // is asked for, and a restricted flux refuses -rec anyway.
+      if (!restricted)
+      {
+         qt_a.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
+         qt_a.ProjectCoefficient(qtcoeff);
+      }
 
       t_a.SetSpace(W_space.get());
       t_a.ProjectCoefficient(tcoeff);
 
-      if (bconv)
+      // The velocity is full-dimensional whatever the flux space carries, so
+      // it has no home in a restricted one -- same as qt_a above, and with
+      // the same consequence: nothing but a visualization reads it.
+      if (bconv && !restricted)
       {
          c_gf.SetSpace((V_space_dg)?(V_space_dg.get()):(V_space.get()));
          c_gf.ProjectCoefficient(ccoeff);
@@ -1650,6 +1825,19 @@ TFunc GetTFun(const ProblemParams &params)
             const real_t u = ut * ux * uy;
             return u;
          };
+      case Problem::DegenerateAdvectionDiffusion:
+         // p = x y + y^2, chosen for three properties at once: it is degree 2
+         // and so EXACT in the discrete spaces at order >= 2 on any mesh, so
+         // the reference is a round-off number rather than a rate; d_xx p = 0,
+         // so a flux that also carries x solves the same problem and the
+         // spurious parallel diffusion this feature exists to remove is
+         // demonstrably harmless HERE; and it is not zero on the boundary, and
+         // neither is its flux, which is what every other problem in this file
+         // fails to test -- see the note on -ofl.
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return x(0) * x(1) + x(1) * x(1);
+         };
    }
    return TFunc();
 }
@@ -1791,6 +1979,14 @@ VecTFunc GetQFun(const ProblemParams &params)
             v(0) = -(k + u) * u_x;
             v(1) = -(k + u) * u_y;
          };
+      case Problem::DegenerateAdvectionDiffusion:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            v.SetSize(x.Size());
+            v = 0.;
+            v(0) = -k * x(1);
+            v(1) = -k * (x(0) + 2. * x(1));
+         };
    }
    return VecTFunc();
 }
@@ -1861,6 +2057,13 @@ VecFunc GetCFun(const ProblemParams &params)
             const real_t gamma = Re/2. - sqrt(Re*Re/4. + 4.*M_PI*M_PI);
             v(0) = 1. - exp(gamma * xc(0)) * cos(2.*M_PI * xc(1));
             v(1) = gamma / (2.*M_PI) * exp(gamma * xc(0)) * sin(2.*M_PI * xc(1));
+         };
+      case Problem::DegenerateAdvectionDiffusion:
+         return [=](const Vector &x, Vector &v)
+         {
+            v.SetSize(x.Size());
+            v = 0.;
+            v(0) = c;
          };
    }
    return VecFunc();
@@ -1963,6 +2166,20 @@ TFunc GetFFun(const ProblemParams &params)
             const real_t ft = ((prob == Problem::SteadyLinearKappa)?(0.):(exp(t)  * ux * uy));
             const real_t f = divq + ft;
             return -f;
+         };
+      case Problem::DegenerateAdvectionDiffusion:
+         // With p = x y + y^2 the Laplacian is 2 and d_x p is y, so the PDE
+         // source is -2k + c y and this returns its NEGATION, which is the
+         // convention every case here follows (see SteadyLinearKappa's
+         // `return -f`).
+         //
+         // It is the same source whether the flux carries {x,y} or {y} alone,
+         // because d_xx p = 0. That is what makes the three flux arms of -fc
+         // comparable on ONE problem, and it is why the falsification arm is
+         // -fc x rather than a second source.
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return 2. * k - c * x(1);
          };
    }
    return TFunc();

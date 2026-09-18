@@ -1,0 +1,65 @@
+Options used:
+   --mesh 
+   --ncells-x 4
+   --ncells-y 4
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 2
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 11
+   --flux-components y
+   --free-outflow
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --newton-rtol 1e-14
+   --npc
+   --gradient-mode -1
+   --nonlinear-solver 3
+   --preconditioner 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.000327021s.
+***********************************************************
+dim(V) = 72
+dim(W) = 72
+dim(M) = 66
+dim(V+W+M) = 210
+***********************************************************
+Assembly took 0.000222486s.
+Preconditioner took 3.6939e-05s.
+Newton iteration  0 : ||r|| = 0.589572
+Newton iteration  1 : ||r|| = 8.02094e-15, ||r||/||r_0|| = 1.36047e-14
+Newton iteration  2 : ||r|| = 4.42672e-16, ||r||/||r_0|| = 7.50837e-16
+local nonlinear iterations: 0
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 2 iterations with a residual norm of 4.42672e-16.
+Solver took 0.00245474s.
+|| q_h - q_ex || / || q_ex || = 6.49979e-16
+|| t_h - t_ex || / || t_ex || = 4.85091e-16

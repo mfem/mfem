@@ -16,7 +16,15 @@ class bcolors:
 
 tol = 1e-4
 def equal(a, b):
-	return abs(a - b) / (abs(a) + abs(b)) < tol
+	# Both exactly zero is equality and not a division. A flux space that
+	# carries NO direction reports || q_h - q_ex || / || q_ex || = 0 exactly,
+	# and the relative test cannot be formed on it -- before this the harness
+	# died with a ZeroDivisionError mid-suite, which reads as a broken script
+	# rather than as a reference it cannot compare.
+	d = abs(a) + abs(b)
+	if d == 0.:
+		return a == b
+	return abs(a - b) / d < tol
 
 print('Running Regression Testing:')
 parallel = False
@@ -113,6 +121,7 @@ for i, filename in enumerate(filenames):
 	nonlin_conv = get_ref_option(filename, '--nonlinear-convection')
 	nonlin_diff = get_ref_option(filename, '--nonlinear-diffusion')
 	npc = get_ref_option(filename, '--npc')
+	ofl = get_ref_option(filename, '--free-outflow')
 
 	def get_ref_param(file, param, default=""):
 		ref_out = subprocess.getoutput("grep '^   "+param+"' "+file+" | cut -d ' ' -f 5")
@@ -143,6 +152,13 @@ for i, filename in enumerate(filenames):
 	# inferred from the solver line further down. Upstream references predate
 	# the option and carry none; locally generated ones record it.
 	prec = int(get_ref_param(filename, '--preconditioner', "0"))
+	# The flux components and the Newton tolerance. Both default to the
+	# miniapp's own, so every reference written before they existed
+	# reconstructs the command it always did. -fc is a STRING and an empty one
+	# means "all of them", which is what get_ref_param returns for a line the
+	# miniapp printed with no value.
+	fc = str(get_ref_param(filename, '--flux-components', ""))
+	rtol = float(get_ref_param(filename, '--newton-rtol', "-1"))
 
 	file = open(filename, "r")
 	ref_out = file.readlines()
@@ -256,6 +272,12 @@ for i, filename in enumerate(filenames):
 		command_line += f' -nls {nls}'
 	if npc:
 		command_line += ' -npc'
+	if len(fc) > 0:
+		command_line += f' -fc {fc}'
+	if ofl:
+		command_line += ' -ofl'
+	if rtol > 0.:
+		command_line += f' -rtol {rtol}'
 
 	# A reference that records the ITERATIVE preconditioner is run with it
 	# forced, whether or not it says so as an option.

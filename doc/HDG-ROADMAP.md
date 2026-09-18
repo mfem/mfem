@@ -385,6 +385,19 @@ covered. It is also not ours by the scope note. The numbers are on
   `tests/unit/fem/test_darcy_npc.cpp:2441`. This entry outlived the commit
   that closed it by two sessions, which is the reason for the scope note at
   the top of this file about what markdown is for.
+* ~~A face constraint whose COEFFICIENT moves has to be re-assembled~~ —
+  **built**: `DarcyForm::SetFaceConstraintMode(FaceConstraintMode::Live)`
+  keeps the nonlinear potential mass form's face integrators on the
+  hybridization's live slot while the linear form's stay frozen beside them,
+  and `DarcyHybridization` keeps the frozen half of E, G and H so the live
+  pass can be added to it — the same device `Df_lin_data` is for D. NPC only,
+  refused elsewhere. The pin is "A live face constraint reads its coefficient
+  at every residual" in `tests/unit/fem/test_darcy_npc.cpp`, whose null
+  section (live and frozen are the same operator when nothing moves) is what
+  checks the seeding and whose third section is the freeze it repairs.
+  Asked for by gffp, who measured 92.7 ms of Update() + Assemble() +
+  Finalize() against 8.9 ms for the gradient it was performed to move — 90%
+  of a coupled Newton step spent assembling in order to move one coefficient.
 
 ## 12. A flux that carries fewer directions than the mesh has
 
@@ -403,22 +416,46 @@ new and is pinned in the same file.
 
 What is left:
 
-* **No miniapp and no regression reference.** No `convdiff` problem is
-  direction-degenerate, so covering this in the suite means adding a problem
-  rather than a flag, and that is a physics choice somebody should make
-  deliberately. Until then the feature is reachable from the library and from
-  `tests/unit` and nowhere else — this branch's recurring gap between
-  "unit-tested" and "covered".
+* ~~No miniapp and no regression reference~~ — **built.** `convdiff`/
+  `pconvdiff` problem **11**, `-fc` and `-ofl`, with six references per arm.
+  `p = x y + y^2` on the unit square, `c = (1,0)`, diffusion in `y`: degree 2
+  and so exact in the discrete spaces, `d_xx p = 0` so a flux that also
+  carries `x` solves the same problem, and NOT zero on the boundary, which is
+  what every other problem in the file fails to test. The arms are `xy` and
+  `y` (exact), `x` (the falsification — restricting to the direction the
+  problem does not diffuse in, 0.99 against 7e-16), `none` with `-k 0` (no
+  flux unknown at all, pure advection, exact) and the two `-ofl` arms below.
+  The problem is numbered 11 and not 10 because `gf-interp-hdg-dev` uses 10
+  and both branches merge into `meq-integration`.
 * **Only an axis-aligned subset of directions.** A general injection matrix is
   a linear combination of directional derivatives rather than a column slice,
   so it is not a wrapper. Nobody has asked for it.
+* ~~The weak Dirichlet route does not carry the restriction~~ — **built**:
+  `RestrictedVectorBoundaryFluxLFIntegrator`, the third member of the family.
+  `VectorBoundaryFluxLFIntegrator` sizes its element vector from the MESH
+  dimension while the space owns `|S|*dof`, and `Vector::AddElementVector()`
+  reads the first `|S|*dof` entries and returns, so the load landed in the
+  wrong direction with nothing to notice — 9.3e-01 where the restricted class
+  gives 2.1e-15. `DarcyForm::Assemble()` now refuses the stock class by name
+  when the flux space carries fewer components than the mesh. This is the
+  same `dim`-versus-`vdim` confusion the constraint had, in a third place.
 * **The reduced route refuses it**, at `DarcyHybridization::Mult()`. Out of
   scope rather than known broken: the same blocks would be eliminated by the
   same algebra and nothing has run it. One measurement would settle whether
   the refusal is load-bearing or policy.
-* **A one-sided physical inflow/outflow trace** is what a genuinely advective
-  direction wants and is unbuilt — the same gap `navierstokes -bcphys` has.
-  Everything measured here uses an essential trace on the whole boundary.
+* ~~A one-sided physical inflow/outflow trace is unbuilt~~ — **measured, and
+  it needed no library change for the case this section is about.** With no
+  flux component along the outflow normal the one-sided constraint row is the
+  upwinded convective one alone, which reads `uhat = u_h`: the transmissive
+  outflow, for free. `-fc y -ofl` is bit-identical to `-fc y`, because a datum
+  there contributes nothing anyway. A flux that DOES reach the outflow has no
+  such luck — `-fc xy -ofl` is 1.6 and does not converge with the mesh — and
+  the repair is the prescribed numerical flux on `DarcyForm::GetTraceRHS()`,
+  which already exists and is measured exact. Pinned by "A non-essential
+  boundary trace with no datum imposes zero flux" in
+  `tests/unit/fem/test_darcy_npc.cpp`, which is a SCALAR problem and so
+  answers the question `pnavierstokes.cpp`'s note left open: that note is
+  about the hybridization and not about the artificial-compressibility system.
 
 ## Deliberately not being done here
 

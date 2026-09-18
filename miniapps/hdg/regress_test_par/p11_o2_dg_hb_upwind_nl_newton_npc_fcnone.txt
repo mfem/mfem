@@ -1,0 +1,64 @@
+Options used:
+   --mesh 
+   --ncells-x 4
+   --ncells-y 4
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 2
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 11
+   --flux-components none
+   --no-free-outflow
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 0
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --newton-rtol 1e-14
+   --npc
+   --gradient-mode -1
+   --nonlinear-solver 3
+   --preconditioner 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.000395439s.
+***********************************************************
+dim(V) = 0
+dim(W) = 72
+dim(M) = 66
+dim(V+W+M) = 138
+***********************************************************
+Assembly took 0.000248214s.
+Preconditioner took 5.1887e-05s.
+Newton iteration  0 : ||r|| = 0.178962
+Newton iteration  1 : ||r|| = 1.57931e-16, ||r||/||r_0|| = 8.82484e-16
+local nonlinear iterations: 0
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 1.57931e-16.
+Solver took 0.00135412s.
+|| q_h - q_ex || / || q_ex || = 0
+|| t_h - t_ex || / || t_ex || = 4.08435e-16
