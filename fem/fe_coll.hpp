@@ -137,6 +137,8 @@ public:
    | RT_R1D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 1D. |
    | RT_R2D_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
    | RT_R2D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | 3D H(div)-conforming Raviart-Thomas vector elements in 2D. |
+   | HCT_2D_P3 | H2 | 3 | - | VALUE | Cubic Hsieh--Clough--Tocher macroelements on triangles |
+   | ReducedHCT_2D_P3 | H2 | 3 | - | VALUE | Reduced cubic Hsieh--Clough--Tocher macroelements on triangles |
    | Bell_2D_P5 | H2 | 5 | - | VALUE | Quintic Bell elements on triangles |
    | HZZZ_2D_P3 | H(div;S) | 3 | - | DOUBLE_CONTRAVARIANT_PIOLA | 21-DOF Huang--Zhang--Zhou--Zhu elements on triangles |
    | Argyris_2D_P5 | H2 | 5 | - | VALUE | Quintic Argyris elements on triangles |
@@ -1093,6 +1095,33 @@ public:
                                      int Or) const override;
 
    const char *Name() const override { return "HCT_2D_P3"; }
+
+   int GetContType() const override { return CONTINUOUS; }
+};
+
+/** @brief Reduced cubic Hsieh--Clough--Tocher C1 finite elements in 2D.
+
+    This collection is defined only on triangles. It has three degrees of
+    freedom per vertex (value and two Cartesian derivatives), with a linear
+    normal derivative on each physical edge and no edge degrees of freedom. */
+class ReducedHCT_FECollection : public FiniteElementCollection
+{
+private:
+   const ReducedHCTTriangleFiniteElement TriangleFE;
+
+public:
+   ReducedHCT_FECollection() : FiniteElementCollection(3) { }
+
+   const FiniteElement *
+   FiniteElementForGeometry(Geometry::Type GeomType) const override;
+
+   int DofForGeometry(Geometry::Type GeomType) const override;
+
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override
+   { return nullptr; }
+
+   const char *Name() const override { return "ReducedHCT_2D_P3"; }
 
    int GetContType() const override { return CONTINUOUS; }
 };

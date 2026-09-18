@@ -362,4 +362,92 @@ void HCTTriangleFiniteElement::CalcPhysHessian(
    }
 }
 
+ReducedHCTTriangleFiniteElement::ReducedHCTTriangleFiniteElement()
+   : FiniteElement(2, Geometry::TRIANGLE, 9, 3, FunctionSpace::Pk)
+{
+   deriv_type = GRAD;
+   deriv_range_type = VECTOR;
+   for (int i = 0; i < dof; i++) { Nodes.IntPoint(i) = hct.GetNodes().IntPoint(i); }
+   DenseMatrix J(2);
+   J = 0.0;
+   J(0,0) = J(1,1) = 1.0;
+   GetEmbedding(J, reference_embedding);
+}
+
+void ReducedHCTTriangleFiniteElement::GetEmbedding(const DenseMatrix &J,
+                                                   DenseMatrix &E) const
+{
+   E.SetSize(hct_dof, dof);
+   E = 0.0;
+   for (int i = 0; i < dof; i++) { E(i,i) = 1.0; }
+   for (int edge = 0; edge < 3; edge++)
+   {
+      const real_t tx = edge_tangents[edge][0];
+      const real_t ty = edge_tangents[edge][1];
+      const real_t nx = J(1,0)*tx + J(1,1)*ty;
+      const real_t ny = -(J(0,0)*tx + J(0,1)*ty);
+      // A quadratic normal trace is linear exactly when its midpoint value
+      // is the average of its endpoint values. Use the same oriented,
+      // unnormalized physical normal as the full HCT edge DOF.
+      for (int end = 0; end < 2; end++)
+      {
+         const int offset = 3*edge_vertices[edge][end];
+         E(9 + edge, offset + 1) = 0.5*nx;
+         E(9 + edge, offset + 2) = 0.5*ny;
+      }
+   }
+}
+
+void ReducedHCTTriangleFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                                Vector &shape) const
+{
+   Vector full(hct_dof);
+   hct.CalcShape(ip, full);
+   reference_embedding.MultTranspose(full, shape);
+}
+
+void ReducedHCTTriangleFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                                 DenseMatrix &dshape) const
+{
+   DenseMatrix full(hct_dof, 2);
+   hct.CalcDShape(ip, full);
+   MultAtB(reference_embedding, full, dshape);
+}
+
+void ReducedHCTTriangleFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                                  DenseMatrix &hessian) const
+{
+   DenseMatrix full(hct_dof, 3);
+   hct.CalcHessian(ip, full);
+   MultAtB(reference_embedding, full, hessian);
+}
+
+void ReducedHCTTriangleFiniteElement::CalcPhysShape(
+   ElementTransformation &Trans, Vector &shape) const
+{
+   Vector full(hct_dof);
+   DenseMatrix E;
+   hct.CalcPhysShape(Trans, full);
+   GetEmbedding(Trans.Jacobian(), E);
+   E.MultTranspose(full, shape);
+}
+
+void ReducedHCTTriangleFiniteElement::CalcPhysDShape(
+   ElementTransformation &Trans, DenseMatrix &dshape) const
+{
+   DenseMatrix full(hct_dof, 2), E;
+   hct.CalcPhysDShape(Trans, full);
+   GetEmbedding(Trans.Jacobian(), E);
+   MultAtB(E, full, dshape);
+}
+
+void ReducedHCTTriangleFiniteElement::CalcPhysHessian(
+   ElementTransformation &Trans, DenseMatrix &hessian) const
+{
+   DenseMatrix full(hct_dof, 3), E;
+   hct.CalcPhysHessian(Trans, full);
+   GetEmbedding(Trans.Jacobian(), E);
+   MultAtB(E, full, hessian);
+}
+
 } // namespace mfem

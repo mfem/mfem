@@ -51,6 +51,39 @@ public:
                         DenseMatrix &hessian) const override;
 };
 
+/** The reduced cubic Hsieh--Clough--Tocher macroelement on a triangle.
+
+    This is the nine-dimensional subspace of HCT with a linear normal
+    derivative on each physical edge. The degrees of freedom are the value
+    and two physical Cartesian derivatives at each vertex. The subspace
+    depends on the element geometry and contains all quadratic polynomials.
+    The physical basis implementation assumes an affine 2D transformation. */
+class ReducedHCTTriangleFiniteElement : public FiniteElement
+{
+private:
+   HCTTriangleFiniteElement hct;
+   DenseMatrix reference_embedding;
+   void GetEmbedding(const DenseMatrix &J, DenseMatrix &E) const;
+
+public:
+   ReducedHCTTriangleFiniteElement();
+
+   IntegrationPartition GetIntegrationPartition() const override
+   { return IntegrationPartition::ALFELD; }
+
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
+   void CalcDShape(const IntegrationPoint &ip,
+                   DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &hessian) const override;
+   void CalcPhysShape(ElementTransformation &Trans,
+                      Vector &shape) const override;
+   void CalcPhysDShape(ElementTransformation &Trans,
+                       DenseMatrix &dshape) const override;
+   void CalcPhysHessian(ElementTransformation &Trans,
+                        DenseMatrix &hessian) const override;
+};
+
 } // namespace mfem
 
 #endif

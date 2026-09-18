@@ -4,10 +4,12 @@
 //
 // Sample runs:  ex44
 //               ex44 -r 5
+//               ex44 -rhct -r 5
 //
 // Description: Solve the clamped biharmonic problem Delta^2 u = f on the unit
-// square with the cubic Hsieh--Clough--Tocher element. The manufactured smooth
-// solution is used to report L2, H1, and H2 convergence rates.
+// square with the full or reduced cubic Hsieh--Clough--Tocher element. The
+// manufactured smooth solution is used to report L2, H1, and H2 convergence
+// rates (orders 4, 3, 2 for full HCT and 2, 2, 1 for reduced HCT).
 
 #include "mfem.hpp"
 #include <cmath>
@@ -121,11 +123,16 @@ void ComputeErrors(const GridFunction &solution, real_t &l2_error,
 int main(int argc, char *argv[])
 {
    int refinements = 5;
+   bool reduced_hct = false;
    OptionsParser args(argc, argv);
    args.AddOption(&refinements, "-r", "--refinements",
                   "Number of convergence levels.");
+   args.AddOption(&reduced_hct, "-rhct", "--reduced-hct", "-hct", "--full-hct",
+                  "Use the reduced HCT element instead of the full HCT element.");
    args.ParseCheck();
 
+   const char *fec_name = reduced_hct ? "ReducedHCT_2D_P3" : "HCT_2D_P3";
+   unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(fec_name));
    FunctionCoefficient rhs(RightHandSide);
    const IntegrationRule &base = IntRules.Get(Geometry::TRIANGLE, 10);
    unique_ptr<IntegrationRule> load_rule(base.ApplyToTriangleAlfeldSplit());
@@ -139,8 +146,7 @@ int main(int argc, char *argv[])
       const int n = 2 << level;
       Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, true,
                                         1.0, 1.0);
-      HCT_FECollection fec;
-      FiniteElementSpace fes(&mesh, &fec);
+      FiniteElementSpace fes(&mesh, fec.get());
 
       LinearForm b(&fes);
       b.AddDomainIntegrator(new DomainLFIntegrator(rhs, load_rule.get()));
@@ -184,7 +190,9 @@ int main(int argc, char *argv[])
    }
 
    if (refinements >= 5 &&
-       (l2_rate < 3.5 || h1_rate < 2.8 || h2_rate < 1.8))
+       (l2_rate < (reduced_hct ? 1.8 : 3.5) ||
+        h1_rate < (reduced_hct ? 1.8 : 2.8) ||
+        h2_rate < (reduced_hct ? 0.8 : 1.8)))
    {
       cerr << "The observed convergence rates are below the expected orders.\n";
       return 2;
