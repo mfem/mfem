@@ -37,6 +37,7 @@
 #include "../../mtop_solvers.hpp"
 #include "../../linear_elasticity_solver.hpp"
 #include "checkpoint.hpp"
+#include "solid_submesh.hpp"
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -91,11 +92,6 @@ struct MeshProblem
 };
 
 MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh, int ray_type);
-
-// Extract Mesh with non-zero density
-void SaveSolidSubmesh(ParMesh &pmesh, ParGridFunction &desi_density,
-                      ParGridFunction &phys_density, const std::string &run_tag, 
-                      int order, real_t threshold = 0.1);
 
 int main(int argc, char *argv[])
 {
@@ -1661,59 +1657,6 @@ void VerticalRay(const Vector &x, Vector &v)
     v.SetSize(x.Size());
     v = 0.0;
     v(2) = 1.0;
-}
-
-// save the thresholded design by clipping from the max value
-void SaveSolidSubmesh(ParMesh &pmesh, ParGridFunction &desi_density,
-                      ParGridFunction &phys_density, const std::string &run_tag, 
-                      int order, real_t threshold)
-{
-    const int sol_attr = 1000;
-
-    for (int i = 0; i < pmesh.GetNE(); i++)
-    {
-        real_t elem_max = -infinity();
-
-        ElementTransformation *T = pmesh.GetElementTransformation(i);
-        const FiniteElement *fe = desi_density.FESpace()->GetFE(i);
-        const IntegrationRule &ir = fe->GetNodes();
-
-        for (int j = 0; j < ir.GetNPoints(); j++)
-        {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            T->SetIntPoint(&ip);
-            real_t val = desi_density.GetValue(*T, ip);
-            elem_max = max(elem_max, val);
-        }
-
-        if (elem_max > threshold)
-        {
-            pmesh.SetAttribute(i, sol_attr);
-        }
-    }
-    pmesh.SetAttributes();
-
-    Array<int> sol_mesh_attrs(1);
-    sol_mesh_attrs[0] = sol_attr;
-
-    ParSubMesh sol_submesh = ParSubMesh::CreateFromDomain(pmesh, sol_mesh_attrs);
-    ParFiniteElementSpace filter_subfes(&sol_submesh, desi_density.ParFESpace()->FEColl());
-
-    ParGridFunction desi_density_sub(&filter_subfes);
-    ParGridFunction phys_density_sub(&filter_subfes);
-
-    ParSubMesh::Transfer(desi_density, desi_density_sub);
-    ParSubMesh::Transfer(phys_density, phys_density_sub);
-
-    // save in separate paraview
-    ParaViewDataCollection dc(run_tag, &sol_submesh);
-    dc.SetPrefixPath("ParaView_fsol");
-    dc.SetLevelsOfDetail(order);
-    dc.SetDataFormat(VTKFormat::BINARY);
-    dc.SetHighOrderOutput(true);
-    dc.RegisterField("density", &phys_density_sub);
-    dc.RegisterField("rho_filter", &desi_density_sub);
-    dc.Save();
 }
 
 // 3x1x1 cantilever beam on a built-in hex grid, the default when no -m is given.
