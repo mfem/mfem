@@ -64,7 +64,6 @@ void SAMRAICouplingManager::GatherGlobalPatchInfo(const std::vector<PatchInfo>& 
    std::vector<PatchInfo>& gathered_patch_info) const
 {
    const int dim = hierarchy->getDim().getValue();
-   const int rank = hierarchy->getMPI().getRank();
    const int ranks = hierarchy->getMPI().getSize();
    MPI_Comm comm = hierarchy->getMPI().getCommunicator();
 
@@ -373,30 +372,29 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
 {
    for (int level_num=1; level_num <= hierarchy->getFinestLevelNumber(); level_num++)
    {
-      const Vector level0_ratio = ToVector(
-         hierarchy->getPatchLevel(level_num)->getRatioToLevelZero());
+      const SAMRAI::hier::IntVector level0_ratio =
+         hierarchy->getPatchLevel(level_num)->getRatioToLevelZero();
       const SAMRAI::hier::IntVector level_ratio =
          hierarchy->getPatchLevel(level_num)->getRatioToCoarserLevel();
 
-      // TODO: support 3D
-      MFEM_VERIFY(mesh->Dimension() == 2, "3D refinement not yet supported")
-      const double dx = 1.0/level0_ratio[0];
-      const double dy = 1.0/level0_ratio[1];
-
       // determine which elements to refine at this level
       Array<int> refine_element_inds;
+      Vector h = ToVector(level0_ratio);
+      h.Reciprocal();
       for (int element_ind=0; element_ind < mesh->GetNE(); element_ind++)
       {
          // skip element if already refined at or more than this level
-         const Vector h = GetElementDimensions(*mesh, element_ind);
-         // TODO: adjust for 3D
-         if (h[0] < dx + 1e-12 && h[1] < dy + 1e-12)
+         const Vector element_h = GetElementDimensions(*mesh, element_ind);
+         bool skip = true;
+         for (int i=0; skip && i < h.Size(); i++)
+            skip = element_h[i] < h[i] + 1e-12;
+         if (skip)
             continue;
 
          // get center in current level coordinates
          Vector center;
          mesh->GetElementCenter(element_ind, center);
-         center *= level0_ratio;
+         center /= h;
          SAMRAI::hier::Index index = ToIndex(center);
 
          // check if center is in any patches from current level
@@ -411,14 +409,14 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
       }
       // refine elements
       Array<Refinement> refinements(refine_element_inds.Size());
-      real_t ratioX, ratioY, ratioZ;
-      ratioX = 1.0 / level_ratio[0];
-      if (mesh->Dimension() > 1) ratioY = 1.0 / level_ratio[1];
-      if (mesh->Dimension() > 2) ratioZ = 1.0 / level_ratio[2];
+      Vector scale = ToVector(level_ratio);
+      scale.Reciprocal();
+      scale.Reserve(3); // this enables 3D scale vector for 2D refinement
       for (int i=0; i < refinements.Size(); i++)
       {
          refinements[i] = Refinement(refine_element_inds[i],
-            {{Refinement::X, ratioX}, {Refinement::Y, ratioY}});//, {Refinement::Z, ratioZ}});
+            {{Refinement::X, scale[0]}, {Refinement::Y, scale[1]},
+             {Refinement::Z, scale[2]}});
       }
       mesh->GeneralRefinement(refinements);
       UpdateFiniteElementSpaces();
@@ -1039,12 +1037,10 @@ Vector SAMRAICouplingManager::ToVector(const SAMRAI::hier::IntVector& vector)
 
 Vector SAMRAICouplingManager::GetElementDimensions(Mesh& mesh, const int element_ind)
 {
-   // TODO: support 3D
-   MFEM_VERIFY(mesh.Dimension() == 2, "3D not yet supported");
    Vector x0, h;
    ElementTransformation* transform = mesh.GetElementTransformation(element_ind);
-   const IntegrationPoint ip0 = {0.0, 0.0};
-   const IntegrationPoint ip1 = {1.0, 1.0};
+   const IntegrationPoint ip0 = {0.0, 0.0, 0.0};
+   const IntegrationPoint ip1 = {1.0, 1.0, 1.0};
    transform->Transform(ip0, x0);
    transform->Transform(ip1, h);
    h -= x0;
