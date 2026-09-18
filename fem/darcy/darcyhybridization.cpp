@@ -228,6 +228,19 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_nlfi.reset(c_integ);
 }
 
+void DarcyHybridization::SetPotConstraintNonlinearIntegrator(
+   NonlinearFormIntegrator *c_pot_integ)
+{
+   // c_bfi_p is deliberately NOT cleared; see the doxygen. c_nlfi is, because
+   // a BLOCK nonlinear face constraint writes the same E, G and H blocks and
+   // the two have never coexisted -- the backup below would have to be shared
+   // three ways and nothing asks for it.
+   MFEM_VERIFY(!c_nlfi, "a block nonlinear face constraint and a live "
+               "potential one write the same blocks; only one of them may be "
+               "set");
+   c_nlfi_p.reset(c_pot_integ);
+}
+
 void DarcyHybridization::SetFluxMassNonlinearIntegrator(
    NonlinearFormIntegrator *flux_integ, bool own)
 {
@@ -1541,6 +1554,12 @@ bool DarcyHybridization::CanBatchNLFaceGrad() const
    { return false; }
    if (c_fes.GetVDim() > 1 && c_fes.GetOrdering() != Ordering::byNODES)
    { return false; }
+
+   // A LIVE constraint beside a frozen one: the kernel writes E and G for
+   // every interior face at once and knows nothing of the seeding
+   // ConstructGrad() does, so it would drop the frozen half. Refused rather
+   // than taught, the combination being new and the kernel opt-in.
+   if (E_lin_data.Size()) { return false; }
 
    Array<NonlinearFormIntegrator*> integs;
    Array<BlockNonlinearFormIntegrator*> bintegs;
@@ -5519,8 +5538,11 @@ Operator &DarcyHybridization::ReducedGradient(MultNlMode mode,
    if (!H_data.Size()) { AllocH(); }
    else if (c_nlfi_p || c_nlfi)
    {
-      // H is resetted here for additive double side integration
-      H_data = 0.;
+      // H is resetted here for additive double side integration -- to the
+      // FROZEN half when there is one, which is the same statement as
+      // `H_data = 0.` whenever there is not.
+      if (H_lin_data.Size() == H_data.Size()) { H_data = H_lin_data; }
+      else { H_data = 0.; }
    }
 
    Vector y;//dummy
@@ -5940,7 +5962,14 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                      H.AddMult(x_f, y_l);
                   }
                }
-               else
+
+               // And the LIVE half, when one sits beside the frozen one. An
+               // `else` here was right while the two slots were exclusive and
+               // is a silent drop once they are not: each supplies a
+               // different part of the same face term. GradMult is excluded
+               // because there the blocks above ARE the assembled gradient
+               // and already carry both -- ConstructGrad() seeded them.
+               if (mode != MultNlMode::GradMult && (c_nlfi_p || c_nlfi))
                {
                   //nonlinear
                   if (c_nlfi_p)
@@ -6285,6 +6314,28 @@ void DarcyHybridization::Finalize()
    // EnableNPC() is normally called AFTER EnableHybridization(), so Init()
    // cannot see the answer to the question this asks.
    CheckRestrictedFluxConfiguration(true);
+
+   // A live face constraint beside a frozen one is supported on the NPC path
+   // and refused elsewhere. Out of scope rather than known broken: the
+   // reduced route builds its H from E, G and H once at this point and again
+   // per gradient, and nothing has run the seeding through it. The caller
+   // this exists for is on NPC.
+   MFEM_VERIFY(!(c_bfi_p && c_nlfi_p) || NPCEnabled(),
+               "a live potential face constraint beside a linear one needs "
+               "EnableNPC(); see SetPotConstraintNonlinearIntegrator()");
+
+   // The frozen half of the face constraint, kept because the live pass is
+   // about to overwrite the blocks that hold it. Only when BOTH slots are
+   // filled: with c_bfi_p alone nothing rewrites E, G or H, and with
+   // c_nlfi_p alone there is nothing frozen to keep. Assigning a Vector from
+   // a Vector copies, which is what is wanted -- E_data and friends are
+   // written in place from here on.
+   if (c_bfi_p && c_nlfi_p)
+   {
+      E_lin_data = E_data;
+      G_lin_data = G_data;
+      H_lin_data = H_data;
+   }
 
    // ComputeH(Linear) factors each element's A and D IN PLACE and keeps no
    // copy, which is right when the only thing ever asked of the hybridization
@@ -7520,6 +7571,20 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    Array<bool> eg_written(faces.Size());
    eg_written = false;
 
+   // The frozen half of E and G, put back before the live pass accumulates on
+   // top of it. This is the E/G counterpart of the `D += D_lin` above and it
+   // has to go through @a eg_written rather than through an addition, because
+   // those blocks are REWRITTEN rather than reset: seeding them and then
+   // declaring them written is exactly what the flag is for. H needs nothing
+   // here -- ReducedGradient() seeds it where it used to zero it.
+   if (E_lin_data.Size())
+   {
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         SeedLinearEG(el, faces[f], x_l.GetBlock(f).Size(), eg_written[f]);
+      }
+   }
+
    if (c_nlfi_p)
    {
       //bp += E x
@@ -7641,6 +7706,29 @@ void DarcyHybridization::AssembleHDGGrad(
    DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);
    blk.CopyMN(elmat, c_dofs_size, c_dofs_size, d_dofs_size, d_dofs_size);
    H_f += blk;
+}
+
+void DarcyHybridization::SeedLinearEG(int el, int face, int c_dofs_size,
+                                      bool &eg_written) const
+{
+   if (!E_lin_data.Size()) { return; }
+
+   int el1, el2;
+   fes.GetMesh()->GetFaceElements(face, &el1, &el2);
+
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+   // Exactly AssembleHDGGrad()'s offset, and G's is E's.
+   const int off = (el1 == el) ? 0 : (c_dofs_size * d_dofs_size);
+   const int n = c_dofs_size * d_dofs_size;
+
+   real_t *E_dst = &E_data[E_offsets[face] + off];
+   const real_t *E_src = &E_lin_data[E_offsets[face] + off];
+   real_t *G_dst = &G_data[G_offsets[face] + off];
+   const real_t *G_src = &G_lin_data[G_offsets[face] + off];
+   for (int i = 0; i < n; i++) { E_dst[i] = E_src[i]; }
+   for (int i = 0; i < n; i++) { G_dst[i] = G_src[i]; }
+
+   eg_written = true;
 }
 
 void DarcyHybridization::AssembleHDGGrad(
@@ -8167,7 +8255,12 @@ Operator &DarcyHybridization::ParReducedGradient(MultNlMode mode,
    if (!Df_data.Size()) { AllocD(); }// D is resetted in ConstructGrad()
    if (!E_data.Size() || !G_data.Size()) { AllocEG(); }// E and G are rewritten
    if (!H_data.Size()) { AllocH(); }
-   else if (c_nlfi_p || c_nlfi) { H_data = 0.; }
+   else if (c_nlfi_p || c_nlfi)
+   {
+      // The frozen half, exactly as the serial route seeds it; see there.
+      if (H_lin_data.Size() == H_data.Size()) { H_data = H_lin_data; }
+      else { H_data = 0.; }
+   }
 
    Vector y;//dummy
    BlockVector zero_b;
@@ -9305,6 +9398,14 @@ void DarcyHybridization::Reset()
    // The face blocks it holds are re-assembled by whatever follows a Reset().
    res_cache.reset();
    cond_cache.reset();
+
+   // Refilled by the next Finalize(), and dropped here rather than left
+   // stale: a Reset() is what a caller runs before reconfiguring, and a
+   // backup of a constraint that is no longer installed would be added to
+   // every gradient.
+   E_lin_data.SetSize(0);
+   G_lin_data.SetSize(0);
+   H_lin_data.SetSize(0);
 
    A_empty = true;
    Af_data = 0.;

@@ -335,8 +335,9 @@ static const char *MnlPFaceRefusal()
           "linear potential mass form (GetPotentialMassForm()), or move the "
           "whole potential mass onto the nonlinear form so the constraint is "
           "read from there. Carrying a linear and a nonlinear face constraint "
-          "at once needs a linear backup for E, G and H, mirroring "
-          "Df_lin_data; see DarcyHybridization::ConstructGrad().";
+          "at once is what SetFaceConstraintMode(FaceConstraintMode::Live) "
+          "does, and it needs EnableNPC(); see "
+          "DarcyHybridization::SetPotConstraintNonlinearIntegrator().";
 }
 
 void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
@@ -401,19 +402,41 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       // overload resets the others), and making them coexist needs a linear
       // backup for E, G and H. Refusing names that, which a silent drop
       // did not.
+      //
+      // **Unless the caller asked for them to stay LIVE.** Folding freezes
+      // the coefficient as well as the operator, and a face integrator whose
+      // coefficient is a function of another field of a coupled system has to
+      // be re-read rather than re-assembled. FaceConstraintMode::Live puts
+      // them on the hybridization's nonlinear slot instead, where M_p's stay
+      // frozen beside them; see DarcyForm::SetFaceConstraintMode().
+      SumNLFIntegrator *live = NULL;
       if (Mnl_p && Mnl_p->GetInteriorFaceIntegrators().Size() > 0)
       {
-         MFEM_VERIFY(AllFaceIntegratorsAreBilinear(Mnl_p), MnlPFaceRefusal());
-         if (!sbfi) { sbfi = new SumIntegrator(false); }
-         for (NonlinearFormIntegrator *nlfi : Mnl_p->GetInteriorFaceIntegrators())
+         if (fc_mode == FaceConstraintMode::Live)
          {
-            sbfi->AddIntegrator(static_cast<BilinearFormIntegrator*>(nlfi));
+            live = new SumNLFIntegrator(false);
+            for (NonlinearFormIntegrator *nlfi : Mnl_p->GetInteriorFaceIntegrators())
+            {
+               live->AddIntegrator(nlfi);
+            }
+         }
+         else
+         {
+            MFEM_VERIFY(AllFaceIntegratorsAreBilinear(Mnl_p), MnlPFaceRefusal());
+            if (!sbfi) { sbfi = new SumIntegrator(false); }
+            for (NonlinearFormIntegrator *nlfi : Mnl_p->GetInteriorFaceIntegrators())
+            {
+               sbfi->AddIntegrator(static_cast<BilinearFormIntegrator*>(nlfi));
+            }
          }
       }
       hybridization->SetConstraintIntegrators(constr_flux_integ,
                                               (BilinearFormIntegrator*)sbfi);
+      // AFTER SetConstraintIntegrators(), which clears this slot.
+      if (live) { hybridization->SetPotConstraintNonlinearIntegrator(live); }
    }
-   else if (Mnl_p && FaceIntegratorsAreLinear(Mnl_p, nl_elsewhere))
+   else if (Mnl_p && fc_mode == FaceConstraintMode::Frozen
+            && FaceIntegratorsAreLinear(Mnl_p, nl_elsewhere))
    {
       // A linear constraint that merely happens to sit on a NonlinearForm.
       // Taking the c_bfi_p route assembles E, G, H and D once instead of once
@@ -575,14 +598,37 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       // level down. Refused with the same message.
       if (Mnl_p && Mnl_p->GetBdrFaceIntegrators().Size() > 0)
       {
-         MFEM_VERIFY(AllFaceIntegratorsAreBilinear(Mnl_p), MnlPFaceRefusal());
          auto bfnlfi = Mnl_p->GetBdrFaceIntegrators();
          auto bfnlfi_marker = Mnl_p->GetBdrFaceIntegratorsMarkers();
+         // Live mode sends them to the NONLINEAR boundary list, which is the
+         // list ConstructGrad()'s and LocalNLOperator's boundary loops read --
+         // both of which sit inside `if (c_nlfi_p)`, which live mode fills.
+         // The interior choice above and this one therefore agree by
+         // construction, which is what the frozen branch's own comment asks
+         // for.
+         const bool to_live = (fc_mode == FaceConstraintMode::Live);
+         if (!to_live)
+         {
+            MFEM_VERIFY(AllFaceIntegratorsAreBilinear(Mnl_p), MnlPFaceRefusal());
+         }
          for (int i = 0; i < bfnlfi.Size(); i++)
          {
+            Array<int> *nlfi_marker = bfnlfi_marker[i];
+            if (to_live)
+            {
+               NonlinearFormIntegrator *nlfi = bfnlfi[i];
+               if (nlfi_marker)
+               {
+                  hybridization->AddBdrPotConstraintIntegrator(nlfi, *nlfi_marker);
+               }
+               else
+               {
+                  hybridization->AddBdrPotConstraintIntegrator(nlfi);
+               }
+               continue;
+            }
             BilinearFormIntegrator *bfi =
                static_cast<BilinearFormIntegrator*>(bfnlfi[i]);
-            Array<int> *nlfi_marker = bfnlfi_marker[i];
             if (nlfi_marker)
             {
                hybridization->AddBdrPotConstraintIntegrator(bfi, *nlfi_marker);

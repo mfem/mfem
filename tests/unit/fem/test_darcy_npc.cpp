@@ -3435,3 +3435,179 @@ TEST_CASE("One factored NPC Jacobian applies to several right-hand sides at "
       }
    }
 }
+
+namespace darcy_live_face_constraint
+{
+
+// A FACE constraint whose coefficient moves between residuals.
+//
+// The caller's case: an upwinded convection whose drift velocity carries an
+// unknown of another equation, so it is a different velocity at every Newton
+// step. The integrator is bilinear in (u, uhat) either way, so nothing about
+// its type says which it is, and DarcyForm::EnableHybridization() folds it in
+// with the HDG stabilization and assembles the pair ONCE. The coefficient is
+// then frozen at whatever it was, silently -- the answer is simply the one
+// the first assembly implied -- and the only way to move it was
+// Update() + Assemble() + Finalize().
+//
+// FaceConstraintMode::Live keeps the nonlinear form's face integrators on the
+// hybridization's live slot while the linear form's stay frozen beside them.
+// The three arms below are what that has to mean:
+//
+//   live, assembled at a0 and evaluated at a1  ==  frozen, assembled at a1
+//   live, assembled at a1                      ==  frozen, assembled at a1
+//   frozen, assembled at a0 and "moved" to a1  !=  frozen, assembled at a1
+//
+// The second is the null test -- with nothing moving the two routes must be
+// the same operator, which is what catches a frozen half lost or counted
+// twice by the E, G and H seeding. The third is the defect being repaired,
+// and without it the first would pass on a route that ignored a0 entirely.
+
+struct Result
+{
+   Vector r_tr;   ///< the trace residual
+   Vector Sy;     ///< the reduced gradient applied to a fixed vector
+};
+
+/** @a a0 is the velocity the form is ASSEMBLED at, @a a1 the one in force
+    when the residual and gradient are taken. They differ only in the arms
+    that are meant to show the difference. */
+Result Run(DarcyForm::FaceConstraintMode mode, real_t a0, real_t a1)
+{
+   const int dim = 2, order = 1, n = 4;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   // Read at every evaluation, which is the whole subject: the lambda closes
+   // over @a alpha by reference and alpha moves after Assemble().
+   real_t alpha = a0;
+   VectorFunctionCoefficient ccoeff(dim, [&alpha](const Vector &x, Vector &v)
+   {
+      v.SetSize(x.Size());
+      v = 0.;
+      v(0) = alpha;
+      v(1) = 0.5 * alpha * x(0);
+   });
+
+   DarcyForm darcy(&Vh, &Wh);
+   darcy.SetFaceConstraintMode(mode);
+
+   ConstantCoefficient one(1.0), zero(0.0);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)), all);
+
+   // The FROZEN half: an HDG stabilization, on the LINEAR potential mass
+   // form, with a coefficient that does not move.
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   // The LIVE half: the same class convdiff installs, on the NONLINEAR form.
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new MassIntegrator(zero));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+   Mnl_p->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->EnableNPC();
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   // and the coefficient moves, with no re-assembly of any kind
+   alpha = a1;
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   // A deterministic, asymmetric state: a constant one would be annihilated
+   // by half the face terms and would not tell the arms apart.
+   for (int i = 0; i < x.Size(); i++) { x(i) = 0.25 + 0.5 * sin(1.0 * i); }
+   Vector x_tr(Mh.GetVSize());
+   for (int i = 0; i < x_tr.Size(); i++) { x_tr(i) = 0.3 * cos(2.0 * i); }
+
+   Result res;
+   BlockVector r(darcy.GetOffsets());
+   dh->NPCResidual(b, x, x_tr, r, res.r_tr);
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+   Vector y(x_tr.Size());
+   for (int i = 0; i < y.Size(); i++) { y(i) = 1.0 / (1.0 + i); }
+   res.Sy.SetSize(x_tr.Size());
+   S.Mult(y, res.Sy);
+
+   REQUIRE(res.r_tr.CheckFinite() == 0);
+   REQUIRE(res.Sy.CheckFinite() == 0);
+   return res;
+}
+
+real_t RelDiff(const Vector &a, const Vector &b)
+{
+   Vector d(a);
+   d -= b;
+   const real_t nb = b.Norml2();
+   return (nb > 0.) ? (d.Norml2() / nb) : d.Norml2();
+}
+
+} // namespace darcy_live_face_constraint
+
+TEST_CASE("A live face constraint reads its coefficient at every residual",
+          "[DarcyForm][DarcyHybridization][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_live_face_constraint;
+   using Mode = DarcyForm::FaceConstraintMode;
+
+   constexpr real_t a0 = 1.0, a1 = 2.5;
+
+   // What the answer at a1 IS, by the route that has always been right:
+   // assemble the form at a1 and never move it.
+   const Result ref = Run(Mode::Frozen, a1, a1);
+
+   SECTION("with nothing moving, live and frozen are the same operator")
+   {
+      // The null test, and it is what checks the seeding of E, G and H:
+      // the frozen half is copied at Finalize() and put back before every
+      // gradient, so losing it or adding it twice shows up here and nowhere
+      // else. Both the residual and the gradient, because a fast path that
+      // is right in one and wrong in the other is the normal failure.
+      const Result live = Run(Mode::Live, a1, a1);
+      const real_t dr = RelDiff(live.r_tr, ref.r_tr);
+      const real_t dS = RelDiff(live.Sy, ref.Sy);
+      CAPTURE(dr, dS);
+      REQUIRE(dr < 1e-12);
+      REQUIRE(dS < 1e-12);
+   }
+
+   SECTION("a coefficient moved after Assemble() reaches the live route")
+   {
+      const Result live = Run(Mode::Live, a0, a1);
+      const real_t dr = RelDiff(live.r_tr, ref.r_tr);
+      const real_t dS = RelDiff(live.Sy, ref.Sy);
+      CAPTURE(dr, dS);
+      REQUIRE(dr < 1e-12);
+      REQUIRE(dS < 1e-12);
+   }
+
+   SECTION("and the frozen route does not see it move, which is the defect")
+   {
+      // Without this the two sections above would pass just as well on a
+      // route that never looked at a0 -- and the freeze is silent, so
+      // nothing else in the suite can tell the two apart.
+      const Result frozen = Run(Mode::Frozen, a0, a1);
+      const real_t dr = RelDiff(frozen.r_tr, ref.r_tr);
+      const real_t dS = RelDiff(frozen.Sy, ref.Sy);
+      CAPTURE(dr, dS);
+      REQUIRE(dr > 1e-3);
+      REQUIRE(dS > 1e-3);
+   }
+}

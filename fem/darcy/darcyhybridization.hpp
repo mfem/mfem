@@ -448,6 +448,21 @@ private:
    mutable Array<int> H_offsets;
    mutable Vector H_data;
 
+   /** @brief The frozen half of E, G and H when a LIVE face constraint sits
+       beside a linear one, i.e. what @a c_bfi_p assembled once at Finalize().
+
+       The same device Df_lin_data is for D, and for the same reason: the
+       gradient's face pass REWRITES E and G (see AssembleHDGGrad()'s
+       @a eg_written) and zeroes H, so without a copy the frozen half would
+       survive exactly one gradient. ConstructGrad() seeds E and G from these
+       and lets the existing accumulate flag do the rest; ReducedGradient()
+       seeds H in place of zeroing it.
+
+       Empty unless BOTH slots are filled, which is the only configuration
+       that needs them -- with c_bfi_p alone nothing rewrites the blocks, and
+       with c_nlfi_p alone there is nothing frozen to keep. */
+   mutable Vector E_lin_data, G_lin_data, H_lin_data;
+
    mutable Array<int> darcy_offsets, darcy_toffsets;
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
@@ -1675,6 +1690,17 @@ private:
                         const Vector &x_f, const Vector &u_l, const Vector &p_l,
                         bool &eg_written) const;
 
+   /** @brief Put the frozen half of E and G for one (element, face) back,
+       and declare the blocks written so the live pass accumulates.
+
+       The offsets are AssembleHDGGrad()'s, deliberately reproduced rather
+       than recomputed: the two write the same range and a second expression
+       for it is a second thing to get wrong. @a c_dofs_size comes from the
+       caller's trace block for the same reason. Does nothing when there is
+       no frozen half. */
+   void SeedLinearEG(int el, int face, int c_dofs_size,
+                     bool &eg_written) const;
+
 public:
    /// Constructor
    /** @param fes_u     flux space
@@ -2852,6 +2878,31 @@ public:
 
    void SetPotMassNonlinearIntegrator(NonlinearFormIntegrator *pot_integ,
                                       bool own = true);
+
+   /** @brief Add a face constraint that is EVALUATED at every residual and
+       gradient, beside whatever SetConstraintIntegrators() froze.
+
+       The route for a face integrator that is bilinear in the unknowns and
+       whose COEFFICIENT is not: an upwinded convection whose drift velocity
+       is a function of another field of the coupled system moves at every
+       residual, and folding it into @a c_bfi_p assembles it once and then
+       never looks at the coefficient again. Nothing about that is visible --
+       the answer is simply the one the first assembly implied -- and the only
+       way out was Update() + Assemble() + Finalize(), which for a caller
+       measuring it was 92.7 ms against 8.9 ms for the gradient it wanted.
+
+       Unlike SetConstraintIntegrators(), this does NOT clear @a c_bfi_p. The
+       two then hold different halves of the same face term -- the frozen
+       stabilization and the live convection, which is the configuration that
+       occurs -- and Finalize() keeps a copy of the frozen half in
+       @a E_lin_data, @a G_lin_data and @a H_lin_data because the live pass
+       overwrites those blocks.
+
+       @note Call it AFTER SetConstraintIntegrators(), which resets this slot.
+             DarcyForm::EnableHybridization() does, and is the normal caller;
+             set DarcyForm::SetFaceConstraintMode() to ask it to.
+       @note Ownership is taken, as it is for every constraint integrator. */
+   void SetPotConstraintNonlinearIntegrator(NonlinearFormIntegrator *c_pot_integ);
 
    void SetBlockNonlinearIntegrator(BlockNonlinearFormIntegrator *block_integ,
                                     bool own = true);

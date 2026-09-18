@@ -98,6 +98,43 @@ namespace mfem
  */
 class DarcyForm : public Operator
 {
+public:
+   /** @brief Whether a FACE constraint on the NONLINEAR potential mass form
+       is assembled once or read at every residual.
+
+       Both are bilinear in the unknowns -- an HDG face stabilization is a
+       BilinearFormIntegrator and so is an upwinded convection -- so the type
+       cannot tell them apart and the caller has to say. The question is not
+       what the integrator IS, it is whether its COEFFICIENT moves.
+
+       @a Frozen is the default and is what every existing caller gets: the
+       nonlinear form's face integrators are folded in with the linear form's
+       and assembled once, which is what makes E, G, H and D one-off and the
+       batched face kernel reachable.
+
+       @a Live keeps them on the hybridization's nonlinear slot, where they
+       are evaluated at every residual and every gradient. For a coefficient
+       that is a function of another field of a coupled system -- a drift
+       velocity carrying an unknown, which moves at every Newton step -- that
+       is the difference between re-reading it and re-assembling the whole
+       form to move it. The caller who asked for this measured 92.7 ms of
+       Update() + Assemble() + Finalize() against 8.9 ms for the gradient and
+       1.0 ms for the trace solve: 90% of a coupled Newton step spent
+       assembling in order to move one coefficient.
+
+       It costs the face term's assembly per evaluation, which is the price
+       the frozen route exists to avoid. Ask for it on the form that moves and
+       leave the rest on GetPotentialMassForm(), which stays frozen either
+       way -- the two halves coexist. */
+   enum class FaceConstraintMode
+   {
+      /// Fold into the linear constraint and assemble once (the default).
+      Frozen,
+      /// Keep on the nonlinear slot and re-evaluate at every residual.
+      Live,
+   };
+
+private:
 protected:
    Array<int> offsets;      ///< block offsets (VDOFs)
    Array<int> toffsets;     ///< block offsets (TDOFs)
@@ -106,6 +143,9 @@ protected:
    FiniteElementSpace *fes_p;   ///< potential FE space
 
    bool bsym;   ///< sign convention, see DarcyForm()
+
+   /// See FaceConstraintMode; read by EnableHybridization() and only there.
+   FaceConstraintMode fc_mode{FaceConstraintMode::Frozen};
 
    std::unique_ptr<BilinearForm> M_u;       ///< flux mass form
    std::unique_ptr<BilinearForm> M_p;       ///< potential mass form
@@ -282,6 +322,22 @@ public:
 
    NonlinearForm *GetPotentialMassNonlinearForm();
    const NonlinearForm *GetPotentialMassNonlinearForm() const { return Mnl_p.get(); }
+
+   /** @brief Ask for this form's nonlinear face constraint to be read live.
+
+       Must be set BEFORE EnableHybridization(), which is the only reader:
+       it is what routes GetPotentialMassNonlinearForm()'s face integrators
+       to the hybridization's live slot instead of folding them into the
+       frozen one, and the hybridization is built there. Setting it
+       afterwards does nothing, silently, for the same reason an integrator
+       added to a form afterwards does.
+
+       Live mode needs DarcyHybridization::EnableNPC(); Finalize() refuses
+       otherwise rather than producing a frozen answer. */
+   void SetFaceConstraintMode(FaceConstraintMode mode) { fc_mode = mode; }
+
+   /// See SetFaceConstraintMode().
+   FaceConstraintMode GetFaceConstraintMode() const { return fc_mode; }
 
    ///@}
 
