@@ -1031,10 +1031,10 @@ int main(int argc, char *argv[])
     vector<BlockVector> dthick(n_dir, BlockVector(toffsets));
 
     // ray-0 thickness-constraint gradient for ParaView (refreshed before each save)
-    ParGridFunction dthick_rho(&control_fes);          // block(0): on pmesh
-    dthick_rho = 0.0;
-    ParGridFunction dthick_alpha(sub_dg_fes[0].get()); // block(1): on outflow[0]
-    dthick_alpha = 0.0;
+    // ParGridFunction dthick_rho(&control_fes);          // block(0): on pmesh
+    // dthick_rho = 0.0;
+    // ParGridFunction dthick_alpha(sub_dg_fes[0].get()); // block(1): on outflow[0]
+    // dthick_alpha = 0.0;
 
     // --- PLAIN SIMP ---  the linear volume gradient is constant:  [ L^T w/Vstar ; 0 ; ... ]
     // dvol.GetBlock(0) = dvol_drho;
@@ -1463,13 +1463,12 @@ int main(int argc, char *argv[])
             tx_max[tdof] = value + real_t(0.5) * passive_bound_gap;
         }
 
-        const real_t alpha_move = 0.2 * (alpha_max - alpha_min);
         for (int r = 0; r < n_dir; r++)
         {
             for (int i = 0; i < m[r]; i++)
             {
-                tx_min[toffsets[1 + r] + i] = std::max(alpha_min, alpha_tv[r][i] - alpha_move);
-                tx_max[toffsets[1 + r] + i] = std::min(alpha_max, alpha_tv[r][i] + alpha_move);
+                tx_min[toffsets[1 + r] + i] = alpha_min;
+                tx_max[toffsets[1 + r] + i] = alpha_max;
             }
         }
 
