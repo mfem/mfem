@@ -316,6 +316,21 @@ public:
    /// Get the potential mass form (const)
    const BilinearForm *GetPotentialMassForm() const { return M_p.get(); }
 
+   /** @brief Get the nonlinear potential mass form (non-const)
+       @note The form is constructed if it has not been already.
+
+       **Its DOMAIN integrators are read by EnableHybridization() and only
+       there.** One added afterwards is installed into nothing and says so
+       nowhere -- the term is simply absent from the residual and the
+       gradient, and every size and norm still looks right.
+
+       The route afterwards is
+       DarcyHybridization::SetPotMassNonlinearIntegrator(), which is public
+       and which Reset() does NOT clear, so it survives the
+       Update() / Assemble() / Finalize() cycle a re-assembling caller needs.
+       NPC callers are the whole affected population, because NPC lives on the
+       hybridization: a DAE operator wrapping a DarcyForm is handed one that
+       is already hybridized and cannot go back. */
    NonlinearForm *GetPotentialMassNonlinearForm();
    const NonlinearForm *GetPotentialMassNonlinearForm() const { return Mnl_p.get(); }
 
