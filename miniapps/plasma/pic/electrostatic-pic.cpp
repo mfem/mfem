@@ -134,13 +134,26 @@ protected:
    /// Particle pusher on cuda or not
    bool use_device = false;
 
+   /// H1 potential used to evaluate E = -∇φ at particles on device.
+   ParGridFunction* phi_gf = nullptr;
+   const Operator* phi_elem_restr = nullptr;
+   Vector phi_e_lex;
+   int ndofs_per_el = 0;
+   real_t hx = 1.0, hy = 1.0, hz = 1.0;
+   bool device_e_interp = false;
+
    /// Temporary vectors for particle computation
    mutable Vector pm_, pp_;
 
 public:
+   /// Interpolate E = -∇φ at particles using H1 element-restriction data.
+   void InterpolateEFromPhiDevice();
+
    ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
+                 ParGridFunction* phi_gf_,
                  FindPointsGSLIB& E_finder_, int num_particles,
-                 Ordering::Type pdata_ordering, bool use_device_);
+                 Ordering::Type pdata_ordering, bool use_device_,
+                 real_t hx_, real_t hy_, real_t hz_);
 
    /// Initialize charged particles with given parameters
    void InitializeChargedParticles(const real_t& k, const real_t& alpha,
@@ -190,6 +203,13 @@ private:
    FindPointsGSLIB& E_finder;
    ParLinearForm b;
 
+   const Operator* phi_elem_restr = nullptr;
+   Vector rho_e_lex;
+   int ndofs_per_el = 0;
+   int sdim = 0;
+   real_t hx = 1.0, hy = 1.0, hz = 1.0;
+   bool device_deposit = false;
+
 protected:
    /** Compute neutralizing constant and initialize with the constant.
        Returns a reference to the precomputed neutralizing ParLinearForm. */
@@ -202,11 +222,16 @@ protected:
    void DepositCharge(ParFiniteElementSpace* pfes, const ParticleVector& Q);
 
 public:
+   void DepositChargeDevice(ParFiniteElementSpace* pfes,
+                            const ParticleVector& Q);
+
    FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
                FindPointsGSLIB& E_finder_,
                bool precompute_neutralizing_const_ = false,
                bool use_full_assembly_ = false,
-               bool use_partial_assembly_ = false);
+               bool use_partial_assembly_ = false,
+               bool use_device_ = false,
+               real_t hx_ = 1.0, real_t hy_ = 1.0, real_t hz_ = 1.0);
 
    ~FieldSolver();
 
@@ -350,16 +375,22 @@ int main(int argc, char* argv[])
    phi_gf.UseDevice(use_device);
    E_gf.UseDevice(use_device);
 
+   const real_t hx = ctx.L / ctx.nx;
+   const real_t hy = ctx.L / ctx.ny;
+   const real_t hz = (ctx.dim == 3) ? ctx.L / ctx.nz : 1.0;
+
    // 6. Construct the field solver
-   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true, fa, pa);
+   FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, true, fa, pa,
+                            use_device, hx, hy, hz);
 
    // 7. Initialize ParticleMover
    Ordering::Type ordering_type =
       ctx.ordering == 0 ? Ordering::byNODES : Ordering::byVDIM;
    int num_particles =
       ctx.npt / num_ranks + (rank < (ctx.npt % num_ranks) ? 1 : 0);
-   ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, E_finder, num_particles,
-                                ordering_type, use_device);
+   ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, &phi_gf, E_finder,
+                                num_particles, ordering_type, use_device,
+                                hx, hy, hz);
    particle_mover.InitializeChargedParticles(ctx.k, ctx.alpha, ctx.m, ctx.q,
                                              ctx.L, ctx.reproduce);
 
@@ -371,26 +402,27 @@ int main(int argc, char* argv[])
    sw.Start();
    for (int step = 1; step <= ctx.nt; step++)
    {
-      // Step the FieldSolver
-      if (ctx.redist_interval > 0 &&
-          (step % ctx.redist_interval == 0 || step == 1) &&
-          particle_mover.GetParticles().GetGlobalNParticles() > 0)
-      {
-         // (3) Redistribute particles across MPI ranks
-         //     (timed inside Redistribute(); the FindPoints call it makes
-         //      is accumulated into timers.findpts)
-         particle_mover.Redistribute();
+      const bool do_redist =
+         ctx.redist_interval > 0 &&
+         (step % ctx.redist_interval == 0 || step == 1) &&
+         particle_mover.GetParticles().GetGlobalNParticles() > 0;
 
-         // (4) Update fields: deposit charge, solve Poisson, E = -∇φ
+      // (3) Redistribute only on the requested interval. FindPoints after
+      //     the push (inside Step/StepDevice) is reused for GetProc().
+      if (do_redist)
+      {
+         particle_mover.Redistribute();
+      }
+
+      // (4) Update fields every step: deposit, Poisson, E = -∇φ
+      if (particle_mover.GetParticles().GetGlobalNParticles() > 0)
+      {
          timers.fields.Start();
-         // Update phi_gf from particles
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(),
                                             phi_gf);
-         // Update E_gf from phi_gf
          field_solver.UpdateEGridFunction(phi_gf, E_gf);
          timers.fields.Stop();
 
-         // Visualize fields if requested
          if (ctx.visualization)
          {
             static socketstream vis_e, vis_phi;
@@ -430,9 +462,8 @@ int main(int argc, char* argv[])
                                                 tag_idx);
       }
 
-      if (ctx.redist_interval > 0 &&
-          (step % ctx.redist_interval == 0 || step == 1) &&
-          particle_mover.GetParticles().GetGlobalNParticles() > 0)
+      // Energies every step (fields are updated every step).
+      if (particle_mover.GetParticles().GetGlobalNParticles() > 0)
       {
          // Compute energies
          // Note that particle momenta are a half time step ahead of the field
@@ -508,9 +539,12 @@ int main(int argc, char* argv[])
 }
 
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
+                             ParGridFunction* phi_gf_,
                              FindPointsGSLIB& E_finder_, int num_particles,
-                             Ordering::Type pdata_ordering, bool use_device_)
-   : E_gf(E_gf_), E_finder(E_finder_), use_device(use_device_)
+                             Ordering::Type pdata_ordering, bool use_device_,
+                             real_t hx_, real_t hy_, real_t hz_)
+   : E_gf(E_gf_), phi_gf(phi_gf_), E_finder(E_finder_), use_device(use_device_),
+     hx(hx_), hy(hy_), hz(hz_)
 {
    MFEM_ASSERT(E_gf, "Must pass an E field to ParticleMover.");
 
@@ -525,6 +559,33 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
    charged_particles = std::make_unique<ParticleSet>(
                           comm, num_particles, dim, field_vdims, 1,
                           pdata_ordering, use_device);
+
+   if (use_device && phi_gf)
+   {
+      ParFiniteElementSpace* pfes = phi_gf->ParFESpace();
+      const int order = pfes->GetMaxElementOrder();
+      Mesh* mesh = pfes->GetMesh();
+      const bool tensor_el =
+         mesh->GetNE() == 0 ||
+         mesh->GetElementType(0) == Element::QUADRILATERAL ||
+         mesh->GetElementType(0) == Element::HEXAHEDRON;
+      device_e_interp = (order == 1 && tensor_el);
+      if (device_e_interp)
+      {
+         phi_elem_restr =
+            pfes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+         ndofs_per_el = (dim == 3) ? 8 : 4;
+         if (phi_elem_restr)
+         {
+            phi_e_lex.SetSize(phi_elem_restr->Height());
+            phi_e_lex.UseDevice(true);
+         }
+         else
+         {
+            device_e_interp = false;
+         }
+      }
+   }
 }
 
 void ParticleMover::InitializeChargedParticles(const real_t& k,
@@ -599,6 +660,249 @@ void ParticleMover::FindParticles()
    timers.findpts.Stop();
 }
 
+namespace
+{
+
+constexpr int kNotFound = 2;
+
+bool AllParticlesLocal(const Array<unsigned int> &code,
+                       const Array<unsigned int> &proc)
+{
+   const unsigned int rank = (unsigned int)Mpi::WorldRank();
+   int local = 1;
+   const int npt = code.Size();
+   const unsigned int *c = code.HostRead();
+   const unsigned int *p = proc.HostRead();
+   for (int i = 0; i < npt; i++)
+   {
+      if ((int)c[i] != kNotFound && p[i] != rank)
+      {
+         local = 0;
+         break;
+      }
+   }
+   int glob = 1;
+   MPI_Allreduce(&local, &glob, 1, MPI_INT, MPI_LAND, MPI_COMM_WORLD);
+   return glob;
+}
+
+void EvalEOrder1(int npt, int dim, int nd, const unsigned int *d_elem,
+                 const unsigned int *d_code, const real_t *d_ref,
+                 const real_t *d_phie, real_t *d_e, bool byVDIM,
+                 real_t inv_hx, real_t inv_hy, real_t inv_hz)
+{
+   MFEM_FORALL(p, npt,
+   {
+      real_t Ex = 0.0, Ey = 0.0, Ez = 0.0;
+      if (d_code == nullptr || d_code[p] != (unsigned int)kNotFound)
+      {
+         const int e = (int)d_elem[p];
+         const real_t r = d_ref[dim * p];
+         const real_t s = d_ref[dim * p + 1];
+         const real_t *v = d_phie + e * nd;
+         if (dim == 3)
+         {
+            const real_t t = d_ref[dim * p + 2];
+            const real_t omr = 1.0 - r, oms = 1.0 - s, omt = 1.0 - t;
+            const real_t dphidr = -oms * omt * v[0] + oms * omt * v[1]
+                                  - s * omt * v[2] + s * omt * v[3]
+                                  - oms * t * v[4] + oms * t * v[5]
+                                  - s * t * v[6] + s * t * v[7];
+            const real_t dphids = -omr * omt * v[0] - r * omt * v[1]
+                                  + omr * omt * v[2] + r * omt * v[3]
+                                  - omr * t * v[4] - r * t * v[5]
+                                  + omr * t * v[6] + r * t * v[7];
+            const real_t dphidt = -omr * oms * v[0] - r * oms * v[1]
+                                  - omr * s * v[2] - r * s * v[3]
+                                  + omr * oms * v[4] + r * oms * v[5]
+                                  + omr * s * v[6] + r * s * v[7];
+            Ex = -dphidr * inv_hx;
+            Ey = -dphids * inv_hy;
+            Ez = -dphidt * inv_hz;
+         }
+         else
+         {
+            const real_t omr = 1.0 - r, oms = 1.0 - s;
+            const real_t dphidr = -oms * v[0] + oms * v[1] - s * v[2] + s * v[3];
+            const real_t dphids = -omr * v[0] - r * v[1] + omr * v[2] + r * v[3];
+            Ex = -dphidr * inv_hx;
+            Ey = -dphids * inv_hy;
+         }
+      }
+      if (byVDIM)
+      {
+         d_e[p * dim] = Ex;
+         d_e[p * dim + 1] = Ey;
+         if (dim == 3) { d_e[p * dim + 2] = Ez; }
+      }
+      else
+      {
+         d_e[p] = Ex;
+         d_e[p + npt] = Ey;
+         if (dim == 3) { d_e[p + 2 * npt] = Ez; }
+      }
+   });
+}
+
+void DepositOrder1(int npt, int dim, int nd, const unsigned int *d_elem,
+                   const unsigned int *d_code, const real_t *d_ref,
+                   const real_t *d_q, real_t *d_rho)
+{
+   MFEM_FORALL(p, npt,
+   {
+      if (d_code != nullptr && d_code[p] == (unsigned int)kNotFound)
+      {
+         return;
+      }
+      const int e = (int)d_elem[p];
+      const real_t q = d_q[p];
+      const real_t r = d_ref[dim * p];
+      const real_t s = d_ref[dim * p + 1];
+      real_t *rho = d_rho + e * nd;
+      if (dim == 3)
+      {
+         const real_t t = d_ref[dim * p + 2];
+         const real_t omr = 1.0 - r, oms = 1.0 - s, omt = 1.0 - t;
+         AtomicAdd(rho[0], q * omr * oms * omt);
+         AtomicAdd(rho[1], q * r * oms * omt);
+         AtomicAdd(rho[2], q * omr * s * omt);
+         AtomicAdd(rho[3], q * r * s * omt);
+         AtomicAdd(rho[4], q * omr * oms * t);
+         AtomicAdd(rho[5], q * r * oms * t);
+         AtomicAdd(rho[6], q * omr * s * t);
+         AtomicAdd(rho[7], q * r * s * t);
+      }
+      else
+      {
+         const real_t omr = 1.0 - r, oms = 1.0 - s;
+         AtomicAdd(rho[0], q * omr * oms);
+         AtomicAdd(rho[1], q * r * oms);
+         AtomicAdd(rho[2], q * omr * s);
+         AtomicAdd(rho[3], q * r * s);
+      }
+   });
+}
+
+struct RemoteHit
+{
+   unsigned int elem;
+   unsigned int index;
+   double rst[3];
+   double q;
+};
+
+void ExchangeHits(const Array<unsigned int> &code,
+                  const Array<unsigned int> &proc,
+                  const Array<unsigned int> &elem,
+                  const Vector &ref,
+                  const Vector &q,
+                  int dim,
+                  std::vector<RemoteHit> &recv)
+{
+   const int nranks = Mpi::WorldSize();
+   const int npt = elem.Size();
+   std::vector<int> send_n(nranks, 0);
+   const unsigned int *h_code = code.HostRead();
+   const unsigned int *h_proc = proc.HostRead();
+   for (int i = 0; i < npt; i++)
+   {
+      if ((int)h_code[i] != kNotFound)
+      {
+         send_n[h_proc[i]]++;
+      }
+   }
+   std::vector<int> recv_n(nranks);
+   MPI_Alltoall(send_n.data(), 1, MPI_INT, recv_n.data(), 1, MPI_INT,
+                MPI_COMM_WORLD);
+
+   std::vector<int> send_off(nranks + 1, 0), recv_off(nranks + 1, 0);
+   for (int r = 0; r < nranks; r++)
+   {
+      send_off[r + 1] = send_off[r] + send_n[r];
+      recv_off[r + 1] = recv_off[r] + recv_n[r];
+   }
+
+   std::vector<RemoteHit> send_buf(send_off[nranks]);
+   std::vector<int> cursor = send_off;
+   const unsigned int *h_elem = elem.HostRead();
+   const real_t *h_ref = ref.HostRead();
+   const real_t *h_q = q.HostRead();
+   for (int i = 0; i < npt; i++)
+   {
+      if ((int)h_code[i] == kNotFound) { continue; }
+      RemoteHit &h = send_buf[cursor[h_proc[i]]++];
+      h.elem = h_elem[i];
+      h.index = (unsigned int)i;
+      h.rst[0] = h_ref[dim * i];
+      h.rst[1] = (dim > 1) ? h_ref[dim * i + 1] : 0.0;
+      h.rst[2] = (dim > 2) ? h_ref[dim * i + 2] : 0.0;
+      h.q = h_q[i];
+   }
+
+   recv.resize(recv_off[nranks]);
+   std::vector<int> send_cnt(nranks), send_ds(nranks), recv_cnt(nranks),
+       recv_ds(nranks);
+   for (int r = 0; r < nranks; r++)
+   {
+      send_cnt[r] = send_n[r] * (int)sizeof(RemoteHit);
+      send_ds[r] = send_off[r] * (int)sizeof(RemoteHit);
+      recv_cnt[r] = recv_n[r] * (int)sizeof(RemoteHit);
+      recv_ds[r] = recv_off[r] * (int)sizeof(RemoteHit);
+   }
+   MPI_Alltoallv(send_buf.data(), send_cnt.data(), send_ds.data(), MPI_BYTE,
+                 recv.data(), recv_cnt.data(), recv_ds.data(), MPI_BYTE,
+                 MPI_COMM_WORLD);
+}
+
+} // namespace
+
+void ParticleMover::InterpolateEFromPhiDevice()
+{
+   ParticleVector& E = charged_particles->Field(EFIELD);
+   const int npt = charged_particles->GetNParticles();
+   const int dim = E.GetVDim();
+   const int nd = ndofs_per_el;
+   const bool byVDIM_E = (E.GetOrdering() == Ordering::byVDIM);
+   const real_t inv_hx = 1.0 / hx;
+   const real_t inv_hy = 1.0 / hy;
+   const real_t inv_hz = 1.0 / hz;
+
+   phi_gf->Read();
+   phi_elem_restr->Mult(*phi_gf, phi_e_lex);
+   const real_t *d_phie = phi_e_lex.Read();
+
+   if (AllParticlesLocal(E_finder.GetCode(), E_finder.GetProc()))
+   {
+      EvalEOrder1(npt, dim, nd, E_finder.GetElem().Read(),
+                  E_finder.GetCode().Read(),
+                  E_finder.GetReferencePosition().Read(),
+                  d_phie, E.Write(), byVDIM_E, inv_hx, inv_hy, inv_hz);
+      return;
+   }
+
+   // Off-rank particles: evaluate E on the owning rank and send it back.
+   Array<unsigned int> recv_elem, recv_code;
+   Vector recv_ref;
+   E_finder.GetElem().HostRead();
+   E_finder.GetCode().HostRead();
+   E_finder.GetProc().HostRead();
+   E_finder.GetReferencePosition().HostRead();
+   E_finder.DistributePointInfoToOwningMPIRanks(recv_elem, recv_ref, recv_code);
+
+   const int nrecv = recv_elem.Size();
+   Vector Erecv(nrecv * dim);
+   Erecv.UseDevice(true);
+   if (nrecv > 0)
+   {
+      EvalEOrder1(nrecv, dim, nd, recv_elem.Read(), recv_code.Read(),
+                  recv_ref.Read(), d_phie, Erecv.Write(), true,
+                  inv_hx, inv_hy, inv_hz);
+      Erecv.HostRead();
+   }
+   E.HostWrite();
+   E_finder.DistributeInterpolatedValues(Erecv, dim, E.GetOrdering(), E);
+}
+
 void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
 {
    // ---- (1) Calculate forces: interpolate E field at particles ----
@@ -654,7 +958,14 @@ void ParticleMover::StepDevice(real_t& t, real_t dt, real_t L, bool first_step)
    // ---- (1) Calculate forces: interpolate E field at particles ----
    timers.forces.Start();
    ParticleVector& E = charged_particles->Field(EFIELD);
-   E_finder.Interpolate(*E_gf, E, E.GetOrdering());
+   if (device_e_interp)
+   {
+      InterpolateEFromPhiDevice();
+   }
+   else
+   {
+      E_finder.Interpolate(*E_gf, E, E.GetOrdering());
+   }
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
    // Only sync if a real GPU backend is active at runtime. The "debug"
    // backend enables Device::IsEnabled() but runs on the host, and calling
@@ -799,13 +1110,42 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          FindPointsGSLIB& E_finder_,
                          bool precompute_neutralizing_const_,
                          bool use_full_assembly_,
-                         bool use_partial_assembly_)
+                         bool use_partial_assembly_,
+                         bool use_device_,
+                         real_t hx_, real_t hy_, real_t hz_)
    : precompute_neutralizing_const(precompute_neutralizing_const_),
      E_finder(E_finder_),
      b(phi_fes),
+     hx(hx_), hy(hy_), hz(hz_),
      use_full_assembly(use_full_assembly_),
      use_partial_assembly(use_partial_assembly_)
 {
+   sdim = phi_fes->GetMesh()->SpaceDimension();
+   b.UseDevice(use_device_);
+
+   const int order = phi_fes->GetMaxElementOrder();
+   Mesh* mesh = phi_fes->GetMesh();
+   const bool tensor_el =
+      mesh->GetNE() == 0 ||
+      mesh->GetElementType(0) == Element::QUADRILATERAL ||
+      mesh->GetElementType(0) == Element::HEXAHEDRON;
+   device_deposit = use_device_ && (order == 1) && tensor_el;
+   if (device_deposit)
+   {
+      phi_elem_restr =
+         phi_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      ndofs_per_el = (sdim == 3) ? 8 : 4;
+      if (phi_elem_restr)
+      {
+         rho_e_lex.SetSize(phi_elem_restr->Height());
+         rho_e_lex.UseDevice(true);
+      }
+      else
+      {
+         device_deposit = false;
+      }
+   }
+
    // compute domain volume
    ParMesh* pmesh = phi_fes->GetParMesh();
    real_t local_domain_volume = 0.0;
@@ -905,6 +1245,11 @@ const ParLinearForm& FieldSolver::ComputeNeutralizingRHS(
 void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
                                 const ParticleVector& Q)
 {
+   if (device_deposit)
+   {
+      DepositChargeDevice(pfes, Q);
+      return;
+   }
     Q.HostRead();
    int npt = Q.Size();
    ParMesh* pmesh = pfes->GetParMesh();
@@ -957,6 +1302,55 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
       // Add q_p * φ_i(x_p) to b_i
       b.AddElementVector(dofs, q_p, shape);
    }
+}
+
+void FieldSolver::DepositChargeDevice(ParFiniteElementSpace* pfes,
+                                      const ParticleVector& Q)
+{
+   const int dim = sdim;
+   const int nd = ndofs_per_el;
+
+   rho_e_lex.UseDevice(true);
+   rho_e_lex = 0.0;
+   b.ReadWrite();
+
+   if (AllParticlesLocal(E_finder.GetCode(), E_finder.GetProc()))
+   {
+      DepositOrder1(Q.Size(), dim, nd, E_finder.GetElem().Read(),
+                    E_finder.GetCode().Read(),
+                    E_finder.GetReferencePosition().Read(),
+                    Q.Read(), rho_e_lex.ReadWrite());
+   }
+   else
+   {
+      std::vector<RemoteHit> recv;
+      ExchangeHits(E_finder.GetCode(), E_finder.GetProc(), E_finder.GetElem(),
+                   E_finder.GetReferencePosition(), Q, dim, recv);
+      const int nrecv = (int)recv.size();
+      if (nrecv > 0)
+      {
+         Array<unsigned int> recv_elem(nrecv);
+         Vector recv_ref(nrecv * dim), recv_q(nrecv);
+         for (int i = 0; i < nrecv; i++)
+         {
+            recv_elem[i] = recv[i].elem;
+            recv_q[i] = recv[i].q;
+            for (int d = 0; d < dim; d++)
+            {
+               recv_ref[dim * i + d] = recv[i].rst[d];
+            }
+         }
+         recv_ref.UseDevice(true);
+         recv_q.UseDevice(true);
+         DepositOrder1(nrecv, dim, nd, recv_elem.Read(), nullptr,
+                       recv_ref.Read(), recv_q.Read(), rho_e_lex.ReadWrite());
+      }
+   }
+
+   Vector b_delta(b.Size());
+   b_delta.UseDevice(true);
+   phi_elem_restr->MultTranspose(rho_e_lex, b_delta);
+   b += b_delta;
 }
 
 void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
