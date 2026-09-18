@@ -15,6 +15,7 @@
 #endif
 #include <set>
 #include <map>
+#include <memory> // std::make_unique
 
 namespace mfem
 {
@@ -903,8 +904,9 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    loc_start_stop[0] = col_part[col_part_ind];
    loc_start_stop[1] = col_part[col_part_ind+1];
 
-   MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
-   MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];
+   const size_t num_reqs = send_procs.size() + recv_procs.size();
+   auto req = std::make_unique<MPI_Request[]>(num_reqs);
+   auto stat = std::make_unique<MPI_Status[]>(num_reqs);
    int send_count = 0;
    int recv_count = 0;
    int tag = 0;
@@ -923,10 +925,7 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
       recv_count++;
    }
 
-   MPI_Waitall(send_count+recv_count, req, stat);
-
-   delete [] req;
-   delete [] stat;
+   MPI_Waitall(send_count+recv_count, req.get(), stat.get());
 }
 
 #endif // MFEM_USE_MPI
