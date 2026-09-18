@@ -3611,3 +3611,205 @@ TEST_CASE("A live face constraint reads its coefficient at every residual",
       REQUIRE(dS > 1e-3);
    }
 }
+
+namespace darcy_outflow_trace
+{
+
+// A boundary face whose trace is NOT essential, and what its one-sided
+// constraint row actually imposes.
+//
+// miniapps/hdg/pnavierstokes.cpp records this for the artificial-
+// compressibility SYSTEM: a boundary trace component left free keeps the row
+// <(F^ + q^).n, mu> = 0, which on a one-sided face has nothing to cancel it
+// and so imposes ZERO NUMERICAL FLUX -- a wall where an outflow was wanted.
+// The question asked of us was whether that is a property of the system or of
+// the hybridization. It is the hybridization: the three sections below are a
+// SCALAR convection-diffusion problem and the row behaves identically.
+//
+// p = x y + y^2 on the unit square, c = (1,0), diffusion in both directions,
+// so the outflow at x = 1 carries a non-zero convective flux (y + y^2) AND a
+// non-zero diffusive one (q.n = -y). Degree 2, hence exact in the discrete
+// spaces: any error here is the boundary condition and not the discretisation,
+// which is why the wrong arms do not converge with the mesh.
+real_t PExact(const Vector &x) { return x(0)*x(1) + x(1)*x(1); }
+real_t FExact(const Vector &x) { return -2.0 + x(1); }
+void QExact(const Vector &x, Vector &q)
+{ q(0) = -x(1); q(1) = -(x(0) + 2.0*x(1)); }
+
+enum class Outflow
+{
+   Dirichlet,   ///< the datum on every attribute, outflow included
+   Constrained, ///< the flux constraint at the outflow and NO datum
+   Prescribed,  ///< as Constrained, plus the numerical flux on the trace load
+};
+
+real_t Solve(Outflow arm, int order, int n)
+{
+   const int dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), zero(0.0);
+   FunctionCoefficient pcoeff(PExact), fcoeff(FExact);
+   ProductCoefficient mpcoeff(-1.0, pcoeff);
+   VectorFunctionCoefficient qcoeff(dim, QExact);
+   Vector cvec(dim); cvec(0) = 1.0; cvec(1) = 0.0;
+   VectorConstantCoefficient ccoeff(cvec);
+
+   // 1 = bottom, 2 = right (the OUTFLOW, c.n > 0), 3 = top, 4 = left
+   const int na = mesh.bdr_attributes.Max();
+   Array<int> all(na), not_out(na), out(na);
+   all = 1; not_out = 1; out = 0;
+   not_out[1] = 0; out[1] = 1;
+   Array<int> &weak = (arm == Outflow::Dirichlet) ? all : not_out;
+
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   // Read for its MARKER: this is what puts the flux constraint -- and so the
+   // trace unknown in the flux row, and so the one-sided constraint row -- on
+   // those attributes. The Dirichlet arm gets NONE, and that is not an
+   // omission: the datum arrives as <g, v.n> on the flux load, and a
+   // constraint row on the same face would add <uhat, v.n> beside it and
+   // count the boundary potential twice. Measured: 8.4e-02 with both.
+   if (arm != Outflow::Dirichlet)
+   {
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)), out);
+   }
+
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new MassIntegrator(zero));
+   Mnl_p->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+   Mnl_p->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(ccoeff));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(fcoeff));
+   darcy.GetFluxRHS()->AddBdrFaceIntegrator(
+      new VectorBoundaryFluxLFIntegrator(pcoeff), weak);
+   darcy.GetPotentialRHS()->AddBdrFaceIntegrator(
+      new BoundaryFlowIntegrator(mpcoeff, ccoeff, +1.0), weak);
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+
+   if (arm == Outflow::Prescribed)
+   {
+      // The repair the pnavierstokes note names first: the prescribed
+      // numerical flux as a LINEAR FORM ON THE TRACE. It has to follow
+      // EnableHybridization(), which is what makes the constraint space.
+      darcy.GetTraceRHS()->AddBoundaryIntegrator(
+         new BoundaryNormalLFIntegrator(qcoeff, 2), out);
+   }
+
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->EnableNPC();
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   darcy.GetFluxRHS()->Assemble();
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(0) -= *darcy.GetFluxRHS();
+   b.GetBlock(1) -= *darcy.GetPotentialRHS();
+   b.GetBlock(0).SyncAliasMemory(b);
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   x = 1.0;
+   Vector x_tr(Mh.GetVSize());
+   x_tr = 0.0;
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+   Operator &S = dh->NPCGradient(x, x_tr);
+   dh->NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+   REQUIRE(Sm != nullptr);
+#ifdef MFEM_USE_SUITESPARSE
+   UMFPackSolver umf(*Sm);
+   umf.Mult(b_tr, dtr);
+#else
+   GSSmoother prec(*Sm);
+   GMRESSolver gmres;
+   gmres.SetOperator(S);
+   gmres.SetPreconditioner(prec);
+   gmres.SetKDim(200);
+   gmres.SetMaxIter(5000);
+   gmres.SetRelTol(1e-14);
+   gmres.SetAbsTol(0.0);
+   gmres.SetPrintLevel(-1);
+   gmres.Mult(b_tr, dtr);
+#endif
+
+   BlockVector dx(darcy.GetOffsets());
+   dx = 0.0;
+   dh->NPCRecover(r, dtr, dx);
+   x += dx;
+   REQUIRE(x.CheckFinite() == 0);
+
+   GridFunction p(&Wh);
+   p.MakeRef(&Wh, x.GetBlock(1), 0);
+   return p.ComputeL2Error(pcoeff);
+}
+
+} // namespace darcy_outflow_trace
+
+TEST_CASE("A non-essential boundary trace with no datum imposes zero flux",
+          "[DarcyForm][DarcyHybridization][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_outflow_trace;
+
+   SECTION("the datum on every attribute is exact")
+   {
+      // The control, and it is also the configuration a caller following
+      // convdiff's default reaches: weak Dirichlet everywhere, trace
+      // non-essential everywhere, and the solution not zero on any of it.
+      for (int n : {4, 8})
+      {
+         const real_t err = Solve(Outflow::Dirichlet, 2, n);
+         CAPTURE(n, err);
+         REQUIRE(err < 1e-10);
+      }
+   }
+
+   SECTION("leaving the outflow constrained and undetermined is not")
+   {
+      // The pnavierstokes shape, in a scalar problem. It does NOT converge
+      // with the mesh -- the error is the same to three digits at 4x4 and
+      // 8x8 -- which is what separates a wrong boundary condition from a
+      // discretisation error and is why refining cannot rescue it.
+      const real_t e4 = Solve(Outflow::Constrained, 2, 4);
+      const real_t e8 = Solve(Outflow::Constrained, 2, 8);
+      CAPTURE(e4, e8);
+      REQUIRE(e4 > 1e-3);
+      REQUIRE(e8 > 1e-3);
+      REQUIRE(fabs(e4 - e8) / e4 < 0.05);
+   }
+
+   SECTION("and the prescribed numerical flux on the trace load repairs it")
+   {
+      // Same operator as the section above, one linear form added. That is
+      // the whole difference, and it is the route DarcyForm::GetTraceRHS()
+      // exists for.
+      for (int n : {4, 8})
+      {
+         const real_t err = Solve(Outflow::Prescribed, 2, n);
+         CAPTURE(n, err);
+         REQUIRE(err < 1e-10);
+      }
+   }
+}
