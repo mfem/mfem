@@ -303,12 +303,12 @@ public:
                                std::vector<Tfloat> &dist)
    {
       Tfloat dd;
-      for (auto iti=data.begin(); iti!=data.end(); iti++)
+      for (const auto &node : data)
       {
-         dd=Dist(iti->pt,  pt);
+         dd=Dist(node.pt,  pt);
          if (dd<R)
          {
-            res.push_back(iti->ind);
+            res.push_back(node.ind);
             dist.push_back(dd);
          }
       }
@@ -319,12 +319,12 @@ public:
                                std::vector<Tindex> &res)
    {
       Tfloat dd;
-      for (auto iti=data.begin(); iti!=data.end(); iti++)
+      for (const auto &node : data)
       {
-         dd=Dist(iti->pt,  pt);
+         dd=Dist(node.pt,  pt);
          if (dd<R)
          {
-            res.push_back(iti->ind);
+            res.push_back(node.ind);
          }
       }
    }
