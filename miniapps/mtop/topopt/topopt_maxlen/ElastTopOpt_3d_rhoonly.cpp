@@ -865,34 +865,6 @@ int main(int argc, char *argv[])
                                                           *alpha[r]);
     }
 
-    // Outflow area |Gamma_out,r| per ray.  The residual above is an integral, so
-    // it scales with the size of the outflow surface: on the circular plate the
-    // vertical ray exits through the full top face while an xy ray exits through
-    // a strip of the rim.  Dividing by the area turns each constraint into an
-    // area average, so one epsilon means the same thing for every direction.
-    vector<real_t> outflow_area(n_dir);
-    for (int r = 0; r < n_dir; r++)
-    {
-        ParLinearForm area_lf(sub_dg_fes[r].get());
-        area_lf.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
-        area_lf.Assemble();
-        std::unique_ptr<HypreParVector> area_w(area_lf.ParallelAssemble());
-        const real_t loc = area_w->Sum();
-        MPI_Allreduce(&loc, &outflow_area[r], 1, MPITypeMap<real_t>::mpi_type,
-                      MPI_SUM, MPI_COMM_WORLD);
-        MFEM_VERIFY(outflow_area[r] > 0.0,
-                    "ray " << r << ": outflow surface has zero area.");
-    }
-    if (myid == 0 && n_dir > 0)
-    {
-        mfem::out << "outflow area:";
-        for (int r = 0; r < n_dir; r++)
-        {
-            mfem::out << " [" << r << "] " << outflow_area[r];
-        }
-        mfem::out << std::endl;
-    }
-
     // --- PLAIN SIMP ---  linear volume constraint on the filtered density,
     //                     g(rho) = (1, rho~)/Vstar - 1.  The Dirichlet filter BCs
     //                     make the filter non-volume-preserving, so (1,rho) is
@@ -912,22 +884,44 @@ int main(int argc, char *argv[])
     // Vector dvol_drho(control_fes.GetTrueVSize());
     // filter.MultTranspose(*vol_w, dvol_drho);
 
+    // alpha_r is not a design variable: it tracks the outflow trace of rho_a,
+    // clamped to [alpha_min, alpha_max], so the residual only penalizes the part
+    // of rho_a outside the bounds.  With phi(s) = 1/2 (s - clamp(s))² we have
+    // phi'(s) = s - clamp(s) in all three regimes, so dG/drho_a = (rho_a - alpha)
+    // holds and the dependence of alpha on rho_a contributes nothing.
+    // alpha_clamped records where the clamp actually bit; the gradient below is
+    // masked with it (see the note there).
+    vector<Array<bool>> alpha_clamped(n_dir);
+    for (int r = 0; r < n_dir; r++)
+    {
+        alpha_clamped[r].SetSize(sub_dg_fes[r]->GetVSize());
+        alpha_clamped[r] = false;
+    }
+
+    auto update_alpha = [&](int r)
+    {
+        ParSubMesh::Transfer(advect[r]->GetRhoA(), *alpha[r]);
+        for (int i = 0; i < alpha[r]->Size(); i++)
+        {
+            const real_t rho_a_i = (*alpha[r])(i);
+            const real_t clamped = std::min(alpha_max, std::max(alpha_min, rho_a_i));
+            alpha_clamped[r][i] = (clamped != rho_a_i);
+            (*alpha[r])(i) = clamped;
+        }
+    };
+
     // 8. MMA optimizer and its per-iteration work vectors.
-    // stacked design  x = [ rho ; alpha_0 ; alpha_1 ; ... ; alpha_{n_dir-1} ]
+    // design  x = rho
     const int n  = control_fes.GetTrueVSize();      // local rho design variables
     const int nf = filter_fes.GetTrueVSize();
-    vector<int> m(n_dir);
-    for (int r = 0; r < n_dir; r++) { m[r] = sub_dg_fes[r]->GetTrueVSize(); }
 
-    Array<int> toffsets(n_dir + 2);
+    Array<int> toffsets(2);
     toffsets[0] = 0;
     toffsets[1] = n;
-    for (int r = 0; r < n_dir; r++) { toffsets[2 + r] = m[r]; }
-    toffsets.PartialSum();
 
     const int num_con = 1 + n_dir;                  // constraints: volume + one thickness per ray
 
-    // 8a. stacked design  x = [ rho ; alpha_0 ; ... ]
+    // 8a. design  x = rho;  alpha_tv is only kept for checkpointing
     Vector rho_tv(n), rho_old(n);
     vector<Vector> alpha_tv(n_dir);
 
@@ -1013,18 +1007,13 @@ int main(int argc, char *argv[])
             advect_fsolve(r);
             t_advect_seed[r] = MPI_Wtime() - t_seed;
             it_advect_seed[r] = advect_fiters(r);
-            ParSubMesh::Transfer(advect[r]->GetRhoA(), *alpha[r]);
-            for (int i = 0; i < alpha[r]->Size(); i++)
-            {
-                (*alpha[r])(i) = std::min(alpha_max, std::max(alpha_min, (*alpha[r])(i)));
-            }
+            update_alpha(r);
             alpha[r]->GetTrueDofs(alpha_tv[r]);
         }
     }
 
     BlockVector tx_local(toffsets);
     tx_local.GetBlock(0) = rho_tv;
-    for (int r = 0; r < n_dir; r++) { tx_local.GetBlock(1 + r) = alpha_tv[r]; }
 
     Vector a(num_con), c(num_con), d(num_con);
     a = 0.0; c = 1000.0; d = 0.0;
@@ -1043,26 +1032,20 @@ int main(int argc, char *argv[])
     }
 
     // 8b. objective initialization
-    BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ; ... ]
+    BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = dc/drho
     Vector dcdrho(n);                               // compliance gradient  dc/drho
 
     // 8c. local constraints
     Vector fival(num_con);
     vector<Vector> dfidx(num_con);
 
-    BlockVector dvol(toffsets);                     // volume gradient  [ dg/drho ; 0 ; ... ]
+    BlockVector dvol(toffsets);                     // volume gradient  dg/drho
     dvol = 0.0; dfidx[0] = dvol;
     Vector dvol_tilde(nf);                          // dV_d/drho~
 
-    // one full-size gradient BlockVector per ray-thickness constraint; only
-    // block(0) (drho) and block(1+r) (dalpha_r) are ever nonzero.
+    // one gradient per ray-thickness constraint:  dG_r/drho
     vector<BlockVector> dthick(n_dir, BlockVector(toffsets));
-
-    // ray-0 thickness-constraint gradient for ParaView (refreshed before each save)
-    // ParGridFunction dthick_rho(&control_fes);          // block(0): on pmesh
-    // dthick_rho = 0.0;
-    // ParGridFunction dthick_alpha(sub_dg_fes[0].get()); // block(1): on outflow[0]
-    // dthick_alpha = 0.0;
+    Vector dGdalpha;                                // unused: alpha is not a design variable
 
     // --- PLAIN SIMP ---  the linear volume gradient is constant:  [ L^T w/Vstar ; 0 ; ... ]
     // dvol.GetBlock(0) = dvol_drho;
@@ -1096,9 +1079,6 @@ int main(int argc, char *argv[])
     std::ostringstream run_tag;
     run_tag << "3d_amax" << alpha_max << "_vf" << vol_fraction;
     ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
-    // ParaViewDataCollection paraview_out_dc(run_tag.str() + "_outflow0", outflow[0].get());
-    // ParGridFunction rho_a_out(sub_dg_fes[0].get());   // outflow trace of rho_a, ray 0
-    // rho_a_out = 0.0;
 
     if (paraview) {
         paraview_dc.SetPrefixPath("ParaView");
@@ -1107,15 +1087,6 @@ int main(int argc, char *argv[])
         paraview_dc.SetHighOrderOutput(true);
         paraview_dc.RegisterField("density", &phys_density);
         paraview_dc.RegisterField("rho_filter", &rho_filter);
-        // paraview_dc.RegisterField("rho_a", const_cast<ParGridFunction *>(&advect[0]->GetRhoA()));
-        // paraview_dc.RegisterField("dthick_drho", &dthick_rho);
-
-        // paraview_out_dc.SetPrefixPath("ParaView");
-        // paraview_out_dc.SetLevelsOfDetail(order);
-        // paraview_out_dc.SetDataFormat(VTKFormat::BINARY);
-        // paraview_out_dc.SetHighOrderOutput(true);
-        // paraview_out_dc.RegisterField("rho_a", &rho_a_out);
-        // paraview_out_dc.RegisterField("dthick_dalpha", &dthick_alpha);
     }
 
     // 9c. Initialization block runtime.
@@ -1397,7 +1368,6 @@ int main(int argc, char *argv[])
         if (trace) { stage("  it 1: adjoint filter + volume QoI"); }
         filter.MultTranspose(adj_rhs_tv, dcdrho);
         df0dx.GetBlock(0) = dcdrho;                     // objective gradient
-        for (int r = 0; r < n_dir; r++) { df0dx.GetBlock(1 + r) = 0.0; }
 
         // (4) volume constraint and gradient on the dilated field:
         //       g        = V_d / V* - 1
@@ -1416,8 +1386,8 @@ int main(int argc, char *argv[])
 
         // (5) advect rho~ along each ray to get the thickness measure rho_a, then the
         //     max-thickness constraint and gradient per direction:
+        //       α_r = clamp(rho_a, alpha_min, alpha_max) on Gamma_out,r
         //       1/2 ∫(rho_a−α_r)² − ε ≤ 0
-        //       dR/dalpha_r = (α_r − rho_a) on Gamma_out,r
         //       dR/drho     = M_fc^T N^T (rho_a − α_r)  via the adjoint advection solve
         real_t fi_thick  = -infinity();
         real_t max_rho_a = -infinity();
@@ -1429,7 +1399,8 @@ int main(int argc, char *argv[])
             // forward
             advect[r]->SetRhs(rho_dila_tv);
             advect_fsolve(r);
-            real_t thickres = adv_res[r]->Eval();
+            update_alpha(r);
+            const real_t thickres = adv_res[r]->Eval();
 
             // record max value of rho_a and alpha
             real_t local_max = advect[r]->GetRhoA().Max();
@@ -1449,7 +1420,20 @@ int main(int argc, char *argv[])
             dthick[r] = 0.0;
 
             Vector dGdrhoa;
-            adv_res[r]->GetGrad(dGdrhoa, dthick[r].GetBlock(1 + r));
+            adv_res[r]->GetGrad(dGdrhoa, dGdalpha);
+
+            // Wherever the clamp is inactive alpha_r follows rho_a exactly, so
+            // the residual's derivative there is zero.  GetGrad returns
+            // M_Gamma (rho_a - alpha_r), and M_Gamma is not diagonal, so an
+            // unclamped dof picks up a nonzero value from its clamped neighbours
+            // in the same element.  Drop those rows: what is left is the exact
+            // derivative of 1/2 ∫(rho_a - clamp(rho_a))².
+            MFEM_ASSERT(dGdrhoa.Size() == alpha_clamped[r].Size(),
+                        "clamp mask and gradient disagree in size.");
+            for (int i = 0; i < dGdrhoa.Size(); i++)
+            {
+                if (!alpha_clamped[r][i]) { dGdrhoa(i) = 0.0; }
+            }
 
             // transfer dGdrhoa back to the full-domain dgfes
             ParGridFunction g_sub(sub_dg_fes[r].get());  g_sub.SetFromTrueDofs(dGdrhoa);
@@ -1465,12 +1449,6 @@ int main(int argc, char *argv[])
             dGdrho_tilde *= rho_dila_grad_tv;
             filter.MultTranspose(dGdrho_tilde, dthick[r].GetBlock(0));
 
-            // normalize the residual and its gradient by |Gamma_out,r| -- comment
-            // out both or neither, or the gradient stops being the gradient of
-            // the residual
-            // thickres  /= outflow_area[r];
-            // dthick[r] /= outflow_area[r];
-
             fival(1 + r) = thickres - epsilon;     // update constraint value
             // dthick[r] /= epsilon;
             dfidx[1 + r] = dthick[r];                    // update constraint gradient
@@ -1479,8 +1457,7 @@ int main(int argc, char *argv[])
         }
         adv_runtime = MPI_Wtime() - adv_runtime;
 
-        // (6) box constraints:  rho ∈ [0,1],  α_r ∈ [alpha_min, alpha_max]  (move limits)
-        for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
+        // (6) box constraints:  rho ∈ [0,1]  (move limits)
         for (int i = 0; i < n; i++)
         {
             tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
@@ -1497,18 +1474,8 @@ int main(int argc, char *argv[])
             tx_max[tdof] = value + real_t(0.5) * passive_bound_gap;
         }
 
-        for (int r = 0; r < n_dir; r++)
-        {
-            for (int i = 0; i < m[r]; i++)
-            {
-                tx_min[toffsets[1 + r] + i] = alpha_min;
-                tx_max[toffsets[1 + r] + i] = alpha_max;
-            }
-        }
-
-        // (7) MMA update on the stacked design  x = [ ρ ; α_0 ; ... ; α_{n_dir-1} ]
+        // (7) MMA update on the design  x = ρ
         tx_local.GetBlock(0) = rho_tv;
-        for (int r = 0; r < n_dir; r++) { tx_local.GetBlock(1 + r) = alpha_tv[r]; }
         rho_old = rho_tv;
 
         // Normalize compliance and gradient by initial value
@@ -1520,7 +1487,6 @@ int main(int argc, char *argv[])
         mma.Update(tx_local, df0dx, compliance, fival, dfidx.data(), tx_min, tx_max);
         tx_local.GetBlock(0).SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals);
         rho.SetFromTrueDofs(tx_local.GetBlock(0));
-        for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(tx_local.GetBlock(1 + r)); }
 
         // measure iteration error
         ParGridFunction rho_old_gf(&control_fes);
@@ -1563,6 +1529,15 @@ int main(int argc, char *argv[])
                     << setw(lw) << "total elapsed"   << right << setw(8) << elapsed_time  << " s   "
                     << setprecision(0) << floor(elapsed_time/3600) << "h "
                     << fmod(floor(elapsed_time/60), 60) << "m" << endl;
+
+            // // MMA Lagrange multipliers: [0] volume, [1 + r] thickness of ray r
+            // const std::vector<double> &lam = mma.GetLambda();
+            // mfem::out << scientific << setprecision(3);
+            // for (size_t i = 0; i < lam.size(); i++)
+            // {
+            //     mfem::out << "lambda[" << i << "] = " << lam[i] << '\n';
+            // }
+            // mfem::out << defaultfloat << setprecision(6) << flush;
 
             csv << it << ','
                 << scientific << setprecision(8) << compliance << ','
@@ -1631,19 +1606,9 @@ int main(int argc, char *argv[])
         if (paraview && paraview_interval > 0 && it % paraview_interval == 0)
         {
             stage("writing ParaView fields for iteration " + std::to_string(it));
-            // gradient from this iteration's (pre-MMA-update) design
-            // dthick_rho.SetFromTrueDofs(dthick[0].GetBlock(0));
-            // dthick_alpha.SetFromTrueDofs(dthick[0].GetBlock(1));
-
             paraview_dc.SetCycle(it);
             paraview_dc.SetTime(it);
             paraview_dc.Save();
-
-            // rho_a still holds this iteration's forward solve
-            // ParSubMesh::Transfer(advect[0]->GetRhoA(), rho_a_out);
-            // paraview_out_dc.SetCycle(it);
-            // paraview_out_dc.SetTime(it);
-            // paraview_out_dc.Save();
         }
     }
 
