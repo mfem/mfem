@@ -535,8 +535,8 @@ tensor<decltype(S {} + T{}), n...>
  * @param[in] A The tensor to be scaled
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
+                                             is_dual_number<S>::value>>
 MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -557,8 +557,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The scaling factor
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
+                                             is_dual_number<S>::value>>
 MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -579,8 +579,8 @@ tensor<decltype(T {} * S{}), n...>
  * @param[in] A The tensor of denominators
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
+                                             is_dual_number<S>::value>>
 MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -601,8 +601,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The denominator
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
+                                             is_dual_number<S>::value>>
 MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -1754,8 +1754,7 @@ inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
  */
 template <typename T, int n>
 MFEM_HOST_DEVICE
-typename std::enable_if<(n > 3), tensor<T, n, n>>::type
-                                               inv(const tensor<T, n, n>& A)
+std::enable_if_t<(n > 3), tensor<T, n, n>> inv(const tensor<T, n, n>& A)
 {
    auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)

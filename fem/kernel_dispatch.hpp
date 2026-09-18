@@ -108,7 +108,7 @@ class KernelDispatchTable<Kernels,
    ///
    /// Only valid when the function @a f is not a member function.
    template <typename F, typename... Args,
-             typename std::enable_if<std::is_pointer<F>::value,bool>::type=true>
+             std::enable_if_t<std::is_pointer<F>::value,bool> =true>
    static void Invoke(F f, Args&&... args)
    {
       f(std::forward<Args>(args)...);
@@ -119,8 +119,8 @@ class KernelDispatchTable<Kernels,
    ///
    /// Only valid when @a f is a member function of class @a T.
    template <typename F, typename T, typename... Args,
-             typename std::enable_if<
-                std::is_member_function_pointer<F>::value,bool>::type=true>
+             std::enable_if_t<
+                std::is_member_function_pointer<F>::value,bool> =true>
    static void Invoke(F f, T&& t, Args&&... args)
    {
       (t.*f)(std::forward<Args>(args)...);
