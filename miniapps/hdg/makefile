@@ -24,7 +24,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff mfem-logo navierstokes
+SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff hdgperf mfem-logo navierstokes
 PAR_MINIAPPS = panisodiff pconvdiff pnavierstokes
 # hdgdevice reports which stages of the hybridized solve actually run on the
 # device and where the data still comes back. In a host build every setting it

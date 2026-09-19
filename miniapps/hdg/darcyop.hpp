@@ -342,7 +342,34 @@ public:
 
        Only 2 changes the operator; 0 and 1 change what preconditions it. The
        caller sets the gradient mode itself, on the hybridization; this decides
-       the preconditioner to match. */
+       the preconditioner to match.
+
+       **Leaving this alone is expensive, and the default leaves it alone.**
+       ImplicitSolve()'s hybridized-nonlinear branch builds a smoother, names
+       it in the reported solver string, and attaches it ONLY when this method
+       has asked for a level -- see the note at that site. So the default runs
+       an unpreconditioned Krylov solve on the trace system while reporting
+       "Newton+GMRES+GS", and on a problem hard enough to matter it does not
+       converge at all: `hdgperf -n 128 -o 3 -k 0.1`, which is
+       `convdiff -p 6 -o 3 -nx 128 -dg -hb -nl -npc -nls 3`, hits the
+       1000-iteration cap on every one of its Newton steps.
+
+       Measured there, best of two, MKL_NUM_THREADS=1:
+
+         level        wall      inner GMRES          err_t
+         default    49.6 s     capped, 4 steps    2.09e-07
+         1 (GS)     54.6 s     converges          3.86e-08
+         0 (direct) 17.1 s     converges          3.86e-08
+
+       **2.9x, and the answer is better as well as cheaper** -- an inexact
+       Newton step is still a descent direction, so the default converges its
+       OUTER test onto a less accurate solution rather than failing visibly.
+       Levels 0 and 1 agree with each other to six digits, which is the check
+       that says they solve the same problem and the default does not. Level 2
+       is 239.9 s where level 0 is 11.3 s on the same problem at n = 96: with
+       no assembled matrix there is nothing to precondition. The same flag is
+       worth 4.3x on problem 2 (23.1 s -> 5.4 s), so it is not specific to
+       Burgers. */
    void SetTraceSolveLevel(int level) { trace_solve_level = level; }
 
    /** @brief Solve by NPC instead of by the reduced trace system.
