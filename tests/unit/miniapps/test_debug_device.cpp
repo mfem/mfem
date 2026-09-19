@@ -117,6 +117,96 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    REQUIRE_NOTHROW(y.Read());
 }
 
+TEST_CASE("Alias a per-field view out of its owner, never out of a raw wrap",
+          "[DebugDevice]")
+{
+   // **This case previously asserted the opposite and the assertion was
+   // wrong.** It was committed as "A non-owning wrap must not de-register its
+   // base", on the reading -- meq's and then mine -- that Wrap() takes
+   // GetHostMemoryType() regardless of ownership, so Memory<T>::Delete()
+   // computes std_delete == false and forwards to MemoryManager::Delete_.
+   // It does forward, and Delete_ opens
+   //
+   //    if (!mm.exists || !registered) { return; }
+   //
+   // so h_mt decides nothing and an unregistered wrap is inert. That much was
+   // right. The conclusion drawn from it -- that the reported eviction cannot
+   // happen here -- was not, and the case as written could not tell, because
+   // it constructed a view and destroyed it untouched. That is the one shape
+   // that is safe.
+   //
+   // What registers the view is Memory<T>::MakeAlias(), which registers an
+   // unregistered BASE whenever the device memory type is a device type, and
+   // Memory<T>::{Read,Write,ReadWrite}, which do the same at any non-HOST
+   // MemoryClass. Register_ sets Registered|OWNS_INTERNAL on the view;
+   // MemoryManager::Insert() emplaces, so an address already registered keeps
+   // its existing entry silently; and the view's destructor then takes
+   // Delete_'s Known branch and erases the pointer. A view that starts at the
+   // owner's base pointer therefore erases the OWNER's entry, and the owner's
+   // next device-registered write aborts in Write_ with "host pointer is not
+   // registered".
+   //
+   // Five arms, measured, each in its own process, Device("debug") against
+   // Device("cpu"):
+   //
+   //    wrap, host-only touch                       survives   survives
+   //    wrap, device-class touch                    ABORTS     survives
+   //    wrap, MakeRef taken out of it               ABORTS     survives
+   //    wrap at an interior offset, + MakeRef       survives   survives
+   //    wrap claiming MemoryType::HOST, + MakeRef   ABORTS     survives
+   //
+   // The interior-offset arm is why the reported failure was a single abort
+   // rather than chaos, and the last arm is why "make Wrap() claim HOST" is
+   // not the fix.
+   //
+   // The routine this came from is DarcyHybridization::ReconstructTotalFlux()
+   // in its neq > 1 form, which is not on this branch; the pin that fails
+   // without the fix lives beside it. What is pinned here is the idiom.
+   const int n = 32, nsub = 8;
+
+   Vector base(n);
+   base = 1.0;
+   const real_t *b_ptr = base.GetData();
+   REQUIRE(mm.IsKnown(b_ptr));
+
+   // The idiom to use: alias out of the OWNER, at whatever offset. A registered
+   // alias is also what syncs, where a raw GetData() is a host read of a
+   // buffer whose live copy may be on the device.
+   {
+      Vector view;
+      view.MakeRef(base, 0, nsub);
+      REQUIRE(view.Size() == nsub);
+      view = 4.0;
+   }
+   REQUIRE(mm.IsKnown(b_ptr));
+
+   {
+      Vector view;
+      view.MakeRef(base, nsub, nsub);
+      REQUIRE(view.Size() == nsub);
+      view = 5.0;
+   }
+   REQUIRE(mm.IsKnown(b_ptr));
+
+   // Reached only if the entry survived both: base is registered, so this is
+   // the call that aborts once an entry has been erased.
+   base = 2.0;
+   REQUIRE(base(0) == MFEM_Approx(2.0));
+   REQUIRE(base(n-1) == MFEM_Approx(2.0));
+
+   // A raw wrap touched on the host alone stays unregistered and so stays
+   // inert. Kept because it is the arm that made the withdrawn claim look
+   // verified, and because it is what licenses the two DenseMatrix reshapes
+   // that remain in that routine.
+   {
+      Vector wrap(base.GetData(), nsub);
+      wrap = 3.0;
+   }
+   REQUIRE(mm.IsKnown(b_ptr));
+   base = 6.0;
+   REQUIRE(base(0) == MFEM_Approx(6.0));
+}
+
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 {
    // If MFEM_MEMORY is set, we can start with some non-empty maps,

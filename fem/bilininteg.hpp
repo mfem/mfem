@@ -4844,8 +4844,10 @@ protected:
    real_t sign;
 
 private:
+#ifndef MFEM_THREAD_SAFE
    Vector face_shape, normal, shape1_n, shape2_n;
    DenseMatrix shape1, shape2;
+#endif
 
 public:
    NormalTraceJumpIntegrator(real_t sign_ = 1.) : sign(sign_) { }
