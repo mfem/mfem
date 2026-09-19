@@ -5692,6 +5692,74 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                                 mode == MultNlMode::Grad);
    const bool ad_done = grad_mode_pass && CopyLinearGradBlocks();
 
+   // **The threaded element loop is only safe when ad_done, and this is where
+   // that can first be asked.** It belongs on SetAssemblyMode() by rights --
+   // it is a property of the mode -- and it cannot live there: ad_done comes
+   // from CopyLinearGradBlocks(), which reads A_empty, D_empty, the block
+   // array sizes and the residual cache, none of which exist until Assemble()
+   // has run. This file already records what happens when a predicate is
+   // asked before the state it describes: it answers for a route that then
+   // fires, and a diagnostic printed before its state is worse than none.
+   //
+   // WHY ad_done IS THE DISCRIMINATOR. When it holds, ConstructGrad() copies
+   // cached blocks and never calls the shared m_nlfi_u / m_nlfi_p / c_nlfi_p
+   // per element. When it does not, every thread evaluates the SAME
+   // integrator object, and MFEM's integrators are not uniformly thread-safe
+   // -- VectorMassIntegrator, MassIntegrator and DiffusionIntegrator hold
+   // their scratch as plain members with no #ifndef MFEM_THREAD_SAFE, where
+   // VectorFEMassIntegrator, ConvectionIntegrator and HyperbolicFormIntegrator
+   // guard theirs. 67 of the 99 integrator classes that carry scratch are
+   // unguarded, and a caller cannot tell which is which without reading the
+   // class.
+   //
+   // Measured: `convdiff -p 6 -nl -thr` returns NaN deterministically at two
+   // threads and above, from a flux block that is right on one thread and
+   // differently wrong on four; `-p 1` and `-p 2` take the cached path and
+   // agree with serial to every digit. Serialising every integrator call does
+   // NOT repair it, so this refuses rather than locking -- the honest fix is
+   // one integrator instance per thread, which MFEM has no facility for.
+   //
+   // ABORTS rather than falling back to the serial loop, which is
+   // SetAssemblyMode()'s own convention: a caller asking for Threaded is
+   // asking a performance question, and a silent downgrade answers it wrongly.
+   // The alternative to aborting is a Jacobian that is not the derivative of
+   // the residual, which NPC turns into a NaN only by luck.
+   //
+   // ABORT only where a race is POSSIBLE, and warn otherwise. At one thread
+   // the mode is provably safe -- measured, the answer is the serial one --
+   // and `-thr` at one thread is exactly how a caller checks that the mode is
+   // inert before turning it up. Refusing there would refuse the check. The
+   // warning is still emitted, because the verdict otherwise depends on an
+   // ENVIRONMENT variable: the same binary and the same flags are safe at
+   // OMP_NUM_THREADS=1 and corrupt at 2, and a silent pass at one thread
+   // would read as a licence for the configuration rather than for the run.
+   if (threaded && grad_mode_pass && !ad_done)
+   {
+#ifdef MFEM_USE_OPENMP
+      const bool can_race = (omp_get_max_threads() > 1);
+#else
+      const bool can_race = false;
+#endif
+      MFEM_VERIFY(!can_race,
+                  "AssemblyMode::Threaded is unsafe for this problem: the "
+                  "local gradient blocks cannot be taken from the linear "
+                  "cache, so the shared mass and constraint integrators are "
+                  "evaluated once per element on several threads at once. "
+                  "MFEM's integrators are not uniformly thread-safe and this "
+                  "silently corrupts the Jacobian -- see SetAssemblyMode(). "
+                  "Use AssemblyMode::Serial, or install integrators whose "
+                  "scratch is under #ifndef MFEM_THREAD_SAFE.");
+      static bool warned = false;
+      if (!warned)
+      {
+         warned = true;
+         MFEM_WARNING("AssemblyMode::Threaded is unsafe for this problem and "
+                      "is running only because there is one thread. It will "
+                      "corrupt the Jacobian at OMP_NUM_THREADS > 1; see "
+                      "SetAssemblyMode().");
+      }
+   }
+
    // Tier 1: the nonlinear interior-face constraint's RESIDUAL for every face
    // at once, after the loop, exactly as batch_nl_faces does for the
    // gradient. Decided once here for the same reason -- asking per element
