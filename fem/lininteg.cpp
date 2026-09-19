@@ -718,6 +718,9 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const int vdim = (VF)?(VF->GetVDim()):(1);
    const int dof = el.GetDof();
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, nor, vf;
+#endif
    shape.SetSize (dof);
    nor.SetSize (dim);
    if (VF) { vf.SetSize(vdim); }
@@ -771,6 +774,9 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const int vdim = (VF)?(VF->GetVDim()):(1);
    int dof = el.GetDof();
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, nor, vf;
+#endif
    shape.SetSize (dof);
    nor.SetSize (dim);
    if (VF) { vf.SetSize(vdim); }
