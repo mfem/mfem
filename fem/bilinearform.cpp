@@ -275,6 +275,23 @@ void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
 
 void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
 {
+   // A null transformation means "use the Mesh's shared one", which is what
+   // this overload has always done -- including its side effect of leaving
+   // that object describing element @a i on return.
+   ComputeElementMatrixImpl(i, elmat, NULL, elemmat);
+}
+
+void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat,
+                                        IsoparametricTransformation &eltrans,
+                                        DenseMatrix &work) const
+{
+   ComputeElementMatrixImpl(i, elmat, &eltrans, work);
+}
+
+void BilinearForm::ComputeElementMatrixImpl(int i, DenseMatrix &elmat,
+                                            IsoparametricTransformation *eltrans,
+                                            DenseMatrix &work) const
+{
    if (element_matrices)
    {
       elmat.SetSize(element_matrices->SizeI(), element_matrices->SizeJ());
@@ -286,12 +303,25 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
 
    if (domain_integs.Size())
    {
-      ElementTransformation *eltrans = fes->GetElementTransformation(i);
-      domain_integs[0]->AssembleElementMatrix(fe, *eltrans, elmat);
+      // Both routes end in Mesh::GetElementTransformation(i, T), so the
+      // transformation is filled identically and the two overloads agree
+      // bit-for-bit. The caller-supplied one is filled here rather than being
+      // expected to arrive filled, so a threaded loop is an ordinary loop.
+      ElementTransformation *T;
+      if (eltrans)
+      {
+         fes->GetElementTransformation(i, eltrans);
+         T = eltrans;
+      }
+      else
+      {
+         T = fes->GetElementTransformation(i);
+      }
+      domain_integs[0]->AssembleElementMatrix(fe, *T, elmat);
       for (int k = 1; k < domain_integs.Size(); k++)
       {
-         domain_integs[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
-         elmat += elemmat;
+         domain_integs[k]->AssembleElementMatrix(fe, *T, work);
+         elmat += work;
       }
    }
    else
@@ -1963,19 +1993,44 @@ void MixedBilinearForm::ConformingAssemble()
 
 void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
 {
+   // NULL means the Mesh's shared transformation, as this overload has always
+   // used -- see BilinearForm::ComputeElementMatrix(int, DenseMatrix &).
+   ComputeElementMatrixImpl(i, elmat, NULL, elemmat);
+}
+
+void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat,
+                                             IsoparametricTransformation &eltrans,
+                                             DenseMatrix &work) const
+{
+   ComputeElementMatrixImpl(i, elmat, &eltrans, work);
+}
+
+void MixedBilinearForm::ComputeElementMatrixImpl(
+   int i, DenseMatrix &elmat, IsoparametricTransformation *eltrans,
+   DenseMatrix &work) const
+{
    const FiniteElement &trial_fe = *trial_fes->GetFE(i);
    const FiniteElement &test_fe = *test_fes->GetFE(i);
 
    if (domain_integs.Size())
    {
-      ElementTransformation *eltrans = test_fes->GetElementTransformation(i);
-      domain_integs[0]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans,
-                                               elmat);
+      // The TEST space supplies the transformation, which is what the
+      // one-argument form does; trial and test share a Mesh.
+      ElementTransformation *T;
+      if (eltrans)
+      {
+         test_fes->GetElementTransformation(i, eltrans);
+         T = eltrans;
+      }
+      else
+      {
+         T = test_fes->GetElementTransformation(i);
+      }
+      domain_integs[0]->AssembleElementMatrix2(trial_fe, test_fe, *T, elmat);
       for (int k = 1; k < domain_integs.Size(); k++)
       {
-         domain_integs[k]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans,
-                                                  elemmat);
-         elmat += elemmat;
+         domain_integs[k]->AssembleElementMatrix2(trial_fe, test_fe, *T, work);
+         elmat += work;
       }
    }
    else

@@ -184,3 +184,202 @@ TEST_CASE("BilinearForm print", "[SparseMatrix][BilinearForm]")
    a.Print(ss);
    REQUIRE(ss.str().length() > 0);
 }
+
+// The reentrant ComputeElementMatrix() overloads exist so that an element
+// loop can run on several threads. Two things have to be true for that, and
+// this case pins both: the overload must agree with the one-argument form it
+// replaces, ELEMENT BY ELEMENT and exactly rather than approximately -- it is
+// the same arithmetic in the same order, so anything but equality is a
+// defect, not round-off -- and a threaded loop over it must reproduce the
+// serial answer.
+//
+// Both integrators used here carry `#ifndef MFEM_THREAD_SAFE` on their
+// scratch (MassIntegrator directly, MixedScalarMassIntegrator through
+// MixedScalarIntegrator), which is what makes the threaded section legitimate
+// rather than optimistic. An integrator without those guards races whatever
+// this routine does, and that is a property of the integrator.
+// Every element is given a DIFFERENT shape, and that is what makes the case
+// discriminating rather than merely green. On a uniform Cartesian mesh all
+// elements are congruent, so an implementation that fetched the WRONG
+// element's transformation would still produce the right matrix to within
+// round-off -- measured, at 8.9e-16 -- and only an exact comparison could see
+// it. Distorted, the same mutation is wrong by O(1).
+static void SkewMesh(const Vector &x, Vector &p)
+{
+   p.SetSize(x.Size());
+   p(0) = x(0) + 0.3 * x(1) * x(1);
+   p(1) = x(1) + 0.2 * x(0) * x(1) + 0.1 * x(0) * x(0);
+}
+
+TEST_CASE("Reentrant ComputeElementMatrix", "[BilinearForm]")
+{
+   const int order = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(6, 6, Element::QUADRILATERAL);
+   mesh.Transform(SkewMesh);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(order, dim);
+   L2_FECollection fec2(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+   FiniteElementSpace fes2(&mesh, &fec2);
+   const int NE = mesh.GetNE();
+
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient two(2.0);
+
+   SECTION("BilinearForm, one domain integrator")
+   {
+      BilinearForm a(&fes);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+
+      IsoparametricTransformation eltrans;
+      DenseMatrix work, got, want;
+      for (int i = 0; i < NE; i++)
+      {
+         a.ComputeElementMatrix(i, want);
+         a.ComputeElementMatrix(i, got, eltrans, work);
+         got -= want;
+         REQUIRE(got.MaxMaxNorm() == 0.0);
+      }
+   }
+
+   SECTION("BilinearForm, two domain integrators")
+   {
+      // The second integrator is what makes `work` load-bearing: with one
+      // integrator it is never touched, so a wrong `work` cannot be seen.
+      BilinearForm a(&fes);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a.AddDomainIntegrator(new DiffusionIntegrator(two));
+
+      IsoparametricTransformation eltrans;
+      DenseMatrix work, got, want;
+      for (int i = 0; i < NE; i++)
+      {
+         a.ComputeElementMatrix(i, want);
+         a.ComputeElementMatrix(i, got, eltrans, work);
+         got -= want;
+         REQUIRE(got.MaxMaxNorm() == 0.0);
+      }
+   }
+
+   SECTION("MixedBilinearForm")
+   {
+      MixedBilinearForm b(&fes, &fes2);
+      b.AddDomainIntegrator(new MixedScalarMassIntegrator(two));
+
+      IsoparametricTransformation eltrans;
+      DenseMatrix work, got, want;
+      for (int i = 0; i < NE; i++)
+      {
+         b.ComputeElementMatrix(i, want);
+         b.ComputeElementMatrix(i, got, eltrans, work);
+         got -= want;
+         REQUIRE(got.MaxMaxNorm() == 0.0);
+      }
+   }
+
+   SECTION("The cached element matrices are still returned")
+   {
+      // ComputeElementMatrices() short-circuits both overloads, and the
+      // reentrant one must not lose that.
+      BilinearForm a(&fes);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      const DenseTensor &cached = a.GetElementMatrices();
+
+      IsoparametricTransformation eltrans;
+      DenseMatrix work, got;
+      for (int i = 0; i < NE; i++)
+      {
+         a.ComputeElementMatrix(i, got, eltrans, work);
+         DenseMatrix want(cached(i));
+         got -= want;
+         REQUIRE(got.MaxMaxNorm() == 0.0);
+      }
+   }
+
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+   SECTION("A threaded element loop reproduces the serial answer")
+   {
+      // A finer mesh, so that the loop is long enough for several threads to
+      // genuinely overlap rather than finish before they start.
+      Mesh mesh_t = Mesh::MakeCartesian2D(24, 24, Element::QUADRILATERAL);
+      mesh_t.Transform(SkewMesh);
+      H1_FECollection fec_t(order, mesh_t.Dimension());
+      L2_FECollection fec2_t(order, mesh_t.Dimension());
+      FiniteElementSpace fes_t(&mesh_t, &fec_t);
+      FiniteElementSpace fes2_t(&mesh_t, &fec2_t);
+      const int NE_t = mesh_t.GetNE();
+
+      BilinearForm a(&fes_t);
+      a.AddDomainIntegrator(new MassIntegrator(one));
+      a.AddDomainIntegrator(new DiffusionIntegrator(two));
+
+      MixedBilinearForm b(&fes_t, &fes2_t);
+      b.AddDomainIntegrator(new MixedScalarMassIntegrator(two));
+
+      const int nd = fes_t.GetFE(0)->GetDof();
+      const int nd2 = fes2_t.GetFE(0)->GetDof();
+      DenseTensor want_a(nd, nd, NE_t), got_a(nd, nd, NE_t);
+      DenseTensor want_b(nd2, nd, NE_t), got_b(nd2, nd, NE_t);
+
+      {
+         DenseMatrix elmat;
+         for (int i = 0; i < NE_t; i++)
+         {
+            a.ComputeElementMatrix(i, elmat);
+            DenseMatrix dst(want_a.GetData(i), nd, nd);
+            dst = elmat;
+            dst.ClearExternalData();
+         }
+         for (int i = 0; i < NE_t; i++)
+         {
+            b.ComputeElementMatrix(i, elmat);
+            DenseMatrix dst(want_b.GetData(i), nd2, nd);
+            dst = elmat;
+            dst.ClearExternalData();
+         }
+      }
+
+      #pragma omp parallel
+      {
+         IsoparametricTransformation eltrans;
+         DenseMatrix elmat, work;
+         #pragma omp for schedule(static)
+         for (int i = 0; i < NE_t; i++)
+         {
+            a.ComputeElementMatrix(i, elmat, eltrans, work);
+            DenseMatrix dst(got_a.GetData(i), nd, nd);
+            dst = elmat;
+            dst.ClearExternalData();
+         }
+         #pragma omp for schedule(static)
+         for (int i = 0; i < NE_t; i++)
+         {
+            b.ComputeElementMatrix(i, elmat, eltrans, work);
+            DenseMatrix dst(got_b.GetData(i), nd2, nd);
+            dst = elmat;
+            dst.ClearExternalData();
+         }
+      }
+
+      // Exactly, not approximately: each element is computed by one thread
+      // and nothing is reduced across threads, so the arithmetic is identical
+      // to the serial arm's and any difference is a race.
+      //
+      // How wide this actually ran is OMP_NUM_THREADS' business. At one
+      // thread the section still checks that the reentrant route agrees with
+      // the one-argument one over a longer loop; it takes more than one to
+      // have a chance of catching a race, which is why the suite is worth
+      // running once with OMP_NUM_THREADS set high.
+      for (int i = 0; i < NE_t; i++)
+      {
+         DenseMatrix da(got_a(i));
+         da -= want_a(i);
+         REQUIRE(da.MaxMaxNorm() == 0.0);
+
+         DenseMatrix db(got_b(i));
+         db -= want_b(i);
+         REQUIRE(db.MaxMaxNorm() == 0.0);
+      }
+   }
+#endif
+}
