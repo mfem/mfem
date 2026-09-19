@@ -6959,8 +6959,23 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    }
    else
    {
+      // Two things about this branch, found while chasing a set of unit
+      // failures that turned out to be somewhere else entirely, and recorded
+      // rather than changed because silencing a warning is the caller's call.
+      //
+      // It ignores lsolve.print_lvl, where the converged branch above honours
+      // it -- so SetLocalNLSolver(..., -1), which asks for silence, still
+      // prints one line per failing element per outer iteration. On the stiff
+      // pedestal at n = 32 that is a steady stream from a test that asked for
+      // none.
+      //
+      // And mfem::out here is unsynchronised, while this routine runs on the
+      // element loop that AssemblyMode::Threaded parallelises -- the atomic on
+      // num_local_nl_iters a few lines up is there for exactly that reason. A
+      // failing local solve under threading therefore races on the stream.
       mfem::out << "el: " << el
-                << " not convered in " << lsolver->GetNumIterations() << " iters"
+                << " not converged in " << lsolver->GetNumIterations()
+                << " iters"
                 << " rel. norm: " << lsolver->GetFinalRelNorm()
                 << std::endl;
    }

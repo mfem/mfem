@@ -207,7 +207,10 @@ case, both converged to round-off.
 virtual, and backtracking on the full residual is what NPC wants — well
 defined here precisely because the fields and the trace are one vector and
 scale together. A dozen-line subclass converges three stiff configurations
-that the deleted trace-only mode could not, in 13, 10 and 17 steps. Nothing
+that the deleted trace-only mode could not, in 13, 10 and 17 steps -- the
+first two counts on every arm of a perturbation sweep, the third only after
+the pedestal width moved off a convergence boundary; see the note under the
+line-search table below. Nothing
 about it is Darcy-specific, so it is not in the library;
 `miniapps/hdg/navierstokes.cpp` carries one behind `-ls` as a worked example.
 
@@ -639,6 +642,38 @@ residual, at the four configurations §7 used to cite:
 | n=12 k=3 | ok, 12 steps | ok, 10 steps |
 | n=32 k=1 | fails, 4.9e-01 | **ok, 17 steps** |
 | n=24 k=1 | fails, 1.4e+00 | fails, 2.9e-03 |
+
+**Two of those backtracking counts are properties of the method and one was a
+draw, and the table cannot tell you which.** Perturbing the initial trace by
+1e-13 -- fifteen orders below the state -- and crossing that with
+`MKL_NUM_THREADS` in {1,2,4,8} gives 13 steps on every arm for n=8 k=2 and 10
+on every arm for n=12 k=3. The n=32 k=1 row, at the pedestal width 0.003 these
+were taken with, gives 18, 22, 25, 28 or 40: it sits on this method's
+convergence boundary, where width <= 0.0025 stalls on every arm and
+width >= 0.004 converges in five or six on every arm. At 0.0032 it is 17 on all
+sixteen arms, which is the width the unit cases now pin and the source of the
+17 quoted above.
+
+It is not a defect in the operator, and the check that settles that is cheap:
+normalise the step to unit length and finite-difference `NPCResidual` along it.
+The elimination's claim `J.delta = -r` holds to six to eight digits at every
+healthy iterate -- so the gradient is right -- and the same measurement shows
+`|J d|` falling to 1.3e-09 at `|d| = 1`. The Jacobian is going singular along
+the direction Newton is heading in; the problem has several roots, and the
+iterate is approaching a fold between them. Condensation reaches a root there
+in 7 to 9 steps and `NPCResidual` sees that root at 1.8e-12.
+
+A step-norm cap looks like the answer and is not: bounding `|dx|` at 10
+converges in 15 steps on all twelve arms of the perturbation sweep, but
+sweeping the cap shows 10 works while 15 and 30 do not, and any cap breaks the
+two configurations that converge without one. Near a fold the cap only changes
+which trajectory round-off picks.
+
+**The operational half, for anyone reading a red suite:** a configuration on
+that boundary fails only when something pins the BLAS thread count, because
+UMFPack's reduction order is where the round-off enters. Three unit cases on it
+were green for months and failed the first time a run set
+`MKL_NUM_THREADS=1`, with no library change behind them.
 
 So on *this* problem the line search earns its place, and the baseline is
 plain undamped `NewtonSolver` on NPC — not the deleted mode, which is what

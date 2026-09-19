@@ -2818,6 +2818,47 @@ public:
        is on the OUTER step and there is none to do locally**, which is the
        whole point of the ordering.
 
+       **Two of those three counts are properties of the method and the third
+       was a draw, and nothing knew which until they were perturbed.** Over
+       MKL_NUM_THREADS in {1,2,4,8} crossed with a perturbation of the initial
+       trace in {0, +-1e-13, +1e-12} -- fifteen orders below the state -- the
+       k = 2, n = 8 configuration takes 13 steps on every arm and k = 3,
+       n = 12 takes 10 on every arm. The third, k = 1, n = 32 at a pedestal
+       width of 0.003, takes 18, 22, 25, 28 or 40: the 17 recorded above was
+       one draw from that. It is on the convergence BOUNDARY -- width <= 0.0025
+       stalls on every arm, width >= 0.004 converges in five or six on every
+       arm -- and 0.0032 restores 17 steps on all sixteen arms, which is the
+       width the unit cases pin.
+
+       **That is not a defect in this operator, and the check that says so is
+       worth reusing.** Normalise the computed step to unit length and
+       finite-difference NPCResidual() along it: the elimination claims
+       J.delta = -r, so the true Jacobian must map the unit d to -r/|delta|.
+       It does, to six to eight digits at every healthy iterate, so the
+       gradient and the elimination algebra are right. What the same
+       measurement then shows is that |J d| falls to 1.3e-09 while |d| = 1 --
+       the Jacobian is going SINGULAR along the direction Newton is heading
+       in. The problem has several roots (states of norm 44.923, 44.922 and
+       44.827 have all been reached from one start), the iterate approaches a
+       fold between them, and the residual freezes to seven digits while the
+       step length doubles each iteration to 1.5e+06. The condensation route
+       reaches a root there in 7 to 9 steps and NPCResidual() sees that root at
+       1.8e-12, so the two routes never disagreed about the discrete problem.
+
+       **A step-norm cap was built and rejected, which is worth knowing before
+       building it again.** Bounding |dx| at 10 converges in 15 steps on all
+       twelve arms of the perturbation sweep, looking exactly like a trust
+       region earning its keep. Sweeping the cap kills it: 10 works, 15 and 30
+       do not, and any cap BREAKS the two configurations that converge without
+       one. The cap does not globalise anything near a fold -- it just reshuffles
+       which trajectory round-off selects, so it is one more draw.
+
+       The operational consequence outlives the test: **a configuration on this
+       boundary fails only when something pins the BLAS thread count**, because
+       UMFPack's reduction order is where the round-off enters. Three unit
+       cases sitting on it were green for months and failed the first time a
+       run set MKL_NUM_THREADS=1, with no library change behind it.
+
        **Do not read that as a general recommendation of a line search.** The
        backtracking above is an l2 merit over all three blocks. Where the
        nonlinearity sits in the potential block and the flux and trace rows are

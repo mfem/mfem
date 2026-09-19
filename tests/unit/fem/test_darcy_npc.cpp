@@ -1245,14 +1245,23 @@ struct PedestalHDG
       // factor of four and the NPC section did not move at all, that was the
       // cap being the mechanism rather than the assembly being wrong.
       //
-      // With the cap at 5000 the local solves converge, both orders take 9,
-      // and the case stops being chaotic. It is also FASTER -- 3.8 s against
-      // 7.7 s -- because grinding to a 100-iteration cap on every one of 44
-      // outer steps costs more than converging once on each of 9.
+      // With the cap at 5000 both orders take 9, and it is also FASTER -- 3.8 s
+      // against 7.7 s -- because grinding to a 100-iteration cap on every one
+      // of 44 outer steps costs more than converging once on each of 9.
       //
       // This is the file's own standing lesson arriving again: when a constant
       // is hard-coded and undocumented, sweep it before theorising about
       // anything downstream of it.
+      //
+      // **Two claims that stood here are withdrawn, both about (32, 0.003).**
+      // It said the local solves CONVERGE at a cap of 5000: they do not. A
+      // handful of elements still stop at the cap, at relative norms of 0.007
+      // to 0.19, and say so on stdout -- 1054, 1080, 1082, 1021, 1026 on the
+      // run that checked. And it said the cap made the case "stop being
+      // chaotic". The condensation section did settle; the NPC section did not,
+      // and stayed a coin toss for as long as any test ran it at that width.
+      // See stiff_sigma_n32 below, which is why no case runs 0.003 at n = 32
+      // any more; at 0.0032 the local solves are silent and converge.
       darcy.GetHybridization()->SetLocalNLSolver(
          DarcyHybridization::LSsolveType::Newton, 5000, 1e-12, 1e-16, -1);
       darcy.Assemble();
@@ -1721,6 +1730,17 @@ std::vector<real_t> RunNPCHdiv(HdivHDG &P, int max_it,
    return norms;
 }
 
+/** @brief The pedestal width of the n = 32, k = 1 stiff row, shared by the
+    three cases that use it so that moving it moves all of them together --
+    and so that the guard case "A stiff NPC row must be off the convergence
+    boundary" is guarding the value they actually run.
+
+    It is 0.0032 and not the 0.003 of its neighbours BY MEASUREMENT: 0.003 is
+    the convergence boundary of this method on this problem and the outcome
+    there is a draw rather than a property. The evidence is on the first of
+    the three, "A stiff source converges by condensation and by NPC alike". */
+constexpr real_t stiff_sigma_n32 = 0.0032;
+
 } // namespace darcy_npc
 
 TEST_CASE("A stiff source converges by condensation and by NPC alike",
@@ -1741,9 +1761,43 @@ TEST_CASE("A stiff source converges by condensation and by NPC alike",
    // They are different methods reaching the same discrete solution, so what
    // is required of them is only that both get there. The second row is where
    // the deleted mode failed at sixty iterations.
+   //
+   // **The pedestal width for the n = 32, k = 1 row is 0.0032 and NOT 0.003,
+   // and the difference is the whole of a session.** At 0.003 that
+   // configuration sits exactly on this method's convergence boundary: sigma
+   // <= 0.0025 stalls whatever you do, sigma >= 0.004 converges in five or six
+   // steps, and 0.003 is the knife edge between them. On the edge the outcome
+   // of a 40-step damped Newton is not a property of the method at all -- it
+   // is a draw. Measured three ways, each of which flips it:
+   //
+   //     MKL_NUM_THREADS     1 and 2 stall at 5.4e-04 / 1.3e-03,
+   //                         4, 8 and unpinned converge
+   //     initial trace x (1 + 1e-14)      converged-in-28 becomes a stall
+   //     the same, at other signs/sizes   18, 22, 25, 28 and 40 steps
+   //
+   // 1e-14 is fifteen orders below the state, so the BLAS thread count is not
+   // special -- it is one way of supplying round-off, and UMFPack's reduction
+   // order changes with it. **That is why these three cases failed under the
+   // MKL_NUM_THREADS=1 that a timing run pins, and passed without it**, which
+   // reads as a regression and is not one.
+   //
+   // At 0.0032 the damped run takes 17 steps on ALL SIXTEEN arms of
+   // MKL_NUM_THREADS in {1,2,4,8} crossed with an initial-trace perturbation
+   // in {0, +-1e-13, +1e-12}, and the undamped run fails on fifteen of the
+   // sixteen. Condensation takes 7 there at every thread count and lands on
+   // the same root, which the NPC residual sees at 9.4e-12. So the number 17
+   // this branch has quoted since NPC was built is now a property; at 0.003 it
+   // was a draw that happened to come up 17.
+   //
+   // **A step cap was built, measured, and rejected** -- worth knowing before
+   // building it again. Bounding |dx| at 10 converges in 15 on all twelve arms
+   // of the perturbation sweep, which looks exactly like a trust region
+   // earning its keep. Sweeping the cap kills it: 10 works, 15 and 30 do not,
+   // and a cap BREAKS the two configurations below that converge without one.
+   // The cap is not a globalisation here, it is another draw.
    const int idx = GENERATE(0, 1);
    const int n = (idx == 0) ? 24 : 32;
-   const real_t sigma = (idx == 0) ? 0.005 : 0.003;
+   const real_t sigma = (idx == 0) ? 0.005 : stiff_sigma_n32;
    CAPTURE(n, sigma);
 
    SECTION("by condensation, on the trace alone")
@@ -1922,10 +1976,20 @@ TEST_CASE("NPC solves stiff problems LineariseThenCondense cannot",
    // 0.003, stalls at 2.9e-03 with the line search grinding -- ordinary Newton
    // stagnation, not an artefact of the ordering, and CondenseThenLinearise
    // needs 22 iterations there.
+   //
+   // **Two of those three numbers are properties and the third was a draw**,
+   // which nothing knew until the configurations were perturbed. Over
+   // MKL_NUM_THREADS in {1,2,4,8} crossed with an initial-trace perturbation
+   // in {0, +-1e-13, +1e-12, +-1e-14}, k = 2 n = 8 takes 13 steps on every arm
+   // and k = 3 n = 12 takes 10 on every arm -- identical counts, so those two
+   // are the method. The third, at the 0.003 this row used to carry, gave 18,
+   // 22, 25, 28 and 40: see the note on the case above, which is why this row
+   // now reads 0.0032 and takes 17 on all sixteen arms.
    const int idx = GENERATE(0, 1, 2);
    const int n     = (idx == 0) ? 8     : (idx == 1) ? 12    : 32;
    const int order = (idx == 0) ? 2     : (idx == 1) ? 3     : 1;
-   const real_t sg = (idx == 0) ? 0.003 : (idx == 1) ? 0.002 : 0.003;
+   const real_t sg = (idx == 0) ? 0.003 : (idx == 1) ? 0.002
+                     : stiff_sigma_n32;
    CAPTURE(n, order, sg);
 
    PedestalHDG P(n, order, sg);
@@ -2020,27 +2084,45 @@ TEST_CASE("The line search earns its place on the pedestal, and says which",
    // conflates "wanders" with "did not reach 1e-12 in 40 steps". Printing the
    // residual the undamped run stops at separates them:
    //
-   //     n = 8,  order 2   undamped stalls at 8.4e-01 -- it wanders
-   //     n = 32, order 1   undamped stops at 1.1e-11  -- it nearly converged
+   //     n = 8,  order 2,  0.003    undamped stalls at 4.2e-01 -- it wanders
+   //     n = 32, order 1,  0.0032   undamped stalls at 8.7e-01 -- so does this
    //
-   // The second is a budget away from success, and duly crossed the line (37
-   // steps) when a change elsewhere in the library moved the operator in its
-   // last bits -- routing a LINEAR face constraint on a nonlinear form to the
-   // linear assembly path, which leaves every answer identical and moves
-   // iteration counts on stiff cases by 10-40%. The convergence FLAG was a
-   // property of the budget, not of the method, so it is not asserted there
-   // any more. What is asserted instead is the claim section 6 actually makes
-   // and which holds on both routes: the damped run costs materially less.
-   // Same problem, damped against undamped: 18 vs 41 and 25 vs 37.
+   // **That second line used to read 1.1e-11 and "it nearly converged", and it
+   // said so about the 0.003 this row no longer carries.** At 0.003 the
+   // undamped run really did stop a budget away from success, and duly crossed
+   // the line (37 steps) when a change elsewhere in the library moved the
+   // operator in its last bits -- routing a LINEAR face constraint on a
+   // nonlinear form to the linear assembly path, which leaves every answer
+   // identical and moves iteration counts on stiff cases by 10-40%. Read with
+   // what is now known about that configuration, an iterate poised at 1.1e-11
+   // and a flag that flips on the library's last bits was the convergence
+   // boundary showing itself, two sessions before anyone went looking.
+   //
+   // The FLAG is still not asserted on the second row, and now for a measured
+   // reason rather than a suspicion: over the sixteen arms of MKL_NUM_THREADS
+   // in {1,2,4,8} crossed with an initial-trace perturbation in {0, +-1e-13,
+   // +1e-12}, the undamped run at 0.0032 wanders on fifteen and converges in
+   // 24 steps on the sixteenth. What is asserted instead is the claim section
+   // 6 actually makes and which holds on every arm of both rows: the damped
+   // run costs materially less. Damped against undamped, as norms.size():
+   // 14 vs 41 and 18 vs 41, the 18 being 17 steps plus the initial residual.
    //
    // If someone improves NPC so that the FIRST configuration's undamped run
    // stops wandering, this test fails, and that failure is the finding rather
    // than a nuisance: it would mean section 6's recommendation no longer rests
    // on anything and should be rewritten.
+   //
+   // **The second row is at 0.0032 and the first at 0.003**, which is not an
+   // oversight: at 0.003 the n = 32 row is on the convergence boundary and its
+   // damped count is a draw from round-off, so BOTH of this case's assertions
+   // on it were chaotic. The note on "A stiff source converges by condensation
+   // and by NPC alike" carries the measurement. At 0.0032 the damped run takes
+   // 17 steps on all sixteen arms and the undamped one fails on fifteen of
+   // them, so "the line search pays" is a property here rather than a draw.
    const int idx = GENERATE(0, 1);
    const int n     = (idx == 0) ? 8     : 32;
    const int order = (idx == 0) ? 2     : 1;
-   const real_t sg = 0.003;
+   const real_t sg = (idx == 0) ? 0.003 : stiff_sigma_n32;
    CAPTURE(n, order, sg);
 
    PedestalHDG Pd(n, order, sg);
@@ -2331,6 +2413,58 @@ inline void RequireIdentical(const Vector &got, const Vector &want)
 }
 
 } // namespace darcy_npc
+
+TEST_CASE("A stiff NPC row must be off the convergence boundary",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+   using GM = DarcyHybridization::GradientMode;
+
+   // Three cases assert that damped NPC converges on the n = 32, k = 1
+   // pedestal, and for a while they were asserting a coin toss. This case
+   // exists so that they cannot go back to it without saying so.
+   //
+   // It asserts no iteration count. What it asserts is that the count is
+   // INVARIANT under a perturbation of the initial trace far below anything
+   // the discretisation can resolve -- which is the difference between a
+   // number that is a property of the method and a number that is a draw from
+   // round-off. 1e-13 is the size to use because it is well above the 1e-16
+   // the arithmetic supplies on its own and well below the 1e-12 the runs are
+   // converged to, so a configuration off the boundary cannot notice it and
+   // one on the boundary cannot do anything else.
+   //
+   // **Falsified by setting stiff_sigma_n32 back to 0.003 -- in both halves
+   // and at every thread count, which is why the constant is 0.0032:**
+   //
+   //     MKL_NUM_THREADS 1, 2   neither arm converges at all, and the two
+   //                            end states differ by 2.2e-02 relative
+   //     MKL_NUM_THREADS 4, 8   both converge, in 28 steps and in 18
+   //
+   // At 0.0032 both arms take 17 steps and agree to 9.6e-14 relative, on all
+   // sixteen arms of {1,2,4,8} threads crossed with {0, +-1e-13, +1e-12}.
+   //
+   // The reason this matters beyond tidiness is that the failure mode is
+   // silent and reads as someone else's regression: the suite is green until
+   // a timing run pins MKL_NUM_THREADS=1, and then three cases fail with no
+   // library change behind them.
+   PedestalHDG Pa(32, 1, stiff_sigma_n32);
+   PedestalHDG Pb(32, 1, stiff_sigma_n32);
+   for (int i = 0; i < Pb.X.Size(); i++) { Pb.X(i) *= (1.0 + 1e-13); }
+
+   const NPCOutcome a = RunNPC(Pa, 40, true, GM::Assembled);
+   const NPCOutcome b = RunNPC(Pb, 40, true, GM::Assembled);
+   CAPTURE(a.norms.size(), a.norms.back(), b.norms.size(), b.norms.back());
+
+   REQUIRE(a.converged);
+   REQUIRE(b.converged);
+   REQUIRE(a.norms.size() == b.norms.size());
+
+   // And they must reach the same root. The problem has several -- damped NPC
+   // has been watched to land on states of norm 44.923, 44.922 and 44.827 from
+   // the same start under different arms -- so agreeing on the step count
+   // without agreeing on the answer would not be the property wanted here.
+   RequireClose(Pb.sol, Pa.sol, 1e-11);
+}
 
 TEST_CASE("The blocked NPC legs agree with the single-vector legs",
           "[DarcyForm][NonlinearDarcy][HDG][NPC]")
