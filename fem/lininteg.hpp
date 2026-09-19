@@ -106,7 +106,9 @@ public:
 /// Class for domain integration $ L(v) := (f, v) $
 class DomainLFIntegrator : public DeltaLFIntegrator
 {
+#ifndef MFEM_THREAD_SAFE
    Vector shape;
+#endif
    Coefficient &Q;
    int oa, ob;
 public:
@@ -267,7 +269,9 @@ public:
 class VectorDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
+#ifndef MFEM_THREAD_SAFE
    Vector shape, Qvec;
+#endif
    VectorCoefficient &Q;
 
 public:
@@ -508,7 +512,9 @@ private:
    real_t Sign;
    Coefficient *F = nullptr;
    VectorCoefficient *VF = nullptr;
+#ifndef MFEM_THREAD_SAFE
    Vector shape, nor, vf;
+#endif
 
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
@@ -623,7 +629,9 @@ private:
    VectorCoefficient *u = nullptr;
    real_t alpha, beta;
 
+#ifndef MFEM_THREAD_SAFE
    Vector shape;
+#endif
 
 public:
    BoundaryFlowIntegrator(Coefficient &f_, VectorCoefficient &u_,
