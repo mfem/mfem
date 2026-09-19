@@ -145,6 +145,7 @@ jobs:
     # Enable ccache for all jobs except Windows (would need sccache).
     env:
       USE_CCACHE: ${{ matrix.os != 'windows-latest' }}
+      CCACHE_KEY: ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}
 
     steps:
       # Fix 'No space left on device' errors for Ubuntu builds.
@@ -294,17 +295,18 @@ jobs:
           echo "OMPI_CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
           echo "OMPI_CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
 
-      # Restore the compiler cache (ccache). The key embeds the run id, so new
-      # runs save a fresh snapshot; the restore-keys prefix warm-starts from the
-      # most recent prior run (incl. the base branch for PRs).
-      - name: cache ccache
+      # Restore the compiler cache (ccache). All runs restore, but only pushes
+      # save (see "save ccache"). PRs warm-start from the base branch via the
+      # restore-keys prefix without saving their own, so they don't fill up the
+      # 10 GB repo cache limit.
+      - name: restore ccache
         if: ${{ env.USE_CCACHE == 'true' }}
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: .ccache
-          key: ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}-${{ github.run_id }}
+          key: ${{ env.CCACHE_KEY }}-${{ github.run_id }}
           restore-keys: |
-            ccache-${{ matrix.os }}-${{ matrix.build-system }}-${{ matrix.target }}-${{ matrix.mpi }}-${{ matrix.hypre-target }}-${{ matrix.precision }}${{ matrix.enzyme && '-enzyme' || '' }}-
+            ${{ env.CCACHE_KEY }}-
 
       # Configure ccache and select how it is injected into the MFEM build:
       # - make:  set CXX="ccache g++"; for MPI, OMPI_CXX="ccache g++" so mpicxx
@@ -324,7 +326,7 @@ jobs:
             fi
           }
           echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=1G" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=500M" >> $GITHUB_ENV
           echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
           # Ignore header timestamps (restamped by each checkout) so direct mode hits.
           echo "CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime,time_macros" >> $GITHUB_ENV
@@ -362,6 +364,14 @@ jobs:
         if: ${{ env.USE_CCACHE == 'true' }}
         run: ccache -s
         shell: bash
+
+      # Only pushes (master/next) save; see "restore ccache" above.
+      - name: save ccache
+        if: ${{ env.USE_CCACHE == 'true' && github.event_name == 'push' }}
+        uses: actions/cache/save@v5
+        with:
+          path: .ccache
+          key: ${{ env.CCACHE_KEY }}-${{ github.run_id }}
 
       # Run checks (and only checks) on debug targets
       - name: checks
