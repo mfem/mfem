@@ -5179,6 +5179,11 @@ void NormalTraceJumpIntegrator::AssembleFaceMatrix(
 {
    MFEM_VERIFY(trial_face_fe.GetMapType() == FiniteElement::VALUE, "");
 
+#ifdef MFEM_THREAD_SAFE
+   Vector face_shape, normal, shape1_n, shape2_n;
+   DenseMatrix shape1, shape2;
+#endif
+
    const int face_ndof = trial_face_fe.GetDof();
    const int ndof1 = test_fe1.GetDof();
    const int ndof2 = (Trans.Elem2No >= 0)?(test_fe2.GetDof()):(0);
