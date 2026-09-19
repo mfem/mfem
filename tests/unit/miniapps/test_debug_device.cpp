@@ -117,56 +117,94 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    REQUIRE_NOTHROW(y.Read());
 }
 
-TEST_CASE("A non-owning wrap must not de-register its base", "[DebugDevice]")
+TEST_CASE("Alias a per-field view out of its owner, never out of a raw wrap",
+          "[DebugDevice]")
 {
-   // `Vector v(other.GetData() + offset, n)` wraps a raw pointer and owns
-   // nothing, and both Wrap() overloads register only when `own` is set while
-   // h_mt takes GetHostMemoryType() regardless. So under this device, where
-   // that is HOST_DEBUG rather than HOST, such a view is unregistered AND
-   // non-host-typed -- and Memory<T>::Delete() hands exactly that combination
-   // to MemoryManager::Delete_().
+   // **This case previously asserted the opposite and the assertion was
+   // wrong.** It was committed as "A non-owning wrap must not de-register its
+   // base", on the reading -- meq's and then mine -- that Wrap() takes
+   // GetHostMemoryType() regardless of ownership, so Memory<T>::Delete()
+   // computes std_delete == false and forwards to MemoryManager::Delete_.
+   // It does forward, and Delete_ opens
    //
-   // **It is safe, and this case exists to keep it that way rather than to
-   // pin a fix.** Delete_ opens with `if (!mm.exists || !registered) return;`,
-   // so the call is a no-op and nothing is evicted. meq reported the opposite
-   // against their own build -- Device("debug") not surviving a Reconstruct(),
-   // with a backtrace through Write_ saying "host pointer is not registered"
-   // -- and their reading of Wrap() and Delete() is correct in every
-   // particular; the consequence is simply caught one level down HERE. Either
-   // their install predates that guard or the eviction has another source.
-   // Recorded so the next person does not re-derive it: the reasoning is
-   // sound and the conclusion does not follow on this tree.
+   //    if (!mm.exists || !registered) { return; }
    //
-   // **UseDevice stays OFF, and that is load-bearing.** The abort would be in
-   // MemoryManager::Write_ on the HOST class, and Vector::operator=(double)
-   // only takes that path when UseDevice() is false. A first version of this
-   // case set it true, sending the write down the device path instead; it
-   // would have passed whatever Delete() did, which is a case that goes green
-   // for the wrong reason.
+   // so h_mt decides nothing and an unregistered wrap is inert. That much was
+   // right. The conclusion drawn from it -- that the reported eviction cannot
+   // happen here -- was not, and the case as written could not tell, because
+   // it constructed a view and destroyed it untouched. That is the one shape
+   // that is safe.
+   //
+   // What registers the view is Memory<T>::MakeAlias(), which registers an
+   // unregistered BASE whenever the device memory type is a device type, and
+   // Memory<T>::{Read,Write,ReadWrite}, which do the same at any non-HOST
+   // MemoryClass. Register_ sets Registered|OWNS_INTERNAL on the view;
+   // MemoryManager::Insert() emplaces, so an address already registered keeps
+   // its existing entry silently; and the view's destructor then takes
+   // Delete_'s Known branch and erases the pointer. A view that starts at the
+   // owner's base pointer therefore erases the OWNER's entry, and the owner's
+   // next device-registered write aborts in Write_ with "host pointer is not
+   // registered".
+   //
+   // Five arms, measured, each in its own process, Device("debug") against
+   // Device("cpu"):
+   //
+   //    wrap, host-only touch                       survives   survives
+   //    wrap, device-class touch                    ABORTS     survives
+   //    wrap, MakeRef taken out of it               ABORTS     survives
+   //    wrap at an interior offset, + MakeRef       survives   survives
+   //    wrap claiming MemoryType::HOST, + MakeRef   ABORTS     survives
+   //
+   // The interior-offset arm is why the reported failure was a single abort
+   // rather than chaos, and the last arm is why "make Wrap() claim HOST" is
+   // not the fix.
+   //
+   // The routine this came from is DarcyHybridization::ReconstructTotalFlux()
+   // in its neq > 1 form, which is not on this branch; the pin that fails
+   // without the fix lives beside it. What is pinned here is the idiom.
    const int n = 32, nsub = 8;
 
    Vector base(n);
    base = 1.0;
+   const real_t *b_ptr = base.GetData();
+   REQUIRE(mm.IsKnown(b_ptr));
+
+   // The idiom to use: alias out of the OWNER, at whatever offset. A registered
+   // alias is also what syncs, where a raw GetData() is a host read of a
+   // buffer whose live copy may be on the device.
+   {
+      Vector view;
+      view.MakeRef(base, 0, nsub);
+      REQUIRE(view.Size() == nsub);
+      view = 4.0;
+   }
+   REQUIRE(mm.IsKnown(b_ptr));
 
    {
-      // Aliases base's own pointer, and owns none of it.
-      Vector view(base.GetData(), nsub);
+      Vector view;
+      view.MakeRef(base, nsub, nsub);
       REQUIRE(view.Size() == nsub);
+      view = 5.0;
    }
+   REQUIRE(mm.IsKnown(b_ptr));
 
+   // Reached only if the entry survived both: base is registered, so this is
+   // the call that aborts once an entry has been erased.
    base = 2.0;
    REQUIRE(base(0) == MFEM_Approx(2.0));
    REQUIRE(base(n-1) == MFEM_Approx(2.0));
 
-   // An offset view registers as an alias rather than aliasing the base
-   // pointer exactly. Kept because that asymmetry is why the reported failure
-   // was a single abort rather than chaos.
+   // A raw wrap touched on the host alone stays unregistered and so stays
+   // inert. Kept because it is the arm that made the withdrawn claim look
+   // verified, and because it is what licenses the two DenseMatrix reshapes
+   // that remain in that routine.
    {
-      Vector off(base.GetData() + nsub, nsub);
-      REQUIRE(off.Size() == nsub);
+      Vector wrap(base.GetData(), nsub);
+      wrap = 3.0;
    }
-   base = 3.0;
-   REQUIRE(base(0) == MFEM_Approx(3.0));
+   REQUIRE(mm.IsKnown(b_ptr));
+   base = 6.0;
+   REQUIRE(base(0) == MFEM_Approx(6.0));
 }
 
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
