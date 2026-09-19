@@ -9300,6 +9300,19 @@ void DarcyHybridization::ReconstructTotalFlux(
    // constraint matrix puts it.
    DenseMatrix Ct_l, Ct1, Ct2, Ct_own, Mf;
    Vector u1, u2, p1, p2, xf, bf, bf1, bf2, ut_f;
+   // Every per-field view below is an ALIAS of the vector it looks into, and
+   // never `Vector v(other.GetData() + offset, n)`. A raw wrap owns nothing
+   // and is not registered, but Memory<T>::MakeAlias() and a device-class
+   // Read/Write/ReadWrite both REGISTER an unregistered base -- setting
+   // Registered|OWNS_INTERNAL on the view -- after which the view's own
+   // destructor erases the manager entry belonging to whoever really owns
+   // the buffer. For field 0 the view starts at the owner's base pointer, so
+   // it is the owner's entry that goes, and the next element's `b_z = 0.`
+   // aborts in MemoryManager::Write_ with "host pointer is not registered".
+   // Under Device("debug") that killed every Reconstruct(); see the case in
+   // tests/unit/miniapps/test_debug_device.cpp. An alias also syncs, where a
+   // raw GetData() is a host read of a possibly device-valid buffer.
+   Vector bf_e, ut_fe;
    MassIntegrator fbfi;
    DenseMatrixInverse Mfi;
 
@@ -9502,8 +9515,8 @@ void DarcyHybridization::ReconstructTotalFlux(
       Mfi.Factor(Mf);
       for (int e = 0; e < neq; e++)
       {
-         const Vector bf_e(bf.GetData() + e * nd_cf, nd_cf);
-         Vector ut_fe(ut_f.GetData() + e * nd_utf, nd_utf);
+         bf_e.MakeRef(bf, e * nd_cf, nd_cf);
+         ut_fe.MakeRef(ut_f, e * nd_utf, nd_utf);
          Mfi.Mult(bf_e, ut_fe);
       }
       if (ftr->Elem2No >= 0)
@@ -9532,6 +9545,7 @@ void DarcyHybridization::ReconstructTotalFlux(
    Vector shape_u, shape_ut, shape_p;
    Vector u_q(neq * dim), ut_q(neq * dim), p_q(neq);
    Vector u_z, p_z, b_z, b_zi, ut_zb, ut_zi;
+   Vector u_ze, u_qe, ut_qe, b_ze;
    DenseMatrixInverse Muti_zi;
 
    for (int z = 0; z < fes.GetNE(); z++)
@@ -9598,8 +9612,8 @@ void DarcyHybridization::ReconstructTotalFlux(
             fe_u->CalcVShape(*Tr, vshape_u);
             for (int e = 0; e < neq; e++)
             {
-               const Vector u_ze(u_z.GetData() + e * nd_u, nd_u);
-               Vector u_qe(u_q.GetData() + e * dim, dim);
+               u_ze.MakeRef(u_z, e * nd_u, nd_u);
+               u_qe.MakeRef(u_q, e * dim, dim);
                vshape_u.MultTranspose(u_ze, u_qe);
             }
          }
@@ -9609,6 +9623,13 @@ void DarcyHybridization::ReconstructTotalFlux(
             // component e*dim+d is field e's d-th. One reshape covers every
             // field at once, and at neq == 1 it is the reshape that was here.
             fe_u->CalcPhysShape(*Tr, shape_u);
+            // A reshape rather than an alias, and inert for the reason the
+            // note above gives: nothing takes a MakeRef out of it and
+            // DenseMatrix's products are host-only, so this wrap is never
+            // registered. Measured -- restoring the raw Vector wrap here
+            // keeps the debug-device case green while restoring the one the
+            // elimination aliases out of fails it. Anything added here that
+            // aliases or reaches a device class makes it live.
             DenseMatrix u_zm(u_z.GetData(), nd_u, neq * dim);
             u_zm.MultTranspose(shape_u, u_q);
          }
@@ -9626,9 +9647,9 @@ void DarcyHybridization::ReconstructTotalFlux(
          const real_t w = ip.weight * Tr->Weight();
          for (int e = 0; e < neq; e++)
          {
-            const Vector ut_qe(ut_q.GetData() + e * dim, dim);
+            ut_qe.MakeRef(ut_q, e * dim, dim);
             vshape_ut.Mult(ut_qe, shape_ut);
-            Vector b_ze(b_z.GetData() + e * nd_ut, nd_ut);
+            b_ze.MakeRef(b_z, e * nd_ut, nd_ut);
             b_ze.Add(w, shape_ut);
          }
       }
@@ -9654,10 +9675,10 @@ void DarcyHybridization::ReconstructTotalFlux(
 
       for (int e = 0; e < neq; e++)
       {
-         vdofs_ut_b.MakeRef(vdofs_ut.GetData() + e * nd_ut, nbdofs);
+         vdofs_ut_b.MakeRef(vdofs_ut.GetMemory(), e * nd_ut, nbdofs);
          ut.GetSubVector(vdofs_ut_b, ut_zb);
 
-         Vector b_ze(b_z.GetData() + e * nd_ut, nd_ut);
+         b_ze.MakeRef(b_z, e * nd_ut, nd_ut);
          for (int j = 0; j < nbdofs; j++)
          {
             for (int i = 0; i < nidofs; i++)
@@ -9669,10 +9690,10 @@ void DarcyHybridization::ReconstructTotalFlux(
          //solve for the interior dofs
 
          ut_zi.SetSize(Mut_zi.Width());
-         b_zi.MakeRef(b_ze, nbdofs, nidofs);
+         b_zi.MakeRef(b_z, e * nd_ut + nbdofs, nidofs);
          Muti_zi.Mult(b_zi, ut_zi);
 
-         vdofs_ut_i.MakeRef(vdofs_ut.GetData() + e * nd_ut + nbdofs, nidofs);
+         vdofs_ut_i.MakeRef(vdofs_ut.GetMemory(), e * nd_ut + nbdofs, nidofs);
          ut.SetSubVector(vdofs_ut_i, ut_zi);
       }
    }

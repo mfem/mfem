@@ -119,6 +119,69 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    REQUIRE_NOTHROW(y.Read());
 }
 
+TEST_CASE("The system total-flux reconstruction survives a debug device",
+          "[DebugDevice]")
+{
+   // ReconstructTotalFlux()'s element-interior block builds one view per
+   // field as `Vector b_ze(b_z.GetData() + e * nd_ut, nd_ut)` and then takes
+   // `b_zi.MakeRef(b_ze, nbdofs, nidofs)` out of it. For e == 0 the view
+   // wraps b_z's own base pointer, and Memory<T>::MakeAlias() REGISTERS an
+   // unregistered base whenever the device memory type is a device type --
+   // which sets Registered|OWNS_INTERNAL on the view, so the view's
+   // destructor erases the manager entry belonging to b_z. The next
+   // element's `b_z = 0.` then aborts in MemoryManager::Write_ with
+   // "host pointer is not registered".
+   //
+   // Reported by meq against their own build. Only the two branches carrying
+   // the neq > 1 reconstruction have those views: the trunk's scalar version
+   // aliases b_z itself, which is registered, and is unaffected.
+   const int order = 1, nx = 3;
+
+   Mesh mesh = Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   const int dim = mesh.Dimension();
+
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, &u_coll, dim), fes_p(&mesh, &p_coll);
+
+   ConstantCoefficient one(1.0);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x.Randomize(1);
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   // The total flux carries the element interior at RT order >= 1, which is
+   // where the views are; nothing here needs the solve, the fault being in
+   // the memory manager rather than in the arithmetic.
+   RT_FECollection ut_coll(order, dim);
+   FiniteElementSpace fes_ut(&mesh, &ut_coll);
+   GridFunction ut(&fes_ut);
+   ut = 0.0;
+
+   DarcyHybridization *h = darcy.GetHybridization();
+   REQUIRE_NOTHROW(h->ReconstructTotalFlux(
+                      x, X, [](ElementTransformation &, const Vector &u,
+   const Vector &, Vector &t) { t = u; }, ut));
+   REQUIRE(ut.CheckFinite() == 0);
+}
+
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 {
    // If MFEM_MEMORY is set, we can start with some non-empty maps,
