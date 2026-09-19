@@ -148,7 +148,18 @@
 // 3.766 s at eight threads): with only ~1 s of 3.7 s inside a parallel
 // region, idle threads spin at barriers, and a profile of the default run
 // puts **24.7% of its samples in libgomp** -- the largest single DSO, ahead
-// of UMFPACK. And `-lfac 1` on the HOST is a pessimisation, not an
+// of UMFPACK.
+//
+// **The SIGN of that one is not universal, and it is the fraction inside a
+// parallel region that decides it.** meq measured the same variable at
+// **-1.5%** on their Grad-Shafranov solve -- four interleaved pairs, medians
+// 4.965 s default against 5.040 s passive, passive slower in all four -- with
+// the same CPU saving in the same shape, 308% to 188%. Their threaded legs
+// are about 30% of a solve against this harness's ~1 s of 3.7 s, so there is
+// far less barrier idling to reclaim and the cost of waking threads is paid
+// against a smaller gain. Measure it on the workload before setting it.
+//
+// And `-lfac 1` on the HOST is a pessimisation, not an
 // optimisation: it takes computeH from 0.418 s to 1.075 s and stops it
 // scaling, because the batched route replaces an OpenMP loop with an
 // `mfem::forall` that is serial on `-d cpu`.
