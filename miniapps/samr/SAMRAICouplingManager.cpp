@@ -411,7 +411,11 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
       Array<Refinement> refinements(refine_element_inds.Size());
       Vector scale = ToVector(level_ratio);
       scale.Reciprocal();
-      scale.Reserve(3); // this enables 3D scale vector for 2D refinement
+      if (scale.Size() < 3) // this enables 3D scale vector for 2D refinement
+      {
+         scale.Reserve(3);
+         scale.SetSize(3);
+      }
       for (int i=0; i < refinements.Size(); i++)
       {
          refinements[i] = Refinement(refine_element_inds[i],
