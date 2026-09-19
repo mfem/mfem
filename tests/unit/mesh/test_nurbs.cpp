@@ -617,8 +617,8 @@ TEST_CASE("NURBS removal preserves corrected left control points", "[NURBS]")
          for (int component = 0; component < 3; ++component)
          {
 	   if (!(patch(i, j, component) ==
-		 MFEM_Approx(original(i, j, component)))
-	       matching = false;
+		 MFEM_Approx(original(i, j, component))))
+	     matching = false;
          }
       }
    }
