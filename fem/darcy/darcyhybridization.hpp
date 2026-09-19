@@ -576,6 +576,7 @@ private:
    AssemblyMode asm_mode{AssemblyMode::Serial};
    LocalFactorMode lfac_mode{LocalFactorMode::Serial};
    TraceAssemblyMode tasm_mode{TraceAssemblyMode::Serial};
+   bool integ_thread_safe{false};
 
    mutable long num_local_nl_iters{0};
 
@@ -1139,6 +1140,29 @@ private:
        sharing ReduceRHS()/ComputeSolution(): those two apply the LINEAR (0,1)
        block and negate the potential block on the way in, both right for a
        linear system and wrong for a Jacobian. */
+   /** @brief Does MultNL()'s element loop EVALUATE an integrator, for @a mode
+       and this configuration?
+
+       This is the whole of the thread-safety question, and it took a reply
+       from meq to get it right -- see SetIntegratorsThreadSafe(). Everything
+       in that loop is dense linear algebra on blocks that are already
+       assembled, with exactly seven exceptions, and they are the only things
+       a second thread can collide inside: @a m_nlfi, @a m_nlfi_u and
+       @a m_nlfi_p per element, and @a c_nlfi, @a c_nlfi_p and the two
+       boundary_constraint_*_nonlin_integs arrays per face.
+
+       The old predicate for this was `!CopyLinearGradBlocks()`, and it was
+       wrong in BOTH directions. It over-refused because that routine declines
+       for reasons that have nothing to do with a live integrator -- most of
+       all LocalOpType::PotNL and FluxNL, where the local block is prefactored
+       and ConstructGrad() deliberately leaves it alone, copying
+       Af_lin_data/Df_lin_data rather than assembling anything. And it
+       under-refused twice over: the RESIDUAL and local-solve modes evaluate
+       the same integrators through LocalNLOperator and were never asked
+       about, and ConstructGrad()'s face branches run whatever the cache did,
+       so a nonlinear face constraint raced with the cache satisfied. */
+   bool ThreadedLoopEvaluatesIntegrators(MultNlMode mode, bool ad_done) const;
+
    void MultNL(MultNlMode mode, const Vector &bu, const Vector &bp,
                const Vector &x, Vector &y,
                BlockVector *r_local = nullptr) const;
@@ -1860,12 +1884,29 @@ public:
        the derivative of the residual.
 
        **What decides whether the shared integrators are reached at all is
-       `CopyLinearGradBlocks()`.** When it succeeds (`ad_done`), ConstructGrad
-       copies cached blocks and never calls them, which is why problems 1 and
-       2 thread correctly and agree with serial to every digit. When it
-       declines -- problem 6 does, because the Burgers face constraint makes
-       the residual uncacheable -- the per-element call is live and the race
-       is on.
+       ThreadedLoopEvaluatesIntegrators(), and this paragraph used to name
+       `CopyLinearGradBlocks()` instead -- which was wrong in both
+       directions.** meq reported the over-refusing half against their own
+       solver, and it was then found in this repository's own
+       test_darcy_threaded_assembly.cpp, whose nonlinear case the refusal had
+       silently stopped: that routine also declines for LocalOpType::PotNL and
+       FluxNL, where the local block is PREFACTORED and ConstructGrad()
+       deliberately leaves it alone, copying Af_lin_data / Df_lin_data with no
+       integrator in sight. Under-refusing was the other half, twice over --
+       the residual and local-solve modes reach the same integrators through
+       LocalNLOperator and were never asked about, and ConstructGrad()'s face
+       branches run whatever the cache did, so a nonlinear face constraint
+       raced with `ad_done` satisfied.
+
+       The question that actually separates safe from unsafe is whether the
+       loop EVALUATES an integrator, and seven handles are all it can reach:
+       @a m_nlfi, @a m_nlfi_u and @a m_nlfi_p per element, @a c_nlfi,
+       @a c_nlfi_p and the two boundary_constraint_*_nonlin_integs arrays per
+       face. Everything else in that loop is dense linear algebra on blocks
+       that are already assembled. Problems 1 and 2 thread correctly and agree
+       with serial to every digit because theirs are cached; problem 6's are
+       live, because the Burgers face constraint makes the residual
+       uncacheable.
 
        **No small critical section fixes it, and that was measured rather
        than assumed**: serialising `ConstructGrad` in full, or the integrator
@@ -1873,23 +1914,33 @@ public:
        still gives the wrong answer; only serialising the WHOLE loop iteration
        restores the serial result. The fix is one integrator instance per
        thread, or thread-safe guards upstream -- not a lock. Until then, treat
-       Threaded as unsafe for any configuration in which
-       CopyLinearGradBlocks() declines.
+       Threaded as unsafe for any configuration whose element loop evaluates
+       an integrator you have not read.
 
        **So the "identical to every digit at every thread count" claim below
        holds for the configurations it was measured on and is NOT general.**
 
        **This is now REFUSED rather than left to corrupt, and the refusal is
        in MultNL() rather than here.** It belongs here by rights, being a
-       property of the mode; it cannot live here because the answer comes from
-       CopyLinearGradBlocks(), which reads A_empty, D_empty, the block array
-       sizes and the residual cache -- none of which exist until Assemble()
-       has run. Asked at this point it would answer for a route that then
-       fires, which is the trap this class has already paid for with
-       CanBatchLinearResidual(). So a caller that sets Threaded on an unsafe
-       configuration gets an abort naming this method at the first gradient,
+       property of the mode; it cannot live here because the answer depends on
+       @a ad_done, which comes from CopyLinearGradBlocks(), which reads
+       A_empty, D_empty, the block array sizes and the residual cache -- none
+       of which exist until Assemble() has run. Asked at this point it would
+       answer for a route that then fires, which is the trap this class has
+       already paid for with CanBatchLinearResidual(). So a caller that sets
+       Threaded on an unsafe configuration gets an abort naming this method,
        not a wrong answer. ParMultNL() delegates to MultNL(), so the one guard
        covers the parallel path too.
+
+       **A caller who has read their integrators can say so and be believed:
+       SetIntegratorsThreadSafe().** That is the whole escape, and it is a
+       promise rather than a setting -- MFEM offers no way to ask an
+       integrator whether it is reentrant, its `#ifndef MFEM_THREAD_SAFE`
+       convention being a BUILD switch that 67 of the 99 scratch-carrying
+       classes do not use at all. So the library can see exactly WHICH objects
+       it will evaluate and nothing about whether they are safe. Off by
+       default, because the default decides what happens to a caller who never
+       read any of this.
 
        **Measured, on the pedestal problem at (n, k) = (32,1), (48,2), (64,2)
        and (32,3), speedup at 8 threads against the serial mode:**
@@ -1913,6 +1964,67 @@ public:
 
    /// The mode set by SetAssemblyMode().
    AssemblyMode GetAssemblyMode() const { return asm_mode; }
+
+   /** @brief Assert that every nonlinear integrator installed on the forms
+       this hybridization reads is safe to evaluate from several threads at
+       once, licensing AssemblyMode::Threaded where it would otherwise be
+       refused.
+
+       **This is a promise by the caller and the library cannot check it.**
+       What is being promised is specific: that concurrent calls to
+       AssembleElementVector(), AssembleElementGrad(), AssembleHDGFaceVector()
+       and AssembleHDGFaceGrad() on the SAME integrator object do not share
+       mutable state. Seven handles can reach the threaded element loop --
+       the flux-mass, potential-mass and block nonlinear integrators per
+       element, and the two face constraint integrators and their two boundary
+       arrays per face -- and only those need to hold the promise. A LINEAR
+       integrator is never evaluated in that loop, so `c_bfi_p` and the flux
+       mass BilinearForm are outside it whatever they hold.
+
+       **Why this exists rather than a predicate that decides for you.**
+       MFEM has no way to ask an integrator whether it is reentrant. Its
+       convention is to wrap scratch in `#ifndef MFEM_THREAD_SAFE`, which is a
+       BUILD switch and not a property of the class, and 67 of the 99
+       integrator classes that carry scratch do not use it at all --
+       VectorMassIntegrator, MassIntegrator and DiffusionIntegrator among them,
+       where VectorFEMassIntegrator, ConvectionIntegrator and
+       HyperbolicFormIntegrator do. So the library can see exactly WHICH
+       objects it will evaluate, which is
+       ThreadedLoopEvaluatesIntegrators(), and nothing at all about whether
+       they are safe. The caller knows; this is where the caller says so.
+
+       **Measured, on why the refusal is not merely cautious.**
+       `convdiff -p 6 -nl -thr` returns NaN deterministically at two threads
+       and above, from a flux block that is right on one thread and
+       differently wrong on four, and serialising every integrator call does
+       not repair it. The honest fix is one integrator instance per thread,
+       which MFEM has no facility for.
+
+       Off by default, so nothing that ran before this existed changes. */
+   void SetIntegratorsThreadSafe(bool yes = true) { integ_thread_safe = yes; }
+
+   /// The promise made by SetIntegratorsThreadSafe(), false unless made.
+   bool GetIntegratorsThreadSafe() const { return integ_thread_safe; }
+
+   /** @brief Can MultNL()'s element loop evaluate a nonlinear integrator at
+       all, for any mode? Equivalently: does AssemblyMode::Threaded need
+       SetIntegratorsThreadSafe() on this problem?
+
+       Exactly seven handles can be reached from that loop -- the flux-mass,
+       potential-mass and block nonlinear integrators per element, and the two
+       face constraint integrators and their two boundary arrays per face --
+       and this asks whether any of them is installed. Everything else in the
+       loop is dense linear algebra on blocks that are already assembled, and
+       a LINEAR integrator is never evaluated there at all, so `c_bfi_p` and
+       the flux mass BilinearForm do not count however much scratch they hold.
+
+       It is the worst case over modes and over the state of the linear-block
+       cache, which is what a caller deciding on a mode wants: false means
+       Threaded is safe here whatever the integrators are, true means the
+       promise is needed. The refusal itself is finer -- it also knows the
+       mode and whether CopyLinearGradBlocks() succeeded -- and cannot be
+       asked before Assemble() has run, which is why this one exists. */
+   bool ElementLoopEvaluatesIntegrators() const;
 
    /** @brief Whether AssemblyMode::Batched's face kernel would actually be
        taken, which is a much narrower question than whether it was asked for.

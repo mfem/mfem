@@ -5637,6 +5637,52 @@ Operator &DarcyHybridization::ReducedGradient(MultNlMode mode,
    return *pGrad;
 }
 
+bool DarcyHybridization::ElementLoopEvaluatesIntegrators() const
+{
+   return (m_nlfi || m_nlfi_u || m_nlfi_p
+           || c_nlfi_p || c_nlfi
+           || !boundary_constraint_nonlin_integs.empty()
+           || !boundary_constraint_pot_nonlin_integs.empty());
+}
+
+bool DarcyHybridization::ThreadedLoopEvaluatesIntegrators(
+   MultNlMode mode, bool ad_done) const
+{
+   // GradMult applies the assembled Jacobian and nothing else: MultInv() on
+   // factored blocks, and the face term is excluded there by name because
+   // ConstructGrad() has already seeded E, G and H with it.
+   if (mode == MultNlMode::GradMult) { return false; }
+
+   // Per face, in ConstructGrad() and in LocalNLOperator alike. The two
+   // boundary arrays are only reachable today through their c_nlfi_p /
+   // c_nlfi branch, so naming them separately refuses nothing extra now and
+   // keeps this true if that ever changes.
+   const bool face_nl = (c_nlfi_p || c_nlfi
+                         || !boundary_constraint_nonlin_integs.empty()
+                         || !boundary_constraint_pot_nonlin_integs.empty());
+
+   // Per element.
+   const bool elem_nl = (m_nlfi || m_nlfi_u || m_nlfi_p);
+
+   MFEM_ASSERT(ElementLoopEvaluatesIntegrators() == (elem_nl || face_nl),
+               "the public worst case must bound the per-mode answer");
+
+   if (mode == MultNlMode::Grad || mode == MultNlMode::GradAtFields)
+   {
+      // ConstructGrad(). @a ad_done silences the ELEMENT branches only -- it
+      // makes them copy Af_lin_data/Df_lin_data -- and the face branches run
+      // regardless, which is the half the old predicate could not see.
+      return face_nl || (!ad_done && elem_nl);
+   }
+
+   // Mult, Sol and AtFields all reach LocalNLOperator, which evaluates the
+   // element integrators on every application and the face ones on every
+   // face. AtFields does it once per element; Sol does it once per local
+   // Newton iteration, which is where this is most expensive and most likely
+   // to be running.
+   return elem_nl || face_nl;
+}
+
 void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                                 const Vector &bp, const Vector &x, Vector &y,
                                 BlockVector *r_local) const
@@ -5730,32 +5776,41 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                                 mode == MultNlMode::Grad);
    const bool ad_done = grad_mode_pass && CopyLinearGradBlocks();
 
-   // **The threaded element loop is only safe when ad_done, and this is where
-   // that can first be asked.** It belongs on SetAssemblyMode() by rights --
-   // it is a property of the mode -- and it cannot live there: ad_done comes
-   // from CopyLinearGradBlocks(), which reads A_empty, D_empty, the block
-   // array sizes and the residual cache, none of which exist until Assemble()
-   // has run. This file already records what happens when a predicate is
-   // asked before the state it describes: it answers for a route that then
-   // fires, and a diagnostic printed before its state is worse than none.
+   // **The threaded element loop is safe exactly when it evaluates no
+   // integrator, and this is where that can first be asked.** It belongs on
+   // SetAssemblyMode() by rights -- it is a property of the mode -- and it
+   // cannot live there: ad_done comes from CopyLinearGradBlocks(), which
+   // reads A_empty, D_empty, the block array sizes and the residual cache,
+   // none of which exist until Assemble() has run. This file already records
+   // what happens when a predicate is asked before the state it describes.
    //
-   // WHY ad_done IS THE DISCRIMINATOR. When it holds, ConstructGrad() copies
-   // cached blocks and never calls the shared m_nlfi_u / m_nlfi_p / c_nlfi_p
-   // per element. When it does not, every thread evaluates the SAME
-   // integrator object, and MFEM's integrators are not uniformly thread-safe
-   // -- VectorMassIntegrator, MassIntegrator and DiffusionIntegrator hold
-   // their scratch as plain members with no #ifndef MFEM_THREAD_SAFE, where
+   // WHY AN INTEGRATOR IS THE DISCRIMINATOR. Everything else in the loop is
+   // dense linear algebra on blocks that are already assembled. An integrator
+   // call is the one place two threads meet in an object neither of them
+   // owns, and MFEM's integrators are not uniformly thread-safe:
+   // VectorMassIntegrator, MassIntegrator and DiffusionIntegrator hold their
+   // scratch as plain members with no #ifndef MFEM_THREAD_SAFE, where
    // VectorFEMassIntegrator, ConvectionIntegrator and HyperbolicFormIntegrator
    // guard theirs. 67 of the 99 integrator classes that carry scratch are
-   // unguarded, and a caller cannot tell which is which without reading the
-   // class.
+   // unguarded, and the library cannot tell which is which -- so it refuses,
+   // and SetIntegratorsThreadSafe() is how a caller who KNOWS says so.
+   //
+   // **This predicate replaced `!ad_done`, which was wrong in both
+   // directions, and meq is who caught it.** It over-refused, because
+   // CopyLinearGradBlocks() also declines for LocalOpType::PotNL and FluxNL
+   // -- where the local block is prefactored and ConstructGrad() copies
+   // Af_lin_data/Df_lin_data rather than assembling -- which aborted every
+   // run of a consumer whose only live integrator was its own reentrant one.
+   // And it under-refused, twice: the residual and local-solve modes evaluate
+   // the same integrators through LocalNLOperator and were never asked about,
+   // and ConstructGrad()'s face branches run whatever the cache did.
    //
    // Measured: `convdiff -p 6 -nl -thr` returns NaN deterministically at two
    // threads and above, from a flux block that is right on one thread and
-   // differently wrong on four; `-p 1` and `-p 2` take the cached path and
-   // agree with serial to every digit. Serialising every integrator call does
-   // NOT repair it, so this refuses rather than locking -- the honest fix is
-   // one integrator instance per thread, which MFEM has no facility for.
+   // differently wrong on four; `-p 1` and `-p 2` agree with serial to every
+   // digit. Serialising every integrator call does NOT repair it, so this
+   // refuses rather than locking -- the honest fix is one integrator instance
+   // per thread, which MFEM has no facility for.
    //
    // ABORTS rather than falling back to the serial loop, which is
    // SetAssemblyMode()'s own convention: a caller asking for Threaded is
@@ -5771,7 +5826,8 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
    // ENVIRONMENT variable: the same binary and the same flags are safe at
    // OMP_NUM_THREADS=1 and corrupt at 2, and a silent pass at one thread
    // would read as a licence for the configuration rather than for the run.
-   if (threaded && grad_mode_pass && !ad_done)
+   if (threaded && !integ_thread_safe
+       && ThreadedLoopEvaluatesIntegrators(mode, ad_done))
    {
 #ifdef MFEM_USE_OPENMP
       const bool can_race = (omp_get_max_threads() > 1);
@@ -5779,14 +5835,15 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       const bool can_race = false;
 #endif
       MFEM_VERIFY(!can_race,
-                  "AssemblyMode::Threaded is unsafe for this problem: the "
-                  "local gradient blocks cannot be taken from the linear "
-                  "cache, so the shared mass and constraint integrators are "
-                  "evaluated once per element on several threads at once. "
-                  "MFEM's integrators are not uniformly thread-safe and this "
-                  "silently corrupts the Jacobian -- see SetAssemblyMode(). "
-                  "Use AssemblyMode::Serial, or install integrators whose "
-                  "scratch is under #ifndef MFEM_THREAD_SAFE.");
+                  "AssemblyMode::Threaded is unsafe for this problem: this "
+                  "element loop evaluates a nonlinear integrator per element "
+                  "or per face, so the same integrator object is entered by "
+                  "several threads at once. MFEM's integrators are not "
+                  "uniformly thread-safe and this silently corrupts the "
+                  "Jacobian -- see SetAssemblyMode(). Use "
+                  "AssemblyMode::Serial, or, if you have checked that the "
+                  "integrators you installed are reentrant, say so with "
+                  "SetIntegratorsThreadSafe().");
       static bool warned = false;
       if (!warned)
       {
@@ -5794,7 +5851,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          MFEM_WARNING("AssemblyMode::Threaded is unsafe for this problem and "
                       "is running only because there is one thread. It will "
                       "corrupt the Jacobian at OMP_NUM_THREADS > 1; see "
-                      "SetAssemblyMode().");
+                      "SetAssemblyMode() and SetIntegratorsThreadSafe().");
       }
    }
 

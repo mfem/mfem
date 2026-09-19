@@ -263,8 +263,13 @@ struct NLOutcome
    long local_nl_iters = 0;
 };
 
+/// @a integ_thread_safe is a parameter and not a constant so that the case
+/// which checks the REFUSAL can build the identical problem without the
+/// promise; see "A threaded element loop that evaluates an integrator is
+/// refused".
 NLOutcome EvaluateNL(Mesh &mesh, int order,
-                     DarcyHybridization::AssemblyMode mode)
+                     DarcyHybridization::AssemblyMode mode,
+                     bool integ_thread_safe = true)
 {
    const int dim = mesh.Dimension();
    L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
@@ -299,6 +304,14 @@ NLOutcome EvaluateNL(Mesh &mesh, int order,
    // Tight, so the local solve is not itself a source of disagreement.
    dh.SetLocalNLSolver(DarcyHybridization::LSsolveType::Newton, 100, 1e-12,
                        1e-16, -1);
+   // **CubeSource is reentrant, and that is checkable rather than hoped for:
+   // its only member is the read-only `c` and its `shape` is a local, so two
+   // threads inside AssembleElementVector() share nothing.** The HDG face
+   // integrators on Mnl_p are BilinearFormIntegrators and land on the linear
+   // c_bfi_p route, which the element loop never evaluates. So the promise
+   // below is true of this fixture, and without it AssemblyMode::Threaded is
+   // refused -- see the case that checks exactly that.
+   dh.SetIntegratorsThreadSafe(integ_thread_safe);
    dh.SetAssemblyMode(mode);
    darcy.Assemble();
 
@@ -557,6 +570,110 @@ TEST_CASE("A threaded nonlinear element loop is bit-for-bit the serial one",
         "deprecated MFEM_USE_LEGACY_OPENMP forces it -- so this case is "
         "inert unless someone configures for it deliberately.");
 #endif
+}
+
+TEST_CASE("The threaded refusal asks which integrators the loop evaluates",
+          "[DarcyHybridization][AssemblyMode]")
+{
+   // The predicate behind the refusal, pinned where it can actually run --
+   // the abort itself needs MFEM_USE_EXCEPTIONS to be catchable and no tree
+   // here sets it, so what is asserted is the DECISION rather than the
+   // MFEM_VERIFY downstream of it.
+   //
+   // WHY THIS IS NOT A FORMALITY. It replaced `!CopyLinearGradBlocks()`,
+   // which was wrong in both directions. Over-refusing aborted "A threaded
+   // nonlinear element loop is bit-for-bit the serial one" above, whose
+   // CubeSource is reentrant and whose fixture was safe -- that routine
+   // declines for LocalOpType::PotNL whatever the integrators are, and meq
+   // reported the same against their own solver before it was noticed here.
+   // Under-refusing was worse and quieter: it asked only on GRADIENT passes,
+   // so every residual pass threaded whatever it liked, and this repository's
+   // own hdgperf was measured at eight threads while evaluating a
+   // VectorMassIntegrator -- one of the three MFEM classes whose scratch is
+   // NOT under #ifndef MFEM_THREAD_SAFE -- once per element.
+   //
+   // THE THIRD ROW IS THE ONE THAT SURPRISED. A face integrator added to the
+   // potential mass NONLINEAR form is usually folded onto the linear c_bfi_p
+   // route, where the element loop never evaluates it. Whether it is depends
+   // on FaceIntegratorsAreLinear(), which also asks whether there is
+   // nonlinearity ELSEWHERE -- so with no nonlinear domain term the same
+   // integrator stays on c_nlfi_p and IS evaluated per face. Measured, not
+   // assumed: the arms below were read out of the live handles.
+   struct Arm { const char *what; bool domain_nl; bool face; bool expect; };
+   const Arm arm = GENERATE(
+                      Arm{"nothing nonlinear",          false, false, false},
+                      Arm{"a nonlinear domain source",  true,  false, true},
+                      Arm{"face integrators only",      false, true,  true});
+   CAPTURE(arm.what, arm.domain_nl, arm.face);
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   L2_FECollection ucoll(1, 2, BasisType::GaussLobatto), pcoll(1, 2);
+   DG_Interface_FECollection tcoll(1, 2);
+   FiniteElementSpace Vh(&mesh, &ucoll, 2), Wh(&mesh, &pcoll), Mh(&mesh, &tcoll);
+   ConstantCoefficient one(1.0);
+   DarcyForm darcy(&Vh, &Wh);
+
+   // On the BILINEAR form, so it is linear and the element loop never
+   // evaluates it however much scratch it holds. That it is a
+   // VectorMassIntegrator is deliberate: the same class on the NONLINEAR
+   // flux mass is what hdgperf was threading.
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   // GetPotentialMassNonlinearForm() CONSTRUCTS the form, so the first arm
+   // must not ask for it at all -- see the accessor's own note.
+   if (arm.domain_nl || arm.face)
+   {
+      NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+      if (arm.domain_nl) { Mnl_p->AddDomainIntegrator(new CubeSource(1.0)); }
+      if (arm.face)
+      {
+         Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+         Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0), all);
+      }
+   }
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   B->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization &dh = *darcy.GetHybridization();
+
+   REQUIRE(dh.ElementLoopEvaluatesIntegrators() == arm.expect);
+
+   // And the promise does not change what the loop DOES, only whether it is
+   // allowed to run threaded. Asserting that keeps the two from being
+   // conflated, which is exactly how the old predicate went wrong.
+   dh.SetIntegratorsThreadSafe(true);
+   REQUIRE(dh.ElementLoopEvaluatesIntegrators() == arm.expect);
+}
+
+TEST_CASE("Integrators are not assumed thread-safe",
+          "[DarcyHybridization][AssemblyMode]")
+{
+   // The default is the safe one, and it is the default that decides what
+   // happens to a caller who never read SetIntegratorsThreadSafe(). Runs in
+   // every build, unlike the two cases above, because it turns nothing on.
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   L2_FECollection ucoll(1, 2), pcoll(1, 2);
+   DG_Interface_FECollection tcoll(1, 2);
+   FiniteElementSpace Vh(&mesh, &ucoll, 2), Wh(&mesh, &pcoll), Mh(&mesh, &tcoll);
+   DarcyForm darcy(&Vh, &Wh);
+   Array<int> ess;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess);
+   DarcyHybridization &dh = *darcy.GetHybridization();
+
+   REQUIRE_FALSE(dh.GetIntegratorsThreadSafe());
+   dh.SetIntegratorsThreadSafe();
+   REQUIRE(dh.GetIntegratorsThreadSafe());
+   dh.SetIntegratorsThreadSafe(false);
+   REQUIRE_FALSE(dh.GetIntegratorsThreadSafe());
 }
 
 TEST_CASE("Serial assembly mode is the default",

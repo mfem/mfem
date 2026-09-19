@@ -130,11 +130,25 @@
 // -gm 0`, MKL_NUM_THREADS=1, seconds, and the point is which columns move:
 //
 //     threads        1       2       4       8     speedup
-//     setup       0.465   0.426   0.423   0.416     1.12x   <-- flat
-//     computeH    0.880   0.609   0.471   0.418     2.11x
-//     npctrav     0.195   0.106   0.057   0.050     3.90x
-//     remainder   2.918   2.880   2.834   2.831     1.03x   <-- flat
-//     total       4.458   4.021   3.785   3.715     1.20x
+//     setup       0.371   0.365   0.376   0.374     0.99x   <-- flat
+//     computeH    0.857   0.557   0.438   0.457     1.88x
+//     npctrav     0.181   0.096   0.063   0.044     4.11x
+//     remainder   3.759   3.272   2.901   2.751     1.37x
+//     total       5.168   4.290   3.778   3.626     1.43x
+//
+// **This table was RE-TAKEN, and the first one was measured on a
+// configuration that was racing.** Before the refusal in MultNL() learnt to
+// ask about residual passes, `-lin -thr` threaded a VectorMassIntegrator on
+// the NONLINEAR flux mass -- one of the three MFEM classes whose scratch is
+// unguarded -- once per element on every thread. Nothing caught it because
+// the old predicate asked only about gradient passes. `-lin` now puts that
+// integrator on the LINEAR form, where the element loop never evaluates it,
+// and the harness says so with SetIntegratorsThreadSafe(). The column that
+// this was supposed to be about survives the correction -- npctrav 3.90x
+// became 4.11x -- and the new table carries a check the old one did not:
+// **err_t is 5.691711e-12 at 1, 2, 4 and 8 threads, identical**, which is
+// the assertion that the configuration being timed is one whose answer does
+// not depend on the thread count.
 //
 // `npctrav` is NPCReduce + NPCRecover, threaded this session and previously
 // the flattest column on the table. What is left flat is the two ends:
@@ -535,8 +549,29 @@ int main(int argc, char *argv[])
 
       // -nl puts the flux mass on the NONLINEAR slot; that is what makes the
       // local operator nonlinear and is not incidental to the measurement.
-      NonlinearForm *Mqnl = darcy.GetFluxMassNonlinearForm();
-      Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+      //
+      // **-lin puts it on the LINEAR one instead, and without that -lin does
+      // not do the job it was added for.** The integrator here is a
+      // VectorMassIntegrator, one of the three MFEM classes that hold their
+      // scratch as plain members with no #ifndef MFEM_THREAD_SAFE; on the
+      // nonlinear slot it is evaluated once per element inside MultNL()'s
+      // threaded loop, so -thr ran it on eight threads at once. That is the
+      // race SetAssemblyMode() describes, and the refusal in MultNL() now
+      // declines it -- correctly, and it used to be waved through because the
+      // old predicate asked only about GRADIENT passes and this is reached on
+      // every residual pass too. On the linear form nothing in the element
+      // loop evaluates it, whatever scratch it holds, so the -lin arm is
+      // threadable in fact and not just in intent.
+      if (linear_problem)
+      {
+         darcy.GetFluxMassForm()->AddDomainIntegrator(
+            new VectorMassIntegrator(ikcoeff));
+      }
+      else
+      {
+         NonlinearForm *Mqnl = darcy.GetFluxMassNonlinearForm();
+         Mqnl->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
+      }
 
       NonlinearForm *Mtnl = darcy.GetPotentialMassNonlinearForm();
       // Diffusion stabilization, centered (convdiff's default is -ce).
@@ -588,6 +623,23 @@ int main(int argc, char *argv[])
       // all of them.
       if (threaded)
       {
+         // **The promise, and it is true of THIS harness's -lin arm rather
+         // than of Darcy in general.** MultNL()'s element loop refuses to
+         // thread when it would evaluate an integrator, because MFEM offers
+         // no way to ask one whether it is reentrant. Under -lin the two
+         // that remain are a VectorMassIntegrator on the LINEAR flux mass,
+         // which that loop never evaluates at all, and HDGDiffusionIntegrator
+         // on the potential mass faces, whose scratch is declared under
+         // `#ifndef MFEM_THREAD_SAFE` -- and AssemblyMode::Threaded already
+         // aborts without MFEM_THREAD_SAFE, so in any build that reaches this
+         // line those members do not exist and the methods use locals.
+         //
+         // Checked, not assumed: with -lin the live handle is c_nlfi_p
+         // holding the HDG face integrators, and nothing else. Without -lin
+         // it is also m_nlfi_u -- a VectorMassIntegrator on the NONLINEAR
+         // flux mass, one of the three classes MFEM leaves unguarded -- which
+         // is why the Burgers arm is refused and must stay refused.
+         if (linear_problem) { dh->SetIntegratorsThreadSafe(true); }
          dh->SetAssemblyMode(DarcyHybridization::AssemblyMode::Threaded);
       }
       if (local_factor_mode >= 0)
