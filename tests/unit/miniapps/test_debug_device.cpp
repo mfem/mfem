@@ -117,6 +117,58 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    REQUIRE_NOTHROW(y.Read());
 }
 
+TEST_CASE("A non-owning wrap must not de-register its base", "[DebugDevice]")
+{
+   // `Vector v(other.GetData() + offset, n)` wraps a raw pointer and owns
+   // nothing, and both Wrap() overloads register only when `own` is set while
+   // h_mt takes GetHostMemoryType() regardless. So under this device, where
+   // that is HOST_DEBUG rather than HOST, such a view is unregistered AND
+   // non-host-typed -- and Memory<T>::Delete() hands exactly that combination
+   // to MemoryManager::Delete_().
+   //
+   // **It is safe, and this case exists to keep it that way rather than to
+   // pin a fix.** Delete_ opens with `if (!mm.exists || !registered) return;`,
+   // so the call is a no-op and nothing is evicted. meq reported the opposite
+   // against their own build -- Device("debug") not surviving a Reconstruct(),
+   // with a backtrace through Write_ saying "host pointer is not registered"
+   // -- and their reading of Wrap() and Delete() is correct in every
+   // particular; the consequence is simply caught one level down HERE. Either
+   // their install predates that guard or the eviction has another source.
+   // Recorded so the next person does not re-derive it: the reasoning is
+   // sound and the conclusion does not follow on this tree.
+   //
+   // **UseDevice stays OFF, and that is load-bearing.** The abort would be in
+   // MemoryManager::Write_ on the HOST class, and Vector::operator=(double)
+   // only takes that path when UseDevice() is false. A first version of this
+   // case set it true, sending the write down the device path instead; it
+   // would have passed whatever Delete() did, which is a case that goes green
+   // for the wrong reason.
+   const int n = 32, nsub = 8;
+
+   Vector base(n);
+   base = 1.0;
+
+   {
+      // Aliases base's own pointer, and owns none of it.
+      Vector view(base.GetData(), nsub);
+      REQUIRE(view.Size() == nsub);
+   }
+
+   base = 2.0;
+   REQUIRE(base(0) == MFEM_Approx(2.0));
+   REQUIRE(base(n-1) == MFEM_Approx(2.0));
+
+   // An offset view registers as an alias rather than aliasing the base
+   // pointer exactly. Kept because that asymmetry is why the reported failure
+   // was a single abort rather than chaos.
+   {
+      Vector off(base.GetData() + nsub, nsub);
+      REQUIRE(off.Size() == nsub);
+   }
+   base = 3.0;
+   REQUIRE(base(0) == MFEM_Approx(3.0));
+}
+
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 {
    // If MFEM_MEMORY is set, we can start with some non-empty maps,
