@@ -415,7 +415,9 @@ protected:
    int own_bfi;
    BilinearFormIntegrator *bfi;
 
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix bfi_elmat;
+#endif
 
 public:
    TransposeIntegrator(BilinearFormIntegrator *bfi_, int own_bfi_ = 1)
@@ -2998,8 +3000,8 @@ protected:
    MatrixCoefficient *MQ;
 
 private:
-   Vector vec, vecdxt, pointflux, shape;
 #ifndef MFEM_THREAD_SAFE
+   Vector vec, vecdxt, pointflux, shape;
    DenseMatrix dshape, dshapedxt, invdfdx, M, dshapedxt_m;
    DenseMatrix te_dshape, te_dshapedxt;
    Vector D;
@@ -3437,9 +3439,11 @@ public:
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
    int vdim = -1, Q_order = 0;
+#ifndef MFEM_THREAD_SAFE
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
+#endif
 
 protected:
    Coefficient *Q = nullptr;
@@ -3913,11 +3917,13 @@ protected:
    Coefficient *Q;
 
 private:
+#ifndef MFEM_THREAD_SAFE
    Vector shape;
    Vector divshape;
    DenseMatrix dshape;
    DenseMatrix gshape;
    DenseMatrix Jadj;
+#endif
    // PA extension
    Vector pa_data;
    const DofToQuad *trial_maps, *test_maps; ///< Not owned
