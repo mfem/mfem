@@ -507,18 +507,19 @@ Vector KnotVector::GetFineKnots(const int cf) const
 
    // Find the multiplicity of each fine knot
    Array<int> mlt(fine.Size());
-   mlt = 1;
+   mlt = 0;
 
-   for (int j=ifine0+1, ifine=0; j<knot.Size(); ++j)
+   for (int j=ifine0, ifine=0; j<knot.Size(); ++j)
    {
+      // Retained coarse knots can lie between consecutive fine knots. Only
+      // advance past a fine knot once the current knot exceeds its value.
+      while (ifine < fine.Size() && knot(j) > fine(ifine)) { ifine++; }
+
+      if (ifine == fine.Size()) { break; }
+
       if (knot(j) == fine(ifine))
       {
          mlt[ifine]++;
-      }
-      else
-      {
-         ifine++;
-         if (ifine == fine.Size()) { break; }
       }
    }
 
@@ -2034,7 +2035,9 @@ int NURBSPatch::KnotRemove(int dir, real_t knot, int ntimes, real_t tol)
    {
       for (int ll = 0; ll < size; ll++)
       {
-         newp.slice(k,ll) = oldp.slice(k,ll);  // Copy old data
+         // The removal recurrence may also have updated control points to the
+         // left of the removed point. Preserve those corrected values.
+         newp.slice(k,ll) = tmpp.slice(k,ll);
       }
    }
 
@@ -2257,7 +2260,8 @@ void NURBSPatch::DegreeElevate(int dir, int t)
                   alf = (ub-newkv[i])/(ua-newkv[i]);
                   for (l = 0; l < size; l++)
                   {
-                     newp.slice(i,l) = alf*newp.slice(i,l)-(1.0-alf)*newp.slice(i-1,l);
+                     newp.slice(i,l) = alf * newp.slice(i,l) +
+                                       (1.0 - alf) * newp.slice(i-1,l);
                   }
                }
                if (j >= lbz)
