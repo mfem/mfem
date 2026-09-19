@@ -54,6 +54,9 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
 {
    int dof = el.GetDof();
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
    shape.SetSize(dof);       // vector of size dof
    elvect.SetSize(dof);
    elvect = 0.0;
@@ -294,6 +297,9 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
 
    real_t val,cf;
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, Qvec;
+#endif
    shape.SetSize(dof);       // vector of size dof
 
    elvect.SetSize(dof * vdim);
@@ -335,6 +341,9 @@ void VectorDomainLFIntegrator::AssembleDeltaElementVect(
    int vdim = Q.GetVDim();
    int dof  = fe.GetDof();
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, Qvec;
+#endif
    shape.SetSize(dof);
    fe.CalcPhysShape(Trans, shape);
 
@@ -632,6 +641,9 @@ void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
    MFEM_ASSERT(dim == vdim, "");
    int dof = el.GetDof();
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, nor, vf;
+#endif
    shape.SetSize(dof);
    nor.SetSize(dim);
    vf.SetSize(vdim);
@@ -706,6 +718,9 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const int vdim = (VF)?(VF->GetVDim()):(1);
    const int dof = el.GetDof();
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, nor, vf;
+#endif
    shape.SetSize (dof);
    nor.SetSize (dim);
    if (VF) { vf.SetSize(vdim); }
@@ -759,6 +774,9 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    const int vdim = (VF)?(VF->GetVDim()):(1);
    int dof = el.GetDof();
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, nor, vf;
+#endif
    shape.SetSize (dof);
    nor.SetSize (dim);
    if (VF) { vf.SetSize(vdim); }
@@ -1053,6 +1071,9 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(Tr.GetGeometryType(), order);
    }
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape;
+#endif
    shape.SetSize(ndof);
    elvect.SetSize(ndof);
    elvect = 0.0;
