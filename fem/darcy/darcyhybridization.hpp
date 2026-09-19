@@ -1996,6 +1996,22 @@ public:
        so the promise is true for them today; it is the CALLER's own
        integrators that it is really about.
 
+       **The promise is about every integrator installed here, NOT about the
+       loops that happen to be threaded when it is made -- and that asymmetry
+       is the whole hazard.** The flag is read by the loop, never by the
+       audit, so threading one more loop silently widens what a caller who
+       set it years earlier has undertaken. There is no version to check and
+       no abort to notice: the first symptom is a wrong answer on a run that
+       converges. meq raised this against exactly the right gap. The
+       reconstruction routines -- DarcyForm::ReconstructFluxAndPot() and
+       DarcyHybridization::ReconstructTotalFlux() -- are SERIAL today and are
+       not covered by any audit behind this flag, and both evaluate `c_bfi`
+       per face; `NormalTraceJumpIntegrator`, which is what `c_bfi` holds in
+       every hybridized configuration in this tree, carried six unguarded
+       scratch members until it was put behind the same switch on the trunk.
+       So a caller who can promise only for the loops threaded today should
+       not set this.
+
        **Why this exists rather than a predicate that decides for you.**
        MFEM has no way to ask an integrator whether it is reentrant. Its
        convention is to wrap scratch in `#ifndef MFEM_THREAD_SAFE`, which is a
