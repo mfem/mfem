@@ -599,6 +599,11 @@ void HDGExtensionIntegrator::AssembleFaceMatrix(
    elmat.SetSize(dof * dim);
    elmat = 0.;
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, shape_ext, nor, x, xbar, m, y, CTm;
+   DenseMatrix Cmat, L;
+   ElementExtension ext;
+#endif
    shape.SetSize(dof);
    shape_ext.SetSize(dof);
    nor.SetSize(dim);
@@ -643,7 +648,7 @@ void HDGExtensionIntegrator::AssembleFaceMatrix(
 
       // The lifting of every basis function of the element, at this point of
       // the face.
-      LiftBasis(el1, *Trans.Elem1, x, m, lir, L);
+      LiftBasis(el1, *Trans.Elem1, x, m, lir, ext, shape_ext, y, CTm, Cmat, L);
 
       const real_t w = sign * ip.weight;
       for (int di = 0; di < dim; di++)
@@ -661,15 +666,17 @@ void HDGExtensionIntegrator::AssembleFaceMatrix(
 
 void HDGExtensionIntegrator::LiftBasis(
    const FiniteElement &el1, ElementTransformation &elem_tr, const Vector &x,
-   const Vector &m, const IntegrationRule &lir, DenseMatrix &Lmat)
+   const Vector &m, const IntegrationRule &lir, ElementExtension &ext_w,
+   Vector &shape_w, Vector &y_w, Vector &CTm_w, DenseMatrix &Cmat_w,
+   DenseMatrix &Lmat)
 {
    const int dof = el1.GetDof();
    const int dim = m.Size();
 
-   shape_ext.SetSize(dof);
-   y.SetSize(dim);
-   CTm.SetSize(dim);
-   if (MC) { Cmat.SetSize(dim); }
+   shape_w.SetSize(dof);
+   y_w.SetSize(dim);
+   CTm_w.SetSize(dim);
+   if (MC) { Cmat_w.SetSize(dim); }
 
    // The unit tangent is m/|m| and ds = |m| dt, so the length of the path
    // cancels and never appears.
@@ -678,33 +685,33 @@ void HDGExtensionIntegrator::LiftBasis(
    for (int t = 0; t < lir.GetNPoints(); t++)
    {
       const IntegrationPoint &tip = lir.IntPoint(t);
-      for (int d = 0; d < dim; d++) { y(d) = x(d) + tip.x * m(d); }
+      for (int d = 0; d < dim; d++) { y_w(d) = x(d) + tip.x * m(d); }
 
       IntegrationPoint eip;
-      MFEM_VERIFY(ext.TransformBack(y, eip),
+      MFEM_VERIFY(ext_w.TransformBack(y_w, eip),
                   "the inverse element transformation did not converge on "
                   "the extension of the element beyond Gamma_h");
       elem_tr.SetIntPoint(&eip);
-      el1.CalcPhysShape(elem_tr, shape_ext);
+      el1.CalcPhysShape(elem_tr, shape_w);
 
       // (C phi_j) . m = phi_j . (C^T m), and phi_j = shape_j e_d.
       if (MC)
       {
-         MC->Eval(Cmat, elem_tr, eip);
-         Cmat.MultTranspose(m, CTm);
+         MC->Eval(Cmat_w, elem_tr, eip);
+         Cmat_w.MultTranspose(m, CTm_w);
       }
       else
       {
-         CTm = m;
-         CTm *= C->Eval(elem_tr, eip);
+         CTm_w = m;
+         CTm_w *= C->Eval(elem_tr, eip);
       }
 
       for (int d = 0; d < dim; d++)
       {
-         const real_t wd = tip.weight * CTm(d);
+         const real_t wd = tip.weight * CTm_w(d);
          for (int j = 0; j < dof; j++)
          {
-            Lmat(j, d) += wd * shape_ext(j);
+            Lmat(j, d) += wd * shape_w(j);
          }
       }
    }
@@ -724,6 +731,11 @@ real_t HDGExtensionIntegrator::ComputeLift(
                "the flux dofs of the element owning the face are expected, "
                "with vdim equal to the space dimension");
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_ext, x, xbar, m, y, CTm;
+   DenseMatrix Cmat, L;
+   ElementExtension ext;
+#endif
    m.SetSize(dim);
 
    Trans.SetAllIntPoints(&ip);
@@ -736,7 +748,8 @@ real_t HDGExtensionIntegrator::ComputeLift(
    subtract(xbar, x, m);
 
    ext.SetElement(*Trans.Elem1);
-   LiftBasis(el1, *Trans.Elem1, x, m, LineRule(el1), L);
+   LiftBasis(el1, *Trans.Elem1, x, m, LineRule(el1), ext, shape_ext, y, CTm,
+             Cmat, L);
 
    real_t lift = 0.;
    for (int d = 0; d < dim; d++)
