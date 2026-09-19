@@ -306,65 +306,65 @@ void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>& gl
 
    for (int level_num=hierarchy->getMaxNumberOfLevels()-1; level_num > 0; level_num--)
    {
-      Vector level0_ratio(mesh->Dimension());
+      SAMRAI::hier::IntVector level_ratio(SAMRAI::tbox::Dimension(mesh->Dimension()));
+      SAMRAI::hier::IntVector level0_ratio(level_ratio.getDim(), 1);
       if (level_num > hierarchy->getFinestLevelNumber())
       {
-         level0_ratio = 1.0;
          for (int level_num_i=1; level_num_i <= level_num; level_num_i++)
          {
-            level0_ratio *= ToVector(hierarchy->getRatioToCoarserLevel(level_num_i));
+            level_ratio = hierarchy->getRatioToCoarserLevel(level_num_i);
+            level0_ratio *= level_ratio;
          }
       }
       else
       {
-         level0_ratio = ToVector(
-            hierarchy->getPatchLevel(level_num)->getRatioToLevelZero());
+         level_ratio = hierarchy->getPatchLevel(level_num)->getRatioToCoarserLevel();
+         level0_ratio = hierarchy->getPatchLevel(level_num)->getRatioToLevelZero();
       }
-      // TODO: support 3D
-      MFEM_VERIFY(mesh->Dimension() == 2, "3D derefinement not yet supported")
-      const double dx = 1.0/level0_ratio[0];
-      const double dy = 1.0/level0_ratio[1];
+      Vector h = ToVector(level0_ratio);
+      h.Reciprocal();
 
       // determine which elements to derefine at this level
       pseudo_error = error_threshold;
       unsigned derefine_element_count = 0;
       for (int element_ind=0; element_ind < mesh->GetNE(); element_ind++)
       {
-         const Vector h = GetElementDimensions(*mesh, element_ind);
-         // TODO: adjust for 3D
-         if (std::abs(h[0] - dx) < 1e-12 && std::abs(h[1] - dy) < 1e-12)
-         {
-            // get center in current level coordinates
-            Vector center;
-            mesh->GetElementCenter(element_ind, center);
-            center *= level0_ratio;
-            SAMRAI::hier::Index index = ToIndex(center);
+         const Vector element_h = GetElementDimensions(*mesh, element_ind);
+         bool skip = true;
+         for (int i=0; skip && i < h.Size(); i++)
+            skip = std::abs(element_h[i] - h[i]) > 1e-12;
+         if (skip)
+            continue;
 
-            // check if center is in any patches from current level
-            bool derefine = true;
-            for (const auto& bounds : global_patch_bounds[level_num])
+         // get center in current level coordinates
+         Vector center;
+         mesh->GetElementCenter(element_ind, center);
+         center /= h;
+         SAMRAI::hier::Index index = ToIndex(center);
+
+         // check if center is in any patches from current level
+         bool derefine = true;
+         for (const auto& bounds : global_patch_bounds[level_num])
+         {
+            if (bounds.first <= index && index <= bounds.second)
             {
-               if (bounds.first <= index && index <= bounds.second)
-               {
-                  derefine = false;
-                  break;
-               }
-            }
-            if (derefine)
-            {
-               pseudo_error[element_ind] = 0.0;
-               derefine_element_count++;
+               derefine = false;
+               break;
             }
          }
+         if (derefine)
+         {
+            pseudo_error[element_ind] = 0.0;
+            derefine_element_count++;
+         }
       }
-      // TODO: support 3D checking
-      MFEM_ASSERT(derefine_element_count % 4 == 0,
+      const int factor = mesh->Dimension() == 2 ? 4 : 8;
+      MFEM_ASSERT(derefine_element_count % factor == 0,
          "Elements marked for derefinement need to be in blocks of 2^D");
       mesh->DerefineByError(pseudo_error, error_threshold);
       UpdateFiniteElementSpaces();
-      // TODO: throw error for 3:1 derefinement until it is supported
-      //MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),2),
-      //      "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
+      MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(level_ratio.getDim(),2),
+            "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
    }
 }
 
@@ -425,7 +425,7 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
       mesh->GeneralRefinement(refinements);
       UpdateFiniteElementSpaces();
       // refine elements further for 3:1 refinement
-      if (level_ratio != SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(hierarchy->getDim()),2))
+      if (level_ratio != SAMRAI::hier::IntVector(level_ratio.getDim(),2))
       {
          MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),3),
             "Refinement ratio " << level_ratio << " not yet supported");
