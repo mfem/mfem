@@ -122,6 +122,15 @@ protected:
    mutable DenseMatrix elemmat;
    mutable Array<int>  vdofs;
 
+   /** @brief The single implementation behind both ComputeElementMatrix()
+       overloads. A NULL @a eltrans selects the Mesh's shared transformation
+       object, which is what the one-argument overload wants; a non-NULL one is
+       filled here and used instead, which is what makes a threaded element
+       loop possible. */
+   void ComputeElementMatrixImpl(int i, DenseMatrix &elmat,
+                                 IsoparametricTransformation *eltrans,
+                                 DenseMatrix &work) const;
+
    std::unique_ptr<DenseTensor> element_matrices;
 
    std::unique_ptr<StaticCondensation> static_cond;
@@ -585,8 +594,34 @@ public:
    /** The element matrix is computed by calling the domain integrators
        or the one stored internally by a prior call of ComputeElementMatrices()
        is returned when available.
+
+       @note NOT reentrant. It reaches the element transformation through
+       FiniteElementSpace::GetElementTransformation(int), which returns a
+       pointer to an object owned by the Mesh and overwritten by every other
+       call, and it accumulates several domain integrators through the shared
+       member @a elemmat. Both are races when two threads call this on one
+       form. Use the overload below, which takes that state from the caller.
    */
    void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /** @brief Reentrant ComputeElementMatrix(): the caller supplies the two
+       pieces of scratch that make the one-argument form thread-unsafe.
+
+       @a eltrans receives the element transformation instead of the Mesh's
+       shared one, and @a work is the accumulator used when more than one
+       domain integrator is registered (untouched when there is one or none).
+       Give each thread its own and an element loop over this routine is safe,
+       so long as the registered integrators are themselves reentrant -- which
+       is what a MFEM_THREAD_SAFE build promises and what the
+       `#ifndef MFEM_THREAD_SAFE` guards on their scratch members deliver.
+
+       Results are bit-for-bit those of the one-argument form; the element
+       transformation is filled by the same Mesh routine either way. The
+       one-argument form is implemented by calling this one with the members
+       it used to use directly, so the two cannot drift apart. */
+   void ComputeElementMatrix(int i, DenseMatrix &elmat,
+                             IsoparametricTransformation &eltrans,
+                             DenseMatrix &work) const;
 
    /// Compute the boundary element matrix of the given boundary element
    /** @note The boundary attribute markers of the integrators are ignored. */
@@ -802,6 +837,12 @@ protected:
 
    mutable DenseMatrix elemmat;
    mutable Array<int>  trial_vdofs, test_vdofs;
+
+   /** @brief The single implementation behind both ComputeElementMatrix()
+       overloads; see BilinearForm::ComputeElementMatrixImpl(). */
+   void ComputeElementMatrixImpl(int i, DenseMatrix &elmat,
+                                 IsoparametricTransformation *eltrans,
+                                 DenseMatrix &work) const;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -1026,7 +1067,28 @@ public:
    void ConformingAssemble();
 
    /// Compute the element matrix of the given element
+   /** @note NOT reentrant, for the two reasons BilinearForm's one-argument
+       ComputeElementMatrix() documents: the Mesh's shared element
+       transformation, and the shared @a elemmat accumulator. Use the overload
+       below to drive an element loop from several threads.
+
+       Note also that MixedBilinearForm has no ComputeElementMatrices()
+       precompute at all -- the DenseTensor cache is BilinearForm's alone --
+       so "precompute once, then copy" is not available on this class and the
+       reentrant overload is the only route to a threaded element loop. */
    void ComputeElementMatrix(int i, DenseMatrix &elmat) const;
+
+   /** @brief Reentrant ComputeElementMatrix(): the caller supplies the
+       element transformation and the multi-integrator accumulator.
+
+       See BilinearForm::ComputeElementMatrix(int, DenseMatrix &,
+       IsoparametricTransformation &, DenseMatrix &) -- same contract, same
+       bit-for-bit guarantee, and the one-argument form is implemented in
+       terms of this one. The transformation is taken from the TEST space,
+       which is what the one-argument form does. */
+   void ComputeElementMatrix(int i, DenseMatrix &elmat,
+                             IsoparametricTransformation &eltrans,
+                             DenseMatrix &work) const;
 
    /// Compute the boundary element matrix of the given boundary element
    /** @note The boundary attribute markers of the integrators are ignored. */

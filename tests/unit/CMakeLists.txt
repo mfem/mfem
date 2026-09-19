@@ -154,6 +154,7 @@ set(UNIT_TESTS_SRCS
   fem/test_hp_transfer.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
+  fem/test_integ_thread_safe.cpp
   fem/test_inversetransform.cpp
   fem/test_lexicographic_ordering.cpp
   fem/test_lin_interp.cpp

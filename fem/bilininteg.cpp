@@ -471,6 +471,9 @@ void TransposeIntegrator::SetIntRule(const IntegrationRule *ir)
 void TransposeIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix bfi_elmat;
+#endif
    bfi->AssembleElementMatrix(el, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
@@ -480,6 +483,9 @@ void TransposeIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix bfi_elmat;
+#endif
    bfi->AssembleElementMatrix2(test_fe, trial_fe, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
@@ -489,6 +495,9 @@ void TransposeIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix bfi_elmat;
+#endif
    bfi->AssembleFaceMatrix(el1, el2, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
@@ -499,6 +508,9 @@ void TransposeIntegrator::AssembleFaceMatrix(
    const FiniteElement &tr_el2, const FiniteElement &te_el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix bfi_elmat;
+#endif
    bfi->AssembleFaceMatrix(te_el1, tr_el1, te_el2, tr_el2, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
@@ -1380,6 +1392,7 @@ void DiffusionIntegrator::AssembleElementVector(
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix dshape(nd,dim), invdfdx(dim, spaceDim), M(MQ ? spaceDim : 0);
    Vector D(VQ ? VQ->GetVDim() : 0);
+   Vector vec, vecdxt, pointflux;
 #else
    dshape.SetSize(nd,dim);
    invdfdx.SetSize(dim, spaceDim);
@@ -1465,6 +1478,7 @@ void DiffusionIntegrator::ComputeElementFlux
    DenseMatrix dshape(nd,dim), invdfdx(dim, spaceDim);
    DenseMatrix M(MQ ? spaceDim : 0);
    Vector D(VQ ? VQ->GetVDim() : 0);
+   Vector vec, vecdxt, pointflux;
 #else
    dshape.SetSize(nd,dim);
    invdfdx.SetSize(dim, spaceDim);
@@ -1547,6 +1561,7 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix M;
    Vector D(VQ ? VQ->GetVDim() : 0);
+   Vector shape, pointflux, vec;
 #else
    D.SetSize(VQ ? VQ->GetVDim() : 0);
 #endif
@@ -1934,10 +1949,21 @@ void VectorMassIntegrator::AssembleElementMatrix
 
    real_t norm;
 
-   // If vdim is not set, set it to the space dimension
-   vdim = (vdim == -1) ? spaceDim : vdim;
+   // If vdim is not set, set it to the space dimension.
+   //
+   // Guarded rather than assigned unconditionally: the old form wrote the
+   // member on EVERY call, so two threads assembling different elements
+   // raced on it even after it had been set. This writes once. The first
+   // concurrent batch can still write it together, all with the identical
+   // value; SetVDim() before the loop avoids even that, and GetVDim()
+   // reports the same thing either way.
+   if (vdim == -1) { vdim = spaceDim; }
 
    elmat.SetSize(nd*vdim);
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, vec;
+   DenseMatrix partelmat, mcoeff;
+#endif
    shape.SetSize(nd);
    partelmat.SetSize(nd);
    if (VQ)
@@ -2004,10 +2030,15 @@ void VectorMassIntegrator::AssembleElementMatrix2(
 
    real_t norm;
 
-   // If vdim is not set, set it to the space dimension
-   vdim = (vdim == -1) ? Trans.GetSpaceDim() : vdim;
+   // If vdim is not set, set it to the space dimension; see the note in
+   // AssembleElementMatrix() on why this is guarded rather than assigned.
+   if (vdim == -1) { vdim = Trans.GetSpaceDim(); }
 
    elmat.SetSize(te_nd*vdim, tr_nd*vdim);
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, te_shape, vec;
+   DenseMatrix partelmat, mcoeff;
+#endif
    shape.SetSize(tr_nd);
    te_shape.SetSize(te_nd);
    partelmat.SetSize(te_nd, tr_nd);
@@ -3180,6 +3211,10 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
    int test_dof = test_fe.GetDof();
    real_t c;
 
+#ifdef MFEM_THREAD_SAFE
+   Vector shape, divshape;
+   DenseMatrix dshape, gshape, Jadj;
+#endif
    dshape.SetSize (trial_dof, dim);
    gshape.SetSize (trial_dof, sdim);
    Jadj.SetSize (dim, sdim);
