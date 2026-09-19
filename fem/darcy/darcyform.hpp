@@ -249,6 +249,62 @@ protected:
    void AssemblePotLDGFaces(int skip_zeros);
    void AssemblePotHDGFaces(int skip_zeros);
 
+   /** @brief Whether Assemble()'s three hybridized element loops may run on
+       several threads.
+
+       They are embarrassingly parallel for a reason that is worth stating,
+       because it is NOT true of DarcyHybridization::ComputeH()'s scatter and
+       that is the loop this one gets compared to: with
+       MFEM_DARCY_HYBRIDIZATION_ELIM_BCS defined -- and it is, in
+       darcyhybridization.hpp -- the `M->AssembleElementMatrix()` call that
+       would scatter into an unfinalized SparseMatrix is compiled OUT of all
+       three, so nothing in the loop body touches a shared sparse structure.
+       What is left writes element @a i's own slice of Af_data / Ae_data (and
+       the divergence and potential equivalents), whose offsets are disjoint
+       by construction. There is no colouring to build and no partial matrix
+       to reduce.
+
+       The one shared write left is `A_empty = false` and the two like it,
+       which every thread sets to the same value on every element.
+
+       Three things must hold, and each is checked rather than assumed:
+       OpenMP must be compiled in; the ELIM_BCS macro must be defined, or the
+       sparse scatter above comes back and the loop is unsafe; and the caller
+       must have promised that the registered integrators are reentrant, via
+       DarcyHybridization::SetIntegratorsThreadSafe(). That last one is not
+       optional here the way it is for MultNL(): these loops exist to
+       EVALUATE domain integrators, so unlike the element-local loops -- where
+       a linear integrator is never evaluated and the promise is only needed
+       when a nonlinear one is installed -- there is no configuration in which
+       this loop is safe without it.
+
+       **And that last point WIDENS what SetIntegratorsThreadSafe() promises,
+       which is an ordering hazard rather than a documentation nicety.** Its
+       existing doxygen, and hdgperf's justification for making the promise
+       under `-lin`, both reason about the integrators MultNL()'s element loop
+       evaluates -- and argue that a LINEAR VectorMassIntegrator does not
+       count because that loop never evaluates it. This loop does. So the same
+       flag now also has to cover the linear DOMAIN integrators. Of the six
+       reachable ones, `VectorMassIntegrator` and `VectorDivergenceIntegrator`
+       -- the two the discontinuous (L2) path installs -- were the only two
+       whose scratch was not declared under `#ifndef MFEM_THREAD_SAFE`;
+       `VectorFEMassIntegrator`, `VectorFEDivergenceIntegrator` and
+       `ConvectionIntegrator` already were. **Both are guarded now**, by the
+       commit that put eight integrators behind that macro, and that commit is
+       a PRECONDITION of this one rather than a companion to it: with those
+       two unguarded, `hdgperf -lin -thr` -- which makes the promise -- would
+       have started racing the moment this landed. The ordering is the whole
+       reason the two changes are separate commits.
+
+       `RestrictedVectorDivergenceIntegrator` is worth knowing about
+       separately: it guards its own `full` but holds a
+       `VectorDivergenceIntegrator` BY VALUE, so it inherited that one's
+       unguarded scratch and guarding it alone would have achieved nothing.
+       Guarding the base fixes it, and changes this class's layout too --
+       which is the layout trap this family has paid for eight times, and why
+       every tree needed a clean build. */
+   bool CanThreadAssembly() const;
+
    void AllocBlockOp(bool nonconforming = false);
    void AllocRHS();
    const Operator* ConstructBT(const MixedBilinearForm *B) const;

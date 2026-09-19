@@ -626,13 +626,22 @@ int main(int argc, char *argv[])
          // **The promise, and it is true of THIS harness's -lin arm rather
          // than of Darcy in general.** MultNL()'s element loop refuses to
          // thread when it would evaluate an integrator, because MFEM offers
-         // no way to ask one whether it is reentrant. Under -lin the two
-         // that remain are a VectorMassIntegrator on the LINEAR flux mass,
-         // which that loop never evaluates at all, and HDGDiffusionIntegrator
-         // on the potential mass faces, whose scratch is declared under
-         // `#ifndef MFEM_THREAD_SAFE` -- and AssemblyMode::Threaded already
-         // aborts without MFEM_THREAD_SAFE, so in any build that reaches this
-         // line those members do not exist and the methods use locals.
+         // no way to ask one whether it is reentrant. Under -lin the two that
+         // remain are a VectorMassIntegrator on the LINEAR flux mass and
+         // HDGDiffusionIntegrator on the potential mass faces.
+         //
+         // **This used to say the first one "does not count because that loop
+         // never evaluates it", and that reasoning is withdrawn.** It was true
+         // of MultNL() and false of DarcyForm::Assemble(), whose element loops
+         // take this same flag and exist to evaluate exactly those linear
+         // domain integrators -- so the argument would have gone on reading
+         // correctly while the thing it licensed changed underneath it. The
+         // promise holds now for a better reason: both classes declare their
+         // scratch under `#ifndef MFEM_THREAD_SAFE`, VectorMassIntegrator as
+         // of the commit that guarded eight of them, and
+         // AssemblyMode::Threaded already aborts without MFEM_THREAD_SAFE, so
+         // in any build that reaches this line those members do not exist and
+         // the methods use locals.
          //
          // Checked, not assumed: with -lin the live handle is c_nlfi_p
          // holding the HDG face integrators, and nothing else. Without -lin

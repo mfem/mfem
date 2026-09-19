@@ -740,6 +740,35 @@ static void CheckRestrictedFluxAgreement(MixedBilinearForm *B,
    }
 }
 
+bool DarcyForm::CanThreadAssembly() const
+{
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_DARCY_HYBRIDIZATION_ELIM_BCS)
+   if (!hybridization ||
+       hybridization->GetAssemblyMode() !=
+       DarcyHybridization::AssemblyMode::Threaded ||
+       !hybridization->GetIntegratorsThreadSafe())
+   {
+      return false;
+   }
+
+   // A variable-order space builds its element FE lazily, through
+   // FiniteElementSpace's `var_orders` cache, and two threads asking for an
+   // order that is not there yet race on it. Every other reader in this loop
+   // is const. Refused rather than locked: the loop is worth having on the
+   // uniform-order case it was measured on, and a lock around GetFE() would
+   // be paid on every element for a configuration that is not this one.
+   if ((fes_u && fes_u->IsVariableOrder()) ||
+       (fes_p && fes_p->IsVariableOrder()))
+   {
+      return false;
+   }
+
+   return true;
+#else
+   return false;
+#endif
+}
+
 void DarcyForm::Assemble(int skip_zeros)
 {
    // Checked here rather than where the load is assembled, because the load is
@@ -761,16 +790,29 @@ void DarcyForm::Assemble(int skip_zeros)
          // AssembleFluxMassMatricesBatched().
          if (!hybridization->AssembleFluxMassMatricesBatched(M_u.get()))
          {
-            DenseMatrix elmat;
+            const bool threaded = CanThreadAssembly();
+            const int NE = fes_u->GetNE();
 
             // Element-wise integration
-            for (int i = 0; i < fes_u -> GetNE(); i++)
+#ifdef MFEM_USE_OPENMP
+            #pragma omp parallel if (threaded)
+#endif
             {
-               M_u->ComputeElementMatrix(i, elmat);
+               // Per thread, which is the whole of what the reentrant
+               // ComputeElementMatrix() overload needs from its caller.
+               DenseMatrix elmat, work;
+               IsoparametricTransformation eltrans;
+#ifdef MFEM_USE_OPENMP
+               #pragma omp for schedule(static)
+#endif
+               for (int i = 0; i < NE; i++)
+               {
+                  M_u->ComputeElementMatrix(i, elmat, eltrans, work);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-               M_u->AssembleElementMatrix(i, elmat, skip_zeros);
+                  M_u->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-               hybridization->AssembleFluxMassMatrix(i, elmat);
+                  hybridization->AssembleFluxMassMatrix(i, elmat);
+               }
             }
          }
 
@@ -820,16 +862,27 @@ void DarcyForm::Assemble(int skip_zeros)
          // miss; see EnableHybridization().
          if (!hybridization->AssembleDivMatricesBatched(B.get()))
          {
-            DenseMatrix elmat;
+            const bool threaded = CanThreadAssembly();
+            const int NE = fes_u->GetNE();
 
             // Element-wise integration
-            for (int i = 0; i < fes_u -> GetNE(); i++)
+#ifdef MFEM_USE_OPENMP
+            #pragma omp parallel if (threaded)
+#endif
             {
-               B->ComputeElementMatrix(i, elmat);
+               DenseMatrix elmat, work;
+               IsoparametricTransformation eltrans;
+#ifdef MFEM_USE_OPENMP
+               #pragma omp for schedule(static)
+#endif
+               for (int i = 0; i < NE; i++)
+               {
+                  B->ComputeElementMatrix(i, elmat, eltrans, work);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-               B->AssembleElementMatrix(i, elmat, skip_zeros);
+                  B->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-               hybridization->AssembleDivMatrix(i, elmat);
+                  hybridization->AssembleDivMatrix(i, elmat);
+               }
             }
          }
       }
@@ -863,16 +916,27 @@ void DarcyForm::Assemble(int skip_zeros)
          // routed separately. See AssemblePotMassMatricesBatched().
          if (!hybridization->AssemblePotMassMatricesBatched(M_p.get()))
          {
-            DenseMatrix elmat;
+            const bool threaded = CanThreadAssembly();
+            const int NE = fes_p->GetNE();
 
             // Element-wise integration
-            for (int i = 0; i < fes_p -> GetNE(); i++)
+#ifdef MFEM_USE_OPENMP
+            #pragma omp parallel if (threaded)
+#endif
             {
-               M_p->ComputeElementMatrix(i, elmat);
+               DenseMatrix elmat, work;
+               IsoparametricTransformation eltrans;
+#ifdef MFEM_USE_OPENMP
+               #pragma omp for schedule(static)
+#endif
+               for (int i = 0; i < NE; i++)
+               {
+                  M_p->ComputeElementMatrix(i, elmat, eltrans, work);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-               M_p->AssembleElementMatrix(i, elmat, skip_zeros);
+                  M_p->AssembleElementMatrix(i, elmat, skip_zeros);
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-               hybridization->AssemblePotMassMatrix(i, elmat);
+                  hybridization->AssemblePotMassMatrix(i, elmat);
+               }
             }
          }
 

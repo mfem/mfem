@@ -1974,12 +1974,27 @@ public:
        What is being promised is specific: that concurrent calls to
        AssembleElementVector(), AssembleElementGrad(), AssembleHDGFaceVector()
        and AssembleHDGFaceGrad() on the SAME integrator object do not share
-       mutable state. Seven handles can reach the threaded element loop --
-       the flux-mass, potential-mass and block nonlinear integrators per
-       element, and the two face constraint integrators and their two boundary
-       arrays per face -- and only those need to hold the promise. A LINEAR
-       integrator is never evaluated in that loop, so `c_bfi_p` and the flux
-       mass BilinearForm are outside it whatever they hold.
+       mutable state.
+
+       **WHICH integrators that covers depends on which loops are threaded,
+       and it is wider than it was.** MultNL()'s element loop reaches seven
+       handles -- the flux-mass, potential-mass and block nonlinear
+       integrators per element, and the two face constraint integrators and
+       their two boundary arrays per face -- and evaluates no LINEAR
+       integrator at all, so for that loop alone `c_bfi_p` and the flux mass
+       BilinearForm are outside the promise whatever they hold. **That is no
+       longer the whole story**: DarcyForm::CanThreadAssembly() gates the
+       assembly element loops on this same flag, and those loops exist
+       precisely to evaluate the LINEAR domain integrators. So a caller
+       setting this is promising for both sets, and the earlier version of
+       this paragraph -- which reasoned only about MultNL() and concluded a
+       linear VectorMassIntegrator "does not count" -- would have licensed a
+       race the moment threaded assembly landed.
+
+       The stock integrators the discontinuous path installs are guarded as of
+       the commit that put eight of them behind `#ifndef MFEM_THREAD_SAFE`,
+       so the promise is true for them today; it is the CALLER's own
+       integrators that it is really about.
 
        **Why this exists rather than a predicate that decides for you.**
        MFEM has no way to ask an integrator whether it is reentrant. Its
