@@ -1789,13 +1789,27 @@ public:
        element-local arithmetic is per-element and so reassociates nothing.
        Element order is kept because it is free and deterministic.
 
-       **Two loops are threaded, and they are threaded differently.**
+       **The loops are threaded in three different ways, and which one a loop
+       takes is decided by what it WRITES.**
        ComputeH()'s is the one described above: element-local work in parallel,
        scatter serial and in element order. MultNL()'s -- which is the residual
        and the Jacobian assembly, and so NPCResidual() and NPCGradient() too --
        is walked in COLOUR order instead, Mesh::GetElementColoring() colouring
        the element-to-element graph whose edges are the faces, so no two
-       elements of a colour share one. That is what makes its two shared writes
+       elements of a colour share one. ReduceRHS() and NPCReduce() take that
+       same colouring, writing the trace and only reading the fields -- which
+       is why they are safe under it whatever the flux space is. And the loops
+       that write FIELD dofs and nothing else -- ComputeSolution(),
+       NPCRecover(), EliminateVDofsInRHS(), EliminateTrueDofsInRHS() -- need
+       no colouring at all when both field spaces are discontinuous, which is
+       what CanThreadFieldLoop() tests.
+
+       **NPCReduce() and NPCRecover() are additionally the only two that are
+       safe here REGARDLESS of the integrators**, because they evaluate none:
+       their bodies are MultInv(), the stored face blocks and dof lookups. So
+       MultNL()'s refusal to run Threaded on a problem whose gradient blocks
+       cannot be cached does not reach them, and a caller whose problem is
+       refused there still gets these two threaded. That is what makes its two shared writes
        safe: the accumulation of the trace row into @a y, and H_f's in
        AssembleHDGGrad(), which both sides of a face add into. E and G need
        nothing, being stored per (face, SIDE).
@@ -1826,6 +1840,56 @@ public:
        mass, a constraint integrator -- sits on this loop and must be
        thread-safe too. An integrator holding per-point scratch as a plain
        member will race, silently.
+
+       **AND MFEM'S OWN STOCK INTEGRATORS BREAK THAT OBLIGATION, so the
+       sentence above is not a theoretical caveat.** `VectorMassIntegrator`,
+       `MassIntegrator` and `DiffusionIntegrator` hold `shape`, `te_shape`,
+       `vec`, `partelmat` and `mcoeff` as plain members with NO
+       `#ifndef MFEM_THREAD_SAFE` guard, where `VectorFEMassIntegrator`,
+       `ConvectionIntegrator`, `HyperbolicFormIntegrator`, `RusanovFlux` and
+       `FluxFunction` all guard theirs. A caller cannot tell which is which
+       without reading the class.
+
+       **`convdiff -p 6 -nl -thr` therefore returns NaN, deterministically at
+       two threads and above**, and `hdgperf -n 4 -o 2 -k 0.1 -thr` reproduces
+       it on SIXTEEN elements. The corruption is a wrong `A`: at one thread
+       every element's flux block is the same constant-coefficient mass
+       matrix, and at four threads a handful of elements each get a different
+       wrong one. It surfaces as a NaN only because NPC's Newton then solves
+       with it -- what the race actually produces is a Jacobian that is not
+       the derivative of the residual.
+
+       **What decides whether the shared integrators are reached at all is
+       `CopyLinearGradBlocks()`.** When it succeeds (`ad_done`), ConstructGrad
+       copies cached blocks and never calls them, which is why problems 1 and
+       2 thread correctly and agree with serial to every digit. When it
+       declines -- problem 6 does, because the Burgers face constraint makes
+       the residual uncacheable -- the per-element call is live and the race
+       is on.
+
+       **No small critical section fixes it, and that was measured rather
+       than assumed**: serialising `ConstructGrad` in full, or the integrator
+       calls, or the dof gather, or the face gather, or any pair of them, each
+       still gives the wrong answer; only serialising the WHOLE loop iteration
+       restores the serial result. The fix is one integrator instance per
+       thread, or thread-safe guards upstream -- not a lock. Until then, treat
+       Threaded as unsafe for any configuration in which
+       CopyLinearGradBlocks() declines.
+
+       **So the "identical to every digit at every thread count" claim below
+       holds for the configurations it was measured on and is NOT general.**
+
+       **This is now REFUSED rather than left to corrupt, and the refusal is
+       in MultNL() rather than here.** It belongs here by rights, being a
+       property of the mode; it cannot live here because the answer comes from
+       CopyLinearGradBlocks(), which reads A_empty, D_empty, the block array
+       sizes and the residual cache -- none of which exist until Assemble()
+       has run. Asked at this point it would answer for a route that then
+       fires, which is the trap this class has already paid for with
+       CanBatchLinearResidual(). So a caller that sets Threaded on an unsafe
+       configuration gets an abort naming this method at the first gradient,
+       not a wrong answer. ParMultNL() delegates to MultNL(), so the one guard
+       covers the parallel path too.
 
        **Measured, on the pedestal problem at (n, k) = (32,1), (48,2), (64,2)
        and (32,3), speedup at 8 threads against the serial mode:**
@@ -2387,6 +2451,36 @@ public:
    /// How many times ComputeH() has run since ResetComputeHTime().
    static long GetComputeHCalls();
 
+   /** @brief Seconds accumulated inside NPCReduce() and NPCRecover() since
+       ResetNPCTraversalTime().
+
+       **The elimination traversal is the leg a bordered Newton spends most of
+       its time in, and it is the one a caller cannot locate from outside.**
+       NPCResidual() and NPCGradient() are O(elements) and run once per step;
+       these two are O(elements x columns) and run once per right-hand side,
+       so their share grows with every border column while the others' does
+       not. A caller timing its own Newton step gets a total that bounds them
+       and does not separate them -- the same argument GetComputeHTime() makes
+       for ComputeH() inside the gradient leg.
+
+       One accumulator for both routines rather than two: they are one leg,
+       every caller that runs one runs the other, and splitting them would
+       invite a comparison between a reduce and a recover that nothing needs.
+
+       Always on rather than behind a build flag, for GetComputeHTime()'s
+       reason -- a flag that has to be turned on is a flag that can be off
+       when the measurement is taken. Two clock reads against a leg measured
+       in milliseconds.
+
+       Static, so it adds no data member and no layout change; process-wide,
+       NOT thread safe, and wall clock rather than CPU. A caller timing one
+       solve resets it first. */
+   static real_t GetNPCTraversalTime();
+   /// Zero the traversal accumulator; see GetNPCTraversalTime().
+   static void ResetNPCTraversalTime();
+   /// How many NPCReduce()/NPCRecover() calls since ResetNPCTraversalTime().
+   static long GetNPCTraversalCalls();
+
    /** @brief How many times the batched factorisation has SOLVED for
        A^-1(-/+B^T) rather than replaying it from the condensation cache.
 
@@ -2625,11 +2719,48 @@ public:
            integrator-free loops       6.2   5.4   5.5   5.7 %
            trace solve                33.0  34.8  35.1  31.1 %
 
-       So the two loops that could be threaded with no integrator work at all
-       are **under 6% of the step**, flat in mesh size and order, and Amdahl
-       caps any gain there. NPCRecover is nonetheless the easiest loop in the
-       class to thread -- it writes only the calling element's L2 flux and
-       potential dofs, so it needs neither colouring nor atomics.
+       So on THESE cases the two integrator-free loops are **under 6% of the
+       step**, flat in mesh size and order.
+
+       **That 6% was read as a reason not to thread them, and it was the wrong
+       reading -- they are threaded now.** The figure is a property of the
+       configuration it was taken on, not of the method: all four cases are
+       fixed-boundary with ONE right-hand side. NPCResidual() and
+       NPCGradient() are O(elements) and run once per Newton step, while
+       NPCReduce() and NPCRecover() are O(elements x columns) and run once per
+       right-hand side -- so the moment a caller has a border, the ratio
+       inverts, and it inverts further with every border column. meq's
+       free-boundary Grad-Shafranov applies one factorisation to `N + 4`
+       columns (14 in their shipped DIII-D case) through
+       DarcyNPCSolver::ArrayMult(), and measured the two loops at **30.6% of
+       their Newton step and 1.00x across eight threads** -- the largest
+       single leg, ahead of the residual. Amdahl did not cap the gain; the
+       measurement had been taken where the gain was not.
+
+       **Both are threaded, and they needed different things.** NPCRecover()
+       writes only the calling element's L2 flux and potential dofs, so it
+       takes CanThreadFieldLoop() and needs neither colouring nor atomics.
+       NPCReduce() scatters into the TRACE, which the two elements of a face
+       share, so it takes the element colouring exactly as ReduceRHS() does --
+       and having it, is safe whatever the flux space is, since it only READS
+       the field dofs. Neither evaluates an integrator or builds an
+       ElementTransformation, which is why they are gated on asm_mode alone
+       and are unaffected by MultNL()'s refusal of Threaded on a problem whose
+       gradient blocks cannot be cached.
+
+       Measured here, `hdgperf -n 128 -o 3 -lin -gm 0`, one binary with the
+       two loops gated serial against threaded, MKL_NUM_THREADS=1, seconds in
+       GetNPCTraversalTime():
+
+           threads        1      2      4      8
+           before      0.199  0.201  0.178  0.200     flat, i.e. meq's 1.00x
+           after       0.218  0.117  0.074  0.046     4.35x at eight
+
+       The before row reproduces meq's observation independently. At one
+       thread the after row is ~10% slower -- the parallel region is entered
+       and left either way -- which is the price of the `if (threaded)` clause
+       being a runtime test rather than a compile-time one, and is paid only
+       by a caller who asked for Threaded and then ran on one core.
 
        **NPCGradient's column is three parts, not the two this used to name.**
        It said the column was ConstructGrad (integrators, serial) plus

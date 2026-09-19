@@ -4991,6 +4991,31 @@ struct ComputeHTimer
    }
 };
 
+/** @brief The NPCReduce()/NPCRecover() accumulator behind
+    GetNPCTraversalTime().
+
+    File static for the reason ComputeHSeconds() is: a data member on
+    DarcyHybridization is a class-layout change every translation unit that
+    includes mfem.hpp would see. One accumulator for both routines rather than
+    two, because they are one leg -- the elimination traversal -- and every
+    caller that runs one runs the other. */
+real_t &NPCTraversalSeconds() { static real_t s = 0.0; return s; }
+long &NPCTraversalCalls() { static long n = 0; return n; }
+
+/// Accumulate into NPCTraversalSeconds(); see ComputeHTimer.
+struct NPCTraversalTimer
+{
+   std::chrono::steady_clock::time_point t0;
+   NPCTraversalTimer()
+      : t0(std::chrono::steady_clock::now()) { NPCTraversalCalls()++; }
+   ~NPCTraversalTimer()
+   {
+      const std::chrono::duration<real_t> dt =
+         std::chrono::steady_clock::now() - t0;
+      NPCTraversalSeconds() += dt.count();
+   }
+};
+
 } // namespace
 
 real_t DarcyHybridization::GetComputeHTime() { return ComputeHSeconds(); }
@@ -5002,6 +5027,19 @@ void DarcyHybridization::ResetComputeHTime()
 }
 
 long DarcyHybridization::GetComputeHCalls() { return ComputeHCalls(); }
+
+real_t DarcyHybridization::GetNPCTraversalTime()
+{
+   return NPCTraversalSeconds();
+}
+
+void DarcyHybridization::ResetNPCTraversalTime()
+{
+   NPCTraversalSeconds() = 0.0;
+   NPCTraversalCalls() = 0;
+}
+
+long DarcyHybridization::GetNPCTraversalCalls() { return NPCTraversalCalls(); }
 
 void DarcyHybridization::ComputeH(ComputeHMode mode,
                                   std::unique_ptr<SparseMatrix> &H_) const
@@ -8382,6 +8420,9 @@ Operator &DarcyHybridization::NPCGradient(const BlockVector &x,
 void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
                                    Vector &b_tr) const
 {
+   // Timed as half the elimination traversal; see GetNPCTraversalTime().
+   const NPCTraversalTimer npc_traversal_timer;
+
    // b_tr = -( F_lambda - C' M^-1 F_local ), which is eq (18)'s right-hand
    // side. The trace row of the Jacobian is [C' G | H], so the potential
    // enters through G here and through E in NPCRecover() -- the two are
@@ -8402,9 +8443,6 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
    b_tr_l = 0.;
 
    const int NE = fes.GetNE();
-   Array<int> u_vdofs, p_dofs, faces, c_dofs;
-   Vector ru_l, rp_l, du_l, dp_l, b_rl;
-   Vector mi_wk;   ///< MultInv()'s one temporary, hoisted above the loop
 
    // Every element's M^-1 F_local in one batch, when that is asked for. This
    // is the loop that runs once per NPC Newton step, so it is where batching
@@ -8428,48 +8466,88 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
       dp_all.HostRead();
    }
 
-   for (int el = 0; el < NE; el++)
+   // **The colouring, and not CanThreadFieldLoop(), and the difference is the
+   // whole reason this loop is harder than NPCRecover()'s.** This one
+   // SCATTERS into the trace -- b_tr_l.AddElementVector(c_dofs, ...) at face
+   // dofs, which both elements of a face reach -- while it only READS the
+   // field dofs. So it is exactly ReduceRHS()'s situation: the colouring is
+   // what it needs, and having it, the loop is safe whatever the flux space
+   // is, an H(div) flux included. Serial keeps the original element order.
+   //
+   // Threading this is integrator-free, which is what makes it safe where
+   // MultNL()'s element loop is not: the body is MultInv() (a dense LU
+   // backsolve), the face blocks read out of Ct/G, and dof lookups. No
+   // BilinearFormIntegrator is evaluated and no ElementTransformation is
+   // built, so the shared-scratch race that SetAssemblyMode() refuses
+   // AssemblyMode::Threaded for cannot arise here. That is why this is gated
+   // on asm_mode alone and needs no ad_done.
+   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   if (threaded) { BuildElementColouring(); }
+   const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
+
+   for (int pass = 0; pass < npasses; pass++)
    {
-      if (batched_solve)
+      const int i0 = threaded ? colour_offsets[pass] : 0;
+      const int i1 = threaded ? colour_offsets[pass+1] : NE;
+
+#ifdef MFEM_USE_OPENMP
+      #pragma omp parallel if (threaded)
+#endif
       {
-         du_l.MakeRef(du_all, Af_f_offsets[el],
-                      Af_f_offsets[el+1] - Af_f_offsets[el]);
-         dp_l.MakeRef(dp_all, Df_f_offsets[el],
-                      Df_f_offsets[el+1] - Df_f_offsets[el]);
-      }
-      else
-      {
-         GetFDofs(el, u_vdofs);
-         r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
-         fes_p.GetElementVDofs(el, p_dofs);
-         r.GetBlock(1).GetSubVector(p_dofs, rp_l);
+         Array<int> u_vdofs, p_dofs, faces, c_dofs;
+         Vector ru_l, rp_l, du_l, dp_l, b_rl;
+         Vector mi_wk;   ///< MultInv()'s one temporary, hoisted above the loop
 
-         // M^-1 F_local, with the JACOBIAN's (0,1) block. ReduceRHS() passes
-         // the linear one, which is right for a linear system and would be a
-         // different operator from the Schur complement here.
-         MultInv(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
-      }
-
-      GetElementFaces(el, faces);
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         DenseMatrix Ct_l;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
-
-         b_rl.SetSize(Ct_l.Width());
-         Ct_l.MultTranspose(du_l, b_rl);
-
-         if (G_data.Size() > 0)
+#ifdef MFEM_USE_OPENMP
+         #pragma omp for schedule(dynamic)
+#endif
+         for (int i = i0; i < i1; i++)
          {
-            DenseMatrix G_l;
-            GetGFaceMatrix(faces[f], el1 != el, G_l);
-            G_l.AddMult(dp_l, b_rl);
-         }
+            const int el = threaded ? colour_order[i] : i;
 
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         b_tr_l.AddElementVector(c_dofs, b_rl);
+            if (batched_solve)
+            {
+               du_l.MakeRef(du_all, Af_f_offsets[el],
+                            Af_f_offsets[el+1] - Af_f_offsets[el]);
+               dp_l.MakeRef(dp_all, Df_f_offsets[el],
+                            Df_f_offsets[el+1] - Df_f_offsets[el]);
+            }
+            else
+            {
+               GetFDofs(el, u_vdofs);
+               r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
+               fes_p.GetElementVDofs(el, p_dofs);
+               r.GetBlock(1).GetSubVector(p_dofs, rp_l);
+
+               // M^-1 F_local, with the JACOBIAN's (0,1) block. ReduceRHS()
+               // passes the linear one, which is right for a linear system
+               // and would be a different operator from the Schur complement
+               // here.
+               MultInv(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
+            }
+
+            GetElementFaces(el, faces);
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               int el1, el2;
+               fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+               DenseMatrix Ct_l;
+               GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+
+               b_rl.SetSize(Ct_l.Width());
+               Ct_l.MultTranspose(du_l, b_rl);
+
+               if (G_data.Size() > 0)
+               {
+                  DenseMatrix G_l;
+                  GetGFaceMatrix(faces[f], el1 != el, G_l);
+                  G_l.AddMult(dp_l, b_rl);
+               }
+
+               c_fes.GetFaceVDofs(faces[f], c_dofs);
+               b_tr_l.AddElementVector(c_dofs, b_rl);
+            }
+         }
       }
    }
 
@@ -8485,6 +8563,9 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
 void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
                                     BlockVector &dx) const
 {
+   // Timed as half the elimination traversal; see GetNPCTraversalTime().
+   const NPCTraversalTimer npc_traversal_timer;
+
    // dx_local = -M^-1 ( F_local + [C; E] dtr ). The flux row takes C^T dtr and
    // the potential row E dtr, which is the transpose pair of the blocks
    // NPCReduce() used.
@@ -8503,9 +8584,6 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
    }
 
    const int NE = fes.GetNE();
-   Array<int> u_vdofs, p_dofs, faces, c_dofs;
-   Vector ru_l, rp_l, du_l, dp_l, dtr_f;
-   Vector mi_wk;   ///< MultInv()'s one temporary, hoisted above the loop
 
    // Two passes rather than one, as in ComputeSolution() and for the same
    // reason: here the face terms build the local right-hand side BEFORE the
@@ -8518,48 +8596,75 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
       rp_all.SetSize(Df_f_offsets.Last());
    }
 
-   for (int el = 0; el < NE; el++)
+   // **The easiest loop in the class to thread, and it needs no colouring.**
+   // Every write is at the CALLING element's own dofs -- dx's two blocks at
+   // u_vdofs/p_dofs, or the parked right-hand side at this element's slice of
+   // ru_all/rp_all, whose offsets are disjoint by construction. Everything
+   // else (r, dtr_l, Ct, E) is read-only. So CanThreadFieldLoop() is the
+   // whole precondition: with two discontinuous spaces each element's field
+   // dofs are its own, and with an H(div) flux they are not and this keeps
+   // the serial loop it has always had.
+   //
+   // Integrator-free, like NPCReduce() and unlike MultNL()'s element loop:
+   // the body is dense linear algebra and dof lookups, with no
+   // BilinearFormIntegrator evaluated and no ElementTransformation built, so
+   // the shared-scratch race SetAssemblyMode() refuses Threaded for cannot
+   // arise. Gated on asm_mode alone, and needs no ad_done.
+   const bool threaded = CanThreadFieldLoop();
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel if (threaded)
+#endif
    {
-      GetFDofs(el, u_vdofs);
-      r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
-      fes_p.GetElementVDofs(el, p_dofs);
-      r.GetBlock(1).GetSubVector(p_dofs, rp_l);
+      Array<int> u_vdofs, p_dofs, faces, c_dofs;
+      Vector ru_l, rp_l, du_l, dp_l, dtr_f;
+      Vector mi_wk;   ///< MultInv()'s one temporary, hoisted above the loop
 
-      GetElementFaces(el, faces);
-      for (int f = 0; f < faces.Size(); f++)
+#ifdef MFEM_USE_OPENMP
+      #pragma omp for schedule(static)
+#endif
+      for (int el = 0; el < NE; el++)
       {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         dtr_l.GetSubVector(c_dofs, dtr_f);
+         GetFDofs(el, u_vdofs);
+         r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
+         fes_p.GetElementVDofs(el, p_dofs);
+         r.GetBlock(1).GetSubVector(p_dofs, rp_l);
 
-         DenseMatrix Ct_l;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
-         Ct_l.AddMult(dtr_f, ru_l);
-
-         if (E_data.Size() > 0)
+         GetElementFaces(el, faces);
+         for (int f = 0; f < faces.Size(); f++)
          {
-            DenseMatrix E_l;
-            GetEFaceMatrix(faces[f], el1 != el, E_l);
-            E_l.AddMult(dtr_f, rp_l);
+            int el1, el2;
+            fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+            c_fes.GetFaceVDofs(faces[f], c_dofs);
+            dtr_l.GetSubVector(c_dofs, dtr_f);
+
+            DenseMatrix Ct_l;
+            GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+            Ct_l.AddMult(dtr_f, ru_l);
+
+            if (E_data.Size() > 0)
+            {
+               DenseMatrix E_l;
+               GetEFaceMatrix(faces[f], el1 != el, E_l);
+               E_l.AddMult(dtr_f, rp_l);
+            }
          }
+
+         if (batched_solve)
+         {
+            std::copy(ru_l.GetData(), ru_l.GetData() + ru_l.Size(),
+                      ru_all.GetData() + Af_f_offsets[el]);
+            std::copy(rp_l.GetData(), rp_l.GetData() + rp_l.Size(),
+                      rp_all.GetData() + Df_f_offsets[el]);
+            continue;
+         }
+
+         MultInv(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
+         du_l.Neg();
+         dp_l.Neg();
+
+         dx.GetBlock(0).SetSubVector(u_vdofs, du_l);
+         dx.GetBlock(1).SetSubVector(p_dofs, dp_l);
       }
-
-      if (batched_solve)
-      {
-         std::copy(ru_l.GetData(), ru_l.GetData() + ru_l.Size(),
-                   ru_all.GetData() + Af_f_offsets[el]);
-         std::copy(rp_l.GetData(), rp_l.GetData() + rp_l.Size(),
-                   rp_all.GetData() + Df_f_offsets[el]);
-         continue;
-      }
-
-      MultInv(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
-      du_l.Neg();
-      dp_l.Neg();
-
-      dx.GetBlock(0).SetSubVector(u_vdofs, du_l);
-      dx.GetBlock(1).SetSubVector(p_dofs, dp_l);
    }
 
    if (batched_solve)
@@ -8580,6 +8685,11 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
          du_all.HostRead();
          dp_all.HostRead();
 
+         // Serial, and it is the H(div) branch by construction -- the
+         // element-local test above took the threadable one. Its scratch is
+         // its own now that the element loop's lives inside the parallel
+         // region.
+         Array<int> u_vdofs, p_dofs;
          for (int el = 0; el < NE; el++)
          {
             GetFDofs(el, u_vdofs);
@@ -8603,6 +8713,9 @@ void DarcyHybridization::NPCReduce(const Array<const BlockVector *> &r,
    // The single-vector NPCReduce() with a column count carried through. Read
    // that one for what the arithmetic is; what this adds is that the mesh,
    // the face lookups and the gathers are walked once for all the columns.
+   // Timed as half the elimination traversal; see GetNPCTraversalTime().
+   const NPCTraversalTimer npc_traversal_timer;
+
    const int ncols = r.Size();
    MFEM_VERIFY(r_tr.Size() == ncols && b_tr.Size() == ncols,
                "NPCReduce(): r, r_tr and b_tr must have the same length");
@@ -8632,48 +8745,75 @@ void DarcyHybridization::NPCReduce(const Array<const BlockVector *> &r,
    }
 
    const int NE = fes.GetNE();
-   Array<int> u_vdofs, p_dofs, faces, c_dofs;
-   DenseMatrix ru_l, rp_l, du_l, dp_l, b_rl;
-   DenseMatrix mi_wk;   ///< MultInvBlocked()'s one temporary, hoisted
 
-   for (int el = 0; el < NE; el++)
+   // The colouring, exactly as the single-vector NPCReduce() takes it and for
+   // the same reason -- this scatters into the trace and only reads the field
+   // dofs. **This overload is the one a bordered Newton spends its time in**:
+   // the traversal is O(elements x columns) where the integrator-bound legs
+   // are O(elements), so the columns multiply this loop and nothing else.
+   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   if (threaded) { BuildElementColouring(); }
+   const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
+
+   for (int pass = 0; pass < npasses; pass++)
    {
-      GetFDofs(el, u_vdofs);
-      fes_p.GetElementVDofs(el, p_dofs);
-      ru_l.SetSize(u_vdofs.Size(), ncols);
-      rp_l.SetSize(p_dofs.Size(), ncols);
-      for (int j = 0; j < ncols; j++)
+      const int i0 = threaded ? colour_offsets[pass] : 0;
+      const int i1 = threaded ? colour_offsets[pass+1] : NE;
+
+#ifdef MFEM_USE_OPENMP
+      #pragma omp parallel if (threaded)
+#endif
       {
-         // The raw-pointer gather, so that the column view of the packed
-         // matrix is written in place and no Vector is resized under it.
-         r[j]->GetBlock(0).GetSubVector(u_vdofs, ru_l.GetColumn(j));
-         r[j]->GetBlock(1).GetSubVector(p_dofs, rp_l.GetColumn(j));
-      }
+         Array<int> u_vdofs, p_dofs, faces, c_dofs;
+         DenseMatrix ru_l, rp_l, du_l, dp_l, b_rl;
+         DenseMatrix mi_wk;   ///< MultInvBlocked()'s one temporary, hoisted
 
-      MultInvBlocked(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
-
-      GetElementFaces(el, faces);
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         DenseMatrix Ct_l;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
-
-         b_rl.SetSize(Ct_l.Width(), ncols);
-         mfem::MultAtB(Ct_l, du_l, b_rl);
-
-         if (G_data.Size() > 0)
+#ifdef MFEM_USE_OPENMP
+         #pragma omp for schedule(dynamic)
+#endif
+         for (int i = i0; i < i1; i++)
          {
-            DenseMatrix G_l;
-            GetGFaceMatrix(faces[f], el1 != el, G_l);
-            mfem::AddMult(G_l, dp_l, b_rl);
-         }
+            const int el = threaded ? colour_order[i] : i;
 
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         for (int j = 0; j < ncols; j++)
-         {
-            b_tr_l[j].AddElementVector(c_dofs, b_rl.GetColumn(j));
+            GetFDofs(el, u_vdofs);
+            fes_p.GetElementVDofs(el, p_dofs);
+            ru_l.SetSize(u_vdofs.Size(), ncols);
+            rp_l.SetSize(p_dofs.Size(), ncols);
+            for (int j = 0; j < ncols; j++)
+            {
+               // The raw-pointer gather, so that the column view of the
+               // packed matrix is written in place and no Vector is resized
+               // under it.
+               r[j]->GetBlock(0).GetSubVector(u_vdofs, ru_l.GetColumn(j));
+               r[j]->GetBlock(1).GetSubVector(p_dofs, rp_l.GetColumn(j));
+            }
+
+            MultInvBlocked(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
+
+            GetElementFaces(el, faces);
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               int el1, el2;
+               fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+               DenseMatrix Ct_l;
+               GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+
+               b_rl.SetSize(Ct_l.Width(), ncols);
+               mfem::MultAtB(Ct_l, du_l, b_rl);
+
+               if (G_data.Size() > 0)
+               {
+                  DenseMatrix G_l;
+                  GetGFaceMatrix(faces[f], el1 != el, G_l);
+                  mfem::AddMult(G_l, dp_l, b_rl);
+               }
+
+               c_fes.GetFaceVDofs(faces[f], c_dofs);
+               for (int j = 0; j < ncols; j++)
+               {
+                  b_tr_l[j].AddElementVector(c_dofs, b_rl.GetColumn(j));
+               }
+            }
          }
       }
    }
@@ -8690,6 +8830,9 @@ void DarcyHybridization::NPCRecover(const Array<const BlockVector *> &r,
                                     const Array<const Vector *> &dtr,
                                     Array<BlockVector *> &dx) const
 {
+   // Timed as half the elimination traversal; see GetNPCTraversalTime().
+   const NPCTraversalTimer npc_traversal_timer;
+
    const int ncols = r.Size();
    MFEM_VERIFY(dtr.Size() == ncols && dx.Size() == ncols,
                "NPCRecover(): r, dtr and dx must have the same length");
@@ -8715,54 +8858,69 @@ void DarcyHybridization::NPCRecover(const Array<const BlockVector *> &r,
    }
 
    const int NE = fes.GetNE();
-   Array<int> u_vdofs, p_dofs, faces, c_dofs;
-   DenseMatrix ru_l, rp_l, du_l, dp_l, dtr_f;
-   DenseMatrix mi_wk;
 
-   for (int el = 0; el < NE; el++)
+   // CanThreadFieldLoop(), as the single-vector NPCRecover() takes it: every
+   // write is at the calling element's own field dofs, in every column, so
+   // there is nothing to colour. **This overload is where a bordered Newton's
+   // recovery cost lives** -- it is O(elements x columns) against the
+   // integrator-bound legs' O(elements).
+   const bool threaded = CanThreadFieldLoop();
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel if (threaded)
+#endif
    {
-      GetFDofs(el, u_vdofs);
-      fes_p.GetElementVDofs(el, p_dofs);
-      ru_l.SetSize(u_vdofs.Size(), ncols);
-      rp_l.SetSize(p_dofs.Size(), ncols);
-      for (int j = 0; j < ncols; j++)
-      {
-         r[j]->GetBlock(0).GetSubVector(u_vdofs, ru_l.GetColumn(j));
-         r[j]->GetBlock(1).GetSubVector(p_dofs, rp_l.GetColumn(j));
-      }
+      Array<int> u_vdofs, p_dofs, faces, c_dofs;
+      DenseMatrix ru_l, rp_l, du_l, dp_l, dtr_f;
+      DenseMatrix mi_wk;
 
-      GetElementFaces(el, faces);
-      for (int f = 0; f < faces.Size(); f++)
+#ifdef MFEM_USE_OPENMP
+      #pragma omp for schedule(static)
+#endif
+      for (int el = 0; el < NE; el++)
       {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         dtr_f.SetSize(c_dofs.Size(), ncols);
+         GetFDofs(el, u_vdofs);
+         fes_p.GetElementVDofs(el, p_dofs);
+         ru_l.SetSize(u_vdofs.Size(), ncols);
+         rp_l.SetSize(p_dofs.Size(), ncols);
          for (int j = 0; j < ncols; j++)
          {
-            dtr_l[j].GetSubVector(c_dofs, dtr_f.GetColumn(j));
+            r[j]->GetBlock(0).GetSubVector(u_vdofs, ru_l.GetColumn(j));
+            r[j]->GetBlock(1).GetSubVector(p_dofs, rp_l.GetColumn(j));
          }
 
-         DenseMatrix Ct_l;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
-         mfem::AddMult(Ct_l, dtr_f, ru_l);
-
-         if (E_data.Size() > 0)
+         GetElementFaces(el, faces);
+         for (int f = 0; f < faces.Size(); f++)
          {
-            DenseMatrix E_l;
-            GetEFaceMatrix(faces[f], el1 != el, E_l);
-            mfem::AddMult(E_l, dtr_f, rp_l);
+            int el1, el2;
+            fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+            c_fes.GetFaceVDofs(faces[f], c_dofs);
+            dtr_f.SetSize(c_dofs.Size(), ncols);
+            for (int j = 0; j < ncols; j++)
+            {
+               dtr_l[j].GetSubVector(c_dofs, dtr_f.GetColumn(j));
+            }
+
+            DenseMatrix Ct_l;
+            GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+            mfem::AddMult(Ct_l, dtr_f, ru_l);
+
+            if (E_data.Size() > 0)
+            {
+               DenseMatrix E_l;
+               GetEFaceMatrix(faces[f], el1 != el, E_l);
+               mfem::AddMult(E_l, dtr_f, rp_l);
+            }
          }
-      }
 
-      MultInvBlocked(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
-      du_l.Neg();
-      dp_l.Neg();
+         MultInvBlocked(el, ru_l, rp_l, du_l, dp_l, true, &mi_wk);
+         du_l.Neg();
+         dp_l.Neg();
 
-      for (int j = 0; j < ncols; j++)
-      {
-         dx[j]->GetBlock(0).SetSubVector(u_vdofs, du_l.GetColumn(j));
-         dx[j]->GetBlock(1).SetSubVector(p_dofs, dp_l.GetColumn(j));
+         for (int j = 0; j < ncols; j++)
+         {
+            dx[j]->GetBlock(0).SetSubVector(u_vdofs, du_l.GetColumn(j));
+            dx[j]->GetBlock(1).SetSubVector(p_dofs, dp_l.GetColumn(j));
+         }
       }
    }
 

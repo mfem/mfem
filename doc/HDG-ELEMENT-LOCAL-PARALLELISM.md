@@ -12,7 +12,31 @@ local factorisations, the bit-for-bit result, the LAPACK caveat, the 1/2/4/8
 thread scaling and the fact that they are the **cold** path;
 `CanThreadFieldLoop()` carries the field-dof loops. That is `ComputeH`,
 `InvertA`, `InvertD`, `MultNL`, `ComputeSolution`, `EliminateVDofsInRHS`,
-`EliminateTrueDofsInRHS` and `ReduceRHS` — all eight.
+`EliminateTrueDofsInRHS`, `ReduceRHS`, **`NPCReduce` and `NPCRecover`** — ten.
+
+**Two corrections to the sentence above, both of which meq relied on and
+neither of which it supported.**
+
+* **`NPCReduce` and `NPCRecover` were NOT in the list and were NOT threaded**
+  until meq asked. The reason recorded for leaving them was a measurement —
+  "under 6% of the step" — taken on four fixed-boundary, single-right-hand-side
+  cases. They are `O(elements × columns)` where the integrator-bound legs are
+  `O(elements)`, so a bordered Newton inverts the ratio: meq measured them at
+  **30.6% of their step and 1.00x across eight threads**. Both are threaded
+  now, 4.35x at eight threads on the leg, bit-for-bit. The findings are on
+  `NPCGradient()` and `GetNPCTraversalTime()`.
+* **`InvertA` and `InvertD` are not OpenMP loops at all**, and the list reads
+  as though they were. Their element loops carry no `omp` and no `forall`;
+  what is threaded is the *batched* route beside them
+  (`FactorElementsBatched`, `BatchedLinAlg`), which needs
+  `LocalFactorMode::Batched` **and** a device backend. Under the ordinary host
+  combination — `-d cpu` with `AssemblyMode::Threaded` — `mfem::forall` is a
+  serial loop and both run serially. Measured on `hdgperf -n 128 -o 3 -lin`:
+  asking for `-lfac 1` on the host takes `ComputeH` from 0.418 s threaded to
+  **1.075 s, and it stops scaling** (1.046 s at one thread, 1.075 s at eight),
+  because the batched route replaces the OpenMP loop with a serial `forall`.
+  The default is `LocalFactorMode::Serial`, so nothing is hit by default — but
+  it is a trap for anyone who turns it on expecting host threading.
 
 Every one is embarrassingly parallel by construction: each element's flux and
 potential being eliminable independently of every other is what static
@@ -29,6 +53,18 @@ condensation *is*.
   `Assemble` runs once per solve, so against a Newton loop's `2N` passes
   through `MultNL` it is `O(1/2N)`. That is the trade, and it is why this is
   recorded and not done.
+
+  **The `~0%` half of that is wrong for a solver whose right-hand side moves,
+  and meq is such a solver.** Their free-boundary problem carries an exterior
+  Dirichlet-to-Neumann datum on `Γ` that enters through the right-hand side,
+  so an accepted Newton step changes it and the next step needs a full
+  `FormLinearSystem()`: 16 `prepare()` calls across a 12-step DIII-D run, not
+  3. They measure that leg at **1.05 cores of 8 and 4.1% of the run**.
+  Independently reproduced here — `hdgperf`'s `setup` leg is 0.465 s at one
+  thread and 0.416 s at eight, **1.12x**, i.e. flat. So the figure to quote is
+  "once per *assembly*, and a moving right-hand side assembles every step",
+  not "once per solve". Still upstream, still not owed, and still smaller than
+  the traversal was.
 
 * **A mixed-element Jacobian defect, and `gf-hdg-p-adaptivity` owns the
   repair.** `DarcyHybridization`'s Jacobian is wrong on a mixed-element mesh at

@@ -1720,6 +1720,7 @@ std::vector<real_t> RunNPCHdiv(HdivHDG &P, int max_it,
    }
    return norms;
 }
+
 } // namespace darcy_npc
 
 TEST_CASE("A stiff source converges by condensation and by NPC alike",
@@ -2235,6 +2236,255 @@ TEST_CASE("ComputeSolution reproduces the fields NPC already holds",
    }
 }
 
+
+namespace darcy_npc
+{
+
+/** @brief Build @a ncols pairwise-different columns off one real residual.
+
+    Shared by the blocked-agreement case and the threading case below. The
+    columns are not multiples of one another, so a blocked route that read a
+    column from the wrong place cannot come out right by symmetry -- the
+    discriminator the blocked case then asserts directly. */
+struct NPCColumns
+{
+   std::vector<BlockVector> r, dx;
+   std::vector<Vector> r_tr, b_tr, dtr;
+   Array<const BlockVector *> r_ptr;
+   Array<const Vector *> r_tr_ptr, dtr_ptr;
+   Array<Vector *> b_tr_ptr;
+   Array<BlockVector *> dx_ptr;
+
+   NPCColumns(PedestalHDG &P, const BlockVector &r0, const Vector &r_tr0,
+              int ncols)
+      : r(ncols), dx(ncols), r_tr(ncols), b_tr(ncols), dtr(ncols),
+        r_ptr(ncols), r_tr_ptr(ncols), dtr_ptr(ncols), b_tr_ptr(ncols),
+        dx_ptr(ncols)
+   {
+      for (int j = 0; j < ncols; j++)
+      {
+         r[j].Update(P.darcy.GetOffsets());
+         r_tr[j] = r_tr0;
+         // Written through the BLOCKS and not the parent, since the legs read
+         // the blocks and a BlockVector's two views have their own Memory
+         // flags.
+         for (int blk = 0; blk < 2; blk++)
+         {
+            Vector &rb = r[j].GetBlock(blk);
+            const Vector &r0b = r0.GetBlock(blk);
+            for (int i = 0; i < rb.Size(); i++)
+            {
+               rb(i) = r0b(i) * (1.0 + 0.3 * j) + std::sin(0.41 * i + 1.3 * j);
+            }
+         }
+         r[j].SyncFromBlocks();
+         for (int i = 0; i < r_tr[j].Size(); i++)
+         {
+            r_tr[j](i) = r_tr0(i) * (1.0 + 0.3 * j)
+                         + std::cos(0.29 * i + 0.7 * j);
+         }
+         dx[j].Update(P.darcy.GetOffsets());
+
+         r_ptr[j] = &r[j];
+         r_tr_ptr[j] = &r_tr[j];
+         b_tr_ptr[j] = &b_tr[j];
+         dx_ptr[j] = &dx[j];
+      }
+   }
+
+   /// Trace increments, once the reduce has sized them.
+   void MakeIncrements()
+   {
+      for (int j = 0; j < dtr.size(); j++)
+      {
+         dtr[j].SetSize(b_tr[j].Size());
+         for (int i = 0; i < dtr[j].Size(); i++)
+         {
+            dtr[j](i) = std::cos(0.23 * i + 0.9 * j);
+         }
+         dtr_ptr[j] = &dtr[j];
+      }
+   }
+};
+
+/// Relative closeness. CheckFinite() first, because Vector::Norml2() cannot
+/// detect a NaN -- its reduction guard `fabs(x) > 0` is false for one, so the
+/// norm of the remainder comes back and an all-NaN vector reads as 0.
+inline void RequireClose(const Vector &got, const Vector &want, real_t tol)
+{
+   REQUIRE(got.CheckFinite() == 0);
+   REQUIRE(got.Size() == want.Size());
+   Vector d(got);
+   d -= want;
+   REQUIRE(d.Norml2() <= tol * std::max(want.Norml2(), 1e-12));
+}
+
+/// Bitwise equality, which is what the threaded traversal owes the serial
+/// one; see the case that uses it for why that is the right assertion.
+inline void RequireIdentical(const Vector &got, const Vector &want)
+{
+   REQUIRE(got.CheckFinite() == 0);
+   REQUIRE(got.Size() == want.Size());
+   Vector d(got);
+   d -= want;
+   REQUIRE(d.Normlinf() == 0.0);
+}
+
+} // namespace darcy_npc
+
+TEST_CASE("The blocked NPC legs agree with the single-vector legs",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+
+   // **The serial twin the parallel case of this name says covers "the
+   // element loop and the local solve" -- and which did not exist.** The
+   // blocked overloads were reachable from `unit_tests` through nothing at
+   // all: their only case carried the [Parallel] tag, and the two mains
+   // partition the suite on it, so the whole of NPCReduce(Array...) and
+   // NPCRecover(Array...) ran only under `punit_tests`. Neither HDG tree
+   // builds that with MFEM_USE_OPENMP, so their element loops additionally
+   // had no threaded coverage anywhere.
+   PedestalHDG P(8, 1, 0.05, 0.0);
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+
+   BlockVector b = P.load(), x = P.state();
+   Vector &x_tr = P.X;
+
+   BlockVector r0(P.darcy.GetOffsets());
+   Vector r_tr0;
+   dh.NPCResidual(b, x, x_tr, r0, r_tr0);
+   dh.NPCGradient(x, x_tr);
+
+   const int ncols = 3;
+   NPCColumns C(P, r0, r_tr0, ncols);
+
+   std::vector<Vector> b_tr_ref(ncols);
+   std::vector<BlockVector> dx_ref(ncols);
+
+   dh.NPCReduce(C.r_ptr, C.r_tr_ptr, C.b_tr_ptr);
+   for (int j = 0; j < ncols; j++)
+   {
+      CAPTURE(j);
+      dh.NPCReduce(C.r[j], C.r_tr[j], b_tr_ref[j]);
+      RequireClose(C.b_tr[j], b_tr_ref[j], 1e-11);
+   }
+
+   C.MakeIncrements();
+   dh.NPCRecover(C.r_ptr, C.dtr_ptr, C.dx_ptr);
+   for (int j = 0; j < ncols; j++)
+   {
+      CAPTURE(j);
+      dx_ref[j].Update(P.darcy.GetOffsets());
+      dh.NPCRecover(C.r[j], C.dtr[j], dx_ref[j]);
+      RequireClose(C.dx[j].GetBlock(0), dx_ref[j].GetBlock(0), 1e-11);
+      RequireClose(C.dx[j].GetBlock(1), dx_ref[j].GetBlock(1), 1e-11);
+   }
+
+   // The comparison can fail: the three columns are genuinely different, so a
+   // blocked route returning one of them three times would not have passed.
+   for (int j = 1; j < ncols; j++)
+   {
+      CAPTURE(j);
+      Vector d(b_tr_ref[j]);
+      d -= b_tr_ref[0];
+      REQUIRE(d.Norml2() > 1e-8 * std::max(b_tr_ref[0].Norml2(), 1e-12));
+   }
+}
+
+TEST_CASE("The threaded NPC traversal agrees with the serial one",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+   using namespace darcy_npc;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   // **Everything but the thing under test is held fixed, and that is what
+   // makes this sharp.** The gradient is taken ONCE, in Serial, so the
+   // factored local blocks and the Schur complement both routes read are
+   // literally the same memory; only asm_mode changes between the two
+   // measurements. NPCReduce() and NPCRecover() do not go through MultNL(),
+   // so flipping the mode afterwards reaches their element loops and nothing
+   // else -- which is also why this does not trip MultNL()'s refusal of
+   // Threaded on a problem whose gradient blocks cannot be cached.
+   PedestalHDG P(32, 1, 0.05, 0.0);
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+
+   BlockVector b = P.load(), x = P.state();
+   Vector &x_tr = P.X;
+
+   BlockVector r0(P.darcy.GetOffsets());
+   Vector r_tr0;
+   dh.NPCResidual(b, x, x_tr, r0, r_tr0);
+   dh.NPCGradient(x, x_tr);
+
+   const int ncols = 3;
+   NPCColumns S(P, r0, r_tr0, ncols);   // serial reference
+   NPCColumns T(P, r0, r_tr0, ncols);   // threaded, same inputs by construction
+
+   REQUIRE(dh.GetAssemblyMode() == AM::Serial);
+   Vector b_tr_s, b_tr_t;
+   BlockVector dx_s(P.darcy.GetOffsets()), dx_t(P.darcy.GetOffsets());
+
+   dh.NPCReduce(S.r[0], S.r_tr[0], b_tr_s);
+   dh.NPCReduce(S.r_ptr, S.r_tr_ptr, S.b_tr_ptr);
+   S.MakeIncrements();
+   dh.NPCRecover(S.r[0], S.dtr[0], dx_s);
+   dh.NPCRecover(S.r_ptr, S.dtr_ptr, S.dx_ptr);
+
+   // There was something to get wrong.
+   REQUIRE(b_tr_s.Norml2() > 1e-8);
+   REQUIRE(dx_s.GetBlock(0).Norml2() > 1e-8);
+
+   dh.SetAssemblyMode(AM::Threaded);
+
+   dh.NPCReduce(T.r[0], T.r_tr[0], b_tr_t);
+   dh.NPCReduce(T.r_ptr, T.r_tr_ptr, T.b_tr_ptr);
+   T.MakeIncrements();
+   dh.NPCRecover(T.r[0], T.dtr[0], dx_t);
+   dh.NPCRecover(T.r_ptr, T.dtr_ptr, T.dx_ptr);
+
+   // **BITWISE, and that is the right assertion rather than a tight
+   // tolerance.** NPCRecover() is bitwise because every element writes only
+   // its own dofs. NPCReduce() is bitwise for the reason SetAssemblyMode()
+   // already gives for MultNL(): the colouring changes the ORDER in which a
+   // face's two elements accumulate into a trace dof, and with exactly TWO
+   // contributions `a + b == b + a` exactly. It would stop being bitwise on a
+   // trace space whose dofs are shared between faces -- an H1_Trace (EDG) one
+   // -- where a dof sees more than two contributions and associativity would
+   // start to matter. **Measured before being asserted**: a first draft of
+   // this case compared at 1e-11, on my own reasoning that a reordered sum
+   // cannot be exact, and exact equality then passed at 2 and at 8 threads.
+   //
+   // **What this case does and does not discriminate, checked rather than
+   // claimed.** Sharing the per-thread scratch -- hoisting `ru_l`, `mi_wk`
+   // and the dof Arrays out of the parallel region, which is the bug this
+   // change could most easily have shipped -- fails it decisively: 4 and 6
+   // assertions on two runs and a SIGSEGV on a third. Collapsing
+   // NPCReduce()'s colour passes into one, so the trace scatter races, does
+   // NOT fail it: tried at 128 and at 2048 elements, three runs each, all
+   // passed. So the colouring is NOT pinned here, and a reader should not
+   // take a green run as evidence for it -- the argument for the colouring is
+   // that two elements of one colour never share a face, and the pin for the
+   // mechanism is ReduceRHS(), which has used it since before this.
+   RequireIdentical(b_tr_t, b_tr_s);
+   RequireIdentical(dx_t.GetBlock(0), dx_s.GetBlock(0));
+   RequireIdentical(dx_t.GetBlock(1), dx_s.GetBlock(1));
+
+   for (int j = 0; j < ncols; j++)
+   {
+      CAPTURE(j);
+      RequireIdentical(T.b_tr[j], S.b_tr[j]);
+      RequireIdentical(T.dx[j].GetBlock(0), S.dx[j].GetBlock(0));
+      RequireIdentical(T.dx[j].GetBlock(1), S.dx[j].GetBlock(1));
+   }
+#else
+   WARN("The threaded NPC traversal needs MFEM_USE_OPENMP and "
+        "MFEM_THREAD_SAFE; this build has neither or only one, so the "
+        "element loops in NPCReduce() and NPCRecover() ran serially and "
+        "nothing was compared.");
+#endif
+}
 
 #ifdef MFEM_USE_MPI
 
