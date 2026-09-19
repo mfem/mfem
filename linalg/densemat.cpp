@@ -2483,6 +2483,12 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static char transa = 'N', transb = 'N';
    static real_t alpha = 1.0, beta = 0.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { a = 0.0; return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
                              c.Data(), &k, &beta, a.Data(), &m);
@@ -2507,6 +2513,12 @@ void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
    static char transa = 'N', transb = 'N';
    static real_t beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
                              c.Data(), &k, &beta, a.Data(), &m);
@@ -2539,6 +2551,12 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    static char transa = 'N', transb = 'N';
    static real_t alpha = 1.0, beta = 1.0;
    int m = b.Height(), n = c.Width(), k = b.Width();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
                              c.Data(), &k, &beta, a.Data(), &m);
@@ -2859,6 +2877,12 @@ void MultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static char transa = 'N', transb = 'T';
    static real_t alpha = 1.0, beta = 0.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { ABt = 0.0; return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
                              B.Data(), &n, &beta, ABt.Data(), &m);
@@ -2964,6 +2988,12 @@ void AddMultABt(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &ABt)
    static char transa = 'N', transb = 'T';
    static real_t alpha = 1.0, beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
                              B.Data(), &n, &beta, ABt.Data(), &m);
@@ -3059,6 +3089,12 @@ void AddMult_a_ABt(real_t a, const DenseMatrix &A, const DenseMatrix &B,
    real_t alpha = a;
    static real_t beta = 1.0;
    int m = A.Height(), n = B.Height(), k = A.Width();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &m,
                              B.Data(), &n, &beta, ABt.Data(), &m);
@@ -3116,6 +3152,12 @@ void MultAtB(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &AtB)
    static char transa = 'T', transb = 'N';
    static real_t alpha = 1.0, beta = 0.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { AtB = 0.0; return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
                              B.Data(), &k, &beta, AtB.Data(), &m);
@@ -3169,6 +3211,12 @@ void AddMultAtB(const DenseMatrix &A, const DenseMatrix &B,
    static char transa = 'T', transb = 'N';
    static real_t alpha = 1.0, beta = 1.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
                              B.Data(), &k, &beta, AtB.Data(), &m);
@@ -3209,6 +3257,12 @@ void AddMult_a_AtB(real_t a, const DenseMatrix &A, const DenseMatrix &B,
    real_t alpha = a;
    static real_t beta = 1.0;
    int m = A.Width(), n = B.Width(), k = A.Height();
+   // **A zero dimension is legal here and MKL rejects it.** With m, n or k
+   // zero the corresponding leading dimension passed below is zero too, and
+   // BLAS requires lda >= max(1,m) -- the reference implementation tolerates
+   // it, MKL aborts the process with "Parameter 8"/"Condition -10". A flux
+   // space carrying no direction at all reaches this legitimately.
+   if (m == 0 || n == 0 || k == 0) { return; }
 
    MFEM_LAPACK_PREFIX(gemm_)(&transa, &transb, &m, &n, &k, &alpha, A.Data(), &k,
                              B.Data(), &k, &beta, AtB.Data(), &m);
