@@ -1861,6 +1861,67 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
                                          &Mp_nl_lift);
 }
 
+namespace
+{
+
+/** @brief Per-thread scratch for the element body of
+    DarcyForm::ReconstructFluxAndPot().
+
+    Everything that body used to declare above its element loop, plus the two
+    pieces the reentrant ComputeElementMatrix() overloads take from their
+    caller and the three transformations that stand in for the Mesh's shared
+    ones. Hoisted rather than declared per element for the reason this branch
+    has measured twice: a per-element DenseMatrix is a malloc, and the element
+    loops here were 90,949 of them before the allocation rounds.
+
+    It is a FILE-LOCAL type, held by value on each thread's stack, so it is
+    nobody's layout and no header moves for it -- the trap this branch has
+    paid for eight times. */
+struct ReconstructWorkspace
+{
+   DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, Mp_k, P_lift;
+   /// The accumulator the reentrant ComputeElementMatrix() needs when a form
+   /// carries more than one domain integrator; untouched when it carries one.
+   DenseMatrix ce_work;
+   DenseMatrixInverse inv;
+   Vector rhs, rhs_p, shape_p, shape_pc;
+   Vector shape_ut, shape_tr, ut_f, rhs_f;
+   Vector p_lift, trfun_z;
+   Vector sol_pc, mass_p, sum_pc;
+   Array<int> vdofs_u, dofs_p, dofs_pc, vdofs_ut;
+
+   /// In place of the Mesh's shared element transformation, which is one
+   /// object per Mesh and so a race the moment two elements are live.
+   IsoparametricTransformation eltrans;
+   /// In place of the Mesh's shared face transformation and its two sides.
+   FaceElementTransformations facetrans;
+   IsoparametricTransformation f1, f2;
+
+   /// The element driver, one instance per thread; see its construction.
+   VectorDomainLFIntegrator *bp = nullptr;
+
+   /** @brief In place of FiniteElementSpace's own `mutable DofTransformation
+       DoFTrans`, which the one-argument GetElementVDofs() writes into.
+
+       Nothing here READS the returned transformation -- the dof array itself
+       is transformation independent -- so this looks like a write nobody
+       cares about. It is not: SetFaceOrientations() is `Fo_ = Fo`, an
+       Array<int> copy assignment, so two threads gathering dofs from one
+       space at once can be allocating and freeing that member's buffer
+       simultaneously. It fires only where DoFTransArray[geom] is non-null,
+       i.e. an H(curl) or H(div) space whose dofs depend on face orientation,
+       which is exactly the RT flux this routine also serves. Taking the
+       explicit overload removes the question rather than arguing it is
+       benign, and costs one object per thread. */
+   DofTransformation doftrans;
+
+   /// The scatter's own, so that it allocates nothing per element either.
+   Array<int> s_vdofs_u, s_dofs_p, s_vdofs_tr;
+   Vector s_sol_u, s_sol_p, s_sol_tr_f;
+};
+
+} // anonymous namespace
+
 void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
                                       const GridFunction &pc,
                                       const GridFunction &ut, GridFunction &u,
@@ -1880,6 +1941,7 @@ const
    ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
 #endif //MFEM_USE_MPI
    const int dim = mesh->Dimension();
+   const int NE = mesh->GetNE();
 
    // The number of fields, and the one thing that makes the local problem
    // below a system rather than a scalar one. Every block of the element
@@ -1895,38 +1957,28 @@ const
                << " field(s), got " << fes_tr->GetVDim() << " and "
                << fes_ut->GetVDim());
 
-   DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f,
-               Mp_k, P_lift;
-   DenseMatrixInverse inv;
-   Vector rhs, rhs_p, shape_p, shape_pc;
-   Vector shape_ut, shape_tr, ut_f, rhs_f;
-   Vector p_lift, trfun_z;
-   Array<int> faces, oris, vdofs_ut;
-
    // The element driver, per field. At neq == 1 this is bit for bit the
    // scalar DomainLFIntegrator(DivergenceGridFunctionCoefficient) it replaced
    // -- see the note in VectorDivergenceGridFunctionCoefficient::Eval(), which
    // was written to divide rather than scale by a reciprocal so that it is.
+   //
+   // The COEFFICIENT is shared across threads and the INTEGRATOR is not.
+   // Eval() above reads the grid function and writes only its output and its
+   // own locals, so one instance serves every thread; VectorDomainLFIntegrator
+   // holds `shape` and `Qvec`, and although both sit behind
+   // `#ifndef MFEM_THREAD_SAFE` upstream, giving each thread its own instance
+   // costs nothing and takes this integrator out of the promise the caller
+   // makes with SetIntegratorsThreadSafe() altogether. It is ours, not the
+   // caller's, so it should not be in that promise.
    VectorDivergenceGridFunctionCoefficient bp_coeff(&ut, neq);
-   VectorDomainLFIntegrator bp(bp_coeff);
-
-   Vector sol, sol_u, sol_p, sol_pc, sol_tr_f, elmat_e, rhs_e, mass_p, sum_pc;
-   Array<int> vdofs_u, dofs_p, dofs_pc, vdofs_tr;
 
    u = 0.;
    p = 0.;
    tr = 0.;
 
-   for (int z = 0; z < mesh->GetNE(); z++)
+   // The element's faces, by whatever they are called in this dimension.
+   auto element_faces = [&](int z, Array<int> &faces, Array<int> &oris)
    {
-      fes_u->GetElementVDofs(z, vdofs_u);
-      fes_p->GetElementVDofs(z, dofs_p);
-      const int ndof_u = vdofs_u.Size();
-      const int ndof_p = dofs_p.Size();
-      // The scalar count, which is what every shape function and every
-      // per-field offset is stated in. ndof_p is neq of these.
-      const int ndof_p_s = ndof_p / neq;
-
       switch (dim)
       {
          case 1:
@@ -1939,6 +1991,23 @@ const
             mesh->GetElementFaces(z, faces, oris);
             break;
       }
+   };
+
+   // ------------------------------------------------------------------
+   // One element's local problem: assembled, closed and solved into @a sol.
+   // It reads the computed solution and the mesh and writes nothing outside
+   // @a w and @a sol, which is what makes the loop over it parallelisable.
+   // ------------------------------------------------------------------
+   auto solve_element = [&](int z, const Array<int> &faces,
+                            ReconstructWorkspace &w, Vector &sol)
+   {
+      fes_u->GetElementVDofs(z, w.vdofs_u, w.doftrans);
+      fes_p->GetElementVDofs(z, w.dofs_p, w.doftrans);
+      const int ndof_u = w.vdofs_u.Size();
+      const int ndof_p = w.dofs_p.Size();
+      // The scalar count, which is what every shape function and every
+      // per-field offset is stated in. ndof_p is neq of these.
+      const int ndof_p_s = ndof_p / neq;
 
       int ndof_tr = 0;
       for (int f : faces)
@@ -1948,18 +2017,24 @@ const
 
       const int elmat_w = ndof_u + ndof_p + ndof_tr;
       const int elmat_h = elmat_w;
-      elmat.SetSize(elmat_h, elmat_w);
-      elmat = 0.;
+      w.elmat.SetSize(elmat_h, elmat_w);
+      w.elmat = 0.;
 
-      rhs.SetSize(elmat_h);
-      rhs = 0.;
+      w.rhs.SetSize(elmat_h);
+      w.rhs = 0.;
 
       const FiniteElement *fe_p = fes_p->GetFE(z);
-      ElementTransformation *Tr = mesh->GetElementTransformation(z);
+      // The caller's own transformation rather than the Mesh's shared one.
+      // The three ComputeElementMatrix() calls below refill it with this very
+      // element's geometry, exactly as the one-argument overloads refilled the
+      // shared one that this routine used to hold a pointer to -- so the
+      // aliasing, and the answer, are what they always were.
+      mesh->GetElementTransformation(z, &w.eltrans);
+      ElementTransformation *Tr = &w.eltrans;
 
-      fes_pc->GetElementVDofs(z, dofs_pc);
-      pc.GetSubVector(dofs_pc, sol_pc);
-      const int ndof_pc_s = dofs_pc.Size() / neq;
+      fes_pc->GetElementVDofs(z, w.dofs_pc, w.doftrans);
+      pc.GetSubVector(w.dofs_pc, w.sol_pc);
+      const int ndof_pc_s = w.dofs_pc.Size() / neq;
 
       // The computed potential lifted onto the enriched space, the state that
       // a frozen non-linear block is taken at. The enriched space contains the
@@ -1969,33 +2044,33 @@ const
       {
          // Project() is between the two SCALAR elements, so the lift matrix
          // is shared by every field and applied to each block in turn.
-         fe_p->Project(*fes_pc->GetFE(z), *Tr, P_lift);
-         p_lift.SetSize(ndof_p);
+         fe_p->Project(*fes_pc->GetFE(z), *Tr, w.P_lift);
+         w.p_lift.SetSize(ndof_p);
          for (int e = 0; e < neq; e++)
          {
-            const Vector src(sol_pc.GetData() + e * ndof_pc_s, ndof_pc_s);
-            Vector dst(p_lift.GetData() + e * ndof_p_s, ndof_p_s);
-            P_lift.Mult(src, dst);
+            const Vector src(w.sol_pc.GetData() + e * ndof_pc_s, ndof_pc_s);
+            Vector dst(w.p_lift.GetData() + e * ndof_p_s, ndof_p_s);
+            w.P_lift.Mult(src, dst);
          }
       }
 
-      M_u->ComputeElementMatrix(z, Mu_z);
-      elmat.CopyMN(Mu_z, 0, 0);
+      M_u->ComputeElementMatrix(z, w.Mu_z, w.eltrans, w.ce_work);
+      w.elmat.CopyMN(w.Mu_z, 0, 0);
 
-      B->ComputeElementMatrix(z, B_z);
-      elmat.CopyMN(B_z, ndof_u, 0);
-      B_z.Neg();
-      elmat.CopyMNt(B_z, 0, ndof_u);
+      B->ComputeElementMatrix(z, w.B_z, w.eltrans, w.ce_work);
+      w.elmat.CopyMN(w.B_z, ndof_u, 0);
+      w.B_z.Neg();
+      w.elmat.CopyMNt(w.B_z, 0, ndof_u);
 
       if (M_p)
       {
-         M_p->ComputeElementMatrix(z, Mp_z);
-         elmat.CopyMN(Mp_z, ndof_u, ndof_u);
+         M_p->ComputeElementMatrix(z, w.Mp_z, w.eltrans, w.ce_work);
+         w.elmat.CopyMN(w.Mp_z, ndof_u, ndof_u);
       }
       else if (pot_nl)
       {
-         Mp_z.SetSize(ndof_p);
-         Mp_z = 0.;
+         w.Mp_z.SetSize(ndof_p);
+         w.Mp_z = 0.;
 
          for (NonlinearFormIntegrator *nlfi : *Mp_nl)
          {
@@ -2010,18 +2085,18 @@ const
 
             // For a bilinear integrator this is the element matrix itself, so
             // the branch coincides with the M_p one term by term.
-            nlfi->AssembleElementGrad(*fe_p, *Tr, p_lift, Mp_k);
-            Mp_z += Mp_k;
+            nlfi->AssembleElementGrad(*fe_p, *Tr, w.p_lift, w.Mp_k);
+            w.Mp_z += w.Mp_k;
          }
-         elmat.CopyMN(Mp_z, ndof_u, ndof_u);
+         w.elmat.CopyMN(w.Mp_z, ndof_u, ndof_u);
       }
 
       // rhs
 
-      rhs_p.MakeRef(rhs, ndof_u, ndof_p);
+      w.rhs_p.MakeRef(w.rhs, ndof_u, ndof_p);
 
       // element term
-      bp.AssembleRHSElementVect(*fe_p, *Tr, rhs_p);
+      w.bp->AssembleRHSElementVect(*fe_p, *Tr, w.rhs_p);
 
       // face terms
 
@@ -2031,11 +2106,16 @@ const
          const FiniteElement *fe_tr = fes_tr->GetFaceElement(f);
          const int ndof_tr_fs = fe_tr->GetDof();
          const int ndof_tr_f = neq * ndof_tr_fs;
-         FaceElementTransformations *FTr = mesh->GetFaceElementTransformations(f);
+         // Again the caller's own rather than the Mesh's shared cache, which
+         // is one FaceElementTransformations and two IsoparametricTransforms
+         // for the whole Mesh.
+         mesh->GetFaceElementTransformations(f, w.facetrans, w.f1, w.f2);
+         FaceElementTransformations *FTr = &w.facetrans;
 #ifdef MFEM_USE_MPI
          if (FTr->Elem2No < 0 && pmesh && pmesh->FaceIsTrueInterior(f))
          {
-            FTr = pmesh->GetSharedFaceTransformationsByLocalIndex(f);
+            pmesh->GetSharedFaceTransformationsByLocalIndex(f, w.facetrans,
+                                                            w.f1, w.f2);
          }
 #endif //MFEM_USE_MPI
 
@@ -2044,13 +2124,13 @@ const
          const FiniteElement *fe_u2 = (FTr->Elem2No >= 0)?(fes_u->GetFE(FTr->Elem2No)):
                                       (fe_u1);
 
-         c_bfi->AssembleFaceMatrix(*fe_tr, *fe_u1, *fe_u2, *FTr, Ct_f);
+         c_bfi->AssembleFaceMatrix(*fe_tr, *fe_u1, *fe_u2, *FTr, w.Ct_f);
 
          const int off_u = (FTr->Elem1No == z)?(0):(fe_u1->GetDof() * fes_u->GetVDim());
-         Ct_fz.CopyMN(Ct_f, ndof_u, ndof_tr_f, off_u, 0);
+         w.Ct_fz.CopyMN(w.Ct_f, ndof_u, ndof_tr_f, off_u, 0);
 
-         elmat.CopyMN(Ct_fz, 0, off_tr);
-         elmat.CopyMNt(Ct_fz, off_tr, 0);
+         w.elmat.CopyMN(w.Ct_fz, 0, off_tr);
+         w.elmat.CopyMNt(w.Ct_fz, off_tr, 0);
 
          //potential constraint
          if (c_bfi_p || c_nlfi_p)
@@ -2058,7 +2138,7 @@ const
             const int side = (FTr->Elem1No == z)?(0):(1);
             if (c_bfi_p)
             {
-               c_bfi_p->AssembleHDGFaceMatrix(side, *fe_tr, *fe_p, *FTr, DEGH_f);
+               c_bfi_p->AssembleHDGFaceMatrix(side, *fe_tr, *fe_p, *FTr, w.DEGH_f);
             }
             else
             {
@@ -2073,17 +2153,18 @@ const
                                     | NonlinearFormIntegrator::HDGFaceType::TRACE
                                     | NonlinearFormIntegrator::HDGFaceType::CONSTR
                                     | NonlinearFormIntegrator::HDGFaceType::FACE;
-               trfun_z.SetSize(ndof_tr_f);
-               trfun_z = 0.;
+               w.trfun_z.SetSize(ndof_tr_f);
+               w.trfun_z = 0.;
                c_nlfi_p->AssembleHDGFaceGrad(mask | side, *fe_tr, *fe_p, *FTr,
-                                             trfun_z, p_lift, DEGH_f);
+                                             w.trfun_z, w.p_lift, w.DEGH_f);
             }
 
-            D_fz.CopyMN(DEGH_f, ndof_p, ndof_p, 0, 0);
-            elmat.AddMatrix(D_fz, ndof_u, ndof_u);
-            elmat.CopyMN(DEGH_f, ndof_p, ndof_tr_f, 0, ndof_p, ndof_u, off_tr);
-            elmat.CopyMN(DEGH_f, ndof_tr_f, ndof_p, ndof_p, 0, off_tr, ndof_u);
-            elmat.CopyMN(DEGH_f, ndof_tr_f, ndof_tr_f, ndof_p, ndof_p, off_tr, off_tr);
+            w.D_fz.CopyMN(w.DEGH_f, ndof_p, ndof_p, 0, 0);
+            w.elmat.AddMatrix(w.D_fz, ndof_u, ndof_u);
+            w.elmat.CopyMN(w.DEGH_f, ndof_p, ndof_tr_f, 0, ndof_p, ndof_u, off_tr);
+            w.elmat.CopyMN(w.DEGH_f, ndof_tr_f, ndof_p, ndof_p, 0, off_tr, ndof_u);
+            w.elmat.CopyMN(w.DEGH_f, ndof_tr_f, ndof_tr_f, ndof_p, ndof_p, off_tr,
+                           off_tr);
          }
 
          // rhs
@@ -2096,15 +2177,15 @@ const
          // Both shapes are scalar; the fields share them and differ only in
          // which block of ut_f is contracted and which block of rhs_f is
          // written.
-         shape_ut.SetSize(ndof_ut_f);
-         shape_tr.SetSize(ndof_tr_fs);
-         rhs_f.MakeRef(rhs, off_tr, ndof_tr_f);
-         rhs_f = 0.;
+         w.shape_ut.SetSize(ndof_ut_f);
+         w.shape_tr.SetSize(ndof_tr_fs);
+         w.rhs_f.MakeRef(w.rhs, off_tr, ndof_tr_f);
+         w.rhs_f = 0.;
 
-         fes_ut->GetFaceVDofs(f, vdofs_ut);
-         ut.GetSubVector(vdofs_ut, ut_f);
-         MFEM_ASSERT(vdofs_ut.Size() == neq * ndof_ut_f,
-                     "the total flux has " << vdofs_ut.Size()
+         fes_ut->GetFaceVDofs(f, w.vdofs_ut);
+         ut.GetSubVector(w.vdofs_ut, w.ut_f);
+         MFEM_ASSERT(w.vdofs_ut.Size() == neq * ndof_ut_f,
+                     "the total flux has " << w.vdofs_ut.Size()
                      << " face vdofs, expected " << neq * ndof_ut_f);
 
          MFEM_ASSERT(fe_ut->GetMapType() == FiniteElement::INTEGRAL,
@@ -2113,31 +2194,31 @@ const
          for (int q = 0; q < ir.GetNPoints(); q++)
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
-            fe_ut->CalcShape(ip, shape_ut);
-            fe_tr->CalcShape(ip, shape_tr);
+            fe_ut->CalcShape(ip, w.shape_ut);
+            fe_tr->CalcShape(ip, w.shape_tr);
 
             for (int e = 0; e < neq; e++)
             {
-               const Vector ut_fe(ut_f.GetData() + e * ndof_ut_f, ndof_ut_f);
-               const real_t ut_q = shape_ut * ut_fe;
+               const Vector ut_fe(w.ut_f.GetData() + e * ndof_ut_f, ndof_ut_f);
+               const real_t ut_q = w.shape_ut * ut_fe;
 
                // The arithmetic is written in exactly the order the scalar
                // version used -- multiply by ut_q, then divide by the face
                // weight -- because reassociating it moves the last bit and
                // this path has to reproduce the one-field answer exactly.
-               real_t w = ip.weight * ut_q;
+               real_t w_q = ip.weight * ut_q;
                if (fe_tr->GetMapType() == FiniteElement::INTEGRAL)
                {
                   FTr->SetIntPoint(&ip);
-                  w /= FTr->Weight();
+                  w_q /= FTr->Weight();
                }
 
-               Vector rhs_fe(rhs_f.GetData() + e * ndof_tr_fs, ndof_tr_fs);
-               rhs_fe.Add(w, shape_tr);
+               Vector rhs_fe(w.rhs_f.GetData() + e * ndof_tr_fs, ndof_tr_fs);
+               rhs_fe.Add(w_q, w.shape_tr);
             }
          }
 
-         if (FTr->Elem1No != z) { rhs_f.Neg(); }
+         if (FTr->Elem1No != z) { w.rhs_f.Neg(); }
 
          off_tr += ndof_tr_f;
       }
@@ -2216,66 +2297,259 @@ const
          const FiniteElement *fe_pc = fes_pc->GetFE(z);
          const int order = fe_p->GetOrder() + Tr->OrderW();
          const IntegrationRule &ir = IntRules.Get(fe_p->GetGeomType(), order);
-         Tr = mesh->GetElementTransformation(z);//just to be sure
-         shape_p.SetSize(ndof_p_s);
-         shape_pc.SetSize(ndof_pc_s);
+         // Refill after the integrators above have walked it to their own last
+         // quadrature point; the object is the caller's, the call is the same.
+         mesh->GetElementTransformation(z, &w.eltrans);
+         w.shape_p.SetSize(ndof_p_s);
+         w.shape_pc.SetSize(ndof_pc_s);
 
          // The mass row is the same for every field -- it is built from the
          // scalar shape -- so only the datum is per field.
-         sum_pc.SetSize(neq);
-         sum_pc = 0.;
-         mass_p.SetSize(ndof_p_s);
-         mass_p = 0.;
+         w.sum_pc.SetSize(neq);
+         w.sum_pc = 0.;
+         w.mass_p.SetSize(ndof_p_s);
+         w.mass_p = 0.;
          for (int q = 0; q < ir.GetNPoints(); q++)
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
             Tr->SetIntPoint(&ip);
-            fe_pc->CalcShape(ip, shape_pc);
-            const real_t w = ip.weight * Tr->Weight();
+            fe_pc->CalcShape(ip, w.shape_pc);
+            const real_t w_q = ip.weight * Tr->Weight();
             for (int e = 0; e < neq; e++)
             {
-               const Vector pc_e(sol_pc.GetData() + e * ndof_pc_s, ndof_pc_s);
-               const real_t val = shape_pc * pc_e;
-               sum_pc(e) += val * w;
+               const Vector pc_e(w.sol_pc.GetData() + e * ndof_pc_s, ndof_pc_s);
+               const real_t val = w.shape_pc * pc_e;
+               w.sum_pc(e) += val * w_q;
             }
 
-            fe_p->CalcShape(ip, shape_p);
-            mass_p.Add(w, shape_p);
+            fe_p->CalcShape(ip, w.shape_p);
+            w.mass_p.Add(w_q, w.shape_p);
          }
 
          // replace one potential equation per field by that field's average
          for (int e = 0; e < neq; e++)
          {
             const int i_p = e * ndof_p_s;
-            elmat.SetRow(ndof_u + i_p, 0.);
+            w.elmat.SetRow(ndof_u + i_p, 0.);
             for (int i = 0; i < ndof_p_s; i++)
             {
-               elmat(ndof_u + i_p, ndof_u + i_p + i) = mass_p(i);
+               w.elmat(ndof_u + i_p, ndof_u + i_p + i) = w.mass_p(i);
             }
-            rhs(ndof_u + i_p) = sum_pc(e);
+            w.rhs(ndof_u + i_p) = w.sum_pc(e);
          }
       }
 
       // LU decompose
-      inv.Factor(elmat);
-      sol.SetSize(rhs.Size());
-      inv.Mult(rhs, sol);
+      w.inv.Factor(w.elmat);
+      sol.SetSize(w.rhs.Size());
+      w.inv.Mult(w.rhs, sol);
+   };
+
+   // ------------------------------------------------------------------
+   // One element's share of the answer, written out. SEPARATE from the solve
+   // above, and that separation is the whole reason this loop can be threaded
+   // at all -- see the note below.
+   // ------------------------------------------------------------------
+   auto scatter_element = [&](int z, const Array<int> &faces,
+                              Vector &sol, ReconstructWorkspace &w)
+   {
+      fes_u->GetElementVDofs(z, w.s_vdofs_u);
+      fes_p->GetElementVDofs(z, w.s_dofs_p);
 
       // save the reconstructed flux and potential
-      sol_u.MakeRef(sol, 0, ndof_u);
-      u.SetSubVector(vdofs_u, sol_u);
-      sol_p.MakeRef(sol, ndof_u, ndof_p);
-      p.SetSubVector(dofs_p, sol_p);
+      w.s_sol_u.MakeRef(sol, 0, w.s_vdofs_u.Size());
+      u.SetSubVector(w.s_vdofs_u, w.s_sol_u);
+      w.s_sol_p.MakeRef(sol, w.s_vdofs_u.Size(), w.s_dofs_p.Size());
+      p.SetSubVector(w.s_dofs_p, w.s_sol_p);
 
       // save the traces
-      off_tr = ndof_u + ndof_p;
+      int off_tr = w.s_vdofs_u.Size() + w.s_dofs_p.Size();
       for (int f : faces)
       {
-         fes_tr->GetFaceVDofs(f, vdofs_tr);
-         sol_tr_f.MakeRef(sol, off_tr, vdofs_tr.Size());
-         tr.SetSubVector(vdofs_tr, sol_tr_f);
-         off_tr += vdofs_tr.Size();
+         fes_tr->GetFaceVDofs(f, w.s_vdofs_tr);
+         w.s_sol_tr_f.MakeRef(sol, off_tr, w.s_vdofs_tr.Size());
+         tr.SetSubVector(w.s_vdofs_tr, w.s_sol_tr_f);
+         off_tr += w.s_vdofs_tr.Size();
       }
+   };
+
+   /* **Threading, and why the loop is split in two rather than simply run in
+      parallel.**
+
+      The solve above is element local: it reads the mesh, the computed
+      solution and the total flux, and writes only its own workspace. The
+      SCATTER below is not, and the reason is sharper than "two elements might
+      touch the same dof".
+
+      **The enriched trace is whichever element visited the face last, and
+      nothing said so before this comment.** Each element solves a local
+      problem whose trace is free on EVERY face, so the two elements either
+      side of an interior face produce two different values for that face's
+      trace dofs -- and `tr.SetSubVector()` ASSIGNS. Reversing the element
+      order leaves the reconstructed flux and potential identical to 17 digits
+      (|u*| = 7.9321522926801267, |p*| = 5.7077841841727244, both ways) and
+      moves the trace: |tr*| = 5.4581137616313953 forwards, 5.3635341954733962
+      backwards.
+
+      The FLUX is face-shared too when its enriched space is conforming -- an
+      RT or broken-RT flux -- so formally the same reaches it. **Measured, it
+      does not, to any size that matters**: racing the scatter on the RT
+      configuration of tests/unit/fem/test_darcy_threaded_assembly.cpp moves
+      `tr` by 1.0e+00 to 8.5e+07 and `u` by 1.8e-15 to 6.0e-08. The two local
+      problems disagree about the trace and agree about the flux, whose normal
+      component both of them pin to the same total flux on the face. The
+      potential's enriched space is discontinuous, so it is exactly order
+      independent.
+
+      So there is no colouring that preserves the answer: a colouring changes
+      which element writes last, which changes `tr` by 2% of its own norm.
+      **Compute in parallel, then replay the writes serially in element
+      order** -- the only arrangement that is bit for bit the serial one,
+      which is the standard this branch holds its threaded loops to and the
+      standard `AssemblyMode::Threaded` states in its own doxygen. The price
+      is a buffer of local solutions, bounded rather than proportional to the
+      mesh; see the chunk loop below.
+
+      **What the caller is promising.** The gate is the assembly mode plus
+      SetIntegratorsThreadSafe(), and this loop reaches integrators the
+      earlier audits behind that flag did NOT cover: `c_bfi`'s
+      AssembleFaceMatrix() and `c_bfi_p`'s AssembleHDGFaceMatrix(), which are
+      LINEAR face integrators and so outside MultNL()'s promise, and the
+      frozen flux-law coefficient a solution-dependent law is lifted through.
+      That widening is written on SetIntegratorsThreadSafe() itself, which
+      used to name this routine as the un-audited gap. The stock integrators
+      this path installs -- NormalTraceJumpIntegrator, HDGDiffusionIntegrator,
+      VectorMassIntegrator, VectorFEMassIntegrator, VectorDivergenceIntegrator
+      and the two convection integrators -- are all behind
+      `#ifndef MFEM_THREAD_SAFE`, checked rather than assumed, and
+      AssemblyMode::Threaded already refuses a build without it. */
+   const bool threaded =
+      (h.GetAssemblyMode() == DarcyHybridization::AssemblyMode::Threaded)
+      && h.GetIntegratorsThreadSafe();
+
+   if (!threaded)
+   {
+      ReconstructWorkspace w;
+      VectorDomainLFIntegrator bp(bp_coeff);
+      w.bp = &bp;
+      Array<int> faces, oris;
+      Vector sol;
+
+      for (int z = 0; z < NE; z++)
+      {
+         element_faces(z, faces, oris);
+         solve_element(z, faces, w, sol);
+         scatter_element(z, faces, sol, w);
+      }
+      return;
+   }
+
+   // The face lists and the local-solution offsets, taken once. This pass is
+   // also what warms every lazily-built table the accessors above reach --
+   // the space's element-to-dof tables, the mesh's element-to-face tables and
+   // the trace and total-flux face dofs -- so that the parallel region below
+   // only READS them. A table built for the first time from inside an OpenMP
+   // region is a race that no amount of per-thread scratch can fix.
+   Array<int> sol_offs(NE + 1), face_offs(NE + 1), all_faces;
+   {
+      Array<int> faces, oris, vdofs_u, dofs_p, vdofs_w;
+      sol_offs[0] = 0;
+      face_offs[0] = 0;
+      for (int z = 0; z < NE; z++)
+      {
+         fes_u->GetElementVDofs(z, vdofs_u);
+         fes_p->GetElementVDofs(z, dofs_p);
+         fes_pc->GetElementVDofs(z, vdofs_w);
+
+         element_faces(z, faces, oris);
+         int ndof_tr = 0;
+         for (int f : faces)
+         {
+            ndof_tr += neq * fes_tr->GetFaceElement(f)->GetDof();
+            fes_tr->GetFaceVDofs(f, vdofs_w);
+            fes_ut->GetFaceVDofs(f, vdofs_w);
+            fes_ut->GetFaceElement(f);
+         }
+
+         all_faces.Append(faces);
+         face_offs[z + 1] = all_faces.Size();
+         sol_offs[z + 1] = sol_offs[z] + vdofs_u.Size() + dofs_p.Size() + ndof_tr;
+      }
+   }
+
+   // A CHUNK of local solutions at a time, rather than all of them. Holding
+   // every element's at once is the obvious arrangement and it costs about as
+   // much again as the three enriched fields this routine is producing --
+   // 735 MB on a 64-cubed hex mesh at order 2, which is not a buffer to take
+   // without asking. A chunk bounded by its own size in reals gives the same
+   // answer for a fixed, small one: the chunks are processed in order and the
+   // replay inside each is in element order, so the last writer to any shared
+   // dof is the element the serial loop would have left there. The cap is in
+   // REALS and not in elements because the per-element size runs from a
+   // handful at order 0 to a few thousand for a 3-D system, and it is the
+   // product that has to be bounded.
+   constexpr int chunk_cap = 1 << 20;   // 8 MB at double precision
+   Vector sol_buf;
+
+   // The replay's workspace, outside the chunk loop so that it grows once.
+   ReconstructWorkspace scat;
+   Array<int> scat_faces;
+   Vector scat_sol;
+
+   int z_beg = 0;
+   while (z_beg < NE)
+   {
+      // At least one element, whatever its size, and then as many more as fit.
+      int z_end = z_beg + 1;
+      while (z_end < NE && sol_offs[z_end + 1] - sol_offs[z_beg] <= chunk_cap)
+      {
+         z_end++;
+      }
+      const int base = sol_offs[z_beg];
+      sol_buf.SetSize(sol_offs[z_end] - base);
+
+#ifdef MFEM_USE_OPENMP
+      #pragma omp parallel
+#endif
+      {
+         ReconstructWorkspace w;
+         VectorDomainLFIntegrator bp(bp_coeff);
+         w.bp = &bp;
+         Array<int> faces;
+         Vector sol;
+
+#ifdef MFEM_USE_OPENMP
+         #pragma omp for schedule(static)
+#endif
+         for (int z = z_beg; z < z_end; z++)
+         {
+            faces.MakeRef(all_faces.GetData() + face_offs[z],
+                          face_offs[z + 1] - face_offs[z]);
+            sol.MakeRef(sol_buf, sol_offs[z] - base,
+                        sol_offs[z + 1] - sol_offs[z]);
+            solve_element(z, faces, w, sol);
+            // The slice was sized from the same three counts the local problem
+            // is built from, so a mismatch means one of them moved between the
+            // two passes -- and Vector::SetSize() would have shrunk the view
+            // rather than said so, leaving the tail of the slice unwritten.
+            MFEM_ASSERT(sol.Size() == sol_offs[z + 1] - sol_offs[z],
+                        "element " << z << "'s local problem is "
+                        << sol.Size() << " rows, its slice "
+                        << sol_offs[z + 1] - sol_offs[z]);
+         }
+      }
+
+      // The replay, serial and in element order. See the note above.
+      for (int z = z_beg; z < z_end; z++)
+      {
+         scat_faces.MakeRef(all_faces.GetData() + face_offs[z],
+                            face_offs[z + 1] - face_offs[z]);
+         scat_sol.MakeRef(sol_buf, sol_offs[z] - base,
+                          sol_offs[z + 1] - sol_offs[z]);
+         scatter_element(z, scat_faces, scat_sol, scat);
+      }
+
+      z_beg = z_end;
    }
 }
 

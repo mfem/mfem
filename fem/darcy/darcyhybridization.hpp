@@ -2002,15 +2002,40 @@ public:
        audit, so threading one more loop silently widens what a caller who
        set it years earlier has undertaken. There is no version to check and
        no abort to notice: the first symptom is a wrong answer on a run that
-       converges. meq raised this against exactly the right gap. The
-       reconstruction routines -- DarcyForm::ReconstructFluxAndPot() and
-       DarcyHybridization::ReconstructTotalFlux() -- are SERIAL today and are
-       not covered by any audit behind this flag, and both evaluate `c_bfi`
-       per face; `NormalTraceJumpIntegrator`, which is what `c_bfi` holds in
-       every hybridized configuration in this tree, carried six unguarded
-       scratch members until it was put behind the same switch on the trunk.
-       So a caller who can promise only for the loops threaded today should
-       not set this.
+       converges. meq raised this against exactly the right gap -- **and the
+       gap then fired.** DarcyForm::ReconstructFluxAndPot() was SERIAL when
+       that was written and is threaded under this flag now, so a caller who
+       set it for the loops of the day has silently taken on two more
+       integrator calls. That is the asymmetry working exactly as described,
+       and the defence is to keep the whole reach written down here:
+
+         * **MultNL()'s element loop** -- the seven nonlinear handles above,
+           and no linear integrator at all.
+         * **DarcyForm::CanThreadAssembly()'s assembly loops** -- the LINEAR
+           DOMAIN integrators on the flux mass, the flux divergence and the
+           potential mass.
+         * **DarcyForm::ReconstructFluxAndPot()'s element loop** -- those same
+           domain integrators, reached through the reentrant
+           ComputeElementMatrix() overloads, plus two LINEAR FACE integrators
+           that nothing else here evaluates concurrently: `c_bfi`'s
+           AssembleFaceMatrix() and `c_bfi_p`'s AssembleHDGFaceMatrix(). It
+           also evaluates FrozenDualFluxCoefficient from several threads when
+           a solution-dependent flux law is lifted onto the enriched space.
+
+       `NormalTraceJumpIntegrator`, which is what `c_bfi` holds in every
+       hybridized configuration in this tree, carried six unguarded scratch
+       members until it was put behind the same switch on the trunk. The other
+       stock integrators those loops install were checked one by one rather
+       than assumed, and all of them -- HDGDiffusionIntegrator,
+       VectorMassIntegrator, VectorFEMassIntegrator,
+       VectorDivergenceIntegrator and the two convection integrators -- wrap
+       their scratch in `#ifndef MFEM_THREAD_SAFE`, which AssemblyMode::
+       Threaded already requires. It is the CALLER's own integrators the
+       promise is really about.
+
+       **DarcyHybridization::ReconstructTotalFlux() is still serial** and is
+       the one reconstruction routine outside all of this. A caller who can
+       promise only for the loops threaded today should not set this.
 
        **Why this exists rather than a predicate that decides for you.**
        MFEM has no way to ask an integrator whether it is reentrant. Its

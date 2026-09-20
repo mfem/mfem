@@ -12,7 +12,8 @@ local factorisations, the bit-for-bit result, the LAPACK caveat, the 1/2/4/8
 thread scaling and the fact that they are the **cold** path;
 `CanThreadFieldLoop()` carries the field-dof loops. That is `ComputeH`,
 `InvertA`, `InvertD`, `MultNL`, `ComputeSolution`, `EliminateVDofsInRHS`,
-`EliminateTrueDofsInRHS`, `ReduceRHS`, **`NPCReduce` and `NPCRecover`** — ten.
+`EliminateTrueDofsInRHS`, `ReduceRHS`, **`NPCReduce` and `NPCRecover`** — ten,
+and `DarcyForm::ReconstructFluxAndPot()` outside the class makes eleven.
 
 **Two corrections to the sentence above, both of which meq relied on and
 neither of which it supported.**
@@ -44,60 +45,36 @@ condensation *is*.
 
 ## What is left
 
-* **`DarcyForm::ReconstructFluxAndPot()` is the largest unthreaded item a
-  consumer has left, and it is OURS.** All three overloads are plain
-  `for (int z = 0; z < mesh->GetNE(); z++)` with no `pragma omp` in any body,
-  and `ReconstructTotalFlux()` beside it is the same. meq reports `psi*` rather
-  than `psi_h` on every run, so they pay it once per solve: **0.620 s of a
-  3.302 s run, 18.8%, at 1.00 cores** on their DIII-D case, measured after the
-  NPC traversal was threaded and therefore now their biggest single-threaded
-  leg after the direct trace solve. Worth about **1.10x** on a meq run if it
-  threaded as well as the residual leg does.
+* ~~**`DarcyForm::ReconstructFluxAndPot()` is the largest unthreaded item a
+  consumer has left, and it is OURS.**~~ — **DONE.** Threaded, bit for bit
+  against serial, and the findings are on the routine's own doxygen in
+  `fem/darcy/darcyform.hpp` rather than here: what the enriched trace's
+  order dependence is and why it forces parallel-solve-then-serial-replay,
+  what the caller is promising, and the 1/2/4/8-thread table. The widened
+  reach of that promise is on
+  `DarcyHybridization::SetIntegratorsThreadSafe()`, which used to name this
+  routine as the un-audited gap and now names what it covers. The pin is
+  "The threaded rich reconstruction is bit-for-bit the serial one" in
+  `tests/unit/fem/test_darcy_threaded_assembly.cpp`.
 
-  **It is harder than the traversal was, and the difference is the point.**
-  The scatter is disjoint — each element writes only its own dofs in the
-  enriched space — but the loop re-assembles integrators at the enriched
-  order, so it reaches `ElementTransformation`, `Coefficient` and
-  `Mesh::GetElementTransformation(int)`'s shared scratch. That is the
-  integrator problem, on the host rather than on a device.
+  **The promise audit was re-taken against this loop, as the entry that stood
+  here demanded, and it found one thing the integrator list could not.**
+  `HDGExtensionIntegrator` is still latent for the reason recorded — the loop
+  takes the flux mass from `GetDBFI()` alone — and its guards are merged onto
+  `gf-hdg-subdomains-dev` in any case. What the integrator list misses is
+  `FiniteElementSpace::GetElementDofs(int, Array<int>&)`, recorded below as
+  "benign by accident of the space": it is **not** benign for an RT flux,
+  which this routine serves. `DofTransformation::SetFaceOrientations()` is
+  `Fo_ = Fo`, an `Array<int>` copy assignment, so two threads gathering dofs
+  from one space can allocate and free that shared member's buffer at once —
+  heap corruption rather than a wrong answer. The three-argument overload with
+  per-thread storage is what the loop takes, and the reason is on the
+  workspace member in `darcyform.cpp`.
 
-  **The integrator blocker for meq's own configuration is now gone**, which is
-  what makes this actionable rather than aspirational:
-  `NormalTraceJumpIntegrator` was the one class in that loop's reach without
-  `#ifndef MFEM_THREAD_SAFE` and it is guarded on the trunk. What is NOT
-  covered is `HDGExtensionIntegrator` (eleven unguarded members, on
-  `extension-thread-safe-scratch`), and it is latent only because
-  `ReconstructFluxAndPot()` takes the flux mass from `GetDBFI()` alone while
-  that integrator sits on the flux mass's BOUNDARY faces. **Thread a
-  boundary-face loop and meq meets it as a wrong answer, not as the abort** —
-  `ThreadedLoopEvaluatesIntegrators()` asks about the seven nonlinear handles
-  and a `BilinearFormIntegrator` on a bilinear form is not one of them. So the
-  promise audit has to be re-taken against this loop before it is threaded,
-  not after.
-
-  **The inventory of what is safe to call from a threaded element loop is
-  larger than the integrator list, and two of them are not integrators.**
-  Both read out of MFEM's source by meq while threading their own loops, and
-  both would be reached by this one:
-  `FiniteElementSpace::GetElementDofs(int, Array<int>&)` forwards to the
-  three-argument form passing the space's `mutable DofTransformation DoFTrans`
-  (`fespace.hpp:295`), whose first statement is
-  `doftrans.SetDofTransformation(nullptr)` (`fespace.cpp:3437`) -- so every
-  call from every thread writes one shared object. For an L2 space the only
-  write is a null pointer, so it is benign **by accident of the space and not
-  by contract**; take the three-argument overload with loop-local storage.
-  And `Mesh::GetElementSize(int, int)` is
-  `GetElementSize(GetElementTransformation(i), type)` (`mesh.cpp:111`) and
-  then calls `SetIntPoint()` and `Jacobian()` on it -- it reads like a pure
-  query and is the shared transformation. Neither is ours to fix; both are
-  reasons the audit is not "grep the integrators".
-
-  **And the views inside it must stay aliases.** `ReconstructTotalFlux()` built
-  its seven per-field views as raw `Vector(other.GetData() + off, n)` wraps
-  until this session; they are `MakeRef` now, and the reason is on the
-  declarations. A raw wrap is not thread-unsafe, but it is the shape that
-  de-registered its owner under `Device("debug")`, and a threaded rewrite is
-  exactly when someone reintroduces one.
+* **`DarcyHybridization::ReconstructTotalFlux()` is the half that is still
+  serial**, and it is the smaller half. Same shape, same inventory; it was
+  left because the measurement that made the case is
+  `ReconstructFluxAndPot()`'s, and nobody has taken the split.
 
 ## Two more, and both are somebody else's
 

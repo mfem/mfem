@@ -73,10 +73,18 @@ struct LinearOutcome
 {
    TraceMatrix H;
    Vector rhs, flux, pot;
+   /// The rich reconstruction, filled only when @a reconstruct asks for it.
+   Vector ut, u_s, p_s, tr_s;
 };
 
+/// @a integ_thread_safe makes the caller's promise, which is what licenses
+/// the threaded element loop in DarcyForm::ReconstructFluxAndPot(); it is
+/// inert on every other loop here, all of which are already covered.
+/// @a reconstruct additionally runs that post-processing.
 LinearOutcome Assemble(Mesh &mesh, int order, Form form,
-                       DarcyHybridization::AssemblyMode mode)
+                       DarcyHybridization::AssemblyMode mode,
+                       bool integ_thread_safe = false,
+                       bool reconstruct = false)
 {
    const int dim = mesh.Dimension();
 
@@ -138,6 +146,10 @@ LinearOutcome Assemble(Mesh &mesh, int order, Form form,
 
    darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(),
                              ess_flux_tdofs);
+   if (integ_thread_safe)
+   {
+      darcy.GetHybridization()->SetIntegratorsThreadSafe();
+   }
    darcy.GetHybridization()->SetAssemblyMode(mode);
    darcy.Assemble();
 
@@ -163,6 +175,16 @@ LinearOutcome Assemble(Mesh &mesh, int order, Form form,
    darcy.RecoverFEMSolution(X, x, x);
    out.flux = x.GetBlock(0);
    out.pot = x.GetBlock(1);
+
+   if (reconstruct)
+   {
+      GridFunction ut, u_s, p_s, tr_s;
+      darcy.Reconstruct(x, X, ut, u_s, p_s, tr_s);
+      out.ut = ut;
+      out.u_s = u_s;
+      out.p_s = p_s;
+      out.tr_s = tr_s;
+   }
    return out;
 }
 
@@ -694,5 +716,127 @@ TEST_CASE("Serial assembly mode is the default",
    darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
 
    REQUIRE(darcy.GetHybridization()->GetAssemblyMode() ==
+           DarcyHybridization::AssemblyMode::Serial);
+}
+
+TEST_CASE("The threaded rich reconstruction is bit-for-bit the serial one",
+          "[DarcyHybridization][AssemblyMode][Reconstruction]")
+{
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+   // See MKLPinnedToOneThread: a bitwise assertion across thread counts
+   // cannot survive MKL re-blocking its own GEMMs, and the local problems
+   // here are dense.
+   const MKLPinnedToOneThread mkl_pinned;
+   const int saved_threads = omp_get_max_threads();
+
+   // WHAT THIS CASE IS ACTUALLY GUARDING, because it is not the obvious
+   // thing. DarcyForm::ReconstructFluxAndPot() solves one local problem per
+   // element whose TRACE is free on every face, so the two elements either
+   // side of an interior face each produce a value for that face's enriched
+   // trace dofs -- and the scatter ASSIGNS. The serial answer is therefore
+   // "whichever element visited the face last", and it is a real dependence:
+   // reversing the element order leaves the enriched flux and potential
+   // identical to 17 digits and moves the enriched trace's norm by about 2%.
+   //
+   // So no colouring can reproduce the serial answer, and the routine
+   // computes in parallel and then REPLAYS the writes serially in element
+   // order. That replay is what this case exists to hold in place, and the
+   // check was falsified rather than argued: run the scatter inside the
+   // parallel region and this case fails on "enriched trace" and on nothing
+   // else -- 7.68e-02 at two threads on the first configuration below, with
+   // ut, u_s and p_s all still bit-identical.
+   //
+   // The RT arm is here because its enriched FLUX space is CONFORMING, so
+   // u_s is face-shared too and the same "last writer wins" formally reaches
+   // it. **It does not, to any size that matters, and that is a measurement
+   // rather than a prediction**: with the scatter raced, RT moves tr_s by
+   // 1.0e+00 to 8.5e+07 and u_s by 1.8e-15 to 6.0e-08 -- round-off against a
+   // trace of that magnitude. The two elements disagree about the trace and
+   // agree about the flux, whose normal component both pin to the same total
+   // flux on the face. The arm earns its place anyway: that RT configuration
+   // carries no potential face constraint, so its local problem is far worse
+   // conditioned than the DG one and its trace is correspondingly enormous,
+   // which makes the equality it still has to satisfy the sharper one.
+   for (Form form : {Form::DG, Form::RT})
+   {
+      for (int order : {0, 1})
+      {
+         Mesh quad = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+         Mesh hex  = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+
+         for (Mesh *mesh : {&quad, &hex})
+         {
+            CAPTURE(int(form), order, mesh->Dimension());
+
+            omp_set_num_threads(1);
+            const LinearOutcome ref =
+               Assemble(*mesh, order, form,
+                        DarcyHybridization::AssemblyMode::Serial, false, true);
+
+            for (int nt : {1, 2, 4, 8})
+            {
+               CAPTURE(nt);
+               omp_set_num_threads(nt);
+               const LinearOutcome got =
+                  Assemble(*mesh, order, form,
+                           DarcyHybridization::AssemblyMode::Threaded, true,
+                           true);
+
+               // The total flux first: it is ReconstructTotalFlux()'s, which
+               // is still serial, so a difference there would say the
+               // comparison is measuring something else entirely.
+               RequireSameVector(ref.ut, got.ut, "total flux");
+               RequireSameVector(ref.u_s, got.u_s, "enriched flux");
+               RequireSameVector(ref.p_s, got.p_s, "enriched potential");
+               RequireSameVector(ref.tr_s, got.tr_s, "enriched trace");
+            }
+         }
+      }
+   }
+
+   omp_set_num_threads(saved_threads);
+#else
+   WARN("The threaded reconstruction needs MFEM_USE_OPENMP and "
+        "MFEM_THREAD_SAFE; this build has neither or only one, so nothing "
+        "was checked.");
+#endif
+}
+
+TEST_CASE("The reconstruction threads only when the caller has promised",
+          "[DarcyHybridization][AssemblyMode][Reconstruction]")
+{
+   // The gate is deliberately two conditions, not one. AssemblyMode::Threaded
+   // alone is what every other element loop here takes, and those loops
+   // evaluate only the nonlinear handles; this one additionally evaluates
+   // c_bfi's AssembleFaceMatrix() and c_bfi_p's AssembleHDGFaceMatrix(),
+   // which are LINEAR face integrators and so outside what MultNL()'s audit
+   // ever covered. SetIntegratorsThreadSafe() is where the caller takes
+   // those on, so without it this routine stays serial however the mode is
+   // set -- and a caller who never read any of this keeps the loop they had.
+   //
+   // Checked here rather than inferred, because the two accessors are the
+   // whole gate and a future edit that drops one of them would be silent:
+   // the answers agree either way, which is the point of the case above.
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   L2_FECollection u_coll(0, 2, BasisType::GaussLobatto);
+   L2_FECollection p_coll(0, 2);
+   FiniteElementSpace fes_u(&mesh, &u_coll, 2);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+   DarcyForm darcy(&fes_u, &fes_p);
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(0, 2);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+
+   DarcyHybridization *dh = darcy.GetHybridization();
+   REQUIRE_FALSE(dh->GetIntegratorsThreadSafe());
+   REQUIRE(dh->GetAssemblyMode() ==
+           DarcyHybridization::AssemblyMode::Serial);
+
+   dh->SetIntegratorsThreadSafe();
+   REQUIRE(dh->GetIntegratorsThreadSafe());
+   // The mode is still Serial, so the promise on its own licenses nothing.
+   REQUIRE(dh->GetAssemblyMode() ==
            DarcyHybridization::AssemblyMode::Serial);
 }

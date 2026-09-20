@@ -786,7 +786,79 @@ public:
        space has this at every neq, measured on the coupled nonlinear
        manufactured problem in tests/unit/fem/test_darcy_nonlinear_mms.cpp:
        k+1 in the computed potential going to k+2 in the postprocessed one, in
-       both fields, at k = 1 and k = 2. */
+       both fields, at k = 1 and k = 2.
+
+       @note **THE ENRICHED TRACE IS WHICHEVER ELEMENT VISITED THE FACE LAST,
+       and nothing said so before this note.** Each element solves a local
+       problem whose trace is free on every one of its faces, boundary faces
+       included, so the two elements either side of an interior face each
+       produce a value for that face's enriched trace dofs -- and the scatter
+       ASSIGNS, rather than accumulating or averaging. Measured by reversing
+       the element order on one fixed solution: |u*| = 7.9321522926801267 and
+       |p*| = 5.7077841841727244 are identical to seventeen digits both ways,
+       while |tr*| moves 5.4581137616313953 -> 5.3635341954733962, about 2% of
+       its own norm.
+
+       The enriched FLUX shares its face dofs as well whenever its space is
+       conforming -- an RT or broken-RT flux, whose enriched clone is H(div)
+       too -- so formally the same "last writer wins" reaches it. **Measured,
+       it does not matter there, and that is worth knowing rather than
+       assuming.** Scattering from several threads on the RT configuration of
+       tests/unit/fem/test_darcy_threaded_assembly.cpp moves the enriched
+       trace by 1.0e+00 to 8.5e+07 and the enriched flux by 1.8e-15 to
+       6.0e-08 -- round-off against a trace of that size. The two local
+       problems disagree about the trace and agree about the flux, whose
+       normal component both of them pin to the same total flux on the face.
+       The enriched potential is discontinuous in every configuration and is
+       exactly order independent.
+
+       Neither trace value is more right than the other: the two local
+       problems genuinely disagree on the face, that disagreement being the
+       same thing that makes the postprocessed potential superconverge. What a
+       caller comparing two runs needs to know is that the trace is the one
+       field of the three a reordering can move by more than round-off.
+
+       @note **Threaded, and the arrangement is FORCED by the note above.**
+       The element loop runs in parallel when the hybridization is in
+       DarcyHybridization::AssemblyMode::Threaded AND the caller has made the
+       DarcyHybridization::SetIntegratorsThreadSafe() promise. Both, because
+       this loop evaluates two LINEAR FACE integrators -- the flux
+       constraint's AssembleFaceMatrix() and the potential constraint's
+       AssembleHDGFaceMatrix() -- which MultNL()'s audit behind that flag
+       never covered, so a caller who has promised only for that loop has not
+       promised for this one. Without the promise this routine is exactly the
+       serial loop it always was, whatever the mode.
+
+       Because the writes are order dependent, **no colouring can reproduce
+       the serial answer** -- a colouring changes which element writes last,
+       which changes the trace. So the routine SOLVES in parallel and REPLAYS
+       the writes serially in element order, a chunk of elements at a time so
+       that the buffered local solutions are bounded rather than proportional
+       to the mesh. That is bit for bit the serial result at every thread
+       count, pinned by "The threaded rich reconstruction is bit-for-bit the
+       serial one" in tests/unit/fem/test_darcy_threaded_assembly.cpp. Move
+       the scatter inside the parallel region and that case fails on the
+       enriched trace and on nothing else -- 7.7e-02 at two threads on the
+       smallest DG configuration it carries, with the total flux, the enriched
+       flux and the enriched potential all still bit-identical.
+
+       **Measured, MKL pinned to one thread and OMP_WAIT_POLICY=passive**, on
+       DG quadrilaterals and hexahedra, speedup of the whole routine against
+       the serial mode:
+
+           2-D  64^2  k=2   4096 el   0.99  1.74  2.63  4.65 x
+           2-D  96^2  k=1   9216 el   0.92  1.79  2.29  3.47 x
+           3-D  12^3  k=2   1728 el   0.98  1.61  3.03  4.54 x
+                                      nt=1     2     4     8
+
+       The one-thread column is a TAX, not noise: entering a parallel region
+       and rebuilding the per-thread workspace costs 1-8% and the same tax is
+       recorded on the NPC traversal. The k=1 row scales worst because the
+       serial replay is a larger share of a cheaper solve, which is the
+       Amdahl bound this arrangement buys the bit-for-bit answer with.
+
+       DarcyHybridization::ReconstructTotalFlux(), the other half of
+       Reconstruct(), is still serial. */
    void ReconstructFluxAndPot(const BlockVector &sol, const GridFunction &ut,
                               GridFunction &u, GridFunction &p, GridFunction &tr) const;
 
