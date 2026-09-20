@@ -474,34 +474,157 @@ rather than by the merge, and it is worth knowing why: under that design
 trace-independent, so variable ELEMENTS refuse and a varying TRACE correctly
 still batches. The planned "six substitutions" became cosmetic.
 
-**That question has been run, and the answer is that it cannot be reached
-yet.** The matrix-free gradient is `-gm 2`, "do not assemble, apply it and
-solve unpreconditioned"; `-gm 1` is the assembled operator with a
-Gauss-Seidel preconditioner, and this section used to name the wrong one. It
-is honoured only where the solver asks for a gradient at all, which is the
-nonlinear route under Newton — and **the nonlinear route does not run under a
-per-face trace at all**. In `meq-integration`, where both features exist,
-`convdiff -p 1 -o 2 -dg -hb -nl -nld -nls 3 -pref 1` corrupts the heap with
-`-gm 0` and with `-gm 2` alike, at 8x8 and at 4x4; the two arms differ in one
-thing, so the same run that asks about the gradient mode exonerates it. The
-linear arm agrees with the assembled one to every printed digit and says
-nothing, a linear solve never reading the option. And it is not a merge
-artefact: this branch has no `GradientMode` at all, and the same command
-without any `-gm` corrupts the heap here too.
+**That question has been run, the blocker it found is repaired, and the
+question itself is still one run.** The matrix-free gradient is `-gm 2`, "do
+not assemble, apply it and solve unpreconditioned"; `-gm 1` is the assembled
+operator with a Gauss-Seidel preconditioner, and this section used to name the
+wrong one. It is honoured only where the solver asks for a gradient at all,
+which is the nonlinear route under Newton — and that route did not run under
+`-pref` in either gradient mode, so the arm that was meant to be the control
+is what convicted. `convdiff -p 1 -o 2 -dg -hb -nl -nld -nls 3 -pref 1` died
+inside `malloc()` with `-gm 0` and with `-gm 2` alike, and on this branch,
+which has no `GradientMode` at all, with no `-gm` on the command line.
 
-The blocker, named by valgrind on a 4x4 run and now REFUSED by a guard in
-`DarcyHybridization::Finalize()` that carries the whole finding:
-`MultNL()` indexes the trace with the constraint space's face VDOFs while the
-vector it is handed is the CONSTRAINED one — 138 entries where the ceiling
-has 160 — so the element loop reads and writes eight bytes past
-`RestrictTrace()`'s output. The linear route goes through `ctr_PE` and is
-unaffected, and a nonlinear solve at a uniform trace is unaffected, so this is
-two features that have never met rather than a regression in either. The two
-identity rows this section worried about were never reached.
+### What was wrong, and it was three call sites rather than the loop
 
-So the question is a piece of work rather than a run: prolong to the ceiling,
-run the element loop, restrict back — the three steps the linear route already
-takes — after which `-gm 2` under `-pref` is one run again.
+`MultNL()` addresses the trace by `TraceVDofs()` throughout, so it can only be
+handed a vector in the CONSTRAINT SPACE's VDOFs — while the vector a nonlinear
+solver hands the operator is in the trace's true unknowns, which are fewer
+once a face carries less than the ceiling. Every other route already converts:
+`ReduceRHS()` accumulates at the ceiling and applies the prolongation's
+transpose, `ComputeSolution()` prolongs before the local solves, `ComputeH()`
+does it as a RAP, and `ParMultNL()` — whose name is the only parallel thing
+about it — is the wrapper that prolongs, runs the loop and restricts.
+
+`Mult()`, `GetGradient()` and the matrix-free `Gradient` called the element
+loop **directly**, which was right for exactly as long as the trace
+prolongation was the space's own conforming one and therefore null in a serial
+build. Under a per-face trace it is not null, and those three then indexed a
+vector of constrained unknowns with the ceiling's numbers: valgrind names an
+invalid read in `Vector::GetSubVector` and an invalid write in
+`Vector::AddElementVector`, both eight bytes past the 138-double block
+`RestrictTrace()` allocates on a 4x4 run the miniapp reports as `138 of 160
+trace DOFs active`.
+
+They go through the wrapper now, and two more defects of the same family went
+with them:
+
+* `ParMultNL()` sized its own trace output from
+  `c_fes.GetRestrictionOperator()`, which is null together with the
+  prolongation at a uniform trace and *not* once a face is coarsened — so the
+  alias it builds claimed `c_fes.GetVSize()` entries of a vector that is only
+  `ctr_offsets.Last()` long. Latent, because until now nothing reached it in
+  serial with a per-face trace. It is guarded on the prolongation now.
+* `ParOperator` and `ParGradient` announced `c_fes.GetTrueVSize()` where the
+  operator's size is `GetTraceTrueVSize()`. `Finalize()` had already made that
+  distinction for the serial operator and said why in a comment; the two
+  parallel classes were written before it.
+
+And the invariant is a check rather than a convention now: `MultNL()` opens
+with `MFEM_VERIFY(x.Size() == c_fes.GetVSize())`, one comparison a residual
+evaluation, so a fourth site cannot be added the same way.
+
+### What pins it
+
+Three cases in `tests/unit/fem/test_darcy_padapt.cpp`:
+
+* **"A nonlinear solve under a per-face trace is the coarse problem"** — the
+  nonlinear counterpart of the linear equivalence above. A ceiling of
+  `order+gap` with every face constrained to `order` must give the same
+  recovered fields as a trace space actually at `order`. Not a fall-through:
+  the constrained arm goes through `E` and `ctr_PE` and the other does not.
+* **"A genuinely non-uniform trace carries a nonlinear solve"** — alternate
+  faces one degree BELOW their elements, which has no uniform twin, so what is
+  asserted is that it solves, that the system really did shrink, and that the
+  coarsening *moves* the answer. The direction matters and the first draft had
+  it backwards: with the elements at `order` and the ceiling at `order+1`,
+  coarsening half the faces back to `order` moves the potential by **1.8e-14
+  on 1.2e+00**, because a trace richer than both its neighbours is exactly
+  redundant — which this branch had already measured and which the draft was
+  answered by.
+* **"The reduced nonlinear gradient and residual are in one numbering"** — the
+  sharp one, and the one a half-repair fails. `ComputeH()` restricted the
+  gradient and always did; the residual had to be taught. Prolong one and not
+  the other and they are operators on different spaces, which a solve would
+  show only as Newton converging badly. A central difference of the residual
+  along a fixed direction settles it directly.
+
+  It compares only the rows the residual depends on, and that exclusion is
+  the thing to read before the number. This fixture puts no boundary face
+  integrator on `B`, which is how the hybridization's constraint reaches a
+  boundary face at all — so a boundary face's trace rows are empty, and
+  `ComputeH()`'s `EliminateZeroRows()` gives them a unit diagonal to keep the
+  matrix invertible while the residual leaves them zero. Newton is right
+  either way, its correction there being zero whichever is used. **The first
+  run of this check reported a relative error of 0.358 and I nearly read it as
+  the repair being broken**; the arm with no per-face trace at all reports
+  0.348, which is what said the number was about the fixture and not about the
+  numbering. With a boundary constraint installed, every mode and order agrees
+  to between 4.6e-11 and 8.3e-10.
+
+`GradientMode` is `gf-hdg-linearise-first`'s, so `-gm 2` under `-pref` is
+still a run that belongs in `meq-integration`, where both exist. It is now a
+run that can be made.
+
+### The three-site routing is TRUNK material, and this branch is not where it belongs
+
+The per-face trace is the second way to reach that defect. The first has been
+on every branch all along: **`DG_Interface_FECollection` derives from
+`RT_FECollection` and therefore reports `GetContType() == NORMAL`, not
+`DISCONTINUOUS`** — so `FiniteElementSpace::BuildConformingInterpolation()`
+does not take its early exit, and on a nonconforming mesh with hanging nodes
+the trace space has a real conforming prolongation. Measured on
+`data/amr-quad.mesh` with one uniform refinement, order 3: `VSize = 1056`,
+`TrueVSize = 928`, `cP` **NONNULL**. `Mult()` then hands `MultNL()` a 928-long
+true-dof vector and indexes it by VDOFs drawn from 1056.
+
+It reproduces on `gf-hdg-linearise-first`, which has no per-face trace at all:
+
+```
+convdiff -no-vis -m ../../data/amr-quad.mesh -nx 0 -ny 0 -r 1 -o 1          -dg -hb -nl -nld -nls 3
+```
+
+dies on `IsFinite(norm)`, and valgrind names **five invalid reads eight bytes
+past a 3712-byte block**, from `MultNL()` called by `Mult()` and by
+`ReducedGradient()` — a fourth site, and NPC's.
+
+**No reference anywhere covers the combination.** Grouping the `_nc_`
+references by their options: every nonlinear one is NOT hybridized, and every
+hybridized one is linear. Nonconforming + hybridized + nonlinear has never
+been run.
+
+The trunk-material part is small — route the three sites through
+`ParMultNL()`, plus the `MultNL()` invariant — and lifting it is a separate
+operation across five branches, with `ReducedGradient()` to add on the two
+that have it. Not done here.
+
+### What the repair uncovered, and it is NOT the trace numbering
+
+`convdiff -p 1 -dg -hb -nl -nls 3 -pref 1` now runs, and at order 2 it takes
+**26** Newton iterations where every uniform configuration takes 1; at order 3
+it diverges to 3.3e+112. That is not the constrained trace, and `-prefx` says
+so in one sweep, all at `-o 2 -nx 8`:
+
+| `-prefx` | elements refined | trace | Newton |
+|---|---|---|---|
+| 0.0 | **0 of 64** | constrained, 432 of 576 dofs active | **1** |
+| 1.01 | **64 of 64** | uniform at the ceiling, 576 of 576 | **1** |
+| 0.5 | 32 of 64 | mixed, 500 of 576 | **26** |
+
+The first row is the one that matters: the constraint is fully active — a
+quarter of the ceiling's slots are gone — with uniform elements, and Newton
+converges in one step. The second has the whole mesh refined and a uniform
+trace. Only the row with MIXED ELEMENT DEGREES misbehaves, and `-nld` alone is
+untouched by it (1 iteration even at order 3), so it is the nonlinear FLUX on
+a variable-order element space.
+
+The standalone probe agrees from the other side: with uniform elements and a
+genuinely non-uniform trace, Newton converges in **5 iterations to 1e-15** at
+orders 1, 2 and 3.
+
+So what is left here is a question about a nonlinear local solve on variable
+ELEMENT degrees, which is `-pref`'s other half and was unreachable while the
+trace numbering crashed first.
 
 ## What this route does not do
 

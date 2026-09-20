@@ -2321,7 +2321,28 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       return;
    }
 
-   MultNL(MultNlMode::Mult, darcy_rhs, x, y);
+   /* ParMultNL() rather than MultNL(), and the name is the only parallel
+      thing about it: it is the wrapper that prolongs @a x from the trace's
+      TRUE unknowns to the constraint space's VDOFs, runs the element loop
+      there, and restricts the result back with the transpose. MultNL()
+      addresses the trace by TraceVDofs() throughout, so it can only be
+      handed a VDOF-long vector.
+
+      This site called MultNL() directly and was right only while that
+      prolongation is NULL, which is a conforming serial mesh and nothing
+      else. A per-face trace gives it a real one, and the direct call then
+      indexed a vector of constrained unknowns with numbers drawn from the
+      ceiling -- measured as an invalid read and an invalid write eight bytes
+      past the reduced vector, and a death inside malloc().
+
+      And a NONCONFORMING mesh gives it one too, which is the half of this
+      that is not this route's: DG_Interface_FECollection derives from
+      RT_FECollection and so reports GetContType() == NORMAL rather than
+      DISCONTINUOUS, so BuildConformingInterpolation() does not take its early
+      exit for a DG trace. On amr-quad.mesh with one refinement, order 3, the
+      trace space is VSize 1056, TrueVSize 928, cP non-null. See
+      SetTraceOrders(). */
+   ParMultNL(MultNlMode::Mult, darcy_rhs, x, y);
 
    // Essential trace dofs. There is no assembled matrix on this path to move
    // columns out of, so the constraint is carried the way NonlinearForm
@@ -2348,7 +2369,11 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    }
 
    Vector y;//dummy
-   MultNL(MultNlMode::Grad, darcy_rhs, x, y);
+   // Through the wrapper, for the reason on Mult(): @a x is in the trace's
+   // true unknowns and the element loop reads VDOFs. ComputeH() below already
+   // restricts the assembled gradient by the same prolongation, so the
+   // linearisation point and the matrix agree only if both go through it.
+   ParMultNL(MultNlMode::Grad, darcy_rhs, x, y);
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    //assemble gradient matrix
@@ -2373,6 +2398,23 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
 void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                                 const Vector &bp, const Vector &x, Vector &y) const
 {
+   /* @a x is in the CONSTRAINT SPACE's VDOFs, because that is what
+      TraceVDofs() indexes and this routine uses it throughout. The vector a
+      solver hands the operator is in the trace's true unknowns, which are
+      fewer once a face carries less than the ceiling -- so every caller goes
+      through ParMultNL(), which prolongs.
+
+      Stated as a check rather than as a convention. Three call sites skipped
+      the wrapper and were right for as long as the prolongation was the
+      space's own conforming one, null in a serial build; under a per-face
+      trace they read past the end of the reduced vector and killed the
+      process inside malloc(). One comparison a residual evaluation is a
+      cheap price for that not being addable again. */
+   MFEM_VERIFY(x.Size() == c_fes.GetVSize(),
+               "The trace is addressed by VDOFs here and this vector is "
+               << x.Size() << " long where the constraint space has "
+               << c_fes.GetVSize() << ". Call ParMultNL(), which prolongs.");
+
    const int NE = fes.GetNE();
    const int dim = fes.GetMesh()->Dimension();
    DenseMatrix H;
@@ -2710,17 +2752,27 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
          y.SetSize(darcy_offsets.Last());
       }
    }
+   else if (mode == MultNlMode::Grad)
+   {
+      /* A dummy, and deliberately left empty. MultNL() continues past the
+         trace scatter in this mode and never writes @a y, while the caller
+         passes an empty Vector -- so aliasing a VSize-long view onto it
+         would claim storage that is not there. */
+   }
+   else if (!ParallelC() && !tr_cP)
+   {
+      /* Guarded on the PROLONGATION being absent, not on the space's
+         restriction operator. They are null together while the trace is
+         uniform, and they are not once a face carries fewer unknowns than
+         the ceiling: @a y_t is then ctr_offsets.Last() long and this alias
+         claimed c_fes.GetVSize() of it. Latent until a caller reached here
+         in serial with a per-face trace, which is what routing Mult() and
+         GetGradient() through this wrapper does. */
+      y.MakeRef(y_t, 0, c_fes.GetVSize());
+   }
    else
    {
-      const Operator *tr_cR;
-      if (!ParallelC() && !(tr_cR = c_fes.GetRestrictionOperator()))
-      {
-         y.MakeRef(y_t, 0, c_fes.GetVSize());
-      }
-      else
-      {
-         y.SetSize(c_fes.GetVSize());
-      }
+      y.SetSize(c_fes.GetVSize());
    }
 
    MultNL(mode, bu, bp, x, y);
@@ -2788,35 +2840,6 @@ void DarcyHybridization::Finalize()
    }
    else
    {
-      /* MultNL() addresses the trace through the CONSTRAINT SPACE's face
-         VDOFs -- TraceVDofs(), which is c_fes.GetFaceVDofs() -- while the
-         vector it is handed is the CONSTRAINED one, whose length is
-         ctr_offsets.Last() and not c_fes.GetVSize(). The two numberings
-         coincide at a uniform trace and stop coinciding the moment a face
-         carries fewer slots than the ceiling, so the element loop then reads
-         and writes past the end of the reduced vector. Measured on
-         `convdiff -p 1 -o 2 -dg -hb -nl -nld -nls 3 -pref 1`, 8x8, where the
-         miniapp reports 138 of 160 trace DOFs active: valgrind names an
-         invalid read in Vector::GetSubVector and an invalid write in
-         Vector::AddElementVector, both eight bytes past RestrictTrace()'s
-         1104-byte output, and the run dies inside malloc().
-
-         The LINEAR route is unaffected, because it goes through ctr_PE, and
-         so is a nonlinear solve at a uniform trace: each half works and only
-         the combination does not, which is what makes this two features that
-         have never met rather than a regression in either. Teaching the
-         nonlinear route the constrained numbering is the fix -- prolong to
-         the ceiling, run the element loop, restrict back -- and it is NOT
-         done. Refusing is, because heap corruption three layers down is the
-         worst way to learn this. */
-      MFEM_VERIFY(tr_order.Size() == 0,
-                  "A nonlinear hybridized solve is not implemented under a "
-                  "per-face trace order. MultNL() indexes the trace by the "
-                  "constraint space's face VDOFs and the reduced vector "
-                  "carries the constrained ones, so the element loop would "
-                  "run off the end of it. Use a uniform trace order, or a "
-                  "linear problem.");
-
       if (!m_nlfi_u && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::PotNL;
@@ -4349,7 +4372,8 @@ void DarcyHybridization::Reset()
 void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
-   dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+   // ParMultNL(), for the reason on DarcyHybridization::Mult().
+   dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
 }
 #endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 

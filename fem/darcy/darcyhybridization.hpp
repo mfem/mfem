@@ -365,8 +365,13 @@ private:
       const DarcyHybridization &dh;
       mutable OperatorHandle pGrad;
    public:
+      /* dh.Width(), which Finalize() has already set to
+         GetTraceTrueVSize(). That is c_fes.GetTrueVSize() while the trace is
+         uniform and the constrained size once it is not, and this read the
+         former directly -- so under a per-face trace the operator announced
+         a size the vectors it is handed do not have. */
       ParOperator(const DarcyHybridization &dh)
-         : Operator(dh.c_fes.GetTrueVSize()), dh(dh) { }
+         : Operator(dh.Width()), dh(dh) { }
 
       void Mult(const Vector &x, Vector &y) const override;
       Operator& GetGradient(const Vector &x) const override;
@@ -379,7 +384,7 @@ private:
       const DarcyHybridization &dh;
    public:
       ParGradient(const DarcyHybridization &dh)
-         : Operator(dh.c_fes.GetTrueVSize()), dh(dh) { }
+         : Operator(dh.Width()), dh(dh) { }   // see ParOperator
 
       void Mult(const Vector &x, Vector &y) const override;
    };
@@ -1061,17 +1066,30 @@ public:
        tightens again later is worse than one that never loosened. Passing an
        empty array returns to a uniform trace on the same terms.
 
-       **A NONLINEAR HYBRIDIZED SOLVE IS NOT AVAILABLE UNDER A PER-FACE
-       TRACE, and Finalize() refuses rather than letting a caller find out.**
-       MultNL() addresses the trace through the constraint space's face VDOFs
-       while the vector it is handed is the constrained one, and the two
-       numberings coincide only at a uniform trace, so the element loop runs
-       off the end of the reduced vector -- measured as an invalid read and an
-       invalid write eight bytes past it, and a death inside malloc(). The
-       linear route is unaffected, going through the prolongation. The fix is
-       to prolong to the ceiling, run the element loop and restrict back, the
-       three steps the linear route already takes; it is not done, and the
-       refusal in Finalize() carries the measurement. */
+       **A nonlinear hybridized solve works under a per-face trace, and the
+       thing that makes it work is worth knowing.** The element loop addresses
+       the trace by TraceVDofs() -- the constraint space's face VDOFs --
+       throughout, and the vector a nonlinear solver hands the operator is in
+       the CONSTRAINED unknowns, which are fewer. So every entry point
+       prolongs to the ceiling, runs the loop there, and restricts the result
+       back with the transpose: ParMultNL() is that wrapper, the linear
+       route's ReduceRHS() and ComputeSolution() do the same by hand, and
+       ComputeH() does it as a RAP. Three sites called the element loop
+       directly instead -- Mult(), GetGradient() and the matrix-free
+       Gradient -- and read a vector of constrained unknowns with the
+       ceiling's numbers. They go through the wrapper now.
+
+       **That was never safe, and a per-face trace is only the second way to
+       reach it.** Those sites were right while the trace prolongation is
+       NULL, which is a conforming serial mesh and nothing else:
+       DG_Interface_FECollection derives from RT_FECollection and so reports
+       GetContType() == NORMAL rather than DISCONTINUOUS, which means
+       FiniteElementSpace::BuildConformingInterpolation() does not take its
+       early exit for a DG trace -- so on a nonconforming mesh with hanging
+       nodes the space has a real prolongation and the direct call reads past
+       the end of the reduced vector there too. Measured on amr-quad.mesh
+       with one refinement, order 3: VSize 1056, TrueVSize 928, cP non-null.
+       That half is not this route's and belongs on the trunk. */
    void SetTraceOrders(const Array<int> &face_order);
 
    /// Return the per-face trace degrees, empty when the trace is uniform.

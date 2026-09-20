@@ -1504,3 +1504,337 @@ TEST_CASE("A coarse trace basis is an exact combination of the ceiling's",
    INFO("E^+ at two ceilings differs by " << de.Normlinf());
    if (!(p_lo == 0 && p_hi == 1)) { REQUIRE(de.Normlinf() > 1e-8); }
 }
+
+namespace darcy_padapt
+{
+
+/** The fixture above with the linear flux mass replaced by a state-dependent
+    conductivity, which is the arrangement convdiff uses for a hybridized
+    nonlinear DG problem -- and the one that makes the reduced trace operator
+    NONLINEAR, so that a solver asks it for a residual and a gradient rather
+    than for a matrix.
+
+    kinv(p) = 1 + p^2 / 2 reduces to the linear problem at p = 0, which is
+    where Newton starts, and its state derivative is nowhere zero. */
+struct NLResult
+{
+   Vector tr;        ///< the trace solution, in the constrained unknowns
+   Vector q, p;      ///< the recovered flux and potential
+   int    size{};    ///< size of the reduced system
+   int    its{};     ///< Newton iterations
+};
+
+void FillSmooth(Vector &v, real_t shift, real_t scale)
+{
+   for (int i = 0; i < v.Size(); i++)
+   {
+      v(i) = scale * (std::sin(1.7 * i + shift) + 0.5 * std::cos(0.3 * i));
+   }
+}
+
+/// @a probe, when given, is called with the reduced operator instead of a
+/// Newton solve, which is how the Jacobian is compared against the residual
+/// without also depending on the solve converging.
+NLResult SolveNL(int order, int n, const Array<int> &trace_orders,
+                 bool set = true, int trace_ceiling = -1,
+                 std::function<void(Operator &, int)> probe = nullptr)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   const int dim = mesh.Dimension();
+
+   L2_FECollection q_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes_q(&mesh, &q_coll, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient gcoeff(gExact);
+
+   auto kinv  = [](const Vector &, real_t s) { return 1.0 + 0.5 * s * s; };
+   auto dkinv = [](const Vector &, real_t s) { return s; };
+   FunctionDiffusionFlux flux(dim, kinv, dkinv);
+
+   DarcyForm darcy(&fes_q, &fes_p);
+   darcy.GetBlockNonlinearForm()->AddDomainIntegrator(
+      new MixedConductionNLFIntegrator(flux));
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new DomainLFIntegrator(gcoeff, 6, 12));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(
+      (trace_ceiling < 0) ? order : trace_ceiling, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+
+   if (set) { darcy.GetHybridization()->SetTraceOrders(trace_orders); }
+
+   darcy.Assemble();
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-13, 1e-15, -1);
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   NLResult res;
+   res.size = X.Size();
+
+   if (probe)
+   {
+      probe(*A, darcy.GetHybridization()->GetEssentialTrueDofs().Size());
+      return res;
+   }
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-13);
+   lin.SetAbsTol(0.0);
+   lin.SetPreconditioner(prec);
+
+   NewtonSolver newton;
+   newton.SetSolver(lin);
+   newton.SetOperator(*A);
+   newton.SetRelTol(1e-12);
+   newton.SetAbsTol(1e-14);
+   newton.SetMaxIter(50);
+   newton.SetPrintLevel(-1);
+   newton.Mult(RHS, X);
+   REQUIRE(newton.GetConverged());
+   res.its = newton.GetNumIterations();
+
+   darcy.RecoverFEMSolution(X, x);
+
+   res.tr = X;
+   res.q = x.GetBlock(0);
+   res.p = x.GetBlock(1);
+   return res;
+}
+
+} // namespace darcy_padapt
+
+TEST_CASE("A nonlinear solve under a per-face trace is the coarse problem",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   /* The nonlinear counterpart of "The constrained ceiling system IS the
+      coarse system", and it exists because the nonlinear route reaches the
+      trace by a different road: the linear one assembles H at the ceiling and
+      restricts it with a RAP, while the nonlinear one hands a solver a
+      residual and a gradient and has to prolong and restrict them on every
+      call.
+
+      Three sites did not -- Mult(), GetGradient() and the matrix-free
+      Gradient called the element loop directly, which is right only while the
+      trace prolongation is the space's own conforming one and therefore null
+      in serial. Under a per-face trace they indexed a vector of constrained
+      unknowns with the ceiling's numbers; the run died inside malloc(), so
+      this case could not have been written before the repair rather than
+      merely failing. */
+
+   /* Orders 1 and 2, where the linear cases above take 0 as well. At degree
+      zero this fixture is not solvable at all and that has nothing to do with
+      the trace: the uniform arm, with no SetTraceOrders() call in it, returns
+      a NaN norm from Newton, and the constrained arm stops at the iteration
+      cap with |r| = 1.7e+02. A degree-zero flux, potential and trace with
+      this stabilisation and no boundary constraint is a degenerate
+      discretisation, and it is degenerate before anything here is asked of
+      it. */
+   const int order = GENERATE(1, 2);
+   const int gap = GENERATE(1, 2);
+   const int n = 3;
+   CAPTURE(order, gap);
+
+   // The coarse discretisation: the trace space AT the element degree.
+   Array<int> none;
+   const NLResult lo = SolveNL(order, n, none, false);
+
+   // The same discretisation reached the other way: a ceiling of order+gap
+   // with every face constrained back down to `order`.
+   Mesh probe = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                      1.0, 1.0);
+   Array<int> all(probe.GetNumFaces());
+   all = order;
+   const NLResult con = SolveNL(order, n, all, true, order + gap);
+
+   // The reduced systems are the same size -- the constraint gives a face
+   // exactly the unknowns its own degree has -- and the unconstrained ceiling
+   // would be larger.
+   REQUIRE(con.size == lo.size);
+
+   // And the discrete solution is the same one. The trace unknowns are in
+   // different bases, so the fields are what can be compared directly.
+   const real_t nq = lo.q.Normlinf(), np = lo.p.Normlinf();
+   REQUIRE(nq > 1e-3);
+   REQUIRE(np > 1e-3);
+
+   Vector dq(con.q); dq -= lo.q;
+   Vector dp(con.p); dp -= lo.p;
+   INFO("|dq| = " << dq.Normlinf() << " against |q| = " << nq
+        << ", |dp| = " << dp.Normlinf() << " against |p| = " << np);
+   REQUIRE(dq.Normlinf() < 1e-9 * nq);
+   REQUIRE(dp.Normlinf() < 1e-9 * np);
+
+   /* Newton saw the same problem. Not pinned to equality: the two reduced
+      systems are congruent rather than identical, so the inner GMRES iterates
+      differ in round-off and the outer count may differ by one. This file's
+      own branch has been caught pinning a nearly-converged count before. */
+   INFO("Newton took " << con.its << " constrained against " << lo.its);
+   REQUIRE(std::abs(con.its - lo.its) <= 1);
+}
+
+TEST_CASE("A genuinely non-uniform trace carries a nonlinear solve",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   /* The case above is an equivalence between two discretisations and so
+      cannot be run with a trace that has no uniform twin. This one is that
+      trace: alternate faces one degree BELOW their elements, which is the
+      configuration a coarsening driver actually produces.
+
+      Below, and that direction is the whole of it. A trace richer than both
+      its neighbours is exactly redundant -- this branch measured that, and
+      the first draft of this case asserted the opposite and was answered by
+      its own measurement: with the elements at `order` and the ceiling at
+      `order+1`, coarsening half the faces back to `order` moved the potential
+      by 1.8e-14 on 1.2e+00. The extra mode is L2-orthogonal to anything the
+      elements can put on the face, so it is annihilated whether it is carried
+      or not. Coarsening BELOW the elements is not redundant, and that is what
+      is asserted here. */
+   const int order = GENERATE(1, 2);
+   const int n = 4;
+   CAPTURE(order);
+
+   Mesh probe = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                      1.0, 1.0);
+   const int NF = probe.GetNumFaces();
+
+   Array<int> mixed(NF);
+   for (int f = 0; f < NF; f++) { mixed[f] = order - (f % 2); }
+
+   Array<int> all(NF);
+   all = order;
+
+   const NLResult mix = SolveNL(order, n, mixed, true, order);
+   const NLResult top = SolveNL(order, n, all,   true, order);
+
+   // The constraint gives each face exactly its own degree's unknowns, so
+   // half the faces one degree down is a strictly smaller system.
+   REQUIRE(mix.size < top.size);
+   REQUIRE(mix.size > 0);
+
+   // And it is a different discretisation, so it had better give a different
+   // answer -- otherwise the degrees are not reaching the solve at all and
+   // the equivalence above would be the only thing under test.
+   Vector dp(mix.p); dp -= top.p;
+   INFO("half the faces coarsened below their elements moves p by "
+        << dp.Normlinf() << " against " << top.p.Normlinf());
+   REQUIRE(dp.Normlinf() > 1e-6 * top.p.Normlinf());
+}
+
+TEST_CASE("The reduced nonlinear gradient and residual are in one numbering",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   /* The sharp check, and the one a half-repair would fail. ComputeH()
+      restricts the assembled gradient by the constrained prolongation and
+      always did; the residual had to be taught to prolong its argument and
+      restrict its result. Prolong one and not the other and the two are
+      operators on different spaces -- which a solve would show as Newton
+      merely converging badly, and which this shows directly.
+
+      Central difference along a fixed direction, the balance point for which
+      is cbrt(eps); the residual is smooth in the state. */
+   const int order = GENERATE(1, 2);
+   const int n = 3;
+   CAPTURE(order);
+
+   Mesh probe = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                      1.0, 1.0);
+   const int NF = probe.GetNumFaces();
+   Array<int> mixed(NF);
+   for (int f = 0; f < NF; f++) { mixed[f] = order + (f % 2); }
+
+   real_t rel = -1.0;
+   int width = -1;
+
+   SolveNL(order, n, mixed, true, order + 1,
+           [&](Operator &A, int n_ess)
+   {
+      width = A.Width();
+      REQUIRE(A.Height() == width);
+
+      Vector X(width);
+      FillSmooth(X, 0.0, 0.3);
+
+      Vector dX(width);
+      FillSmooth(dX, 2.4, 0.5);
+      // The essential rows carry a unit diagonal in the gradient and a zero
+      // residual, so a direction that moves them cannot be differenced.
+      REQUIRE(n_ess == 0);
+
+      Vector JdX(width);
+      A.GetGradient(X).Mult(dX, JdX);
+
+      const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+      Vector Xp(X), Xm(X), rp(width), rm(width);
+      Xp.Add(h, dX);
+      Xm.Add(-h, dX);
+      A.Mult(Xp, rp);
+      A.Mult(Xm, rm);
+
+      Vector fd(rp);
+      fd -= rm;
+      fd /= (2.0 * h);
+
+      /* The rows the residual does not depend on at all, found rather than
+         assumed: a third state, unrelated to the two differenced ones, and a
+         row is live if ANY of the three gives it something.
+
+         They exist because this fixture puts no boundary face integrator on
+         B, which is how the hybridization's constraint reaches a boundary
+         face -- so a boundary face's trace rows are empty, and ComputeH()'s
+         EliminateZeroRows() gives them a unit diagonal to keep the matrix
+         invertible. Newton is right either way, its correction there being
+         zero whichever is used, but a gradient cannot be differenced against
+         a derivative that does not exist. Half the rows on this mesh: 3x3
+         quads have twelve boundary faces and twelve interior ones. */
+      Vector X2(width), r2(width);
+      FillSmooth(X2, 5.1, 0.7);
+      A.Mult(X2, r2);
+
+      int live = 0;
+      real_t num = 0.0, den = 0.0;
+      for (int i = 0; i < width; i++)
+      {
+         if (rp(i) == 0.0 && rm(i) == 0.0 && r2(i) == 0.0) { continue; }
+         live++;
+         num = std::max(num, std::abs(JdX(i) - fd(i)));
+         den = std::max(den, std::abs(fd(i)));
+      }
+      INFO("live rows " << live << " of " << width);
+      REQUIRE(live > width / 2 - 1);
+      REQUIRE(live < width);
+      rel = num / std::max(den, real_t(1.0));
+   });
+
+   INFO("width = " << width << ", relative Jacobian error " << rel);
+   REQUIRE(width > 0);
+   REQUIRE(rel >= 0.0);
+   REQUIRE(rel < 1e-5);
+}
