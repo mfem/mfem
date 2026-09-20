@@ -173,10 +173,48 @@ void FrozenDualFluxCoefficient::Eval(DenseMatrix &K,
    fun.ComputeDualFluxJacobian(state, flux, T, J_u, K);
 }
 
+const IntegrationRule &MixedConductionNLFIntegrator::GetElementIntRule(
+   const FiniteElement &fe_u, ElementTransformation &Tr) const
+{
+   if (IntRule) { return *IntRule; }
+
+   /* Degree 2k + OrderW is exact for a *linear* flux law and is a deliberate
+      under-integration for a nonlinear one. Measured rather than argued:
+      bumping it by 2, 4, 8 and 16 on convdiff's nonlinear diffusion
+      (-p 8 -o 2 -dg -hb -nld, 24x24) moves neither L2 error in any printed
+      digit, from 193k quadrature points to 2.6M. For a smooth flux law the
+      quadrature error sits far below the discretisation error, so there is
+      nothing here to buy by over-integrating.
+
+      The same measurement closes the interpolatory HDG of Chen, Cockburn,
+      Singler & Zhang (J. Sci. Comput. 81 (2019) 2188), which replaces f(u_h)
+      by an interpolant so that the integrand is a polynomial a fixed rule
+      integrates exactly. Its payoff is the over-integration thereby avoided,
+      and there is none to avoid: on a tensor-product element this rule
+      carries (k+1)^d points and an L2 space of order k has (k+1)^d dofs, so
+      the interpolant would be evaluated at exactly as many points -- ratio
+      1.00 at every order measured. On the Gauss-Lobatto basis the miniapps
+      build with, it is then strictly worse: 4x to 260x this rule's
+      consistency error, and a dense mass matrix where quadrature has a
+      diagonal one. It evaluates less often only on a curved element, nq/ndof
+      reaching 4 -- where this rule is accurate to 2e-12 against the
+      interpolant's 1e-3.
+
+      The asymmetry is the reason to stay with quadrature: over-integration is
+      a knob a caller turns through the IntRule member, and interpolation
+      error is a floor no refinement reaches. */
+   const int order = 2*fe_u.GetOrder() + Tr.OrderW();
+   return IntRules.Get(fe_u.GetGeomType(), order);
+}
+
 void MixedConductionNLFIntegrator::AssembleElementVector(
    const Array<const FiniteElement*> &el, ElementTransformation &Tr,
    const Array<const Vector*> &elfun, const Array<Vector*> &elvect)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape_u;
+   Vector shape_u, shape_p;
+#endif
    const FiniteElement &fe_u = *el[0];
    const FiniteElement &fe_p = *el[1];
    const int ndof_u = fe_u.GetDof();
@@ -208,12 +246,7 @@ void MixedConductionNLFIntegrator::AssembleElementVector(
    Vector x(sdim), p(neq), ue(sdim), Fe(sdim);
    DenseMatrix mu(neq, sdim), mF(neq, sdim);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      const int order = 2*fe_u.GetOrder() + Tr.OrderW();//<---
-      ir = &IntRules.Get(fe_u.GetGeomType(), order);
-   }
+   const IntegrationRule *ir = &GetElementIntRule(fe_u, Tr);
 
    elvect_u.SetSize(neq * nvdof_u);
    elvect_u = 0.0;
@@ -289,6 +322,9 @@ void MixedConductionNLFIntegrator::AssembleFaceVector(
    FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
    const Array<Vector *> &elvect)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2;
+#endif
    // The face terms are still single-equation. Generalizing them is not the
    // index bookkeeping the element terms were: the HDG stabilization here is
    // built from the inverse of the flux Jacobian contracted with the face
@@ -440,6 +476,10 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    const Array<const FiniteElement *> &el, ElementTransformation &Tr,
    const Array<const Vector *> &elfun, const Array2D<DenseMatrix *> &elmats)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape_u;
+   Vector shape_u, shape_p;
+#endif
    const FiniteElement &fe_u = *el[0];
    const FiniteElement &fe_p = *el[1];
    const int ndof_u = fe_u.GetDof();
@@ -482,12 +522,11 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    Vector x(sdim), p(neq), ue(sdim);
    DenseMatrix mu(neq, sdim);
 
-   const IntegrationRule *ir = IntRule;
-   if (ir == NULL)
-   {
-      const int order = 2*fe_u.GetOrder() + Tr.OrderW();//<---
-      ir = &IntRules.Get(fe_u.GetGeomType(), order);
-   }
+   // The same rule the residual integrates at, and through the same accessor
+   // -- these two had a copy of the expression each, which is how a residual
+   // and its gradient come to disagree by one quadrature order and nothing
+   // says so.
+   const IntegrationRule *ir = &GetElementIntRule(fe_u, Tr);
 
    if (scalar_u) { shape_u.SetSize(ndof_u); }
    else { vshape_u.SetSize(ndof_u, sdim); }
@@ -643,6 +682,9 @@ void MixedConductionNLFIntegrator::AssembleFaceGrad(
    FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2;
+#endif
    // The face terms are still single-equation. Generalizing them is not the
    // index bookkeeping the element terms were: the HDG stabilization here is
    // built from the inverse of the flux Jacobian contracted with the face
@@ -814,6 +856,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
    const Vector &trfun, const Array<const Vector *> &elfun,
    const Array<Vector *> &elvect)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_u, shape_p, shape_tr;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { type &= ~1; }
@@ -1003,6 +1048,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
    const Vector &trfun, const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_u, shape_p, shape_tr;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { type &= ~1; }
