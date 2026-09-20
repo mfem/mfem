@@ -86,8 +86,20 @@ The rule methods are the only ones with a behavioural surface at all, and it is
 a narrowing: the formula moves from inside `AssembleElementMatrix` to a method
 that `AssembleElementMatrix` calls. Nothing else changes.
 
-**Not yet split into its own commit.** Doing that is the next housekeeping step
-and it is cheap now, expensive later.
+~~**Not yet split into its own commit.**~~ — **done, and it turned out to have
+been done all along.** The four additions above are `3bd5e80d60` "Ask an
+integrator what it does instead of reconstructing it", which touches
+`fem/bilininteg.cpp` and `fem/bilininteg.hpp` and **nothing else** —
+`git show --name-only` over it returns zero `fem/darcy/` paths. So the rule at
+the top of this file was in fact applied when the work was written, and the
+housekeeping step is not owed.
+
+**Checked rather than assumed, with the cheapest instrument there is**:
+`git merge-tree --write-tree --merge-base=3bd5e80d60^ origin/master 3bd5e80d60`
+returns a tree and no conflict, so the commit cherry-picks onto today's
+`origin/master` clean. That is the whole PR, and it needs a branch off master
+and nothing else. It has not been made into one — nobody has asked, and the
+sequencing constraint below says why there is no hurry.
 
 ## What upstream is already doing, checked rather than assumed
 

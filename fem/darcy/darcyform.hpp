@@ -580,7 +580,32 @@ public:
        @a b, and @a x).
 
        @note If there are no transformations, @a X simply reuses the data of
-             @a x. */
+             @a x.
+
+       @note WITH A DEVICE CONFIGURED, A CALLER THAT HOLDS ITS OWN LONG-LIVED
+       MakeRef() ALIASES OF @a x OR @a b OWES A SyncAliasMemory() BEFORE
+       CALLING. This routine and everything under it -- EliminateVDofsInRHS()
+       in particular, whose NPC branch reads the two blocks on the host -- are
+       host loops, so they read whatever the base's validity flags claim. An
+       alias written under a device marks the ALIAS device-valid;
+       Memory::SyncAlias() then AliasProtect()s the base's host range and, as
+       its own comment says, leaves the BASE's flags untouched. Every view
+       built from the base afterwards inherits that lie.
+
+       Under `Device("debug")` the result is a named fault on a protected
+       page. Under CUDA nothing is protected, the stale host copy is simply
+       used, and the symptom arrives several layers away -- for one consumer
+       it was "the bordered Jacobian is singular", a message about a border,
+       reported from a solve, two layers from the memory that caused it, and
+       it cost them a day. **A library-side test cannot see a caller's
+       aliases**, which is why this is doxygen and not a guard. The
+       instrument that finds it in an afternoon is `Device("debug")` plus a
+       breakpoint on `mprotect` conditioned on the faulting page, which names
+       the protector directly.
+
+       See GetPotentialRHS() for the same mechanism reached from the other
+       side, where it is the caller's accumulation into @a b rather than into
+       @a x. None of it applies to a host-only build. */
    virtual void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);

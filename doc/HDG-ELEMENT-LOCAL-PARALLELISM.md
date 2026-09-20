@@ -42,7 +42,64 @@ Every one is embarrassingly parallel by construction: each element's flux and
 potential being eliminable independently of every other is what static
 condensation *is*.
 
-## What is left, and both items are somebody else's
+## What is left
+
+* **`DarcyForm::ReconstructFluxAndPot()` is the largest unthreaded item a
+  consumer has left, and it is OURS.** All three overloads are plain
+  `for (int z = 0; z < mesh->GetNE(); z++)` with no `pragma omp` in any body,
+  and `ReconstructTotalFlux()` beside it is the same. meq reports `psi*` rather
+  than `psi_h` on every run, so they pay it once per solve: **0.620 s of a
+  3.302 s run, 18.8%, at 1.00 cores** on their DIII-D case, measured after the
+  NPC traversal was threaded and therefore now their biggest single-threaded
+  leg after the direct trace solve. Worth about **1.10x** on a meq run if it
+  threaded as well as the residual leg does.
+
+  **It is harder than the traversal was, and the difference is the point.**
+  The scatter is disjoint — each element writes only its own dofs in the
+  enriched space — but the loop re-assembles integrators at the enriched
+  order, so it reaches `ElementTransformation`, `Coefficient` and
+  `Mesh::GetElementTransformation(int)`'s shared scratch. That is the
+  integrator problem, on the host rather than on a device.
+
+  **The integrator blocker for meq's own configuration is now gone**, which is
+  what makes this actionable rather than aspirational:
+  `NormalTraceJumpIntegrator` was the one class in that loop's reach without
+  `#ifndef MFEM_THREAD_SAFE` and it is guarded on the trunk. What is NOT
+  covered is `HDGExtensionIntegrator` (eleven unguarded members, on
+  `extension-thread-safe-scratch`), and it is latent only because
+  `ReconstructFluxAndPot()` takes the flux mass from `GetDBFI()` alone while
+  that integrator sits on the flux mass's BOUNDARY faces. **Thread a
+  boundary-face loop and meq meets it as a wrong answer, not as the abort** —
+  `ThreadedLoopEvaluatesIntegrators()` asks about the seven nonlinear handles
+  and a `BilinearFormIntegrator` on a bilinear form is not one of them. So the
+  promise audit has to be re-taken against this loop before it is threaded,
+  not after.
+
+  **The inventory of what is safe to call from a threaded element loop is
+  larger than the integrator list, and two of them are not integrators.**
+  Both read out of MFEM's source by meq while threading their own loops, and
+  both would be reached by this one:
+  `FiniteElementSpace::GetElementDofs(int, Array<int>&)` forwards to the
+  three-argument form passing the space's `mutable DofTransformation DoFTrans`
+  (`fespace.hpp:295`), whose first statement is
+  `doftrans.SetDofTransformation(nullptr)` (`fespace.cpp:3437`) -- so every
+  call from every thread writes one shared object. For an L2 space the only
+  write is a null pointer, so it is benign **by accident of the space and not
+  by contract**; take the three-argument overload with loop-local storage.
+  And `Mesh::GetElementSize(int, int)` is
+  `GetElementSize(GetElementTransformation(i), type)` (`mesh.cpp:111`) and
+  then calls `SetIntPoint()` and `Jacobian()` on it -- it reads like a pure
+  query and is the shared transformation. Neither is ours to fix; both are
+  reasons the audit is not "grep the integrators".
+
+  **And the views inside it must stay aliases.** `ReconstructTotalFlux()` built
+  its seven per-field views as raw `Vector(other.GetData() + off, n)` wraps
+  until this session; they are `MakeRef` now, and the reason is on the
+  declarations. A raw wrap is not thread-unsafe, but it is the shape that
+  de-registered its owner under `Device("debug")`, and a threaded rewrite is
+  exactly when someone reintroduces one.
+
+## Two more, and both are somebody else's
 
 * **`Assemble` — an UPSTREAM change, recorded rather than owed.**
   `BilinearForm::ComputeElementMatrices()` fills an `element_matrices`

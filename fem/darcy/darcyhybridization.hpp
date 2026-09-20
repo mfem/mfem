@@ -2905,6 +2905,25 @@ public:
        being a runtime test rather than a compile-time one, and is paid only
        by a caller who asked for Threaded and then ran on one core.
 
+       **That one-thread tax is a property of the region and not of this
+       fixture, and it is worth reading before the 4.35x is.** meq re-took the
+       whole pair on their own free-boundary DIII-D problem, in their own
+       tree, against a binary preserved from before the upgrade: the leg goes
+       1.375 -> 1.446 s at OMP = MKL = 1, **0.95x**, and the whole run 6.983
+       -> 7.121 s, **0.98x** -- the same sign and the same size, on a
+       different problem. So a SERIAL deployment of a caller that asks for
+       AssemblyMode::Threaded is very slightly worse off than before, and a
+       reader who takes only the eight-thread row away will not infer it.
+
+       Their threaded arm is the other half of the same check and landed where
+       the arithmetic said: **2.61x on the leg and 1.25x on the run against a
+       1.24x prediction**, with the solution identical in all twelve runs. The
+       leg factor is 2.61x there against 4.35x here because their call is
+       twelve calls of fourteen columns and this one is not -- which is the
+       thing to carry: **a leg speedup quoted from another fixture does not
+       transfer, and the run figure landed only because the prediction rested
+       on meq's own measured share.**
+
        **NPCGradient's column is three parts, not the two this used to name.**
        It said the column was ConstructGrad (integrators, serial) plus
        ComputeElementH (dense, already threaded by AssemblyMode::Threaded) and

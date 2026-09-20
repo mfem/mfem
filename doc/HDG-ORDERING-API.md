@@ -366,15 +366,22 @@ the withdrawal of what that entry claimed.
 Missing rather than refused — **and two of the three entries that stood here
 were stale, both overtaken by work that had already been done**:
 
-* **the trace right-hand side has no slot**, and this is `DarcyForm`'s rather
-  than NPC's: it offers `GetFluxRHS()` and `GetPotentialRHS()` and nothing for
-  the skeleton, so neither route carries a load assembled on the trace. What
-  the caller does instead is no longer guesswork — it is measured against the
-  reduced route and written on the `NPCResidual` group, and pinned by "A
-  trace-assembled load reaches NPC through the residual". Adding a real slot
-  would move the reduced route too, and nobody has asked;
+* ~~The trace right-hand side has no slot~~ — **built, and this entry told a
+  caller to work around something that exists.** `DarcyForm::GetTraceRHS()`
+  (`fem/darcy/darcyform.hpp:501`) is the third load beside `GetFluxRHS()` and
+  `GetPotentialRHS()`, and **both routes carry it with no caller wiring**:
+  `ReduceRHS()` adds `P^T b_λ` to the reduced right-hand side and
+  `NPCResidual()` subtracts it from the trace block, which is the same
+  convention read off `r = A x - b`. The sign, the API and why the
+  registration happens at construction rather than at `Assemble()` are on the
+  accessor; the pin is "A load on the skeleton reaches both routes" in
+  `tests/unit/fem/test_darcy_npc.cpp`. The entry's own reasoning — that a real
+  slot "would move the reduced route too, and nobody has asked" — was right
+  about the first half and is why the slot serves both;
 * ~~No NPC regression reference exists~~ — **there are 23 serial and 23
-  parallel `*_npc.txt`**, which is what takes the suite to 152 + 121;
+  parallel `*_npc.txt`.** No suite total here on purpose: 23 is a property of
+  NPC, the total is a property of the branch, and the total this used to carry
+  was overtaken twice;
 * ~~`ComputeSolution()` has not been exercised~~ — "ComputeSolution reproduces
   the fields NPC already holds" does exactly that.
 
