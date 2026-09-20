@@ -452,17 +452,41 @@ is worth having.
    do not pick a rule by argument.
 4. Rank-count independence on `pconvdiff` at 1, 2, 3, 4 ranks.
 
-## The cost of branching from the trunk
+## The cost of branching from the trunk — settled, and the merge is done
 
-Settled, and it is **`doc/HDG-P-ADAPTIVITY-MEQ-MERGE.md`** now rather than
-here. What this section used to say -- that meeting `gf-hdg-linearise-first`
-in `meq-integration` costs "four `c_fes` call sites", and that an unconverted
-one would be loud -- was right about the count, wrong about the work, and
-never measured on the second point. The trial merge says the port is six named
-substitutions in five named functions, that 51 of this branch's 53 conversions
-merge cleanly, and that the conflict is two hunks where lf restructured
-`ComputeH`. Whether an unconverted site is loud is still a guess, and that
-file says how to find out.
+`doc/HDG-P-ADAPTIVITY-MEQ-MERGE.md` is **deleted**: the merge it planned has
+happened, `meq-integration` carries this branch
+(`git merge-base --is-ancestor` against it is yes), and by that file's own
+opening criterion — "it goes when the merge is done and its findings are in
+the code" — it had outlived itself. Its durable halves went where they belong:
+the merge rules into the operational notes, and the one real defect it found
+into the code (`e764526794` — `anisodiff` built the estimator's `amr_bfi` as a
+bare `HDGDiffusionIntegrator` while the potential mass form got
+`SetStabilization(*stab)`, so with `--tau-floor > 0` the estimate measured a
+different stabilization than the solve used; the `-tf 0` column is the control
+that makes the fix believable, being inert to every printed digit).
+
+Five of its six semantic questions were answered by the CONSTRAIN redesign
+rather than by the merge, and it is worth knowing why: under that design
+`TraceFE()` and `TraceVDofs()` are plain passthroughs, so there is no lazy
+`var_orders` cache to race, no unconverted site to be loud about, and
+`CanBatchLocalFactor()` refuses on the flux/potential offsets — which are
+trace-independent, so variable ELEMENTS refuse and a varying TRACE correctly
+still batches. The planned "six substitutions" became cosmetic.
+
+**One question survives and is one run.** `GradientMode::MatrixFree` under a
+per-face trace has never been executed. It reaches the trace space through the
+converted accessors so it ought to work, and there is a specific reason it
+might not: `MarkEmptyTraceRows()` gives an unmarked trace row a unit diagonal
+in the matrix-free operator, and this branch separately retires a face's
+surplus slots into `ess_tdof_list`, which also gives them a unit row. Two
+identity rows on one dof is probably harmless, and "probably" is what this
+branch has been wrong about before. Both mechanisms ASSIGN `y(i) = x(i)` and
+are therefore idempotent, which is the argument that it is fine — so the
+measurement is `-gm 1` with `-pref` against the assembled answer, and it
+discriminates because a double row that were additive would double the
+diagonal. `MatrixFree` is `gf-hdg-linearise-first`'s, so the run belongs in
+`meq-integration`, where both flags exist and no reference combines them.
 
 ## What this route does not do
 
