@@ -213,7 +213,18 @@ FluxFactory ClampedFlux(const GridFunction &u_h)
 
       return [st, &u_h](const Vector &y, Vector &v)
       {
+         /* Init() rather than a bare declaration, and it is load-bearing.
+            TransformBack() leaves @a ip untouched on the paths where the
+            inverse iteration gives up, and this arm deliberately ignores the
+            return code -- so without this the case reads a stack slot.  It
+            passed for months in every build here and is NOT reproducible:
+            with MFEM_USE_OPENMP and MFEM_THREAD_SAFE on, six runs of the same
+            binary gave clamped.max as 0.019369763141942, 0, and values of
+            order 1e+91 to 1e+196, at one thread as much as at sixteen, while
+            the arm that checks the code stayed at 8.88e-16 throughout.
+            Valgrind names the origin as this frame's stack allocation. */
          IntegrationPoint ip;
+         ip.Init(0);
          st->Tr.TransformBack(y, ip);
          u_h.GetVectorValue(st->el, ip, v);
       };
@@ -325,6 +336,13 @@ TEST_CASE("Extension from subdomains: the reference element must not be "
    // of the element boundary and the extension is not the polynomial at all.
    // The failure is silent -- the call reports Outside and returns a
    // perfectly well-formed integration point -- so it is pinned here.
+   //
+   // "A perfectly well-formed integration point" is true of the paths that
+   // clamp and false of the paths that give up, which leave it untouched;
+   // ClampedFlux() initialises it for that reason and the comment there has
+   // the measurement.  This case is the only one in the file that reads a
+   // transformed point without checking the code, which is why it is the
+   // only one that was ever non-deterministic.
    const int n = 12;
    const int order = 2;
    const int ir_order = 8;

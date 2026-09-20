@@ -142,14 +142,50 @@
 //                    its way to k+2 = 3. p_h is the only quantity here that
 //                    reaches its design order.
 //
-//                    What has NOT been tested, and is the next thing: whether
-//                    dist(Gamma_h, Gamma) is the mechanism. It does not halve
-//                    cleanly here -- 1.65e-01, 8.48e-02, 4.75e-02 is a ratio of
-//                    1.95 then 1.79, where two dimensions halves cleanly -- and
-//                    -d moves Gamma_h and nothing else, so it is one sweep. It
-//                    is recorded as an observation and NOT as a cause: this
-//                    branch has twice built a well-specified fix for a mechanism
-//                    that a sweep then showed to be innocent.
+//                    THE SWEEP HAS BEEN TAKEN AND dist(Gamma_h, Gamma) IS NOT
+//                    THE MECHANISM. -d at a fixed mesh, problem 4, order 1,
+//                    one mesh per run, ratio_u being -ctl's in-process ratio
+//                    of this arm to the boundary-fitted one:
+//
+//                      n=16  -d      dist      ||u-u_h||   -no-ext    ratio_u
+//                            0       8.48e-02  2.9106e-04  2.5142e-04  1.158
+//                            0.005   9.22e-02  1.3006e-03  2.5309e-04  5.139
+//                            0.010   1.06e-01  3.0839e-04  2.3827e-04  1.294
+//                            0.015   1.06e-01  3.0308e-04  2.3928e-04  1.267
+//                            0.020   1.15e-01  3.2586e-04  2.3923e-04  1.362
+//                      n=32  0       4.75e-02  1.0699e-04  --          1.177
+//                            0.0025  4.98e-02  1.7754e-04  9.0880e-05  1.954
+//                            0.0050  4.98e-02  1.0964e-04  8.9748e-05  1.222
+//                            0.0100  5.70e-02  3.4229e-04  8.8309e-05  3.876
+//
+//                    The decisive rows are the two at n = 32 with dist =
+//                    4.98e-02: the SAME distance, ratio_u 1.954 against
+//                    1.222. A quantity that takes two values at one dist is
+//                    not a function of it. And across the whole n = 16 sweep
+//                    dist rises 36% while the error rises 12%, part of which
+//                    is the smaller D_h the offset selects -- so dist^0.36 is
+//                    an upper bound on the sensitivity, and the refinement
+//                    ratios of 1.95 and 1.79 against 2 can move the rate by
+//                    at most 0.06 where the deficit is about 0.5.
+//
+//                    What the sweep DID find is larger than what it ruled
+//                    out: the transfer's cost is a SELECTION effect. ratio_u
+//                    swings between 1.16 and 5.14 at a fixed mesh while
+//                    -no-ext moves 3% (2.51, 2.53, 2.38, 2.39, 2.39 e-04),
+//                    the swept regions still tile D_h^c to 1e-11 in every one
+//                    of these runs, and ratio_p stays inside 1.00 to 1.17. So
+//                    the geometry is innocent and the potential is untouched,
+//                    and something about WHICH elements D_h contains costs
+//                    the flux up to a factor of five. That is the next
+//                    question and it is a different one from the rate.
+//
+//                    Third mechanism on this branch specified well and shown
+//                    innocent by a sweep, after the vertex cone and the
+//                    Navier-Stokes outflow row. One row is EXCLUDED: n = 16
+//                    at -d 0.03 reports 3.17e-01 with [GMRES did not
+//                    converge], and would have read as a catastrophe. The
+//                    iteration count is a column of the table for exactly
+//                    this reason.
 //
 //               THE TRACE SOLVE IS WHAT LIMITS A RATE STUDY, and until this
 //               session it was what stopped problem 4 at n = 16. The
