@@ -2788,6 +2788,35 @@ void DarcyHybridization::Finalize()
    }
    else
    {
+      /* MultNL() addresses the trace through the CONSTRAINT SPACE's face
+         VDOFs -- TraceVDofs(), which is c_fes.GetFaceVDofs() -- while the
+         vector it is handed is the CONSTRAINED one, whose length is
+         ctr_offsets.Last() and not c_fes.GetVSize(). The two numberings
+         coincide at a uniform trace and stop coinciding the moment a face
+         carries fewer slots than the ceiling, so the element loop then reads
+         and writes past the end of the reduced vector. Measured on
+         `convdiff -p 1 -o 2 -dg -hb -nl -nld -nls 3 -pref 1`, 8x8, where the
+         miniapp reports 138 of 160 trace DOFs active: valgrind names an
+         invalid read in Vector::GetSubVector and an invalid write in
+         Vector::AddElementVector, both eight bytes past RestrictTrace()'s
+         1104-byte output, and the run dies inside malloc().
+
+         The LINEAR route is unaffected, because it goes through ctr_PE, and
+         so is a nonlinear solve at a uniform trace: each half works and only
+         the combination does not, which is what makes this two features that
+         have never met rather than a regression in either. Teaching the
+         nonlinear route the constrained numbering is the fix -- prolong to
+         the ceiling, run the element loop, restrict back -- and it is NOT
+         done. Refusing is, because heap corruption three layers down is the
+         worst way to learn this. */
+      MFEM_VERIFY(tr_order.Size() == 0,
+                  "A nonlinear hybridized solve is not implemented under a "
+                  "per-face trace order. MultNL() indexes the trace by the "
+                  "constraint space's face VDOFs and the reduced vector "
+                  "carries the constrained ones, so the element loop would "
+                  "run off the end of it. Use a uniform trace order, or a "
+                  "linear problem.");
+
       if (!m_nlfi_u && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::PotNL;

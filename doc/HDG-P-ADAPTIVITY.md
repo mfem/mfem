@@ -474,19 +474,34 @@ rather than by the merge, and it is worth knowing why: under that design
 trace-independent, so variable ELEMENTS refuse and a varying TRACE correctly
 still batches. The planned "six substitutions" became cosmetic.
 
-**One question survives and is one run.** `GradientMode::MatrixFree` under a
-per-face trace has never been executed. It reaches the trace space through the
-converted accessors so it ought to work, and there is a specific reason it
-might not: `MarkEmptyTraceRows()` gives an unmarked trace row a unit diagonal
-in the matrix-free operator, and this branch separately retires a face's
-surplus slots into `ess_tdof_list`, which also gives them a unit row. Two
-identity rows on one dof is probably harmless, and "probably" is what this
-branch has been wrong about before. Both mechanisms ASSIGN `y(i) = x(i)` and
-are therefore idempotent, which is the argument that it is fine — so the
-measurement is `-gm 1` with `-pref` against the assembled answer, and it
-discriminates because a double row that were additive would double the
-diagonal. `MatrixFree` is `gf-hdg-linearise-first`'s, so the run belongs in
-`meq-integration`, where both flags exist and no reference combines them.
+**That question has been run, and the answer is that it cannot be reached
+yet.** The matrix-free gradient is `-gm 2`, "do not assemble, apply it and
+solve unpreconditioned"; `-gm 1` is the assembled operator with a
+Gauss-Seidel preconditioner, and this section used to name the wrong one. It
+is honoured only where the solver asks for a gradient at all, which is the
+nonlinear route under Newton — and **the nonlinear route does not run under a
+per-face trace at all**. In `meq-integration`, where both features exist,
+`convdiff -p 1 -o 2 -dg -hb -nl -nld -nls 3 -pref 1` corrupts the heap with
+`-gm 0` and with `-gm 2` alike, at 8x8 and at 4x4; the two arms differ in one
+thing, so the same run that asks about the gradient mode exonerates it. The
+linear arm agrees with the assembled one to every printed digit and says
+nothing, a linear solve never reading the option. And it is not a merge
+artefact: this branch has no `GradientMode` at all, and the same command
+without any `-gm` corrupts the heap here too.
+
+The blocker, named by valgrind on a 4x4 run and now REFUSED by a guard in
+`DarcyHybridization::Finalize()` that carries the whole finding:
+`MultNL()` indexes the trace with the constraint space's face VDOFs while the
+vector it is handed is the CONSTRAINED one — 138 entries where the ceiling
+has 160 — so the element loop reads and writes eight bytes past
+`RestrictTrace()`'s output. The linear route goes through `ctr_PE` and is
+unaffected, and a nonlinear solve at a uniform trace is unaffected, so this is
+two features that have never met rather than a regression in either. The two
+identity rows this section worried about were never reached.
+
+So the question is a piece of work rather than a run: prolong to the ceiling,
+run the element loop, restrict back — the three steps the linear route already
+takes — after which `-gm 2` under `-pref` is one run again.
 
 ## What this route does not do
 

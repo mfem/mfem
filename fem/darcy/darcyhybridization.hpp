@@ -1059,7 +1059,19 @@ public:
        the ceiling either way; the contract is kept as it is because keeping
        the local blocks at `p_f` would need it back, and a contract that
        tightens again later is worse than one that never loosened. Passing an
-       empty array returns to a uniform trace on the same terms. */
+       empty array returns to a uniform trace on the same terms.
+
+       **A NONLINEAR HYBRIDIZED SOLVE IS NOT AVAILABLE UNDER A PER-FACE
+       TRACE, and Finalize() refuses rather than letting a caller find out.**
+       MultNL() addresses the trace through the constraint space's face VDOFs
+       while the vector it is handed is the constrained one, and the two
+       numberings coincide only at a uniform trace, so the element loop runs
+       off the end of the reduced vector -- measured as an invalid read and an
+       invalid write eight bytes past it, and a death inside malloc(). The
+       linear route is unaffected, going through the prolongation. The fix is
+       to prolong to the ceiling, run the element loop and restrict back, the
+       three steps the linear route already takes; it is not done, and the
+       refusal in Finalize() carries the measurement. */
    void SetTraceOrders(const Array<int> &face_order);
 
    /// Return the per-face trace degrees, empty when the trace is uniform.
