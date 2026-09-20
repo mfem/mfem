@@ -14,6 +14,20 @@ thread scaling and the fact that they are the **cold** path;
 `InvertA`, `InvertD`, `MultNL`, `ComputeSolution`, `EliminateVDofsInRHS`,
 `EliminateTrueDofsInRHS` and `ReduceRHS` — all eight.
 
+**One correction to that sentence, and it is true on every branch of this
+family.** `InvertA` and `InvertD` are **not OpenMP loops at all**, and the
+list reads as though they were. Their element loops carry no `omp` and no
+`forall`; what is threaded is the *batched* route beside them
+(`FactorElementsBatched`, `BatchedLinAlg`), which needs
+`LocalFactorMode::Batched` **and** a device backend. Under the ordinary host
+combination — `-d cpu` with `AssemblyMode::Threaded` — `mfem::forall` is a
+serial loop and both run serially. Measured on `hdgperf -n 128 -o 3 -lin`:
+asking for `-lfac 1` on the host takes `ComputeH` from 0.418 s threaded to
+**1.075 s, and it stops scaling** (1.046 s at one thread, 1.075 s at eight),
+because the batched route replaces the OpenMP loop with a serial `forall`.
+The default is `LocalFactorMode::Serial`, so nothing is hit by default — but
+it is a trap for anyone who turns it on expecting host threading.
+
 Every one is embarrassingly parallel by construction: each element's flux and
 potential being eliminable independently of every other is what static
 condensation *is*.

@@ -68,7 +68,7 @@ about.
 
 The cheapest items here, and both are a reference set rather than new code.
 
-* **Zero of the 152 serial and 121 parallel references use `--broken-RT`**, and
+* **No reference in either arm uses `--broken-RT`**, and
   the unit coverage is no longer quite zero at the `DarcyForm` level — the NPC
   case above hybridizes a broken-RT flux and checks it against a conforming-RT
   reduced solve — but no *reference* exercises it.
