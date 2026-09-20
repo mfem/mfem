@@ -1655,7 +1655,31 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       return;
    }
 
-   MultNL(MultNlMode::Mult, darcy_rhs, x, y);
+   /* ParMultNL() rather than MultNL(), and the name is the only parallel
+      thing about it: it is the wrapper that prolongs @a x from the trace's
+      TRUE unknowns to the constraint space's VDOFs, runs the element loop
+      there, and restricts the result back with the transpose. MultNL()
+      addresses the trace by c_fes.GetFaceVDofs() throughout, so a VDOF-long
+      vector is the only thing it can be handed.
+
+      This site called it directly, and that is right only while the trace
+      prolongation is NULL. **It is not null on a nonconforming mesh**, and
+      the reason is easy to miss: DG_Interface_FECollection derives from
+      RT_FECollection and so reports GetContType() == NORMAL rather than
+      DISCONTINUOUS, so FiniteElementSpace::BuildConformingInterpolation()
+      does not take its early exit for a DG trace. Measured on
+      data/amr-quad.mesh with one uniform refinement at order 3: the trace
+      space is VSize 1056, TrueVSize 928, cP non-null. The element loop then
+      indexed a 928-long vector with numbers drawn from 1056 -- valgrind
+      names five invalid reads eight bytes past the block, and the run dies
+      on IsFinite(norm) inside NewtonSolver.
+
+      Nothing covered it: grouping the _nc_ references by their options,
+      every nonlinear one is NOT hybridized and every hybridized one is
+      linear, so nonconforming + hybridized + nonlinear had never been run.
+      ComputeSolution() has always gone through the wrapper, so the recovery
+      half of the same solve was already right. */
+   ParMultNL(MultNlMode::Mult, darcy_rhs, x, y);
 
    // Essential trace dofs. There is no assembled matrix on this path to move
    // columns out of, so the constraint is carried the way NonlinearForm
@@ -1682,7 +1706,10 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    }
 
    Vector y;//dummy
-   MultNL(MultNlMode::Grad, darcy_rhs, x, y);
+   // Through the wrapper, for the reason on Mult(): @a x is in the trace's
+   // true unknowns and the element loop reads VDOFs, so the linearisation
+   // point was being read from the wrong numbering on a nonconforming mesh.
+   ParMultNL(MultNlMode::Grad, darcy_rhs, x, y);
 
 #ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    //assemble gradient matrix
@@ -1707,6 +1734,21 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
 void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                                 const Vector &bp, const Vector &x, Vector &y) const
 {
+   /* @a x is in the constraint space's VDOFs, because that is what this
+      routine indexes it by throughout. The vector a solver hands the operator
+      is in the trace's TRUE unknowns, which are fewer whenever the space has
+      a conforming prolongation -- so every caller goes through ParMultNL(),
+      which prolongs.
+
+      Stated as a check rather than as a convention. Three call sites skipped
+      the wrapper and were right only on a conforming mesh; on a nonconforming
+      one they read past the end of the reduced vector. One comparison a
+      residual evaluation is a cheap price for that not being addable again. */
+   MFEM_VERIFY(x.Size() == c_fes.GetVSize(),
+               "The trace is addressed by VDOFs here and this vector is "
+               << x.Size() << " long where the constraint space has "
+               << c_fes.GetVSize() << ". Call ParMultNL(), which prolongs.");
+
    const int NE = fes.GetNE();
    const int dim = fes.GetMesh()->Dimension();
    DenseMatrix H;
@@ -2044,17 +2086,25 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
          y.SetSize(darcy_offsets.Last());
       }
    }
+   else if (mode == MultNlMode::Grad)
+   {
+      /* A dummy, and deliberately left empty. MultNL() continues past the
+         trace scatter in this mode and never writes @a y, while the caller
+         passes an empty Vector -- so aliasing a VSize-long view onto it
+         would claim storage that is not there. GetGradient() reaches here
+         now that it goes through this wrapper. */
+   }
+   else if (!ParallelC() && !tr_cP)
+   {
+      /* Guarded on the PROLONGATION being absent rather than on the space's
+         restriction operator. The two are null together here, so this is not
+         a fix so much as saying what the branch means -- and it retires a
+         local that is set and never read, which nvcc warns about. */
+      y.MakeRef(y_t, 0, c_fes.GetVSize());
+   }
    else
    {
-      const Operator *tr_cR;
-      if (!ParallelC() && !(tr_cR = c_fes.GetRestrictionOperator()))
-      {
-         y.MakeRef(y_t, 0, c_fes.GetVSize());
-      }
-      else
-      {
-         y.SetSize(c_fes.GetVSize());
-      }
+      y.SetSize(c_fes.GetVSize());
    }
 
    MultNL(mode, bu, bp, x, y);
@@ -3642,7 +3692,8 @@ void DarcyHybridization::Reset()
 void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
-   dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+   // ParMultNL(), for the reason on DarcyHybridization::Mult().
+   dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
 }
 #endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 

@@ -66,25 +66,20 @@ private:
 #endif
    Type type;
 
-   bool anisotropic{};
-
    /* Mutable, and ComputeEstimates() is const, so that GetTotalError() can
-      bring itself up to date. ErrorEstimator declares that method const, so an
-      estimator holding its state non-mutably can only return whatever
+      bring itself up to date. ErrorEstimator declares that method const, so
+      an estimator holding its state non-mutably can only return whatever
       GetLocalErrors() last left there -- which is ZERO for a caller that asks
       for the total and never asks for the local errors, and that is a silent
       wrong answer rather than an abort.
 
-      HDGDatumErrorEstimator below was written this way from its second draft,
-      because its FIRST draft had this defect and returned zero for every
-      input; its comment recorded that this class had the same shape and the
-      same wart, and left it. It is the same fix, and it matters most to
-      the caller that shape was written for: assembling the five terms of the
-      SSC estimator means summing GetTotalError() across estimators, and these
-      two terms would have contributed nothing to that sum. */
+      It matters most to the caller the const signature was written for:
+      assembling a sum of estimators means summing GetTotalError() across
+      them, and a term read that way would have contributed nothing. */
    mutable long current_sequence{-1};
    mutable Vector error_estimates;
    mutable real_t total_error{};
+   bool anisotropic{};
    mutable Array<int> aniso_flags;
 
    /// Check if the mesh of the solution was modified.

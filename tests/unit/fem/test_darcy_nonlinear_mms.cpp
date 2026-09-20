@@ -1045,3 +1045,151 @@ TEST_CASE("A source that ignores the conductivity's variation does not",
    CAPTURE(rate_p, ep[0], ep[n-1]);
    REQUIRE(rate_p < 0.5);
 }
+
+namespace darcy_nl_mms
+{
+
+/** A hybridized nonlinear DG Darcy problem on a NONCONFORMING mesh, which is
+    the combination nothing in this tree had ever run: grouping the `_nc_`
+    regression references by their options, every nonlinear one is not
+    hybridized and every hybridized one is linear.
+
+    It matters because a `DG_Interface` trace space is NOT exempt from
+    conforming interpolation. `DG_Interface_FECollection` derives from
+    `RT_FECollection` and so reports `GetContType() == NORMAL` rather than
+    `DISCONTINUOUS`, so `FiniteElementSpace::BuildConformingInterpolation()`
+    does not take its early exit -- and with hanging nodes the space has a
+    real prolongation, its true size smaller than its VDOF size. The
+    hybridization's element loop addresses the trace by VDOFs throughout, so
+    the vector a Newton solver hands the reduced operator has to be prolonged
+    first. Three call sites did not, and read past the end of it. */
+struct NCNonlinearResult
+{
+   int  vsize{}, tsize{};
+   bool has_prolongation{};
+   bool converged{};
+   int  its{};
+   real_t final_norm{}, max_p{};
+};
+
+NCNonlinearResult SolveNCNonlinear(int order)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   mesh.EnsureNCMesh();
+   // Two elements refined, so the mesh carries genuine hanging nodes.
+   Array<int> refine({0, 5});
+   mesh.GeneralRefinement(refine);
+
+   const int dim = mesh.Dimension();
+
+   L2_FECollection q_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes_q(&mesh, &q_coll, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient gcoeff([](const Vector &x)
+   {
+      return 2.0 * M_PI * M_PI * std::sin(M_PI * x(0)) * std::sin(M_PI * x(1));
+   });
+
+   // kinv(p) = 1 + p^2/2: the linear problem at p = 0, where Newton starts,
+   // with a state derivative that is nowhere zero.
+   auto kinv  = [](const Vector &, real_t s) { return 1.0 + 0.5 * s * s; };
+   auto dkinv = [](const Vector &, real_t s) { return s; };
+   FunctionDiffusionFlux flux(dim, kinv, dkinv);
+
+   DarcyForm darcy(&fes_q, &fes_p);
+   darcy.GetBlockNonlinearForm()->AddDomainIntegrator(
+      new MixedConductionNLFIntegrator(flux));
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new DomainLFIntegrator(gcoeff, 6, 12));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+
+   darcy.Assemble();
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-13, 1e-15, -1);
+
+   NCNonlinearResult res;
+   res.vsize = fes_t.GetVSize();
+   res.tsize = fes_t.GetTrueVSize();
+   res.has_prolongation = (fes_t.GetConformingProlongation() != nullptr);
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-13);
+   lin.SetAbsTol(0.0);
+   lin.SetPreconditioner(prec);
+
+   NewtonSolver newton;
+   newton.SetSolver(lin);
+   newton.SetOperator(*A);
+   newton.SetRelTol(1e-12);
+   newton.SetAbsTol(1e-14);
+   newton.SetMaxIter(50);
+   newton.SetPrintLevel(-1);
+   newton.Mult(RHS, X);
+
+   res.converged = newton.GetConverged();
+   res.its = newton.GetNumIterations();
+   res.final_norm = newton.GetFinalNorm();
+
+   darcy.RecoverFEMSolution(X, x);
+   res.max_p = x.GetBlock(1).Normlinf();
+   return res;
+}
+
+} // namespace darcy_nl_mms
+
+TEST_CASE("A hybridized nonlinear solve on a nonconforming mesh",
+          "[DarcyHybridization][NonlinearDarcy]")
+{
+   using namespace darcy_nl_mms;
+
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   const NCNonlinearResult r = SolveNCNonlinear(order);
+
+   /* The precondition first, because without it the case silently stops
+      testing anything. A DG trace on a mesh with hanging nodes HAS a
+      conforming prolongation -- DG_Interface_FECollection inherits
+      RT_FECollection's NORMAL continuity type, not DISCONTINUOUS -- so its
+      true size is strictly smaller than its VDOF size, and it is exactly
+      that gap the reduced operator has to prolong across. */
+   CAPTURE(r.vsize, r.tsize, r.has_prolongation);
+   REQUIRE(r.has_prolongation);
+   REQUIRE(r.tsize < r.vsize);
+
+   /* And the outcome. Before the element loop's callers were routed through
+      ParMultNL() this did not fail an assertion -- it read a true-DOF vector
+      by VDOF indices, which valgrind reports as five invalid reads eight
+      bytes past the block, and died on IsFinite(norm) inside NewtonSolver
+      with nothing naming the trace. */
+   INFO("Newton " << r.its << " iterations, |r| = " << r.final_norm);
+   REQUIRE(r.converged);
+   REQUIRE(std::isfinite(r.final_norm));
+   REQUIRE(r.max_p > 1e-3);
+   REQUIRE(std::isfinite(r.max_p));
+}
