@@ -241,6 +241,19 @@ void ParDarcyForm::Assemble(int skip_zeros)
    else if (Mnl_p)
    {
       Mnl_p->Setup();
+
+      /* The serial branch's exact twin, and it was missed once. Fixing
+         DarcyForm::Assemble() alone leaves the parallel path assembling no
+         constraint at all: the trace system is then singular, and where the
+         serial run fails loudly with beta = -nan out of GMRES, the parallel
+         one merely grinds -- `pconvdiff -nx 10 -ny 10 -p 1 -o 2 -dg -hb -nl
+         -nld` sat at 95% CPU for 23 minutes on a 10x10 mesh. A hang is the
+         same defect wearing a slower face. */
+      if (hybridization && hybridization->GetPotConstraintIntegrator())
+      {
+         AssemblePotHDGFaces(skip_zeros);
+         AssemblePotHDGSharedFaces(skip_zeros);
+      }
    }
 
    if (pb_u)
