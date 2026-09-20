@@ -366,8 +366,31 @@ public:
    /// @name Potential r.h.s.
    ///@{
 
-   /// Get the potential right-hand-side form (non-const)
-   /** @note The form is constructed if it has not been already. */
+   /** @brief Get the potential right-hand-side form (non-const)
+
+       @note The form is constructed if it has not been already.
+
+       @note WITH A DEVICE CONFIGURED, A CALLER WHO ACCUMULATES THIS INTO ITS
+       OWN BlockVector MUST SyncAliasMemory() AFTERWARDS. The hybridized
+       routines are host loops over raw pointers, and
+
+           rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+
+       is a DEVICE operation on an alias of @a rhs: it leaves the result in
+       that alias's device buffer, and the second view a caller builds to pass
+       to FormLinearSystem() gets a fresh alias marked host-valid whatever the
+       real state, so the loops read stale zeros. Measured under both
+       `-d cuda` and `-d debug`: the reduced trace right-hand side comes back
+       EXACTLY zero, the trace solve returns zero, the recovered fields are
+       quietly wrong, and nothing errors. The validity flags say
+       `hostvalid=1 devvalid=0` on the very block whose host buffer is zeros,
+       so neither a HostRead() nor a guard can catch it.
+
+           rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+           rhs.GetBlock(1).SyncAliasMemory(rhs);      // <-- and this
+
+       Assemble() already does exactly this for the form's own b_u and b_p.
+       None of it applies to a host-only build. */
    LinearForm *GetPotentialRHS();
 
    /// Get the potential right-hand-side form (const)
@@ -450,7 +473,33 @@ public:
        @a b, and @a x).
 
        @note If there are no transformations, @a X simply reuses the data of
-             @a x. */
+             @a x.
+
+       @note WITH A DEVICE CONFIGURED, A CALLER THAT HOLDS ITS OWN LONG-LIVED
+       MakeRef() ALIASES OF @a x OR @a b OWES A SyncAliasMemory() BEFORE
+       CALLING. This routine and everything under it -- EliminateVDofsInRHS()
+       in particular, whose nonlinear branch reads the two blocks on the
+       host -- are host loops, so they read whatever the base's validity
+       flags claim. An
+       alias written under a device marks the ALIAS device-valid;
+       Memory::SyncAlias() then AliasProtect()s the base's host range and, as
+       its own comment says, leaves the BASE's flags untouched. Every view
+       built from the base afterwards inherits that lie.
+
+       Under `Device("debug")` the result is a named fault on a protected
+       page. Under CUDA nothing is protected, the stale host copy is simply
+       used, and the symptom arrives several layers away -- for one consumer
+       it was "the bordered Jacobian is singular", a message about a border,
+       reported from a solve, two layers from the memory that caused it, and
+       it cost them a day. **A library-side test cannot see a caller's
+       aliases**, which is why this is doxygen and not a guard. The
+       instrument that finds it in an afternoon is `Device("debug")` plus a
+       breakpoint on `mprotect` conditioned on the faulting page, which names
+       the protector directly.
+
+       See GetPotentialRHS() for the same mechanism reached from the other
+       side, where it is the caller's accumulation into @a b rather than into
+       @a x. None of it applies to a host-only build. */
    virtual void FormLinearSystem(const Array<int> &ess_flux_tdof_list,
                                  BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);
