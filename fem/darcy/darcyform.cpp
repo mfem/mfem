@@ -810,13 +810,13 @@ void DarcyForm::Assemble(int skip_zeros)
    {
       Mnl_p->Setup();
 
-      // The potential MASS is on this NonlinearForm -- so there is no M_p and
-      // the block above did not run -- but its FACE constraint may be linear,
-      // in which case EnableHybridization() routed it to c_bfi_p. This pass is
-      // what fills E, G, H and D from it. Without it they stay zero, the trace
-      // system is singular, and GMRES returns beta = -nan on the first Newton
-      // step. GetPotConstraintIntegrator() is exactly "the constraint took the
-      // linear route", so it is the right test and not a proxy for one.
+      /* The potential MASS is on this NonlinearForm -- so there is no M_p and
+         the block above did not run -- but its FACE constraint may be linear,
+         in which case EnableHybridization() routed it to c_bfi_p. This pass is
+         what fills E, G, H and D from it. Without it they stay zero, the trace
+         system is singular, and GMRES returns beta = -nan on the first Newton
+         step. GetPotConstraintIntegrator() is exactly "the constraint took the
+         linear route", so it is the right test and not a proxy for one. */
       if (hybridization && hybridization->GetPotConstraintIntegrator())
       {
          AssemblePotHDGFaces(skip_zeros);
