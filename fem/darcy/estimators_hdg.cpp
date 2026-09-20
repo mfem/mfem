@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-void HDGErrorEstimator::ComputeEstimates()
+void HDGErrorEstimator::ComputeEstimates() const
 {
    Mesh *mesh = sol_tr.FESpace()->GetMesh();
    const int dim = mesh->Dimension();
@@ -184,7 +184,7 @@ void HDGErrorEstimator::ProjectTraceDown(const FiniteElement &fe_hi,
 }
 
 void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
-                                            Vector &d_error_estimates)
+                                            Vector &d_error_estimates) const
 {
    const FiniteElementSpace *fes_tr = sol_tr.FESpace();
    const FiniteElementSpace *fes_p = sol_p.FESpace();

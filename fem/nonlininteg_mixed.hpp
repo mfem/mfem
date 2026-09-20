@@ -113,8 +113,22 @@ class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
    real_t alpha, beta;
    const IntegrationRule *IntRule;
 
+   /** @brief Per-point scratch, and it is a MEMBER only in a build that
+       cannot thread.
+
+       This integrator is on the element-local hot path: MultNL() and
+       NPCResidual()/NPCGradient() reach it through
+       DarcyHybridization::ConstructGrad() and LocalResidual(), once per
+       element per residual or Jacobian evaluation. Threading that loop
+       therefore needs these to be per-thread, and MFEM's convention for that
+       is to hold them as members only when MFEM_THREAD_SAFE is off and to
+       declare them in the method otherwise -- see
+       FluxFunction::ComputeFluxDotN() for the same pattern. Every method sizes
+       what it uses, so the local declarations are bare. */
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix vshape_u;
    Vector shape_u, shape_p, shape1, shape2, shape_tr;
+#endif
 
    /** @brief Per-variable stabilization for the HDG face terms of a system.
 
@@ -155,6 +169,19 @@ public:
    /// The constitutive law this integrator was constructed with.
    const MixedFluxFunction &GetFluxFunction() const { return fluxFunction; }
 
+   /** @brief The rule AssembleElementVector() and AssembleElementGrad()
+       integrate the ELEMENT term at.
+
+       Exposed rather than reconstructed, and that is deliberate: a batched
+       route that copied `2*fe_u.GetOrder() + Tr.OrderW()` would have diverged
+       from this integrator silently the day the expression here changed.
+       HDGDiffusionIntegrator's GetHDGFaceIntRule() exists for the same
+       reason and the two batched paths ask the same way.
+
+       @a Tr is consulted for OrderW() only, so a caller may hand it any
+       element's transformation on a mesh of one geometry. */
+   const IntegrationRule &GetElementIntRule(const FiniteElement &fe_u,
+                                            ElementTransformation &Tr) const;
    /// The velocity coefficient, or null.
    VectorCoefficient *GetVelocity() const { return v; }
    /// The alpha the constructor took.

@@ -57,6 +57,9 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
    const FiniteElement &el2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1, shape2;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    const int el_dim = el1.GetDim();
@@ -199,6 +202,9 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
    int side, const FiniteElement &trace_el, const FiniteElement &el,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    const int el_dim = el.GetDim();
@@ -326,6 +332,9 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceVector(
    FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
    Vector &elvec)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { type &= ~1; }
@@ -477,6 +486,9 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
    const FiniteElement &el2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1, shape2;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    const int el_dim = el1.GetDim();
@@ -614,6 +626,9 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
    int side, const FiniteElement &trace_el, const FiniteElement &el,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    const int el_dim = el.GetDim();
@@ -740,6 +755,9 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceVector(
    FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
    Vector &elvec)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { type &= ~1; }
@@ -890,6 +908,10 @@ void HDGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2, nor, nh, ni;
+   DenseMatrix mq;
+#endif
    int dim, ndof1, ndof2, ndofs;
 
    dim = el1.GetDim();
@@ -1053,6 +1075,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
    const FiniteElement &el2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
+   DenseMatrix mq;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
    MFEM_VERIFY(!stab || stab->IsConstant(),
                "A state dependent stabilization makes the face term nonlinear; "
@@ -1314,6 +1340,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
    int side, const FiniteElement &trace_el, const FiniteElement &el,
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1, vu, nor, nh, ni;
+   DenseMatrix mq;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
    MFEM_VERIFY(!stab || stab->IsConstant(),
                "A state dependent stabilization makes the face term nonlinear; "
@@ -1498,6 +1528,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
    FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
    Vector &elvec)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1, vu, nor, nh, ni;
+   DenseMatrix mq;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { type &= ~1; }
@@ -1695,6 +1729,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceGrad(
    FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
    DenseMatrix &grad)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1, vu, nor, nh, ni;
+   DenseMatrix mq;
+#endif
    if (!stab || stab->IsConstant())
    {
       // Nothing state dependent to carry, so the base class building the
@@ -1883,6 +1921,11 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
    FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
    Vector *d_energy)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector tr_shape, shape1, vu, nor, nh, ni;
+   Vector nor_Jt, nor_Ji, ni_Jt, ni_Ji;
+   DenseMatrix mq;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { side = 0; }
