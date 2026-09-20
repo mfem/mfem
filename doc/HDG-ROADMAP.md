@@ -281,7 +281,7 @@ symmetry finding above says. Not started, and not obviously owed: the scope
 note's line is that the *classic* NPC method is the job, and NPC section 2.4
 prescribes the plain split.
 
-## 6. Functionals of the solution — one thing left
+## 6. Functionals of the solution — DONE
 
 `fem/darcy/functionals_hdg.hpp` carries what it does and does not, for one
 field, which is what this branch's callers run.
@@ -299,15 +299,29 @@ product here. **Both are guarded by `MFEM_ASSERT` only, and this tree configures
 `MFEM_DEBUG = NO`** — so in the build anyone here actually runs, both are
 compiled out and a system gets a number rather than a diagnostic.
 
-The per-field version *and* the `MFEM_VERIFY` are on `gf-hdg-linearise-first`
-(`functionals_hdg.cpp:97` there); neither was ever here.
+~~The per-field version *and* the `MFEM_VERIFY` are on
+`gf-hdg-linearise-first`; neither was ever here.~~ — **the refusal arrived, by
+the trunk merge, and this entry outlived it.** `functionals_hdg.cpp` here now
+opens with `VerifyOneField()`, an `MFEM_VERIFY(fes->GetVDim() == 1, ...)`
+naming the field count and saying these functionals return one number and
+would have to pick a field, called from both scalar entry points. Checked by
+counting the guards on every branch, not by reading a merge subject: the
+trunk, this branch and `gf-hdg-p-adaptivity` carry five, lf and interp six.
+
+**What is still only lf's and interp's is the per-field `Vector` overload** —
+the thing that answers for a system rather than refusing it — together with
+the range-type and `DofTransformation` guards that go with it. That is the
+right split and not a gap: a system has no callers here, which is why the
+overload was written where systems exist. So this section is now **DONE** on
+the same terms as the trunk's, and the number is kept so commit messages
+citing "§6" land somewhere.
 
 **What is NOT claimed**: that anything reaches this. No caller on this branch
 builds a total flux at `vdim > 1` — that is why the refusal was written on the
 sibling, where systems exist, and why this is a one-line carry-back rather than
 a defect report. Recording it that way is this file's own rule about "X is
-unguarded" being two claims. Carrying the refusal back is the only thing left in
-this section. The number is kept so commit messages citing "§6" land somewhere.
+unguarded" being two claims. Carrying the refusal back was the only thing left in
+this section, and it has been carried back -- see above.
 
 ## 7. Adaptive refinement, and the estimator's fifth term
 
