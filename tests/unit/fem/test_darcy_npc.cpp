@@ -3996,6 +3996,225 @@ TEST_CASE("A live face constraint reads its coefficient at every residual",
    }
 }
 
+namespace darcy_live_face_constraint_boundary
+{
+
+// Does FaceConstraintMode::Live cover BOUNDARY faces, and if a caller's
+// answer still moves, what is actually frozen?
+//
+// It was reported that the live slot covers interior faces only and that the
+// boundary faces stay frozen beside it, measured at 4.6e-03 from the
+// correctly-assembled operator where an interior-only arm reached 3.2e-18.
+// It does cover them. What the report's own fixture had frozen is a LOAD --
+// a BoundaryFlowIntegrator on the potential right-hand side carrying the SAME
+// velocity as the face constraint, and a LinearForm has no live route.
+//
+// The two halves are separated here in the one way the existing case cannot
+// do it: the interior and the boundary integrator are given their OWN
+// coefficients, so either can be moved with the other held still.
+//
+// The mesh is periodic in y, so the only boundary faces are the x ones and
+// the velocity's boundary-NORMAL component is `bn * alpha` alone. At bn = 0
+// nothing on a boundary face depends on alpha, which is why the reporter's
+// interior-only arm looked perfect: a load whose boundary term is
+// identically zero has nothing to freeze. That is the inert control here.
+
+struct Result { Vector full; real_t load_norm; };
+
+/** @a a0i / @a a0b are the interior and boundary velocities the form is
+    ASSEMBLED at, @a a1i / @a a1b the ones in force when the residual is
+    taken. @a bn scales the component normal to the boundary faces.
+    @a with_load installs the velocity-carrying load; @a refresh_load
+    re-assembles it after the move, which is all a caller has to do. */
+Result Run(DarcyForm::FaceConstraintMode mode, real_t a0i, real_t a0b,
+           real_t a1i, real_t a1b, real_t bn, bool with_load,
+           bool refresh_load)
+{
+   const int dim = 2, order = 1, n = 4;
+   Mesh base = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   Vector ty(dim); ty = 0.; ty(1) = 1.0;
+   std::vector<Vector> trans{ty};
+   Mesh mesh = Mesh::MakePeriodic(base, base.CreatePeriodicVertexMapping(trans));
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   real_t ai = a0i, ab = a0b;
+   VectorFunctionCoefficient ci(dim, [&ai, bn](const Vector &, Vector &v)
+   {
+      v.SetSize(2); v(0) = bn * ai; v(1) = ai;
+   });
+   VectorFunctionCoefficient cb(dim, [&ab, bn](const Vector &, Vector &v)
+   {
+      v.SetSize(2); v(0) = bn * ab; v(1) = ab;
+   });
+   FunctionCoefficient datum([](const Vector &x)
+   {
+      return 0.3 + x(0) + 0.2 * x(1);
+   });
+
+   DarcyForm darcy(&Vh, &Wh);
+   darcy.SetFaceConstraintMode(mode);
+
+   ConstantCoefficient one(1.0);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 1.0));
+
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new ConservativeConvectionIntegrator(ci));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGConvectionUpwindedIntegrator(ci));
+   Mnl_p->AddBdrFaceIntegrator(new HDGConvectionUpwindedIntegrator(cb));
+
+   // The load, and it is the subject rather than scenery: it carries the same
+   // velocity the boundary face constraint does and it is a LinearForm.
+   if (with_load)
+   {
+      darcy.GetPotentialRHS()->AddBdrFaceIntegrator(
+         new BoundaryFlowIntegrator(datum, cb, +1.0));
+   }
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->EnableNPC();
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   BlockVector b(darcy.GetOffsets());
+   b = 0.0;
+   if (with_load) { b.GetBlock(1) = *darcy.GetPotentialRHS(); }
+
+   ai = a1i; ab = a1b;   // the move, after Assemble() and with no re-assembly
+
+   if (with_load && refresh_load)
+   {
+      // A caller's whole obligation: no Update(), no Finalize(), so the
+      // gradient is not destroyed.
+      darcy.GetPotentialRHS()->Assemble();
+      b.GetBlock(1) = *darcy.GetPotentialRHS();
+   }
+
+   BlockVector x(darcy.GetOffsets());
+   for (int i = 0; i < x.Size(); i++) { x(i) = 0.25 + 0.5 * sin(1.0 * i); }
+   Vector x_tr(Mh.GetVSize());
+   for (int i = 0; i < x_tr.Size(); i++) { x_tr(i) = 0.3 * cos(2.0 * i); }
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+
+   // CheckFinite BEFORE any norm: Vector::Norml2() guards its reduction with
+   // fabs(v) > 0, which is false for a NaN, so an all-NaN vector reads as
+   // exactly zero and a relative difference of 0 is indistinguishable from
+   // agreement.
+   REQUIRE(r.CheckFinite() == 0);
+   REQUIRE(r_tr.CheckFinite() == 0);
+
+   // The WHOLE residual. A load reaches the field blocks and not the trace
+   // one, so a comparison over r_tr alone cannot see it -- which is how the
+   // first attempt at this measurement missed the cause entirely.
+   Result res;
+   res.full.SetSize(r.Size() + r_tr.Size());
+   for (int i = 0; i < r.Size(); i++) { res.full(i) = r(i); }
+   for (int i = 0; i < r_tr.Size(); i++) { res.full(r.Size() + i) = r_tr(i); }
+   res.load_norm = b.GetBlock(1).Norml2();
+   return res;
+}
+
+real_t RelDiff(const Vector &a, const Vector &b)
+{
+   Vector d(a);
+   d -= b;
+   const real_t nb = b.Norml2();
+   return (nb > 0.) ? (d.Norml2() / nb) : d.Norml2();
+}
+
+} // namespace darcy_live_face_constraint_boundary
+
+TEST_CASE("A live face constraint covers boundary faces, and a load does not",
+          "[DarcyForm][DarcyHybridization][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_live_face_constraint_boundary;
+   using Mode = DarcyForm::FaceConstraintMode;
+
+   constexpr real_t a0 = 1.0, a1 = 2.5, bn = 0.75;
+
+   SECTION("the BOUNDARY integrator's coefficient alone is tracked")
+   {
+      // The claim this refutes, and the only arm that can: the interior
+      // coefficient is held STILL at a1 and the boundary one moves a0 -> a1.
+      // If the live slot covered interior faces only, this is exactly the
+      // configuration that would freeze.
+      const Result ref  = Run(Mode::Frozen, a1, a1, a1, a1, bn, false, false);
+      const Result live = Run(Mode::Live,   a1, a0, a1, a1, bn, false, false);
+      const real_t d = RelDiff(live.full, ref.full);
+      CAPTURE(d);
+      REQUIRE(d < 1e-12);
+
+      // and the frozen route on the same move does NOT track it, which is
+      // what says the arm above is discriminating rather than vacuous.
+      const Result frozen = Run(Mode::Frozen, a1, a0, a1, a1, bn, false, false);
+      const real_t df = RelDiff(frozen.full, ref.full);
+      CAPTURE(df);
+      REQUIRE(df > 1e-3);
+   }
+
+   SECTION("a velocity-carrying LOAD is what stays frozen, and refreshing it closes the gap")
+   {
+      // The reporter's arm: everything live, and the answer still moves.
+      const Result ref   = Run(Mode::Live, a1, a1, a1, a1, bn, true, false);
+      const Result stale = Run(Mode::Live, a0, a0, a1, a1, bn, true, false);
+      const real_t d_stale = RelDiff(stale.full, ref.full);
+      CAPTURE(d_stale, ref.load_norm, stale.load_norm);
+      REQUIRE(d_stale > 1e-3);
+
+      // The load really is the thing that differs, so the measurement above
+      // is not being read off something else.
+      REQUIRE(RelDiff(Vector({stale.load_norm}), Vector({ref.load_norm})) > 1e-3);
+
+      // Re-assembling the load ALONE -- no Update(), no Finalize(), nothing
+      // touched on the constraint -- closes it.
+      const Result fresh = Run(Mode::Live, a0, a0, a1, a1, bn, true, true);
+      const real_t d_fresh = RelDiff(fresh.full, ref.full);
+      CAPTURE(d_fresh);
+      REQUIRE(d_fresh < 1e-12);
+
+      // And so does removing the load, which says the residue is the load and
+      // not a second thing that a re-assembly happens to repair.
+      const Result no_ref  = Run(Mode::Live, a1, a1, a1, a1, bn, false, false);
+      const Result no_live = Run(Mode::Live, a0, a0, a1, a1, bn, false, false);
+      const real_t d_none = RelDiff(no_live.full, no_ref.full);
+      CAPTURE(d_none);
+      REQUIRE(d_none < 1e-12);
+   }
+
+   SECTION("a boundary-normal component of zero is the inert control")
+   {
+      // Why the reporter's interior-only arm looked perfect. With bn = 0 the
+      // velocity is tangential to every boundary face, so the load's boundary
+      // term is identically zero and CANNOT move -- the stale-load arm above
+      // must go quiet without anything being fixed. An arm that passes for
+      // this reason is not evidence about the face constraint.
+      const Result ref   = Run(Mode::Live, a1, a1, a1, a1, 0.0, true, false);
+      const Result stale = Run(Mode::Live, a0, a0, a1, a1, 0.0, true, false);
+      CAPTURE(ref.load_norm, stale.load_norm);
+      REQUIRE(ref.load_norm < 1e-12);
+      REQUIRE(stale.load_norm < 1e-12);
+
+      const real_t d = RelDiff(stale.full, ref.full);
+      CAPTURE(d);
+      REQUIRE(d < 1e-12);
+   }
+}
+
 namespace darcy_outflow_trace
 {
 

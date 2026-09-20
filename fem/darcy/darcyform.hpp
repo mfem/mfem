@@ -404,7 +404,48 @@ public:
        added to a form afterwards does.
 
        Live mode needs DarcyHybridization::EnableNPC(); Finalize() refuses
-       otherwise rather than producing a frozen answer. */
+       otherwise rather than producing a frozen answer.
+
+       **IT COVERS INTERIOR AND BOUNDARY FACES ALIKE**, and it is worth saying
+       because the opposite was reported and measured. DarcyForm::Assemble()
+       sends GetPotentialMassNonlinearForm()'s BOUNDARY face integrators to
+       AddBdrPotConstraintIntegrator()'s NONLINEAR overload under this mode,
+       which is the list ConstructGrad()'s and LocalNLOperator's boundary
+       loops read, and both of those loops sit inside `if (c_nlfi_p)`, which
+       live mode fills. The interior and boundary choices are made from the
+       same flag a few lines apart and cannot disagree. Measured, by moving
+       the BOUNDARY integrator's coefficient alone and leaving the interior
+       one still: the residual and the reduced gradient both track it to
+       1e-16, on 2-D quads, 3-D hexes and 3-D wedges, with and without a
+       boundary face integrator on B or a boundary stabilization on M_p, and
+       on a mesh periodic in one direction.
+
+       **WHAT IT DOES NOT COVER IS A LOAD, AND THAT IS WHERE A CALLER WILL
+       LOSE A DAY.** This mode is about the OPERATOR. A LinearForm carrying
+       the same moving coefficient -- GetPotentialRHS() with a
+       BoundaryFlowIntegrator holding the velocity is the case that arose --
+       has no live route at all and is assembled when Assemble() is called
+       and never again. The caller owes it a re-assembly, which is
+       `rhs->Assemble()` and a copy into the right-hand side, with no
+       Update() and no Finalize() so the gradient is not destroyed.
+
+       **The failure is quiet and it looks exactly like this mode not
+       working.** A consumer measured their live arm at 4.6e-03 from the
+       correctly-assembled operator where an interior-only arm reached
+       3.2e-18, and read it as the boundary faces staying frozen. Reproduced
+       here and attributed by three controls, each of which removes the
+       residue while leaving the constraint untouched: refreshing the load
+       takes 2.2e-02 to 1.8e-16, removing the load integrator gives 1.8e-16,
+       and making the velocity's boundary-NORMAL component zero gives
+       1.8e-16 -- that last being why their interior-only arm looked perfect,
+       since a load whose boundary term is identically zero has nothing to
+       freeze. The discriminator is cheap and worth running before suspecting
+       this mode: **re-assemble the loads and see whether the residue goes.**
+
+       @note An operator taken from NPCGradient() is frozen at the state and
+       the coefficient it was taken at; a later move does not leak into an
+       application of it. Measured bit-identical, which is what makes a
+       gradient safe to hold across a coefficient change. */
    void SetFaceConstraintMode(FaceConstraintMode mode) { fc_mode = mode; }
 
    /// See SetFaceConstraintMode().
