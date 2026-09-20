@@ -158,20 +158,32 @@
 // of samples in libumfpack and 18.7% in MKL, and UMFPACK does not thread.
 //
 // **TWO THINGS OUTSIDE THE CODE THAT ARE WORTH MORE THAN THEY LOOK.**
-// `OMP_WAIT_POLICY=passive` is worth **1.12x on the whole run** here (4.209 ->
-// 3.766 s at eight threads): with only ~1 s of 3.7 s inside a parallel
-// region, idle threads spin at barriers, and a profile of the default run
-// puts **24.7% of its samples in libgomp** -- the largest single DSO, ahead
-// of UMFPACK.
+// `OMP_WAIT_POLICY=passive` buys back about a quarter of the CPU here and
+// does NOT move the wall clock. **Withdraw the 1.12x this comment used to
+// claim** -- 4.209 against 3.766 s at eight threads, a pair that is not
+// recorded as interleaved and that the re-take does not reproduce. Six
+// interleaved pairs of `-n 128 -o 3 -lin -gm 0 -thr -nt 8`, MKL pinned to one
+// thread, load 0.09 at the start: wall medians **3.58 s default against
+// 3.55 s passive**, with the pairwise difference straddling zero (+0.06,
+// +0.06, -0.02, -0.02, -0.09, -0.35) for a median of -0.02 s on 3.6 s. That
+// is noise; 1.12x would have been 0.43 s and could not hide in it.
 //
-// **The SIGN of that one is not universal, and it is the fraction inside a
-// parallel region that decides it.** meq measured the same variable at
-// **-1.5%** on their Grad-Shafranov solve -- four interleaved pairs, medians
-// 4.965 s default against 5.040 s passive, passive slower in all four -- with
-// the same CPU saving in the same shape, 308% to 188%. Their threaded legs
-// are about 30% of a solve against this harness's ~1 s of 3.7 s, so there is
-// far less barrier idling to reclaim and the cost of waking threads is paid
-// against a smaller gain. Measure it on the workload before setting it.
+// What is real, and large, is the CPU: **215-223% against 166-174%**, about
+// 7.8 s of it against 6.0 s. That is the barrier spinning a profile of the
+// default run finds as **24.7% of its samples in libgomp**, the largest
+// single DSO and ahead of UMFPACK -- with only ~1 s of 3.7 s inside a
+// parallel region there is a great deal of it, and passive gives it back
+// without buying any wall clock with it.
+//
+// **So the sign disagreement with meq was ours, and it is gone.** They
+// measured the same variable as a wall-clock COST on their Grad-Shafranov
+// solve -- four interleaved pairs, medians 4.965 s default against 5.040 s
+// passive, passive slower in all four -- with the same CPU saving in the same
+// shape, 308% to 188%. Both trees now say the same thing: a CPU saving worth
+// taking on a shared machine, and not a speedup. meq had already withdrawn
+// this claim on their own side, on exactly these grounds; ours survived only
+// because nobody re-took it. **An interleaved pair on a quiet box costs two
+// minutes and is the whole difference.**
 //
 // And `-lfac 1` on the HOST is a pessimisation, not an
 // optimisation: it takes computeH from 0.418 s to 1.075 s and stops it
