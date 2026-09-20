@@ -632,7 +632,8 @@ protected: // implementation
                           int vn1, int vn2, int vn3, int vn4,
                           const Array<Refinement> &refinements,
                           const std::map<int, int> &elemToRef,
-                          std::set<int> &conflicts);
+                          std::set<int> &conflicts,
+                          real_t elem_scale = -1.0);
 
    /** For the face with ordered vertices vn*, edge midpoints en*, and
        neighboring element @a elem, check whether the other neighboring element
@@ -661,6 +662,12 @@ protected: // implementation
        slave faces. */
    bool CheckRefAnisoFaceSplits(int vn1, int vn2, int vn3, int vn4,
                                 int level = 0);
+
+   /** For an isotropic split of the master face with ordered vertices vn* and
+       edge midpoints en*, check the resulting subfaces for conflicts. */
+   bool CheckRefIsoFaceSplits(int vn1, int vn2, int vn3, int vn4,
+                              int en1, int en2, int en3, int en4);
+
    friend class NeighborRowMessage;
    friend class NeighborOrderMessage;
 };
