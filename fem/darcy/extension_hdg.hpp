@@ -95,7 +95,18 @@ using VectorPositionFunction = std::function<void(const Vector &, Vector &)>;
     both should be checked when a new family is written:
     - @f$(a(x) - x)\cdot n_e > 0@f$ on every boundary face @f$e@f$, with
       @f$n_e@f$ the outward normal;
-    - the paths do not cross before reaching @f$\Gamma@f$. */
+    - the paths do not cross before reaching @f$\Gamma@f$.
+
+    **A family is built once and read afterwards, and every routine that
+    evaluates one is `const`.** That is a contract and not an accident:
+    HDGExtensionIntegrator holds a `const TransferPath &` and, in a
+    MFEM_THREAD_SAFE build, is entered from several threads at once, so a
+    family that cached anything per call would put back the race the
+    integrator's guard takes out. The three families here were checked against
+    it rather than assumed to meet it -- ClosestPointPath and LevelSetPath hold
+    configuration only, and VertexConePath writes #tang, #has_tangent and its
+    four counters in its CONSTRUCTOR and nowhere else. A family that cannot
+    keep the property owes a guard of its own. */
 class TransferPath
 {
 public:
@@ -409,7 +420,16 @@ public:
     polynomial extension the method is written against. For an element with a
     non-affine map -- a general quadrilateral, hexahedron or wedge -- it is the
     reference-space extension instead, which is the natural generalisation but
-    not the same object. */
+    not the same object.
+
+    **What it holds is per-element STATE rather than scratch, so it cannot be
+    shared between threads.** SetElement() points the inverse transformation at
+    one element and TransformBack() reads it; two threads working on two
+    elements do not merely spoil each other's arithmetic, they take each
+    other's ELEMENT, and what comes back is a well-formed reference point for
+    the wrong map. Nothing aborts. HDGExtensionIntegrator therefore keeps its
+    one behind `#ifndef MFEM_THREAD_SAFE` and hands it to LiftBasis() as an
+    argument, so that the thread-safe arm gets one per call. */
 class ElementExtension
 {
    mutable InverseElementTransformation inv_tr;
@@ -460,7 +480,19 @@ real_t PathIntegral(const VectorPositionFunction &Cu, const Vector &x,
     read from.
 
     Must be evaluated on a FaceElementTransformations, since the path family
-    may need the face normal. */
+    may need the face normal.
+
+    @warning **Not reentrant, and that is MFEM's convention for Coefficient
+    rather than an omission here.** `fem/coefficient.hpp` carries 26 `mutable`
+    scratch members over 19 classes -- InnerProductCoefficient,
+    MatrixProductCoefficient, the six Cartesian, cylindrical and spherical
+    ones among them -- and neither it nor `coefficient.cpp` contains a single
+    MFEM_THREAD_SAFE. A threaded assembly therefore has to give each thread its
+    own coefficient whatever this class does, and guarding these members alone
+    would buy nothing while advertising a guarantee the objects beside them do
+    not offer. Give each thread its own. The TransferPath behind it may be
+    shared, and so may a coefficient whose Eval() uses only locals -- which
+    FunctionCoefficient's does. */
 class PathTraceCoefficient : public Coefficient
 {
    const TransferPath &path;
@@ -514,9 +546,26 @@ class HDGExtensionIntegrator : public BilinearFormIntegrator
    real_t sign;
    int line_order;
 
+   /** @brief Per-face and per-point scratch, behind MFEM's guard.
+
+       The convention is that an integrator's working set lives here, so that
+       a build setting MFEM_THREAD_SAFE has no shared mutable members left and
+       one integrator object may be entered from several threads at once. This
+       class declared all eleven of these outside the guard and so ignored the
+       option silently.
+
+       #ext is the one that makes the failure more than a scrambled sum.
+       AssembleFaceMatrix() points its InverseElementTransformation at the
+       element owning the face and LiftBasis() then inverts that map once per
+       point of every path; two threads on faces of two different elements do
+       not merely overwrite each other's arithmetic, they invert each other's
+       ELEMENT. The extension that comes back is some other element's
+       polynomial, and nothing aborts. */
+#ifndef MFEM_THREAD_SAFE
    Vector shape, shape_ext, nor, x, xbar, m, y, CTm;
    DenseMatrix Cmat, L;
    ElementExtension ext;
+#endif
 
 public:
    /** @param path_        the transferring paths.
@@ -585,12 +634,22 @@ private:
        whose image is @a x and whose path displacement is @a m. Fills
        @a Lmat(j,d) for the basis function @f$\text{shape}_j e_d@f$.
 
-       Expects #ext to have been set to the element and leaves
+       Expects @a ext_w to have been set to the element and leaves
        @a elem_tr's integration point wherever the last step of the path put
-       it. */
+       it.
+
+       The extension and the four pieces of per-point scratch are the
+       CALLER'S, rather than this object's, so that a MFEM_THREAD_SAFE build
+       allocates them once per face instead of once per quadrature point of
+       it -- and, for @a ext_w, because the element it is pointed at has to
+       survive from AssembleFaceMatrix() into here. Without the guard they are
+       the members of the same name, so the two arms run the same arithmetic
+       on the same objects. */
    void LiftBasis(const FiniteElement &el1, ElementTransformation &elem_tr,
                   const Vector &x, const Vector &m,
-                  const IntegrationRule &lir, DenseMatrix &Lmat);
+                  const IntegrationRule &lir, ElementExtension &ext_w,
+                  Vector &shape_w, Vector &y_w, Vector &CTm_w,
+                  DenseMatrix &Cmat_w, DenseMatrix &Lmat);
 };
 
 
@@ -616,7 +675,21 @@ private:
     transformation out beyond @f$\Gamma_h@f$. Anything a caller needs from the
     geometry at the face point -- the normal, the shape functions, the weight --
     must be taken before the call, exactly as
-    HDGExtensionIntegrator::AssembleFaceMatrix() takes them. */
+    HDGExtensionIntegrator::AssembleFaceMatrix() takes them.
+
+    @warning **Not reentrant, and that is MFEM's convention for Coefficient
+    rather than an omission here.** `fem/coefficient.hpp` carries 26 `mutable`
+    scratch members over 19 classes -- InnerProductCoefficient,
+    MatrixProductCoefficient, the six Cartesian, cylindrical and spherical
+    ones among them -- and neither it nor `coefficient.cpp` contains a single
+    MFEM_THREAD_SAFE. A threaded assembly therefore has to give each thread its
+    own coefficient whatever this class does, and guarding these members alone
+    would buy nothing while advertising a guarantee the objects beside them do
+    not offer. Give each thread its own. The TransferPath behind it may be
+    shared, and so may a coefficient whose Eval() uses only locals -- which
+    FunctionCoefficient's does. The HDGExtensionIntegrator held here by value IS
+    guarded, so in a MFEM_THREAD_SAFE build the shared state left is #vdofs
+    and #elfun and nothing deeper. */
 class PathLiftCoefficient : public Coefficient
 {
    const GridFunction &u;
