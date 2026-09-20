@@ -66,14 +66,24 @@ private:
 #endif
    Type type;
 
-   long current_sequence{-1};
-   Vector error_estimates;
-   real_t total_error{};
+   /* Mutable, and ComputeEstimates() is const, so that GetTotalError() can
+      bring itself up to date. ErrorEstimator declares that method const, so
+      an estimator holding its state non-mutably can only return whatever
+      GetLocalErrors() last left there -- which is ZERO for a caller that asks
+      for the total and never asks for the local errors, and that is a silent
+      wrong answer rather than an abort.
+
+      It matters most to the caller the const signature was written for:
+      assembling a sum of estimators means summing GetTotalError() across
+      them, and a term read that way would have contributed nothing. */
+   mutable long current_sequence{-1};
+   mutable Vector error_estimates;
+   mutable real_t total_error{};
    bool anisotropic{};
-   Array<int> aniso_flags;
+   mutable Array<int> aniso_flags;
 
    /// Check if the mesh of the solution was modified.
-   bool MeshIsModified()
+   bool MeshIsModified() const
    {
       long mesh_sequence = sol_tr.FESpace()->GetMesh()->GetSequence();
       MFEM_ASSERT(mesh_sequence >= current_sequence, "");
@@ -81,10 +91,11 @@ private:
    }
 
    /// Compute the element error estimates.
-   void ComputeEstimates();
+   void ComputeEstimates() const;
 
    /// Compute the face error estimate
-   void ComputeFaceEstimate(int face, bool side2, Vector &d_error_estimates);
+   void ComputeFaceEstimate(int face, bool side2,
+                            Vector &d_error_estimates) const;
 
 public:
    /// Constructor
@@ -115,8 +126,12 @@ public:
     */
    void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
 
-   /// Return the total error from the last error estimate.
-   real_t GetTotalError() const override { return total_error; }
+   /// Return the total error, recomputing it if the mesh has moved.
+   real_t GetTotalError() const override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return total_error;
+   }
 
    /// Get a Vector with all element errors.
    const Vector &GetLocalErrors() override

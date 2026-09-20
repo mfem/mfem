@@ -177,6 +177,32 @@ const IntegrationRule &MixedConductionNLFIntegrator::GetElementIntRule(
    const FiniteElement &fe_u, ElementTransformation &Tr) const
 {
    if (IntRule) { return *IntRule; }
+
+   /* Degree 2k + OrderW is exact for a *linear* flux law and is a deliberate
+      under-integration for a nonlinear one. Measured rather than argued:
+      bumping it by 2, 4, 8 and 16 on convdiff's nonlinear diffusion
+      (-p 8 -o 2 -dg -hb -nld, 24x24) moves neither L2 error in any printed
+      digit, from 193k quadrature points to 2.6M. For a smooth flux law the
+      quadrature error sits far below the discretisation error, so there is
+      nothing here to buy by over-integrating.
+
+      The same measurement closes the interpolatory HDG of Chen, Cockburn,
+      Singler & Zhang (J. Sci. Comput. 81 (2019) 2188), which replaces f(u_h)
+      by an interpolant so that the integrand is a polynomial a fixed rule
+      integrates exactly. Its payoff is the over-integration thereby avoided,
+      and there is none to avoid: on a tensor-product element this rule
+      carries (k+1)^d points and an L2 space of order k has (k+1)^d dofs, so
+      the interpolant would be evaluated at exactly as many points -- ratio
+      1.00 at every order measured. On the Gauss-Lobatto basis the miniapps
+      build with, it is then strictly worse: 4x to 260x this rule's
+      consistency error, and a dense mass matrix where quadrature has a
+      diagonal one. It evaluates less often only on a curved element, nq/ndof
+      reaching 4 -- where this rule is accurate to 2e-12 against the
+      interpolant's 1e-3.
+
+      The asymmetry is the reason to stay with quadrature: over-integration is
+      a knob a caller turns through the IntRule member, and interpolation
+      error is a floor no refinement reaches. */
    const int order = 2*fe_u.GetOrder() + Tr.OrderW();
    return IntRules.Get(fe_u.GetGeomType(), order);
 }
