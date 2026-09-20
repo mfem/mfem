@@ -626,8 +626,9 @@ public:
        @note WITH A DEVICE CONFIGURED, A CALLER THAT HOLDS ITS OWN LONG-LIVED
        MakeRef() ALIASES OF @a x OR @a b OWES A SyncAliasMemory() BEFORE
        CALLING. This routine and everything under it -- EliminateVDofsInRHS()
-       in particular, whose NPC branch reads the two blocks on the host -- are
-       host loops, so they read whatever the base's validity flags claim. An
+       in particular, whose nonlinear branch reads the two blocks on the
+       host -- are host loops, so they read whatever the base's validity
+       flags claim. An
        alias written under a device marks the ALIAS device-valid;
        Memory::SyncAlias() then AliasProtect()s the base's host range and, as
        its own comment says, leaves the BASE's flags untouched. Every view
