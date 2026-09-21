@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -86,7 +86,7 @@ real_t IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
 /// alpha = (2 nu + dim) / 4.
 /// Theta (anisotropy tensor) and nu (smoothness) can be specified in the
 /// constructor. Traditionally, the SPDE method requires the specification of
-/// a white noise right hands side. SPDESolver accepts arbitrary right hand
+/// a white noise right hand side. SPDESolver accepts arbitrary right hand
 /// sides but the solver has only been tested with white noise.
 class SPDESolver
 {

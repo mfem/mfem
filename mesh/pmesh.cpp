@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2719,7 +2719,7 @@ ParMesh::AddTriFaces(const Array<int> &elem_vertices,
       // Check amongst the faces of elements local to this rank for this set of vertices
       const int lf = faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]);
 
-      // If the face wasn't found amonst processor local elements, search the
+      // If the face wasn't found amongst processor local elements, search the
       // ghosts for this set of vertices.
       const int sf = lf < 0 ? shared_faces->Index(elem_fv.v[0], elem_fv.v[1],
                                                   elem_fv.v[2]) : -1;
@@ -4863,6 +4863,13 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (NURBSext)
    {
       Printer(os, "", comments); // does not print shared boundary
+      return;
+   }
+
+   if (pncmesh && pncmesh->using_scaling)
+   {
+      // For nodes scaling, we write the file in the format MFEM NC mesh v1.1.
+      Printer(os, "", comments);
       return;
    }
 

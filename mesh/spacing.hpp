@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -612,7 +612,7 @@ private:
 };
 
 /** @brief Piecewise spacing function, with spacing functions defining spacing
-    within arbitarily many fixed subintervals of the unit interval.
+    within arbitrarily many fixed subintervals of the unit interval.
 
     The number of elements in each piece (or subinterval) is determined by the
     constructor input @a relN, which is the relative number of intervals. For
@@ -801,7 +801,7 @@ public:
       CalculateSpacing();
    }
 
-   /// Copy constructor (deep-copy all data, including SpacingFunction pieces)
+   /// Copy constructor (deep-copy all data, including the full spacing function)
    PartialSpacingFunction(const PartialSpacingFunction &sf)
       : SpacingFunction(sf.n, sf.reverse), fullSpacing(sf.fullSpacing->Clone()),
         num_elems_full(sf.num_elems_full), num_elems(sf.num_elems),
