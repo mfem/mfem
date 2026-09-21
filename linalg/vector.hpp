@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ inline int CheckFinite(const real_t *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
-inline real_t infinity()
+inline constexpr real_t infinity()
 {
    return std::numeric_limits<real_t>::infinity();
 }
