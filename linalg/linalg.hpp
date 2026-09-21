@@ -27,6 +27,10 @@
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
 #include "symmat.hpp"
+#include "tripack.hpp"
+#ifdef MFEM_USE_MAGMA
+#include "tripack_magma.hpp"
+#endif
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"

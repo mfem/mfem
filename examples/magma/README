@@ -1,0 +1,38 @@
+This directory contains an MFEM example focused on benchmarking MAGMA batched
+element-mass-matrix inverses/solves on GPU backends (CUDA/HIP).
+
+- `batched_mass_bench.cpp`: Assemble packed element mass matrices and compare:
+  - MFEM tripack inverse apply (packed lower-triangular)
+  - MAGMA packed Cholesky factor + solve
+  - MAGMA packed inverse (ppinv) apply (when elem_dofs <= 64)
+  - MFEM BatchedLinAlg MAGMA full (dense) LU factor + solve
+  - MAGMA full (dense) inverse + apply
+
+Build and run from this directory (after building MFEM with MAGMA enabled):
+
+- `make batched_mass_bench`
+- `./batched_mass_bench -m ../../data/beam-hex.mesh -o 3 -r 2 -d gpu -reps 100`
+
+Plotting / throughput curves
+----------------------------
+
+The script `plot_magma_results.py` can sweep orders/refinements, collect
+timings, and generate setup/apply/total speedup plots. It also writes CSV and
+JSONL timing data.
+
+If you only want raw timing breakdowns in a tidy "long" table (kernel-by-kernel
+rows with assembly/factorization/apply), use `collect_magma_timings.py`.
+
+Examples:
+
+Sweep orders 1, 2, and 3 in 3D, using 100 RHS/apply repetitions:
+
+- `python3 plot_magma_results.py --devices hip --orders 1,2,3 --reps 100`
+- `python3 collect_magma_timings.py --devices hip --orders 1,2,3 --reps 100 --trials 3`
+- `python3 collect_magma_timings.py --devices hip --orders 1,2,3 --reps 100 --trials 3 --plot` (requires matplotlib)
+
+Notes:
+- By default, speedups are relative to the MFEM BatchedLinAlg MAGMA full LU
+  baseline. Use `--baseline tripack` to normalize against MFEM tripack instead.
+- If `matplotlib` is not available, the script still writes CSV/JSONL data but
+  skips PNG generation.
