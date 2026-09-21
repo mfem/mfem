@@ -29,6 +29,26 @@ namespace
 static const bool dumpMeshes = true;  // will dump mesh files when true
 }
 
+TEST_CASE("FiniteElementSpace dimensions on an empty mesh",
+          "[FiniteElementSpace]")
+{
+   for (int dim = 2; dim <= 3; dim++)
+   {
+      Mesh mesh(dim, 0, 0, 0, dim);
+      mesh.FinalizeTopology(false);
+
+      H1_FECollection h1_fec(1, dim);
+      FiniteElementSpace h1_fes(&mesh, &h1_fec, dim);
+      REQUIRE(h1_fes.GetVectorDim() == dim);
+      REQUIRE(h1_fes.GetCurlDim() == 2 * dim - 3);
+
+      ND_FECollection nd_fec(1, dim);
+      FiniteElementSpace nd_fes(&mesh, &nd_fec);
+      REQUIRE(nd_fes.GetVectorDim() == dim);
+      REQUIRE(nd_fes.GetCurlDim() == 2 * dim - 3);
+   }
+}
+
 /// Generate a name for the file
 /// using the mesh's element type, the fec collection and the file extension
 template<typename FEColType>
