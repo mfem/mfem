@@ -5853,27 +5853,45 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    }
 
    Vector bu;
-   const Operator *cR;
+   const Operator *cR = NULL;
 
-   if (!ParallelU())
+   /* @a b_t IS A DUMMY IN GradMult AND MUST NOT BE TOUCHED. The caller has no
+      load to give -- Gradient::Mult()'s own comment says so, and the gradient
+      is applied to an increment rather than to a state -- so it passes
+      darcy_rhs, which on that path is a default-constructed BlockVector.
+      GetBlock() on one indexes a null array, and MakeRef() then reads through
+      the reference it returns: a segfault inside Memory::MakeAlias, three
+      frames below GMRES.
+
+      MultNL() never looks at either block in this mode, sizing bu_l and bp_l
+      itself, which is why passing the dummy through the four-argument overload
+      was harmless for as long as that was the only route. Routing
+      Gradient::Mult() through this wrapper made the dummy reachable by code
+      that dereferences it. */
+   Vector b_dummy;
+   if (mode != MultNlMode::GradMult)
    {
-      if (!(cR = fes.GetConformingRestriction()))
+      if (!ParallelU())
       {
-         bu.MakeRef(const_cast<Vector&>(b_t.GetBlock(0)), 0, fes.GetVSize());
+         if (!(cR = fes.GetConformingRestriction()))
+         {
+            bu.MakeRef(const_cast<Vector&>(b_t.GetBlock(0)), 0, fes.GetVSize());
+         }
+         else
+         {
+            bu.SetSize(fes.GetVSize());
+            cR->MultTranspose(b_t.GetBlock(0), bu);
+         }
       }
       else
       {
          bu.SetSize(fes.GetVSize());
-         cR->MultTranspose(b_t.GetBlock(0), bu);
+         fes.GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
       }
    }
-   else
-   {
-      bu.SetSize(fes.GetVSize());
-      fes.GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
-   }
 
-   const Vector &bp = b_t.GetBlock(1);
+   const Vector &bp = (mode == MultNlMode::GradMult) ? b_dummy
+                      : b_t.GetBlock(1);
    Vector y;
 
    // **Whether @a y is an ALIAS of @a y_t, tracked rather than re-derived.**
