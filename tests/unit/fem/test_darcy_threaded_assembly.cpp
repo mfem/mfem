@@ -782,9 +782,29 @@ TEST_CASE("The threaded rich reconstruction is bit-for-bit the serial one",
                            DarcyHybridization::AssemblyMode::Threaded, true,
                            true);
 
-               // The total flux first: it is ReconstructTotalFlux()'s, which
-               // is still serial, so a difference there would say the
-               // comparison is measuring something else entirely.
+               // The total flux first, and this line changed meaning:
+               // DarcyHybridization::ReconstructTotalFlux() used to be
+               // SERIAL, so a difference here would have said the comparison
+               // was measuring something else entirely. It is threaded now,
+               // in two passes -- faces then element interiors -- so this is
+               // the pin for it and not a control any more.
+               //
+               // **Neither of its passes needs a colouring**, unlike the
+               // three below: a face's dofs of @a ut belong to no other face
+               // and an element's INTERIOR dofs to no other element, so the
+               // destinations are disjoint and the answer cannot depend on
+               // who writes last. What the routine buffers is the WRITE
+               // PATH, not the order -- SetSubVector() is a Write() on the
+               // whole GridFunction.
+               //
+               // **Falsified, both passes separately**, because a race that
+               // does not fire is not a passing test. Sharing the FACE
+               // pass's FaceElementTransformations across threads fails
+               // here at two threads by 2.15 (order 0, 2-D, RT) and nowhere
+               // else; sharing the ELEMENT pass's IsoparametricTransformation
+               // fails here by 1.70 (order 1) and nowhere else. Order 0 does
+               // not see the second because an order-0 total flux has no
+               // element-interior dofs and that pass returns early.
                RequireSameVector(ref.ut, got.ut, "total flux");
                RequireSameVector(ref.u_s, got.u_s, "enriched flux");
                RequireSameVector(ref.p_s, got.p_s, "enriched potential");

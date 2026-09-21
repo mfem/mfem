@@ -200,13 +200,11 @@ two-directional exact solution is what would settle the general question**, and
 `anisodiff -p 11` on `gf-hdg-subdomains-dev` is the linear-diffusion shape of
 it — so this half belongs there.
 
-A library constraint bounding how far this can go:
-`MixedConductionNLFIntegrator`'s HDG face stabilization for more than one
-equation is `face_w * TauVar(e)`, one constant per equation through
-`SetVariableStabilization()`. It cannot express a stabilization depending on
-the state or the face normal. The Navier-Stokes driver sidesteps it by carrying
-the convective stabilization on the `NumericalFlux`; a *viscous* stabilization
-varying with direction could not.
+The library constraint that bounds how far this can go is no longer written
+here: one scalar per equation, no dependence on the state or the face normal,
+and what the Navier-Stokes driver does instead, are on
+`MixedConductionNLFIntegrator::SetVariableStabilization()`, which is where a
+caller meets it.
 
 ## 6. Functionals of the solution — DONE
 
@@ -362,42 +360,32 @@ an NPC reference would pass even if `-npc` became a no-op, both routes reaching
 the same discrete solution. NPC runs no local nonlinear solve, so the count is
 identically zero and the check fails loudly if the flag stops taking effect.
 
-What is left:
-
-Settled, and no longer open: **the H(div) refusal**, which is measured and
-stands for a better reason than the one it used to give, with
-`BrokenRT_FECollection` as the H(div)-shaped space that does work and is
-covered. It is also not ours by the scope note. The numbers are on
+**Nothing is left of this section, and it is kept only so commit messages
+citing "§11" land somewhere.** Everything that stood under "what is left" is
+built and pinned: the trace-assembled load (`DarcyForm::GetTraceRHS()`, third
+beside the flux and potential loads, carried by BOTH routes with no caller
+wiring), the regression case (`55465de4e9`), and the live face constraint
+(`DarcyForm::SetFaceConstraintMode(Live)`). The H(div) refusal is settled
+rather than open -- measured, with `BrokenRT_FECollection` as the H(div)-shaped
+space that does work, and not ours by the scope note; the numbers are on
 `NPCCheck()`.
 
-* ~~A trace-assembled load still has no slot~~ — **built.**
-  `DarcyForm::GetTraceRHS()` is the third load beside `GetFluxRHS()` and
-  `GetPotentialRHS()`, and **both routes carry it with no caller wiring**:
-  `DarcyHybridization::ReduceRHS()` adds `P^T b_λ` to the reduced right-hand
-  side and `NPCResidual()` subtracts it from the trace block, which is the
-  same convention read off `r = A x - b`. The sign, the API and the reason
-  the registration happens at construction rather than at `Assemble()` are on
-  the accessor; the pin is "A load on the skeleton reaches both routes" in
-  `tests/unit/fem/test_darcy_npc.cpp`, which compares VECTORS against the
-  hand-added answer because a wrong sign converges.
-* ~~A regression case is on offer and has not been taken~~ — **taken**, in
-  `55465de4e9`: "A transport barrier diverges without going non-finite",
-  `tests/unit/fem/test_darcy_npc.cpp:2441`. This entry outlived the commit
-  that closed it by two sessions, which is the reason for the scope note at
-  the top of this file about what markdown is for.
-* ~~A face constraint whose COEFFICIENT moves has to be re-assembled~~ —
-  **built**: `DarcyForm::SetFaceConstraintMode(FaceConstraintMode::Live)`
-  keeps the nonlinear potential mass form's face integrators on the
-  hybridization's live slot while the linear form's stay frozen beside them,
-  and `DarcyHybridization` keeps the frozen half of E, G and H so the live
-  pass can be added to it — the same device `Df_lin_data` is for D. NPC only,
-  refused elsewhere. The pin is "A live face constraint reads its coefficient
-  at every residual" in `tests/unit/fem/test_darcy_npc.cpp`, whose null
-  section (live and frozen are the same operator when nothing moves) is what
-  checks the seeding and whose third section is the freeze it repairs.
-  Asked for by gffp, who measured 92.7 ms of Update() + Assemble() +
-  Finalize() against 8.9 ms for the gradient it was performed to move — 90%
-  of a coupled Newton step spent assembling in order to move one coefficient.
+**One thing that WAS open here is fixed and one it uncovered is not.** The
+reduced (condense-then-linearise) operator advertised
+`Height() == c_fes.GetVSize()` while `Mult()` and `GetGradient()` consume
+and produce TRUE dofs, which on a nonconforming mesh is 512 invalid reads
+under valgrind and zero on three controls. `Finalize()` announces the right
+size now; `doc/HDG-ORDERING-API.md` §7 item 10 is the long form and it is
+**trunk material that reaches all five branches**, not lifted here.
+
+Still open, and it is a different defect: a hybridized NONLINEAR solve on a
+hanging-node mesh **segfaults** in `LocalNLOperator::AddMultBlock()`. It
+predates the size fix, it is not neq-specific and not mesh-file-specific,
+the same configuration on a conforming mesh runs, and `convdiff` on the same
+mesh with the same kinds of integrator does not reach it -- what differs is
+not known. Written up on `DarcyHybridization::MultInvNL()`. Nothing covers
+the combination: every nonlinear `_nc_` reference is NOT hybridized and
+every hybridized one is linear.
 
 ## 12. A flux that carries fewer directions than the mesh has
 

@@ -2504,8 +2504,9 @@ namespace
     was: ablation inside it found the shape evaluation, the coefficient
     evaluation, the per-point transformation update and the shape-table
     stores ALL innocent, and the cost survived deleting the entire quadrature
-    loop -- so it was the per-face frame, not the integrand. See
-    doc/HDG-DEVICE-OFFLOAD.md step 2 for the tables.
+    loop -- so it was the per-face frame, not the integrand. The ablation is
+    the attribution; the wall-clock pairs behind it are on
+    HDGFaceScatterBatched() in the header, which is the routine this serves.
 
     Two facts make this exact, and both were measured rather than reasoned:
 

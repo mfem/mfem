@@ -229,8 +229,12 @@ int main(int argc, char *argv[])
       x = 0.0;
       darcy.GetPotentialRHS()->Assemble();
       b.GetBlock(1) += *darcy.GetPotentialRHS();
-      // The caller contract: a device operation on a BlockVector's block
-      // leaves its result in that alias. See doc/HDG-DEVICE-OFFLOAD.md step 0.
+      // The caller contract: a BlockVector's blocks are aliases into its own
+      // storage, so a device write made THROUGH a block lands in that alias's
+      // buffer and a second view over the same range comes back marked
+      // host-valid whatever the underlying state. Sync or read stale zeros.
+      // DarcyHybridization::ComputeSolution() ends with the same call and
+      // says why at length.
       b.GetBlock(1).SyncAliasMemory(b);
 
       Vector x_tr(Mh.GetVSize());

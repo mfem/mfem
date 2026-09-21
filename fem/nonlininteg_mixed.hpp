@@ -163,7 +163,24 @@ public:
 
    /** @brief Set a scalar stabilization per variable for the HDG face terms.
 
-       Only consulted when the flux function has more than one equation. */
+       Only consulted when the flux function has more than one equation.
+
+       **This is the whole of what a system's HDG face stabilization can be
+       here, and the bound is worth knowing before designing around it.** At
+       neq > 1 both face routines weight by `face_w * TauVar(e)` -- the
+       geometric face weight times one CONSTANT per equation. At neq == 1 the
+       weight is `wq`, derived per quadrature point from the inverse flux
+       Jacobian, so the single-equation case is strictly the more expressive
+       one. So for a system this cannot express a stabilization that depends
+       on the STATE or on the FACE NORMAL.
+
+       The consequence, measured on miniapps/hdg/navierstokes: a CONVECTIVE
+       stabilization that wants both -- Lax-Friedrichs' lambda_max(u_hat, n)
+       -- is expressible only by carrying it on the NumericalFlux instead,
+       which is what that driver does. A VISCOUS stabilization varying with
+       direction has no such escape and could not be written against this
+       class. Nobody has asked for one; if they do, it is a new face
+       integrator and not a setter. */
    void SetVariableStabilization(const Vector &t) { tau_var = t; }
 
    /// The constitutive law this integrator was constructed with.

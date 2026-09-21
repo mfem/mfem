@@ -132,26 +132,23 @@ auditing the RT paths will meet it.
 
 ## The adjacent case: an `H1_Trace` (EDG) trace space
 
-**Not H(div), and not our spaces either.** Two items about the *trace* space
-rather than the flux space, included because they fail in the same way — on a
-space this branch does not use — and a maintainer looking at one will want the
-other.
+**Not H(div), and not our spaces either.** One item about the *trace* space
+rather than the flux space, included because it fails in the same way — on a
+space this branch does not use.
 
-### 6. The trace prolongation is applied inconsistently
-
-Pre-existing and not specific to any nonlinear ordering. Four places disagree
-about whether the trace vector is in true dofs or L-dofs:
-
-| what | where | which |
-|---|---|---|
-| `Operator::Height()` | `fem/hybridization.cpp:33` | `c_fes.GetVSize()`, i.e. L-dofs |
-| `ReduceRHS()` | `darcyhybridization.cpp:3337` | sizes the reduced RHS to the *conforming* width |
-| serial `Mult()` / `GetGradient()` | `:1829` into `:1971` | indexes `x` by face VDofs with no prolongation |
-| `ParMultNL()` | `:2215` | does prolong |
-
-For a `DG_Interface` trace space the conforming prolongation is null and all
-four agree, which is every case in this tree. For an `H1_Trace` (EDG) trace
-space with a nonlinear problem they would not. Also `HDG-ORDERING-API.md` §7.
+**§6 used to sit here and has moved out of this file**, because the premise
+that put it here turned out to be false. It said the trace prolongation is
+applied inconsistently at four sites and that "for a `DG_Interface` trace
+space the conforming prolongation is null and all four agree, which is every
+case in this tree". It is not null: `DG_Interface_FECollection` derives from
+`RT_FECollection` and reports `GetContType() == NORMAL`, so
+`FiniteElementSpace::BuildConformingInterpolation()` never takes its early
+exit and a plain DG trace on a NONCONFORMING mesh has a real prolongation
+(measured on `data/amr-quad.mesh`, `cP` non-null at every order). All four
+sites are fixed now -- three routed through `ParMultNL()` and the fourth,
+the operator's advertised `Height()`, announced by `Finalize()`; the
+account is `HDG-ORDERING-API.md` §7 item 10. **It was not H(div)'s and not
+EDG's, so it never belonged in this file.**
 
 ### 7. `ProjectSolution()` refuses a continuous trace collection outright
 

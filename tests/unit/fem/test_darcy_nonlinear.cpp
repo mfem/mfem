@@ -773,12 +773,24 @@ public:
    }
 };
 
+/// What the trace space and the reduced operator came out as, for the one
+/// case below that is about sizes rather than about residuals. Filled only
+/// when asked for.
+struct TraceSizes
+{
+   int vsize = 0, tvsize = 0, op_height = 0, op_width = 0, rhs_size = 0;
+   bool cP = false;
+   /// Return as soon as these are filled, leaving r0 and r1 untouched.
+   bool stop_after_form = false;
+};
+
 /// One Newton step on a nonlinear DG system under hybridization, returning
 /// the residual before and after. One step is enough to see what the local
 /// Jacobian is worth, and avoids the drift a stalled Newton shows if it is
 /// allowed to keep iterating.
 void OneNewtonStep(Mesh &mesh, int order, MixedFluxFunction &flux,
-                   real_t &r0, real_t &r1, Vector *p_out = nullptr)
+                   real_t &r0, real_t &r1, Vector *p_out = nullptr,
+                   TraceSizes *sizes = nullptr)
 {
    const int dim = mesh.Dimension();
    const int neq = flux.num_equations;
@@ -832,6 +844,20 @@ void OneNewtonStep(Mesh &mesh, int order, MixedFluxFunction &flux,
    OperatorPtr op;
    Vector X, RHS;
    darcy.FormLinearSystem(ess, x, op, X, RHS, true);
+
+   if (sizes)
+   {
+      sizes->vsize     = fes_t.GetVSize();
+      sizes->tvsize    = fes_t.GetTrueVSize();
+      sizes->cP        = (fes_t.GetConformingProlongation() != nullptr);
+      sizes->op_height = op->Height();
+      sizes->op_width  = op->Width();
+      sizes->rhs_size  = RHS.Size();
+      // Nothing below this point runs when only the sizes were asked for.
+      // The one caller that asks is about how long the operator is, and it
+      // is on a mesh whose SOLVE hits a separate defect; see it.
+      if (sizes->stop_after_form) { return; }
+   }
 
    GSSmoother prec;
    GMRESSolver lin;
@@ -891,6 +917,82 @@ TEST_CASE("A nonlinear DG system assembles and solves under hybridization",
    REQUIRE(r0 > 1e-3);                 // the source really is in there
    REQUIRE(r1 < 1e-11 * r0);           // and one step solves it
    REQUIRE(p.Normlinf() > 1e-4);       // to something that is not zero
+}
+
+TEST_CASE("The reduced trace operator is sized in the trace's TRUE dofs",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_nonlinear;
+
+   /* Hybridization's constructor announces c_fes.GetVSize() and every entry
+      point of DarcyHybridization works in the trace's TRUE unknowns. On a
+      conforming trace space those are the same number, which is why this
+      went unnoticed -- and a DG trace on a NONCONFORMING mesh is not the
+      conforming case, because DG_Interface_FECollection derives from
+      RT_FECollection and reports GetContType() == NORMAL, so
+      FiniteElementSpace::BuildConformingInterpolation() does not take its
+      early exit for it.
+
+      The consequence was a read past the end rather than a wrong answer:
+      NewtonSolver sizes its correction from Width(), the Krylov solver sizes
+      its own vectors from the assembled gradient, and GMRES's Update() ran
+      off them -- 512 invalid reads under valgrind on convdiff, with the
+      printed answer correct to six digits because the surplus entries sat
+      past the solution vector's own length. So a residual comparison cannot
+      see this and a SIZE comparison is the whole test.
+
+      The first two requirements are the control: on a mesh whose trace space
+      happens to be conforming there is nothing here to get wrong, and the
+      case would pass without asserting anything. */
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   Mesh mesh("../../data/amr-quad.mesh");
+   mesh.UniformRefinement();
+
+   /* The flux law is LINEAR and the integrator is a nonlinear one, which is
+      the combination this case needs: IsNonlinear() is what makes DarcyForm
+      hand out the hybridization ITSELF instead of an assembled SparseMatrix,
+      and the SparseMatrix was always sized correctly -- so a genuinely
+      linear problem cannot see this at all.
+
+      **This case stops after FormLinearSystem() and does not solve, and that
+      is forced rather than chosen.** A hybridized nonlinear solve on a
+      hanging-node mesh segfaults in the element-local solve, inside
+      LocalNLOperator::AddMultBlock() under MultInvNL(). It is a SEPARATE
+      defect and it PREDATES the size fix this case is about -- reproduced
+      with the library reverted, which is the attribution and not an
+      assumption. Four things it is not, each ruled out by its own arm: not
+      neq-specific (scalar and two-equation both), not specific to a
+      synthesised mesh (EnsureNCMesh + GeneralRefinement and
+      data/amr-quad.mesh both), not the missing boundary face constraint on
+      B (adding one changes nothing), and not the mesh alone -- the same
+      configuration on a CONFORMING mesh runs. It is also not reached by
+      convdiff, whose `-m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl
+      -nld -nls 3` solves the same kinds of integrator on the same mesh; the
+      discriminator between the two is open. Not chased.
+
+      What that costs this case is the behaviour half. It is covered
+      elsewhere: the same convdiff command reports zero valgrind errors
+      after the fix against 512 before, at order 1 and order 3, with the two
+      error norms identical to every printed digit. */
+   ConstantCoefficient one(1.0);
+   LinearDiffusionFlux linear(mesh.Dimension(), one);
+   real_t r0 = 0., r1 = 0.;
+   TraceSizes ts;
+   ts.stop_after_form = true;
+   OneNewtonStep(mesh, order, linear, r0, r1, nullptr, &ts);
+
+   CAPTURE(ts.vsize, ts.tvsize, ts.cP);
+   REQUIRE(ts.cP);                     // the mesh really is hanging-noded
+   REQUIRE(ts.tvsize < ts.vsize);      // and the two sizes really differ
+
+   CAPTURE(ts.op_height, ts.op_width, ts.rhs_size);
+   REQUIRE(ts.op_height == ts.tvsize);
+   REQUIRE(ts.op_width == ts.tvsize);
+   // The invariant the size exists to satisfy: the operator is exactly as
+   // long as the right-hand side that was reduced for it.
+   REQUIRE(ts.rhs_size == ts.op_height);
 }
 
 TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",

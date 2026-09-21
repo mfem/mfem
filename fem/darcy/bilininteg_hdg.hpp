@@ -204,8 +204,9 @@ public:
     INTERIOR-face matrices: every face's matrix in one mfem::forall instead of
     one host call per face.
 
-    Roadmap: step 2 of doc/HDG-DEVICE-OFFLOAD.md, and the first kernel of the
-    five. The face term reduces to two scalars per quadrature point -- the
+    The first of the five device kernels this directory grew, and the one the
+    other four were shaped after. The face term reduces to two scalars per
+    quadrature point -- the
     stabilization weight on each side, which absorbs the coefficient, the
     HDGStabilization hook and the geometry -- and a set of outer products in
     the trace and element shapes. The outer products are O(NQ*SZ^2) against
@@ -300,7 +301,8 @@ void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
 
     **The vdim > 1 case was TWO refusals and the plan recorded one.**
     HDGFaceSpacesCanBatch()'s predecessor rejected `vdim != 1` outright, and
-    doc/HDG-DEVICE-OFFLOAD.md filed that as the whole of the item. Measured:
+    the plan that asked for this filed that as the whole of the item.
+    Measured:
     relaxing the vdim test alone leaves the kernel refused on every system,
     because at vdim > 1 the only shape any caller installs is a
     VectorBlockDiagonalIntegrator and the kind test reported that Unsupported.
@@ -397,9 +399,13 @@ bool HDGFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
           So 2-6% slower, and the sign is the same in all nine pairs even
           though the magnitude is inside the run-to-run spread. What the
           vdim > 1 path buys is that a system's face constraint is
-          EXPRESSIBLE on a device at all, which is the gate
-          doc/HDG-DEVICE-OFFLOAD.md sets for every step of it: nothing here
-          pays until the whole chain is device-resident. */
+          EXPRESSIBLE on a device at all. **That is the standing gate on
+          every device step in this directory and it is worth restating
+          wherever one is measured: nothing here pays until the whole chain
+          is device-resident**, because a kernel whose neighbours are on the
+          host pays more in transfer than it saves. Measured end to end by
+          miniapps/hdg/hdgdevice, the crossover is between 1024 and 4096
+          elements -- below it every device setting is a loss. */
 void HDGFaceScatterBatched(const FiniteElementSpace &tr_fes,
                            const FiniteElementSpace &el_fes,
                            const Array<BilinearFormIntegrator*> &integs,

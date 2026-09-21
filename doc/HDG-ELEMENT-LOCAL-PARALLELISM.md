@@ -71,10 +71,36 @@ condensation *is*.
   per-thread storage is what the loop takes, and the reason is on the
   workspace member in `darcyform.cpp`.
 
-* **`DarcyHybridization::ReconstructTotalFlux()` is the half that is still
-  serial**, and it is the smaller half. Same shape, same inventory; it was
-  left because the measurement that made the case is
-  `ReconstructFluxAndPot()`'s, and nobody has taken the split.
+* ~~**`DarcyHybridization::ReconstructTotalFlux()` is the half that is still
+  serial.**~~ — **DONE.** Threaded, and the findings are on the routine
+  itself rather than here.
+
+  **It needed no replay, and the reason is the useful part.**
+  `ReconstructFluxAndPot()` writes the enriched TRACE once per element per
+  face, so the last writer decides the answer and no colouring can reproduce
+  the serial one -- hence parallel-solve-then-serial-replay. Here the
+  destinations are disjoint by construction: the face pass writes face `f`'s
+  own dofs, which belong to no other face, and the element pass writes
+  element `z`'s INTERIOR dofs, which belong to no other element and to no
+  face. What forced a buffer anyway is the WRITE PATH and not the order --
+  `Vector::SetSubVector()` opens with a `Write()`, which on a registered
+  buffer is a MemoryManager flag mutation rather than a store, so N threads
+  calling it on one `GridFunction` race even where the entries are disjoint.
+  Each pass computes through a raw host pointer taken once and scatters
+  serially, which is bit for bit by construction.
+
+  **The promise widened again, and this time past anything the flag's audit
+  can reach:** `ut_fx` is the caller's own flux law, called once per
+  quadrature point from every thread. `SetIntegratorsThreadSafe()` now says
+  so. It is the first thing that flag asks a caller to vouch for that is a
+  lambda rather than an integrator.
+
+  A shared face is refused rather than threaded. Not an obstacle in
+  principle -- `ParMesh::GetSharedFaceTransformationsByLocalIndex()` has a
+  user-allocated variant -- but neither HDG tree builds `punit_tests` with
+  OpenMP, so a threaded shared-face pass would be code no configuration here
+  can execute, and this file's own standing note is that a test which cannot
+  run cannot fail. Rank-local faces still thread.
 
 ## Two more, and both are somebody else's
 

@@ -928,6 +928,41 @@ private:
           sizes once for the mesh. */
       DenseMatrix g_elmat, g_blk;
 
+      /** @brief ConstructGrad()'s own per-element scratch.
+
+          Six fresh objects per element per GRADIENT evaluation before they
+          were hoisted, and the largest remaining site on the element loop
+          after the LocalNLOperator and HDGDiffusionIntegrator rounds:
+          measured with DHAT on `convdiff -p 6 -nl -o 2 -dg -hb -npc -nls 3`
+          at 256 elements, 1,545 malloc/free pairs. The profile named
+          VectorMassIntegrator and HyperbolicFormIntegrator, which own none of
+          them -- SetSize() on a caller-supplied reference is called by the
+          callee, so DHAT attributes a caller's fresh local to the integrator
+          that fills it. Third time that reading has been needed on this loop.
+
+          @a cg_fe_arr, @a cg_x_arr and @a cg_grad_arr were built from
+          initialiser lists, which is a new[] per construction; the same
+          shape LocalNLOperator's @a lop_fe_arr replaced.
+
+          **The three matrices are cleared by their users before every call,
+          and that is load-bearing rather than defensive.** ConstructGrad()
+          tests `grad_A.Height() != 0` to mean "the integrator wrote this
+          block", which was sound only while they were fresh locals; held
+          here they carry the previous element's size in. SetSize(0, 0) keeps
+          the buffer -- DenseMatrix::data is an Array, which shrinks its size
+          and not its allocation -- so the clear is free and the hoist still
+          holds. This is the trap AddMultBlock() paid for in the round
+          before. */
+      DenseMatrix cg_grad_A, cg_grad_D, cg_grad_Aup;
+      Array<const FiniteElement*> cg_fe_arr;
+      Array<const Vector*> cg_x_arr;
+      Array2D<DenseMatrix*> cg_grad_arr;
+      /// ConstructGrad()'s per-face "E and G have been written" flags. Sized
+      /// from the element's face count, so SetSize() grows it to the largest
+      /// and never shrinks; its user assigns `false` over it every element,
+      /// which is what it needs and not merely a clear.
+      Array<bool> cg_eg_written;
+
       /** @brief LocalResidual()'s two block vectors.
 
           Constructed per element per residual evaluation before they were
@@ -2033,9 +2068,22 @@ public:
        Threaded already requires. It is the CALLER's own integrators the
        promise is really about.
 
-       **DarcyHybridization::ReconstructTotalFlux() is still serial** and is
-       the one reconstruction routine outside all of this. A caller who can
-       promise only for the loops threaded today should not set this.
+       **DarcyHybridization::ReconstructTotalFlux() is covered too now**, and
+       it widened the promise once more -- the same way threading
+       DarcyForm::ReconstructFluxAndPot() did, which is why the whole reach
+       is kept here rather than at each loop. It reaches `c_bfi`'s
+       AssembleFaceMatrix(), `c_bfi_p`/`c_nlfi_p`'s AssembleHDGFaceVector()
+       and both boundary-constraint lists', all of which the paragraph above
+       already covers, and one thing that paragraph cannot:
+
+       **the CALLER'S OWN FLUX LAW.** ReconstructTotalFlux() takes
+       @a ut_fx by value and calls it once per quadrature point from every
+       thread. It is a std::function the caller wrote; this class can see
+       nothing about it, cannot audit it, and has no way to instantiate one
+       per thread. A callback closing over scratch of its own -- a Vector or
+       DenseMatrix member, a cached transformation, a lazily-filled table --
+       is a race, and setting this flag is the caller saying it is not one.
+       Nothing else in this class asks the caller to vouch for a lambda.
 
        **Why this exists rather than a predicate that decides for you.**
        MFEM has no way to ask an integrator whether it is reentrant. Its
@@ -2734,11 +2782,13 @@ public:
        kernels the in-situ figure is 10-12% FASTER at order 2 and 24% slower
        at order 6; the tables and the phase split are on SetLocalFactorMode().
 
-       What is left of the gate (doc/HDG-DEVICE-OFFLOAD.md) still stands and
-       still bites: the face loops around these solves are host dense work, so
-       the chain is not device-resident and one HostRead() per call remains
-       where a face loop follows. Removing it is step 2's business, not this
-       one's. What this setting buys is that the local factorisation and solve
+       **The standing gate still stands and still bites**: nothing on the
+       device path pays until the whole chain is device-resident, and the
+       face loops around these solves are host dense work -- so one
+       HostRead() per call remains wherever a face loop follows. Removing
+       that is the face kernels' business (HDGFaceScatterBatched and
+       HDGFaceScatterCanBatch in bilininteg_hdg.hpp), not this setting's.
+       What this setting buys is that the local factorisation and solve
        are EXPRESSIBLE on a device at all, which the whole-chain target
        requires and which they were not before -- see the two upstream defects
        the attempt turned up, recorded on GPUBlasBatchedLinAlg::AddMult and

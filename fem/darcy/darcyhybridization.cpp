@@ -4499,8 +4499,13 @@ void HDGTraceEliminateRows(SparseMatrix &H, const Array<int> &rows,
     superconvergence and the reassembly saving justify it, and to take the
     deletion of items 1-4 as a consequence. Adopting it to delete cache code
     would be choosing a discretisation to suit an implementation.
-    doc/HDG-NPC-PARAMETRIC-COEFFICIENTS-REPLY-TO-GFFP.md sec. 8 carries the
-    open question. */
+
+    Where that decision is taken: `gf-interp-hdg-dev` builds the
+    interpolatory formulation (HDGInterpolatoryReactionIntegrator and
+    HDGPostprocessBlocks in fem/darcy/reaction_hdg.* and postprocess_hdg.*),
+    so the question "do the superconvergence and the reassembly saving
+    justify changing the discrete problem?" is answerable there and nowhere
+    else. It is open. */
 bool DarcyHybridization::EnsureResidualCache(int na, int nd) const
 {
    const int NE = fes.GetNE();
@@ -5521,6 +5526,18 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
 
+   /* Stated as a check rather than as a convention, for the reason on the
+      size announcement at the end of Finalize(): this operator is in the
+      trace's TRUE unknowns, the two sizes coincide on a conforming mesh, and
+      a caller that got it wrong read PAST the end of its own vectors rather
+      than failing. Two comparisons a residual evaluation is a cheap price
+      for that. */
+   MFEM_VERIFY(x.Size() == Width() && y.Size() == Height(),
+               "the reduced trace operator is " << Height() << " long and "
+               "was handed x of " << x.Size() << " and y of " << y.Size()
+               << ". Size a trace vector from this operator, or from the "
+               "reduced right-hand side ReduceRHS() produces.");
+
    if (H)
    {
       H->Mult(x, y);
@@ -5571,7 +5588,37 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       every nonlinear one is NOT hybridized and every hybridized one is
       linear, so nonconforming + hybridized + nonlinear had never been run.
       ComputeSolution() has always gone through the wrapper, so the recovery
-      half of the same solve was already right. */
+      half of the same solve was already right.
+
+      **AND THE OPERATOR'S ADVERTISED SIZE DID NOT FOLLOW. STILL OPEN.**
+      Height() and Width() are Hybridization's, set once in its constructor
+      to c_fes.GetVSize() (fem/hybridization.cpp), while everything this
+      routine now consumes and produces is in TRUE dofs. On a conforming
+      trace space the two are equal and nothing notices. On a nonconforming
+      one they are not, and NewtonSolver::SetOperator() sizes its residual
+      and its correction from Width() -- so the correction handed to GMRES
+      is longer than the Krylov vectors GMRES sizes from the assembled
+      gradient, and GMRESSolver's Update() reads off the end of them.
+
+      Measured, data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl -nld -nls 3 under
+      valgrind: **512 invalid reads of size 16, all in Vector::Add from
+      GMRES's Update(), all past a block of 3,712 bytes = 464 doubles =
+      the trace's TrueVSize** where VSize is 528. Attributed by three arms
+      on the same command, each 0 errors: the same mesh LINEAR (the reduced
+      route hands out the assembled SparseMatrix, sized correctly), the same
+      mesh with -npc (DarcyNPCOperator sizes itself from the caller's
+      offsets, which are true dofs), and the same nonlinear problem on a
+      CONFORMING mesh. All four print the same answer to six digits.
+
+      So it is benign TODAY and only by luck of the arithmetic: the garbage
+      lands in correction entries past the solution vector's own length and
+      is never added in. It is an out-of-bounds read on the reduced
+      nonlinear route on any nonconforming mesh, and the fix is to make
+      Finalize() announce tr_cP->Width() when a trace prolongation exists.
+      Not done here -- it is trunk material and reaches all five branches,
+      like the routing fix above. Nothing covers it: grouping the _nc_
+      references by their options, every nonlinear one is NOT hybridized and
+      every hybridized one is linear. */
    ParMultNL(MultNlMode::Mult, darcy_rhs, x, y);
 
    // Essential trace dofs. There is no assembled matrix on this path to move
@@ -6658,6 +6705,58 @@ void DarcyHybridization::Finalize()
 #endif //MFEM_USE_MPI
    }
 
+   /* **The operator's advertised size, which is NOT what Hybridization's
+      constructor set it to.**
+
+      That constructor takes c_fes.GetVSize() (fem/hybridization.cpp), i.e.
+      the constraint space's L-dofs, and every entry point of this class
+      consumes and produces the trace's TRUE unknowns -- Mult() and
+      GetGradient() because they go through ParMultNL(), which prolongs, and
+      ReduceRHS() because it sizes the reduced right-hand side to exactly the
+      expression below. On a conforming trace space the two agree and nothing
+      notices; the whole of this tree's reference coverage is that case.
+
+      They do not agree on a nonconforming mesh, and the reason is easy to
+      miss: DG_Interface_FECollection derives from RT_FECollection and so
+      reports GetContType() == NORMAL rather than DISCONTINUOUS, so
+      FiniteElementSpace::BuildConformingInterpolation() does not take its
+      early exit for a DG trace. Measured on data/amr-quad.mesh with one
+      uniform refinement: cP is non-null at every order, VSize/TrueVSize
+      528/464 at order 1 and 1056/928 at order 3.
+
+      What went wrong with the old size is a READ PAST THE END rather than a
+      wrong answer, which is why it survived. NewtonSolver::SetOperator()
+      sizes its residual and its correction from Width(), so the correction
+      it hands the Krylov solver was VSize long while the solver sized its
+      own vectors from the assembled gradient at TrueVSize; GMRES's Update()
+      then ran off them. Measured under valgrind on
+      `convdiff -m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl -nld
+      -nls 3`: 512 invalid reads of size 16 in Vector::Add, all past a block
+      of 3,712 bytes = 464 doubles. Three control arms of the same command
+      reported zero and the same answer to six digits -- the same mesh
+      LINEAR (that route hands out the assembled SparseMatrix, which was
+      always sized correctly), the same mesh with -npc (DarcyNPCOperator
+      sizes itself from the caller's true-dof offsets), and the same
+      nonlinear problem on a CONFORMING mesh. The garbage landed in
+      correction entries past the solution vector's own length and was never
+      added in, so the answer was right and the read was still wrong.
+
+      Nothing covered it: grouping the _nc_ references by their recorded
+      options, every nonlinear one is NOT hybridized and every hybridized one
+      is linear, so nonconforming + hybridized + nonlinear had never run.
+
+      The expression is ReduceRHS()'s, deliberately -- the invariant is that
+      this operator is exactly as long as the right-hand side that is reduced
+      for it, and writing it twice the same way is what makes that checkable.
+      Here rather than in the constructor because a prolongation is built
+      lazily and Finalize() is the first point at which every caller has
+      finished describing the problem. */
+   {
+      const Operator *tr_P = ParallelC() ? c_fes.GetProlongationMatrix()
+                             : c_fes.GetConformingProlongation();
+      height = width = (tr_P) ? tr_P->Width() : c_fes.GetVSize();
+   }
+
    bfin = true;
 }
 
@@ -6920,6 +7019,32 @@ void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Vector &x, Vector &b)
    EliminateTraceTrueDofsInRHS(GetEssentialTrueDofs(), x, b);
 }
 
+/** @brief KNOWN DEFECT, unattributed: this segfaults on a hanging-node mesh.
+
+    A hybridized NONLINEAR solve on a nonconforming mesh with hanging nodes
+    dies in LocalNLOperator::AddMultBlock() under the local Newton this
+    routine runs. It is recorded here because this is the frame a backtrace
+    lands in, not because the cause is known to be here.
+
+    Four things it is NOT, each ruled out by its own arm: not specific to a
+    system (scalar and two-equation both), not specific to a synthesised mesh
+    (Mesh::EnsureNCMesh() plus a partial GeneralRefinement(), and
+    data/amr-quad.mesh, both), not the missing boundary face constraint on B
+    (adding one changes nothing), and not the mesh alone -- the same
+    integrator configuration on a CONFORMING mesh runs. It also PREDATES the
+    trace-size fix at the end of Finalize(), reproduced with that reverted.
+
+    **And convdiff does not reach it**, which is the open half:
+    `convdiff -m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl -nld -nls 3`
+    installs the same KINDS of integrator on the same mesh and solves. What
+    differs between that and the reproducer is not known.
+
+    The reproducer is "The reduced trace operator is sized in the trace's
+    TRUE dofs" in tests/unit/fem/test_darcy_nonlinear.cpp, which stops before
+    the solve for this reason and says so. Nothing in either reference set
+    covers the combination: grouping the _nc_ references by their recorded
+    options, every nonlinear one is NOT hybridized and every hybridized one
+    is linear. */
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
                                    const Vector &bp_l, const BlockVector &x_l,
                                    Vector &u_l, Vector &p_l,
@@ -7682,14 +7807,26 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       // then converges only to first order in that dependence rather than
       // quadratically. Block (1,0) stays NULL: the divergence form is linear,
       // so B is already exact in Bf_data.
-      Array<const FiniteElement*> fe_arr({fe_u, fe_p});
-      Array<const Vector*> x_arr({&u_l, &p_l});
-      Array2D<DenseMatrix*> grad_arr(2,2);
-      DenseMatrix grad_A, grad_D, grad_Aup;
+      // All six out of @a ws; see cg_grad_A there for what they cost as
+      // locals and why the clear below is not optional.
+      Array<const FiniteElement*> &fe_arr = ws.cg_fe_arr;
+      Array<const Vector*> &x_arr = ws.cg_x_arr;
+      Array2D<DenseMatrix*> &grad_arr = ws.cg_grad_arr;
+      DenseMatrix &grad_A = ws.cg_grad_A;
+      DenseMatrix &grad_D = ws.cg_grad_D;
+      DenseMatrix &grad_Aup = ws.cg_grad_Aup;
+      fe_arr.SetSize(2); fe_arr[0] = fe_u;  fe_arr[1] = fe_p;
+      x_arr.SetSize(2);  x_arr[0] = &u_l;   x_arr[1] = &p_l;
+      grad_arr.SetSize(2,2);
       grad_arr(0,0) = &grad_A;
       grad_arr(1,0) = NULL;
       grad_arr(0,1) = &grad_Aup;
       grad_arr(1,1) = &grad_D;
+      // "The integrator wrote this block" is read off Height() below, so the
+      // previous element's size must not be carried in.
+      grad_A.SetSize(0, 0);
+      grad_D.SetSize(0, 0);
+      grad_Aup.SetSize(0, 0);
       m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
       if (grad_A.Height() != 0) { A = grad_A; }
       else { A = 0.; }
@@ -7754,7 +7891,11 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    // before anything was read.
    if (!ad_done && m_nlfi_u)
    {
-      DenseMatrix grad_A;
+      // ws.cg_grad_A rather than a local; nothing reads its size here, the
+      // integrator sizing it itself, but it is the same object the block
+      // branch above uses and so is cleared on the same rule.
+      DenseMatrix &grad_A = ws.cg_grad_A;
+      grad_A.SetSize(0, 0);
       m_nlfi_u->AssembleElementGrad(*fe_u, *Tr, u_l, grad_A);
       A += grad_A;
    }
@@ -7767,7 +7908,8 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
 
    if (!ad_done && m_nlfi_p)
    {
-      DenseMatrix grad_D;
+      DenseMatrix &grad_D = ws.cg_grad_D;
+      grad_D.SetSize(0, 0);
       m_nlfi_p->AssembleElementGrad(*fe_p, *Tr, p_l, grad_D);
       D += grad_D;
    }
@@ -7815,7 +7957,12 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    //
    // The flag is per face and spans BOTH loops below, since c_nlfi_p and
    // c_nlfi write the same block.
-   Array<bool> eg_written(faces.Size());
+   // From @a ws, not a local: one allocation per element per gradient, 512
+   // pairs on the DHAT command, and the last site in this routine after the
+   // six above. `= false` over the whole array is the initialisation it
+   // needs anyway, so the hoist changes nothing about its use.
+   Array<bool> &eg_written = ws.cg_eg_written;
+   eg_written.SetSize(faces.Size());
    eg_written = false;
 
    // The frozen half of E and G, put back before the live pass accumulates on
@@ -9292,8 +9439,8 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
    // A BlockVector's blocks are aliases into its own storage, so a write made
    // through a block leaves the result in that alias's buffer while a second
    // view over the same range comes back marked host-valid whatever the
-   // underlying state. That is step 0's caller contract in
-   // doc/HDG-DEVICE-OFFLOAD.md, seen from the inside, and it is why the
+   // underlying state. That is the caller contract every device-capable
+   // route in this class owes, seen from the inside, and it is why the
    // batched route may leave the fields on the device at all: without this
    // the caller reads stale zeros, silently. Costs nothing when the write was
    // a host one -- SyncAlias only copies flags.
@@ -9361,29 +9508,6 @@ void DarcyHybridization::ReconstructTotalFlux(
 
    const int nfaces = mesh->GetNumFaces();
    Array<int> f_2_b = mesh->GetFaceToBdrElMap();
-   Array<int> vdofs_ut, vdofs_xf, vdofs1, vdofs2, dofs1, dofs2;
-   // Ct1 and Ct2 are made to *reference* the stored constraint blocks by
-   // GetCtFaceMatrix(), so nothing may be assembled into them: a DenseMatrix
-   // that already has the right shape keeps the pointer it was reset to, and
-   // the write lands in Ct_data. Ct_own is where every path that writes a
-   // constraint matrix puts it.
-   DenseMatrix Ct_l, Ct1, Ct2, Ct_own, Mf;
-   Vector u1, u2, p1, p2, xf, bf, bf1, bf2, ut_f;
-   // Every per-field view below is an ALIAS of the vector it looks into, and
-   // never `Vector v(other.GetData() + offset, n)`. A raw wrap owns nothing
-   // and is not registered, but Memory<T>::MakeAlias() and a device-class
-   // Read/Write/ReadWrite both REGISTER an unregistered base -- setting
-   // Registered|OWNS_INTERNAL on the view -- after which the view's own
-   // destructor erases the manager entry belonging to whoever really owns
-   // the buffer. For field 0 the view starts at the owner's base pointer, so
-   // it is the owner's entry that goes, and the next element's `b_z = 0.`
-   // aborts in MemoryManager::Write_ with "host pointer is not registered".
-   // Under Device("debug") that killed every Reconstruct(); see the case in
-   // tests/unit/miniapps/test_debug_device.cpp. An alias also syncs, where a
-   // raw GetData() is a host read of a possibly device-valid buffer.
-   Vector bf_e, ut_fe;
-   MassIntegrator fbfi;
-   DenseMatrixInverse Mfi;
 
    // The number of fields. Every block below -- the constraint's rows, the
    // total flux's dofs, the potential's -- is this many copies of a scalar
@@ -9395,207 +9519,358 @@ void DarcyHybridization::ReconstructTotalFlux(
                "the same number of fields, got " << neq << ", "
                << c_fes.GetVDim() << " and " << fes_p.GetVDim());
 
-   for (int f = 0; f < nfaces; f++)
-   {
-      fes_ut.GetFaceVDofs(f, vdofs_ut);
-      MFEM_ASSERT(vdofs_ut.Size() == c_fes.GetFaceElement(f)->GetDof() *
-                  c_fes.GetVDim(), "Incompatible constraint and total flux spaces");
-      bf.SetSize(vdofs_ut.Size());
-      ut_f.SetSize(vdofs_ut.Size());
+   /* **Both loops below are threaded, and neither needs a colouring**, which
+      is the whole difference between this routine and
+      DarcyForm::ReconstructFluxAndPot(). There the enriched TRACE is written
+      once per element per face and the last writer decides the answer, so a
+      colouring cannot reproduce the serial result and the writes have to be
+      replayed in element order. Here the destinations are disjoint by
+      construction: the face pass writes face f's own dofs of @a ut, which
+      belong to no other face, and the element pass writes element z's
+      INTERIOR dofs, which belong to no other element and to no face. The
+      element pass READS the face dofs the first pass wrote, which is why
+      they are two passes and not one.
 
-      FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(f);
-      const FiniteElement *fe_c = c_fes.GetFaceElement(f);
+      What is buffered is therefore not about ordering but about the WRITE
+      PATH. Vector::SetSubVector() begins with a Write(), which on a
+      registered buffer is a MemoryManager flag mutation and not a pure
+      store, so N threads calling it on one GridFunction is a race even when
+      the entries they touch are disjoint. Each pass computes into a plain
+      local buffer through a raw host pointer taken ONCE, and scatters
+      serially afterwards. That is bit for bit the serial answer by
+      construction rather than by measurement, and it costs one vector the
+      size of @a ut.
+
+      **What the caller is promising**, beyond SetIntegratorsThreadSafe()'s
+      existing reach: @a ut_fx is called from several threads at once. It is
+      the caller's own flux law and nothing in this class can audit it; a
+      callback holding scratch of its own must not be given to a threaded
+      reconstruction. That is now written on SetIntegratorsThreadSafe() too.
+
+      The integrators reached here are `c_bfi`'s AssembleFaceMatrix(),
+      `c_bfi_p`/`c_nlfi_p`'s AssembleHDGFaceVector() and the boundary
+      constraint lists', all of which the flag already covers, plus one
+      MassIntegrator and one VectorFEMassIntegrator that are this routine's
+      own and are per-thread below.
+
+      **Measured**, `MKL_NUM_THREADS=1 OMP_WAIT_POLICY=passive`, an order-2
+      DG problem on quads in the OpenMP tree, best of three per arm, and
+      every arm bit for bit against serial (max|diff| exactly 0.000e+00):
+
+      | elements | serial | 1 thr | 2 | 4 | 8 |
+      |---|---|---|---|---|---|
+      | 2,304 | 0.1398 s | 0.96x | 1.69x | 2.78x | **3.33x** |
+      | 9,216 | 0.5752 s | 1.00x | 1.82x | 3.08x | **3.85x** |
+
+      The one-thread column is the tax for entering a parallel region at
+      all, which this branch has measured on other loops and which is a
+      property of the region rather than of this routine. The scaling is
+      the same shape DarcyForm::ReconstructFluxAndPot() shows. */
+   bool threaded =
+      (GetAssemblyMode() == AssemblyMode::Threaded) && GetIntegratorsThreadSafe();
+#ifdef MFEM_USE_MPI
+   /* A shared face reads pu/pp's FaceNbrData, which is fine, and calls
+      ParMesh::GetSharedFaceTransformationsByLocalIndex(), which has a
+      user-allocated variant -- so this is not an obstacle in principle. It
+      is refused because it has not been RUN: neither HDG tree builds
+      punit_tests with OpenMP, so a threaded shared-face pass would be code
+      no configuration here can execute, and this branch has a standing note
+      that a test which cannot run cannot fail. Rank-local faces still
+      thread. */
+   if (pmesh && pmesh->GetNSharedFaces() > 0) { threaded = false; }
+#endif
+
+   /* One serial pass, and it does two jobs. It takes the per-face offsets
+      into the buffer, and it WARMS every lazily-built table the parallel
+      region will read -- the face-to-dof tables of both spaces and the
+      collections' face elements. A table built for the first time from
+      inside an OpenMP region is a race no amount of per-thread scratch can
+      fix, and this is the same pre-pass ReconstructFluxAndPot() takes. */
+   Array<int> f_offs(nfaces + 1);
+   {
+      Array<int> warm;
+      f_offs[0] = 0;
+      for (int f = 0; f < nfaces; f++)
+      {
+         fes_ut.GetFaceVDofs(f, warm);
+         f_offs[f+1] = f_offs[f] + warm.Size();
+         c_fes.GetFaceVDofs(f, warm);
+         c_fes.GetFaceElement(f);
+         fes_ut.GetFaceElement(f);
+      }
+   }
+
+   // The sources are read from every thread, so the one flag-mutating call
+   // on each is made here, serially. Afterwards GetSubVector()'s HostRead()
+   // is a pure read.
+   sol_u.HostRead();
+   sol_p.HostRead();
+   x.HostRead();
+
+   Vector ut_f_buf(f_offs[nfaces]);
+   real_t *ut_f_data = ut_f_buf.HostWrite();
+
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel if (threaded)
+#endif
+   {
+      Array<int> vdofs_ut, vdofs_xf, vdofs1, vdofs2, dofs1, dofs2;
+      // Ct1 and Ct2 are made to *reference* the stored constraint blocks by
+      // GetCtFaceMatrix(), so nothing may be assembled into them: a DenseMatrix
+      // that already has the right shape keeps the pointer it was reset to, and
+      // the write lands in Ct_data. Ct_own is where every path that writes a
+      // constraint matrix puts it.
+      DenseMatrix Ct_l, Ct1, Ct2, Ct_own, Mf;
+      Vector u1, u2, p1, p2, xf, bf, bf1, bf2, ut_f;
+      // Every per-field view below is an ALIAS of the vector it looks into, and
+      // never `Vector v(other.GetData() + offset, n)`. A raw wrap owns nothing
+      // and is not registered, but Memory<T>::MakeAlias() and a device-class
+      // Read/Write/ReadWrite both REGISTER an unregistered base -- setting
+      // Registered|OWNS_INTERNAL on the view -- after which the view's own
+      // destructor erases the manager entry belonging to whoever really owns
+      // the buffer. For field 0 the view starts at the owner's base pointer, so
+      // it is the owner's entry that goes, and the next element's `b_z = 0.`
+      // aborts in MemoryManager::Write_ with "host pointer is not registered".
+      // Under Device("debug") that killed every Reconstruct(); see the case in
+      // tests/unit/miniapps/test_debug_device.cpp. An alias also syncs, where a
+      // raw GetData() is a host read of a possibly device-valid buffer.
+      Vector bf_e, ut_fe;
+      MassIntegrator fbfi;
+      DenseMatrixInverse Mfi;
+      /* In place of the Mesh's shared FaceElementTransformations, which is one
+         object per Mesh and so a race the moment two faces are live. The
+         three-argument accessor is const and allocates nothing per call. */
+      FaceElementTransformations facetrans;
+      IsoparametricTransformation ftr1, ftr2;
+
+#ifdef MFEM_USE_OPENMP
+      #pragma omp for schedule(static)
+#endif
+
+      for (int f = 0; f < nfaces; f++)
+      {
+         fes_ut.GetFaceVDofs(f, vdofs_ut);
+         MFEM_ASSERT(vdofs_ut.Size() == c_fes.GetFaceElement(f)->GetDof() *
+                     c_fes.GetVDim(), "Incompatible constraint and total flux spaces");
+         bf.SetSize(vdofs_ut.Size());
+         ut_f.SetSize(vdofs_ut.Size());
+
+         mesh->GetFaceElementTransformations(f, facetrans, ftr1, ftr2);
+         FaceElementTransformations *ftr = &facetrans;
+         const FiniteElement *fe_c = c_fes.GetFaceElement(f);
 
 #ifdef MFEM_USE_MPI
-      if (pmesh && pmesh->FaceIsTrueInterior(f) && ftr->Elem2No < 0)
-      {
-         // we do not store face neighbor constraint matrices so we must
-         // integrate here over the face
-         const FiniteElement *fe1 = fes.GetFE(ftr->Elem1No);
-         const int nbr_el = -1 - ftr->Elem2No;
-         const FiniteElement *fe2 = pfes->GetFaceNbrFE(nbr_el);
-         ftr = pmesh->GetSharedFaceTransformationsByLocalIndex(f);
-         c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe2, *ftr, Ct_l);
-
-         //side 1
-         fes.GetElementVDofs(ftr->Elem1No, vdofs1);
-         sol_u.GetSubVector(vdofs1, u1);
-         Ct_own.SetSize(vdofs1.Size(), vdofs_ut.Size());
-         Ct_own.CopyMN(Ct_l, vdofs1.Size(), vdofs_ut.Size(), 0, 0);
-         Ct_own.MultTranspose(u1, bf);
-
-         //side 2
-         pfes->GetFaceNbrElementVDofs(nbr_el, vdofs2);
-         pu.FaceNbrData().GetSubVector(vdofs2, u2);
-         Ct_own.SetSize(vdofs2.Size(), vdofs_ut.Size());
-         Ct_own.CopyMN(Ct_l, vdofs2.Size(), vdofs_ut.Size(), vdofs1.Size(), 0);
-         // here we use the constraint integrator as well, but flip the sign
-         // corresponding to the opposite normal for the total flux
-         Ct_own.AddMultTranspose(u2, bf, -1.);
-      }
-      else
-#endif
-      {
-         //flux constraint
-
-         //side 1
-         const DenseMatrix *Ct1_p;
-         if (ftr->Elem2No >= 0)
+         if (pmesh && pmesh->FaceIsTrueInterior(f) && ftr->Elem2No < 0)
          {
-            GetCtFaceMatrix(f, 0, Ct1);
-            Ct1_p = &Ct1;
-         }
-         else
-         {
-            // we do not rely on the boundary constraint integrators, which
-            // might or might not be present, and apply the constraint
-            // integrator at the boundaries as well
+            // we do not store face neighbor constraint matrices so we must
+            // integrate here over the face
             const FiniteElement *fe1 = fes.GetFE(ftr->Elem1No);
-            c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe1, *ftr, Ct_own);
-            Ct1_p = &Ct_own;
-         }
+            const int nbr_el = -1 - ftr->Elem2No;
+            const FiniteElement *fe2 = pfes->GetFaceNbrFE(nbr_el);
+            pmesh->GetSharedFaceTransformationsByLocalIndex(f, facetrans, ftr1,
+                                                            ftr2);
+            c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe2, *ftr, Ct_l);
 
-         fes.GetElementVDofs(ftr->Elem1No, vdofs1);
-         sol_u.GetSubVector(vdofs1, u1);
-         Ct1_p->MultTranspose(u1, bf);
+            //side 1
+            fes.GetElementVDofs(ftr->Elem1No, vdofs1);
+            sol_u.GetSubVector(vdofs1, u1);
+            Ct_own.SetSize(vdofs1.Size(), vdofs_ut.Size());
+            Ct_own.CopyMN(Ct_l, vdofs1.Size(), vdofs_ut.Size(), 0, 0);
+            Ct_own.MultTranspose(u1, bf);
 
-         //side 2
-         if (ftr->Elem2No >= 0)
-         {
-            fes.GetElementVDofs(ftr->Elem2No, vdofs2);
-            sol_u.GetSubVector(vdofs2, u2);
-            GetCtFaceMatrix(f, 1, Ct2);
+            //side 2
+            pfes->GetFaceNbrElementVDofs(nbr_el, vdofs2);
+            pu.FaceNbrData().GetSubVector(vdofs2, u2);
+            Ct_own.SetSize(vdofs2.Size(), vdofs_ut.Size());
+            Ct_own.CopyMN(Ct_l, vdofs2.Size(), vdofs_ut.Size(), vdofs1.Size(), 0);
             // here we use the constraint integrator as well, but flip the sign
             // corresponding to the opposite normal for the total flux
-            Ct2.AddMultTranspose(u2, bf, -1.);
-         }
-      }
-
-      //potential constraint
-
-      if ((c_bfi_p || c_nlfi_p) && ftr->Elem2No >= 0)
-      {
-         // first side
-         fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
-         sol_p.GetSubVector(dofs1, p1);
-         c_fes.GetFaceVDofs(f, vdofs_xf);
-         x.GetSubVector(vdofs_xf, xf);
-
-         const FiniteElement *fe1_p = fes_p.GetFE(ftr->Elem1No);
-         const FiniteElement *face_fe = c_fes.GetFaceElement(f);
-
-         int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                    | NonlinearFormIntegrator::HDGFaceType::FACE;
-
-         if (c_bfi_p)
-         {
-            c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
-         }
-         else
-         {
-            c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
-         }
-         bf += bf1;
-
-         // second side
-         const FiniteElement *fe2_p;
-#ifdef MFEM_USE_MPI
-         if (ftr->Elem2No >= NE)
-         {
-            const int nbr_el = ftr->Elem2No - NE;
-            pfes_p->GetFaceNbrElementVDofs(nbr_el, dofs2);
-            pp.FaceNbrData().GetSubVector(dofs2, p2);
-            fe2_p = pfes_p->GetFaceNbrFE(nbr_el);
+            Ct_own.AddMultTranspose(u2, bf, -1.);
          }
          else
 #endif
          {
-            fes_p.GetElementVDofs(ftr->Elem2No, dofs2);
-            sol_p.GetSubVector(dofs2, p2);
-            fe2_p = fes_p.GetFE(ftr->Elem2No);
+            //flux constraint
+
+            //side 1
+            const DenseMatrix *Ct1_p;
+            if (ftr->Elem2No >= 0)
+            {
+               GetCtFaceMatrix(f, 0, Ct1);
+               Ct1_p = &Ct1;
+            }
+            else
+            {
+               // we do not rely on the boundary constraint integrators, which
+               // might or might not be present, and apply the constraint
+               // integrator at the boundaries as well
+               const FiniteElement *fe1 = fes.GetFE(ftr->Elem1No);
+               c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe1, *ftr, Ct_own);
+               Ct1_p = &Ct_own;
+            }
+
+            fes.GetElementVDofs(ftr->Elem1No, vdofs1);
+            sol_u.GetSubVector(vdofs1, u1);
+            Ct1_p->MultTranspose(u1, bf);
+
+            //side 2
+            if (ftr->Elem2No >= 0)
+            {
+               fes.GetElementVDofs(ftr->Elem2No, vdofs2);
+               sol_u.GetSubVector(vdofs2, u2);
+               GetCtFaceMatrix(f, 1, Ct2);
+               // here we use the constraint integrator as well, but flip the sign
+               // corresponding to the opposite normal for the total flux
+               Ct2.AddMultTranspose(u2, bf, -1.);
+            }
          }
 
-         type |= 1;
-         if (c_bfi_p)
+         //potential constraint
+
+         if ((c_bfi_p || c_nlfi_p) && ftr->Elem2No >= 0)
          {
-            c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
-         }
-         else
-         {
-            c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
-         }
-         bf -= bf2;
-      }
+            // first side
+            fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
+            sol_p.GetSubVector(dofs1, p1);
+            c_fes.GetFaceVDofs(f, vdofs_xf);
+            x.GetSubVector(vdofs_xf, xf);
 
-      // boundary potential constraint
-      if (ftr->Elem2No < 0 && (!boundary_constraint_pot_integs.empty() ||
-                               !boundary_constraint_pot_nonlin_integs.empty()))
-      {
-         constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                              | NonlinearFormIntegrator::HDGFaceType::FACE;
+            const FiniteElement *fe1_p = fes_p.GetFE(ftr->Elem1No);
+            const FiniteElement *face_fe = c_fes.GetFaceElement(f);
 
-         const FiniteElement *fe_p = fes_p.GetFE(ftr->Elem1No);
-         const FiniteElement *face_fe = c_fes.GetFaceElement(f);
+            int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                       | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-         fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
-         sol_p.GetSubVector(dofs1, p1);
-         c_fes.GetFaceVDofs(f, vdofs_xf);
-         x.GetSubVector(vdofs_xf, xf);
-
-         const int bdr_attr = mesh->GetBdrAttribute(f_2_b[f]);
-
-         // linear
-         for (size_t i = 0; i < boundary_constraint_pot_integs.size(); i++)
-         {
-            if (boundary_constraint_pot_integs_marker[i]
-                && (*boundary_constraint_pot_integs_marker[i])[bdr_attr-1] == 0) { continue; }
-
-            boundary_constraint_pot_integs[i]->AssembleHDGFaceVector(type, *face_fe, *fe_p,
-                                                                     *ftr, xf, p1, bf1);
-
+            if (c_bfi_p)
+            {
+               c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
+            }
+            else
+            {
+               c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe1_p, *ftr, xf, p1, bf1);
+            }
             bf += bf1;
+
+            // second side
+            const FiniteElement *fe2_p;
+#ifdef MFEM_USE_MPI
+            if (ftr->Elem2No >= NE)
+            {
+               const int nbr_el = ftr->Elem2No - NE;
+               pfes_p->GetFaceNbrElementVDofs(nbr_el, dofs2);
+               pp.FaceNbrData().GetSubVector(dofs2, p2);
+               fe2_p = pfes_p->GetFaceNbrFE(nbr_el);
+            }
+            else
+#endif
+            {
+               fes_p.GetElementVDofs(ftr->Elem2No, dofs2);
+               sol_p.GetSubVector(dofs2, p2);
+               fe2_p = fes_p.GetFE(ftr->Elem2No);
+            }
+
+            type |= 1;
+            if (c_bfi_p)
+            {
+               c_bfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+            }
+            else
+            {
+               c_nlfi_p->AssembleHDGFaceVector(type, *face_fe, *fe2_p, *ftr, xf, p2, bf2);
+            }
+            bf -= bf2;
          }
 
-         // nonlinear
-         for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
+         // boundary potential constraint
+         if (ftr->Elem2No < 0 && (!boundary_constraint_pot_integs.empty() ||
+                                  !boundary_constraint_pot_nonlin_integs.empty()))
          {
-            if (boundary_constraint_pot_nonlin_integs_marker[i]
-                && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+            constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                                 | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-            boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type, *face_fe,
-                                                                            *fe_p, *ftr, xf, p1, bf1);
+            const FiniteElement *fe_p = fes_p.GetFE(ftr->Elem1No);
+            const FiniteElement *face_fe = c_fes.GetFaceElement(f);
 
-            bf += bf1;
+            fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
+            sol_p.GetSubVector(dofs1, p1);
+            c_fes.GetFaceVDofs(f, vdofs_xf);
+            x.GetSubVector(vdofs_xf, xf);
+
+            const int bdr_attr = mesh->GetBdrAttribute(f_2_b[f]);
+
+            // linear
+            for (size_t i = 0; i < boundary_constraint_pot_integs.size(); i++)
+            {
+               if (boundary_constraint_pot_integs_marker[i]
+                   && (*boundary_constraint_pot_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               boundary_constraint_pot_integs[i]->AssembleHDGFaceVector(type, *face_fe, *fe_p,
+                                                                        *ftr, xf, p1, bf1);
+
+               bf += bf1;
+            }
+
+            // nonlinear
+            for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
+            {
+               if (boundary_constraint_pot_nonlin_integs_marker[i]
+                   && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type, *face_fe,
+                                                                               *fe_p, *ftr, xf, p1, bf1);
+
+               bf += bf1;
+            }
+         }
+
+         //face
+         const FiniteElement *fe_utf = fes_ut.GetFaceElement(f);
+         fbfi.AssembleElementMatrix2(*fe_utf, *fe_c, *ftr, Mf);
+
+         // Mf is the *scalar* face mass -- MassIntegrator knows nothing of vdim
+         // -- while bf and ut_f carry neq blocks. The mass is the same for every
+         // field, so factor once and solve neq times against it. Before this the
+         // solve was a single scalar one against an neq-times-too-long right-hand
+         // side, which for one field is right and for more is a read past the
+         // end of the factorisation.
+         const int nd_utf = fe_utf->GetDof();
+         const int nd_cf = fe_c->GetDof();
+         Mfi.Factor(Mf);
+         for (int e = 0; e < neq; e++)
+         {
+            bf_e.MakeRef(bf, e * nd_cf, nd_cf);
+            ut_fe.MakeRef(ut_f, e * nd_utf, nd_utf);
+            Mfi.Mult(bf_e, ut_fe);
+         }
+         if (ftr->Elem2No >= 0)
+         {
+            // the face term should be double integrated to account for both sides
+            // so divide the values by two after inversion
+            ut_f *= .5;
+         }
+
+         // Into the buffer through the raw host pointer, not into @a ut: the
+         // entries are disjoint across faces but Vector::SetSubVector() is a
+         // Write() on the whole GridFunction and that is not disjoint. The
+         // scatter below is serial and identical to what this line used to be.
+         {
+            real_t *d = ut_f_data + f_offs[f];
+            for (int i = 0; i < ut_f.Size(); i++) { d[i] = ut_f(i); }
          }
       }
+   }   // omp parallel
 
-      //face
-      const FiniteElement *fe_utf = fes_ut.GetFaceElement(f);
-      fbfi.AssembleElementMatrix2(*fe_utf, *fe_c, *ftr, Mf);
-
-      // Mf is the *scalar* face mass -- MassIntegrator knows nothing of vdim
-      // -- while bf and ut_f carry neq blocks. The mass is the same for every
-      // field, so factor once and solve neq times against it. Before this the
-      // solve was a single scalar one against an neq-times-too-long right-hand
-      // side, which for one field is right and for more is a read past the
-      // end of the factorisation.
-      const int nd_utf = fe_utf->GetDof();
-      const int nd_cf = fe_c->GetDof();
-      Mfi.Factor(Mf);
-      for (int e = 0; e < neq; e++)
+   // The scatter, serial and in face order, which is what makes the whole
+   // pass bit for bit the loop it replaced.
+   {
+      Array<int> vdofs_ut;
+      Vector ut_f;
+      for (int f = 0; f < nfaces; f++)
       {
-         bf_e.MakeRef(bf, e * nd_cf, nd_cf);
-         ut_fe.MakeRef(ut_f, e * nd_utf, nd_utf);
-         Mfi.Mult(bf_e, ut_fe);
+         fes_ut.GetFaceVDofs(f, vdofs_ut);
+         ut_f.MakeRef(ut_f_buf, f_offs[f], f_offs[f+1] - f_offs[f]);
+         ut.SetSubVector(vdofs_ut, ut_f);
       }
-      if (ftr->Elem2No >= 0)
-      {
-         // the face term should be double integrated to account for both sides
-         // so divide the values by two after inversion
-         ut_f *= .5;
-      }
-
-      ut.SetSubVector(vdofs_ut, ut_f);
    }
 
    if (fes_ut.FEColl()->GetOrder() <= 1) { return; }
@@ -9603,167 +9878,231 @@ void DarcyHybridization::ReconstructTotalFlux(
    //element interior
 
    const int dim = mesh->Dimension();
-   VectorFEMassIntegrator Mut;
-   Array<int> vdofs, dofs, vdofs_ut_b, vdofs_ut_i;
-   DenseMatrix Mut_z, Mut_zi;
-   DenseMatrix vshape_u, vshape_ut;
-   // The flux law is stated per equation throughout: the potential it is
-   // handed has neq entries and the flux and total flux neq*dim, the block of
-   // equation e occupying [e*dim, (e+1)*dim). One field is the case neq == 1,
-   // not the only case.
-   Vector shape_u, shape_ut, shape_p;
-   Vector u_q(neq * dim), ut_q(neq * dim), p_q(neq);
-   Vector u_z, p_z, b_z, b_zi, ut_zb, ut_zi;
-   Vector u_ze, u_qe, ut_qe, b_ze;
-   DenseMatrixInverse Muti_zi;
+   const int nelem = fes.GetNE();
 
-   for (int z = 0; z < fes.GetNE(); z++)
+   /* The same two jobs as the face pass's pre-pass: the per-element offsets
+      into the interior buffer, and warming the element-to-dof tables. The
+      interior count is a SCALAR one, so an element contributes neq blocks of
+      it -- the same per-field split the solve below makes. */
+   Array<int> e_offs(nelem + 1);
    {
-      const FiniteElement *fe_ut = fes_ut.GetFE(z);
-      const FiniteElement *fe_u = fes.GetFE(z);
-      const FiniteElement *fe_p = fes_p.GetFE(z);
-
-      ElementTransformation *Tr = mesh->GetElementTransformation(z);
-
-      fes.GetElementVDofs(z, vdofs);
-      sol_u.GetSubVector(vdofs, u_z);
-
-      fes_p.GetElementVDofs(z, dofs);
-      sol_p.GetSubVector(dofs, p_z);
-
-      fes_ut.GetElementVDofs(z, vdofs_ut);
-      const int nvdofs = vdofs_ut.Size();
-      // Every shape below is the SCALAR one -- the element's, not the vdof
-      // list's. A shape matrix sized to the vdof count is not merely wasteful:
-      // CalcVShape() writes GetDof() rows, so the rest is uninitialised and
-      // the contraction that follows mixes fields together.
-      const int nd_u = fe_u->GetDof();
-      const int nd_p = fe_p->GetDof();
-      const int nd_ut = fe_ut->GetDof();
-      MFEM_ASSERT(nvdofs == nd_ut * neq, "unexpected total flux vdof count");
-
-      //integrate rhs
-
-      const bool u_is_vector = (fe_u->GetRangeType() == FiniteElement::VECTOR);
-      if (u_is_vector)
+      Array<int> warm;
+      e_offs[0] = 0;
+      for (int z = 0; z < nelem; z++)
       {
-         vshape_u.SetSize(nd_u, dim);
+         fes.GetElementVDofs(z, warm);
+         fes_p.GetElementVDofs(z, warm);
+         fes_ut.GetElementVDofs(z, warm);
+         fes.GetFE(z);
+         fes_p.GetFE(z);
+         fes_ut.GetFE(z);
+         e_offs[z+1] = e_offs[z] + neq * fes_ut.GetNumElementInteriorDofs(z);
       }
-      else
+   }
+   // Written by the face pass and read here from every thread, so the one
+   // flag-mutating call is made serially, as for the three sources above.
+   ut.HostRead();
+
+   Vector ut_i_buf(e_offs[nelem]);
+   real_t *ut_i_data = ut_i_buf.HostWrite();
+
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel if (threaded)
+#endif
+   {
+      VectorFEMassIntegrator Mut;
+      Array<int> vdofs, dofs, vdofs_ut, vdofs_ut_b, vdofs_ut_i;
+      DenseMatrix Mut_z, Mut_zi;
+      DenseMatrix vshape_u, vshape_ut;
+      // The flux law is stated per equation throughout: the potential it is
+      // handed has neq entries and the flux and total flux neq*dim, the block of
+      // equation e occupying [e*dim, (e+1)*dim). One field is the case neq == 1,
+      // not the only case.
+      Vector shape_u, shape_ut, shape_p;
+      Vector u_q(neq * dim), ut_q(neq * dim), p_q(neq);
+      Vector u_z, p_z, b_z, b_zi, ut_zb, ut_zi;
+      Vector u_ze, u_qe, ut_qe, b_ze;
+      DenseMatrixInverse Muti_zi;
+      /// In place of the Mesh's shared element transformation; see the face pass.
+      IsoparametricTransformation eltrans;
+
+#ifdef MFEM_USE_OPENMP
+      #pragma omp for schedule(static)
+#endif
+      for (int z = 0; z < nelem; z++)
       {
-         shape_u.SetSize(nd_u);
-      }
-      // One scalar shape per potential dof; the equations share it, which is
-      // why this is GetDof() and not the vdof count that fills p_z.
-      shape_p.SetSize(nd_p);
-      vshape_ut.SetSize(nd_ut, dim);
-      shape_ut.SetSize(nd_ut);
+         const FiniteElement *fe_ut = fes_ut.GetFE(z);
+         const FiniteElement *fe_u = fes.GetFE(z);
+         const FiniteElement *fe_p = fes_p.GetFE(z);
 
-      b_z.SetSize(nvdofs);
-      b_z = 0.;
+         mesh->GetElementTransformation(z, &eltrans);
+         ElementTransformation *Tr = &eltrans;
 
-      const int order = Tr->OrderW()
-                        + std::max(fe_u->GetOrder(), fe_p->GetOrder())
-                        + fe_ut->GetOrder();
-      const IntegrationRule *ir = &IntRules.Get(fe_ut->GetGeomType(), order);
+         fes.GetElementVDofs(z, vdofs);
+         sol_u.GetSubVector(vdofs, u_z);
 
-      for (int i = 0; i < ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         fes_p.GetElementVDofs(z, dofs);
+         sol_p.GetSubVector(dofs, p_z);
 
-         Tr->SetIntPoint(&ip);
+         fes_ut.GetElementVDofs(z, vdofs_ut);
+         const int nvdofs = vdofs_ut.Size();
+         // Every shape below is the SCALAR one -- the element's, not the vdof
+         // list's. A shape matrix sized to the vdof count is not merely wasteful:
+         // CalcVShape() writes GetDof() rows, so the rest is uninitialised and
+         // the contraction that follows mixes fields together.
+         const int nd_u = fe_u->GetDof();
+         const int nd_p = fe_p->GetDof();
+         const int nd_ut = fe_ut->GetDof();
+         MFEM_ASSERT(nvdofs == nd_ut * neq, "unexpected total flux vdof count");
 
+         //integrate rhs
+
+         const bool u_is_vector = (fe_u->GetRangeType() == FiniteElement::VECTOR);
          if (u_is_vector)
          {
-            // An H(div) flux carries the vector in the element, so vdim ==
-            // neq and field e is one scalar component: its coefficients are
-            // nd_u apart and share the one vector shape.
-            fe_u->CalcVShape(*Tr, vshape_u);
-            for (int e = 0; e < neq; e++)
-            {
-               u_ze.MakeRef(u_z, e * nd_u, nd_u);
-               u_qe.MakeRef(u_q, e * dim, dim);
-               vshape_u.MultTranspose(u_ze, u_qe);
-            }
+            vshape_u.SetSize(nd_u, dim);
          }
          else
          {
-            // A scalar-range flux carries it in vdim, so vdim == neq*dim and
-            // component e*dim+d is field e's d-th. One reshape covers every
-            // field at once, and at neq == 1 it is the reshape that was here.
-            fe_u->CalcPhysShape(*Tr, shape_u);
-            // A reshape rather than an alias, and inert for the reason the
-            // note above gives: nothing takes a MakeRef out of it and
-            // DenseMatrix's products are host-only, so this wrap is never
-            // registered. Measured -- restoring the raw Vector wrap here
-            // keeps the debug-device case green while restoring the one the
-            // elimination aliases out of fails it. Anything added here that
-            // aliases or reaches a device class makes it live.
-            DenseMatrix u_zm(u_z.GetData(), nd_u, neq * dim);
-            u_zm.MultTranspose(shape_u, u_q);
+            shape_u.SetSize(nd_u);
          }
+         // One scalar shape per potential dof; the equations share it, which is
+         // why this is GetDof() and not the vdof count that fills p_z.
+         shape_p.SetSize(nd_p);
+         vshape_ut.SetSize(nd_ut, dim);
+         shape_ut.SetSize(nd_ut);
 
-         fe_p->CalcShape(ip, shape_p);
-         // p_z holds the element's potential vdofs, equation-major under
-         // byNODES, so this reshape gives one value per equation.
-         const DenseMatrix p_zm(p_z.GetData(), nd_p, neq);
-         p_zm.MultTranspose(shape_p, p_q);
+         b_z.SetSize(nvdofs);
+         b_z = 0.;
 
-         ut_fx(*Tr, u_q, p_q, ut_q);
+         const int order = Tr->OrderW()
+                           + std::max(fe_u->GetOrder(), fe_p->GetOrder())
+                           + fe_ut->GetOrder();
+         const IntegrationRule *ir = &IntRules.Get(fe_ut->GetGeomType(), order);
 
-         fe_ut->CalcVShape(*Tr, vshape_ut);
-
-         const real_t w = ip.weight * Tr->Weight();
-         for (int e = 0; e < neq; e++)
+         for (int i = 0; i < ir->GetNPoints(); i++)
          {
-            ut_qe.MakeRef(ut_q, e * dim, dim);
-            vshape_ut.Mult(ut_qe, shape_ut);
-            b_ze.MakeRef(b_z, e * nd_ut, nd_ut);
-            b_ze.Add(w, shape_ut);
-         }
-      }
+            const IntegrationPoint &ip = ir->IntPoint(i);
 
-      //assemble mass matrix
+            Tr->SetIntPoint(&ip);
 
-      Mut.AssembleElementMatrix(*fe_ut, *Tr, Mut_z);
-
-      //eliminate boundary rows
-
-      // GetNumElementInteriorDofs() is a SCALAR count, so the interior dofs
-      // are the tail of each FIELD's block of the vdof list, not the tail of
-      // the list. Taking them as `nvdofs - nidofs` and slicing from the front
-      // is right when there is one field and wrong for every other -- it puts
-      // most of field 0 in the "boundary" set and reads field neq-1's block as
-      // the interior. Both the elimination and the solve are therefore per
-      // field, against the one scalar mass, which is the same for all of them.
-      const int nidofs = fes_ut.GetNumElementInteriorDofs(z);
-      const int nbdofs = nd_ut - nidofs;
-
-      Mut_zi.CopyMN(Mut_z, nidofs, nidofs, nbdofs, nbdofs);
-      Muti_zi.Factor(Mut_zi);
-
-      for (int e = 0; e < neq; e++)
-      {
-         vdofs_ut_b.MakeRef(vdofs_ut.GetMemory(), e * nd_ut, nbdofs);
-         ut.GetSubVector(vdofs_ut_b, ut_zb);
-
-         b_ze.MakeRef(b_z, e * nd_ut, nd_ut);
-         for (int j = 0; j < nbdofs; j++)
-         {
-            for (int i = 0; i < nidofs; i++)
+            if (u_is_vector)
             {
-               b_ze(i+nbdofs) -= Mut_z(i+nbdofs,j) * ut_zb(j);
+               // An H(div) flux carries the vector in the element, so vdim ==
+               // neq and field e is one scalar component: its coefficients are
+               // nd_u apart and share the one vector shape.
+               fe_u->CalcVShape(*Tr, vshape_u);
+               for (int e = 0; e < neq; e++)
+               {
+                  u_ze.MakeRef(u_z, e * nd_u, nd_u);
+                  u_qe.MakeRef(u_q, e * dim, dim);
+                  vshape_u.MultTranspose(u_ze, u_qe);
+               }
+            }
+            else
+            {
+               // A scalar-range flux carries it in vdim, so vdim == neq*dim and
+               // component e*dim+d is field e's d-th. One reshape covers every
+               // field at once, and at neq == 1 it is the reshape that was here.
+               fe_u->CalcPhysShape(*Tr, shape_u);
+               // A reshape rather than an alias, and inert for the reason the
+               // note above gives: nothing takes a MakeRef out of it and
+               // DenseMatrix's products are host-only, so this wrap is never
+               // registered. Measured -- restoring the raw Vector wrap here
+               // keeps the debug-device case green while restoring the one the
+               // elimination aliases out of fails it. Anything added here that
+               // aliases or reaches a device class makes it live.
+               DenseMatrix u_zm(u_z.GetData(), nd_u, neq * dim);
+               u_zm.MultTranspose(shape_u, u_q);
+            }
+
+            fe_p->CalcShape(ip, shape_p);
+            // p_z holds the element's potential vdofs, equation-major under
+            // byNODES, so this reshape gives one value per equation.
+            const DenseMatrix p_zm(p_z.GetData(), nd_p, neq);
+            p_zm.MultTranspose(shape_p, p_q);
+
+            ut_fx(*Tr, u_q, p_q, ut_q);
+
+            fe_ut->CalcVShape(*Tr, vshape_ut);
+
+            const real_t w = ip.weight * Tr->Weight();
+            for (int e = 0; e < neq; e++)
+            {
+               ut_qe.MakeRef(ut_q, e * dim, dim);
+               vshape_ut.Mult(ut_qe, shape_ut);
+               b_ze.MakeRef(b_z, e * nd_ut, nd_ut);
+               b_ze.Add(w, shape_ut);
             }
          }
 
-         //solve for the interior dofs
+         //assemble mass matrix
 
-         ut_zi.SetSize(Mut_zi.Width());
-         b_zi.MakeRef(b_z, e * nd_ut + nbdofs, nidofs);
-         Muti_zi.Mult(b_zi, ut_zi);
+         Mut.AssembleElementMatrix(*fe_ut, *Tr, Mut_z);
 
-         vdofs_ut_i.MakeRef(vdofs_ut.GetMemory(), e * nd_ut + nbdofs, nidofs);
-         ut.SetSubVector(vdofs_ut_i, ut_zi);
+         //eliminate boundary rows
+
+         // GetNumElementInteriorDofs() is a SCALAR count, so the interior dofs
+         // are the tail of each FIELD's block of the vdof list, not the tail of
+         // the list. Taking them as `nvdofs - nidofs` and slicing from the front
+         // is right when there is one field and wrong for every other -- it puts
+         // most of field 0 in the "boundary" set and reads field neq-1's block as
+         // the interior. Both the elimination and the solve are therefore per
+         // field, against the one scalar mass, which is the same for all of them.
+         const int nidofs = fes_ut.GetNumElementInteriorDofs(z);
+         const int nbdofs = nd_ut - nidofs;
+
+         Mut_zi.CopyMN(Mut_z, nidofs, nidofs, nbdofs, nbdofs);
+         Muti_zi.Factor(Mut_zi);
+
+         for (int e = 0; e < neq; e++)
+         {
+            vdofs_ut_b.MakeRef(vdofs_ut.GetMemory(), e * nd_ut, nbdofs);
+            ut.GetSubVector(vdofs_ut_b, ut_zb);
+
+            b_ze.MakeRef(b_z, e * nd_ut, nd_ut);
+            for (int j = 0; j < nbdofs; j++)
+            {
+               for (int i = 0; i < nidofs; i++)
+               {
+                  b_ze(i+nbdofs) -= Mut_z(i+nbdofs,j) * ut_zb(j);
+               }
+            }
+
+            //solve for the interior dofs
+
+            ut_zi.SetSize(Mut_zi.Width());
+            b_zi.MakeRef(b_z, e * nd_ut + nbdofs, nidofs);
+            Muti_zi.Mult(b_zi, ut_zi);
+
+            // Into the buffer, for the face pass's reason. Field e's block sits
+            // at e * nidofs within the element's slice, which is the order the
+            // scatter below reads them back in.
+            {
+               real_t *d = ut_i_data + e_offs[z] + e * nidofs;
+               for (int i = 0; i < nidofs; i++) { d[i] = ut_zi(i); }
+            }
+         }
+      }
+   }   // omp parallel
+
+   // The scatter, serial and in element order.
+   {
+      Array<int> vdofs_ut, vdofs_ut_i;
+      Vector ut_zi;
+      for (int z = 0; z < nelem; z++)
+      {
+         const int nidofs = fes_ut.GetNumElementInteriorDofs(z);
+         if (nidofs == 0) { continue; }
+         const int nd_ut = fes_ut.GetFE(z)->GetDof();
+         const int nbdofs = nd_ut - nidofs;
+         fes_ut.GetElementVDofs(z, vdofs_ut);
+         for (int e = 0; e < neq; e++)
+         {
+            vdofs_ut_i.MakeRef(vdofs_ut.GetMemory(), e * nd_ut + nbdofs, nidofs);
+            ut_zi.MakeRef(ut_i_buf, e_offs[z] + e * nidofs, nidofs);
+            ut.SetSubVector(vdofs_ut_i, ut_zi);
+         }
       }
    }
 }

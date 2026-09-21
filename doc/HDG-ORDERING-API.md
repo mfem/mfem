@@ -589,10 +589,13 @@ These apply to the nonlinear hybridized operator generally.
    Any finite-difference check of the gradient must mask them or it is
    meaningless — the accessor `GetEssentialTrueDofs()` exists for exactly that
    and says so (`fem/darcy/darcyhybridization.hpp:1098-1104`).
-6. **`ComputeSolution()` has not been exercised against an NPC solution.**
-   It reconstructs the fields from the trace, which is what condensation
-   wants; under NPC the fields are already Newton state and the
-   back-substitution is redundant at best. Unchecked either way.
+6. ~~**`ComputeSolution()` has not been exercised against an NPC
+   solution.**~~ — **stale, and §3.5 on this same page had already struck
+   it.** "ComputeSolution reproduces the fields NPC already holds" in
+   `tests/unit/fem/test_darcy_npc.cpp` does exactly that. The standing
+   observation survives and is not a defect: under NPC the fields are
+   already Newton state, so the back-substitution is redundant rather than
+   wrong.
 
 7. **Moot.** It described `SetNonlinearOrdering()`'s cache invalidation, and
    both the method and the cache are deleted.
@@ -769,22 +772,52 @@ is two claims — that the guard is missing, and that something reaches the gap
 — and the second is the one nobody checks.** These eleven were found by
 reading rather than by running, which is why they needed this treatment at all.
 
-Two remain open, both pre-existing and neither reachable with this tree's
-spaces:
+**Item 11 is fixed.** `ParOperator::GetGradient()` passed an empty dummy
+`Vector y` to `ParMultNL()`, which aliased a `c_fes.GetVSize()`-long view onto
+it. The wrapper now branches on `Grad`/`GradAtFields` before reaching that
+`MakeRef` and leaves `y` empty deliberately, which it has to, because
+`GetGradient()` and `ReducedGradient()` both reach it now. The sibling defect
+that came with the routing — `GradMult` dereferencing a default-constructed
+`darcy_rhs` — is `93c3687b84` and is on the trunk.
 
-**10. The trace prolongation is applied inconsistently.** `Operator::Height()`
-is `c_fes.GetVSize()` (`fem/hybridization.cpp:33`), `ReduceRHS()` sizes the
-reduced right-hand side to the *conforming* width, and the serial
-`Mult()`/`GetGradient()` index `x` by face VDofs with no prolongation, while
-`ParMultNL()` does prolong. For a `DG_Interface` trace space the conforming
-prolongation is null and all four agree, which is every case in this tree; for
-an `H1_Trace` (EDG) trace space with a nonlinear problem they would not.
-`doc/HDG-HDIV-OPTIONAL.md` §6 has the current line numbers.
+**Item 10 is fixed too, and nothing in §7 is open any more.** Three of its
+four sites were closed by the routing lift: `Mult()`, `GetGradient()` and
+`ReducedGradient()` all go through `ParMultNL()`, which prolongs, and
+`MultNL()` opens with `MFEM_VERIFY(x.Size() == c_fes.GetVSize())` so the
+convention cannot be skipped again. The fourth was the operator's own
+advertised size, which `Hybridization`'s constructor sets to
+`c_fes.GetVSize()` while every entry point works in TRUE dofs;
+`Finalize()` now announces `tr_cP->Width()` when a trace prolongation
+exists, which is `ReduceRHS()`'s expression written the same way, and
+`Mult()` checks both its arguments against it.
 
-**11. Low confidence, probably unreachable:** `ParOperator::GetGradient()`
-passes an empty dummy `Vector y` to `ParMultNL()`, which for `!ParallelC()` and
-a null trace restriction does `y.MakeRef(y_t, 0, c_fes.GetVSize())` on that
-empty vector. Nothing subsequently reads or writes `y` on a `Grad` pass, so the
-alias itself is the only hazard, and it needs a `ParOperator` over a serial
-trace space — which `ParDarcyForm` should never build. The serial
-`GetGradient()` avoids it because `MultNL` never touches `y` in `Grad` mode.
+**The entry's own scope note was wrong and that is the part worth keeping.**
+It said the disagreement was reachable only with an `H1_Trace` (EDG) space.
+`DG_Interface_FECollection` derives from `RT_FECollection` and reports
+`GetContType() == NORMAL`, so `BuildConformingInterpolation()` does not take
+its early exit and a plain DG trace on a NONCONFORMING mesh has a real
+prolongation -- measured on `data/amr-quad.mesh` with one refinement, `cP`
+non-null at every order, VSize/TrueVSize 528/464 at order 1 and 1056/928 at
+order 3.
+
+It was a read past the end rather than a wrong answer, which is why it
+survived: `NewtonSolver` sizes its correction from `Width()` and GMRES sizes
+its Krylov vectors from the assembled gradient, so `Update()` ran off them --
+**512 invalid reads under valgrind**, against **0** on three control arms
+that all print the same answer to six digits (the same mesh linear, the same
+mesh under `-npc`, and the same nonlinear problem on a conforming mesh). The
+pin is "The reduced trace operator is sized in the trace's TRUE dofs" in
+`tests/unit/fem/test_darcy_nonlinear.cpp`; it asserts SIZES, because a defect
+that cannot move an answer cannot be caught by comparing answers.
+
+Nothing in either reference set covers the combination -- grouping the `_nc_`
+references by their options, every nonlinear one is NOT hybridized and every
+hybridized one is linear.
+
+**One thing it uncovered is still open and is somebody's to chase.** A
+hybridized NONLINEAR solve on a hanging-node mesh segfaults in
+`LocalNLOperator::AddMultBlock()`. It predates this fix, it is not
+neq-specific and not mesh-file-specific, the same configuration on a
+conforming mesh runs, and `convdiff` on the same mesh with the same kinds of
+integrator does not reach it. Written up on
+`DarcyHybridization::MultInvNL()`.
