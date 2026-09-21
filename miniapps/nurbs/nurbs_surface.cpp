@@ -519,6 +519,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
       for (int i = 0; i < dim; ++i) { x[i]->SetSize(ncp[0]); }
 
       // Sweep in the first direction
+      MatrixInverse *A_coll_inv = kv[0].GetInverseInterpolationMatrix(ugrid[0]);
       for (int j = 0; j < ncp[1]; ++j)
       {
          for (int i = 0; i < ncp[0]; i++)
@@ -530,8 +531,11 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
             (*x[2])[i] = -1.0 + z + s_ij;
          }
 
-         const bool reuse_factorization = j > 0;
-         kv[0].GetInterpolant(x,ugrid[0], reuse_factorization);
+         for (int i = 0; i < 3; i++)
+         {
+            Vector tmp(*x[i]);
+            A_coll_inv->Mult(tmp, *x[i]);
+         }
 
          for (int i = 0; i < ncp[0]; i++)
          {
@@ -541,11 +545,12 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
             (*patch)(i,j,k,3) = 1.0; // weight
          }
       }
-
+      delete A_coll_inv;
       // Resize for sweep in second direction
       for (int i = 0; i < dim; ++i) { x[i]->SetSize(ncp[1]); }
 
       // Do another sweep in the second direction
+      A_coll_inv = kv[1].GetInverseInterpolationMatrix(ugrid[1]);
       for (int i = 0; i < ncp[0]; i++)
       {
          for (int j = 0; j < ncp[1]; ++j)
@@ -554,10 +559,11 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
             (*x[1])[j] = (*patch)(i,j,k,1);
             (*x[2])[j] = (*patch)(i,j,k,2);
          }
-
-         const bool reuse_factorization = i > 0;
-         kv[1].GetInterpolant(x, ugrid[1], reuse_factorization);
-
+         for (int j = 0; j < 3; j++)
+         {
+            Vector tmp( *x[j]);
+            A_coll_inv->Mult(tmp, *x[j]);
+         }
          for (int j = 0; j < ncp[1]; ++j)
          {
             (*patch)(i,j,k,0) = (*x[0])[j];
@@ -565,6 +571,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
             (*patch)(i,j,k,2) = (*x[2])[j];
          }
       }
+      delete A_coll_inv;
    }
 
    for (auto p : x) { delete p; }

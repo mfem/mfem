@@ -309,7 +309,9 @@ int main(int argc, char *argv[])
       {
          x[i] = foil_length*(1.0 - tail_fraction*u[i]);
       }
-      kv1->GetInterpolant(x,u,interp);
+      MatrixInverse *A_coll_inv = kv1->GetInverseInterpolationMatrix(u);
+      A_coll_inv->Mult(x, interp);
+
       for (int i = 0; i < ncp; i++)
       {
          patch1(i,0,0) = interp[i];
@@ -319,7 +321,7 @@ int main(int argc, char *argv[])
       {
          y[i] = -foil_section.y(x[i]);
       }
-      kv1->GetInterpolant(y,u,interp);
+      A_coll_inv->Mult(y, interp);
       for (int i = 0; i < ncp; i++)
       {
          patch1(i,0,1) = interp[i];
@@ -327,6 +329,7 @@ int main(int argc, char *argv[])
 
       patch1.DegreeElevate(1, order-1);
       patch1.KnotInsert(1, *kvr);
+      delete A_coll_inv;
    }
 
    // Patch 2: Tip of foil section
@@ -384,12 +387,13 @@ int main(int argc, char *argv[])
       {
          u[i] = kv2->GetBotella(i);
       }
-      kv2->GetInterpolant(x,u,interp);
+      MatrixInverse *A_coll_inv = kv2->GetInverseInterpolationMatrix(u);
+      A_coll_inv->Mult(x, interp);
       for (int i = 0; i < ncp; i++)
       {
          patch2(i,0,0) = interp[i]*patch2(i,0,2);
       }
-      kv2->GetInterpolant(y,u,interp);
+      A_coll_inv->Mult(y, interp);
       for (int i = 0; i < ncp; i++)
       {
          patch2(i,0,1) = interp[i]*patch2(i,0,2);
@@ -398,6 +402,7 @@ int main(int argc, char *argv[])
       // Project circle
       patch2.DegreeElevate(1, order-1);
       patch2.KnotInsert(1, *kvr);
+      delete A_coll_inv;
    }
 
    // Patch 3: Upper part of trailing part foil section
@@ -438,7 +443,8 @@ int main(int argc, char *argv[])
       {
          x[i]  = foil_length*(tip_fraction + tail_fraction*u[i]);
       }
-      kv3->GetInterpolant(x,u,interp);
+      MatrixInverse *A_coll_inv = kv3->GetInverseInterpolationMatrix(u);
+      A_coll_inv->Mult(x, interp);
       for (int i = 0; i < ncp; i++)
       {
          patch3(i,0,0) = interp[i];
@@ -448,7 +454,7 @@ int main(int argc, char *argv[])
       {
          y[i] = foil_section.y(x[i]);
       }
-      kv3->GetInterpolant(y,u,interp);
+      A_coll_inv->Mult(y, interp);
       for (int i = 0; i < ncp; i++)
       {
          patch3(i,0,1) = interp[i];
@@ -456,6 +462,7 @@ int main(int argc, char *argv[])
 
       patch3.DegreeElevate(1, order-1);
       patch3.KnotInsert(1, *kvr);
+      delete A_coll_inv;
    }
 
    // Patch 4: Upper trailing wake part
