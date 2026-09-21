@@ -1649,6 +1649,18 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
 
+   /* Stated as a check rather than as a convention, for the reason on the
+      size announcement at the end of Finalize(): this operator is in the
+      trace's TRUE unknowns, the two sizes coincide on a conforming mesh, and
+      a caller that got it wrong read PAST the end of its own vectors rather
+      than failing. Two comparisons a residual evaluation is a cheap price
+      for that. */
+   MFEM_VERIFY(x.Size() == Width() && y.Size() == Height(),
+               "the reduced trace operator is " << Height() << " long and "
+               "was handed x of " << x.Size() << " and y of " << y.Size()
+               << ". Size a trace vector from this operator, or from the "
+               "reduced right-hand side ReduceRHS() produces.");
+
    if (H)
    {
       H->Mult(x, y);
@@ -2216,6 +2228,58 @@ void DarcyHybridization::Finalize()
 #ifdef MFEM_USE_MPI
       pOp.Reset(new ParOperator(*this));
 #endif //MFEM_USE_MPI
+   }
+
+   /* **The operator's advertised size, which is NOT what Hybridization's
+      constructor set it to.**
+
+      That constructor takes c_fes.GetVSize() (fem/hybridization.cpp), i.e.
+      the constraint space's L-dofs, and every entry point of this class
+      consumes and produces the trace's TRUE unknowns -- Mult() and
+      GetGradient() because they go through ParMultNL(), which prolongs, and
+      ReduceRHS() because it sizes the reduced right-hand side to exactly the
+      expression below. On a conforming trace space the two agree and nothing
+      notices; the whole of this tree's reference coverage is that case.
+
+      They do not agree on a nonconforming mesh, and the reason is easy to
+      miss: DG_Interface_FECollection derives from RT_FECollection and so
+      reports GetContType() == NORMAL rather than DISCONTINUOUS, so
+      FiniteElementSpace::BuildConformingInterpolation() does not take its
+      early exit for a DG trace. Measured on data/amr-quad.mesh with one
+      uniform refinement: cP is non-null at every order, VSize/TrueVSize
+      528/464 at order 1 and 1056/928 at order 3.
+
+      What went wrong with the old size is a READ PAST THE END rather than a
+      wrong answer, which is why it survived. NewtonSolver::SetOperator()
+      sizes its residual and its correction from Width(), so the correction
+      it hands the Krylov solver was VSize long while the solver sized its
+      own vectors from the assembled gradient at TrueVSize; GMRES's Update()
+      then ran off them. Measured under valgrind on
+      `convdiff -m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl -nld
+      -nls 3`: 512 invalid reads of size 16 in Vector::Add, all past a block
+      of 3,712 bytes = 464 doubles. Three control arms of the same command
+      reported zero and the same answer to six digits -- the same mesh
+      LINEAR (that route hands out the assembled SparseMatrix, which was
+      always sized correctly), the same mesh with -npc (DarcyNPCOperator
+      sizes itself from the caller's true-dof offsets), and the same
+      nonlinear problem on a CONFORMING mesh. The garbage landed in
+      correction entries past the solution vector's own length and was never
+      added in, so the answer was right and the read was still wrong.
+
+      Nothing covered it: grouping the _nc_ references by their recorded
+      options, every nonlinear one is NOT hybridized and every hybridized one
+      is linear, so nonconforming + hybridized + nonlinear had never run.
+
+      The expression is ReduceRHS()'s, deliberately -- the invariant is that
+      this operator is exactly as long as the right-hand side that is reduced
+      for it, and writing it twice the same way is what makes that checkable.
+      Here rather than in the constructor because a prolongation is built
+      lazily and Finalize() is the first point at which every caller has
+      finished describing the problem. */
+   {
+      const Operator *tr_P = ParallelC() ? c_fes.GetProlongationMatrix()
+                             : c_fes.GetConformingProlongation();
+      height = width = (tr_P) ? tr_P->Width() : c_fes.GetVSize();
    }
 
    bfin = true;
