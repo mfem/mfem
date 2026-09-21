@@ -18,6 +18,7 @@
 #include "../general/binaryio.hpp"
 #include "../general/communication.hpp"
 
+#include <algorithm>
 #include <numeric> // std::accumulate
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
@@ -383,6 +384,9 @@ void ParNCMesh::BuildVertexList()
    // This is an extension of NCMesh::BuildVertexList() which also determines
    // vertex ownership and creates vertex processor groups.
 
+   GetEdgeList();
+   if (Dim >= 3) { GetFaceList(); }
+
    int nvertices = NVertices + NGhostVertices;
 
    tmp_owner.SetSize(nvertices);
@@ -398,6 +402,78 @@ void ParNCMesh::BuildVertexList()
    entity_elem_local[0] = -1;
 
    NCMesh::BuildVertexList();
+
+   // The owner needs a local slave to build the vertex constraint.
+   // Vertex-neighbor ghosts give all sharing ranks the same candidates.
+   Array<int> hanging_owner(nvertices);
+   hanging_owner = INT_MAX;
+
+   auto owner_rank = [&](int entity, int index, int nlocal)
+   {
+      // For a ghost, group 0 means unknown owner, not self.
+      if (index < 0 || index >= entity_owner[entity].Size() ||
+          (index >= nlocal && entity_owner[entity][index] == 0))
+      {
+         return INT_MAX;
+      }
+      return groups[entity_owner[entity][index]][0];
+   };
+   auto update_owner = [&](int vertex, int owner, const int *master, int nmaster)
+   {
+      if (vertex >= 0 && vertex < nvertices && owner != INT_MAX &&
+          std::find(master, master + nmaster, vertex) == master + nmaster)
+      {
+         hanging_owner[vertex] = std::min(hanging_owner[vertex], owner);
+      }
+   };
+
+   int mv[4], me[4], mo[4], sv[4];
+   for (const auto &master : edge_list.masters)
+   {
+      GetEdgeVertices(master, mv);
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const Slave &slave = edge_list.slaves[i];
+         const int owner = owner_rank(1, slave.index, NEdges);
+         if (owner == INT_MAX) { continue; }
+         MFEM_ASSERT(slave.element >= 0, "observed slave edge has no element");
+         GetEdgeVertices(slave, sv);
+         update_owner(sv[0], owner, mv, 2);
+         update_owner(sv[1], owner, mv, 2);
+      }
+   }
+   for (const auto &master : face_list.masters)
+   {
+      const int nmv = GetFaceVerticesEdges(master, mv, me, mo);
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const Slave &slave = face_list.slaves[i];
+         if (slave.index >= 0)
+         {
+            if (slave.element < 0 || elements[slave.element].rank < 0) { continue; }
+            const int owner = owner_rank(2, slave.index, NFaces);
+            const int nsv = GetFaceVerticesEdges(slave, sv, me, mo);
+            for (int j = 0; j < nsv; j++)
+            {
+               update_owner(sv[j], owner, mv, nmv);
+            }
+         }
+         else
+         {
+            const int edge = FlipIndexSign(slave.index);
+            const int owner = owner_rank(1, edge, NEdges);
+            if (owner == INT_MAX) { continue; }
+            MFEM_ASSERT(slave.element >= 0, "observed edge-face slave has no element");
+            GetEdgeVertices(slave, sv);
+            update_owner(sv[0], owner, mv, nmv);
+            update_owner(sv[1], owner, mv, nmv);
+         }
+      }
+   }
+   for (int i = 0; i < nvertices; i++)
+   {
+      if (hanging_owner[i] != INT_MAX) { tmp_owner[i] = hanging_owner[i]; }
+   }
 
    InitOwners(nvertices, entity_owner[0]);
    MakeSharedList(vertex_list, shared_vertices);
@@ -440,9 +516,9 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
             master_flag |= slave_flag;
             slave_flag |= master_old_flag;
          }
-         else // special case: prism edge-face constraint
+         else // special case: edge-face constraint
          {
-            if (entity_owner[1][FlipIndexSign(si)] != MyRank)
+            if (entity_owner[1][FlipIndexSign(si)] != 0)
             {
                master_flag |= 0x2;
             }
