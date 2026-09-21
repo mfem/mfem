@@ -58,12 +58,14 @@ struct UniqueIndexGenerator
  * @param parent The Mesh where the elements are "extracted" from.
  * @param mesh The Mesh where the elements are extracted to.
  * @param attributes The attributes of the desired elements.
+ * @param element_list The list of local element ids to add to the mesh.
  * @param from_boundary Indication if the desired elements come from the
  * boundary of the parent.
  */
 std::tuple< Array<int>, Array<int> >
 AddElementsToMesh(const Mesh& parent,
                   Mesh& mesh, const Array<int> &attributes,
+                  const Array<int> &element_list,
                   bool from_boundary = false);
 
 /**
