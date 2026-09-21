@@ -814,10 +814,10 @@ Nothing in either reference set covers the combination -- grouping the `_nc_`
 references by their options, every nonlinear one is NOT hybridized and every
 hybridized one is linear.
 
-**One thing it uncovered is still open and is somebody's to chase.** A
-hybridized NONLINEAR solve on a hanging-node mesh segfaults in
-`LocalNLOperator::AddMultBlock()`. It predates this fix, it is not
-neq-specific and not mesh-file-specific, the same configuration on a
-conforming mesh runs, and `convdiff` on the same mesh with the same kinds of
-integrator does not reach it. Written up on
-`DarcyHybridization::MultInvNL()`.
+**One thing it uncovered was chased and is now a REFUSAL rather than a
+crash.** A nonconforming master face has no second element and no boundary
+attribute, and every element-major face loop called that a boundary face;
+`GetBdrAttribute(-1)` did the rest. `DarcyHybridization::Finalize()` refuses
+a nonlinear face constraint on a mesh with hanging nodes. Making it work is
+still open and is not the obvious change -- see that refusal for the
+measurement that rules the obvious change out.

@@ -782,6 +782,13 @@ struct TraceSizes
    bool cP = false;
    /// Return as soon as these are filled, leaving r0 and r1 untouched.
    bool stop_after_form = false;
+   /** Leave the nonlinear interior face constraint off entirely.
+       DarcyHybridization::Finalize() refuses one on a mesh with hanging
+       nodes, so a caller that wants the operator's SIZE on such a mesh has
+       to ask for a configuration that is admitted. The element law stays
+       nonlinear, which is all the size question needs -- IsNonlinear() reads
+       m_nlfi too -- and nothing here solves. */
+   bool skip_face_constraint = false;
 };
 
 /// One Newton step on a nonlinear DG system under hybridization, returning
@@ -808,11 +815,14 @@ void OneNewtonStep(Mesh &mesh, int order, MixedFluxFunction &flux,
 
    // tau = 1 for every variable, which is where the NPC papers say to start
    // and what SetVariableStabilization defaults to.
-   auto *face = new MixedConductionNLFIntegrator(flux);
-   Vector taus(neq);
-   taus = 1.0;
-   face->SetVariableStabilization(taus);
-   Mnl->AddInteriorFaceIntegrator(face);
+   if (!(sizes && sizes->skip_face_constraint))
+   {
+      auto *face = new MixedConductionNLFIntegrator(flux);
+      Vector taus(neq);
+      taus = 1.0;
+      face->SetVariableStabilization(taus);
+      Mnl->AddInteriorFaceIntegrator(face);
+   }
 
    MixedBilinearForm *Bform = darcy.GetFluxDivForm();
    Bform->AddDomainIntegrator(
@@ -956,31 +966,31 @@ TEST_CASE("The reduced trace operator is sized in the trace's TRUE dofs",
       and the SparseMatrix was always sized correctly -- so a genuinely
       linear problem cannot see this at all.
 
-      **This case stops after FormLinearSystem() and does not solve, and that
-      is forced rather than chosen.** A hybridized nonlinear solve on a
-      hanging-node mesh segfaults in the element-local solve, inside
-      LocalNLOperator::AddMultBlock() under MultInvNL(). It is a SEPARATE
-      defect and it PREDATES the size fix this case is about -- reproduced
-      with the library reverted, which is the attribution and not an
-      assumption. Four things it is not, each ruled out by its own arm: not
-      neq-specific (scalar and two-equation both), not specific to a
-      synthesised mesh (EnsureNCMesh + GeneralRefinement and
-      data/amr-quad.mesh both), not the missing boundary face constraint on
-      B (adding one changes nothing), and not the mesh alone -- the same
-      configuration on a CONFORMING mesh runs. It is also not reached by
-      convdiff, whose `-m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl
-      -nld -nls 3` solves the same kinds of integrator on the same mesh; the
-      discriminator between the two is open. Not chased.
+      **This case leaves the face constraint off and stops after
+      FormLinearSystem(), and both are forced rather than chosen.** A
+      nonlinear FACE constraint on a mesh with hanging nodes is refused by
+      DarcyHybridization::Finalize(), because a nonconforming MASTER face has
+      no second element and no boundary attribute and the element-local loops
+      cannot reach the slave faces that carry its coupling; see that refusal,
+      and the case below that pins it. The element law stays nonlinear, which
+      is what the size question turns on -- IsNonlinear() is what makes
+      DarcyForm hand out the hybridization itself rather than an assembled
+      SparseMatrix, and it reads m_nlfi as well as c_nlfi.
 
       What that costs this case is the behaviour half. It is covered
-      elsewhere: the same convdiff command reports zero valgrind errors
-      after the fix against 512 before, at order 1 and order 3, with the two
-      error norms identical to every printed digit. */
+      elsewhere: `convdiff -m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl
+      -nld -nls 3` reports zero valgrind errors after the fix against 512
+      before, at order 1 and order 3, with the two error norms identical to
+      every printed digit. That command is admitted by the refusal because
+      its face constraint goes down the LINEAR route: every `-nld -hb`
+      configuration also puts an HDGDiffusionIntegrator on the potential mass
+      form, which is a bilinear integrator and is folded into c_bfi_p. */
    ConstantCoefficient one(1.0);
    LinearDiffusionFlux linear(mesh.Dimension(), one);
    real_t r0 = 0., r1 = 0.;
    TraceSizes ts;
    ts.stop_after_form = true;
+   ts.skip_face_constraint = true;
    OneNewtonStep(mesh, order, linear, r0, r1, nullptr, &ts);
 
    CAPTURE(ts.vsize, ts.tvsize, ts.cP);
@@ -993,6 +1003,85 @@ TEST_CASE("The reduced trace operator is sized in the trace's TRUE dofs",
    // The invariant the size exists to satisfy: the operator is exactly as
    // long as the right-hand side that was reduced for it.
    REQUIRE(ts.rhs_size == ts.op_height);
+}
+
+TEST_CASE("A nonconforming master face is not a boundary face",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   /* The condition behind DarcyHybridization::Finalize()'s refusal of a
+      nonlinear face constraint on a mesh with hanging nodes, asserted on the
+      mesh itself so that it runs in every build.
+
+      Every element-major face loop in the hybridization decides "boundary"
+      by `Elem2No < 0`, which is Mesh::FaceIsInterior() inverted. On a
+      conforming mesh that is exactly the boundary faces. On a nonconforming
+      one a MASTER face -- the coarse side of a hanging node -- also has no
+      second element, and Mesh::GetFaceToBdrElMap() maps it to -1, so the
+      boundary branch reached GetBdrAttribute(-1) and dereferenced
+      Mesh::boundary at -1. The failure was a segfault and not a wrong
+      answer, and it fired with NO boundary integrator installed, the
+      attribute being read before the loop that would have been empty.
+
+      The two counts are the whole case, and the conforming arm is what makes
+      the nonconforming one mean something: the same accessor pair returns
+      nothing surprising there. */
+   auto count_master_slots = [](Mesh &mesh)
+   {
+      Array<int> f_2_b = mesh.GetFaceToBdrElMap();
+      Array<int> faces, oris;
+      int n_master = 0;
+      for (int el = 0; el < mesh.GetNE(); el++)
+      {
+         if (mesh.Dimension() == 2) { mesh.GetElementEdges(el, faces, oris); }
+         else { mesh.GetElementFaces(el, faces, oris); }
+         for (int j = 0; j < faces.Size(); j++)
+         {
+            int el1, el2;
+            mesh.GetFaceElements(faces[j], &el1, &el2);
+            if (el2 < 0 && f_2_b[faces[j]] < 0) { n_master++; }
+         }
+      }
+      return n_master;
+   };
+
+   SECTION("a hanging-node mesh has element faces that are neither")
+   {
+      Mesh mesh("../../data/amr-quad.mesh");
+      mesh.UniformRefinement();
+      REQUIRE(mesh.Nonconforming());
+      REQUIRE(count_master_slots(mesh) > 0);
+   }
+
+   SECTION("a conforming mesh has none")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+      REQUIRE_FALSE(mesh.Nonconforming());
+      REQUIRE(count_master_slots(mesh) == 0);
+   }
+
+   /* And the refusal itself, where the build lets an MFEM_VERIFY be caught.
+      Neither HDG tree sets MFEM_USE_EXCEPTIONS, so this does NOT execute
+      here and the two counts above are what runs; it is kept because the
+      configurations that do set it -- meq's, for one -- are where a
+      regression in the refusal would otherwise be silent. */
+#ifdef MFEM_USE_EXCEPTIONS
+   SECTION("and a nonlinear face constraint on such a mesh is refused")
+   {
+      using namespace darcy_nonlinear;
+      Mesh mesh("../../data/amr-quad.mesh");
+      mesh.UniformRefinement();
+
+      ConstantCoefficient one(1.0);
+      LinearDiffusionFlux linear(mesh.Dimension(), one);
+      real_t r0 = 0., r1 = 0.;
+
+      TraceSizes ts;
+      ts.stop_after_form = true;
+      // the same call the size case makes, with the face constraint back on
+      ts.skip_face_constraint = false;
+      REQUIRE_THROWS(OneNewtonStep(mesh, 1, linear, r0, r1, nullptr, &ts));
+   }
+#endif
 }
 
 TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",

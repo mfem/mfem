@@ -378,14 +378,22 @@ under valgrind and zero on three controls. `Finalize()` announces the right
 size now; `doc/HDG-ORDERING-API.md` §7 item 10 is the long form and it is
 **trunk material that reaches all five branches**, not lifted here.
 
-Still open, and it is a different defect: a hybridized NONLINEAR solve on a
-hanging-node mesh **segfaults** in `LocalNLOperator::AddMultBlock()`. It
-predates the size fix, it is not neq-specific and not mesh-file-specific,
-the same configuration on a conforming mesh runs, and `convdiff` on the same
-mesh with the same kinds of integrator does not reach it -- what differs is
-not known. Written up on `DarcyHybridization::MultInvNL()`. Nothing covers
-the combination: every nonlinear `_nc_` reference is NOT hybridized and
-every hybridized one is linear.
+The separate defect that uncovered is **attributed and refused**, and only
+half of it is still open. A nonconforming MASTER face has no second element
+and no boundary attribute, every element-major face loop calls `Elem2No < 0`
+a boundary face, and `GetBdrAttribute(-1)` then dereferenced
+`Mesh::boundary` at -1. `Finalize()` refuses a nonlinear face constraint on
+such a mesh now, naming the count and the remedy.
+
+**What is open is the capability, not the crash.** The linear route is
+face-major and nonconforming-aware -- it assembles on the SLAVE sub-faces and
+transfers onto the master's dofs (`AssembleNCSlaveEGFaceMatrix`) -- while the
+element-major nonlinear route sees a coarse element's MASTER face and never
+its slaves. Treating the master as a one-sided interior face was built and
+measured and is NOT the answer: applying the frozen and live operators to one
+fixed state agrees to `1.1e-13` on a conforming mesh and differs by `3.9e-01`
+there. That comparison is the acceptance test, and it needs no exact
+solution. See `Finalize()`'s refusal and `CLAUDE_MEASUREMENTS.md`.
 
 ## 12. A flux that carries fewer directions than the mesh has
 

@@ -6594,6 +6594,83 @@ void DarcyHybridization::Finalize()
    // cannot see the answer to the question this asks.
    CheckRestrictedFluxConfiguration(true);
 
+   /* A nonlinear FACE constraint on a mesh with hanging nodes is refused,
+      because the element-local loops cannot express one and used to SEGFAULT
+      rather than say so.
+
+      The misclassification: every element-major face loop here decides
+      "boundary" by `Elem2No < 0`, which is Mesh::FaceIsInterior() inverted and
+      is right on a conforming mesh. On a nonconforming one a MASTER face --
+      the coarse side of a hanging node -- also has no second element, and
+      GetFaceToBdrElMap() maps it to -1, so the boundary branch ran
+      GetBdrAttribute(-1) and dereferenced Mesh::boundary at -1. Measured on
+      data/amr-quad.mesh refined once, 16 element-face slots are of that kind
+      against 0 on a conforming mesh of the same shape, and it dies at element
+      6, face 19 -- with NO boundary integrator installed, the attribute being
+      read before the loop that would have been empty.
+
+      Why it is a refusal and not a guard. The linear route is face-major and
+      nonconforming-aware: FaceIsInterior() skips masters, the face term is
+      assembled on the SLAVE sub-faces, and AssembleNCSlaveEGFaceMatrix() and
+      its siblings transfer those blocks onto the master's dofs. The nonlinear
+      route is element-major over GetElementFaces(), and a coarse element's
+      list holds the MASTER face and not its slaves -- so there is no road by
+      which the slave contributions can reach it, and no nonlinear analogue of
+      the transfer exists.
+
+      Treating a master face as a one-sided interior face was built and
+      MEASURED, and it is not the answer, which is why this is a refusal
+      rather than that change. An HDGDiffusionIntegrator on the potential mass
+      form solves the same discrete problem whether FaceConstraintMode leaves
+      it Frozen (the linear route) or Live (this one), so applying both
+      operators to one fixed trace vector must agree to round-off. It does on
+      a conforming mesh -- max|diff| 1.1e-13, relative 1.5e-14 -- and with the
+      one-sided treatment on data/amr-quad.mesh it is 3.9e-01, relative
+      5.8e-02. So the one-sided master integral is NOT the transferred slave
+      sum, whatever the arithmetic suggests, and shipping it would have traded
+      a crash for a silent six-percent error.
+
+      That comparison is the acceptance test for anyone implementing this: it
+      needs no exact solution, no solve and no tolerance, only the two modes
+      on one mesh.
+
+      Nothing in the tree reaches this. Grouping the `_nc_` regression
+      references by their recorded options, every nonlinear one is NOT
+      hybridized and every hybridized one is linear; and c_nlfi is filled only
+      by a DarcyForm branch marked "REACHED BY NOTHING IN THIS TREE", since
+      every `-nld -hb` configuration also puts an HDGDiffusionIntegrator on the
+      potential mass form and takes an earlier branch. c_nlfi_p is genuinely
+      reachable, through SetFaceConstraintMode(Live), which is what makes this
+      a live refusal and not a note. */
+   /* c_nlfi and c_nlfi_p ALONE, and that breadth is measured rather than
+      chosen: all eight element-major face loops that make the
+      misclassification sit inside `if (c_nlfi)` or `if (c_nlfi_p)`, so a
+      configuration carrying only BOUNDARY nonlinear integrators never reaches
+      one and must not be refused. */
+   if (c_nlfi || c_nlfi_p)
+   {
+      const Mesh *mesh = fes.GetMesh();
+      if (mesh->Nonconforming())
+      {
+         if (f_2_b.Size() == 0) { f_2_b = mesh->GetFaceToBdrElMap(); }
+         int n_master = 0;
+         for (int f = 0; f < mesh->GetNumFaces(); f++)
+         {
+            int el1, el2;
+            mesh->GetFaceElements(f, &el1, &el2);
+            if (el2 < 0 && f_2_b[f] < 0) { n_master++; }
+         }
+         MFEM_VERIFY(n_master == 0,
+                     "a nonlinear face constraint is not supported on a mesh "
+                     "with hanging nodes: " << n_master << " nonconforming "
+                     "master face(s) carry no second element and no boundary "
+                     "attribute, and the element-local loops have no way to "
+                     "reach the slave faces that carry their coupling. Use a "
+                     "linear face constraint (FaceConstraintMode::Frozen), or "
+                     "a conforming mesh.");
+      }
+   }
+
    // A live face constraint beside a frozen one is supported on the NPC path
    // and refused elsewhere. Out of scope rather than known broken: the
    // reduced route builds its H from E, G and H once at this point and again
@@ -7019,32 +7096,30 @@ void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Vector &x, Vector &b)
    EliminateTraceTrueDofsInRHS(GetEssentialTrueDofs(), x, b);
 }
 
-/** @brief KNOWN DEFECT, unattributed: this segfaults on a hanging-node mesh.
+/** @brief The hanging-node crash this routine used to take is ATTRIBUTED and
+    REFUSED now; see Finalize(). This note is what replaced it.
 
-    A hybridized NONLINEAR solve on a nonconforming mesh with hanging nodes
-    dies in LocalNLOperator::AddMultBlock() under the local Newton this
-    routine runs. It is recorded here because this is the frame a backtrace
-    lands in, not because the cause is known to be here.
+    A hybridized NONLINEAR solve on a mesh with hanging nodes died in
+    LocalNLOperator::AddMultBlock() under the local Newton run here, and this
+    frame is where a backtrace landed. The cause was never in this routine: a
+    nonconforming MASTER face has no second element and no boundary
+    attribute, every element-major face loop calls `Elem2No < 0` a boundary
+    face, and GetBdrAttribute(-1) then dereferenced Mesh::boundary at -1.
 
-    Four things it is NOT, each ruled out by its own arm: not specific to a
-    system (scalar and two-equation both), not specific to a synthesised mesh
-    (Mesh::EnsureNCMesh() plus a partial GeneralRefinement(), and
-    data/amr-quad.mesh, both), not the missing boundary face constraint on B
-    (adding one changes nothing), and not the mesh alone -- the same
-    integrator configuration on a CONFORMING mesh runs. It also PREDATES the
-    trace-size fix at the end of Finalize(), reproduced with that reverted.
+    **Withdraw this note's predecessor, which called it unattributed and said
+    the discriminator against convdiff was unknown.** It is neither. convdiff
+    is admitted because its face constraint goes down the LINEAR route --
+    every `-nld -hb` configuration also puts an HDGDiffusionIntegrator on the
+    potential mass form, so c_nlfi stays null; DarcyForm's own `else if
+    (Mnl)` branch, the only thing that fills it, is marked "REACHED BY
+    NOTHING IN THIS TREE" for exactly that reason. c_nlfi_p is reachable,
+    through DarcyForm::SetFaceConstraintMode(Live), which is what made this
+    worth refusing rather than noting.
 
-    **And convdiff does not reach it**, which is the open half:
-    `convdiff -m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl -nld -nls 3`
-    installs the same KINDS of integrator on the same mesh and solves. What
-    differs between that and the reproducer is not known.
-
-    The reproducer is "The reduced trace operator is sized in the trace's
-    TRUE dofs" in tests/unit/fem/test_darcy_nonlinear.cpp, which stops before
-    the solve for this reason and says so. Nothing in either reference set
-    covers the combination: grouping the _nc_ references by their recorded
-    options, every nonlinear one is NOT hybridized and every hybridized one
-    is linear. */
+    Finalize() now refuses the combination, so this routine can no longer be
+    entered with a master face in an element's list. What that refusal does
+    NOT do is make the case work, and the repair is not the obvious one --
+    see it for the measurement that rules the obvious one out. */
 void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
                                    const Vector &bp_l, const BlockVector &x_l,
                                    Vector &u_l, Vector &p_l,
@@ -9782,8 +9857,20 @@ void DarcyHybridization::ReconstructTotalFlux(
          }
 
          // boundary potential constraint
-         if (ftr->Elem2No < 0 && (!boundary_constraint_pot_integs.empty() ||
-                                  !boundary_constraint_pot_nonlin_integs.empty()))
+         // f_2_b[f] >= 0 keeps a nonconforming MASTER face out of this. It has
+         // no second element, so Elem2No < 0 alone calls it a boundary face --
+         // true on a conforming mesh and false on this one, where it is the
+         // COARSE side of a hanging node. GetFaceToBdrElMap() maps it to -1 and
+         // GetBdrAttribute(-1) below indexes Mesh::boundary at -1, which is a
+         // segfault rather than a wrong answer. See Finalize()'s refusal for
+         // the same misclassification in the nonlinear element loop, which is
+         // where it was found. Whether a master face owes a contribution here,
+         // and by which road, is a separate question this guard does not
+         // answer: it only keeps BOUNDARY integrators off a face that has no
+         // boundary attribute to be selected by.
+         if (ftr->Elem2No < 0 && f_2_b[f] >= 0
+             && (!boundary_constraint_pot_integs.empty() ||
+                 !boundary_constraint_pot_nonlin_integs.empty()))
          {
             constexpr int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
                                  | NonlinearFormIntegrator::HDGFaceType::FACE;
