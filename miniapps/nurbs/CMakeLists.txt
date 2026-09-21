@@ -127,6 +127,11 @@ if (MFEM_ENABLE_TESTING)
     -m ${PROJECT_SOURCE_DIR}/data/square-disc-nurbs-patch.mesh
     -o 2 --weak-bc -r 1)
 
+  add_test(NAME nurbs_ex1_hess_ser
+    COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
+    -m ${PROJECT_SOURCE_DIR}/miniapps/nurbs/meshes/square-nurbs-distorted.mesh
+    -o 2 -mo 3 -r 1 -no-ibp)
+
   add_test(NAME nurbs_printfunc
     COMMAND $<TARGET_FILE:nurbs_printfunc>)
 
