@@ -789,7 +789,9 @@ advertised size, which `Hybridization`'s constructor sets to
 `c_fes.GetVSize()` while every entry point works in TRUE dofs;
 `Finalize()` now announces `tr_cP->Width()` when a trace prolongation
 exists, which is `ReduceRHS()`'s expression written the same way, and
-`Mult()` checks both its arguments against it.
+`Mult()` checks both its arguments against it. **That fourth site is on the
+trunk**, `e81b711dae`, and merged out to all four descendants, the three
+routines it touches predating every one of them.
 
 **The entry's own scope note was wrong and that is the part worth keeping.**
 It said the disagreement was reachable only with an `H1_Trace` (EDG) space.
@@ -820,4 +822,5 @@ attribute, and every element-major face loop called that a boundary face;
 `GetBdrAttribute(-1)` did the rest. `DarcyHybridization::Finalize()` refuses
 a nonlinear face constraint on a mesh with hanging nodes. Making it work is
 still open and is not the obvious change -- see that refusal for the
-measurement that rules the obvious change out.
+measurement that rules the obvious change out, and roadmap §13 for what to
+do instead.

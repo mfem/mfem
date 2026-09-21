@@ -5590,35 +5590,16 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       ComputeSolution() has always gone through the wrapper, so the recovery
       half of the same solve was already right.
 
-      **AND THE OPERATOR'S ADVERTISED SIZE DID NOT FOLLOW. STILL OPEN.**
-      Height() and Width() are Hybridization's, set once in its constructor
-      to c_fes.GetVSize() (fem/hybridization.cpp), while everything this
-      routine now consumes and produces is in TRUE dofs. On a conforming
-      trace space the two are equal and nothing notices. On a nonconforming
-      one they are not, and NewtonSolver::SetOperator() sizes its residual
-      and its correction from Width() -- so the correction handed to GMRES
-      is longer than the Krylov vectors GMRES sizes from the assembled
-      gradient, and GMRESSolver's Update() reads off the end of them.
-
-      Measured, data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl -nld -nls 3 under
-      valgrind: **512 invalid reads of size 16, all in Vector::Add from
-      GMRES's Update(), all past a block of 3,712 bytes = 464 doubles =
-      the trace's TrueVSize** where VSize is 528. Attributed by three arms
-      on the same command, each 0 errors: the same mesh LINEAR (the reduced
-      route hands out the assembled SparseMatrix, sized correctly), the same
-      mesh with -npc (DarcyNPCOperator sizes itself from the caller's
-      offsets, which are true dofs), and the same nonlinear problem on a
-      CONFORMING mesh. All four print the same answer to six digits.
-
-      So it is benign TODAY and only by luck of the arithmetic: the garbage
-      lands in correction entries past the solution vector's own length and
-      is never added in. It is an out-of-bounds read on the reduced
-      nonlinear route on any nonconforming mesh, and the fix is to make
-      Finalize() announce tr_cP->Width() when a trace prolongation exists.
-      Not done here -- it is trunk material and reaches all five branches,
-      like the routing fix above. Nothing covers it: grouping the _nc_
-      references by their options, every nonlinear one is NOT hybridized and
-      every hybridized one is linear. */
+      **AND THE OPERATOR'S ADVERTISED SIZE DID NOT FOLLOW.** Written here as
+      still open, in the same commit that closed it at the end of
+      Finalize() -- withdrawn in place rather than deleted, because the
+      paragraph that stood here told a reader the fix was somebody else's
+      job. Height() and Width() are Hybridization's, set once in its
+      constructor to c_fes.GetVSize(), while everything this routine
+      consumes and produces is in TRUE dofs; Finalize() now takes the size
+      from the trace prolongation and the check at the top of this routine
+      holds callers to it. The measurement, the three control arms and the
+      coverage gap are there, and the fix is on the trunk. */
    ParMultNL(MultNlMode::Mult, darcy_rhs, x, y);
 
    // Essential trace dofs. There is no assembled matrix on this path to move
