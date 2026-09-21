@@ -2315,6 +2315,18 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
 
+   /* Stated as a check rather than as a convention, for the reason on the
+      size announcement at the end of Finalize(): this operator is in the
+      trace's TRUE unknowns, the two sizes coincide on a conforming mesh, and
+      a caller that got it wrong read PAST the end of its own vectors rather
+      than failing. Two comparisons a residual evaluation is a cheap price
+      for that. */
+   MFEM_VERIFY(x.Size() == Width() && y.Size() == Height(),
+               "the reduced trace operator is " << Height() << " long and "
+               "was handed x of " << x.Size() << " and y of " << y.Size()
+               << ". Size a trace vector from this operator, or from the "
+               "reduced right-hand side ReduceRHS() produces.");
+
    if (H)
    {
       H->Mult(x, y);
@@ -2841,7 +2853,33 @@ void DarcyHybridization::Finalize()
       caller as the operator for a nonlinear hybridized solve, so a wrong
       size here is a wrong size in the Newton solver. It was
       c_fes.GetVSize(), which is right only when the space is conforming and
-      serial; constraining a face makes the two differ in every case. */
+      serial; constraining a face makes the two differ in every case.
+
+      **The trunk says the same thing in its own terms and its block is NOT
+      taken here.** gf-hdg-dev's Finalize() ENDS with
+      `height = width = tr_P ? tr_P->Width() : c_fes.GetVSize()`, taken from
+      the trace SPACE's prolongation because that is ReduceRHS()'s expression
+      there. GetTraceTrueVSize() is that generalised: c_fes.GetTrueVSize()
+      while no face has been given a degree, and the constrained count once
+      one has.
+
+      Taking both is what merging that commit does if nobody looks. The two
+      edits sit in different halves of one function, so git conflicts on
+      neither and the trunk's, being last, wins -- and it sizes the operator
+      at the CEILING, 72 against 48 at order 1 and gap 1 on the 3x3 fixture
+      in test_darcy_padapt.cpp. **The trunk's own new check in Mult() is what
+      caught it**, on the first suite run after the merge, which is the
+      argument for that check rather than for a convention.
+
+      What the trunk's block carries and this line does not is the
+      measurement, so here it is: the two sizes differ on a NONCONFORMING
+      mesh as well, DG_Interface_FECollection deriving from RT_FECollection
+      and so reporting GetContType() == NORMAL, which stops
+      FiniteElementSpace::BuildConformingInterpolation() taking its DG early
+      exit -- 512 invalid reads under valgrind on
+      `convdiff -m ../../data/amr-quad.mesh -r 1 -o 1 -dg -hb -nl -nld
+      -nls 3`, against 0 on three control arms that print the same answer.
+      Two routes to one wrong size, and this line closes both. */
    width = height = GetTraceTrueVSize();
 
    if (!IsNonlinear())
