@@ -19,6 +19,11 @@ Version 4.10, released on Sep 1, 2026
 
 Discretization improvements
 ---------------------------
+- Fixed ElasticityIntegrator partial assembly: the scaled constructor
+  ElasticityIntegrator(m, q_l, q_m) now projects q_λ m and q_μ m; AssembleDiagonalPA
+  accumulates into the output vector; component element assembly honors add and
+  stores the (trial, test, element) layout expected by EABilinearFormExtension.
+
 - Added support for complex-valued mixed bilinear forms via the new classes
   MixedSesquilinearForm and ParMixedSesquilinearForm, mirroring the existing
   SesquilinearForm classes. Rectangular complex operators are now also handled
@@ -115,6 +120,10 @@ Meshing improvements
 
 GPU computing
 -------------
+- Added compact pa_data and fused tensor-product partial-assembly apply kernels
+  for ElasticityIntegrator on quadrilaterals and hexahedra, with a generic
+  full-map fallback for other elements.
+
 - Added GPU-enabled partial assembly for simplicial Bernstein H1 basis based on
   ragged tensor algorithms for mass and diffusion integrators.
 
@@ -196,6 +205,9 @@ Linear and nonlinear solvers
 
 New and updated examples and miniapps
 -------------------------------------
+- Added LinearElasticitySolver and the mtop_ex_linear_elasticity_solver driver
+  in miniapps/mtop for lazy partial-assembly isotropic linear elasticity.
+
 - Added a new Particle-In-Cell (PIC) miniapp in miniapps/plasma/pic, performing
   electrostatic PIC simulation of charged particles in 2D or 3D using the
   ParticleSet capability. Each time step deposits the particle charges on the
