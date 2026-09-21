@@ -288,7 +288,10 @@ void BilinearFormIntegrator::AssembleElementVector(
    Vector &elvect)
 {
    // Note: This default implementation is general but not efficient
-   DenseMatrix elmat;
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix hdg_elem_vector_elmat;
+#endif
+   DenseMatrix &elmat = hdg_elem_vector_elmat;
    AssembleElementMatrix(el, Tr, elmat);
    elvect.SetSize(elmat.Height());
    elmat.Mult(elfun, elvect);

@@ -50,6 +50,25 @@ protected:
        silently, and this branch has paid three times for exactly that
        pattern. Nothing else may use this member. */
    DenseMatrix hdg_face_grad_elmat;
+
+   /** @brief Scratch for AssembleElementVector()'s adapter below, which is
+       the element analogue of the face one above and was measured the same
+       way.
+
+       That adapter assembles the whole element matrix and applies it, and a
+       local there is a fresh DenseMatrix per element per RESIDUAL
+       evaluation. It is reached whenever a bilinear integrator is summed
+       into a nonlinear form -- SumNLFIntegrator::AssembleElementVector()
+       forwards to it -- which is what DarcyHybridization's element-local
+       residual does for a linear mass beside a nonlinear law. Measured with
+       DHAT on `convdiff -p 6 -nl -o 2 -dg -hb -npc -nls 3` at 256 elements:
+       **768 malloc/free pairs**, the largest site left on that loop after
+       the caller-side hoists. DenseMatrix::SetSize() does not shrink, so
+       held here it sizes once.
+
+       Named for its one use for the reason given above, and subject to the
+       same rule: nothing else may use it. */
+   DenseMatrix hdg_elem_vector_elmat;
 #endif
 
 public:
