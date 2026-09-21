@@ -118,6 +118,7 @@ The MFEM source code has the following structure:
   │   ├── amgx
   │   ├── caliper
   │   ├── ginkgo
+  │   ├── hdg
   │   ├── hiop
   │   ├── jupyter
   │   ├── moonolith
@@ -127,6 +128,7 @@ The MFEM source code has the following structure:
   │   └── superlu
   ├── fem
   │   ├── ceed
+  │   ├── darcy
   │   ├── dfem
   │   ├── eltrans
   │   ├── fe
@@ -153,6 +155,7 @@ The MFEM source code has the following structure:
   │   ├── electromagnetics
   │   ├── fluids
   │   ├── gslib
+  │   ├── hdg
   │   ├── hdiv-linear-solver
   │   ├── hooke
   │   ├── meshing

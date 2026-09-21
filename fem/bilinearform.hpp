@@ -364,7 +364,7 @@ public:
    /** @brief Returns true if the sparse matrix is not null, false otherwise.
     *
        @sa SpMat(). */
-   bool HasSpMat()
+   bool HasSpMat() const
    {
       return mat != nullptr;
    }
@@ -398,7 +398,7 @@ public:
         null, false otherwise.
 
         @sa SpMatElim(). */
-   bool HasSpMatElim()
+   bool HasSpMatElim() const
    {
       return mat_e != nullptr;
    }
@@ -865,9 +865,7 @@ public:
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
    /// Returns a const reference to the sparse matrix:  $ M $
-   /** This will segfault if the usual sparse mat is not defined
-       like when static condensation is being used or AllocMat() has
-       not yet been called. */
+   /** This will fail if HasSpMat() is false. */
    const SparseMatrix &SpMat() const
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
@@ -875,17 +873,23 @@ public:
    }
 
    /// Returns a reference to the sparse matrix:  $ M $
+   /** This will fail if HasSpMat() is false. */
    SparseMatrix &SpMat()
    {
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
 
+   /// Returns true if the sparse matrix is not null, false otherwise.
+   /** @sa SpMat(). */
+   bool HasSpMat() const { return mat != nullptr; }
+
    /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
    /// Returns a const reference to the sparse matrix of eliminated b.c.:  $ M_e $
+   /** This will fail if HasSpMatElim() is false. */
    const SparseMatrix &SpMatElim() const
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
@@ -893,11 +897,18 @@ public:
    }
 
    /// Returns a reference to the sparse matrix of eliminated b.c.:  $ M_e $
+   /** This will fail if HasSpMatElim() is false. */
    SparseMatrix &SpMatElim()
    {
       MFEM_VERIFY(mat_e, "mat_e is NULL and can't be dereferenced");
       return *mat_e;
    }
+
+   /** @brief Returns true if the sparse matrix of eliminated b.c.s is not
+       null, false otherwise.
+
+       @sa SpMatElim(). */
+   bool HasSpMatElim() const { return mat_e != nullptr; }
 
    /// Adds a domain integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
@@ -1212,6 +1223,9 @@ public:
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       mat->Print(os, width_);
    }
+
+   /// Indicate that integrators are not owned by the MixedBilinearForm
+   void UseExternalIntegrators() { extern_bfs = 1; }
 
    /** @brief Deletes internal matrices, bilinear integrators, and the
        BilinearFormExtension */
