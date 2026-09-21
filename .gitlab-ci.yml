@@ -166,18 +166,6 @@ generate-job-lists:
 dane-baseline:
   stage: build-and-test
   extends: [.dane]
-  variables:
-    # Explicitly pass down values that are not always propagated to child
-    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
-    # interface (project variables).
-    # Note: in some cases, this does not work as expected, e.g. when the
-    # variable is not re-defined in the web interface; in such cases, the child
-    # pipeline gets a definition like '${AUTOTEST}', i.e. it behaves as if
-    # AUTOTEST is undefined, even though there is a default value in
-    # .gitlab-ci.yml.
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   trigger:
     include: .gitlab/dane-baseline.yml
     strategy: depend
@@ -198,13 +186,6 @@ dane-up-check:
   extends: [.dane, .machine-check]
 
 dane-build-and-test:
-  variables:
-    # Explicitly pass down values that are not always propagated to child
-    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
-    # interface (project variables).
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   needs: [dane-up-check, generate-job-lists]
   extends: [.dane, .build-and-test]
   trigger:
@@ -232,13 +213,6 @@ tioga-up-check:
   extends: [.tioga, .machine-check]
 
 tioga-build-and-test:
-  variables:
-    # Explicitly pass down values that are not always propagated to child
-    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
-    # interface (project variables).
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   needs: [tioga-up-check, generate-job-lists]
   extends: [.tioga, .build-and-test]
   trigger:
@@ -267,13 +241,6 @@ matrix-up-check:
   extends: [.matrix, .machine-check]
 
 matrix-build-and-test:
-  variables:
-    # Explicitly pass down values that are not always propagated to child
-    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
-    # interface (project variables).
-    AUTOTEST: "${AUTOTEST}"
-    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
-    CUSTOM_CI_BUILDS_DIR: "${CUSTOM_CI_BUILDS_DIR}"
   needs: [matrix-up-check, generate-job-lists]
   extends: [.matrix, .build-and-test]
   trigger:
