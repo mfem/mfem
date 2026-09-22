@@ -154,8 +154,8 @@ does not. The per-field (`vdim > 1`) read is `gf-hdg-linearise-first`'s.
 ## 7. Adaptive refinement — THIS BRANCH'S SECTION
 
 **`h` was done on the trunk. `p` is this branch**, and the plan is here:
-`doc/HDG-P-ADAPTIVITY.md`, with `HDG-P-ADAPTIVITY-CONSTRAIN.md` and
-`HDG-P-ADAPTIVITY-MEQ-MERGE.md` beside it. **Steps 1 to 5 are done** — a
+`doc/HDG-P-ADAPTIVITY.md`, with `HDG-P-ADAPTIVITY-CONSTRAIN.md` beside it.
+**Steps 1 to 5 are done** — a
 per-face trace order behind `SetTraceOrders()` / `TraceFE()` / `TraceVDofs()`,
 the surplus slots retired into `ess_tdof_list` at `Finalize()`,
 `convdiff -pref`, an `hp` demonstrator with a smoothness sensor, and the

@@ -49,8 +49,6 @@ question at all.
 **A test at the h-or-p junction.** Nothing exercises an element that could be
 refined either way.
 
-**The meq-integration merge**, planned in `HDG-P-ADAPTIVITY-MEQ-MERGE.md`.
-
 ## What this is not
 
 It is **not** the other route -- one variant per entity inside
