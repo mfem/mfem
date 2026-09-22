@@ -3437,6 +3437,21 @@ public:
                    Array<int> &ess_offsets) const;
    /// The interior faces, which is what the batched face assembly covers.
    void InteriorFaceList(Array<int> &flist) const;
+#ifdef MFEM_USE_MPI
+   /** @brief This rank's shared faces, by LOCAL face index -- the faces
+       ParDarcyForm::AssemblePotHDGSharedFaces() visits, which are exactly the
+       ones InteriorFaceList() cannot see (Mesh::FaceIsInterior() is
+       `Elem2No >= 0` and a shared face has no local Elem2). */
+   void SharedFaceList(Array<int> &flist) const;
+   /** @brief Assemble the SHARED-face potential term with one batched kernel.
+
+       @returns false, having done nothing, whenever it does not apply; the
+       caller then takes the per-face loop. Serial builds and serial runs have
+       no shared faces, so this is a parallel-only route and returns true
+       having done nothing when the list is empty. */
+   bool AssemblePotSharedFaceMatricesBatched();
+   bool CanBatchPotSharedFaceAssembly() const;
+#endif
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p.get(); }
 
    /** @brief The nonlinear flux mass integrator, or NULL.

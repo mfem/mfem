@@ -1502,13 +1502,10 @@ bool DarcyHybridization::CanBatchPotFaceAssembly() const
       ranks share, by O(1) -- an HDG stabilization is the largest term on those
       rows -- and not by round-off. It reproduces the per-face route.
 
-      What is NOT done, and is a separate item rather than a footnote: there is
-      no batched route for the SHARED face loop. That one is genuine work, not
-      a refusal to lift -- a shared face is one-sided from this rank and needs
-      the single-side AssembleHDGFaceMatrix(int side, ...) weights against a
-      transformation from GetSharedFaceTransformationsByLocalIndex(), which is
-      neither this kernel's two-sided pass nor the boundary kernel's, whose
-      four-argument call would ask el_fes for the neighbour element's FE. */
+      The shared faces now have a kernel of their own, and it is a third
+      routine rather than an extension of this list: see
+      CanBatchPotSharedFaceAssembly() and HDGSharedFaceScatterBatched(). This
+      one's list is unchanged and still means what it says. */
 
    Array<BilinearFormIntegrator*> integs;
    PotFaceConstraintIntegrators(integs);
@@ -1551,11 +1548,12 @@ bool DarcyHybridization::CanBatchLocalResidual() const
       wrong answer and not a crash. It carries none: every index in that
       routine is rank-local by construction.
 
-      Note what is NOT lifted with it. The face kernels refuse ParallelC() for
-      a different and real reason -- a shared face is not
-      Mesh::FaceIsInterior(), so the list they are built from drops every
-      partition boundary -- and this predicate never asked that question,
-      because this kernel touches no face at all. */
+      Note what is NOT the same question. The face kernels each ask about a
+      LIST of faces, and this one touches no face at all -- the interior
+      kernel's list is exactly what DarcyForm::AssemblePotHDGFaces() would
+      have visited, and the partition boundary has a kernel of its own
+      (CanBatchPotSharedFaceAssembly()). This predicate never had a list to
+      be incomplete. */
 
    if (!m_nlfi) { return false; }
    if (!HDGMixedConductionResidualCanBatch(fes, m_nlfi)) { return false; }
@@ -1950,6 +1948,103 @@ bool DarcyHybridization::AssemblePotFaceMatricesBatched()
    // fault at all and the answer comes back 60% wrong.
    return true;
 }
+
+#ifdef MFEM_USE_MPI
+
+/// This rank's shared faces, by local face index.
+void DarcyHybridization::SharedFaceList(Array<int> &flist) const
+{
+   flist.SetSize(0);
+   if (!ParallelC()) { return; }
+
+   ParMesh *pmesh = c_pfes->GetParMesh();
+   const int nsf = pmesh->GetNSharedFaces();
+   flist.Reserve(nsf);
+   for (int i = 0; i < nsf; i++) { flist.Append(pmesh->GetSharedFace(i)); }
+}
+
+bool DarcyHybridization::CanBatchPotSharedFaceAssembly() const
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+
+   // NPC only, and it is CanBatchPotFaceAssembly()'s policy rather than a
+   // second decision: the kernel writes H into H_data, which is where the
+   // per-face route puts it only under NPC. The design for lifting it, and
+   // the caller's decision not to, are recorded there.
+   if (!NPCEnabled()) { return false; }
+
+   // A serial run of a parallel build has no shared faces and no ParMesh to
+   // ask; the empty list below would say the same thing, one virtual call
+   // later.
+   if (!ParallelC()) { return false; }
+
+   /* **A nonconforming shared face is refused, and this one IS a missing
+      road rather than an inherited wording.** ComputeAndAssemblePotFaceMatrix()
+      carries an NC branch for the slave faces -- AssembleNCSlaveEGFaceMatrix()
+      onto the master's slot, AssembleNCSlaveHFaceMatrix() for the trace block
+      -- and this kernel writes each face's own slot directly, so on a mesh
+      with hanging nodes it would put the slave's blocks where nothing reads
+      them. The element-major loops learned that transfer; these face kernels
+      have not, and CanBatchNLFaceGrad() declines HasNCMasterFaces() for the
+      same reason. Refused on the whole mesh rather than per face because the
+      kernel takes one list. */
+   Mesh *mesh = fes_p.GetMesh();
+   if (mesh->Nonconforming()) { return false; }
+
+   Array<BilinearFormIntegrator*> integs;
+   PotFaceConstraintIntegrators(integs);
+   if (integs.Size() == 0) { return false; }
+
+   Array<int> flist;
+   SharedFaceList(flist);
+   if (flist.Size() == 0) { return false; }
+
+   return HDGSharedFaceScatterCanBatch(c_fes, fes_p, *c_pfes->GetParMesh(),
+                                       integs, flist);
+}
+
+bool DarcyHybridization::AssemblePotSharedFaceMatricesBatched()
+{
+   if (!CanBatchPotSharedFaceAssembly()) { return false; }
+
+   Array<BilinearFormIntegrator*> integs;
+   PotFaceConstraintIntegrators(integs);
+
+   Array<int> flist;
+   SharedFaceList(flist);
+
+   // Vector views carrying the arrays' Memory -- not GetData(), for the
+   // reason on InvertA(): a raw pointer pins the kernel to the host.
+   Vector Ev, Gv, Hv, Dv;
+   Ev.NewMemoryAndSize(E_data.GetMemory(), E_data.Size(), false);
+   Gv.NewMemoryAndSize(G_data.GetMemory(), G_data.Size(), false);
+   Hv.NewMemoryAndSize(H_data.GetMemory(), H_data.Size(), false);
+   Dv.NewMemoryAndSize(Df_data.GetMemory(), Df_data.Size(), false);
+
+   HDGSharedFaceScatterBatched(c_fes, fes_p, *c_pfes->GetParMesh(), integs,
+                               flist, E_offsets, H_offsets, Df_offsets,
+                               Ev, Gv, Hv, Dv);
+
+   E_data.GetMemory().Sync(Ev.GetMemory());
+   G_data.GetMemory().Sync(Gv.GetMemory());
+   H_data.GetMemory().Sync(Hv.GetMemory());
+   Df_data.GetMemory().Sync(Dv.GetMemory());
+   D_empty = false;
+
+   // **The sync IS here, where the interior pass deliberately leaves it to its
+   // caller.** DarcyForm::AssemblePotHDGFaces() runs the interior and boundary
+   // passes back to back and syncs once after both; this pass runs from
+   // ParDarcyForm::AssemblePotHDGSharedFaces(), AFTER that sync has already
+   // happened, and nothing follows it. Leaving it out is not a warning: under
+   // Device("debug") the first host reader faults inside
+   // AssemblePotMassMatrix(), naming neither the array nor the routine that
+   // left it there, and under CUDA it does not fault at all.
+   SyncLocalBlocksToHost();
+
+   return true;
+}
+
+#endif // MFEM_USE_MPI
 
 void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    int bface, DenseMatrix &elmat1, Array<int> &vdofs, int skip_zeros)
@@ -4987,8 +5082,12 @@ const DarcyHybridization::TraceHMap *DarcyHybridization::BuildTraceHMap() const
    TraceHMap &m = *trace_h_map;
 
    // A shared face has one of its elements on another rank, so neither the
-   // row ownership nor the two-contributions argument survives. The face
-   // kernels refuse ParallelC() for the same reason.
+   // row ownership nor the two-contributions argument survives -- this map
+   // assigns each entry from one of two passes chosen by element index, and
+   // the other element is not on this rank to be indexed. That is this map's
+   // own reason and not the face kernels': those once refused ParallelC() too
+   // and no longer do, the interior list being complete for the loop it
+   // replaces and the shared faces having a kernel of their own.
    if (ParallelC()) { return NULL; }
 
    // The pattern this mode builds is the STRUCTURAL one, which is what the

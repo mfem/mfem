@@ -819,6 +819,10 @@ namespace darcy_batched_face
 struct ParOutcome
 {
    bool taken = false, bdr_taken = false;
+   /// The SHARED-face route, OR'd over the ranks: a rank whose partition
+   /// happens to carry no shared face refuses it correctly, so the per-rank
+   /// answer is not the thing to assert.
+   bool shared_any = false;
    int nintegs = 0;
    Vector y1, y2;
    real_t n1 = 0., n2 = 0.;
@@ -835,7 +839,7 @@ struct ParOutcome
     rows the two ranks share, so the difference lands in the norm rather than
     cancelling. */
 void ParAssembleGradient(DarcyHybridization::AssemblyMode am, int order, int n,
-                         ParOutcome &out)
+                         FaceTerm term, ParOutcome &out)
 {
    const int dim = 2;
    Mesh serial = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
@@ -849,6 +853,26 @@ void ParAssembleGradient(DarcyHybridization::AssemblyMode am, int order, int n,
 
    ParDarcyForm darcy(&Vh, &Wh);
    ConstantCoefficient one(1.0);
+   // A velocity that is neither constant nor axis-aligned, so u.n changes
+   // sign across the mesh and the `a` term -- the one the shared-face trace
+   // weight turns on where a boundary face drops it -- is genuinely live.
+   VectorFunctionCoefficient vel(dim, [](const Vector &X, Vector &v)
+   {
+      v(0) = 1.0 + 0.5 * std::sin(M_PI * X(1));
+      v(1) = -0.7 + 0.3 * std::cos(M_PI * X(0));
+   });
+   auto mk = [&]() -> BilinearFormIntegrator *
+   {
+      switch (term)
+      {
+         case FaceTerm::Centered:
+            return new HDGConvectionCenteredIntegrator(vel, 1.0);
+         case FaceTerm::Upwinded:
+            return new HDGConvectionUpwindedIntegrator(vel, 1.0, 0.5);
+         default:
+            return new HDGDiffusionIntegrator(one, 1.0);
+      }
+   };
 
    darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
    darcy.GetFluxDivForm()->AddDomainIntegrator(
@@ -857,8 +881,15 @@ void ParAssembleGradient(DarcyHybridization::AssemblyMode am, int order, int n,
       new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
 
    BilinearForm *M_p = darcy.GetPotentialMassForm();
-   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
-   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   // The SAME family on both, which is the serial fixture's own lesson: the
+   // kernels weigh a point differently, and registering diffusion on every
+   // case's boundary would leave the convection boundary weights untested.
+   // Here it matters a third time -- a SHARED face takes the interior
+   // expression halved where a boundary face takes b or 2b, and the diffusion
+   // form is precisely the one where those two coincide. A diffusion-only
+   // case cannot tell the shared kernel from the boundary one.
+   M_p->AddInteriorFaceIntegrator(mk());
+   M_p->AddBdrFaceIntegrator(mk());
 
    Array<int> ess_flux;
    darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
@@ -875,6 +906,11 @@ void ParAssembleGradient(DarcyHybridization::AssemblyMode am, int order, int n,
    out.nintegs = dh->NumPotFaceConstraintIntegrators();
    out.taken = dh->CanBatchPotFaceAssembly();
    out.bdr_taken = dh->CanBatchPotBdrFaceAssembly();
+   {
+      int loc = dh->CanBatchPotSharedFaceAssembly() ? 1 : 0, glob = 0;
+      MPI_Allreduce(&loc, &glob, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+      out.shared_any = (glob != 0);
+   }
 
    Array<int> offs(4);
    offs[0] = 0;
@@ -951,8 +987,8 @@ TEST_CASE("The batched HDG face kernel assembles the per-face operator in "
    CAPTURE(order, n, Mpi::WorldSize());
 
    ParOutcome ref, got;
-   ParAssembleGradient(AM::Serial, order, n, ref);
-   ParAssembleGradient(AM::Batched, order, n, got);
+   ParAssembleGradient(AM::Serial, order, n, FaceTerm::Diffusion, ref);
+   ParAssembleGradient(AM::Batched, order, n, FaceTerm::Diffusion, got);
 
    REQUIRE_FALSE(ref.taken);
    REQUIRE(got.taken);
@@ -960,6 +996,89 @@ TEST_CASE("The batched HDG face kernel assembles the per-face operator in "
    REQUIRE(got.bdr_taken);
    REQUIRE(ref.nintegs == 1);
    REQUIRE(got.nintegs == 1);
+
+   // There is an operator to compare, and it is not the zero one.
+   CAPTURE(ref.n1, ref.n2);
+   REQUIRE(ref.n1 > 1e-3);
+   REQUIRE(ref.n2 > 1e-3);
+
+   auto close = [](const Vector &a, const Vector &b, real_t scale)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      const real_t dn = std::sqrt(InnerProduct(MPI_COMM_WORLD, d, d));
+      CAPTURE(dn, scale);
+      REQUIRE(dn <= 1e-12 * scale);
+   };
+   close(ref.y1, got.y1, ref.n1);
+   close(ref.y2, got.y2, ref.n2);
+}
+
+/** @brief The batched SHARED-face kernel, on the partition boundary itself.
+
+    The third of the three face kernels. The other two are asked about a LIST
+    of faces and the question about them was whether the list was complete;
+    this one is asked about faces neither list can contain, because
+    Mesh::FaceIsInterior() is `Elem2No >= 0` and a shared face has no local
+    Elem2. It replaces ParDarcyForm::AssemblePotHDGSharedFaces()'s per-face
+    loop, exactly as the interior kernel replaces DarcyForm's.
+
+    **The face term is generated over three families because a shared face
+    looks exactly like a boundary face and is not one.** Same one-sided
+    scatter, same slot sizes, the same single-side
+    AssembleHDGFaceMatrix(int side, ...) call -- and for the DIFFUSION form
+    the arithmetic really is the boundary form's, one weight on all four
+    blocks. For the two convection forms it is not: a shared
+    FaceElementTransformations carries Elem2No >= 0, so the one-sided routine
+    takes its INTERIOR branch and the trace weight is (b - a) where a genuine
+    boundary takes b (centred) or 2b (upwinded).
+
+    **Three falsifications were run and the third is the one worth reading.**
+    Refusing the route fails all 18 sections on the `shared_any` assertion;
+    dropping one face from the list fails all 18 on the norms. Substituting
+    the BOUNDARY trace weight fails 6 -- the upwinded arm alone, by 0.27 to
+    0.71 against a 1e-11 tolerance -- and leaves the centred arm passing. That
+    is not this case failing to discriminate: b from each rank sums to 2b,
+    which is exactly (b - a) + (b + a), so for the centred form the SPLIT of a
+    face's weight between two ranks is unobservable in the assembled operator
+    and only the sum is real. The upwinded boundary expression is 2b, which
+    sums to 4b, and is caught. A fourth arm confirms the case can see the
+    centred weight when the sum does move: halving it fails 6 of 6 centred
+    sections.
+
+    So what a diffusion-only case would have tested here is the scatter, not
+    the weights -- and the weights are where reading the boundary twin would
+    have misled.
+
+    At one rank there is no partition boundary, shared_any is false, and the
+    case reduces to the interior one. That is stated rather than skipped: the
+    assertion is on what the route's own predicate says, so the case reports
+    the truth at every rank count rather than passing vacuously at one. */
+TEST_CASE("The batched HDG shared-face kernel assembles the partition "
+          "boundary",
+          "[DarcyHybridization][BatchedLinAlg][NPC][Parallel]")
+{
+   using namespace darcy_batched_face;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   const FaceTerm term = GENERATE(FaceTerm::Diffusion,
+                                  FaceTerm::Centered,
+                                  FaceTerm::Upwinded);
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(4, 6);
+   CAPTURE(Name(term), order, n, Mpi::WorldSize());
+
+   ParOutcome ref, got;
+   ParAssembleGradient(AM::Serial, order, n, term, ref);
+   ParAssembleGradient(AM::Batched, order, n, term, got);
+
+   // The route was TAKEN, which two agreeing fallbacks would not tell us --
+   // and at one rank the honest answer is that it was not.
+   REQUIRE_FALSE(ref.shared_any);
+   REQUIRE(got.shared_any == (Mpi::WorldSize() > 1));
+   REQUIRE(got.taken);
+   REQUIRE(got.bdr_taken);
 
    // There is an operator to compare, and it is not the zero one.
    CAPTURE(ref.n1, ref.n2);

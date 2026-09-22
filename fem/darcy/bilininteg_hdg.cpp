@@ -15,6 +15,9 @@
 #include "../nonlininteg_mixed.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
+#ifdef MFEM_USE_MPI
+#include "../../mesh/pmesh.hpp"
+#endif
 
 using std::min;
 using std::max;
@@ -78,6 +81,26 @@ const IntegrationRule &HDGConvectionCenteredIntegrator::GetHDGFaceIntRule(
    return IntRules.Get(Trans.GetGeometryType(), order);
 }
 
+const IntegrationRule &HDGConvectionCenteredIntegrator::GetHDGFaceIntRule(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans) const
+{
+   // The one-sided rule, and it is NOT the two-sided one with el2 == el1:
+   // OrderW() is taken from the side being integrated rather than min'd over
+   // the two, and the max runs over one element. On a shared face -- the case
+   // the batched pass exists for -- Trans.Elem2No is >= 0 and yet only side 0
+   // is this rank's, so asking the two-sided overload would sample the wrong
+   // rule the moment the neighbour's order differed.
+   // Assuming order(u)==order(mesh)
+   int order = (side != 0) ? Trans.Elem2->OrderW() : Trans.Elem1->OrderW();
+   order += 2*max(el.GetOrder(), trace_el.GetOrder());
+   if (el.Space() == FunctionSpace::Pk)
+   {
+      order++;
+   }
+   return IntRules.Get(Trans.GetGeometryType(), order);
+}
+
 const IntegrationRule &HDGConvectionUpwindedIntegrator::GetHDGFaceIntRule(
    const FiniteElement &trace_el, const FiniteElement &el1,
    const FiniteElement &el2, FaceElementTransformations &Trans) const
@@ -93,6 +116,26 @@ const IntegrationRule &HDGConvectionUpwindedIntegrator::GetHDGFaceIntRule(
       order = Trans.Elem1->OrderW() + 2*max(el1.GetOrder(), trace_el.GetOrder());
    }
    if (el1.Space() == FunctionSpace::Pk)
+   {
+      order++;
+   }
+   return IntRules.Get(Trans.GetGeometryType(), order);
+}
+
+const IntegrationRule &HDGConvectionUpwindedIntegrator::GetHDGFaceIntRule(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans) const
+{
+   // The one-sided rule, and it is NOT the two-sided one with el2 == el1:
+   // OrderW() is taken from the side being integrated rather than min'd over
+   // the two, and the max runs over one element. On a shared face -- the case
+   // the batched pass exists for -- Trans.Elem2No is >= 0 and yet only side 0
+   // is this rank's, so asking the two-sided overload would sample the wrong
+   // rule the moment the neighbour's order differed.
+   // Assuming order(u)==order(mesh)
+   int order = (side != 0) ? Trans.Elem2->OrderW() : Trans.Elem1->OrderW();
+   order += 2*max(el.GetOrder(), trace_el.GetOrder());
+   if (el.Space() == FunctionSpace::Pk)
    {
       order++;
    }
@@ -280,22 +323,7 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order;
-      // Assuming order(u)==order(mesh)
-      if (side != 0)
-      {
-         order = Trans.Elem2->OrderW();
-      }
-      else
-      {
-         order = Trans.Elem1->OrderW();
-      }
-      order += 2*max(el.GetOrder(), trace_el.GetOrder());
-      if (el.Space() == FunctionSpace::Pk)
-      {
-         order++;
-      }
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      ir = &GetHDGFaceIntRule(side, trace_el, el, Trans);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -691,22 +719,7 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order;
-      // Assuming order(u)==order(mesh)
-      if (side != 0)
-      {
-         order = Trans.Elem2->OrderW();
-      }
-      else
-      {
-         order = Trans.Elem1->OrderW();
-      }
-      order += 2*max(el.GetOrder(), trace_el.GetOrder());
-      if (el.Space() == FunctionSpace::Pk)
-      {
-         order++;
-      }
-      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+      ir = &GetHDGFaceIntRule(side, trace_el, el, Trans);
    }
 
    for (int p = 0; p < ir->GetNPoints(); p++)
@@ -2424,6 +2437,31 @@ const IntegrationRule *HDGBatchRule(const BilinearFormIntegrator *bfi,
    return NULL;
 }
 
+/** @brief The rule @a bfi integrates ONE SIDE of this face at, asked of the
+    integrator exactly as HDGBatchRule() asks for the two-sided one.
+
+    Not the same rule, and the difference is not cosmetic: the one-sided
+    routines take their OrderW() from the side being integrated and their max
+    over one element, so on a mesh whose neighbours differ in order the two
+    expressions part company. The shared-face pass is one-sided from this rank
+    and must sample where ComputeAndAssemblePotFaceMatrix()'s own shared
+    branch does. */
+const IntegrationRule *HDGBatchSideRule(const BilinearFormIntegrator *bfi,
+                                        int side,
+                                        const FiniteElement &tr_fe,
+                                        const FiniteElement &el,
+                                        FaceElementTransformations &ftr)
+{
+   if (const IntegrationRule *ir = bfi->GetIntRule()) { return ir; }
+   if (auto *d = dynamic_cast<const HDGDiffusionIntegrator*>(bfi))
+   { return &d->GetHDGFaceIntRule(tr_fe, el, ftr); }
+   if (auto *c = dynamic_cast<const HDGConvectionCenteredIntegrator*>(bfi))
+   { return &c->GetHDGFaceIntRule(side, tr_fe, el, ftr); }
+   if (auto *u = dynamic_cast<const HDGConvectionUpwindedIntegrator*>(bfi))
+   { return &u->GetHDGFaceIntRule(side, tr_fe, el, ftr); }
+   return NULL;
+}
+
 /** @brief One diagonal block of a face constraint: which equation it belongs
     to and the SCALAR integrator that supplies it. */
 struct HDGFaceBlock
@@ -3987,6 +4025,353 @@ void HDGBdrFaceScatterBatched(const FiniteElementSpace &tr_fes,
       }
    }
 }
+
+#ifdef MFEM_USE_MPI
+
+bool HDGSharedFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
+                                  const FiniteElementSpace &el_fes,
+                                  ParMesh &pmesh,
+                                  const Array<BilinearFormIntegrator*> &integs,
+                                  const Array<int> &face_list)
+{
+   if (integs.Size() == 0) { return false; }
+   if (!HDGFaceSpacesCanBatch(tr_fes, el_fes)) { return false; }
+   if (face_list.Size() == 0) { return true; }
+
+   const int VD = el_fes.GetVDim();
+   std::vector<HDGFaceBlock> blocks;
+   for (BilinearFormIntegrator *bfi : integs)
+   {
+      if (!HDGFaceBlocksOf(bfi, VD, blocks)) { return false; }
+      for (const HDGFaceBlock &blk : blocks)
+      {
+         // A state dependent stabilization is not a bilinear form at all; the
+         // per-face routine refuses it too.
+         if (auto *d = dynamic_cast<const HDGDiffusionIntegrator*>(blk.bfi))
+         {
+            const HDGStabilization *st = d->GetStabilization();
+            if (st && !st->IsConstant()) { return false; }
+         }
+
+         // ONE rule across the shared list, PER BLOCK, and taken from the
+         // ONE-SIDED accessor because that is what the routine this replaces
+         // calls. See HDGSharedFaceScatterBatched().
+         const IntegrationRule *ir0 = NULL;
+         for (int fi = 0; fi < face_list.Size(); fi++)
+         {
+            const int face = face_list[fi];
+            if (!pmesh.FaceIsTrueInterior(face)) { return false; }
+            FaceElementTransformations *ftr =
+               pmesh.GetSharedFaceTransformationsByLocalIndex(face);
+            if (!ftr) { return false; }
+            const IntegrationRule *ir =
+               HDGBatchSideRule(blk.bfi, 0, *tr_fes.GetFaceElement(face),
+                                *el_fes.GetFE(ftr->Elem1No), *ftr);
+            if (!ir) { return false; }
+            if (!ir0) { ir0 = ir; }
+            else if (ir != ir0) { return false; }
+         }
+      }
+   }
+   return true;
+}
+
+void HDGSharedFaceScatterBatched(const FiniteElementSpace &tr_fes,
+                                 const FiniteElementSpace &el_fes,
+                                 ParMesh &pmesh,
+                                 const Array<BilinearFormIntegrator*> &integs,
+                                 const Array<int> &face_list,
+                                 const Array<int> &E_offsets,
+                                 const Array<int> &H_offsets,
+                                 const Array<int> &Df_offsets,
+                                 Vector &E_data, Vector &G_data,
+                                 Vector &H_data, Vector &Df_data)
+{
+   MFEM_VERIFY(HDGSharedFaceScatterCanBatch(tr_fes, el_fes, pmesh, integs,
+                                            face_list),
+               "these integrators do not admit the batched shared-face "
+               "assembly");
+
+   const int NF = face_list.Size();
+   if (NF == 0) { return; }
+
+   const int TRD = tr_fes.GetFaceElement(face_list[0])->GetDof();
+   const int ND = el_fes.GetFE(0)->GetDof();
+   const int dim = pmesh.Dimension();
+   // See HDGFaceScatterBatched(): the stored blocks carry the space's vector
+   // dimension and a pass writes one equation's diagonal sub-block of them.
+   const int VD = el_fes.GetVDim();
+   const int NDT = ND * VD, TRDT = TRD * VD;
+
+   {
+      // E, G and H, zeroed once. The stored E and G of a shared face are
+      // ONE-SIDED -- AllocEG() sizes a face from its local elements alone and
+      // a shared face has one -- so this is the boundary kernel's zero pass
+      // and not the interior one's, which has a second side to clear.
+      Array<int> eo(NF), ho(NF);
+      for (int fi = 0; fi < NF; fi++)
+      {
+         eo[fi] = E_offsets[face_list[fi]];
+         ho[fi] = H_offsets[face_list[fi]];
+      }
+      const int *d_eo = eo.Read(), *d_ho = ho.Read();
+      real_t *d_E = E_data.ReadWrite();
+      real_t *d_G = G_data.ReadWrite();
+      real_t *d_H = H_data.ReadWrite();
+      const int nd = NDT, trd = TRDT;
+      mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+      {
+         const int e0 = d_eo[f], h0 = d_ho[f];
+         for (int j = 0; j < trd; j++)
+            for (int i = 0; i < nd; i++)
+            {
+               d_E[e0 + i + nd * j] = 0.0;
+               d_G[e0 + j + trd * i] = 0.0;
+            }
+         for (int j = 0; j < trd; j++)
+            for (int i = 0; i < trd; i++)
+            {
+               d_H[h0 + i + trd * j] = 0.0;
+            }
+      });
+   }
+
+   std::vector<HDGFaceBlock> blocks;
+   for (BilinearFormIntegrator *bfi_v : integs)
+   {
+      MFEM_VERIFY(HDGFaceBlocksOf(bfi_v, VD, blocks),
+                  "integrator does not resolve into scalar diagonal blocks");
+      for (const HDGFaceBlock &blk : blocks)
+      {
+         const BilinearFormIntegrator *bfi = blk.bfi;
+         const int EQ = blk.eq;
+         const HDGBatchKind kind = HDGBatchKindOf(bfi);
+         auto *dif = dynamic_cast<const HDGDiffusionIntegrator*>(bfi);
+         auto *tr_bfi = dynamic_cast<const DGTraceIntegrator*>(bfi);
+
+         const FiniteElement *tr_fe0 = tr_fes.GetFaceElement(face_list[0]);
+         FaceElementTransformations *ftr0 =
+            pmesh.GetSharedFaceTransformationsByLocalIndex(face_list[0]);
+         const IntegrationRule &ir =
+            *HDGBatchSideRule(bfi, 0, *tr_fe0, *el_fes.GetFE(ftr0->Elem1No),
+                              *ftr0);
+         const int NQ = ir.GetNPoints();
+
+         // Zeroed as well as sized; Vector(int) does not initialise and these
+         // are accumulated into. The boundary kernel's own comment records
+         // what an uninitialised weight looked like: a plausible face integral
+         // and an answer 46% out.
+         Vector wd(NQ * NF), we(NQ * NF), wg(NQ * NF), wh(NQ * NF);
+         Vector sh(NQ * ND * NF), trs(NQ * TRD);
+         Array<int> eo(NF), ho(NF), dof(NF);
+         wd = 0.;
+         we = 0.;
+         wg = 0.;
+         wh = 0.;
+         wd.UseDevice(true);
+         we.UseDevice(true);
+         wg.UseDevice(true);
+         wh.UseDevice(true);
+         sh.UseDevice(true);
+         trs.UseDevice(true);
+
+         {
+            Vector t(TRD);
+            for (int q = 0; q < NQ; q++)
+            {
+               tr_fe0->CalcShape(ir.IntPoint(q), t);
+               for (int i = 0; i < TRD; i++) { trs(q + i * NQ) = t(i); }
+            }
+         }
+
+         {
+            Vector nor(dim), vu(dim), nh(dim), ni(dim), sv(ND);
+            DenseMatrix mq(dim);
+            // Caller-allocated, for the reason at the call below.
+            FaceElementTransformations ws_face;
+            IsoparametricTransformation ws_e1, ws_e2;
+            real_t *pd = wd.HostWrite(), *pe = we.HostWrite();
+            real_t *pg = wg.HostWrite(), *ph = wh.HostWrite();
+            real_t *ps = sh.HostWrite();
+
+            for (int fi = 0; fi < NF; fi++)
+            {
+               const int face = face_list[fi];
+               // CALLER-ALLOCATED, and that is not a preference: the
+               // no-argument overload returns a pointer into the ParMesh's ONE
+               // cached FaceElementTransformations, so a second call would
+               // move the first face's geometry underneath this loop. The
+               // interior kernel makes the same point about
+               // Mesh::GetElementTransformation().
+               pmesh.GetSharedFaceTransformationsByLocalIndex(face, ws_face,
+                                                              ws_e1, ws_e2);
+               FaceElementTransformations *ftr = &ws_face;
+               const FiniteElement &fe = *el_fes.GetFE(ftr->Elem1No);
+               eo[fi] = E_offsets[face];
+               ho[fi] = H_offsets[face];
+               dof[fi] = Df_offsets[ftr->Elem1No];
+
+               for (int q = 0; q < NQ; q++)
+               {
+                  const IntegrationPoint &ip = ir.IntPoint(q);
+                  ftr->SetAllIntPoints(&ip);
+                  const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
+
+                  if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
+                  else { CalcOrtho(ftr->Jacobian(), nor); }
+
+                  fe.CalcPhysShape(*ftr->Elem1, sv);
+                  for (int i = 0; i < ND; i++)
+                  {
+                     ps[q + NQ * (i + ND * fi)] = sv(i);
+                  }
+
+                  const int o = q + fi * NQ;
+                  if (kind == HDGBatchKind::Diffusion)
+                  {
+                     real_t un = 0.;
+                     if (VectorCoefficient *v = dif->GetVelocity())
+                     {
+                        v->Eval(vu, *ftr->Elem1, eip1);
+                        un = vu * nor;
+                     }
+                     const real_t un_raw = un;
+                     real_t a, b;
+                     if (un != 0.)
+                     {
+                        un /= std::fabs(un);
+                        a = 0.5 * dif->GetAlpha() * un;
+                        b = dif->GetBeta() * std::fabs(un);
+                     }
+                     else { a = 0.; b = dif->GetBeta(); }
+
+                     Coefficient *Q = dif->GetCoefficient();
+                     MatrixCoefficient *MQ = dif->GetMatrixCoefficient();
+                     const real_t wn = ip.weight / ftr->Elem1->Weight();
+                     if (!MQ)
+                     {
+                        ni.Set(Q ? (wn * Q->Eval(*ftr->Elem1, eip1)) : wn, nor);
+                     }
+                     else
+                     {
+                        nh.Set(wn, nor);
+                        MQ->Eval(mq, *ftr->Elem1, eip1);
+                        mq.MultTranspose(nh, ni);
+                     }
+                     const real_t wq1 = ni * nor;
+                     const real_t face_w = ip.weight * nor.Norml2();
+                     const real_t w1 = dif->EvalStabilization(
+                                          wq1, b + a, un_raw, face_w, 0., 0., *ftr->Elem1);
+                     // One weight for all four, the diffusion form's one-sided
+                     // routine writing side 1's stabilization into every block
+                     // -- which is the BOUNDARY kernel's arithmetic exactly.
+                     // The other rank supplies the trace row's other half from
+                     // its own element, and the two sum to the interior
+                     // kernel's w1 + w2 under the global assembly.
+                     pd[o] += w1;  pe[o] += w1;  pg[o] += w1;  ph[o] += w1;
+                  }
+                  else
+                  {
+                     tr_bfi->GetVelocity()->Eval(vu, *ftr->Elem1, eip1);
+                     const real_t un = vu * nor;
+                     const real_t alpha = tr_bfi->GetAlpha();
+                     if (kind == HDGBatchKind::ConvCentered)
+                     {
+                        const real_t a = alpha * un, b = std::fabs(alpha * un);
+                        pd[o] += ip.weight * b;
+                        pg[o] += ip.weight * b;
+                        pe[o] += ip.weight * (b - a);
+                        // **(b - a), where the BOUNDARY kernel takes b and the
+                        // interior one takes 2b.** The one-sided routine
+                        // branches on Trans.Elem2No, and a shared face has one
+                        // -- the neighbour's shifted index -- so it is the
+                        // interior expression that fires, halved. The advective
+                        // part is dropped only where there is genuinely no
+                        // second element, and a partition boundary is not that.
+                        ph[o] += ip.weight * (b - a);
+                     }
+                     else
+                     {
+                        const real_t a = 0.5 * alpha * un;
+                        const real_t b = tr_bfi->GetBeta() * std::fabs(un);
+                        pd[o] += ip.weight * (b + a);
+                        pg[o] += ip.weight * (b + a);
+                        pe[o] += ip.weight * (b - a);
+                        // (b - a) and not 2b, for the reason above. The other
+                        // rank's own pass sees the opposite normal and so
+                        // contributes (b + a); the two sum to the interior
+                        // kernel's wp + wm on the trace row they share.
+                        ph[o] += ip.weight * (b - a);
+                     }
+                  }
+               }
+            }
+         }
+
+         const auto d_wd = Reshape(wd.Read(), NQ, NF);
+         const auto d_we = Reshape(we.Read(), NQ, NF);
+         const auto d_wg = Reshape(wg.Read(), NQ, NF);
+         const auto d_wh = Reshape(wh.Read(), NQ, NF);
+         const auto d_s = Reshape(sh.Read(), NQ, ND, NF);
+         const auto d_tr = Reshape(trs.Read(), NQ, TRD);
+         const int *d_eo = eo.Read(), *d_ho = ho.Read(), *d_do = dof.Read();
+
+         real_t *d_E = E_data.ReadWrite();
+         real_t *d_G = G_data.ReadWrite();
+         real_t *d_H = H_data.ReadWrite();
+         real_t *d_D = Df_data.ReadWrite();
+
+         const int nd = ND, trd = TRD, nq = NQ;
+         const int ndt = NDT, trdt = TRDT;
+         const int roff = EQ * ND, toff = EQ * TRD;
+
+         mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+         {
+            const int e0 = d_eo[f], h0 = d_ho[f], o1 = d_do[f];
+
+            for (int q = 0; q < nq; q++)
+            {
+               const real_t ad = d_wd(q, f), ae = d_we(q, f);
+               const real_t ag = d_wg(q, f), ah = d_wh(q, f);
+
+               for (int i = 0; i < nd; i++)
+               {
+                  const real_t si = d_s(q, i, f);
+                  const int ri = roff + i;
+                  // Two shared faces of one element collide in D -- a corner
+                  // element of a partition has them -- so the atomics are
+                  // needed here for the same reason as on the interior, and
+                  // D is accumulated into by the interior and boundary passes
+                  // as well.
+                  for (int j = 0; j < nd; j++)
+                  {
+                     AtomicAdd(d_D[o1 + ri + ndt * (roff + j)],
+                               ad * si * d_s(q, j, f));
+                  }
+                  for (int j = 0; j < trd; j++)
+                  {
+                     const real_t t = d_tr(q, j);
+                     const int tj = toff + j;
+                     d_E[e0 + ri + ndt * tj] -= ae * si * t;
+                     d_G[e0 + tj + trdt * ri] += ag * t * si;
+                  }
+               }
+
+               for (int i = 0; i < trd; i++)
+               {
+                  const real_t t = ah * d_tr(q, i);
+                  for (int j = 0; j < trd; j++)
+                  {
+                     d_H[h0 + (toff + i) + trdt * (toff + j)] -= t * d_tr(q, j);
+                  }
+               }
+            }
+         });
+      }
+   }
+}
+
+#endif // MFEM_USE_MPI
 
 void HDGDiffusionFaceScatterBatched(const FiniteElementSpace &tr_fes,
                                     const FiniteElementSpace &el_fes,

@@ -936,7 +936,14 @@ void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
    MFEM_ABORT("Not supported");
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
-   if (hybridization->GetPotConstraintIntegrator())
+   // The batched shared-face pass replaces the whole loop below, and it
+   // builds its own list from the same GetSharedFace() enumeration. It
+   // refuses far more often than it accepts -- see
+   // DarcyHybridization::CanBatchPotSharedFaceAssembly() -- and it syncs the
+   // local blocks itself, this being the last pass of the assembly rather
+   // than one of two.
+   if (hybridization->GetPotConstraintIntegrator() &&
+       !hybridization->AssemblePotSharedFaceMatricesBatched())
    {
       int nsfaces = pmesh->GetNSharedFaces();
       for (int i = 0; i < nsfaces; i++)

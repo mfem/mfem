@@ -17,6 +17,8 @@
 
 #include <vector>
 
+namespace mfem { class ParMesh; }
+
 namespace mfem
 {
 
@@ -58,6 +60,26 @@ public:
    const IntegrationRule &GetHDGFaceIntRule(
       const FiniteElement &trace_el, const FiniteElement &el1,
       const FiniteElement &el2, FaceElementTransformations &Trans) const;
+
+   /** @brief The rule the SINGLE-SIDE AssembleHDGFaceMatrix() integrates
+       @a side of this face at.
+
+       A separate overload for the same reason HDGDiffusionIntegrator has one:
+       the one-sided routine takes the max over ONE element and the trace, and
+       its OrderW() from that side's element alone, so on a mesh whose two
+       neighbours differ in order the two rules are genuinely different. The
+       side matters here where it does not for the diffusion form, OrderW()
+       being the one term that is a property of an element rather than of an
+       order.
+
+       ONE SOURCE OF TRUTH, and this one arrived late: the expression lived
+       inline in the one-sided AssembleHDGFaceMatrix() while the two-sided
+       twin had already been lifted, so the batched SHARED-face pass -- which
+       is the one-sided route on a partition boundary -- had nothing to ask
+       and would have had to copy it. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      int side, const FiniteElement &trace_el, const FiniteElement &el,
+      FaceElementTransformations &Trans) const;
 
    void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                               const FiniteElement &el1,
@@ -120,6 +142,26 @@ public:
    const IntegrationRule &GetHDGFaceIntRule(
       const FiniteElement &trace_el, const FiniteElement &el1,
       const FiniteElement &el2, FaceElementTransformations &Trans) const;
+
+   /** @brief The rule the SINGLE-SIDE AssembleHDGFaceMatrix() integrates
+       @a side of this face at.
+
+       A separate overload for the same reason HDGDiffusionIntegrator has one:
+       the one-sided routine takes the max over ONE element and the trace, and
+       its OrderW() from that side's element alone, so on a mesh whose two
+       neighbours differ in order the two rules are genuinely different. The
+       side matters here where it does not for the diffusion form, OrderW()
+       being the one term that is a property of an element rather than of an
+       order.
+
+       ONE SOURCE OF TRUTH, and this one arrived late: the expression lived
+       inline in the one-sided AssembleHDGFaceMatrix() while the two-sided
+       twin had already been lifted, so the batched SHARED-face pass -- which
+       is the one-sided route on a partition boundary -- had nothing to ask
+       and would have had to copy it. */
+   const IntegrationRule &GetHDGFaceIntRule(
+      int side, const FiniteElement &trace_el, const FiniteElement &el,
+      FaceElementTransformations &Trans) const;
 
    void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                               const FiniteElement &el1,
@@ -583,6 +625,74 @@ void HDGBdrFaceScatterBatched(const FiniteElementSpace &tr_fes,
                               const Array<int> &Df_offsets,
                               Vector &E_data, Vector &G_data,
                               Vector &H_data, Vector &Df_data);
+
+#ifdef MFEM_USE_MPI
+
+/** @brief Whether HDGSharedFaceScatterBatched() can take @a integs on
+    @a face_list, the local indices of this rank's shared faces.
+
+    The same three questions HDGFaceScatterCanBatch() asks -- the spaces, a
+    constant stabilization, one rule across the list -- with the rule taken
+    from the ONE-SIDED accessor, which is what the routine being replaced
+    calls. */
+bool HDGSharedFaceScatterCanBatch(const FiniteElementSpace &tr_fes,
+                                  const FiniteElementSpace &el_fes,
+                                  ParMesh &pmesh,
+                                  const Array<BilinearFormIntegrator*> &integs,
+                                  const Array<int> &face_list);
+
+/** @brief The HDG constraint on this rank's SHARED faces, scattered straight
+    into E, G, H and D.
+
+    The third of the three face kernels, and the one a refusal on
+    DarcyHybridization::CanBatchPotFaceAssembly() predicted would need
+    machinery neither of the other two has. It needs none: a shared face is
+    one-sided from this rank, its E and G slots are sized for one element by
+    AllocEG(), and the per-face route it replaces --
+    ComputeAndAssemblePotFaceMatrix()'s shared branch, driven by
+    ParDarcyForm::AssemblePotHDGSharedFaces() -- reaches it through the
+    single-side AssembleHDGFaceMatrix(int side, ...). So the SCATTER is the
+    boundary kernel's, byte for byte, and only the weights and the
+    transformation source differ.
+
+    **The weights are the interior form's, halved, and NOT the boundary
+    form's**, which is the one place reading the boundary twin would have
+    misled. A shared FaceElementTransformations carries Elem2No >= 0 -- the
+    neighbour's shifted index -- so the one-sided routines take their interior
+    branch: the convection forms' trace weight is (b - a) here where a genuine
+    boundary takes b (centred) or 2b (upwinded). The other rank's own pass
+    sees the opposite normal and contributes (b + a), and the global assembly
+    sums the two into the interior kernel's whole-face weight.
+
+    **What that sum makes observable, and what it hides, was measured rather
+    than assumed, and the answer differs between the two forms.** Substituting
+    the boundary expression here fails the UPWINDED arm of
+    "The batched HDG shared-face kernel assembles the partition boundary" at
+    every order and mesh, by 0.27 to 0.71 against a tolerance of 1e-11 -- 2b
+    from each rank is 4b where the face wants 2b. It does NOT fail the CENTRED
+    arm, and that is arithmetic rather than a gap in the case: b from each rank
+    is 2b, which is exactly (b - a) + (b + a). For the centred form the SPLIT of
+    a face's trace weight between the two ranks is invisible to anything that
+    reads the assembled operator, and only the sum is real. The weight written
+    here is still the per-face route's, because agreeing with the routine being
+    replaced block by block is cheaper than depending on that cancellation --
+    and the case pins it through a substitution that does change the sum
+    (halving it fails 6 of 6 centred sections).
+
+    @a face_list holds LOCAL face indices, so E_offsets, H_offsets and
+    Df_offsets are indexed as they are everywhere else. */
+void HDGSharedFaceScatterBatched(const FiniteElementSpace &tr_fes,
+                                 const FiniteElementSpace &el_fes,
+                                 ParMesh &pmesh,
+                                 const Array<BilinearFormIntegrator*> &integs,
+                                 const Array<int> &face_list,
+                                 const Array<int> &E_offsets,
+                                 const Array<int> &H_offsets,
+                                 const Array<int> &Df_offsets,
+                                 Vector &E_data, Vector &G_data,
+                                 Vector &H_data, Vector &Df_data);
+
+#endif // MFEM_USE_MPI
 
 void HDGDiffusionFaceScatterBatched(const FiniteElementSpace &tr_fes,
                                     const FiniteElementSpace &el_fes,
