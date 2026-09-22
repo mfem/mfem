@@ -1,5 +1,12 @@
 # Device offload for the element-local HDG work — what is left
 
+> **A fork of `gf-hdg-linearise-first`'s file, and divergence from it is
+> CORRECT.** This branch descends from that one but merges the **trunk**, so
+> the parent's newer entries describe code that is not here. Do not sync this
+> file to it: check the symbol on this branch before carrying a claim across.
+> Roadmap §12/§13 names two whole sections that are absent for this reason.
+
+
 Scratch, like every `.md` here, and expected to be deleted before this branch
 becomes a PR. **This file was 1119 lines and was mostly a record of work
 already done** — nine numbered items of which six are finished, four sections

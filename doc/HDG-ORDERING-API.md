@@ -1,5 +1,12 @@
 # Nonlinear `DarcyHybridization`: the reduced operator, and NPC
 
+> **A fork of `gf-hdg-linearise-first`'s file, and divergence from it is
+> CORRECT.** This branch descends from that one but merges the **trunk**, so
+> the parent's newer entries describe code that is not here. Do not sync this
+> file to it: check the symbol on this branch before carrying a claim across.
+> Roadmap §12/§13 names two whole sections that are absent for this reason.
+
+
 A technical reference for the two ways this class solves a nonlinear
 hybridized system: the **reduced trace operator**, which condenses first and
 linearises second and hands the outer solver an `Operator` on the **trace**,

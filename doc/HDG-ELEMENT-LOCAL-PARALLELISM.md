@@ -1,5 +1,12 @@
 # Threading the element-local work: what is left
 
+> **A fork of `gf-hdg-linearise-first`'s file, and divergence from it is
+> CORRECT.** This branch descends from that one but merges the **trunk**, so
+> the parent's newer entries describe code that is not here. Do not sync this
+> file to it: check the symbol on this branch before carrying a claim across.
+> Roadmap §12/§13 names two whole sections that are absent for this reason.
+
+
 Scratch. **This file was 308 lines and was mostly a record of finished work** —
 three numbered sections each marked DONE, a §0 that existed only to withdraw an
 earlier miscasting, and an acceptance list whose criteria are all met.

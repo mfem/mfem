@@ -209,12 +209,12 @@ not. The number is kept only so commit messages citing "§6" land somewhere.
 
 ## 7. Adaptive refinement: `hp`, and the estimator's fifth term
 
-**`h` is done and tested. `p` is `gf-hdg-p-adaptivity`'s**, where steps 1–3 of
-the plan are built (a per-face trace order behind two accessors, the surplus
-constrained, `convdiff -pref`) along with an `hp` demonstrator, a smoothness
-sensor and the parallel port. **The plan lives on that branch** —
-`doc/HDG-P-ADAPTIVITY.md` plus `HDG-P-ADAPTIVITY-CONSTRAIN.md` and
-`HDG-P-ADAPTIVITY-MEQ-MERGE.md` — and not here, so read it there.
+**`h` is done and tested. `p` is `gf-hdg-p-adaptivity`'s**, where steps 1 to 5
+of the plan are built: a per-face trace order behind two accessors, the surplus
+constrained, `convdiff -pref`, an `hp` demonstrator with a smoothness sensor,
+and the parallel port. **The plan lives on that branch** —
+`doc/HDG-P-ADAPTIVITY.md` plus `HDG-P-ADAPTIVITY-CONSTRAIN.md` — and not here,
+so read it there.
 
 What the scoping established, since it is why that is a separate branch at all:
 the element spaces are **already** `p`-adaptive and need no library change —
@@ -435,6 +435,30 @@ covered. It is also not ours by the scope note. The numbers are on
   `tests/unit/fem/test_darcy_npc.cpp:2441`. This entry outlived the commit
   that closed it by two sessions, which is the reason for the scope note at
   the top of this file about what markdown is for.
+
+## 12 and 13 exist on the parent branch and the code is NOT here
+
+Numbered so that a commit message on `gf-hdg-linearise-first` citing "§12" or
+"§13" lands somewhere, and stated as absences so nobody reads the gap as a
+numbering error.
+
+**This branch descends from `gf-hdg-linearise-first` but MERGES THE TRUNK**,
+so anything committed on the parent after this branch left it can never
+arrive here through an ordinary merge. Both of these are that.
+
+* **§12, a flux that carries fewer directions than the mesh has.**
+  `RestrictedVectorDivergenceIntegrator` and its siblings, asked for by gffp.
+  Checked rather than assumed: `git grep -l CheckRestrictedFluxConfiguration`
+  finds two files on the parent and **none here**.
+* **§13, a nonlinear face constraint on a mesh with hanging nodes.** The eight
+  element-major face loops expanding a nonconforming master onto its slave
+  sub-faces. `git grep -l GetNCMasterSlaves` finds two files on the parent and
+  **none here**, so the refusal §13 removed is still in force on this branch.
+
+Neither is owed here. If either is ever wanted, the route is the documented
+one -- lift to the trunk, then merge the trunk out -- and not a cherry-pick
+from the parent, whose patches are written against routines this branch's
+`darcyhybridization.cpp` has since diverged from.
 
 ## Deliberately not being done here
 

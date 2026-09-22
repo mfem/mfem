@@ -1,5 +1,12 @@
 # H(div), RT and broken-RT: everything open, in one place
 
+> **A fork of `gf-hdg-linearise-first`'s file, and divergence from it is
+> CORRECT.** This branch descends from that one but merges the **trunk**, so
+> the parent's newer entries describe code that is not here. Do not sync this
+> file to it: check the symbol on this branch before carrying a claim across.
+> Roadmap §12/§13 names two whole sections that are absent for this reason.
+
+
 **All of it is optional and none of it blocks anything here.** This branch's
 users want HDG spaces — a discontinuous L2 flux with a `DG_Interface` trace —
 and every item below concerns a flux space that is not that: `RT_FECollection`
@@ -132,28 +139,27 @@ auditing the RT paths will meet it.
 
 ## The adjacent case: an `H1_Trace` (EDG) trace space
 
-**Not H(div), and not our spaces either.** Two items about the *trace* space
-rather than the flux space, included because they fail in the same way — on a
-space this branch does not use — and a maintainer looking at one will want the
-other.
+**Not H(div), and not our spaces either.** One item about the *trace* space
+rather than the flux space, included because it fails in the same way — on a
+space this branch does not use.
 
-### 6. The trace prolongation is applied inconsistently
+**§6 used to sit here and has moved out of this file**, because the premise
+that put it here turned out to be false. It said the trace prolongation is
+applied inconsistently at four sites, and that "for a `DG_Interface` trace
+space the conforming prolongation is null and all four agree, which is every
+case in this tree". It is not null: `DG_Interface_FECollection` derives from
+`RT_FECollection` and so reports `GetContType() == NORMAL`, which means
+`FiniteElementSpace::BuildConformingInterpolation()` never takes its early
+exit — a plain DG trace on a NONCONFORMING mesh has a real prolongation.
 
-Pre-existing and not specific to any nonlinear ordering. Four places disagree
-about whether the trace vector is in true dofs or L-dofs:
+All four sites are fixed **on this branch**, by the trunk lift this branch
+merged: three are routed through `ParMultNL()`, guarded by the size check at
+the top of `MultNL()`, and the fourth, the operator's advertised size, is
+taken from the trace prolongation in `Finalize()`. The account is on those
+two routines rather than here. **It was not H(div)'s and not EDG's, so it
+never belonged in this file.**
 
-| what | where | which |
-|---|---|---|
-| `Operator::Height()` | `fem/hybridization.cpp:33` | `c_fes.GetVSize()`, i.e. L-dofs |
-| `ReduceRHS()` | `darcyhybridization.cpp:3337` | sizes the reduced RHS to the *conforming* width |
-| serial `Mult()` / `GetGradient()` | `:1829` into `:1971` | indexes `x` by face VDofs with no prolongation |
-| `ParMultNL()` | `:2215` | does prolong |
-
-For a `DG_Interface` trace space the conforming prolongation is null and all
-four agree, which is every case in this tree. For an `H1_Trace` (EDG) trace
-space with a nonlinear problem they would not. Also `HDG-ORDERING-API.md` §7.
-
-### 7. `ProjectSolution()` refuses a continuous trace collection outright
+### 6. `ProjectSolution()` refuses a continuous trace collection outright
 
 `darcyhybridization.cpp:3523`: `MFEM_VERIFY(c_fes.FEColl()->GetContType() !=
 CONTINUOUS, ...)`. `H1_Trace_FECollection` derives from `H1_FECollection`,

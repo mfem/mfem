@@ -1,5 +1,12 @@
 # Per-element malloc/free churn on the HDG element loop — what is left
 
+> **A fork of `gf-hdg-linearise-first`'s file, and divergence from it is
+> CORRECT.** This branch descends from that one but merges the **trunk**, so
+> the parent's newer entries describe code that is not here. Do not sync this
+> file to it: check the symbol on this branch before carrying a claim across.
+> Roadmap §12/§13 names two whole sections that are absent for this reason.
+
+
 Scratch. **This file was 269 lines and three-quarters of it recorded finished
 work**: the measurement, four groups, and three rounds each headed DONE. The
 result is **90,949 -> 9,891 DHAT blocks, 89.1%**, answers bit-identical; the
