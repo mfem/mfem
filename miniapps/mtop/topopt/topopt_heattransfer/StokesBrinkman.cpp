@@ -13,16 +13,22 @@ using namespace mfem;
 real_t simple_init_design(const Vector &x)    
 {    
     real_t x_center1 = 0.6;
-    real_t x_center3 = 1.5;
+    real_t x_center2 = 1.2;
+    real_t x_center3 = 1.8;
     real_t x_center4 = 2.4;
 
 
     real_t y_center1 = 0.2;
-    real_t y_center3 = 0.5;
+    real_t y_center2 = 0.4;
+    real_t y_center3 = 0.6;
     real_t y_center4 = 0.8;
-    real_t rad = 0.2;
+    real_t rad = 0.25;
 
     if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
     {
         return 0.0;
     }
@@ -87,13 +93,14 @@ void inlet_vel_func(const Vector &x, Vector &v)
 
 real_t inflow_function(const Vector &x)      
 {
-   return 20.0;  
+   return 20.0 + 273.15;  
 }  
 
 // Initial condition
 real_t q0_s_function(const Vector &x)
 {
-    return 50.0;
+    return 60.0 + 273.15;
+    // return 20.0 + 273.15;
 }
 
 real_t q0_f_function(const Vector &x)
@@ -134,7 +141,8 @@ real_t q0_f_function(const Vector &x)
 
 
  
-    return 20.0*(gaussian1 + gaussian3 + gaussian4) + 30.0;
+    //return 20.0*(gaussian1 + gaussian3 + gaussian4) + 30.0 + 273.15;
+    return 50.0 + 273.15;
 }
 
 
@@ -147,31 +155,31 @@ int main(int argc, char *argv[])
     int myid = Mpi::WorldRank();                  
     Hypre::Init();  
 
-    const char *mesh_file = "../../../../data/inline-quad.mesh";   
+    const char *mesh_file = "rect-quad.mesh";   
     int ser_ref_levels = 0;
     int par_ref_levels = 2;    
     int order_solid_heat = 1; 
     int order_fluid_heat = 2;
     int order_stokes = 2;
 
-    //real_t dynamic_viscosity = 1.94e-5; // 1.94e-5;     
+    // real_t dynamic_viscosity = 1.94e-5; // 1.94e-5;     
     // real_t kf = 0.024; // thermal conductivity of fluid
-    // real_t ks = 400; // thermal conductivity of solid;
+    // real_t ks = 400.0; // thermal conductivity of solid;
     // real_t hs = 2e5; 
     // real_t hf = 50.0;
     // real_t Q_prod = 0.175; // heat production rate;
-    // real_t cf = 1006; // fluid heat capacity
+    // real_t cf = 1006.0; // fluid heat capacity
     // real_t rf = 1.204; // fluid density
     // real_t finn_height = 8.0;
     // real_t plate_thickness = 0.2;
 
-    real_t dynamic_viscosity = 1e-3;     
+    real_t dynamic_viscosity = 1.94e-5;     
     real_t kf = 0.024; // thermal conductivity of fluid
     real_t ks = 400.0; // thermal conductivity of solid;
-    real_t hs = 2e5; 
-    real_t hf = 50.0;
+    real_t hs = 0.2; 
+    real_t hf = 5.0e-5;
     real_t Q_prod = 0.175; // heat production rate;
-    real_t cf = 1.0; // fluid heat capacity
+    real_t cf = 1006.0; // fluid heat capacity
     real_t rf = 1.204; // fluid density
     real_t finn_height = 8.0;
     real_t plate_thickness = 0.2;
@@ -364,7 +372,7 @@ int main(int argc, char *argv[])
     // 9. Define the Coefficients 
     BrinkmanCoefficient b_coeff(&rho_tilde, 1.0, b_term); 
     ConstantCoefficient visc_cf(dynamic_viscosity);     
-    ConstantCoefficient inflow(20.0);   
+    ConstantCoefficient inflow(30.0 + 273.15);   
     FunctionCoefficient q0_f(q0_f_function);   
     FunctionCoefficient q0_s(q0_s_function);   
     VectorFunctionCoefficient inlet_cf(dim, inlet_vel_func); 
@@ -429,7 +437,7 @@ int main(int argc, char *argv[])
     dt, 
     t_final,  
     rho, rho_tilde, ode_solver_type,  
-    vis_steps, comm);
+    vis_steps, comm, pv_vis);
     
     design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
     const real_t J0 = design_solver.PhysicsFSolve();

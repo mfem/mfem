@@ -63,7 +63,7 @@ public:
       rho_val = std::min(std::max(rho_val, 0.0), 1.0);
       real_t val = a*(1 - rho_val) / (1 + b*rho_val);
       if(val < 1e-12){val = 1e-12;}
-      else if(val > a){val = a;}
+      // else if(val > a){val = a;}
       return val;
    }
 
@@ -71,7 +71,8 @@ public:
    {
       real_t rho_val = rho_filter->GetValue(T, ip);
       //rho_val = std::min(std::max(rho_val, 0.0), 1.0);
-      return -a*((1+b*rho_val) + (1-rho_val)*b) / ((1 + b*rho_val)*(1 + b*rho_val));
+      real_t out = -a*((1+b*rho_val) + (1-rho_val)*b) / ((1 + b*rho_val)*(1 + b*rho_val));
+      return out;
    }
 
    void UpdateRho(ParGridFunction &rho_filt_new)
@@ -100,7 +101,7 @@ public:
       real_t rho_val = rho_filter->GetValue(T, ip);
       real_t c = f / s;
       rho_val = std::min(std::max(rho_val, 0.0), 1.0);  // Clamp to [0,1]
-      real_t out = rho_val*f*((c*(1+b)-1)+1) / (c*(1+b*rho_val));
+      real_t out = f*(rho_val*(c*(1+b)-1)+1) / (c*(1+b*rho_val));
       return out;
    }
  
@@ -110,10 +111,11 @@ public:
       real_t c = f / s;
       rho_val = std::min(std::max(rho_val, 0.0), 1.0);  // Clamp to [0,1]
       real_t low = (c*(1+b*rho_val));
-      real_t high = rho_val*f*((c*(1+b)-1)+1);
+      real_t high = f*(rho_val*(c*(1+b)-1)+1);
       real_t dlow = c*b;
-      real_t dhigh = f*((c*(1+b)-1)+1);
-      return (low*dhigh - high*dlow) / (low * low);
+      real_t dhigh = f*((c*(1+b)-1));
+      real_t out =  (low*dhigh - high*dlow) / (low * low);
+      return out;
    }
 };
 

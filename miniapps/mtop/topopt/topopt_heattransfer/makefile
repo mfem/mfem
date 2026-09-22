@@ -32,7 +32,7 @@ MTOP_OBJ = mtop_solvers.o pde_filter.o MMA_MFEM.o diffusion_mass_solver.o
 # TRANSIENT_HEADERS = ObjectiveFunctional.hpp 
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck test_imex_heattransfer VelocityGradGradCheck CheckStokesBrinkmanGradient
+PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck test_imex_heattransfer VelocityGradGradCheck CheckStokesBrinkmanGradient StokesBrinkmanTopOpt
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else

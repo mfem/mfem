@@ -5,18 +5,6 @@
 #include "../../mtop_solvers.hpp"
 #include <memory>
 
-using namespace std;
-using namespace mfem;
- 
-static std::string fmtRate(double v);
-
-#include "mfem.hpp"
-#include "TopOptDesignSolvers.hpp"
-#include "../../mma/MMA_MFEM.hpp"
-#include "../../pde_filter.hpp"
-#include "../../mtop_solvers.hpp"
-#include <memory>
-
 
 using namespace std;
 using namespace mfem;
@@ -24,39 +12,38 @@ using namespace mfem;
 
 real_t simple_init_design(const Vector &x)    
 {    
-    return 0.5;
-    // real_t x_center1 = 0.6;
-    // real_t x_center2 = 1.2;
-    // real_t x_center3 = 1.8;
-    // real_t x_center4 = 2.4;
+    real_t x_center1 = 0.6;
+    real_t x_center2 = 1.2;
+    real_t x_center3 = 1.8;
+    real_t x_center4 = 2.4;
 
 
-    // real_t y_center1 = 0.2;
-    // real_t y_center2 = 0.4;
-    // real_t y_center3 = 0.6;
-    // real_t y_center4 = 0.8;
-    // real_t rad = 0.25;
+    real_t y_center1 = 0.2;
+    real_t y_center2 = 0.4;
+    real_t y_center3 = 0.6;
+    real_t y_center4 = 0.8;
+    real_t rad = 0.2;
 
-    // if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
-    // {
-    //     return 0.0;
-    // }
-    // else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
-    // {
-    //     return 0.0;
-    // }
-    // else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
-    // {
-    //     return 0.0;
-    // }
-    // else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
-    // {
-    //     return 0.0;
-    // }
-    // else
-    // {
-    //     return 1.0;
-    // }
+    if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
+    {
+        return 0.0;
+    }
+    else
+    {
+        return 1.0;
+    }
 
     // real_t sigma_x = 0.1;
     // real_t sigma_y = 0.1;
@@ -68,6 +55,11 @@ real_t simple_init_design(const Vector &x)
     // real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
     // real_t gaussian1 = std::exp(-0.5 * r_squared1);
 
+    // // Injection 2
+    // real_t dx2 = (x(0) - x_center2) / sigma_x;
+    // real_t dy2 = (x(1) - y_center2) / sigma_y;
+    // real_t r_squared2 = dx2 * dx2 + dy2 * dy2;
+    // real_t gaussian2 = std::exp(-0.5 * r_squared2);
 
     // // Injection 3
     // // Distance from center (normalized by sigma)
@@ -83,7 +75,8 @@ real_t simple_init_design(const Vector &x)
     // real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
     // real_t gaussian4 = std::exp(-0.5 * r_squared4);
  
-    // return 1 - (gaussian1 + gaussian3 + gaussian4);
+    //return 1.0 - (gaussian1 + gaussian2 + gaussian3 + gaussian4);
+    // return 1.0;
 }
 
 bool InitializeDesign(ParGridFunction &rho, real_t x_max, real_t y_max)       
@@ -106,13 +99,13 @@ void inlet_vel_func(const Vector &x, Vector &v)
 
 real_t inflow_function(const Vector &x)      
 {
-   return 2.0;  
+   return 20.0;  
 }  
 
 // Initial condition
 real_t q0_s_function(const Vector &x)
 {
-    return 6.0;
+    return 60.0;
     // return 20.0 + 273.15;
 }
 
@@ -157,7 +150,8 @@ real_t q0_f_function(const Vector &x)
     //return 20.0*(gaussian1 + gaussian3 + gaussian4) + 30.0 + 273.15;
     return 50.0;
 }
-  
+
+
 int main(int argc, char *argv[]) 
 {
     // 1. Initialize MPI and HYPRE.
@@ -170,8 +164,8 @@ int main(int argc, char *argv[])
     const char *mesh_file = "rect-quad.mesh";   
     int ser_ref_levels = 0;
     int par_ref_levels = 2;    
-    int order_solid_heat = 2; 
-    int order_fluid_heat = 2;
+    int order_solid_heat = 1; 
+    int order_fluid_heat = 1;
     int order_stokes = 2;
 
     // real_t dynamic_viscosity = 1.94e-5; // 1.94e-5;     
@@ -185,31 +179,32 @@ int main(int argc, char *argv[])
     // real_t finn_height = 8.0;
     // real_t plate_thickness = 0.2;
 
-    real_t dynamic_viscosity = 1e-3;     
+    real_t dynamic_viscosity = 1e-2;     
     real_t kf = 0.00024; // thermal conductivity of fluid
     real_t ks = 0.4; // thermal conductivity of solid;
-    real_t hs = 0.2; 
-    real_t hf = 5.0e-5;
+    real_t hs = 20.0; 
+    real_t hf = 5.0e-3;
     real_t Q_prod = 0.175; // heat production rate;
-    real_t cf = 1.24; // fluid heat capacity
-    real_t rf = 1.0; // fluid density
+    real_t cf = 0.1; // fluid heat capacity
+    real_t rf = 1.204; // fluid density
     real_t finn_height = 8.0;
     real_t plate_thickness = 0.2;
     real_t pressure_drop = 0.1;
     
 
     int ode_solver_type = 3; 
-    real_t t_final = 10.0;           
+    real_t t_final = 1.0;           
     real_t dt = 0.001;                 
-    int vis_steps = 50; 
+    int vis_steps = 100; 
     real_t b_term = 1.0;
     bool pv_vis = false; 
     bool density_pv = true;
+    int maxit = 30;
     const char *device_config = "cpu"; 
 
     OptionsParser args(argc, argv); 
     args.AddOption(&mesh_file, "-m", "--mesh",
-                    "Mesh file to use.");  
+                    "Mesh file to use."); 
     args.AddOption(&ser_ref_levels, "-rs", "--refine-serial", 
                         "Number of times to refine the mesh uniformly in serial,"  
                         " -1 for auto.");   
@@ -238,14 +233,19 @@ int main(int argc, char *argv[])
                         "Fluid Heat Capacity."); 
     args.AddOption(&rf, "-rf", "--rf",
                         "Fluid Density.");  
+    args.AddOption(&maxit, "-mit", "--max-iterations",
+                        "Maximum number of iterations."); 
     args.AddOption(&finn_height, "-fh", "--finn_height",
                         "Height of the Fins."); 
     args.AddOption(&plate_thickness, "-pt", "--plate_thickness",
-                        "Thickness of base plate. ");     
+                        "Thickness of base plate. ");    
 
     args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",    
                     "--no-visualization", 
                     "Enable or disable Paraview Visualization");
+    args.AddOption(&density_pv, "-dvis", "--density-visualization", "-no-dvis",    
+                    "--no-density-visualization", 
+                    "Enable or disable Paraview Visualization for density");
     args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                         ODESolver::IMEXTypes.c_str()); 
     args.AddOption(&t_final, "-tf", "--t-final",   
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
     }
 
     H1_FECollection filter_fec(order_stokes, dim);  
-    L2_FECollection control_fec(order_stokes-1, dim, BasisType::GaussLobatto);
+    L2_FECollection control_fec(order_stokes, dim, BasisType::GaussLobatto);
     ParFiniteElementSpace filter_fes(pmesh, &filter_fec);  
     ParFiniteElementSpace control_fes(pmesh, &control_fec); 
     
@@ -350,9 +350,10 @@ int main(int argc, char *argv[])
     filter.Assemble();   
     filter.Mult(rho, rho_tilde);     
     rho_tilde.ExchangeFaceNbrData();
-    const int n = control_fes.GetTrueVSize();      
-    Vector rho_tv(n);
-    rho.GetTrueDofs(rho_tv);
+    GridFunctionCoefficient rho_cf(&rho);
+    // const int n = control_fes.GetTrueVSize();      
+    // Vector rho_tv(n);
+    // rho.GetTrueDofs(rho_tv);
 
     // 8. Boundary conditions
     int local_max_bdr = pmesh->bdr_attributes.Size() ? pmesh->bdr_attributes.Max() : 0;
@@ -385,7 +386,7 @@ int main(int argc, char *argv[])
     // 9. Define the Coefficients 
     BrinkmanCoefficient b_coeff(&rho_tilde, 1.0, b_term); 
     ConstantCoefficient visc_cf(dynamic_viscosity);     
-    ConstantCoefficient inflow(2.0);   
+    ConstantCoefficient inflow(20.0);   
     FunctionCoefficient q0_f(q0_f_function);   
     FunctionCoefficient q0_s(q0_s_function);   
     VectorFunctionCoefficient inlet_cf(dim, inlet_vel_func); 
@@ -402,178 +403,180 @@ int main(int argc, char *argv[])
 
     
     // 11. Construct the Objective Function 
-   RectangularIndicator indicator(0, 1, 0, 1); 
-   ParGridFunction one_gf(solid_heat_fes);
-   ConstantCoefficient one_cf(1.0);
-   one_gf.ProjectCoefficient(one_cf);     
-   TimeIntegratedL2Objective obj_func(solid_heat_fes, indicator, comm);           
+   RectangularIndicator indicator(0, 3, 0, 1); 
+   ParGridFunction target_gf(solid_heat_fes);
+   target_gf.ProjectCoefficient(inflow);     
+   TerminalTargetObjective obj_func(solid_heat_fes, indicator, target_gf, comm);           
    int n_steps = (int)ceil(t_final / dt);   
 
+    // Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
+    ConstantCoefficient one(1.0);
+    ParLinearForm vol_form(&control_fes);
+    vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
+    vol_form.Assemble();
+    std::unique_ptr<HypreParVector> vol_w(vol_form.ParallelAssemble());
+    real_t domain_volume;
+    real_t loc = vol_w->Sum();
+    MPI_Allreduce(&loc, &domain_volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+    const real_t Vstar = 1.0 * domain_volume;
+    const int num_constraints = 1; // volume constraint
+
+    // 12. Set up vectorized design field. Initialize the gradient.
+    const int control_fes_size = control_fes.GetTrueVSize();
+    Vector rho_tv(control_fes_size);
+    Vector rho_old(control_fes_size);
+    rho.GetTrueDofs(rho_tv);
+    Vector dJ_drho(rho_tv.Size());
+    //ParGridFunction phys_density(&filter_fes);
+    ParaViewDataCollection paraview_dc("density", pmesh); 
+    if (density_pv) {
+        paraview_dc.SetPrefixPath("ParaView"); 
+        paraview_dc.SetLevelsOfDetail(order_fluid_heat);
+        paraview_dc.SetDataFormat(VTKFormat::BINARY);
+        paraview_dc.SetHighOrderOutput(true);
+        paraview_dc.RegisterField("density", &rho);
+        paraview_dc.RegisterField("rho_filter", &rho_tilde); 
+        paraview_dc.SetCycle(0);
+        paraview_dc.SetTime(0.0);
+        paraview_dc.Save();
+    }
+
+   //12. Operator setup
    real_t dtkf = dt*kf;
    real_t dtks = dt*ks;
-   rho.GetTrueDofs(rho_tv);
-   double worst_best_fd_rel = 0.0; 
 
-   Vector h(control_fes.GetTrueVSize());
-   Vector dJ_drho(rho_tv.Size()), rho_plus(rho_tv.Size()), rho_minus(rho_tv.Size()); 
-   real_t eps = 1e-3;  
-   real_t tolerance = 1e-3; 
-   int ntrials = 10;
-   int nscales = 14;  
-   for(int trial = 0; trial < ntrials; trial++)  
-   { 
-      int seed1 = 50 + 3*trial;  
-      int seed2 = 51 + 3*trial; 
-      h.Randomize(seed2);
-      real_t h_norm = sqrt(InnerProduct(comm, h, h)); 
-      h /= h_norm; 
+    std::unique_ptr<MixedMultiPhysicsOperator> oper = std::make_unique<Pseudo3DStokesOperator>(
+    *V_space, 
+    *P_space, 
+    *fluid_heat_fes,
+    *solid_heat_fes,
+    b_coeff,
+    visc_cf,
+    inlet_cf,
+    inflow,
+    q0_f_cf,
+    q0_s_cf,
+    &rho_tilde,
+    inlet_bdr,  
+    noslip_bdr, 
+    all_ess_bdr, 
+    kf, ks, dtkf, dtks,
+    cf, rf,
+    Q_prod,
+    plate_thickness,
+    finn_height,
+    hs, hf,
+    dt,
+    t_final,
+    pressure_drop, 
+    comm);
 
-      int max_bdr = pmesh->bdr_attributes.Max();
-      Array<int> inlet_bdr(max_bdr);    inlet_bdr = 0;
-      inlet_bdr[3] = 1;
+    DesignSolver design_solver(*solid_heat_fes,                 
+    filter_fes,  
+    control_fes, 
+    oper,
+    filter, 
+    obj_func,
+    q0_s_cf, 
+    n_steps,   
+    dt, 
+    t_final,  
+    rho, rho_tilde, ode_solver_type,  
+    vis_steps, comm, pv_vis);
 
-      std::unique_ptr<MixedMultiPhysicsOperator> oper = std::make_unique<Pseudo3DStokesOperator>(
-      *V_space, 
-      *P_space, 
-      *fluid_heat_fes,
-      *solid_heat_fes,
-      b_coeff,
-      visc_cf,
-      inlet_cf,
-      inflow,
-      q0_f_cf,
-      q0_s_cf,
-      &rho_tilde,
-      inlet_bdr,  
-      noslip_bdr, 
-      all_ess_bdr, 
-      kf, ks, dtkf, dtks,
-      cf, rf,
-      Q_prod,
-      plate_thickness,
-      finn_height,
-      hs, hf,
-      dt,
-      t_final,
-      pressure_drop, 
-      comm);
-      
-      DesignSolver design_solver(*solid_heat_fes,                 
-      filter_fes,  
-      control_fes, 
-      oper,
-      filter, 
-      obj_func,
-      q0_s_cf, 
-      n_steps,   
-      dt, 
-      t_final,  
-      rho, rho_tilde, ode_solver_type,  
-      vis_steps, comm, pv_vis);
+    // 14. Set up the MMA optimizer
+    mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, control_fes_size, num_constraints, rho_tv);
+    Vector tx_min(control_fes_size), tx_max(control_fes_size);
+    Vector dvol(control_fes_size);                     // volume constraint gradient is constant:  vol_w/Vstar 
+    dvol = *vol_w;  dvol /= Vstar;
+    Vector dfidx[num_constraints];  dfidx[0] = dvol; 
+    Vector fival(num_constraints);
+    Vector rho_v(rho_tv.Size());
+    rho_v = rho_tv;
+    rho_v *= -1.0;
+    rho_v += 1.0;
+    real_t initial_vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_v) / domain_volume;
+    if (myid == 0){std::cout<<"Initial volume = " << initial_vol <<std::endl;}
 
-      design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
-      const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
-      design_solver.PhysicsASolve();                      // adjoint physics: -> dJ/drho_tilde 
-      design_solver.FilterASolve(dJ_drho);
-      
-      const real_t projected_grad = InnerProduct(comm, h, dJ_drho);     
-      real_t gradnorm = sqrt(InnerProduct(comm, dJ_drho, dJ_drho));   
 
-      if (Mpi::Root())
-      {
-         mfem::out << "\nDesign Taylor trial " << trial   
-                   << ": J0=" << setprecision(16) << J0  
-                   << ", <dJ/drho,p>=" << projected_grad   
-                   << ", ||dJ/drho||="<< gradnorm << '\n';   
-      }
+        // 15. Optimization loop.
+    real_t iterationError = 1.0;
+    real_t tol = 1e-5;
+    for (int k = 0; k < maxit && iterationError > tol; k++)
+    {
+
+        design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
+        const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
+        design_solver.PhysicsASolve();                      // adjoint physics: -> dJ/drho_tilde 
+        design_solver.FilterASolve(dJ_drho); 
+
+        // MMA update
+        rho.GetTrueDofs(rho_tv);
+        rho_old = rho_tv;
+        // box constraints:  rho ∈ [0,1],  α_i ∈ [alpha_min, alpha_max]  (move limits)
+        real_t move = 0.1;
+        for (int i = 0; i < control_fes_size; i++)
+        {
+            tx_min[i] = std::max(real_t(0.0), rho_tv[i] - move);
+            tx_max[i] = std::min(real_t(1.0), rho_tv[i] + move);
+        }
+
+        // volume constraint
+        // Vector rho_v(rho_tv.Size());
+        rho_v = rho_tv;
+        rho_v *= -1.0;
+        rho_v += 1.0;
+        real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_v) / domain_volume;
+        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_v) / Vstar - 0.1; 
+
+
+        mma.Update(rho_tv, dJ_drho, J0, fival, dfidx, tx_min, tx_max);
+        rho.SetFromTrueDofs(rho_tv);
+
+        // measure iteration error
+        ParGridFunction rho_old_gf(&control_fes);
+        rho_old_gf.SetFromTrueDofs(rho_old);
+        // Vector iterationErr_vec(control_fes_size);
+        // iterationErr_vec = rho_tv;
+        // iterationErr_vec -= rho_old;
+        iterationError = rho_old_gf.ComputeL2Error(rho_cf);
+        real_t gradnorm = sqrt(InnerProduct(comm,dJ_drho, dJ_drho)); 
+        // iterationError = iterationErr_vec.Norml2();
+
+        if (myid == 0)
+        {
+            mfem::out << "it " << setw(3) << k + 1
+                    << "   J = " << scientific << setprecision(6) << J0
+                    << "   iterErr = " << setprecision(4) << iterationError
+                    << "   Volume = "  << setprecision(4) << vol
+                    << "   dJ/drho = " << setprecision(4) << gradnorm << endl;
+        }
+
+        // physical density r(rho~) for both GLVis and the ParaView archive
+        // phys_density.ProjectCoefficient(simp_cf);
+
+
+        if (density_pv)
+        {
+            paraview_dc.SetCycle(k + 1);
+            paraview_dc.SetTime(k + 1);
+            paraview_dc.Save();
+        }
+    }
  
-
-      real_t scale = 1.0;  
-      double previous_remainder = -1.0;  
-      double trial_best_fd_rel = numeric_limits<double>::infinity();     
-      bool trial_has_quadratic_drop = false;  
-   
-      for (int s = 0; s < nscales; s++) 
-      {
-         rho_plus = rho_tv; 
-         rho_minus = rho_tv;  
-         rho_plus.Add(scale, h); 
-         rho_minus.Add(-scale, h);  
-
-         design_solver.FilterFSolve(rho_plus);                // forward filter:  rho -> rho_tilde
-         const real_t Jp = design_solver.PhysicsFSolve();  // forward physics: -> J
-
-         design_solver.FilterFSolve(rho_minus);              // forward filter:  rho -> rho_tilde
-         const real_t Jm = design_solver.PhysicsFSolve(); // forward physics: -> J   
  
-         const real_t fd = (Jp - Jm) / (2.0 * scale);     
- 
-         const double derivative_scale = max(max(fabs(static_cast<double>(fd)), fabs(static_cast<double>(projected_grad))), 1e-30);
-         const double fd_rel = fabs(static_cast<double>(fd - projected_grad))
-                               / derivative_scale;   
-         const double fd_abs = fabs(static_cast<double>(fd - projected_grad));     
-         trial_best_fd_rel = min(trial_best_fd_rel, fd_rel);     
+    // Free the used memory.  
 
-         const real_t first_order_remainder = 
-            fabs(Jp - J0 - scale * projected_grad); 
-         const double remainder_ratio = 
-            (previous_remainder > 0.0) ?   
-            previous_remainder / first_order_remainder : 0.0;       
+    delete P_space;
+    delete V_space;   
+    delete p_coll;
+    delete v_coll; 
+    delete pmesh;
+    delete solid_heat_fec;
+    delete solid_heat_fes;
+    delete fluid_heat_fec;
+    delete fluid_heat_fes;
 
-         if (Mpi::Root())
-         {
-            mfem::out << "  scale=" << scientific << setprecision(3) << scale
-                      << "  FD=" << setprecision(12) << fd
-                      << "  Jp= " << Jp  
-                      << "  Jm= " << Jm
-                      << "  rel_err=" << fd_rel
-                      << "  abs_err=" << fd_abs
-                      << "  first_order_rem=" << first_order_remainder;
-            if (previous_remainder > 0.0)
-            {
-               mfem::out << "  rem_ratio=" << remainder_ratio;
-            }
-            mfem::out << '\n';
-         }  
-         if (previous_remainder > 0.0 && remainder_ratio > 50.0)  
-         {
-            trial_has_quadratic_drop = true;
-         }
-         previous_remainder = first_order_remainder;   
-         scale *= 0.1; 
-      }
-      worst_best_fd_rel = max(worst_best_fd_rel, trial_best_fd_rel);  
-      if(Mpi::Root())
-      {
-         MFEM_VERIFY(trial_best_fd_rel < tolerance,
-                  "Raw design Taylor check did not find an accurate scale.");
-         MFEM_VERIFY(trial_has_quadratic_drop,
-                  "Raw design Taylor check did not show quadratic remainder decay.");  
-      }
-   }
- 
-
-
-   // Free the used memory.  
-   // delete pd;
-   delete P_space;
-   delete V_space;   
-   delete p_coll;
-   delete v_coll; 
-   delete pmesh;
-   delete solid_heat_fec;
-   delete solid_heat_fes;
-   delete fluid_heat_fec;
-   delete fluid_heat_fes;
-
-  
-   return 0; 
-}
-
-
-static std::string fmtRate(double v)
-{
-    if (std::isnan(v)) return "  ---";
-    std::ostringstream s; s << std::fixed << std::setprecision(3) << v;  
-    return s.str();
+    
+    return 0; 
 }

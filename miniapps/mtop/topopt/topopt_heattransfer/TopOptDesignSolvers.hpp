@@ -38,7 +38,7 @@ class DesignSolver
    ParGridFunction &rho;         // working density (also the driver's ParaView field)
    ParGridFunction &rho_tilde;   // filtered density
    ParGridFunction qoi_gf; // to pass into objective
-   BlockVector state_vec;
+   BlockVector state_vec; 
    BlockVector lam_vec;
 
    GridFunctionCoefficient q0;
@@ -65,13 +65,15 @@ class DesignSolver
                          int nsteps_, real_t dt_, real_t t_final_,
                          ParGridFunction &rho_,
                          ParGridFunction &rho_tilde_,
-                         int imex_integrator_, int vis_steps_, MPI_Comm comm_)
+                                     int imex_integrator_, int vis_steps_, MPI_Comm comm_,
+                                     bool paraview_vis_ = false)
       : qoi_fes(qoi_fes_), filter_fes(filter_fes_), control_fes(control_fes_),
         filter(filter_),
         objective(objective_),  q0(q0_),
         nsteps(nsteps_), dt(dt_), t_final(t_final_),
         rho(rho_), rho_tilde(rho_tilde_), qoi_gf(&qoi_fes_), imex_integrator(imex_integrator_),
-      oper(std::move(oper_)), vis_steps(vis_steps_), comm(comm_), offsets(oper->GetSystemOffsets())
+         oper(std::move(oper_)), vis_steps(vis_steps_), comm(comm_),
+         paraview_vis(paraview_vis_), offsets(oper->GetSystemOffsets())
    { 
       outer_it = 0;
       dJ_drho_tilde.SetSize(filter_fes.GetTrueVSize());
@@ -118,9 +120,13 @@ class DesignSolver
 
       qoi_gf.SetFromTrueDofs(state_vec.GetBlock(0));
       qoi2_gf.SetFromTrueDofs(state_vec.GetBlock(1));
+      //if(Mpi::Root()){std::cout<<"pre pv Time: " << 0.0 << "; ||q|| = " << qoi_gf.Norml2() << std::endl;}
  
       real_t acc = objective.AccumulateTimestep(qoi_gf, dt, 0, nsteps);
       ParaViewDataCollection *pd = NULL;
+      int rank;
+      MPI_Comm_rank(comm, &rank);
+      //std::cout<<"pre pv rank: " << rank << "; ||q|| = " << qoi_gf.Norml2() << std::endl;
       if (paraview_vis)
       {
          pd = new ParaViewDataCollection("forward", qoi_fes.GetParMesh());
@@ -134,12 +140,13 @@ class DesignSolver
          pd->SetTime(0.0);
          pd->Save();
       }
+      //std::cout<<"post pv rank: " << rank << "; ||q|| = " << qoi_gf.Norml2() << std::endl;
       real_t t = 0.0;
       times.clear(); // Clear the vector instead of using resize()
       ode_solver->Init(*oper);
       oper->SetTime(t);
       bool done = false;
-      if(Mpi::Root()){std::cout<<"Time: " << t << "; ||q|| = " << qoi_gf.Norml2() << std::endl;}
+      //if(Mpi::Root()){std::cout<<"Time: " << t << "; ||q|| = " << qoi_gf.Norml2() << std::endl;}
       int ti = 0;
       for (; !done; )
       {
@@ -157,8 +164,8 @@ class DesignSolver
          done = (t >= t_final - 1e-8*dt); 
          if (done || ti % vis_steps == 0)
          {
-            if(Mpi::Root()){std::cout<<"Time: " << t << "; ||qs|| = " << qoi_gf.Norml2() << std::endl;}
-            if(Mpi::Root()){std::cout<<"Time: " << t << "; ||qf|| = " << qoi2_gf.Norml2() << std::endl;}
+            //if(Mpi::Root()){std::cout<<"Time: " << t << "; ||qs|| = " << qoi_gf.Norml2() << std::endl;}
+            //if(Mpi::Root()){std::cout<<"Time: " << t << "; ||qf|| = " << qoi2_gf.Norml2() << std::endl;}
             if (paraview_vis)
             {
                pd->SetCycle(ti);
@@ -223,7 +230,6 @@ class DesignSolver
 
          BlockVector pristine_state(offsets);
          pristine_state = state_vec;
-
          ode_solver->AdjointStep(lam_vec, state_vec, dJ_drho_tilde, t_dummy, dti);
          ParLinearForm grad_form2(&qoi_fes);
          qoi_gf.SetFromTrueDofs(pristine_state.GetBlock(0));
@@ -241,6 +247,7 @@ class DesignSolver
          if (done || ti % vis_steps == 0)
          {
             lam_gf.SetFromTrueDofs(lam_vec.GetBlock(0));
+            //if(Mpi::Root()){std::cout<<"Time: " << t << "; ||ls|| = " << lam_gf.Norml2() << std::endl;}
             // if (paraview_vis)
             // {
             //    pd_adj->SetCycle(ti);
