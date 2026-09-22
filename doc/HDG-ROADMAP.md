@@ -58,30 +58,28 @@ someone else's, or a note.
 gf-hdg-dev  (trunk)
   |- gf-hdg-subdomains-dev     extension/lifting  <-- this branch
   |- gf-hdg-linearise-first    NPC
+  |    `- gf-interp-hdg-dev    interpolatory HDG
   `- gf-hdg-p-adaptivity       per-face trace order
 ```
 
 **These are reviewed by upstream separately and are not merged into each
 other**, so a section whose machinery lives on a sibling is not blocked work —
 it is work belonging to that branch's PR. Integration for `meq` happens in
-`/home/ian/projects/mfem/mfem-src` on `meq-integration`, which carries all four
-plus upstream master.
+`/home/ian/projects/mfem/mfem-src` on `meq-integration`, which carries all five
+plus upstream master and several off-master branches.
 
 **Check what a branch contains with `git merge-base --is-ancestor` or
 `git ls-tree`, never by reasoning about it.** That has been wrong here
-repeatedly. This branch is 30 commits ahead of the trunk and 2 behind. Both
-of those are no-ops in content: `0c3410ad51` is a CMake test-list fix whose
-four lines this branch's own `09c1761e61` already has, and `14a69fdaad` deletes
-a document this branch does not carry. **Content-neutral is not conflict-free,
-though** — `git merge-tree` says the merge collides on
-`tests/unit/CMakeLists.txt`, because this branch adds `test_darcy_extension.cpp`
-and `test_darcy_singular.cpp` in the region the trunk edited. Resolve as ours;
-the trunk lists no test file this branch lacks.
+repeatedly -- and a count written down here goes stale the next time anything
+merges, so take one from the command rather than from this sentence. The trunk
+is currently an ANCESTOR of this branch: nothing is behind and no merge is
+pending. The two trunk commits this entry used to name as outstanding, and the
+`tests/unit/CMakeLists.txt` collision it predicted, are both spent.
 
 ## 1. Extension and lifting — solving on a subdomain of the true domain
 
 **Built, and this branch is where it lives.** `fem/darcy/extension_hdg.{hpp,cpp}`
-(nine classes), `miniapps/hdg/extension.cpp`, and 29 unit cases in
+(nine classes), `miniapps/hdg/extension.cpp`, and 30 unit cases in
 `tests/unit/fem/test_darcy_extension.cpp`. The method is Cockburn & Solano's:
 a Dirichlet datum given on the true boundary `Γ` is transferred to the
 computational boundary `Γ_h` by line integrals along a family of paths, so the
@@ -166,13 +164,27 @@ Two things are left, and neither is what this list used to say:
   already been lost once.
 
   **What is left, and it is a different question from the one this section
-  asked**: why plain HDG on a level-set-carved tetrahedral subdomain gives a
-  flux rate of 1.6 rather than k+1. `dist(Gamma_h, Gamma)` does not halve
-  cleanly here -- 1.65e-01, 8.48e-02, 4.75e-02, a ratio of 1.95 then 1.79,
-  where two dimensions halves cleanly -- and `-d` moves `Gamma_h` and nothing
-  else, so the discriminating sweep is one run. Recorded as an observation and
-  **not** as a cause; this branch has twice built a well-specified fix for a
-  mechanism a sweep then showed innocent.
+  asked.** The sweep this entry used to call for has been taken, and it moved
+  the question rather than answering it.
+
+  `dist(Gamma_h, Gamma)` is **not** the mechanism. `-d` at a fixed mesh gives
+  two different values of `ratio_u` at one and the same `dist`, and a quantity
+  that does that is not a function of it. The table, its decisive rows and the
+  one excluded non-convergent run are in `miniapps/hdg/extension.cpp`'s header
+  comment.
+
+  **The open item is what the sweep found instead, and it is larger than what
+  it ruled out: the transfer's cost is a SELECTION effect.** `ratio_u` swings
+  between 1.16 and 5.14 at a fixed mesh while `-no-ext` moves 3%, the swept
+  regions still tile `D_h^c` to 1e-11 in every one of those runs, and
+  `ratio_p` stays inside 1.00 to 1.17. So the geometry is innocent and the
+  potential is untouched, and something about WHICH elements `D_h` contains
+  costs the flux up to a factor of five. Which property of the selection that
+  is, is not known, and nothing here measures it.
+
+  Underneath it, and not this section's: why plain HDG on a level-set-carved
+  tetrahedral subdomain gives a flux rate of about 1.6 rather than k+1 at all.
+  `-no-ext` carries the same deficit on the same `D_h`.
 
   Generalising the vertex search — `VertexConePath`, the only refusal in the
   whole of `extension_hdg`, at `extension_hdg.cpp:206`, written in `atan2` and
