@@ -221,6 +221,25 @@ enum Problem
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
 
+/** @brief `1 / (kappa + u_h)` -- the inverse diffusivity of problems 8 and 9
+    evaluated at the DISCRETE potential rather than frozen at a constant.
+
+    The serial twin's copy carries the measurement: the local postprocessing
+    inverts the flux law, so for `q = -(kappa + u) grad u` it needs an inverse
+    diffusivity that is a function of the solution. Frozen at `1/kappa` it
+    caps `u*` at FIRST order whatever the polynomial degree, where the
+    consistent one gives k+2. See convdiff.cpp's header comment. */
+class InverseKappaAtPotential : public Coefficient
+{
+   const GridFunction &u;
+   const real_t kappa;
+public:
+   InverseKappaAtPotential(const GridFunction &u_, real_t kappa_)
+      : u(u_), kappa(kappa_) { }
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   { return 1. / (kappa + u.GetValue(T, ip)); }
+};
+
 /** @brief `F(u) = u^3 - u`, Example 4.1 of Chen, Cockburn, Singler & Zhang,
     J. Sci. Comput. 81 (2019) 2188-2212 -- the reaction of problem 10.
 
@@ -1455,7 +1474,11 @@ int main(int argc, char *argv[])
          // the solve never saw.
          ParGridFunction t_hpp(S_space.get());
          HDGPotentialPostprocessor pp(q_h, t_h);
-         pp.SetDiffusionInverse(ikcoeff);
+         // With a potential-dependent diffusivity the constant 1/kappa is the
+         // wrong operator to invert and costs every order above the first.
+         InverseKappaAtPotential iknl(t_h, pars.k);
+         if (bnldiff) { pp.SetDiffusionInverse(iknl); }
+         else         { pp.SetDiffusionInverse(ikcoeff); }
          pp.Compute(t_hpp);
          const real_t err_tpp = t_hpp.ComputeL2Error(tcoeff, irs);
          if (root)
@@ -1909,7 +1932,7 @@ VecTFunc GetQFun(const ProblemParams &params)
             const real_t argy = (1. - x(1)) / k;
             const real_t ux = x(0) * tanh(argx);
             const real_t uy = x(1) * tanh(argy);
-            const real_t ut = (prob == Problem::SteadyBurgers)?(1.):(exp(t) - 1.);
+            const real_t ut = (prob == Problem::SteadyLinearKappa)?(1.):(exp(t) - 1.);
             const real_t u = ut * ux * uy;
             const real_t chx = cosh(argx);
             const real_t chy = cosh(argy);

@@ -79,10 +79,26 @@ is verified for such a flux, but no order study asserts `k+2` for one.**"
 
 So the honest position for this section is three-way rather than two-way: the
 theory is open, the practice is **fine** — it runs, the Jacobian is right, and
-nothing degenerates — and the superconvergence RATE on a genuine flux law is
-unmeasured anywhere, here or there. The sentence above ("the class CCSZ-I does
-not cover") is true of the theory and was being read as if it were true of the
-method; it is not.
+nothing degenerates. The sentence above ("the class CCSZ-I does not cover") is
+true of the theory and was being read as if it were true of the method; it is
+not.
+
+**AND THE RATE IS NOW MEASURED, which it was not anywhere, here or there.**
+`convdiff -p 8 -pp` is a genuine `F(∇u, u)` — `q = -(κ + u) ∇u` — and `u*`
+reaches **k+2 at k = 1, 2 and 3** (2.99, 4.00, 5.00) while `u` and `q` hold
+k+1. The table is in `convdiff.cpp`'s header comment.
+
+**The condition is the finding, not the rate.** The local postprocessing
+inverts the flux law, so it must be handed THAT law's inverse diffusivity,
+`1/(κ + u_h)`; `-ppk` selects it and it is the default whenever the diffusion
+is nonlinear. Frozen at the constant `1/κ` — which is what this miniapp did
+before — `u*` is pinned at **exactly first order at every degree**, and that
+flatness in `k` is the signature to recognise: a postprocessing that
+superconverges for linear diffusion and gives order 1 for every degree on a
+nonlinear one has been given the wrong operator, not met a limit of the method.
+
+So what is left of this section is the THEORY only. Nothing here is blocked on
+it.
 
 **One anomaly of theirs worth carrying, because it contradicts the stated
 mechanism.** With their flag OFF, `u*` superconverges at `k = 2` but not at
@@ -148,13 +164,23 @@ nothing about which nodes. MFEM's `L2_FECollection` defaults to
 `GaussLobatto` is closed and puts dofs on vertices. `I_h` differs between them
 and so, in principle, does the answer at fixed `h`.
 
-meq's request gives a concrete reason to care:
-meq's integrand is `F/r` and a Lobatto triangle puts a dof at `r = 0` on any
-domain reaching the symmetry axis — "Quadrature never meets this; nodal
-interpolation does." So the node set is a caller choice, which is why
-`HDGPostprocessBlocks` takes `fes_s` as an argument (§3.1) rather than building
-it. **Unmeasured**: whether the two node sets give the same rates and how far
-apart the answers are at fixed `h` is a sweep nobody has run.
+**MEASURED, and accuracy does not decide it.** `convdiff -ppb` runs both node
+sets; the numbers are on the `S_coll` construction in `convdiff.cpp`. The two
+give the SAME rates of u / q / u* to two decimals at k = 1 and k = 2, and the
+answers differ by at most 1.2e-03 relative — that worst case being u* on the
+coarsest mesh, and shrinking under refinement.
+
+**What decides it is the domain of `F`, and there the margin is not close.**
+Counting the enriched element's nodes on a reference triangle at degree
+k+1 = 2, 3, 4: Gauss-Lobatto puts 6 of 6, 9 of 10 and 12 of 15 of them ON the
+element boundary — at degree 2 every one — while Gauss-Legendre puts none, its
+closest standing 1.0e-01, 6.5e-02 and 4.5e-02 away. So meq's `F/r` is evaluated
+exactly at `r = 0` under the closed set and nowhere near it under the open one:
+"Quadrature never meets this; nodal interpolation does." The node set stays a
+caller choice — `HDGPostprocessBlocks` takes `fes_s` as an argument (§3.1) — and
+the open default is now justified by that rather than by inheritance.
+
+**Nothing is left in this section.**
 
 ### 6.6 `τ` — a premise to fix before running the ladder
 

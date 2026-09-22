@@ -244,6 +244,35 @@
 //               the two arms are supposed to agree, so a reference pinning
 //               them apart would be pinning noise.
 //
+//               SUPERCONVERGENCE SURVIVES A GENUINE FLUX LAW, WHICH THE
+//               PAPERS LEAVE OPEN AND NOBODY HAD MEASURED. CCSZ-I's eq (1)
+//               is `-Lap u + F(u) = f` -- the nonlinearity is a REACTION --
+//               and its section 5 names a general `F(grad u, u)` as an open
+//               problem. Problem 8 here IS one: `q = -(kappa + u) grad u`,
+//               a potential-dependent diffusivity, run with -pp on uniform
+//               triangulations, four refinements, rates of u / q / u*:
+//
+//                    k    -ppk 1 (consistent)     -ppk 0 (frozen 1/kappa)
+//                    1    2.02 2.00  2.99          2.02 2.00  1.00
+//                    2    3.02 3.00  4.00          3.02 3.00  1.00
+//                    3    4.01 4.00  5.00          4.01 4.00  1.00
+//
+//               So u* reaches k+2 on a flux law at every degree tried. The
+//               CONDITION is the whole finding: the local postprocessing
+//               inverts the flux law, so it must be given THAT law's inverse
+//               diffusivity, `1/(kappa + u_h)`. Frozen at the constant
+//               `1/kappa` it solves a different elementwise problem and u*
+//               is pinned at FIRST order whatever the degree -- 3.7e-04 on
+//               the finest mesh at k = 1, 2 and 3 alike, against 1.7e-06,
+//               8.7e-09 and 1.7e-11. That is 221x, 4.3e4 and 2.2e7.
+//
+//               The frozen arm is a CONTROL and not a strawman: it is what
+//               this miniapp did until -ppk existed, and its flatness in k
+//               is the signature to recognise elsewhere. A postprocessing
+//               that superconverges for linear diffusion and gives exactly
+//               order 1 for every degree on a nonlinear one is being handed
+//               the wrong operator, not meeting a limit of the method.
+//
 //               A tight -rtol matters: the reaction puts the local element
 //               solve on an iterative Newton whose tolerance is derived from
 //               the outer one, and at the default the outer solver stops one
@@ -298,6 +327,27 @@ enum Problem
 };
 
 constexpr real_t epsilon = numeric_limits<real_t>::epsilon();
+
+/** @brief `1 / (kappa + u_h)` -- the inverse diffusivity of problems 8 and 9
+    evaluated at the DISCRETE potential rather than frozen at a constant.
+
+    The local postprocessing inverts the flux law to recover `grad u*` from
+    `q_h`, so it needs THAT law's inverse diffusivity. For `q = -(kappa + u)
+    grad u` this is a function of the solution, and handing the solve a
+    constant `1/kappa` instead solves a different problem elementwise. The
+    cost of getting it wrong is not a constant factor: it caps `u*` at FIRST
+    order whatever the polynomial degree. `-ppk` selects between the two and
+    the measurement is in this file's header comment. */
+class InverseKappaAtPotential : public Coefficient
+{
+   const GridFunction &u;
+   const real_t kappa;
+public:
+   InverseKappaAtPotential(const GridFunction &u_, real_t kappa_)
+      : u(u_), kappa(kappa_) { }
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   { return 1. / (kappa + u.GetValue(T, ip)); }
+};
 
 /** @brief `F(u) = u^3 - u`, Example 4.1 of Chen, Cockburn, Singler & Zhang,
     J. Sci. Comput. 81 (2019) 2188-2212 -- the reaction of problem 10.
@@ -403,6 +453,8 @@ int main(int argc, char *argv[])
    int local_factor_mode = -1;
    real_t newton_rtol = -1.;
    bool nonlinear_diff = false;
+   int ppbasis = 0;
+   int ppkappa = -1;
    int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::Default;
    int prec_type = (int)DarcyOperator::PrecType::Default;
@@ -451,6 +503,21 @@ int main(int argc, char *argv[])
                   "postprocessed potential is stated for an O(1) tau and is "
                   "lost at kappa/h -- measured rates both ways are on "
                   "HDGPotentialPostprocessor.");
+   args.AddOption(&ppkappa, "-ppk", "--postproc-kappa",
+                  "Inverse diffusivity the LOCAL POSTPROCESSING inverts: "
+                  "0 = the constant 1/kappa, 1 = 1/(kappa + u_h), consistent "
+                  "with a potential-dependent flux law. -1, the default, "
+                  "picks 1 when the diffusion is nonlinear and 0 otherwise. "
+                  "On problems 8 and 9 the constant caps u* at first order at "
+                  "every degree; see the header comment.");
+   args.AddOption(&ppbasis, "-ppb", "--postproc-basis",
+                  "Node set of the enriched space Z_h: 0 = Gauss-Legendre, the "
+                  "L2 default and an OPEN set, which is what CCSZ's "
+                  "interpolation nodes are; 1 = Gauss-Lobatto, CLOSED, which "
+                  "puts nodes on the element boundary. Measured: the two give "
+                  "the same rates, so the choice is free for a regular "
+                  "reaction and is forced only by one that is not evaluable "
+                  "on the boundary.");
    args.AddOption(&postprocess, "-pp", "--postprocess", "-no-pp",
                   "--no-postprocess",
                   "Compute the local postprocessing u* of the potential into "
@@ -1188,14 +1255,37 @@ int main(int argc, char *argv[])
    // reporting the u* the residual was built from.
    if (breaction || postprocess)
    {
-      // The DEFAULT L2 basis, which is open (Gauss-Legendre), rather than the
-      // closed one W_coll uses. CCSZ's interpolation nodes are an open set
-      // (section 6.5 of doc/HDG-INTERPOLATORY-CCSZ.md), and a closed basis
-      // puts nodes on the element boundary where a reaction with a singular
-      // factor -- meq's F/r on the symmetry axis -- is not evaluable. The
-      // node set is a free choice with an unmeasured effect on the answer,
-      // which is why it is stated here rather than inherited.
-      S_coll = make_unique<L2_FECollection>(order + 1, dim);
+      // The DEFAULT L2 basis, which is open (Gauss-Legendre), rather than
+      // the closed one W_coll uses. CCSZ's interpolation nodes are an open
+      // set, and a closed basis puts nodes on the element boundary where a
+      // reaction with a singular factor -- meq's F/r on the symmetry axis --
+      // is not evaluable.
+      //
+      // THE EFFECT ON THE ANSWER IS MEASURED AND IT IS NOT WHAT DECIDES THE
+      // CHOICE; -ppb is the knob that took it and is kept so it can be
+      // re-taken. On problem 10, -rx 1 -tau0 1, uniform triangulations, four
+      // refinements: the two node sets give the SAME rates of u / q / u* to
+      // two decimals -- 2.02/2.01/3.00 at k = 1 and 3.02/3.02/4.00 at k = 2,
+      // both -- and the answers differ by at most 1.2e-03 relative, that
+      // worst case being u* on the coarsest k = 1 mesh and SHRINKING under
+      // refinement (1.2e-03, 7.6e-04, 4.2e-04, 2.2e-04). u is the least
+      // sensitive and u* the most, which is what one would expect when the
+      // interpolation nodes ARE this space's nodes. So accuracy does not
+      // choose.
+      //
+      // WHAT CHOOSES IS EVALUABILITY, and the margin is not close. Counting
+      // the enriched element's own nodes on a reference TRIANGLE, degree
+      // k+1 = 2, 3, 4: Gauss-Lobatto puts 6 of 6, 9 of 10 and 12 of 15 of
+      // them ON the element boundary -- at degree 2 every single one --
+      // while Gauss-Legendre puts NONE, its closest node standing 1.0e-01,
+      // 6.5e-02 and 4.5e-02 from the boundary. A reaction carrying a factor
+      // that is singular there, meq's F/r on the symmetry axis, is therefore
+      // evaluated AT the singularity under the closed set and nowhere near
+      // it under the open one. That is the reason the default is open, and
+      // it is a reason about the domain of F rather than about accuracy.
+      const int pp_bt = (ppbasis == 1) ? BasisType::GaussLobatto
+                        : BasisType::GaussLegendre;
+      S_coll = make_unique<L2_FECollection>(order + 1, dim, pp_bt);
       S_space = make_unique<FiniteElementSpace>(&mesh, S_coll.get());
 
       pp_blocks = make_unique<HDGPostprocessBlocks>(*V_space, *W_space,
@@ -1620,7 +1710,13 @@ int main(int argc, char *argv[])
          // the solve never saw.
          GridFunction t_hpp(S_space.get());
          HDGPotentialPostprocessor pp(q_h, t_h);
-         pp.SetDiffusionInverse(ikcoeff);
+         // The postprocessing inverts the FLUX LAW, so with a
+         // potential-dependent diffusivity the constant 1/kappa is the wrong
+         // operator to invert and costs every order above the first.
+         InverseKappaAtPotential iknl(t_h, pars.k);
+         const bool pp_nl = (ppkappa < 0) ? bnldiff : (ppkappa == 1);
+         if (pp_nl) { pp.SetDiffusionInverse(iknl); }
+         else       { pp.SetDiffusionInverse(ikcoeff); }
          pp.Compute(t_hpp);
          const real_t err_tpp = t_hpp.ComputeL2Error(tcoeff, irs);
          cout << "|| t_h* - t_ex || / || t_ex || = " << err_tpp / norm_t
@@ -2055,6 +2151,20 @@ VecTFunc GetQFun(const ProblemParams &params)
          };
       case Problem::SteadyLinearKappa:
       case Problem::NonsteadyLinearKappa:
+         // The `ut` below used to test `prob == SteadyBurgers`, copied in
+         // from the Burgers branch above, and that is a condition this case
+         // can never satisfy -- so the STEADY problem took the unsteady
+         // `exp(t) - 1` and evaluated the exact flux at 1.718 times its own
+         // amplitude while the exact POTENTIAL, whose test was right, used 1.
+         // Only `|| q_h - q_ex ||` was affected. It read about 0.426 at every
+         // mesh and every order, converging nowhere, which looks like a
+         // broken discretisation and is a broken reference value; with the
+         // test repaired q converges at k+1 (2.00, 3.00, 4.00 at k = 1, 2, 3).
+         // The discriminator is free and it is the potential: on
+         // p8_o1_dg_hb_nld_newton the recorded `|| t_h - t_ex ||` reproduces
+         // BIT-IDENTICALLY (0.0208425) while q moves 0.51706 -> 0.019585, so
+         // the solve is untouched and only the thing it is compared against
+         // moved.
          return [=](const Vector &x, real_t t, Vector &v)
          {
             v.SetSize(x.Size());
@@ -2062,7 +2172,7 @@ VecTFunc GetQFun(const ProblemParams &params)
             const real_t argy = (1. - x(1)) / k;
             const real_t ux = x(0) * tanh(argx);
             const real_t uy = x(1) * tanh(argy);
-            const real_t ut = (prob == Problem::SteadyBurgers)?(1.):(exp(t) - 1.);
+            const real_t ut = (prob == Problem::SteadyLinearKappa)?(1.):(exp(t) - 1.);
             const real_t u = ut * ux * uy;
             const real_t chx = cosh(argx);
             const real_t chy = cosh(argy);
