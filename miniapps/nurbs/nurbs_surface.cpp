@@ -63,9 +63,9 @@ public:
 
    ~SurfaceInterpolator()
    {
-      for (int i = 0; i < cmesh.size(); ++i)
+      for (Mesh* mesh : cmesh)
       {
-         delete cmesh[i];
+         delete mesh;
       }
    }
 
