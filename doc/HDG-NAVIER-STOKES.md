@@ -39,7 +39,26 @@ The solve is **NPC**; `DarcyOperator` is not involved.
   nowhere in the tree. The weak divergence in `(r,z)` is the Cartesian one
   under the measure `r dr dz`, so it needs the weight threaded through every
   integrator and a condition on the axis — but no new integrators.
-* **No regression reference.** `navierstokes` and `pnavierstokes` are both in
-  the build with `navierstokes-test-seq` and `pnavierstokes-test-par` targets,
-  but nothing in `regress_test/` or `regress_test_par/` covers either, so none
-  of the round-off checks in the header comment is run by the suite.
+* ~~No regression reference, so none of the round-off checks is run by the
+  suite~~ — **half of that was already false, and the other half is now
+  closed.** `navierstokes-test-seq` and `pnavierstokes-test-par` have graded
+  plane Poiseuille at `-chk 1e-11` all along, and it passes (4.6e-15 / 1.8e-15
+  / 3.2e-16) -- `-chk` exists precisely because `mfem-test` grades on the exit
+  code, so that check was never a smoke run. What WAS uncovered is the other
+  two zero-source problems, and both are graded now, in both arms: uniform
+  flow at 3.8e-16 / 4.1e-16 / 3.5e-16 and Couette at 9.4e-15 / 3.1e-16 /
+  4.2e-16.
+
+  **The three are not interchangeable**, which is on the makefile beside them:
+  at order 1 Poiseuille FAILS its check, its solution being degree 2, while
+  uniform flow and Couette pass, being constant and linear. So problem 1 grades
+  the space as well as the solver and the other two grade the solver. All three
+  are falsified by `-chk 1e-17`.
+
+  Still true, and a different claim from the one above: **`regression_test.py`
+  covers neither miniapp**, because it reconstructs `(p)convdiff` command lines
+  from a fixed option list and knows no second binary. Teaching it one is a
+  harness change rather than a reference, and nothing needs it while the graded
+  targets carry the exact solutions. Kovasznay is the case a reference WOULD be
+  wanted for -- it converges rather than landing at round-off, so a threshold
+  cannot grade it and a rate study is what it needs.

@@ -89,9 +89,30 @@ convdiff-test-seq: convdiff
 # mfem-test grades on the exit code alone, so without -chk nothing checks it.
 # The default -rtol of 1e-6 stops the Newton far above the discretisation and
 # would fail the check for that reason rather than a real one.
+# Three of the four zero-source problems are exact in the discrete space at
+# order 2, and all three are graded. Poiseuille alone used to be, which left
+# the other two -- a constant profile and a linear one -- checked by nothing:
+# measured 3.8e-16 / 4.1e-16 / 3.5e-16 on uniform flow and 9.4e-15 / 3.1e-16 /
+# 4.2e-16 on Couette, against Poiseuille's 4.6e-15 / 1.8e-15 / 3.2e-16.
+# Kovasznay (-p 2) is NOT here and cannot be: it is an exact solution of the
+# equations but not a polynomial, so it converges rather than landing at
+# round-off, and grading it needs a rate study rather than a threshold.
+#
+# The threshold is checked to DISCRIMINATE rather than assumed to: -chk 1e-17
+# fails on all three. The ORDER falsification is problem 1's alone, and the
+# reason is worth knowing before anyone reads the three as interchangeable --
+# -chk 1e-11 at order 1 fails on Poiseuille, whose solution is degree 2, and
+# PASSES on the other two, uniform flow being constant and Couette linear and
+# both therefore still exact in the order-1 space. So problem 1 grades the
+# space as well as the solver and the other two grade the solver; they are
+# three different exact solutions and not three copies of one check.
 navierstokes-test-seq: navierstokes
 	@$(call mfem-test,$<,, HDG Navier-Stokes miniapp,\
 	-p 1 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
+	@$(call mfem-test,$<,, HDG Navier-Stokes uniform flow,\
+	-p 3 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
+	@$(call mfem-test,$<,, HDG Navier-Stokes Couette flow,\
+	-p 4 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
 mfem-logo-test-seq: mfem-logo
 	@$(call mfem-test,$<,, HDG MFEM logo miniapp,\
 	-nx 50 -o 3 -hb -brt -a 1e3 -ks 1e-3 -c 2e4)
@@ -107,6 +128,10 @@ pconvdiff-test-par: pconvdiff
 pnavierstokes-test-par: pnavierstokes
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG Navier-Stokes miniapp,\
 	-p 1 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG Navier-Stokes uniform flow,\
+	-p 3 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG Navier-Stokes Couette flow,\
+	-p 4 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
