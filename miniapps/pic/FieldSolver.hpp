@@ -30,11 +30,18 @@ private:
    real_t neutralizing_const;
    ParLinearForm* precomputed_neutralizing_lf = nullptr;
    bool precompute_neutralizing_const = false;
-   // Diffusion matrix with epsilon (for Poisson solve)
+   // Poisson stiffness with epsilon.
    HypreParMatrix* diffusion_matrix;
-   // Discrete p=4 hyper-diffusion operator for DiffuseRHS:
-   // M_plus_cK_matrix = M + c * K^4, where K is the Poisson stiffness matrix.
-   HypreParMatrix* M_plus_cK_matrix;
+   // Biharmonic diffusion: M from MassIntegrator, K from DiffusionIntegrator.
+   HypreParMatrix* M_matrix;
+   HypreParMatrix* K_matrix;
+   // Schur factor H = M + sqrt(c) K. c is the -diff coefficient.
+   HypreParMatrix* H_matrix;
+   // Persistent AMG approximation of H^{-1}; H_matrix is constant.
+   HypreBoomerAMG* H_inv;
+   // Unknowns [V, U]. A = [ M, -K; c K, M ].
+   HypreParMatrix* A_matrix;
+   real_t c;
    // Gradient operator for computing E = -∇phi
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
@@ -97,9 +104,8 @@ public:
                          const ParGridFunction& phi_gf,
                          const ParGridFunction& rho_gf, int timestep);
 
-   /** Diffuse RHS with a p=4 hyper-diffusion by solving a linear system with
-       the discrete operator (M + c * K^4); overwrites rhs with the hyper-diffused
-       field. */
+   /** One implicit biharmonic-diffusion step,
+       M U + c K V = M U^n,  M V - K U = 0. */
    void DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx

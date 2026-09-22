@@ -47,6 +47,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          int efield_output_interval_, int phi_output_interval_,
                          int rho_output_interval_, int field_sample_resolution_)
     : precompute_neutralizing_const(precompute_neutralizing_const_),
+      c(diffusivity),
       E_finder(E_finder_),
       b(phi_fes),
       efield_output_interval(efield_output_interval_),
@@ -77,28 +78,39 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
    }
 
    {
-      ParBilinearForm dm(phi_fes);
-      dm.AddDomainIntegrator(new DiffusionIntegrator);
-      dm.Assemble();
-      dm.Finalize();
-      HypreParMatrix* temp_diffusion_matrix = dm.ParallelAssemble();
 
-      // Build mass matrix M
       ParBilinearForm m(phi_fes);
       m.AddDomainIntegrator(new MassIntegrator());
       m.Assemble();
       m.Finalize();
-      HypreParMatrix* M = m.ParallelAssemble();
+      M_matrix = m.ParallelAssemble();
 
-      // Build discrete K^4 using the Poisson stiffness matrix (diffusion_matrix)
-      HypreParMatrix* K2 =
-         ParMult(temp_diffusion_matrix, temp_diffusion_matrix);
+      ParBilinearForm k(phi_fes);
+      k.AddDomainIntegrator(new DiffusionIntegrator);
+      k.Assemble();
+      k.Finalize();
+      K_matrix = k.ParallelAssemble();
 
-      M_plus_cK_matrix = Add(1.0, *M, diffusivity, *K2);
+      // H = M + sqrt(c) K.
+      H_matrix = Add(1.0, *M_matrix, std::sqrt(c), *K_matrix);
+      H_inv = new HypreBoomerAMG(*H_matrix);
+      H_inv->SetPrintLevel(0);
+      H_inv->iterative_mode = false;
 
-      delete K2;
-      delete temp_diffusion_matrix;
-      delete M;
+      // Unknowns [V, U], so the Schur complement for U is the last block:
+      // A = [ M, -K; c K, M ].
+      Array2D<const HypreParMatrix*> blocks(2, 2);
+      blocks(0, 0) = M_matrix;
+      blocks(0, 1) = K_matrix;
+      blocks(1, 0) = K_matrix;
+      blocks(1, 1) = M_matrix;
+
+      Array2D<real_t> block_coeff(2, 2);
+      block_coeff(0, 0) = 1.0;
+      block_coeff(0, 1) = -1.0;
+      block_coeff(1, 0) = c;
+      block_coeff(1, 1) = 1.0;
+      A_matrix = HypreParMatrixFromBlocks(blocks, &block_coeff);
    }
 
    {
@@ -113,7 +125,11 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 FieldSolver::~FieldSolver()
 {
    delete diffusion_matrix;
-   delete M_plus_cK_matrix;
+   delete M_matrix;
+   delete K_matrix;
+   delete H_inv;
+   delete H_matrix;
+   delete A_matrix;
    delete precomputed_neutralizing_lf;
    delete grad_interpolator;
 }
@@ -420,29 +436,57 @@ void FieldSolver::SampleAndWriteScalarField(const ParGridFunction& field,
 
 void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 {
+   ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
+   const int n = M_matrix->Height();
+
+   Array<int> offsets(3);
+   offsets[0] = 0;
+   offsets[1] = n;
+   offsets[2] = 2 * n;
+
+   // [ M, 0; c K, S ]^{-1}, with M^{-1} ≈ diag(M)^{-1} and
+   // S^{-1} ≈ H^{-1} M H^{-1} applied to U.
+   HypreDiagScale M_inv(*M_matrix);
+   TripleProductOperator S_inv(H_inv, M_matrix, H_inv, false, false, false);
+   ScaledOperator cK(K_matrix, c);
+
+   BlockLowerTriangularPreconditioner prec(offsets);
+   prec.SetDiagonalBlock(0, &M_inv);
+   prec.SetDiagonalBlock(1, &S_inv);
+   prec.SetBlock(1, 0, &cK);
+
+   GMRESSolver solver(A_matrix->GetComm());
+   solver.SetOperator(*A_matrix);
+   solver.SetRelTol(1e-12);
+   solver.SetAbsTol(1e-24);
+   solver.SetMaxIter(200);
+   solver.SetPrintLevel(0);
+   solver.iterative_mode = true;
+   solver.SetPreconditioner(prec);
+
+   BlockVector sol(offsets);
+   BlockVector rhs(offsets);
+
    for (int i = 0; i < 10; i++)
    {
       HypreParVector* B = b.ParallelAssemble();
-      ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
 
-      // Warm-start from the previous rho state to reduce linear iterations.
+      // Unknowns are [V, U]. Warm-start U from the previous rho.
       HypreParVector Rho_true(pfes);
       rho_gf.GetTrueDofs(Rho_true);
-
-      HyprePCG solver(M_plus_cK_matrix->GetComm());
-      solver.SetOperator(*M_plus_cK_matrix);
-      solver.SetTol(1e-12);
-      solver.SetMaxIter(4000);
-      solver.SetPrintLevel(0);
-      solver.iterative_mode = true;
-
-      HypreBoomerAMG prec(*M_plus_cK_matrix);
-      prec.SetPrintLevel(0);
-      solver.SetPreconditioner(prec);
-
-      solver.Mult(*B, Rho_true);
+      sol.GetBlock(0) = 0.0;
+      sol.GetBlock(1) = Rho_true;
+      rhs.GetBlock(0) = 0.0;
+      rhs.GetBlock(1) = *B;
       delete B;
 
+      solver.Mult(rhs, sol);
+      MFEM_VERIFY(solver.GetConverged(),
+                  "Biharmonic GMRES failed after "
+                     << solver.GetNumIterations()
+                     << " iterations; residual = " << solver.GetFinalNorm());
+
+      static_cast<Vector&>(Rho_true) = sol.GetBlock(1);
       rho_gf.SetFromTrueDofs(Rho_true);
 
       b = 0.0;
