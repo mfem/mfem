@@ -4755,10 +4755,24 @@ Mesh& Mesh::operator=(Mesh &&mesh)
    return *this;
 }
 
+#ifdef MFEM_USE_HDF5
+bool IsNativeNURBSHDF5(const std::string &filename);
+std::string ReadNativeNURBSHDF5(const std::string &filename);
+#endif
+
 Mesh Mesh::LoadFromFile(const std::string &filename, int generate_edges,
                         int refine, bool fix_orientation)
 {
    Mesh mesh;
+#ifdef MFEM_USE_HDF5
+   if (IsNativeNURBSHDF5(filename))
+   {
+      const std::string contents = ReadNativeNURBSHDF5(filename);
+      std::istringstream input(contents);
+      mesh.Load(input, generate_edges, refine, fix_orientation);
+      return mesh;
+   }
+#endif
    named_ifgzstream imesh(filename);
    if (!imesh) { MFEM_ABORT("Mesh file not found: " << filename << '\n'); }
    else { mesh.Load(imesh, generate_edges, refine, fix_orientation); }
@@ -4843,6 +4857,16 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
 {
    // Initialization as in the default constructor
    SetEmpty();
+
+#ifdef MFEM_USE_HDF5
+   if (IsNativeNURBSHDF5(filename))
+   {
+      const std::string contents = ReadNativeNURBSHDF5(filename);
+      std::istringstream input(contents);
+      Load(input, generate_edges, refine, fix_orientation);
+      return;
+   }
+#endif
 
    named_ifgzstream imesh(filename);
    if (!imesh)
