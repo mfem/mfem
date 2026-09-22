@@ -237,13 +237,35 @@ nothing: `min{k,1} = 0` and Table 1's `k = 0` `u*` column is 0.97.
    wrong about a diffusion parameter. gffp's case is the second kind.
 4. **Whether `Bg_data` should be a fourth `LocalOpType`'s business** rather than
    a flag. §3.4 / stage 5.
-5. **Cut elements.** meq's source is confined to a region whose edge is a level
-   set of the solution cutting through elements, where `F` has a kink or a jump.
-   An interpolant is the wrong object there; the papers assume a smooth `F`
-   under a local Lipschitz condition and say nothing about it. meq's plan is to
-   interpolate on uncut elements and keep quadrature where the edge cuts, which
-   would need the integrator to admit a per-element opt-out. **Not designed for
-   here** — flagged because it is a caller requirement that would change
-   `HDGInterpolatoryReactionIntegrator`'s interface if it arrived late.
+5. **Cut elements. MEASURED, and the per-element opt-out is REFUSED.** meq's
+   source is confined to a region whose edge is a level set of the solution
+   cutting through elements, where `F` has a kink or a jump; the papers assume
+   a smooth `F` under a local Lipschitz condition and say nothing about it.
+   meq's plan was to interpolate on uncut elements and keep quadrature where
+   the edge cuts, which would have needed a per-element opt-out on
+   `HDGInterpolatoryReactionIntegrator`. **It does not pay**, and the three
+   findings are on that class and in `convdiff.cpp`'s header:
+
+   * a jump lying ON a mesh line costs nothing at all;
+   * a jump that CUTS costs `u*` its superconvergence — rate 1.00 at every
+     degree — and takes `u` and `q` with it once their own error has dropped
+     below the pollution;
+   * the interpolatory arm and the quadrature control are each clean exactly
+     where the edge misses their OWN point sets, and those two sets do not
+     coincide, so which is better is a coin toss (15 positions to 14 across
+     one cell). Swapping one for the other cannot be the repair.
+
+   `convdiff -rcm 1 -rc a` (a plane, mesh-alignable, so there is an uncut
+   control) and `-rcm 2 -rc c` (a level set of `u`, meq's own case) are the
+   instrument.
+
+   **What is left is the thing that would actually fix it, and nobody has
+   asked for it**: a quadrature rule on a cut element that knows where the cut
+   is — a subdivision of the element along the interface, or a moment-fitted
+   rule. That is an unfitted-FEM machine rather than an integrator flag, and
+   it would serve the LOAD as much as the reaction. This measurement does not
+   separate the two: the source and the reaction integrate a discontinuous
+   integrand on the same elements, and the arms that would separate them are a
+   quadrature-order sweep on each.
 
 ---

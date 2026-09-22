@@ -240,26 +240,64 @@ public:
    { return 1. / (kappa + u.GetValue(T, ip)); }
 };
 
-/** @brief `F(u) = u^3 - u`, Example 4.1 of Chen, Cockburn, Singler & Zhang,
-    J. Sci. Comput. 81 (2019) 2188-2212 -- the reaction of problem 10.
+/** @brief `F(u) = g (u^3 - u)`, Example 4.1 of Chen, Cockburn, Singler &
+    Zhang, J. Sci. Comput. 81 (2019) 2188-2212 -- the reaction of problem 10 --
+    with an optional GATE `g` that switches it off across a surface.
 
     A NodalReactionFunction rather than a Coefficient because the interpolatory
     method evaluates it AT the nodes of the enriched space and never under a
     quadrature rule; the quadrature control reached by `-rx 2` uses the same
-    object, which is what makes the two arms differ in one thing only. */
+    object, which is what makes the two arms differ in one thing only.
+
+    `g = 1` is CCSZ's own reaction and is the default. The two gates exist to
+    answer one question -- what an element the reaction's support CUTS costs,
+    and whether quadrature survives it where interpolation does not -- and
+    they are reached by `-rcm` and `-rc`:
+
+    * `-rcm 1`: `g = [x_0 < c]`, a jump on a PLANE. On `data/inline-tri.mesh`
+      the plane `c = 0.5` is a mesh line at every refinement, so it is the
+      UNCUT control -- same discontinuity, same magnitude, resolved exactly --
+      while `c = 1/3` is a mesh line at no refinement and always falls a third
+      or two thirds of the way through a cell.
+    * `-rcm 2`: `g = [u < c]`, meq's own case. The support's edge is a LEVEL
+      SET of the solution, so it moves with the iterate and no element can be
+      classified as cut before the solve.
+
+    **The gate's own derivative is a delta and is DROPPED.** Newton is handed
+    the one-sided derivative, which is all any implementation of a gated
+    reaction can offer without tracking the interface; that is a property of
+    the problem, not of this fixture. */
 struct CubicReaction : public NodalReactionFunction
 {
+   /// 0 = no gate (CCSZ's `F`), 1 = gate on `x_0 < cut`, 2 = gate on `u < cut`.
+   int mode{0};
+   real_t cut{0.};
+
+   CubicReaction() = default;
+   CubicReaction(int mode_, real_t cut_) : mode(mode_), cut(cut_) { }
+
+   /// The gate, shared with the manufactured source so the two cannot drift.
+   static real_t Gate(int mode, real_t cut, const Vector &x, real_t u)
+   {
+      switch (mode)
+      {
+         case 1: return (x(0) < cut) ? 1. : 0.;
+         case 2: return (u < cut) ? 1. : 0.;
+         default: return 1.;
+      }
+   }
+
    int NumEquations() const override { return 1; }
-   void Eval(const Vector &, const Vector &u, Vector &F) const override
+   void Eval(const Vector &x, const Vector &u, Vector &F) const override
    {
       F.SetSize(1);
-      F(0) = u(0) * u(0) * u(0) - u(0);
+      F(0) = Gate(mode, cut, x, u(0)) * (u(0) * u(0) * u(0) - u(0));
    }
-   void EvalJacobian(const Vector &, const Vector &u,
+   void EvalJacobian(const Vector &x, const Vector &u,
                      DenseMatrix &J) const override
    {
       J.SetSize(1);
-      J(0, 0) = 3.0 * u(0) * u(0) - 1.0;
+      J(0, 0) = Gate(mode, cut, x, u(0)) * (3.0 * u(0) * u(0) - 1.0);
    }
 };
 
@@ -286,6 +324,11 @@ struct ProblemParams
    real_t k;
    real_t t_0;
    real_t c;
+   /// Problem 10's reaction gate; see CubicReaction. The manufactured source
+   /// reads the SAME gate, so `-rcm` cannot leave `f` describing a different
+   /// problem from the one the residual assembles.
+   int rcmode{0};
+   real_t rcut{0.};
 };
 
 TFunc GetTFun(const ProblemParams &params);
@@ -326,6 +369,8 @@ int main(int argc, char *argv[])
    bool upwinded = false;
    int iproblem = Problem::SteadyDiffusion;
    int reaction = 1;
+   int rcmode = 0;
+   real_t rcut = 0.;
    real_t tau0 = 0.;
    bool postprocess = false;
    ProblemParams pars;
@@ -390,6 +435,20 @@ int main(int argc, char *argv[])
                   "The two solve the SAME continuous problem and the "
                   "quadrature arm is the control the interpolatory one is "
                   "measured against; ignored by every other problem.");
+   args.AddOption(&rcmode, "-rcm", "--reaction-cut-mode",
+                  "Gate problem 10's reaction on a surface, so that the "
+                  "support of F has an edge running through the mesh: "
+                  "0=no gate (the default, CCSZ's own F), 1=switch F off "
+                  "where x_0 >= -rc, 2=switch it off where u >= -rc. Mode 1 "
+                  "with -rc 0.5 puts the edge ON a mesh line of "
+                  "data/inline-tri.mesh at every refinement and is the UNCUT "
+                  "CONTROL for mode 1 at any other value; mode 2 is the case "
+                  "meq has, where the edge is a level set of the solution and "
+                  "moves with the iterate. The manufactured source carries "
+                  "the same gate.");
+   args.AddOption(&rcut, "-rc", "--reaction-cut",
+                  "The threshold -rcm gates on: an x_0 coordinate in mode 1, "
+                  "a value of u in mode 2. Ignored at -rcm 0.");
    args.AddOption(&tau0, "-tau0", "--stab-const",
                   "Replace the HDG diffusion stabilization by this CONSTANT. "
                   "Zero (the default) keeps the built-in kappa/h. It is not a "
@@ -528,6 +587,8 @@ int main(int argc, char *argv[])
 
    // 3. Set the problem options
    pars.prob = (Problem)iproblem;
+   pars.rcmode = rcmode;
+   pars.rcut = rcut;
    const Problem &problem = pars.prob;
    bool bconv = false, bnlconv = false, bnldiff = nonlinear_diff, btime = false;
    bool breaction = false;
@@ -606,6 +667,24 @@ int main(int argc, char *argv[])
    if (breaction && reaction != 1 && reaction != 2)
    {
       cerr << "-rx must be 1 (interpolatory) or 2 (quadrature)" << endl;
+      return 1;
+   }
+
+   if (rcmode < 0 || rcmode > 2)
+   {
+      cerr << "-rcm must be 0 (no gate), 1 (gate on x_0) or 2 (gate on u)"
+           << endl;
+      return 1;
+   }
+
+   // Refused rather than ignored: the gate changes the CONTINUOUS problem --
+   // it is carried by the manufactured source as well as by the residual --
+   // so a run that names it on a problem with no reaction is asking for
+   // something it will not get.
+   if (rcmode != 0 && !breaction)
+   {
+      cerr << "-rcm gates problem 10's reaction and no other problem has one"
+           << endl;
       return 1;
    }
 
@@ -1108,7 +1187,7 @@ int main(int argc, char *argv[])
    unique_ptr<L2_FECollection> S_coll;
    unique_ptr<ParFiniteElementSpace> S_space;
    unique_ptr<HDGPostprocessBlocks> pp_blocks;
-   CubicReaction Freact;
+   CubicReaction Freact(rcmode, rcut);
 
    // The enriched space is needed by the reaction term AND by -pp, and they
    // must be the SAME one: the interpolatory method's nodes are that space's
@@ -2025,6 +2104,8 @@ TFunc GetFFun(const ProblemParams &params)
    const real_t &k = params.k;
    const real_t &t_0 = params.t_0;
    const real_t &c = params.c;
+   const int rcmode = params.rcmode;
+   const real_t rcut = params.rcut;
 
    switch (prob)
    {
@@ -2040,7 +2121,8 @@ TFunc GetFFun(const ProblemParams &params)
             real_t t0 = t_0;
             for (int i = 0; i < ndim; i++) { t0 *= sin(M_PI * x(i)); }
             const real_t lap = -ndim * M_PI * M_PI * t0;
-            return k * lap - (t0 * t0 * t0 - t0);
+            return k * lap - CubicReaction::Gate(rcmode, rcut, x, t0)
+            * (t0 * t0 * t0 - t0);
          };
       case Problem::SteadyDiffusion:
          return [=](const Vector &x, real_t) -> real_t

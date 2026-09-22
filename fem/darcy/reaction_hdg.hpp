@@ -162,7 +162,43 @@ public:
     Legendre polynomial, which is L2-orthogonal to `P^{k+1}`, and since
     `(x-x_c) phi` lies in `P^{k+1}` for `phi` in `W_h` the next term vanishes
     too. A Gauss-Lobatto basis recovers `h^{k+2}` exactly (measured 2.99,
-    4.00), which is what identified the mechanism. */
+    4.00), which is what identified the mechanism.
+
+    @warning **A discontinuity in `F` inside an element is not seen AT ALL
+    unless it separates two of the nodes.** Gate the reaction off across a
+    plane (`convdiff -p 10 -rcm 1 -rc a`) and hold the plane inside the
+    outermost enriched node -- 0.065 of a cell width at k = 2 -- and every
+    printed digit of every norm is identical to a run with the plane ON a mesh
+    line, checked by diffing two whole runs. The method then reports full
+    `k+2` superconvergence for a problem whose interface it has silently
+    snapped to the cell edge, so an accurate-looking rate is NOT evidence that
+    an interface was resolved. Nothing here can detect it; the caller has to
+    know where the interface is.
+
+    @note **Where the discontinuity IS seen it costs `O(h)` whatever the
+    degree, and HDGQuadratureReactionIntegrator is not a repair.** On
+    triangles at `tau = 1`: a jump lying ON a mesh line costs nothing at all
+    (the smooth ladder to six digits at k = 1, 2 and 3), while a jump cutting
+    a column of cells, held at a fixed fraction of a cell as `h` halves, gives
+    `u*` rate 1.00 -- 0.88 to 1.20 at k = 1, 1.00 to 1.01 at k = 2 -- and 990x
+    the uncut error at `h = 1/32`, k = 2. Sweeping the interface across one
+    cell in 32 steps, the error is a STAIRCASE whose plateau boundaries are
+    THIS class's nodes for the interpolatory arm and the control's quadrature
+    points for the other. Of 29 cut positions the control is smaller at 15 and
+    larger at 14, and the ratio spans 0.013 to 369: which arm wins is decided
+    by an accident of geometry rather than by the discretisation.
+    **That is why this class carries no per-element opt-out.** Swapping to
+    quadrature on the cut elements -- the repair a caller would ask for --
+    trades one arbitrary point set for another and opts into the dearer arm.
+    What a cut element needs is a rule that knows where the cut is, which is
+    an unfitted-quadrature machine and not a flag on an integrator. The
+    numbers are in `miniapps/hdg/convdiff.cpp`'s header comment.
+
+    @note A gate on `F` has a delta for its derivative, and a caller who drops
+    it hands Newton a one-sided Jacobian. Measured: 3 to 6 outer steps against
+    4 to 5 ungated, i.e. nothing structural. What a MOVING interface costs is
+    LOCAL work, the local nonlinear solve chasing a discontinuity that shifts
+    with the iterate. */
 class HDGInterpolatoryReactionIntegrator : public HDGReactionIntegratorBase
 {
 public:
