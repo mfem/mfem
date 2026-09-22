@@ -39,6 +39,8 @@
 //     mpirun -np 4 pmesh-fitting         -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -ae 1 -slstype 4
 //     mpirun -np 4 pmesh-fitting-enzyme  -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -dls -slstype 4 -dder 1
 //     mpirun -np 4 pmesh-fitting-enzyme  -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -als -slstype 4
+// csg
+//  mpirun -np 12 ./pmesh-fitting-enzyme -m cubecsg.mesh -rs 0 -o 2 -mid 321 -tid 2 -vl 2 -dls -slstype 6 -sbgmesh -bgamriter 4 -sfc 10 -sfa 2 -sft 1e-4 -sfcmax 1e4 -ni 100 -no-resid -vis -visit -mat -dist
 
 #include "mfem.hpp"
 
@@ -131,11 +133,29 @@ scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T)
       // mu_303 = |J|^2 / 3 / tau^(2/3) - 1
       return norm2 / (3.0_r * pow(tau, 2.0_r/3.0_r)) - 1.0_r;
    }
+   else if constexpr (dim == 3 && metric_id == 321)
+   {
+      // mu_321 = |T - T^{-t}|^2 = |T|^2 + |cof(T)|^2 / tau^2 - 6.
+      const auto C00 = T(1,1) * T(2,2) - T(1,2) * T(2,1);
+      const auto C01 = T(1,2) * T(2,0) - T(1,0) * T(2,2);
+      const auto C02 = T(1,0) * T(2,1) - T(1,1) * T(2,0);
+      const auto C10 = T(0,2) * T(2,1) - T(0,1) * T(2,2);
+      const auto C11 = T(0,0) * T(2,2) - T(0,2) * T(2,0);
+      const auto C12 = T(0,1) * T(2,0) - T(0,0) * T(2,1);
+      const auto C20 = T(0,1) * T(1,2) - T(0,2) * T(1,1);
+      const auto C21 = T(0,2) * T(1,0) - T(0,0) * T(1,2);
+      const auto C22 = T(0,0) * T(1,1) - T(0,1) * T(1,0);
+      const auto cofactor_norm2 =
+         C00 * C00 + C01 * C01 + C02 * C02 +
+         C10 * C10 + C11 * C11 + C12 * C12 +
+         C20 * C20 + C21 * C21 + C22 * C22;
+      return norm2 + cofactor_norm2 / (tau * tau) - 6.0_r;
+   }
    else
    {
       static_assert((dim == 2 &&
                      (metric_id == 2 || metric_id == 58 || metric_id == 80)) ||
-                    (dim == 3 && metric_id == 303),
+                    (dim == 3 && (metric_id == 303 || metric_id == 321)),
                     "Unsupported TMOP metric/dimension combination");
       return 0.0_r;
    }
@@ -171,6 +191,9 @@ struct SurfaceFittingOptions
       SQUIRCLE = 3,
       SPHERE = 4
    };
+
+   // Discrete-only CSG level-set type.
+   static constexpr int CUBE_CYLINDER_SPHERE = 6;
 
    enum DiscreteDerivativeMode
    {
@@ -1134,6 +1157,7 @@ public:
                            ParMesh &mesh_,
                            const IntegrationRule &ir,
                            int metric_id,
+                           int target_id,
                            const SurfaceFittingOptions &surface_options)
       : comm(fes_.GetComm()),
         mesh(mesh_),
@@ -1155,7 +1179,7 @@ public:
          all_domain_attr.SetSize(mesh.attributes.Max());
          all_domain_attr = 1;
       }
-      SetTargetData();
+      SetTargetData(target_id);
       SetupMetricOperatorDispatch(ir, all_domain_attr, metric_id);
       SetupSurfaceOperator(all_domain_attr, surface_options);
    }
@@ -1287,6 +1311,12 @@ private:
                return SetupMetricOperator<303>(ir, all_domain_attr);
             }
             break;
+         case 321:
+            if constexpr (dim == 3)
+            {
+               return SetupMetricOperator<321>(ir, all_domain_attr);
+            }
+            break;
       }
       MFEM_ABORT("Metric id " << metric_id << " is incompatible with "
                  << dim << "D meshes.");
@@ -1405,23 +1435,35 @@ private:
          surface_node_ir, all_domain_attr, derivatives);
    }
 
-   /// Fill ideal target Jacobians at all metric quadrature points.
-   void SetTargetData()
+   /// Freeze ideal target Jacobians using the initial mesh's target sizes.
+   void SetTargetData(int target_id)
    {
+      MFEM_VERIFY(target_id == 1 || target_id == 2,
+                  "Supported target ids are 1 (unit size) and 2 (equal size).");
+      TargetConstructor target(
+         target_id == 1 ? TargetConstructor::IDEAL_SHAPE_UNIT_SIZE :
+         TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, comm);
+      target.SetNodes(*mesh.GetNodes());
+
       constexpr int vdim = dim * dim;
       real_t *inverse_data = target_w_inv.HostWrite();
       real_t *determinant_data = target_det_w.HostWrite();
+      DenseTensor element_targets;
+      Vector unused_nodes; // These targets use the nodes supplied to SetNodes().
       for (int e = 0; e < metric_qspace.GetNE(); e++)
       {
-         const DenseMatrix &W =
-            Geometries.GetGeomToPerfGeomJac(metric_qspace.GetGeometry(e));
-         MFEM_VERIFY(W.Height() == dim && W.Width() == dim,
-                     "Unexpected target matrix dimension.");
+         const IntegrationRule &ir = metric_qspace.GetIntRule(e);
+         const int nq = ir.GetNPoints();
+         element_targets.SetSize(dim, dim, nq);
+         target.ComputeElementTargets(e, *fes.GetFE(e), ir, unused_nodes,
+                                      element_targets);
+         // Targets 1 and 2 are constant within each element. TargetConstructor
+         // includes MPI-global averaging and nonconforming refinement scaling.
+         const DenseMatrix &W = element_targets(0);
          DenseMatrix W_inv(dim);
          CalcInverse(W, W_inv);
          const real_t det_W = W.Det();
          const int offset = metric_qspace.Offset(e);
-         const int nq = metric_qspace.GetIntRule(e).GetNPoints();
          for (int q = 0; q < nq; q++)
          {
             real_t *Wq_inv = inverse_data + vdim * (offset + q);
@@ -1534,6 +1576,36 @@ private:
    mutable std::unique_ptr<ConstrainedOperator> constrained_hessian;
 };
 
+/// Report fitting errors once per Newton iteration, excluding line-search trials.
+template <int dim>
+class EnzymeFittingMonitor : public IterativeSolverMonitor
+{
+public:
+   explicit EnzymeFittingMonitor(const EnzymeFittingNonlinearForm<dim> &nlf)
+      : enzyme_nlf(nlf) { }
+
+   void MonitorResidual(int iteration, real_t, const Vector &,
+                        bool final) override
+   {
+      if (final) { return; }
+
+      // Every rank participates in the fitting-error reductions.
+      real_t avg_error = 0.0, max_error = 0.0;
+      enzyme_nlf.GetSurfaceFittingErrors(avg_error, max_error);
+      if (Mpi::Root())
+      {
+         std::cout << "Surface fitting iteration " << iteration
+                   << ": fit_avg=" << avg_error
+                   << ", fit_max=" << max_error
+                   << ", coefficient="
+                   << enzyme_nlf.GetSurfaceFittingCoefficient() << '\n';
+      }
+   }
+
+private:
+   const EnzymeFittingNonlinearForm<dim> &enzyme_nlf;
+};
+
 template <int dim>
 class EnzymeFittingNewtonSolver : public TMOPNewtonSolver
 {
@@ -1561,13 +1633,6 @@ public:
       surf_fit_max_err_limit = max_error;
       surf_fit_weight_limit = weight_limit;
       surf_fit_converge_error = converge_by_error;
-   }
-
-   void ResetAdaptiveSurfaceFittingState() const
-   {
-      previous_surf_fit_avg_error = 10000.0;
-      update_surface_fit_coefficient = false;
-      surf_fit_adapt_count = 0;
    }
 
    real_t ComputeScalingFactor(const Vector &dx,
@@ -1675,12 +1740,17 @@ real_t MinimumDetJ(ParMesh &pmesh,
    return min_detJ;
 }
 
-/// Save a parallel mesh as a single serial mesh file.
+/// Save a serial mesh with shared nodes merged and material attributes intact.
 void SaveMesh(ParMesh &pmesh, const char *filename)
 {
-   std::ofstream output(filename);
-   output.precision(8);
-   pmesh.PrintAsOne(output);
+   std::ofstream output;
+   if (pmesh.GetMyRank() == 0)
+   {
+      output.open(filename);
+      MFEM_VERIFY(output, "Unable to open mesh output file: " << filename);
+      output.precision(8);
+   }
+   pmesh.PrintAsSerial(output);
 }
 
 /// Select the requested global family of integration rules.
@@ -1877,6 +1947,7 @@ int RunOptimizer(ParMesh &pmesh,
                  int solver_art_type,
                  int max_lin_iter,
                  int metric_id,
+                 int target_id,
                  int verbosity,
                  const SurfaceFittingOptions &surface_options,
                  real_t surface_fit_tolerance,
@@ -1891,6 +1962,7 @@ int RunOptimizer(ParMesh &pmesh,
    const IntegrationRule &ir =
       irules.Get(pmesh.GetTypicalElementGeometry(), quad_order);
    EnzymeFittingFunctional<dim> functional(fes, pmesh, ir, metric_id,
+                                           target_id,
                                            surface_options);
    functional.GetSurfaceStateManager().UpdateAfterMeshPositionChange(
       true_nodes);
@@ -1981,43 +2053,11 @@ int RunOptimizer(ParMesh &pmesh,
    IterativeSolver::PrintLevel newton_print;
    if (verbosity > 0) { newton_print.Errors().Warnings().Iterations(); }
    solver.SetPrintLevel(newton_print);
+   EnzymeFittingMonitor<dim> fitting_monitor(nonlinear_form);
+   if (verbosity > 1) { solver.SetMonitor(fitting_monitor); }
 
    Vector zero;
    solver.Mult(zero, true_nodes);
-
-   if (surface_fit_adapt > 0.0 && surface_fit_converge_error &&
-       surface_fit_tolerance >= 0.0)
-   {
-      for (int stage = 0; stage < 10; stage++)
-      {
-         functional.GetSurfaceStateManager().UpdateAfterMeshPositionChange(
-            true_nodes);
-         real_t stage_fit_avg = 0.0, stage_fit_max = 0.0;
-         functional.GetSurfaceErrors(stage_fit_avg, stage_fit_max);
-         if (stage_fit_max <= surface_fit_tolerance ||
-             functional.GetSurfaceFittingCoefficient() >=
-             surface_fit_weight_limit)
-         {
-            break;
-         }
-
-         const real_t factor = std::min(
-            surface_fit_adapt,
-            surface_fit_weight_limit /
-            functional.GetSurfaceFittingCoefficient());
-         functional.ScaleSurfaceFittingCoefficient(factor);
-         if (Mpi::Root() && verbosity > 0)
-         {
-            std::cout << "Restarting surface fit: fit_avg=" << stage_fit_avg
-                      << ", fit_max=" << stage_fit_max
-                      << ", coefficient="
-                      << functional.GetSurfaceFittingCoefficient() << '\n';
-         }
-         nonlinear_form.SetReference(true_nodes);
-         solver.ResetAdaptiveSurfaceFittingState();
-         solver.Mult(zero, true_nodes);
-      }
-   }
 
    nodes.SetFromTrueDofs(true_nodes);
    pmesh.SetNodalGridFunction(&nodes);
@@ -2110,6 +2150,7 @@ int main(int argc, char *argv[])
    int solver_art_type = 0;
    bool move_bnd = true;
    bool visualization = false;
+   bool visit = false;
    int verbosity = 0;
    bool analytic_level_set = true;
    int discrete_derivative_mode =
@@ -2138,10 +2179,11 @@ int main(int argc, char *argv[])
    args.AddOption(&rp_levels, "-rp", "--refine-parallel",
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&metric_id, "-mid", "--metric-id",
-                  "Mesh optimization metric: 2, 58, or 80.");
+                  "Mesh optimization metric: 2, 58, 80 (2D); "
+                  "303 (shape) or 321 (shape and size) (3D).");
    args.AddOption(&target_id, "-tid", "--target-id",
-                  "Target type. This Enzyme miniapp currently supports 1: "
-                  "ideal shape, unit size.");
+                  "Target type: 1 ideal shape, unit size; "
+                  "2 ideal shape, equal size from the initial mesh.");
    args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface fitting coefficient.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
@@ -2152,7 +2194,7 @@ int main(int argc, char *argv[])
    args.AddOption(&solver_type, "-st", "--solver-type",
                   "Solver type. Only 0: Newton is currently supported.");
    args.AddOption(&solver_iter, "-ni", "--newton-iters",
-                  "Maximum number of Newton iterations.");
+                  "Maximum total number of Newton iterations.");
    args.AddOption(&solver_rtol, "-rtol", "--newton-rel-tolerance",
                   "Relative tolerance for the Newton solver.");
    args.AddOption(&solver_atol, "-atol", "--newton-abs-tolerance",
@@ -2168,8 +2210,13 @@ int main(int argc, char *argv[])
                   "--fix-boundary", "Enable constrained boundary motion.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Enable or disable GLVis output.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save the initial and fitted states in one VisIt series "
+                  "at cycles/times 0 and 1.");
    args.AddOption(&verbosity, "-vl", "--verbosity-level",
-                  "Verbosity: 0 none, 1 Newton, 2 linear summaries, "
+                  "Verbosity: 0 none, 1 Newton, "
+                  "2 fitting errors and linear summaries, "
                   "3 linear iterations.");
    args.AddOption(&analytic_level_set,
                   "-als", "--analytic-level-set",
@@ -2200,7 +2247,8 @@ int main(int argc, char *argv[])
                   "--no-comp-dist", "Convert the background level set to "
                   "a distance field.");
    args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
-                  "Level set: 1 circle, 2 reactor, 3 squircle.");
+                  "Level set: 1 circle, 2 reactor, 3 squircle, 4 sphere, "
+                  "6 cube/cylinder/sphere. Types 2 and 6 require -dls.");
    args.AddOption(&marking_type, "-smtype", "--surf-marking-type",
                   "0 interface, otherwise a boundary attribute.");
    args.AddOption(&mod_bndr_attr, "-mod-bndr-attr",
@@ -2208,7 +2256,8 @@ int main(int argc, char *argv[])
                   "--fix-boundary-attribute",
                   "Set boundary attributes from Cartesian alignment.");
    args.AddOption(&material, "-mat", "--mat", "-no-mat", "--no-mat",
-                  "Use mesh material attributes (not yet supported).");
+                  "Use input mesh material attributes for interface marking; "
+                  "otherwise derive materials from the level set.");
    args.AddOption(&mesh_node_ordering, "-mno", "--mesh_node_ordering",
                   "Mesh node ordering: 0 byNODES, 1 byVDIM.");
    args.AddOption(&bg_amr_iters, "-bgamriter", "--amr-iter",
@@ -2230,11 +2279,12 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(surface_fit_const > 0.0,
                "This miniapp is for surface fitting only. Use "
                "pmesh-optimizer-enzyme for optimization without fitting.");
-   MFEM_VERIFY(target_id == 1,
-               "pmesh-fitting-enzyme currently supports target id 1 only.");
+   MFEM_VERIFY(target_id == 1 || target_id == 2,
+               "pmesh-fitting-enzyme supports target ids 1 and 2.");
    MFEM_VERIFY(metric_id == 2 || metric_id == 58 || metric_id == 80 ||
-               metric_id == 303,
-               "pmesh-fitting-enzyme supports metric ids 2, 58, 80 (2D) and 303 (3D).");
+               metric_id == 303 || metric_id == 321,
+               "pmesh-fitting-enzyme supports metric ids 2, 58, 80 (2D) "
+               "and 303, 321 (3D).");
    MFEM_VERIFY(solver_type == 0,
                "pmesh-fitting-enzyme currently supports Newton (-st 0) only.");
    MFEM_VERIFY(lin_solver == 2 || lin_solver == 3,
@@ -2245,12 +2295,17 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(surf_ls_type == SurfaceFittingOptions::CIRCLE ||
                surf_ls_type == 2 ||
                surf_ls_type == SurfaceFittingOptions::SQUIRCLE ||
-               surf_ls_type == SurfaceFittingOptions::SPHERE,
+               surf_ls_type == SurfaceFittingOptions::SPHERE ||
+               surf_ls_type == SurfaceFittingOptions::CUBE_CYLINDER_SPHERE,
                "Supported level sets are 1 (circle), 2 (reactor), "
-               "3 (squircle), and 4 (sphere).");
+               "3 (squircle), 4 (sphere), and 6 (cube/cylinder/sphere).");
    MFEM_VERIFY(!analytic_level_set || surf_ls_type != 2,
                "The reactor level set is available only as a discrete "
                "level set (-dls).");
+   MFEM_VERIFY(!analytic_level_set ||
+               surf_ls_type != SurfaceFittingOptions::CUBE_CYLINDER_SPHERE,
+               "The cube/cylinder/sphere level set (type 6) is available "
+               "only as a discrete level set (-dls).");
    MFEM_VERIFY(!surf_bg_mesh || !analytic_level_set,
                "A background mesh is used only with a discrete level set "
                "(-dls).");
@@ -2274,9 +2329,8 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(surface_fit_const_max >= surface_fit_const,
                "Maximum surface fitting coefficient must be at least the "
                "initial coefficient.");
-   MFEM_VERIFY(!adapt_marking && !material,
-               "Adaptive marking and material-attribute marking are not yet "
-               "supported by pmesh-fitting-enzyme.");
+   MFEM_VERIFY(!adapt_marking,
+               "Adaptive marking is not yet supported by pmesh-fitting-enzyme.");
    MFEM_VERIFY(!comp_dist || surf_bg_mesh,
                "Distance conversion requires a background mesh.");
    MFEM_VERIFY(bg_amr_iters >= 0,
@@ -2292,13 +2346,15 @@ int main(int argc, char *argv[])
                "pmesh-fitting-enzyme supports 2D and 3D meshes.");
    MFEM_VERIFY((dim == 2 &&
                 (metric_id == 2 || metric_id == 58 || metric_id == 80)) ||
-               (dim == 3 && metric_id == 303),
+               (dim == 3 && (metric_id == 303 || metric_id == 321)),
                "Metric id " << metric_id << " is incompatible with "
                << dim << "D meshes.");
-   MFEM_VERIFY((dim == 2 && surf_ls_type != SurfaceFittingOptions::SPHERE) ||
-               (dim == 3 && surf_ls_type == SurfaceFittingOptions::SPHERE),
-               "Use circle/reactor/squircle level sets in 2D and the sphere "
-               "level set in 3D.");
+   const bool level_set_3d =
+      surf_ls_type == SurfaceFittingOptions::SPHERE ||
+      surf_ls_type == SurfaceFittingOptions::CUBE_CYLINDER_SPHERE;
+   MFEM_VERIFY((dim == 2 && !level_set_3d) || (dim == 3 && level_set_3d),
+               "Use circle/reactor/squircle level sets in 2D and sphere or "
+               "cube/cylinder/sphere level sets in 3D.");
    if (mesh_poly_deg <= 0) { mesh_poly_deg = 2; }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -2339,6 +2395,10 @@ int main(int argc, char *argv[])
    {
       level_set_coeff = std::make_unique<FunctionCoefficient>(sphere_level_set);
    }
+   else if (surf_ls_type == SurfaceFittingOptions::CUBE_CYLINDER_SPHERE)
+   {
+      level_set_coeff = std::make_unique<FunctionCoefficient>(csg_cubecylsph);
+   }
    else
    {
       level_set_coeff =
@@ -2347,8 +2407,18 @@ int main(int argc, char *argv[])
    surface_gf0.ProjectCoefficient(*level_set_coeff);
    for (int e = 0; e < pmesh.GetNE(); e++)
    {
-      material_vis(e) = material_id(e, surface_gf0);
+      if (material)
+      {
+         material_vis(e) = pmesh.GetAttribute(e) - 1;
+      }
+      else
+      {
+         material_vis(e) = material_id(e, surface_gf0);
+         // Match pmesh-fitting: material labels 0/1 become attributes 1/2.
+         pmesh.SetAttribute(e, int(material_vis(e)) + 1);
+      }
    }
+   pmesh.SetAttributes();
 
    std::unique_ptr<ParMesh> surface_bg_mesh;
    std::unique_ptr<H1_FECollection> surface_bg_fec;
@@ -2431,6 +2501,21 @@ int main(int argc, char *argv[])
    surface_options.coefficient = surface_fit_const;
 
    SaveMesh(pmesh, "perturbed.mesh");
+   VisItDataCollection visit_dc("pmesh-fitting-enzyme", &pmesh);
+   if (visit)
+   {
+      visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
+      visit_dc.SetPrecision(8);
+      visit_dc.SetLevelsOfDetail(mesh_poly_deg);
+      visit_dc.RegisterField("level_set", &surface_gf0);
+      visit_dc.RegisterField("material", &material_vis);
+      visit_dc.RegisterField("surface_dofs", &surface_marker_vis);
+      visit_dc.SetCycle(0);
+      visit_dc.SetTime(0.0);
+      visit_dc.Save();
+      MFEM_VERIFY(visit_dc.Error() == DataCollection::No_Error,
+                  "Unable to save the initial VisIt state.");
+   }
    if (visualization)
    {
       socketstream vis1, vis2, vis3, vis4, vis5;
@@ -2499,12 +2584,20 @@ int main(int argc, char *argv[])
                          pmesh, pfes, x, irules, quad_order, ess_tdofs,
                          min_detJ, solver_iter, solver_rtol, solver_atol,
                          lin_solver, solver_art_type, max_lin_iter,
-                         metric_id, verbosity, surface_options,
+                         metric_id, target_id, verbosity, surface_options,
                          fitting_tolerance, surface_fit_adapt,
                          surface_fit_threshold, surface_fit_const_max,
                          !conv_residual, surface_gf0);
 
    SaveMesh(pmesh, "optimized.mesh");
+   if (visit)
+   {
+      visit_dc.SetCycle(1);
+      visit_dc.SetTime(1.0);
+      visit_dc.Save();
+      MFEM_VERIFY(visit_dc.Error() == DataCollection::No_Error,
+                  "Unable to save the fitted VisIt state.");
+   }
    if (visualization)
    {
       socketstream vis1, vis2, vis3;
