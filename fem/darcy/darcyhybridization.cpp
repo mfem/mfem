@@ -1392,12 +1392,17 @@ void DarcyHybridization::PotBdrFaceLists(
 bool DarcyHybridization::CanBatchPotBdrFaceAssembly() const
 {
    if (asm_mode != AssemblyMode::Batched) { return false; }
-   // The same two refusals the interior pass carries, and for the same
-   // reasons: H's destination, which is policy -- see
-   // CanBatchPotFaceAssembly() for the decision and for what lifting it
-   // would cost -- and shared faces.
+   // H's destination, which is policy; see CanBatchPotFaceAssembly() for the
+   // decision and for what lifting it would cost.
    if (!NPCEnabled()) { return false; }
-   if (ParallelC()) { return false; }
+
+   /* Parallel was refused here too, "for the same reasons", and on this
+      predicate the shared-face half never applied at all: a boundary face is
+      rank-local by construction -- it has no second element on any rank -- so
+      there is no partition boundary for this list to drop. It was inherited
+      from the interior predicate's wording rather than asked. The interior
+      one is now measured and lifted, and this one is covered by the same
+      case, which asserts bdr_taken beside taken for exactly that reason. */
    if (NumBdrPotConstraintIntegrators() == 0) { return false; }
 
    std::vector<Array<int>> lists;
@@ -1472,10 +1477,38 @@ bool DarcyHybridization::CanBatchPotFaceAssembly() const
       the design, kept because the question will be asked again. */
    if (!NPCEnabled()) { return false; }
 
-   // A shared face is not interior by Mesh::FaceIsInterior(), which is what
-   // the face list is built from, so in parallel the kernel would silently
-   // drop every face on a partition boundary.
-   if (ParallelC()) { return false; }
+   /* **Parallel is NOT refused, and the refusal that stood here reasoned from
+      a true premise to a false conclusion.** It read: a shared face is not
+      interior by Mesh::FaceIsInterior(), which is what the face list is built
+      from, so in parallel the kernel would silently drop every face on a
+      partition boundary.
+
+      The premise is right -- FaceIsInterior() is `Elem2No >= 0` and a shared
+      face has no local Elem2 -- and the conclusion does not follow, because
+      the kernel REPLACES DarcyForm::AssemblePotHDGFaces()'s per-face loop and
+      that loop skips faces on exactly the same test. The partition boundary is
+      assembled by a different routine that this does not touch and does not
+      replace: ParDarcyForm::AssemblePotHDGSharedFaces(), a loop over
+      ParMesh::GetSharedFace() reaching ComputeAndAssemblePotFaceMatrix()'s own
+      shared branch. So InteriorFaceList() is not an incomplete list of the
+      faces of the mesh -- it is the exact list of faces the loop being
+      replaced would have visited.
+
+      Measured rather than re-reasoned, because a reading is what the refusal
+      was: "The batched HDG face kernel assembles the per-face operator in
+      parallel" in tests/unit/fem/test_darcy_batched_face.cpp applies both
+      operators to the same two globally-seeded trace vectors on more than one
+      rank. A dropped partition boundary would move exactly the trace rows the
+      ranks share, by O(1) -- an HDG stabilization is the largest term on those
+      rows -- and not by round-off. It reproduces the per-face route.
+
+      What is NOT done, and is a separate item rather than a footnote: there is
+      no batched route for the SHARED face loop. That one is genuine work, not
+      a refusal to lift -- a shared face is one-sided from this rank and needs
+      the single-side AssembleHDGFaceMatrix(int side, ...) weights against a
+      transformation from GetSharedFaceTransformationsByLocalIndex(), which is
+      neither this kernel's two-sided pass nor the boundary kernel's, whose
+      four-argument call would ask el_fes for the neighbour element's FE. */
 
    Array<BilinearFormIntegrator*> integs;
    PotFaceConstraintIntegrators(integs);

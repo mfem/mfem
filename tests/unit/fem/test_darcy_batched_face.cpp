@@ -810,3 +810,173 @@ TEST_CASE("The batched HDG flux mass scatter fills Ae for the RHS elimination",
    CAPTURE(d.Normlinf(), Bref.Normlinf());
    REQUIRE(d.Normlinf() <= 1e-13 * Bref.Normlinf());
 }
+
+#ifdef MFEM_USE_MPI
+
+namespace darcy_batched_face
+{
+
+struct ParOutcome
+{
+   bool taken = false, bdr_taken = false;
+   int nintegs = 0;
+   Vector y1, y2;
+   real_t n1 = 0., n2 = 0.;
+};
+
+/** @brief A linear HDG face constraint on a ParMesh, applied through the NPC
+    gradient.
+
+    The operator rather than its entries, because a HypreParMatrix's rows are
+    distributed and comparing them entry for entry across ranks is a harness
+    rather than a test. Applying the two operators to the same two structured
+    vectors and comparing globally is sharper anyway for the failure this is
+    aimed at: a dropped face on the partition boundary moves exactly the trace
+    rows the two ranks share, so the difference lands in the norm rather than
+    cancelling. */
+void ParAssembleGradient(DarcyHybridization::AssemblyMode am, int order, int n,
+                         ParOutcome &out)
+{
+   const int dim = 2;
+   Mesh serial = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                       0.8, 1.2);
+   ParMesh mesh(MPI_COMM_WORLD, serial);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   ParFiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                         Mh(&mesh, &t_coll);
+
+   ParDarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetAssemblyMode(am);
+   dh->EnableNPC();
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   dh->SetEssentialBC(ess_bdr);
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   out.nintegs = dh->NumPotFaceConstraintIntegrators();
+   out.taken = dh->CanBatchPotFaceAssembly();
+   out.bdr_taken = dh->CanBatchPotBdrFaceAssembly();
+
+   Array<int> offs(4);
+   offs[0] = 0;
+   offs[1] = Vh.GetVSize();
+   offs[2] = Wh.GetVSize();
+   offs[3] = Mh.GetTrueVSize();
+   offs.PartialSum();
+   BlockVector x(offs);
+   x = 0.0;
+   Vector x_tr(Mh.GetTrueVSize());
+   x_tr = 0.0;
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+
+   // Seeded from the GLOBAL true-dof index, so the two arms probe the same
+   // function of space whatever the partition does -- a locally-seeded vector
+   // would make the two arms differ for a reason that is not the kernel.
+   const HYPRE_BigInt *off = Mh.GetTrueDofOffsets();
+   const HYPRE_BigInt base = off ? off[0] : 0;
+   Vector v1(Mh.GetTrueVSize()), v2(Mh.GetTrueVSize());
+   for (int i = 0; i < v1.Size(); i++)
+   {
+      const real_t g = real_t(base + i);
+      v1(i) = std::sin(0.61 * g) + 0.3 * std::cos(0.17 * g);
+      v2(i) = (g - 0.5 * real_t(Mh.GlobalTrueVSize())) * 1e-2;
+   }
+
+   out.y1.SetSize(v1.Size());
+   out.y2.SetSize(v2.Size());
+   S.Mult(v1, out.y1);
+   S.Mult(v2, out.y2);
+   out.y1.HostRead();
+   out.y2.HostRead();
+   out.n1 = std::sqrt(InnerProduct(MPI_COMM_WORLD, out.y1, out.y1));
+   out.n2 = std::sqrt(InnerProduct(MPI_COMM_WORLD, out.y2, out.y2));
+}
+
+} // namespace darcy_batched_face
+
+/** @brief The batched HDG face kernel in parallel.
+
+    **What this case is really testing is a REFUSAL'S STATED REASON.**
+    CanBatchPotFaceAssembly() declined ParallelC() saying "a shared face is not
+    interior by Mesh::FaceIsInterior(), which is what the face list is built
+    from, so in parallel the kernel would silently drop every face on a
+    partition boundary". The first half is true -- FaceIsInterior() is
+    `Elem2No >= 0` and a shared face has no local Elem2 -- and the conclusion
+    does not follow, because the kernel is reached from
+    DarcyForm::AssemblePotHDGFaces(), whose own per-face loop skips faces on
+    exactly the same test. The partition boundary is assembled by a DIFFERENT
+    routine, ParDarcyForm::AssemblePotHDGSharedFaces(), which the kernel does
+    not replace and does not touch. So the list the kernel is built from is
+    precisely the set of faces the loop it replaces would have visited.
+
+    That is a reading, and a reading is what the refusal was. This is the
+    measurement: if the kernel dropped the partition boundary, the two arms
+    would differ on the trace rows the ranks share, and they would differ by
+    O(1) rather than by round-off -- an HDG stabilization is the largest term
+    on those rows. Run at more than one rank it therefore either reproduces the
+    per-face route or it does not.
+
+    The two REQUIREs on @a taken are load-bearing as always: the route falls
+    back silently and two fallbacks agree perfectly. Here they also state the
+    result. */
+TEST_CASE("The batched HDG face kernel assembles the per-face operator in "
+          "parallel",
+          "[DarcyHybridization][BatchedLinAlg][NPC][Parallel]")
+{
+   using namespace darcy_batched_face;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(4, 6);
+   CAPTURE(order, n, Mpi::WorldSize());
+
+   ParOutcome ref, got;
+   ParAssembleGradient(AM::Serial, order, n, ref);
+   ParAssembleGradient(AM::Batched, order, n, got);
+
+   REQUIRE_FALSE(ref.taken);
+   REQUIRE(got.taken);
+   REQUIRE_FALSE(ref.bdr_taken);
+   REQUIRE(got.bdr_taken);
+   REQUIRE(ref.nintegs == 1);
+   REQUIRE(got.nintegs == 1);
+
+   // There is an operator to compare, and it is not the zero one.
+   CAPTURE(ref.n1, ref.n2);
+   REQUIRE(ref.n1 > 1e-3);
+   REQUIRE(ref.n2 > 1e-3);
+
+   auto close = [](const Vector &a, const Vector &b, real_t scale)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      const real_t dn = std::sqrt(InnerProduct(MPI_COMM_WORLD, d, d));
+      CAPTURE(dn, scale);
+      REQUIRE(dn <= 1e-12 * scale);
+   };
+   close(ref.y1, got.y1, ref.n1);
+   close(ref.y2, got.y2, ref.n2);
+}
+
+#endif // MFEM_USE_MPI
