@@ -315,14 +315,13 @@ int main (int argc, char *argv[])
    pmesh->SetNodalGridFunction(&x);
    x.SetTrueVector();
 
-   // Save the starting (prior to the optimization) mesh to a file. This
-   // output can be viewed later using GLVis: "glvis -m perturbed -np
-   // num_mpi_tasks".
+   // Save the starting mesh as a serial mesh on rank 0. View it using
+   // GLVis: "glvis -m perturbed.mesh".
    {
-      ostringstream mesh_name;
-      mesh_name << "perturbed.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs;
+      if (myid == 0) { mesh_ofs.open("perturbed.mesh"); }
       mesh_ofs.precision(8);
+      // PrintAsSerial is collective, so every rank must call it.
       pmesh->PrintAsSerial(mesh_ofs);
    }
 
@@ -601,6 +600,15 @@ int main (int argc, char *argv[])
       visit_dc.SetTime(0.0);
       visit_dc.Save();
       // MFEM_ABORT(" ");
+
+      // Save the mesh with updated attributes before conforming refinement.
+      {
+         ofstream mesh_ofs;
+         if (myid == 0) { mesh_ofs.open("perturbed-no-ref.mesh"); }
+         mesh_ofs.precision(8);
+         // PrintAsSerial is collective, so every rank must call it.
+         pmesh->PrintAsSerial(mesh_ofs);
+      }
 
       if (conforming)
       {
@@ -1010,17 +1018,27 @@ int main (int argc, char *argv[])
    solver.SetMinimumDeterminantThreshold(0.001*min_detJ);
    solver.SetPrintLevel(verbosity_level >= 1 ? 1 : 0);
    solver.SetOperator(a);
+
+   // Save the refined mesh with updated attributes before optimization.
+   {
+      ofstream mesh_ofs;
+      if (myid == 0) { mesh_ofs.open("perturbed-ref.mesh"); }
+      mesh_ofs.precision(8);
+      // PrintAsSerial is collective, so every rank must call it.
+      pmesh->PrintAsSerial(mesh_ofs);
+   }
+
    Vector b(0);
    solver.Mult(b, x.GetTrueVector());
    x.SetFromTrueVector();
 
-   // Save the optimized mesh to a file. This output can be viewed later
-   // using GLVis: "glvis -m optimized -np num_mpi_tasks".
+   // Save the optimized mesh as a serial mesh on rank 0. View it using
+   // GLVis: "glvis -m optimized.mesh".
    {
-      ostringstream mesh_name;
-      mesh_name << "optimized.mesh";
-      ofstream mesh_ofs(mesh_name.str().c_str());
+      ofstream mesh_ofs;
+      if (myid == 0) { mesh_ofs.open("optimized.mesh"); }
       mesh_ofs.precision(8);
+      // PrintAsSerial is collective, so every rank must call it.
       pmesh->PrintAsSerial(mesh_ofs);
    }
    visit_dc.SetCycle(vis_cycle++);
