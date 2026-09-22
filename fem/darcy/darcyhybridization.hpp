@@ -467,6 +467,15 @@ private:
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
+   /** @brief Boundary attributes whose TRACE row is a boundary condition, so
+       the flux constraint C is left out of it. Empty when none.
+
+       See SetTraceBCAttributes(). One marker rather than a per-face array: the
+       test is two lookups through @a f_2_b and it is made once per element
+       face per assembly, beside products that are orders of magnitude dearer.
+       An array of bool would also be a second member on a class whose layout
+       this branch has paid to rebuild eight times. */
+   Array<int> bc_trace_marker;
    /** @brief An element colouring, and the elements ordered by it. Built once,
        lazily, and only when AssemblyMode::Threaded is asked for.
 
@@ -1175,6 +1184,15 @@ private:
        a ghost. See the definition for why it is a routine and not inline. */
    bool GetNCSlaveTransfer(int slave_face, DenseMatrix &I,
                            int &master_face) const;
+   /** @brief Whether @a face's trace row is a boundary condition, so the flux
+       constraint is left out of it. False unless SetTraceBCAttributes() was
+       given a marker covering this face's boundary attribute; false on every
+       interior face, a boundary condition being a property of a boundary. */
+   bool TraceRowIsBC(int face) const;
+   /// Whether any face at all answers TraceRowIsBC(); the gate on the routes
+   /// that gather C wholesale and cannot express the omission.
+   bool HasTraceBCFaces() const { return bc_trace_marker.Size() > 0; }
+
    /** @brief Whether the mesh carries a nonconforming MASTER face at all.
 
        The gate on every route that assembles a face term in that face's own
@@ -3581,6 +3599,47 @@ public:
        the constraint (trace) space, not of the flux -- the flux ones are
        Init()'s argument. See @a ess_tdof_list. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess);
+
+   /** @brief Boundary attributes whose trace row is a BOUNDARY CONDITION and
+       not the conservativity condition, so the flux constraint is left out of
+       it.
+
+       On an ordinary boundary face the trace row reads
+
+       \verbatim
+           < (F^ + q^) . n , mu >  =  0,
+       \endverbatim
+
+       and the `q^.n` half of it comes from the flux constraint C -- the same
+       block whose transpose puts `<lambda, v.n>` on the FLUX row. A condition
+       that REPLACES the row rather than supplying a datum to it therefore
+       cannot be expressed by any integrator: a boundary face integrator on the
+       potential mass form can add to the row, but it is a form in (p, lambda)
+       and cannot cancel a term in q. This is the asymmetry that lets it:
+       @a C is dropped from the trace row on these attributes while @a C^T
+       stays on the flux row, which is what a boundary condition IS -- the
+       transmission condition is replaced, and the trace still enters the
+       element's local problem exactly as before.
+
+       **The row is then whatever the potential mass form's boundary face
+       integrators put there, and NOTHING ELSE.** A caller that marks an
+       attribute here owes it a complete condition; marking one and supplying
+       no boundary integrator leaves an empty row and a singular system, which
+       is a different failure from the zero-numerical-flux row that an
+       unmarked, un-datumed attribute produces.
+
+       Pass an empty array to clear. Call before Finalize(); the marker is read
+       there and at every trace-row assembly after it.
+
+       The caller this exists for is a CHARACTERISTIC outflow,
+       `B^ = A+_n (u - u^) - A-_n (u_inf - u^)`, which is a condition on the
+       trace alone and carries no viscous flux -- see miniapps/hdg/nsflux.hpp's
+       HDGCharacteristicBdrFlux and the boundary-condition step of
+       navierstokes.cpp. */
+   void SetTraceBCAttributes(const Array<int> &bdr_attr_marker);
+
+   /// The marker SetTraceBCAttributes() was given; empty when none was.
+   const Array<int> &GetTraceBCAttributes() const { return bc_trace_marker; }
 
    /// Specify essential VDOFs of the constraint (trace) space.
    /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */

@@ -2452,6 +2452,34 @@ bool DarcyHybridization::GetNCSlaveTransfer(int slave_face, DenseMatrix &I,
     The gate for every route that assembles a face term into the face's own
     trace dofs: a master's term does not live there. O(number of masters),
     and a conforming mesh answers without touching the NCList. */
+/** @brief Boundary attributes whose trace row is a boundary condition.
+
+    Stored as the marker rather than expanded per face: see the member. The
+    face-to-boundary-element map is forced here rather than left to Finalize(),
+    because a caller may read the flag before then and an empty @a f_2_b would
+    answer "no" for every face. */
+void DarcyHybridization::SetTraceBCAttributes(const Array<int> &bdr_attr_marker)
+{
+   bdr_attr_marker.Copy(bc_trace_marker);
+   if (bc_trace_marker.Size() > 0 && f_2_b.Size() == 0)
+   {
+      f_2_b = fes.GetMesh()->GetFaceToBdrElMap();
+   }
+}
+
+bool DarcyHybridization::TraceRowIsBC(int face) const
+{
+   if (bc_trace_marker.Size() == 0) { return false; }
+   MFEM_ASSERT(f_2_b.Size() > 0, "the face-to-boundary map is not built");
+   const int be = f_2_b[face];
+   if (be < 0) { return false; }   // interior, or a nonconforming master
+   const int attr = fes.GetMesh()->GetBdrAttribute(be);
+   MFEM_ASSERT(attr >= 1 && attr <= bc_trace_marker.Size(),
+               "boundary attribute " << attr << " is outside the trace-BC "
+               "marker, which is " << bc_trace_marker.Size() << " long");
+   return bc_trace_marker[attr-1] != 0;
+}
+
 bool DarcyHybridization::HasNCMasterFaces() const
 {
    const Mesh *mesh = fes.GetMesh();
@@ -4062,7 +4090,11 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
 
          DenseMatrix CAiBt_f(CAiBt_p + cofs[f]*B.Height(),
                              Ctf.Width(), B.Height());
-         mfem::MultAtB(Ctf, AiBt, CAiBt_f);
+         // A BOUNDARY-CONDITION row carries no flux constraint, so the
+         // `C A^-1 B^T` half of its (C A^-1 B^T + G) factor is dropped and
+         // only G survives; see SetTraceBCAttributes().
+         if (TraceRowIsBC(faces[f])) { CAiBt_f = 0.; }
+         else { mfem::MultAtB(Ctf, AiBt, CAiBt_f); }
          if (c_bfi_p || mode == ComputeHMode::Gradient)
          {
             DenseMatrix G;
@@ -4186,13 +4218,22 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
          H_l.UseExternalData(Hp, Ct2.Width(), Ct1.Width());
 
          //- C A^-1 C^T, constant across a Newton loop
+         // The ROW is f2 -- H_l is Ct2.Width() tall -- so this is where a
+         // boundary-condition row drops its C. The COLUMN factor Ct1 is C^T
+         // and stays: the trace still enters the element's own problem.
+         const bool bc_row = TraceRowIsBC(faces[f2]);
          if (cc)
          {
             DenseMatrix CAiCt(pair_p, Ct2.Width(), Ct1.Width());
-            if (!cc_read) { mfem::MultAtB(Ct2, AiCt, CAiCt); }
+            if (!cc_read)
+            {
+               if (bc_row) { CAiCt = 0.; }
+               else { mfem::MultAtB(Ct2, AiCt, CAiCt); }
+            }
             H_l = CAiCt;
             pair_p += Ct2.Width() * Ct1.Width();
          }
+         else if (bc_row) { H_l = 0.; }
          else
          {
             mfem::MultAtB(Ct2, AiCt, H_l);
@@ -4428,6 +4469,19 @@ bool DarcyHybridization::CanBatchLinearResidual() const
    // A shared face has one of its elements on another rank, so neither the
    // element-blocked gather nor the two-contributions trace scatter survives.
    if (ParallelC()) { return false; }
+
+   // **A trace row that is a boundary condition cannot be expressed here.**
+   // SetTraceBCAttributes() drops C from the trace row of the marked faces
+   // and keeps C^T on the flux row; this route gathers Ct once per element
+   // into one blocked tensor and applies it with BatchedLinAlg, so the two
+   // directions are one product and there is no per-face row to leave out.
+   // Refused rather than branched, the same answer the batched ComputeH()
+   // and the batched face kernels give -- and it is not cosmetic: without
+   // it this route silently returns the UNMASKED residual, every mask in
+   // MultNL() being bypassed along with the element loop that carries them.
+   // That is what the unit case "A trace row that is a boundary condition
+   // drops the flux constraint" failed on.
+   if (HasTraceBCFaces()) { return false; }
 
    // **Every nonlinearity is a refusal, and that is the whole scope of this
    // routine.** A nonlinear integrator of any kind means the local residual
@@ -5324,7 +5378,11 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       if (Ct_offsets.Size()) { Ct_offsets.HostRead(); }
       if (E_offsets.Size()) { E_offsets.HostRead(); }
       if (H_offsets.Size()) { H_offsets.HostRead(); }
-      batched_asm = (na > 0 && nd > 0) &&
+      // A trace row that is a BOUNDARY CONDITION drops C from that row alone,
+      // and the batched pass gathers C for every face into one tensor and
+      // contracts it -- there is no per-row omission in it. Refused rather
+      // than taught; the per-element loop below does the work.
+      batched_asm = (na > 0 && nd > 0) && !HasTraceBCFaces() &&
                     BuildElementHFaceMap(na, nd,
                                          mode == ComputeHMode::Gradient,
                                          nf, nc, face_map);
@@ -6336,7 +6394,11 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                const Vector &x_f = x_l.GetBlock(f);
 
                y_l.SetSize(x_f.Size());
-               Ct.MultTranspose(u_l, y_l);
+               /* A BOUNDARY-CONDITION row carries no flux constraint; see
+                  SetTraceBCAttributes(). The block is still read for its
+                  SHAPE, and C^T is untouched on the flux row above. */
+               if (TraceRowIsBC(faces[f])) { y_l = 0.; }
+               else { Ct.MultTranspose(u_l, y_l); }
 
                //G p_l + H x_l
                if (c_bfi_p || mode == MultNlMode::GradMult)
@@ -8916,7 +8978,9 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
                GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
 
                b_rl.SetSize(Ct_l.Width());
-               Ct_l.MultTranspose(u_l, b_rl);
+               // See SetTraceBCAttributes().
+               if (TraceRowIsBC(faces[f])) { b_rl = 0.; }
+               else { Ct_l.MultTranspose(u_l, b_rl); }
 
                if (c_bfi_p)
                {
@@ -9308,7 +9372,9 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
                GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
 
                b_rl.SetSize(Ct_l.Width());
-               Ct_l.MultTranspose(du_l, b_rl);
+               // See SetTraceBCAttributes().
+               if (TraceRowIsBC(faces[f])) { b_rl = 0.; }
+               else { Ct_l.MultTranspose(du_l, b_rl); }
 
                if (G_data.Size() > 0)
                {
@@ -9572,7 +9638,9 @@ void DarcyHybridization::NPCReduce(const Array<const BlockVector *> &r,
                GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
 
                b_rl.SetSize(Ct_l.Width(), ncols);
-               mfem::MultAtB(Ct_l, du_l, b_rl);
+               // See SetTraceBCAttributes().
+               if (TraceRowIsBC(faces[f])) { b_rl = 0.; }
+               else { mfem::MultAtB(Ct_l, du_l, b_rl); }
 
                if (G_data.Size() > 0)
                {

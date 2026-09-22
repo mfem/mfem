@@ -1013,3 +1013,143 @@ TEST_CASE("A face constraint on the nonlinear potential mass form is read",
    CAPTURE(on_lin.Normlinf(), on_nonlin.Normlinf(), d.Normlinf());
    REQUIRE(d.Normlinf() <= 1e-12 * on_lin.Normlinf());
 }
+
+TEST_CASE("A trace row that is a boundary condition drops the flux constraint",
+          "[DarcyForm][DarcyHybridization][HDG]")
+{
+   /* DarcyHybridization::SetTraceBCAttributes() takes C out of the TRACE row
+      on the marked attributes and leaves C^T on the FLUX row, which is the
+      asymmetry a condition that REPLACES the conservativity condition needs --
+      a boundary face integrator on the potential mass form can add to the row
+      but cannot cancel a term in q, that form being in (p, lambda).
+
+      The three sections are one instrument and none of them means much alone.
+      The first says the mask acts only where C is; the second says it acts;
+      and the third is the one the whole design turns on, because a mask that
+      dropped BOTH directions would pass the other two.
+
+      Nothing here is a solution of anything, and nothing needs to be: the
+      residual of a fixed state is a linear functional of the blocks, so a
+      block that should have left the row either left it or did not. */
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   const int BDR_MARKED = 4;   // one attribute of Cartesian2D's four
+
+   struct Result { Vector r_tr, r_q; };
+
+   // @a constr_everywhere puts the flux constraint on every boundary
+   // attribute; false leaves BDR_MARKED without one, so C is already zero
+   // there and dropping it has nothing to drop. @a mask asks for the drop.
+   // @a tr_bump perturbs the trace on BDR_MARKED only.
+   auto run = [order, BDR_MARKED](bool constr_everywhere, bool mask,
+                                  real_t tr_bump)
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+      const int dim = mesh.Dimension();
+
+      L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+      L2_FECollection p_coll(order, dim);
+      DG_Interface_FECollection t_coll(order, dim);
+      FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                         Mh(&mesh, &t_coll);
+
+      DarcyForm darcy(&Vh, &Wh);
+      ConstantCoefficient one(1.0);
+
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+      darcy.GetFluxDivForm()->AddDomainIntegrator(
+         new VectorDivergenceIntegrator());
+
+      // THE marker that decides whether C exists on BDR_MARKED at all:
+      // DarcyForm::Assemble() installs the flux constraint on exactly the
+      // attributes this form's boundary face integrator carries.
+      Array<int> bdr_constr(mesh.bdr_attributes.Max());
+      bdr_constr = 1;
+      if (!constr_everywhere) { bdr_constr[BDR_MARKED - 1] = 0; }
+      darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)),
+         bdr_constr);
+
+      // A face term on every boundary, so a marked row is not left empty.
+      BilinearForm *M_p = darcy.GetPotentialMassForm();
+      M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+      M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+      Array<int> ess_flux;
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      DarcyHybridization *hyb = darcy.GetHybridization();
+      hyb->EnableNPC();
+
+      Array<int> bdr_bc(mesh.bdr_attributes.Max());
+      bdr_bc = 0;
+      bdr_bc[BDR_MARKED - 1] = 1;
+      if (mask) { hyb->SetTraceBCAttributes(bdr_bc); }
+
+      darcy.Assemble();
+      darcy.Finalize();
+
+      BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+      b = 0.0;
+      for (int i = 0; i < x.Size(); i++) { x(i) = 0.25 + 0.5*std::sin(1.0*i); }
+      Vector x_tr(Mh.GetTrueVSize());
+      for (int i = 0; i < x_tr.Size(); i++) { x_tr(i) = 0.3*std::cos(2.0*i); }
+
+      if (tr_bump != 0.)
+      {
+         // The trace true dofs of BDR_MARKED, and nothing else.
+         Array<int> bump;
+         Mh.GetEssentialTrueDofs(bdr_bc, bump);
+         REQUIRE(bump.Size() > 0);
+         for (int i = 0; i < bump.Size(); i++) { x_tr(bump[i]) += tr_bump; }
+      }
+
+      Result res;
+      BlockVector r(darcy.GetOffsets());
+      hyb->NPCResidual(b, x, x_tr, r, res.r_tr);
+      res.r_q = r.GetBlock(0);
+      return res;
+   };
+
+   auto maxdiff = [](const Vector &a, const Vector &b)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a); d -= b; return d.Normlinf();
+   };
+
+   SECTION("with no flux constraint there, marking the row changes nothing")
+   {
+      const Result off = run(false, false, 0.);
+      const Result on  = run(false, true,  0.);
+      const real_t d = maxdiff(on.r_tr, off.r_tr);
+      CAPTURE(d, off.r_tr.Normlinf());
+      // Exactly nothing to drop, so this is the mask's null test.
+      REQUIRE(d < 1e-12 * std::max(off.r_tr.Normlinf(), real_t(1.)));
+   }
+
+   SECTION("and with one there, it changes the trace row")
+   {
+      const Result off = run(true, false, 0.);
+      const Result on  = run(true, true,  0.);
+      const real_t d = maxdiff(on.r_tr, off.r_tr);
+      CAPTURE(d, off.r_tr.Normlinf());
+      // The size of the change is C q on one attribute's faces; what is
+      // asserted is only that it is far above round-off, the value being a
+      // property of the fixture rather than of the mechanism.
+      REQUIRE(d > 1e-3 * off.r_tr.Normlinf());
+   }
+
+   SECTION("while the FLUX row still sees the trace through C^T")
+   {
+      // Both arms masked, so the only difference is the trace itself. If the
+      // mask had dropped C^T as well as C, the flux row could not move --
+      // that term is the only route from the trace into it.
+      const Result a = run(true, true, 0.);
+      const Result b = run(true, true, 0.5);
+      const real_t d = maxdiff(a.r_q, b.r_q);
+      CAPTURE(d, a.r_q.Normlinf());
+      REQUIRE(d > 1e-3 * std::max(a.r_q.Normlinf(), real_t(1.)));
+   }
+}
