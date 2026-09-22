@@ -75,6 +75,14 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       dm.Assemble();
       dm.Finalize();
       diffusion_matrix = dm.ParallelAssemble();
+      diffusion_prec = new HypreBoomerAMG(*diffusion_matrix);
+      diffusion_prec->SetPrintLevel(0);
+      diffusion_solver = new HyprePCG(diffusion_matrix->GetComm());
+      diffusion_solver->SetOperator(*diffusion_matrix);
+      diffusion_solver->SetTol(1e-12);
+      diffusion_solver->SetMaxIter(200);
+      diffusion_solver->SetPrintLevel(0);
+      diffusion_solver->SetPreconditioner(*diffusion_prec);
    }
 
    {
@@ -84,6 +92,8 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       m.Assemble();
       m.Finalize();
       M_matrix = m.ParallelAssemble();
+      M_inv = new HypreDiagScale(*M_matrix);
+      M_inv->SetErrorMode(HypreSolver::IGNORE_HYPRE_ERRORS);
 
       ParBilinearForm k(phi_fes);
       k.AddDomainIntegrator(new DiffusionIntegrator);
@@ -95,6 +105,10 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       H_matrix = Add(1.0, *M_matrix, std::sqrt(c), *K_matrix);
       H_inv = new HypreBoomerAMG(*H_matrix);
       H_inv->SetPrintLevel(0);
+      // H_inv is applied as a single AMG preconditioning cycle. Its inner
+      // convergence status is not a system-solve convergence criterion; the
+      // outer GMRES check below is authoritative.
+      H_inv->SetErrorMode(HypreSolver::IGNORE_HYPRE_ERRORS);
       H_inv->iterative_mode = false;
 
       // Unknowns [V, U], so the Schur complement for U is the last block:
@@ -124,7 +138,10 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 
 FieldSolver::~FieldSolver()
 {
+   delete diffusion_solver;
+   delete diffusion_prec;
    delete diffusion_matrix;
+   delete M_inv;
    delete M_matrix;
    delete K_matrix;
    delete H_inv;
@@ -268,18 +285,8 @@ void FieldSolver::UpdatePhiGridFunction(ParticleSet& particles,
    HypreParVector Phi_true(pfes);
    Phi_true = 0.0;
 
-   HyprePCG solver(diffusion_matrix->GetComm());
-   solver.SetOperator(*diffusion_matrix);
-   solver.SetTol(1e-12);
-   solver.SetMaxIter(200);
-   solver.SetPrintLevel(0);
-
-   HypreBoomerAMG prec(*diffusion_matrix);
-   prec.SetPrintLevel(0);
-   solver.SetPreconditioner(prec);
-
    OrthoSolver ortho(comm);
-   ortho.SetSolver(solver);
+   ortho.SetSolver(*diffusion_solver);
    ortho.Mult(B, Phi_true);
 
    phi_gf.Distribute(Phi_true);
@@ -446,12 +453,11 @@ void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 
    // [ M, 0; c K, S ]^{-1}, with M^{-1} ≈ diag(M)^{-1} and
    // S^{-1} ≈ H^{-1} M H^{-1} applied to U.
-   HypreDiagScale M_inv(*M_matrix);
    TripleProductOperator S_inv(H_inv, M_matrix, H_inv, false, false, false);
    ScaledOperator cK(K_matrix, c);
 
    BlockLowerTriangularPreconditioner prec(offsets);
-   prec.SetDiagonalBlock(0, &M_inv);
+   prec.SetDiagonalBlock(0, M_inv);
    prec.SetDiagonalBlock(1, &S_inv);
    prec.SetBlock(1, 0, &cK);
 

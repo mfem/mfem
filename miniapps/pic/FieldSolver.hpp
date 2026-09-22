@@ -32,9 +32,15 @@ private:
    bool precompute_neutralizing_const = false;
    // Poisson stiffness with epsilon.
    HypreParMatrix* diffusion_matrix;
+   // Persistent AMG preconditioner for the constant Poisson matrix.
+   HypreBoomerAMG* diffusion_prec;
+   // Persistent PCG solver so HYPRE does not rebuild diffusion_prec.
+   HyprePCG* diffusion_solver;
    // Biharmonic diffusion: M from MassIntegrator, K from DiffusionIntegrator.
    HypreParMatrix* M_matrix;
    HypreParMatrix* K_matrix;
+   // Persistent diagonal approximation of M^{-1}.
+   HypreDiagScale* M_inv;
    // Schur factor H = M + sqrt(c) K. c is the -diff coefficient.
    HypreParMatrix* H_matrix;
    // Persistent AMG approximation of H^{-1}; H_matrix is constant.
