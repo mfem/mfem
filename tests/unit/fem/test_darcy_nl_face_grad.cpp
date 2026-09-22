@@ -825,3 +825,210 @@ TEST_CASE("What the batched face gradient refuses, and why",
       REQUIRE(dh->NumPotFaceConstraintIntegrators() == 1);
    }
 }
+
+#ifdef MFEM_USE_MPI
+
+namespace darcy_nl_face_grad
+{
+
+struct ParNLOutcome
+{
+   /// Whether each batched route was taken, OR'd over the ranks -- a rank
+   /// whose partition carries no shared face refuses correctly, so the
+   /// per-rank answer is not the thing to assert.
+   bool grad_any = false, res_any = false;
+   int n_integs = 0;
+   Vector Sv, r_tr;
+   real_t svn = 0., rn = 0.;
+};
+
+/** @brief BurgersHDG's state-carrying face constraint on a ParMesh, through
+    NPC.
+
+    The parallel twin of OneGradient(), and deliberately not a template over
+    the serial fixtures: those hold a Mesh and serial spaces by value, while a
+    ParMesh has to be built from a serial Mesh that then goes out of scope.
+
+    **The state is a projected FUNCTION OF SPACE and the probe vector is
+    constant, and both choices are the instrument.** A state seeded from the
+    dof index would make the Jacobian depend on the partition, and a probe
+    seeded that way would make S*v depend on it too -- so the norms below
+    would move with the rank count for a reason that is not the route. As
+    written they are properties of the continuous problem, which is what lets
+    the same numbers be compared at 1, 2, 3 and 4 ranks. */
+void ParOneGradient(DarcyHybridization::AssemblyMode mode, int order, int n,
+                    ParNLOutcome &out)
+{
+   const int dim = 2;
+   Mesh serial = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   ParMesh mesh(MPI_COMM_WORLD, serial);
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   ParFiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                         Mh(&mesh, &t_coll);
+
+   ParDarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+   BurgersFlux flux(dim);
+   HDGFlux num_flux(flux, HDGFlux::HDGScheme::HDG_1);
+
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+   Mnl_p->AddInteriorFaceIntegrator(
+      new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 0.5));
+   Mnl_p->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(num_flux, 0, -1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetAssemblyMode(mode);
+   dh->EnableNPC();
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   dh->SetEssentialBC(ess_bdr);
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   {
+      Array<NonlinearFormIntegrator*> integs;
+      Array<BlockNonlinearFormIntegrator*> bintegs;
+      dh->NLFaceConstraintIntegrators(integs, bintegs);
+      out.n_integs = integs.Size() + bintegs.Size();
+   }
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+
+   VectorFunctionCoefficient ucoeff(dim, [](const Vector &X, Vector &v)
+   {
+      v(0) = 0.4 + 0.3 * std::sin(M_PI * X(0)) * X(1);
+      v(1) = -0.2 + 0.25 * std::cos(M_PI * X(1));
+   });
+   FunctionCoefficient pcoeff([](const Vector &X)
+   {
+      return 0.6 + 0.35 * X(0) * X(0) - 0.2 * X(1);
+   });
+   {
+      ParGridFunction gu(&Vh, x.GetBlock(0).GetData());
+      gu.ProjectCoefficient(ucoeff);
+      ParGridFunction gp(&Wh, x.GetBlock(1).GetData());
+      gp.ProjectCoefficient(pcoeff);
+   }
+
+   // Constant, for the reason above -- and not zero, the whole point being a
+   // state at which the face constraint is not at its own root.
+   Vector x_tr(Mh.GetTrueVSize());
+   x_tr = 0.35;
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr;
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+   out.r_tr = r_tr;
+   out.r_tr.HostRead();
+   out.rn = std::sqrt(InnerProduct(MPI_COMM_WORLD, r_tr, r_tr));
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+
+   {
+      int lg = dh->CanBatchNLFaceGrad() ? 1 : 0, gg = 0;
+      int lr = dh->CanBatchNLFaceResidual() ? 1 : 0, gr = 0;
+      MPI_Allreduce(&lg, &gg, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+      MPI_Allreduce(&lr, &gr, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+      out.grad_any = (gg != 0);
+      out.res_any = (gr != 0);
+   }
+
+   Vector v(S.Width());
+   v = 1.0;
+   out.Sv.SetSize(S.Height());
+   S.Mult(v, out.Sv);
+   out.Sv.HostRead();
+   out.svn = std::sqrt(InnerProduct(MPI_COMM_WORLD, out.Sv, out.Sv));
+}
+
+} // namespace darcy_nl_face_grad
+
+/** @brief The batched state-carrying face gradient and residual, in parallel.
+
+    CanBatchNLFaceGrad() and CanBatchNLFaceResidual() declined ParallelC()
+    saying "a shared face is not Mesh::FaceIsInterior(), so in parallel the
+    pair list would silently drop every partition boundary". Unlike the LINEAR
+    face kernel's refusal, which read the same and did not follow, this one
+    does: the element loop these kernels displace skips on `FTr->Elem2No >= 0`,
+    and a shared FaceElementTransformations HAS an Elem2No, so the loop would
+    skip a face the pair list never contained. Lifting it therefore needed the
+    shared faces batched as well -- one pair per face rather than two -- not
+    just a predicate changed.
+
+    This is the measurement, and the arms say which half of that mattered.
+    Restoring the refusal fails 6 sections at every rank count, on `grad_any`.
+    Lifting the predicate WITHOUT batching the shared faces -- the mistake the
+    refusal was guarding against -- passes at one rank, where there is no
+    partition boundary, and fails 6 at two, by 0.26 to 0.59 on norms of 6.9 to
+    14.3 against a tolerance of 1e-11 relative. Dropping one shared face from
+    the list fails the same 6, by 0.07 to 0.32. So the refusal's stated reason
+    was sound where the linear kernel's twin of it was not, and the difference
+    is which test the displaced loop skips on.
+
+    **The reference arm was checked before it was trusted, and that check is
+    worth as much as the comparison.** Nothing in this tree ran a nonlinear
+    face constraint in parallel, so "the batched route agrees with the
+    per-pair route" would have been worth nothing if the per-pair route were
+    wrong here. The state is a projected function of space and the probe is
+    constant, which makes both norms properties of the continuous problem
+    rather than of the partition -- and they come back equal at 1, 2, 3 and 4
+    ranks to 15 or 16 digits, at every order and mesh. */
+TEST_CASE("The batched state-carrying face gradient agrees with the per-pair "
+          "route in parallel",
+          "[DarcyHybridization][BatchedLinAlg][NPC][Parallel]")
+{
+   using namespace darcy_nl_face_grad;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(4, 6);
+   CAPTURE(order, n, Mpi::WorldSize());
+
+   ParNLOutcome ref, got;
+   ParOneGradient(AM::Serial, order, n, ref);
+   ParOneGradient(AM::Batched, order, n, got);
+
+   // Captured BEFORE the first REQUIRE, because Catch2 aborts a section at
+   // one and these two are what say the fixture is a problem at all.
+   CAPTURE(ref.svn, ref.rn, got.svn, got.rn);
+
+   REQUIRE(ref.n_integs == 2);
+   REQUIRE(got.n_integs == 2);
+   REQUIRE_FALSE(ref.grad_any);
+   REQUIRE_FALSE(ref.res_any);
+   REQUIRE(got.grad_any);
+   REQUIRE(got.res_any);
+
+   // There is an operator and a residual to compare, and neither is zero.
+   REQUIRE(ref.svn > 1e-3);
+   REQUIRE(ref.rn > 1e-3);
+
+   auto close = [](const Vector &a, const Vector &b, real_t scale)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      const real_t dn = std::sqrt(InnerProduct(MPI_COMM_WORLD, d, d));
+      CAPTURE(dn, scale);
+      REQUIRE(dn <= 1e-11 * scale);
+   };
+   close(ref.Sv, got.Sv, ref.svn);
+   close(ref.r_tr, got.r_tr, ref.rn);
+}
+
+#endif // MFEM_USE_MPI

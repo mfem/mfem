@@ -3437,6 +3437,16 @@ public:
                    Array<int> &ess_offsets) const;
    /// The interior faces, which is what the batched face assembly covers.
    void InteriorFaceList(Array<int> &flist) const;
+   /** @brief Whether this rank's SHARED faces admit the batched pair route;
+       true in serial and where there are none, so a caller can ask
+       unconditionally. @a residual picks the stricter of the two predicates. */
+   bool SharedNLFacesCanBatch(
+      const Array<NonlinearFormIntegrator*> &integs,
+      const Array<BlockNonlinearFormIntegrator*> &bintegs,
+      bool residual) const;
+   /// The uniformity the pair gather needs, over @a flist at @a ns sides.
+   bool NLFacePairsUniform(const Array<int> &flist, int ns, int LDD,
+                           int LDC) const;
 #ifdef MFEM_USE_MPI
    /** @brief This rank's shared faces, by LOCAL face index -- the faces
        ParDarcyForm::AssemblePotHDGSharedFaces() visits, which are exactly the

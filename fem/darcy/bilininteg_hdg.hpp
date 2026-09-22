@@ -1212,12 +1212,17 @@ void CheckRestrictedFluxLoad(LinearForm *b_u, int vdim, int sdim);
     * @a neq == 1 wherever an HDGDiffusionIntegrator is present, since that
       integrator is scalar and a system wraps it in a
       VectorBlockDiagonalIntegrator, which the kernel does not look inside. */
+/** The optional @a pmesh says the list is this rank's SHARED faces: one pair
+    per face rather than two, side 0 only, and the transformations from the
+    ParMesh. NULL -- the default -- is the interior list and the serial path,
+    which is then provably the code it always was. */
 bool HDGNLFaceGradCanBatch(const FiniteElementSpace &tr_fes,
                            const FiniteElementSpace &el_fes,
                            const FiniteElementSpace *fl_fes,
                            const Array<NonlinearFormIntegrator*> &integs,
                            const Array<BlockNonlinearFormIntegrator*> &bintegs,
-                           const Array<int> &face_list);
+                           const Array<int> &face_list,
+                           ParMesh *pmesh = NULL);
 
 /** @brief The STATE-CARRYING HDG face constraint GRADIENT, for every
     (element, face) pair at once, scattered straight into D, E, G and H.
@@ -1303,7 +1308,8 @@ void HDGNLFaceGradScatterBatched(
    const Vector &el_state, const Vector &tr_state,
    const Array<int> &D_off, const Array<int> &E_off,
    const Array<int> &G_off, const Array<int> &H_off,
-   Vector &Df_data, Vector &E_data, Vector &G_data, Vector &H_data);
+   Vector &Df_data, Vector &E_data, Vector &G_data, Vector &H_data,
+   ParMesh *pmesh = NULL);
 
 /** @brief The RESIDUAL counterpart of HDGNLFaceGradScatterBatched(): every
     interior face's nonlinear constraint contribution to the potential row and
@@ -1336,7 +1342,7 @@ bool HDGNLFaceResidualCanBatch(
    const FiniteElementSpace *fl_fes,
    const Array<NonlinearFormIntegrator*> &integs,
    const Array<BlockNonlinearFormIntegrator*> &bintegs,
-   const Array<int> &face_list);
+   const Array<int> &face_list, ParMesh *pmesh = NULL);
 
 void HDGNLFaceResidualBatched(
    const FiniteElementSpace &tr_fes, const FiniteElementSpace &el_fes,
@@ -1345,7 +1351,7 @@ void HDGNLFaceResidualBatched(
    const Array<BlockNonlinearFormIntegrator*> &bintegs,
    const Array<int> &face_list,
    const Vector &el_state, const Vector &tr_state,
-   Vector &r_el, Vector &r_tr);
+   Vector &r_el, Vector &r_tr, ParMesh *pmesh = NULL);
 
 }
 

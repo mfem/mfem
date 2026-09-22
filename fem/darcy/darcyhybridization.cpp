@@ -1615,10 +1615,6 @@ bool DarcyHybridization::CanBatchNLFaceGrad() const
    // loop and are local to it.
    if (!NPCEnabled()) { return false; }
 
-   // A shared face is not Mesh::FaceIsInterior(), so in parallel the pair
-   // list would silently drop every partition boundary.
-   if (ParallelC()) { return false; }
-
    // A system's blocks are field-outermost, which is what byNODES gives and
    // what every integrator here indexes; byVDIM would interleave them.
    if (fes_p.GetVDim() > 1 && fes_p.GetOrdering() != Ordering::byNODES)
@@ -1647,7 +1643,68 @@ bool DarcyHybridization::CanBatchNLFaceGrad() const
 
    Array<int> flist;
    InteriorFaceList(flist);
-   return HDGNLFaceGradCanBatch(c_fes, fes_p, &fes, integs, bintegs, flist);
+   if (!HDGNLFaceGradCanBatch(c_fes, fes_p, &fes, integs, bintegs, flist))
+   { return false; }
+
+   /* **Parallel is no longer refused, and unlike the LINEAR face kernel's
+      refusal this one had to be EARNED rather than withdrawn.** It read: a
+      shared face is not Mesh::FaceIsInterior(), so in parallel the pair list
+      would silently drop every partition boundary. That is true here. The
+      element loop these kernels displace skips on `FTr->Elem2No >= 0`, and a
+      shared FaceElementTransformations HAS an Elem2No -- the neighbour's
+      shifted index -- so with batching on the loop would skip exactly the
+      faces InteriorFaceList() cannot contain. The linear kernel's twin of
+      this sentence did not follow because DarcyForm's loop skips on
+      FaceIsInterior() itself; this one does.
+
+      So the lift is a second LIST rather than a predicate change: the shared
+      faces are batched too, one pair per face instead of two, through the
+      same kernels with a ParMesh. A shared face is one-sided from this rank
+      and the element loop always treated it that way -- it never sets
+      `type |= 1` there, Elem1No being the local element -- so a shared face
+      IS a side-0 pair and needs no new arithmetic, only a source of
+      transformations and a side count. That is HDGFacePairSource.
+
+      Measured, and the arms separate the two halves of the claim: lifting
+      this predicate WITHOUT batching the shared faces passes at one rank and
+      fails at two by 2% to 8% relative, which is the drop the refusal named;
+      with them batched the two routes agree to 1e-11 relative at 1, 2, 3 and
+      4 ranks. And the per-pair route this is compared against was itself
+      checked first -- nothing in this tree had run a nonlinear face
+      constraint in parallel -- and is rank-independent to 15 digits. The case
+      is "The batched state-carrying face gradient agrees with the per-pair
+      route in parallel". */
+   return SharedNLFacesCanBatch(integs, bintegs, false);
+}
+
+/** @brief Whether this rank's SHARED faces admit the batched pair route.
+
+    True in serial and true where there are none, so a caller can ask
+    unconditionally. @a residual picks the stricter of the two predicates,
+    exactly as the interior list's caller does. */
+bool DarcyHybridization::SharedNLFacesCanBatch(
+   const Array<NonlinearFormIntegrator*> &integs,
+   const Array<BlockNonlinearFormIntegrator*> &bintegs, bool residual) const
+{
+#ifdef MFEM_USE_MPI
+   if (!ParallelC()) { return true; }
+
+   Array<int> sflist;
+   SharedFaceList(sflist);
+   if (sflist.Size() == 0) { return true; }
+
+   ParMesh *pmesh = c_pfes->GetParMesh();
+   return residual
+          ? HDGNLFaceResidualCanBatch(c_fes, fes_p, &fes, integs, bintegs,
+                                      sflist, pmesh)
+          : HDGNLFaceGradCanBatch(c_fes, fes_p, &fes, integs, bintegs, sflist,
+                                  pmesh);
+#else
+   MFEM_CONTRACT_VAR(integs);
+   MFEM_CONTRACT_VAR(bintegs);
+   MFEM_CONTRACT_VAR(residual);
+   return true;
+#endif
 }
 
 /** @brief The nonlinear interior-face constraint's RESIDUAL for every face at
@@ -1673,7 +1730,9 @@ bool DarcyHybridization::CanBatchNLFaceResidual() const
    NLFaceConstraintIntegrators(integs, bintegs);
    if (integs.Size() + bintegs.Size() == 0) { return false; }
 
-   if (!NPCEnabled() || ParallelC()) { return false; }
+   // Parallel is not refused; see CanBatchNLFaceGrad(), where the shared
+   // list and why it is needed are written up.
+   if (!NPCEnabled()) { return false; }
    if (fes_p.GetVDim() > 1 && fes_p.GetOrdering() != Ordering::byNODES)
    { return false; }
    if (c_fes.GetVDim() > 1 && c_fes.GetOrdering() != Ordering::byNODES)
@@ -1705,6 +1764,7 @@ bool DarcyHybridization::CanBatchNLFaceResidual() const
    if (flist.Size() == 0) { return false; }
    if (!HDGNLFaceResidualCanBatch(c_fes, fes_p, &fes, integs, bintegs, flist))
    { return false; }
+   if (!SharedNLFacesCanBatch(integs, bintegs, true)) { return false; }
 
    // The uniformity the pair gather needs, asked here rather than discovered
    // half way through the gather -- MultNL() has already SKIPPED the element
@@ -1714,6 +1774,28 @@ bool DarcyHybridization::CanBatchNLFaceResidual() const
    // CanBatchTraceAssembly() was rewritten for.
    const int LDD = Df_f_offsets[1] - Df_f_offsets[0];
    const int LDC = c_fes.GetFaceElement(flist[0])->GetDof() * c_fes.GetVDim();
+   if (!NLFacePairsUniform(flist, 2, LDD, LDC)) { return false; }
+
+#ifdef MFEM_USE_MPI
+   // The same question of the shared list, at ONE side. Its faces reach the
+   // same gather and the same block sizes, and a rank whose partition makes
+   // them non-uniform must refuse the whole route rather than half of it --
+   // MultNL() has already skipped the element loop's interior face work by
+   // the time the routine runs.
+   if (ParallelC())
+   {
+      Array<int> sflist;
+      SharedFaceList(sflist);
+      if (!NLFacePairsUniform(sflist, 1, LDD, LDC)) { return false; }
+   }
+#endif
+   return true;
+}
+
+/// The uniformity the pair gather needs, over @a flist at @a ns sides a face.
+bool DarcyHybridization::NLFacePairsUniform(const Array<int> &flist, int ns,
+                                            int LDD, int LDC) const
+{
    Mesh *mesh = fes_p.GetMesh();
    Array<int> p_dofs, c_dofs;
    for (int fi = 0; fi < flist.Size(); fi++)
@@ -1724,7 +1806,7 @@ bool DarcyHybridization::CanBatchNLFaceResidual() const
       int el1, el2;
       mesh->GetFaceElements(f, &el1, &el2);
       const int els[2] = { el1, el2 };
-      for (int side = 0; side < 2; side++)
+      for (int side = 0; side < ns; side++)
       {
          const int el = els[side];
          if (el < 0) { return false; }
@@ -1757,62 +1839,83 @@ bool DarcyHybridization::AssembleNLFaceResidualBatched(
    NLFaceConstraintIntegrators(integs, bintegs);
    Array<int> flist;
    InteriorFaceList(flist);
-   const int NF = flist.Size();
-   const int NP = 2 * NF;
    Mesh *mesh = fes_p.GetMesh();
    const int LDD = Df_f_offsets[1] - Df_f_offsets[0];
    const int LDC = c_fes.GetFaceElement(flist[0])->GetDof() * c_fes.GetVDim();
 
-   // The same gather AssembleNLFaceGradBatched() does, and it should be
-   // shared with it the moment either changes.
-   Vector el_state(NP * LDD), tr_state(NP * LDC);
+   // ONE PASS PER LIST, and the shared list is the second. A shared face is
+   // one pair rather than two and its transformations come from the ParMesh;
+   // everything else -- the gather, the kernel, the scatter -- is the same,
+   // which is why HDGFacePairSource exists and a second kernel does not. See
+   // CanBatchNLFaceGrad() for why the partition boundary has to be covered
+   // here rather than left to the element loop.
    Array<int> p_dofs, c_dofs;
-   Vector p_l, x_f;
-   Array<int> pair_el(NP), pair_face(NP);
-   for (int fi = 0; fi < NF; fi++)
+   Vector p_l, x_f, blk;
+   auto pass = [&](const Array<int> &list, int ns, ParMesh *pmesh)
    {
-      const int f = flist[fi];
-      int el1, el2;
-      mesh->GetFaceElements(f, &el1, &el2);
-      const int els[2] = { el1, el2 };
-      c_fes.GetFaceVDofs(f, c_dofs);
-      x.GetSubVector(c_dofs, x_f);
-      for (int side = 0; side < 2; side++)
+      const int NF = list.Size();
+      if (NF == 0) { return; }
+      const int NP = ns * NF;
+
+      // The same gather AssembleNLFaceGradBatched() does, and it should be
+      // shared with it the moment either changes.
+      Vector el_state(NP * LDD), tr_state(NP * LDC);
+      Array<int> pair_el(NP), pair_face(NP);
+      for (int fi = 0; fi < NF; fi++)
       {
-         const int p = 2 * fi + side;
-         const int el = els[side];
-         fes_p.GetElementVDofs(el, p_dofs);
-         darcy_p.GetSubVector(p_dofs, p_l);
-         for (int i = 0; i < LDD; i++) { el_state(p * LDD + i) = p_l(i); }
-         for (int i = 0; i < LDC; i++) { tr_state(p * LDC + i) = x_f(i); }
-         pair_el[p] = el;
-         pair_face[p] = f;
+         const int f = list[fi];
+         int el1, el2;
+         mesh->GetFaceElements(f, &el1, &el2);
+         const int els[2] = { el1, el2 };
+         c_fes.GetFaceVDofs(f, c_dofs);
+         x.GetSubVector(c_dofs, x_f);
+         for (int side = 0; side < ns; side++)
+         {
+            const int p = ns * fi + side;
+            const int el = els[side];
+            fes_p.GetElementVDofs(el, p_dofs);
+            darcy_p.GetSubVector(p_dofs, p_l);
+            for (int i = 0; i < LDD; i++) { el_state(p * LDD + i) = p_l(i); }
+            for (int i = 0; i < LDC; i++) { tr_state(p * LDC + i) = x_f(i); }
+            pair_el[p] = el;
+            pair_face[p] = f;
+         }
       }
-   }
 
-   Vector r_el, r_tr;
-   HDGNLFaceResidualBatched(c_fes, fes_p, &fes, integs, bintegs, flist,
-                            el_state, tr_state, r_el, r_tr);
+      Vector r_el, r_tr;
+      HDGNLFaceResidualBatched(c_fes, fes_p, &fes, integs, bintegs, list,
+                               el_state, tr_state, r_el, r_tr, pmesh);
 
-   // The scatter stays on the host: it is one AddElementVector per pair over
-   // dof lists this routine already has, and the pairs of an element collide
-   // on the potential row exactly as the element loop's faces do. Batching it
-   // wants the (element, local face) maps LinearResidualBatched() uses, which
-   // this route does not build -- a real next step, not a defect.
-   const real_t *pre = r_el.HostRead(), *prt = r_tr.HostRead();
-   Vector blk;
-   for (int p = 0; p < NP; p++)
+      // The scatter stays on the host: it is one AddElementVector per pair
+      // over dof lists this routine already has, and the pairs of an element
+      // collide on the potential row exactly as the element loop's faces do.
+      // Batching it wants the (element, local face) maps
+      // LinearResidualBatched() uses, which this route does not build -- a
+      // real next step, not a defect.
+      const real_t *pre = r_el.HostRead(), *prt = r_tr.HostRead();
+      for (int p = 0; p < NP; p++)
+      {
+         fes_p.GetElementVDofs(pair_el[p], p_dofs);
+         blk.SetSize(LDD);
+         for (int i = 0; i < LDD; i++) { blk(i) = pre[p * LDD + i]; }
+         r_local.GetBlock(1).AddElementVector(p_dofs, blk);
+
+         c_fes.GetFaceVDofs(pair_face[p], c_dofs);
+         blk.SetSize(LDC);
+         for (int i = 0; i < LDC; i++) { blk(i) = prt[p * LDC + i]; }
+         y.AddElementVector(c_dofs, blk);
+      }
+   };
+
+   pass(flist, 2, NULL);
+#ifdef MFEM_USE_MPI
+   if (ParallelC())
    {
-      fes_p.GetElementVDofs(pair_el[p], p_dofs);
-      blk.SetSize(LDD);
-      for (int i = 0; i < LDD; i++) { blk(i) = pre[p * LDD + i]; }
-      r_local.GetBlock(1).AddElementVector(p_dofs, blk);
-
-      c_fes.GetFaceVDofs(pair_face[p], c_dofs);
-      blk.SetSize(LDC);
-      for (int i = 0; i < LDC; i++) { blk(i) = prt[p * LDC + i]; }
-      y.AddElementVector(c_dofs, blk);
+      Array<int> sflist;
+      SharedFaceList(sflist);
+      pass(sflist, 1, c_pfes->GetParMesh());
    }
+#endif
    return true;
 }
 
@@ -1824,55 +1927,78 @@ bool DarcyHybridization::AssembleNLFaceGradBatched(const Vector &x) const
    Array<BlockNonlinearFormIntegrator*> bintegs;
    NLFaceConstraintIntegrators(integs, bintegs);
 
-   Array<int> flist;
+   Array<int> flist, sflist;
    InteriorFaceList(flist);
-   const int NF = flist.Size();
-   if (NF == 0) { return true; }
-   const int NP = 2 * NF;
+#ifdef MFEM_USE_MPI
+   if (ParallelC()) { SharedFaceList(sflist); }
+#endif
+   if (flist.Size() == 0 && sflist.Size() == 0) { return true; }
 
    Mesh *mesh = fes_p.GetMesh();
    const int LDD = Df_f_offsets[1] - Df_f_offsets[0];
-   const int LDC = c_fes.GetFaceElement(flist[0])->GetDof() * c_fes.GetVDim();
-
-   Array<int> D_off(NP), E_off(NP), G_off(NP), H_off(NP);
-   Vector el_state(NP * LDD), tr_state(NP * LDC);
+   const int LDC = c_fes.GetFaceElement(
+                      flist.Size() ? flist[0] : sflist[0])->GetDof() * c_fes.GetVDim();
 
    Array<int> p_dofs, c_dofs;
    Vector p_l, x_f;
-   for (int fi = 0; fi < NF; fi++)
+
+   // ONE PASS PER LIST; the shared list is the second and carries one pair
+   // per face rather than two. See CanBatchNLFaceGrad() for why the partition
+   // boundary has to be covered here rather than left to the element loop,
+   // and HDGFacePairSource for why this is a second list and not a second
+   // kernel.
+   auto pass = [&](const Array<int> &list, int ns, ParMesh *pmesh)
    {
-      const int f = flist[fi];
-      int el1, el2;
-      mesh->GetFaceElements(f, &el1, &el2);
-      const int els[2] = { el1, el2 };
+      const int NF = list.Size();
+      if (NF == 0) { return; }
+      const int NP = ns * NF;
 
-      c_fes.GetFaceVDofs(f, c_dofs);
-      x.GetSubVector(c_dofs, x_f);
-      MFEM_VERIFY(x_f.Size() == LDC, "trace block size is not uniform");
+      Array<int> D_off(NP), E_off(NP), G_off(NP), H_off(NP);
+      Vector el_state(NP * LDD), tr_state(NP * LDC);
 
-      for (int side = 0; side < 2; side++)
+      for (int fi = 0; fi < NF; fi++)
       {
-         const int p = 2 * fi + side;
-         const int el = els[side];
-         MFEM_VERIFY(Df_f_offsets[el+1] - Df_f_offsets[el] == LDD,
-                     "potential block size is not uniform");
+         const int f = list[fi];
+         int el1, el2;
+         mesh->GetFaceElements(f, &el1, &el2);
+         const int els[2] = { el1, el2 };
 
-         D_off[p] = Df_offsets[el];
-         // Side 2's E and G blocks follow side 1's, which is the offset
-         // AssembleHDGGrad() computes as c_dofs_size*d_dofs_size.
-         const int eg = side ? (LDC * LDD) : 0;
-         E_off[p] = E_offsets[f] + eg;
-         G_off[p] = G_offsets[f] + eg;
-         H_off[p] = H_offsets[f];
+         c_fes.GetFaceVDofs(f, c_dofs);
+         x.GetSubVector(c_dofs, x_f);
+         MFEM_VERIFY(x_f.Size() == LDC, "trace block size is not uniform");
 
-         fes_p.GetElementVDofs(el, p_dofs);
-         MFEM_VERIFY(p_dofs.Size() == LDD, "potential vdof count is not "
-                     "uniform: " << p_dofs.Size() << " against " << LDD);
-         darcy_p.GetSubVector(p_dofs, p_l);
-         for (int i = 0; i < LDD; i++) { el_state(p * LDD + i) = p_l(i); }
-         for (int i = 0; i < LDC; i++) { tr_state(p * LDC + i) = x_f(i); }
+         for (int side = 0; side < ns; side++)
+         {
+            const int p = ns * fi + side;
+            const int el = els[side];
+            MFEM_VERIFY(Df_f_offsets[el+1] - Df_f_offsets[el] == LDD,
+                        "potential block size is not uniform");
+
+            D_off[p] = Df_offsets[el];
+            // Side 2's E and G blocks follow side 1's, which is the offset
+            // AssembleHDGGrad() computes as c_dofs_size*d_dofs_size. A SHARED
+            // face has no side 2 and AllocEG() sized it for one, so ns == 1
+            // keeps this at zero -- which is where the per-pair route leaves
+            // that face's blocks too.
+            const int eg = side ? (LDC * LDD) : 0;
+            E_off[p] = E_offsets[f] + eg;
+            G_off[p] = G_offsets[f] + eg;
+            H_off[p] = H_offsets[f];
+
+            fes_p.GetElementVDofs(el, p_dofs);
+            MFEM_VERIFY(p_dofs.Size() == LDD, "potential vdof count is not "
+                        "uniform: " << p_dofs.Size() << " against " << LDD);
+            darcy_p.GetSubVector(p_dofs, p_l);
+            for (int i = 0; i < LDD; i++) { el_state(p * LDD + i) = p_l(i); }
+            for (int i = 0; i < LDC; i++) { tr_state(p * LDC + i) = x_f(i); }
+         }
       }
-   }
+
+      HDGNLFaceGradScatterBatched(c_fes, fes_p, &fes, integs, bintegs, list,
+                                  el_state, tr_state, D_off, E_off, G_off,
+                                  H_off, Df_data, E_data, G_data, H_data,
+                                  pmesh);
+   };
 
    // D, E, G and H arrive here from the HOST element loop, which reached them
    // through raw pointers -- and a raw host write does not invalidate a
@@ -1881,9 +2007,10 @@ bool DarcyHybridization::AssembleNLFaceGradBatched(const Vector &x) const
    // OWNERSHIP and not merely a readable copy; see the note there, which
    // carries the measurement. Without that this kernel accumulated onto the
    // previous gradient's device data from the second evaluation onward.
-   HDGNLFaceGradScatterBatched(c_fes, fes_p, &fes, integs, bintegs, flist,
-                               el_state, tr_state, D_off, E_off, G_off, H_off,
-                               Df_data, E_data, G_data, H_data);
+   pass(flist, 2, NULL);
+#ifdef MFEM_USE_MPI
+   if (sflist.Size()) { pass(sflist, 1, c_pfes->GetParMesh()); }
+#endif
 
    // The kernel took D, E, G and H through Vector::ReadWrite(), whose default
    // is on_dev = true, so they come back marked valid on the device -- and

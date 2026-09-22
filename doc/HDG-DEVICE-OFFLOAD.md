@@ -38,7 +38,9 @@ UMFPACK); the assembly is still ~1.4x slower on the device, `D` going through
 the batched local solve has, reached from the other end. Below it every device
 setting is a loss. The pre-crossover arithmetic is in `CLAUDE_DEVICE.md`.
 
-Done and not repeated here: the element blocks, the linear face constraints,
+Done and not repeated here: parallel shared faces (all three face kernels,
+and the two refusals that stood in front of them -- one withdrawn, one
+earned), the element blocks, the linear face constraints,
 the local factorisation and solves, the trace solve, the face-PAIR loop, the
 scatter, the NPC residual's integrators, `LocalResidual`'s scaffolding, the
 nonlinear face constraints, the flux mass boundary faces, `vdim > 1` face
@@ -47,11 +49,6 @@ integrators.
 
 ## What is left, out of the nine
 
-* **Parallel shared faces.** The face kernels refuse `ParallelC()`, for the
-  `FaceIsInterior()` reason on the predicate: a shared face is not interior by
-  that test, so the list the kernel is built from silently drops every
-  partition boundary. This is the live item, NPC in parallel being real work
-  that this tree exercises.
 * **Non-NPC problems. CLOSED as OPTIONAL, on the caller's decision.** The
   kernel writes `H_data` and the reduced route reads an assembled sparse `H`,
   so the two destinations differ, and that one split is why
@@ -63,12 +60,13 @@ integrators.
   standing -- rather than here, per the rule that markdown says only what is
   left.
 
-`CanBatchLocalResidual()`'s parallel refusal is a third thing and belongs with
-neither: it refuses `ParallelU() || ParallelP()` while saying in its own
-comment that the kernel needs nothing from a neighbour and that lifting it is
-a test rather than work. Its stated premise -- that the worktree is a serial
-build -- is stale; the parallel tree is `mfem-hdg-par-dev` and runs
-`punit_tests` on two ranks.
+Two parallel refusals remain and neither is a face kernel.
+`CanBatchLinearResidual()` and `BuildTraceHMap()` both refuse `ParallelC()`,
+and both give a reason about a TRACE ENTRY's two contributions being chosen by
+element index -- which is a thing a shared face genuinely does not have, the
+other element being on another rank. Whether that survives the same treatment
+the face kernels got is not known; what is known is that it is a different
+argument from the one that was withdrawn, and it is written on each.
 
 ## What blocks the last step, and it is not on that list
 
@@ -110,8 +108,11 @@ Both were found while measuring this plan:
 ## What this plan does not cover
 
 * **Parallel + device.** The flux and potential are L2 and rank-local, so only
-  the trace needs communication and hypre handles that. Nothing here changes
-  it, and nothing here has been tried on more than one rank.
+  the trace needs communication and hypre handles that. The batched routes
+  have now been RUN on more than one rank -- the element-local residual and
+  all three face kernels are exercised at 1, 2, 3 and 4 -- but on the host
+  only. Nothing here has been tried on more than one rank with a Device
+  configured.
 * **The nonlinear local solve.** `LocalNLOperator` builds a solver per element;
   its per-element allocation was cut 89% (`doc/HDG-PER-ELEMENT-ALLOCATION.md`),
   but the solver itself is host code.

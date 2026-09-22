@@ -4620,6 +4620,47 @@ const IntegrationRule *HDGNLGradRule(const BlockNonlinearFormIntegrator *nlfi,
 }
 
 /// The geometry, dof-count and space conditions the kernel needs.
+/** @brief Where a batched face pass gets its transformations, and how many
+    PAIRS one face of its list contributes.
+
+    Two sources rather than two kernels, and the reason is arithmetic: a
+    shared face is one-sided from this rank -- a local Elem1, no local Elem2 --
+    so it contributes ONE pair where an interior face contributes two, and
+    Mesh::GetInteriorFaceTransformations() returns NULL for it because
+    Mesh::FaceIsInterior() is `Elem2No >= 0`. Nothing else about the two
+    passes differs: the weights are the one-sided routines' either way, the
+    destinations are caller-supplied per pair, and the side-2 arithmetic is
+    reached only through the side loop this bounds. Duplicating the two
+    kernels for the shared case would have been six hundred lines of near
+    copy, and the copy is where the two would then have parted company.
+
+    The transformation pointer is the mesh's own cached object in both cases
+    and so must be consumed before the next call, which is what every caller
+    here does. */
+struct HDGFacePairSource
+{
+   Mesh *mesh;
+#ifdef MFEM_USE_MPI
+   ParMesh *pmesh;
+   HDGFacePairSource(Mesh *m, ParMesh *pm) : mesh(m), pmesh(pm) { }
+   int NumSides() const { return pmesh ? 1 : 2; }
+   FaceElementTransformations *Get(int face) const
+   {
+      if (pmesh)
+      {
+         return pmesh->FaceIsTrueInterior(face)
+                ? pmesh->GetSharedFaceTransformationsByLocalIndex(face) : NULL;
+      }
+      return mesh->GetInteriorFaceTransformations(face);
+   }
+#else
+   HDGFacePairSource(Mesh *m, ParMesh *) : mesh(m) { }
+   int NumSides() const { return 2; }
+   FaceElementTransformations *Get(int face) const
+   { return mesh->GetInteriorFaceTransformations(face); }
+#endif
+};
+
 bool HDGNLFaceGradGeometryOK(const FiniteElementSpace &tr_fes,
                              const FiniteElementSpace &el_fes,
                              const Array<int> &face_list,
@@ -4660,7 +4701,7 @@ bool HDGNLFaceGradCanBatch(const FiniteElementSpace &tr_fes,
                            const FiniteElementSpace *fl_fes,
                            const Array<NonlinearFormIntegrator*> &integs,
                            const Array<BlockNonlinearFormIntegrator*> &bintegs,
-                           const Array<int> &face_list)
+                           const Array<int> &face_list, ParMesh *pmesh)
 {
    if (integs.Size() + bintegs.Size() == 0) { return false; }
 
@@ -4669,7 +4710,8 @@ bool HDGNLFaceGradCanBatch(const FiniteElementSpace &tr_fes,
    { return false; }
 
    const int neq = el_fes.GetVDim();
-   Mesh *mesh = el_fes.GetMesh();
+   const HDGFacePairSource src(el_fes.GetMesh(), pmesh);
+   const int ns = src.NumSides();
 
    for (int k = 0; k < integs.Size(); k++)
    {
@@ -4696,12 +4738,13 @@ bool HDGNLFaceGradCanBatch(const FiniteElementSpace &tr_fes,
       const IntegrationRule *ir0 = NULL;
       for (int fi = 0; fi < face_list.Size(); fi++)
       {
-         FaceElementTransformations *ftr =
-            mesh->GetInteriorFaceTransformations(face_list[fi]);
+         FaceElementTransformations *ftr = src.Get(face_list[fi]);
          if (!ftr) { return false; }
          const FiniteElement &tr_fe = *tr_fes.GetFaceElement(face_list[fi]);
-         const int els[2] = { ftr->Elem1No, ftr->Elem2No };
-         for (int side = 0; side < 2; side++)
+         // Elem2No on a SHARED face is the neighbour's shifted index and is
+         // not an el_fes element at all; ns == 1 is what keeps it unread.
+         const int els[2] = { ftr->Elem1No, (ns == 2) ? ftr->Elem2No : -1 };
+         for (int side = 0; side < ns; side++)
          {
             const FiniteElement &el_fe = *el_fes.GetFE(els[side]);
             const FiniteElement *fl_fe =
@@ -4724,12 +4767,12 @@ bool HDGNLFaceResidualCanBatch(
    const FiniteElementSpace *fl_fes,
    const Array<NonlinearFormIntegrator*> &integs,
    const Array<BlockNonlinearFormIntegrator*> &bintegs,
-   const Array<int> &face_list)
+   const Array<int> &face_list, ParMesh *pmesh)
 {
    // Everything the GRADIENT pass needs, because the families and the
    // geometry conditions are the same and there must not be two dispatches.
    if (!HDGNLFaceGradCanBatch(tr_fes, el_fes, fl_fes, integs, bintegs,
-                              face_list)) { return false; }
+                              face_list, pmesh)) { return false; }
 
    // **And one refusal the gradient does not have.** That pass implements
    // MixedConductionNLFIntegrator and this one does not, deliberately: the
@@ -4758,16 +4801,18 @@ void HDGNLFaceResidualBatched(
    const Array<BlockNonlinearFormIntegrator*> &bintegs,
    const Array<int> &face_list,
    const Vector &el_state, const Vector &tr_state,
-   Vector &r_el, Vector &r_tr)
+   Vector &r_el, Vector &r_tr, ParMesh *pmesh)
 {
    MFEM_VERIFY(HDGNLFaceResidualCanBatch(tr_fes, el_fes, fl_fes, integs,
-                                         bintegs, face_list),
+                                         bintegs, face_list, pmesh),
                "these integrators do not admit the batched face residual");
 
    Mesh *mesh = el_fes.GetMesh();
+   const HDGFacePairSource src(mesh, pmesh);
+   const int ns = src.NumSides();
    const int NF = face_list.Size();
    if (NF == 0) { r_el.SetSize(0); r_tr.SetSize(0); return; }
-   const int NP = 2 * NF;
+   const int NP = ns * NF;
    const int neq = el_fes.GetVDim();
 
    int ND = 0, TRD = 0;
@@ -4794,8 +4839,7 @@ void HDGNLFaceResidualBatched(
       const HDGNLGradKind kind = nlfi ? HDGNLGradKindOf(nlfi)
                                  : HDGNLGradKindOf(bnlfi);
 
-      FaceElementTransformations *ftr0 =
-         mesh->GetInteriorFaceTransformations(face_list[0]);
+      FaceElementTransformations *ftr0 = src.Get(face_list[0]);
       const FiniteElement &tr_fe0 = *tr_fes.GetFaceElement(face_list[0]);
       const IntegrationRule &ir = nlfi
                                   ? *HDGNLGradRule(nlfi, tr_fe0, *el_fes.GetFE(ftr0->Elem1No),
@@ -4843,13 +4887,14 @@ void HDGNLFaceResidualBatched(
 
          for (int fi = 0; fi < NF; fi++)
          {
-            FaceElementTransformations *ftr =
-               mesh->GetInteriorFaceTransformations(face_list[fi]);
-            const int els[2] = { ftr->Elem1No, ftr->Elem2No };
+            FaceElementTransformations *ftr = src.Get(face_list[fi]);
+            // Elem2No on a SHARED face is the neighbour's shifted index, not
+            // an el_fes element; ns == 1 is what keeps it unread.
+            const int els[2] = { ftr->Elem1No, (ns == 2) ? ftr->Elem2No : -1 };
 
-            for (int side = 0; side < 2; side++)
+            for (int side = 0; side < ns; side++)
             {
-               const int p = 2 * fi + side;
+               const int p = ns * fi + side;
                const FiniteElement &el_fe = *el_fes.GetFE(els[side]);
                const DenseMatrix el_mat(const_cast<real_t*>(pes + p * LDD),
                                         ND, neq);
@@ -5019,16 +5064,19 @@ void HDGNLFaceGradScatterBatched(
    const Vector &el_state, const Vector &tr_state,
    const Array<int> &D_off, const Array<int> &E_off,
    const Array<int> &G_off, const Array<int> &H_off,
-   Vector &Df_data, Vector &E_data, Vector &G_data, Vector &H_data)
+   Vector &Df_data, Vector &E_data, Vector &G_data, Vector &H_data,
+   ParMesh *pmesh)
 {
    MFEM_VERIFY(HDGNLFaceGradCanBatch(tr_fes, el_fes, fl_fes, integs, bintegs,
-                                     face_list),
+                                     face_list, pmesh),
                "these integrators do not admit the batched face gradient");
 
    Mesh *mesh = el_fes.GetMesh();
+   const HDGFacePairSource src(mesh, pmesh);
+   const int ns = src.NumSides();
    const int NF = face_list.Size();
    if (NF == 0) { return; }
-   const int NP = 2 * NF;
+   const int NP = ns * NF;
    const int neq = el_fes.GetVDim();
 
    int ND = 0, TRD = 0;
@@ -5076,8 +5124,7 @@ void HDGNLFaceGradScatterBatched(
       const HDGNLGradKind kind = nlfi ? HDGNLGradKindOf(nlfi)
                                  : HDGNLGradKindOf(bnlfi);
 
-      FaceElementTransformations *ftr0 =
-         mesh->GetInteriorFaceTransformations(face_list[0]);
+      FaceElementTransformations *ftr0 = src.Get(face_list[0]);
       const FiniteElement &tr_fe0 = *tr_fes.GetFaceElement(face_list[0]);
       const IntegrationRule &ir = nlfi
                                   ? *HDGNLGradRule(nlfi, tr_fe0, *el_fes.GetFE(ftr0->Elem1No),
@@ -5125,13 +5172,14 @@ void HDGNLFaceGradScatterBatched(
 
          for (int fi = 0; fi < NF; fi++)
          {
-            FaceElementTransformations *ftr =
-               mesh->GetInteriorFaceTransformations(face_list[fi]);
-            const int els[2] = { ftr->Elem1No, ftr->Elem2No };
+            FaceElementTransformations *ftr = src.Get(face_list[fi]);
+            // Elem2No on a SHARED face is the neighbour's shifted index, not
+            // an el_fes element; ns == 1 is what keeps it unread.
+            const int els[2] = { ftr->Elem1No, (ns == 2) ? ftr->Elem2No : -1 };
 
-            for (int side = 0; side < 2; side++)
+            for (int side = 0; side < ns; side++)
             {
-               const int p = 2 * fi + side;
+               const int p = ns * fi + side;
                const FiniteElement &el_fe = *el_fes.GetFE(els[side]);
                const DenseMatrix el_mat(const_cast<real_t*>(pes + p * LDD),
                                         ND, neq);
@@ -5281,11 +5329,12 @@ void HDGNLFaceGradScatterBatched(
       // loop in ComputeElementsHBatched()'s first version; and a thread per
       // FACE rather than per PAIR makes H exclusive, since only the two sides
       // of one face write it.
+      const int nsides = ns;
       mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
       {
-         for (int side = 0; side < 2; side++)
+         for (int side = 0; side < nsides; side++)
          {
-            const int p = 2 * f + side;
+            const int p = nsides * f + side;
             const int dO = d_Do[p], eO = d_Eo[p];
             const int gO = d_Go[p], hO = d_Ho[p];
 
