@@ -465,6 +465,7 @@ int main(int argc, char *argv[])
    bool batched_factor = false;
    real_t hsign = -1.;
    bool bc_full = true;
+   bool bc_char = false;
    bool bc_flux = true;
    int bc_nat = 0;
    real_t bc_sf = 1., bc_sg = 1.;
@@ -702,6 +703,35 @@ int main(int argc, char *argv[])
                   "divergence form. Expected to be a no-op under "
                   "hybridization, where B's face integrators are never "
                   "evaluated; kept as the control that says so.");
+   args.AddOption(&bc_char, "-bcchar", "--bc-characteristic",
+                  "-no-bcchar", "--no-bc-characteristic",
+                  "Impose the paper's CHARACTERISTIC condition "
+                  "B^ = A+_n(u - u^) - A-_n(u_inf - u^) on every attribute "
+                  "whose velocity trace is free -- the outflow. Each "
+                  "characteristic direction then takes its datum from the "
+                  "side the information comes from, so this is a boundary "
+                  "condition that needs NO exact solution, which is what "
+                  "separates it from -bcflux. It REPLACES the trace row: the "
+                  "viscous q^.n leaves it (through "
+                  "DarcyHybridization::SetTraceBCAttributes()), the diffusive "
+                  "stabilization is not added there, and the prescribed-flux "
+                  "datum is masked off it -- so the OUTFLOW needs no exact "
+                  "solution, while the wall and inlet PRESSURE rows, which it "
+                  "does not cover, still take -bcflux (measured: -bcchar "
+                  "-no-bcflux is 3.84, the same as -no-bcflux alone). It also "
+                  "ENLARGES the basin of the true root, over eleven -uinit "
+                  "starts at order 2: 10 of 11 reach the exact answer on -r 1 "
+                  "and 4 of 11 on -r 2, where the prescribed-flux datum "
+                  "reaches it from NONE on either mesh. It does NOT remove the "
+                  "spurious family -- that is true of -r 1 only, and taking "
+                  "one mesh for the property is the mistake the second mesh "
+                  "caught; see HDGCharacteristicBdrFlux in nsflux.hpp. It "
+                  "needs "
+                  "a MOVING start -- |A_n| is singular where un = 0, so "
+                  "-stokes and -cont are refused and a cold start is a "
+                  "gamble (exact at -r 1, divergent at -r 2); -uinit 0.5 is "
+                  "the instrument. Off by default. Cannot be combined with "
+                  "-bclin, which replaces the same row.");
    args.AddOption(&bc_lin, "-bclin", "--bc-linearised-flux",
                   "-no-bclin", "--no-bc-linearised-flux",
                   "Linearise the boundary numerical flux about the prescribed "
@@ -964,6 +994,62 @@ int main(int argc, char *argv[])
       bdr_pres[bc_nat - 1] = 0;
    }
 
+   //    (c) The three ways a boundary trace row can be written, decided here
+   //        because step 7's stabilization needs to know before it registers.
+   //
+   //        An attribute whose VELOCITY trace is free is the outflow, and it
+   //        is the only place either replacement applies: the pressure row is
+   //        beta v^.n, already linear, so an attribute that frees only the
+   //        pressure needs nothing. Under -bcfull nothing is free, both
+   //        markers are empty, and every registration below reduces to the
+   //        single unmarked one it replaced -- a no-op by construction rather
+   //        than by a branch.
+   Array<int> bdr_char(mesh.bdr_attributes.Max());   // characteristic row
+   Array<int> bdr_lin(mesh.bdr_attributes.Max());    // linearised flux row
+   Array<int> bdr_ord(mesh.bdr_attributes.Max());    // the ordinary row
+   Array<int> bdr_nochar(mesh.bdr_attributes.Max()); // everything but char
+   int n_char = 0, n_lin = 0;
+   for (int a = 0; a < bdr_char.Size(); a++)
+   {
+      bdr_char[a] = (bc_char && !bdr_vel[a]) ? 1 : 0;
+      bdr_lin[a] = (bc_lin && !bdr_vel[a] && !bdr_char[a]) ? 1 : 0;
+      bdr_ord[a] = 1 - bdr_char[a] - bdr_lin[a];
+      bdr_nochar[a] = 1 - bdr_char[a];
+      n_char += bdr_char[a];
+      n_lin += bdr_lin[a];
+   }
+   MFEM_VERIFY(!(bc_char && bc_lin),
+               "-bcchar and -bclin both REPLACE the outflow trace row and "
+               "cannot be combined. -bclin is the instrument that attributed "
+               "the root family; -bcchar is the boundary condition.");
+
+   //    **The characteristic condition degenerates where the flow stagnates,
+   //    and that is a property of the condition rather than of this code.**
+   //    A_n's eigenvalues are un +- c and un with multiplicity dim-1; at
+   //    un = 0 that last one is exactly zero, |A_n| loses the rank it carries
+   //    and the left eigenvector l of the zero eigenvalue annihilates the
+   //    whole row -- l.B^ = (l.A_n(u - u_inf) + 0)/2 = 0, since l A_n = 0.
+   //    So the TANGENTIAL velocity trace has no equation at all and the trace
+   //    system is singular.
+   //
+   //    -stokes drops the convective flux outright, so un is identically zero
+   //    on every face and the degeneracy is total; -cont solves exactly that
+   //    problem first. Both are refused here, because the symptom otherwise
+   //    is a NaN out of the trace solve at the first Newton step and it names
+   //    IsFinite(norm) in solvers.cpp, which points at neither.
+   //
+   //    A COLD start has the same defect for one step and survives it or does
+   //    not: measured on plane Poiseuille at order 2, -r 1 reaches the exact
+   //    answer from rest while -r 2 diverges. -uinit is the instrument --
+   //    0.25 and 0.5 both converge to round-off in 13 and 8 steps, where the
+   //    prescribed-flux datum diverges from all three nonzero starts.
+   MFEM_VERIFY(!(bc_char && (stokes || continuation)),
+               "-bcchar cannot be combined with -stokes or -cont: with the "
+               "convective flux dropped the normal velocity is identically "
+               "zero, |A_n| is singular, and the characteristic row leaves "
+               "the tangential trace velocity with no equation. Start it "
+               "from a moving state instead -- -uinit 0.5.");
+
    // 7. The potential mass, carrying both halves of the stabilization and the
    //    whole of the inviscid flux. Everything goes on the *nonlinear* form:
    //    DarcyForm keeps one potential mass form, and the convective term is
@@ -987,7 +1073,20 @@ int main(int argc, char *argv[])
          stab_b[e] = new HDGDiffusionIntegrator(nu_coeff, td);
       }
       Mtnl->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(stab_i));
-      Mtnl->AddBdrFaceIntegrator(new VectorBlockDiagonalIntegrator(stab_b));
+      //    A CHARACTERISTIC row is the whole condition and carries no
+      //    stabilization of its own -- the splitting into A+ and A- IS the
+      //    upwinding. Adding S(u - u^) on top would be a second, unrelated
+      //    condition on the same row. Marked rather than branched, so that
+      //    without -bcchar this is the unmarked registration it was.
+      if (n_char == 0)
+      {
+         Mtnl->AddBdrFaceIntegrator(new VectorBlockDiagonalIntegrator(stab_b));
+      }
+      else
+      {
+         Mtnl->AddBdrFaceIntegrator(new VectorBlockDiagonalIntegrator(stab_b),
+                                    bdr_nochar);
+      }
    }
 
    //    (b) the inviscid flux and its Lax-Friedrichs stabilization.
@@ -1019,17 +1118,10 @@ int main(int argc, char *argv[])
    //    bdr_lin is empty, and this reduces to the single unmarked registration
    //    it replaced -- a no-op by construction rather than by a branch, the
    //    same way the prescribed-flux datum is.
-   Array<int> bdr_lin(mesh.bdr_attributes.Max());
-   Array<int> bdr_ord(mesh.bdr_attributes.Max());
-   int n_lin = 0;
-   for (int a = 0; a < bdr_lin.Size(); a++)
-   {
-      bdr_lin[a] = (bc_lin && !bdr_vel[a]) ? 1 : 0;
-      bdr_ord[a] = 1 - bdr_lin[a];
-      n_lin += bdr_lin[a];
-   }
+   //    The markers were built in step 6b(c); see the note there.
    HDGLinearisedBdrFlux lin_flux(ac_flux, state_coeff, tau_const);
-   if (n_lin == 0)
+   HDGCharacteristicBdrFlux char_flux(ac_flux, state_coeff);
+   if (n_lin == 0 && n_char == 0)
    {
       Mtnl->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(*num_flux, 0,
                                                               hsign));
@@ -1038,10 +1130,27 @@ int main(int argc, char *argv[])
    {
       Mtnl->AddBdrFaceIntegrator(
          new HyperbolicFormIntegrator(*num_flux, 0, hsign), bdr_ord);
-      Mtnl->AddBdrFaceIntegrator(
-         new HyperbolicFormIntegrator(lin_flux, 0, hsign), bdr_lin);
+      if (n_lin > 0)
+      {
+         Mtnl->AddBdrFaceIntegrator(
+            new HyperbolicFormIntegrator(lin_flux, 0, hsign), bdr_lin);
+      }
+      if (n_char > 0)
+      {
+         //    NOT a plain HyperbolicFormIntegrator: that makes one Average()
+         //    call per point and writes it into whichever rows are asked for,
+         //    so B^ would land in the ELEMENT row as well -- and the element
+         //    equation's boundary term must stay the physical numerical flux
+         //    whatever condition is imposed on the trace. The delegating
+         //    integrator splits the two rows; see its doxygen.
+         Mtnl->AddBdrFaceIntegrator(
+            new HDGCharacteristicBdrIntegrator(*num_flux, char_flux, hsign),
+            bdr_char);
+      }
    }
    cout << "linearised boundary flux on " << n_lin << " attribute(s)" << endl;
+   cout << "characteristic boundary row on " << n_char << " attribute(s)"
+        << endl;
 
    // 8. Hybridization. The constraint is `<[q.n], mu>`, again zero on the
    //    pressure row so that q_0 stays uncoupled; NormalTraceJumpIntegrator's
@@ -1252,6 +1361,15 @@ int main(int argc, char *argv[])
    cout << "essential trace tdofs: " << ess_tdofs.Size()
         << " of " << fes_t.GetTrueVSize() << endl;
 
+   //     And the half of the characteristic condition no integrator can
+   //     express: the viscous q^.n leaves the trace row on those attributes.
+   //     Without this the row would read B^ + q^.n = 0, which is a different
+   //     and wrong condition that nothing would report -- see
+   //     DarcyHybridization::SetTraceBCAttributes() and
+   //     HDGCharacteristicBdrFlux. Passing an empty-marker array when -bcchar
+   //     is off is a no-op, so this is unconditional.
+   if (n_char > 0) { hyb->SetTraceBCAttributes(bdr_char); }
+
    darcy.Assemble();
 
    // 10. State vectors. The trace block carries the boundary data.
@@ -1329,11 +1447,17 @@ int main(int argc, char *argv[])
    //     zeroed on the essential trace dofs, which is why -bcfull -- where
    //     every component of every attribute is essential -- is untouched by
    //     construction rather than by a branch.
+   //     A CHARACTERISTIC attribute takes no datum: its row is the whole
+   //     condition and reads the far field through A-_n rather than through a
+   //     right-hand side. Marked rather than branched, for the same reason
+   //     the stabilization is.
    if (bc_flux)
    {
-      hform.AddBoundaryIntegrator(
-         new HDGPrescribedFluxLFIntegrator(ac_flux, state_coeff, &flux_coeff,
-                                           bc_sf, bc_sg, bc_io));
+      auto *datum = new HDGPrescribedFluxLFIntegrator(ac_flux, state_coeff,
+                                                      &flux_coeff, bc_sf,
+                                                      bc_sg, bc_io);
+      if (n_char == 0) { hform.AddBoundaryIntegrator(datum); }
+      else { hform.AddBoundaryIntegrator(datum, bdr_nochar); }
    }
 
    // 12. Solve, by NPC: Newton on the FULL (q, u, u_hat) system with the

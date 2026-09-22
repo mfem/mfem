@@ -525,6 +525,371 @@ public:
    }
 };
 
+/** @brief The CHARACTERISTIC boundary condition of Peraire, Nguyen & Cockburn,
+    \verbatim
+        B^ = A+_n (u - u^) - A-_n (u_inf - u^) = 0,
+    \endverbatim
+    as an HDG boundary numerical flux.
+
+    `A_n` is the inviscid flux Jacobian normal to the face and `A+_n`, `A-_n`
+    its positive and negative parts, so each characteristic direction takes its
+    datum from the side the information comes from: the outgoing ones from the
+    interior state @a u, the incoming ones from the prescribed far field
+    @a u_inf. **That is what makes it usable on a problem whose answer is not
+    known**, and it is the whole reason to have it -- the alternative already
+    here, HDGPrescribedFluxLFIntegrator, supplies `<(F + G).n, mu>` from the
+    EXACT solution and is therefore a verification device rather than a
+    boundary condition.
+
+    **THIS ROW REPLACES THE CONSERVATIVITY CONDITION, it does not add to it**,
+    and that is why it needs DarcyHybridization::SetTraceBCAttributes(). An
+    ordinary boundary trace row reads `<(F^ + q^).n, mu> = 0`, whose `q^.n`
+    half comes from the flux constraint C; this condition carries no viscous
+    flux at all, so C has to leave the row. No integrator can do that -- the
+    potential mass form is in (p, lambda) and cannot cancel a term in q --
+    which is the asymmetry that method exists for. A caller that registers this
+    condition and does NOT mark the attribute gets `B^ + q^.n = 0`, which is a
+    different and wrong condition, and nothing will say so.
+
+    **Register it through HDGCharacteristicBdrIntegrator, never as a plain
+    HyperbolicFormIntegrator.** That integrator makes one `Average()` call per
+    quadrature point and writes the result into every row group asked of it,
+    so this class would replace the ELEMENT row's flux as well -- and the
+    element equation's boundary term must remain the physical numerical trace
+    of the flux whatever condition is imposed on the trace.
+
+    **Written in the form that costs one matrix square.** With
+    `A+ = (A + |A|)/2` and `A- = (A - |A|)/2` the residual collapses to
+    \verbatim
+        B^ = ( A_n (u - u_inf) + |A_n| (u + u_inf - 2 u^) ) / 2,
+    \endverbatim
+    whose derivatives are `dB^/du^ = -|A_n|` and `dB^/du = A+_n`, both
+    independent of the state. `A_n` is frozen at @a u_inf, so the row is LINEAR
+    in both arguments -- which is what the reference's condition is, and the
+    measurement note below says what that does and does not buy.
+
+    **|A_n| in closed form, because this build has no LAPACK.** For the
+    artificial-compressibility system the normal Jacobian
+    \verbatim
+        A_n = [ 0    beta n^T              ]
+              [ n    (v.n) I + v n^T       ]
+    \endverbatim
+    has eigenvalues `un +- c` and `un` (multiplicity dim-1), with
+    `un = v.n` and `c = sqrt(un^2 + beta |n|^2)` -- the same `c` that
+    ArtificialCompressibilityFlux::MaxCharSpeedDotN() returns `|un| + c` from.
+    `c > |un|` for `beta > 0`, so `un + c > 0 > un - c` and the three
+    eigenvalues are always distinct; summing the spectral projectors and
+    collecting powers of `M = A_n - un I` gives
+
+    \verbatim
+        |A_n| = ((c - |un|)/c^2) M^2 + (un/c) M + |un| I.
+    \endverbatim
+
+    Checked on each eigenvector rather than taken on faith: `M` annihilates the
+    transverse modes, leaving `|un| I` on them; and `M r_+- = +-c r_+-` gives
+    `(c - |un|) +- un + |un| = c +- un = |lambda_+-|`. Under `-stokes` the
+    `(v.n) I + v n^T` block is gone, `un` is 0 and the expression reduces to
+    `A_n^2 / c` with `c = sqrt(beta) |n|`, which is the right answer for a
+    matrix whose eigenvalues are `+- c` and 0.
+
+    **AND THAT ZERO IS A DEGENERACY, not a curiosity: where the flow stagnates
+    this condition supplies no equation at all.** The eigenvalue `un` carries
+    multiplicity `dim-1`, so at `un = 0` the left eigenvector `l` of the zero
+    eigenvalue satisfies `l A_n = 0`, and then
+
+    \verbatim
+        l.B^ = ( l.A_n (u - u_inf) + l.|A_n| (u + u_inf - 2 u^) ) / 2 = 0
+    \endverbatim
+
+    identically -- both terms vanish, the first because `l A_n = 0` and the
+    second because `|A_n|` is built from powers of `M = A_n` there. The
+    TANGENTIAL velocity trace is left with an empty row and the trace system is
+    singular. It is the condition that degenerates, not the discretisation:
+    a characteristic with zero speed carries no information, so there is
+    nothing for it to say.
+
+    The symptom names nothing useful -- a NaN out of the first trace solve,
+    reported as `IsFinite(norm)` in `NewtonSolver::Mult`. `-stokes` and `-cont`
+    make it total (the convective flux is dropped, so `un` is zero on every
+    face) and navierstokes.cpp refuses both by name. A COLD start meets it for
+    one step only, and whether that is survivable is a property of the mesh
+    rather than of the method: plane Poiseuille at order 2 reaches the exact
+    answer from rest at `-r 1` and diverges at `-r 2`. Starting from a moving
+    state is the fix and costs one flag.
+
+    **WHAT THIS IS FOR, and what ONE MESH would have had it do.** Before it
+    was built this was written up as NOT a cure for the spurious root family a
+    free outlet admits -- the family having been attributed, in
+    navierstokes.cpp's boundary-condition step, to the INTERIOR convective
+    nonlinearity rather than to the boundary row's degree, and `-bclin` (which
+    makes the outflow row exactly linear in u^ about a frozen exterior state,
+    as this does) having moved the family without removing it: 5.63, 1.31,
+    3.30 became 1.18, 2.77.
+
+    That prediction is too strong and so is its opposite, and the two meshes
+    disagree about which. `-bclin` is the smaller change -- it freezes the flux
+    and leaves the row otherwise intact, while this REPLACES the row: the
+    viscous q^.n goes, the diffusive stabilization is not added, and the datum
+    is masked off. Plane Poiseuille, order 2, eleven `-uinit` starts from 0 to
+    1.5, on two meshes:
+
+    \verbatim
+                                  exact answer    spurious root    diverges
+        -r 1  -bcchar                  10               0              1
+              -bcflux (control)         0               5              6
+        -r 2  -bcchar                   4               5              2
+              -bcflux (control)         0               5              6
+    \endverbatim
+
+    **At `-r 1` the family is gone and at `-r 2` it is not**, five of eleven
+    starts landing on 0.769 / 0.066 or 1.62 / 0.054 there. So what is a
+    property of the condition is that it ENLARGES the basin of the true root,
+    on both meshes and by a lot; that it REMOVES the family is a property of
+    the coarse mesh alone, and the `-r 1` arm on its own would have been
+    written up as the second. The control is 0 / 5 / 6 on both -- it reaches
+    the exact answer from no start at either refinement, landing on 6.38 / 0.52
+    or 1.64 / 0.18 at `-r 1` and 6.60 / 0.53 or 1.76 / 0.19 at `-r 2` -- so the
+    comparison itself is mesh-independent and only the size of the win moves.
+    None of this contradicts the Reynolds attribution, which is about where the
+    nonlinearity LIVES; this changes which root the boundary admits.
+
+    **What it does NOT do is remove the exact solution from the problem, only
+    from the outflow.** It covers the attributes whose VELOCITY trace is free;
+    under `-bcphys` the walls and the inlet leave the PRESSURE trace free and
+    those rows still take HDGPrescribedFluxLFIntegrator's datum. Measured:
+    `-bcchar -no-bcflux` gives 3.84 / 1.01, against `-no-bcflux` alone at
+    3.84 / 1.00 -- indistinguishable, because the rows that were carrying the
+    exact solution are not the rows this replaces. Extending it to a wall is
+    not a matter of marking one more attribute: `un = 0` there and the
+    degeneracy above is exactly what would be hit.
+
+    **Argument convention** is HDGLinearisedBdrFlux's and for the same reason:
+    HyperbolicFormIntegrator's HDG path calls `Average(state_tr, state_el, ..)`,
+    so @a state1 is the trace and @a state2 the element state, and
+    `AverageGrad`'s `side == 1` is the derivative with respect to the trace. */
+class HDGCharacteristicBdrFlux : public RusanovFlux
+{
+   const ArtificialCompressibilityFlux *acf;
+   VectorCoefficient &uinf;   ///< the prescribed far-field state
+
+   mutable Vector w, du;
+   mutable DenseMatrix An, M, M2, Aabs;
+
+   /** @brief `A_n` and `|A_n|` at the far-field state, both left in @a An and
+       @a Aabs. @a w comes back holding that state. */
+   void Jacobians(const Vector &nor, FaceElementTransformations &Tr) const
+   {
+      const int neq = fluxFunction.num_equations;
+
+      // Elem1 at its own integration point is the physical point on the face,
+      // and is an element transformation, so a coefficient reading element
+      // attributes still works. HDGLinearisedBdrFlux does the same.
+      uinf.Eval(w, *Tr.Elem1, Tr.GetElement1IntPoint());
+      fluxFunction.ComputeFluxJacobianDotN(w, nor, Tr, An);
+
+      const int dim = fluxFunction.dim;
+      real_t un = 0., nn = 0.;
+      for (int d = 0; d < dim; d++)
+      {
+         un += w(1 + d) * nor(d);
+         nn += nor(d) * nor(d);
+      }
+      // Dropping v (x) v drops the (v.n) I + v n^T block with it, so the
+      // spectrum collapses to +- sqrt(beta)|n| and 0; un = 0 is what says so.
+      if (!acf || acf->IsStokes()) { un = 0.; }
+      const real_t beta = acf ? acf->GetBeta() : 1.;
+      const real_t c = std::sqrt(un * un + beta * nn);
+      MFEM_ASSERT(c > 0., "a face of zero measure, or beta <= 0");
+
+      M = An;
+      for (int i = 0; i < neq; i++) { M(i, i) -= un; }
+      M2.SetSize(neq);
+      mfem::Mult(M, M, M2);
+
+      const real_t aun = std::abs(un);
+      Aabs.SetSize(neq);
+      for (int i = 0; i < neq; i++)
+         for (int j = 0; j < neq; j++)
+         {
+            Aabs(i, j) = ((c - aun) / (c * c)) * M2(i, j) + (un / c) * M(i, j);
+         }
+      for (int i = 0; i < neq; i++) { Aabs(i, i) += aun; }
+   }
+
+public:
+   /** @param f  the same FluxFunction the rest of the residual uses
+       @param u  the prescribed FAR-FIELD state, `num_equations` wide.  It is
+                 not a datum on the row in the sense the prescribed flux is:
+                 only the incoming characteristics read it. */
+   HDGCharacteristicBdrFlux(const FluxFunction &f, VectorCoefficient &u)
+      : RusanovFlux(f),
+        acf(dynamic_cast<const ArtificialCompressibilityFlux*>(&f)),
+        uinf(u) { }
+
+   real_t Average(const Vector &state1, const Vector &state2,
+                  const Vector &nor, FaceElementTransformations &Tr,
+                  Vector &flux) const override
+   {
+      const int neq = fluxFunction.num_equations;
+      flux.SetSize(neq);
+      Jacobians(nor, Tr);
+
+      //  B^ = ( A (u - u_inf) + |A| (u + u_inf - 2 u^) ) / 2
+      du.SetSize(neq);
+      for (int i = 0; i < neq; i++) { du(i) = state2(i) - w(i); }
+      An.Mult(du, flux);
+      for (int i = 0; i < neq; i++)
+      {
+         du(i) = state2(i) + w(i) - 2. * state1(i);
+      }
+      Aabs.AddMult(du, flux);
+      flux *= 0.5;
+
+      // The reported speed is what the caller uses to size a time step and to
+      // report lambda_max; the row carries no stabilization of its own, the
+      // characteristic splitting being the upwinding.
+      return acf ? acf->MaxCharSpeedDotN(w, nor) : 0.;
+   }
+
+   void AverageGrad(int side, const Vector &state1, const Vector &state2,
+                    const Vector &nor, FaceElementTransformations &Tr,
+                    DenseMatrix &grad) const override
+   {
+      MFEM_ASSERT(side == 1 || side == 2, "Unknown side");
+      const int neq = fluxFunction.num_equations;
+      grad.SetSize(neq);
+      Jacobians(nor, Tr);
+
+      if (side == 1)
+      {
+         // d/du^ = -|A_n|, and it depends on neither state.
+         for (int i = 0; i < neq; i++)
+            for (int j = 0; j < neq; j++) { grad(i, j) = -Aabs(i, j); }
+         return;
+      }
+      // side == 2, the element state: d/du = A+_n = (A_n + |A_n|)/2.
+      for (int i = 0; i < neq; i++)
+         for (int j = 0; j < neq; j++)
+         {
+            grad(i, j) = 0.5 * (An(i, j) + Aabs(i, j));
+         }
+   }
+};
+
+/** @brief The element row keeps the physical numerical flux; the TRACE row is
+    the characteristic condition. One integrator, because one integrator is
+    what DarcyHybridization asks for both.
+
+    **This exists because a NumericalFlux cannot express it.**
+    HyperbolicFormIntegrator::AssembleHDGFaceVector() makes ONE
+    `numFlux.Average()` call per quadrature point and writes its result into
+    whichever row groups @a type asks for -- so a flux registered there lands
+    in both. The element (potential) equation's boundary term is
+    `<F^.n, v>_dK` and must stay the physical numerical trace of the flux
+    whatever boundary condition is imposed; the condition is imposed through
+    the equation FOR u^, which is the trace row. Putting `B^` in both would
+    enforce a conservation statement that is not the conservation law.
+
+    HDGLinearisedBdrFlux needs none of this and the difference is the point:
+    it replaces `F^` with a linearisation OF `F^`, which is still a flux, so
+    both rows want it. `B^` is the residual of a boundary condition and is not
+    a flux at all.
+
+    So this delegates on the row type, to two ordinary
+    HyperbolicFormIntegrators built on the two fluxes. For the RESIDUAL that
+    is a plain branch -- AssembleHDGFaceVector()'s own assertion says @a type
+    is either the element pair or the trace pair, never both. For the
+    GRADIENT both groups arrive in one call from
+    DarcyHybridization::ConstructGrad(), and the blocks are laid out group
+    first and equation second, so the element rows are the first
+    `dof_el * neq` and the trace rows the rest: two calls and a row splice. */
+class HDGCharacteristicBdrIntegrator : public NonlinearFormIntegrator
+{
+   HyperbolicFormIntegrator ord;   ///< the physical flux, for the element row
+   HyperbolicFormIntegrator chr;   ///< B^, for the trace row
+   const int neq;
+
+   mutable DenseMatrix m_ord, m_chr;
+
+   static bool WantsTraceRow(int type)
+   {
+      return (type & (NonlinearFormIntegrator::HDGFaceType::CONSTR
+                      | NonlinearFormIntegrator::HDGFaceType::FACE)) != 0;
+   }
+   static bool WantsElemRow(int type)
+   {
+      return (type & (NonlinearFormIntegrator::HDGFaceType::ELEM
+                      | NonlinearFormIntegrator::HDGFaceType::TRACE)) != 0;
+   }
+
+public:
+   /** @param ordinary        the numerical flux every other face uses
+       @param characteristic  HDGCharacteristicBdrFlux on the same system
+       @param sign            the residual convention, as passed to
+                              HyperbolicFormIntegrator elsewhere */
+   HDGCharacteristicBdrIntegrator(const NumericalFlux &ordinary,
+                                  const NumericalFlux &characteristic,
+                                  real_t sign = 1.)
+      : ord(ordinary, 0, sign), chr(characteristic, 0, sign),
+        neq(ordinary.GetFluxFunction().num_equations) { }
+
+   void AssembleHDGFaceVector(int type, const FiniteElement &trace_face_fe,
+                              const FiniteElement &fe,
+                              FaceElementTransformations &Tr,
+                              const Vector &trfun, const Vector &elfun,
+                              Vector &elvect) override
+   {
+      if (WantsTraceRow(type))
+      {
+         chr.AssembleHDGFaceVector(type, trace_face_fe, fe, Tr, trfun, elfun,
+                                   elvect);
+      }
+      else
+      {
+         ord.AssembleHDGFaceVector(type, trace_face_fe, fe, Tr, trfun, elfun,
+                                   elvect);
+      }
+   }
+
+   void AssembleHDGFaceGrad(int type, const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override
+   {
+      const bool tr = WantsTraceRow(type), el = WantsElemRow(type);
+      if (tr && !el)
+      {
+         chr.AssembleHDGFaceGrad(type, trace_face_fe, fe, Tr, trfun, elfun,
+                                 elmat);
+         return;
+      }
+      if (el && !tr)
+      {
+         ord.AssembleHDGFaceGrad(type, trace_face_fe, fe, Tr, trfun, elfun,
+                                 elmat);
+         return;
+      }
+
+      // Both groups in one call: same shape from both, element rows from the
+      // physical flux and trace rows from B^. The split is at
+      // `dof_dual_el * num_equations`, which is where
+      // HyperbolicFormIntegrator::AssembleHDGFaceGrad() bases its trace rows.
+      ord.AssembleHDGFaceGrad(type, trace_face_fe, fe, Tr, trfun, elfun, m_ord);
+      chr.AssembleHDGFaceGrad(type, trace_face_fe, fe, Tr, trfun, elfun, m_chr);
+      MFEM_ASSERT(m_ord.Height() == m_chr.Height() &&
+                  m_ord.Width() == m_chr.Width(), "the two delegates disagree "
+                  "about the block shape");
+      elmat = m_ord;
+      const int roff = fe.GetDof() * neq;
+      MFEM_ASSERT(roff < elmat.Height(), "no trace rows to splice");
+      for (int i = roff; i < elmat.Height(); i++)
+      {
+         for (int j = 0; j < elmat.Width(); j++) { elmat(i, j) = m_chr(i, j); }
+      }
+   }
+};
+
 /** @brief The prescribed HDG numerical flux on a boundary face, assembled as a
     linear form on the TRACE space.
 
