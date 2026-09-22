@@ -1,0 +1,68 @@
+Options used:
+   --mesh ../../data/amr-quad.mesh
+   --ncells-x 0
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --ref-levels 1
+   --delta-random 0
+   --order 2
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 6
+   --flux-components 
+   --no-free-outflow
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --preconditioner 0
+   --newton-rtol -1
+   --no-threaded-assembly
+   --no-batched-assembly
+   --local-factor-mode -1
+   --no-npc
+   --gradient-mode -1
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.00115619s.
+Assembly mode: 0, face integrators: 0, mass kernels: flux n pot n div n, bdr kernel taken: no, face kernel taken: no, local residual batched: no, nl face grad kernel taken: no, nl face residual kernel taken: no, local factor batched: no
+***********************************************************
+dim(V) = 2016
+dim(W) = 1008
+dim(M) = 792
+dim(V+W+M) = 3816
+***********************************************************
+Assembly took 0.00074818s.
+Preconditioner took 1.6211e-05s.
+Newton iteration  0 : ||r|| = 0.0250103
+Newton iteration  1 : ||r|| = 0.000127454, ||r||/||r_0|| = 0.00509607
+Newton iteration  2 : ||r|| = 3.80841e-09, ||r||/||r_0|| = 1.52273e-07
+local nonlinear iterations: 1344
+Newton+GMRES+GS/Newton+GMRES converged in 2 iterations with a residual norm of 3.80841e-09.
+Solver took 0.101146s.
+|| q_h - q_ex || / || q_ex || = 0.000183726
+|| t_h - t_ex || / || t_ex || = 0.000114835

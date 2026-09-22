@@ -381,8 +381,9 @@ size now and `Mult()` checks both its arguments against it. **It is on
 anything to do with NPC. `doc/HDG-ORDERING-API.md` §7 item 10 is the long
 form.
 
-The separate defect that uncovered is **attributed and refused**, and the
-capability half of it is open: **see §13**, which is what to do about it.
+The separate defect that uncovered is **fixed in serial** -- the
+element-major loops now expand a nonconforming master face onto its slaves;
+**see §13** for what is still open (parallel, and the batched kernels).
 
 ## 12. A flux that carries fewer directions than the mesh has
 
@@ -460,90 +461,56 @@ What is left:
 
 ## 13. A nonlinear face constraint on a mesh with hanging nodes
 
-**TODO, and it is a capability rather than a defect: the crash is attributed
-and refused, and what is left is making it work.** The mechanism, the
-measurement, the rejected repair and the acceptance test are all on
-`DarcyHybridization::Finalize()`'s refusal -- read that first, this section
-is only what to DO about it.
+**BUILT in serial, and what is left is parallel, the batched kernels, and the
+lift to the trunk.** The eight element-major face loops in
+`DarcyHybridization` now expand a nonconforming MASTER face onto its slave
+sub-faces. The mechanism, the attribution that decided it, the rejected
+one-sided repair and the three falsifications are on
+`DarcyHybridization::Finalize()` and on `AssembleHDGGrad()`; the acceptance is
+**"Frozen and Live agree at a hanging node"** in
+`tests/unit/fem/test_darcy_nonlinear.cpp` and the reference is
+`p6_o2_dg_nc_hb_nl_newton.txt` in both arms. Read those, not this section.
 
-In one line: every element-major face loop in `DarcyHybridization` reads
-`Elem2No < 0` as "boundary face", a nonconforming MASTER face satisfies that
-too, and there is no route from a coarse element to the slave faces that
-carry its coupling. `Finalize()` refuses the combination now, gated on
-`c_nlfi || c_nlfi_p`.
+### What is left
 
-**Who wants it.** `c_nlfi_p` is reachable today through
-`DarcyForm::SetFaceConstraintMode(Live)`, which is gffp's; `c_nlfi` is filled
-by nothing in this tree. So this is what stands between a live face
-constraint and AMR, and §7's estimator work is on the other side of it.
+* **A partition that cuts a hanging node is REFUSED**, in `Finalize()`, by
+  name and with a count -- and **it is reachable, which was not expected**.
+  `pconvdiff -p 6 -nl -hb -dg -o 2` on `data/amr-quad.mesh` refined once runs
+  at 1, 2 and 4 ranks and agrees with the serial answer to every printed
+  digit; at **3 ranks it refuses, naming 6 non-local slave sub-faces**. METIS
+  keeps each master with its slaves at the other three counts. A rank count is
+  not something a caller picks for the mesh's benefit, so **this is the item
+  to build next if anyone wants AMR in parallel**, and it is a capability
+  rather than a defect: reaching a ghost slave's geometry and trace element
+  needs the shared-face entry points. The mirror case -- this rank holding the
+  SLAVES of a ghost master -- needs nothing, a slave being an ordinary
+  interior face to the fine element that owns it.
+* **The batched pair kernels refuse on a master face.**
+  `CanBatchNLFaceGrad()` and `CanBatchNLFaceResidual()` decline on
+  `HasNCMasterFaces()`: they write one block per interior face in that face's
+  own trace dofs, and `InteriorFaceList()` does not list masters, so they
+  would DROP the coarse side rather than misplace it. Teaching them the
+  expansion is a kernel job and is not started.
+* **The lift.** The eight loops are the trunk's, so this is trunk material by
+  the same test the trace-size fix passed -- and the same test says the lift is
+  a rewrite rather than a cherry-pick in at least one place, `AssembleHDGGrad()`
+  taking its workspace from a `TransWorkspace` that only this branch has.
+  `gf-interp-hdg-dev` needs it adapted separately, as ever: it descends from
+  this branch and merges the TRUNK.
+* **`c_nlfi` has no acceptance of its own.** The Frozen-against-Live
+  comparison goes through `c_nlfi_p`, and nothing in the tree fills `c_nlfi`
+  through `DarcyForm`. What covers the `c_nlfi` half of the expansion is the
+  section "and a nonlinear face constraint on such a mesh now builds", which
+  asserts that a system is produced and is the right size, and the
+  `MixedConductionNLFIntegrator` face term in `OneNewtonStep()` that reaches
+  it. That is weaker than round-off agreement and says so.
 
-### What a repair has to produce, and what it will be judged by
+### Who wanted it
 
-The linear route already does this correctly and face-major:
-`AssembleNCSlaveFaceMatrix()` assembles each SLAVE face's block -- with the
-slave's own geometry, quadrature and element pair -- and accumulates it onto
-the master's dofs through the transfer matrix `I`, so the master's block is
-`sum_slaves I^T B_s I` (`Ct_m += Ct_s I`, `C_m += I^T C_s`,
-`H_m += I^T H_s I`). **A nonlinear face term must arrive at the same place by
-the same route**: per slave, in the slave's own quadrature, transferred.
-
-**The acceptance test is on the refusal and it is cheap**: an
-`HDGDiffusionIntegrator` on the potential mass form is the same discrete
-problem whether it is taken Frozen or Live, so applying the two operators to
-one fixed trace vector must agree to round-off. Conforming control 1.1e-13
-(relative 1.5e-14); the rejected one-sided repair gives 3.9e-01 (relative
-5.8e-02) on `data/amr-quad.mesh`. **No exact solution, no solve, no
-tolerance.** Do not judge it by a solve: after one Newton step the two
-differ by 1.5e-4 in `|X|`, which reads as solver noise and hid the error for
-most of a session.
-
-### Why the one-sided treatment failed -- hypothesis, and the experiment that settles it
-
-Treating a master as a one-sided interior face was built at all eight loops
-and reverted. It removes the crash and is bit-identical on conforming
-meshes, and it is still wrong by six percent. **Why is NOT established**, and
-the note on the refusal says so rather than guessing.
-
-The hypothesis worth testing first is that the sum does not commute with the
-face's *other* element. Each slave sees a different FINE element, so
-`sum_s I^T B_s I` carries every fine neighbour's state into the master's row,
-while a one-sided integral over the master sees the coarse element alone and
-the fine states never enter. That is exactly the part of the integrand a
-stabilized HDG face term depends on, and it is invisible to any check run on
-a conforming mesh.
-
-**One face is enough to settle it, and that is the next piece of work.** Take
-one master face on `amr-quad.mesh`, print the linear route's compounded
-master block (the `H_f` that `AssembleNCSlaveHFaceMatrix()` leaves) beside
-the one-sided integral over the same face, and read the difference. An
-attribution on one face costs one run, where the operator sweep that found
-the six percent costs a build and says only that they differ.
-
-### The two routes, and neither is small
-
-* **Teach the element loop the NC list.** From a coarse element, a master
-  face's slaves are `mesh->ncmesh->GetNCList(dim-1)` filtered on
-  `slave.master == f` -- the same list `AssembleNCSlaveFaceMatrix()` walks
-  from the other end. The loop then assembles per slave and transfers.
-  Cheapest to write, and it puts NC knowledge into eight element-major loops
-  that currently have none.
-* **Make the nonlinear face work face-major**, as the linear route is, and
-  have the element loop consume what it produces. Structurally right and a
-  restructure of the residual and gradient paths both.
-
-### What else moves when it lands
-
-The defect is on **all five branches** -- the loops are the trunk's -- and
-the refusal is on this one only, so a repair is trunk material by the same
-test the trace-size fix passed. The pins are here too: "A nonconforming
-master face is not a boundary face" in
-`tests/unit/fem/test_darcy_nonlinear.cpp` asserts the condition (a master
-face with no second element and no boundary attribute) on the mesh itself --
-more than none on `amr-quad.mesh` refined once, measured at 16 element-face
-slots, against exactly none on a conforming control -- and its
-`REQUIRE_THROWS` section needs `MFEM_USE_EXCEPTIONS`, which neither HDG tree
-sets. Nothing in either reference set covers nonconforming +
-hybridized + nonlinear, so a repair owes a reference as well as a case.
+`c_nlfi_p` is reachable through `DarcyForm::SetFaceConstraintMode(Live)`,
+which is gffp's, and through `convdiff -p 6 -nl` (problem 6 puts a
+`HyperbolicFormIntegrator` on the potential mass nonlinear form). **§7's
+estimator work was on the other side of this** and no longer is.
 
 ## Deliberately not being done here
 

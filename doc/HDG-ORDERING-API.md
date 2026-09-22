@@ -812,15 +812,20 @@ pin is "The reduced trace operator is sized in the trace's TRUE dofs" in
 `tests/unit/fem/test_darcy_nonlinear.cpp`; it asserts SIZES, because a defect
 that cannot move an answer cannot be caught by comparing answers.
 
-Nothing in either reference set covers the combination -- grouping the `_nc_`
-references by their options, every nonlinear one is NOT hybridized and every
-hybridized one is linear.
+Nothing in either reference set covered the combination when this was
+written -- grouping the `_nc_` references by their options, every nonlinear
+one was NOT hybridized and every hybridized one was linear.
+`p6_o2_dg_nc_hb_nl_newton.txt` closed that, and closing it is what the entry
+below is about.
 
-**One thing it uncovered was chased and is now a REFUSAL rather than a
-crash.** A nonconforming master face has no second element and no boundary
-attribute, and every element-major face loop called that a boundary face;
-`GetBdrAttribute(-1)` did the rest. `DarcyHybridization::Finalize()` refuses
-a nonlinear face constraint on a mesh with hanging nodes. Making it work is
-still open and is not the obvious change -- see that refusal for the
-measurement that rules the obvious change out, and roadmap §13 for what to
-do instead.
+**One thing it uncovered was chased and is now BUILT.** A nonconforming
+master face has no second element and no boundary attribute, and every
+element-major face loop called that a boundary face; `GetBdrAttribute(-1)`
+did the rest. Those loops now test for a master first and expand it onto its
+slave sub-faces, evaluating the integrator per slave and carrying the trace
+row back with `I^T` -- the same transfer the linear route uses, from the same
+`GetNCSlaveTransfer()`. The one-sided repair that looks cheapest was built
+and measured wrong by six percent; see `DarcyHybridization::Finalize()` for
+that attribution, and roadmap §13 for what is still open (a partition
+cutting a hanging node, and the batched pair kernels, both refused by
+name).

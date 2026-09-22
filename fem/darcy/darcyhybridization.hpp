@@ -1010,6 +1010,22 @@ private:
       BlockVector lop_xv, lop_bv;
       /// LocalNLOperator::GetGradient()'s block structure; see Grad().
       std::unique_ptr<BlockOperator> lop_grad;
+
+      /** @brief The nonconforming MASTER-face expansion's scratch.
+
+          A coarse element's face list holds the MASTER face while the face
+          term lives on the slave sub-faces, so every element-major nonlinear
+          face loop visits the slaves in its place. Kept apart from @a face /
+          @a f1 / @a f2 and from @a lop_faces because both of those hold the
+          MASTER's own geometry live while these are being filled, and a slave
+          must not overwrite it -- the same hazard @a lop_elem is kept separate
+          from @a elem to avoid, one level down. */
+      FaceElementTransformations nc_face;
+      IsoparametricTransformation nc_f1, nc_f2;
+      DenseMatrix nc_I;      ///< the master-to-slave trace transfer
+      Vector nc_x, nc_y;     ///< `I lambda_m`, and the trace row carried back
+      Array<int> nc_slaves;  ///< the slaves of the master being expanded
+      DenseMatrix nc_eg;     ///< `E_s I` / `I^T G_s` on the way to the master
    };
 
    /// The shared Mesh cache. Valid only on a single-threaded path.
@@ -1153,6 +1169,37 @@ private:
                                   face_getter fx_Ct = face_getter(), const DenseMatrix *Ct = NULL,
                                   face_getter fx_C = face_getter(), const DenseMatrix *C = NULL,
                                   face_getter fx_H = face_getter(), const DenseMatrix *H = NULL);
+   /** @brief Master-to-slave trace transfer for one nonconforming sub-face.
+       Height = slave dofs, width = master dofs, so it maps master coefficients
+       to slave ones. False when @a slave_face is not a slave or its master is
+       a ghost. See the definition for why it is a routine and not inline. */
+   bool GetNCSlaveTransfer(int slave_face, DenseMatrix &I,
+                           int &master_face) const;
+   /** @brief Whether the mesh carries a nonconforming MASTER face at all.
+
+       The gate on every route that assembles a face term in that face's own
+       trace dofs; see GetNCMasterSlaves() for why a master cannot be one of
+       those. O(number of masters) and short-circuits on a conforming mesh. */
+   bool HasNCMasterFaces() const;
+   /** @brief The slave sub-faces a nonconforming MASTER face is tiled by.
+
+       False, with @a slaves emptied, when @a face is not a master -- which is
+       every face of a conforming mesh, every interior and boundary face of a
+       nonconforming one, and a master whose slaves are all ghosts. */
+   bool GetNCMasterSlaves(int face, Array<int> &slaves) const;
+   /** @brief One slave sub-face of a master, ready for an element-major
+       nonlinear face integrator.
+
+       Fills @a I with the master-to-slave transfer, @a x_s with the master
+       trace restricted to the slave (`I lambda_m`), and @a FTr with the
+       slave's own two-sided transformation -- on which the coarse element is
+       the SECOND, so a caller's usual `FTr->Elem1No != el` test sets the
+       side bit without knowing any of this. */
+   FaceElementTransformations *SetupNCSlaveFace(
+      int slave, const Vector &x_m, DenseMatrix &I, Vector &x_s,
+      FaceElementTransformations &FTr, IsoparametricTransformation &T1,
+      IsoparametricTransformation &T2) const;
+
    void AssembleNCSlaveCtFaceMatrix(int f, const DenseMatrix &Ct);
    void AssembleNCSlaveEGFaceMatrix(int f, const DenseMatrix &E,
                                     const DenseMatrix &G);
@@ -1741,17 +1788,29 @@ private:
        to them, and it is set on the way out. It exists because E and G hold
        one block per face and side and are *rewritten* rather than reset, so
        the first writer has to clear whatever the previous pass left and every
-       writer after it has to accumulate. See ConstructGrad(). */
+       writer after it has to accumulate. See ConstructGrad().
+
+       @a I and @a face_eg are the nonconforming MASTER-face case and are
+       given together. @a FTr is then a SLAVE sub-face of the master
+       @a face_eg, @a x_f is the master trace restricted to it, and @a I is
+       the transfer between the two. E and G are the COARSE element's rows
+       against a trace it reaches only through the master's dofs, so they go
+       to @a face_eg's slot carried by `E_s I` and `I^T G_s` -- which is what
+       AssembleNCSlaveEGFaceMatrix() does for the linear blocks, and shares
+       this transfer with. H needs none: it belongs to the slave's own dofs
+       there, exactly as the linear route leaves it. */
    void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
                         NonlinearFormIntegrator &nlfi,
                         const Vector &x_f, const Vector &p_l,
-                        bool &eg_written, TransWorkspace &ws) const;
+                        bool &eg_written, TransWorkspace &ws,
+                        const DenseMatrix *I = NULL, int face_eg = -1) const;
    /// The BLOCK overload keeps its locals: it serves c_nlfi, which the
    /// reachability study found no miniapp fills, so it is not on a hot path.
    void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
                         BlockNonlinearFormIntegrator &nlfi,
                         const Vector &x_f, const Vector &u_l, const Vector &p_l,
-                        bool &eg_written) const;
+                        bool &eg_written,
+                        const DenseMatrix *I = NULL, int face_eg = -1) const;
 
    /** @brief Put the frozen half of E and G for one (element, face) back,
        and declare the blocks written so the live pass accumulates.

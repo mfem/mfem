@@ -1561,6 +1561,14 @@ bool DarcyHybridization::CanBatchNLFaceGrad() const
    // than taught, the combination being new and the kernel opt-in.
    if (E_lin_data.Size()) { return false; }
 
+   // A nonconforming MASTER face's coupling reaches the coarse element only
+   // through the master-to-slave transfer, and the pair kernels write one
+   // block per interior face in that face's OWN trace dofs. InteriorFaceList()
+   // does not list masters, so the kernel would not merely misplace the coarse
+   // side's blocks -- it would drop them. Refused rather than taught; the
+   // element loop handles the expansion.
+   if (HasNCMasterFaces()) { return false; }
+
    Array<NonlinearFormIntegrator*> integs;
    Array<BlockNonlinearFormIntegrator*> bintegs;
    NLFaceConstraintIntegrators(integs, bintegs);
@@ -1599,6 +1607,14 @@ bool DarcyHybridization::CanBatchNLFaceResidual() const
    { return false; }
    if (c_fes.GetVDim() > 1 && c_fes.GetOrdering() != Ordering::byNODES)
    { return false; }
+
+   // A nonconforming MASTER face's coupling reaches the coarse element only
+   // through the master-to-slave transfer, and the pair kernels write one
+   // block per interior face in that face's OWN trace dofs. InteriorFaceList()
+   // does not list masters, so the kernel would not merely misplace the coarse
+   // side's blocks -- it would drop them. Refused rather than taught; the
+   // element loop handles the expansion.
+   if (HasNCMasterFaces()) { return false; }
 
    // **A boundary constraint is NOT a refusal, and asking for one was the
    // whole reason this predicate never fired.** Both skip sites -- MultNL()'s
@@ -2294,54 +2310,49 @@ void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
    MFEM_ASSERT(row == Af_f_offsets[el+1] - Af_f_offsets[el], "Internal error.");
 }
 
-void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
-                                                   face_getter fx_Ct, const DenseMatrix *Ct_,
-                                                   face_getter fx_C, const DenseMatrix *C_,
-                                                   face_getter fx_H, const DenseMatrix *H_)
+/** @brief The transfer matrix from a nonconforming MASTER face's trace dofs
+    to one SLAVE sub-face's, orientation and sign included.
+
+    `I` comes back with the slave's dof count as its height and the master's as
+    its width, so it maps master coefficients to slave ones: the trace function
+    the master carries, restricted to the slave. That direction is what both
+    consumers want -- the linear route compounds a slave block onto the master
+    as `I^T B_s I`, and the element-major nonlinear route evaluates at
+    `I lambda_m` and transfers the result back with `I^T`.
+
+    Returns false when @a slave_face is not a slave, or when its master is a
+    ghost (`>= GetNumFaces()`), which a caller must treat as "nothing to do"
+    rather than as an error.
+
+    **This was extracted rather than written.** It is the block that sat inside
+    AssembleNCSlaveFaceMatrix(), moved out unchanged, and the reason for moving
+    it is the acceptance test for a nonlinear face constraint on a hanging-node
+    mesh: the two routes must agree to round-off, which is a far weaker claim if
+    they build their transfers from two copies of this arithmetic. There is now
+    one copy. */
+bool DarcyHybridization::GetNCSlaveTransfer(int slave_face, DenseMatrix &I,
+                                            int &master_face) const
 {
    const Mesh *mesh = fes.GetMesh();
-#ifdef MFEM_DEBUG
-   int el1, el2, inf1, inf2, nc;
-   mesh->GetFaceElements(f, &el1, &el2);
-   mesh->GetFaceInfos(f, &inf1, &inf2, &nc);
-   MFEM_ASSERT(nc >= 0 && (el2 >= 0 || inf2 >= 0), "Not a slave face");
-#endif
+   if (!mesh->Nonconforming()) { return false; }
 
    const int dim = mesh->Dimension();
    const int num_faces = mesh->GetNumFaces();
    auto &nclist = mesh->ncmesh->GetNCList(dim-1);
    const FiniteElementCollection *c_fec = c_fes.FEColl();
 
-   auto find = nclist.GetMeshIdAndType(f);
-   MFEM_ASSERT(find.type == NCMesh::NCList::MeshIdType::SLAVE, "Not a slave face");
+   auto find = nclist.GetMeshIdAndType(slave_face);
+   if (find.type != NCMesh::NCList::MeshIdType::SLAVE) { return false; }
    const NCMesh::Slave &slave = static_cast<const NCMesh::Slave&>(*find.id);
+   if (slave.master >= num_faces) { return false; }
 
-   if (slave.master >= num_faces) { return; }
+   master_face = slave.master;
 
-#ifdef MFEM_DEBUG
-   mesh->GetFaceElements(slave.master, &el1, &el2);
-   mesh->GetFaceInfos(slave.master, &inf1, &inf2, &nc);
-   MFEM_ASSERT(nc >= 0 && el2 < 0, "Not a master face");
-#endif
    const Geometry::Type geom_m = mesh->GetFaceGeometry(slave.master);
    const Geometry::Type geom_s = slave.Geom();
 
    IsoparametricTransformation T;
-   DenseMatrix Ct_m, C_m, H_m, I, Io;
-
-   // compound the master matrix from the slave ones
-   if (fx_Ct)
-   {
-      fx_Ct(slave.master, Ct_m);
-   }
-   if (fx_C)
-   {
-      fx_C(slave.master, C_m);
-   }
-   if (fx_H)
-   {
-      fx_H(slave.master, H_m);
-   }
+   DenseMatrix Iraw;
 
    const FiniteElement *fe_m = c_fes.GetFaceElement(slave.master);
    switch (geom_m)
@@ -2354,7 +2365,7 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
 
    nclist.OrientedPointMatrix(slave, T.GetPointMat());
    const FiniteElement *fe_s = c_fes.GetFaceElement(slave.index);
-   fe_s->GetTransferMatrix(*fe_m, T, I);
+   fe_s->GetTransferMatrix(*fe_m, T, Iraw);
 
    // get master/slave orientation and DOFs ordering
    int ori_m = 0, ori_s = 0;
@@ -2412,27 +2423,181 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
    if (ori_m || ori_s)
    {
       // reorder the transfer matrix
-      Io.SetSize(I.Height(), I.Width());
+      I.SetSize(Iraw.Height(), Iraw.Width());
 
       Array<int> dofs_m, dofs_s;
       c_fec->SubDofOrder(geom_m, Geometry::Dimension[geom_m], ori_m, dofs_m);
       c_fec->SubDofOrder(geom_s, Geometry::Dimension[geom_s], ori_s, dofs_s);
 
-      for (int j = 0; j < I.Width(); j++)
-         for (int i = 0; i < I.Height(); i++)
+      for (int j = 0; j < Iraw.Width(); j++)
+         for (int i = 0; i < Iraw.Height(); i++)
          {
             const int io_i = UnsignIndex(dofs_s[i]);
             const int io_j = UnsignIndex(dofs_m[j]);
             bool sign = false;
             if (dofs_s[i] < 0) { sign = !sign; }
             if (dofs_m[j] < 0) { sign = !sign; }
-            Io(io_i, io_j) = (sign)?(-I(i,j)):(+I(i,j));
+            I(io_i, io_j) = (sign)?(-Iraw(i,j)):(+Iraw(i,j));
          }
    }
    else
    {
-      // no reordering needed
-      Io.Reset(I.GetData(), I.Height(), I.Width());
+      I = Iraw;
+   }
+   return true;
+}
+
+/** @brief Whether this mesh carries a nonconforming MASTER face.
+
+    The gate for every route that assembles a face term into the face's own
+    trace dofs: a master's term does not live there. O(number of masters),
+    and a conforming mesh answers without touching the NCList. */
+bool DarcyHybridization::HasNCMasterFaces() const
+{
+   const Mesh *mesh = fes.GetMesh();
+   if (!mesh->Nonconforming()) { return false; }
+
+   const int dim = mesh->Dimension();
+   const int num_faces = mesh->GetNumFaces();
+   auto &nclist = mesh->ncmesh->GetNCList(dim-1);
+   for (const NCMesh::Master &m : nclist.masters)
+   {
+      if (m.index < num_faces) { return true; }
+   }
+   return false;
+}
+
+/** @brief The slave sub-faces a nonconforming MASTER face is tiled by.
+
+    A master face is the coarse side of a hanging node: Mesh::GenerateNCFaceInfo()
+    leaves it `Elem2No == -1` and `Elem2Inf == -1` with an `NCFace` record, so
+    it looks like a boundary face to anything that tests only for a second
+    element and like an interior face to anything that tests only `NCFace`.
+    Neither is true, and the face term it carries belongs on the slaves.
+
+    @return false, with @a slaves emptied, for every other kind of face -- and
+            for a master whose slaves are all ghosts, which is a parallel
+            configuration this route does not serve. */
+bool DarcyHybridization::GetNCMasterSlaves(int face, Array<int> &slaves) const
+{
+   slaves.SetSize(0);
+
+   const Mesh *mesh = fes.GetMesh();
+   if (!mesh->Nonconforming()) { return false; }
+
+   int el1, el2, inf1, inf2, nc;
+   mesh->GetFaceElements(face, &el1, &el2);
+   mesh->GetFaceInfos(face, &inf1, &inf2, &nc);
+   // The three tests together are what identifies a master and nothing else:
+   // a slave has el2 >= 0, a conforming face has nc < 0, and a ghost slave --
+   // whose master is on another rank -- has inf2 >= 0.
+   if (el2 >= 0 || nc < 0 || inf2 >= 0) { return false; }
+
+   const int dim = mesh->Dimension();
+   const int num_faces = mesh->GetNumFaces();
+   auto &nclist = mesh->ncmesh->GetNCList(dim-1);
+
+   auto find = nclist.GetMeshIdAndType(face);
+   if (find.type != NCMesh::NCList::MeshIdType::MASTER) { return false; }
+   const NCMesh::Master &master = static_cast<const NCMesh::Master&>(*find.id);
+
+   for (int i = master.slaves_begin; i < master.slaves_end; i++)
+   {
+      const int s = nclist.slaves[i].index;
+      // A degenerate slave (< 0) has no face, and a ghost one (>= num_faces)
+      // has no local element -- GenerateNCFaceInfo() skips both, so neither
+      // has the face info an integrator would need.
+      if (s < 0 || s >= num_faces) { continue; }
+      slaves.Append(s);
+   }
+   return slaves.Size() > 0;
+}
+
+/** @brief One slave sub-face of a master face, set up for an element-major
+    nonlinear face integrator.
+
+    Everything the integrator needs that differs from the master: the slave's
+    own two-sided transformation, and the master trace restricted to it. The
+    trace element is the slave's and the caller takes that from
+    `c_fes.GetFaceElement(slave)`.
+
+    **@a x_s is computed as `I lambda_m` and not read out of the prolonged
+    trace vector at the slave's dofs**, though on a conforming trace vector
+    the two are the same number. The point is that the operator is then a
+    function of the master block it was handed, which is what makes the
+    transferred gradient its exact derivative and what lets GradMult apply
+    the assembled blocks to the same input. */
+FaceElementTransformations *DarcyHybridization::SetupNCSlaveFace(
+   int slave, const Vector &x_m, DenseMatrix &I, Vector &x_s,
+   FaceElementTransformations &FTr, IsoparametricTransformation &T1,
+   IsoparametricTransformation &T2) const
+{
+   int master_unused;
+   const bool ok = GetNCSlaveTransfer(slave, I, master_unused);
+   MFEM_ASSERT(ok, "not a slave face with a local master");
+   MFEM_CONTRACT_VAR(ok);
+   MFEM_ASSERT(I.Width() == x_m.Size(), "the master trace block is "
+               << x_m.Size() << " long and the transfer expects "
+               << I.Width());
+
+   x_s.SetSize(I.Height());
+   I.Mult(x_m, x_s);
+
+   fes.GetMesh()->GetFaceElementTransformations(slave, FTr, T1, T2);
+   MFEM_ASSERT(FTr.Elem2No >= 0, "a slave sub-face has two elements");
+   return &FTr;
+}
+
+void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
+                                                   face_getter fx_Ct, const DenseMatrix *Ct_,
+                                                   face_getter fx_C, const DenseMatrix *C_,
+                                                   face_getter fx_H, const DenseMatrix *H_)
+{
+   const Mesh *mesh = fes.GetMesh();
+#ifdef MFEM_DEBUG
+   int el1, el2, inf1, inf2, nc;
+   mesh->GetFaceElements(f, &el1, &el2);
+   mesh->GetFaceInfos(f, &inf1, &inf2, &nc);
+   MFEM_ASSERT(nc >= 0 && (el2 >= 0 || inf2 >= 0), "Not a slave face");
+#endif
+
+   const int dim = mesh->Dimension();
+   const int num_faces = mesh->GetNumFaces();
+   auto &nclist = mesh->ncmesh->GetNCList(dim-1);
+   const FiniteElementCollection *c_fec = c_fes.FEColl();
+
+   auto find = nclist.GetMeshIdAndType(f);
+   MFEM_ASSERT(find.type == NCMesh::NCList::MeshIdType::SLAVE, "Not a slave face");
+   const NCMesh::Slave &slave = static_cast<const NCMesh::Slave&>(*find.id);
+
+   if (slave.master >= num_faces) { return; }
+
+#ifdef MFEM_DEBUG
+   mesh->GetFaceElements(slave.master, &el1, &el2);
+   mesh->GetFaceInfos(slave.master, &inf1, &inf2, &nc);
+   MFEM_ASSERT(nc >= 0 && el2 < 0, "Not a master face");
+#endif
+   DenseMatrix Ct_m, C_m, H_m, Io;
+
+   // compound the master matrix from the slave ones
+   if (fx_Ct)
+   {
+      fx_Ct(slave.master, Ct_m);
+   }
+   if (fx_C)
+   {
+      fx_C(slave.master, C_m);
+   }
+   if (fx_H)
+   {
+      fx_H(slave.master, H_m);
+   }
+
+   {
+      int master_unused;
+      const bool ok = GetNCSlaveTransfer(f, Io, master_unused);
+      MFEM_ASSERT(ok, "not a slave face with a local master");
+      MFEM_CONTRACT_VAR(ok);
    }
 
    if (c_fes.GetVDim() > 0)
@@ -6198,121 +6363,171 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                // and already carry both -- ConstructGrad() seeded them.
                if (mode != MultNlMode::GradMult && (c_nlfi_p || c_nlfi))
                {
-                  //nonlinear
-                  if (c_nlfi_p)
+                  /* **A nonconforming MASTER face is visited once per slave
+                     sub-face.** The coarse element's face list holds the
+                     master, and the face term lives on the slaves -- so the
+                     integrator is evaluated on each of them, at the master
+                     trace restricted to it, with the slave's own
+                     transformation and trace element, and each trace row is
+                     carried back to the master's dofs with `I^T`. That is the
+                     residual counterpart of AssembleNCSlaveEGFaceMatrix(),
+                     and it shares GetNCSlaveTransfer() with it so the two
+                     routes cannot build the transfer two different ways.
+
+                     The LINEAR blocks above want none of this: ConstructC()
+                     and AssemblePotHDGFaces() have already compounded the
+                     coarse side onto the master's dofs, so Ct, E, G and H
+                     there are in the master's numbering and are read with the
+                     master's own trace block. H on a master slot is zero by
+                     the same construction -- the linear route leaves the
+                     trace-trace block on the slave, where the FINE element
+                     applies all of it.
+
+                     Every other face takes one pass with `nc_master` false
+                     and is bit-for-bit the loop this replaced. */
+                  Array<int> &nc_slaves = ws.nc_slaves;
+                  const bool nc_master = GetNCMasterSlaves(faces[f], nc_slaves);
+                  const int n_sub = nc_master ? nc_slaves.Size() : 1;
+
+                  for (int s = 0; s < n_sub; s++)
                   {
-                     int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                                | NonlinearFormIntegrator::HDGFaceType::FACE;
-
-                     FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
-
-                     if (FTr->Elem2No >= 0 && batch_nl_res)
+                     const int face_s = nc_master ? nc_slaves[s] : faces[f];
+                     FaceElementTransformations *FTr_s = NULL;
+                     if (nc_master)
                      {
-                        // left to AssembleNLFaceResidualBatched()
+                        FTr_s = SetupNCSlaveFace(face_s, x_f, ws.nc_I, ws.nc_x,
+                                                 ws.nc_face, ws.nc_f1, ws.nc_f2);
+                        ws.nc_y.SetSize(ws.nc_I.Height());
+                        ws.nc_y = 0.;
                      }
-                     else if (FTr->Elem2No >= 0)
+                     const Vector &x_s = nc_master ? ws.nc_x : x_f;
+                     Vector &y_s = nc_master ? ws.nc_y : y_l;
+                     //nonlinear
+                     if (c_nlfi_p)
                      {
-                        //interior
-                        if (FTr->Elem1No != el) { type |= 1; }
+                        int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                                   | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-                        // Cleared before every call: GpHx_l is shared
-                        // scratch now, so it carries the last face's size in.
-                        // A fresh local arrived at size 0, and the `Size() > 0`
-                        // test below -- and `y_l += GpHx_l`'s own size check --
-                        // both depend on that. SetSize(0) keeps the buffer.
-                        GpHx_l.SetSize(0);
+                        FaceElementTransformations *FTr = FTr_s;
+                        if (!FTr) { FTr = GetFaceTransformation(face_s, ws); }
 
-                        c_nlfi_p->AssembleHDGFaceVector(type,
-                                                        *c_fes.GetFaceElement(faces[f]),
-                                                        *fes_p.GetFE(el),
-                                                        *FTr,
-                                                        x_f, p_l, GpHx_l);
-
-                        y_l += GpHx_l;
-                     }
-                     else
-                     {
-                        //boundary
-                        const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
-
-                        for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
+                        if (FTr->Elem2No >= 0 && batch_nl_res)
                         {
-                           if (boundary_constraint_pot_nonlin_integs_marker[i]
-                               && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+                           // left to AssembleNLFaceResidualBatched()
+                        }
+                        else if (FTr->Elem2No >= 0)
+                        {
+                           //interior
+                           if (FTr->Elem1No != el) { type |= 1; }
 
-                           GpHx_l.SetSize(0);   // per integrator; see above
+                           // Cleared before every call: GpHx_l is shared
+                           // scratch now, so it carries the last face's size in.
+                           // A fresh local arrived at size 0, and the `Size() > 0`
+                           // test below -- and `y_s += GpHx_l`'s own size check --
+                           // both depend on that. SetSize(0) keeps the buffer.
+                           GpHx_l.SetSize(0);
 
-                           boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                           *c_fes.GetFaceElement(faces[f]),
-                                                                                           *fes_p.GetFE(el),
-                                                                                           *FTr,
-                                                                                           x_f, p_l, GpHx_l);
+                           c_nlfi_p->AssembleHDGFaceVector(type,
+                                                           *c_fes.GetFaceElement(face_s),
+                                                           *fes_p.GetFE(el),
+                                                           *FTr,
+                                                           x_s, p_l, GpHx_l);
 
-                           y_l += GpHx_l;
+                           y_s += GpHx_l;
+                        }
+                        else
+                        {
+                           //boundary
+                           const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[face_s]);
+
+                           for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
+                           {
+                              if (boundary_constraint_pot_nonlin_integs_marker[i]
+                                  && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                              GpHx_l.SetSize(0);   // per integrator; see above
+
+                              boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                              *c_fes.GetFaceElement(face_s),
+                                                                                              *fes_p.GetFE(el),
+                                                                                              *FTr,
+                                                                                              x_s, p_l, GpHx_l);
+
+                              y_s += GpHx_l;
+                           }
                         }
                      }
-                  }
 
-                  if (c_nlfi)
-                  {
-                     const FiniteElement *fe_u = fes.GetFE(el);
-                     const FiniteElement *fe_p = fes_p.GetFE(el);
-                     // From the per-thread block, not four locals per face;
-                     // an Array<T> from an initialiser list is a new[] per
-                     // construction. See the note on GpHx_l.
-                     Array<const FiniteElement*> &fe_arr = gp_fe_arr;
-                     Array<const Vector*> &x_arr = gp_x_arr;
-                     Array<Vector*> &y_arr = gp_y_arr;
-                     fe_arr.SetSize(2); fe_arr[0] = fe_u;  fe_arr[1] = fe_p;
-                     x_arr.SetSize(2);  x_arr[0] = &u_l;   x_arr[1] = &p_l;
-                     y_arr.SetSize(3);
-                     y_arr[0] = NULL; y_arr[1] = NULL; y_arr[2] = &GpHx_l;
-
-                     int type = BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
-                                | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
-
-                     FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
-
-                     if (FTr->Elem2No >= 0)
+                     if (c_nlfi)
                      {
-                        //interior
-                        if (FTr->Elem1No != el) { type |= 1; }
+                        const FiniteElement *fe_u = fes.GetFE(el);
+                        const FiniteElement *fe_p = fes_p.GetFE(el);
+                        // From the per-thread block, not four locals per face;
+                        // an Array<T> from an initialiser list is a new[] per
+                        // construction. See the note on GpHx_l.
+                        Array<const FiniteElement*> &fe_arr = gp_fe_arr;
+                        Array<const Vector*> &x_arr = gp_x_arr;
+                        Array<Vector*> &y_arr = gp_y_arr;
+                        fe_arr.SetSize(2); fe_arr[0] = fe_u;  fe_arr[1] = fe_p;
+                        x_arr.SetSize(2);  x_arr[0] = &u_l;   x_arr[1] = &p_l;
+                        y_arr.SetSize(3);
+                        y_arr[0] = NULL; y_arr[1] = NULL; y_arr[2] = &GpHx_l;
 
-                        // Cleared before every call: GpHx_l is shared
-                        // scratch now, so it carries the last face's size in.
-                        // A fresh local arrived at size 0, and the `Size() > 0`
-                        // test below -- and `y_l += GpHx_l`'s own size check --
-                        // both depend on that. SetSize(0) keeps the buffer.
-                        GpHx_l.SetSize(0);
+                        int type = BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
+                                   | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
 
-                        c_nlfi->AssembleHDGFaceVector(type,
-                                                      *c_fes.GetFaceElement(faces[f]),
-                                                      fe_arr,
-                                                      *FTr,
-                                                      x_f, x_arr, y_arr);
+                        FaceElementTransformations *FTr = FTr_s;
+                        if (!FTr) { FTr = GetFaceTransformation(face_s, ws); }
 
-                        if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
-                     }
-                     else
-                     {
-                        //boundary
-                        const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
-
-                        for (size_t i = 0; i < boundary_constraint_nonlin_integs.size(); i++)
+                        if (FTr->Elem2No >= 0)
                         {
-                           if (boundary_constraint_nonlin_integs_marker[i]
-                               && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+                           //interior
+                           if (FTr->Elem1No != el) { type |= 1; }
 
-                           GpHx_l.SetSize(0);   // per integrator; see above
+                           // Cleared before every call: GpHx_l is shared
+                           // scratch now, so it carries the last face's size in.
+                           // A fresh local arrived at size 0, and the `Size() > 0`
+                           // test below -- and `y_s += GpHx_l`'s own size check --
+                           // both depend on that. SetSize(0) keeps the buffer.
+                           GpHx_l.SetSize(0);
 
-                           boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                       *c_fes.GetFaceElement(faces[f]),
-                                                                                       fe_arr,
-                                                                                       *FTr,
-                                                                                       x_f, x_arr, y_arr);
+                           c_nlfi->AssembleHDGFaceVector(type,
+                                                         *c_fes.GetFaceElement(face_s),
+                                                         fe_arr,
+                                                         *FTr,
+                                                         x_s, x_arr, y_arr);
 
-                           if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
+                           if (GpHx_l.Size() > 0) { y_s += GpHx_l; }
                         }
+                        else
+                        {
+                           //boundary
+                           const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[face_s]);
+
+                           for (size_t i = 0; i < boundary_constraint_nonlin_integs.size(); i++)
+                           {
+                              if (boundary_constraint_nonlin_integs_marker[i]
+                                  && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                              GpHx_l.SetSize(0);   // per integrator; see above
+
+                              boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                          *c_fes.GetFaceElement(face_s),
+                                                                                          fe_arr,
+                                                                                          *FTr,
+                                                                                          x_s, x_arr, y_arr);
+
+                              if (GpHx_l.Size() > 0) { y_s += GpHx_l; }
+                           }
+                        }
+                     }
+
+                     if (nc_master)
+                     {
+                        // I^T on the trace row: the slave's rows are the
+                        // master's, restricted. The one place the residual
+                        // needs the transfer explicitly.
+                        ws.nc_I.AddMultTranspose(ws.nc_y, y_l);
                      }
                   }
                }
@@ -6588,82 +6803,181 @@ void DarcyHybridization::Finalize()
    // cannot see the answer to the question this asks.
    CheckRestrictedFluxConfiguration();
 
-   /* A nonlinear FACE constraint on a mesh with hanging nodes is refused,
-      because the element-local loops cannot express one and used to SEGFAULT
-      rather than say so.
+   /* A nonlinear FACE constraint on a mesh with hanging nodes: the
+      element-major loops visit the SLAVE sub-faces, and the refusal that
+      stood here is gone.
 
-      The misclassification: every element-major face loop here decides
-      "boundary" by `Elem2No < 0`, which is Mesh::FaceIsInterior() inverted and
-      is right on a conforming mesh. On a nonconforming one a MASTER face --
-      the coarse side of a hanging node -- also has no second element, and
-      GetFaceToBdrElMap() maps it to -1, so the boundary branch ran
-      GetBdrAttribute(-1) and dereferenced Mesh::boundary at -1. Measured on
-      data/amr-quad.mesh refined once, 16 element-face slots are of that kind
-      against 0 on a conforming mesh of the same shape, and it dies at element
-      6, face 19 -- with NO boundary integrator installed, the attribute being
-      read before the loop that would have been empty.
+      The misclassification it was put there for: every element-major face
+      loop decided "boundary" by `Elem2No < 0`, which is
+      Mesh::FaceIsInterior() inverted and is right on a conforming mesh. On a
+      nonconforming one a MASTER face -- the coarse side of a hanging node --
+      also has no second element, and GetFaceToBdrElMap() maps it to -1, so
+      the boundary branch ran GetBdrAttribute(-1) and dereferenced
+      Mesh::boundary at -1. Measured on data/amr-quad.mesh refined once, 16
+      element-face slots are of that kind against 0 on a conforming mesh of
+      the same shape, and it died at element 6, face 19 -- with NO boundary
+      integrator installed, the attribute being read before the loop that
+      would have been empty. GetNCMasterSlaves() is now the first test in each
+      of those loops, so the branch is never reached for a master.
 
-      Why it is a refusal and not a guard. The linear route is face-major and
-      nonconforming-aware: FaceIsInterior() skips masters, the face term is
-      assembled on the SLAVE sub-faces, and AssembleNCSlaveEGFaceMatrix() and
-      its siblings transfer those blocks onto the master's dofs. The nonlinear
-      route is element-major over GetElementFaces(), and a coarse element's
-      list holds the MASTER face and not its slaves -- so there is no road by
-      which the slave contributions can reach it, and no nonlinear analogue of
-      the transfer exists.
+      WHAT THE LOOPS DO, and it is the linear route's own arrangement rather
+      than a second scheme. A coarse element's GetElementFaces() holds the
+      master and the face term lives on the slaves, so each loop evaluates its
+      integrator once per slave -- at the master trace restricted to it,
+      `I lambda_m`, with the slave's own FaceElementTransformations and trace
+      element. Where the result goes is decided by which numbering the
+      destination is indexed in:
 
-      Treating a master face as a one-sided interior face was built and
-      MEASURED, and it is not the answer, which is why this is a refusal
-      rather than that change. An HDGDiffusionIntegrator on the potential mass
-      form solves the same discrete problem whether FaceConstraintMode leaves
-      it Frozen (the linear route) or Live (this one), so applying both
-      operators to one fixed trace vector must agree to round-off. It does on
-      a conforming mesh -- max|diff| 1.1e-13, relative 1.5e-14 -- and with the
-      one-sided treatment on data/amr-quad.mesh it is 3.9e-01, relative
-      5.8e-02. So the one-sided master integral is NOT the transferred slave
-      sum, whatever the arithmetic suggests, and shipping it would have traded
-      a crash for a silent six-percent error.
+        * ELEMENT rows (the four LocalNLOperator loops, and D here) are the
+          coarse element's own, so the sum over slaves IS the row and nothing
+          is transferred.
+        * E and G are that element's rows against a trace it reaches only
+          through the MASTER's dofs, its local block structure having one
+          block per entry of its own face list. They go to the master's slot
+          carried by `E_s I` and `I^T G_s` -- exactly what
+          AssembleNCSlaveEGFaceMatrix() does for the linear blocks, from the
+          same GetNCSlaveTransfer().
+        * H stays on the SLAVE's slot in the slave's own dofs, which is where
+          the linear route leaves it; ComputeH()'s RAP against the trace
+          prolongation, or ParMultNL()'s prolong-restrict pair on the
+          matrix-free path, carries it to the master's true dofs. Each side
+          contributes its own half of tau, so the coarse element's visit and
+          the fine element's visit of the same slave add up to the single
+          block the linear route writes in one call.
+        * the trace ROW of the residual is the one place the transfer appears
+          explicitly on the way out: `I^T` in MultNL().
 
-      That comparison is the acceptance test for anyone implementing this: it
-      needs no exact solution, no solve and no tolerance, only the two modes
-      on one mesh.
+      WHY visiting the slaves rather than rescaling the master, attributed on
+      one face. Treating a master as a one-sided interior face was built and
+      MEASURED first, and it is not the answer. An HDGDiffusionIntegrator on
+      the potential mass form solves the same discrete problem whether
+      FaceConstraintMode leaves it Frozen (the linear route) or Live (this
+      one), so applying both operators to one fixed trace vector must agree to
+      round-off; it does on a conforming mesh -- max|diff| 1.1e-13, relative
+      1.5e-14 -- and with the one-sided treatment on data/amr-quad.mesh it was
+      3.9e-01, relative 5.8e-02. That comparison is the acceptance test for
+      this code and it needs no exact solution, no solve and no tolerance,
+      only the two modes on one mesh.
 
-      Nothing in the tree reaches this. Grouping the `_nc_` regression
-      references by their recorded options, every nonlinear one is NOT
-      hybridized and every hybridized one is linear; and c_nlfi is filled only
-      by a DarcyForm branch marked "REACHED BY NOTHING IN THIS TREE", since
-      every `-nld -hb` configuration also puts an HDGDiffusionIntegrator on the
-      potential mass form and takes an earlier branch. c_nlfi_p is genuinely
-      reachable, through SetFaceConstraintMode(Live), which is what makes this
-      a live refusal and not a note. */
+      The built-in stabilization is tau ~ q_e/h_e, formed as
+      `wq = ip.weight * |nor|^2 / |J_el|` in StabValue() -- QUADRATIC in the
+      face scale, where tiling a master with its slaves supplies only one
+      factor of it. So the two objects differ by exact rational factors that
+      come from the geometry and not from the state, one-sided against
+      compounded:
+
+                                        amr-quad (2 slaves)  amr-hex (4)
+          elem-trace, the coarse element's own constraint      2.0      4.0
+          trace-trace, which carries BOTH sides' tau         1:2.5    1:2.25
+
+      The arithmetic is exact and hand-checkable. A 2-D slave has
+      |nor| = |nor_m|/2 while the coarse |J| is unchanged, so the coarse side's
+      weight per slave is a QUARTER of the master's (2 x 1/4 = 1/2, hence 2.0);
+      the trace row adds the FINE side's, whose |J| is also quartered, so that
+      term comes back at the master's own weight undiminished
+      (2 x (1 + 1/4) = 2.5). Order-independent at 1, 2 and 3, refinement-
+      independent, and reproduced on fichera-amr and beam-quad-amr.
+
+      The two blocks want DIFFERENT factors, both moving with the dimension
+      and with the neighbour's size, so NO rescaling of a one-sided master
+      integral can reproduce the slave sum. The discrepancy is GEOMETRIC and
+      appears in a LINEAR integrator with a constant coefficient -- no
+      nonlinearity is needed to reproduce it, and no solve.
+
+      WITHDRAWN in favour of that: the reading that the difference is the fine
+      neighbour's STATE reaching the master's row through sum_s I^T B_s I,
+      "exactly the part of the integrand a stabilized HDG face term depends
+      on". The fine element does enter, and only through its SIZE in tau.
+
+      The factor measurement needs no transfer matrix, which is what makes it
+      one run: tested against the CONSTANT trace function, the transfer is the
+      identity (I*1 = 1), so sum_s Block_s . 1 and Block_m . 1 compare like
+      for like. That the trace prolongation carries the master's constant to
+      each slave unchanged is checked rather than assumed -- cP applied to an
+      all-ones true-dof vector is all ones to 1.1e-16 on amr-quad and 3.3e-16
+      on amr-hex.
+
+      The pin on the factors is "A one-sided master integral is not the
+      compounded slave sum" in tests/unit/fem/test_darcy_nonlinear.cpp. It is
+      the two SECTIONS together that discriminate: either alone would say only
+      that the two objects differ, and it is the factors differing BETWEEN the
+      blocks and MOVING with the dimension that rules out a rescaling.
+
+      WHAT IS REFUSED INSTEAD, and it is narrow. The batched pair kernels
+      write one block per interior face in that face's own trace dofs and
+      InteriorFaceList() does not list masters, so they would DROP the coarse
+      side rather than misplace it; CanBatchNLFaceGrad() and
+      CanBatchNLFaceResidual() both decline on HasNCMasterFaces(). A master
+      whose slaves are all ghosts is a parallel configuration this route does
+      not serve and GetNCMasterSlaves() reports as "not a master", which is
+      not a silent drop only because ParallelC() is refused above it.
+
+      Coverage was the reason this went unnoticed for so long and it is worth
+      stating: grouping the `_nc_` regression references by their recorded
+      options, every nonlinear one is NOT hybridized and every hybridized one
+      is linear. c_nlfi is filled only by a DarcyForm branch marked "REACHED
+      BY NOTHING IN THIS TREE". c_nlfi_p is genuinely reachable, through
+      SetFaceConstraintMode(Live), which is what made this a live defect and
+      not a note. */
    /* c_nlfi and c_nlfi_p ALONE, and that breadth is measured rather than
-      chosen: all eight element-major face loops that make the
-      misclassification sit inside `if (c_nlfi)` or `if (c_nlfi_p)`, so a
-      configuration carrying only BOUNDARY nonlinear integrators never reaches
-      one and must not be refused. */
+      chosen: all eight element-major face loops sit inside `if (c_nlfi)` or
+      `if (c_nlfi_p)`, so a configuration carrying only BOUNDARY nonlinear
+      integrators never reaches one and must not be refused.
+
+      What is refused is a master face whose slaves are not all LOCAL, which
+      is a partition cutting through a hanging node. GetNCMasterSlaves()
+      reports a master with no local slave as "not a master" -- so without
+      this the coarse element would fall through to the boundary branch and
+      read GetBdrAttribute(-1), which is the crash the whole expansion exists
+      to remove, arriving by a different road. A master with SOME local slaves
+      is worse, because it would run and silently drop the rest.
+
+      Refused rather than built: reaching a ghost slave's geometry and trace
+      element needs the shared-face entry points. The linear route handles the
+      mirror case -- this rank holding the SLAVES of a ghost master -- through
+      AssembleNCSlaveFaceMatrix(), and the nonlinear route needs nothing there
+      either, a slave face being an ordinary interior face to the fine element
+      that owns it.
+
+      **IT FIRES, and on a configuration a user would reach by accident.**
+      Written from reading the code, and then swept: `pconvdiff -p 6 -nl -hb
+      -dg -o 2` on data/amr-quad.mesh refined once RUNS at 1, 2 and 4 ranks --
+      agreeing with the serial answer to every printed digit, 1.83726e-04 --
+      and at THREE ranks this refuses, naming 6 non-local slave sub-faces.
+      METIS happens to keep each master with its slaves at the other three
+      counts. So the guard is not decoration: without it that run would have
+      read Mesh::boundary at -1, which is the crash the whole expansion exists
+      to remove, arriving by the other road. A rank count is not something a
+      caller chooses for the mesh's benefit. */
    if (c_nlfi || c_nlfi_p)
    {
       const Mesh *mesh = fes.GetMesh();
       if (mesh->Nonconforming())
       {
-         if (f_2_b.Size() == 0) { f_2_b = mesh->GetFaceToBdrElMap(); }
-         int n_master = 0;
-         for (int f = 0; f < mesh->GetNumFaces(); f++)
+         const int dim = mesh->Dimension();
+         const int num_faces = mesh->GetNumFaces();
+         auto &nclist = mesh->ncmesh->GetNCList(dim-1);
+         int n_cut = 0;
+         for (const NCMesh::Master &m : nclist.masters)
          {
-            int el1, el2;
-            mesh->GetFaceElements(f, &el1, &el2);
-            if (el2 < 0 && f_2_b[f] < 0) { n_master++; }
+            if (m.index >= num_faces) { continue; }   // a ghost master
+            for (int i = m.slaves_begin; i < m.slaves_end; i++)
+            {
+               const int sl = nclist.slaves[i].index;
+               if (sl < 0 || sl >= num_faces) { n_cut++; }
+            }
          }
-         MFEM_VERIFY(n_master == 0,
-                     "a nonlinear face constraint is not supported on a mesh "
-                     "with hanging nodes: " << n_master << " nonconforming "
-                     "master face(s) carry no second element and no boundary "
-                     "attribute, and the element-local loops have no way to "
-                     "reach the slave faces that carry their coupling. Use a "
-                     "linear face constraint (FaceConstraintMode::Frozen), or "
-                     "a conforming mesh.");
+         MFEM_VERIFY(n_cut == 0,
+                     "a nonlinear face constraint is not supported where a "
+                     "partition cuts a hanging node: " << n_cut << " slave "
+                     "sub-face(s) of a local master face are not local, and "
+                     "the element-major loops reach a slave through the mesh's "
+                     "own face transformations. Refine so that a master and "
+                     "its slaves share a rank, or use a linear face "
+                     "constraint (FaceConstraintMode::Frozen).");
       }
    }
+
 
    // A live face constraint beside a frozen one is supported on the NPC path
    // and refused elsewhere. Out of scope rather than known broken: the
@@ -8055,6 +8369,33 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       {
          const Vector &x_f = x_l.GetBlock(f);
 
+         /* **A nonconforming MASTER face's gradient goes to the slaves too.**
+            The same expansion the residual makes in MultNL(), and it has to be
+            the same one: E and G are the coarse element's rows against a trace
+            it reaches only through the master's dofs, so each slave's blocks
+            are carried onto the master's slot with `E_s I` and `I^T G_s` --
+            the transfer AssembleNCSlaveEGFaceMatrix() applies to the linear
+            blocks, from the same GetNCSlaveTransfer(). H is left in the
+            slave's own dofs, where the linear route leaves it and where
+            ComputeH()'s RAP against the trace prolongation picks it up.
+
+            @a eg_written is per face and therefore SHARED across the slaves of
+            one master: the first slave clears the master's block and the rest
+            accumulate onto it, which is exactly what the flag means one level
+            up. */
+         if (GetNCMasterSlaves(faces[f], ws.nc_slaves))
+         {
+            for (int s = 0; s < ws.nc_slaves.Size(); s++)
+            {
+               FaceElementTransformations *FTr_s =
+                  SetupNCSlaveFace(ws.nc_slaves[s], x_f, ws.nc_I, ws.nc_x,
+                                   ws.nc_face, ws.nc_f1, ws.nc_f2);
+               AssembleHDGGrad(el, FTr_s, *c_nlfi_p, ws.nc_x, p_l,
+                               eg_written[f], ws, &ws.nc_I, faces[f]);
+            }
+            continue;
+         }
+
          FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
 
          if (FTr->Elem2No >= 0)
@@ -8086,6 +8427,21 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       for (int f = 0; f < faces.Size(); f++)
       {
          const Vector &x_f = x_l.GetBlock(f);
+
+         /* The MASTER face, expanded exactly as the c_nlfi_p loop above
+            expands it; the note there carries the reasoning. */
+         if (GetNCMasterSlaves(faces[f], ws.nc_slaves))
+         {
+            for (int s = 0; s < ws.nc_slaves.Size(); s++)
+            {
+               FaceElementTransformations *FTr_s =
+                  SetupNCSlaveFace(ws.nc_slaves[s], x_f, ws.nc_I, ws.nc_x,
+                                   ws.nc_face, ws.nc_f1, ws.nc_f2);
+               AssembleHDGGrad(el, FTr_s, *c_nlfi, ws.nc_x, u_l, p_l,
+                               eg_written[f], &ws.nc_I, faces[f]);
+            }
+            continue;
+         }
 
          FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
 
@@ -8123,7 +8479,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
 void DarcyHybridization::AssembleHDGGrad(
    int el, FaceElementTransformations *FTr, NonlinearFormIntegrator &nlfi,
    const Vector &x_f, const Vector &p_l, bool &eg_written,
-   TransWorkspace &ws) const
+   TransWorkspace &ws, const DenseMatrix *I, int face_eg) const
 {
    const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes.GetFaceElement(f);
@@ -8149,23 +8505,61 @@ void DarcyHybridization::AssembleHDGGrad(
    blk.CopyMN(elmat, d_dofs_size, d_dofs_size, 0, 0);
    D += blk;
 
-   // assemble E constraint -- clearing on the first writer of this face and
-   // side, accumulating after it. See the note in ConstructGrad().
-   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
-   DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
+   /* assemble E and G constraints -- clearing on the first writer of this
+      face and side, accumulating after it. See the note in ConstructGrad().
+
+      With @a I given, @a FTr is a SLAVE sub-face and these two blocks belong
+      to the MASTER @a face_eg: the coarse element's rows are indexed by its
+      own face list, which holds the master and not the slaves. `E_s I` and
+      `I^T G_s` carry them there, which is the transfer
+      AssembleNCSlaveEGFaceMatrix() applies to the linear blocks.
+
+      The SIDE is taken from the destination slot's own first element rather
+      than from @a FTr, which on a slave names the FINE element while the
+      block being written is the coarse one's. On every other face the two
+      are the same element. */
+   const int f_eg = (I)?(face_eg):(f);
+   const int c_eg = (I)?(I->Width()):(c_dofs_size);
+   int eg1, eg2;
+   fes.GetMesh()->GetFaceElements(f_eg, &eg1, &eg2);
+   const int E_off = (eg1 == el)?(0):(c_eg*d_dofs_size);
+
+   DenseMatrix E_f(&E_data[E_offsets[f_eg] + E_off], d_dofs_size, c_eg);
    blk.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
-   if (!eg_written) { E_f = blk; }
+   if (I)
+   {
+      DenseMatrix &EI = ws.nc_eg;
+      EI.SetSize(d_dofs_size, c_eg);
+      mfem::Mult(blk, *I, EI);
+      if (!eg_written) { E_f = EI; }
+      else { E_f += EI; }
+   }
+   else if (!eg_written) { E_f = blk; }
    else { E_f += blk; }
 
-   // assemble G constraint
    const int G_off = E_off;
-   DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
+   DenseMatrix G_f(&G_data[G_offsets[f_eg] + G_off], c_eg, d_dofs_size);
    blk.CopyMN(elmat, c_dofs_size, d_dofs_size, d_dofs_size, 0);
-   if (!eg_written) { G_f = blk; }
+   if (I)
+   {
+      DenseMatrix &ItG = ws.nc_eg;
+      ItG.SetSize(c_eg, d_dofs_size);
+      mfem::MultAtB(*I, blk, ItG);
+      if (!eg_written) { G_f = ItG; }
+      else { G_f += ItG; }
+   }
+   else if (!eg_written) { G_f = blk; }
    else { G_f += blk; }
    eg_written = true;
 
-   // assemble H matrix
+   /* assemble H matrix -- on the SLAVE's own slot and in its own dofs even
+      when @a I is given, and NOT transferred. That is where the linear route
+      leaves the trace-trace block of a slave face, and ComputeH()'s
+      RAP(cP, H, cP) -- or, on the matrix-free path, ParMultNL()'s
+      prolong-restrict pair -- is what carries it to the master's true dofs.
+      Each side contributes its own half, so the coarse element's visit here
+      and the fine element's visit of the same slave add up to the one block
+      the linear route writes in a single call. */
    DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);
    blk.CopyMN(elmat, c_dofs_size, c_dofs_size, d_dofs_size, d_dofs_size);
    H_f += blk;
@@ -8197,7 +8591,7 @@ void DarcyHybridization::SeedLinearEG(int el, int face, int c_dofs_size,
 void DarcyHybridization::AssembleHDGGrad(
    int el, FaceElementTransformations *FTr, BlockNonlinearFormIntegrator &nlfi,
    const Vector &x_f, const Vector &u_l, const Vector &p_l,
-   bool &eg_written) const
+   bool &eg_written, const DenseMatrix *I, int face_eg) const
 {
    const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes.GetFaceElement(f);
@@ -8246,29 +8640,51 @@ void DarcyHybridization::AssembleHDGGrad(
    // kept only the LAST integrator's blocks on a face reached by several.
    // @a eg_written separates the two: clear on the first writer of this face
    // and side, accumulate after it. See ConstructGrad().
-   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
-   DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
-   DenseMatrix elmat_EG;
+   //
+   // @a I and @a face_eg are the nonconforming MASTER case; the scalar
+   // overload above carries the account of why E and G move to the master's
+   // slot, why the side comes from that slot's own first element, and why H
+   // does not move.
+   const int f_eg = (I)?(face_eg):(f);
+   const int c_eg = (I)?(I->Width()):(c_dofs_size);
+   int eg1, eg2;
+   fes.GetMesh()->GetFaceElements(f_eg, &eg1, &eg2);
+   const int E_off = (eg1 == el)?(0):(c_eg*d_dofs_size);
+   DenseMatrix E_f(&E_data[E_offsets[f_eg] + E_off], d_dofs_size, c_eg);
+   DenseMatrix elmat_EG, elmat_EGI;
    if (elmat_E.Height() != 0)
    {
       elmat_EG.CopyMN(elmat_E, d_dofs_size, c_dofs_size, 0, 0);
-      if (!eg_written) { E_f = elmat_EG; }
-      else { E_f += elmat_EG; }
+      if (I)
+      {
+         elmat_EGI.SetSize(d_dofs_size, c_eg);
+         mfem::Mult(elmat_EG, *I, elmat_EGI);
+      }
+      const DenseMatrix &blk = (I)?(elmat_EGI):(elmat_EG);
+      if (!eg_written) { E_f = blk; }
+      else { E_f += blk; }
    }
 
    // assemble G constraint
    const int G_off = E_off;
-   DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
+   DenseMatrix G_f(&G_data[G_offsets[f_eg] + G_off], c_eg, d_dofs_size);
    if (elmat_G.Height() != 0)
    {
       elmat_EG.CopyMN(elmat_G, c_dofs_size, d_dofs_size, 0, 0);
-      if (!eg_written) { G_f = elmat_EG; }
-      else { G_f += elmat_EG; }
+      if (I)
+      {
+         elmat_EGI.SetSize(c_eg, d_dofs_size);
+         mfem::MultAtB(*I, elmat_EG, elmat_EGI);
+      }
+      const DenseMatrix &blk = (I)?(elmat_EGI):(elmat_EG);
+      if (!eg_written) { G_f = blk; }
+      else { G_f += blk; }
    }
 
    if (elmat_E.Height() != 0 || elmat_G.Height() != 0) { eg_written = true; }
 
-   // assemble H matrix
+   // assemble H matrix -- the slave's own slot and dofs; see the scalar
+   // overload.
    DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);
    if (elmat_H.Height() != 0) { H_f += elmat_H; }
 }
@@ -10528,48 +10944,77 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
 
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = &ws.lop_faces[f];
+         /* **The nonconforming MASTER face, expanded onto its slave
+            sub-faces.** A coarse element's face list holds the master while
+            the face term lives on the slaves, so the integrator is evaluated
+            once per slave -- at the master trace restricted to it, with the
+            slave's own transformation and trace element. These four
+            LocalNLOperator loops produce ELEMENT rows only, so nothing has to
+            be carried back: the sum over slaves IS the coarse element's row,
+            which is why the transfer appears here on the input alone.
 
-         int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM
-                    | BlockNonlinearFormIntegrator::HDGFaceType::TRACE;
+            `FTr->Elem1No != el` needs no change and sets the side bit as it
+            always did -- on a slave sub-face the coarse element is the second
+            one. Every other face takes a single pass with @a nc_master false.
 
-         const Vector &trp_f = trps.GetBlock(f);
+            See DarcyHybridization::MultNL() for the trace row, which does
+            need `I^T`, and AssembleHDGGrad() for E and G. */
+         Array<int> &nc_slaves = ws.nc_slaves;
+         const bool nc_master = dh.GetNCMasterSlaves(faces[f], nc_slaves);
+         const int n_sub = nc_master ? nc_slaves.Size() : 1;
+         const Vector &trp_m = trps.GetBlock(f);
 
-         if (FTr->Elem2No >= 0)
+         for (int s = 0; s < n_sub; s++)
          {
-            //interior
-            if (FTr->Elem1No != el) { type |= 1; }
-
-            // Per FACE, for the reason given at the element call above.
-            Au.SetSize(0); Dp.SetSize(0);
-
-            dh.c_nlfi->AssembleHDGFaceVector(type, *dh.c_fes.GetFaceElement(faces[f]),
-                                             fe_arr, *FTr, trp_f, x_arr, y_arr);
-
-            if (Au.Size() != 0) { bu += Au; }
-            if (Dp.Size() != 0) { bp += Dp; }
-         }
-         else
-         {
-            //boundary
-            const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
-
-            for (size_t i = 0; i < dh.boundary_constraint_nonlin_integs.size(); i++)
+            const int face_s = nc_master ? nc_slaves[s] : faces[f];
+            FaceElementTransformations *FTr = &ws.lop_faces[f];
+            if (nc_master)
             {
-               if (dh.boundary_constraint_nonlin_integs_marker[i]
-                   && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+               FTr = dh.SetupNCSlaveFace(face_s, trp_m, ws.nc_I, ws.nc_x,
+                                         ws.nc_face, ws.nc_f1, ws.nc_f2);
+            }
 
-               // Per boundary INTEGRATOR, same reason again.
+            int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM
+                       | BlockNonlinearFormIntegrator::HDGFaceType::TRACE;
+
+            const Vector &trp_f = nc_master ? ws.nc_x : trp_m;
+
+            if (FTr->Elem2No >= 0)
+            {
+               //interior
+               if (FTr->Elem1No != el) { type |= 1; }
+
+               // Per FACE, for the reason given at the element call above.
                Au.SetSize(0); Dp.SetSize(0);
 
-               dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                              *dh.c_fes.GetFaceElement(faces[f]),
-                                                                              fe_arr,
-                                                                              *FTr,
-                                                                              trp_f, x_arr, y_arr);
+               dh.c_nlfi->AssembleHDGFaceVector(type, *dh.c_fes.GetFaceElement(face_s),
+                                                fe_arr, *FTr, trp_f, x_arr, y_arr);
 
                if (Au.Size() != 0) { bu += Au; }
                if (Dp.Size() != 0) { bp += Dp; }
+            }
+            else
+            {
+               //boundary
+               const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[face_s]);
+
+               for (size_t i = 0; i < dh.boundary_constraint_nonlin_integs.size(); i++)
+               {
+                  if (dh.boundary_constraint_nonlin_integs_marker[i]
+                      && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                  // Per boundary INTEGRATOR, same reason again.
+                  Au.SetSize(0); Dp.SetSize(0);
+
+                  dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                 *dh.c_fes.GetFaceElement(face_s),
+                                                                                 fe_arr,
+                                                                                 *FTr,
+                                                                                 trp_f, x_arr, y_arr);
+
+                  if (Au.Size() != 0) { bu += Au; }
+                  if (Dp.Size() != 0) { bp += Dp; }
+               }
             }
          }
       }
@@ -10619,40 +11064,56 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
       //bp += E x
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = &ws.lop_faces[f];
+         /* The MASTER face, expanded onto its slave sub-faces; the
+            account is on the same expansion in AddMultBlock(). */
+         Array<int> &nc_slaves = ws.nc_slaves;
+         const bool nc_master = dh.GetNCMasterSlaves(faces[f], nc_slaves);
+         const int n_sub = nc_master ? nc_slaves.Size() : 1;
+         const Vector &trp_m = trps.GetBlock(f);
 
-         int type = NonlinearFormIntegrator::HDGFaceType::ELEM
-                    | NonlinearFormIntegrator::HDGFaceType::TRACE;
-
-         const Vector &trp_f = trps.GetBlock(f);
-
-         if (FTr->Elem2No >= 0)
+         for (int s = 0; s < n_sub; s++)
          {
-            //interior -- left to AssembleNLFaceResidualBatched() when asked,
-            //exactly as ConstructGrad() leaves it to the gradient's kernel
-            if (skip_int_faces) { continue; }
-            if (FTr->Elem1No != el) { type |= 1; }
-
-            dh.c_nlfi_p->AssembleHDGFaceVector(type, *dh.c_fes.GetFaceElement(faces[f]),
-                                               *fe_p, *FTr, trp_f, p_l, DpEx);
-
-            bp += DpEx;
-         }
-         else
-         {
-            //boundary
-            const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
-
-            for (size_t i = 0; i < dh.boundary_constraint_pot_nonlin_integs.size(); i++)
+            const int face_s = nc_master ? nc_slaves[s] : faces[f];
+            FaceElementTransformations *FTr = &ws.lop_faces[f];
+            if (nc_master)
             {
-               if (dh.boundary_constraint_pot_nonlin_integs_marker[i]
-                   && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+               FTr = dh.SetupNCSlaveFace(face_s, trp_m, ws.nc_I, ws.nc_x,
+                                         ws.nc_face, ws.nc_f1, ws.nc_f2);
+            }
 
-               dh.boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                  *dh.c_fes.GetFaceElement(faces[f]),
-                                                                                  *fe_p, *FTr, trp_f, p_l, DpEx);
+            int type = NonlinearFormIntegrator::HDGFaceType::ELEM
+                       | NonlinearFormIntegrator::HDGFaceType::TRACE;
+
+            const Vector &trp_f = nc_master ? ws.nc_x : trp_m;
+
+            if (FTr->Elem2No >= 0)
+            {
+               //interior -- left to AssembleNLFaceResidualBatched() when asked,
+               //exactly as ConstructGrad() leaves it to the gradient's kernel
+               if (skip_int_faces) { continue; }
+               if (FTr->Elem1No != el) { type |= 1; }
+
+               dh.c_nlfi_p->AssembleHDGFaceVector(type, *dh.c_fes.GetFaceElement(face_s),
+                                                  *fe_p, *FTr, trp_f, p_l, DpEx);
 
                bp += DpEx;
+            }
+            else
+            {
+               //boundary
+               const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[face_s]);
+
+               for (size_t i = 0; i < dh.boundary_constraint_pot_nonlin_integs.size(); i++)
+               {
+                  if (dh.boundary_constraint_pot_nonlin_integs_marker[i]
+                      && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                  dh.boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                     *dh.c_fes.GetFaceElement(face_s),
+                                                                                     *fe_p, *FTr, trp_f, p_l, DpEx);
+
+                  bp += DpEx;
+               }
             }
          }
       }
@@ -10728,47 +11189,63 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
 
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = &ws.lop_faces[f];
+         /* The MASTER face, expanded onto its slave sub-faces; the
+            account is on the same expansion in AddMultBlock(). */
+         Array<int> &nc_slaves = ws.nc_slaves;
+         const bool nc_master = dh.GetNCMasterSlaves(faces[f], nc_slaves);
+         const int n_sub = nc_master ? nc_slaves.Size() : 1;
+         const Vector &trp_m = trps.GetBlock(f);
 
-         int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM;
-
-         const Vector &trp_f = trps.GetBlock(f);
-
-         if (FTr->Elem2No >= 0)
+         for (int s = 0; s < n_sub; s++)
          {
-            //interior
-            if (FTr->Elem1No != el) { type |= 1; }
-
-            // Per FACE; see the element call above.
-            gA.SetSize(0,0); gD.SetSize(0,0);
-
-            dh.c_nlfi->AssembleHDGFaceGrad(type, *dh.c_fes.GetFaceElement(faces[f]),
-                                           fe_arr, *FTr, trp_f, x_arr, grad_arr);
-
-            if (gA.Height() != 0) { grad_A += gA; }
-            if (gD.Height() != 0) { grad_D += gD; }
-         }
-         else
-         {
-            //boundary
-            const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
-
-            for (size_t i = 0; i < dh.boundary_constraint_nonlin_integs.size(); i++)
+            const int face_s = nc_master ? nc_slaves[s] : faces[f];
+            FaceElementTransformations *FTr = &ws.lop_faces[f];
+            if (nc_master)
             {
-               if (dh.boundary_constraint_nonlin_integs_marker[i]
-                   && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+               FTr = dh.SetupNCSlaveFace(face_s, trp_m, ws.nc_I, ws.nc_x,
+                                         ws.nc_face, ws.nc_f1, ws.nc_f2);
+            }
 
-               // Per boundary INTEGRATOR; see the element call above.
+            int type = BlockNonlinearFormIntegrator::HDGFaceType::ELEM;
+
+            const Vector &trp_f = nc_master ? ws.nc_x : trp_m;
+
+            if (FTr->Elem2No >= 0)
+            {
+               //interior
+               if (FTr->Elem1No != el) { type |= 1; }
+
+               // Per FACE; see the element call above.
                gA.SetSize(0,0); gD.SetSize(0,0);
 
-               dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceGrad(type,
-                                                                            *dh.c_fes.GetFaceElement(faces[f]),
-                                                                            fe_arr,
-                                                                            *FTr,
-                                                                            trp_f, x_arr, grad_arr);
+               dh.c_nlfi->AssembleHDGFaceGrad(type, *dh.c_fes.GetFaceElement(face_s),
+                                              fe_arr, *FTr, trp_f, x_arr, grad_arr);
 
                if (gA.Height() != 0) { grad_A += gA; }
                if (gD.Height() != 0) { grad_D += gD; }
+            }
+            else
+            {
+               //boundary
+               const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[face_s]);
+
+               for (size_t i = 0; i < dh.boundary_constraint_nonlin_integs.size(); i++)
+               {
+                  if (dh.boundary_constraint_nonlin_integs_marker[i]
+                      && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                  // Per boundary INTEGRATOR; see the element call above.
+                  gA.SetSize(0,0); gD.SetSize(0,0);
+
+                  dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceGrad(type,
+                                                                               *dh.c_fes.GetFaceElement(face_s),
+                                                                               fe_arr,
+                                                                               *FTr,
+                                                                               trp_f, x_arr, grad_arr);
+
+                  if (gA.Height() != 0) { grad_A += gA; }
+                  if (gD.Height() != 0) { grad_D += gD; }
+               }
             }
          }
       }
@@ -10824,37 +11301,53 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
       //grad += D_f
       for (int f = 0; f < faces.Size(); f++)
       {
-         FaceElementTransformations *FTr = &ws.lop_faces[f];
+         /* The MASTER face, expanded onto its slave sub-faces; the
+            account is on the same expansion in AddMultBlock(). */
+         Array<int> &nc_slaves = ws.nc_slaves;
+         const bool nc_master = dh.GetNCMasterSlaves(faces[f], nc_slaves);
+         const int n_sub = nc_master ? nc_slaves.Size() : 1;
+         const Vector &trp_m = trps.GetBlock(f);
 
-         int type = NonlinearFormIntegrator::HDGFaceType::ELEM;
-
-         const Vector &trp_f = trps.GetBlock(f);
-
-         if (FTr->Elem2No >= 0)
+         for (int s = 0; s < n_sub; s++)
          {
-            //interior
-            if (FTr->Elem1No != el) { type |= 1; }
-
-            dh.c_nlfi_p->AssembleHDGFaceGrad(type, *dh.c_fes.GetFaceElement(faces[f]),
-                                             *fe_p, *FTr, trp_f, p_l, grad_Df);
-
-            grad += grad_Df;
-         }
-         else
-         {
-            //boundary
-            const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[faces[f]]);
-
-            for (size_t i = 0; i < dh.boundary_constraint_pot_nonlin_integs.size(); i++)
+            const int face_s = nc_master ? nc_slaves[s] : faces[f];
+            FaceElementTransformations *FTr = &ws.lop_faces[f];
+            if (nc_master)
             {
-               if (dh.boundary_constraint_pot_nonlin_integs_marker[i]
-                   && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+               FTr = dh.SetupNCSlaveFace(face_s, trp_m, ws.nc_I, ws.nc_x,
+                                         ws.nc_face, ws.nc_f1, ws.nc_f2);
+            }
 
-               dh.boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceGrad(type,
-                                                                                *dh.c_fes.GetFaceElement(faces[f]),
-                                                                                *fe_p, *FTr, trp_f, p_l, grad_Df);
+            int type = NonlinearFormIntegrator::HDGFaceType::ELEM;
+
+            const Vector &trp_f = nc_master ? ws.nc_x : trp_m;
+
+            if (FTr->Elem2No >= 0)
+            {
+               //interior
+               if (FTr->Elem1No != el) { type |= 1; }
+
+               dh.c_nlfi_p->AssembleHDGFaceGrad(type, *dh.c_fes.GetFaceElement(face_s),
+                                                *fe_p, *FTr, trp_f, p_l, grad_Df);
 
                grad += grad_Df;
+            }
+            else
+            {
+               //boundary
+               const int bdr_attr = dh.fes.GetMesh()->GetBdrAttribute(dh.f_2_b[face_s]);
+
+               for (size_t i = 0; i < dh.boundary_constraint_pot_nonlin_integs.size(); i++)
+               {
+                  if (dh.boundary_constraint_pot_nonlin_integs_marker[i]
+                      && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                  dh.boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceGrad(type,
+                                                                                   *dh.c_fes.GetFaceElement(face_s),
+                                                                                   *fe_p, *FTr, trp_f, p_l, grad_Df);
+
+                  grad += grad_Df;
+               }
             }
          }
       }
