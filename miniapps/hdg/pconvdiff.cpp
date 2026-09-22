@@ -289,12 +289,15 @@ int main(int argc, char *argv[])
                   " all. A flux that does not carry a direction has NO"
                   " diffusion there and asks for no 1/kappa, which is what a"
                   " structural zero in the diffusion tensor wants -- see"
-                  " RestrictedVectorDivergenceIntegrator. Needs -dg -hb -npc;"
-                  " refused otherwise, the restricted flux being supported on"
-                  " the NPC path only. \"x\" on problem 11 is the"
+                  " RestrictedVectorDivergenceIntegrator. Needs -dg -hb and"
+                  " is refused otherwise; it no longer needs -npc, the"
+                  " condensation route having been refused only because"
+                  " nothing had run it and reproducing NPC to every printed"
+                  " digit once run. \"x\" on problem 11 is the"
                   " FALSIFICATION arm: it restricts to the direction the"
                   " problem does not diffuse in and must NOT reproduce the"
-                  " others.");
+                  " others -- which is also what says the two routes build the"
+                  " same operator, since they agree on its wrong answer.");
    args.AddOption(&free_outflow, "-ofl", "--free-outflow", "-no-ofl",
                   "--no-free-outflow",
                   "Leave the outflow attribute with no datum at all, instead"
@@ -450,14 +453,16 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   if (restricted && !(dg && hybridization && use_npc))
+   if (restricted && !(dg && hybridization))
    {
-      cerr << "-fc needs -dg -hb -npc: a restricted flux is a SCALAR-range "
-           "space (an H(div) element's components are intrinsic), reaches "
-           "the constraint only through the hybridization, and is "
-           "supported on the NPC path alone -- "
+      cerr << "-fc needs -dg -hb: a restricted flux is a SCALAR-range space "
+           "(an H(div) element's components are intrinsic) and reaches the "
+           "constraint only through the hybridization -- "
            "DarcyHybridization::CheckRestrictedFluxConfiguration() refuses "
-           "the rest." << endl;
+           "the rest. It no longer needs -npc: the condensation route was "
+           "refused on the grounds that nothing had run it, and running it "
+           "reproduces the NPC route to every printed digit, including on "
+           "the wrong answer -fc x deliberately produces." << endl;
       return 1;
    }
 

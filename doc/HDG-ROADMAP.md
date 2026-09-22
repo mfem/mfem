@@ -424,10 +424,26 @@ What is left:
   gives 2.1e-15. `DarcyForm::Assemble()` now refuses the stock class by name
   when the flux space carries fewer components than the mesh. This is the
   same `dim`-versus-`vdim` confusion the constraint had, in a third place.
-* **The reduced route refuses it**, at `DarcyHybridization::Mult()`. Out of
-  scope rather than known broken: the same blocks would be eliminated by the
-  same algebra and nothing has run it. One measurement would settle whether
-  the refusal is load-bearing or policy.
+* ~~The reduced route refuses it~~ — **measured, and the refusal was POLICY.
+  Lifted.** Both halves went: `Mult()`'s, which guarded the nonlinear reduced
+  route, and `CheckRestrictedFluxConfiguration()`'s NPC clause, which guarded
+  the linear one. The condensation route solves a restricted flux and
+  reproduces NPC **to every printed digit** wherever the answer is above the
+  solver's noise floor, at orders 1 to 3 on 4x4 and 8x8.
+
+  **The discriminator is `-fc x`, and it is this section's own falsification
+  arm reused**: it restricts the flux to the direction the problem does not
+  diffuse in, so the discrete problem is a different and WRONG one, and the
+  routes agree on its wrong answer (0.991827 / 0.239953) to six digits. Two
+  routes agreeing on the RIGHT answer could be two routes both landing on an
+  exact solution; agreeing on a wrong one means they built the same operator.
+  At order 2 and above the exact arms differ at 1e-15 — two solvers' round-off
+  against an exact discrete solution, not a disagreement.
+
+  Six new references cover it, four nonlinear-reduced and two linear-reduced,
+  each checked to be RUN rather than skipped by perturbing it and requiring a
+  failure. `convdiff`/`pconvdiff` now ask `-fc` for `-dg -hb` and no longer for
+  `-npc`. The measurement is on `CheckRestrictedFluxConfiguration()`.
 * ~~A one-sided physical inflow/outflow trace is unbuilt~~ — **measured, and
   it needed no library change for the case this section is about.** With no
   flux component along the outflow normal the one-sided constraint row is the

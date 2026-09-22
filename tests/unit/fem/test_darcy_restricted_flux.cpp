@@ -474,14 +474,24 @@ TEST_CASE("The unsupported restricted flux configurations are refused",
    //   components {1, 0}                      CheckFluxComponents
    //   a broken-RT (vector-range) flux        CheckRestrictedFluxConfiguration
    //   a block nonlinear flux law             CheckRestrictedFluxConfiguration
-   //   LINEAR, restricted, no EnableNPC()     CheckRestrictedFluxConfiguration
-   //   the reduced operator's own Mult()      DarcyHybridization::Mult
    //   a flux mass with 1/kappa infinite      AssembleFluxMassMatrix
    //
-   // and the three arms that must NOT abort and do not: the supported
-   // restricted configuration, a linear one with EnableNPC(), and a full flux
-   // with a finite coefficient. A guard nobody has seen refuse is a guard
-   // nobody has tested.
+   // TWO ENTRIES HAVE BEEN REMOVED FROM THAT TABLE and are recorded here so
+   // the list is not read as still complete: "LINEAR, restricted, no
+   // EnableNPC()" in CheckRestrictedFluxConfiguration and "the reduced
+   // operator's own Mult()" in DarcyHybridization::Mult. Both refused the
+   // condensation route, both were POLICY rather than defects -- the grounds
+   // given were that nothing had run it -- and running it reproduces the NPC
+   // route to every printed digit. The measurement is on
+   // CheckRestrictedFluxConfiguration(); the coverage is six serial and six
+   // parallel p11 references driving the condensation route, four nonlinear
+   // and two linear.
+   //
+   // and the arms that must NOT abort and do not: the supported restricted
+   // configuration, a linear one with EnableNPC(), a full flux with a finite
+   // coefficient, and -- since the two refusals above went -- a restricted
+   // flux on the condensation route, linear and nonlinear alike. A guard
+   // nobody has seen refuse is a guard nobody has tested.
    //
    // The one that is worth stating twice: before the shape guards existed,
    // "both integrators stock, vdim 1" ran to completion and returned

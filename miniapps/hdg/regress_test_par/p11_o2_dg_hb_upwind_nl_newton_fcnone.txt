@@ -1,0 +1,128 @@
+Options used:
+   --mesh 
+   --ncells-x 4
+   --ncells-y 4
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 2
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 11
+   --flux-components none
+   --no-free-outflow
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 0
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --newton-rtol 1e-14
+   --no-npc
+   --gradient-mode -1
+   --nonlinear-solver 3
+   --preconditioner 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.000252192s.
+***********************************************************
+dim(V) = 0
+dim(W) = 72
+dim(M) = 66
+dim(V+W+M) = 138
+***********************************************************
+Assembly took 0.000157875s.
+Preconditioner took 3.0037e-05s.
+el: 0 not converged in 1000 iters rel. norm: 7.61462e-17
+el: 0 not converged in 1000 iters rel. norm: 2.50157e-16
+el: 1 not converged in 1000 iters rel. norm: 1.35357e-16
+el: 1 not converged in 1000 iters rel. norm: 8.76414e-17
+el: 2 not converged in 1000 iters rel. norm: 1.35357e-16
+el: 2 not converged in 1000 iters rel. norm: 1.89621e-16
+el: 3 not converged in 1000 iters rel. norm: 7.61462e-17
+el: 3 not converged in 1000 iters rel. norm: 2.46656e-16
+el: 4 not converged in 1000 iters rel. norm: 1.89621e-16
+el: 4 not converged in 1000 iters rel. norm: 2.42062e-16
+el: 5 not converged in 1000 iters rel. norm: 1.89621e-16
+el: 5 not converged in 1000 iters rel. norm: 2.29445e-16
+el: 6 not converged in 1000 iters rel. norm: 8.76414e-17
+el: 6 not converged in 1000 iters rel. norm: 1.35357e-16
+el: 7 not converged in 1000 iters rel. norm: 8.76414e-17
+el: 7 not converged in 1000 iters rel. norm: 7.61462e-17
+Newton iteration  0 : ||r|| = 0.188762
+el: 0 not converged in 1000 iters rel. norm: 2.50157e-16
+el: 0 not converged in 1000 iters rel. norm: 7.61462e-17
+el: 1 not converged in 1000 iters rel. norm: 8.76414e-17
+el: 1 not converged in 1000 iters rel. norm: 1.35357e-16
+el: 2 not converged in 1000 iters rel. norm: 1.89621e-16
+el: 2 not converged in 1000 iters rel. norm: 1.35357e-16
+el: 3 not converged in 1000 iters rel. norm: 2.46656e-16
+el: 3 not converged in 1000 iters rel. norm: 7.61462e-17
+el: 4 not converged in 1000 iters rel. norm: 2.42062e-16
+el: 4 not converged in 1000 iters rel. norm: 1.89621e-16
+el: 5 not converged in 1000 iters rel. norm: 2.29445e-16
+el: 5 not converged in 1000 iters rel. norm: 1.89621e-16
+el: 6 not converged in 1000 iters rel. norm: 1.35357e-16
+el: 6 not converged in 1000 iters rel. norm: 8.76414e-17
+el: 7 not converged in 1000 iters rel. norm: 7.61462e-17
+el: 7 not converged in 1000 iters rel. norm: 8.76414e-17
+el: 0 not converged in 1000 iters rel. norm: 1.41111e-16
+el: 0 not converged in 1000 iters rel. norm: 2.50157e-16
+el: 1 not converged in 1000 iters rel. norm: 4.29046e-17
+el: 1 not converged in 1000 iters rel. norm: 1.50779e-16
+el: 2 not converged in 1000 iters rel. norm: 1.4413e-16
+el: 2 not converged in 1000 iters rel. norm: 1.62405e-16
+el: 3 not converged in 1000 iters rel. norm: 5.35907e-17
+el: 3 not converged in 1000 iters rel. norm: 2.46656e-16
+el: 4 not converged in 1000 iters rel. norm: 1.30821e-16
+el: 4 not converged in 1000 iters rel. norm: 2.42062e-16
+el: 5 not converged in 1000 iters rel. norm: 4.14513e-17
+el: 5 not converged in 1000 iters rel. norm: 2.29445e-16
+el: 6 not converged in 1000 iters rel. norm: 1.70988e-16
+el: 6 not converged in 1000 iters rel. norm: 3.83423e-16
+el: 7 not converged in 1000 iters rel. norm: 2.2159e-16
+el: 7 not converged in 1000 iters rel. norm: 8.70239e-17
+Newton iteration  1 : ||r|| = 1.14956e-16, ||r||/||r_0|| = 6.08999e-16
+el: 0 not converged in 1000 iters rel. norm: 1.41111e-16
+el: 0 not converged in 1000 iters rel. norm: 2.50157e-16
+el: 1 not converged in 1000 iters rel. norm: 1.50779e-16
+el: 1 not converged in 1000 iters rel. norm: 4.29046e-17
+el: 2 not converged in 1000 iters rel. norm: 1.4413e-16
+el: 2 not converged in 1000 iters rel. norm: 1.62405e-16
+el: 3 not converged in 1000 iters rel. norm: 5.35907e-17
+el: 3 not converged in 1000 iters rel. norm: 2.46656e-16
+el: 4 not converged in 1000 iters rel. norm: 1.30821e-16
+el: 4 not converged in 1000 iters rel. norm: 2.42062e-16
+el: 5 not converged in 1000 iters rel. norm: 4.14513e-17
+el: 5 not converged in 1000 iters rel. norm: 2.29445e-16
+el: 6 not converged in 1000 iters rel. norm: 1.70988e-16
+el: 6 not converged in 1000 iters rel. norm: 3.83423e-16
+el: 7 not converged in 1000 iters rel. norm: 2.2159e-16
+local nonlinear iterations: 32000
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 1.14956e-16.
+Solver took 0.373701s.
+el: 7 not converged in 1000 iters rel. norm: 8.70239e-17
+|| q_h - q_ex || / || q_ex || = 0
+|| t_h - t_ex || / || t_ex || = 4.22467e-16

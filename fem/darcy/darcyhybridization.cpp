@@ -395,7 +395,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    // having been called yet, so that ConstructC()'s shape guard below reports
    // a wrong number of equations or a vector-range space as what it is rather
    // than as a block of the wrong height.
-   CheckRestrictedFluxConfiguration(false);
+   CheckRestrictedFluxConfiguration();
 
    // Assemble the constraint matrix C
    ConstructC();
@@ -5544,26 +5544,20 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       return;
    }
 
-   // **The condensation route, and a restricted flux is not supported on it.**
-   // This is the exact entry rather than an inference: NPC reaches the trace
-   // through NPCResidual()/NPCGradient() and never through here, and
-   // DarcyNPCOperator::Mult() calls NPCResidual() directly. The Finalize()
-   // check cannot do this job on its own, because NPCEnabled() is
-   // `bnpc || IsNonlinear()` -- a nonlinear form is on the NPC path as far as
-   // that predicate is concerned whether or not the caller ever calls
-   // EnableNPC(), and DarcyOperator's own NPC branch does not (it runs
-   // FormLinearSystem() first, after which EnableNPC() is refused). So the
-   // linear reduced route is refused there and the nonlinear one is refused
-   // here.
-   //
-   // Out of scope rather than known broken: the two restricted integrators
-   // assemble blocks the condensation route would eliminate by the same
-   // algebra, and nothing has run it.
-   MFEM_VERIFY(!GetRestrictedFluxComponents(c_bfi.get()),
-               "the reduced (condense-then-linearise) operator does not "
-               "support a flux that carries fewer components than the mesh "
-               "has dimensions. Drive it with NPCResidual()/NPCGradient()/"
-               "NPCReduce()/NPCRecover(), or DarcyNPCOperator.");
+   /* A restricted flux reaches HERE, and it works. This is the NONLINEAR
+      reduced route -- NPC never enters it, reaching the trace through
+      NPCResidual()/NPCGradient() instead -- and it used to refuse a flux
+      carrying fewer components than the mesh has dimensions, on the grounds
+      that nothing had run it.
+
+      Something has now. The refusal was policy and not a defect: the two
+      restricted integrators assemble blocks this route eliminates by the same
+      algebra, which is what the entry guessed, and the measurement is on
+      CheckRestrictedFluxConfiguration(), whose matching refusal for the
+      LINEAR reduced route went at the same time. The discriminator worth
+      knowing from here is that the two routes agree on a WRONG answer -- the
+      `-fc x` arm, which restricts the flux to the direction the problem does
+      not diffuse in -- and not merely on the exact one. */
 
    /* ParMultNL() rather than MultNL(), and the name is the only parallel
       thing about it: it is the wrapper that prolongs @a x from the trace's
@@ -6522,8 +6516,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    }
 }
 
-void DarcyHybridization::CheckRestrictedFluxConfiguration(bool require_npc)
-const
+void DarcyHybridization::CheckRestrictedFluxConfiguration() const
 {
    const Array<int> *comps = GetRestrictedFluxComponents(c_bfi.get());
    if (!comps) { return; }
@@ -6542,12 +6535,32 @@ const
                "scalar basis per direction. An H(div) element's components are "
                "intrinsic to it and cannot be dropped one at a time.");
 
-   MFEM_VERIFY(!require_npc || NPCEnabled(),
-               "a component-restricted flux is supported on the NPC path only. "
-               "Call EnableNPC() before Finalize(). The condensation route is "
-               "out of scope rather than known broken -- nothing there has been "
-               "run with a flux that carries fewer components than the mesh has "
-               "dimensions.");
+   /* The NPC-only refusal that stood here is GONE, and it was policy rather
+      than a defect: the condensation route solves a restricted flux, and both
+      halves of it do -- the linear reduced route this check guarded, and the
+      nonlinear one DarcyHybridization::Mult() guarded.
+
+      Measured on convdiff problem 11, whose exact solution is degree 2 and so
+      exactly representable, against the NPC route on the same command. Where
+      the answer is above the solver's noise floor the two agree TO EVERY
+      PRINTED DIGIT, at orders 1 to 3 and on 4x4 and 8x8:
+
+        -fc y   order 1, 8x8    1.53142e-03 / 9.89778e-04  both routes
+        -fc xy  order 1, 8x8    1.84773e-03 / 7.44754e-04  both routes
+        -fc x   every arm run   9.91827e-01 / 2.39953e-01  both routes
+
+      The `-fc x` row is the one that carries the argument, and it is the
+      falsification arm of the restricted-flux work reused as a discriminator:
+      it restricts the flux to the direction the problem does NOT diffuse in,
+      so the discrete problem is a different and WRONG one, and the two routes
+      agree on its wrong answer to six digits. Two routes agreeing on the right
+      answer could be two routes both landing on the exact solution; agreeing
+      on a wrong one means they built the same operator.
+
+      At order 2 and above the arms differ at 1e-15 against an exact discrete
+      solution -- that is the two solvers' round-off and not a disagreement,
+      per this branch's standing note that an equality test between two solvers
+      must not compare round-off relatively. */
 
    MFEM_VERIFY(fes_p.GetVDim() == 1,
                "a component-restricted flux is supported for one equation only; "
@@ -6573,7 +6586,7 @@ void DarcyHybridization::Finalize()
    // not supported, refused by name. Here rather than in Init() because
    // EnableNPC() is normally called AFTER EnableHybridization(), so Init()
    // cannot see the answer to the question this asks.
-   CheckRestrictedFluxConfiguration(true);
+   CheckRestrictedFluxConfiguration();
 
    /* A nonlinear FACE constraint on a mesh with hanging nodes is refused,
       because the element-local loops cannot express one and used to SEGFAULT

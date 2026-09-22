@@ -1134,12 +1134,16 @@ private:
          caller.
        * a component list that disagrees with the space it is describing.
 
-       Called TWICE: from Init() with @a require_npc false, so that a wrong
-       equation count or a vector-range space is named before ConstructC()'s
-       shape guard reports it as a block of the wrong height; and from
-       Finalize() with it true, EnableNPC() normally being called after
-       EnableHybridization() and so invisible to the first. */
-   void CheckRestrictedFluxConfiguration(bool require_npc) const;
+       Called TWICE, from Init() and again from Finalize(): the first so that
+       a wrong equation count or a vector-range space is named before
+       ConstructC()'s shape guard reports it as a block of the wrong height,
+       the second because a caller may install a block nonlinear flux law
+       between the two.
+
+       It used to take a @a require_npc flag and refuse the condensation route
+       outright. That clause is gone -- measured, not argued; see the note on
+       the routine. */
+   void CheckRestrictedFluxConfiguration() const;
 
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
