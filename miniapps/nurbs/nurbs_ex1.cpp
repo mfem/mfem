@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
    //    that gives a final mesh with no more than 50,000 elements.
    {
       // Mesh refinement as defined in refinement file
-      if (mesh->NURBSext && (strlen(ref_file) != 0))
+      if (mesh->IsNURBS() && (strlen(ref_file) != 0))
       {
          mesh->RefineNURBSFromFile(ref_file);
       }
@@ -265,12 +265,12 @@ int main(int argc, char *argv[])
    NURBSExtension *NURBSext = NULL;
    int own_fec = 0;
 
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       fec = new NURBSFECollection(order[0]);
       own_fec = 1;
 
-      int nkv = mesh->NURBSext->GetNKV();
+      int nkv = mesh->NURBSExt()->GetNKV();
       if (order.Size() == 1)
       {
          int tmp = order[0];
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
       }
 
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext = new NURBSExtension(mesh->NURBSExt(), order);
 
       // Read periodic BCs from file
       std::ifstream in;
@@ -324,12 +324,12 @@ int main(int argc, char *argv[])
 
    if (!ibp)
    {
-      if (!mesh->NURBSext)
+      if (!mesh->IsNURBS())
       {
          cout << "No integration by parts requires a NURBS mesh."<< endl;
          return 2;
       }
-      if (mesh->NURBSext->GetNP()>1)
+      if (mesh->NURBSExt()->GetNP()>1)
       {
          cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
               endl;

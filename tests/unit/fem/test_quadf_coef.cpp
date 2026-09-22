@@ -375,7 +375,7 @@ TEST_CASE("QuadratureFunction::ProjectGridFunction Integral",
    CAPTURE(order, mesh_fname);
 
    Mesh mesh(mesh_fname);
-   if (mesh.NURBSext)
+   if (mesh.NURBSExt())
    {
       mesh.UniformRefinement();
       mesh.SetCurvature(2);
