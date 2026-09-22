@@ -547,3 +547,177 @@ TEST_CASE("A bilinear integrator on a nonlinear mass form is assembled once",
    REQUIRE(lin.Sv.Normlinf() > 1e-3);
    close(lin.Sv, nlin.Sv);
 }
+
+#ifdef MFEM_USE_MPI
+
+namespace darcy_batched_residual
+{
+
+/** @brief NPCResidualOnce()'s problem on a ParMesh.
+
+    The same `-nld` shape -- the flux law a MixedConductionNLFIntegrator on the
+    BlockNonlinearForm, the stabilization a plain HDGDiffusionIntegrator on the
+    linear potential mass -- because that is the shape
+    DarcyHybridization::CanBatchLocalResidual() admits, and the only thing this
+    twin varies is that the three spaces are parallel. */
+void ParNPCResidualOnce(DarcyHybridization::AssemblyMode am, int order,
+                        ResidualOutcome &out)
+{
+   const int dim = 2, n = 4;
+   Mesh serial = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                       0.8, 1.2);
+   ParMesh mesh(MPI_COMM_WORLD, serial);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   ParFiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                         Mh(&mesh, &t_coll);
+
+   ParDarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0), src(1.0);
+   FunctionCoefficient ikappa([](const Vector &X)
+   {
+      return 1.3 + 0.4 * std::sin(M_PI * X(0)) * X(1);
+   });
+   LinearDiffusionFlux law(dim, ikappa);
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   darcy.GetBlockNonlinearForm()->AddDomainIntegrator(
+      new MixedConductionNLFIntegrator(law));
+
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetAssemblyMode(am);
+   dh->EnableNPC();
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   dh->SetEssentialBC(all);
+
+   darcy.Assemble();
+   darcy.Finalize();
+   out.taken = dh->CanBatchLocalResidual();
+
+   // The trace block is sized on TRUE dofs, which is what NPC's interface
+   // takes; the flux and potential are L2 and are the same either way.
+   Array<int> offs(4);
+   offs[0] = 0;
+   offs[1] = Vh.GetVSize();
+   offs[2] = Wh.GetVSize();
+   offs[3] = Mh.GetTrueVSize();
+   offs.PartialSum();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+   b.GetBlock(1).SyncAliasMemory(b);
+
+   // A state with structure, as in the serial twin: at x = 0 the flux row is
+   // exactly zero for a law linear in the flux, so a zero state would compare
+   // nothing. **Seeded from the GLOBAL dof index and not the local one**, or
+   // the two arms would be comparing different states the moment the
+   // partition changed -- and it would still pass, both arms being wrong the
+   // same way.
+   auto fill_global = [](const ParFiniteElementSpace &fes, Vector &v,
+                         real_t shift)
+   {
+      const HYPRE_BigInt *off = fes.GetTrueDofOffsets();
+      const HYPRE_BigInt base = off ? off[0] : 0;
+      for (int i = 0; i < v.Size(); i++)
+      {
+         const real_t g = real_t(base + i);
+         v(i) = std::sin(0.7 * g + shift) + 0.25 * std::cos(0.13 * g);
+      }
+   };
+   fill_global(Vh, x.GetBlock(0), 0.5);
+   fill_global(Wh, x.GetBlock(1), 0.5);
+   Vector x_tr(Mh.GetTrueVSize());
+   fill_global(Mh, x_tr, 2.1);
+
+   out.r.Update(darcy.GetOffsets());
+   dh->NPCResidual(b, x, x_tr, out.r, out.r_tr);
+   out.r.HostRead();
+   out.r_tr.HostRead();
+}
+
+} // namespace darcy_batched_residual
+
+/** @brief The batched local residual on more than one rank.
+
+    **This case is the whole content of lifting a refusal**, and the refusal
+    said so: CanBatchLocalResidual() declined `ParallelU() || ParallelP()`
+    while stating that the kernel needs nothing from a neighbour -- the flux
+    space is L2 and NPCCheck() refuses a conforming one, so every element's
+    flux dofs are its own and the loop is rank-local -- and that it was
+    refused only because it had not been RUN on more than one rank. That is a
+    claim about coverage rather than about behaviour, and the answer to it is
+    a test.
+
+    What could have made it wrong, and what this therefore compares: the
+    kernel gathers `darcy_u` through el_u_dofs, a map built from
+    GetElementVDofs() over the LOCAL elements, and writes one flat slice per
+    local element. On a ParMesh both the element count and the dof numbering
+    change under the partition, so a map built with a serial assumption would
+    hand the element loop another element's slice -- which is a wrong answer
+    and not a crash.
+
+    The two REQUIREs on @a taken are load-bearing for the usual reason: the
+    route falls back silently, and two fallbacks agree perfectly while testing
+    nothing. Here they also state the result -- `Batched` is taken in parallel,
+    which before this it was not.
+
+    A tolerance rather than the bits, as in the serial in-situ case:
+    AssemblyMode::Batched flips whichever other kernels do not refuse in
+    parallel, and those accumulate point by point where the per-element route
+    adds one element matrix. */
+TEST_CASE("The batched local residual reaches an NPC caller in parallel",
+          "[DarcyHybridization][BatchedLinAlg][NPC][Parallel]")
+{
+   using namespace darcy_batched_residual;
+   using AM = DarcyHybridization::AssemblyMode;
+
+   const int order = GENERATE(0, 1, 2);
+   CAPTURE(order, Mpi::WorldSize());
+
+   ResidualOutcome ref, got;
+   ParNPCResidualOnce(AM::Serial, order, ref);
+   ParNPCResidualOnce(AM::Batched, order, got);
+
+   REQUIRE_FALSE(ref.taken);
+   REQUIRE(got.taken);
+
+   // There is a residual to compare, and it is not the zero one. Taken as a
+   // GLOBAL norm: a rank whose slice happened to be zero would otherwise let
+   // this pass while comparing nothing on that rank.
+   const real_t n_u = std::sqrt(InnerProduct(MPI_COMM_WORLD,
+                                             ref.r.GetBlock(0),
+                                             ref.r.GetBlock(0)));
+   const real_t n_tr = std::sqrt(InnerProduct(MPI_COMM_WORLD, ref.r_tr,
+                                              ref.r_tr));
+   CAPTURE(n_u, n_tr);
+   REQUIRE(n_u > 1e-3);
+   REQUIRE(n_tr > 1e-6);
+
+   auto close = [](const Vector &a, const Vector &b)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      REQUIRE(d.Normlinf() <= 1e-11 * std::max(a.Normlinf(), 1e-30));
+   };
+   close(ref.r.GetBlock(0), got.r.GetBlock(0));
+   close(ref.r.GetBlock(1), got.r.GetBlock(1));
+   close(ref.r_tr, got.r_tr);
+}
+
+#endif // MFEM_USE_MPI

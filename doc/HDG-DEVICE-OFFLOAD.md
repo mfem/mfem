@@ -45,13 +45,30 @@ nonlinear face constraints, the flux mass boundary faces, `vdim > 1` face
 constraints, and Tiers 1 and 2 of the batched residual for nonlinear
 integrators.
 
-## The two items still open, out of the nine
+## What is left, out of the nine
 
-* **Parallel shared faces.** The face kernels refuse `ParallelC()` outright
-  today, for the `FaceIsInterior()` reason on the predicate. Unchanged.
-* **Non-NPC problems.** The kernel writes `H_data` and the reduced route reads
-  an assembled sparse `H`, so the two destinations differ. **This is now the
-  binding constraint on the scatter item as well**, not one kernel's footnote.
+* **Parallel shared faces.** The face kernels refuse `ParallelC()`, for the
+  `FaceIsInterior()` reason on the predicate: a shared face is not interior by
+  that test, so the list the kernel is built from silently drops every
+  partition boundary. This is the live item, NPC in parallel being real work
+  that this tree exercises.
+* **Non-NPC problems. CLOSED as OPTIONAL, on the caller's decision.** The
+  kernel writes `H_data` and the reduced route reads an assembled sparse `H`,
+  so the two destinations differ, and that one split is why
+  `CanBatchPotFaceAssembly()`, its boundary twin and `CanBatchTraceAssembly()`
+  all refuse. It is not a defect and not a to-do: the job on this branch is to
+  make classic NPC HDG work well, and the reduced route is inherited. **The
+  design for lifting it, both ways and with the price of each, is written on
+  `CanBatchPotFaceAssembly()`** -- where a reader who wants it will be
+  standing -- rather than here, per the rule that markdown says only what is
+  left.
+
+`CanBatchLocalResidual()`'s parallel refusal is a third thing and belongs with
+neither: it refuses `ParallelU() || ParallelP()` while saying in its own
+comment that the kernel needs nothing from a neighbour and that lifting it is
+a test rather than work. Its stated premise -- that the worktree is a serial
+build -- is stale; the parallel tree is `mfem-hdg-par-dev` and runs
+`punit_tests` on two ranks.
 
 ## What blocks the last step, and it is not on that list
 

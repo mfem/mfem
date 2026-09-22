@@ -1393,7 +1393,9 @@ bool DarcyHybridization::CanBatchPotBdrFaceAssembly() const
 {
    if (asm_mode != AssemblyMode::Batched) { return false; }
    // The same two refusals the interior pass carries, and for the same
-   // reasons: H's destination, and shared faces.
+   // reasons: H's destination, which is policy -- see
+   // CanBatchPotFaceAssembly() for the decision and for what lifting it
+   // would cost -- and shared faces.
    if (!NPCEnabled()) { return false; }
    if (ParallelC()) { return false; }
    if (NumBdrPotConstraintIntegrators() == 0) { return false; }
@@ -1444,12 +1446,30 @@ bool DarcyHybridization::CanBatchPotFaceAssembly() const
 {
    if (asm_mode != AssemblyMode::Batched) { return false; }
 
-   // The kernel writes H into H_data, which is where the per-face route puts
-   // it ONLY under NPC; otherwise that route scatters H into the assembled
-   // sparse matrix and nothing ever reads H_data. Taking the kernel there
-   // would put the face term where the reduced solve does not look. Refused
-   // rather than repaired here, because repairing it is a scatter the kernel
-   // does not have; see ComputeAndAssemblePotFaceMatrix().
+   /* **NPC only, and that is POLICY rather than a defect or a to-do.** The
+      kernel writes H into H_data, which is where the per-face route puts it
+      ONLY under NPC; otherwise that route scatters H straight into the
+      assembled sparse matrix during Assemble() and nothing ever reads H_data
+      (ComputeAndAssemblePotFaceMatrix()), so taking the kernel there would
+      put the face term where the reduced solve does not look.
+
+      Two destinations for one block is what makes this a policy question
+      rather than a missing scatter. Lifting it EITHER way was costed: a
+      second scatter H_data -> H after the kernel serves this predicate and
+      entrenches the split, leaving CanBatchTraceAssembly() refusing for the
+      same reason; unifying on H_data -- AllocH() ungated, the assembly
+      writing H_data always, and ComputeElementH() adding the face block in
+      ComputeHMode::Linear as it already does in Gradient -- removes the split
+      and both refusals at once, at the price of changing the accumulation
+      order of the assembled H for every non-NPC hybridized problem carrying
+      a face constraint, which this suite compares by exact iteration count.
+
+      **The caller's decision is that the non-NPC route is not owed the
+      device path**, which is this branch's standing scope: the job here is to
+      make classic NPC HDG work well, and a finding about the inherited
+      reduced route is recorded where the code is rather than becoming work.
+      So this refusal is where that decision lives, and the paragraph above is
+      the design, kept because the question will be asked again. */
    if (!NPCEnabled()) { return false; }
 
    // A shared face is not interior by Mesh::FaceIsInterior(), which is what
@@ -1475,14 +1495,34 @@ bool DarcyHybridization::CanBatchLocalResidual() const
    // problem, and a precomputed residual is no use to a solve.
    if (!NPCEnabled()) { return false; }
 
-   // Parallel is refused, and the reason is NOT that the kernel needs
-   // anything from a neighbour. It does not: NPCCheck() refuses a conforming
-   // flux space, so every element's flux dofs are its own and this loop is
-   // rank-local exactly as NPCResidual()'s own comment says. It is refused
-   // because it has not been RUN on more than one rank -- this worktree is a
-   // serial build -- and a claim about behaviour on this branch is measured
-   // rather than argued from a code path. Lifting it is a test, not work.
-   if (ParallelU() || ParallelP()) { return false; }
+   /* **Parallel is NOT refused, and the refusal that stood here was a
+      statement about coverage rather than about behaviour.** It read: the
+      kernel needs nothing from a neighbour -- NPCCheck() refuses a conforming
+      flux space, so every element's flux dofs are its own and this loop is
+      rank-local, exactly as NPCResidual()'s own comment says -- and it is
+      declined only because it has never been RUN on more than one rank.
+      Which made lifting it a test, and the test is
+      "The batched local residual reaches an NPC caller in parallel" in
+      tests/unit/fem/test_darcy_batched_residual.cpp.
+
+      It holds. The NPC residual is identical between AssemblyMode::Serial and
+      Batched on two ranks at orders 0, 1 and 2, in all three rows, and the
+      case fails 3 assertions with the refusal restored -- the `taken` half,
+      which is what says the route was reached rather than fallen back to.
+
+      Why it was ever in doubt: BuildElementDofMaps() gathers darcy_u through
+      el_u_dofs, built from GetFDofs() over the LOCAL elements, and the kernel
+      writes one flat slice per local element. Both the element count and the
+      dof numbering move under a partition, so a map carrying a serial
+      assumption would hand the element loop another element's slice -- a
+      wrong answer and not a crash. It carries none: every index in that
+      routine is rank-local by construction.
+
+      Note what is NOT lifted with it. The face kernels refuse ParallelC() for
+      a different and real reason -- a shared face is not
+      Mesh::FaceIsInterior(), so the list they are built from drops every
+      partition boundary -- and this predicate never asked that question,
+      because this kernel touches no face at all. */
 
    if (!m_nlfi) { return false; }
    if (!HDGMixedConductionResidualCanBatch(fes, m_nlfi)) { return false; }
@@ -5133,8 +5173,10 @@ bool DarcyHybridization::CanBatchTraceAssembly() const
    // This is the offload plan's item 9 -- "the kernel writes H_data and the
    // reduced route reads an assembled sparse H" -- reaching a second kernel,
    // and it is a scope limit rather than a defect: NPC is what this branch is
-   // for. Lifting it means giving the face assembly a CSR destination too,
-   // which is the same map and a different scatter.
+   // for, and the caller has since made that explicit. The decision, and what
+   // lifting it would cost, are on CanBatchPotFaceAssembly(); this predicate
+   // is downstream of it, since what blocks the CSR here is exactly the
+   // sparse H that route fills.
    //
    // Asked of `H` and not of NPCEnabled() alone, because a problem with no
    // potential face term at all leaves H empty and is fine either way.
