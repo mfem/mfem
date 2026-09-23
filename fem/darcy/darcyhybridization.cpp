@@ -2840,9 +2840,94 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    }
 }
 
+/** @brief Does this mesh carry a nonconforming MASTER face with a local
+    slave -- the coarse side of a hanging node?
+
+    Lifted from `gf-hdg-linearise-first`, where it gates the element-major
+    expansion that makes such a face work. Here it gates the REFUSAL of the
+    configuration that expansion exists for, so the two branches ask the
+    question the same way and a test can ask it without tripping the refusal.
+    O(number of masters) and short-circuits on a conforming mesh. */
+bool DarcyHybridization::HasNCMasterFaces() const
+{
+   const Mesh *mesh = fes.GetMesh();
+   if (!mesh->Nonconforming()) { return false; }
+
+   const int dim = mesh->Dimension();
+   const int num_faces = mesh->GetNumFaces();
+   auto &nclist = mesh->ncmesh->GetNCList(dim-1);
+   for (const NCMesh::Master &m : nclist.masters)
+   {
+      if (m.index < num_faces) { return true; }
+   }
+   return false;
+}
+
 void DarcyHybridization::Finalize()
 {
    if (bfin) { return; }
+
+   /* **A nonlinear FACE constraint on a mesh with hanging nodes is refused,
+      because the element-local loops cannot express one and SEGFAULT rather
+      than say so.**
+
+      The misclassification: every element-major face loop here decides
+      "boundary" by `Elem2No < 0`, which is Mesh::FaceIsInterior() inverted and
+      is right on a conforming mesh. On a nonconforming one a MASTER face --
+      the coarse side of a hanging node -- also has no second element, and
+      GetFaceToBdrElMap() maps it to -1, so the boundary branch runs
+      GetBdrAttribute(-1) and dereferences Mesh::boundary at -1. Reproduced on
+      `data/amr-quad.mesh` refined once, order 1, with an HDGDiffusionIntegrator
+      on the NONLINEAR potential mass form: SIGSEGV, with NO boundary
+      integrator installed, the attribute being read before the loop that
+      would have been empty.
+
+      Why a refusal and not a guard. The linear route is face-major and
+      nonconforming-aware: FaceIsInterior() skips masters, the face term is
+      assembled on the SLAVE sub-faces, and AssembleNCSlaveEGFaceMatrix() and
+      its siblings transfer those blocks onto the master's dofs. The nonlinear
+      route is element-major over GetElementFaces(), and a coarse element's
+      list holds the MASTER face and not its slaves -- so there is no road by
+      which the slave contributions can reach it.
+
+      Treating a master face as a one-sided interior face was built and
+      MEASURED on `gf-hdg-linearise-first`, and is NOT the answer. An
+      HDGDiffusionIntegrator on the potential mass form solves the same
+      discrete problem through either route, so applying both to one fixed
+      trace vector must agree to round-off. It does on a conforming mesh --
+      max|diff| 1.1e-13 -- and with the one-sided treatment on amr-quad it is
+      3.9e-01, relative 5.8e-02. Shipping it would have traded a crash for a
+      silent six-percent error. That comparison is the acceptance test for
+      anyone implementing the real expansion: no exact solution, no solve and
+      no tolerance, only the two routes on one mesh.
+
+      **The expansion IS implemented, on `gf-hdg-linearise-first`** --
+      GetNCMasterSlaves(), SetupNCSlaveFace() and one sub-loop per site -- and
+      it is trunk material by the same test this guard is. It has not been
+      lifted because it is written against that branch's TransWorkspace, which
+      this one does not have, so it is a re-expression rather than a
+      cherry-pick. Until it lands, this refuses instead of crashing. */
+   if ((c_nlfi || c_nlfi_p) && HasNCMasterFaces())
+   {
+      {
+         const Mesh *mesh = fes.GetMesh();
+         if (f_2_b.Size() == 0) { f_2_b = mesh->GetFaceToBdrElMap(); }
+         int n_master = 0;
+         for (int f = 0; f < mesh->GetNumFaces(); f++)
+         {
+            int el1, el2;
+            mesh->GetFaceElements(f, &el1, &el2);
+            if (el2 < 0 && f_2_b[f] < 0) { n_master++; }
+         }
+         MFEM_VERIFY(n_master == 0,
+                     "a nonlinear face constraint is not supported on a mesh "
+                     "with hanging nodes: " << n_master << " nonconforming "
+                     "master face(s) carry no second element and no boundary "
+                     "attribute, and the element-local loops have no way to "
+                     "reach the slave faces that carry their coupling. Use a "
+                     "linear face constraint, or a conforming mesh.");
+      }
+   }
 
    // Before anything reads ess_tdof_list: ComputeH() eliminates with it and
    // EliminateTraceTrueDofs() gives it the diagonal policy.
