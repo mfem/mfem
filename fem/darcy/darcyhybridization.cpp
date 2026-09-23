@@ -1705,7 +1705,7 @@ bool DarcyHybridization::AssembleNLFaceGradBatched(const Vector &x) const
 
          D_off[p] = Df_offsets[el];
          // Side 2's E and G blocks follow side 1's, which is the offset
-         // AssembleHDGGrad() computes as c_dofs_size*d_dofs_size.
+         // AssembleHDGGrad() computes from ELEMENT 1's potential dof count.
          const int eg = side ? (LDC * LDD) : 0;
          E_off[p] = E_offsets[f] + eg;
          G_off[p] = G_offsets[f] + eg;
@@ -7422,7 +7422,17 @@ void DarcyHybridization::AssembleHDGGrad(
 
    // assemble E constraint -- clearing on the first writer of this face and
    // side, accumulating after it. See the note in ConstructGrad().
-   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
+   /* **The stride to the SECOND element's block is element 1's potential dof
+      count, not this element's.** They are equal whenever the two neighbours
+      carry the same degree, which was every configuration this tree ran until
+      element degrees could differ. AllocEG() sizes the face at
+      `c * (d(el1) + d(el2))` and GetEFaceMatrix() reads the second block at
+      `d(el1) * c`; a writer striding by its own size disagrees with both.
+      Lifted from the trunk, where it is pinned. Spelled out rather than taken
+      from the accessors because these views are assigned into, and a Reset
+      view is the one thing that must not be handed a SetSize(). */
+   const int d_el1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
+   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_el1);
    DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
    blk.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
    if (!eg_written) { E_f = blk; }
@@ -7494,7 +7504,17 @@ void DarcyHybridization::AssembleHDGGrad(
    // kept only the LAST integrator's blocks on a face reached by several.
    // @a eg_written separates the two: clear on the first writer of this face
    // and side, accumulate after it. See ConstructGrad().
-   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
+   /* **The stride to the SECOND element's block is element 1's potential dof
+      count, not this element's.** They are equal whenever the two neighbours
+      carry the same degree, which was every configuration this tree ran until
+      element degrees could differ. AllocEG() sizes the face at
+      `c * (d(el1) + d(el2))` and GetEFaceMatrix() reads the second block at
+      `d(el1) * c`; a writer striding by its own size disagrees with both.
+      Lifted from the trunk, where it is pinned. Spelled out rather than taken
+      from the accessors because these views are assigned into, and a Reset
+      view is the one thing that must not be handed a SetSize(). */
+   const int d_el1 = Df_f_offsets[FTr->Elem1No+1] - Df_f_offsets[FTr->Elem1No];
+   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_el1);
    DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
    DenseMatrix elmat_EG;
    if (elmat_E.Height() != 0)
