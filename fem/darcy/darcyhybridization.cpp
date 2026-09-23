@@ -1976,7 +1976,9 @@ bool DarcyHybridization::AssembleNLFaceGradBatched(const Vector &x) const
 
             D_off[p] = Df_offsets[el];
             // Side 2's E and G blocks follow side 1's, which is the offset
-            // AssembleHDGGrad() computes as c_dofs_size*d_dofs_size. A SHARED
+            // AssembleHDGGrad() computes from ELEMENT 1's potential dof
+            // count -- LDD here, the batched route having already refused a
+            // non-uniform potential block just above. A SHARED
             // face has no side 2 and AllocEG() sized it for one, so ns == 1
             // keeps this at zero -- which is where the per-pair route leaves
             // that face's blocks too.
@@ -8885,7 +8887,17 @@ void DarcyHybridization::AssembleHDGGrad(
    const int c_eg = (I)?(I->Width()):(c_dofs_size);
    int eg1, eg2;
    fes.GetMesh()->GetFaceElements(f_eg, &eg1, &eg2);
-   const int E_off = (eg1 == el)?(0):(c_eg*d_dofs_size);
+   /* **The stride to the SECOND element's block is element 1's potential dof
+      count, not this element's.** They are equal whenever the two neighbours
+      carry the same degree, which was every configuration this tree ran until
+      element degrees could differ. AllocEG() sizes the face at
+      `c * (d(el1) + d(el2))` and GetEFaceMatrix() reads the second block at
+      `d(el1) * c`; a writer striding by its own size disagrees with both.
+      Lifted from the trunk, where it is pinned; this branch spells the offset
+      out rather than going through the accessors because it addresses the
+      MASTER face and the master's width. */
+   const int d_eg1 = Df_f_offsets[eg1+1] - Df_f_offsets[eg1];
+   const int E_off = (eg1 == el)?(0):(c_eg*d_eg1);
 
    DenseMatrix E_f(&E_data[E_offsets[f_eg] + E_off], d_dofs_size, c_eg);
    blk.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
@@ -8937,8 +8949,13 @@ void DarcyHybridization::SeedLinearEG(int el, int face, int c_dofs_size,
    fes.GetMesh()->GetFaceElements(face, &el1, &el2);
 
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-   // Exactly AssembleHDGGrad()'s offset, and G's is E's.
-   const int off = (el1 == el) ? 0 : (c_dofs_size * d_dofs_size);
+   /* Exactly AssembleHDGGrad()'s offset, and G's is E's -- including its
+      defect, which is how this line came to be wrong too: the stride to the
+      second block is ELEMENT 1's potential dof count. The COPY LENGTH below
+      stays this element's, which is its own block's size and was always
+      right. */
+   const int d_el1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
+   const int off = (el1 == el) ? 0 : (c_dofs_size * d_el1);
    const int n = c_dofs_size * d_dofs_size;
 
    real_t *E_dst = &E_data[E_offsets[face] + off];
@@ -9012,7 +9029,17 @@ void DarcyHybridization::AssembleHDGGrad(
    const int c_eg = (I)?(I->Width()):(c_dofs_size);
    int eg1, eg2;
    fes.GetMesh()->GetFaceElements(f_eg, &eg1, &eg2);
-   const int E_off = (eg1 == el)?(0):(c_eg*d_dofs_size);
+   /* **The stride to the SECOND element's block is element 1's potential dof
+      count, not this element's.** They are equal whenever the two neighbours
+      carry the same degree, which was every configuration this tree ran until
+      element degrees could differ. AllocEG() sizes the face at
+      `c * (d(el1) + d(el2))` and GetEFaceMatrix() reads the second block at
+      `d(el1) * c`; a writer striding by its own size disagrees with both.
+      Lifted from the trunk, where it is pinned; this branch spells the offset
+      out rather than going through the accessors because it addresses the
+      MASTER face and the master's width. */
+   const int d_eg1 = Df_f_offsets[eg1+1] - Df_f_offsets[eg1];
+   const int E_off = (eg1 == el)?(0):(c_eg*d_eg1);
    DenseMatrix E_f(&E_data[E_offsets[f_eg] + E_off], d_dofs_size, c_eg);
    DenseMatrix elmat_EG, elmat_EGI;
    if (elmat_E.Height() != 0)

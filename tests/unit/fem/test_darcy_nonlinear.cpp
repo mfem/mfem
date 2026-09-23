@@ -1599,3 +1599,149 @@ TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",
    INFO("relative ||J dy - fd|| = " << rel);
    REQUIRE(rel < 1e-7);
 }
+
+TEST_CASE("The hybridized gradient is in one numbering on mixed element degrees",
+          "[DarcyHybridization][NonlinearDarcy]")
+{
+   /* Both overloads of DarcyHybridization::AssembleHDGGrad() strode E and G
+      by THEIR OWN element's potential dof count. The second element's block
+      starts after the FIRST element's: AllocEG() sizes a face at
+      c_size * (d_size(el1) + d_size(el2)) and GetEFaceMatrix() reads the
+      second block at d_size(el1) * c_size, so a writer striding by its own
+      size disagrees with both. The two are equal whenever the neighbours
+      carry the same degree, which is every configuration this tree had run.
+
+      Found on gf-hdg-p-adaptivity, where `convdiff -pref` made the degrees
+      differ: 26 Newton iterations at order 2 where every uniform arm takes
+      one, and divergence at order 3, while LBFGS -- which never calls
+      GetGradient() -- reached the same answer. But NOTHING HERE IS
+      p-ADAPTIVITY'S. AssembleHDGGrad() predates every descendant and needs
+      only FiniteElementSpace::SetElementOrder(), which is this branch's, so
+      the defect is reachable here and the pin belongs here.
+
+      The trace stays UNIFORM on purpose: it is the ELEMENT degrees that move.
+      The potential face constraint goes on the NONLINEAR form carrying a
+      LINEAR integrator -- arithmetically inert, so the discrete problem is
+      the one the linear route solves and only the route differs, which is
+      what makes a surviving defect a defect in the route. */
+   const int order = GENERATE(1, 2);
+   const int n = 3;
+   CAPTURE(order);
+
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   const int dim = mesh.Dimension();
+
+   // Variable element order needs the nonconforming representation even with
+   // no hanging node in sight; it is bit-for-bit a no-op at uniform degrees.
+   mesh.EnsureNCMesh();
+
+   L2_FECollection q_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes_q(&mesh, &q_coll, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      if (e % 2 == 0)
+      {
+         fes_q.SetElementOrder(e, order + 1);
+         fes_p.SetElementOrder(e, order + 1);
+      }
+   }
+   fes_q.Update(false);
+   fes_p.Update(false);
+
+   ConstantCoefficient one(1.0);
+
+   DarcyForm darcy(&fes_q, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   darcy.GetPotentialMassNonlinearForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   /* **The local solve's tolerance is the noise floor of the difference
+      below, and the default is nowhere near tight enough.** A central
+      difference at cbrt(eps) resolves about 1e-10 of the residual; a local
+      Newton stopping at its default leaves far more than that, and the first
+      run of this case reported 2.7e-05 and 3.0e-03 WITH the fix in place --
+      which reads exactly like a surviving defect and is not one. */
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-13, 1e-15, -1);
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   const int width = A->Width();
+   REQUIRE(A->Height() == width);
+   REQUIRE(darcy.GetHybridization()->GetEssentialTrueDofs().Size() == 0);
+
+   auto fill = [](Vector &v, real_t shift, real_t scale)
+   {
+      for (int i = 0; i < v.Size(); i++)
+      {
+         v(i) = scale * (std::sin(1.7 * i + shift) + 0.5 * std::cos(0.3 * i));
+      }
+   };
+
+   Vector Y(width), dY(width);
+   fill(Y, 0.0, 0.3);
+   fill(dY, 2.4, 0.5);
+
+   Vector JdY(width);
+   A->GetGradient(Y).Mult(dY, JdY);
+
+   // Central difference, balanced at cbrt(eps); the residual is smooth here.
+   const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+   Vector Yp(Y), Ym(Y), rp(width), rm(width);
+   Yp.Add(h, dY);
+   Ym.Add(-h, dY);
+   A->Mult(Yp, rp);
+   A->Mult(Ym, rm);
+
+   Vector fd(rp);
+   fd -= rm;
+   fd /= (2.0 * h);
+
+   /* The rows the residual does not depend on, found rather than assumed: a
+      third unrelated state, and a row is live if ANY of the three gives it
+      something. They exist because this fixture puts no boundary face
+      integrator on B, which is how the hybridization's constraint reaches a
+      boundary face, so those trace rows are empty and ComputeH()'s
+      EliminateZeroRows() gives them a unit diagonal. Newton is right either
+      way -- its correction there is zero -- but a gradient cannot be
+      differenced against a derivative that does not exist. */
+   Vector Y2(width), r2(width);
+   fill(Y2, 5.1, 0.7);
+   A->Mult(Y2, r2);
+
+   int live = 0;
+   real_t num = 0.0, den = 0.0;
+   for (int i = 0; i < width; i++)
+   {
+      if (rp(i) == 0.0 && rm(i) == 0.0 && r2(i) == 0.0) { continue; }
+      live++;
+      num = std::max(num, std::abs(JdY(i) - fd(i)));
+      den = std::max(den, std::abs(fd(i)));
+   }
+
+   const real_t rel = num / std::max(den, real_t(1.0));
+   INFO("width " << width << ", live rows " << live
+        << ", relative Jacobian error " << rel);
+   REQUIRE(live > width / 3);
+   REQUIRE(rel < 1e-5);
+}
