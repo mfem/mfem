@@ -1535,18 +1535,40 @@ void FillSmooth(Vector &v, real_t shift, real_t scale)
 /// @a probe, when given, is called with the reduced operator instead of a
 /// Newton solve, which is how the Jacobian is compared against the residual
 /// without also depending on the solve converging.
+/// @a elem_hi, when true, raises every OTHER element by one degree and derives
+/// the face degrees from the element degrees, which is what `convdiff -pref`
+/// does. It is a separate axis from @a trace_orders: that one varies the trace
+/// over uniform elements, this one varies the elements.
 NLResult SolveNL(int order, int n, const Array<int> &trace_orders,
                  bool set = true, int trace_ceiling = -1,
-                 std::function<void(Operator &, int)> probe = nullptr)
+                 std::function<void(Operator &, int)> probe = nullptr,
+                 bool elem_hi = false, bool pot_nl = false)
 {
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
                                      1.0, 1.0);
    const int dim = mesh.Dimension();
 
+   // Variable element order needs the nonconforming representation even with
+   // no hanging node in sight: FiniteElementSpace::Construct() refuses it on a
+   // conforming mesh. Bit-for-bit a no-op on the answer at uniform degrees.
+   if (elem_hi) { mesh.EnsureNCMesh(); }
+
    L2_FECollection q_coll(order, dim, BasisType::GaussLobatto);
    L2_FECollection p_coll(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes_q(&mesh, &q_coll, dim);
    FiniteElementSpace fes_p(&mesh, &p_coll);
+
+   Array<int> elem_order(mesh.GetNE());
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      elem_order[e] = order + ((elem_hi && (e % 2 == 0)) ? 1 : 0);
+      if (elem_order[e] != order)
+      {
+         fes_q.SetElementOrder(e, elem_order[e]);
+         fes_p.SetElementOrder(e, elem_order[e]);
+      }
+   }
+   if (elem_hi) { fes_q.Update(false); fes_p.Update(false); }
 
    ConstantCoefficient one(1.0);
    FunctionCoefficient gcoeff(gExact);
@@ -1564,8 +1586,23 @@ NLResult SolveNL(int order, int n, const Array<int> &trace_orders,
    B->AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
 
-   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
-      new HDGDiffusionIntegrator(one, 0.5));
+   /* @a pot_nl routes the SAME integrator to the NONLINEAR potential mass
+      form, which is what `convdiff -nlp` does. The content is linear either
+      way, so the discrete problem does not move and the two arms differ only
+      in the route -- the inert knob this tree's defects have repeatedly been
+      caught by. The route is what matters: it sets c_nlfi_p, and the
+      nonlinear face constraint was the only writer of E and G that strided by
+      its OWN element's dof count instead of element 1's. */
+   if (pot_nl)
+   {
+      darcy.GetPotentialMassNonlinearForm()->AddInteriorFaceIntegrator(
+         new HDGDiffusionIntegrator(one, 0.5));
+   }
+   else
+   {
+      darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+         new HDGDiffusionIntegrator(one, 0.5));
+   }
    darcy.GetPotentialRHS()->AddDomainIntegrator(
       new DomainLFIntegrator(gcoeff, 6, 12));
 
@@ -1575,7 +1612,15 @@ NLResult SolveNL(int order, int n, const Array<int> &trace_orders,
    FiniteElementSpace fes_t(&mesh, &trace_coll);
    darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
 
-   if (set) { darcy.GetHybridization()->SetTraceOrders(trace_orders); }
+   if (elem_hi)
+   {
+      Array<int> derived;
+      DarcyHybridization::FaceOrdersFromElementOrders(
+         mesh, elem_order, DarcyHybridization::TraceOrderRule::Min,
+         (trace_ceiling < 0) ? order : trace_ceiling, derived);
+      darcy.GetHybridization()->SetTraceOrders(derived);
+   }
+   else if (set) { darcy.GetHybridization()->SetTraceOrders(trace_orders); }
 
    darcy.Assemble();
    darcy.GetHybridization()->SetLocalNLSolver(
@@ -1744,6 +1789,92 @@ TEST_CASE("A genuinely non-uniform trace carries a nonlinear solve",
    INFO("half the faces coarsened below their elements moves p by "
         << dp.Normlinf() << " against " << top.p.Normlinf());
    REQUIRE(dp.Normlinf() > 1e-6 * top.p.Normlinf());
+}
+
+TEST_CASE("The reduced nonlinear gradient and residual are in one numbering "
+          "on MIXED ELEMENT DEGREES",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   /* The case above varies the TRACE over uniform elements and passes. This
+      one varies the ELEMENTS, which is `convdiff -pref`'s other half, and it
+      is the axis nothing had ever driven: every `_nc_` reference in the suite
+      is nonlinear-or-hybridized and never both, and the p-adaptivity cases
+      here carry no nonlinear form at all.
+
+      The symptom it was written from is a solve rather than a crash, which is
+      exactly why it needs a direct check. `convdiff -p 1 -dg -hb -nlp -pref 1
+      -prefx 0.5` converges in 26 Newton iterations at order 2 where every
+      uniform arm takes 1, and DIVERGES at order 3 -- while LBFGS, which never
+      calls GetGradient(), reaches the same answer to five digits at both. The
+      residual is right and the gradient is not, and the miniapp's residual
+      history says so on its own: 1.216e-05, 6.926e-06, 3.923e-06, 2.232e-06,
+      1.265e-06 is a FIXED linear rate of 0.567, which is a systematically
+      wrong step direction rather than a hard problem. */
+   const int order = GENERATE(1, 2);
+   const int n = 3;
+   CAPTURE(order);
+
+   Array<int> unused;
+   real_t rel = -1.0;
+   int width = -1;
+
+   SolveNL(order, n, unused, false, order + 1,
+           [&](Operator &A, int n_ess)
+   {
+      width = A.Width();
+      REQUIRE(A.Height() == width);
+
+      Vector X(width);
+      FillSmooth(X, 0.0, 0.3);
+      Vector dX(width);
+      FillSmooth(dX, 2.4, 0.5);
+      REQUIRE(n_ess == 0);
+
+      Vector JdX(width);
+      A.GetGradient(X).Mult(dX, JdX);
+
+      const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+      Vector Xp(X), Xm(X), rp(width), rm(width);
+      Xp.Add(h, dX);
+      Xm.Add(-h, dX);
+      A.Mult(Xp, rp);
+      A.Mult(Xm, rm);
+
+      Vector fd(rp);
+      fd -= rm;
+      fd /= (2.0 * h);
+
+      Vector X2(width), r2(width);
+      FillSmooth(X2, 5.1, 0.7);
+      A.Mult(X2, r2);
+
+      int live = 0;
+      real_t num = 0.0, den = 0.0;
+      for (int i = 0; i < width; i++)
+      {
+         if (rp(i) == 0.0 && rm(i) == 0.0 && r2(i) == 0.0) { continue; }
+         live++;
+         num = std::max(num, std::abs(JdX(i) - fd(i)));
+         den = std::max(den, std::abs(fd(i)));
+      }
+      /* The sibling case above requires half the rows live, which is ITS
+         geometry: 3x3 quads have twelve boundary faces and twelve interior
+         ones and the boundary rows are empty. Here the coarse faces carry
+         fewer unknowns than the ceiling's slots, so the live fraction is
+         lower -- 24 of 56 at order 1 and 36 of 80 at order 2 -- and copying
+         that bound would be asserting the other case's mesh. What matters is
+         that a substantial set of rows can be differenced at all. */
+      INFO("live rows " << live << " of " << width);
+      REQUIRE(live > width / 3);
+      rel = num / std::max(den, real_t(1.0));
+   }, true, true);
+
+   INFO("width = " << width << ", relative Jacobian error " << rel);
+   REQUIRE(width > 0);
+   REQUIRE(rel >= 0.0);
+   REQUIRE(rel < 1e-5);
 }
 
 TEST_CASE("The reduced nonlinear gradient and residual are in one numbering",

@@ -3600,13 +3600,23 @@ void DarcyHybridization::AssembleHDGGrad(
    D += elmat_D;
 
    // assemble E constraint
-   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
-   DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
+   /* **The second element's block starts after the FIRST element's, so the
+      stride is element 1's potential dof count and not this element's.** They
+      are equal whenever the two neighbours carry the same degree, which is
+      every configuration in this tree but a `p`-adaptive one -- so this was
+      invisible until element degrees could differ. AllocEG() sizes the face
+      at `c_size * (d_size(el1) + d_size(el2))` and GetEFaceMatrix() reads the
+      second block at `d_size(el1) * c_size`; a writer that strides by its own
+      size disagrees with both. Taken from the accessors rather than
+      recomputed, so there is one place that knows the layout. */
+   const int side = (FTr->Elem1No == el) ? 0 : 1;
+   DenseMatrix E_f;
+   GetEFaceMatrix(f, side, E_f);
    E_f.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
 
    // assemble G constraint
-   const int G_off = E_off;
-   DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
+   DenseMatrix G_f;
+   GetGFaceMatrix(f, side, G_f);
    G_f.CopyMN(elmat, c_dofs_size, d_dofs_size, d_dofs_size, 0);
 
    // assemble H matrix
@@ -3664,16 +3674,20 @@ void DarcyHybridization::AssembleHDGGrad(
    // file overwrites them. Accumulating here made GetGradient depend on how
    // many times it had been called: the second Newton step of a hybridized
    // nonlinear system got a doubled E and G, and the iteration diverged.
-   const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
-   DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
+   // Through the accessors, for the reason on the scalar overload above: the
+   // second element's block is offset by ELEMENT 1's potential dof count, and
+   // an offset spelled out here would be a second place to get it wrong.
+   const int side = (FTr->Elem1No == el) ? 0 : 1;
+   DenseMatrix E_f;
+   GetEFaceMatrix(f, side, E_f);
    if (elmat_E.Height() != 0)
    {
       E_f.CopyMN(elmat_E, d_dofs_size, c_dofs_size, 0, 0);
    }
 
    // assemble G constraint
-   const int G_off = E_off;
-   DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
+   DenseMatrix G_f;
+   GetGFaceMatrix(f, side, G_f);
    if (elmat_G.Height() != 0)
    {
       G_f.CopyMN(elmat_G, c_dofs_size, d_dofs_size, 0, 0);

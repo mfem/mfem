@@ -598,33 +598,70 @@ The trunk-material part is small — route the three sites through
 operation across five branches, with `ReducedGradient()` to add on the two
 that have it. Not done here.
 
-### What the repair uncovered, and it is NOT the trace numbering
+### What the repair uncovered: a wrong Jacobian, and it is TRUNK material
 
-`convdiff -p 1 -dg -hb -nl -nls 3 -pref 1` now runs, and at order 2 it takes
-**26** Newton iterations where every uniform configuration takes 1; at order 3
-it diverges to 3.3e+112. That is not the constrained trace, and `-prefx` says
-so in one sweep, all at `-o 2 -nx 8`:
+**FIXED.** `convdiff -p 1 -dg -hb -nl -nls 3 -pref 1 -prefx 0.5` took **26**
+Newton iterations at order 2 where every uniform configuration takes 1, and
+diverged to 3.3e+112 at order 3. It now takes **one** at both, on the same
+answer. The defect is two lines in `DarcyHybridization::AssembleHDGGrad()`,
+both overloads: they strode E and G by **their own element's** potential dof
+count where `AllocEG()` sizes the face and `GetEFaceMatrix()` reads it by
+**element 1's**. The two are equal whenever the neighbours carry the same
+degree, which is every configuration in this tree but a `p`-adaptive one.
 
-| `-prefx` | elements refined | trace | Newton |
+The account is on the routine. The pin is "The reduced nonlinear gradient and
+residual are in one numbering on MIXED ELEMENT DEGREES" in
+`tests/unit/fem/test_darcy_padapt.cpp`, which reports a relative Jacobian
+error of **0.152 at order 1 and 0.167 at order 2** without the fix and under
+1e-5 with it.
+
+**It is not p-adaptivity's defect and the two lines are not this branch's.**
+`AssembleHDGGrad()` predates every descendant and carries the same expression
+on `gf-hdg-dev`, `gf-hdg-subdomains-dev` and `gf-interp-hdg-dev`, and
+`gf-hdg-linearise-first` inherits it a third time in `SeedLinearEG()`, whose
+comment says so ("Exactly AssembleHDGGrad()'s offset"). Checked with
+`git show <branch>:fem/darcy/darcyhybridization.cpp`, not reasoned about.
+This branch is merely the only one that can REACH it, mixed element degrees
+being what it exists to produce. **The lift is owed and is not done here** --
+the documented method applies: cherry-pick onto `gf-hdg-dev`, then merge out,
+never rebase.
+
+**The attribution that stood here was wrong in both halves and is withdrawn.**
+It read "so it is the nonlinear FLUX on a variable-order element space", from
+`-nld` being untouched. Two arms it never ran say otherwise:
+
+| arm | what it puts on the nonlinear form | mixed elements | uniform, no `-pref` |
 |---|---|---|---|
-| 0.0 | **0 of 64** | constrained, 432 of 576 dofs active | **1** |
-| 1.01 | **64 of 64** | uniform at the ceiling, 576 of 576 | **1** |
-| 0.5 | 32 of 64 | mixed, 500 of 576 | **26** |
+| `-nlp` | the potential mass, LINEAR content | **26 / diverges** | 1 |
+| `-nlu` | the flux mass, LINEAR content | NaN | **NaN** |
+| `-nld` | `MixedConductionNLFIntegrator` | 1 | 1 |
 
-The first row is the one that matters: the constraint is fully active — a
-quarter of the ceiling's slots are gone — with uniform elements, and Newton
-converges in one step. The second has the whole mesh refined and a uniform
-trace. Only the row with MIXED ELEMENT DEGREES misbehaves, and `-nld` alone is
-untouched by it (1 iteration even at order 3), so it is the nonlinear FLUX on
-a variable-order element space.
+`-nlp` reproduces the whole thing on its own, so the flux was never necessary;
+and `-nlu` fails on a plain uniform mesh with **no `-pref` at all**, so that
+arm cannot have been about variable element degrees either. It is a separate,
+pre-existing failure -- problem 1 with `-dg -hb`, a configuration no reference
+covers -- and it is NOT chased here; `p2_o2_dg_hb_upwind_nlu_newton` passes,
+so it is problem-dependent rather than a broken route.
+
+**`-nlp` and `-nlu` are the sharp form of the reproduction because they are
+arithmetically INERT**: both put a LINEAR integrator on a nonlinear form, so
+the discrete problem does not move and only the route changes. The answer is
+the linear route's to six digits in every arm that completes. A defect that
+survives an inert knob is a defect in the route, which is what took this
+from "a nonlinear solve on variable element degrees" to two lines of
+addressing.
+
+**And the residual was never wrong.** LBFGS never calls `GetGradient()`, and
+it reaches the same answer to five digits at order 2 and the correct answer at
+order 3 where Newton diverges. The miniapp's own residual history said so
+before any code was read: 1.216e-05, 6.926e-06, 3.923e-06, 2.232e-06,
+1.265e-06 is a **fixed linear rate of 0.567**, which is a systematically wrong
+step direction and not a hard problem.
 
 The standalone probe agrees from the other side: with uniform elements and a
 genuinely non-uniform trace, Newton converges in **5 iterations to 1e-15** at
-orders 1, 2 and 3.
-
-So what is left here is a question about a nonlinear local solve on variable
-ELEMENT degrees, which is `-pref`'s other half and was unreachable while the
-trace numbering crashed first.
+orders 1, 2 and 3 -- that axis was always sound, which is why the trace was
+the wrong place to look.
 
 ## What this route does not do
 
