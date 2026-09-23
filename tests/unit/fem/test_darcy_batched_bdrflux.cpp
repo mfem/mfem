@@ -22,9 +22,13 @@ namespace darcy_batched_bdrflux
     NON-SYMMETRIC coupling of the vdim components.
 
     It discretises nothing, and it has to be written here because there is
-    nothing in the library to use instead. **No BilinearFormIntegrator in MFEM
+    nothing ON THIS BRANCH to use instead. **No BilinearFormIntegrator in MFEM
     returns the one-sided element block of a vector flux space on a boundary
-    face**: BoundaryMassIntegrator is a scalar MassIntegrator, so on an L2
+    face, and the one exception is gf-hdg-subdomains-dev's
+    HDGExtensionIntegrator**, which cannot be reached from here -- so this
+    case is the only coverage the batched pass has and will stay so until
+    those two branches meet somewhere that runs a suite. On the library's own
+    classes: BoundaryMassIntegrator is a scalar MassIntegrator, so on an L2
     space with vdim = dim it produces a block vdim times too small in each
     direction and DarcyForm::AssembleFluxMassBdrFaces()'s own MFEM_VERIFY
     rejects it, while an H(div) space has no scalar shape for it to evaluate

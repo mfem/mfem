@@ -743,9 +743,7 @@ static void CheckRestrictedFluxAgreement(MixedBilinearForm *B,
 bool DarcyForm::CanThreadAssembly() const
 {
 #if defined(MFEM_USE_OPENMP) && defined(MFEM_DARCY_HYBRIDIZATION_ELIM_BCS)
-   if (!hybridization ||
-       hybridization->GetAssemblyMode() !=
-       DarcyHybridization::AssemblyMode::Threaded ||
+   if (!hybridization || !hybridization->ThreadHostLoops() ||
        !hybridization->GetIntegratorsThreadSafe())
    {
       return false;
@@ -2423,9 +2421,7 @@ const
       and the two convection integrators -- are all behind
       `#ifndef MFEM_THREAD_SAFE`, checked rather than assumed, and
       AssemblyMode::Threaded already refuses a build without it. */
-   const bool threaded =
-      (h.GetAssemblyMode() == DarcyHybridization::AssemblyMode::Threaded)
-      && h.GetIntegratorsThreadSafe();
+   const bool threaded = h.ThreadHostLoops() && h.GetIntegratorsThreadSafe();
 
    if (!threaded)
    {

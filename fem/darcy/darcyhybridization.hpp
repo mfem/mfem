@@ -1117,7 +1117,7 @@ private:
        colouring covers it whatever the flux space is. */
    bool CanThreadFieldLoop() const
    {
-      return asm_mode == AssemblyMode::Threaded && FieldDofsAreElementLocal();
+      return ThreadHostLoops() && FieldDofsAreElementLocal();
    }
 
    FaceElementTransformations *GetFaceTransformation(int f) const;
@@ -2185,6 +2185,74 @@ public:
    /// The promise made by SetIntegratorsThreadSafe(), false unless made.
    bool GetIntegratorsThreadSafe() const { return integ_thread_safe; }
 
+   /** @brief Whether the element-local HOST loops may run in parallel.
+
+       **AssemblyMode::Batched is not a promise that everything reaches a
+       kernel, and the loops it leaves behind used to fall back to SERIAL
+       rather than to the loop AssemblyMode::Threaded would have run.** That
+       is the whole content of this predicate. The kernels cover one
+       configuration at a time -- a genuinely nonlinear element integrand has
+       none, and CanBatchLinearResidual() refuses outright for it -- so a
+       caller asking for the device gave up host threading on every leg the
+       device did not take, silently and by construction.
+
+       **Measured by MEQ, on 4848 triangles at k = 2 with eight threads**,
+       which is the configuration that named it: of six legs exactly one
+       moved, and the other five fell from 6.81, 6.54, 4.70 and 3.35 cores to
+       **1.00**, for 2.14x slower end to end. That is not a throughput result
+       and it is not the kernels; it is this test.
+
+       **The two modes ask the same question of the build and a different
+       question of the caller.** SetIntegratorsThreadSafe() governs only the
+       loops that evaluate the caller's integrators, exactly as before, and
+       this predicate is not where that is decided -- CanThreadAssembly(),
+       DarcyForm::ReconstructFluxAndPot() and MultNL() each ask for the
+       promise themselves, because each knows whether its own loop reaches an
+       integrator. What differs is the ANSWER when the promise is missing and
+       the loop does reach one: Threaded aborts, because a caller asking for
+       it is asking a performance question and a silent downgrade answers it
+       wrongly; Batched falls back to the serial loop, because that caller
+       asked for kernels and never mentioned threads. Batched's convention is
+       silent fallback throughout and this keeps it.
+
+       The build guard is the same for both and is what SetAssemblyMode()
+       already aborts Threaded for, so adding it here changes nothing for
+       that mode and is the whole of the condition for this one.
+
+       **AND A CONFIGURED DEVICE REFUSES BOTH, WHICH IS MEASURED AND IS NOT
+       CAUTION.** MFEM's memory bookkeeping is live only when a non-host
+       backend is configured -- with none, a host Vector is plain new/delete
+       and there is no map to corrupt -- and it is not thread-safe. Under
+       `Device("debug")` at four threads the batched face kernel's own
+       [DebugDevice] case dies in
+       `std::__throw_out_of_range` from `MmuHostMemorySpace::Dealloc`, thrown
+       out of a destructor and so reaching `terminate` rather than an
+       assertion. A/B, one line, same binary otherwise: **15 of 15 cases pass
+       at one thread and at four with these loops serial, and at four with
+       them threaded the run aborts.** MEQ report the same family from a real
+       CUDA build with AssemblyMode::Threaded --
+       "alias pointer is not registered" out of
+       `MemoryManager::CheckHostMemoryType_` -- which is the other end of the
+       same map.
+
+       Every threaded loop here builds PER-THREAD scratch inside the parallel
+       region, which is the whole reason the regions are written as they are,
+       so the allocation cannot simply be hoisted; making the combination work
+       is a piece of work in `general/mem_manager.cpp` and not here. Until it
+       is done this returns false rather than letting either mode corrupt a
+       map, and SetAssemblyMode() says so once for the caller who asked for
+       Threaded and is not getting it. */
+   bool ThreadHostLoops() const
+   {
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+      if (Device::Allows(Backend::DEVICE_MASK)) { return false; }
+      return asm_mode == AssemblyMode::Threaded
+             || asm_mode == AssemblyMode::Batched;
+#else
+      return false;
+#endif
+   }
+
    /** @brief Can MultNL()'s element loop evaluate a nonlinear integrator at
        all, for any mode? Equivalently: does AssemblyMode::Threaded need
        SetIntegratorsThreadSafe() on this problem?
@@ -2423,13 +2491,29 @@ public:
        difference is forced rather than chosen.** That routine dispatches on
        three known HDG integrator families and evaluates their quadrature on
        the device, because a potential-mass constraint is one of those three.
-       A flux-mass boundary face integrator belongs to no family at all: there
-       is no BilinearFormIntegrator in the library whose AssembleFaceMatrix()
-       returns the one-sided block of a vector L2 or an H(div) flux space, so
-       nothing can be dispatched on. What is batched here is therefore the
-       SCATTER -- the mask that splits an element's block between Af and Ae --
-       and the integrator is still evaluated on the host, one face at a time,
-       exactly as the loop this replaces does it.
+       A flux-mass boundary face integrator belongs to no family at all:
+       there is no BilinearFormIntegrator ON THIS BRANCH whose
+       AssembleFaceMatrix() returns the one-sided block of a vector L2 or an
+       H(div) flux space, so nothing can be dispatched on. What is batched
+       here is therefore the SCATTER -- the mask that splits an element's
+       block between Af and Ae -- and the integrator is still evaluated on
+       the host, one face at a time, exactly as the loop this replaces does
+       it.
+
+       **That qualifier was absent and the sentence was false as a claim
+       about the library.** mfem::HDGExtensionIntegrator on
+       gf-hdg-subdomains-dev is precisely such a class, MEQ install it on
+       every curved and free-boundary problem, and it meets this routine for
+       the first time in their integration tree. Being dispatch-free is what
+       makes that safe: this pass asks the integrator for an element block
+       and nothing else, so an integrator it has never seen needs only to
+       satisfy the size MFEM_VERIFY below, which that one does.
+
+       And the host integrand is not the residency problem it looks like.
+       This is a BILINEAR form, assembled once, and the blocks it writes are
+       written by the kernel and never brought back for it -- which is what
+       the paragraph below is about. What a device would save is a setup
+       cost, not a per-step one.
 
        That still buys the thing the loop cost: the block arrays are written
        by a kernel and are never brought to the host in the middle of the flux

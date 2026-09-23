@@ -237,6 +237,26 @@ protected:
        (tests/unit/fem/test_darcy_hybridization.cpp and
        test_darcy_reconstruction.cpp), and the batched pass adds a third.
 
+       @note **"IN THIS TREE" IS DOING REAL WORK IN THE NOTE ABOVE, AND ONE
+       BRANCH FALSIFIES IT.** mfem::HDGExtensionIntegrator, on
+       gf-hdg-subdomains-dev, is exactly the class the paragraph says the
+       library does not contain: a BilinearFormIntegrator whose
+       AssembleFaceMatrix() returns `elmat.SetSize(dof * dim)` over the
+       adjacent element alone, registered with
+       GetFluxMassForm()->AddBdrFaceIntegrator() on a marker, and it is what
+       this routine was written for in the first place. MEQ install it on
+       every curved and free-boundary problem they run, so in their
+       integration tree this path is not merely reachable, it is the
+       production one.
+
+       Two consequences that only exist where the branches meet. The size
+       MFEM_VERIFY in AssembleFluxMassBdrMatricesBatched() is satisfied by
+       that class -- checked by reading extension_hdg.cpp, since neither
+       branch alone can run the pair -- and the batched pass is
+       integrator-agnostic by construction, so it needs nothing from that
+       class and that class needs nothing from it. What neither branch can
+       do is TEST the combination, and nothing has.
+
        @note **And it is not called at all in parallel.**
        ParDarcyForm::Assemble() has the element loop but no boundary flux mass
        pass, so a boundary face integrator on pM_u is silently dropped on more

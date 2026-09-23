@@ -20,6 +20,8 @@
 //    hdgperf                             the baseline: every option off
 //    hdgperf -thr -nt 8                  threaded element loops, 8 threads
 //    hdgperf -thr -nt 8 -lfac 1 -tasm 1  and the batched local/trace routes
+//    hdgperf -bam -nt 8                  the DEVICE assembly mode, whose
+//                                        fallbacks are threaded too
 //    hdgperf -n 96 -o 2                  a smaller case, for a quick check
 //
 // WHAT THIS IS, and what it deliberately is not.
@@ -149,6 +151,27 @@
 // **err_t is 5.691711e-12 at 1, 2, 4 and 8 threads, identical**, which is
 // the assertion that the configuration being timed is one whose answer does
 // not depend on the thread count.
+//
+// **AND THE SAME TABLE UNDER -bam, WHICH IS WHY THAT OPTION EXISTS HERE.**
+// AssemblyMode::Batched is one value of the same key as Threaded, so asking
+// for the device kernels used to mean asking for SERIAL everywhere a kernel
+// did not reach -- and on a genuinely nonlinear element integrand no kernel
+// does. `-n 96 -o 2 -lin -npc -cols 16`, MKL_NUM_THREADS=1, seconds, the
+// -no-thr row being the control that must NOT move:
+//
+//                      nt=1    nt=8   speedup
+//     -bam  computeH   0.529   0.291   1.82x
+//     -bam  npctrav    0.157   0.041   3.83x
+//     -bam  bordered   0.372   0.090   4.13x
+//     -thr  bordered   0.364   0.088   4.14x   <-- the same, as it should be
+//     -no-thr bordered 0.352   0.358   0.98x   <-- flat: the control
+//
+// Before ThreadHostLoops() the -bam row WAS the -no-thr row, measured the
+// same way on the same binary with one line changed: 0.346 at one thread and
+// 0.341 at eight. `err_q` does not move with the thread count in any row.
+// `bordered` is the multi-right-hand-side NPCRecover, which is where a
+// bordered Newton spends its traversal time and where MEQ measure 30.6% of
+// a step.
 //
 // `npctrav` is NPCReduce + NPCRecover, threaded this session and previously
 // the flattest column on the table. What is left flat is the two ends:
@@ -368,6 +391,7 @@ int main(int argc, char *argv[])
    real_t td = 0.5;
    int nthreads = 0;
    bool threaded = false;
+   bool batched_asm = false;
    int local_factor_mode = -1;
    int trace_asm_mode = -1;
    int gradient_mode = -1;
@@ -406,6 +430,14 @@ int main(int argc, char *argv[])
                   "several OpenMP threads. The scatter into the trace matrix "
                   "stays serial and ordered. Needs an MFEM_USE_OPENMP and "
                   "MFEM_THREAD_SAFE build and aborts without one.");
+   args.AddOption(&batched_asm, "-bam", "--batched-assembly",
+                  "-no-bam", "--no-batched-assembly",
+                  "DarcyHybridization::AssemblyMode::Batched -- the element "
+                  "and face blocks through device kernels where one exists. "
+                  "Mutually exclusive with -thr, the mode being one key. The "
+                  "loops no kernel covers still run on OpenMP threads under "
+                  "the same promise -thr needs, which is what makes this "
+                  "measurable on a host; see ThreadHostLoops().");
    args.AddOption(&nthreads, "-nt", "--num-threads",
                   "omp_set_num_threads(). Zero leaves the environment's "
                   "OMP_NUM_THREADS alone. Note this retunes MKL too in a "
@@ -469,6 +501,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
+
+   MFEM_VERIFY(!(threaded && batched_asm),
+               "-thr and -bam both set DarcyHybridization::AssemblyMode, "
+               "which is one key; pick one.");
 
    kappa = k;
    linear_problem = linear;
@@ -663,6 +699,16 @@ int main(int argc, char *argv[])
          if (linear_problem) { dh->SetIntegratorsThreadSafe(true); }
          dh->SetAssemblyMode(DarcyHybridization::AssemblyMode::Threaded);
       }
+      if (batched_asm)
+      {
+         // The same promise, for the same reason and on the same arm: under
+         // Batched the loops no kernel covers are the loops -thr threads, so
+         // whether they may is the same question. It is a CONDITION here
+         // rather than an obligation -- without it those loops run serially
+         // and nothing aborts, which is Batched's convention throughout.
+         if (linear_problem) { dh->SetIntegratorsThreadSafe(true); }
+         dh->SetAssemblyMode(DarcyHybridization::AssemblyMode::Batched);
+      }
       if (local_factor_mode >= 0)
       {
          dh->SetLocalFactorMode(local_factor_mode == 1
@@ -829,8 +875,11 @@ int main(int argc, char *argv[])
               << "  ------------------------------------------------------\n";
          const bool lfac_on = (local_factor_mode == 1);
          const bool tasm_on = (trace_asm_mode == 1);
-         Say("element loops", threaded, true,
-             "OpenMP threads", "", "one thread");
+         // ASKED OF THE LIBRARY, not of the request: -bam threads the loops
+         // its kernels do not cover, so "which mode" and "did it thread" are
+         // two questions and the ledger answers the second.
+         Say("element loops", threaded || batched_asm, dh->ThreadHostLoops(),
+             "OpenMP threads", "one thread", "one thread");
          Say("local factorisation", lfac_on, dh->CanBatchLocalFactor(),
              "batched", "per element", "per element");
          Say("local solves", lfac_on, dh->CanBatchLocalSolve(),
@@ -878,6 +927,7 @@ int main(int argc, char *argv[])
         << " n=" << n
         << " order=" << order
         << " thr=" << (threaded ? 1 : 0)
+        << " bam=" << (batched_asm ? 1 : 0)
         << " nt=" << nthreads
         << " lfac=" << local_factor_mode
         << " tasm=" << trace_asm_mode

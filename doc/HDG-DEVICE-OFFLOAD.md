@@ -80,11 +80,47 @@ still host is the WEIGHT loop in front of it**, and that loop is not bound by
 anything the original plan proposed to fix — attributed by ablation inside
 `HDGFaceScatterBatched`, not by reading.
 
-## Tier 3 — a user's integrator. BLOCKED, and outside `fem/darcy`
+## Tier 3 — a user's integrator. BLOCKED, and it is the ONLY thing left for a real caller
 
 A genuinely user-supplied nonlinear integrator cannot be batched without an
 interface it does not have. If a genuinely nonlinear mass slot ever appears,
 the notes for it are on the `CanBatch*` predicate it would have to satisfy.
+
+**It has appeared, and the sizing is now measured rather than hypothetical.**
+MEQ's Grad-Shafranov solver is the caller: `VectorMassIntegrator(R)` on the
+flux mass, `VectorDivergenceIntegrator` on the divergence, and their own
+`meq::SourceIntegrator` -- `F(R, z, psi)`, pointwise and genuinely nonlinear
+-- as the whole potential block on `Mnl_p`, with `M_p` null. Standing that
+shape up and asking every predicate (the probe is in this session's
+scratchpad, not the tree):
+
+| predicate | fires |
+|---|---|
+| `CanBatchFluxMass` | **yes** |
+| `CanBatchDiv` | **yes** |
+| `CanBatchPotFaceAssembly`, `CanBatchPotBdrFaceAssembly` | **yes** |
+| `CanBatchLocalFactor`, `CanBatchLocalSolve`, `CanBatchTraceAssembly` | **yes** |
+| `CanBatchPotMass` | no, and correctly: `M_p` is null |
+| `CanBatchLinearResidual` | **no** |
+| `CanBatchNLFaceResidual`, `CanBatchNLFaceGrad` | no, and correctly: their face constraint is linear |
+
+So **the element-local block assembly asked for as "a route from hybridized
+assembly to the batched kernels" already exists and that caller already
+reaches it** -- `AssembleFluxMassMatricesBatched()` and
+`AssembleDivMatricesBatched()`, behind `AssemblyMode::Batched`. The single
+refusal is `CanBatchLinearResidual()`, on
+`if (m_nlfi_p && !HDGIntegratorIsLinear(m_nlfi_p))`, which is Tier 3 exactly.
+Doubly determined, and worth knowing before anyone relaxes one half: that
+caller is also `LocalOpType::PotNL`, which the clause two below refuses on its
+own.
+
+What the interface has to carry, from that caller's side: the law as a POD
+plus a `MFEM_HOST_DEVICE` evaluation of `F` and `F'` at a point. The half that
+is ours is a way for a `NonlinearFormIntegrator` to offer that at all --
+`AssembleElementVector`/`AssembleElementGrad` are host virtuals over dense
+element data and there is nothing to dispatch on. **Not designed here, and
+deliberately: the shape of it is decided by what a caller can actually
+supply, and there is now exactly one caller to ask.**
 
 ## The gate, before any further step
 
@@ -94,6 +130,27 @@ iteration copies the local blocks host↔device around host-side integrator
 work — plausibly slower than staying on the host throughout, which is where
 this already runs well. **The device story is worth continuing only if the
 integrators are going to be finished.**
+
+**The gate was right and the arithmetic behind it was incomplete, and MEQ
+measured the difference.** A partial offload is not merely "no faster", it was
+**2.14x SLOWER** on 4848 triangles at eight threads — and most of that was not
+the copies the gate is about. `AssemblyMode` is ONE key, so asking for the
+kernels asked for `Serial` everywhere a kernel did not reach, and five legs
+fell from 6.81, 6.54, 4.70 and 3.35 cores to **1.00**. That half is fixed:
+`ThreadHostLoops()` threads the fallbacks, worth 1.82x / 3.83x / 4.13x on
+`computeH` / `npctrav` / the bordered traversal here, with the `Serial` row
+flat as the control.
+
+**Threading them is refused when a Device is configured, and that is the new
+gate.** MFEM's memory bookkeeping is live only under a non-host backend and is
+not thread-safe: `Device("debug")` at four threads dies in
+`MmuHostMemorySpace::Dealloc`, and MEQ hit the same map under CUDA from
+`CheckHostMemoryType_`. So on a device the fallbacks are serial exactly as
+before and the gate's arithmetic stands there unchanged. **Making the
+combination work is a piece of work in `general/mem_manager.cpp`**, not here,
+and it is now the cheapest large win available to a device caller — every
+threaded loop in this file builds per-thread scratch inside the parallel
+region, so there is nothing to hoist.
 
 ## Two items larger than anything here, and neither is an offload item
 

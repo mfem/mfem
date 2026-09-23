@@ -3457,7 +3457,7 @@ int DarcyHybridization::AssemblyChunkSize(int NE) const
    // chunks is not the synchronisation point.
    int chunk = 256;
 #ifdef MFEM_USE_OPENMP
-   if (asm_mode == AssemblyMode::Threaded)
+   if (ThreadHostLoops())
    {
       chunk = std::max(chunk, 8 * omp_get_max_threads());
    }
@@ -5776,8 +5776,10 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
          real_t * const Hbuf =
             (Hel_data.Size() > 0) ? Hel_data.HostWrite() : NULL;
 
+         const bool thread_h_loop = ThreadHostLoops();
+         MFEM_CONTRACT_VAR(thread_h_loop);
 #ifdef MFEM_USE_OPENMP
-         #pragma omp parallel if (asm_mode == AssemblyMode::Threaded)
+         #pragma omp parallel if (thread_h_loop)
 #endif
          {
             // PER THREAD, and that is the whole reason this is a `parallel`
@@ -6344,7 +6346,21 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
    // Serial keeps the original element order exactly, so its answer is the one
    // it always was; threaded walks the colours, and within a colour no two
    // elements share a face. See BuildElementColouring().
-   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   //
+   // **AssemblyMode::Batched declines here where Threaded aborts below**, and
+   // the two have to be decided in different places because the colouring is
+   // built from this flag while the abort needs `ad_done`, which
+   // CopyLinearGradBlocks() has not produced yet and which it produces by
+   // COPYING. So the question is asked twice, once conservatively: with
+   // `ad_done` false ThreadedLoopEvaluatesIntegrators() returns the LARGER of
+   // its two answers, which is the safe one to refuse threading on. The cost
+   // is that a Batched caller with no promise loses the colouring on a
+   // problem where ad_done would have turned the element integrator off --
+   // serial, which is where that caller already was.
+   const bool threaded =
+      ThreadHostLoops()
+      && (integ_thread_safe || asm_mode == AssemblyMode::Threaded
+          || !ThreadedLoopEvaluatesIntegrators(mode, false));
    if (threaded) { BuildElementColouring(); }
    const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
 
@@ -8094,6 +8110,29 @@ void DarcyHybridization::SetAssemblyMode(AssemblyMode mode)
                  "GetElementFaces() keeps its orientation scratch in a "
                  "function-local static that every thread would share.");
 #endif
+      // WARNED rather than aborted, and the asymmetry from the two above is
+      // that those are properties of the BUILD while this is a property of a
+      // Device the caller may well have configured for something else -- a
+      // trace solve on cuDSS, say. Aborting would refuse a configuration that
+      // is otherwise sound and merely runs these loops serially.
+      //
+      // Said once, because the alternative is a caller who asked for threads,
+      // did not get them, and has no way to find out but to time it. See
+      // ThreadHostLoops() for what was measured.
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         static bool warned = false;
+         if (!warned)
+         {
+            warned = true;
+            MFEM_WARNING("AssemblyMode::Threaded has been declined because a "
+                         "Device is configured: MFEM's memory bookkeeping is "
+                         "live only then and is not thread-safe, and these "
+                         "loops build per-thread scratch inside the parallel "
+                         "region. The element-local loops run serially; every "
+                         "answer is unchanged. See ThreadHostLoops().");
+         }
+      }
    }
 
    asm_mode = mode;
@@ -9240,7 +9279,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    // This loop scatters into the TRACE, so unlike the field loops it needs
    // the colouring -- and unlike them it is then safe whatever the flux space
    // is. Serial keeps the original element order exactly.
-   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   const bool threaded = ThreadHostLoops();
    if (threaded) { BuildElementColouring(); }
    const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
 
@@ -9646,7 +9685,7 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
    // built, so the shared-scratch race that SetAssemblyMode() refuses
    // AssemblyMode::Threaded for cannot arise here. That is why this is gated
    // on asm_mode alone and needs no ad_done.
-   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   const bool threaded = ThreadHostLoops();
    if (threaded) { BuildElementColouring(); }
    const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
 
@@ -9918,7 +9957,7 @@ void DarcyHybridization::NPCReduce(const Array<const BlockVector *> &r,
    // dofs. **This overload is the one a bordered Newton spends its time in**:
    // the traversal is O(elements x columns) where the integrator-bound legs
    // are O(elements), so the columns multiply this loop and nothing else.
-   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   const bool threaded = ThreadHostLoops();
    if (threaded) { BuildElementColouring(); }
    const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
 
@@ -10447,8 +10486,7 @@ void DarcyHybridization::ReconstructTotalFlux(
       all, which this branch has measured on other loops and which is a
       property of the region rather than of this routine. The scaling is
       the same shape DarcyForm::ReconstructFluxAndPot() shows. */
-   bool threaded =
-      (GetAssemblyMode() == AssemblyMode::Threaded) && GetIntegratorsThreadSafe();
+   bool threaded = ThreadHostLoops() && GetIntegratorsThreadSafe();
 #ifdef MFEM_USE_MPI
    /* A shared face reads pu/pp's FaceNbrData, which is fine, and calls
       ParMesh::GetSharedFaceTransformationsByLocalIndex(), which has a
