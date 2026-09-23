@@ -241,10 +241,9 @@ nothing: `min{k,1} = 0` and Table 1's `k = 0` `u*` column is 0.97.
    source is confined to a region whose edge is a level set of the solution
    cutting through elements, where `F` has a kink or a jump; the papers assume
    a smooth `F` under a local Lipschitz condition and say nothing about it.
-   meq's plan was to interpolate on uncut elements and keep quadrature where
-   the edge cuts, which would have needed a per-element opt-out on
-   `HDGInterpolatoryReactionIntegrator`. **It does not pay**, and the three
-   findings are on that class and in `convdiff.cpp`'s header:
+   A per-element opt-out on `HDGInterpolatoryReactionIntegrator` -- interpolate
+   on whole elements, keep quadrature on the cut ones -- **does not pay**, and
+   the three findings are on that class and in `convdiff.cpp`'s header:
 
    * a jump lying ON a mesh line costs nothing at all;
    * a jump that CUTS costs `u*` its superconvergence — rate 1.00 at every
@@ -256,8 +255,23 @@ nothing: `min{k,1} = 0` and Table 1's `k = 0` `u*` column is 0.97.
      one cell). Swapping one for the other cannot be the repair.
 
    `convdiff -rcm 1 -rc a` (a plane, mesh-alignable, so there is an uncut
-   control) and `-rcm 2 -rc c` (a level set of `u`, meq's own case) are the
-   instrument.
+   control) and `-rcm 2 -rc c` (a level set of `u`) are the instrument.
+
+   **The per-element opt-out was OURS to refuse and was never meq's to
+   propose.** This entry used to attribute it to them; their
+   `INTERPOLATORY-HDG-PLAN.md` §4.1 switches at the CONFIGURATION level --
+   `enum class SourceTerm { Quadrature, Interpolatory }`, fixed boundary
+   interpolatory and free boundary quadrature -- not per element. Withdrawn,
+   and the measurement re-aimed at their §0.2 in
+   `/home/ian/projects/meq/HDG-CUT-ELEMENTS-FROM-HDGDEV.md`: what it says
+   about a configuration-level retreat is that **quadrature is not a safe
+   harbour on a cut element either**, at a jump.
+
+   **And the measurement is of a JUMP, which is their `j = 0`.** Their
+   production case is `j >= 1`, where `F = O(d^j)` is continuous across the
+   edge and only its derivative kinks; an interpolant of a continuous function
+   is not blind to a feature it has no node on. So these numbers bound the
+   worst case and do not settle their §0.2.
 
    **What is left is the thing that would actually fix it, and nobody has
    asked for it**: a quadrature rule on a cut element that knows where the cut

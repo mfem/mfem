@@ -275,12 +275,12 @@
 //
 //               A CUT ELEMENT COSTS O(h) WHATEVER THE DEGREE, AND SWAPPING
 //               -rx 1 FOR -rx 2 ON IT IS A COIN TOSS. CCSZ-I assumes a smooth
-//               F; meq's is confined to a region whose edge runs THROUGH
-//               elements, so F has a jump inside them and an interpolant is
-//               the wrong object there. Their proposal was to interpolate on
-//               whole elements and keep quadrature on the cut ones, which
-//               would need a per-element opt-out on the integrator. -rcm and
-//               -rc gate F off across a surface so that question can be run:
+//               F; a source confined to a region whose edge runs THROUGH
+//               elements has a jump inside them, and an interpolant is the
+//               wrong object there. The repair one would reach for is a
+//               per-element opt-out -- interpolate on whole elements, keep
+//               quadrature on the cut ones. -rcm and -rc gate F off across a
+//               surface so that question can be run:
 //
 //                 -rcm 1 -rc a  F = 0 where x_0 >= a. On inline-tri.mesh
 //                               a = 0.5 is a mesh line at EVERY refinement,

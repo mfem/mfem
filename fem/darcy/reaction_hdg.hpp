@@ -190,6 +190,8 @@ public:
     **That is why this class carries no per-element opt-out.** Swapping to
     quadrature on the cut elements -- the repair a caller would ask for --
     trades one arbitrary point set for another and opts into the dearer arm.
+    The same measurement says a CONFIGURATION-level retreat to quadrature is
+    not a safe harbour either, at a jump.
     What a cut element needs is a rule that knows where the cut is, which is
     an unfitted-quadrature machine and not a flag on an integrator. The
     numbers are in `miniapps/hdg/convdiff.cpp`'s header comment.
