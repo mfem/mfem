@@ -800,6 +800,14 @@ public:
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
+   /** @brief Does this mesh carry a nonconforming MASTER face with a local
+       slave -- the coarse side of a hanging node?
+
+       Public because it is the exact trigger of Finalize()'s refusal of a
+       nonlinear FACE constraint on such a mesh, and a caller (or a test) must
+       be able to ask without tripping it. */
+   bool HasNCMasterFaces() const;
+
    /// Finalize the construction of the hybridized matrix.
    void Finalize() override;
 
