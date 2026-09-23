@@ -1584,17 +1584,35 @@ int main(int argc, char *argv[])
             sequence, which does not move when only the degrees change, and it
             holds a reference to the potential -- whose space is a new object
             each cycle when the estimate is the postprocessed one. */
-         HDGErrorEstimator amr_err(*amr_bfi, tr_h,
-                                   (est_pp && pp_down) ? t_pd :
-                                   est_pp ? t_pp : t_h);
-         /* The magnitude estimator carries the split only when it is also the
-            right field to take the direction from -- which it is whenever the
-            two fields are the same one, so `2` without a postprocessed
-            estimate is `1`. Getting this wrong made --anisotropic-estimate 2
-            mean ISOTROPIC whenever --postprocessed-estimate was off, silently.
-            */
-         const bool split_here = (aniso != 0) && !(aniso == 2 && est_pp);
-         amr_err.SetAnisotropic(split_here);
+         /* DIRECTION FROM THE COMPUTED POTENTIAL, MAGNITUDE FROM WHICHEVER
+            FIELD WAS ASKED FOR -- stated as two fields rather than as a
+            flag, which is the whole of what HDGAdaptiveEstimator is for.
+
+            The two answer different questions. |p^ - lambda| on the computed
+            potential is the scheme's own stabilization term, and its
+            directional split is right -- it flags y on a problem whose layer
+            is in y, and more sharply as the layer sharpens. On the
+            postprocessed potential the same difference is essentially
+            lambda's own error, which is a real quantity but is not the
+            element's, and attributing it to the direction NORMAL to the face
+            is not the direction that would reduce it; measured, it flags x at
+            every anisotropy over four decades and the loop then refines
+            forever without touching the layer. The magnitude is the other way
+            round: the postprocessed estimate is the one worth reading as an
+            error, converging an order faster.
+
+            --anisotropic-estimate 1 keeps both from the magnitude field,
+            which is what this loop did before and is kept so the difference
+            stays measured; passing the same field twice is how that is said.
+            The helper then builds ONE estimator and the split lands on it, so
+            the case that used to need a hand-written `split_here` -- and once
+            silently made `2` mean isotropic whenever --postprocessed-estimate
+            was off -- is now the same line as every other. */
+         const GridFunction &mag_field = (est_pp && pp_down) ? t_pd :
+                                         est_pp ? t_pp : t_h;
+         const GridFunction &dir_field = (aniso == 2) ? t_h : mag_field;
+         HDGAdaptiveEstimator amr_err(*amr_bfi, tr_h, dir_field, mag_field);
+         amr_err.SetAnisotropic(aniso != 0);
 
          /* The Dirichlet datum is imposed WEAKLY here -- it enters the flux
             equation as <T_D, v.n> and the constraint is not assembled on
@@ -1606,7 +1624,8 @@ int main(int argc, char *argv[])
             With --trace-ess-bc the trace IS the datum and the term is real,
             which is why the exclusion follows the flag rather than being
             unconditional. */
-         if (!trace_ess_bc) { amr_err.SetExcludedBoundary(bdr_is_dirichlet); }
+         if (!trace_ess_bc)
+         { amr_err.SetWeakDirichletBoundary(bdr_is_dirichlet); }
 
          /* The per-face trace degrees live in the hybridization, so the
             estimator has to be told where to find them; the constraint space
@@ -1623,42 +1642,12 @@ int main(int argc, char *argv[])
 
          const Vector &local_err = amr_err.GetLocalErrors();
 
-         /* DIRECTION FROM THE COMPUTED POTENTIAL, MAGNITUDE FROM WHICHEVER
-            FIELD WAS ASKED FOR.
-
-            The two answer different questions. |p^ - lambda| on the computed
-            potential is the scheme's own stabilization term, and its
-            directional split is right -- it flags y on a problem whose layer
-            is in y, and more sharply as the layer sharpens. On the
-            postprocessed potential the same difference is essentially
-            lambda's own error, which is a real quantity but is not the
-            element's, and attributing it to the direction NORMAL to the face
-            is not the direction that would reduce it; measured, it flags x at
-            every anisotropy over four decades and the loop then refines
-            forever without touching the layer. The magnitude is the other way
-            round: the postprocessed estimate is the one worth reading as an
-            error, converging an order faster.
-
-            So take each from the field that answers it. It costs one more pass
-            over the faces, which is nothing beside a solve, and it is only
-            built when the two fields differ. --anisotropic-estimate 1 keeps
-            both from the magnitude field, which is what this loop did before
-            and is kept so the difference stays measured. */
-         unique_ptr<HDGErrorEstimator> amr_dir;
-         if (aniso == 2 && est_pp)
-         {
-            amr_dir.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
-            amr_dir->SetAnisotropic();
-            if (!trace_ess_bc)
-            { amr_dir->SetExcludedBoundary(bdr_is_dirichlet); }
-            if (hp) { amr_dir->SetHybridization(*darcy->GetHybridization()); }
-            if (!skip_edir) { amr_dir->SetSkipEnrichedDirection(false); }
-            if (!cap_tr) { amr_dir->SetCapTraceAtElement(false); }
-         }
-
-         const Array<int> &aniso_flags = amr_dir
-                                         ? amr_dir->GetAnisotropicFlags()
-                                         : amr_err.GetAnisotropicFlags();
+         /* The second estimator, on the computed potential, is the helper's
+            and every setter above reached it. Mirroring them by hand was six
+            paired calls and used to be five -- the trace comparison was set
+            on the magnitude estimator only, which is inert here but is
+            exactly the omission the helper exists to make impossible. */
+         const Array<int> &aniso_flags = amr_err.GetAnisotropicFlags();
 
          Array<int> marked;
          if (doerfler) { MarkDoerfler(local_err, theta, marked); }

@@ -14,6 +14,8 @@
 
 #include "../estimators.hpp"
 
+#include <memory>
+
 namespace mfem
 {
 
@@ -446,6 +448,144 @@ public:
 
    /// Reset the error estimator.
    void Reset() override { current_sequence = -1; }
+};
+
+/** @brief The estimator setup a `p`-adaptive HDG driver needs, configured
+    from FACTS about the problem rather than from a list of switches.
+
+    HDGErrorEstimator has six options and five of them default to the
+    behaviour that was right before per-face trace degrees existed, so a
+    driver that forgets one gets a quietly wrong estimate rather than an
+    error. That is not hypothetical: every one of the five was found by a loop
+    that went nowhere, and the wrong answers were a refiner chasing the
+    boundary instead of the solution, a directional split pointing across the
+    layer instead of into it, and an element charged three orders over its
+    true error for modes it cannot represent. SetHybridization() now implies
+    two of them. This carries the rest.
+
+    **And it carries the one thing no single estimator can.** The direction
+    and the magnitude want DIFFERENT FIELDS -- `|p̂ - λ|` on the computed
+    potential is the scheme's own stabilization term and splits correctly,
+    while on the postprocessed potential it is essentially λ's own error,
+    which is the better magnitude and the wrong direction. So a correct
+    `p`-adaptive loop runs TWO estimators and mirrors every other setting onto
+    both; see the two-field constructor and SetAnisotropic() for the
+    measurements. Doing that by hand is six paired calls, and the failure mode
+    of missing one is silence.
+
+    Every setter here forwards to both, and there is no accessor that reaches
+    one of them, so the pair cannot fall out of step.
+
+    **Rebuild it each cycle**, as HDGErrorEstimator itself must be: it holds
+    references to the fields, whose spaces are new objects when the mesh or the
+    degrees change, and the mesh sequence does not move when only the degrees
+    do.
+
+    @note The estimator this replaces is not deprecated. A caller estimating on
+    the computed potential, with an essential trace datum and no per-face
+    degrees, needs none of this and HDGErrorEstimator remains the right class.
+    This exists for the case where the defaults are wrong, which is `p`. */
+class HDGAdaptiveEstimator : public AnisotropicErrorEstimator
+{
+   HDGErrorEstimator mag;                     ///< magnitude, and direction too
+   std::unique_ptr<HDGErrorEstimator> dir;    ///< direction, when they differ
+   bool anisotropic {false};
+
+   /// Apply @a f to whichever estimators exist.
+   template <typename F> void Both(F f) { f(mag); if (dir) { f(*dir); } }
+
+   /** The split belongs on the estimator that reads the COMPUTED potential,
+       and on that one only. Carried on both it is merely wasted; carried on
+       the magnitude estimator ALONE, when that reads a postprocessed field, it
+       is the wrong answer -- and that is the exact shape of a defect this
+       loop shipped, where asking for the split silently got the isotropic
+       estimate whenever the two fields were the same. */
+   void PlaceSplit()
+   {
+      mag.SetAnisotropic(anisotropic && !dir);
+      if (dir) { dir->SetAnisotropic(anisotropic); }
+   }
+
+public:
+   /** @param integ  HDG face matrix integrator used for estimation
+       @param solr   trace solution
+       @param solp   the COMPUTED potential -- the field the direction is
+                     taken from, and the magnitude too -- the two-field
+                     constructor separates them
+       @param type_  type of estimator */
+   HDGAdaptiveEstimator(BilinearFormIntegrator &integ, const GridFunction &solr,
+                        const GridFunction &solp,
+                        HDGErrorEstimator::Type type_
+                        = HDGErrorEstimator::Type::Energy)
+      : mag(integ, solr, solp, type_) { }
+
+   /** @brief Magnitude from @a solpp, direction from @a solp.
+
+       @a solpp is a postprocessed potential: it converges an order faster
+       where the theory offers it, which is what makes it the better
+       MAGNITUDE, and its `|p̂ - λ|` is essentially λ's own error, which is
+       what makes it the wrong DIRECTION -- it flags `x` at every anisotropy
+       over four decades on a problem whose layer is in `y`. Measured on the
+       adaptive loop in `anisodiff`: frozen at 0.283893 through twelve cycles
+       and 5352 dofs with both jobs taken from it, 2.5e-4 at M = 2217 with
+       them separated, and the postprocessed magnitude is then worth a further
+       1.4x in dofs, which it is not worth at all when it also supplies the
+       direction.
+
+       Passing the same object twice is allowed and builds one estimator,
+       which is what a caller with no postprocessed field should do -- and is
+       why the two-field form is safe to call unconditionally. */
+   HDGAdaptiveEstimator(BilinearFormIntegrator &integ, const GridFunction &solr,
+                        const GridFunction &solp, const GridFunction &solpp,
+                        HDGErrorEstimator::Type type_
+                        = HDGErrorEstimator::Type::Energy)
+      : mag(integ, solr, solpp, type_)
+   {
+      if (&solpp != &solp)
+      { dir.reset(new HDGErrorEstimator(integ, solr, solp, type_)); }
+   }
+
+   /// Enable/disable the anisotropic split, on whichever field supplies it.
+   void SetAnisotropic(bool aniso = true) { anisotropic = aniso; PlaceSplit(); }
+
+   /** @brief The Dirichlet datum on these attributes is imposed WEAKLY, so
+       `|p̂ - λ|` is not an error there and the estimate leaves those faces out.
+
+       State the fact, not the exclusion: pass the marker whenever the datum
+       enters through `<T_D, v·n>` rather than by pinning λ, and pass nothing
+       when the trace IS the datum. See HDGErrorEstimator::SetExcludedBoundary()
+       for why -- the term is one fixed amount per face there, so it grows like
+       `1/h` and a refiner driven by it marks only the boundary. */
+   void SetWeakDirichletBoundary(const Array<int> &bdr_attr_marker)
+   { Both([&](HDGErrorEstimator &e) { e.SetExcludedBoundary(bdr_attr_marker); }); }
+
+   /// Read the per-face trace degrees from @a hyb_; see
+   /// HDGErrorEstimator::SetHybridization(), whose two implied options come
+   /// with it.
+   void SetHybridization(const DarcyHybridization &hyb_)
+   { Both([&](HDGErrorEstimator &e) { e.SetHybridization(hyb_); }); }
+
+   /// See HDGErrorEstimator::SetTraceComparison().
+   void SetTraceComparison(HDGErrorEstimator::TraceComparison c)
+   { Both([&](HDGErrorEstimator &e) { e.SetTraceComparison(c); }); }
+
+   /// See HDGErrorEstimator::SetSkipEnrichedDirection().
+   void SetSkipEnrichedDirection(bool skip = true)
+   { Both([&](HDGErrorEstimator &e) { e.SetSkipEnrichedDirection(skip); }); }
+
+   /// See HDGErrorEstimator::SetCapTraceAtElement().
+   void SetCapTraceAtElement(bool cap = true)
+   { Both([&](HDGErrorEstimator &e) { e.SetCapTraceAtElement(cap); }); }
+
+   real_t GetTotalError() const override { return mag.GetTotalError(); }
+
+   const Vector &GetLocalErrors() override { return mag.GetLocalErrors(); }
+
+   /// From the computed potential whenever the two fields differ.
+   const Array<int> &GetAnisotropicFlags() override
+   { return dir ? dir->GetAnisotropicFlags() : mag.GetAnisotropicFlags(); }
+
+   void Reset() override { Both([](HDGErrorEstimator &e) { e.Reset(); }); }
 };
 
 /** @brief Persson & Peraire's smoothness sensor, per element.

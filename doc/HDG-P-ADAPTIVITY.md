@@ -449,16 +449,31 @@ fail it. `make hp-acceptance` reproduces the recorded run to every figure
 after the move -- 9.92e-10, ratios 0.540 and 0.276 -- so the junction decides
 exactly what it decided before.
 
-**The estimator's caller-side setup is per-miniapp and easy to get wrong**, and
-this is the one piece of it that got worse rather than better. Five of the six
-things a `p`-adaptive caller must ask for default to the old behaviour, so
-forgetting one gives a quietly wrong estimate rather than an error -- which is
-how every one of them was found. Two are now implied by `SetHybridization()`,
-since they can only bite where per-face degrees exist and are measured inert
-otherwise; `SetExcludedBoundary()`, `SetTraceComparison()`, `SetAnisotropic()`
-and the choice of which field supplies the direction are still the caller's,
-and only `anisodiff` gets them all right. A driver-side helper that sets them
-together is the obvious answer and does not exist.
+**The estimator's caller-side setup was per-miniapp and easy to get wrong, and
+there is a helper now.** Five of the six things a `p`-adaptive caller must ask
+for default to the old behaviour, so forgetting one gives a quietly wrong
+estimate rather than an error -- which is how every one of them was found. Two
+are implied by `SetHybridization()`. `HDGAdaptiveEstimator` carries the rest,
+and the thing no single estimator can carry: the direction and the magnitude
+want different fields, so a correct loop runs two estimators and mirrors every
+other setting onto both.
+
+The helper takes the two fields as constructor arguments rather than a flag,
+which makes the one defect this loop actually shipped structurally impossible
+-- a hand-written predicate decided whether the magnitude estimator held the
+anisotropic split, and read "the two fields are the same" as "no split",
+so asking for an anisotropic estimate without a postprocessed field silently
+got an isotropic one. `anisodiff` is on it, and `make hp-acceptance`
+reproduces the recorded run to every figure (9.92e-10, ratios 0.540 and
+0.276). The pin is `"HDGAdaptiveEstimator routes the magnitude and the
+direction apart"`, falsified three ways -- the flags read from the wrong
+estimator, the split never placed on the magnitude one, and a setter reaching
+only one of the two -- each failing its own section and no other.
+
+Moving `anisodiff` onto it also closed a mirroring gap it had: the trace
+comparison was set on the magnitude estimator and not on the direction one.
+Measured inert on the demonstrator (`-tproj` changes nothing there, with or
+without `-hp`), which is why it had survived.
 
 ### Deliberately not planned
 
@@ -657,16 +672,18 @@ residual are in one numbering on MIXED ELEMENT DEGREES" in
 error of **0.152 at order 1 and 0.167 at order 2** without the fix and under
 1e-5 with it.
 
-**It is not p-adaptivity's defect and the two lines are not this branch's.**
+**LIFTED. It is not p-adaptivity's defect and the two lines are not this
+branch's**, and the lift is done -- `d18f9459aa` on `gf-hdg-dev`, merged out
+to all four descendants. The paragraph below is why, and is kept because the
+reasoning is the reusable part.
 `AssembleHDGGrad()` predates every descendant and carries the same expression
 on `gf-hdg-dev`, `gf-hdg-subdomains-dev` and `gf-interp-hdg-dev`, and
 `gf-hdg-linearise-first` inherits it a third time in `SeedLinearEG()`, whose
 comment says so ("Exactly AssembleHDGGrad()'s offset"). Checked with
 `git show <branch>:fem/darcy/darcyhybridization.cpp`, not reasoned about.
 This branch is merely the only one that can REACH it, mixed element degrees
-being what it exists to produce. **The lift is owed and is not done here** --
-the documented method applies: cherry-pick onto `gf-hdg-dev`, then merge out,
-never rebase.
+being what it exists to produce. The documented method was the one used:
+cherry-pick onto `gf-hdg-dev`, then merge out, never rebase.
 
 **The attribution that stood here was wrong in both halves and is withdrawn.**
 It read "so it is the nonlinear FLUX on a variable-order element space", from

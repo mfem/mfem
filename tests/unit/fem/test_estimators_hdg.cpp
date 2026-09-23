@@ -451,3 +451,154 @@ TEST_CASE("HDGErrorEstimator brings itself up to date for GetTotalError",
    // And it stays right when the total is asked for twice.
    REQUIRE(fresh.GetTotalError() == MFEM_Approx(total_warmed, 1e-12, 1e-12));
 }
+
+
+TEST_CASE("HDGAdaptiveEstimator routes the magnitude and the direction apart",
+          "[HDGErrorEstimator]")
+{
+   using namespace estimators_hdg;
+
+   // A `p`-adaptive loop must take the two jobs from two fields -- the
+   // magnitude from a postprocessed potential and the direction from the
+   // computed one -- and doing it by hand means building a second estimator
+   // and mirroring every setting onto it. This checks the helper does the
+   // routing, and that getting it wrong is OBSERVABLE, which is the half that
+   // earns the case: the defect it replaces was silent.
+   Solution s;
+   Solve(s, 4, 1);
+
+   ConstantCoefficient k(1.0);
+   RatioCoefficient ik(1.0, k);
+   HDGDiffusionIntegrator integ(ik, 1.0 / 4);
+
+   // Stands in for a postprocessed potential. Nothing here needs it to BE
+   // one: what is under test is which field each answer comes from, and for
+   // that the two only have to differ -- strongly in x, so that the
+   // directional split has something to disagree about.
+   GridFunction p_alt(*s.p_h);
+   FunctionCoefficient bias([](const Vector &x)
+   { return 0.5 * std::sin(8.0 * x(0)); });
+   GridFunction bump(s.fes_p.get());
+   bump.ProjectCoefficient(bias);
+   p_alt += bump;
+
+   const auto energy = HDGErrorEstimator::Type::Energy;
+
+   SECTION("the magnitude is the second field's and the direction the first's")
+   {
+      HDGErrorEstimator ref_mag(integ, *s.tr_h, p_alt, energy);
+      HDGErrorEstimator ref_dir(integ, *s.tr_h, *s.p_h, energy);
+      ref_dir.SetAnisotropic(true);
+
+      HDGAdaptiveEstimator pair(integ, *s.tr_h, *s.p_h, p_alt);
+      pair.SetAnisotropic(true);
+
+      const Vector &err = pair.GetLocalErrors();
+      const Vector &err_ref = ref_mag.GetLocalErrors();
+      REQUIRE(err.Size() == err_ref.Size());
+      for (int i = 0; i < err.Size(); i++)
+      {
+         CAPTURE(i);
+         REQUIRE(err(i) == MFEM_Approx(err_ref(i)));
+      }
+
+      const Array<int> &flags = pair.GetAnisotropicFlags();
+      const Array<int> &flags_ref = ref_dir.GetAnisotropicFlags();
+      REQUIRE(flags.Size() == flags_ref.Size());
+      for (int i = 0; i < flags.Size(); i++)
+      {
+         CAPTURE(i);
+         REQUIRE(flags[i] == flags_ref[i]);
+      }
+
+      // THE DISCRIMINATOR. Both comparisons above would also pass if the
+      // helper read everything from one field, so each needs the other field
+      // to give a different answer.
+      HDGErrorEstimator on_first(integ, *s.tr_h, *s.p_h, energy);
+      HDGErrorEstimator on_second(integ, *s.tr_h, p_alt, energy);
+      on_second.SetAnisotropic(true);
+
+      const Vector &err_first = on_first.GetLocalErrors();
+      bool magnitudes_differ = false;
+      for (int i = 0; i < err.Size(); i++)
+      {
+         if (std::abs(err(i) - err_first(i)) > 1e-10) { magnitudes_differ = true; }
+      }
+      REQUIRE(magnitudes_differ);
+
+      const Array<int> &flags_second = on_second.GetAnisotropicFlags();
+      bool directions_differ = false;
+      for (int i = 0; i < flags.Size(); i++)
+      {
+         if (flags[i] != flags_second[i]) { directions_differ = true; }
+      }
+      REQUIRE(directions_differ);
+   }
+
+   SECTION("one field passed twice keeps the split, which is where it was lost")
+   {
+      // The hand-written form carried a predicate deciding whether the
+      // MAGNITUDE estimator should hold the split, and it read the two fields
+      // being the same as "no split at all" -- so asking for an anisotropic
+      // estimate without a postprocessed field silently got an isotropic one.
+      // Here the same field twice is one estimator and the split is on it.
+      HDGAdaptiveEstimator one(integ, *s.tr_h, *s.p_h, *s.p_h);
+      one.SetAnisotropic(true);
+
+      HDGErrorEstimator ref(integ, *s.tr_h, *s.p_h, energy);
+      ref.SetAnisotropic(true);
+
+      const Array<int> &flags = one.GetAnisotropicFlags();
+      const Array<int> &flags_ref = ref.GetAnisotropicFlags();
+      REQUIRE(flags.Size() == s.mesh->GetNE());
+      REQUIRE(flags.Size() == flags_ref.Size());
+
+      bool any_set = false;
+      for (int i = 0; i < flags.Size(); i++)
+      {
+         CAPTURE(i);
+         REQUIRE(flags[i] == flags_ref[i]);
+         if (flags[i] != 0) { any_set = true; }
+      }
+      // An empty or all-zero array is what the isotropic answer looks like,
+      // so the case would pass against the defect without this.
+      REQUIRE(any_set);
+   }
+
+   SECTION("a setter reaches the direction estimator too")
+   {
+      // Mirroring by hand is one paired call per setting and the failure mode
+      // of missing one is silence. This drives a setter through the helper and
+      // reads the answer the SECOND estimator gives, which it can only have
+      // if the setting arrived there.
+      Array<int> all_bdr(s.mesh->bdr_attributes.Max());
+      all_bdr = 1;
+
+      HDGAdaptiveEstimator pair(integ, *s.tr_h, *s.p_h, p_alt);
+      pair.SetAnisotropic(true);
+      pair.SetWeakDirichletBoundary(all_bdr);
+
+      HDGErrorEstimator ref_dir(integ, *s.tr_h, *s.p_h, energy);
+      ref_dir.SetAnisotropic(true);
+      ref_dir.SetExcludedBoundary(all_bdr);
+
+      HDGErrorEstimator unset_dir(integ, *s.tr_h, *s.p_h, energy);
+      unset_dir.SetAnisotropic(true);
+
+      const Array<int> &flags = pair.GetAnisotropicFlags();
+      const Array<int> &flags_ref = ref_dir.GetAnisotropicFlags();
+      const Array<int> &flags_unset = unset_dir.GetAnisotropicFlags();
+      REQUIRE(flags.Size() == flags_ref.Size());
+
+      bool differs_from_unset = false;
+      for (int i = 0; i < flags.Size(); i++)
+      {
+         CAPTURE(i);
+         REQUIRE(flags[i] == flags_ref[i]);
+         if (flags[i] != flags_unset[i]) { differs_from_unset = true; }
+      }
+      // Without this the section passes against a helper that forwards to
+      // neither, both answers then being the unset one.
+      REQUIRE(differs_from_unset);
+   }
+}
