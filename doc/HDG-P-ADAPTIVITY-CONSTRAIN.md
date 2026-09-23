@@ -34,20 +34,27 @@ at each of the twelve gather and scatter sites; before writing any of it,
 make the end-to-end measurement resolvable, because the controlled number
 alone does not say the demonstrator is slower.
 
-**`DarcyForm::Reconstruct()` under a per-face trace.** Still refused, and the
-reason has changed: the basis problem is gone, and what is left is that the
-local problem's shapes assume one trace degree per element. Tried rather than
-assumed -- with the guard removed it aborts in `DenseMatrixInverse::Factor`
-with "DenseMatrix is not square". Six sites in `darcyform.cpp` read the trace
-space directly to build it.
+**`DarcyForm::Reconstruct()` under a per-face trace. DONE**, and all three
+reasons the refusal gave were wrong: the abort was in
+`DarcyHybridization::ReconstructTotalFlux` and not in `darcyform.cpp`; that
+routine never sees a per-face degree, `TraceFE()` being the ceiling's element
+for every face; and it fired with ZERO elements refined. The total flux space
+was built from the FLUX collection's order where it has to match the TRACE's.
+What IS left is a caveat rather than a task: the reconstruction's answer
+follows the ceiling, since its local problem is built from the constraint
+space's collection, so a caller choosing a ceiling for the trace is also
+choosing the reconstruction's richness. Measured and on the routine.
 
 **A driver-side helper for the estimator's remaining setters.** Four setters
 still default to the pre-`p` behaviour and a driver has to know to turn them
 on. `SetHybridization()` now covers two of them and no longer covers the basis
 question at all.
 
-**A test at the h-or-p junction.** Nothing exercises an element that could be
-refined either way.
+**A test at the h-or-p junction. DONE**, and getting one meant moving the
+rule: it was three lines inside `anisodiff` where nothing could reach it, and
+is `PerssonPeraireSmoothness::SpendOnP()` now, which the miniapp calls.
+Falsified two ways, and `make hp-acceptance` reproduces the recorded run to
+every figure after the move.
 
 ## What this is not
 
