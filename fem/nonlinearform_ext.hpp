@@ -131,7 +131,7 @@ class MFNonlinearFormExtension : public NonlinearFormExtension
 protected:
    const FiniteElementSpace &fes; // Not owned
    mutable Vector localX, localY;
-   const Operator *elem_restrict_lex; // Not owned
+   const Operator *elem_restrict; // Not owned
 
 public:
    MFNonlinearFormExtension(const NonlinearForm*);

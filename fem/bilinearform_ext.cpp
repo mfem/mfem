@@ -1755,9 +1755,9 @@ void PAMixedBilinearFormExtension::Update()
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
    elem_restrict_trial = trial_fes->GetElementRestriction(
-                            ElementDofOrdering::LEXICOGRAPHIC);
+                            GetEVectorOrdering(*trial_fes));
    elem_restrict_test  =  test_fes->GetElementRestriction(
-                             ElementDofOrdering::LEXICOGRAPHIC);
+                             GetEVectorOrdering(*test_fes));
    if (elem_restrict_trial)
    {
       localTrial.UseDevice(true);
