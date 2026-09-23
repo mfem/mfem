@@ -890,7 +890,6 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    dshapex.SetSize(nd, dim);
    elmat.SetSize(nd * dim);
    elmat_comp.SetSize(nd);
-   elmat_mass.SetSize(nd);
    gradEF.SetSize(dim);
 
    EF.UseExternalData(elfun.GetData(), nd, dim);
@@ -927,7 +926,12 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       dshape.Mult(vec2, vec3);
       MultVWt(shape, vec3, elmat_comp);
 
-      MultVVt(shape, elmat_mass);
+      for (int ii = 0; ii < dim; ii++)
+      {
+         elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
+      }
+
+      MultVVt(shape, elmat_comp);
       w = ip.weight * trans.Weight();
       if (Q)
       {
@@ -937,16 +941,10 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
       {
          for (int jj = 0; jj < dim; jj++)
          {
-            elmat.AddMatrix(w * gradEF(ii, jj), elmat_mass, ii * nd, jj * nd);
+            elmat.AddMatrix(w * gradEF(ii, jj), elmat_comp, ii * nd, jj * nd);
          }
       }
    }
-
-   for (int ii = 0; ii < dim; ii++)
-   {
-      elmat.AddMatrix(elmat_comp, ii * nd, ii * nd);
-   }
-
 }
 
 const IntegrationRule&
