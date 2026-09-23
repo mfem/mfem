@@ -378,6 +378,69 @@ TEST_CASE("Postprocessing enriches a p-adapted potential element by element",
    REQUIRE(err_s < 0.5 * err_p);
 }
 
+TEST_CASE("The h-or-p junction is the ceiling first and the sensor second",
+          "[DarcyHybridization][PAdapt]")
+{
+   /* The rule joining the estimator to the sensor had no test: each had cases
+      of its own and the thing that decides between another DEGREE and another
+      ELEMENT was three lines inside `anisodiff`, checked only by the
+      demonstrator converging. It is PerssonPeraireSmoothness::SpendOnP() now,
+      which is what makes this case possible at all -- the miniapp calls the
+      same function.
+
+      What is pinned is the STRUCTURE of the decision rather than a tuned
+      number, because the measured finding is that the structure is what
+      matters: varying only the ceiling collapses h-refinements by 45 to 100x
+      on the demonstrator while the shift is nearly inert. */
+
+   // 1. THE CEILING IS A HARD GATE, and it comes first. At the ceiling no
+   //    sensor value can buy a degree -- this is the clause doing most of the
+   //    work, so a rewrite that made the sensor dominant would fail here.
+   for (int p = 1; p <= 4; p++)
+   {
+      CAPTURE(p);
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(-1e30, p, p));
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(-1e30, p, p - 1));
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(-1e30, p, p, 1e30));
+   }
+
+   // 2. BELOW the ceiling the sensor decides, and it decides at the paper's
+   //    threshold. Either side of it by a hair, nothing else changed.
+   for (int p = 1; p <= 4; p++)
+   {
+      CAPTURE(p);
+      const real_t s0 = PerssonPeraireSmoothness::Threshold(p);
+      REQUIRE(PerssonPeraireSmoothness::SpendOnP(s0 - 1e-9, p, p + 1));
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(s0 + 1e-9, p, p + 1));
+      // Exactly ON it is h: the comparison is strict, which is the paper's.
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(s0, p, p + 1));
+   }
+
+   // 3. The shift moves that boundary and moves it the documented way --
+   //    positive calls MORE elements smooth, so it spends more on p.
+   {
+      const int p = 2;
+      const real_t s0 = PerssonPeraireSmoothness::Threshold(p);
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(s0 + 0.5, p, p + 1));
+      REQUIRE(PerssonPeraireSmoothness::SpendOnP(s0 + 0.5, p, p + 1, 1.0));
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(s0 - 0.5, p, p + 1, -1.0));
+   }
+
+   /* 4. And the threshold is monotone in p, which is why the gate tightens as
+         an element is enriched: -4 log10(p) falls, so a given sensor value
+         buys a degree at low p and stops buying one later. Without this the
+         loop could enrich one element forever. */
+   for (int p = 1; p < 4; p++)
+   {
+      CAPTURE(p);
+      REQUIRE(PerssonPeraireSmoothness::Threshold(p + 1)
+              < PerssonPeraireSmoothness::Threshold(p));
+      const real_t s = PerssonPeraireSmoothness::Threshold(p) - 1e-9;
+      REQUIRE(PerssonPeraireSmoothness::SpendOnP(s, p, 99));
+      REQUIRE_FALSE(PerssonPeraireSmoothness::SpendOnP(s, p + 1, 99));
+   }
+}
+
 TEST_CASE("The smoothness sensor reads the top degree's share of the energy",
           "[DarcyHybridization][PAdapt]")
 {

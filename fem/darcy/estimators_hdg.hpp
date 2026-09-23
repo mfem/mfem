@@ -515,6 +515,41 @@ public:
        it rather than copied into every caller. */
    static real_t Threshold(int p) { return -4.0 * std::log10((p > 0) ? p : 1); }
 
+   /** @brief **The h-or-p junction**: should a marked element of degree @a p
+       take another DEGREE rather than another element?
+
+       @a log_sensor is that element's entry of GetLogSensor(), @a p_max the
+       ceiling the constraint space was built at, and @a shift moves the
+       threshold (positive calls more elements smooth and so spends more on
+       `p`).
+
+       An error estimate says WHERE to spend and cannot say on what: a badly
+       under-resolved smooth region and a well-resolved layer look alike to
+       it. The sensor answers the other half -- an element whose expansion is
+       already decaying gets another degree, where convergence in `p` is
+       exponential, and one whose is not gets another element.
+
+       **The ceiling clause does most of the work, and that is measured rather
+       than supposed.** Varying only `p_max` on the demonstrator collapses the
+       number of `h`-refinements by 45 to 100x -- 812 to 18 at order 2 as the
+       ceiling goes from `K+1` to `K+5` -- while `shift` is nearly inert,
+       because the threshold sits BELOW the entire sensor distribution over
+       marked elements: stricter hurts badly and more lenient does nothing at
+       all at order 3, where `+1` and `+2` are byte-identical. So what this
+       predicate mostly expresses is *"p unless at the ceiling"*, and order 2
+       is the only degree so far measured at which the sensor discriminates.
+       Anyone tuning `shift` should check it is not below the distribution
+       first.
+
+       Lives here rather than in a driver because it was in one, where nothing
+       could test it -- the estimator and the sensor each had cases and the
+       rule joining them was checked only by a demonstrator converging. */
+   static bool SpendOnP(real_t log_sensor, int p, int p_max,
+                        real_t shift = 0.0)
+   {
+      return p < p_max && log_sensor < Threshold(p) + shift;
+   }
+
    /// Recompute on the next query.
    void Reset() { computed = false; }
 };

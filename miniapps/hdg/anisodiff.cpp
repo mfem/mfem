@@ -1687,8 +1687,7 @@ int main(int argc, char *argv[])
             const int e = marked[i];
             const int p = hp ? W_space->GetElementOrder(e) : order;
             const bool spend_on_p =
-               hp && p < p_max &&
-               s_e(e) < PerssonPeraireSmoothness::Threshold(p) + hp_shift;
+               hp && PerssonPeraireSmoothness::SpendOnP(s_e(e), p, p_max, hp_shift);
 
             if (spend_on_p) { p_refs.Append(e); continue; }
 

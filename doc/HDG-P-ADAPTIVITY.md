@@ -433,9 +433,21 @@ same mesh and degrees, which is the shared-face refusal turned round; it is run
 at 1, 2, 3 and 4 ranks and `pconvdiff --p-refine` agrees to five digits at all
 four.
 
-**The `h`-or-`p` junction has no test.** `HDGErrorEstimator` and
-`PerssonPeraireSmoothness` each have cases; the rule joining them lives only in
-`anisodiff` and is checked only by the demonstrator converging.
+**The `h`-or-`p` junction has a test now, and getting one meant moving the
+rule.** It was three lines inside `anisodiff`, where nothing could reach it;
+it is `PerssonPeraireSmoothness::SpendOnP()` next to the `Threshold()` it
+calls, and the miniapp calls that -- which is what makes the case worth
+anything. A static member, so no layout moves.
+
+The case pins the STRUCTURE and not a tuned number, because the structure is
+what this branch measured as mattering: the ceiling clause is a hard gate that
+comes first and does most of the work, the sensor decides below it at the
+paper's strict threshold, the shift moves that boundary the documented way,
+and `Threshold()` is monotone in `p` so an element cannot be enriched forever.
+Falsified by dropping the ceiling clause and by relaxing `<` to `<=`; both
+fail it. `make hp-acceptance` reproduces the recorded run to every figure
+after the move -- 9.92e-10, ratios 0.540 and 0.276 -- so the junction decides
+exactly what it decided before.
 
 **The estimator's caller-side setup is per-miniapp and easy to get wrong**, and
 this is the one piece of it that got worse rather than better. Five of the six
