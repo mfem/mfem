@@ -60,20 +60,11 @@ all: $(MINIAPPS)
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
-PAR_TEST_EXECS = navier_mms navier_kovasznay navier_tgv
+PAR_TEST_EXECS =
 MFEM_TESTS = TEST_EXECS
 include $(MFEM_TEST_MK)
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-
-#navier_mms-test-par: navier_mms
-#	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
-
-#navier_kovasznay-test-par: navier_kovasznay
-#	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
-
-#navier_tgv-test-par: navier_tgv
-#	@$(call mfem-test,$<, $(RUN_MPI), Navier,-cr)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
