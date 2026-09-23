@@ -11,6 +11,14 @@
 Version 4.10.1 (development)
 ============================
 
+GPU computing
+-------------
+- Rework of the memory manager so that all calls to Sync and SyncAlias are now
+  no-op and can be removed from user code. Note that the copy sometimes performed
+  by SyncAlias is deferred to the next call to Read/ReadWrite.
+
+- Calling `mfem::reduce` with an external workspace buffer is now deprecated.
+  Use the version which uses an internal workspace instead.
 
 Version 4.10, released on Sep 1, 2026
 =====================================

@@ -17,7 +17,6 @@ using namespace mfem;
 #include "run_unit_tests.hpp"
 
 using namespace mfem;
-
 #ifndef _WIN32 // Debug device specific tests, not supported on Windows
 #include <unistd.h>
 
@@ -47,7 +46,9 @@ static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 
 static void ScanMemoryTypes()
 {
-   const auto h_mt = mm.GetHostMemoryType(), d_mt = mm.GetDeviceMemoryType();
+   auto &inst = MemoryManager::Instance();
+   const auto h_mt = inst.GetHostMemoryType(),
+              d_mt = inst.GetDeviceMemoryType();
    TestMemoryTypes(h_mt, true), TestMemoryTypes(d_mt, true);
    TestMemoryTypes(h_mt, false), TestMemoryTypes(d_mt, false);
 }
@@ -126,25 +127,32 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    {
       int overflow(int c) override { return c; }
    } null_buffer;
+   auto& inst = MemoryManager::Instance();
    std::ostream dev_null(&null_buffer);
-   const auto n_ptr = mm.PrintPtrs(dev_null);
-   const auto n_alias = mm.PrintAliases(dev_null);
+   const auto n_ptr = inst.PrintPtrs(dev_null);
+#ifndef MFEM_USE_NEW_MEM_MANAGER
+   const auto n_alias = inst.PrintAliases(dev_null);
+#endif
    const auto pagesize = sysconf(_SC_PAGE_SIZE);
    REQUIRE(pagesize > 0);
 
    for (int n = 1; n < 2*pagesize; n+=7)
    {
       Aliases(n);
-      REQUIRE(mm.PrintPtrs(dev_null) == n_ptr);
-      REQUIRE(mm.PrintAliases(dev_null) == n_alias);
+      REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
+#ifndef MFEM_USE_NEW_MEM_MANAGER
+      REQUIRE(inst.PrintAliases(dev_null) == n_alias);
+#endif
    }
-   MmuCatch();
+
+   MmuCatch(pagesize / sizeof(real_t));
    ScanMemoryTypes();
 
-   REQUIRE(mm.PrintPtrs(dev_null) == n_ptr);
-   REQUIRE(mm.PrintAliases(dev_null) == n_alias);
+   REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
+#ifndef MFEM_USE_NEW_MEM_MANAGER
+   REQUIRE(inst.PrintAliases(dev_null) == n_alias);
+#endif
 }
-
 #endif // _WIN32
 
 int main(int argc, char *argv[])
