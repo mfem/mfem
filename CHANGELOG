@@ -11,6 +11,13 @@
 Version 4.10.1 (development)
 ============================
 
+- Nonlinear forms with partial or matrix-free assembly, and mixed bilinear
+  forms with partial assembly, now pass their integrators E-vectors in the
+  ordering GetEVectorOrdering() gives, as bilinear forms already did. They
+  always used the lexicographic ordering before, which for nodal simplex
+  elements of degree 2 and higher differs from the native ordering that
+  GetEVectorOrdering() and QuadratureInterpolator assume there.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
