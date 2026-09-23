@@ -141,12 +141,12 @@ public:
 
 void sol_u_fun(const Vector &coord,  real_t t, Vector &u)
 {
-   double x = coord[0];
-   double y = coord[1];
+   real_t x = coord[0];
+   real_t y = coord[1];
    if (problem == 1)
    {
-      double r = sqrt(x*x + y*y);
-      double r0 = 0.5;
+      real_t r = sqrt(x*x + y*y);
+      real_t r0 = 0.5;
 
       // Base flow + BC
       u[0] = fmin(1.0, r - r0);
@@ -170,7 +170,7 @@ void sol_u_fun(const Vector &coord,  real_t t, Vector &u)
    }
    else
    {
-      const double eps = 1e-6;
+      const real_t eps = 1e-6;
 
       u[0] = pow(4.0*x*(1.0-x),0.01)*y*y*y;
       u[1] = 0.0;
@@ -281,9 +281,9 @@ int main(int argc, char *argv[])
                   "Gain coefficient for time step adjustment.");
 
    // Solver parameters
-   double GMRES_RelTol = 1e-3;
+   real_t GMRES_RelTol = 1e-3;
    int    GMRES_MaxIter = 250;
-   double Newton_RelTol = 1e-3;
+   real_t Newton_RelTol = 1e-3;
    int    Newton_MaxIter = 10;
 
    args.AddOption(&GMRES_RelTol, "-lt", "--linear-tolerance",
