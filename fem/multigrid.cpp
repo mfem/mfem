@@ -233,7 +233,7 @@ void MultigridBase::Cycle(int level) const
 
 Multigrid::Multigrid(const Array<Operator*>& operators_,
                      const Array<Solver*>& smoothers_,
-                     const Array<Operator*>& prolongations_,
+                     const Array<const Operator*>& prolongations_,
                      const Array<bool>& ownedOperators_,
                      const Array<bool>& ownedSmoothers_,
                      const Array<bool>& ownedProlongations_)

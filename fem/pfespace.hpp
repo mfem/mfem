@@ -517,6 +517,10 @@ public:
    const SparseMatrix *GetRestrictionMatrix() const override
    { Dof_TrueDof_Matrix(); return R; }
 
+   /// Assemble the local matrix @a loc_A on the true dofs.
+   void ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
+                    bool steal_loc_A = false) const;
+
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }

@@ -56,7 +56,7 @@ ConstrainedOperator::ConstrainedOperator(
    : ess_tdofs(ess_tdofs_), P(P_)
 {
    unconstrained_op = new ceed::Operator(oper);
-   mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
+   const mfem::Operator *rap = unconstrained_op->SetupRAP(P, P);
    height = width = rap->Height();
    bool own_rap = (rap != unconstrained_op);
    constrained_op = new mfem::ConstrainedOperator(rap, ess_tdofs, own_rap);
@@ -318,7 +318,7 @@ AlgebraicMultigrid::AlgebraicMultigrid(
       ceed_operators[ilevel] = CoarsenCeedCompositeOperator(
                                   ceed_operators[ilevel+1], space.GetCeedElemRestriction(),
                                   space.GetCeedCoarseToFine(), space.GetOrderReduction());
-      mfem::Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
+      const mfem::Operator *P = hierarchy.GetProlongationAtLevel(ilevel);
       essentialTrueDofs[ilevel] = new Array<int>;
       CoarsenEssentialDofs(*P, *essentialTrueDofs[ilevel+1],
                            *essentialTrueDofs[ilevel]);
