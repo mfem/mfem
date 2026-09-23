@@ -1193,12 +1193,6 @@ private:
    /// that gather C wholesale and cannot express the omission.
    bool HasTraceBCFaces() const { return bc_trace_marker.Size() > 0; }
 
-   /** @brief Whether the mesh carries a nonconforming MASTER face at all.
-
-       The gate on every route that assembles a face term in that face's own
-       trace dofs; see GetNCMasterSlaves() for why a master cannot be one of
-       those. O(number of masters) and short-circuits on a conforming mesh. */
-   bool HasNCMasterFaces() const;
    /** @brief The slave sub-faces a nonconforming MASTER face is tiled by.
 
        False, with @a slaves emptied, when @a face is not a master -- which is
@@ -3719,6 +3713,22 @@ public:
 
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
+
+   /** @brief Whether the mesh carries a nonconforming MASTER face at all --
+       the coarse side of a hanging node.
+
+       The gate on every route that assembles a face term in that face's own
+       trace dofs; see GetNCMasterSlaves() for why a master cannot be one of
+       those. O(number of masters) and short-circuits on a conforming mesh.
+
+       Public, and it was private here until the trunk lifted it: on the trunk
+       it is the trigger of Finalize()'s refusal of a nonlinear face
+       constraint on such a mesh, so a caller -- or a test -- has to be able
+       to ask without tripping that. This branch implements the expansion the
+       trunk refuses and admits the configuration, but both branches ask the
+       question the same way, which is the point of lifting the accessor
+       rather than copying it. */
+   bool HasNCMasterFaces() const;
 
    /// Finalize the construction of the hybridized matrix.
    void Finalize() override;
