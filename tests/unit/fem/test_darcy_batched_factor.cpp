@@ -643,45 +643,39 @@ TEST_CASE("The batched local factorisation gives the serial one's answer",
       Mesh mesh_a("../../data/square-mixed.mesh", 1, 1);
       Mesh mesh_b("../../data/square-mixed.mesh", 1, 1);
 
-      // Five steps, and convergence deliberately not required. A mixed-element
-      // mesh at order >= 1 does not converge here, and that is a defect in the
-      // hybridization rather than anything to do with this setting: the
-      // residual is right and the Jacobian is not. Measured on this mesh at
-      // order 1, with a *direct* trace solve so the linear solver is not in
-      // question -- Newton falls by a constant factor of about 1.7 per step
-      // and stalls at 1.2e-08 after 30, while LBFGS, which never asks for a
-      // gradient, reaches 5.5e-14 in 36 and lands on the same solution to six
-      // digits. The same problem on all-quadrilateral and on all-triangle
-      // meshes converges in three Newton steps to 2e-16. Nothing else in the
-      // suite runs Darcy on a mixed mesh, which is why it had not been seen.
-      //
-      // FIXING IT IS NOT THIS BRANCH'S, AND THE TWO HALVES NEVER MEET HERE.
-      // gf-hdg-p-adaptivity wants a mixed mesh -- variable order needs an NC
-      // mesh, and its hp work reaches simplices and 3D -- so the repair
-      // belongs there and arrives with that branch. But that branch is off
-      // the trunk and this file is this branch's alone: it does not exist
-      // there, so whoever fixes the Jacobian will not see this comment, and
-      // the fix and this reproduction first coexist in the meq-integration
-      // tree, which carries both.
-      //
-      // So this section is the thing to revisit at that merge, and it will
-      // then be asserting the wrong property. `max_it` of five and a
-      // deliberate silence about convergence are here only because the
-      // Jacobian is wrong; once it is right, this section should converge and
-      // be asserted to, the way every other section in this file is. Do not
-      // read a passing run as evidence either way in the meantime -- what is
-      // asserted below is only that requesting Batched changes nothing.
-      //
-      // What this section can still assert, and does, is that requesting
-      // Batched on a problem that cannot batch changes nothing at all --
-      // which is the whole content of the fallback, since the code executed
-      // is then identical to Serial's.
-      const int max_it = 5;
+      /* **THE JACOBIAN DEFECT THIS SECTION USED TO WORK AROUND NO LONGER
+         REPRODUCES, AND I DID NOT ESTABLISH WHAT CLOSED IT.** What stood here
+         recorded that a mixed mesh at order >= 1 does not converge -- Newton
+         falling by a constant factor of about 1.7 per step and stalling at
+         1.2e-08 after 30, while LBFGS, which never asks for a gradient,
+         reached 5.5e-14 and the same solution to six digits -- and it ran with
+         max_it of five, asserting nothing about convergence, saying "this
+         section is the thing to revisit at that merge".
+
+         This is that merge, and the section converges: 3 Newton iterations to
+         about 2e-16 at orders 0, 1 and 2, at the same c = 5.
+
+         **It is NOT the E/G stride fix that closed it**, which is what one
+         would assume, the stride being wrong exactly when two neighbours carry
+         different potential dof counts and a mesh of triangles and squares at
+         order >= 1 being exactly that. Measured rather than assumed: reverting
+         all three of this branch's stride sites and rebuilding leaves this
+         section converging in 3 iterations at every order. So something else
+         fixed it between that comment and now, and the honest state is that
+         the symptom is gone and the cause is unattributed.
+
+         The section asserts convergence now, the way every other one in this
+         file does. It does NOT discriminate on the stride -- said plainly so
+         nobody reads a passing run as evidence about that. */
+      const int max_it = 30;
       const Outcome ref = Solve(mesh_a, order, c, LFM::Serial, max_it);
       const Outcome got = Solve(mesh_b, order, c, LFM::Batched, max_it);
 
       CAPTURE(order);
       REQUIRE(got.can_batch == (order == 0));
+
+      REQUIRE(ref.converged);
+      REQUIRE(got.converged);
 
       RequireSame(ref.p, got.p);
       RequireSame(ref.q, got.q);
