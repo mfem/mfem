@@ -1038,13 +1038,47 @@ public:
 
        Keeping the local blocks at `p_f` is possible -- it means applying `E`
        at each of the twelve gather and scatter sites instead of once in the
-       prolongation -- and this measurement does not justify it. End to end
-       the demonstrator's hp path is 0.67 s to 8.8e-5 and 1.32 s to 5.3e-6,
-       against 0.81 s recorded before the change; but an UNCHANGED path moved
-       too on the same machine (h-adaptivity 0.51 s to 0.38 s), so the
-       end-to-end comparison is inside the drift and only the controlled table
-       above should be quoted. At the modest ceiling a coarsening-only driver
-       needs, `p_max = order + 1` and `r = 4/3`, none of this is measurable.
+       prolongation. **The claim that stood here, that the measurement does
+       not justify it, is WITHDRAWN**: it rested on an end-to-end comparison
+       that could not resolve anything (0.67 s against 0.81 s, while an
+       unchanged path moved as far on the same machine), and the right answer
+       to a comparison inside the drift is a better instrument, not a weaker
+       conclusion.
+
+       **The end-to-end measurement is resolvable, and the ceiling does cost
+       the demonstrator.** What makes it controlled is a demonstrator run that
+       never REACHES its ceiling -- the sensor stops enriching at degree 6 --
+       so every ceiling at or above 6 takes identical decisions and the two
+       arms differ in stored size and in nothing else. `-nx 16 -amr 11` at
+       ceilings 6, 7 and 10 agrees in element count, `M`, degree range and
+       both error norms in every one of the twelve cycles.
+
+       Interleaved pairs on that arm, order alternated, sign test over twelve
+       pairs:
+
+       | arms | ratio | pairs | p |
+       |---|---|---|---|
+       | ceiling 7 against itself (the control) | 0.991x | 8/12 | 0.19, NOT resolved |
+       | ceiling 6 -> 7, one degree | **1.097x** | 12/12 | 0.0002 |
+       | ceiling 6 -> 10, four degrees | **1.423x** | 12/12 | 0.0002 |
+
+       and a round-robin over 6..10 gives 1.000, 1.037, 1.124, 1.281, 1.370 --
+       monotone and compounding at 1.04 to 1.09 per degree, which is the shape
+       `r` and `r^2` predict.
+
+       **And all of it is in assembly**, which is what says it is the local
+       blocks and therefore Shape B's to recover: summed over the run, assembly
+       goes 0.536 / 0.631 / 0.888 s at ceilings 6 / 7 / 10 while the
+       preconditioner (0.092 / 0.087 / 0.081) and the trace solve (0.037 /
+       0.036 / 0.038) do not move. Assembly is 93% of the demonstrator's
+       measured legs.
+
+       So one degree of unused ceiling costs about a tenth of the run, the
+       default ceiling is `order + 5`, and the demonstrator's faces sit at 2
+       to 6 under it. Shape B is justified by that; what is NOT measured is
+       Shape B itself, only the ceiling it would remove. At the modest ceiling
+       a coarsening-only driver needs, `p_max = order + 1`, the gap is one
+       degree and the same instrument would be needed to see it.
 
        **A face richer than its element is a real thing and stays one.** The
        measured claim that a trace above both its elements is exactly

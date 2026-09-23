@@ -20,19 +20,22 @@ selection as the control that says it can fail.
 
 ## Left to do
 
-**Shape B is NOT currently justified, and the measurement is taken.** The
-local blocks follow the ceiling now, which is what made the port small: `E`
-appears once, in the prolongation, and no assembly site changed. The
-controlled sweep in `SetTraceOrders()`'s doxygen -- one mesh, one set of
-degrees, only the ceiling varying, so the answer cannot move and does not --
-puts the cost at **3.2x on assembly and flat on the solve** at the extreme
-ceiling of 7. The predicted 4.0x was the right shape and a little high.
-End to end the demonstrator moved from 0.81 s to 0.67 s at 8.8e-5, but an
-UNCHANGED path moved as much on the same machine, so that comparison is
-inside the drift. Keeping the local blocks at `p_f` would mean applying `E`
-at each of the twelve gather and scatter sites; before writing any of it,
-make the end-to-end measurement resolvable, because the controlled number
-alone does not say the demonstrator is slower.
+**Shape B IS justified, and the earlier verdict here is withdrawn.** It said
+the measurement did not justify it, on an end-to-end comparison that could not
+resolve anything. The end-to-end measurement is resolvable now and the ceiling
+costs the demonstrator **1.097x per degree of unused ceiling** (12/12
+interleaved pairs, sign test p = 0.0002) and 1.423x over four degrees, with a
+same-command control that correctly does NOT resolve. All of it is in
+assembly; the preconditioner and the trace solve do not move. The default
+ceiling is `order + 5`. The account and the tables are on
+`SetTraceOrders()`'s doxygen.
+
+What makes it controlled is a demonstrator run that never reaches its ceiling,
+so every ceiling above the highest degree used takes identical decisions --
+`-nx 16 -amr 11`, identical in element count, `M`, degree range and both error
+norms in every cycle. **What is measured is the ceiling Shape B would remove,
+not Shape B itself.** Writing it means applying `E` at each of the twelve
+gather and scatter sites instead of once in the prolongation.
 
 **`DarcyForm::Reconstruct()` under a per-face trace. DONE**, and all three
 reasons the refusal gave were wrong: the abort was in
