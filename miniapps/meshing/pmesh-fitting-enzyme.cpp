@@ -1435,14 +1435,18 @@ private:
          surface_node_ir, all_domain_attr, derivatives);
    }
 
-   /// Freeze ideal target Jacobians using the initial mesh's target sizes.
+   /// Freeze target Jacobians at each quadrature point of the initial mesh.
    void SetTargetData(int target_id)
    {
-      MFEM_VERIFY(target_id == 1 || target_id == 2,
-                  "Supported target ids are 1 (unit size) and 2 (equal size).");
-      TargetConstructor target(
-         target_id == 1 ? TargetConstructor::IDEAL_SHAPE_UNIT_SIZE :
-         TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, comm);
+      TargetConstructor::TargetType target_type;
+      switch (target_id)
+      {
+         case 1: target_type = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+         case 2: target_type = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+         case 4: target_type = TargetConstructor::GIVEN_SHAPE_AND_SIZE; break;
+         default: MFEM_ABORT("Supported target ids are 1, 2, and 4.");
+      }
+      TargetConstructor target(target_type, comm);
       target.SetNodes(*mesh.GetNodes());
 
       constexpr int vdim = dim * dim;
@@ -1457,15 +1461,14 @@ private:
          element_targets.SetSize(dim, dim, nq);
          target.ComputeElementTargets(e, *fes.GetFE(e), ir, unused_nodes,
                                       element_targets);
-         // Targets 1 and 2 are constant within each element. TargetConstructor
-         // includes MPI-global averaging and nonconforming refinement scaling.
-         const DenseMatrix &W = element_targets(0);
          DenseMatrix W_inv(dim);
-         CalcInverse(W, W_inv);
-         const real_t det_W = W.Det();
          const int offset = metric_qspace.Offset(e);
          for (int q = 0; q < nq; q++)
          {
+            // Target 4 retains the initial Jacobian at each quadrature point,
+            // including its variation within curved or non-affine elements.
+            const DenseMatrix &W = element_targets(q);
+            CalcInverse(W, W_inv);
             real_t *Wq_inv = inverse_data + vdim * (offset + q);
             for (int i = 0; i < dim; i++)
             {
@@ -1474,7 +1477,7 @@ private:
                   Wq_inv[dim * i + j] = W_inv(i, j);
                }
             }
-            determinant_data[offset + q] = det_W;
+            determinant_data[offset + q] = W.Det();
          }
       }
    }
@@ -2183,7 +2186,8 @@ int main(int argc, char *argv[])
                   "303 (shape) or 321 (shape and size) (3D).");
    args.AddOption(&target_id, "-tid", "--target-id",
                   "Target type: 1 ideal shape, unit size; "
-                  "2 ideal shape, equal size from the initial mesh.");
+                  "2 ideal shape, equal size from the initial mesh; "
+                  "4 given shape and size from the initial mesh.");
    args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface fitting coefficient.");
    args.AddOption(&quad_type, "-qt", "--quad-type",
@@ -2279,8 +2283,8 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(surface_fit_const > 0.0,
                "This miniapp is for surface fitting only. Use "
                "pmesh-optimizer-enzyme for optimization without fitting.");
-   MFEM_VERIFY(target_id == 1 || target_id == 2,
-               "pmesh-fitting-enzyme supports target ids 1 and 2.");
+   MFEM_VERIFY(target_id == 1 || target_id == 2 || target_id == 4,
+               "pmesh-fitting-enzyme supports target ids 1, 2, and 4.");
    MFEM_VERIFY(metric_id == 2 || metric_id == 58 || metric_id == 80 ||
                metric_id == 303 || metric_id == 321,
                "pmesh-fitting-enzyme supports metric ids 2, 58, 80 (2D) "
