@@ -1277,3 +1277,123 @@ TEST_CASE("The hybridized gradient is in one numbering on mixed element degrees"
    REQUIRE(live > width / 3);
    REQUIRE(rel < 1e-5);
 }
+
+TEST_CASE("A nonlinear face constraint on hanging nodes is refused, not a crash",
+          "[DarcyHybridization][NonlinearDarcy]")
+{
+   /* It used to SEGFAULT. Every element-major face loop in DarcyHybridization
+      calls a face with no second element a BOUNDARY face, which is right on a
+      conforming mesh; on a nonconforming one a MASTER face -- the coarse side
+      of a hanging node -- has none either, and GetFaceToBdrElMap() maps it to
+      -1, so the boundary branch read GetBdrAttribute(-1) and dereferenced
+      Mesh::boundary at -1.
+
+      Reproduced exactly here before the guard went in: `amr-quad.mesh` refined
+      once at order 1, with an HDGDiffusionIntegrator on the NONLINEAR
+      potential mass form and NO boundary integrator at all -- the attribute is
+      read before the loop that would have been empty.
+
+      The expansion that makes this configuration WORK is implemented on
+      gf-hdg-linearise-first and is trunk material; it is not lifted yet
+      because it is written against that branch's TransWorkspace, which this
+      branch does not have. Until it lands, the contract is a clear refusal.
+      **When it lands this case inverts** -- it should then solve, and the
+      acceptance for that is the one the refusal names: the same discrete
+      problem through the linear and nonlinear face routes must agree to
+      round-off on this mesh. */
+   Mesh mesh("../../data/amr-quad.mesh", 1, 1);
+   mesh.UniformRefinement();
+   const int dim = mesh.Dimension();
+   const int order = 1;
+
+   // The mesh really does carry master faces, which is what makes the refusal
+   // fire rather than the guard being vacuous.
+   Array<int> f2b = mesh.GetFaceToBdrElMap();
+   int n_master = 0;
+   for (int f = 0; f < mesh.GetNumFaces(); f++)
+   {
+      int el1, el2;
+      mesh.GetFaceElements(f, &el1, &el2);
+      if (el2 < 0 && f2b[f] < 0) { n_master++; }
+   }
+   REQUIRE(n_master > 0);
+
+   L2_FECollection q_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes_q(&mesh, &q_coll, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+   ConstantCoefficient one(1.0);
+
+   DarcyForm darcy(&fes_q, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   darcy.GetPotentialMassNonlinearForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   /* **What is asserted is the refusal's TRIGGER, not the abort**, and the
+      reason is a build option rather than a choice: `MFEM_VERIFY` calls
+      `mfem_error()`, which aborts unless `MFEM_USE_EXCEPTIONS=YES`, and this
+      tree does not set it -- `set_error_action(MFEM_ERROR_THROW)` refuses at
+      run time with exactly that message. So a `REQUIRE_THROWS` around
+      `FormLinearSystem()` cannot work here; it takes the process down.
+
+      `HasNCMasterFaces()` is the predicate `Finalize()` keys the refusal on,
+      so asking it is asking the guard's own question. Paired with the linear
+      case below -- same mesh, same integrator, the LINEAR form -- which is
+      admitted and solves, the two together say the refusal is aimed at the
+      nonlinear face route and not at hanging nodes. */
+   REQUIRE(darcy.GetHybridization()->HasNCMasterFaces());
+}
+
+/** The LINEAR face route on the same mesh is untouched, which is what says the
+    refusal is aimed at the nonlinear one and not at hanging nodes. */
+TEST_CASE("The same mesh with a LINEAR face constraint is admitted",
+          "[DarcyHybridization][NonlinearDarcy]")
+{
+   Mesh mesh("../../data/amr-quad.mesh", 1, 1);
+   mesh.UniformRefinement();
+   const int dim = mesh.Dimension();
+   const int order = 1;
+
+   L2_FECollection q_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes_q(&mesh, &q_coll, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+   ConstantCoefficient one(1.0);
+
+   DarcyForm darcy(&fes_q, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   // The same integrator, on the LINEAR form.
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   // The trigger is TRUE here too -- same mesh -- so what exempts this arm is
+   // the route and nothing else.
+   REQUIRE(darcy.GetHybridization()->HasNCMasterFaces());
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+   REQUIRE(A->Width() > 0);
+}
