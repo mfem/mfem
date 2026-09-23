@@ -71,14 +71,44 @@ one of them already a single face index, so the substitution is mechanical.
 *This adds a data member, so it is the class-layout trap: `make clean` in both
 trees, not a rebuild. Budget for it; a parameter cannot carry a persistent map.*
 
-*And on reconstruction, of which there are two kinds and only one is a
-problem.* `DarcyForm::Reconstruct()` solves a mixed local problem driven by a
-total flux built from the traces, and reads the trace space directly at six
-sites in `darcyform.cpp`. `-pref` still refuses `-rec`, but the reason has
-changed: the basis problem went with the retirement, and what is left is that
-the local problem's shapes assume one trace degree per element. Tried rather
-than assumed -- with the guard removed it aborts in
-`DenseMatrixInverse::Factor` with "DenseMatrix is not square".
+*And on reconstruction.* **`-pref` no longer refuses `-rec`, and every reason
+this paragraph used to give for the refusal was wrong.** It said the local
+problem's shapes "assume one trace degree per element" and pointed at six
+direct reads of the trace space in `darcyform.cpp`. A backtrace puts the abort
+in `DarcyHybridization::ReconstructTotalFlux`, not in `DarcyForm` at all; that
+routine never sees a per-face degree, `TraceFE()` being the CEILING's element
+for every face by construction; and it fired with **zero** elements refined
+and again with every face at the ceiling, both uniform traces, so "per-face"
+was never the trigger.
+
+What it was: `DarcyForm::ReconstructTotalFlux()` built the total flux space
+from the **flux** collection's order where it has to match the **trace**'s.
+The two agree in every configuration without `-pref` and differ the moment the
+constraint space is built a degree up. One line, and all three `-prefx` arms
+then run, mixed element degrees included.
+
+**But the reconstruction's answer FOLLOWS THE CEILING, and that is new and
+undocumented.** Its local problem is built from the constraint space's
+collection -- `ReconstructFluxAndPot()` clones it one degree up for the
+enriched trace, and the total flux now follows the trace too -- so a higher
+ceiling is a genuinely richer postprocessing of the same discrete solution.
+Measured with the discrete problem held fixed (`-o 2 -rec -pref n -prefx 0.0
+-nx 8`): the primary flux error is 5.13313e-04 at every ceiling against the
+uniform arm's 5.13312e-04, while `t_hs` goes 3.507e-05, 3.503e-05, 3.132e-05,
+2.363e-05 as the ceiling rises. **So a caller choosing a ceiling for the TRACE
+is also choosing the reconstruction's richness.** Pinned by "Reconstruction
+runs under a constrained trace and is the coarse one" in
+`tests/unit/fem/test_darcy_reconstruction.cpp`, whose first draft asserted the
+reconstructed fields MATCH the uniform arm and failed at 3.9e-03.
+
+Two smaller things the same chase turned up, both fixed: the contract
+`ut` must satisfy was an `MFEM_ASSERT`, compiled out of a release build, so a
+mismatched space aborted forty lines later inside `DenseMatrixInverse::Factor`
+with a message naming neither space -- it is an `MFEM_VERIFY` now and says
+which face and which two counts. And `ut`'s RT **interior** DOFs were never
+initialised: the face loop writes only face DOFs and `GridFunction::SetSpace()`
+sizes without zeroing. It reads as zero deterministically here, a fresh `mmap`
+being zero-filled, which is the allocator's luck and not a contract.
 
 `HDGPotentialPostprocessor` -- the classic local postprocessing, Nguyen,
 Peraire & Cockburn eq (25) -- has no such problem: it reads the flux and the

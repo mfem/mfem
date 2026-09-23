@@ -1035,10 +1035,24 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
    {
       Mesh *mesh = fes_u->GetMesh();
       const int dim = fes_u->GetMesh()->Dimension();
-      const FiniteElementCollection *u_coll = fes_u->FEColl();
-      int ut_order = u_coll->GetOrder();
-      if (dynamic_cast<const RT_FECollection*>(u_coll)
-          || dynamic_cast<const BrokenRT_FECollection*>(u_coll)) { ut_order--; }
+      /* **The total flux lives on the faces, so its degree is the TRACE's and
+         not the flux space's.** This used to be taken from the flux
+         collection, with a `-1` for RT's order convention, and the two agree
+         in every configuration where the constraint space is built at the
+         element order -- which was all of them until `p`-adaptivity built it
+         one degree up as a ceiling. Then `Mf` in
+         DarcyHybridization::ReconstructTotalFlux() is
+         `nt(trace) x nt(ut)`, rectangular, and the run aborts in
+         DenseMatrixInverse::Factor with "DenseMatrix is not square" -- which
+         is what `convdiff -pref -rec` did, and was wrongly written up as the
+         reconstruction not tolerating per-face degrees. It never sees one:
+         TraceFE() is the ceiling's element for every face.
+
+         Taken from the face ELEMENT rather than from the collection's
+         GetOrder(), which is the documented trap:
+         DG_Interface_FECollection(p)::GetOrder() returns p+1, inheriting
+         Raviart-Thomas's convention, while its face elements are degree p. */
+      const int ut_order = hybridization->TraceFE(0)->GetOrder();
       FiniteElementCollection *ut_coll = new RT_FECollection(ut_order, dim);
       FiniteElementSpace *ut_space = NULL;
 #ifdef MFEM_USE_MPI

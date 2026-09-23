@@ -4086,6 +4086,16 @@ void DarcyHybridization::ReconstructTotalFlux(
 
    //element faces
 
+   /* **The face loop below writes only FACE DOFs, and an RT total flux has
+      interior ones too.** GridFunction::SetSpace() sizes without
+      initialising, so those were whatever the allocation held. It reproduces
+      to every printed digit here over six runs -- a fresh mmap is zero-filled,
+      so a first-touch allocation reads as zero deterministically -- and that
+      is luck of the allocator rather than a contract. Zeroed so the interior
+      is defined; it cannot move a number on this path, which is the check
+      that it was reading zero all along. */
+   ut = 0.;
+
    const int nfaces = mesh->GetNumFaces();
    Array<int> f_2_b = mesh->GetFaceToBdrElMap();
    Array<int> vdofs_ut, vdofs_xf, vdofs1, vdofs2, dofs1, dofs2;
@@ -4102,8 +4112,19 @@ void DarcyHybridization::ReconstructTotalFlux(
    for (int f = 0; f < nfaces; f++)
    {
       fes_ut.GetFaceVDofs(f, vdofs_ut);
-      MFEM_ASSERT(vdofs_ut.Size() == TraceFE(f)->GetDof() *
-                  c_fes.GetVDim(), "Incompatible constraint and total flux spaces");
+      /* MFEM_VERIFY, not MFEM_ASSERT, and the difference cost a session. An
+         assert is compiled out of a release build, so a caller who supplied a
+         total flux space of the wrong degree got no word of it here and
+         aborted forty lines below inside DenseMatrixInverse::Factor with
+         "DenseMatrix is not square" -- a message that names neither space and
+         sent the last reader looking in DarcyForm. The contract is exactly
+         this line: @a ut carries one value per trace DOF. */
+      MFEM_VERIFY(vdofs_ut.Size() == TraceFE(f)->GetDof() * c_fes.GetVDim(),
+                  "The total flux space must match the trace: face " << f
+                  << " has " << vdofs_ut.Size() << " total-flux VDOFs against "
+                  << TraceFE(f)->GetDof() * c_fes.GetVDim()
+                  << " trace DOFs. Build it at the CONSTRAINT space's face "
+                  "degree, not the flux space's.");
       bf.SetSize(vdofs_ut.Size());
       ut_f.SetSize(vdofs_ut.Size());
 

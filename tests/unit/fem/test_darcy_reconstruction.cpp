@@ -124,8 +124,12 @@ public:
 
 /// Solve the hybridized HDG problem and post-process it. @a bdr_flux_mass, if
 /// non-zero, installs the boundary-face term above on the flux mass.
+/// @a ceiling, when positive, builds the constraint space at THAT degree and
+/// states every face's degree as @a order through SetTraceOrders() -- the
+/// `p`-adaptive shape with nothing actually refined. The discrete problem is
+/// then provably the uniform one, so every reconstructed field must match.
 Post Solve(Mesh &mesh, int order, PotForm pot, real_t td,
-           real_t bdr_flux_mass = 0.0)
+           real_t bdr_flux_mass = 0.0, int ceiling = -1)
 {
    const int dim = mesh.Dimension();
 
@@ -167,9 +171,15 @@ Post Solve(Mesh &mesh, int order, PotForm pot, real_t td,
       new DomainLFIntegrator(gcoeff, 6, 12));
 
    Array<int> ess;
-   DG_Interface_FECollection trace_coll(order, dim);
+   DG_Interface_FECollection trace_coll((ceiling > 0) ? ceiling : order, dim);
    FiniteElementSpace fes_t(&mesh, &trace_coll);
    darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   if (ceiling > 0)
+   {
+      Array<int> face_order(mesh.GetNumFaces());
+      face_order = order;
+      darcy.GetHybridization()->SetTraceOrders(face_order);
+   }
    darcy.Assemble();
 
    BlockVector x(darcy.GetOffsets());
@@ -666,4 +676,66 @@ TEST_CASE("A potential term that contributes nothing changes nothing",
 
    // And the postprocessing is still doing its job in both.
    REQUIRE(with.err_ps < 0.5 * with.err_p);
+}
+
+TEST_CASE("Reconstruction runs under a constrained trace and is the coarse one",
+          "[DarcyForm][Reconstruction][PAdapt]")
+{
+   using namespace darcy_reconstruction;
+
+   /* This aborted before the fix, and the recorded reason for the refusal was
+      wrong three ways over.
+
+      `convdiff --p-refine --reconstruct` died in DenseMatrixInverse::Factor
+      with "DenseMatrix is not square". It was written up as DarcyForm's six
+      direct reads of the trace space, and as the local problem not tolerating
+      faces of different degrees. A backtrace puts the abort in
+      DarcyHybridization::ReconstructTotalFlux instead; that routine never sees
+      a per-face degree, TraceFE() being the CEILING's element for every face;
+      and it fired with every face at ONE degree, which is what this case sets.
+
+      What it was: DarcyForm::ReconstructTotalFlux() sized the total flux space
+      from the FLUX collection's order where it has to match the TRACE's. The
+      two agree whenever the constraint space is built at the element order,
+      which was every configuration in this tree until a ceiling existed.
+
+      **What this case asserts, and what it deliberately does NOT.** The
+      constrained ceiling system IS the coarse system, so the DIRECT solution
+      must be unchanged, and that is the assertion. The RECONSTRUCTION's own
+      output is not: its local problem is built from the constraint space's
+      collection -- `ReconstructFluxAndPot()` clones it one degree up for the
+      enriched trace, and the total flux now follows the trace too -- so a
+      higher ceiling makes it a genuinely richer postprocessing of the same
+      discrete solution.
+
+      That was measured before it was believed, holding the discrete problem
+      fixed and moving only the ceiling (`convdiff -o 2 -rec -pref n
+      -prefx 0.0 -nx 8`): the primary flux error is 5.13313e-04 at every
+      ceiling against the uniform arm's 5.13312e-04, while the postprocessed
+      potential goes 3.507e-05 (no ceiling), 3.503e-05, 3.132e-05, 2.363e-05
+      as the ceiling rises by one, two and three. So the first draft of this
+      case, which required the reconstructed fields to match, was asserting
+      something untrue -- they differ by 3.9e-03 -- and it is recorded here
+      rather than quietly relaxed. **A p-adaptive caller choosing a ceiling
+      for the TRACE is also choosing the reconstruction's richness**, which
+      nothing had said. */
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+
+   const Post a = Solve(mesh, order, PotForm::Linear, 1.0);
+   const Post b = Solve(mesh, order, PotForm::Linear, 1.0, 0.0, order + 1);
+
+   // It ran at all, and the enriched spaces really did grow -- without this
+   // the case would pass against a ceiling that was silently ignored.
+   INFO("uniform ut " << a.ut.Size() << ", constrained ut " << b.ut.Size());
+   REQUIRE(b.ut.Size() > a.ut.Size());
+
+   // The discrete problem is untouched: this is the coarse system.
+   REQUIRE(b.err_p == MFEM_Approx(a.err_p));
+
+   // And the reconstruction is a different, richer postprocessing of it.
+   REQUIRE(MaxDiff(a.u_s, b.u_s) > 1e-6);
 }
