@@ -324,6 +324,10 @@ miniapps/fluids/navier/ParaView
 miniapps/fluids/navier/tgv_out*.txt
 miniapps/fluids/navier/*_output
 
+miniapps/fluids/rbvms/prbvms
+miniapps/fluids/rbvms/rbvms
+miniapps/fluids/rbvms/output_*.dat
+
 miniapps/nurbs/nurbs_ex1
 miniapps/nurbs/nurbs_ex1p
 miniapps/nurbs/nurbs_ex3

@@ -663,7 +663,7 @@ int main(int argc, char *argv[])
    // 7. Actual time integration
 
    // Open output file
-   std::ofstream os;
+   /*std::ofstream os;
    if (Mpi::Root())
    {
       std::ostringstream filename;
@@ -687,7 +687,7 @@ int main(int argc, char *argv[])
          }
       }
       os<<endl;
-   }
+   }*/
 
    // Loop till final time reached
    while (t < t_final)
@@ -852,7 +852,7 @@ int main(int argc, char *argv[])
          cout<<"\n"<<std::flush;
       }
    }
-   os.close();
+   //os.close();
 
    // 8. Free the used memory.
    for (int i = 0; i < fecs.Size(); ++i)
