@@ -409,6 +409,9 @@ public:
    /// Returns the number of degrees of freedom in the finite element.
    int GetDof() const { return dof; }
 
+   /// Set the number of degrees of freedom in the finite element.
+   void SetDof(int newdof) const;
+
    /** @brief Returns the order of the finite element. In the case of
        anisotropic orders, returns the maximum order. */
    int GetOrder() const { return order; }
