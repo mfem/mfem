@@ -601,19 +601,19 @@ int main(int argc, char *argv[])
    os.open(filename.str().c_str());
 
    // Header
-  /* os <<"# 1: step"<<"\t"<<"2: time"<<"\t"<<"3: dt"<<"\t"
-      <<"4: cfl"<<"\t"<<"5: outflow"<<"\n";
-   char dimName[] = "xyz";
-   for (int b=0, i = 6; b<mesh.bdr_attributes.Size(); ++b)
-   {
-      int bnd = mesh.bdr_attributes[b];
-      os<<"# bnd="<<bnd<<" :";
-      for (int v=0; v<dim; ++v)
-      {
-         os<<" F"<<dimName[v]<<"="<<i++<<"\t";
-      }
-      os<<" Mass="<<i++<<"\n";
-   }*/
+   /* os <<"# 1: step"<<"\t"<<"2: time"<<"\t"<<"3: dt"<<"\t"
+       <<"4: cfl"<<"\t"<<"5: outflow"<<"\n";
+    char dimName[] = "xyz";
+    for (int b=0, i = 6; b<mesh.bdr_attributes.Size(); ++b)
+    {
+       int bnd = mesh.bdr_attributes[b];
+       os<<"# bnd="<<bnd<<" :";
+       for (int v=0; v<dim; ++v)
+       {
+          os<<" F"<<dimName[v]<<"="<<i++<<"\t";
+       }
+       os<<" Mass="<<i++<<"\n";
+    }*/
 
    // Loop till final time reached
    while (t < t_final)
@@ -675,21 +675,21 @@ int main(int argc, char *argv[])
       line(13+13*vdim);
 
       // Print to file
-/*      bdrForce = evo.bdr_flux;
-      int nbdr = mesh.bdr_attributes.Size();
-      os << std::setw(10);
-      os << si<<"\t"<<t<<"\t"<<dt<<"\t"<<cfl<<"\t"<<outflow<<"\t";
-      for (int b=0; b<nbdr; ++b)
-      {
-         int bnd = mesh.bdr_attributes[b];
-         for (int v=0; v<dim; ++v)
-         {
-            os<<bdrForce(bnd-1,v)<<"\t";
-         }
-         os<<bdrForce(bnd-1,dim)<<"\t";
-      }
-      os<<"\n"<< std::flush;
-*/
+      /*      bdrForce = evo.bdr_flux;
+            int nbdr = mesh.bdr_attributes.Size();
+            os << std::setw(10);
+            os << si<<"\t"<<t<<"\t"<<dt<<"\t"<<cfl<<"\t"<<outflow<<"\t";
+            for (int b=0; b<nbdr; ++b)
+            {
+               int bnd = mesh.bdr_attributes[b];
+               for (int v=0; v<dim; ++v)
+               {
+                  os<<bdrForce(bnd-1,v)<<"\t";
+               }
+               os<<bdrForce(bnd-1,dim)<<"\t";
+            }
+            os<<"\n"<< std::flush;
+      */
 
 
 
@@ -763,7 +763,7 @@ int main(int argc, char *argv[])
       cout<<endl<<endl;
       cout<<"\n"<<std::flush;
    }
-  // os.close();
+   // os.close();
 
    // 8. Free the used memory.
    for (int i = 0; i < fecs.Size(); ++i)
