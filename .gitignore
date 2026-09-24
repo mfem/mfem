@@ -69,6 +69,8 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
+examples/ex5[0-9]
+examples/ex5[0-9]p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -126,6 +128,18 @@ examples/ex25-*.gf
 examples/ex25p-*.*
 examples/ex28_*
 examples/ex28p_*
+examples/ex50.mesh
+examples/ex50-init.*
+examples/ex50-final.*
+examples/ex50p.mesh
+examples/ex50p-init.*
+examples/ex50p-final.*
+examples/ex51.mesh
+examples/ex51-init.*
+examples/ex51-final.*
+examples/ex51p.mesh
+examples/ex51p-init.*
+examples/ex51p-final.*
 examples/flux.*
 examples/dsol.*
 examples/cond.*

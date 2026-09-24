@@ -217,3 +217,5 @@ clean-exec:
 	@rm -f euler-?-final.* euler-?-init.* euler-mesh-final.* euler-mesh.*
 	@rm -rf ex28_* ex28p_*
 	@rm -rf cond.* cond_mesh.* cond_j.* dsol.* port_mesh.* port_mode.*
+	@rm -rf ex50-* ex50p-* ex51-* ex51p-*
+	@rm -rf ex50.mesh ex50p.mesh ex51.mesh ex51p.mesh
