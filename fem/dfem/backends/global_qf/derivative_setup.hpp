@@ -130,7 +130,7 @@ struct DerivativeSetup
 
       for (int j = 0; j < trial_vdim; j++)
       {
-         int m_offset = 0;
+         int c_offset = 0;
          constexpr_for<0, ninputs>([&](auto s)
          {
             if (!activity_map[s]) { return; }
@@ -178,8 +178,7 @@ struct DerivativeSetup
                real_t *cache_d = qp_cache.ReadWrite();
 
                // Write yq into the cache column
-               const int m_global = m + m_offset;
-               const int j_cur    = j;
+               const int col = c_offset + c_shadow;
                int out_offset = 0;
                constexpr_for<0, noutputs>([&](auto o)
                {
@@ -198,11 +197,9 @@ struct DerivativeSetup
                      const int c_out    = idx / gnqp_local;
                      const int q        = gq % num_qp_local;
                      const int entity   = gq / num_qp_local;
-                     const int out_comp = out_offset_o + c_out;
+                     const int out_comp = out_offset_o + (c_out % test_vdim_o) * test_op_dim_o + c_out / test_vdim_o;
                      const int cache_idx =
-                        out_comp * trial_vdim_local * total_trial_op_dim_local +
-                        j_cur * total_trial_op_dim_local +
-                        m_global;
+                        out_comp * trial_vdim_local * total_trial_op_dim_local + col;
                      cache_d[q + num_qp_local *
                                (cache_idx + residual_size_local * entity)] =
                                 yq_d[c_out + yq_out_size * gq];
@@ -210,7 +207,7 @@ struct DerivativeSetup
                   out_offset += yq_out_size;
                });
             }
-            m_offset += trial_op_dim_s;
+            c_offset += input_size_s;
          });
       }
    }

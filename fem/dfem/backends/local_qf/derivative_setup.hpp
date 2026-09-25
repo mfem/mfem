@@ -381,7 +381,7 @@ public:
 
                   for (int j = 0; j < trial_vdim; j++)
                   {
-                     int m_offset = 0;
+                     int c_offset = 0;
                      for_constexpr<n_inputs>([&](auto sc)
                      {
                         constexpr size_t s = sc.value;
@@ -392,7 +392,7 @@ public:
 
                         for (int m = 0; m < op_dim_s; m++)
                         {
-                           const int col_m = m + m_offset;
+                           const int col = derivative_cache_col(c_offset, vdim_s, j, m);
 
                            // Enzyme writes through the output slots of the
                            // primal tuple, so they are reset per seed.
@@ -414,15 +414,14 @@ public:
                                  {
                                     const int row = out_offsets[o] + i * to + k;
                                     const int cache_idx =
-                                       row * trial_vdim * total_trial_op_dim +
-                                       j * total_trial_op_dim + col_m;
+                                       row * trial_vdim * total_trial_op_dim + col;
                                     cache_tensor(q, cache_idx, e) =
                                        qf_value_at(tangent, i, k);
                                  }
                               }
                            });
                         }
-                        m_offset += op_dim_s;
+                        c_offset += in_size_on_qp[s];
                      });
                   }
 #else  // MFEM_USE_ENZYME
@@ -469,7 +468,7 @@ public:
 
                   for (int j = 0; j < trial_vdim; j++)
                   {
-                     int m_offset = 0;
+                     int c_offset = 0;
                      for_constexpr<n_inputs>([&](auto sc)
                      {
                         constexpr size_t s = sc.value;
@@ -480,7 +479,7 @@ public:
 
                         for (int m = 0; m < op_dim_s; m++)
                         {
-                           const int col_m = m + m_offset;
+                           const int col = derivative_cache_col(c_offset, vdim_s, j, m);
 
                            // The q-function writes through the output slots,
                            // so they are reset per seed.
@@ -501,8 +500,7 @@ public:
                                  {
                                     const int row = out_offsets[o] + i * to + k;
                                     const int cache_idx =
-                                       row * trial_vdim * total_trial_op_dim +
-                                       j * total_trial_op_dim + col_m;
+                                       row * trial_vdim * total_trial_op_dim + col;
                                     cache_tensor(q, cache_idx, e) =
                                        qf_gradient_at(tangent, i, k);
                                  }
@@ -513,7 +511,7 @@ public:
                            // the pristine (zero-tangent) primal state.
                            qf_set_gradient_at(get<s>(qargs), j, m, 0.0);
                         }
-                        m_offset += op_dim_s;
+                        c_offset += in_size_on_qp[s];
                      });
                   }
 #endif // MFEM_USE_ENZYME

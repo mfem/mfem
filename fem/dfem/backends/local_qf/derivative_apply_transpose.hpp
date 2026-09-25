@@ -407,7 +407,7 @@ public:
                      }
                   });
 
-                  int m_offset = 0;
+                  int c_offset = 0;
                   for_constexpr<n_inputs>([&](auto sc)
                   {
                      constexpr size_t s = sc.value;
@@ -422,8 +422,7 @@ public:
                      {
                         for (int m = 0; m < op_dim_s; m++)
                         {
-                           const int col =
-                              j * total_trial_op_dim + (m + m_offset);
+                           const int col = derivative_cache_col(c_offset, vdim_s, j, m);
                            real_t sum = 0.0;
                            for_constexpr<n_outputs>([&](auto oc)
                            {
@@ -473,7 +472,7 @@ public:
                      }
                      backend_t::template qp_push<SARG>(
                         get<s>(rargs), qx, qy, qz, fhat);
-                     m_offset += op_dim_s;
+                     c_offset += in_size_on_qp[s];
                   });
                }
             }

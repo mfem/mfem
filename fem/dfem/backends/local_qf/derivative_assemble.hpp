@@ -319,6 +319,14 @@ map_quadrature_data_to_vector_fe(DeviceTensor<2, real_t> &y,
    }
 }
 
+/// Capacity of the shared fhat slab through which sparse assembly
+/// contracts one element-matrix column: four values per quadrature point at
+/// the largest supported q1d.
+template<int DIM, int MQ1>
+constexpr int fhat_slab_capacity()
+{
+   return 4 * ((DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1);
+}
 
 template<int DIM,
          int MQ1,
@@ -344,21 +352,19 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    real_t *fhat_storage,
    Shared &smem)
 {
-   static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
-   // Slab must hold full (test_vdim, test_op_dim, nq) fhat.
-   // It is allocated by the caller, and is shared by every output, so it must be
-   // Before, declaring it here allocated one slab per output and the device
-   // kernel ran out of shared memory once an integrator had more outputs.
-   static constexpr int FHAT_SLAB_MAX = MQN * 4;
+   // fhat holds one element-matrix column at the quadrature points. The caller
+   // allocates it once and every output reuses it in turn.
+   static constexpr int FHAT_SLAB_MAX = fhat_slab_capacity<DIM, MQ1>();
 
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
    static constexpr bool ident_out = is_identity_fop_v<output_fop_t>;
 
-   // qpdc shape: (nq, total_trial_op_dim, trial_vdim, output_size_on_qp, ne),
+   // qpdc shape: (nq, trial_vdim, total_trial_op_dim, output_size_on_qp, ne),
    // where output_size_on_qp spans every output FieldOperator (multi-output mode).
-   // The rows of  one output start at @a row_offset and are laid out as
-   // i * test_op_dim + k, matching how DerivativeSetup writes the cache.
-   const int trial_vdim = qpdc.GetShape()[2];
+   // The columns are vdim fastest, see derivative_cache_col. The rows of one
+   // output start at @a row_offset and are laid out as i * test_op_dim + k,
+   // matching how DerivativeSetup writes the cache.
+   const int trial_vdim = qpdc.GetShape()[1];
    const int num_test_dof = Ae.GetShape()[0];
    const int nq = qpdc.GetShape()[0];
    const int size_on_qp = output.size_on_qp;
@@ -430,7 +436,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(q, m + m_offset, j, row_offset + tv * test_op_dim + k, e);
+                     const real_t f = qpdc(q, j, m + m_offset, row_offset + tv * test_op_dim + k, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -455,7 +461,9 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(q, m + m_offset, j, row_offset + tv * test_op_dim + k, e);
+                     const real_t f =
+                        qpdc(q, j, m + m_offset,
+                             row_offset + tv * test_op_dim + k, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -550,6 +558,8 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                               vfe.Basis(cj, 2, vt.deriv_dir == 2)
                            };
 
+                           const int col = m_offset + vt.slot;
+
                            foreach_qp([&](const int qx, const int qy,
                                           const int qz)
                            {
@@ -558,16 +568,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  basis[0][qx + q1d * Jx] *
                                  basis[1][qy + q1d * Jy] *
                                  ((DIM == 3) ? basis[2][qz + q1d * Jz] : 1.0);
-                              for (int m = 0; m < trial_op_dim; m++)
+                              for (int k = 0; k < test_op_dim; k++)
                               {
-                                 if (m != vt.slot) { continue; }
-                                 for (int k = 0; k < test_op_dim; k++)
-                                 {
-                                    const real_t f =
-                                       qpdc(q, m + m_offset, 0,
-                                            row_offset + k, e);
-                                    fhat(0, k, q) += f * w;
-                                 }
+                                 const real_t f = qpdc(q, 0, col, row_offset + k, e);
+                                 fhat(0, k, q) += f * w;
                               }
                            });
                         }
@@ -667,7 +671,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(q, m + m_offset, j, row_offset + i * test_op_dim + k, e);
+                                       qpdc(q, j, m + m_offset, row_offset + i * test_op_dim + k, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -688,7 +692,9 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(q, m + m_offset, j, row_offset + i * test_op_dim + k, e);
+                                       qpdc(q, j, m + m_offset,
+                                            row_offset + i * test_op_dim + k,
+                                            e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -1137,8 +1143,8 @@ public:
 
       const auto qpdc = Reshape(qp_cache.Read(),
                                 nq,
-                                total_trial_op_dim,
                                 trial_vdim,
+                                total_trial_op_dim,
                                 output_size_on_qp,
                                 ne);
       const auto itod = Reshape(inputs_trial_op_dim.Read(), n_inputs);
@@ -1158,8 +1164,8 @@ public:
          static constexpr int DIM = backend_t::DIM;
          static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
 
-         static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
-         static constexpr int fhat_slab_size = MQN * 4;
+         static constexpr int fhat_slab_size =
+            detail::fhat_slab_capacity<DIM, MQ1>();
 
          MFEM_SHARED typename backend_t::Shared s;
          // One slab shared by every output. Declaring it inside the templated

@@ -99,6 +99,27 @@ struct GlobalDiffusion
 };
 
 // ────────────────────────────────────────────────────────────────────────────
+// Global-QF vector diffusion.
+template <int DIM>
+struct GlobalVectorDiffusion
+{
+   struct MFApply
+   {
+      void operator()(tensor_array<const dscalar_t, DIM, DIM> &dudxi,
+                      tensor_array<const real_t, DIM, DIM> &J,
+                      tensor_array<const real_t> &w,
+                      tensor_array<dscalar_t, DIM, DIM> &dvdxi) const
+      {
+         mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+         {
+            const auto invJ = inv(J(q));
+            dvdxi(q) = (dudxi(q) * invJ) * transpose(invJ) * det(J(q)) * w(q);
+         });
+      }
+   };
+};
+
+// ────────────────────────────────────────────────────────────────────────────
 template <int DIM> struct VectorDiffusion
 {
    using dmatd_t = tensor<dscalar_t, DIM, DIM>;
@@ -542,10 +563,10 @@ TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
 // AssembleDiagonal are served by the LocalQF implementations (see
 // GlobalQFBackend::MakeDerivativeAssemble*), so writer and readers live in
 // different backends and must agree on the cache layout.
-template <int DIM>
+template <int DIM, int VDIM = 1>
 void diffusion_globalqf(const char *filename, int p)
 {
-   CAPTURE(filename, DIM, p);
+   CAPTURE(filename, DIM, VDIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -568,7 +589,7 @@ void diffusion_globalqf(const char *filename, int p)
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    H1_FECollection fec(p, DIM);
-   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParFiniteElementSpace pfes(&pmesh, &fec, VDIM);
 
    static constexpr int U = 0, Coords = 1;
 
@@ -578,9 +599,19 @@ void diffusion_globalqf(const char *filename, int p)
    xtvec.Randomize(1);
    x.SetFromTrueDofs(xtvec);
 
+   // VectorDiffusionIntegrator has no element assembly, so the vector
+   // reference is assembled LEGACY; both levels give the same SpMat.
    ParBilinearForm blf_fa(&pfes);
-   blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-   blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   if constexpr (VDIM == 1)
+   {
+      blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+      blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   }
+   else
+   {
+      blf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+      blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   }
    blf_fa.Assemble();
    blf_fa.Finalize();
 
@@ -592,7 +623,11 @@ void diffusion_globalqf(const char *filename, int p)
    const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
    DifferentiableOperator dop(in_fds, out_fds, pmesh);
-   typename GlobalDiffusion<DIM>::MFApply global_qfn;
+   using global_qf_t =
+      std::conditional_t<VDIM == 1,
+      typename GlobalDiffusion<DIM>::MFApply,
+      typename GlobalVectorDiffusion<DIM>::MFApply>;
+   global_qf_t global_qfn;
    dop.AddDomainIntegrator<GlobalQFBackend>(
       global_qfn,
       Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
@@ -614,10 +649,21 @@ void diffusion_globalqf(const char *filename, int p)
       return norm_global;
    };
 
-   // GlobalQF setup writer -> GlobalQF apply reader
+   // Matrix-free derivative action.
    {
       MultiVector Z{ ztvec };
       dRdU->Mult(xtvec, Z);
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+      ytvec -= ztvec;
+      REQUIRE(max_error(ytvec) == MFEM_Approx(0.0));
+   }
+
+   // GlobalQF PA action
+   {
+      auto dRdU_cached = dop.GetDerivative(U, X, true);
+      MultiVector Z{ ztvec };
+      dRdU_cached->Mult(xtvec, Z);
       blf_fa.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
       ytvec -= ztvec;
@@ -651,7 +697,13 @@ void diffusion_globalqf(const char *filename, int p)
    {
       Vector dfem_diag(pfes.GetTrueVSize()), mfem_diag(pfes.GetTrueVSize());
       dRdU->AssembleDiagonal(dfem_diag);
-      blf_fa.AssembleDiagonal(mfem_diag);
+      if constexpr (VDIM == 1) { blf_fa.AssembleDiagonal(mfem_diag); }
+      else
+      {
+         // A LEGACY form has no extension for diagonal in case of vector-valued problems.
+         std::unique_ptr<HypreParMatrix> A(blf_fa.ParallelAssemble());
+         A->AssembleDiagonal(mfem_diag);
+      }
       dfem_diag -= mfem_diag;
       REQUIRE(max_error(dfem_diag) == MFEM_Approx(0.0));
    }
@@ -667,7 +719,8 @@ TEST_CASE("dFEM Diffusion GlobalQF cache 2D", "[Parallel][dFEM]")
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-quad.mesh" };
       const auto extra = { "../../data/star.mesh" };
-      diffusion_globalqf<2>(GenAll(meshs, extra), p);
+      SECTION("Scalar") { diffusion_globalqf<2>(GenAll(meshs, extra), p); }
+      SECTION("Vector") { diffusion_globalqf<2, 2>(GenAll(meshs, extra), p); }
    }
 }
 
@@ -679,7 +732,8 @@ TEST_CASE("dFEM Diffusion GlobalQF cache 3D", "[Parallel][dFEM]")
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-hex.mesh" };
       const auto extra = { "../../data/fichera.mesh" };
-      diffusion_globalqf<3>(GenAll(meshs, extra), p);
+      SECTION("Scalar") { diffusion_globalqf<3>(GenAll(meshs, extra), p); }
+      SECTION("Vector") { diffusion_globalqf<3, 3>(GenAll(meshs, extra), p); }
    }
 }
 

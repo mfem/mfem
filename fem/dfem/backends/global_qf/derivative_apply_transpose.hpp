@@ -120,8 +120,7 @@ struct DerivativeApplyTranspose
       const int res_sz = residual_size_on_qp;
       const int gnqp_local = gnqp;
       const int num_qp_local = num_qp;
-      const int trial_vdim_local = trial_vdim;
-      const int total_trial_op_dim_local = total_trial_op_dim;
+      const int ncols_local = trial_vdim * total_trial_op_dim;
 
       constexpr_for<0, n_outputs>([&](auto o)
       {
@@ -138,13 +137,12 @@ struct DerivativeApplyTranspose
          const int size_o = get<o>(outputs).size_on_qp;
          const real_t *dir_o = dir_q_local.GetBlock(o.value).Read();
 
-         int m_offset = 0;
+         int c_offset = 0;
          constexpr_for<0, n_inputs>([&](auto s)
          {
             if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
 
             const int size_s = get<s>(inputs).size_on_qp;
-            const int to_s = size_s / trial_vdim_local;
             real_t *res_s = result_q_local.GetBlock(s.value).ReadWrite();
 
             mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
@@ -159,27 +157,21 @@ struct DerivativeApplyTranspose
                {
                   for (int k = 0; k < to_o; ++k)
                   {
+                     // Cache row i * op_dim + k holds output component (i, k),
+                     // which the byVDIM Q-vector stores at i + vdim * k.
                      const int out_comp = out_base + i * to_o + k;
-                     const real_t w = dir_o[(i * to_o + k) + size_o * gq];
+                     const real_t w = dir_o[(i + tv_o * k) + size_o * gq];
 
-                     for (int j = 0; j < trial_vdim_local; ++j)
+                     for (int c = 0; c < size_s; ++c)
                      {
-                        for (int m = 0; m < to_s; ++m)
-                        {
-                           const int m_global = m + m_offset;
-                           const int cache_idx =
-                              out_comp * trial_vdim_local * total_trial_op_dim_local +
-                              j * total_trial_op_dim_local + m_global;
-
-                           const real_t c =
-                              cache_ptr[cache_base + num_qp_local * cache_idx];
-                           res_s[(j * to_s + m) + size_s * gq] += c * w;
-                        }
+                        const int cache_idx = out_comp * ncols_local + c_offset + c;
+                        const real_t d = cache_ptr[cache_base + num_qp_local * cache_idx];
+                        res_s[c + size_s * gq] += d * w;
                      }
                   }
                }
             });
-            m_offset += to_s;
+            c_offset += size_s;
          });
       });
 

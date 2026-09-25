@@ -910,6 +910,14 @@ struct LocalQFLOBackend
    using Shared = typename backend_t::Shared;
 
    // ─────────────────────────────────────────────────────
+   /// Sum-factorized contraction of quadrature data against the product of
+   /// two 1D weights per axis:
+   ///
+   ///   Y(dx, dy, dz) = sum_q  prod_a wt(a, q_a, d_a) * wi(a, q_a, d_a)
+   ///                          * cache(q),   q = qx + q1d * (qy + q1d * qz)
+   ///
+   /// Each axis may have its own dof extent, as the component blocks of an ND/RT element
+   /// do; the z axis is dropped in 2D.
    template<typename WT, typename WI, typename Cache, typename AddY>
    static MFEM_HOST_DEVICE inline void DiagContract(Shared &s,
                                                     const int ndx,

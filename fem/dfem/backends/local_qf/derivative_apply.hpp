@@ -132,6 +132,29 @@ class DerivativeApply
       return StaticVDim<fop_t, input_slot>() * StaticOpDim<fop_t, input_slot>();
    }
 
+   /// Components of the dependent inputs before @a input_slot, i.e. where the
+   /// columns of that input start in a derivative cache row.
+   template <std::size_t input_slot>
+   static constexpr int StaticInputCacheOffset()
+   {
+      int offset = 0;
+      for_constexpr<input_slot>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (StaticInputDep<s>())
+         {
+            offset += StaticInputComponents<s>();
+         }
+      });
+      return offset;
+   }
+
+   /// Width of a derivative cache row
+   static constexpr int StaticCacheColumns()
+   {
+      return StaticInputCacheOffset<n_inputs>();
+   }
+
    template <std::size_t output_slot>
    static constexpr int StaticOutputVDim()
    {
@@ -339,6 +362,9 @@ public:
          }
       });
 
+      MFEM_VERIFY(StaticCacheColumns() == trial_vdim * total_trial_op_dim,
+                  "DerivativeApply: derivative cache row width mismatch");
+
       if (ctx.attr.Size() == 0) { return; }
 
       static constexpr auto B2D = backend_t::DIM == 2;
@@ -538,10 +564,8 @@ public:
                         for (int k = 0; k < to; k++)
                         {
                            const int row = offset_o + i * to + k;
-                           const int cache_row =
-                              row * trial_vdim * total_trial_op_dim;
+                           const int cache_row = row * StaticCacheColumns();
                            real_t sum = 0.0;
-                           int m_offset = 0;
                            for_constexpr<n_inputs>([&](auto sc)
                            {
                               constexpr size_t s = sc.value;
@@ -549,20 +573,17 @@ public:
                               {
                                  constexpr int ncomp_s =
                                     StaticInputComponents<s>();
-                                 const int vdim_s = in_vdim[s];
+                                 constexpr int c_offset_s =
+                                    StaticInputCacheOffset<s>();
                                  const auto &dvec = get<s>(dvecs);
                                  MFEM_UNROLL(ncomp_s)
                                  for (int c = 0; c < ncomp_s; c++)
                                  {
-                                    const int j = c % vdim_s;
-                                    const int m = c / vdim_s;
                                     const int cache_idx =
-                                       cache_row + j * total_trial_op_dim +
-                                       (m + m_offset);
+                                       cache_row + c_offset_s + c;
                                     sum += cache_tensor(q, cache_idx, e) *
                                            qf_flat_value(dvec, c);
                                  }
-                                 m_offset += ncomp_s / vdim_s;
                               }
                            });
                            qf_set_value_at(fhat, i, k, sum);

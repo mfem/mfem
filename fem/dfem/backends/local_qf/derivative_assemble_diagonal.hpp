@@ -377,12 +377,12 @@ public:
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          // The cache is written with the quadrature index fastest, then the
-         // trial op index, then the (test vdim, test op) rows of all outputs
-         // stacked via out_offsets.
+         // trial vdim, then the trial op index (see derivative_cache_col),
+         // then the (test vdim, test op) rows of all outputs, via out_offsets.
          auto qpdc = Reshape(&cache_tensor(0, 0, e),
                              nq,
-                             total_trial_op_dim,
                              trial_vdim,
+                             total_trial_op_dim,
                              output_size_on_qp);
 
          // Backend-owned shared scratch for the sum-factorized contraction.
@@ -402,7 +402,6 @@ public:
                {
                   if (out_group[static_cast<int>(o)] != row_group) { return; }
                   const auto &out_dtq = output_dtq_maps[o];
-                  const int test_op_dim = out_op_dim[static_cast<int>(o)];
 
                   for (int c = 0; c < out_dtq.range_dim; c++)
                   {
@@ -423,53 +422,46 @@ public:
                         out_dtq.Basis(c, 2, tvt.deriv_dir == 2)
                      };
 
-                     for (int k = 0; k < test_op_dim; k++)
+                     // A dof of component c feeds exactly one row, its own
+                     // for Value or the single common one for Div, and reads
+                     // one cache column per input, both named by vector_term.
+                     const int row =
+                        out_offsets[static_cast<int>(o)] + tvt.slot;
+                     int m_offset = 0;
+                     for_constexpr<n_inputs>([&](auto s)
                      {
-                        // A dof of component c feeds exactly one row
-                        // (its own for Value, or single common one for Div)
-                        if (k != tvt.slot) { continue; }
-
-                        const int row = out_offsets[static_cast<int>(o)] + k;
-                        int m_offset = 0;
-                        for_constexpr<n_inputs>([&](auto s)
+                        using fop_t = std::decay_t<decltype(get<s>(inputs))>;
+                        const int trial_op_dim =
+                           inputs_trial_op_dim[static_cast<int>(s)];
+                        if (trial_op_dim == 0) { return; }
+                        if constexpr (is_value_fop_v<fop_t> ||
+                                      is_div_fop_v<fop_t>)
                         {
-                           using fop_t = std::decay_t<decltype(get<s>(inputs))>;
-                           const int trial_op_dim =
-                              inputs_trial_op_dim[static_cast<int>(s)];
-                           if (trial_op_dim == 0) { return; }
-                           if constexpr (is_value_fop_v<fop_t> ||
-                                         is_div_fop_v<fop_t>)
+                           const auto &in_dtq = input_dtq_maps[s];
+                           const VecTerm ivt = vector_term<fop_t>(c, 0);
+                           const real_t *Bi[3] =
                            {
-                              const auto &in_dtq = input_dtq_maps[s];
-                              const VecTerm ivt = vector_term<fop_t>(c, 0);
-                              const real_t *Bi[3] =
-                              {
-                                 in_dtq.Basis(c, 0, ivt.deriv_dir == 0),
-                                 in_dtq.Basis(c, 1, ivt.deriv_dir == 1),
-                                 in_dtq.Basis(c, 2, ivt.deriv_dir == 2)
-                              };
+                              in_dtq.Basis(c, 0, ivt.deriv_dir == 0),
+                              in_dtq.Basis(c, 1, ivt.deriv_dir == 1),
+                              in_dtq.Basis(c, 2, ivt.deriv_dir == 2)
+                           };
 
-                              for (int m = 0; m < trial_op_dim; m++)
-                              {
-                                 if (m != ivt.slot) { continue; }
-                                 const int col = m_offset + m;
-                                 backend_t::DiagContract(
-                                    s_diag, ndx, ndy, ndz, q1d,
-                                    [&](int axis, int q, int d)
-                                 { return Bo[axis][q + q1d * d]; },
-                                 [&](int axis, int q, int d)
-                                 { return Bi[axis][q + q1d * d]; },
-                                 [&](int q) { return qpdc(q, col, 0, row); },
-                                 [&](int dx, int dy, int dz, real_t u)
-                                 {
-                                    const int i = dx + ndx * (dy + ndy * dz);
-                                    Yflat(off + i) += u;
-                                 });
-                              }
-                           }
-                           m_offset += trial_op_dim;
-                        });
-                     }
+                           const int col = m_offset + ivt.slot;
+                           backend_t::DiagContract(
+                              s_diag, ndx, ndy, ndz, q1d,
+                              [&](int axis, int q, int d)
+                           { return Bo[axis][q + q1d * d]; },
+                           [&](int axis, int q, int d)
+                           { return Bi[axis][q + q1d * d]; },
+                           [&](int q) { return qpdc(q, 0, col, row); },
+                           [&](int dx, int dy, int dz, real_t u)
+                           {
+                              const int i = dx + ndx * (dy + ndy * dz);
+                              Yflat(off + i) += u;
+                           });
+                        }
+                        m_offset += trial_op_dim;
+                     });
                   }
                }
             });
@@ -573,7 +565,7 @@ public:
                            { return eval_test(k, axis, q, d); },
                            [&](int axis, int q, int d)
                            { return eval_input(m, axis, q, d); },
-                           [&](int q) { return qpdc(q, col, vd, row); },
+                           [&](int q) { return qpdc(q, vd, col, row); },
                            [&](int dx, int dy, int dz, real_t u)
                            { Y(dx, dy, dz) += u; });
                         }

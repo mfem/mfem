@@ -915,6 +915,17 @@ constexpr auto get_Q1D(const Tuple& fields)
    }, fields);
 }
 
+
+/// Column of the derivative qp cache that holds the response to component
+/// (j, m) of a dependent input: vdim index j, operator index m.
+MFEM_HOST_DEVICE inline int derivative_cache_col(const int c_offset,
+                                                 const int vdim,
+                                                 const int j,
+                                                 const int m)
+{
+   return c_offset + j + vdim * m;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Per-output FOP layout metadata (shared by derivative setup / apply kernels).
 
