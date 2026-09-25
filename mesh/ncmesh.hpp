@@ -17,6 +17,7 @@
 #include "../general/globals.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../linalg/densemat.hpp"
+#include "attribute_sets.hpp"
 #include "element.hpp"
 #include "vertex.hpp"
 #include "../fem/geom.hpp"
@@ -571,6 +572,7 @@ public:
 protected: // non-public interface for the Mesh class
 
    friend class Mesh;
+   friend class ParMesh;
 
    /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
    void GetMeshComponents(Mesh &mesh) const;
@@ -591,6 +593,15 @@ protected: // implementation
    int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
+   // Pointers to data stored in a Mesh object. Used only when writing the
+   // NCMesh object to file.
+   const AttributeSets *attribute_sets;
+   const AttributeSets *bdr_attribute_sets;
+
+   // Used to store named attributes sets read from file (or a deep copy from
+   // another NCMesh object) before being transferred to a Mesh object.
+   ArraysByName<int> *temp_attr_sets;
+   ArraysByName<int> *temp_bdr_attr_sets;
 
    /** A Node can hold a vertex, an edge, or both. Elements directly point to
        their corner nodes, but edge nodes also exist and can be accessed using a
