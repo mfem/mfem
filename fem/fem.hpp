@@ -14,6 +14,7 @@
 
 #include "intrules.hpp"
 #include "intrules_cut.hpp"
+#include "cut_quadrature.hpp"
 #include "geom.hpp"
 #include "fe.hpp"
 #include "fe_coll.hpp"

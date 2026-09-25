@@ -96,6 +96,12 @@ add_mfem_miniapp(hpref
   MAIN hpref.cpp
   LIBRARIES mfem)
 
+if (MFEM_USE_ALGOIM)
+  add_mfem_miniapp(cut-quadrature
+    MAIN cut-quadrature.cpp
+    LIBRARIES mfem)
+endif()
+
 # Add serial tests.
 if (MFEM_ENABLE_TESTING)
   set(SERIAL_TESTS
@@ -113,6 +119,9 @@ if (MFEM_ENABLE_TESTING)
     mesh-quality
     hpref
   )
+  if (MFEM_USE_ALGOIM)
+    list(APPEND SERIAL_TESTS cut-quadrature)
+  endif()
   foreach(test ${SERIAL_TESTS})
     add_test(NAME ${test} COMMAND ${test} -no-vis)
   endforeach()
