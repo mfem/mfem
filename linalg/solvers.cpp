@@ -1280,7 +1280,8 @@ void IterativeSolver::GMRESMult(const Vector &b, Vector &x, int m, int passes,
             for (int k = 0; k <= i; ++k)
             {
                const real_t projection = Dot(w, work.v[k]);
-               MFEM_VERIFY(IsFinite(projection), "Nonfinite Arnoldi projection");
+               MFEM_VERIFY(IsFinite(projection),
+                           "Nonfinite Arnoldi projection");
                H(k, i) += projection;
                w.Add(-projection, work.v[k]);
             }
