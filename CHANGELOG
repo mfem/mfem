@@ -9,11 +9,42 @@
 
 
 Version 4.10.1 (development)
-============================
+=====================
+
+Linear and nonlinear solvers
+---------------------------
+- GMRES and FGMRES now retain their device-aware Krylov workspace across
+  solves and support one or two modified Gram-Schmidt passes through
+  SetOrthogonalizationPasses (default: one). Both use checked triangular
+  solves and verify suspected Arnoldi breakdown with a recomputed residual.
+  Restart-boundary iteration counts and CG zero-budget/breakdown counts
+  now report completed iterations.
+
+- Added deflated Krylov solvers DeflatedCGSolver, DeflatedGMRESSolver, and
+  DeflatedFGMRESSolver, with the shared algebra in the new class
+  DeflationSpaces (linalg/deflation.hpp). Exact null spaces, which control
+  right-hand side compatibility and the solution gauge, and acceleration
+  coarse spaces can be registered, replaced, or cleared independently, with
+  shared or paired left/right bases. Projected and balanced coarse
+  corrections are available. Convergence is tested on the physical residual,
+  and working and original residual diagnostics are reported. Setup
+  tolerances are precision-aware. The coarse solve uses Cholesky or pivoted
+  LU, or optionally an SVD when MFEM is built with LAPACK. Coarse-space
+  images A U, and optionally A^T V, are cached to avoid operator applications
+  in the projectors. Coarse spaces may also be general operators, such as
+  sparse HypreParMatrix prolongations with distributed coarse DOFs, solved by
+  a user-supplied coarse solver; the new VectorDeflationBasis class supplies
+  explicit vector sets. The solvers support MPI, with collective error
+  handling, and use MFEM's device-aware vector operations; GPU-aware MPI is
+  not required. Iterations delegate to MFEM's native Krylov loops, with
+  two-pass Arnoldi orthogonalization, physical residual verification, bounded
+  continuation, and controller forwarding across native calls. Without a
+  controller or iteration output, physical convergence can be detected late.
+  See doc/deflation.md.
 
 
 Version 4.10, released on Sep 1, 2026
-=====================================
+==============================
 
 - Added policy for AI-assisted contributions to CONTRIBUTING.md.
 
@@ -256,7 +287,7 @@ API changes
 
 
 Version 4.9, released on Dec 11, 2025
-=====================================
+==============================
 
 Starting with this version, MFEM requires a C++17 compiler.
 
@@ -444,7 +475,7 @@ API changes
 
 
 Version 4.8, released on Apr 9, 2025
-====================================
+=============================
 
 Discretization improvements
 ---------------------------
@@ -653,7 +684,7 @@ API changes
 
 
 Version 4.7, released on May 7, 2024
-====================================
+=============================
 
 - Added support for single precision (with corresponding hypre build). The MFEM
   floating point type was generalized from `double` to `real_t`. For details see
@@ -749,7 +780,7 @@ Miscellaneous
 
 
 Version 4.6, released on September 27, 2023
-===========================================
+====================================
 
 - MFEM is now available in Homebrew and can be installed on a Mac with just
   "brew install mfem". See https://formulae.brew.sh/formula/mfem.
@@ -878,7 +909,7 @@ Miscellaneous
 
 
 Version 4.5.2, released on March 23, 2023
-=========================================
+==================================
 
 - Added support for pyramids in non-conforming meshes. Currently only isotropic
   refinement is supported in this case.
@@ -936,7 +967,7 @@ API changes
 
 
 Version 4.5, released on October 22, 2022
-=========================================
+==================================
 
 Meshing improvements
 --------------------
@@ -1077,7 +1108,7 @@ Miscellaneous
 
 
 Version 4.4, released on March 21, 2022
-=======================================
+================================
 
 Linear and nonlinear solvers
 ----------------------------
@@ -1218,7 +1249,7 @@ Miscellaneous
 
 
 Version 4.3, released on July 29, 2021
-======================================
+===============================
 
 Discretization improvements
 ---------------------------
@@ -1496,7 +1527,7 @@ API changes
 
 
 Version 4.2, released on October 30, 2020
-=========================================
+==================================
 
 High-performance computing
 --------------------------
@@ -1743,7 +1774,7 @@ Miscellaneous
 
 
 Version 4.1, released on March 10, 2020
-=======================================
+================================
 
 Starting with this version, the MFEM open source license is changed to BSD-3.
 
@@ -1980,7 +2011,7 @@ API changes
 
 
 Version 4.0, released on May 24, 2019
-=====================================
+==============================
 
 Unlike previous MFEM releases, this version requires a C++11 compiler.
 
@@ -2163,7 +2194,7 @@ API changes
 
 
 Version 3.4, released on May 29, 2018
-=====================================
+==============================
 
 More general and efficient mesh adaptivity
 ------------------------------------------
@@ -2313,7 +2344,7 @@ API changes
 
 
 Version 3.3.2, released on Nov 10, 2017
-=======================================
+================================
 
 High-order mesh optimization
 ----------------------------
@@ -2452,7 +2483,7 @@ API changes
 
 
 Version 3.3, released on Jan 28, 2017
-=====================================
+==============================
 
 FEM <-> linear system interface for action-only linear operators
 ----------------------------------------------------------------
@@ -2631,7 +2662,7 @@ Miscellaneous
 
 
 Version 3.2, released on Jun 30, 2016
-=====================================
+==============================
 
 Dynamic AMR with parallel load balancing, derefinement of non-conforming meshes
 -------------------------------------------------------------------------------
@@ -2786,7 +2817,7 @@ API changes
 
 
 Version 3.1, released on Feb 16, 2016
-=====================================
+==============================
 
 Substantially improved non-conforming adaptive mesh refinement
 --------------------------------------------------------------
@@ -2918,7 +2949,7 @@ Miscellaneous
 
 
 Version 3.0, released on Jan 26, 2015
-=====================================
+==============================
 
 Improved documentation and build system
 ---------------------------------------
@@ -3058,7 +3089,7 @@ Miscellaneous
 
 
 Version 2.0, released on Nov 18, 2011
-=====================================
+==============================
 
 Arbitrary order finite element spaces
 -------------------------------------
@@ -3164,7 +3195,7 @@ Miscellaneous
 
 
 Version 1.2, released on Apr 08, 2011
-=====================================
+==============================
 
 Parallel MPI-based version of the library based on hypre
 --------------------------------------------------------
@@ -3203,7 +3234,7 @@ Miscellaneous
 
 
 Version 1.1, released on Sep 13, 2010
-=====================================
+==============================
 
 New MFEM format for general meshes
 ----------------------------------
@@ -3231,7 +3262,7 @@ Miscellaneous
 
 
 Version 1.0, released on Jul 21, 2010
-=====================================
+==============================
 
 - Uploaded to http://mfem.googlecode.com.
 
