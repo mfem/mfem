@@ -209,22 +209,34 @@ protected:
    /// Indicated if the controller requires an update of the solution
    bool ControllerRequiresUpdate() const { return controller && controller->RequiresUpdatedSolution(); }
 
-   // Persistent, independently copyable storage for the restarted solvers.
-   // Fine vectors use the operator's memory type; small dense data stay on host.
+   /** Persistent, independently copyable storage for the restarted solvers.
+       Fine vectors use the operator's memory type; small dense data stay on
+       the host. Workspace is resized lazily and is not safe for concurrent
+       Mult() calls on the same solver instance. */
    struct GMRESWorkspace
    {
-      DenseMatrix H;
+      DenseMatrix H; ///< Rotated Hessenberg matrix.
+      /// Transformed RHS, rotations, column scales, and triangular solution.
       Vector s, cs, sn, scales, coefficients;
-      Vector r, w, candidate;
-      std::vector<Vector> v, z;
+      Vector r, w, candidate; ///< Fine residual, work vector, and candidate.
+      std::vector<Vector> v, z; ///< Arnoldi and optional preconditioned bases.
 
+      /// Prepare local size n, restart size m, and fine-vector memory type mt.
+      /// Flexible GMRES additionally reserves the preconditioned basis z.
       void Prepare(int n, int m, MemoryType mt, bool flexible);
+      /// Solve the leading triangular system; return false for an unsafe
+      /// pivot or a nonfinite coefficient, without modifying the iterate.
       bool BackSolve(int columns);
+      /// Form x plus the correction from a successful BackSolve(columns).
+      /// Select z for flexible GMRES and v otherwise.
       void Candidate(const Vector &x, int columns, bool flexible);
    };
 
-   // Shared native Arnoldi loop. Norm/Dot dispatch through this solver, so
-   // communicator and custom inner-product behavior are preserved.
+   /** Shared native Arnoldi loop using the supplied persistent workspace.
+       The restart dimension is m and passes is one or two. Flexible mode
+       uses right preconditioning; otherwise preconditioning is on the left.
+       Norm/Dot dispatch through this solver, preserving the communicator and
+       custom inner-product behavior. */
    void GMRESMult(const Vector &b, Vector &x, int m, int passes,
                   bool flexible, GMRESWorkspace &work) const;
 
@@ -685,8 +697,8 @@ class GMRESSolver : public IterativeSolver
 {
 protected:
    int m; // see SetKDim()
-   int orthogonalization_passes = 1;
-   mutable GMRESWorkspace work;
+   int orthogonalization_passes = 1; ///< Number of Gram-Schmidt passes.
+   mutable GMRESWorkspace work; ///< Storage reused across Mult() calls.
 
 public:
    GMRESSolver() { m = 50; }
@@ -719,8 +731,8 @@ class FGMRESSolver : public IterativeSolver
 {
 protected:
    int m;
-   int orthogonalization_passes = 1;
-   mutable GMRESWorkspace work;
+   int orthogonalization_passes = 1; ///< Number of Gram-Schmidt passes.
+   mutable GMRESWorkspace work; ///< Storage reused across Mult() calls.
 
 public:
    FGMRESSolver() { m = 50; }

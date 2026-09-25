@@ -1254,6 +1254,7 @@ void IterativeSolver::GMRESMult(const Vector &b, Vector &x, int m, int passes,
       int produced = 0;
       bool candidate_ready = false;
       bool cycle_finished = false;
+      bool residual_verified = false;
 
       for (int i = 0; i < cycle; ++i)
       {
@@ -1348,6 +1349,7 @@ void IterativeSolver::GMRESMult(const Vector &b, Vector &x, int m, int passes,
             // A truncated subdiagonal makes the estimate zero even when the
             // system is inconsistent or near breakdown has lost accuracy.
             final_norm = residual_norm(work.candidate);
+            residual_verified = true;
          }
          const Vector &monitored = candidate_ready ? work.candidate : x;
          const bool stopped = Monitor(final_iter, final_norm, r, monitored);
@@ -1404,7 +1406,11 @@ void IterativeSolver::GMRESMult(const Vector &b, Vector &x, int m, int passes,
       }
       if (!converged)
       {
-         beta = final_norm = residual_norm(x);
+         if (!cycle_finished || !residual_verified)
+         {
+            final_norm = residual_norm(x);
+         }
+         beta = final_norm;
          converged = beta <= target;
       }
       if (!converged && !breakdown && final_iter < max_iter &&
