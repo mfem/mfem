@@ -36,7 +36,11 @@ Linear and nonlinear solvers
   a user-supplied coarse solver; the new VectorDeflationBasis class supplies
   explicit vector sets. The solvers support MPI, with collective error
   handling, and use MFEM's device-aware vector operations; GPU-aware MPI is
-  not required. See doc/deflation.md.
+  not required. Iterations delegate to MFEM's native Krylov loops, with
+  two-pass Arnoldi orthogonalization, physical residual verification, bounded
+  continuation, and controller forwarding across native calls. Without a
+  controller or iteration output, physical convergence can be detected late.
+  See doc/deflation.md.
 
 
 Version 4.10, released on Sep 1, 2026

@@ -179,15 +179,60 @@ dependency. Device-oriented unit cases are provided for CG, GMRES, FGMRES,
 setup/update, paired spaces, both correction modes, and MPI reductions. CUDA,
 HIP, and MPI+GPU execution are intended targets; builds, runtime correctness,
 and transfer behavior on those configurations have not yet been validated.
-Setup caches the fine-grid images `A U` for residual projection. GMRES and
-FGMRES use their internal residual estimates to decide when to verify a
-physical residual; controller callbacks still receive physical residuals and
-recovered solutions on every iteration. In left-preconditioned GMRES, the
-internal estimate may delay detection of physical convergence until the end
-of a restart cycle. A transient dip below tolerance can be missed if the
-physical residual rises again before that check. Attach a controller or
-request per-iteration output when physical residual verification is needed
-after every iteration. For symmetric
+## Native Krylov iterations and physical convergence
+
+The deflated solvers delegate iterations to persistent instances of MFEM's
+`CGSolver`, `GMRESSolver`, and `FGMRESSolver` using the internal operator and
+preconditioner adapters. The public deflation API is unchanged. Calling an
+explicitly qualified base implementation, such as `solver.CGSolver::Mult`,
+is unsupported: only the owned native solver is bound to the adapters.
+
+The native stopping norms are `sqrt(r^T B r)` for CG, `||B r||` for GMRES,
+and `||r||` for FGMRES, with `r` and `B` referring to the internal system.
+CG compares squared norms and squared tolerances. The wrapper always verifies
+`||Pi_L b - A x||` on the recovered physical solution before reporting
+convergence. Its fixed target is
+`max(abs_tol, rel_tol * ||Pi_L b - A x0||)`, using the gauged initial guess
+before coarse recovery. `GetConverged()` and the final residual diagnostics
+retain this physical meaning, including after a user-requested stop.
+
+If native convergence does not meet the physical target, the wrapper can
+continue from the returned iterate within the original total iteration budget.
+Continuation uses zero native absolute tolerance and a relative tolerance of
+`min(0.5, target / physical_residual_norm)`. In particular, an initial native
+convergence with zero iterations can result from a scaled preconditioner and
+absolute tolerance. One tightened retry is allowed; repeated zero-work exits
+stop as stagnation. Native breakdown stops continuation unless physical
+convergence has already been achieved. Counted work remains counted even if a
+returned nonfinite iterate requires rollback; native fatal checks are not
+intercepted by this guard.
+
+A user controller or per-iteration output enables physical verification on
+every accepted iteration, collectively on all ranks, and stops as soon as the
+physical target is reached. Controllers receive physical residuals and
+recovered solutions, even when `RequiresUpdatedSolution()` is false. They are
+reset once per outer solve and receive one initial and one final notification;
+positive iteration numbers accumulate across native continuations. The user
+controller remains associated with the outer solver. Native per-iteration
+printing reports native norms and numbering within each native call; outer
+summaries report the total count and physical residual.
+
+Without a controller or per-iteration output, physical verification occurs
+after each native call. A physical residual dip below tolerance within a
+native call can therefore be missed, including if it rises again before the
+last allowed iteration. This limitation is not removed by delegation.
+
+GMRES and FGMRES retain device-aware workspace across solves and continuations.
+Deflated GMRES/FGMRES select two modified Gram-Schmidt passes to preserve their
+orthogonalization policy. Native GMRES/FGMRES default to one pass and expose
+`SetOrthogonalizationPasses(1 or 2)`; the deflated wrappers always select two.
+The native CG recurrence uses its usual scalar reductions; the former
+wrapper-specific fused residual/preconditioned-residual reduction is removed.
+No runtime performance comparison has been performed for this change.
+
+## Projection costs
+
+Setup caches the fine-grid images `A U` for residual projection. For symmetric
 operators, the solution projector also uses cached `A U`. For nonsymmetric
 operators, `DeflationSetupOptions::cache_transpose_images = true` caches
 `A^T V` during setup, so the solution projector needs no operator
@@ -199,7 +244,4 @@ projection and coarse correction. Projectors skip input scratch copies when
 the input and output storage is disjoint. To decide this without moving data,
 the output, which is about to be overwritten, is marked valid in the input's
 memory space without copying. Only an input valid in no memory space keeps
-the conservative copy. Each CG iteration obtains `||r||` and `r^T z` from one
-global reduction. The next preconditioner application therefore happens
-before the stopping test, and it is wasted only on the iteration that
-converges.
+the conservative copy.

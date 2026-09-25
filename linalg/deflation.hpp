@@ -255,7 +255,16 @@ public:
     Both b and the original operator are preserved. b and x must not alias;
     projector methods do support aliasing. Inputs and the fine preconditioner
     are borrowed and must outlive registration. Update rebuilds after in-place
-    input changes. The solver is non-reentrant. */
+    input changes. The solver is non-reentrant.
+
+    Iterations run in an owned native Krylov solver. Native convergence is
+    verified on the physical residual, with bounded continuation within the
+    original iteration budget. A controller or iteration output enables
+    physical verification at every accepted iteration; otherwise transient
+    physical convergence within a native call can be missed. User callbacks
+    receive physical iterates and total iteration counts, with one reset per
+    outer solve. Deflated GMRES/FGMRES always use two orthogonalization passes.
+    Explicitly qualified calls to the base Krylov Mult are unsupported. */
 /// Only CGSolver, GMRESSolver, and FGMRESSolver are explicitly instantiated.
 template <typename KrylovSolver>
 class DeflatedSolverBase : public KrylovSolver

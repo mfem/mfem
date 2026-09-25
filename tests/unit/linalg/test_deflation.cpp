@@ -2182,3 +2182,344 @@ TEST_CASE("Device deflation MPI reductions without GPU-aware MPI",
    }
 }
 #endif
+
+namespace
+{
+
+// Deliberately leaves RequiresUpdatedSolution() false: the deflated callback
+// contract still supplies a recovered physical solution on every iteration.
+class PhysicalKrylovTrace : public IterativeSolverController
+{
+   const Operator &A;
+   const Vector &b;
+   Vector last_residual;
+public:
+   const IterativeSolver *expected = nullptr;
+   int resets = 0, finals = 0;
+   std::vector<int> iterations;
+   PhysicalKrylovTrace(const Operator &op, const Vector &rhs)
+      : A(op), b(rhs) { }
+   void Reset() override
+   {
+      IterativeSolverController::Reset();
+      ++resets;
+      finals = 0;
+      iterations.clear();
+   }
+   void MonitorResidual(int, real_t, const Vector &r, bool) override
+   { last_residual = r; }
+   void MonitorSolution(int it, real_t norm, const Vector &x,
+                        bool final) override
+   {
+      REQUIRE(iter_solver == expected);
+      REQUIRE(iter_solver->GetNumIterations() == it);
+      Vector residual(b.Size());
+      A.Mult(x, residual);
+      residual -= b;
+      REQUIRE(norm == Approx(residual.Norml2()).margin(TestTolerance()));
+      residual += last_residual;
+      REQUIRE(residual.Norml2() <= TestTolerance());
+      if (final) { ++finals; }
+      else { iterations.push_back(it); }
+   }
+};
+
+void ConfigureReuseTest(CGSolver &) { }
+void ConfigureReuseTest(GMRESSolver &solver)
+{
+   solver.SetKDim(2);
+   solver.SetOrthogonalizationPasses(2);
+}
+void ConfigureReuseTest(FGMRESSolver &solver)
+{
+   solver.SetKDim(2);
+   solver.SetOrthogonalizationPasses(2);
+}
+
+template <typename Native, typename Deflated>
+void CompareNativeDelegation()
+{
+   DenseMatrix A = Diagonal(1, 2, 4);
+   Vector b(3), x(3), reference(3);
+   b = 1.0;
+   x = 0.25;
+   reference = x;
+   Native native;
+   Deflated deflated;
+   ConfigureReuseTest(native);
+   ConfigureReuseTest(deflated);
+   for (IterativeSolver *solver :
+        {static_cast<IterativeSolver *>(&native),
+         static_cast<IterativeSolver *>(&deflated)})
+   {
+      solver->SetOperator(A);
+      solver->SetRelTol(TestTolerance());
+      solver->SetAbsTol(0.0);
+      solver->SetMaxIter(100);
+      solver->iterative_mode = true;
+   }
+   // With B=I the native and physical stopping norms agree.
+   native.Mult(b, reference);
+   deflated.Mult(b, x);
+   REQUIRE(native.GetConverged());
+   REQUIRE(deflated.GetConverged());
+   REQUIRE(native.GetNumIterations() == deflated.GetNumIterations());
+   x -= reference;
+   REQUIRE(x.Norml2() <= 8 * TestTolerance());
+
+   PhysicalKrylovTrace trace(A, b);
+   trace.expected = &deflated;
+   deflated.SetController(trace);
+   x = 0.25;
+   deflated.Mult(b, x);
+   REQUIRE(deflated.GetConverged());
+   REQUIRE(trace.resets == 1);
+   REQUIRE(trace.finals == 1);
+   REQUIRE(trace.iterations.size() ==
+           static_cast<size_t>(deflated.GetNumIterations() + 1));
+   for (size_t i = 0; i < trace.iterations.size(); ++i)
+   {
+      REQUIRE(trace.iterations[i] == static_cast<int>(i));
+   }
+}
+
+template <typename Native, typename Deflated>
+void ScaledContinuation(real_t scale, bool zero_work)
+{
+   DenseMatrix A = Diagonal(1, 2, 4);
+   MatrixActionSolver M(Diagonal(scale, scale, scale));
+   Vector b(3), x(3), reference(3);
+   b = 1.0;
+   x = reference = 0.0;
+   Native native;
+   Deflated deflated;
+   const real_t target = real_t(0.005);
+   ConfigureReuseTest(native);
+   ConfigureReuseTest(deflated);
+   for (IterativeSolver *solver :
+        {static_cast<IterativeSolver *>(&native),
+         static_cast<IterativeSolver *>(&deflated)})
+   {
+      solver->SetPreconditioner(M);
+      solver->SetOperator(A);
+      solver->SetRelTol(0.0);
+      solver->SetAbsTol(target);
+      solver->SetMaxIter(30);
+   }
+   native.Mult(b, reference);
+   REQUIRE(native.GetConverged());
+   REQUIRE(PhysicalResidual(A, b, reference) > target);
+   REQUIRE((native.GetNumIterations() == 0) == zero_work);
+   PhysicalKrylovTrace trace(A, b);
+   trace.expected = &deflated;
+   deflated.SetController(trace);
+   deflated.Mult(b, x);
+   REQUIRE(deflated.GetConverged());
+   REQUIRE(PhysicalResidual(A, b, x) <= target);
+   REQUIRE(deflated.GetNumIterations() > native.GetNumIterations());
+   REQUIRE(deflated.GetNumIterations() <= 30);
+   REQUIRE(trace.resets == 1);
+   REQUIRE(trace.finals == 1);
+   REQUIRE(trace.iterations.size() ==
+           static_cast<size_t>(deflated.GetNumIterations() + 1));
+   for (size_t i = 0; i < trace.iterations.size(); ++i)
+   {
+      REQUIRE(trace.iterations[i] == static_cast<int>(i));
+   }
+}
+
+} // namespace
+
+TEST_CASE("Deflated solvers delegate native Krylov iterations", "[Deflation]")
+{
+   SECTION("CG") { CompareNativeDelegation<CGSolver, DeflatedCGSolver>(); }
+   SECTION("GMRES")
+   { CompareNativeDelegation<GMRESSolver, DeflatedGMRESSolver>(); }
+   SECTION("FGMRES")
+   { CompareNativeDelegation<FGMRESSolver, DeflatedFGMRESSolver>(); }
+}
+
+TEST_CASE("Deflation retries scaled native convergence", "[Deflation]")
+{
+   SECTION("CG zero iterations")
+   { ScaledContinuation<CGSolver, DeflatedCGSolver>(real_t(1e-8), true); }
+   SECTION("CG positive iterations")
+   { ScaledContinuation<CGSolver, DeflatedCGSolver>(real_t(1e-4), false); }
+   SECTION("GMRES zero iterations")
+   { ScaledContinuation<GMRESSolver, DeflatedGMRESSolver>(real_t(1e-4), true); }
+   SECTION("GMRES positive iterations")
+   {
+      ScaledContinuation<GMRESSolver, DeflatedGMRESSolver>(real_t(1e-2), false);
+   }
+}
+
+TEST_CASE("Deflation bounds retries without Krylov progress", "[Deflation]")
+{
+   DenseMatrix A = Diagonal(1, 2, 4);
+   // An invalid singular fine preconditioner makes the internal residual
+   // vanish. The wrapper must not spin or report physical convergence.
+   MatrixActionSolver zero(Diagonal(0, 0, 0));
+   Vector b(3), x(3);
+   b = 1.0;
+   x = 0.0;
+   DeflatedCGSolver solver;
+   solver.SetOperator(A);
+   solver.SetPreconditioner(zero);
+   solver.SetMaxIter(100);
+   solver.SetRelTol(TestTolerance());
+   solver.Mult(b, x);
+   REQUIRE_FALSE(solver.GetConverged());
+   REQUIRE(solver.GetNumIterations() == 0);
+   REQUIRE(x.Norml2() == 0.0);
+   REQUIRE(solver.GetFinalNorm() == Approx(b.Norml2()));
+}
+
+TEST_CASE("Deflation controller detects physical convergence early",
+          "[Deflation]")
+{
+   DenseMatrix A = Diagonal(1, 1, 1);
+   MatrixActionSolver M(Diagonal(1, 2, 100));
+   Vector b(3), x(3);
+   b = 1.0;
+   DeflatedCGSolver cg;
+   DeflatedGMRESSolver gmres;
+   const bool use_gmres = GENERATE(false, true);
+   IterativeSolver &solver = use_gmres ? static_cast<IterativeSolver &>(gmres) :
+                             static_cast<IterativeSolver &>(cg);
+   solver.SetOperator(A);
+   solver.SetPreconditioner(M);
+   solver.SetRelTol(0.0);
+   solver.SetAbsTol(real_t(1.5));
+   solver.SetMaxIter(5);
+   PhysicalKrylovTrace trace(A, b);
+   trace.expected = &solver;
+   solver.SetController(trace);
+   x = 0.0;
+   solver.Mult(b, x);
+   REQUIRE(solver.GetConverged());
+   REQUIRE(solver.GetNumIterations() == 1);
+   REQUIRE(PhysicalResidual(A, b, x) <= real_t(1.5));
+   REQUIRE(trace.resets == 1);
+   REQUIRE(trace.finals == 1);
+}
+
+#ifdef MFEM_USE_MPI
+TEST_CASE("Native deflation forwarding stops collectively",
+          "[Deflation][Parallel]")
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   class RankStop : public IterativeSolverController
+   {
+      const int rank;
+   public:
+      int finals = 0;
+      explicit RankStop(int r) : rank(r) { }
+      void MonitorSolution(int it, real_t, const Vector &, bool final) override
+      {
+         if (final) { ++finals; }
+         else if (rank == 0 && it == 1) { converged = true; }
+      }
+   } trace(rank);
+   DenseMatrix A = Diagonal(1, 2, 4);
+   Vector b(3), x(3);
+   b = 1.0;
+   x = 0.0;
+   DeflatedFGMRESSolver solver(MPI_COMM_WORLD);
+   solver.SetOperator(A);
+   solver.SetKDim(2);
+   solver.SetRelTol(TestTolerance());
+   solver.SetMaxIter(10);
+   solver.SetController(trace);
+   // Only one rank requests output; all must still recover physical iterates.
+   solver.SetPrintLevel(rank == 0 ? 1 : -1);
+   solver.Mult(b, x);
+   REQUIRE(solver.GetNumIterations() == 1);
+   REQUIRE_FALSE(solver.GetConverged());
+   REQUIRE(trace.finals == 1);
+}
+#endif
+
+TEST_CASE("Deflation continuation respects the original budget", "[Deflation]")
+{
+   DenseMatrix A = Diagonal(1, 2, 4);
+   const real_t scale = real_t(1e-4);
+   MatrixActionSolver M(Diagonal(scale, scale, scale));
+   Vector b(3), x(3);
+   b = 1.0;
+   x = 0.0;
+   DeflatedCGSolver solver;
+   solver.SetOperator(A);
+   solver.SetPreconditioner(M);
+   solver.SetAbsTol(real_t(0.005));
+   solver.SetRelTol(0.0);
+   solver.SetMaxIter(2);
+   solver.Mult(b, x);
+   REQUIRE_FALSE(solver.GetConverged());
+   REQUIRE(solver.GetNumIterations() == 2);
+   REQUIRE(solver.GetFinalNorm() ==
+           Approx(PhysicalResidual(A, b, x)).margin(TestTolerance()));
+}
+
+TEST_CASE("Native forwarding recovers deflated iterates", "[Deflation]")
+{
+   const int kind = GENERATE(0, 1, 2);
+   const bool projected = GENERATE(false, true);
+   DenseMatrix A = Diagonal(0, 2, 5);
+   DenseMatrix N = Coordinate(0), Z = Coordinate(1);
+   Vector b(3), x(3);
+   b(0) = 0.0; b(1) = 2.0; b(2) = 5.0;
+   PhysicalKrylovTrace trace(A, b);
+   const auto solve = [&](auto &solver)
+   {
+      solver.SetOperator(A);
+      solver.SetNullSpace(N);
+      solver.SetCoarseSpace(Z);
+      solver.SetCoarseCorrectionType(
+         projected ? CoarseCorrectionType::PROJECTED :
+         CoarseCorrectionType::BALANCED);
+      solver.SetRelTol(TestTolerance());
+      solver.SetMaxIter(8);
+      trace.expected = &solver;
+      solver.SetController(trace);
+      x = 0.0;
+      x(0) = 7.0; // The physical callbacks must use the null-space gauge.
+      solver.Mult(b, x);
+      REQUIRE(solver.GetConverged());
+      REQUIRE(std::abs(x(0)) <= TestTolerance());
+      REQUIRE(trace.resets == 1);
+      REQUIRE(trace.finals == 1);
+      REQUIRE(trace.iterations.size() ==
+              static_cast<size_t>(solver.GetNumIterations() + 1));
+   };
+   if (kind == 0) { DeflatedCGSolver solver; solve(solver); }
+   if (kind == 1) { DeflatedGMRESSolver solver; solve(solver); }
+   if (kind == 2) { DeflatedFGMRESSolver solver; solve(solver); }
+}
+
+#ifdef MFEM_USE_MPI
+TEST_CASE("Native deflation iteration output includes empty ranks",
+          "[Deflation][Parallel]")
+{
+   int rank;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   const int n = rank == 0 ? 3 : 0;
+   DenseMatrix A(n);
+   A = 0.0;
+   for (int i = 0; i < n; ++i) { A(i, i) = i + 1; }
+   Vector b(n), x(n);
+   b = 1.0;
+   x = 0.0;
+   DeflatedGMRESSolver solver(MPI_COMM_WORLD);
+   solver.SetOperator(A);
+   solver.SetKDim(2);
+   solver.SetMaxIter(100);
+   solver.SetRelTol(TestTolerance());
+   solver.SetPrintLevel(rank == 0 ? 1 : -1);
+   solver.Mult(b, x);
+   REQUIRE(solver.GetConverged());
+   REQUIRE(solver.GetNumIterations() > 0);
+   REQUIRE(solver.GetNumIterations() <= 100);
+   REQUIRE(solver.GetFinalNorm() <= TestTolerance() * std::sqrt(real_t(3)));
+}
+#endif

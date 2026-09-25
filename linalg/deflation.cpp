@@ -1085,6 +1085,25 @@ bool DeflationSpaces::ValidateNullSpaces(real_t absolute_tolerance) const
           std::sqrt(left_square) <= absolute_tolerance;
 }
 
+namespace
+{
+
+void ConfigureDeflatedKrylov(CGSolver &, int) { }
+
+void ConfigureDeflatedKrylov(GMRESSolver &solver, int restart)
+{
+   solver.SetKDim(restart);
+   solver.SetOrthogonalizationPasses(2);
+}
+
+void ConfigureDeflatedKrylov(FGMRESSolver &solver, int restart)
+{
+   solver.SetKDim(restart);
+   solver.SetOrthogonalizationPasses(2);
+}
+
+} // namespace
+
 template <typename KrylovSolver>
 class DeflatedSolverBase<KrylovSolver>::Impl
 {
@@ -1105,13 +1124,8 @@ public:
       Vector residual_Ax;
       Vector b_work, x0, original_initial, working_initial;
       Vector rhs, internal, physical, residual;
-      Vector operator_image, cg_r, cg_z, direction, Ad;
-      Vector krylov_rhs, krylov_residual, cycle_start, image, w;
-      Vector coefficients, original_residual, projected_solution;
+      Vector cycle_start, original_residual, projected_solution;
       Vector null_component;
-      std::vector<Vector> v, z;
-      DenseMatrix H;
-      std::vector<real_t> cs, sn, g;
    };
    mutable Workspace work;
 
@@ -1119,6 +1133,8 @@ public:
    {
       Impl &owner;
       explicit OperatorAdapter(Impl &p) : Operator(0), owner(p) { }
+      MemoryClass GetMemoryClass() const override
+      { return owner.original->GetMemoryClass(); }
       void Resize(int n) { height = width = n; }
       void Mult(const Vector &x, Vector &y) const override
       { owner.ApplyOperator(x, y); }
@@ -1134,10 +1150,54 @@ public:
       { owner.ApplyPreconditioner(x, y); }
    } preconditioner_adapter;
 
-   Impl() : operator_adapter(*this), preconditioner_adapter(*this) { }
+   struct ControllerForwarder : public IterativeSolverController
+   {
+      Impl &owner;
+      const DeflatedSolverBase *solver = nullptr;
+      const Vector *b_work = nullptr;
+      int offset = 0;
+      real_t target = 0;
+      bool verify_each_iteration = false;
+      bool user_requested_stop = false;
+      bool physical_target_reached = false;
+
+      explicit ControllerForwarder(Impl &p) : owner(p) { }
+      void Reset() override
+      {
+         IterativeSolverController::Reset();
+         user_requested_stop = physical_target_reached = false;
+      }
+      bool RequiresUpdatedSolution() const override
+      { return verify_each_iteration; }
+      void MonitorSolution(int it, real_t, const Vector &internal,
+                           bool final) override
+      {
+         // The wrapper owns the user's initial/final callbacks and Reset.
+         if (final || it == 0 || !verify_each_iteration) { return; }
+         Vector &physical = owner.work.physical;
+         Vector &residual = owner.work.residual;
+         owner.Recover(internal, *b_work, physical);
+         owner.Residual(*b_work, physical, residual);
+         const real_t norm = solver->Norm(residual);
+         solver->CheckCollective(std::isfinite(norm),
+                                 "Nonfinite physical iteration residual");
+         solver->final_iter = offset + it;
+         physical_target_reached = norm <= target;
+         user_requested_stop = solver->CollectiveStop(
+                                  solver->Monitor(offset + it, norm,
+                                                  residual, physical));
+         converged = user_requested_stop || physical_target_reached;
+      }
+   } forwarder;
+
+   std::unique_ptr<KrylovSolver> krylov;
+
+   Impl() : operator_adapter(*this), preconditioner_adapter(*this),
+      forwarder(*this), krylov(new KrylovSolver()) { }
 #ifdef MFEM_USE_MPI
    explicit Impl(MPI_Comm comm)
-      : spaces(comm), operator_adapter(*this), preconditioner_adapter(*this) { }
+      : spaces(comm), operator_adapter(*this), preconditioner_adapter(*this),
+        forwarder(*this), krylov(new KrylovSolver(comm)) { }
 #endif
 
    void Invalidate()
@@ -1253,8 +1313,7 @@ template <typename KrylovSolver>
 DeflatedSolverBase<KrylovSolver>::DeflatedSolverBase()
    : KrylovSolver(), impl(new Impl())
 {
-   this->oper = &impl->operator_adapter;
-   this->prec = &impl->preconditioner_adapter;
+   // Only the owned native solver is bound to the internal adapters.
 }
 
 #ifdef MFEM_USE_MPI
@@ -1262,17 +1321,12 @@ template <typename KrylovSolver>
 DeflatedSolverBase<KrylovSolver>::DeflatedSolverBase(MPI_Comm comm)
    : KrylovSolver(comm), impl(new Impl(comm))
 {
-   this->oper = &impl->operator_adapter;
-   this->prec = &impl->preconditioner_adapter;
+   // Only the owned native solver is bound to the internal adapters.
 }
 #endif
 
 template <typename KrylovSolver>
-DeflatedSolverBase<KrylovSolver>::~DeflatedSolverBase()
-{
-   this->oper = nullptr;
-   this->prec = nullptr;
-}
+DeflatedSolverBase<KrylovSolver>::~DeflatedSolverBase() = default;
 
 template <typename KrylovSolver>
 void DeflatedSolverBase<KrylovSolver>::Invalidate()
@@ -1525,6 +1579,9 @@ void DeflatedSolverBase<KrylovSolver>::Setup()
                       "Fine preconditioner has wrong local dimensions");
       impl->preconditioner_bound = true;
    }
+   impl->krylov->SetPreconditioner(impl->preconditioner_adapter);
+   impl->krylov->SetOperator(impl->operator_adapter);
+   impl->krylov->SetController(impl->forwarder);
    impl->bound = true;
 }
 
@@ -1562,31 +1619,6 @@ template <>
 int DeflatedSolverBase<FGMRESSolver>::RestartDimension() const
 { return this->m; }
 
-namespace
-{
-
-bool BackSubstitute(const DenseMatrix &H, const std::vector<real_t> &g,
-                    int columns, Vector &coeff)
-{
-   coeff.SetSize(columns);
-   for (int i = columns - 1; i >= 0; --i)
-   {
-      real_t value = g[i];
-      for (int j = i + 1; j < columns; ++j)
-      {
-         value -= H(i, j) * coeff(j);
-      }
-      if (!(std::abs(H(i, i)) > 0) || !std::isfinite(H(i, i)))
-      {
-         return false;
-      }
-      coeff(i) = value / H(i, i);
-   }
-   return true;
-}
-
-} // namespace
-
 template <typename KrylovSolver>
 void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
 {
@@ -1613,7 +1645,6 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                    ValidTolerance(this->abs_tol),
                    "Invalid stopping tolerance");
    const bool cg = std::is_same<KrylovSolver, CGSolver>::value;
-   const bool flexible = std::is_same<KrylovSolver, FGMRESSolver>::value;
    const int restart = RestartDimension();
    CheckCollective(cg || restart > 0,
                    "GMRES restart dimension must be positive");
@@ -1712,6 +1743,11 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    impl->Recover(internal, b_work, physical);
    impl->Residual(b_work, physical, residual);
    real_t physical_norm = this->Norm(residual);
+   CheckCollective(std::isfinite(physical_norm) &&
+                   std::isfinite(working_initial_norm) &&
+                   std::isfinite(original_initial_norm) &&
+                   std::isfinite(target) && std::isfinite(original_target),
+                   "Nonfinite initial residual or stopping target");
    if (this->print_options.first_and_last)
    {
       mfem::out << "Deflated solver initial ||b_work-Ax|| = "
@@ -1723,259 +1759,71 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    bool success = physical_norm <= target;
    int iterations = 0;
 
-   if (!stop && !success && this->max_iter > 0 && cg)
+   KrylovSolver &krylov = *impl->krylov;
+   ConfigureDeflatedKrylov(krylov, restart);
+   auto &forwarder = impl->forwarder;
+   forwarder.solver = this;
+   forwarder.b_work = &b_work;
+   forwarder.target = target;
+   forwarder.verify_each_iteration = monitor_physical;
+   IterativeSolver::PrintLevel native_print;
+   native_print.iterations = this->print_options.iterations;
+   native_print.warnings = this->print_options.warnings;
+   native_print.errors = this->print_options.errors;
+   krylov.SetPrintLevel(native_print);
+   bool tightened = false;
+
+   while (!stop && !success && iterations < this->max_iter)
    {
-      Vector &operator_image = work.operator_image, &r = work.cg_r;
-      Vector &z = work.cg_z, &direction = work.direction, &Ad = work.Ad;
-      // Return r^T r and r^T z from one global reduction.
-      const auto fused_dots = [&](const Vector &res, const Vector &prec_res,
-                                  real_t &res_res, real_t &res_prec)
-      {
-         real_t dots[2] = { res * res, res * prec_res };
+      const int budget = this->max_iter - iterations;
+      krylov.SetMaxIter(budget);
+      krylov.iterative_mode = true;
+      krylov.SetRelTol(tightened ?
+                      std::min(real_t(0.5), target / physical_norm) :
+                      this->rel_tol);
+      krylov.SetAbsTol(tightened ? real_t(0) : this->abs_tol);
+      forwarder.offset = iterations;
+      forwarder.Reset();
+      Like(work.cycle_start, internal);
+      work.cycle_start = internal;
+      krylov.Mult(rhs, internal);
+      const int k = krylov.GetNumIterations();
+      const bool native_converged = krylov.GetConverged();
+      CheckCollective(k >= 0 && k <= budget,
+                      "Native Krylov iteration count exceeds its budget");
 #ifdef MFEM_USE_MPI
-         if (this->GetComm() != MPI_COMM_NULL)
-         {
-            MPI_Allreduce(MPI_IN_PLACE, dots, 2, MPITypeMap<real_t>::mpi_type,
-                          MPI_SUM, this->GetComm());
-         }
+      if (this->GetComm() != MPI_COMM_NULL)
+      {
+         int local[2] = { k, native_converged ? 1 : 0 };
+         int lo[2], hi[2];
+         MPI_Allreduce(local, lo, 2, MPI_INT, MPI_MIN, this->GetComm());
+         MPI_Allreduce(local, hi, 2, MPI_INT, MPI_MAX, this->GetComm());
+         MFEM_VERIFY(lo[0] == hi[0] && lo[1] == hi[1],
+                     "Native Krylov termination differs across MPI ranks");
+      }
 #endif
-         res_res = dots[0];
-         res_prec = dots[1];
-      };
-      impl->ApplyOperator(internal, operator_image);
-      r.UseDevice(rhs.UseDevice());
-      r = rhs;
-      r -= operator_image;
-      impl->ApplyPreconditioner(r, z);
-      real_t rho = this->Dot(r, z);
-      if (std::isfinite(rho) && rho > 0)
+      iterations += k;
+      this->final_iter = iterations;
+      // This only handles a returned iterate. Native fatal checks are not
+      // intercepted, and accepted work still counts if rollback is needed.
+      if (AnyRank(!std::isfinite(this->Norm(internal))))
       {
-         direction.UseDevice(z.UseDevice());
-         direction = z;
-         for (int it = 1; it <= this->max_iter; ++it)
-         {
-            impl->ApplyOperator(direction, Ad);
-            const real_t denominator = this->Dot(direction, Ad);
-            if (!(denominator > 0) || !std::isfinite(denominator)) { break; }
-            const real_t alpha = rho / denominator;
-            internal.Add(alpha, direction);
-            r.Add(-alpha, Ad);
-            iterations = it;
-            this->final_iter = iterations;
-            // Precondition before the stopping test so ||r|| and r^T z share
-            // one reduction; only a converging iteration wastes this work.
-            const bool last = it == this->max_iter;
-            real_t residual_square = 0, next_rho = 0;
-            if (last) { residual_square = this->Dot(r, r); }
-            else
-            {
-               impl->ApplyPreconditioner(r, z);
-               fused_dots(r, z, residual_square, next_rho);
-            }
-            const bool check_physical =
-               monitor_physical || last ||
-               std::sqrt(std::max(real_t(0), residual_square)) <= target;
-            if (check_physical)
-            {
-               impl->Recover(internal, b_work, physical);
-               impl->Residual(b_work, physical, residual);
-               physical_norm = this->Norm(residual);
-               if (this->print_options.iterations)
-               {
-                  mfem::out << "Deflated CG iteration " << it
-                            << ": ||b_work-Ax|| = " << physical_norm << '\n';
-               }
-               if (this->controller)
-               {
-                  stop = CollectiveStop(this->Monitor(it, physical_norm,
-                                                       residual, physical));
-               }
-               success = physical_norm <= target;
-            }
-            if (stop || success || last) { break; }
-            if (!(next_rho > 0) || !std::isfinite(next_rho)) { break; }
-            direction *= next_rho / rho;
-            direction += z;
-            rho = next_rho;
-         }
+         internal = work.cycle_start;
+         break;
       }
-   }
-
-   if (!stop && !success && this->max_iter > 0 && !cg)
-   {
-      Vector &operator_image = work.operator_image;
-      Vector &krylov_rhs = work.krylov_rhs;
-      Vector &krylov_residual = work.krylov_residual;
-      Vector &cycle_start = work.cycle_start;
-      Vector &image = work.image, &w = work.w;
-      Vector &coefficients = work.coefficients;
-      std::vector<Vector> &v = work.v, &z = work.z;
-      DenseMatrix &H = work.H;
-      std::vector<real_t> &cs = work.cs, &sn = work.sn, &g = work.g;
-      if (static_cast<int>(v.size()) < restart + 1)
-      {
-         v.resize(restart + 1);
-      }
-      if (flexible && static_cast<int>(z.size()) < restart)
-      {
-         z.resize(restart);
-      }
-      for (Vector &column : v) { column.UseDevice(use_device); }
-      if (flexible)
-      {
-         for (Vector &column : z) { column.UseDevice(use_device); }
-      }
-      H.SetSize(restart + 1, restart);
-      cs.resize(restart);
-      sn.resize(restart);
-      g.resize(restart + 1);
-      while (iterations < this->max_iter && !stop && !success)
-      {
-         impl->ApplyOperator(internal, operator_image);
-         krylov_residual.UseDevice(rhs.UseDevice());
-         krylov_residual = rhs;
-         krylov_residual -= operator_image;
-         if (!flexible)
-         {
-            impl->ApplyPreconditioner(krylov_residual, krylov_rhs);
-            krylov_residual = krylov_rhs;
-         }
-         const real_t beta = this->Norm(krylov_residual);
-         if (!(beta > 0) || !std::isfinite(beta)) { break; }
-
-         const int cycle = std::min(restart, this->max_iter - iterations);
-         H = 0.0;
-         std::fill(cs.begin(), cs.end(), real_t(0));
-         std::fill(sn.begin(), sn.end(), real_t(0));
-         std::fill(g.begin(), g.end(), real_t(0));
-         g[0] = beta;
-         v[0] = krylov_residual;
-         v[0] /= beta;
-         Like(cycle_start, internal);
-         cycle_start = internal;
-         const real_t cycle_physical_norm = physical_norm;
-         const real_t estimate_target = flexible ? target :
-            target * beta / std::max(cycle_physical_norm,
-                                     std::numeric_limits<real_t>::min());
-         bool breakdown = false;
-         int produced = 0;
-         int checked_columns = 0;
-
-         const auto update_candidate = [&](int columns)
-         {
-            if (!BackSubstitute(H, g, columns, coefficients)) { return false; }
-            internal = cycle_start;
-            for (int i = 0; i < columns; ++i)
-            {
-               internal.Add(coefficients(i), flexible ? z[i] : v[i]);
-            }
-            return true;
-         };
-
-         for (int j = 0; j < cycle; ++j)
-         {
-            if (flexible)
-            {
-               impl->ApplyPreconditioner(v[j], z[j]);
-               impl->ApplyOperator(z[j], w);
-            }
-            else
-            {
-               impl->ApplyOperator(v[j], image);
-               impl->ApplyPreconditioner(image, w);
-            }
-            const real_t input_norm = this->Norm(w);
-            for (int pass = 0; pass < 2; ++pass)
-            {
-               for (int i = 0; i <= j; ++i)
-               {
-                  const real_t projection = this->Dot(v[i], w);
-                  H(i, j) += projection;
-                  w.Add(-projection, v[i]);
-               }
-            }
-            const real_t h_next = this->Norm(w);
-            const real_t breakdown_scale = std::max(input_norm,
-                                                     std::abs(H(j, j)));
-            breakdown = !std::isfinite(h_next) ||
-                        h_next <= real_t(32) *
-                        std::numeric_limits<real_t>::epsilon() *
-                        breakdown_scale;
-            H(j + 1, j) = breakdown ? 0 : h_next;
-            if (!breakdown)
-            {
-               v[j + 1] = w;
-               v[j + 1] /= h_next;
-            }
-            for (int i = 0; i < j; ++i)
-            {
-               const real_t first = H(i, j), second = H(i + 1, j);
-               H(i, j) = cs[i] * first + sn[i] * second;
-               H(i + 1, j) = -sn[i] * first + cs[i] * second;
-            }
-            const real_t pivot = std::hypot(H(j, j), H(j + 1, j));
-            if (!(pivot > 0) || !std::isfinite(pivot))
-            {
-               breakdown = true;
-               break;
-            }
-            cs[j] = H(j, j) / pivot;
-            sn[j] = H(j + 1, j) / pivot;
-            H(j, j) = pivot;
-            H(j + 1, j) = 0;
-            g[j + 1] = -sn[j] * g[j];
-            g[j] *= cs[j];
-
-            produced = j + 1;
-            ++iterations;
-            this->final_iter = iterations;
-            const bool cycle_end = produced == cycle ||
-                                   iterations == this->max_iter;
-            const bool estimate_ready =
-               std::abs(g[j + 1]) <= estimate_target;
-            const bool check_physical = monitor_physical || breakdown ||
-                                        cycle_end || estimate_ready;
-            if (check_physical)
-            {
-               if (!update_candidate(produced))
-               {
-                  --iterations;
-                  --produced;
-                  breakdown = true;
-                  break;
-               }
-               checked_columns = produced;
-               impl->Recover(internal, b_work, physical);
-               impl->Residual(b_work, physical, residual);
-               physical_norm = this->Norm(residual);
-               if (this->print_options.iterations)
-               {
-                  mfem::out << "Deflated " << (flexible ? "FGMRES" : "GMRES")
-                            << " iteration " << iterations
-                            << ": ||b_work-Ax|| = " << physical_norm << '\n';
-               }
-               if (this->controller)
-               {
-                  stop = CollectiveStop(this->Monitor(iterations, physical_norm,
-                                                       residual, physical));
-               }
-               success = physical_norm <= target;
-            }
-            if (stop || success || breakdown) { break; }
-         }
-         if (produced > 0 && checked_columns != produced)
-         {
-            if (!update_candidate(produced)) { breakdown = true; }
-            else
-            {
-               impl->Recover(internal, b_work, physical);
-               impl->Residual(b_work, physical, residual);
-               physical_norm = this->Norm(residual);
-               success = physical_norm <= target;
-            }
-         }
-         if (breakdown || produced == 0) { break; }
-      }
+      impl->Recover(internal, b_work, physical);
+      impl->Residual(b_work, physical, residual);
+      physical_norm = this->Norm(residual);
+      CheckCollective(std::isfinite(physical_norm),
+                      "Nonfinite physical residual after native solve");
+      success = physical_norm <= target;
+      stop = forwarder.user_requested_stop;
+      if (success || stop || !native_converged) { break; }
+      // Native absolute tolerance can accept a scaled residual at iteration
+      // zero. One tightened retry is allowed; another zero-work exit cannot
+      // consume the iteration budget and must terminate as stagnation.
+      if (k == 0 && tightened) { break; }
+      tightened = true;
    }
 
    // Recompute after every exit, including zero budget and controller stops.
