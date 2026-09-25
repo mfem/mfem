@@ -427,39 +427,45 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
       // refine elements further for 3:1 refinement
       if (level_ratio != SAMRAI::hier::IntVector(level_ratio.getDim(),2))
       {
-         MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),3),
+         MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(level_ratio.getDim(),3),
             "Refinement ratio " << level_ratio << " not yet supported");
-         // TODO: support 3D
-         MFEM_VERIFY(mesh->Dimension() == 2, "3D refinement not yet supported")
-         const double dx = 1.0/level0_ratio[0];
-         const double dy = 1.0/level0_ratio[1];
          Table coarse_to_fine;
          mesh->ncmesh->GetRefinementTransforms().MakeCoarseToFineTable(coarse_to_fine);
          refinements.DeleteAll();
+         const IntegrationPoint ip0 = {0.0, 0.0, 0.0};
+         const IntegrationPoint ip1 = {1.0, 1.0, 1.0};
          for (const int& original_element_ind : refine_element_inds)
          {
             Array<int> new_element_inds;
             coarse_to_fine.GetRow(original_element_ind, new_element_inds);
             for (const int& new_element_ind : new_element_inds)
             {
-               Vector x0, h;
+               Vector x0, element_h;
                ElementTransformation* transform =
                   mesh->GetElementTransformation(new_element_ind);
-               // TODO: support 3D
-               const IntegrationPoint ip0 = {0.0, 0.0};
-               const IntegrationPoint ip1 = {1.0, 1.0};
                transform->Transform(ip0, x0);
-               transform->Transform(ip1, h);
-               h -= x0;
-               if (std::abs(h[0] - dx) > 1e-12 && std::abs(h[1] - dy) > 1e-12)
-                  refinements.Append(Refinement(new_element_ind,
-                     {{Refinement::X, dx/h[0]}, {Refinement::Y, dy/h[1]}}));
-               else if (std::abs(h[0] - dx) > 1e-12)
-                  refinements.Append(Refinement(new_element_ind,
-                     Refinement::X, dx/h[0]));
-               else if (std::abs(h[1] - dy) > 1e-12)
-                  refinements.Append(Refinement(new_element_ind,
-                     Refinement::Y, dy/h[1]));
+               transform->Transform(ip1, element_h);
+               element_h -= x0;
+               bool skip = true;
+               Vector scale = h;
+               scale /= element_h;
+               for (int i=0; i < h.Size(); i++)
+               {
+                  if (scale[i] < 1.0 - 1e-12)
+                     skip = false;
+                  else
+                     scale[i] = 0.0; // ensure no refinement in this direction
+               }
+               if (skip)
+                  continue;
+               if (scale.Size() < 3) // this enables 3D scale vector for 2D refinement
+               {
+                  scale.Reserve(3);
+                  scale.SetSize(3);
+               }
+               refinements.Append(Refinement(new_element_ind,
+                  {{Refinement::X, scale[0]}, {Refinement::Y, scale[1]},
+                   {Refinement::Z, scale[2]}}));
             }
          }
          mesh->GeneralRefinement(refinements);

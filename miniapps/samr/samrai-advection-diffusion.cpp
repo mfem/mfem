@@ -41,7 +41,9 @@
 //   coupling manager creating a new MFEM mesh at each timestep:
 //     mpirun -np 4 samrai-advection-diffusion -i linadv_input_3to1.2d -new-mesh
 //
-//  NOTE: 3:1 refinement in 3D not yet supported
+//   3D advection-diffusion equation using 3 levels of 3:1 refinement with the
+//   coupling manager creating a new MFEM mesh at each timestep:
+//     mpirun -np 4 samrai-advection-diffusion -i linadv_input_3to1.3d -new-mesh
 
 #include "mfem.hpp"
 #include <fstream>
