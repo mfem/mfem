@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <memory>
+
 using namespace mfem;
 
 class IdentitySolver : public Solver
@@ -842,6 +844,78 @@ TEST_CASE("ZerosTestCase", "[Parallel], [ConstrainedSolver]")
       INFO("[" << comm_rank << "] zeros test case dual error: " << lerrnorm << "\n");
       REQUIRE(lerrnorm == MFEM_Approx(0.0));
    }
+}
+
+TEST_CASE("ParallelNormalConstraints", "[Parallel], [ConstrainedSolver]")
+{
+   int comm_size;
+   MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
+   if (comm_size > 4) { return; }
+
+   constexpr int dim = 2;
+   const Ordering::Type ordering =
+      GENERATE(Ordering::byNODES, Ordering::byVDIM);
+
+   Mesh smesh = Mesh::MakeCartesian2D(2, 1, Element::TRIANGLE, true);
+   smesh.GetVertex(1)[1] = 0.25;
+
+   Array<int> constrained_att({1, 2});
+   H1_FECollection fec(1, dim);
+
+   Array<int> partitioning(smesh.GetNE());
+   partitioning = 0;
+   if (comm_size > 1)
+   {
+      // Elements 1 and 3 own the bottom edges; element 2 touches their shared
+      // vertex but owns neither bottom edge.
+      partitioning[1] = 1;
+      partitioning[3] = comm_size > 2 ? 2 : 1;
+      partitioning[0] = comm_size > 3 ? 3 : 0;
+   }
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning.GetData());
+   ParFiniteElementSpace pfes(&pmesh, &fec, dim, ordering);
+   Array<int> p_rowstarts;
+   std::unique_ptr<SparseMatrix> pB(
+      ParBuildNormalConstraints(pfes, constrained_att, p_rowstarts));
+
+   const int local_rows = pB->Height();
+   int global_rows;
+   MPI_Allreduce(&local_rows, &global_rows, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(global_rows == 5);
+
+   int min_rows;
+   MPI_Allreduce(&local_rows, &min_rows, 1, MPI_INT, MPI_MIN,
+                 MPI_COMM_WORLD);
+   if (comm_size > 2) { REQUIRE(min_rows == 0); }
+
+   // The three bottom rows are (1/4,-1/2), (0,-1/2), (-1/4,-1/2),
+   // and the two right rows are both (1,0).
+   const real_t expected_norm2[dim] = {17.0 / 8.0, 3.0 / 4.0};
+   for (int d = 0; d < dim; ++d)
+   {
+      Vector px(pfes.GetTrueVSize());
+      px = 0.0;
+      for (int i = 0; i < pfes.GetNDofs(); ++i)
+      {
+         const int tdof =
+            pfes.GetLocalTDofNumber(pfes.DofToVDof(i, d));
+         if (tdof >= 0) { px(tdof) = 1.0; }
+      }
+
+      Vector py(pB->Height());
+      pB->Mult(px, py);
+      const real_t local_norm2 = InnerProduct(py, py);
+      real_t global_norm2;
+      MPI_Allreduce(&local_norm2, &global_norm2, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    MPI_COMM_WORLD);
+      REQUIRE(global_norm2 == MFEM_Approx(expected_norm2[d]));
+   }
+
+   REQUIRE(p_rowstarts.Size() >= 1);
+   REQUIRE(p_rowstarts[0] == 0);
+   REQUIRE(p_rowstarts.Last() == local_rows);
 }
 
 #endif
