@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <limits>
 
 namespace mfem
 {
@@ -927,6 +928,15 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
+   if (max_iter <= 0)
+   {
+      converged = false;
+      final_iter = 0;
+      final_norm = sqrt(nom);
+      Monitor(0, nom, r, x, true);
+      return;
+   }
+
    oper->Mult(d, z);  // z = A d
    den = Dot(z, d);
    MFEM_VERIFY(IsFinite(den), "den = " << den);
@@ -1018,7 +1028,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
          }
          if (den == 0.0)
          {
-            final_iter = i;
+            final_iter = i - 1;
             break;
          }
       }
@@ -1131,422 +1141,304 @@ inline void Update(Vector &x, int k, DenseMatrix &h, Vector &s,
    }
 }
 
-void GMRESSolver::Mult(const Vector &b, Vector &x) const
+void IterativeSolver::GMRESWorkspace::Prepare(int n, int m, MemoryType mt,
+                                            bool flexible)
 {
-   // Generalized Minimum Residual method following the algorithm
-   // on p. 20 of the SIAM Templates book.
-
-   int n = width;
-
-   DenseMatrix H(m+1, m);
-   Vector s(m+1), cs(m+1), sn(m+1);
-   Vector r(n), w(n), x_monitor;
-   Array<Vector *> v;
-
-   b.UseDevice(true);
-   x.UseDevice(true);
+   H.SetSize(m + 1, m);
+   s.SetSize(m + 1);
+   cs.SetSize(m);
+   sn.SetSize(m);
+   scales.SetSize(m);
+   coefficients.SetSize(m);
+   r.SetSize(n, mt);
+   w.SetSize(n, mt);
+   candidate.SetSize(n, mt);
    r.UseDevice(true);
    w.UseDevice(true);
+   candidate.UseDevice(true);
+   if (static_cast<int>(v.size()) < m + 1) { v.resize(m + 1); }
+   if (flexible && static_cast<int>(z.size()) < m) { z.resize(m); }
+   // Columns are sized lazily, including after an operator/memory change.
+}
 
-   if (ControllerRequiresUpdate())
+bool IterativeSolver::GMRESWorkspace::BackSolve(int columns)
+{
+   const real_t eps = 32 * std::numeric_limits<real_t>::epsilon();
+   for (int i = columns - 1; i >= 0; --i)
    {
-      x_monitor.SetSize(n);
-      x_monitor.UseDevice(true);
+      real_t value = s(i);
+      for (int j = i + 1; j < columns; ++j)
+      {
+         value -= H(i, j) * coefficients(j);
+      }
+      if (!IsFinite(H(i, i)) || !(std::abs(H(i, i)) > eps * scales(i)))
+      {
+         return false;
+      }
+      coefficients(i) = value / H(i, i);
+      if (!IsFinite(coefficients(i))) { return false; }
    }
+   return true;
+}
+
+void IterativeSolver::GMRESWorkspace::Candidate(const Vector &x, int columns,
+                                              bool flexible)
+{
+   candidate = x;
+   for (int i = 0; i < columns; ++i)
+   {
+      candidate.Add(coefficients(i), flexible ? z[i] : v[i]);
+   }
+}
+
+void IterativeSolver::GMRESMult(const Vector &b, Vector &x, int m, int passes,
+                               bool flexible, GMRESWorkspace &work) const
+{
+   MFEM_VERIFY(oper && oper->Height() == oper->Width(),
+               "GMRES requires a square operator");
+   MFEM_VERIFY(b.Size() == height && x.Size() == width,
+               "GMRES vector dimensions do not match the operator");
+   MFEM_VERIFY(m > 0 && max_iter >= 0, "Invalid GMRES iteration budget");
+   const MemoryType mt = GetMemoryType(oper->GetMemoryClass());
+   work.Prepare(width, m, mt, flexible);
+   Vector &r = work.r, &w = work.w;
+   DenseMatrix &H = work.H;
+   b.UseDevice(true);
+   x.UseDevice(true);
+   const char *name = flexible ? "FGMRES" : "GMRES";
+   const char *norm_label = flexible ? "||r||" : "||B r||";
+   const real_t eps = 32 * std::numeric_limits<real_t>::epsilon();
+
+   const auto residual_norm = [&](const Vector &candidate)
+   {
+      oper->Mult(candidate, w);
+      subtract(b, w, r);
+      if (!flexible && prec)
+      {
+         prec->Mult(r, w);
+         r = w;
+      }
+      const real_t norm = Norm(r);
+      MFEM_VERIFY(IsFinite(norm), "Nonfinite GMRES residual norm");
+      return norm;
+   };
+   if (!iterative_mode) { x = 0.0; }
+   real_t beta;
+   if (iterative_mode) { beta = residual_norm(x); }
    else
    {
-      x_monitor.MakeRef(x, 0, n);
+      if (!flexible && prec) { prec->Mult(b, r); }
+      else { r = b; }
+      beta = Norm(r);
+      MFEM_VERIFY(IsFinite(beta), "Nonfinite GMRES initial residual norm");
    }
-
-   int i, j, k;
-
-   if (iterative_mode)
-   {
-      oper->Mult(x, r);
-   }
-   else
-   {
-      x = 0.0;
-   }
-
-   if (prec)
-   {
-      if (iterative_mode)
-      {
-         subtract(b, r, w);
-         prec->Mult(w, r);    // r = M (b - A x)
-      }
-      else
-      {
-         prec->Mult(b, r);
-      }
-   }
-   else
-   {
-      if (iterative_mode)
-      {
-         subtract(b, r, r);
-      }
-      else
-      {
-         r = b;
-      }
-   }
-   real_t beta = initial_norm = Norm(r);  // beta = ||r||
-   MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
-
-   final_norm = std::max(rel_tol*beta, abs_tol);
-
-   if (Monitor(0, beta, r, x) || beta <= final_norm)
-   {
-      final_norm = beta;
-      final_iter = 0;
-      converged = true;
-      j = 0;
-      goto finish;
-   }
-
+   initial_norm = final_norm = beta;
+   final_iter = 0;
+   const real_t target = std::max(rel_tol * beta, abs_tol);
+   converged = Monitor(0, beta, r, x) || beta <= target;
    if (print_options.iterations || print_options.first_and_last)
    {
-      mfem::out << "   Pass : " << setw(2) << 1
-                << "   Iteration : " << setw(3) << 0
-                << "  ||B r|| = " << beta
-                << (print_options.first_and_last ? " ...\n" : "\n");
+      mfem::out << "   Iteration : " << setw(3) << 0 << "  "
+                << norm_label << " = " << beta << '\n';
    }
 
-   v.SetSize(m+1, NULL);
-
-   for (j = 1; j <= max_iter; )
+   bool breakdown = false;
+   while (!converged && !breakdown && final_iter < max_iter)
    {
-      if (v[0] == NULL)
+      work.v[0].SetSize(width, mt);
+      work.v[0].UseDevice(true);
+      work.v[0].Set(1.0 / beta, r);
+      work.s = 0.0;
+      work.s(0) = beta;
+      const int cycle = std::min(m, max_iter - final_iter);
+      int produced = 0;
+      bool candidate_ready = false;
+      bool cycle_finished = false;
+
+      for (int i = 0; i < cycle; ++i)
       {
-         v[0] = new Vector(n);
-         v[0]->UseDevice(true);
-      }
-      v[0]->Set(1.0/beta, r);
-      s = 0.0; s(0) = beta;
-
-      for (i = 0; i < m && j <= max_iter; i++, j++)
-      {
-         if (prec)
+         if (flexible)
          {
-            oper->Mult(*v[i], r);
-            prec->Mult(r, w);        // w = M A v[i]
+            work.z[i].SetSize(width, mt);
+            work.z[i].UseDevice(true);
+            work.z[i] = 0.0;
+            if (prec) { prec->Mult(work.v[i], work.z[i]); }
+            else { work.z[i] = work.v[i]; }
+            oper->Mult(work.z[i], w);
          }
-         else
+         else if (prec)
          {
-            oper->Mult(*v[i], w);
+            oper->Mult(work.v[i], r);
+            prec->Mult(r, w);
          }
+         else { oper->Mult(work.v[i], w); }
 
-         for (k = 0; k <= i; k++)
+         for (int k = 0; k <= i; ++k) { H(k, i) = 0.0; }
+         for (int pass = 0; pass < passes; ++pass)
          {
-            H(k,i) = Dot(w, *v[k]);  // H(k,i) = w * v[k]
-            w.Add(-H(k,i), *v[k]);   // w -= H(k,i) * v[k]
+            for (int k = 0; k <= i; ++k)
+            {
+               const real_t projection = Dot(w, work.v[k]);
+               MFEM_VERIFY(IsFinite(projection), "Nonfinite Arnoldi projection");
+               H(k, i) += projection;
+               w.Add(-projection, work.v[k]);
+            }
          }
-
-         H(i+1,i) = Norm(w);           // H(i+1,i) = ||w||
-         MFEM_VERIFY(IsFinite(H(i+1,i)), "Norm(w) = " << H(i+1,i));
-         if (v[i+1] == NULL) { v[i+1] = new Vector(n); }
-         v[i+1]->Set(1.0/H(i+1,i), w); // v[i+1] = w / H(i+1,i)
-
-         for (k = 0; k < i; k++)
+         const real_t h = Norm(w);
+         MFEM_VERIFY(IsFinite(h), "Nonfinite Arnoldi remainder");
+         real_t scale = h;
+         for (int k = 0; k <= i; ++k)
          {
-            ApplyPlaneRotation(H(k,i), H(k+1,i), cs(k), sn(k));
+            scale = std::hypot(scale, H(k, i));
          }
-
-         GeneratePlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
-         ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
-         ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
-
-         const real_t resid = fabs(s(i+1));
-         MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
-
-         if (ControllerRequiresUpdate())
+         MFEM_VERIFY(IsFinite(scale), "Nonfinite Arnoldi column scale");
+         work.scales(i) = scale;
+         breakdown = h <= eps * scale;
+         H(i + 1, i) = breakdown ? 0.0 : h;
+         if (!breakdown)
          {
-            x_monitor = x;
-            Update(x_monitor, i, H, s, v);
+            work.v[i + 1].SetSize(width, mt);
+            work.v[i + 1].UseDevice(true);
+            work.v[i + 1].Set(1.0 / h, w);
          }
-
-         if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
+         for (int k = 0; k < i; ++k)
          {
-            Update(x, i, H, s, v);
-            final_norm = resid;
-            final_iter = j;
-            converged = true;
-            goto finish;
+            ApplyPlaneRotation(H(k, i), H(k + 1, i), work.cs(k), work.sn(k));
          }
-
+         const real_t pivot = std::hypot(H(i, i), H(i + 1, i));
+         if (!IsFinite(pivot) || !(pivot > eps * scale))
+         {
+            breakdown = true;
+            break; // Recover the earlier usable columns below.
+         }
+         work.cs(i) = H(i, i) / pivot;
+         work.sn(i) = H(i + 1, i) / pivot;
+         H(i, i) = pivot;
+         H(i + 1, i) = 0.0;
+         ApplyPlaneRotation(work.s(i), work.s(i + 1), work.cs(i), work.sn(i));
+         produced = i + 1;
+         ++final_iter;
+         final_norm = std::abs(work.s(i + 1));
+         MFEM_VERIFY(IsFinite(final_norm), "Nonfinite GMRES residual estimate");
+         candidate_ready = false;
+         const bool estimate_ready = final_norm <= target;
+         if (ControllerRequiresUpdate() || estimate_ready || breakdown ||
+             produced == cycle)
+         {
+            if (!work.BackSolve(produced))
+            {
+               --produced;
+               --final_iter;
+               breakdown = true;
+               break;
+            }
+            work.Candidate(x, produced, flexible);
+            if (!IsFinite(Norm(work.candidate)))
+            {
+               // Reject this column; recover an earlier finite prefix below.
+               --produced;
+               --final_iter;
+               breakdown = true;
+               break;
+            }
+            candidate_ready = true;
+         }
+         if (breakdown)
+         {
+            // A truncated subdiagonal makes the estimate zero even when the
+            // system is inconsistent or near breakdown has lost accuracy.
+            final_norm = residual_norm(work.candidate);
+         }
+         const Vector &monitored = candidate_ready ? work.candidate : x;
+         const bool stopped = Monitor(final_iter, final_norm, r, monitored);
+         converged = stopped || final_norm <= target;
          if (print_options.iterations)
          {
-            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                      << "   Iteration : " << setw(3) << j
-                      << "  ||B r|| = " << resid << '\n';
+            mfem::out << "   Iteration : " << setw(3) << final_iter << "  "
+                      << norm_label << " = " << final_norm << '\n';
+         }
+         if (converged || breakdown || produced == cycle)
+         {
+            // All exit conditions above requested a candidate, except a
+            // controller that deliberately does not request updated solutions.
+            if (!candidate_ready)
+            {
+               if (!work.BackSolve(produced))
+               {
+                  converged = false;
+                  breakdown = true;
+                  break;
+               }
+               work.Candidate(x, produced, flexible);
+               if (!IsFinite(Norm(work.candidate)))
+               {
+                  converged = false;
+                  breakdown = true;
+                  break;
+               }
+            }
+            x = work.candidate;
+            cycle_finished = true;
+            break;
          }
       }
 
-      if (print_options.iterations && j <= max_iter)
+      if (!cycle_finished)
       {
-         mfem::out << "Restarting..." << '\n';
+         // The newest column was rejected. A checked solve of a shorter
+         // prefix can still provide useful progress on a singular system.
+         while (produced > 0)
+         {
+            if (work.BackSolve(produced))
+            {
+               work.Candidate(x, produced, flexible);
+               if (IsFinite(Norm(work.candidate)))
+               {
+                  x = work.candidate;
+                  break;
+               }
+            }
+            --produced;
+            --final_iter;
+         }
       }
-
-      Update(x, i-1, H, s, v);
-
-      oper->Mult(x, r);
-      if (prec)
+      if (!converged)
       {
-         subtract(b, r, w);
-         prec->Mult(w, r);    // r = M (b - A x)
+         beta = final_norm = residual_norm(x);
+         converged = beta <= target;
       }
-      else
+      if (!converged && !breakdown && final_iter < max_iter &&
+          print_options.iterations)
       {
-         subtract(b, r, r);
-      }
-      beta = Norm(r);         // beta = ||r||
-      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
-      if (beta <= final_norm)
-      {
-         final_norm = beta;
-         final_iter = j;
-         converged = true;
-         goto finish;
+         mfem::out << "Restarting...\n";
       }
    }
 
-   final_norm = beta;
-   final_iter = max_iter;
-   converged = false;
-
-finish:
-   if ((print_options.iterations && converged) || print_options.first_and_last)
+   if (print_options.first_and_last && !print_options.iterations)
    {
-      mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                << "   Iteration : " << setw(3) << final_iter
-                << "  ||B r|| = " << final_norm << '\n';
+      mfem::out << "   Iteration : " << setw(3) << final_iter << "  "
+                << norm_label << " = " << final_norm << '\n';
    }
    if (print_options.summary || (print_options.warnings && !converged))
    {
-      mfem::out << "GMRES: Number of iterations: " << final_iter << '\n';
+      mfem::out << name << ": Number of iterations: " << final_iter << '\n';
    }
    if (print_options.warnings && !converged)
    {
-      mfem::out << "GMRES: No convergence!\n";
+      mfem::out << name << (breakdown ? ": Arnoldi breakdown.\n" :
+                           ": No convergence!\n");
    }
-
    Monitor(final_iter, final_norm, r, x, true);
+}
 
-   for (i = 0; i < v.Size(); i++)
-   {
-      delete v[i];
-   }
+void GMRESSolver::Mult(const Vector &b, Vector &x) const
+{
+   GMRESMult(b, x, m, orthogonalization_passes, false, work);
 }
 
 void FGMRESSolver::Mult(const Vector &b, Vector &x) const
 {
-   DenseMatrix H(m+1,m);
-   Vector s(m+1), cs(m+1), sn(m+1);
-   Vector r(b.Size()), x_monitor;
-
-   b.UseDevice(true);
-   x.UseDevice(true);
-   r.UseDevice(true);
-
-   if (ControllerRequiresUpdate())
-   {
-      x_monitor.SetSize(x.Size());
-      x_monitor.UseDevice(true);
-   }
-   else
-   {
-      x_monitor.MakeRef(x, 0, x.Size());
-   }
-
-   int i, j, k;
-
-   if (iterative_mode)
-   {
-      oper->Mult(x, r);
-      subtract(b,r,r);
-   }
-   else
-   {
-      x = 0.;
-      r = b;
-   }
-   real_t beta = initial_norm = Norm(r);  // beta = ||r||
-   MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
-
-   final_norm = std::max(rel_tol*beta, abs_tol);
-
-   if (Monitor(0, beta, r, x) || beta <= final_norm)
-   {
-      converged = true;
-      final_norm = beta;
-      final_iter = 0;
-
-      Monitor(0, beta, r, x, true);
-      return;
-   }
-
-   // initialize the first pass
-   converged = false;
-
-   if (print_options.iterations || print_options.first_and_last)
-   {
-      mfem::out << "   Pass : " << setw(2) << 1
-                << "   Iteration : " << setw(3) << 0
-                << "  || r || = " << beta
-                << (print_options.first_and_last ? " ...\n" : "\n");
-   }
-
-   Array<Vector*> v(m+1);
-   Array<Vector*> z(m+1);
-   for (i= 0; i<=m; i++)
-   {
-      v[i] = NULL;
-      z[i] = NULL;
-   }
-
-   j = 1;
-   while (j <= max_iter)
-   {
-      if (v[0] == NULL)
-      {
-         v[0] = new Vector(b.Size());
-         v[0]->UseDevice(true);
-      }
-      (*v[0]) = 0.0;
-      v[0] -> Add (1.0/beta, r);   // v[0] = r / ||r||
-      s = 0.0; s(0) = beta;
-
-      for (i = 0; i < m && j <= max_iter; i++, j++)
-      {
-
-         if (z[i] == NULL)
-         {
-            z[i] = new Vector(b.Size());
-            z[i]->UseDevice(true);
-         }
-         (*z[i]) = 0.0;
-
-         if (prec)
-         {
-            prec->Mult(*v[i], *z[i]);
-         }
-         else
-         {
-            (*z[i]) = (*v[i]);
-         }
-         oper->Mult(*z[i], r);
-
-         for (k = 0; k <= i; k++)
-         {
-            H(k,i) = Dot( r, *v[k]); // H(k,i) = r * v[k]
-            r.Add(-H(k,i), (*v[k])); // r -= H(k,i) * v[k]
-         }
-
-         H(i+1,i)  = Norm(r);       // H(i+1,i) = ||r||
-         if (v[i+1] == NULL)
-         {
-            v[i+1] = new Vector(b.Size());
-            v[i+1]->UseDevice(true);
-         }
-         (*v[i+1]) = 0.0;
-         v[i+1] -> Add (1.0/H(i+1,i), r); // v[i+1] = r / H(i+1,i)
-
-         for (k = 0; k < i; k++)
-         {
-            ApplyPlaneRotation(H(k,i), H(k+1,i), cs(k), sn(k));
-         }
-
-         GeneratePlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
-         ApplyPlaneRotation(H(i,i), H(i+1,i), cs(i), sn(i));
-         ApplyPlaneRotation(s(i), s(i+1), cs(i), sn(i));
-
-         const real_t resid = fabs(s(i+1));
-         MFEM_VERIFY(IsFinite(resid), "resid = " << resid);
-         if (print_options.iterations || (print_options.first_and_last &&
-                                          resid <= final_norm))
-         {
-            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                      << "   Iteration : " << setw(3) << j
-                      << "  || r || = " << resid << endl;
-         }
-
-         if (ControllerRequiresUpdate())
-         {
-            x_monitor = x;
-            Update(x_monitor, i, H, s, z);
-         }
-
-         if (Monitor(j, resid, r, x_monitor) || resid <= final_norm)
-         {
-            Update(x, i, H, s, z);
-            final_norm = resid;
-            final_iter = j;
-            converged = true;
-
-            if (print_options.summary)
-            {
-               mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
-            }
-
-            for (i= 0; i<=m; i++)
-            {
-               if (v[i]) { delete v[i]; }
-               if (z[i]) { delete z[i]; }
-            }
-
-            Monitor(j, resid, r, x, true);
-            return;
-         }
-      }
-
-      if (print_options.iterations)
-      {
-         mfem::out << "Restarting..." << endl;
-      }
-
-      Update(x, i-1, H, s, z);
-
-      oper->Mult(x, r);
-      subtract(b,r,r);
-      beta = Norm(r);
-      MFEM_VERIFY(IsFinite(beta), "beta = " << beta);
-      if (beta <= final_norm)
-      {
-         converged = true;
-
-         break;
-      }
-   }
-
-   // Clean buffers up
-   for (i = 0; i <= m; i++)
-   {
-      if (v[i]) { delete v[i]; }
-      if (z[i]) { delete z[i]; }
-   }
-
-   final_norm = beta;
-   final_iter = converged ? j : max_iter;
-
-   // Note: j is off by one when we arrive here
-   if (!print_options.iterations && print_options.first_and_last)
-   {
-      mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
-                << "   Iteration : " << setw(3) << j-1
-                << "  || r || = " << final_norm << endl;
-   }
-   if (print_options.summary || (print_options.warnings && !converged))
-   {
-      mfem::out << "FGMRES: Number of iterations: " << final_iter << '\n';
-   }
-   if (print_options.warnings && !converged)
-   {
-      mfem::out << "FGMRES: No convergence!\n";
-   }
-
-   Monitor(final_iter, final_norm, r, x, true);
+   GMRESMult(b, x, m, orthogonalization_passes, true, work);
 }
 
 

@@ -16,6 +16,7 @@
 #include "densemat.hpp"
 #include "handle.hpp"
 #include <memory>
+#include <vector>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -207,6 +208,25 @@ protected:
 
    /// Indicated if the controller requires an update of the solution
    bool ControllerRequiresUpdate() const { return controller && controller->RequiresUpdatedSolution(); }
+
+   // Persistent, independently copyable storage for the restarted solvers.
+   // Fine vectors use the operator's memory type; small dense data stay on host.
+   struct GMRESWorkspace
+   {
+      DenseMatrix H;
+      Vector s, cs, sn, scales, coefficients;
+      Vector r, w, candidate;
+      std::vector<Vector> v, z;
+
+      void Prepare(int n, int m, MemoryType mt, bool flexible);
+      bool BackSolve(int columns);
+      void Candidate(const Vector &x, int columns, bool flexible);
+   };
+
+   // Shared native Arnoldi loop. Norm/Dot dispatch through this solver, so
+   // communicator and custom inner-product behavior are preserved.
+   void GMRESMult(const Vector &b, Vector &x, int m, int passes,
+                  bool flexible, GMRESWorkspace &work) const;
 
    /// Monitor both the residual @a r and the solution @a x
    bool Monitor(int it, real_t norm, const Vector& r, const Vector& x,
@@ -656,11 +676,17 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
          real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 
-/// GMRES method
+/** @brief Restarted, left-preconditioned GMRES.
+
+    Workspace is retained between Mult() calls; a solver instance must not be
+    used concurrently. Suspected Arnoldi breakdown is checked with a recomputed
+    preconditioned residual before reporting convergence. */
 class GMRESSolver : public IterativeSolver
 {
 protected:
    int m; // see SetKDim()
+   int orthogonalization_passes = 1;
+   mutable GMRESWorkspace work;
 
 public:
    GMRESSolver() { m = 50; }
@@ -672,15 +698,29 @@ public:
    /// Set the number of iteration to perform between restarts, default is 50.
    void SetKDim(int dim) { m = dim; }
 
+   /// Use one (default) or two modified Gram-Schmidt passes per Arnoldi step.
+   void SetOrthogonalizationPasses(int passes)
+   {
+      MFEM_VERIFY(passes == 1 || passes == 2,
+                  "GMRES requires one or two orthogonalization passes");
+      orthogonalization_passes = passes;
+   }
+
    /// Iterative solution of the linear system using the GMRES method
    void Mult(const Vector &b, Vector &x) const override;
 };
 
-/// FGMRES method
+/** @brief Restarted flexible GMRES with right preconditioning.
+
+    Workspace is retained between Mult() calls; a solver instance must not be
+    used concurrently. Suspected Arnoldi breakdown is checked with a recomputed
+    unpreconditioned residual before reporting convergence. */
 class FGMRESSolver : public IterativeSolver
 {
 protected:
    int m;
+   int orthogonalization_passes = 1;
+   mutable GMRESWorkspace work;
 
 public:
    FGMRESSolver() { m = 50; }
@@ -690,6 +730,14 @@ public:
 #endif
 
    void SetKDim(int dim) { m = dim; }
+
+   /// Use one (default) or two modified Gram-Schmidt passes per Arnoldi step.
+   void SetOrthogonalizationPasses(int passes)
+   {
+      MFEM_VERIFY(passes == 1 || passes == 2,
+                  "GMRES requires one or two orthogonalization passes");
+      orthogonalization_passes = passes;
+   }
 
    /// Iterative solution of the linear system using the FGMRES method.
    void Mult(const Vector &b, Vector &x) const override;

@@ -11,6 +11,15 @@
 Version 4.10.1 (development)
 ============================
 
+Linear and nonlinear solvers
+---------------------------
+- GMRES and FGMRES now retain their device-aware Krylov workspace across
+  solves and support one or two modified Gram-Schmidt passes through
+  SetOrthogonalizationPasses (default: one). Both use checked triangular
+  solves and verify suspected Arnoldi breakdown with a recomputed residual.
+  Restart-boundary iteration counts and CG zero-budget/breakdown counts
+  now report completed iterations.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
