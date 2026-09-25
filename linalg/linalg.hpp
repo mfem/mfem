@@ -24,6 +24,7 @@
 #include "blockvector.hpp"
 #include "blockmatrix.hpp"
 #include "blockoperator.hpp"
+#include "checkpoint.hpp"
 #include "sparsesmoothers.hpp"
 #include "densemat.hpp"
 #include "symmat.hpp"
