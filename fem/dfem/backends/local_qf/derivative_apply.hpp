@@ -141,6 +141,29 @@ class DerivativeApply
       return StaticOpDim<fop_t, input_slot>();
    }
 
+   /// Components of the dependent inputs before @a input_slot, i.e. where the
+   /// columns of that input start in a derivative cache row.
+   template <std::size_t input_slot>
+   static constexpr int StaticInputCacheOffset()
+   {
+      int offset = 0;
+      for_constexpr<input_slot>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (StaticInputDep<s>())
+         {
+            offset += StaticInputComponents<s>();
+         }
+      });
+      return offset;
+   }
+
+   /// Width of a derivative cache row
+   static constexpr int StaticCacheColumns()
+   {
+      return StaticInputCacheOffset<n_inputs>();
+   }
+
    template <std::size_t output_slot>
    static constexpr int StaticOutputVDim()
    {
@@ -378,6 +401,22 @@ public:
       MFEM_CONTRACT_VAR(trial_vdim);
       MFEM_CONTRACT_VAR(total_trial_op_dim);
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+
+      // Check that the q-function parameter size matches the field size for each input
+      for_constexpr<n_inputs>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (StaticInputDep<s>())
+         {
+            MFEM_ASSERT(StaticInputComponents<s>() == in_size_on_qp[s],
+                        "DerivativeApply: q-function parameter size does not "
+                        "match the field for input " << s);
+         }
+      });
+
+      MFEM_VERIFY(StaticCacheColumns() == trial_vdim * total_trial_op_dim,
+                  "DerivativeApply: derivative cache row width mismatch");
+
       if (ctx.attr.Size() == 0) { return; }
 
       static constexpr auto B2D = backend_t::DIM == 2;
@@ -551,29 +590,25 @@ public:
                         for (int k = 0; k < to; k++)
                         {
                            const int row = offset_o + i * to + k;
-                           const int cache_row =
-                              row * trial_vdim_ct * total_trial_op_dim_ct;
+                           const int cache_row = row * StaticCacheColumns();
                            real_t sum = 0.0;
                            for_constexpr<n_inputs>([&](auto sc)
                            {
                               constexpr size_t s = sc.value;
                               if constexpr (StaticInputDep<s>())
                               {
-                                 constexpr int op_dim_s = StaticInputOpDim<s>();
-                                 constexpr int m_offset = StaticInputOpOffset<s>();
+                                 constexpr int ncomp_s =
+                                    StaticInputComponents<s>();
+                                 constexpr int c_offset_s =
+                                    StaticInputCacheOffset<s>();
                                  const auto &dvec = get<s>(dvecs);
-                                 MFEM_UNROLL(trial_vdim_ct)
-                                 for (int j = 0; j < trial_vdim_ct; j++)
+                                 MFEM_UNROLL(ncomp_s)
+                                 for (int c = 0; c < ncomp_s; c++)
                                  {
-                                    MFEM_UNROLL(op_dim_s)
-                                    for (int m = 0; m < op_dim_s; m++)
-                                    {
-                                       const int cache_idx =
-                                          cache_row + j * total_trial_op_dim_ct +
-                                          (m + m_offset);
-                                       sum += cache_tensor(q, cache_idx, e) *
-                                              qf_value_at(dvec, j, m);
-                                    }
+                                    const int cache_idx =
+                                       cache_row + c_offset_s + c;
+                                    sum += cache_tensor(q, cache_idx, e) *
+                                           qf_flat_value(dvec, c);
                                  }
                               }
                            });

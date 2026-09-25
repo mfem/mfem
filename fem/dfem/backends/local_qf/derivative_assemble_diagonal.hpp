@@ -364,12 +364,12 @@ public:
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          // The cache is written with the quadrature index fastest, then the
-         // trial op index, then the (test vdim, test op) rows of all outputs
-         // stacked via out_offsets.
+         // trial vdim, then the trial op index (see derivative_cache_col),
+         // then the (test vdim, test op) rows of all outputs, via out_offsets.
          auto qpdc = Reshape(&cache_tensor(0, 0, e),
                              nq,
-                             total_trial_op_dim,
                              trial_vdim,
+                             total_trial_op_dim,
                              output_size_on_qp);
 
          // Backend-owned shared scratch for the sum-factorized contraction.
@@ -472,7 +472,7 @@ public:
                            { return eval_test(k, axis, q, d); },
                            [&](int axis, int q, int d)
                            { return eval_input(m, axis, q, d); },
-                           [&](int q) { return qpdc(q, col, vd, row); },
+                           [&](int q) { return qpdc(q, vd, col, row); },
                            [&](int dx, int dy, int dz, real_t u)
                            { Y(dx, dy, dz) += u; });
                         }
