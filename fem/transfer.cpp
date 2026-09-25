@@ -187,6 +187,21 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
    return *F.Ptr();
 }
 
+const Operator &InterpolationGridTransfer::TrueForwardOperator()
+{
+#ifdef MFEM_USE_MPI
+   if (!fw_t_oper.Ptr() && Parallel() && oper_type == Operator::ANY_TYPE &&
+       ParAveragingTransferOperator::IsRequired(ran_fes))
+   {
+      fw_t_oper.Reset(new ParAveragingTransferOperator(
+                         static_cast<ParFiniteElementSpace&>(dom_fes),
+                         static_cast<ParFiniteElementSpace&>(ran_fes),
+                         &ForwardOperator(), false));
+   }
+#endif
+   return GridTransfer::TrueForwardOperator();
+}
+
 const Operator &InterpolationGridTransfer::BackwardOperator()
 {
    if (B.Ptr())
@@ -2997,6 +3012,21 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
 {
    localTransferOperator = new TransferOperator(lFESpace_, hFESpace_);
 
+#ifdef MFEM_USE_MPI
+   // For h-refinement, average shared fine DOFs across MPI ranks if needed.
+   const bool h_transfer = lFESpace.FEColl() == hFESpace.FEColl() &&
+                           !lFESpace.IsVariableOrder() &&
+                           !hFESpace.IsVariableOrder();
+   if (h_transfer && ParAveragingTransferOperator::IsRequired(hFESpace))
+   {
+      avgTransferOperator = new ParAveragingTransferOperator(
+         static_cast<const ParFiniteElementSpace&>(lFESpace),
+         static_cast<const ParFiniteElementSpace&>(hFESpace),
+         localTransferOperator, false);
+      return;
+   }
+#endif
+
    P = lFESpace.GetProlongationMatrix();
    R = hFESpace.IsVariableOrder() ? hFESpace.GetHpRestrictionMatrix() :
        hFESpace.GetRestrictionMatrix();
@@ -3020,12 +3050,17 @@ TrueTransferOperator::TrueTransferOperator(const FiniteElementSpace& lFESpace_,
 
 TrueTransferOperator::~TrueTransferOperator()
 {
+   delete avgTransferOperator;
    delete localTransferOperator;
 }
 
 void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 {
-   if (P)
+   if (avgTransferOperator)
+   {
+      avgTransferOperator->Mult(x, y);
+   }
+   else if (P)
    {
       P->Mult(x, tmpL);
       localTransferOperator->Mult(tmpL, tmpH);
@@ -3044,7 +3079,11 @@ void TrueTransferOperator::Mult(const Vector& x, Vector& y) const
 
 void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
 {
-   if (P)
+   if (avgTransferOperator)
+   {
+      avgTransferOperator->MultTranspose(x, y);
+   }
+   else if (P)
    {
       R->MultTranspose(x, tmpH);
       localTransferOperator->MultTranspose(tmpH, tmpL);
@@ -3060,5 +3099,126 @@ void TrueTransferOperator::MultTranspose(const Vector& x, Vector& y) const
       localTransferOperator->MultTranspose(x, y);
    }
 }
+
+#ifdef MFEM_USE_MPI
+
+bool ParAveragingTransferOperator::IsRequired(const FiniteElementSpace &fes)
+{
+   const ParFiniteElementSpace *pfes =
+      dynamic_cast<const ParFiniteElementSpace*>(&fes);
+   if (!pfes) { return false; }
+
+   // The decision must be collective, since averaging communicates.
+   int required = 0;
+   Mesh::GeometryList elem_geoms(*pfes->GetMesh());
+   for (int i = 0; i < elem_geoms.Size(); i++)
+   {
+      const FiniteElement *fe =
+         pfes->FEColl()->FiniteElementForGeometry(elem_geoms[i]);
+      if (fe && fe->RequiresPhysicalTransfer()) { required = 1; }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &required, 1, MPI_INT, MPI_MAX,
+                 pfes->GetComm());
+   return required;
+}
+
+void ParAveragingTransferOperator::GetWeights(
+   const ParFiniteElementSpace &fine_fes, Vector &w, Vector &inv_c)
+{
+   // Number of local elements containing each fine vdof.
+   w.SetSize(fine_fes.GetVSize());
+   w = 0.0;
+   Array<int> vdofs;
+   for (int e = 0; e < fine_fes.GetNE(); e++)
+   {
+      fine_fes.GetElementVDofs(e, vdofs);
+      for (int i = 0; i < vdofs.Size(); i++)
+      {
+         w[FiniteElementSpace::DecodeDof(vdofs[i])] += 1.0;
+      }
+   }
+
+   // Only DOFs that are copies of a true DOF take part in the average.
+   const HypreParMatrix &P = *fine_fes.Dof_TrueDof_Matrix();
+   P.HostRead();
+   SparseMatrix P_diag, P_offd;
+   HYPRE_BigInt *cmap;
+   P.GetDiag(P_diag);
+   P.GetOffd(P_offd, cmap);
+   for (int i = 0; i < w.Size(); i++)
+   {
+      const int nd = P_diag.RowSize(i), no = P_offd.RowSize(i);
+      const real_t val = (nd + no != 1) ? 0.0 :
+                         (nd ? P_diag.GetRowEntries(i)[0]
+                          : P_offd.GetRowEntries(i)[0]);
+      if (std::abs(val) != 1.0) { w[i] = 0.0; }
+   }
+
+   // Total number of elements (on all ranks) containing each true DOF.
+   inv_c.SetSize(fine_fes.GetTrueVSize());
+   P.MultTranspose(w, inv_c);
+   inv_c.HostReadWrite();
+   for (int i = 0; i < inv_c.Size(); i++)
+   {
+      if (inv_c[i] > 0.0) { inv_c[i] = 1.0/inv_c[i]; }
+   }
+}
+
+ParAveragingTransferOperator::ParAveragingTransferOperator(
+   const ParFiniteElementSpace &coarse_fes,
+   const ParFiniteElementSpace &fine_fes, const Operator *L_, bool own_L)
+   : Operator(fine_fes.GetTrueVSize(), coarse_fes.GetTrueVSize()),
+     P_f(*fine_fes.Dof_TrueDof_Matrix()),
+     P_c(*coarse_fes.GetProlongationMatrix())
+{
+   MFEM_VERIFY(L_->Height() == fine_fes.GetVSize() &&
+               L_->Width() == coarse_fes.GetVSize(),
+               "Incompatible local transfer operator.");
+   L.Reset(const_cast<Operator*>(L_), own_L);
+   GetWeights(fine_fes, w, inv_c);
+   tmp_f.SetSize(fine_fes.GetVSize());
+   tmp_c.SetSize(coarse_fes.GetVSize());
+   tmp_t.SetSize(fine_fes.GetTrueVSize());
+}
+
+void ParAveragingTransferOperator::Mult(const Vector &x, Vector &y) const
+{
+   P_c.Mult(x, tmp_c);
+   L->Mult(tmp_c, tmp_f);
+   tmp_f *= w;
+   P_f.MultTranspose(tmp_f, y);
+   y *= inv_c;
+}
+
+void ParAveragingTransferOperator::MultTranspose(const Vector &x,
+                                                 Vector &y) const
+{
+   tmp_t = x;
+   tmp_t *= inv_c;
+   P_f.Mult(tmp_t, tmp_f);
+   tmp_f *= w;
+   L->MultTranspose(tmp_f, tmp_c);
+   P_c.MultTranspose(tmp_c, y);
+}
+
+HypreParMatrix *ParAveragingTransferOperator::Assemble(
+   const ParFiniteElementSpace &coarse_fes,
+   const ParFiniteElementSpace &fine_fes, const SparseMatrix &L_)
+{
+   Vector w, inv_c;
+   GetWeights(fine_fes, w, inv_c);
+
+   SparseMatrix wL(L_);
+   wL.ScaleRows(w);
+   HypreParMatrix dL(fine_fes.GetComm(), fine_fes.GlobalVSize(),
+                     coarse_fes.GlobalVSize(), fine_fes.GetDofOffsets(),
+                     coarse_fes.GetDofOffsets(), &wL);
+   HypreParMatrix *T = RAP(fine_fes.Dof_TrueDof_Matrix(), &dL,
+                           coarse_fes.Dof_TrueDof_Matrix());
+   T->ScaleRows(inv_c);
+   return T;
+}
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem

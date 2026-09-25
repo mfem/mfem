@@ -5208,7 +5208,25 @@ void ParFiniteElementSpace::GetTrueTransferOperator(
                       Operator::MFEM_SPARSEMAT : Operator::ANY_TYPE);
    GetTransferOperator(coarse_fes, Tgf);
    Dof_TrueDof_Matrix(); // Make sure R is built - we need R in all cases.
-   if (T.Type() == Operator::Hypre_ParCSR)
+   if (ParAveragingTransferOperator::IsRequired(*this))
+   {
+      // Average shared fine DOFs over all elements, on all MPI ranks.
+      const ParFiniteElementSpace *c_pfes =
+         dynamic_cast<const ParFiniteElementSpace *>(&coarse_fes);
+      MFEM_VERIFY(c_pfes != NULL, "coarse_fes must be a parallel space");
+      if (T.Type() == Operator::Hypre_ParCSR)
+      {
+         T.Reset(ParAveragingTransferOperator::Assemble(
+                    *c_pfes, *this, *Tgf.As<SparseMatrix>()));
+      }
+      else
+      {
+         T.Reset(new ParAveragingTransferOperator(*c_pfes, *this, Tgf.Ptr(),
+                                                  Tgf.OwnsOperator()));
+         Tgf.SetOperatorOwner(false);
+      }
+   }
+   else if (T.Type() == Operator::Hypre_ParCSR)
    {
       const ParFiniteElementSpace *c_pfes =
          dynamic_cast<const ParFiniteElementSpace *>(&coarse_fes);

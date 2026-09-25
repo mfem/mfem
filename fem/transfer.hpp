@@ -161,6 +161,10 @@ public:
    const Operator &ForwardOperator() override;
 
    const Operator &BackwardOperator() override;
+
+   /** @brief In parallel, when required, this averages shared fine DOFs across
+       MPI ranks, see ParAveragingTransferOperator. */
+   const Operator &TrueForwardOperator() override;
 };
 
 
@@ -736,6 +740,8 @@ private:
    const Operator * P = nullptr;
    const SparseMatrix * R = nullptr;
    TransferOperator* localTransferOperator;
+   /// Averaged parallel h-refinement transfer, used instead of P and R.
+   Operator *avgTransferOperator = nullptr;
    mutable Vector tmpL;
    mutable Vector tmpH;
 
@@ -759,6 +765,61 @@ public:
        the true dof vector \p y corresponding to the coarse space. */
    void MultTranspose(const Vector& x, Vector& y) const override;
 };
+
+#ifdef MFEM_USE_MPI
+
+/// @brief Parallel true-dof h-refinement transfer that averages shared DOFs.
+/** Given a local (L-vector) h-refinement transfer @a L from @a coarse_fes to
+    @a fine_fes, which averages each fine DOF over the local elements containing
+    it (as FiniteElementSpace::RefinementOperator does), this operator is
+
+        diag(1/c) P_f^T diag(w) L P_c,
+
+    where P_f and P_c are the fine and coarse prolongation matrices, w counts
+    the local fine elements containing each fine DOF and c = P_f^T w. Each true
+    fine DOF is thus the average over all elements containing it, on all MPI
+    ranks. DOFs whose row of P_f is not a single +/-1 entry (e.g. slave DOFs on
+    nonconforming meshes) are given zero weight.
+
+    Averaging is only needed when the element transfers can disagree on shared
+    DOFs, see IsRequired(). Otherwise the owning rank's value, R L P_c, is used,
+    which avoids the extra communication. */
+class ParAveragingTransferOperator : public Operator
+{
+private:
+   const HypreParMatrix &P_f;
+   const Operator &P_c;
+   OperatorHandle L;
+   Vector w, inv_c;
+   mutable Vector tmp_f, tmp_c, tmp_t;
+
+   static void GetWeights(const ParFiniteElementSpace &fine_fes, Vector &w,
+                          Vector &inv_c);
+
+public:
+   /// Construct the averaged transfer from local transfer @a L_.
+   ParAveragingTransferOperator(const ParFiniteElementSpace &coarse_fes,
+                                const ParFiniteElementSpace &fine_fes,
+                                const Operator *L_, bool own_L);
+
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+
+   /** @brief Assemble the averaged transfer as a HypreParMatrix, given the
+       local transfer matrix @a L_. */
+   static HypreParMatrix *Assemble(const ParFiniteElementSpace &coarse_fes,
+                                   const ParFiniteElementSpace &fine_fes,
+                                   const SparseMatrix &L_);
+
+   /** @brief Whether h-refinement transfers to @a fes need averaging over
+       shared DOFs across MPI ranks. */
+   /** This is the case for elements with physical DOF bases (see
+       FiniteElement::RequiresPhysicalTransfer()), e.g. the vertex Hessian DOFs
+       of the Argyris element. Returns false for serial spaces. */
+   static bool IsRequired(const FiniteElementSpace &fes);
+};
+
+#endif
 
 } // namespace mfem
 

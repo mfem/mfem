@@ -1680,6 +1680,28 @@ static const DenseMatrix &PhysicalRefinementMatrix(
    return physical;
 }
 
+// Compute the reciprocal of the number of elements containing each (scalar)
+// DOF. The element-wise prolongations are averaged over shared DOFs, which is
+// needed when the local transfers do not agree on shared DOFs (e.g. vertex
+// Hessian DOFs of the Argyris element). DOFs not belonging to any element
+// (possible in variable-order spaces) are assigned zero.
+static void GetInverseDofMultiplicity(const FiniteElementSpace &fes,
+                                      Vector &inv_mult)
+{
+   const Table &elem_dof = fes.GetElementToDofTable();
+   const int *J = elem_dof.GetJ();
+   inv_mult.SetSize(fes.GetNDofs());
+   inv_mult = 0.0;
+   for (int i = 0; i < elem_dof.Size_of_connections(); i++)
+   {
+      inv_mult[FiniteElementSpace::DecodeDof(J[i])] += 1.0;
+   }
+   for (int i = 0; i < inv_mult.Size(); i++)
+   {
+      if (inv_mult[i] > 0.0) { inv_mult[i] = 1.0/inv_mult[i]; }
+   }
+}
+
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    const int coarse_ndofs, const Table &coarse_elem_dof,
    const Table *coarse_elem_fos, const DenseTensor localP[]) const
@@ -1691,21 +1713,10 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    Array<int> dofs, coarse_dofs, coarse_vdofs;
    Vector row;
 
-   Mesh::GeometryList elem_geoms(*mesh);
+   SparseMatrix *P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
 
-   SparseMatrix *P;
-   if (elem_geoms.Size() == 1)
-   {
-      const int coarse_ldof = localP[elem_geoms[0]].SizeJ();
-      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim, coarse_ldof);
-   }
-   else
-   {
-      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
-   }
-
-   Array<int> mark(P->Height());
-   mark = 0;
+   Vector inv_mult;
+   GetInverseDofMultiplicity(*this, inv_mult);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
@@ -1729,20 +1740,14 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
          for (int i = 0; i < fine_ldof; i++)
          {
             const int r = DofToVDof(dofs[i], vd);
-            const int m = UnsignIndex(r);
-
-            if (!mark[m])
-            {
-               lP.GetRow(i, row);
-               P->SetRow(r, coarse_vdofs, row);
-               mark[m] = 1;
-            }
+            lP.GetRow(i, row);
+            row *= inv_mult[DecodeDof(dofs[i])];
+            P->AddRow(r, coarse_vdofs, row);
          }
       }
    }
 
-   MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
-   if (elem_geoms.Size() != 1) { P->Finalize(); }
+   P->Finalize();
    return P;
 }
 
@@ -1754,12 +1759,10 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
    Array<int> dofs, coarse_dofs, coarse_vdofs;
    Vector row;
 
-   Mesh::GeometryList elem_geoms(*mesh);
-
    SparseMatrix *P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
 
-   Array<int> mark(P->Height());
-   mark = 0;
+   Vector inv_mult;
+   GetInverseDofMultiplicity(*this, inv_mult);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    DenseMatrix lP;
@@ -1790,19 +1793,13 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
          for (int i = 0; i < fine_ldof; i++)
          {
             const int r = DofToVDof(dofs[i], vd);
-            const int m = UnsignIndex(r);
-
-            if (!mark[m])
-            {
-               lP.GetRow(i, row);
-               P->SetRow(r, coarse_vdofs, row);
-               mark[m] = 1;
-            }
+            lP.GetRow(i, row);
+            row *= inv_mult[DecodeDof(dofs[i])];
+            P->AddRow(r, coarse_vdofs, row);
          }
       }
    }
 
-   MFEM_VERIFY(mark.Sum() == P->Height(), "Not all rows of P set.");
    P->Finalize();
    return P;
 }
@@ -1878,6 +1875,7 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
    }
 
    ConstructDoFTransArray();
+   GetInverseDofMultiplicity(*fespace, inv_mult);
 }
 
 FiniteElementSpace::RefinementOperator::RefinementOperator(
@@ -1906,6 +1904,7 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
    }
 
    ConstructDoFTransArray();
+   GetInverseDofMultiplicity(*fespace, inv_mult);
 }
 
 FiniteElementSpace::RefinementOperator::~RefinementOperator()
@@ -1981,6 +1980,8 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
    IsoparametricTransformation isotr;
    DofTransformation doftrans;
 
+   y = 0.0;
+
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
       const Embedding &emb = trans_ref.embeddings[k];
@@ -2017,7 +2018,7 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
 
             x.GetSubVector(old_vdofs, subX);
             lP.Mult(subX, subY);
-            y.SetSubVector(vdofs, subY);
+            y.AddElementVector(vdofs, subY);
          }
       }
       else
@@ -2038,9 +2039,18 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
             old_DoFTrans.InvTransformPrimal(subX);
             lP.Mult(subX, subY);
             doftrans.TransformPrimal(subY);
-            y.SetSubVector(vdofs, subY);
+            y.AddElementVector(vdofs, subY);
          }
          doftrans.SetVDim(rvdim, fespace->GetOrdering());
+      }
+   }
+
+   // Average the contributions over shared DOFs
+   for (int vd = 0; vd < rvdim; vd++)
+   {
+      for (int i = 0; i < inv_mult.Size(); i++)
+      {
+         y[fespace->DofToVDof(i, vd)] *= inv_mult[i];
       }
    }
 }
@@ -2053,9 +2063,6 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
    Mesh* mesh_ref = fespace->GetMesh();
    const CoarseFineTransformations &trans_ref =
       mesh_ref->GetRefinementTransforms();
-
-   Array<char> processed(fespace->GetVSize());
-   processed = 0;
 
    Array<int> f_dofs, c_dofs, f_vdofs, c_vdofs, old_Fo;
 
@@ -2108,10 +2115,7 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
             x.GetSubVector(f_vdofs, subX);
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
-               if (processed[DecodeDof(f_dofs[p])])
-               {
-                  subX[p] = 0.0;
-               }
+               subX[p] *= inv_mult[DecodeDof(f_dofs[p])];
             }
             lP.MultTranspose(subX, subY);
             y.AddElementVector(c_vdofs, subY);
@@ -2134,24 +2138,16 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
             fespace->DofsToVDofs(vd, c_vdofs, old_ndofs);
 
             x.GetSubVector(f_vdofs, subX);
-            doftrans.InvTransformDual(subX);
             for (int p = 0; p < f_dofs.Size(); ++p)
             {
-               if (processed[DecodeDof(f_dofs[p])])
-               {
-                  subX[p] = 0.0;
-               }
+               subX[p] *= inv_mult[DecodeDof(f_dofs[p])];
             }
+            doftrans.InvTransformDual(subX);
             lP.MultTranspose(subX, subYt);
             old_DoFTrans.TransformDual(subYt);
             y.AddElementVector(c_vdofs, subYt);
          }
          doftrans.SetVDim(rvdim, fespace->GetOrdering());
-      }
-
-      for (int p = 0; p < f_dofs.Size(); ++p)
-      {
-         processed[DecodeDof(f_dofs[p])] = 1;
       }
    }
 }

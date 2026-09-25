@@ -498,6 +498,9 @@ protected:
       Array<StatelessDofTransformation*> old_DoFTransArray;
       mutable DofTransformation old_DoFTrans;
 
+      /// Reciprocal of the number of fine elements sharing each fine DOF.
+      Vector inv_mult;
+
       void ConstructDoFTransArray();
 
    public:
