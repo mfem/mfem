@@ -466,19 +466,6 @@ struct TimePoint
    real_t time = 0.0; ///< Physical time associated with @a step.
 };
 
-/// Base for ODE adapters that bind externally owned continuation state.
-class ODECheckpointStateAdapter : public CheckpointStateAdapter
-{
-protected:
-   Vector &state;    ///< Borrowed solution state.
-   TimePoint &time;  ///< Borrowed logical step and physical time.
-   real_t &dt;       ///< Borrowed continuation step size.
-
-   /// Borrow externally owned ODE continuation state.
-   ODECheckpointStateAdapter(Vector &state_, TimePoint &time_, real_t &dt_)
-      : state(state_), time(time_), dt(dt_) { }
-};
-
 /// Complete ODE continuation encoded by ODECheckpointSerializer.
 struct ODECheckpointData
 {
@@ -514,10 +501,15 @@ public:
 /** Captures and restores the borrowed Vector, TimePoint, and step size using
     the version 1 payload format and no solver-defined restart bytes. The
     borrowed step size must be positive and the physical time finite.
-    Subclasses reinitialize solver-side state by overriding OnRestored(). */
-class ODEVectorCheckpointAdapter : public ODECheckpointStateAdapter
+    Subclasses reinitialize solver-side state by overriding OnRestored().
+    Dependencies are borrowed and must outlive the adapter. */
+class ODEVectorCheckpointAdapter : public CheckpointStateAdapter
 {
 protected:
+   Vector &state;    ///< Borrowed solution state.
+   TimePoint &time;  ///< Borrowed logical step and physical time.
+   real_t &dt;       ///< Borrowed continuation step size.
+
    /// Reinitialize solver-side state after a successful restore.
    /** The borrowed Vector, TimePoint, and step size already represent the
        restored state. The default implementation does nothing. */
@@ -526,7 +518,7 @@ protected:
 public:
    /// Borrow externally owned ODE continuation state.
    ODEVectorCheckpointAdapter(Vector &state_, TimePoint &time_, real_t &dt_)
-      : ODECheckpointStateAdapter(state_, time_, dt_) { }
+      : state(state_), time(time_), dt(dt_) { }
 
    /// @copydoc CheckpointStateAdapter::Capture()
    Snapshot Capture(
@@ -557,9 +549,6 @@ public:
    /// @copydoc StatePropagator::Advance()
    void Advance(StateId from, StateId to) override;
 };
-
-/// Compatibility name for the former ODE propagator.
-using ODECheckpointPropagator = ODEStatePropagator;
 
 } // namespace mfem
 

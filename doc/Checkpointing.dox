@@ -168,7 +168,6 @@ defined in `miniapps/checkpointing/forward-euler.cpp` overrides that hook to set
 the operator time and reinitialize the solver; Forward Euler keeps no stage
 history, so nothing else is needed.
 ODEStatePropagator advances with the normal ODESolver::Step() implementation.
-ODECheckpointPropagator remains a compatibility name for ODEStatePropagator.
 
 Vector values are encoded by the ODE adapter using Vector::HostRead() and
 restored using Vector::HostWrite(). Capture can therefore synchronize device
@@ -455,7 +454,6 @@ Previous concept                 State-centric concept
 StepId                          StateId (StepId compatibility alias)
 TimePoint                       ODE-specific helper
 Vector CheckpointState          StateId + opaque Snapshot
-ODECheckpointPropagator         ODEStatePropagator compatibility name
 Vector-centric controller       generic CheckpointController
 RestoreStep                     RestoreState (RestoreStep wrapper)
 \endcode
