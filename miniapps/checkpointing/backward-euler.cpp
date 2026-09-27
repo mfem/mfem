@@ -284,8 +284,8 @@ int main(int argc, char *argv[])
       TimePoint time{0, 0.0};
       real_t checkpoint_dt = dt;
       BackwardEulerStateAdapter adapter(checkpoint_solver,
-                                         checkpoint_operator,
-                                         state, time, checkpoint_dt);
+                                        checkpoint_operator,
+                                        state, time, checkpoint_dt);
       ODEStatePropagator propagator(checkpoint_solver, state, time,
                                     checkpoint_dt);
       MemoryCheckpointStorage storage;

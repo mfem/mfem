@@ -252,7 +252,7 @@ ODECheckpointData ODECheckpointSerializer::Decode(
    const double time = BitsDouble(
                           ReadLittleEndian<std::uint64_t>(snapshot, offset));
    const double dt = BitsDouble(
-                       ReadLittleEndian<std::uint64_t>(snapshot, offset));
+                        ReadLittleEndian<std::uint64_t>(snapshot, offset));
    const std::uint64_t encoded_state_size =
       ReadLittleEndian<std::uint64_t>(snapshot, offset);
    const std::uint64_t encoded_restart_size =
@@ -289,7 +289,7 @@ ODECheckpointData ODECheckpointSerializer::Decode(
    for (std::size_t i = 0; i < state_size; i++)
    {
       values[i] = static_cast<real_t>(BitsDouble(
-         ReadLittleEndian<std::uint64_t>(snapshot, offset)));
+                                         ReadLittleEndian<std::uint64_t>(snapshot, offset)));
    }
    checkpoint.restart.SetSize(restart_size);
    if (restart_size != 0)
@@ -839,7 +839,7 @@ void CheckpointController::RestoreState(StateId target)
       propagator.Advance(origin->id, target);
       CheckpointState restored = target == origin->id ? *origin :
                                  CheckpointState{target,
-                                    adapter.Capture(target)};
+                                                 adapter.Capture(target)};
       window.Insert(restored);
       active->Swap(restored);
    }

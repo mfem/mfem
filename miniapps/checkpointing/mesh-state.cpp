@@ -247,9 +247,9 @@ real_t CompareProjections(Mesh &reference_mesh, Mesh &restored_mesh,
    restored_fec.reset(new H1_FECollection(order,
                                           restored_mesh.Dimension()));
    reference_fes.reset(new FiniteElementSpace(&reference_mesh,
-                                               reference_fec.get()));
+                                              reference_fec.get()));
    restored_fes.reset(new FiniteElementSpace(&restored_mesh,
-                                              restored_fec.get()));
+                                             restored_fec.get()));
    reference_field.SetSpace(reference_fes.get());
    restored_field.SetSpace(restored_fes.get());
 
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
    {
       MeshState state;
       state.mesh.reset(new Mesh(Mesh::MakeCartesian2D(
-                          2, 2, Element::QUADRILATERAL, true, 1.0, 1.0)));
+                                   2, 2, Element::QUADRILATERAL, true, 1.0, 1.0)));
       state.mesh->EnsureNCMesh();
       if (!state.mesh->Nonconforming())
       {
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
       ExactCheckpointWindow window(0);
       CheckpointController controller(adapter, propagator, storage, window);
       IntervalCheckpointSchedule schedule(refinement_steps,
-                                           checkpoint_interval);
+                                          checkpoint_interval);
 
       controller.Initialize();
       controller.ExecuteForward(schedule, refinement_steps);
@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
       // Replace the live mesh and controller-related metadata before restoring
       // an earlier snapshot and replaying the remaining refinement cycles.
       state.mesh.reset(new Mesh(Mesh::MakeCartesian2D(
-                          1, 1, Element::TRIANGLE, true, 2.0, 2.0)));
+                                   1, 1, Element::TRIANGLE, true, 2.0, 2.0)));
       state.cycle = -1;
       state.selection_index = std::numeric_limits<std::uint64_t>::max();
       controller.Restore(schedule.LastCheckpointId());
@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
       const MeshSummary reference_summary = Summarize(reference_mesh);
       const MeshSummary restored_summary = Summarize(*state.mesh);
       const bool structure_matches = SameStructure(reference_mesh,
-                                                    *state.mesh);
+                                                   *state.mesh);
       const bool metadata_matches = state.cycle == refinement_steps &&
                                     state.selection_index == reference_index;
 

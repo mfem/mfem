@@ -111,9 +111,9 @@ int main(int argc, char *argv[])
    TimePoint checkpoint_time{0, 0.0};
    real_t checkpoint_dt = dt;
    ForwardEulerCheckpointAdapter adapter(checkpoint_solver,
-                                          checkpoint_operator,
-                                          checkpoint_state,
-                                          checkpoint_time, checkpoint_dt);
+                                         checkpoint_operator,
+                                         checkpoint_state,
+                                         checkpoint_time, checkpoint_dt);
    ODEStatePropagator propagator(checkpoint_solver, checkpoint_state,
                                  checkpoint_time, checkpoint_dt);
    MemoryCheckpointStorage storage;
