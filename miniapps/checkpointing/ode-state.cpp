@@ -85,62 +85,71 @@ int main(int argc, char *argv[])
       return 2;
    }
 
-   // 2. Define the scalar problem, fixed step size, and initial condition.
-   const real_t parameter = 0.7;
-   const real_t dt = 0.01;
-   Vector initial(1);
-   initial[0] = 0.4;
-
-   // 3. Compute an ordinary Forward Euler trajectory as the exact reference.
-   CubicOperator reference_operator(parameter);
-   ForwardEulerSolver reference_solver;
-   reference_solver.Init(reference_operator);
-   Vector reference_state(initial);
-   real_t reference_time = 0.0;
-   real_t reference_dt = dt;
-   for (int step = 0; step < steps; step++)
+   try
    {
-      reference_solver.Step(reference_state, reference_time, reference_dt);
+      // 2. Define the scalar problem, fixed step size, and initial condition.
+      const real_t parameter = 0.7;
+      const real_t dt = 0.01;
+      Vector initial(1);
+      initial[0] = 0.4;
+
+      // 3. Compute an ordinary Forward Euler trajectory as the exact reference.
+      CubicOperator reference_operator(parameter);
+      ForwardEulerSolver reference_solver;
+      reference_solver.Init(reference_operator);
+      Vector reference_state(initial);
+      real_t reference_time = 0.0;
+      real_t reference_dt = dt;
+      for (int step = 0; step < steps; step++)
+      {
+         reference_solver.Step(reference_state, reference_time, reference_dt);
+      }
+
+      // 4. Assemble the checkpoint/replay services. The ODE adapter binds the
+      //    generic state-centric core to this externally owned continuation.
+      CubicOperator checkpoint_operator(parameter);
+      ForwardEulerSolver checkpoint_solver;
+      Vector checkpoint_state(initial);
+      TimePoint checkpoint_time{0, 0.0};
+      real_t checkpoint_dt = dt;
+      ForwardEulerCheckpointAdapter adapter(checkpoint_solver,
+                                            checkpoint_operator,
+                                            checkpoint_state,
+                                            checkpoint_time, checkpoint_dt);
+      ODEStatePropagator propagator(checkpoint_solver, checkpoint_state,
+                                    checkpoint_time, checkpoint_dt);
+      MemoryCheckpointStorage storage;
+      ExactCheckpointWindow window(2);
+      CheckpointController controller(adapter, propagator, storage, window);
+      // 5. StoreEverything assigns checkpoint ID step + 1 to every state from
+      //    the initial state through the terminal state.
+      StoreEverythingSchedule schedule;
+      schedule.Configure(steps, static_cast<size_t>(steps) + 1);
+
+      controller.Initialize();
+      controller.ExecuteForward(schedule, steps);
+
+      // 6. Retain only the initial persistent checkpoint and clear transient
+      //    replay state, forcing RestoreStep() to replay the full trajectory.
+      const CheckpointId last_id = static_cast<CheckpointId>(steps) + 1;
+      for (CheckpointId id = 2; id <= last_id; id++)
+      {
+         controller.Discard(id);
+      }
+      window.Clear();
+      controller.Restore(1);
+      controller.RestoreStep(steps);
+
+      // 7. Exact deterministic replay must reproduce the reference bit for bit.
+      const real_t replay_error =
+         std::abs(checkpoint_state[0] - reference_state[0]);
+      cout << "terminal replay error: " << replay_error << '\n';
+
+      return replay_error == 0.0 ? 0 : 3;
    }
-
-   // 4. Assemble the checkpoint/replay services. The ODE adapter binds the
-   //    generic state-centric core to this externally owned continuation.
-   CubicOperator checkpoint_operator(parameter);
-   ForwardEulerSolver checkpoint_solver;
-   Vector checkpoint_state(initial);
-   TimePoint checkpoint_time{0, 0.0};
-   real_t checkpoint_dt = dt;
-   ForwardEulerCheckpointAdapter adapter(checkpoint_solver,
-                                         checkpoint_operator,
-                                         checkpoint_state,
-                                         checkpoint_time, checkpoint_dt);
-   ODEStatePropagator propagator(checkpoint_solver, checkpoint_state,
-                                 checkpoint_time, checkpoint_dt);
-   MemoryCheckpointStorage storage;
-   ExactCheckpointWindow window(2);
-   CheckpointController controller(adapter, propagator, storage, window);
-   // 5. StoreEverything assigns checkpoint ID step + 1 to every state from
-   //    the initial state through the terminal state.
-   StoreEverythingSchedule schedule;
-   schedule.Configure(steps, static_cast<size_t>(steps) + 1);
-
-   controller.Initialize();
-   controller.ExecuteForward(schedule, steps);
-
-   // 6. Retain only the initial persistent checkpoint and clear transient
-   //    replay state, forcing RestoreStep() to replay the complete trajectory.
-   for (CheckpointId id = 2; id <= static_cast<CheckpointId>(steps) + 1; id++)
+   catch (const std::exception &error)
    {
-      controller.Discard(id);
+      cerr << "Checkpoint failure: " << error.what() << '\n';
+      return 4;
    }
-   window.Clear();
-   controller.Restore(1);
-   controller.RestoreStep(steps);
-
-   // 7. Exact deterministic replay must reproduce the reference bit for bit.
-   const real_t replay_error =
-      std::abs(checkpoint_state[0] - reference_state[0]);
-   cout << "terminal replay error: " << replay_error << '\n';
-
-   return replay_error == 0.0 ? 0 : 3;
 }

@@ -24,6 +24,10 @@
     terminal state must match an independently integrated reference bit for
     bit. */
 
+// Compile with: make checkpoint-backward-euler
+//
+// Sample runs:  checkpoint-backward-euler -s 20 -r 7 -dt 0.05
+
 #include "mfem.hpp"
 #include "checkpoint_demo.hpp"
 

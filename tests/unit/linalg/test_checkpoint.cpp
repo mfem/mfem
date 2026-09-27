@@ -26,6 +26,34 @@ using namespace mfem;
 namespace
 {
 
+// Reserve test directories atomically so concurrent test runs stay isolated.
+class CheckpointTestDirectory
+{
+public:
+   std::filesystem::path path;
+
+   CheckpointTestDirectory()
+   {
+      for (std::uint64_t suffix = 0; ; ++suffix)
+      {
+         path = std::filesystem::temp_directory_path() /
+                ("mfem-checkpoint-storage-unit-test-" + std::to_string(suffix));
+         std::error_code error;
+         if (std::filesystem::create_directory(path, error)) { return; }
+         if (error && error != std::errc::file_exists)
+         {
+            throw CheckpointStorageError(error.message());
+         }
+      }
+   }
+
+   ~CheckpointTestDirectory()
+   {
+      std::error_code ignored;
+      std::filesystem::remove_all(path, ignored);
+   }
+};
+
 class LinearODE : public TimeDependentOperator
 {
 public:
@@ -467,6 +495,34 @@ TEST_CASE("Malformed exact checkpoints are rejected", "[Checkpoint]")
    reject(std::move(size_mismatch));
 }
 
+TEST_CASE("Forward Euler checkpoints reject NaN step sizes", "[Checkpoint]")
+{
+   LinearODE oper;
+   ForwardEulerSolver solver;
+   Vector state(2);
+   state = 1.0;
+   const Vector initial(state);
+   TimePoint time{0, 0.0};
+   real_t dt = 0.125;
+   ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+
+   SECTION("capture")
+   {
+      dt = std::numeric_limits<real_t>::quiet_NaN();
+      REQUIRE_THROWS_AS(adapter.Capture(0), InvalidCheckpointState);
+   }
+   SECTION("restore")
+   {
+      Snapshot snapshot = adapter.Capture(0);
+      WriteLittleEndian64(snapshot, 40, UINT64_C(0x7ff8000000000000));
+      REQUIRE_THROWS_AS(adapter.Restore(0, snapshot), InvalidCheckpointState);
+      REQUIRE(dt == 0.125);
+      REQUIRE(time.step == 0);
+      REQUIRE(time.time == 0.0);
+   }
+   RequireSameVector(state, initial);
+}
+
 TEST_CASE("Memory checkpoint storage has value semantics", "[Checkpoint]")
 {
    Snapshot first(2);
@@ -487,10 +543,8 @@ TEST_CASE("Memory checkpoint storage has value semantics", "[Checkpoint]")
 TEST_CASE("File checkpoint storage is persistent and transactional",
           "[Checkpoint]")
 {
-   const std::filesystem::path directory =
-      std::filesystem::temp_directory_path() /
-      "mfem-checkpoint-storage-unit-test";
-   std::filesystem::remove_all(directory);
+   CheckpointTestDirectory test_directory;
+   const auto &directory = test_directory.path;
 
    Snapshot first(3);
    first.Data()[0] = 1;
@@ -498,7 +552,20 @@ TEST_CASE("File checkpoint storage is persistent and transactional",
    first.Data()[2] = 3;
    {
       FileCheckpointStorage storage(directory.string());
+      // Reserved staging paths from other writers must never be reused.
+      const auto reserved = directory / "checkpoint_4.tmp.0";
+      std::filesystem::create_directory(reserved);
+      {
+         std::ofstream payload(reserved / "payload");
+         payload << "reserved";
+      }
       storage.Store(4, first);
+      {
+         std::ifstream payload(reserved / "payload");
+         std::string contents;
+         payload >> contents;
+         REQUIRE(contents == "reserved");
+      }
       REQUIRE(storage.Contains(4));
       storage.Store(4, Snapshot(7));
 
@@ -522,6 +589,7 @@ TEST_CASE("File checkpoint storage is persistent and transactional",
       CheckpointController controller(adapter, propagator, storage, window);
       controller.Initialize();
       controller.Store(8);
+      const Snapshot valid = storage.Restore(8);
       {
          std::ofstream malformed(storage.PathFor(8),
                                  std::ios::binary | std::ios::trunc);
@@ -529,11 +597,28 @@ TEST_CASE("File checkpoint storage is persistent and transactional",
       }
       REQUIRE_THROWS_AS(controller.Restore(8), InvalidCheckpointFormat);
 
+      // A nonempty directory reliably makes removal fail, even as root.
+      std::filesystem::remove(storage.PathFor(8));
+      std::filesystem::create_directory(storage.PathFor(8));
+      {
+         const auto child_path =
+            std::filesystem::path(storage.PathFor(8)) / "child";
+         std::ofstream child(child_path);
+         child << "block removal";
+      }
+      REQUIRE_THROWS_AS(controller.Discard(8), CheckpointStorageError);
+      REQUIRE(std::filesystem::exists(
+                 std::filesystem::path(storage.PathFor(8)) / "child"));
+      std::filesystem::remove_all(storage.PathFor(8));
+      storage.Store(8, valid);
+      // Failed deletion must retain the controller's registration.
+      REQUIRE_NOTHROW(controller.Restore(8));
+
       storage.Erase(4);
       storage.Erase(8);
+      REQUIRE_NOTHROW(storage.Erase(8));
       REQUIRE_FALSE(storage.Contains(4));
    }
-   std::filesystem::remove_all(directory);
 }
 
 TEST_CASE("Exact moving window is bounded FIFO storage", "[Checkpoint]")
@@ -566,7 +651,13 @@ TEST_CASE("Exact moving window is bounded FIFO storage", "[Checkpoint]")
 TEST_CASE("StoreEverything emits its canonical forward trace", "[Checkpoint]")
 {
    StoreEverythingSchedule schedule;
-   REQUIRE_THROWS_AS(schedule.Configure(3, 3), std::invalid_argument);
+   REQUIRE_THROWS_AS(schedule.Next(), CheckpointError);
+   REQUIRE_THROWS_AS(schedule.Configure(-1, 0), CheckpointError);
+   const auto max_steps = std::numeric_limits<StateId>::max();
+   const auto max_slots = std::numeric_limits<std::size_t>::max();
+   REQUIRE_THROWS_AS(schedule.Configure(max_steps, max_slots),
+                     CheckpointError);
+   REQUIRE_THROWS_AS(schedule.Configure(3, 3), InvalidCheckpointState);
    schedule.Configure(3, 4);
 
    const std::vector<CheckpointCommand> expected =
@@ -687,7 +778,10 @@ TEST_CASE("Checkpoint controller restores and replays exact states",
    window.Clear();
    storage.ResetTracking();
    controller.RestoreStep(10);
-   REQUIRE(storage.last_restored == 1);
+   // Restore(1) already made state zero active; replay needs no storage read.
+   REQUIRE(storage.restore_count == 0);
+   REQUIRE(controller.ActiveState().id == 10);
+   REQUIRE(time.step == 10);
    RequireSameVector(state, reference);
    REQUIRE(time.time == reference_time);
 }
@@ -729,4 +823,105 @@ TEST_CASE("Controller storage failures do not commit metadata or state",
    REQUIRE(controller.ActiveState().id == 0);
    controller.Discard(3);
    REQUIRE_FALSE(storage.Contains(3));
+   REQUIRE_THROWS_AS(controller.Discard(3), CheckpointConsistencyError);
+   REQUIRE_THROWS_AS(controller.Restore(3), CheckpointConsistencyError);
+}
+
+TEST_CASE("Controller rejects schedules outside the terminal horizon",
+          "[Checkpoint]")
+{
+   ToyState state{0, 4, 0.5, true};
+   const ToyState initial = state;
+   ToyStateAdapter adapter(state);
+   ToyStatePropagator propagator(state);
+   MemoryCheckpointStorage storage;
+   ExactCheckpointWindow window(1);
+   CheckpointController controller(adapter, propagator, storage, window);
+   controller.Initialize();
+   StoreEverythingSchedule schedule;
+
+   SECTION("early finish")
+   {
+      schedule.Configure(0, 1);
+      REQUIRE_THROWS_WITH(controller.ExecuteForward(schedule, 1),
+                          "schedule ended before the requested terminal state");
+   }
+   SECTION("advance beyond terminal")
+   {
+      schedule.Configure(1, 2);
+      REQUIRE_THROWS_WITH(controller.ExecuteForward(schedule, 0),
+                          "schedule advances beyond the requested "
+                          "terminal state");
+   }
+   REQUIRE(controller.ActiveState().id == 0);
+   RequireSameToyState(state, initial);
+   REQUIRE(storage.Contains(1));
+}
+
+TEST_CASE("Replay can start from the committed active snapshot", "[Checkpoint]")
+{
+   ToyState state{0, 4, 0.5, true};
+   const ToyState initial = state;
+   ToyStateAdapter adapter(state);
+   ToyStatePropagator propagator(state);
+   TrackingStorage storage;
+   ExactCheckpointWindow window(0);
+   CheckpointController controller(adapter, propagator, storage, window);
+   controller.Initialize();
+
+   SECTION("exact active state without storage")
+   {
+      state.value = -1;
+      controller.RestoreState(0);
+      RequireSameToyState(state, initial);
+   }
+   SECTION("advance from active without storage")
+   {
+      controller.RestoreState(2);
+      REQUIRE(state.iteration == 2);
+      REQUIRE(state.value == 19);
+   }
+   SECTION("active state beats an older stored snapshot")
+   {
+      controller.Store(1);
+      controller.RestoreState(2);
+      storage.ResetTracking();
+      controller.RestoreState(3);
+      REQUIRE(state.value == 39);
+      REQUIRE(storage.restore_count == 0);
+   }
+}
+
+TEST_CASE("Forward Euler checkpoints reject nonfinite physical time",
+          "[Checkpoint]")
+{
+   LinearODE oper;
+   ForwardEulerSolver solver;
+   Vector state(2);
+   state = 1.0;
+   const Vector initial(state);
+   TimePoint time{0, 0.0};
+   real_t dt = 0.125;
+   ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+   const Snapshot valid = adapter.Capture(0);
+   for (double invalid :
+        {
+           std::numeric_limits<double>::quiet_NaN(),
+           std::numeric_limits<double>::infinity(),
+           -std::numeric_limits<double>::infinity()
+        })
+   {
+      time.time = static_cast<real_t>(invalid);
+      REQUIRE_THROWS_AS(adapter.Capture(0), InvalidCheckpointState);
+      time.time = 0.0;
+      Snapshot malformed = valid;
+      std::uint64_t bits;
+      std::memcpy(&bits, &invalid, sizeof(bits));
+      WriteLittleEndian64(malformed, 32, bits);
+      REQUIRE_THROWS_AS(adapter.Restore(0, malformed), InvalidCheckpointState);
+      REQUIRE(time.time == 0.0);
+      REQUIRE(time.step == 0);
+      REQUIRE(dt == 0.125);
+      RequireSameVector(state, initial);
+   }
 }

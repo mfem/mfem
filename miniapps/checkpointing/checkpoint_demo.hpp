@@ -58,9 +58,12 @@ public:
 
    void WriteString(const std::string &value)
    {
-      if (value.size() > std::numeric_limits<std::uint64_t>::max())
+      if constexpr (sizeof(std::size_t) > sizeof(std::uint64_t))
       {
-         throw InvalidCheckpointState("snapshot string is too large");
+         if (value.size() > std::numeric_limits<std::uint64_t>::max())
+         {
+            throw InvalidCheckpointState("snapshot string is too large");
+         }
       }
       WriteUInt64(static_cast<std::uint64_t>(value.size()));
       bytes.insert(bytes.end(), value.begin(), value.end());
@@ -86,7 +89,7 @@ private:
 
    void Require(std::size_t count) const
    {
-      if (count > snapshot.Size() - offset)
+      if (offset > snapshot.Size() || count > snapshot.Size() - offset)
       {
          throw InvalidCheckpointFormat("truncated miniapp snapshot");
       }
@@ -126,9 +129,12 @@ public:
    std::string ReadString()
    {
       const std::uint64_t length = ReadUInt64();
-      if (length > std::numeric_limits<std::size_t>::max())
+      if constexpr (sizeof(std::size_t) < sizeof(length))
       {
-         throw InvalidCheckpointFormat("miniapp string length is too large");
+         if (length > std::numeric_limits<std::size_t>::max())
+         {
+            throw InvalidCheckpointFormat("miniapp string length is too large");
+         }
       }
       const std::size_t size = static_cast<std::size_t>(length);
       Require(size);

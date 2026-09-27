@@ -25,6 +25,15 @@ EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 CXX = g++
 MPICXX = mpicxx
 
+# Probe the selected compiler and standard library once, on first use. An
+# explicit FILESYSTEM_LIB override skips detection (empty means built in).
+MFEM_FILESYSTEM_PROBE = $(eval MFEM_FILESYSTEM_PROBE := $(shell \
+   $(SHELL) $(SRC)config/check-filesystem.sh $(MFEM_CXX) \
+   $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS) $(LDFLAGS)))$(MFEM_FILESYSTEM_PROBE)
+FILESYSTEM_LIB = $(if $(filter unavailable,$(MFEM_FILESYSTEM_PROBE)),\
+   $(error A C++17 filesystem implementation is required),\
+   $(MFEM_FILESYSTEM_PROBE))
+
 BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 

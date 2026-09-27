@@ -125,8 +125,10 @@ CheckpointStorage, and ExactCheckpointWindow. Its active state means that the
 external application is synchronized to a committed complete snapshot at the
 reported StateId. CheckpointController::Restore() restores exactly the named
 CheckpointId. CheckpointController::RestoreState() uses an exact target when
-available, otherwise selects the nearest preceding cached or persisted state
-and propagates forward. RestoreStep() is a compatibility spelling for
+available, otherwise selects the nearest preceding state among the committed
+active snapshot, cached states, and persisted checkpoints, then propagates
+forward. The active snapshot can seed replay immediately after Initialize(),
+without a prior Store(). RestoreStep() is a compatibility spelling for
 time-stepping applications.
 
 StoreEverythingSchedule stores the initial state and every accepted logical
@@ -142,9 +144,10 @@ the application unchanged even when it throws; Restore and Advance may expose
 partial state only until controller rollback completes.
 
 The generic Snapshot boundary adds one complete active-state snapshot. Advance
-and restore transactions also make one rollback copy, and the moving window
-retains its configured number of complete snapshot copies. This is the cost of
-generic rollback without assuming an application-specific clone operation.
+and restore transactions borrow that committed snapshot for rollback; it stays
+unchanged until the final non-throwing swap commits the new active state. The
+moving window retains up to its configured number of complete snapshot copies
+and temporarily owns one additional snapshot during insertion before eviction.
 
 \section checkpointing_ode ODE and Vector specialization
 
@@ -157,9 +160,11 @@ Vector values + StateId + physical time + dt + solver restart bytes
 \endcode
 
 Forward Euler has no persistent stage history, so the solver restart bytes are
-empty. Restore resets the Vector, TimePoint, and `dt`, sets the operator time,
-and reinitializes the solver. ODEStatePropagator advances with the normal
-ODESolver::Step() implementation. ODECheckpointPropagator and
+empty. Restore requires positive `dt`, finite physical time, and an empty
+solver restart payload; violations raise InvalidCheckpointState before the
+application is modified. Restore resets the Vector, TimePoint, and `dt`, sets
+the operator time, and reinitializes the solver. ODEStatePropagator advances
+with the normal ODESolver::Step() implementation. ODECheckpointPropagator and
 ODESolverCheckpointAdapter remain compatibility names for the refined ODE
 types.
 
@@ -199,11 +204,15 @@ mismatches, truncation, and trailing bytes. Invalid bytes raise
 InvalidCheckpointFormat; ordinary filesystem failures raise
 CheckpointStorageError.
 
-FileCheckpointStorage uses one deterministic file per logical checkpoint. An
-overwrite is written and closed in a same-directory temporary file and then
-renamed. A failed overwrite leaves the prior canonical file unchanged. Stale
-temporary files are ignored. The implementation does not promise fsync-based
-crash durability.
+FileCheckpointStorage uses one deterministic file per logical checkpoint. It
+atomically reserves a private staging directory, writes and closes a payload
+file inside it, then renames that file to the canonical path on the same
+filesystem. A failed overwrite leaves the prior canonical file unchanged.
+Concurrent writers publish complete snapshots; the last successful rename
+wins. Staging directories are removed after normal writes. Interrupted writes
+can leave staging directories that are ignored and may accumulate; callers
+may reclaim them when no writers are using the storage directory. The
+implementation does not promise fsync-based crash durability.
 
 \section checkpointing_parallel Rank-local parallel compatibility
 

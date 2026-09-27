@@ -11,15 +11,12 @@
 
 #include "checkpoint.hpp"
 
-#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <numeric>
-#include <sstream>
 #include <system_error>
 #include <utility>
 
@@ -113,11 +110,13 @@ double BitsDouble(std::uint64_t bits)
 /// Convert a persisted size after checking platform capacity.
 std::size_t CheckedSize(std::uint64_t value, const char *description)
 {
-   if (value > static_cast<std::uint64_t>(
-          std::numeric_limits<std::size_t>::max()))
+   if constexpr (sizeof(std::size_t) < sizeof(value))
    {
-      throw InvalidCheckpointFormat(std::string(description) +
-                                    " exceeds platform capacity");
+      if (value > std::numeric_limits<std::size_t>::max())
+      {
+         throw InvalidCheckpointFormat(std::string(description) +
+                                       " exceeds platform capacity");
+      }
    }
    return static_cast<std::size_t>(value);
 }
@@ -288,8 +287,8 @@ ODECheckpointData ODECheckpointSerializer::Decode(
    real_t *values = checkpoint.state.HostWrite();
    for (std::size_t i = 0; i < state_size; i++)
    {
-      values[i] = static_cast<real_t>(BitsDouble(
-                                         ReadLittleEndian<std::uint64_t>(snapshot, offset)));
+      const auto bits = ReadLittleEndian<std::uint64_t>(snapshot, offset);
+      values[i] = static_cast<real_t>(BitsDouble(bits));
    }
    checkpoint.restart.SetSize(restart_size);
    if (restart_size != 0)
@@ -344,20 +343,12 @@ public:
             "checkpoint storage directory must not be empty");
       }
       std::error_code error;
-      if (std::filesystem::exists(directory, error))
-      {
-         if (error || !std::filesystem::is_directory(directory, error))
-         {
-            throw CheckpointStorageError(
-               "checkpoint storage path is not a directory: " +
-               directory.string());
-         }
-      }
-      else if (error || !std::filesystem::create_directories(directory, error))
+      std::filesystem::create_directories(directory, error);
+      // Check the resulting path: another process may have created it.
+      if (!std::filesystem::is_directory(directory, error))
       {
          throw CheckpointStorageError(
-            "cannot create checkpoint storage directory: " +
-            directory.string());
+            "cannot open checkpoint storage directory: " + directory.string());
       }
    }
 
@@ -366,10 +357,27 @@ public:
       return directory / ("checkpoint_" + IdString(id) + ".bin");
    }
 
+   // Atomically reserve a private staging directory across processes. Existing
+   // reservations, including leftovers from interrupted writes, are skipped.
    std::filesystem::path TemporaryPath(CheckpointId id) const
    {
-      return directory / ("checkpoint_" + IdString(id) + ".tmp." +
-                          std::to_string(sequence.fetch_add(1)));
+      for (;;)
+      {
+         const auto staging = directory /
+                              ("checkpoint_" + IdString(id) + ".tmp." +
+                               std::to_string(sequence.fetch_add(1)));
+         std::error_code error;
+         if (std::filesystem::create_directory(staging, error))
+         {
+            return staging / "payload";
+         }
+         if (error && error != std::errc::file_exists)
+         {
+            throw CheckpointStorageError(
+               "cannot reserve checkpoint staging directory: " +
+               error.message());
+         }
+      }
    }
 };
 
@@ -383,12 +391,12 @@ FileCheckpointStorage::~FileCheckpointStorage() = default;
 void FileCheckpointStorage::Store(CheckpointId id, Snapshot snapshot)
 {
    const std::filesystem::path target = impl->Path(id);
-   const std::filesystem::path temporary = impl->TemporaryPath(id);
    if (snapshot.Size() > static_cast<std::size_t>(
           std::numeric_limits<std::streamsize>::max()))
    {
       throw CheckpointStorageError("checkpoint is too large to store");
    }
+   const std::filesystem::path temporary = impl->TemporaryPath(id);
    try
    {
       std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
@@ -420,8 +428,11 @@ void FileCheckpointStorage::Store(CheckpointId id, Snapshot snapshot)
    {
       std::error_code ignored;
       std::filesystem::remove(temporary, ignored);
+      std::filesystem::remove(temporary.parent_path(), ignored);
       throw;
    }
+   std::error_code ignored;
+   std::filesystem::remove(temporary.parent_path(), ignored);
 }
 
 Snapshot FileCheckpointStorage::Restore(CheckpointId id) const
@@ -434,8 +445,15 @@ Snapshot FileCheckpointStorage::Restore(CheckpointId id) const
       throw CheckpointStorageError("cannot inspect checkpoint " + IdString(id) +
                                    ": " + error.message());
    }
-   if (file_size > std::numeric_limits<std::size_t>::max() ||
-       file_size > static_cast<std::uintmax_t>(
+   if constexpr (sizeof(std::size_t) < sizeof(file_size))
+   {
+      if (file_size > std::numeric_limits<std::size_t>::max())
+      {
+         throw CheckpointStorageError(
+            "checkpoint file is too large to restore");
+      }
+   }
+   if (file_size > static_cast<std::uintmax_t>(
           std::numeric_limits<std::streamsize>::max()))
    {
       throw CheckpointStorageError("checkpoint file is too large to restore");
@@ -468,9 +486,11 @@ bool FileCheckpointStorage::Contains(CheckpointId id) const
 
 void FileCheckpointStorage::Erase(CheckpointId id)
 {
-   if (!Contains(id)) { return; }
    std::error_code error;
-   if (!std::filesystem::remove(impl->Path(id), error) || error)
+   // remove reports absence without an error; inspection failures must not be
+   // mistaken for absence and allow the controller to discard its metadata.
+   std::filesystem::remove(impl->Path(id), error);
+   if (error)
    {
       throw CheckpointStorageError("cannot erase checkpoint " + IdString(id) +
                                    ": " + error.message());
@@ -512,29 +532,29 @@ void ExactCheckpointWindow::Insert(const CheckpointState &checkpoint)
          "moving-window state ID must be non-negative");
    }
    if (capacity == 0) { return; }
-   std::deque<CheckpointState> updated(entries);
-   for (CheckpointState &entry : updated)
+   CheckpointState incoming(checkpoint);
+   for (CheckpointState &entry : entries)
    {
-      if (entry.id == checkpoint.id)
+      if (entry.id == incoming.id)
       {
-         entry = checkpoint;
-         entries.swap(updated);
+         entry.Swap(incoming);
          return;
       }
    }
-   if (updated.size() == capacity) { updated.pop_front(); }
-   updated.push_back(checkpoint);
-   entries.swap(updated);
+   // Append before evicting: allocation failure leaves the window unchanged.
+   entries.push_back(std::move(incoming));
+   if (entries.size() > capacity) { entries.pop_front(); }
 }
 
 Snapshot ForwardEulerCheckpointAdapter::Capture(
    StateId state_id, std::optional<CheckpointId> checkpoint) const
 {
-   if (state_id < 0 || time.step != state_id || dt <= 0.0)
+   if (state_id < 0 || time.step != state_id || !(dt > 0.0) ||
+       !std::isfinite(time.time))
    {
       throw InvalidCheckpointState("Forward Euler checkpoint requires a "
                                    "matching non-negative state ID and "
-                                   "positive dt");
+                                   "positive dt and finite time");
    }
    const ODECheckpointData data{state, time, dt, Snapshot()};
    return ODECheckpointSerializer::Encode(checkpoint.value_or(0), data);
@@ -551,10 +571,12 @@ void ForwardEulerCheckpointAdapter::Restore(
       throw InvalidCheckpointFormat(
          "checkpoint state ID disagrees with requested state");
    }
-   if (restored.dt <= 0.0 || restored.restart.Size() != 0)
+   if (!(restored.dt > 0.0) || !std::isfinite(restored.time.time) ||
+       restored.restart.Size() != 0)
    {
       throw InvalidCheckpointState(
-         "Forward Euler restart requires positive dt and no solver payload");
+         "Forward Euler restart requires positive dt, finite time, "
+         "and no solver payload");
    }
    state = restored.state;
    time = restored.time;
@@ -674,12 +696,14 @@ void CheckpointController::ExecuteRestore(const CheckpointCommand &command)
       throw CheckpointConsistencyError(
          "scheduler Restore does not name a registered checkpoint");
    }
-   const CheckpointState previous = ActiveState();
-   const Snapshot stored = storage.Restore(*command.checkpoint);
+   // active is unchanged until the final noexcept Swap; rollback borrows it.
+   const CheckpointState &previous = ActiveState();
+   Snapshot stored = storage.Restore(*command.checkpoint);
    try
    {
       adapter.Restore(command.to_step, stored, command.checkpoint);
-      CheckpointState restored{command.to_step, stored, command.checkpoint};
+      CheckpointState restored{command.to_step, std::move(stored),
+                               command.checkpoint};
       window.Insert(restored);
       active->Swap(restored);
    }
@@ -701,7 +725,8 @@ void CheckpointController::ExecuteRestore(const CheckpointCommand &command)
 
 void CheckpointController::ExecuteAdvance(const CheckpointCommand &command)
 {
-   const CheckpointState previous = ActiveState();
+   // active is unchanged until the final noexcept Swap; rollback borrows it.
+   const CheckpointState &previous = ActiveState();
    if (command.checkpoint || command.from_step != previous.id ||
        command.to_step <= command.from_step)
    {
@@ -807,12 +832,14 @@ void CheckpointController::RestoreState(StateId target)
    {
       throw InvalidCheckpointState("requested replay state is negative");
    }
-   const CheckpointState previous = ActiveState();
+   // active is unchanged until the final noexcept Swap; rollback borrows it.
+   const CheckpointState &previous = ActiveState();
    std::optional<CheckpointState> origin;
    std::optional<CheckpointId> stored_origin;
 
    const CheckpointState *cached = window.FindAtOrBefore(target);
-   if (cached) { origin = *cached; }
+   if (previous.id <= target) { origin = previous; }
+   if (cached && (!origin || cached->id > origin->id)) { origin = *cached; }
    StateId origin_state = origin ? origin->id : StateId(-1);
    for (const auto &entry : checkpoints)
    {
@@ -837,7 +864,7 @@ void CheckpointController::RestoreState(StateId target)
    {
       adapter.Restore(origin->id, origin->snapshot, origin->checkpoint);
       propagator.Advance(origin->id, target);
-      CheckpointState restored = target == origin->id ? *origin :
+      CheckpointState restored = target == origin->id ? std::move(*origin) :
                                  CheckpointState{target,
                                                  adapter.Capture(target)};
       window.Insert(restored);
@@ -859,12 +886,125 @@ void CheckpointController::RestoreState(StateId target)
    }
 }
 
-#include "checkpoint_store_everything.inc"
-
+/// Reference offline schedule that stores every forward state.
+///
+/// Requires num_steps + 1 logical slots. It owns no snapshots and is not
+/// internally synchronized.
 class StoreEverythingSchedule::Implementation
 {
 public:
-   checkpoint_detail::StoreEverythingScheduleImpl schedule;
+   /// Builds the deterministic store-everything trace.
+   /// @throws InvalidCheckpointState for negative steps or insufficient slots.
+   /// @throws InvalidCheckpointState when size calculations overflow.
+   void Configure(StateId num_steps, std::size_t num_checkpoints)
+   {
+      const std::size_t step_count = CheckedStepCount(num_steps);
+      if (step_count == std::numeric_limits<std::size_t>::max())
+      {
+         throw InvalidCheckpointState(
+            "store-everything checkpoint-count calculation overflow");
+      }
+      const std::size_t required_checkpoints = step_count + 1;
+      if (num_checkpoints < required_checkpoints)
+      {
+         throw InvalidCheckpointState(
+            "store-everything schedule requires "
+            + std::to_string(required_checkpoints) + " checkpoints for "
+            + std::to_string(num_steps) + " steps, but only "
+            + std::to_string(num_checkpoints) + " were provided");
+      }
+      if (step_count > (std::numeric_limits<std::size_t>::max() - 2) / 2)
+      {
+         throw InvalidCheckpointState(
+            "store-everything command-count calculation overflow");
+      }
+
+      const std::size_t command_count = 2 * step_count + 2;
+      std::vector<CheckpointCommand> updated;
+      if (command_count > updated.max_size())
+      {
+         throw InvalidCheckpointState(
+            "store-everything command sequence exceeds vector capacity");
+      }
+      updated.reserve(command_count);
+
+      updated.push_back(StorageCommand(CheckpointAction::Store, 0));
+      for (StateId step = 0; step < num_steps; ++step)
+      {
+         updated.push_back(CheckpointCommand{CheckpointAction::Advance, step,
+                                             step + 1, std::nullopt});
+         updated.push_back(StorageCommand(CheckpointAction::Store, step + 1));
+      }
+
+      updated.push_back(CheckpointCommand{CheckpointAction::Finished,
+                                          num_steps, num_steps, std::nullopt});
+
+      commands = std::move(updated);
+      next_command = 0;
+      configured = true;
+   }
+
+   /// Returns the next command, repeating Finished after exhaustion.
+   /// @throws InvalidCheckpointState if Configure() has not been called.
+   CheckpointCommand Next()
+   {
+      if (!configured)
+      {
+         throw InvalidCheckpointState(
+            "store-everything schedule must be configured before Next()");
+      }
+      if (next_command < commands.size())
+      {
+         return commands[next_command++];
+      }
+      return commands.back();
+   }
+
+   /// Rewinds the configured trace.
+   void Reset() noexcept
+   {
+      if (configured)
+      {
+         next_command = 0;
+      }
+   }
+
+private:
+   static std::size_t CheckedStepCount(StateId num_steps)
+   {
+      if (num_steps < 0)
+      {
+         throw InvalidCheckpointState(
+            "store-everything schedule requires a non-negative step count");
+      }
+
+      const std::uintmax_t unsigned_steps =
+         static_cast<std::uintmax_t>(num_steps);
+      if constexpr (sizeof(std::size_t) < sizeof(unsigned_steps))
+      {
+         if (unsigned_steps > std::numeric_limits<std::size_t>::max())
+         {
+            throw InvalidCheckpointState(
+               "store-everything step count exceeds platform capacity");
+         }
+      }
+      return static_cast<std::size_t>(unsigned_steps);
+   }
+
+   static CheckpointId CheckpointIdentity(StateId step) noexcept
+   {
+      return static_cast<CheckpointId>(step) + CheckpointId{1};
+   }
+
+   static CheckpointCommand StorageCommand(CheckpointAction action,
+                                           StateId step)
+   {
+      return CheckpointCommand{action, step, step, CheckpointIdentity(step)};
+   }
+
+   bool configured{false};
+   std::size_t next_command{0};
+   std::vector<CheckpointCommand> commands;
 };
 
 StoreEverythingSchedule::StoreEverythingSchedule()
@@ -875,17 +1015,17 @@ StoreEverythingSchedule::~StoreEverythingSchedule() = default;
 void StoreEverythingSchedule::Configure(
    StateId num_steps, std::size_t num_checkpoints)
 {
-   impl->schedule.Configure(num_steps, num_checkpoints);
+   impl->Configure(num_steps, num_checkpoints);
 }
 
 CheckpointCommand StoreEverythingSchedule::Next()
 {
-   return impl->schedule.Next();
+   return impl->Next();
 }
 
 void StoreEverythingSchedule::Reset()
 {
-   impl->schedule.Reset();
+   impl->Reset();
 }
 
 } // namespace mfem

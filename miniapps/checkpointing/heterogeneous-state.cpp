@@ -20,10 +20,13 @@
     The state is discarded again and restored from the moving window. Reference
     and reconstructed values must agree exactly in both demonstrations. */
 
+// Compile with: make checkpoint-heterogeneous-state
+//
+// Sample runs:  checkpoint-heterogeneous-state -n 12 -c 4 -w 2
+
 #include "mfem.hpp"
 #include "checkpoint_demo.hpp"
 
-#include <cmath>
 #include <cstdint>
 #include <iomanip>
 #include <iostream>

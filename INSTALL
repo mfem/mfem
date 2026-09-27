@@ -38,7 +38,17 @@ the option MFEM_USE_METIS.
 MFEM also includes support for devices such as GPUs, and programming models such
 as CUDA, HIP, OCCA, OpenMP and RAJA.
 
-- Starting with version 4.9, MFEM requires a C++17 compiler.
+- Starting with version 4.9, MFEM requires a C++17 compiler and standard library
+  with working <filesystem> support, including any required link library.
+  Both CMake and make probe filesystem linking and try -lstdc++fs and -lc++fs
+  when additional support is needed. The make build permits a FILESYSTEM_LIB
+  override (for example, FILESYSTEM_LIB=-lstdc++fs); an explicitly empty value
+  skips detection and assumes no extra library is needed.
+  CMake provides MFEM_FILESYSTEM_LIBRARIES with default AUTO (case-insensitive).
+  Toolchains that cannot link probe executables can set it explicitly, e.g.
+  -DMFEM_FILESYSTEM_LIBRARIES=-lstdc++fs, or use an empty value for built-in
+  support. Multiple libraries use a semicolon-separated list of link flags
+  or full library paths. The probes only link; they never run executables.
 
 - CUDA support requires an NVIDIA GPU and an installation of the CUDA Toolkit
   https://developer.nvidia.com/cuda-toolkit
@@ -296,6 +306,11 @@ Installation options:
 
 MFEM library features/options (GNU make)
 ----------------------------------------
+FILESYSTEM_LIB
+   Override automatic filesystem link-library detection, for example with
+   FILESYSTEM_LIB=-lstdc++fs. An explicitly empty value skips detection and
+   assumes built-in support. See the C++17 filesystem requirement above.
+
 MFEM_USE_MPI = YES/NO
    Choose parallel/serial build. The parallel build requires proper setup of the
    HYPRE_* and METIS_* library options, see below.

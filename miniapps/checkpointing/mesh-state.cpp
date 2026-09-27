@@ -19,10 +19,15 @@
     structural properties, metadata, and projected H1 fields are compared.
     Optional ParaView collections support visual inspection. */
 
+// Compile with: make checkpoint-mesh-state
+//
+// Sample runs:  checkpoint-mesh-state -r 3 -c 2 -no-pv
+
 #include "mfem.hpp"
 #include "checkpoint_demo.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
@@ -30,6 +35,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 
 using namespace mfem;
 using namespace mfem::checkpoint_demo;
@@ -232,27 +238,9 @@ real_t ProjectedCoefficient(const Vector &position)
    return 1.0 + 0.5 * position[0] - 0.25 * position[1];
 }
 
-real_t CompareProjections(Mesh &reference_mesh, Mesh &restored_mesh,
-                          int order, GridFunction &reference_field,
-                          GridFunction &restored_field,
-                          std::unique_ptr<FiniteElementCollection>
-                          &reference_fec,
-                          std::unique_ptr<FiniteElementCollection>
-                          &restored_fec,
-                          std::unique_ptr<FiniteElementSpace> &reference_fes,
-                          std::unique_ptr<FiniteElementSpace> &restored_fes)
+real_t CompareProjections(GridFunction &reference_field,
+                          GridFunction &restored_field)
 {
-   reference_fec.reset(new H1_FECollection(order,
-                                           reference_mesh.Dimension()));
-   restored_fec.reset(new H1_FECollection(order,
-                                          restored_mesh.Dimension()));
-   reference_fes.reset(new FiniteElementSpace(&reference_mesh,
-                                              reference_fec.get()));
-   restored_fes.reset(new FiniteElementSpace(&restored_mesh,
-                                             restored_fec.get()));
-   reference_field.SetSpace(reference_fes.get());
-   restored_field.SetSpace(restored_fes.get());
-
    FunctionCoefficient coefficient(ProjectedCoefficient);
    reference_field.ProjectCoefficient(coefficient);
    restored_field.ProjectCoefficient(coefficient);
@@ -266,7 +254,13 @@ real_t CompareProjections(Mesh &reference_mesh, Mesh &restored_mesh,
    real_t error = 0.0;
    for (int i = 0; i < reference_field.Size(); i++)
    {
-      error = max(error, abs(reference_field[i] - restored_field[i]));
+      const real_t difference =
+         std::abs(reference_field[i] - restored_field[i]);
+      if (!std::isfinite(difference))
+      {
+         return numeric_limits<real_t>::infinity();
+      }
+      error = std::max(error, difference);
    }
    return error;
 }
@@ -337,8 +331,9 @@ int main(int argc, char *argv[])
    try
    {
       MeshState state;
-      state.mesh.reset(new Mesh(Mesh::MakeCartesian2D(
-                                   2, 2, Element::QUADRILATERAL, true, 1.0, 1.0)));
+      Mesh initial_mesh = Mesh::MakeCartesian2D(
+                             2, 2, Element::QUADRILATERAL, true, 1.0, 1.0);
+      state.mesh.reset(new Mesh(std::move(initial_mesh)));
       state.mesh->EnsureNCMesh();
       if (!state.mesh->Nonconforming())
       {
@@ -375,14 +370,14 @@ int main(int argc, char *argv[])
       const bool metadata_matches = state.cycle == refinement_steps &&
                                     state.selection_index == reference_index;
 
-      std::unique_ptr<FiniteElementCollection> reference_fec, restored_fec;
-      std::unique_ptr<FiniteElementSpace> reference_fes, restored_fes;
-      GridFunction reference_field, restored_field;
-      const real_t projection_error = CompareProjections(
-                                         reference_mesh, *state.mesh, order,
-                                         reference_field, restored_field,
-                                         reference_fec, restored_fec,
-                                         reference_fes, restored_fes);
+      H1_FECollection reference_fec(order, reference_mesh.Dimension());
+      H1_FECollection restored_fec(order, state.mesh->Dimension());
+      FiniteElementSpace reference_fes(&reference_mesh, &reference_fec);
+      FiniteElementSpace restored_fes(state.mesh.get(), &restored_fec);
+      GridFunction reference_field(&reference_fes);
+      GridFunction restored_field(&restored_fes);
+      const real_t projection_error =
+         CompareProjections(reference_field, restored_field);
       const real_t tolerance = 100.0 *
                                numeric_limits<real_t>::epsilon();
       const bool projection_matches = projection_error <= tolerance;

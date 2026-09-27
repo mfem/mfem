@@ -659,6 +659,55 @@ foreach(TPL IN LISTS MFEM_TPLS)
   endif()
 endforeach(TPL)
 
+# Older standard libraries provide filesystem in a separate link library.
+set(MFEM_FILESYSTEM_LIBRARIES "AUTO" CACHE STRING
+  "Filesystem link flags/libraries, empty for built-in support, or AUTO")
+function(mfem_check_filesystem result)
+  include(CheckCXXSourceCompiles)
+  include(CMakePushCheckState)
+  cmake_push_check_state(RESET)
+  # Function scope preserves the toolchain's setting for subsequent checks.
+  # Linking is required here even when other cross-compilation checks only
+  # build static libraries. The resulting executable is never run.
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+  set(_probe [=[
+#include <filesystem>
+int main() { return std::filesystem::exists(".") ? 0 : 1; }
+]=])
+  # New cache names avoid reusing results from the old compile-only checks.
+  check_cxx_source_compiles("${_probe}" MFEM_FILESYSTEM_BUILTIN_LINKS)
+  set(_found ${MFEM_FILESYSTEM_BUILTIN_LINKS})
+  set(_libraries "")
+  if (NOT _found)
+    foreach(_library stdc++fs c++fs)
+      set(CMAKE_REQUIRED_LIBRARIES "-l${_library}")
+      string(MAKE_C_IDENTIFIER "MFEM_FILESYSTEM_${_library}_LINKS" _check)
+      check_cxx_source_compiles("${_probe}" ${_check})
+      if (${_check})
+        # Keep explicit link flags for both CMake and exported config.mk.
+        set(_libraries "-l${_library}")
+        set(_found TRUE)
+        break()
+      endif()
+    endforeach()
+  endif()
+  cmake_pop_check_state()
+  if (NOT _found)
+    message(FATAL_ERROR
+      "A C++17 filesystem implementation is required. If the toolchain cannot "
+      "link probe executables, set MFEM_FILESYSTEM_LIBRARIES explicitly.")
+  endif()
+  set(${result} "${_libraries}" PARENT_SCOPE)
+endfunction()
+
+string(TOUPPER "${MFEM_FILESYSTEM_LIBRARIES}" _mfem_filesystem_mode)
+if (_mfem_filesystem_mode STREQUAL "AUTO")
+  mfem_check_filesystem(_mfem_filesystem_libraries)
+else()
+  set(_mfem_filesystem_libraries "${MFEM_FILESYSTEM_LIBRARIES}")
+endif()
+list(APPEND TPL_LIBRARIES ${_mfem_filesystem_libraries})
+
 # reverse to remove the first instance of entries in TPL_LIBRARIES
 # so later duplicates are kept (for dependency ordering)
 list(REVERSE TPL_LIBRARIES)

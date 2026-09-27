@@ -175,9 +175,12 @@ public:
 };
 
 /// Reopenable one-file-per-checkpoint storage.
-/** Files are replaced through a same-directory temporary and rename. The class
-    does not claim crash durability and does not remove canonical files on
-    destruction. Stale temporary files are ignored. */
+/** Files are replaced through a private staging directory and rename on the
+    same filesystem. Concurrent writers publish complete snapshots; the last
+    successful rename wins. The class does not claim crash durability and
+    does not remove canonical files on destruction. Staging directories left
+    by interrupted writes are ignored and can accumulate; callers may remove
+    them when no writers are using the storage directory. */
 class FileCheckpointStorage : public CheckpointStorage
 {
 private:
@@ -244,7 +247,9 @@ public:
    const CheckpointState *FindAtOrBefore(StateId id) const;
 
    /// Insert or replace an exact state, evicting the oldest state when full.
-   /** The update is committed only after all required copies succeed.
+   /** Only the incoming snapshot is copied. The update is committed only
+       after all required allocations succeed. Insertion temporarily owns one
+       additional snapshot before eviction.
        @throws InvalidCheckpointState if the state ID is negative. */
    void Insert(const CheckpointState &checkpoint);
 
@@ -279,6 +284,7 @@ public:
    virtual ~CheckpointSchedule() = default;
 
    /// Return and consume the next deterministic schedule command.
+   /// @throws InvalidCheckpointState if the schedule is not configured.
    virtual CheckpointCommand Next() = 0;
 
    /// Return to the beginning of the configured schedule.
@@ -290,7 +296,8 @@ class OfflineCheckpointSchedule : public CheckpointSchedule
 {
 public:
    /// Configure a known @a num_steps horizon and physical slot budget.
-   /** StoreEverythingSchedule requires at least @a num_steps + 1 slots. */
+   /** StoreEverythingSchedule requires at least @a num_steps + 1 slots.
+       @throws InvalidCheckpointState for an invalid horizon or slot budget. */
    virtual void Configure(StateId num_steps,
                           std::size_t num_checkpoints) = 0;
 };
@@ -375,7 +382,12 @@ public:
 /// Exact scheduler-driven checkpoint/replay controller for application state.
 /** The controller borrows its adapter, propagator, storage, and moving window.
     The application remains externally owned and synchronized to the committed
-    active state. The controller is not thread-safe. */
+    active state. Before each scheduled advance, the controller restores the
+    committed snapshot, including adapter-managed solver state, to
+    synchronize the
+    externally owned application. Store captures a fresh snapshot because
+    adapters may embed the persistent checkpoint identity in its encoding.
+    The controller is not thread-safe. */
 class CheckpointController
 {
 private:
@@ -436,7 +448,8 @@ public:
 
    /// Restore or exactly replay the requested logical application state.
    /** The exact target is preferred. Otherwise the nearest preceding cached or
-       persisted restart is selected. Failure does not commit partial state. */
+       persisted restart or the active state is selected.
+       Failure does not commit partial state. */
    void RestoreState(StateId target);
 
    /// Compatibility wrapper for time-stepping applications.
