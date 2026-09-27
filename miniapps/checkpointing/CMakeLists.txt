@@ -21,6 +21,7 @@ add_mfem_miniapp(checkpoint-mesh-state
 
 add_mfem_miniapp(checkpoint-ode-state
   MAIN ode-state.cpp
+  forward_euler.hpp
   LIBRARIES mfem)
 
 add_mfem_miniapp(checkpoint-backward-euler

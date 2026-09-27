@@ -31,11 +31,13 @@
 //              replayed and reference terminal states are bitwise identical.
 
 #include "mfem.hpp"
+#include "forward_euler.hpp"
 
 #include <cmath>
 #include <iostream>
 
 using namespace mfem;
+using mfem::checkpoint_demo::ForwardEulerCheckpointAdapter;
 using namespace std;
 
 namespace

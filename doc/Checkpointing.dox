@@ -16,7 +16,7 @@ checkpoint is complete only when it contains everything required to continue
 deterministic replay. A solution Vector can be one component of that state, but
 is not its generic definition.
 
-The initial built-in specialization supports fixed-step ForwardEulerSolver.
+The checkpointing miniapps include a fixed-step ForwardEulerSolver adapter.
 The state-centric core is synchronous, independent of MPI and physical time,
 and can also be used by application-defined nonlinear, optimization,
 continuation, or adaptation iterations.
@@ -91,7 +91,7 @@ storage implementations operate only on StateId, CheckpointId, and opaque
 Snapshot values. They do not interpret Vector, ODESolver,
 TimeDependentOperator, or physical time.
 
-The implemented ODE specialization is
+The miniapp ODE specialization is
 
 \code{.unparsed}
 Vector + ForwardEulerSolver + TimeDependentOperator + time/dt
@@ -151,7 +151,8 @@ and temporarily owns one additional snapshot during insertion before eviction.
 
 \section checkpointing_ode ODE and Vector specialization
 
-ForwardEulerCheckpointAdapter binds externally owned Vector, TimePoint, `dt`,
+The miniapp-defined ForwardEulerCheckpointAdapter in
+`miniapps/checkpointing/forward_euler.hpp` binds Vector, TimePoint, `dt`,
 ForwardEulerSolver, and TimeDependentOperator objects to
 CheckpointStateAdapter. Its complete restart contains
 
@@ -164,9 +165,8 @@ empty. Restore requires positive `dt`, finite physical time, and an empty
 solver restart payload; violations raise InvalidCheckpointState before the
 application is modified. Restore resets the Vector, TimePoint, and `dt`, sets
 the operator time, and reinitializes the solver. ODEStatePropagator advances
-with the normal ODESolver::Step() implementation. ODECheckpointPropagator and
-ODESolverCheckpointAdapter remain compatibility names for the refined ODE
-types.
+with the normal ODESolver::Step() implementation. ODECheckpointPropagator
+remains a compatibility name for ODEStatePropagator.
 
 Vector values are encoded by the ODE adapter using Vector::HostRead() and
 restored using Vector::HostWrite(). Capture can therefore synchronize device
@@ -175,7 +175,7 @@ single-precision real_t to binary64 and back preserves every original value.
 
 \section checkpointing_persistence Persistence
 
-The ODE adapter preserves the version 1 persistent byte format exactly. Its
+The miniapp ODE adapter uses the version 1 persistent byte format. Its
 64-byte canonical little-endian header is
 
 \code{.unparsed}
@@ -453,7 +453,6 @@ Previous concept                 State-centric concept
 StepId                          StateId (StepId compatibility alias)
 TimePoint                       ODE-specific helper
 Vector CheckpointState          StateId + opaque Snapshot
-ODESolverCheckpointAdapter      ODECheckpointStateAdapter compatibility name
 ODECheckpointPropagator         ODEStatePropagator compatibility name
 Vector-centric controller       generic CheckpointController
 RestoreStep                     RestoreState (RestoreStep wrapper)

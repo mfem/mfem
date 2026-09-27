@@ -479,35 +479,6 @@ protected:
       : state(state_), time(time_), dt(dt_) { }
 };
 
-/// Compatibility name for the former ODE adapter abstraction.
-using ODESolverCheckpointAdapter = ODECheckpointStateAdapter;
-
-/// Exact state adapter for MFEM's fixed-step ForwardEulerSolver.
-class ForwardEulerCheckpointAdapter : public ODECheckpointStateAdapter
-{
-private:
-   ForwardEulerSolver &solver;   ///< Borrowed solver to reinitialize.
-   TimeDependentOperator &oper;  ///< Borrowed time-dependent operator.
-
-public:
-   /// Borrow ODE state, solver, and operator for the adapter lifetime.
-   ForwardEulerCheckpointAdapter(ForwardEulerSolver &solver_,
-                                 TimeDependentOperator &oper_, Vector &state_,
-                                 TimePoint &time_, real_t &dt_)
-      : ODECheckpointStateAdapter(state_, time_, dt_), solver(solver_),
-        oper(oper_) { }
-
-   /// @copydoc CheckpointStateAdapter::Capture()
-   Snapshot Capture(
-      StateId state_id,
-      std::optional<CheckpointId> checkpoint = std::nullopt) const override;
-
-   /// @copydoc CheckpointStateAdapter::Restore()
-   void Restore(
-      StateId state_id, const Snapshot &snapshot,
-      std::optional<CheckpointId> checkpoint = std::nullopt) override;
-};
-
 /// Exact ODE transitions using the normal ODESolver::Step() implementation.
 class ODEStatePropagator : public StatePropagator
 {

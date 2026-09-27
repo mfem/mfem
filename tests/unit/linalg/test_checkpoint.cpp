@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include "miniapps/checkpointing/forward_euler.hpp"
 
 #include <cstring>
 #include <filesystem>
@@ -22,6 +23,7 @@
 #include <vector>
 
 using namespace mfem;
+using mfem::checkpoint_demo::ForwardEulerCheckpointAdapter;
 
 namespace
 {

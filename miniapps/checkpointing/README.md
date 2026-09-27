@@ -14,7 +14,8 @@ restore newest earlier checkpoint + replay transitions = terminal state
 ```
 
 The directory also contains two ODE-focused miniapps. `checkpoint-ode-state`
-uses the generic core through MFEM's `ForwardEulerCheckpointAdapter`, while
+uses the generic core through the miniapp-defined
+`ForwardEulerCheckpointAdapter` in `forward_euler.hpp`, while
 `checkpoint-backward-euler` demonstrates an application-specific adapter for
 an implicit solver.
 
