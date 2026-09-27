@@ -214,7 +214,7 @@ miniapps/adjoint/adjoint_advection_diffusion
 
 miniapps/checkpointing/checkpoint-heterogeneous-state
 miniapps/checkpointing/checkpoint-mesh-state
-miniapps/checkpointing/checkpoint-ode-state
+miniapps/checkpointing/checkpoint-forward-euler
 miniapps/checkpointing/checkpoint-backward-euler
 miniapps/checkpointing/paraview/
 

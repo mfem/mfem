@@ -479,6 +479,66 @@ protected:
       : state(state_), time(time_), dt(dt_) { }
 };
 
+/// Complete ODE continuation encoded by ODECheckpointSerializer.
+struct ODECheckpointData
+{
+   Vector state;
+   TimePoint time;
+   real_t dt = 0.0;
+   Snapshot restart;
+};
+
+/// Encoder/decoder for the stable exact ODE checkpoint payload.
+/** The 64-byte header contains, in order, an eight-byte magic value, version,
+    byte-order and scalar-width markers, reserved bits, logical ID, trajectory
+    step, physical time, continuation step size, Vector length, and restart
+    length. Vector entries and restart bytes follow the header. */
+class ODECheckpointSerializer
+{
+public:
+   /// Current persisted payload version.
+   static constexpr std::uint32_t FormatVersion = 1;
+
+   /// Exact encoded header size in bytes.
+   static constexpr std::size_t HeaderSize = 64;
+
+   /// Serialize @a checkpoint and record its logical @a id.
+   static Snapshot Encode(CheckpointId id, const ODECheckpointData &checkpoint);
+
+   /// Decode @a snapshot and verify that it contains @a expected_id.
+   static ODECheckpointData Decode(CheckpointId expected_id,
+                                   const Snapshot &snapshot);
+};
+
+/// Exact state adapter for Vector-valued fixed-step ODE continuations.
+/** Captures and restores the borrowed Vector, TimePoint, and step size using
+    the version 1 payload format and no solver-defined restart bytes. The
+    borrowed step size must be positive and the physical time finite.
+    Subclasses reinitialize solver-side state by overriding OnRestored(). */
+class ODEVectorCheckpointAdapter : public ODECheckpointStateAdapter
+{
+protected:
+   /// Reinitialize solver-side state after a successful restore.
+   /** The borrowed Vector, TimePoint, and step size already represent the
+       restored state. The default implementation does nothing. */
+   virtual void OnRestored() { }
+
+public:
+   /// Borrow externally owned ODE continuation state.
+   ODEVectorCheckpointAdapter(Vector &state_, TimePoint &time_, real_t &dt_)
+      : ODECheckpointStateAdapter(state_, time_, dt_) { }
+
+   /// @copydoc CheckpointStateAdapter::Capture()
+   Snapshot Capture(
+      StateId state_id,
+      std::optional<CheckpointId> checkpoint = std::nullopt) const override;
+
+   /// @copydoc CheckpointStateAdapter::Restore()
+   void Restore(
+      StateId state_id, const Snapshot &snapshot,
+      std::optional<CheckpointId> checkpoint = std::nullopt) override;
+};
+
 /// Exact ODE transitions using the normal ODESolver::Step() implementation.
 class ODEStatePropagator : public StatePropagator
 {

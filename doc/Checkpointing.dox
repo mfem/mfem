@@ -16,7 +16,7 @@ checkpoint is complete only when it contains everything required to continue
 deterministic replay. A solution Vector can be one component of that state, but
 is not its generic definition.
 
-The checkpointing miniapps include a fixed-step ForwardEulerSolver adapter.
+The initial specialization supports Vector-valued fixed-step ODE state.
 The state-centric core is synchronous, independent of MPI and physical time,
 and can also be used by application-defined nonlinear, optimization,
 continuation, or adaptation iterations.
@@ -91,7 +91,7 @@ storage implementations operate only on StateId, CheckpointId, and opaque
 Snapshot values. They do not interpret Vector, ODESolver,
 TimeDependentOperator, or physical time.
 
-The miniapp ODE specialization is
+The ODE specialization is
 
 \code{.unparsed}
 Vector + ForwardEulerSolver + TimeDependentOperator + time/dt
@@ -151,22 +151,24 @@ and temporarily owns one additional snapshot during insertion before eviction.
 
 \section checkpointing_ode ODE and Vector specialization
 
-The miniapp-defined ForwardEulerCheckpointAdapter in
-`miniapps/checkpointing/forward_euler.hpp` binds Vector, TimePoint, `dt`,
-ForwardEulerSolver, and TimeDependentOperator objects to
-CheckpointStateAdapter. Its complete restart contains
+ODEVectorCheckpointAdapter binds externally owned Vector, TimePoint, and `dt`
+objects to CheckpointStateAdapter and encodes them with
+ODECheckpointSerializer. Its complete restart contains
 
 \code{.unparsed}
 Vector values + StateId + physical time + dt + solver restart bytes
 \endcode
 
-Forward Euler has no persistent stage history, so the solver restart bytes are
-empty. Restore requires positive `dt`, finite physical time, and an empty
-solver restart payload; violations raise InvalidCheckpointState before the
-application is modified. Restore resets the Vector, TimePoint, and `dt`, sets
-the operator time, and reinitializes the solver. ODEStatePropagator advances
-with the normal ODESolver::Step() implementation. ODECheckpointPropagator
-remains a compatibility name for ODEStatePropagator.
+The adapter writes no solver restart bytes. Restore requires positive `dt`,
+finite physical time, and an empty solver restart payload; violations raise
+InvalidCheckpointState before the application is modified. Restore resets the
+Vector, TimePoint, and `dt`, then calls the protected OnRestored() hook so that
+subclasses can reinitialize solver-side state. The miniapp-defined
+ForwardEulerCheckpointAdapter in `miniapps/checkpointing/forward_euler.hpp`
+overrides that hook to set the operator time and reinitialize the solver;
+Forward Euler keeps no stage history, so nothing else is needed.
+ODEStatePropagator advances with the normal ODESolver::Step() implementation.
+ODECheckpointPropagator remains a compatibility name for ODEStatePropagator.
 
 Vector values are encoded by the ODE adapter using Vector::HostRead() and
 restored using Vector::HostWrite(). Capture can therefore synchronize device
@@ -175,7 +177,7 @@ single-precision real_t to binary64 and back preserves every original value.
 
 \section checkpointing_persistence Persistence
 
-The miniapp ODE adapter uses the version 1 persistent byte format. Its
+The ODE adapter uses the version 1 persistent byte format. Its
 64-byte canonical little-endian header is
 
 \code{.unparsed}
@@ -233,15 +235,15 @@ rollback, MPI-IO, a shared-file format, or fault-tolerant recovery.
 
 \section checkpointing_ode_miniapp ODE miniapp
 
-The `miniapps/checkpointing/ode-state.cpp` miniapp compares ordinary fixed-step
-Forward Euler integration with a trajectory replayed from its initial exact
-checkpoint:
+The `miniapps/checkpointing/forward-euler.cpp` miniapp compares ordinary
+fixed-step Forward Euler integration with a trajectory replayed from its
+initial exact checkpoint:
 
 \code{.sh}
 cd miniapps/checkpointing
-make checkpoint-ode-state
-./checkpoint-ode-state
-./checkpoint-ode-state -s 40
+make checkpoint-forward-euler
+./checkpoint-forward-euler
+./checkpoint-forward-euler -s 40
 \endcode
 
 It integrates `du/dt = alpha u - u^3`. StoreEverythingSchedule creates
@@ -429,7 +431,7 @@ Build and run them with:
 \code{.sh}
 cd miniapps/checkpointing
 make
-./checkpoint-ode-state -s 40
+./checkpoint-forward-euler -s 40
 ./checkpoint-backward-euler -s 20 -r 7 -dt 0.05
 ./checkpoint-heterogeneous-state -n 12 -c 4 -w 2
 ./checkpoint-mesh-state -r 4 -c 2 -o paraview

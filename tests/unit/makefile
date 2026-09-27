@@ -139,8 +139,6 @@ $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(GPU_MAIN_OBJ) \
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
-linalg/test_checkpoint.o: $(MFEM_DIR)/miniapps/checkpointing/forward_euler.hpp
-
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)

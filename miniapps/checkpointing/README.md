@@ -13,11 +13,11 @@ but deliberately exclude the terminal state. Reconstruction therefore performs:
 restore newest earlier checkpoint + replay transitions = terminal state
 ```
 
-The directory also contains two ODE-focused miniapps. `checkpoint-ode-state`
-uses the generic core through the miniapp-defined
-`ForwardEulerCheckpointAdapter` in `forward_euler.hpp`, while
-`checkpoint-backward-euler` demonstrates an application-specific adapter for
-an implicit solver.
+The directory also contains two ODE-focused miniapps. `checkpoint-forward-euler`
+uses the library's `ODEVectorCheckpointAdapter` through the thin
+`ForwardEulerCheckpointAdapter` in `forward_euler.hpp`, which only adds solver
+reinitialization, while `checkpoint-backward-euler` demonstrates an
+application-specific adapter for an implicit solver.
 
 ## Building
 
@@ -29,12 +29,12 @@ make
 ```
 
 With CMake, build the targets `checkpoint-heterogeneous-state`,
-`checkpoint-mesh-state`, `checkpoint-ode-state`, and
+`checkpoint-mesh-state`, `checkpoint-forward-euler`, and
 `checkpoint-backward-euler`.
 
 ## Forward Euler ODE state
 
-`checkpoint-ode-state` integrates `du/dt = 0.7*u - u^3` with a fixed-step
+`checkpoint-forward-euler` integrates `du/dt = 0.7*u - u^3` with a fixed-step
 Forward Euler solver. Its complete state contains the solution vector, logical
 step, physical time, step size, and solver restart bytes. It retains only the
 initial persistent checkpoint, clears the moving window, and replays the full
@@ -42,8 +42,8 @@ trajectory. The replayed terminal value must match an ordinary integration bit
 for bit.
 
 ```sh
-./checkpoint-ode-state
-./checkpoint-ode-state -s 40
+./checkpoint-forward-euler
+./checkpoint-forward-euler -s 40
 ```
 
 ## Backward Euler ODE state

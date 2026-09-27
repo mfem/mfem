@@ -9,12 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//                    MFEM Checkpointing Miniapp: ODE State
+//                  MFEM Checkpointing Miniapp: Forward Euler
 //
-// Compile with: make checkpoint-ode-state
+// Compile with: make checkpoint-forward-euler
 //
-// Sample runs:  checkpoint-ode-state
-//               checkpoint-ode-state -s 40
+// Sample runs:  checkpoint-forward-euler
+//               checkpoint-forward-euler -s 40
 //
 // Description: This example demonstrates exact checkpoint/replay for an
 //              ODESolver-based integration. It advances the scalar equation

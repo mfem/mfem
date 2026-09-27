@@ -20,7 +20,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = checkpoint-heterogeneous-state checkpoint-mesh-state \
-   checkpoint-ode-state checkpoint-backward-euler
+   checkpoint-forward-euler checkpoint-backward-euler
 MINIAPPS = $(SEQ_MINIAPPS)
 
 .SUFFIXES:
@@ -38,7 +38,7 @@ checkpoint-mesh-state: $(SRC)mesh-state.cpp $(SRC)checkpoint_demo.hpp \
    $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-checkpoint-ode-state: $(SRC)ode-state.cpp $(SRC)forward_euler.hpp \
+checkpoint-forward-euler: $(SRC)forward-euler.cpp $(SRC)forward_euler.hpp \
    $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
@@ -53,7 +53,7 @@ checkpoint-heterogeneous-state-test-seq: checkpoint-heterogeneous-state
 	@$(call mfem-test,$<,,Checkpointing miniapp,-n 8 -c 3 -w 2,explicit-options)
 checkpoint-mesh-state-test-seq: checkpoint-mesh-state
 	@$(call mfem-test,$<,,Checkpointing miniapp,-r 3 -c 2 -no-pv,explicit-options)
-checkpoint-ode-state-test-seq: checkpoint-ode-state
+checkpoint-forward-euler-test-seq: checkpoint-forward-euler
 	@$(call mfem-test,$<,,Checkpointing miniapp,,explicit-options)
 checkpoint-backward-euler-test-seq: checkpoint-backward-euler
 	@$(call mfem-test,$<,,Checkpointing miniapp,-s 8 -r 3,explicit-options)
