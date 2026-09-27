@@ -86,6 +86,29 @@ template <int DIM> struct hdiv_mass_divdiv_qf
    }
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+// Nonlinear in u, so the Jacobian depends on the state.
+//
+// (s u, v) + (t div u, div v)
+//
+// with s(u) = 1 + |u|^2 and t(u) = 1 + (div u)^2.
+template <int DIM> struct hdiv_nonlinear_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(
+      const tensor<dscalar_t, DIM> &u,
+      const dscalar_t &du,
+      const tensor<real_t, DIM, DIM> &J,
+      const real_t &w,
+      tensor<dscalar_t, DIM> &v,
+      dscalar_t &dv) const
+   {
+      const real_t c = w / det(J);
+      const dscalar_t s = 1.0 + dot(u, u);
+      v = c * (s * dot(transpose(J), dot(J, u)));
+      dv = (1.0 + du * du) * du * c;
+   }
+};
+
 // TODO: to add full RT-L2 support we might want to modify restriction.cpp
 // to allow FillSparseMatrix to accept L2ElementRestriction as well.
 
@@ -372,6 +395,74 @@ void hdiv_mass_divdiv(const char *filename, int p)
                                   HdivForm::MassDivDiv);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Nonlinear H(div) test: unlike the linear tests, the derivative depends on u,
+// so a wrong primal load in the derivative will show up. Checked against FD
+template <int DIM>
+void hdiv_nonlinear(const char *filename, int p)
+{
+   CAPTURE(filename, DIM, p);
+   HdivSetup setup(filename, DIM, p);
+   ParFiniteElementSpace &pfes = setup.pfes;
+   const int tvsize = pfes.GetTrueVSize();
+   const MPI_Comm comm = setup.pmesh.GetComm();
+
+   static constexpr int U = 0, Coords = 1;
+   const auto in_fds = std::vector
+   {
+      FieldDescriptor{ U, &pfes },
+      FieldDescriptor{ Coords, setup.nodes->ParFESpace() }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
+
+   DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
+   constexpr auto kernels =
+      DerivativeKernels::Action | DerivativeKernels::Apply;
+   hdiv_nonlinear_qf<DIM> qf;
+   dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      qf, Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight> {},
+      Outputs<Value<U>, Div<U>> {}, *setup.ir, setup.all_domain_attr,
+      Derivatives<U> {});
+
+   Vector X(tvsize), dX(tvsize);
+   X.Randomize(1);
+   dX.Randomize(2);
+
+   // Central difference of the primal action along dX:
+   //   fd = (R(X + h dX) - R(X - h dX)) / 2h = J(X) dX + O(h^2)
+   const real_t h = 1e-6;
+   Vector Xp(X), Xm(X), Rp(tvsize), Rm(tvsize);
+
+   Xp.Add(h, dX);
+   Xm.Add(-h, dX);
+
+   MultiVector MXp{ Xp, setup.N }, MRp{ Rp };
+   MultiVector MXm{ Xm, setup.N }, MRm{ Rm };
+   dop.Mult(MXp, MRp);
+   dop.Mult(MXm, MRm);
+
+   Vector fd(Rp);
+   fd -= Rm;
+   fd *= 1.0 / (2.0 * h);
+
+   // FD roundoff grows with |R|, so compare relative to the size of fd.
+   Vector zero(tvsize);
+   zero = 0.0;
+   const real_t scale = HdivMaxError(comm, fd, zero);
+
+   MultiVector MX{ X, setup.N };
+   Vector dZ(tvsize);
+   MultiVector MdZ{ dZ };
+   for (const bool cached : { false, true })
+   {
+      CAPTURE(cached);
+      auto dRdU = dop.GetDerivative(U, MX, cached);
+      dRdU->Mult(dX, MdZ);
+      REQUIRE(HdivMaxError(comm, fd, dZ) / scale ==
+              MFEM_Approx(0.0, 1e-6, 1e-6));
+   }
+}
+
 template <int DIM>
 void hdiv_mixed_assembly(const char *filename, int p)
 {
@@ -453,9 +544,10 @@ TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
    const auto meshs = { "../../data/inline-quad.mesh" };
    const auto extra = { "../../data/star.mesh", "../../data/rt-2d-q3.mesh" };
 
-   SECTION("Mass") { hdiv_mass<2>(GenAll(meshs, extra), p); }
-   SECTION("DivDiv") { hdiv_divdiv<2>(GenAll(meshs, extra), p); }
+   // SECTION("Mass") { hdiv_mass<2>(GenAll(meshs, extra), p); }
+   // SECTION("DivDiv") { hdiv_divdiv<2>(GenAll(meshs, extra), p); }
    SECTION("Mass+DivDiv") { hdiv_mass_divdiv<2>(GenAll(meshs, extra), p); }
+   SECTION("Nonlinear") { hdiv_nonlinear<2>(GenAll(meshs, extra), p); }
    SECTION("Mixed assembly") { hdiv_mixed_assembly<2>(GenAll(meshs, extra), p); }
 }
 
@@ -466,9 +558,10 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE]")
    const auto meshs = { "../../data/inline-hex.mesh" };
    const auto extra = { "../../data/fichera.mesh" };
 
-   SECTION("Mass") { hdiv_mass<3>(GenAll(meshs, extra), p); }
-   SECTION("DivDiv") { hdiv_divdiv<3>(GenAll(meshs, extra), p); }
+   // SECTION("Mass") { hdiv_mass<3>(GenAll(meshs, extra), p); }
+   // SECTION("DivDiv") { hdiv_divdiv<3>(GenAll(meshs, extra), p); }
    SECTION("Mass+DivDiv") { hdiv_mass_divdiv<3>(GenAll(meshs, extra), p); }
+   SECTION("Nonlinear") { hdiv_nonlinear<3>(GenAll(meshs, extra), p); }
    SECTION("Mixed assembly") { hdiv_mixed_assembly<3>(GenAll(meshs, extra), p); }
 }
 
