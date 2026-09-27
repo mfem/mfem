@@ -570,7 +570,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          auto qf = mass_diffusion_local_qf{};
          constexpr auto kernels =
             DerivativeKernels::AssembleMatrix |
-            DerivativeKernels::AssembleDiagonal;
+            DerivativeKernels::AssembleDiagonal |
+            DerivativeKernels::ApplyTranspose;
          dop.AddDomainIntegrator<LocalQFBackend, kernels>(
             qf,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
@@ -610,6 +611,29 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             MPI_Allreduce(&dnorm_l, &dnorm_g, 1, MPI_DOUBLE, MPI_MAX,
                           pmesh.GetComm());
             REQUIRE(dnorm_g == MFEM_Approx(0.0));
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+
+         SECTION("Multiple Outputs MultTranspose")
+         {
+            // Both outputs live on V, so the cotangent is a single V block
+            // that each of them reads.
+            Vector W(fes.GetTrueVSize()), R(fes.GetTrueVSize());
+            W.Randomize(1);
+            MultiVector MW{W}, MR{R};
+            dRdU->MultTranspose(MW, MR);
+
+            Vector w_l(fes.GetVSize()), r_l(fes.GetVSize());
+            Vector R_ref(fes.GetTrueVSize());
+            fes.GetProlongationMatrix()->Mult(W, w_l);
+            blf_fa.SpMat().MultTranspose(w_l, r_l);
+            fes.GetProlongationMatrix()->MultTranspose(r_l, R_ref);
+
+            R -= R_ref;
+            real_t tnorm_l = R.Normlinf(), tnorm_g = tnorm_l;
+            MPI_Allreduce(&tnorm_l, &tnorm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(tnorm_g == MFEM_Approx(0.0));
             MPI_Barrier(MPI_COMM_WORLD);
          }
       }

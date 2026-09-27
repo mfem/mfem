@@ -212,13 +212,19 @@ public:
 
       // Restrict output cotangent from L-vectors into element layout
       // (dir_out_e).
-      int l_offset = 0;
       int e_offset = 0;
       for_constexpr<n_outputs>([&](auto o)
       {
          const size_t outfd = output_idx[o];
          const auto &fd = ctx.outfds[outfd];
          const int l_size = GetVSize(fd);
+         // direction_l is concatenated per output field, and several outputs
+         // may share a field (e.g. Value<U> and Gradient<U>).
+         int l_offset = 0;
+         for (size_t f = 0; f < outfd; f++)
+         {
+            l_offset += GetVSize(ctx.outfds[f]);
+         }
          Vector dir_o_l(*const_cast<Vector *>(direction_l), l_offset, l_size);
          dir_o_l.UseDevice(true);
          const int elem_sz = out_elem_dof_size[o];
@@ -226,7 +232,6 @@ public:
          dir_o_e.UseDevice(true);
          restriction(fd, out_rcaches[o], dir_o_l, dir_o_e,
                      ElementDofOrdering::LEXICOGRAPHIC);
-         l_offset += l_size;
          e_offset += elem_sz * ne;
       });
 
