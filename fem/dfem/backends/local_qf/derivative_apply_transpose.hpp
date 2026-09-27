@@ -298,10 +298,21 @@ public:
          constexpr size_t o = oc.value;
          const int d = out_d1d[o], q = out_q1d[o], v = out_vdim[o];
          using FOP = tuple_element_t<o, outputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                       is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
          {
-            out_XE_dir[o] = Reshape(d_dir + e_offset, d, d, B2D ? 1 : d, v, ne);
-            e_offset += k_dim(d) * v * ne;
+            if (out_dtq[o].IsVectorFE())
+            {
+               const int nd = out_dtq[o].ndof;
+               out_XE_dir[o] = Reshape(d_dir + e_offset, nd, 1, 1, 1, ne);
+               e_offset += nd * ne;
+            }
+            else
+            {
+               out_XE_dir[o] =
+                  Reshape(d_dir + e_offset, d, d, B2D ? 1 : d, v, ne);
+               e_offset += k_dim(d) * v * ne;
+            }
          }
          else if constexpr (is_identity_fop_v<FOP>)
          {
@@ -317,10 +328,17 @@ public:
       // --------------------------------------------------
       // DERIVATIVE TRIAL FIELD: ye_XE (accumulates Jᵀ w)
       // --------------------------------------------------
+      const DofToQuadMap &deriv_dtq = in_dtq[deriv_input_idx_ct];
       const int d_in = in_d1d[deriv_input_idx_ct];
       const int v_in = in_vdim[deriv_input_idx_ct];
-      auto ye_XE = Reshape(
-                      ye[deriv_infd_idx]->ReadWrite(), d_in, d_in, B2D ? 1 : d_in, v_in, ne);
+      const int ye_elem_sz =
+         deriv_dtq.IsVectorFE() ? deriv_dtq.ndof : k_dim(d_in) * v_in;
+      MFEM_VERIFY(ye[deriv_infd_idx]->Size() == ye_elem_sz * ne,
+                  "Size mismatch");
+      real_t *d_ye = ye[deriv_infd_idx]->ReadWrite();
+      auto ye_XE = deriv_dtq.IsVectorFE() ?
+                   Reshape(d_ye, deriv_dtq.ndof, 1, 1, 1, ne) :
+                   Reshape(d_ye, d_in, d_in, B2D ? 1 : d_in, v_in, ne);
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
                              qp_cache.Read(), nq, residual_size_on_qp, ne);
@@ -355,6 +373,15 @@ public:
             if constexpr (is_value_fop_v<FOP>)
             {
                backend_t::LoadValue(smem, e, dtq, XE, oarg);
+            }
+            else if constexpr (is_div_fop_v<FOP>)
+            {
+               backend_t::LoadDiv(smem, e, dtq, XE, oarg);
+            }
+            else if constexpr (is_curl_fop_v<FOP>)
+            {
+               static_assert(dfem::always_false<FOP>,
+                             "LocalQF: Curl<> is not implemented yet");
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {
@@ -403,7 +430,8 @@ public:
                      constexpr size_t o = oc.value, ao = n_inputs + o;
                      using OFOP = tuple_element_t<o, outputs_t>;
                      if constexpr (is_value_fop_v<OFOP> ||
-                                   is_gradient_fop_v<OFOP>)
+                                   is_gradient_fop_v<OFOP> ||
+                                   is_div_fop_v<OFOP>)
                      {
                         using OARG =
                            typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
@@ -437,7 +465,8 @@ public:
                               const auto offset_o = out_offsets[o];
                               const auto &cache = cache_tensor;
                               if constexpr (is_value_fop_v<OFOP> ||
-                                            is_gradient_fop_v<OFOP>)
+                                            is_gradient_fop_v<OFOP> ||
+                                            is_div_fop_v<OFOP>)
                               {
                                  const auto &wvec = get<ao>(wvecs);
                                  for (int i = 0; i < tv; i++)
@@ -501,6 +530,15 @@ public:
             if constexpr (is_value_fop_v<FOP>)
             {
                backend_t::WriteValue(smem, e, dtq, YE, sarg);
+            }
+            else if constexpr (is_div_fop_v<FOP>)
+            {
+               backend_t::WriteDiv(smem, e, dtq, YE, sarg);
+            }
+            else if constexpr (is_curl_fop_v<FOP>)
+            {
+               static_assert(dfem::always_false<FOP>,
+                             "LocalQF: Curl<> is not implemented yet");
             }
             else if constexpr (is_gradient_fop_v<FOP>)
             {

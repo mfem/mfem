@@ -255,8 +255,9 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
    SECTION("Derivative action, cached")
    {
       DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
-      constexpr auto kernels =
-         DerivativeKernels::Action | DerivativeKernels::Apply;
+      constexpr auto kernels = DerivativeKernels::Action |
+                               DerivativeKernels::Apply |
+                               DerivativeKernels::ApplyTranspose;
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
          Derivatives<U> {});
@@ -270,12 +271,17 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
       pfes.GetProlongationMatrix()->MultTranspose(dy, dY);
       REQUIRE(dY.Normlinf() > 1e-8);
 
-      MultiVector MX{ X, setup.N }, MdZ{ dZ };
+      MultiVector MX{ X, setup.N }, MdX{ dX }, MdZ{ dZ };
 
       // Both forms are linear in U, so the derivative action along dX is the
       // reference operator applied to dX.
       auto dRdU = dop.GetDerivative(U, MX, true);
       dRdU->Mult(dX, MdZ);
+      REQUIRE(HdivMaxError(comm, dY, dZ) == MFEM_Approx(0.0, 1e-10, 1e-10));
+
+      // The forms are also symmetric, so the transpose gives the same result.
+      dZ = 0.0;
+      dRdU->MultTranspose(MdX, MdZ);
       REQUIRE(HdivMaxError(comm, dY, dZ) == MFEM_Approx(0.0, 1e-10, 1e-10));
    }
 
@@ -390,7 +396,8 @@ void hdiv_mixed_assembly(const char *filename, int p)
          std::vector{FieldDescriptor{inputs.GetFieldId(), &trial_fes}},
          std::vector{FieldDescriptor{outputs.GetFieldId(), &test_fes}},
          setup.pmesh);
-      constexpr auto kernels = DerivativeKernels::AssembleMatrix;
+      constexpr auto kernels =
+         DerivativeKernels::AssembleMatrix | DerivativeKernels::ApplyTranspose;
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          qf, tuple{inputs, Weight{}}, tuple{outputs}, *setup.ir,
          setup.all_domain_attr, Derivatives<inputs.GetFieldId()> {});
@@ -408,6 +415,19 @@ void hdiv_mixed_assembly(const char *filename, int p)
       TestSameMatrices(*A, reference.SpMat());
       TestSameMatrices(reference.SpMat(), *A);
       delete A;
+
+      // Transposed action, from the test space back to the trial space.
+      std::unique_ptr<HypreParMatrix> R(reference.ParallelAssemble());
+      Vector W(test_fes.GetTrueVSize()), Z(trial_fes.GetTrueVSize()),
+             RtW(trial_fes.GetTrueVSize());
+      W.Randomize(4);
+      R->MultTranspose(W, RtW);
+      REQUIRE(RtW.Normlinf() > 1e-8);
+
+      MultiVector MW{W}, MZ{Z};
+      derivative->MultTranspose(MW, MZ);
+      REQUIRE(HdivMaxError(setup.pmesh.GetComm(), RtW, Z) ==
+              MFEM_Approx(0.0, 1e-10, 1e-10));
    };
 
    SECTION("RT trial, H1 test")
