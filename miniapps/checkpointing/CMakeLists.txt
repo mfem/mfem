@@ -21,7 +21,6 @@ add_mfem_miniapp(checkpoint-mesh-state
 
 add_mfem_miniapp(checkpoint-forward-euler
   MAIN forward-euler.cpp
-  forward_euler.hpp
   LIBRARIES mfem)
 
 add_mfem_miniapp(checkpoint-backward-euler

@@ -14,10 +14,10 @@ restore newest earlier checkpoint + replay transitions = terminal state
 ```
 
 The directory also contains two ODE-focused miniapps. `checkpoint-forward-euler`
-uses the library's `ODEVectorCheckpointAdapter` through the thin
-`ForwardEulerCheckpointAdapter` in `forward_euler.hpp`, which only adds solver
-reinitialization, while `checkpoint-backward-euler` demonstrates an
-application-specific adapter for an implicit solver.
+uses the library's `ODEVectorCheckpointAdapter` through a thin
+`ForwardEulerCheckpointAdapter` that only adds solver reinitialization, while
+`checkpoint-backward-euler` demonstrates an application-specific adapter for an
+implicit solver.
 
 ## Building
 

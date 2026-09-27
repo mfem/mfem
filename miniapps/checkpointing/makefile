@@ -38,8 +38,8 @@ checkpoint-mesh-state: $(SRC)mesh-state.cpp $(SRC)checkpoint_demo.hpp \
    $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-checkpoint-forward-euler: $(SRC)forward-euler.cpp $(SRC)forward_euler.hpp \
-   $(MFEM_LIB_FILE) $(CONFIG_MK)
+checkpoint-forward-euler: $(SRC)forward-euler.cpp $(MFEM_LIB_FILE) \
+   $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 checkpoint-backward-euler: $(SRC)backward-euler.cpp \

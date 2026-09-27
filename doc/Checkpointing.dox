@@ -163,10 +163,10 @@ The adapter writes no solver restart bytes. Restore requires positive `dt`,
 finite physical time, and an empty solver restart payload; violations raise
 InvalidCheckpointState before the application is modified. Restore resets the
 Vector, TimePoint, and `dt`, then calls the protected OnRestored() hook so that
-subclasses can reinitialize solver-side state. The miniapp-defined
-ForwardEulerCheckpointAdapter in `miniapps/checkpointing/forward_euler.hpp`
-overrides that hook to set the operator time and reinitialize the solver;
-Forward Euler keeps no stage history, so nothing else is needed.
+subclasses can reinitialize solver-side state. The ForwardEulerCheckpointAdapter
+defined in `miniapps/checkpointing/forward-euler.cpp` overrides that hook to set
+the operator time and reinitialize the solver; Forward Euler keeps no stage
+history, so nothing else is needed.
 ODEStatePropagator advances with the normal ODESolver::Step() implementation.
 ODECheckpointPropagator remains a compatibility name for ODEStatePropagator.
 
