@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -350,7 +350,7 @@ public:
    void ApplyDofSigns(real_t *h_data) const;
 
    /** @brief Return -1 if the given (vector) DOF @a i has a sign opposite of
-       the DOF in the respecive serial FE space. Otherwise, return 1. */
+       the DOF in the respective serial FE space. Otherwise, return 1. */
    int GetDofSign(int i) const
    { return !HaveDofSigns() ? 1 : ldof_sign[VDofToDof(i)]; }
 

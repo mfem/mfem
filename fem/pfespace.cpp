@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -4892,7 +4892,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
 
    // key: other rank
-   // value: send or recieve buffer
+   // value: send or receive buffer
    std::map<int, std::vector<HYPRE_BigInt>> to_send;
    std::map<int, std::vector<HYPRE_BigInt>> to_recv;
    // key: index into dtrans.embeddings

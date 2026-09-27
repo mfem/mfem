@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
                   "SuperLU Iterative Refinement:  0-NOREFINE, 1-Single, "
                   "2-Double, 3-Extra");
    args.AddOption(&slu_npdep, "-npdep", "--npdepth",
-                  "Depth of 3D parition for SuperLU (>= 7.2.0)");
+                  "Depth of 3D partition for SuperLU (>= 7.2.0)");
 
    args.Parse();
    if (!args.Good())

@@ -131,10 +131,10 @@ namespace mfem {
  *   demonstrating the use of MFEM's \link amgxsolver.hpp AmgX integration\endlink.
  *
  * <H4>Caliper Examples</H4>
- * - Variants of Example
+ * - Variants of Examples
  *   <a class="el" href="examples_2caliper_2ex1_8cpp_source.html">1</a> and
  *   <a class="el" href="examples_2caliper_2ex1p_8cpp_source.html">1p</a>,
- *   demonstrating the use of MFEM's \link annotation.hpp Ginkgo integration\endlink.
+ *   demonstrating the use of MFEM's \link annotation.hpp Caliper integration\endlink.
  *
  * <H4>Ginkgo Examples</H4>
  * - Variants of Example
@@ -198,13 +198,13 @@ namespace mfem {
  *  <a class="el" href="nurbs__ex10p_8cpp_source.html">10p</a>,
  *  <a class="el" href="nurbs__ex11p_8cpp_source.html">11p</a>, and
  *  <a class="el" href="nurbs__ex24_8cpp_source.html">24</a>,
- *   demonstrating howto perform NURBS-based Isogeometric Analysis.
+ *   demonstrating how to perform NURBS-based Isogeometric Analysis.
  * - Variant of Example <a class="el" href="nurbs__patch__ex1_8cpp_source.html">1</a>: demonstrates the use of patch integration
  * - <a class="el" href="nurbs__solenoidal_8cpp_source.html">NURBS Divergence-free</a>: solve a solenoidal vector projection with NURBS-based H(div) elements
  * - <a class="el" href="nurbs__curveint_8cpp_source.html">NURBS Interpolation</a>: NURBS interpolation of given geometry
  * - <a class="el" href="nurbs__naca__cmesh_8cpp_source.html">NURBS NACA Mesher</a>: generate NURBS based mesh around a NACA foil
  * - <a class="el" href="nurbs__printfunc_8cpp_source.html">NURBS Printer</a>: print the NURBS-basis
- * - <a class="el" href="nurbs__mesh_info_8cpp_source.html">NURBS Mesh info</a>: print the info of a NURBS mesh
+ * - <a class="el" href="nurbs__mesh__info_8cpp_source.html">NURBS Mesh info</a>: print the info of a NURBS mesh
  * - <a class="el" href="nurbs__surface_8cpp_source.html">NURBS Surface</a>: interpolate a 3D Surface in a NURBS Patch
  *
  * <H3>Miniapps</H3>
@@ -213,7 +213,9 @@ namespace mfem {
  * - <a class="el" href="maxwell_8cpp_source.html">Maxwell</a>: simple transient full-wave electromagnetics simulation code
  * - <a class="el" href="joule_8cpp_source.html">Joule</a>: transient magnetics and Joule heating miniapp
  * - <a class="el" href="lorentz_8cpp_source.html">Lorentz</a>: simple particle tracking code based on the Lorentz force
+ * - <a class="el" href="electrostatic-pic_8cpp_source.html">Electrostatic PIC</a>: Particle-In-Cell simulation of charged particles in 2D/3D
  * - <a class="el" href="classmfem_1_1navier_1_1NavierSolver.html">Navier</a>: solve the transient incompressible Navier-Stokes equations
+ * - <a class="el" href="navier__particles_8cpp_source.html">Navier Particles</a>: transient Navier-Stokes flow with tracer particles
  * - <a class="el" href="mobius-strip_8cpp_source.html">Mobius Strip</a>: generate various Mobius strip-like meshes
  * - <a class="el" href="klein-bottle_8cpp_source.html">Klein Bottle</a>: generate three types of Klein bottle surfaces
  * - <a class="el" href="toroid_8cpp_source.html">Toroid</a>: generate simple toroidal meshes
@@ -230,10 +232,12 @@ namespace mfem {
  * - <a class="el" href="get-values_8cpp_source.html">Get Values</a>: extract field values via DataCollection classes
  * - <a class="el" href="load-dc_8cpp_source.html">Load DC</a>: visualize fields saved via DataCollection classes
  * - <a class="el" href="convert-dc_8cpp_source.html">Convert DC</a>: convert between different DataCollection formats
+ * - <a class="el" href="compare-dc_8cpp_source.html">Compare DC</a>: compare fields saved via DataCollection classes
  * - <a class="el" href="lor-transfer_8cpp_source.html">LOR Transfer</a>: map functions between high-order and low-order refined spaces
  * - <a class="el" href="findpts_8cpp_source.html">Find Points</a>: evaluate grid function in physical space, <a class="el" href="findpts_8cpp_source.html">serial</a> and <a class="el" href="pfindpts_8cpp_source.html">parallel</a> versions
+ * - <a class="el" href="particles__redist_8cpp_source.html">Particles Redistribute</a>: redistribute particle data between MPI ranks
  * - <a class="el" href="field-diff_8cpp_source.html">Field Diff</a>: compare grid functions on different meshes
- * - <a class="el" href="field-interp_8cpp_source.html">Field Interp</a>: transfer a grid functions between meshes
+ * - <a class="el" href="field-interp_8cpp_source.html">Field Interp</a>: transfer grid functions between meshes
  * - <a class="el" href="distance_8cpp_source.html">Distance</a>: finite element distance function solver
  * - <a class="el" href="diffusion_8cpp_source.html">Shifted Diffusion</a>: shifted boundary diffusion solver
  * - <a class="el" href="extrapolate_8cpp_source.html">Extrapolation</a>: PDE-based extrapolation of finite element functions
