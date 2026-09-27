@@ -395,7 +395,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
          auto derivatives = Derivatives<U> {};
          auto mass_diffusion_qfunc = mass_diffusion_global_qf{};
-         constexpr auto kernels = DerivativeKernels::Action;
+         constexpr auto kernels =
+            DerivativeKernels::Action | DerivativeKernels::ApplyTranspose;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             mass_diffusion_qfunc,
             Inputs<Value<U>, Gradient<U>, Gradient<COORDINATES>, Identity<S>, Weight, Value<L>> {},
@@ -426,6 +427,27 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
          norm_l = Y0.Normlinf();
          norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+
+         // Transpose. Both V outputs read the V block of the cotangent and the
+         // S block starts after it. out3 = J does not depend on U, so the S
+         // cotangent adds nothing and the result is mass + diffusion on wv.
+         Vector wv(xtvec.Size()), ws(yqdata.Size()), r(xtvec.Size());
+         wv.Randomize(1);
+         ws.Randomize(2);
+         MultiVector W{wv, ws}, R{r};
+         ddop->MultTranspose(W, R);
+
+         Vector wl(fes.GetVSize()), rl(fes.GetVSize()), rref(xtvec.Size());
+         fes.GetProlongationMatrix()->Mult(wv, wl);
+         blf.Mult(wl, rl);
+         fes.GetProlongationMatrix()->MultTranspose(rl, rref);
+
+         r.HostReadWrite();
+         r -= rref;
+         norm_l = r.Normlinf();
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);

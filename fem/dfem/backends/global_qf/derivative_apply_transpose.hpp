@@ -43,6 +43,13 @@ struct DerivativeApplyTranspose
       create_fop_to_fd(this->inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
 
+      // The field of each output, repeated when outputs share a field, so the
+      // restriction below gives one E-vector per output.
+      for (size_t o = 0; o < n_outputs; o++)
+      {
+         out_fds.push_back(ctx.outfds[output_to_outfd[o]]);
+      }
+
       check_consistency(this->inputs, input_to_infd, ctx.infds);
       check_consistency(this->outputs, output_to_outfd, ctx.outfds);
 
@@ -202,6 +209,7 @@ private:
 
    std::array<size_t, n_inputs> input_to_infd;
    std::array<size_t, n_outputs> output_to_outfd;
+   std::vector<FieldDescriptor> out_fds;
 
    std::array<FieldBasis, n_inputs> input_bases;
    std::array<FieldBasis, n_outputs> output_bases;
@@ -230,12 +238,18 @@ private:
    void pull_output_cotangents_to_q(const Vector *direction_l,
                                     BlockVector &dir_q) const
    {
-      int l_offset = 0;
       constexpr_for<0, n_outputs>([&](auto i)
       {
          const size_t outfd = output_to_outfd[i];
          const auto &fd = ctx.outfds[outfd];
          const int l_size = GetVSize(fd);
+         // direction_l is concatenated per output field, and several outputs
+         // may share a field (e.g. Value<U> and Gradient<U>).
+         int l_offset = 0;
+         for (size_t f = 0; f < outfd; f++)
+         {
+            l_offset += GetVSize(ctx.outfds[f]);
+         }
 
          dir_out_l_owned[i] =
             Vector(*const_cast<Vector *>(direction_l), l_offset, l_size);
@@ -244,10 +258,9 @@ private:
 
          dir_out_l[i] = &dir_out_l_owned[i];
          dir_out_e[i] = &dir_out_e_owned[i];
-         l_offset += l_size;
       });
 
-      restriction(ctx.outfds, out_rcache, dir_out_l, dir_out_e);
+      restriction(out_fds, out_rcache, dir_out_l, dir_out_e);
 
       constexpr_for<0, n_outputs>([&](auto i)
       {
