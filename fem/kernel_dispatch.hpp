@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -104,7 +104,7 @@ class KernelDispatchTable<Kernels,
       std::unordered_map<std::tuple<Params...>, Signature, TupleHasher>;
    TableType table;
 
-   /// @brief Call function @a f with arguments @a args (perfect forwaring).
+   /// @brief Call function @a f with arguments @a args (perfect forwarding).
    ///
    /// Only valid when the function @a f is not a member function.
    template <typename F, typename... Args,

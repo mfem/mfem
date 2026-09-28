@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -211,6 +211,7 @@ set(HDRS
   ceed/interface/restriction.hpp
   ceed/interface/util.hpp
   ceed/solvers/algebraic.hpp
+  integ/bilininteg_vectorfemass_kernels.hpp
   ceed/solvers/full-assembly.hpp
   integ/bilininteg_vecdiv_pa.hpp
   ceed/solvers/solvers-atpmg.hpp
@@ -336,7 +337,7 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
-  tmop/assemble/grad2.hpp
+  tmop/assemble/grad3.hpp
   tmop/mult/mult2.hpp
   tmop/mult/mult3.hpp
   tmop/pa.hpp
