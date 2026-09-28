@@ -13,6 +13,8 @@
 #include "unit_tests.hpp"
 #include "mesh_test_utils.hpp"
 
+#include <map>
+
 using namespace mfem;
 
 #ifdef MFEM_USE_MPI
@@ -39,6 +41,58 @@ void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
       REQUIRE(norm_global > tol);
    }
 };
+
+void rotated_face_vector_field(const Vector &x, Vector &value)
+{
+   value.SetSize(3);
+   value[0] = std::sin(2.0*x[0]) + x[1]*x[2];
+   value[1] = std::cos(3.0*x[2]);
+   value[2] = x[0]*x[1];
+}
+
+real_t rotated_face_scalar_field(const Vector &x)
+{
+   return std::sin(2.0*x[0]) + x[1]*x[2] + std::cos(3.0*x[2]);
+}
+
+real_t rotated_face_nd_round_trip_error(ParMesh &mesh, int order)
+{
+   ND_FECollection fec(order, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction u(&fes), v(&fes);
+   VectorFunctionCoefficient coefficient(mesh.SpaceDimension(),
+                                         rotated_face_vector_field);
+   u.ProjectCoefficient(coefficient);
+
+   Vector true_dofs;
+   u.GetTrueDofs(true_dofs);
+   v.SetFromTrueDofs(true_dofs);
+   v -= u;
+
+   real_t local_error = v.Normlinf(), global_error = 0.0;
+   MPI_Allreduce(&local_error, &global_error, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, MPI_COMM_WORLD);
+   return global_error;
+}
+
+real_t rotated_face_h1_round_trip_error(ParMesh &mesh, int order)
+{
+   H1_FECollection fec(order, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction u(&fes), v(&fes);
+   FunctionCoefficient coefficient(rotated_face_scalar_field);
+   u.ProjectCoefficient(coefficient);
+
+   Vector true_dofs;
+   u.GetTrueDofs(true_dofs);
+   v.SetFromTrueDofs(true_dofs);
+   v -= u;
+
+   real_t local_error = v.Normlinf(), global_error = 0.0;
+   MPI_Allreduce(&local_error, &global_error, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, MPI_COMM_WORLD);
+   return global_error;
+}
 
 
 FiniteElementCollection *create_surf_fec(FECType fectype, int p, int dim)
@@ -1137,6 +1191,89 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
    }
 
 
+}
+
+TEST_CASE("ParSubMesh Rotated Shared Face Orientation", "[Parallel],[SubMesh]")
+{
+   if (Mpi::WorldSize() < 2)
+   {
+      SUCCEED("Shared-face orientation requires at least two MPI ranks.");
+      return;
+   }
+
+   Mesh serial_mesh = Mesh::MakeCartesian3D(4, 4, 4,
+                                             Element::TETRAHEDRON);
+   for (int e = 0; e < serial_mesh.GetNE(); e++)
+   {
+      Vector center;
+      serial_mesh.GetElementCenter(e, center);
+      serial_mesh.SetAttribute(e, center[0] < 0.5 ? 2 : 1);
+   }
+   serial_mesh.SetAttributes();
+
+   ParMesh parent_mesh(MPI_COMM_WORLD, serial_mesh);
+   Array<int> domain_attributes(1);
+   domain_attributes[0] = 2;
+   ParSubMesh submesh = ParSubMesh::CreateFromDomain(parent_mesh,
+                                                     domain_attributes);
+
+   // The submesh retains the same local vertex ordering as its parent faces,
+   // so both meshes must report the same orientation for each shared face.
+   std::map<int, int> parent_orientations;
+   for (int group = 1; group < parent_mesh.GetNGroups(); group++)
+   {
+      for (int i = 0; i < parent_mesh.GroupNTriangles(group); i++)
+      {
+         int face, orientation;
+         parent_mesh.GroupTriangle(group, i, face, orientation);
+         parent_orientations[face] = orientation;
+      }
+   }
+
+   int local_counts[8] = {};
+   for (int group = 1; group < submesh.GetNGroups(); group++)
+   {
+      for (int i = 0; i < submesh.GroupNTriangles(group); i++)
+      {
+         int face, orientation;
+         submesh.GroupTriangle(group, i, face, orientation);
+         const int parent_face = submesh.GetParentFaceIDMap()[face];
+         const auto parent_orientation = parent_orientations.find(parent_face);
+         if (parent_orientation == parent_orientations.end())
+         {
+            local_counts[0]++;
+         }
+         else
+         {
+            if (orientation != parent_orientation->second)
+            {
+               local_counts[1]++;
+            }
+            if (parent_orientation->second >= 0 &&
+                parent_orientation->second < 6)
+            {
+               local_counts[2 + parent_orientation->second]++;
+            }
+         }
+      }
+   }
+
+   int global_counts[8] = {};
+   MPI_Allreduce(local_counts, global_counts, 8, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   CHECK(global_counts[0] == 0);
+   CHECK(global_counts[1] == 0);
+   CHECK(global_counts[2 + 2] + global_counts[2 + 4] > 0);
+
+#ifdef MFEM_USE_SINGLE
+   constexpr real_t tolerance = 1e-4;
+#else
+   constexpr real_t tolerance = 1e-12;
+#endif
+   CHECK(rotated_face_nd_round_trip_error(submesh, 1) < tolerance);
+   CHECK(rotated_face_nd_round_trip_error(submesh, 2) < tolerance);
+   CHECK(rotated_face_h1_round_trip_error(submesh, 3) < tolerance);
+   CHECK(rotated_face_h1_round_trip_error(submesh, 4) < tolerance);
 }
 
 
