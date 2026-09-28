@@ -126,7 +126,10 @@ public:
        space, respectively. The flag PHYSICAL_MAGNITUDES requests the
        computation of the physical space magnitudes. In all 3 cases, the result
        is stored in @a q_val and therefore only one of the 3 cases can be
-       requested in a single call.
+       requested in a single call. The flags DERIVATIVES / PHYSICAL_DERIVATIVES
+       request the divergence in reference or physical space, respectively,
+       one scalar per quadrature point, stored in @a q_der; only one of the two
+       can be requested in a single call.
 
        The layout of the input E-vector, @a e_vec, must be consistent with the
        evaluation mode: if tensor-product evaluations are enabled, then
@@ -204,6 +207,9 @@ public:
    using TensorEvalHDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
               const real_t *, real_t *, const int, const int);
+   using TensorEvalHDivDivKernelType =
+      void(*)(const int, const real_t *, const real_t *, const real_t *,
+              const real_t *, real_t *, const int, const int);
    using TensorEvalTransposeKernelType = void(*)(const int, const real_t *,
                                                  const real_t *,
                                                  real_t *, const int, const int, const int);
@@ -229,6 +235,8 @@ public:
 
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
                          (int, QVectorLayout, unsigned, int, int));
+   MFEM_REGISTER_KERNELS(TensorEvalHDivDivKernels, TensorEvalHDivDivKernelType,
+                         (int, bool, int, int));
    MFEM_REGISTER_KERNELS(TensorEvalTransposeKernels, TensorEvalTransposeKernelType,
                          (int, QVectorLayout, int, int, int), (int));
    MFEM_REGISTER_KERNELS(GradTransposeKernels, GradTransposeKernelType,

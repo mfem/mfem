@@ -363,10 +363,6 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::H_DIV,
                "this method can be used only for H(div) spaces");
-   MFEM_VERIFY((eval_flags &
-                ~(VALUES | PHYSICAL_VALUES | PHYSICAL_MAGNITUDES)) == 0,
-               "only VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES"
-               " evaluations are implemented!");
    const int dim = fespace->GetMesh()->Dimension();
    const int sdim = fespace->GetMesh()->SpaceDimension();
    MFEM_VERIFY((dim == 2 || dim == 3) && dim == sdim,
@@ -389,17 +385,26 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
    const DofToQuad &maps_o = tfe->GetDofToQuadOpen(*ir, mode);
    const int nd = maps_c.ndof;
    const int nq = maps_c.nqpt;
+   // Physical values and magnitudes need J, the physical divergence det(J).
+   const bool need_J = eval_flags & (PHYSICAL_VALUES | PHYSICAL_MAGNITUDES);
+   const bool need_detJ = eval_flags & PHYSICAL_DERIVATIVES;
    const GeometricFactors *geom = nullptr;
-   if (eval_flags & (PHYSICAL_VALUES | PHYSICAL_MAGNITUDES))
+   if (need_J || need_detJ)
    {
-      const int jacobians = GeometricFactors::JACOBIANS;
-      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+      const int factors =
+         (need_J ? GeometricFactors::JACOBIANS : 0) |
+         (need_detJ ? GeometricFactors::DETERMINANTS : 0);
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, factors);
    }
    // Check that at most one of VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES
    // is specified:
    MFEM_VERIFY(bool(eval_flags & VALUES) + bool(eval_flags & PHYSICAL_VALUES) +
                bool(eval_flags & PHYSICAL_MAGNITUDES) <= 1,
                "only one of VALUES, PHYSICAL_VALUES, and PHYSICAL_MAGNITUDES"
+               " can be requested at a time!");
+   MFEM_VERIFY(bool(eval_flags & DERIVATIVES) +
+               bool(eval_flags & PHYSICAL_DERIVATIVES) <= 1,
+               "only one of DERIVATIVES and PHYSICAL_DERIVATIVES"
                " can be requested at a time!");
    const unsigned value_eval_mode =
       eval_flags & (VALUES | PHYSICAL_VALUES | PHYSICAL_MAGNITUDES);
@@ -413,10 +418,27 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
          // dispatch params: dim + the template params of EvalHDiv2D/3D:
          dim, q_l, value_eval_mode, nd, nq,
          // runtime params, see the arguments of EvalHDiv2D/3D:
-         ne, maps_o.B.Read(), maps_c.B.Read(), geom ? geom->J.Read() : nullptr,
-         e_vec.Read(), q_val.Write(), nd, nq);
+         ne, maps_o.B.Read(), maps_c.B.Read(),
+         need_J ? geom->J.Read() : nullptr, e_vec.Read(), q_val.Write(),
+         nd, nq);
    }
-   MFEM_CONTRACT_VAR(q_div);
+   if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
+   {
+      // The divergence uses the closed derivative along each component's own
+      // axis and the open basis across it, see EvalHDivDiv2D/3D. Only the
+      // fallback is registered, whose shared memory is sized by DofQuadLimits.
+      MFEM_VERIFY(nd <= DofQuadLimits::HDIV_MAX_D1D &&
+                  nq <= DofQuadLimits::HDIV_MAX_Q1D,
+                  "H(div) divergence: D1D = " << nd << ", Q1D = " << nq
+                  << " exceed the supported sizes");
+      TensorEvalHDivDivKernels::Run(
+         // dispatch params: dim + the template params of EvalHDivDiv2D/3D:
+         dim, need_detJ, nd, nq,
+         // runtime params, see the arguments of EvalHDivDiv2D/3D:
+         ne, maps_o.B.Read(), maps_c.G.Read(),
+         need_detJ ? geom->detJ.Read() : nullptr, e_vec.Read(), q_div.Write(),
+         nd, nq);
+   }
 }
 
 void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,

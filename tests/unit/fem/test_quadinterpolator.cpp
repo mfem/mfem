@@ -550,7 +550,7 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       }
    }
 
-   SECTION("H(div) elements: values, phys. values, phys. magnitudes")
+   SECTION("H(div) elements: values, divergence, and physical quantities")
    {
       // Only quad and hex elements are supported, for now:
       const auto mesh_fname = GENERATE(
@@ -587,6 +587,8 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       QuadratureFunction qf_base_rv(qs, dim), qf_qi_rv(qs, dim); // ref vals
       QuadratureFunction qf_base_pv(qs, dim), qf_qi_pv(qs, dim); // phys vals
       QuadratureFunction qf_base_pm(qs,   1), qf_qi_pm(qs,   1); // phys magn
+      QuadratureFunction qf_base_rd(qs,   1), qf_qi_rd(qs,   1); // ref div
+      QuadratureFunction qf_base_pd(qs,   1), qf_qi_pd(qs,   1); // phys div
 
       const int ne = qs.GetNE();
       Array<int> vdofs;
@@ -594,6 +596,8 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       DenseMatrix vshape;
       DenseMatrix vec_values;
       Vector mag_values;
+      Vector divshape;
+      Vector div_values, pdiv_values;
       Vector col;
       for (int iel = 0; iel < ne; ++iel)
       {
@@ -627,6 +631,26 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
          // physical magnitudes
          qf_base_pm.GetValues(iel, mag_values);
          vec_values.Norm2(mag_values);
+
+         // reference and physical divergence
+         qf_base_rd.GetValues(iel, div_values);
+         qf_base_pd.GetValues(iel, pdiv_values);
+         {
+            const FiniteElement &fe = *fes.GetFE(iel);
+            const int dof = fe.GetDof();
+            fes.GetElementVDofs(iel, vdofs);
+            gf.GetSubVector(vdofs, loc_data);
+            divshape.SetSize(dof);
+            const int nip = ir.GetNPoints();
+            for (int j = 0; j < nip; j++)
+            {
+               const IntegrationPoint &ip = ir.IntPoint(j);
+               T.SetIntPoint(&ip);
+               fe.CalcDivShape(ip, divshape);
+               div_values(j) = divshape * loc_data;
+               pdiv_values(j) = div_values(j) / T.Weight();
+            }
+         }
       }
 
       Vector empty;
@@ -635,6 +659,11 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
                qf_qi_pv, empty, empty);
       qi->Mult(e_vec, QuadratureInterpolator::PHYSICAL_MAGNITUDES,
                qf_qi_pm, empty, empty);
+      qi->Mult(e_vec, QuadratureInterpolator::DERIVATIVES,
+               empty, qf_qi_rd, empty);
+      qi->Mult(e_vec, QuadratureInterpolator::PHYSICAL_VALUES |
+               QuadratureInterpolator::PHYSICAL_DERIVATIVES,
+               qf_qi_pv, qf_qi_pd, empty);
       {
          INFO("evaluation: VALUES");
          const real_t base_norm = qf_base_rv.Normlinf();
@@ -657,6 +686,22 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
          REQUIRE(base_norm > 0_r);
          qf_base_pm -= qf_qi_pm;
          const real_t rel_error_norm = qf_base_pm.Normlinf()/base_norm;
+         REQUIRE(rel_error_norm == MFEM_Approx(0.0));
+      }
+      {
+         INFO("evaluation: DERIVATIVES (reference divergence)");
+         const real_t base_norm = qf_base_rd.Normlinf();
+         REQUIRE(base_norm > 0_r);
+         qf_base_rd -= qf_qi_rd;
+         const real_t rel_error_norm = qf_base_rd.Normlinf()/base_norm;
+         REQUIRE(rel_error_norm == MFEM_Approx(0.0));
+      }
+      {
+         INFO("evaluation: PHYSICAL_DERIVATIVES (physical divergence)");
+         const real_t base_norm = qf_base_pd.Normlinf();
+         REQUIRE(base_norm > 0_r);
+         qf_base_pd -= qf_qi_pd;
+         const real_t rel_error_norm = qf_base_pd.Normlinf()/base_norm;
          REQUIRE(rel_error_norm == MFEM_Approx(0.0));
       }
    }

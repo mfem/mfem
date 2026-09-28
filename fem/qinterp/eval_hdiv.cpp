@@ -27,7 +27,8 @@ void InitTensorEvalHDivKernels()
    constexpr auto PV = QuadratureInterpolator::PHYSICAL_VALUES;
    constexpr auto PM = QuadratureInterpolator::PHYSICAL_MAGNITUDES;
 
-   // Do not instantiate FLAGS = QuadratureInterpolator::VALUES, for now.
+   // For now, do not instantiate FLAGS = QuadratureInterpolator::VALUES, nor
+   // the divergence kernels (TensorEvalHDivDivKernels).
 
    // FLAGS = QuadratureInterpolator::PHYSICAL_VALUES:
 
@@ -116,6 +117,24 @@ QuadratureInterpolator::TensorEvalHDivKernels::Fallback(
       {
          return EvalHDiv3D<QVectorLayout::byNODES,PM>;
       }
+   }
+   MFEM_ABORT("DIM = " << DIM << " is not implemented!");
+}
+
+QuadratureInterpolator::TensorEvalHDivDivKernelType
+QuadratureInterpolator::TensorEvalHDivDivKernels::Fallback(
+   int DIM, bool PHYSICAL, int D1D, int Q1D)
+{
+   using namespace internal::quadrature_interpolator;
+   MFEM_CONTRACT_VAR(D1D);
+   MFEM_CONTRACT_VAR(Q1D);
+   if (DIM == 2)
+   {
+      return PHYSICAL ? EvalHDivDiv2D<true> : EvalHDivDiv2D<false>;
+   }
+   else if (DIM == 3)
+   {
+      return PHYSICAL ? EvalHDivDiv3D<true> : EvalHDivDiv3D<false>;
    }
    MFEM_ABORT("DIM = " << DIM << " is not implemented!");
 }
