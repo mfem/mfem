@@ -342,7 +342,7 @@ int main(int argc, char *argv[])
    }
 
    // Determine final nx, ny, nz and use them to determine the default rhs_n.
-   const int ref_factor = pow(2, h_ref);
+   const int ref_factor = static_cast<int>(pow(2, h_ref));
    nx *= ref_factor;
    ny *= ref_factor;
    nz *= ref_factor;

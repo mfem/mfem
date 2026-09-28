@@ -11,6 +11,9 @@
 
 #include "../bilininteg.hpp"
 #include "bilininteg_vectorfemass_kernels.hpp"
+#include "mma/mma.hpp"
+#include "mma/hcurl.hpp"
+#include "mma/hdiv.hpp"
 
 namespace mfem
 {
@@ -107,6 +110,27 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::DIV, 2, 4, 4, 4>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 2, 5, 5, 5>();
+   // Q = P (2D) RT GL q=p+2 uses D1D=Q1D=p+2 through p=6
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 2, 6, 6, 6>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 2, 7, 7, 7>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 2, 8, 8, 8>();
+
+   // Q = P (3D) RT GL q=p+2 uses D1D=Q1D=p+2
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 3, 3, 3>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 4, 4, 4>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 5, 5, 5>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 6, 6, 6>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 7, 7, 7>();
+   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
+                          FiniteElement::DIV, 3, 8, 8, 8>();
 
    // Q = P + 1 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
@@ -136,6 +160,28 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                         const FiniteElementSpace &test_fes)
 {
+   use_tensors_mma = false;
+   use_simplices_mma = false;
+
+   // Same-space simplex ND/RT mass under ForceMMA
+   if (&trial_fes == &test_fes ||
+       trial_fes.GetTypicalFE()->GetDerivType() ==
+       test_fes.GetTypicalFE()->GetDerivType())
+   {
+      if (UsesSimplexMmaHcurl(trial_fes) &&
+          trial_fes.GetTypicalFE()->GetDerivType() == FiniteElement::CURL)
+      {
+         AssembleSimplexMmaHcurlPA(trial_fes);
+         return;
+      }
+      if (UsesSimplexMmaHdiv(trial_fes) &&
+          trial_fes.GetTypicalFE()->GetDerivType() == FiniteElement::DIV)
+      {
+         AssembleSimplexMmaHdivPA(trial_fes);
+         return;
+      }
+   }
+
    // Assumes tensor-product elements
    Mesh *mesh = trial_fes.GetMesh();
 
@@ -249,10 +295,24 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    {
       MFEM_ABORT("Unknown kernel.");
    }
+
+   if (trial_curl && test_curl && UsesTensorMmaHcurl(trial_fes))
+   {
+      use_tensors_mma = true;
+   }
+   else if (trial_div && test_div && UsesTensorMmaHdiv(trial_fes))
+   {
+      use_tensors_mma = true;
+   }
 }
 
 void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   if (use_simplices_mma)
+   {
+      diag = 0.0;
+      return;
+   }
    if (dim == 3)
    {
       if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype)
@@ -323,6 +383,76 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplices_mma)
+   {
+      auto apply = [&](const Vector &xh, Vector &yh, internal::NdDualCtx dual)
+      {
+         if (trial_fetype == FiniteElement::CURL)
+         {
+            internal::MmaHcurlMassApplySimplex(dim, ne, simplex_nd, nq, dofs1D,
+                                               simplex_sdim, symmetric,
+                                               simplex_B, pa_data, xh, yh,
+                                               dual);
+         }
+         else
+         {
+            internal::MmaHdivMassApplySimplex(dim, ne, simplex_nd, nq, dofs1D,
+                                              simplex_sdim, symmetric,
+                                              simplex_B, pa_data, xh, yh);
+         }
+      };
+      if (trial_fetype == FiniteElement::CURL && simplex_fes &&
+          simplex_fes->GetTypicalFE()->GetDofTransformation() != nullptr)
+      {
+         internal::AddMultSimplexNdDual(*simplex_fes, simplex_nd_fo,
+                                        simplex_xhat, simplex_yinc,
+                                        x, y, apply);
+      }
+      else
+      {
+         apply(x, y, internal::NdDualCtx{});
+      }
+      return;
+   }
+   if (use_tensors_mma)
+   {
+      const bool scalar_coeff = !(DQ || MQ);
+      if (trial_fetype == FiniteElement::CURL)
+      {
+         if (dim == 2)
+         {
+            internal::MmaHcurlMassApplyTensors2D(
+               ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
+               mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y,
+               dofs1D, dofs1Dtest, quad1D);
+         }
+         else
+         {
+            internal::MmaHcurlMassApplyTensors3D(
+               ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
+               mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y,
+               dofs1D, dofs1Dtest, quad1D);
+         }
+      }
+      else
+      {
+         if (dim == 2)
+         {
+            internal::MmaHdivMassApplyTensors2D(
+               ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
+               mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y,
+               dofs1D, dofs1Dtest, quad1D);
+         }
+         else
+         {
+            internal::MmaHdivMassApplyTensors3D(
+               ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
+               mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y,
+               dofs1D, dofs1Dtest, quad1D);
+         }
+      }
+      return;
+   }
    const bool scalar_coeff = !(DQ || MQ);
    ApplyPAKernels::Run(trial_fetype, test_fetype, dim, dofs1D, dofs1Dtest,
                        quad1D, ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
@@ -332,6 +462,8 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(!use_simplices_mma,
+               "AbsMultPA not implemented for simplex MMA PA");
    const bool scalar_coeff = !(DQ || MQ);
 
    Vector abs_pa_data(pa_data);

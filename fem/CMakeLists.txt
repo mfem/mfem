@@ -100,6 +100,8 @@ set(SRCS
   integ/mma/diffusion.cpp
   integ/mma/vecdiffusion.cpp
   integ/mma/domain_lf.cpp
+  integ/mma/hcurl.cpp
+  integ/mma/hdiv.cpp
   integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp
@@ -226,6 +228,7 @@ set(HDRS
   integ/bilininteg_mass_kernels.hpp
   integ/bilininteg_mass_pa_simplices.hpp
   integ/bilininteg_vectorfemass_kernels.hpp
+  ceed/solvers/full-assembly.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecdiv_pa.hpp
   ceed/solvers/solvers-atpmg.hpp
@@ -284,6 +287,8 @@ set(HDRS
   integ/mma/mass.hpp
   integ/mma/diffusion.hpp
   integ/mma/domain_lf.hpp
+  integ/mma/hcurl.hpp
+  integ/mma/hdiv.hpp
   integ/mma/mode/batch.hpp
   integ/mma/mode/blas.hpp
   integ/mma/mode/common.hpp

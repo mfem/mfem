@@ -157,8 +157,9 @@ bool LinearForm::SupportsDevice() const
    // Tensor-product FE spaces use the existing device kernels
    if (UsesTensorBasis(*fes)) { return true; }
 
-   // Simplices with no boundary linear form can use MMA
-   if (UsesSimplexMMA(*fes) && boundary_integs.Size() == 0)
+   // Simplices with no boundary linear form can use MMA (H1, H(curl), H(div))
+   if ((UsesSimplexMMA(*fes) || UsesSimplexMmaHcurl(*fes) ||
+        UsesSimplexMmaHdiv(*fes)) && boundary_integs.Size() == 0)
    {
       return true;
    }

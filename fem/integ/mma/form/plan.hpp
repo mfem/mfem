@@ -198,6 +198,8 @@ inline const char *FieldKindName(field_kind k)
    {
       case field_kind::Eval: return "Eval";
       case field_kind::Grad: return "Grad";
+      case field_kind::Curl: return "Curl";
+      case field_kind::Div: return "Div";
       case field_kind::None: return "None";
    }
    return "?";

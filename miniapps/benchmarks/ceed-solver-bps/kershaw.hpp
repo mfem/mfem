@@ -59,7 +59,7 @@ void kershaw(const real_t epsy, const real_t epsz, const int smoothness,
 {
    X = x;
 
-   int layer = x*6.0;
+   int layer = static_cast<int>(x*6.0);
    real_t lambda = (x-layer/6.0)*6;
 
    // The x-range is split in 6 layers going from left-to-left, left-to-right,

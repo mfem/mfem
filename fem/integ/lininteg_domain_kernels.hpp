@@ -338,7 +338,7 @@ void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
       MFEM_SHARED real_t sBot[Q*D];
       MFEM_SHARED real_t sBct[Q*D];
       MFEM_SHARED real_t sQQ[vdim*Q*Q];
-      MFEM_SHARED real_t sQD[vdim*Q*D];
+      MFEM_SHARED real_t sQD[vdim*D*Q];
 
       // Bo and Bc into shared memory
       const DeviceMatrix Bot(sBot, d-1, q);
@@ -347,7 +347,7 @@ void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
       kernels::internal::LoadB<D,Q>(d, q, BC, sBct);
 
       const DeviceCube QQ(sQQ, q, q, vdim);
-      const DeviceCube QD(sQD, q, d, vdim);
+      const DeviceCube QD(sQD, d, q, vdim);
 
       MFEM_FOREACH_THREAD(vd,z,vdim)
       {
@@ -448,8 +448,13 @@ void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
       const DeviceMatrix Bct(sBct, d, q);
       kernels::internal::LoadB<D,Q>(d, q, BC, sBct);
 
-      MFEM_SHARED real_t sm0[vdim*Q*Q*Q];
-      MFEM_SHARED real_t sm1[vdim*Q*Q*Q];
+      // QQQ: q^3; DQQ: d q^2; DDQ: d^2 q  (RT 2p rule can have D1D = Q1D+1)
+      constexpr int nQQQ = Q * Q * Q;
+      constexpr int nDQQ = D * Q * Q;
+      constexpr int nDDQ = D * D * Q;
+      constexpr int nSM1 = (nDDQ > nQQQ) ? nDDQ : nQQQ;
+      MFEM_SHARED real_t sm0[vdim * nDQQ];
+      MFEM_SHARED real_t sm1[vdim * nSM1];
       DeviceTensor<4> QQQ(sm1, q, q, q, vdim);
       DeviceTensor<4> DQQ(sm0, d, q, q, vdim);
       DeviceTensor<4> DDQ(sm1, d, d, q, vdim);
@@ -556,6 +561,113 @@ void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
                }
                MFEM_UNROLL(D)
                for (int dz = 0; dz < nz; ++dz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+template <int T_D1D = 0, int T_Q1D = 0>
+void HcurlDLFAssemble2D(const int ne, const Array<int> &markers,
+                        const Vector &jac, const Array<real_t> &weights,
+                        const Array<real_t> &testBO, const Array<real_t> &testBC,
+                        const Vector &coeff, Vector &y, const int d, const int q)
+{
+   MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Problem size too large.");
+   MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Problem size too large.");
+   MFEM_VERIFY(y.Size() == 2 * (d - 1) * d * ne, "");
+
+   constexpr int vdim = 2;
+   const auto F = coeff.Read();
+   const auto M = markers.Read();
+   const auto BO = Reshape(testBO.Read(), q, d-1);
+   const auto BC = Reshape(testBC.Read(), q, d);
+   const auto J = Reshape(jac.Read(), q, q, vdim, vdim, ne);
+   const auto W = Reshape(weights.Read(), q, q);
+   const bool cst = coeff.Size() == vdim;
+   const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
+   auto Y = y.ReadWrite();
+
+   mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int vdim = 2;
+      if (M[e] == 0) { return; }
+
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
+
+      MFEM_SHARED real_t sBot[Q*D];
+      MFEM_SHARED real_t sBct[Q*D];
+      MFEM_SHARED real_t sQQ[vdim*Q*Q];
+      MFEM_SHARED real_t sQD[vdim*D*Q];
+
+      const DeviceMatrix Bot(sBot, d-1, q);
+      kernels::internal::LoadB<D,Q>(d-1, q, BO, sBot);
+      const DeviceMatrix Bct(sBct, d, q);
+      kernels::internal::LoadB<D,Q>(d, q, BC, sBct);
+
+      const DeviceCube QQ(sQQ, q, q, vdim);
+      const DeviceCube QD(sQD, d, q, vdim);
+
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const real_t cst_val_0 = C(0,0,0,0);
+         const real_t cst_val_1 = C(1,0,0,0);
+         MFEM_FOREACH_THREAD(y,y,q)
+         {
+            MFEM_FOREACH_THREAD(x,x,q)
+            {
+               const real_t J11 = J(x,y,0,0,e);
+               const real_t J21 = J(x,y,1,0,e);
+               const real_t J12 = J(x,y,0,1,e);
+               const real_t J22 = J(x,y,1,1,e);
+               const real_t A11 = J22, A12 = -J12;
+               const real_t A21 = -J21, A22 = J11;
+               const real_t C0 = cst ? cst_val_0 : C(0,x,y,e);
+               const real_t C1 = cst ? cst_val_1 : C(1,x,y,e);
+               const real_t Av = (vd == 0) ? (A11*C0 + A12*C1) : (A21*C0 + A22*C1);
+               QQ(x,y,vd) = W(x,y)*Av;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const int nx = (vd == 0) ? d-1 : d;
+         DeviceMatrix Btx = (vd == 0) ? Bot : Bct;
+         MFEM_FOREACH_THREAD(qy,y,q)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t qd = 0.0;
+               for (int qx = 0; qx < q; ++qx)
+               {
+                  qd += QQ(qx,qy,vd) * Btx(dx,qx);
+               }
+               QD(dx,qy,vd) = qd;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const int nx = (vd == 0) ? d-1 : d;
+         const int ny = (vd == 1) ? d-1 : d;
+         DeviceMatrix Bty = (vd == 1) ? Bot : Bct;
+         DeviceTensor<4> Yxy(Y, nx, ny, vdim, ne);
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t dd = 0.0;
+               for (int qy = 0; qy < q; ++qy)
+               {
+                  dd += QD(dx,qy,vd) * Bty(dy,qy);
+               }
+               Yxy(dx,dy,vd,e) += dd;
             }
          }
       }
@@ -795,6 +907,10 @@ VectorFEDomainLFIntegrator::AssembleKernels::Kernel()
    }
    if constexpr (TestType == FiniteElement::CURL)
    {
+      if constexpr (DIM == 2)
+      {
+         return HcurlDLFAssemble2D<TEST_D1D, Q1D>;
+      }
       if constexpr (DIM == 3)
       {
          return HcurlDLFAssemble3D<TEST_D1D, Q1D>;

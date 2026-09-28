@@ -338,6 +338,19 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
    fn(m, n, k, B1d, A, C, D, e);
 }
 
+/** C(M,N) =[/+=] A(M,K) * B(K,N). Host: blas (+ LAPACK). Device: DMMA/MFMA. */
+template <bool ACCUM>
+MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
+                                      const int N, const real_t *A,
+                                      const real_t *B1d, real_t *C)
+{
+   const auto fn = MMA_BACKEND_PICK(
+                      (&dmma::GemmMbyK<ACCUM>),
+                      (&mfma::GemmMbyK<ACCUM>),
+                      (&blas::GemmMbyK<ACCUM>));
+   fn(M, K, N, A, B1d, C);
+}
+
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void InterpX(const int D1D, const int Q1D,
                                      const real_t *sB,

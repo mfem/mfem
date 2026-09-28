@@ -35,6 +35,13 @@ namespace bmi = benchmark::internal;
 namespace mfem
 {
 
+constexpr bool mfem_use_gpu =
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   true;
+#else
+   false;
+#endif
+
 constexpr std::size_t KB = (1 << 10);
 
 /// Parse a boolean from --benchmark_context=key=value (true/false/1/0/yes/no).

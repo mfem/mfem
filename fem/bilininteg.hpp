@@ -3053,6 +3053,13 @@ protected:
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool use_tensors_mma = false;
+   bool use_simplices_mma = false;
+   Array<real_t> simplex_B; ///< Dense ref curl (or value) basis at Q
+   int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
+   const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
+   Array<int> simplex_nd_fo; ///< ND face orients Fo(f,e); empty if identity
+   mutable Vector simplex_xhat, simplex_yinc;
 
 public:
    CurlCurlIntegrator();
@@ -3086,9 +3093,12 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
+
+   int GetNq() const { return nq; }
 
    const Coefficient *GetCoefficient() const { return Q; }
 
@@ -3211,6 +3221,13 @@ protected:
    int dim, ne, nq, dofs1D, dofs1Dtest, quad1D;
    FiniteElement::DerivType trial_fetype, test_fetype;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool use_tensors_mma = false;
+   bool use_simplices_mma = false;
+   Array<real_t> simplex_B; ///< Dense ref vector basis at Q
+   int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
+   const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
+   Array<int> simplex_nd_fo; ///< ND face orients Fo(f,e); empty if identity
+   mutable Vector simplex_xhat, simplex_yinc;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
@@ -3232,12 +3249,16 @@ public:
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AssemblePA(const FiniteElementSpace &trial_fes,
                    const FiniteElementSpace &test_fes) override;
+   void AssembleSimplexMmaHcurlPA(const FiniteElementSpace &fes);
+   void AssembleSimplexMmaHdivPA(const FiniteElementSpace &fes);
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
+
+   int GetNq() const { return nq; }
 
    const Coefficient *GetCoefficient() const { return Q; }
 
@@ -3356,7 +3377,11 @@ private:
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, ne, nq = 0, dofs1D, quad1D;
+   bool use_tensors_mma = false;
+   bool use_simplices_mma = false;
+   Array<real_t> simplex_B; ///< Dense ref div basis at Q
+   int simplex_nd = 0, simplex_nq = 0, simplex_sdim = 0, simplex_curl_dim = 0;
 
 public:
    DivDivIntegrator() { Q = NULL; }
@@ -3374,10 +3399,13 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
+
+   int GetNq() const { return nq; }
 
    const Coefficient *GetCoefficient() const { return Q; }
 };

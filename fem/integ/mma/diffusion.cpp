@@ -21,32 +21,6 @@ namespace mfem
 namespace internal
 {
 
-namespace
-{
-
-/** Cofactor matrix of J (transpose of adjugate / used by diffusion PA). */
-MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
-                                         const real_t J31, const real_t J12,
-                                         const real_t J22, const real_t J32,
-                                         const real_t J13, const real_t J23,
-                                         const real_t J33,
-                                         real_t &A11, real_t &A12, real_t &A13,
-                                         real_t &A21, real_t &A22, real_t &A23,
-                                         real_t &A31, real_t &A32, real_t &A33)
-{
-   A11 = (J22 * J33) - (J23 * J32);
-   A12 = (J32 * J13) - (J12 * J33);
-   A13 = (J12 * J23) - (J22 * J13);
-   A21 = (J31 * J23) - (J21 * J33);
-   A22 = (J11 * J33) - (J13 * J31);
-   A23 = (J21 * J13) - (J11 * J23);
-   A31 = (J21 * J32) - (J31 * J22);
-   A32 = (J31 * J12) - (J11 * J32);
-   A33 = (J11 * J22) - (J12 * J21);
-}
-
-} // namespace
-
 void PADiffusionSetupSimplexFromNodes(const int dim,
                                       const int coeffDim,
                                       const int NE,
