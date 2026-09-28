@@ -267,9 +267,8 @@ static void FindPointsEdgeLocal3DKernel(const int npt,
    const int p_NEL = nel*D1D;
    MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
-               "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    const int nThreads = D1D*sDIM;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
