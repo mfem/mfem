@@ -25,8 +25,8 @@
 // (-rt 1) on the circular plate, whose axis runs through the mesh.
 //
 // Sample run:  mpirun -np 8 ./ElastTopOpt_3d -r 2 -rf 0.05 -vf 0.4
-// Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m circular_plate_hex_sleeves_embedded_cylinder.msh -vf 0.3 -pv
-// Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m circular_plate_hex_sleeves_embedded_cylinder.msh -no-opt -pv
+// Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m ./data/circular_plate_hex_sleeves_without_enclosure.msh -vf 0.3 -pv
+// Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m ./data/circular_plate_hex_sleeves_without_enclosure.msh -no-opt -pv
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
@@ -75,6 +75,8 @@ struct MeshProblem
     Array<int>            domain_attr;       // designable subdomain(s)
     Array<int>            solid_attr;        // fixed-solid volumes: design rho pinned
                                              // to 1 (E_max stiffness), not optimized
+    Array<int>            adv_solid_attr;    // fixed-void volumes that count as solid
+                                             // (rho_dila = 1) in the advection source
     Array<int>            outer_bdr_attrs;   // free surfaces: rho~ = 0 in the filter
     Array<int>            neumann_bdr_attrs; // filter natural (zero-flux) BC: no
                                              // Dirichlet value imposed there
@@ -478,6 +480,33 @@ int main(int argc, char *argv[])
         {
             passive_ctrl_vals(i) =
                 (*solid_tv)(passive_ctrl_tdofs[i]) >= 0.5 ? 1.0 : 0.0;
+        }
+    }
+
+    // Filter true dofs of every adv_solid_attr element: the advection source is
+    // set to 1 there (void for elasticity, solid for the thickness measure).
+    // Marked on a gridfunction and summed through ParallelAssemble so a dof
+    // owned by a rank without an adv_solid_attr element is still caught.
+    Array<int> adv_solid_tdofs;
+    if (prob.adv_solid_attr.Size() > 0)
+    {
+        ParGridFunction adv_mark(&filter_fes);
+        adv_mark = 0.0;
+        Array<int> edofs;
+        for (int e = 0; e < pmesh.GetNE(); e++)
+        {
+            if (prob.adv_solid_attr.Find(pmesh.GetAttribute(e)) < 0) { continue; }
+            filter_fes.GetElementDofs(e, edofs);
+            for (int k = 0; k < edofs.Size(); k++)
+            {
+                const int d = edofs[k] < 0 ? -1 - edofs[k] : edofs[k];
+                adv_mark(d) = 1.0;
+            }
+        }
+        std::unique_ptr<HypreParVector> adv_tv(adv_mark.ParallelAssemble());
+        for (int t = 0; t < adv_tv->Size(); t++)
+        {
+            if ((*adv_tv)(t) > 0.5) { adv_solid_tdofs.Append(t); }
         }
     }
 
@@ -1009,6 +1038,7 @@ int main(int argc, char *argv[])
         rho_dila_gf.ProjectCoefficient(rho_dila_cf);
         Vector rho_dila_tv(nf);
         rho_dila_gf.GetTrueDofs(rho_dila_tv);
+        rho_dila_tv.SetSubVector(adv_solid_tdofs, real_t(1));   // advection source only
 
         for (int r = 0; r < n_dir; r++)
         {
@@ -1177,6 +1207,7 @@ int main(int argc, char *argv[])
         rho_dila_gf.ProjectCoefficient(rho_dila_cf);
         Vector rho_dila_tv(nf);
         rho_dila_gf.GetTrueDofs(rho_dila_tv);
+        rho_dila_tv.SetSubVector(adv_solid_tdofs, real_t(1));   // advection source only
 
         // raw design lifted to the filter space so every archived field is the
         // same order
@@ -1367,11 +1398,13 @@ int main(int argc, char *argv[])
         rho_dila_gf.ProjectCoefficient(rho_dila_cf);
         Vector rho_dila_tv(nf);
         rho_dila_gf.GetTrueDofs(rho_dila_tv);
+        rho_dila_tv.SetSubVector(adv_solid_tdofs, real_t(1));   // advection source only
 
         ParGridFunction rho_dila_grad_gf(&filter_fes);
         rho_dila_grad_gf.ProjectCoefficient(rho_dila_grad_cf);
         Vector rho_dila_grad_tv(nf);
         rho_dila_grad_gf.GetTrueDofs(rho_dila_grad_tv);
+        rho_dila_grad_tv.SetSubVector(adv_solid_tdofs, real_t(0)); // pinned: no sensitivity
 
         // (2) state solves:  K(ρ~) u = f   (self-adjoint compliance), averaged
         //     over the load cases, together with the adjoint filter rhs
@@ -1756,11 +1789,14 @@ static MeshProblem SetupCartesianBeam(Mesh &mesh)
 // gmsh physical groups (first tag -> MFEM attribute):
 //   volumes  : 1  Plate                 -> design
 //              2  CentralHollowCylinder -> design
-//              3  EmbeddingCylinder     -> fixed void
+//              3  LowerSleeveHoles      -> fixed void
+//              4  UpperSleeveHoles      -> fixed void but solid for advection
+//              5  CentralHoles          -> fixed void
 //              11-22  PerimeterSleeve_1..12 -> fixed solid
 //              31-36  TopSleeve_1..6        -> fixed solid + loaded
-//   surfaces : 1  NonSleeveBoundary               -> filter rho~ = 0
-//              2  EmbeddingCylinderOuterBoundary  -> filter natural BC, ray surface
+//   surfaces : 1  NonSleeveBoundary                -> filter rho~ = 0
+//              2  OuterBoundary                    -> filter natural BC, ray surface
+//              3  HoleOpenings                     -> rho~ = 0
 //              11-22  PerimeterSleeveSurface_1..12 -> u = 0
 //              31-36  TopSleeveSurface_1..6        -> filter rho~ = 1 (default)
 // The mesh is centred on the z-axis, so "radial" == outward from (0,0).
@@ -1775,12 +1811,13 @@ static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file,
     p.domain_attr = Array<int>({ 1, 2 });
     for (int a = 11; a <= 22; a++) { p.solid_attr.Append(a); }   // perimeter sleeves
     for (int a = 31; a <= 36; a++) { p.solid_attr.Append(a); }   // top sleeves
-    // attribute 3 (embedding cylinder): not listed -> fixed void
+    // attributes 3, 4, 5 (holes): not listed -> fixed void
+    p.adv_solid_attr = Array<int>({ 4 });   // upper sleeve holes: solid for advection
 
     // --- filter boundary conditions ------------------------------------
-    p.outer_bdr_attrs   = Array<int>({ 1 });   // rho~ = 0
+    p.outer_bdr_attrs   = Array<int>({ 1, 3 });   // rho~ = 0
     p.neumann_bdr_attrs = Array<int>({ 2 });   // zero-flux (no Dirichlet)
-    p.ray_bdr_attrs     = Array<int>({ 1 });   // advection outflow surface (outer rim)
+    p.ray_bdr_attrs     = Array<int>({ 2 });   // advection outflow surface (outer rim)
     // every other surface -> rho~ = 1
 
     // --- max-thickness rays ------------------------------------------------
@@ -1907,7 +1944,7 @@ MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh, int ray_type)
         return SetupCartesianBeam(mesh);
     }
 
-    if (strstr(mesh_file, "circular_plate_hex_sleeves_embedded_cylinder") != NULL)
+    if (strstr(mesh_file, "circular_plate_hex_sleeves") != NULL)
     {
         return SetupCircularPlate(mesh, mesh_file, ray_type);
     }
