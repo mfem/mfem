@@ -14,8 +14,8 @@
     H(curl) PA MMA — QFns + thin ApplyTensor / ApplySimplex callers.
 */
 
-#include "../../bilininteg.hpp"
 #include "form/form.hpp"
+#include "nddual.hpp"
 
 namespace mfem
 {
@@ -40,7 +40,7 @@ struct HcurlMass
 
 template <int DIM, bool SYM>
 struct qfn_traits<HcurlMass<DIM, SYM>>
-   : VecEvalEvalQFnTraits<DIM, SYM, true, true> {};
+                                       : VecEvalEvalQFnTraits<DIM, SYM, true, true> {};
 
 /** Curl-curl at Q: y = A * curl(u). 2D: scalar A; 3D: 3×3 A. */
 template <int DIM, bool SYM = true>
@@ -170,12 +170,13 @@ inline void MmaCurlCurlApplyTensors3D(
 }
 
 inline void MmaHcurlMassApplySimplex(const int dim, const int NE, const int nd,
-                                    const int nq, const int d1d,
-                                    const int sdim,
-                                    const bool symmetric,
-                                    const Array<real_t> &B,
-                                    const Vector &pa_data,
-                                    const Vector &x, Vector &y)
+                                     const int nq, const int d1d,
+                                     const int sdim,
+                                     const bool symmetric,
+                                     const Array<real_t> &B,
+                                     const Vector &pa_data,
+                                     const Vector &x, Vector &y,
+                                     NdDualCtx dual = {})
 {
    using mma::form::ApplySimplexRegistered;
    using mma::form::HcurlMass;
@@ -186,12 +187,12 @@ inline void MmaHcurlMassApplySimplex(const int dim, const int NE, const int nd,
       if (symmetric)
       {
          ApplySimplexRegistered<HcurlMass<2, true>, 2>(
-            d1d, nq, NE, B, pa_data, x, y);
+            d1d, nq, NE, B, pa_data, x, y, dual);
       }
       else
       {
          ApplySimplexRegistered<HcurlMass<2, false>, 2>(
-            d1d, nq, NE, B, pa_data, x, y);
+            d1d, nq, NE, B, pa_data, x, y, dual);
       }
    }
    else
@@ -199,23 +200,24 @@ inline void MmaHcurlMassApplySimplex(const int dim, const int NE, const int nd,
       if (symmetric)
       {
          ApplySimplexRegistered<HcurlMass<3, true>, 3>(
-            d1d, nq, NE, B, pa_data, x, y);
+            d1d, nq, NE, B, pa_data, x, y, dual);
       }
       else
       {
          ApplySimplexRegistered<HcurlMass<3, false>, 3>(
-            d1d, nq, NE, B, pa_data, x, y);
+            d1d, nq, NE, B, pa_data, x, y, dual);
       }
    }
 }
 
 inline void MmaCurlCurlApplySimplex(const int dim, const int NE, const int nd,
-                                   const int nq, const int d1d,
-                                   const int curl_dim,
-                                   const bool symmetric,
-                                   const Array<real_t> &C,
-                                   const Vector &pa_data,
-                                   const Vector &x, Vector &y)
+                                    const int nq, const int d1d,
+                                    const int curl_dim,
+                                    const bool symmetric,
+                                    const Array<real_t> &C,
+                                    const Vector &pa_data,
+                                    const Vector &x, Vector &y,
+                                    NdDualCtx dual = {})
 {
    using mma::form::ApplySimplexRegistered;
    using mma::form::CurlCurlQFn;
@@ -225,12 +227,12 @@ inline void MmaCurlCurlApplySimplex(const int dim, const int NE, const int nd,
       if (symmetric)
       {
          ApplySimplexRegistered<CurlCurlQFn<2, true>, 2>(
-            d1d, nq, NE, C, pa_data, x, y);
+            d1d, nq, NE, C, pa_data, x, y, dual);
       }
       else
       {
          ApplySimplexRegistered<CurlCurlQFn<2, false>, 2>(
-            d1d, nq, NE, C, pa_data, x, y);
+            d1d, nq, NE, C, pa_data, x, y, dual);
       }
    }
    else
@@ -238,12 +240,12 @@ inline void MmaCurlCurlApplySimplex(const int dim, const int NE, const int nd,
       if (symmetric)
       {
          ApplySimplexRegistered<CurlCurlQFn<3, true>, 3>(
-            d1d, nq, NE, C, pa_data, x, y);
+            d1d, nq, NE, C, pa_data, x, y, dual);
       }
       else
       {
          ApplySimplexRegistered<CurlCurlQFn<3, false>, 3>(
-            d1d, nq, NE, C, pa_data, x, y);
+            d1d, nq, NE, C, pa_data, x, y, dual);
       }
    }
 }

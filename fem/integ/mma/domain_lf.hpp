@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,7 +105,8 @@ VectorFEDomainLFIntegrator::AssembleSimplexMmaKernels::Kernel()
 }
 
 inline VectorFEDomainLFIntegrator::AssembleSimplexMmaKernelType
-VectorFEDomainLFIntegrator::AssembleSimplexMmaKernels::Fallback(int dim, int, int)
+VectorFEDomainLFIntegrator::AssembleSimplexMmaKernels::Fallback(int dim, int,
+                                                                int)
 {
    MFEM_VERIFY(dim == 2 || dim == 3,
                "Simplex MMA VectorFE DomainLF is only implemented for triangles/tets");

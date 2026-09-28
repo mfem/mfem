@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,7 @@
 */
 
 #include "../mode/dispatch.hpp"
+#include "../nddual.hpp"
 #include "plan.hpp"
 
 #include "../../../../general/array.hpp"
@@ -34,6 +35,16 @@
 
 namespace mfem::internal::mma::form
 {
+
+using ::mfem::internal::AddSmemTileToY;
+using ::mfem::internal::ApplyNdDofTransSmem;
+using ::mfem::internal::NdDofTransOp;
+using ::mfem::internal::NdDualCtx;
+using ::mfem::internal::ZeroSmemTile;
+
+// ND tet p=6 is 216 dofs; RT tet p=6 is 280; BP9 tet p=6 nq is 175.
+constexpr int SimplexVecMaxNdof = 320;
+constexpr int SimplexVecMaxNq = 256;
 
 // ---------------------------------------------------------------------------
 // Pointwise Eval Q-phase on smem U(q,b) with scalar PA density D(q,e)
@@ -111,7 +122,8 @@ MFEM_HOST_DEVICE inline void EvalBatchBody(
    const int x_ld, const int u_ld, const int nb,
    const real_t *p, const real_t *d, const real_t *x, real_t *y,
    real_t *XY, real_t *Us,
-   const int tid, const int nthreads)
+   const int tid, const int nthreads,
+   NdDualCtx dual = {})
 {
    const auto D = ConstDeviceMatrix(d, nq, NE);
    const auto X = ConstDeviceMatrix(x, ndof, NE);
@@ -124,12 +136,33 @@ MFEM_HOST_DEVICE inline void EvalBatchBody(
    {
       LoadXToSmem(XY, X, e0, NE, ndof, x_ld, nb, tid, nthreads);
       MFEM_SYNC_THREAD;
+      if (dual.Active())
+      {
+         ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::InvPrimal),
+                             dual, XY, x_ld, ndof, e0, NE, nb, tid, nthreads);
+         MFEM_SYNC_THREAD;
+      }
       // Forward without fused SCALE — QFn owns the pointwise math.
       Gemm<MAP, false>(nq, ndof, nb, A, Xacc, Uacc, D, e0, NE);
       MFEM_SYNC_THREAD;
       ApplyEvalQFnSmem(qfn, Us, D, e0, NE, nq, u_ld, nb, tid, nthreads);
       MFEM_SYNC_THREAD;
-      GemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
+      if (dual.Active())
+      {
+         ZeroSmemTile(XY, x_ld, nb, tid, nthreads);
+         MFEM_SYNC_THREAD;
+         SmemMatAccRt Ys{XY, x_ld};
+         GemmT<MAP>(nq, ndof, nb, A, Uacc, Ys, e0, NE);
+         MFEM_SYNC_THREAD;
+         ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::Dual),
+                             dual, XY, x_ld, ndof, e0, NE, nb, tid, nthreads);
+         MFEM_SYNC_THREAD;
+         AddSmemTileToY(XY, y, ndof, x_ld, e0, NE, nb, tid, nthreads);
+      }
+      else
+      {
+         GemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
+      }
    }
    else
    {
@@ -144,9 +177,35 @@ MFEM_HOST_DEVICE inline void EvalBatchBody(
             {
                XY[i + x_ld * b] = (i < ndof) ? X(i, e) : real_t(0);
             }
-            EvalApplyDenseElement(qfn, nq, ndof, p, &D(0, e),
-                                  &XY[x_ld * b],
-                                  y + ndof * e, &Us[u_ld * b]);
+         }
+         if (dual.Active())
+         {
+            ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::InvPrimal),
+                                dual, XY, x_ld, ndof, e0, NE, nb, 0, 1);
+         }
+         for (int b = 0; b < nb; ++b)
+         {
+            const int e = e0 + b;
+            if (e >= NE) { continue; }
+            if (dual.Active())
+            {
+               real_t yinc[SimplexVecMaxNdof];
+               for (int i = 0; i < ndof; ++i) { yinc[i] = real_t(0); }
+               EvalApplyDenseElement(qfn, nq, ndof, p, &D(0, e),
+                                     &XY[x_ld * b], yinc, &Us[u_ld * b]);
+               ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::Dual),
+                                   dual, yinc, ndof, ndof, e, NE, 1, 0, 1);
+               for (int i = 0; i < ndof; ++i)
+               {
+                  y[i + ndof * e] += yinc[i];
+               }
+            }
+            else
+            {
+               EvalApplyDenseElement(qfn, nq, ndof, p, &D(0, e),
+                                     &XY[x_ld * b],
+                                     y + ndof * e, &Us[u_ld * b]);
+            }
          }
       }
       MFEM_SYNC_THREAD;
@@ -331,10 +390,10 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
     Signature matches MassIntegrator::ApplySimplexMmaKernelType. */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<
-   !qfn_traits<QFn>::trial_is_grad &&
-   !qfn_traits<QFn>::trial_is_curl &&
-   !qfn_traits<QFn>::trial_is_div &&
-   !qfn_traits<QFn>::trial_is_vec_eval, void>
+!qfn_traits<QFn>::trial_is_grad &&
+!qfn_traits<QFn>::trial_is_curl &&
+!qfn_traits<QFn>::trial_is_div &&
+!qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -397,10 +456,10 @@ ApplySimplex(const int NE,
 /** Specialized Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<
-   !qfn_traits<QFn>::trial_is_grad &&
-   !qfn_traits<QFn>::trial_is_curl &&
-   !qfn_traits<QFn>::trial_is_div &&
-   !qfn_traits<QFn>::trial_is_vec_eval, void>
+!qfn_traits<QFn>::trial_is_grad &&
+!qfn_traits<QFn>::trial_is_curl &&
+!qfn_traits<QFn>::trial_is_div &&
+!qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -454,10 +513,10 @@ ApplySimplex(const int NE,
 /** Runtime Fallback Eval×Eval ApplySimplex. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<
-   !qfn_traits<QFn>::trial_is_grad &&
-   !qfn_traits<QFn>::trial_is_curl &&
-   !qfn_traits<QFn>::trial_is_div &&
-   !qfn_traits<QFn>::trial_is_vec_eval, void>
+!qfn_traits<QFn>::trial_is_grad &&
+!qfn_traits<QFn>::trial_is_curl &&
+!qfn_traits<QFn>::trial_is_div &&
+!qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -516,10 +575,10 @@ ApplySimplex(const int NE,
 /** Runtime Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<
-   !qfn_traits<QFn>::trial_is_grad &&
-   !qfn_traits<QFn>::trial_is_curl &&
-   !qfn_traits<QFn>::trial_is_div &&
-   !qfn_traits<QFn>::trial_is_vec_eval, void>
+!qfn_traits<QFn>::trial_is_grad &&
+!qfn_traits<QFn>::trial_is_curl &&
+!qfn_traits<QFn>::trial_is_div &&
+!qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
@@ -761,7 +820,7 @@ inline void HostPlaneEvalApply(const int NE, const int nq, const int ndof,
                for (int c = 0; c < NCOMP; ++c)
                {
                   uloc[static_cast<size_t>(c) * nq * NB +
-                       static_cast<size_t>(q) +
+                                              static_cast<size_t>(q) +
                        static_cast<size_t>(nq) * b] = v[c];
                }
             }
@@ -1353,7 +1412,8 @@ MFEM_HOST_DEVICE inline void GradFullNqGemm(
    const int e0, const int NE,
    const int nq, const int ndof,
    const int x_ld, const int u_ld, const int nb,
-   const int tid, const int nthreads)
+   const int tid, const int nthreads,
+   NdDualCtx dual = {})
 {
    SmemMatAccRt Xacc{XY, x_ld};
    YBatchAcc Yacc{y, ndof, e0};
@@ -1361,6 +1421,12 @@ MFEM_HOST_DEVICE inline void GradFullNqGemm(
 
    LoadXToSmem(XY, X, e0, NE, ndof, x_ld, nb, tid, nthreads);
    MFEM_SYNC_THREAD;
+   if (dual.Active())
+   {
+      ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::InvPrimal),
+                          dual, XY, x_ld, ndof, e0, NE, nb, tid, nthreads);
+      MFEM_SYNC_THREAD;
+   }
 
    for (int c = 0; c < DIM; ++c)
    {
@@ -1372,11 +1438,31 @@ MFEM_HOST_DEVICE inline void GradFullNqGemm(
    ApplyGradQFnSmem<DIM, SYM>(qfn, UV, D, e0, NE, 0, nq, nq, u_ld, nb,
                               tid, nthreads);
    MFEM_SYNC_THREAD;
-   for (int c = 0; c < DIM; ++c)
+   if (dual.Active())
    {
-      GAcc A{g, nq, ndof, c};
-      SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
-      GemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
+      ZeroSmemTile(XY, x_ld, nb, tid, nthreads);
+      MFEM_SYNC_THREAD;
+      SmemMatAccRt Ys{XY, x_ld};
+      for (int c = 0; c < DIM; ++c)
+      {
+         GAcc A{g, nq, ndof, c};
+         SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
+         GemmT<MAP>(nq, ndof, nb, A, Vacc, Ys, e0, NE);
+         MFEM_SYNC_THREAD;
+      }
+      ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::Dual),
+                          dual, XY, x_ld, ndof, e0, NE, nb, tid, nthreads);
+      MFEM_SYNC_THREAD;
+      AddSmemTileToY(XY, y, ndof, x_ld, e0, NE, nb, tid, nthreads);
+   }
+   else
+   {
+      for (int c = 0; c < DIM; ++c)
+      {
+         GAcc A{g, nq, ndof, c};
+         SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
+         GemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
+      }
    }
 }
 
@@ -1846,11 +1932,11 @@ MFEM_HOST_DEVICE inline void UnpackSimplexPaMetric2D(
 }
 
 inline void SimplexVecEvalApply(const int dim, const int NE, const int nd,
-                              const int nq, const int sdim,
-                              const bool symmetric,
-                              const Array<real_t> &B,
-                              const Vector &pa_data,
-                              const Vector &x, Vector &y)
+                                const int nq, const int sdim,
+                                const bool symmetric,
+                                const Array<real_t> &B,
+                                const Vector &pa_data,
+                                const Vector &x, Vector &y)
 {
    // B: (nq, nd, sdim[, NE]) reference vector shapes (Piola is in pa_data)
    // pa_data: H(curl) w|J| J^{-1} Q J^{-T}; H(div) (w/|J|) J^T Q J
@@ -1949,11 +2035,11 @@ inline void SimplexVecLFApply(const int NE, const int nd, const int nq,
 }
 
 inline void SimplexCurlCurlApply(const int dim, const int NE, const int nd,
-                             const int nq, const int curl_dim,
-                             const bool /*symmetric*/,
-                             const Array<real_t> &C,
-                             const Vector &pa_data,
-                             const Vector &x, Vector &y)
+                                 const int nq, const int curl_dim,
+                                 const bool /*symmetric*/,
+                                 const Array<real_t> &C,
+                                 const Vector &pa_data,
+                                 const Vector &x, Vector &y)
 {
    MFEM_VERIFY(C.Size() > 0, "Simplex curl-curl MMA requires Q-space bases");
    // C: (nq, nd, curl_dim[, NE]) reference curl shapes
@@ -2021,9 +2107,9 @@ inline void SimplexCurlCurlApply(const int dim, const int NE, const int nd,
 }
 
 inline void SimplexDivDivApply(const int NE, const int nd, const int nq,
-                           const Array<real_t> &Div,
-                           const Vector &pa_data,
-                           const Vector &x, Vector &y)
+                               const Array<real_t> &Div,
+                               const Vector &pa_data,
+                               const Vector &x, Vector &y)
 {
    const auto Dd = Reshape(Div.Read(), nq, nd);
    const auto D = Reshape(pa_data.Read(), nq, NE);
@@ -2044,10 +2130,6 @@ inline void SimplexDivDivApply(const int NE, const int nd, const int nq,
 
 
 } // namespace detail
-
-// ND tet p=6 is 216 dofs; RT tet p=6 is 280; BP9 tet p=6 nq is 175.
-constexpr int SimplexVecMaxNdof = 320;
-constexpr int SimplexVecMaxNq = 256;
 
 template <typename QFn, int DIM>
 inline void HostApplyPlaneQFn(QFn qfn, const real_t *D, const int nq,
@@ -2077,6 +2159,7 @@ struct VecScalarEvalRuntimeKernel
    const real_t *D;
    const real_t *X;
    real_t *Y;
+   NdDualCtx dual{};
 
    MFEM_HOST_DEVICE void operator()(int batch) const
    {
@@ -2093,7 +2176,7 @@ struct VecScalarEvalRuntimeKernel
       const int nthr = getBlockNthreads();
       EvalBatchBody<QFn, MmaMapDefault>(
          qfn, batch * nb, NE, nq, ndof, x_ld, u_ld, nb,
-         P, D, X, Y, XY, Us, tid, nthr);
+         P, D, X, Y, XY, Us, tid, nthr, dual);
    }
 };
 
@@ -2110,6 +2193,7 @@ struct VecPlaneEvalRuntimeKernel
    const real_t *Dv;
    const real_t *X;
    real_t *Y;
+   NdDualCtx dual{};
 
    MFEM_HOST_DEVICE void operator()(int batch) const
    {
@@ -2131,14 +2215,48 @@ struct VecPlaneEvalRuntimeKernel
       {
          GradFullNqGemm<DIM, SYM, MmaMapDefault>(
             qfn, XY, UV, D, G, Y, Xm, batch * nb, NE, nq, ndof,
-            x_ld, u_ld, nb, tid, nthr);
+            x_ld, u_ld, nb, tid, nthr, dual);
       }
       else if (tid == 0)
       {
          real_t u_scratch[DIM * SimplexVecMaxNq];
-         GradBatchEmulate<DIM, SYM>(
-            qfn, batch * nb, NE, nq, ndof, x_ld, nb,
-            G, D, Xm, Y, XY, u_scratch);
+         if (dual.Active())
+         {
+            real_t yinc[SimplexVecMaxNdof];
+            const int e0 = batch * nb;
+            for (int b = 0; b < nb; ++b)
+            {
+               const int e = e0 + b;
+               if (e >= NE) { continue; }
+               for (int i = 0; i < ndof; ++i)
+               {
+                  XY[i + x_ld * b] = Xm(i, e);
+               }
+            }
+            ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::InvPrimal),
+                                dual, XY, x_ld, ndof, e0, NE, nb, 0, 1);
+            for (int b = 0; b < nb; ++b)
+            {
+               const int e = e0 + b;
+               if (e >= NE) { continue; }
+               for (int i = 0; i < ndof; ++i) { yinc[i] = real_t(0); }
+               GradApplyDenseElement<DIM, SYM>(
+                  qfn, nq, ndof, G, &D(0, 0, e),
+                  &XY[x_ld * b], yinc, u_scratch);
+               ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::Dual),
+                                   dual, yinc, ndof, ndof, e, NE, 1, 0, 1);
+               for (int i = 0; i < ndof; ++i)
+               {
+                  Y[i + ndof * e] += yinc[i];
+               }
+            }
+         }
+         else
+         {
+            GradBatchEmulate<DIM, SYM>(
+               qfn, batch * nb, NE, nq, ndof, x_ld, nb,
+               G, D, Xm, Y, XY, u_scratch);
+         }
       }
       MFEM_SYNC_THREAD;
    }
@@ -2147,7 +2265,8 @@ struct VecPlaneEvalRuntimeKernel
 template <typename QFn, int DIM>
 inline void DeviceScalarEvalApply(const int NE, const int nq, const int ndof,
                                   const real_t *P, const real_t *D,
-                                  const real_t *X, real_t *Y)
+                                  const real_t *X, real_t *Y,
+                                  NdDualCtx dual = {})
 {
    MFEM_VERIFY(nq <= SimplexVecMaxNq && ndof <= SimplexVecMaxNdof,
                "VectorFE scalar Eval exceeds size caps");
@@ -2156,15 +2275,17 @@ inline void DeviceScalarEvalApply(const int NE, const int nq, const int ndof,
    const int nthreads = plan.nthreads;
    const int nbatches = (NE + plan.nb - 1) / plan.nb;
    QFn qfn{};
-   VecScalarEvalRuntimeKernel<QFn, DIM> body{
-      qfn, NE, nq, ndof, plan.x_ld, plan.u_ld, plan.nb, P, D, X, Y};
+   VecScalarEvalRuntimeKernel<QFn, DIM> body
+   {
+      qfn, NE, nq, ndof, plan.x_ld, plan.u_ld, plan.nb, P, D, X, Y, dual};
    mfem::forall_3D_smem(nbatches, nthreads, 1, 1, plan.smem_bytes, body);
 }
 
 template <typename QFn, int DIM>
 inline void DevicePlaneEvalApply(const int NE, const int nq, const int ndof,
                                  const real_t *G, const real_t *Dv,
-                                 const real_t *X, real_t *Y)
+                                 const real_t *X, real_t *Y,
+                                 NdDualCtx dual = {})
 {
    MFEM_VERIFY(nq <= SimplexVecMaxNq && ndof <= SimplexVecMaxNdof,
                "VectorFE plane Eval exceeds size caps");
@@ -2177,8 +2298,9 @@ inline void DevicePlaneEvalApply(const int NE, const int nq, const int ndof,
    const int nthreads = LaunchNthreads(nq, ndof);
    const int nbatches = (NE + nb - 1) / nb;
    QFn qfn{};
-   VecPlaneEvalRuntimeKernel<QFn, DIM> body{
-      qfn, NE, nq, ndof, x_ld, u_ld, nb, G, Dv, X, Y};
+   VecPlaneEvalRuntimeKernel<QFn, DIM> body
+   {
+      qfn, NE, nq, ndof, x_ld, u_ld, nb, G, Dv, X, Y, dual};
    mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes, body);
 }
 
@@ -2186,7 +2308,8 @@ template <typename QFn, int DIM>
 inline void ApplySimplexScalarEval(const int NE, const int nq, const int nd,
                                    const Array<real_t> &basis,
                                    const Vector &d,
-                                   const Vector &x, Vector &y)
+                                   const Vector &x, Vector &y,
+                                   NdDualCtx dual = {})
 {
    QFn qfn{};
    DumpFormApplyRuntime<QFn, DIM>("ApplySimplex", NE, nq, nd);
@@ -2197,6 +2320,7 @@ inline void ApplySimplexScalarEval(const int NE, const int nq, const int nd,
       return;
    }
 #if defined(MFEM_USE_HIP) && !defined(MFEM_USE_CUDA)
+   (void)dual;
    if constexpr (qfn_traits<QFn>::trial_is_div)
    {
       detail::SimplexDivDivApply(NE, nd, nq, basis, d, x, y);
@@ -2208,7 +2332,7 @@ inline void ApplySimplexScalarEval(const int NE, const int nq, const int nd,
 #else
    DeviceScalarEvalApply<QFn, DIM>(NE, nq, nd,
                                    basis.Read(), d.Read(), x.Read(),
-                                   y.ReadWrite());
+                                   y.ReadWrite(), dual);
 #endif
 }
 
@@ -2216,7 +2340,8 @@ template <typename QFn, int DIM>
 inline void ApplySimplexPlaneEval(const int NE, const int nq, const int nd,
                                   const Array<real_t> &basis,
                                   const Vector &d,
-                                  const Vector &x, Vector &y)
+                                  const Vector &x, Vector &y,
+                                  NdDualCtx dual = {})
 {
    QFn qfn{};
    DumpFormApplyRuntime<QFn, DIM>("ApplyGrad", NE, nq, nd);
@@ -2224,13 +2349,14 @@ inline void ApplySimplexPlaneEval(const int NE, const int nq, const int nd,
    {
       const real_t *Dv = d.Read();
       HostPlaneEvalApply<DIM>(NE, nq, nd, basis.Read(), x.Read(), y.ReadWrite(),
-      [qfn, Dv, nq, NE](const real_t *u, real_t *v, int q, int e)
+                              [qfn, Dv, nq, NE](const real_t *u, real_t *v, int q, int e)
       {
          HostApplyPlaneQFn<QFn, DIM>(qfn, Dv, nq, NE, q, e, u, v);
       });
       return;
    }
 #if defined(MFEM_USE_HIP) && !defined(MFEM_USE_CUDA)
+   (void)dual;
    if constexpr (qfn_traits<QFn>::trial_is_curl)
    {
       detail::SimplexCurlCurlApply(DIM, NE, nd, nq, DIM,
@@ -2246,7 +2372,7 @@ inline void ApplySimplexPlaneEval(const int NE, const int nq, const int nd,
 #else
    DevicePlaneEvalApply<QFn, DIM>(NE, nq, nd,
                                   basis.Read(), d.Read(), x.Read(),
-                                  y.ReadWrite());
+                                  y.ReadWrite(), dual);
 #endif
 }
 
@@ -2260,12 +2386,13 @@ ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
              const Vector &x,
-             Vector &y)
+             Vector &y,
+             NdDualCtx dual = {})
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplySimplex DIM");
    const int nd = x.Size() / NE;
-   ApplySimplexPlaneEval<QFn, DIM>(NE, QND, nd, basis, d, x, y);
+   ApplySimplexPlaneEval<QFn, DIM>(NE, QND, nd, basis, d, x, y, dual);
 }
 
 template <typename QFn, int DIM>
@@ -2274,7 +2401,8 @@ ApplySimplex(const int NE,
              const Array<real_t> &basis,
              const Vector &d,
              const Vector &x,
-             Vector &y)
+             Vector &y,
+             NdDualCtx dual = {})
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::spatial_dim == DIM, "");
@@ -2283,7 +2411,7 @@ ApplySimplex(const int NE,
    const int ncomp = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    MFEM_VERIFY(d.Size() % (ncomp * NE) == 0, "pa_data size");
    const int nq = d.Size() / (ncomp * NE);
-   ApplySimplexPlaneEval<QFn, DIM>(NE, nq, nd, basis, d, x, y);
+   ApplySimplexPlaneEval<QFn, DIM>(NE, nq, nd, basis, d, x, y, dual);
 }
 
 // ---------------------------------------------------------------------------
@@ -2296,17 +2424,18 @@ ApplySimplex(const int NE,
              const Array<real_t> &curl_basis,
              const Vector &d,
              const Vector &x,
-             Vector &y)
+             Vector &y,
+             NdDualCtx dual = {})
 {
    static_assert(qfn_traits<QFn>::spatial_dim == DIM, "");
    const int nd = x.Size() / NE;
    if constexpr (DIM == 2)
    {
-      ApplySimplexScalarEval<QFn, DIM>(NE, QND, nd, curl_basis, d, x, y);
+      ApplySimplexScalarEval<QFn, DIM>(NE, QND, nd, curl_basis, d, x, y, dual);
    }
    else
    {
-      ApplySimplexPlaneEval<QFn, DIM>(NE, QND, nd, curl_basis, d, x, y);
+      ApplySimplexPlaneEval<QFn, DIM>(NE, QND, nd, curl_basis, d, x, y, dual);
    }
 }
 
@@ -2316,7 +2445,8 @@ ApplySimplex(const int NE,
              const Array<real_t> &curl_basis,
              const Vector &d,
              const Vector &x,
-             Vector &y)
+             Vector &y,
+             NdDualCtx dual = {})
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::spatial_dim == DIM, "");
@@ -2327,14 +2457,14 @@ ApplySimplex(const int NE,
    {
       MFEM_VERIFY(d.Size() % NE == 0, "");
       nq = d.Size() / NE;
-      ApplySimplexScalarEval<QFn, DIM>(NE, nq, nd, curl_basis, d, x, y);
+      ApplySimplexScalarEval<QFn, DIM>(NE, nq, nd, curl_basis, d, x, y, dual);
    }
    else
    {
       const int ncomp = SYM ? 6 : 9;
       MFEM_VERIFY(d.Size() % (ncomp * NE) == 0, "");
       nq = d.Size() / (ncomp * NE);
-      ApplySimplexPlaneEval<QFn, DIM>(NE, nq, nd, curl_basis, d, x, y);
+      ApplySimplexPlaneEval<QFn, DIM>(NE, nq, nd, curl_basis, d, x, y, dual);
    }
 }
 
@@ -2348,7 +2478,8 @@ ApplySimplex(const int NE,
              const Array<real_t> &div_basis,
              const Vector &d,
              const Vector &x,
-             Vector &y)
+             Vector &y,
+             NdDualCtx /*dual*/ = {})
 {
    const int nd = x.Size() / NE;
    ApplySimplexScalarEval<QFn, DIM>(NE, QND, nd, div_basis, d, x, y);
@@ -2360,7 +2491,8 @@ ApplySimplex(const int NE,
              const Array<real_t> &div_basis,
              const Vector &d,
              const Vector &x,
-             Vector &y)
+             Vector &y,
+             NdDualCtx /*dual*/ = {})
 {
    const int nd = x.Size() / NE;
    MFEM_VERIFY(d.Size() % NE == 0, "");
@@ -2373,11 +2505,12 @@ template <typename QFn, int DIM>
 inline void ApplySimplexRegistered(const int d1d, const int nq, const int NE,
                                    const Array<real_t> &basis,
                                    const Vector &d,
-                                   const Vector &x, Vector &y)
+                                   const Vector &x, Vector &y,
+                                   NdDualCtx dual = {})
 {
 #define MFEM_TRY_SIMPLEX(D1, Q) \
    if (d1d == (D1) && nq == (Q)) \
-   { ApplySimplex<QFn, DIM, D1, Q>(NE, basis, d, x, y); return; }
+   { ApplySimplex<QFn, DIM, D1, Q>(NE, basis, d, x, y, dual); return; }
    if constexpr (DIM == 2)
    {
       MFEM_TRY_SIMPLEX(2, 3)
@@ -2416,7 +2549,7 @@ inline void ApplySimplexRegistered(const int d1d, const int nq, const int NE,
       MFEM_TRY_SIMPLEX(8, 175)
    }
 #undef MFEM_TRY_SIMPLEX
-   ApplySimplex<QFn, DIM>(NE, basis, d, x, y);
+   ApplySimplex<QFn, DIM>(NE, basis, d, x, y, dual);
 }
 
 } // namespace mfem::internal::mma::form

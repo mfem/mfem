@@ -14,9 +14,7 @@
     H(div) PA MMA — QFns + thin ApplyTensor / ApplySimplex callers.
 */
 
-#include "../../bilininteg.hpp"
 #include "form/form.hpp"
-#include "hcurl.hpp" // MmaHcurlMassApplySimplex shared dense vec path via ApplySimplex
 
 namespace mfem
 {
@@ -41,7 +39,7 @@ struct HdivMass
 
 template <int DIM, bool SYM>
 struct qfn_traits<HdivMass<DIM, SYM>>
-   : VecEvalEvalQFnTraits<DIM, SYM, false, false> {};
+                                      : VecEvalEvalQFnTraits<DIM, SYM, false, false> {};
 
 /** Div-div at Q: y = d * div(u). */
 struct DivDivQFn
@@ -137,12 +135,12 @@ inline void MmaDivDivApplyTensors3D(
 }
 
 inline void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
-                                   const int nq, const int d1d,
-                                   const int sdim,
-                                   const bool symmetric,
-                                   const Array<real_t> &B,
-                                   const Vector &pa_data,
-                                   const Vector &x, Vector &y)
+                                    const int nq, const int d1d,
+                                    const int sdim,
+                                    const bool symmetric,
+                                    const Array<real_t> &B,
+                                    const Vector &pa_data,
+                                    const Vector &x, Vector &y)
 {
    using mma::form::ApplySimplexRegistered;
    using mma::form::HdivMass;
@@ -177,10 +175,10 @@ inline void MmaHdivMassApplySimplex(const int dim, const int NE, const int nd,
 }
 
 inline void MmaDivDivApplySimplex(const int dim, const int NE, const int nd,
-                                 const int nq, const int d1d,
-                                 const Array<real_t> &Div,
-                                 const Vector &pa_data,
-                                 const Vector &x, Vector &y)
+                                  const int nq, const int d1d,
+                                  const Array<real_t> &Div,
+                                  const Vector &pa_data,
+                                  const Vector &x, Vector &y)
 {
    using mma::form::ApplySimplexRegistered;
    using mma::form::DivDivQFn;

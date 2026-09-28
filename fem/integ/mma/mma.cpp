@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -380,7 +380,8 @@ void PAJinvQJinvTSetupSimplexFromNodes(const int dim,
       return;
    }
 
-   MFEM_VERIFY(dim == 3, "PAJinvQJinvTSetupSimplexFromNodes only supports dim 2/3");
+   MFEM_VERIFY(dim == 3,
+               "PAJinvQJinvTSetupSimplexFromNodes only supports dim 2/3");
    mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
    {
       const int e = idx / NQ, q = idx - NQ * e;

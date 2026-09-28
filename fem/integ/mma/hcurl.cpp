@@ -78,48 +78,6 @@ void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
    }
 }
 
-// Same layout as ND_DofTransformation::T_data / TInv_data (column-major 2x2).
-MFEM_HOST_DEVICE inline void NdApplyFacePair(int mode, int ori,
-                                             real_t &x0, real_t &x1)
-{
-   constexpr real_t T[24] =
-   {
-      1.0,  0.0,  0.0,  1.0,
-      -1.0, -1.0,  0.0,  1.0,
-      0.0,  1.0, -1.0, -1.0,
-      1.0,  0.0, -1.0, -1.0,
-      -1.0, -1.0,  1.0,  0.0,
-      0.0,  1.0,  1.0,  0.0
-   };
-   constexpr real_t TInv[24] =
-   {
-      1.0,  0.0,  0.0,  1.0,
-      -1.0, -1.0,  0.0,  1.0,
-      -1.0, -1.0,  1.0,  0.0,
-      1.0,  0.0, -1.0, -1.0,
-      0.0,  1.0, -1.0, -1.0,
-      0.0,  1.0,  1.0,  0.0
-   };
-   const int o = 4 * ori;
-   const real_t a00 = (mode <= 1) ? TInv[o] : T[o];
-   const real_t a10 = (mode <= 1) ? TInv[o + 1] : T[o + 1];
-   const real_t a01 = (mode <= 1) ? TInv[o + 2] : T[o + 2];
-   const real_t a11 = (mode <= 1) ? TInv[o + 3] : T[o + 3];
-   real_t y0, y1;
-   if (mode == 0 || mode == 2) // Mult
-   {
-      y0 = a00 * x0 + a01 * x1;
-      y1 = a10 * x0 + a11 * x1;
-   }
-   else // MultTranspose
-   {
-      y0 = a00 * x0 + a10 * x1;
-      y1 = a01 * x0 + a11 * x1;
-   }
-   x0 = y0;
-   x1 = y1;
-}
-
 void GatherNdFaceOrientations(const FiniteElementSpace &fes, Array<int> &fo)
 {
    fo.SetSize(0);

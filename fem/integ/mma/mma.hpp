@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,7 +21,6 @@
 
     ## Host apply tree
     - Tensor: PreferTensorDense → dense sum-fact vs Emulate shell
-      (diffusion 2D may use lapack fat GEMM when LAPACK is on)
     - Tensor H(curl)/H(div) shells: InterpAx / GradX / GemmMbyK
       (LAPACK: vendor GEMM on host; CUDA/HIP: DMMA/MFMA via MMA_BACKEND_PICK)
     - Simplex host: PreferMultiRhs(nq, ndof, NE) → lapack multi-RHS (size gate)
@@ -31,24 +30,15 @@
     - TensorMmaEnabled → dmma (CUDA) / mfma (HIP); else blas Emulate
 
     ## Package map (fem/integ/mma/)
-    - mma.hpp / mma.cpp   ForceMMA / Uses* / simplex helpers (this file)
+    - mma.hpp / mma.cpp   ForceMMA / Uses* / simplex helpers
     - mode/               backends: common, dispatch, dmma, mfma, blas, lapack, batch
     - form/               integrator-agnostic Apply engines
     - mass.hpp, …         operator drivers (QFn + Kernel registration)
-
-    Entry points internal::Mma*Apply* are intentionally outside namespace mma.
-
-    ## Adding a specialization:
-    Edit shared tables in form/register.hpp (Mass/Diffusion simplex + tensors),
-    or DomainLF / VectorFE DomainLF RegisterSimplexMmaKernels() in domain_lf.cpp.
-    Order: DIM, then D1D, then QND/Q1D.
-    Unregistered sizes use Fallback (runtime shell).
-    See mode/README.md and form/README.md.
 */
 
-// Backends + dispatch (common via dmma/mfma/blas)
-#include "mode/dispatch.hpp"
-#include "mode/lapack.hpp"
+#include "mode/common.hpp" // IWYU pragma: export
+#include "mode/dispatch.hpp" // IWYU pragma: export
+#include "nddual.hpp"
 
 // Public Uses* / ForceMMA + simplex helpers
 #include "../../fespace.hpp"   // FiniteElementSpace, ElementDofOrdering (pulls mesh)
@@ -360,11 +350,26 @@ void BakeNdDofTransformation(const FiniteElementSpace &fes,
 /** Face orientations Fo(f,e) packed as nfaces*NE; empty if identity (p<2). */
 void GatherNdFaceOrientations(const FiniteElementSpace &fes, Array<int> &fo);
 
-enum class NdDofTransOp : int { InvPrimal, Dual, Primal, InvDual };
-
 /** Apply ND 2x2 face maps in-place on E-vector columns using precomputed Fo. */
 void ApplyNdDofTransEVector(NdDofTransOp op, const FiniteElementSpace &fes,
                             const Array<int> &fo, Vector &y);
+
+/** Device pointer + tet/tri face layout for fused simplex GEMM dual. */
+inline NdDualCtx MakeNdDualCtx(const FiniteElementSpace &fes,
+                               const Array<int> &fo)
+{
+   NdDualCtx ctx;
+   if (fo.Size() == 0) { return ctx; }
+   const int NE = fes.GetNE();
+   if (NE < 1 || fo.Size() % NE != 0) { return ctx; }
+   const int p = fes.GetTypicalFE()->GetOrder();
+   const int dim = fes.GetMesh()->Dimension();
+   ctx.fo = fo.Read();
+   ctx.nfaces = fo.Size() / NE;
+   ctx.ntdofs = p * (p - 1);
+   ctx.face_base = ((dim == 2) ? 3 : 6) * p;
+   return ctx;
+}
 
 /** TransformDual each native E-vector column (gathers Fo, then device apply). */
 void TransformDualEVector(const FiniteElementSpace &fes, Vector &y);
@@ -373,7 +378,10 @@ void InvTransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
 void InvTransformDualEVector(const FiniteElementSpace &fes, Vector &y);
 
 /** Y += Dual( A_ref · InvPrimal(X) ). Matches bake of TransformDual into C:
-    A_t = T^{-T} A_ref T^{-1}. Empty fo → identity (apply x into y). */
+    A_t = T^{-T} A_ref T^{-1}. Empty fo → identity (apply x into y).
+    apply(x, y, dual): on CUDA device, dual is fused into the simplex GEMM
+    (no xhat/yinc). Host (and HIP-only) keeps the copy / yinc path so LAPACK
+    multi-RHS GEMM stays on the fast host apply. */
 template <typename ApplyFn>
 inline void AddMultSimplexNdDual(const FiniteElementSpace &fes,
                                  const Array<int> &fo,
@@ -381,11 +389,19 @@ inline void AddMultSimplexNdDual(const FiniteElementSpace &fes,
                                  const Vector &x, Vector &y,
                                  ApplyFn &&apply)
 {
+   const NdDualCtx none{};
    if (fo.Size() == 0)
    {
-      apply(x, y);
+      apply(x, y, none);
       return;
    }
+#if !defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      apply(x, y, MakeNdDualCtx(fes, fo));
+      return;
+   }
+#endif
    xhat.SetSize(x.Size());
    xhat.UseDevice(true);
    xhat = x;
@@ -393,7 +409,7 @@ inline void AddMultSimplexNdDual(const FiniteElementSpace &fes,
    yinc.SetSize(y.Size());
    yinc.UseDevice(true);
    yinc = 0.0;
-   apply(xhat, yinc);
+   apply(xhat, yinc, none);
    ApplyNdDofTransEVector(NdDofTransOp::Dual, fes, fo, yinc);
    y += yinc;
 }

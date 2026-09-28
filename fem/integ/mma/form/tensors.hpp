@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,7 +30,6 @@
 #include "../../../../linalg/vector.hpp"
 #include "../../../../linalg/tensor.hpp"
 #include <algorithm>
-#include <type_traits>
 
 /// \cond DO_NOT_DOCUMENT
 
@@ -1756,10 +1755,10 @@ namespace mfem::internal::mma::form
     vdim>1: block-diagonal multi-component (layout D… × vdim × NE). */
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
 inline std::enable_if_t<
-   !qfn_traits<QFn>::trial_is_grad &&
-   !qfn_traits<QFn>::trial_is_curl &&
-   !qfn_traits<QFn>::trial_is_div &&
-   !qfn_traits<QFn>::trial_is_vec_eval, void>
+!qfn_traits<QFn>::trial_is_grad &&
+!qfn_traits<QFn>::trial_is_curl &&
+!qfn_traits<QFn>::trial_is_div &&
+!qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplyTensor(const int NE,
             const Array<real_t> &b,
             const Array<real_t> &bt,
@@ -1938,8 +1937,8 @@ MFEM_HOST_DEVICE inline void CurlTranspAdd3D(
 }
 
 MFEM_HOST_DEVICE inline void CurlAccum(real_t *dst, const real_t *src,
-                                      const int n, const real_t sign,
-                                      const int tid, const int stride)
+                                       const int n, const real_t sign,
+                                       const int tid, const int stride)
 {
    for (int t = tid; t < n; t += stride)
    {
@@ -2050,8 +2049,10 @@ struct TensorVecEvalKernel2D
             int Dx, Dy;
             if constexpr (OPEN) { CurlCompSizes2D(D1D, c, Dx, Dy); }
             else { DivCompSizes2D(D1D, c, Dx, Dy); }
-            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBot : sBct;
-            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBot : sBct;
+            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1,
+                                                                         c)) ? sBot : sBct;
+            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0,
+                                                                         c)) ? sBot : sBct;
             CurlTranspAdd2D<MD1, MQ1>(Dx, Dy, Q1D, Bxt, Byt, ucomp + nq * c,
                                       sm0, sm1, Y, c * osc_c, e, 1.0,
                                       tid, stride);
@@ -2148,9 +2149,12 @@ struct TensorVecEvalKernel3D
             int Dx, Dy, Dz;
             if constexpr (OPEN) { CurlCompSizes3D(D1D, c, Dx, Dy, Dz); }
             else { DivCompSizes3D(D1D, c, Dx, Dy, Dz); }
-            const real_t *Bzt = (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2, c)) ? sBot : sBct;
-            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBot : sBct;
-            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBot : sBct;
+            const real_t *Bzt = (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2,
+                                                                         c)) ? sBot : sBct;
+            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1,
+                                                                         c)) ? sBot : sBct;
+            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0,
+                                                                         c)) ? sBot : sBct;
             CurlTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt,
                                       ucomp + nq * c, sm0, sm1, Y,
                                       c * osc_c, e, 1.0, tid, stride);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,8 +26,7 @@ using mfem::future::tensor;
 
 enum class field_kind { Eval, Grad, Curl, Div, None };
 
-/** Scalar value at a quadrature point.
-    Storage is tensor<real_t,1> so scalar*tensor ops apply uniformly. */
+/** Scalar value at a quadrature point. */
 struct eval_t : tensor<real_t, 1>
 {
    static constexpr field_kind kind = field_kind::Eval;
@@ -95,8 +94,7 @@ struct grad_t : tensor<real_t, DIM>
    }
 };
 
-/** Curl field at a quadrature point.
-    Layout matches handwritten Piola: length 1 in 2D (scalar curl), 3 in 3D. */
+/** Curl field at a quadrature point. */
 template <int DIM>
 struct curl_t : tensor<real_t, (DIM == 2 ? 1 : 3)>
 {
@@ -130,7 +128,7 @@ struct curl_t : tensor<real_t, (DIM == 2 ? 1 : 3)>
    }
 };
 
-/** Divergence (scalar) at a quadrature point — same storage as eval_t. */
+/** Divergence (scalar) at a quadrature point. */
 struct div_t : eval_t
 {
    static constexpr field_kind kind = field_kind::Div;
@@ -143,7 +141,7 @@ struct div_t : eval_t
    using eval_t::operator=;
 };
 
-/** No trial DOF field (linear-form style). Marker type only. */
+/** No trial DOF field (linear-form style). */
 struct none_t
 {
    static constexpr field_kind kind = field_kind::None;
@@ -205,9 +203,7 @@ struct field_traits
 };
 
 
-/** Compile-time description of a pointwise QFn for the MMA pipeline.
-    Specialize `qfn_traits<MyQFn>` next to your QFn (typically in the
-    integrator header under fem/integ/), inheriting a helper below. */
+/** Compile-time description of a pointwise QFn for the MMA pipeline. */
 template <typename QFn>
 struct qfn_traits;
 
@@ -335,7 +331,7 @@ struct DivDivQFnTraits
    }
 };
 
-/** Vector Eval×Eval for H(curl)/H(div) mass at Q (Piola-mapped vector).
+/** Vector Eval×Eval for H(curl)/H(div) mass at Q.
     OPEN_ON_COMP: true = H(curl) (open along component axis); false = H(div).
     SYM_PACK_O21: true = Diffusion/Hcurl packed [11,21,22]; false = Hdiv [11,12,22]. */
 template <int DIM, bool SYM = true, bool OPEN_ON_COMP = true,
@@ -391,23 +387,22 @@ template <typename QFn>
 MFEM_HOST_DEVICE inline void ApplyEvalQFn(real_t &u, real_t d)
 {
    using Tr = qfn_traits<QFn>;
-   static_assert(!Tr::trial_is_grad && !Tr::trial_is_curl && !Tr::trial_is_div &&
-                  !Tr::trial_is_vec_eval,
-                  "ApplyEvalQFn expects scalar Eval (or None) trial");
+   static_assert(!Tr::trial_is_grad && !Tr::trial_is_curl &&
+                 !Tr::trial_is_div && !Tr::trial_is_vec_eval,
+                 "ApplyEvalQFn expects scalar Eval (or None) trial");
    if constexpr (Tr::has_trial)
    {
       eval_t trial(u), test;
       InvokeQFn(QFn{}, trial, test, d);
-      u = real_t(test);
+      u = static_cast<real_t>(test);
    }
    else
    {
       eval_t test;
       InvokeQFn(QFn{}, test, d);
-      u = real_t(test);
+      u = static_cast<real_t>(test);
    }
 }
-
 
 } // namespace mfem::internal::mma::form
 

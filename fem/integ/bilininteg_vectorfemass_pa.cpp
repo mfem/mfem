@@ -385,13 +385,14 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (use_simplices_mma)
    {
-      auto apply = [&](const Vector &xh, Vector &yh)
+      auto apply = [&](const Vector &xh, Vector &yh, internal::NdDualCtx dual)
       {
          if (trial_fetype == FiniteElement::CURL)
          {
             internal::MmaHcurlMassApplySimplex(dim, ne, simplex_nd, nq, dofs1D,
                                                simplex_sdim, symmetric,
-                                               simplex_B, pa_data, xh, yh);
+                                               simplex_B, pa_data, xh, yh,
+                                               dual);
          }
          else
          {
@@ -409,7 +410,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       else
       {
-         apply(x, y);
+         apply(x, y, internal::NdDualCtx{});
       }
       return;
    }
