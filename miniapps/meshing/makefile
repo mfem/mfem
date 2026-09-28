@@ -60,6 +60,10 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
 pmesh-optimizer-enzyme: $(SRC)pmesh-optimizer-enzyme-common.hpp
+pmesh-digital-twin: $(SRC)pmesh-optimizer-enzyme-common.hpp
+pmesh-optimizer-enzyme pmesh-fitting-enzyme pmesh-digital-twin: \
+                   $(SRC)digital-twin-inclusion.hpp
+pmesh-optimizer-enzyme pmesh-fitting-enzyme: $(SRC)mesh-fitting.hpp
 
 all: $(MINIAPPS)
 
@@ -102,7 +106,7 @@ mesh-quality-test-seq: mesh-quality
 pmesh-fitting-test-par: pmesh-fitting
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel mesh fitting miniapp)
 pmesh-digital-twin-test-par: pmesh-digital-twin
-	@$(call mfem-test,$< -no-save -ii 1 -nx 4 -ny 4 -ni 5, $(RUN_MPI), Parallel digital twin miniapp)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel heat digital twin miniapp, -dfem-hd -no-save -ii 1 -nx 12 -ny 12 -ni 200, YES)
 fit-node-position-test-par: fit-node-position
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel position fitting miniapp)
 minimal-surface-test-seq: minimal-surface

@@ -26,10 +26,12 @@
 // Append -der-backend 0 for classic host field derivatives or
 // -der-backend 1 for tensor-kernel field derivatives. By default, CPU runs
 // use backend 0 and runs with an enabled device use backend 1.
+// With -vis, targets 4 and 8 with metric 36 also show the target orientation
+// vector (cos(theta), sin(theta)) on the initial and optimized meshes.
 //   Blade ($\mu_{2}$): mpirun -np 4 pmesh-optimizer-enzyme -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -no-vis
-//   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -no-vis
-//   Kershaw shape improvement with unit target ($\mu_{303}$): mpirun -np 6 pmesh-optimizer-enzyme -m ../../data/kershaw-hex-6x6x6-eps0.3-smooth3.mesh -o 3 -mid 303 -tid 1 -ni 100 -ls 3 -art 1 -bnd -qt 1 -qo 8 -no-vis
-//   Equivalent pmesh-optimizer run: mpirun -np 6 pmesh-optimizer -m ../../data/kershaw-hex-6x6x6-eps0.3-smooth3.mesh -o 3 -mid 303 -tid 1 -ni 100 -ls 3 -art 1 -bnd -qt 1 -qo 8 -pa -no-vis
+//   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 0 -bnd -qt 1 -qo 8 -no-vis
+//   Kershaw shape improvement with unit target ($\mu_{303}$): mpirun -np 6 pmesh-optimizer-enzyme -m ../../data/kershaw-hex-6x6x6-eps0.3-smooth2.mesh -o 2 -mid 303 -tid 1 -ni 100 -ls 3 -art 0 -bnd -qt 1 -qo 8 -no-vis
+//   Equivalent pmesh-optimizer run: mpirun -np 6 pmesh-optimizer -m ../../data/kershaw-hex-6x6x6-eps0.3-smooth2.mesh -o 2 -mid 303 -tid 1 -ni 100 -ls 3 -art 1 -bnd -qt 1 -qo 8 -pa -no-vis
 //   Target 4 annular shape ($\mu_{2}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -no-vis
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -no-vis
 //   Target 4 annular shape ($\mu_{2}$, Enzyme includes W derivatives vs classic ignores W derivatives): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -ex -no-vis
@@ -81,7 +83,26 @@
 //   Equivalent pmesh-fitting run: mpirun -np 4 pmesh-fitting -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -ae 1 -slstype 4 -mno 1 -no-vis
 //   Surface fitting (analytic sphere, $\mu_{303}$): mpirun -np 4 pmesh-optimizer-enzyme -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -als -slstype 4 -no-vis
 //   Equivalent pmesh-fitting run: mpirun -np 4 pmesh-fitting -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -ae 1 -slstype 4 -no-vis
+// Node limiting on ALE mesh
+// mpirun -np 4 pmesh-optimizer-enzyme -m annulus_post_lagrangian_fixed.mesh -o 3 -mid 2 -tid 1 -ni 100 -ls 2 -art 0 -fix-bnd -qt 1 -qo 8 -ex -lc 0 -vis
+// mpirun -np 4 pmesh-optimizer-enzyme -m annulus_post_lagrangian_fixed.mesh -o 3 -mid 2 -tid 1 -ni 100 -ls 2 -art 0 -fix-bnd -qt 1 -qo 8 -ex -lc 100 -vis
 
+// Paper runs:
+// Kershaw - John ran this on Matrix
+// -m ../../data/kershaw-hex-6x6x6-eps0.5-smooth1.mesh -mid 303 -tid 1 -ni 2000 -ls 3 -art 1 -bnd -qt 1 -qo 8 -no-vis -vl 2 -li 1000 -rs 3
+// W(x) (Section 4.2)
+// mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
+// mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis -ex
+// mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
+// with discrete target
+//
+// mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
+// mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis -ex
+// mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis -ae 1
+// Section 4.3
+// c_lim equivalent to 0.5.    because lc=(1/(0.5^2))=4
+// mpirun -np 4 ./pmesh-optimizer-enzyme -m annulus_post_lagrangian_fixed.mesh -o 3 -mid 2 -tid 1 -ni 100 -ls 2 -art 0 -fix-bnd -qt 1 -qo 8 -ex -nor -lc 4 -no-vis
+// mpirun -np 4 ./pmesh-optimizer-enzyme -m annulus_post_lagrangian_fixed.mesh -o 3 -mid 2 -tid 1 -ni 100 -ls 2 -art 0 -fix-bnd -qt 1 -qo 8 -ex -nor -lc 0 -no-vis
 #include "pmesh-optimizer-enzyme-common.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_ENZYME)
@@ -98,6 +119,36 @@ real_t EnzymeSurfaceFitSquircle(const Vector &x)
    const real_t xc = x(0) - 0.5;
    const real_t yc = x(1) - 0.5;
    return std::pow(xc, 4.0) + std::pow(yc, 4.0) - std::pow(0.24, 4.0);
+}
+
+void VisualizeTargetOrientation(TMOPVisualizationData &vis_data,
+                                ParGridFunction &nodes,
+                                const char *title, int x, int y)
+{
+   FunctionCoefficient analytic_angle(discrete_ori_2d);
+   GridFunctionCoefficient discrete_angle;
+   Coefficient *angle = &analytic_angle;
+   if (vis_data.target8_data)
+   {
+      vis_data.target8_data->Remap(nodes);
+      discrete_angle.SetGridFunction(&vis_data.target8_data->CurrentOri());
+      angle = &discrete_angle;
+   }
+
+   TransformedCoefficient cosine(angle,
+                                 [](real_t theta) { return std::cos(theta); });
+   TransformedCoefficient sine(angle,
+                               [](real_t theta) { return std::sin(theta); });
+   VectorArrayCoefficient direction(2);
+   direction.Set(0, &cosine, false);
+   direction.Set(1, &sine, false);
+   ParGridFunction orientation(nodes.ParFESpace());
+   orientation.ProjectCoefficient(direction);
+
+   // Show uniformly scaled arrows over the mesh, without a magnitude surface.
+   socketstream sock;
+   common::VisualizeField(sock, "localhost", 19916, orientation, title,
+                          x, y, 600, 600, "jRmclAevvvv");
 }
 
 int main (int argc, char *argv[])
@@ -128,6 +179,7 @@ int main (int argc, char *argv[])
    bool move_bnd         = true;
    bool visualization    = false;
    bool exactaction      = false;
+   bool normalization    = false;
    bool freeze_target_linearization = false;
    real_t lim_const = 0.0;
    real_t surface_fit_const = 0.0;
@@ -221,7 +273,12 @@ int main (int argc, char *argv[])
                   "Freeze the target matrix in the Hessian linearization. "
                   "This is forced when -no-ex is used.");
    args.AddOption(&lim_const, "-lc", "--limit-const",
-                  "Node limiting constant. Requires -ex in this miniapp.");
+                  "Quadratic node-limiting weight (inverse squared penalty "
+                  "parameter). Zero disables limiting. Requires -ex.");
+   args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
+                  "--no-normalization",
+                  "Normalize the metric by its initial energy and fitting by "
+                  "the initial target volume. Node limiting is not normalized.");
    args.AddOption(&surface_fit_const, "-sfc", "--surface-fit-const",
                   "Surface fitting coefficient. Zero disables fitting.");
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
@@ -527,6 +584,9 @@ int main (int argc, char *argv[])
    }
 
    std::unique_ptr<TMOPVisualizationData> vis_data;
+   const bool visualize_orientation = visualization && dim == 2 &&
+                                      active_metric_id == 36 &&
+                                      (target_id == 4 || target_id == 8);
    if (visualization)
    {
       vis_data = std::make_unique<TMOPVisualizationData>(
@@ -538,6 +598,11 @@ int main (int argc, char *argv[])
    {
       VisualizeMetricValues(mesh_poly_deg, *vis_data, pmesh, x,
                             "Initial metric values", 0);
+      if (visualize_orientation)
+      {
+         VisualizeTargetOrientation(*vis_data, x,
+                                     "Initial target orientation", 0, 600);
+      }
       if (surface_fit_const > 0.0)
       {
          VisualizeField(pmesh, *surf_fit_gf0, "Surface fitting level set",
@@ -631,13 +696,18 @@ int main (int argc, char *argv[])
                                     surf_fit_options_ptr, fitting_tolerance,
                                     nullptr,
                                     0.0, 1.0e20, false, false,
-                                    derivative_backend);
+                                    derivative_backend, normalization);
 
    SaveMesh(pmesh, "optimized.mesh");
    if (visualization)
    {
       VisualizeMetricValues(mesh_poly_deg, *vis_data, pmesh, x,
                             "Final metric values", 600);
+      if (visualize_orientation)
+      {
+         VisualizeTargetOrientation(*vis_data, x,
+                                     "Final target orientation", 600, 600);
+      }
       x0 -= x;
       VisualizeField(pmesh, x0, "Displacements", 1200, 0);
    }

@@ -9,6 +9,7 @@
 #include "../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../fem/dfem/backends/local_qf/revdiff_transformer.hpp"
 #include "mesh-fitting.hpp"
+#include "digital-twin-inclusion.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -920,7 +921,8 @@ struct SurfaceFittingOptions
       SQUIRCLE = 3,
       SPHERE = 7,
       QUADRATIC_INTERFACE = 5,
-      CUBIC_INTERFACE = 6
+      CUBIC_INTERFACE = 6,
+      CLOSED_INCLUSION = 8
    };
 
    enum DiscreteDerivativeMode
@@ -956,6 +958,11 @@ void EvalAnalyticLevelSet(int dim,
 
    const real_t xc = x[0] - 0.5;
    const real_t yc = x[1] - 0.5;
+   if (analytic_level_set == SurfaceFittingOptions::CLOSED_INCLUSION)
+   {
+      EvalClosedInclusion(x, parameters, sigma, gradient, hessian);
+      return;
+   }
    if (analytic_level_set == SurfaceFittingOptions::QUADRATIC_INTERFACE ||
        analytic_level_set == SurfaceFittingOptions::CUBIC_INTERFACE)
    {
@@ -2348,6 +2355,10 @@ public:
                   SurfaceFittingOptions::CUBIC_INTERFACE ||
                   (dim == 2 && interface_parameters.Size() == 4),
                   "Cubic-interface surface fitting requires four parameters.");
+      MFEM_VERIFY(analytic_level_set !=
+                  SurfaceFittingOptions::CLOSED_INCLUSION ||
+                  (dim == 2 && interface_parameters.Size() == 5),
+                  "Closed-inclusion fitting requires five parameters in 2D.");
 
       ParGridFunction counter(&current_fes);
       counter.CountElementsPerVDof(dof_count);
@@ -3066,7 +3077,7 @@ public:
       real_t global_energy = 0.0;
       MPI_Allreduce(&local_energy, &global_energy, 1,
                     MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      return global_energy;
+      return metric_normal * global_energy;
    }
 
    real_t LimitingEnergy(const Vector &x) const
@@ -3103,7 +3114,7 @@ public:
       real_t global_energy = 0.0;
       MPI_Allreduce(&local_energy, &global_energy, 1,
                     MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      return global_energy;
+      return limiting_normal * global_energy;
    }
 
    real_t SurfaceFittingEnergy(const Vector &x) const
@@ -3119,12 +3130,73 @@ public:
       real_t global_energy = 0.0;
       MPI_Allreduce(&local_energy, &global_energy, 1,
                     MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      return global_energy;
+      return surface_fit_normal * global_energy;
    }
 
    real_t Energy(const Vector &x) const
    {
       return MetricEnergy(x) + LimitingEnergy(x) + SurfaceFittingEnergy(x);
+   }
+
+   /// Normalize metric and fitting terms, with factors fixed at the initial mesh.
+   /// Node limiting uses unit distance and receives no normalization factor.
+   void EnableNormalization(const Vector &x)
+   {
+      MFEM_VERIFY(!normalized, "Normalization is already enabled.");
+      UpdateAfterMeshPositionChange(x);
+      const real_t initial_metric = MetricEnergy(x);
+      MFEM_VERIFY(std::isfinite(initial_metric) && initial_metric > 0.0,
+                  "Normalization requires a positive initial metric energy.");
+
+      real_t local_target_volume = 0.0;
+      if (target_id == 1)
+      {
+         // Unit-size ideal targets contain no physical volume information.
+         local_target_volume = mesh.GetNE();
+      }
+      else
+      {
+         // Reuse the target evaluator to integrate det(W) at the initial state.
+         frozen_target_updater(*this);
+         const real_t *targets = frozen_target_w.HostRead();
+         int offset = 0;
+         for (int e = 0; e < mesh.GetNE(); e++)
+         {
+            const auto &ir = qspace.GetIntRule(e);
+            for (int q = 0; q < ir.GetNPoints(); q++)
+            {
+               tensor<real_t, dim, dim> W {};
+               for (int i = 0; i < dim; i++)
+               {
+                  for (int j = 0; j < dim; j++)
+                  {
+                     W(i,j) = targets[offset++];
+                  }
+               }
+               local_target_volume += ir.IntPoint(q).weight * det(W);
+            }
+         }
+      }
+      real_t target_volume = 0.0;
+      MPI_Allreduce(&local_target_volume, &target_volume, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      MFEM_VERIFY(std::isfinite(target_volume) && target_volume > 0.0,
+                  "Normalization requires a positive target volume.");
+
+      metric_normal = 1.0 / initial_metric;
+      limiting_normal = 1.0;
+      surface_fit_normal = 1.0 / target_volume;
+      normalized = true;
+   }
+
+   /// Multipliers applied to the metric, limiting, and fitting contributions.
+   void GetNormalizationFactors(real_t &metric_factor,
+                                real_t &limiting_factor,
+                                real_t &fitting_factor) const
+   {
+      metric_factor = metric_normal;
+      limiting_factor = limiting_normal;
+      fitting_factor = surface_fit_normal;
    }
 
    void Gradient(const Vector &x, Vector &g) const
@@ -3161,6 +3233,8 @@ public:
          metric_gradient_dop->Mult(Xmv, Gmv);
       }
 
+      if (metric_normal != 1.0) { g *= metric_normal; }
+
       DifferentiableOperator *limit_dop = !exact_action
                                           ? frozen_node_limiting_energy_dop.get()
                                           : node_limiting_energy_dop.get();
@@ -3185,6 +3259,10 @@ public:
             MultiVector Xmv{x, reference_nodes, target_w, limit_qdata};
             node_limiting_gradient_dop->Mult(Xmv, LGmv);
          }
+         if (limiting_normal != 1.0)
+         {
+            node_limiting_gradient *= limiting_normal;
+         }
          g += node_limiting_gradient;
       }
 
@@ -3195,6 +3273,10 @@ public:
          MultiVector Xmv{x, surface_fit_qdata};
          MultiVector SGmv{surface_gradient};
          surface_gradient_dop->Mult(Xmv, SGmv);
+         if (surface_fit_normal != 1.0)
+         {
+            surface_gradient *= surface_fit_normal;
+         }
          g += surface_gradient;
       }
    }
@@ -3420,9 +3502,9 @@ private:
       if (UseFrozenTargetLinearization())
       {
          SetupFrozenTargetEnergy<metric_id_val>(ir, all_domain_attr);
-         frozen_target_updater =
-            &CallUpdateFrozenTargetData<target_id_val, metric_id_val>;
       }
+      frozen_target_updater =
+         &CallUpdateFrozenTargetData<target_id_val, metric_id_val>;
    }
 
    template <int target_id_val, int metric_id_val>
@@ -3751,6 +3833,10 @@ private:
    bool freeze_target_linearization;
    bool has_node_limiting;
    int derivative_backend;
+   bool normalized = false;
+   real_t metric_normal = 1.0;
+   real_t limiting_normal = 1.0;
+   real_t surface_fit_normal = 1.0;
    std::unique_ptr<Target5Remap> target5_data;
    std::unique_ptr<Target6Remap> target6_data;
    std::unique_ptr<Target8Remap> target8_data;
@@ -3772,9 +3858,10 @@ class SingleOutputDerivativeOperator : public Operator
 {
 public:
    SingleOutputDerivativeOperator(std::shared_ptr<DerivativeOperator> op,
-                                  const ParFiniteElementSpace &fes)
+                                  const ParFiniteElementSpace &fes,
+                                  real_t scale_ = 1.0)
       : Operator(fes.GetTrueVSize()),
-        derivative(std::move(op))
+        derivative(std::move(op)), scale(scale_)
    { }
 
    MemoryClass GetMemoryClass() const override
@@ -3786,15 +3873,18 @@ public:
    {
       MultiVector Ymv{y};
       derivative->Mult(x, Ymv);
+      if (scale != 1.0) { y *= scale; }
    }
 
    void AssembleDiagonal(Vector &diag) const override
    {
       derivative->AssembleDiagonal(diag);
+      if (scale != 1.0) { diag *= scale; }
    }
 
 private:
    std::shared_ptr<DerivativeOperator> derivative;
+   real_t scale;
 };
 
 class SumWithDiagonalOperator : public Operator
@@ -3854,19 +3944,21 @@ EnzymeTMOPFunctional<dim>::HessianOperator(const Vector &x) const
       tmop_hessian = std::make_unique<SingleOutputDerivativeOperator>(
                         frozen_target_energy_dop->GetSecondDerivative(
                            X, Xmv, true),
-                        fes);
+                        fes, metric_normal);
    }
    else if (target_id == 5 || target_id == 6 || target_id == 8)
    {
       MultiVector Xmv{x, target_w, target_qdata};
       tmop_hessian = std::make_unique<SingleOutputDerivativeOperator>(
-                        energy_dop->GetSecondDerivative(X, Xmv, true), fes);
+                        energy_dop->GetSecondDerivative(X, Xmv, true),
+                        fes, metric_normal);
    }
    else
    {
       MultiVector Xmv{x, target_w};
       tmop_hessian = std::make_unique<SingleOutputDerivativeOperator>(
-                        energy_dop->GetSecondDerivative(X, Xmv, true), fes);
+                        energy_dop->GetSecondDerivative(X, Xmv, true),
+                        fes, metric_normal);
    }
 
    DifferentiableOperator *limit_dop = UseFrozenTargetLinearization()
@@ -3879,20 +3971,23 @@ EnzymeTMOPFunctional<dim>::HessianOperator(const Vector &x) const
       {
          MultiVector Xmv{x, reference_nodes, frozen_target_w, limit_qdata};
          limit_hessian = std::make_unique<SingleOutputDerivativeOperator>(
-                            limit_dop->GetSecondDerivative(X, Xmv, true), fes);
+                            limit_dop->GetSecondDerivative(X, Xmv, true),
+                            fes, limiting_normal);
       }
       else if (target_id == 6 || target_id == 8)
       {
          MultiVector Xmv{x, reference_nodes, target_w, target_qdata,
                          limit_qdata};
          limit_hessian = std::make_unique<SingleOutputDerivativeOperator>(
-                            limit_dop->GetSecondDerivative(X, Xmv, true), fes);
+                            limit_dop->GetSecondDerivative(X, Xmv, true),
+                            fes, limiting_normal);
       }
       else
       {
          MultiVector Xmv{x, reference_nodes, target_w, limit_qdata};
          limit_hessian = std::make_unique<SingleOutputDerivativeOperator>(
-                            limit_dop->GetSecondDerivative(X, Xmv, true), fes);
+                            limit_dop->GetSecondDerivative(X, Xmv, true),
+                            fes, limiting_normal);
       }
       tmop_hessian = std::make_unique<SumWithDiagonalOperator>(
                         std::move(tmop_hessian), std::move(limit_hessian));
@@ -3904,7 +3999,7 @@ EnzymeTMOPFunctional<dim>::HessianOperator(const Vector &x) const
    auto surface_hessian = std::make_unique<SingleOutputDerivativeOperator>(
                              surface_energy_dop->GetSecondDerivative(
                                 X, Xmv, true),
-                             fes);
+                             fes, surface_fit_normal);
    return std::make_unique<SumWithDiagonalOperator>(
              std::move(tmop_hessian), std::move(surface_hessian));
 }
@@ -4131,7 +4226,8 @@ real_t MinimumDetJ(ParMesh &pmesh,
 void SaveMesh(ParMesh &pmesh, const char *filename)
 {
    std::ofstream mesh_ofs(filename);
-   mesh_ofs.precision(8);
+   // Preserve small nodal displacements when postprocessing strongly limited meshes.
+   mesh_ofs.precision(std::numeric_limits<real_t>::max_digits10);
    pmesh.PrintAsOne(mesh_ofs);
 }
 
@@ -4582,7 +4678,8 @@ int RunOptimizer(ParMesh &pmesh,
                  real_t surface_fit_weight_limit = 1.0e20,
                  bool surface_fit_converge_error = false,
                  bool surface_fit_require_stationarity = false,
-                 int derivative_backend = TENSOR_KERNEL_DERIVATIVES)
+                 int derivative_backend = TENSOR_KERNEL_DERIVATIVES,
+                 bool normalization = false)
 {
    Vector Xtrue(pfespace.GetTrueVSize());
    x.GetTrueDofs(Xtrue);
@@ -4595,7 +4692,23 @@ int RunOptimizer(ParMesh &pmesh,
                                         Xtrue, lim_const,
                                         surface_fit_options,
                                         derivative_backend);
-   functional.UpdateAfterMeshPositionChange(Xtrue);
+   if (normalization)
+   {
+      functional.EnableNormalization(Xtrue);
+      if (Mpi::Root() && verbosity_level > 0)
+      {
+         real_t metric_factor, limiting_factor, fitting_factor;
+         functional.GetNormalizationFactors(metric_factor, limiting_factor,
+                                             fitting_factor);
+         const auto precision = std::cout.precision();
+         std::cout << std::setprecision(16)
+                   << "Normalization factors: metric=" << metric_factor
+                   << ", limiting=" << limiting_factor
+                   << ", fitting=" << fitting_factor << '\n';
+         std::cout.precision(precision);
+      }
+   }
+   else { functional.UpdateAfterMeshPositionChange(Xtrue); }
    auto constrained_tmop_grad_norm = [&](const Vector &x) -> real_t
    {
       Vector grad(x.Size());

@@ -41,7 +41,14 @@
 //     mpirun -np 4 pmesh-fitting-enzyme  -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -als -slstype 4
 // csg
 //  mpirun -np 12 ./pmesh-fitting-enzyme -m cubecsg.mesh -rs 0 -o 2 -mid 321 -tid 2 -vl 2 -dls -slstype 6 -sbgmesh -bgamriter 4 -sfc 10 -sfa 2 -sft 1e-4 -sfcmax 1e4 -ni 100 -no-resid -vis -visit -mat -dist
-
+// Save a background mesh and distance field, then reuse only the mesh:
+//   mpirun -np 4 ./pmesh-fitting-enzyme -dls -bg -dist -bg-out circle-bg
+//   mpirun -np 4 ./pmesh-fitting-enzyme -bg-in circle-bg_000000/pmesh -bg-par
+// Or supply a serial background mesh (partitioned across the current ranks):
+//   mpirun -np 4 ./pmesh-fitting-enzyme -bg-in background.mesh
+// Input meshes skip background generation and AMR; the distance is recomputed
+// for the selected -slstype. Parallel input requires the original rank count.
+// make pmesh-fitting-enzyme -j4 && mpirun -np 12 ./pmesh-fitting-enzyme -m fitting-submesh-rs5.mesh -rs 0 -o 2 -mid 321 -tid 4 -vl 2 -dls -slstype 6 -sbgmesh -bg-in fitting-submesh-background-rs5-amr6.mesh -sfc 10 -sfa 2 -sft 1e-6 -sfcmax 1e4 -ni 100 -no-resid -vis -visit -mat -dist
 #include "mfem.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_ENZYME) && \
@@ -57,6 +64,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -1756,6 +1764,28 @@ void SaveMesh(ParMesh &pmesh, const char *filename)
    pmesh.PrintAsSerial(output);
 }
 
+/// Save the adaptive background mesh and computed distance field.
+void SaveBackgroundDistance(const char *name, ParMesh &mesh,
+                            ParGridFunction &distance)
+{
+   // Parallel format preserves the nonconforming mesh and its partition.
+   VisItDataCollection checkpoint(name, &mesh);
+   checkpoint.SetFormat(DataCollection::PARALLEL_FORMAT);
+   checkpoint.SetPrecision(std::numeric_limits<real_t>::max_digits10);
+   checkpoint.SetCycle(0);
+   checkpoint.SetTime(0.0);
+   checkpoint.RegisterField("distance", &distance);
+   checkpoint.Save();
+   MFEM_VERIFY(checkpoint.Error() == DataCollection::No_Error,
+               "Unable to save background distance checkpoint: " << name);
+   if (Mpi::Root())
+   {
+      std::cout << "Saved background mesh and distance field to '" << name
+                << "' (cycle 0). Reuse only the mesh with -bg-in " << name
+                << "_000000/pmesh -bg-par and the same MPI rank count.\n";
+   }
+}
+
 /// Select the requested global family of integration rules.
 IntegrationRules &SelectIntegrationRules(int quad_type)
 {
@@ -2165,6 +2195,9 @@ int main(int argc, char *argv[])
    bool adapt_marking = false;
    bool surf_bg_mesh = false;
    bool comp_dist = false;
+   const char *bg_input = "";
+   bool bg_parallel = false;
+   const char *bg_output = "pmesh-fitting-enzyme-background";
    int surf_ls_type = SurfaceFittingOptions::CIRCLE;
    int marking_type = 0;
    bool mod_bndr_attr = false;
@@ -2247,9 +2280,23 @@ int main(int argc, char *argv[])
    args.AddOption(&surf_bg_mesh, "-sbgmesh", "--surf-bg-mesh",
                   "-no-sbgmesh", "--no-surf-bg-mesh",
                   "Use a background mesh for discrete surface fitting.");
+   args.AddOption(&surf_bg_mesh, "-bg", "--background-mesh",
+                  "-no-bg", "--no-background-mesh", "Alias for -sbgmesh.");
    args.AddOption(&comp_dist, "-dist", "--comp-dist", "-no-dist",
                   "--no-comp-dist", "Convert the background level set to "
-                  "a distance field.");
+                  "a distance field and save it with the background mesh.");
+   args.AddOption(&bg_input, "-bg-in", "--background-input",
+                  "Background mesh file to load. Implies -dls -bg -dist: "
+                  "skip background generation and AMR, then compute a new "
+                  "distance field for the selected level set.");
+   args.AddOption(&bg_parallel, "-bg-par", "--background-parallel",
+                  "-bg-serial", "--background-serial",
+                  "Read -bg-in as a parallel mesh prefix, appending .NNNNNN "
+                  "for each MPI rank. Requires the original rank count. "
+                  "Otherwise read and partition a serial mesh file.");
+   args.AddOption(&bg_output, "-bg-out", "--background-output",
+                  "Output collection prefix for the background mesh and "
+                  "distance field, saved automatically with -dist -bg.");
    args.AddOption(&surf_ls_type, "-slstype", "--surf-ls-type",
                   "Level set: 1 circle, 2 reactor, 3 squircle, 4 sphere, "
                   "6 cube/cylinder/sphere. Types 2 and 6 require -dls.");
@@ -2274,6 +2321,13 @@ int main(int argc, char *argv[])
    {
       if (Mpi::Root()) { args.PrintUsage(std::cout); }
       return 1;
+   }
+   const bool load_background = bg_input[0] != '\0';
+   if (load_background)
+   {
+      surf_bg_mesh = true;
+      analytic_level_set = false;
+      comp_dist = true;
    }
    if (Mpi::Root()) { args.PrintOptions(std::cout); }
 
@@ -2337,6 +2391,10 @@ int main(int argc, char *argv[])
                "Adaptive marking is not yet supported by pmesh-fitting-enzyme.");
    MFEM_VERIFY(!comp_dist || surf_bg_mesh,
                "Distance conversion requires a background mesh.");
+   MFEM_VERIFY(!bg_parallel || load_background,
+               "Parallel background input requires -bg-in.");
+   MFEM_VERIFY(!comp_dist || bg_output[0] != '\0',
+               "The background output collection prefix must not be empty.");
    MFEM_VERIFY(bg_amr_iters >= 0,
                "The number of background AMR iterations must be "
                "nonnegative.");
@@ -2430,32 +2488,66 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParGridFunction> surface_bg_level_set;
    if (surf_bg_mesh)
    {
-      Mesh serial_bg = dim == 2 ?
-                        Mesh::MakeCartesian2D(
-                           4, 4, Element::QUADRILATERAL, true) :
-                        Mesh::MakeCartesian3D(
-                           4, 4, 4, Element::HEXAHEDRON, true);
-      serial_bg.EnsureNCMesh();
-      surface_bg_mesh =
-         std::make_unique<ParMesh>(MPI_COMM_WORLD, serial_bg);
-      surface_bg_mesh->SetCurvature(mesh_poly_deg);
-
-      Vector p_min(dim), p_max(dim);
-      pmesh.GetBoundingBox(p_min, p_max);
-      GridFunction &x_bg = *surface_bg_mesh->GetNodes();
-      const int bg_nodes = x_bg.Size() / dim;
-      for (int i = 0; i < bg_nodes; i++)
+      if (load_background)
       {
-         for (int d = 0; d < dim; d++)
+         if (bg_parallel)
          {
-            const real_t length = p_max(d) - p_min(d);
-            const real_t extra = 0.2 * length;
-            x_bg(i + d * bg_nodes) = p_min(d) - extra +
-                                     x_bg(i + d * bg_nodes) *
-                                     (length + 2.0 * extra);
+            const std::string filename = std::string(bg_input) + "." +
+                                         to_padded_string(Mpi::WorldRank(), 6);
+            named_ifgzstream input(filename);
+            MFEM_VERIFY(input, "Unable to open background mesh: " << filename);
+            surface_bg_mesh = std::make_unique<ParMesh>(MPI_COMM_WORLD, input);
+         }
+         else
+         {
+            Mesh serial_bg(bg_input, 1, 1, false);
+            surface_bg_mesh =
+               std::make_unique<ParMesh>(MPI_COMM_WORLD, serial_bg);
+         }
+         MFEM_VERIFY(surface_bg_mesh->Dimension() == dim &&
+                     surface_bg_mesh->SpaceDimension() == dim,
+                     "The background mesh must have the same dimension as "
+                     "the fitting mesh.");
+         if (!surface_bg_mesh->GetNodes())
+         {
+            surface_bg_mesh->SetCurvature(mesh_poly_deg);
+         }
+         if (Mpi::Root())
+         {
+            std::cout << "Loaded background mesh from '" << bg_input
+                      << "'; skipping background generation and AMR. "
+                      << "Computing a new distance field.\n";
          }
       }
-      surface_bg_mesh->NodesUpdated();
+      else
+      {
+         Mesh serial_bg = dim == 2 ?
+                           Mesh::MakeCartesian2D(
+                              4, 4, Element::QUADRILATERAL, true) :
+                           Mesh::MakeCartesian3D(
+                              4, 4, 4, Element::HEXAHEDRON, true);
+         serial_bg.EnsureNCMesh();
+         surface_bg_mesh =
+            std::make_unique<ParMesh>(MPI_COMM_WORLD, serial_bg);
+         surface_bg_mesh->SetCurvature(mesh_poly_deg);
+
+         Vector p_min(dim), p_max(dim);
+         pmesh.GetBoundingBox(p_min, p_max);
+         GridFunction &x_bg = *surface_bg_mesh->GetNodes();
+         const int bg_nodes = x_bg.Size() / dim;
+         for (int i = 0; i < bg_nodes; i++)
+         {
+            for (int d = 0; d < dim; d++)
+            {
+               const real_t length = p_max(d) - p_min(d);
+               const real_t extra = 0.2 * length;
+               x_bg(i + d * bg_nodes) = p_min(d) - extra +
+                                        x_bg(i + d * bg_nodes) *
+                                        (length + 2.0 * extra);
+            }
+         }
+         surface_bg_mesh->NodesUpdated();
+      }
 
       surface_bg_fec =
          std::make_unique<H1_FECollection>(mesh_poly_deg + 1, dim);
@@ -2464,16 +2556,21 @@ int main(int argc, char *argv[])
       surface_bg_level_set =
          std::make_unique<ParGridFunction>(surface_bg_fes.get());
 
-      OptimizeMeshWithAMRAroundZeroLevelSet(
-         *surface_bg_mesh, *level_set_coeff, bg_amr_iters,
-         *surface_bg_level_set);
-      surface_bg_mesh->Rebalance();
-      surface_bg_fes->Update();
-      surface_bg_level_set->Update();
+      if (!load_background)
+      {
+         OptimizeMeshWithAMRAroundZeroLevelSet(
+            *surface_bg_mesh, *level_set_coeff, bg_amr_iters,
+            *surface_bg_level_set);
+         surface_bg_mesh->Rebalance();
+         surface_bg_fes->Update();
+         surface_bg_level_set->Update();
+      }
       if (comp_dist)
       {
          ComputeScalarDistanceFromLevelSet(
             *surface_bg_mesh, *level_set_coeff, *surface_bg_level_set);
+         SaveBackgroundDistance(bg_output, *surface_bg_mesh,
+                                *surface_bg_level_set);
       }
       else
       {
