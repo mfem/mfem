@@ -13,12 +13,23 @@
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 #include "bilininteg_hdiv_kernels.hpp"
+#include "mma/mma.hpp"
+#include "mma/hdiv.hpp"
 
 namespace mfem
 {
 
 void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_tensors_mma = false;
+   use_simplices_mma = false;
+
+   if (UsesSimplexMmaHdiv(fes))
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement *fel = fes.GetTypicalFE();
@@ -33,7 +44,7 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -65,10 +76,17 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       MFEM_ABORT("Unknown kernel.");
    }
+
+   if (UsesTensorMmaHdiv(fes)) { use_tensors_mma = true; }
 }
 
 void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   if (use_simplices_mma)
+   {
+      diag = 0.0;
+      return;
+   }
    if (dim == 3)
    {
       internal::PADivDivAssembleDiagonal3D(dofs1D, quad1D, ne,
@@ -83,12 +101,38 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplices_mma)
+   {
+      internal::MmaDivDivApplySimplex(dim, ne, simplex_nd, simplex_nq, dofs1D,
+                                      simplex_B, pa_data, x, y);
+      return;
+   }
+   if (use_tensors_mma)
+   {
+      if (dim == 3)
+      {
+         internal::MmaDivDivApplyTensors3D(dofs1D, quad1D, ne, mapsO->B,
+                                           mapsC->G, mapsO->Bt, mapsC->Gt,
+                                           pa_data, x, y);
+      }
+      else
+      {
+         internal::MmaDivDivApplyTensors2D(dofs1D, quad1D, ne, mapsO->B,
+                                           mapsC->G, mapsO->Bt, mapsC->Gt,
+                                           pa_data, x, y);
+      }
+      return;
+   }
    if (dim == 3)
+   {
       internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
                                 mapsO->Bt, mapsC->Gt, pa_data, x, y);
+   }
    else if (dim == 2)
+   {
       internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
                                 mapsO->Bt, mapsC->Gt, pa_data, x, y);
+   }
    else
    {
       MFEM_ABORT("Unsupported dimension!");

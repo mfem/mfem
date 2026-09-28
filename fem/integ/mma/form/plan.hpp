@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -198,6 +198,8 @@ inline const char *FieldKindName(field_kind k)
    {
       case field_kind::Eval: return "Eval";
       case field_kind::Grad: return "Grad";
+      case field_kind::Curl: return "Curl";
+      case field_kind::Div: return "Div";
       case field_kind::None: return "None";
    }
    return "?";

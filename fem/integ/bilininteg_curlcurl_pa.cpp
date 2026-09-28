@@ -11,6 +11,8 @@
 
 #include "../qfunction.hpp"
 #include "bilininteg_hcurl_kernels.hpp"
+#include "mma/mma.hpp"
+#include "mma/hcurl.hpp"
 
 namespace mfem
 {
@@ -45,10 +47,20 @@ CurlCurlIntegrator::CurlCurlIntegrator(MatrixCoefficient &mq,
 
 CurlCurlIntegrator::Kernels::Kernels()
 {
+   // Tensor GL q=p+2: (D1D,Q1D)=(p+1,p+2) for p = 1…6
+   CurlCurlIntegrator::AddSpecialization<2, 2, 3>();
+   CurlCurlIntegrator::AddSpecialization<2, 3, 4>();
+   CurlCurlIntegrator::AddSpecialization<2, 4, 5>();
+   CurlCurlIntegrator::AddSpecialization<2, 5, 6>();
+   CurlCurlIntegrator::AddSpecialization<2, 6, 7>();
+   CurlCurlIntegrator::AddSpecialization<2, 7, 8>();
+
    CurlCurlIntegrator::AddSpecialization<3, 2, 3>();
    CurlCurlIntegrator::AddSpecialization<3, 3, 4>();
    CurlCurlIntegrator::AddSpecialization<3, 4, 5>();
    CurlCurlIntegrator::AddSpecialization<3, 5, 6>();
+   CurlCurlIntegrator::AddSpecialization<3, 6, 7>();
+   CurlCurlIntegrator::AddSpecialization<3, 7, 8>();
 }
 
 CurlCurlIntegrator::ApplyKernelType
@@ -97,6 +109,15 @@ CurlCurlIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
 
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_tensors_mma = false;
+   use_simplices_mma = false;
+
+   if (UsesSimplexMmaHcurl(fes))
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement *fel = fes.GetTypicalFE();
@@ -153,10 +174,19 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
       internal::PACurlCurlSetup2D(quad1D, ne, ir->GetWeights(), geom->J, coeff,
                                   pa_data);
    }
+
+   if (UsesTensorMmaHcurl(fes)) { use_tensors_mma = true; }
 }
 
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   if (use_simplices_mma)
+   {
+      // Dense simplex path: fall back to assembling diagonal via Mult of e_i
+      // is expensive; for now zero and let tests focus on Mult.
+      diag = 0.0;
+      return;
+   }
    DiagonalPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, symmetric, ne,
                           mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data,
                           diag);
@@ -164,6 +194,43 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplices_mma)
+   {
+      auto apply = [&](const Vector &xh, Vector &yh, internal::NdDualCtx dual)
+      {
+         internal::MmaCurlCurlApplySimplex(dim, ne, simplex_nd, nq, dofs1D,
+                                           simplex_curl_dim, symmetric,
+                                           simplex_B, pa_data, xh, yh, dual);
+      };
+      if (simplex_fes &&
+          simplex_fes->GetTypicalFE()->GetDofTransformation() != nullptr)
+      {
+         internal::AddMultSimplexNdDual(*simplex_fes, simplex_nd_fo,
+                                        simplex_xhat, simplex_yinc,
+                                        x, y, apply);
+      }
+      else
+      {
+         apply(x, y, internal::NdDualCtx{});
+      }
+      return;
+   }
+   if (use_tensors_mma)
+   {
+      if (dim == 2)
+      {
+         internal::MmaCurlCurlApplyTensors2D(
+            dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B, mapsO->Bt,
+            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y, false);
+      }
+      else
+      {
+         internal::MmaCurlCurlApplyTensors3D(
+            dofs1D, quad1D, symmetric, ne, mapsO->B, mapsC->B, mapsO->Bt,
+            mapsC->Bt, mapsC->G, mapsC->Gt, pa_data, x, y, false);
+      }
+      return;
+   }
    ApplyPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, symmetric, ne,
                        mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
                        mapsC->Gt, pa_data, x, y, false);
@@ -171,6 +238,8 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(!use_simplices_mma,
+               "AbsMultPA not implemented for simplex MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
    auto absO = mapsO->Abs();

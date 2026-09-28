@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,9 @@
 #pragma once
 
 #include "common.hpp"
+#ifdef MFEM_USE_LAPACK
+#include "lapack.hpp"
+#endif
 
 /// \cond DO_NOT_DOCUMENT
 
@@ -222,7 +225,8 @@ inline void GemmTFull(const real_t *B, const real_t *uloc, real_t *Y,
 
 
 /** Dense SUMF: C(m,n) =[/+=] sum_k A_storage(k,m)*B(k,n) [, *D].
-    A is stored as DeviceMatrix(k,m); B as DeviceMatrix(k,n). */
+    A is stored as DeviceMatrix(k,m); B as DeviceMatrix(k,n).
+    Host + LAPACK: vendor GEMM (CPU stand-in for CUDA DMMA / HIP MFMA). */
 template <bool SCALE, bool ACCUM>
 MFEM_HOST_DEVICE inline void Sumf(const int m, const int n,
                                   const int k, const real_t *A,
@@ -232,6 +236,26 @@ MFEM_HOST_DEVICE inline void Sumf(const int m, const int n,
 {
    const int tid = getThreadIdxX();
    const int nthreads = getBlockNthreadsX();
+#if defined(MFEM_USE_LAPACK) && \
+    !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+   // Serial host shell (TensorShellNthreads==1): C = A^T B via dgemm/sgemm.
+   if (nthreads == 1 && m > 0 && n > 0 && k > 0 && !(SCALE && ACCUM))
+   {
+      lapack::Gemm('T', 'N', m, n, k, real_t(1), A, k, B1d, k,
+                   ACCUM ? real_t(1) : real_t(0), C, m);
+      if constexpr (SCALE)
+      {
+         for (int col = 0; col < n; ++col)
+         {
+            for (int row = 0; row < m; ++row)
+            {
+               C[row + m * col] *= (*D)(row + m * col, e);
+            }
+         }
+      }
+      return;
+   }
+#endif
    ConstDeviceMatrix B(B1d, k, n);
    ConstDeviceMatrix aA(A, k, m);
    DeviceMatrix cC(C, m, n);
@@ -259,7 +283,8 @@ MFEM_HOST_DEVICE inline void Sumf(const int m, const int n,
    }
 }
 
-/** Dense SUMF with A already in (M,K) layout. */
+/** Dense SUMF with A already in (M,K) layout.
+    Host + LAPACK: vendor GEMM (same contraction DMMA/MFMA implement). */
 template <bool ACCUM>
 MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
                                       const int N, const real_t *A,
@@ -267,6 +292,15 @@ MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
 {
    const int tid = getThreadIdxX();
    const int nthreads = getBlockNthreadsX();
+#if defined(MFEM_USE_LAPACK) && \
+    !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+   if (nthreads == 1 && M > 0 && N > 0 && K > 0)
+   {
+      lapack::Gemm('N', 'N', M, N, K, real_t(1), A, M, B1d, K,
+                   ACCUM ? real_t(1) : real_t(0), C, M);
+      return;
+   }
+#endif
    ConstDeviceMatrix aA(A, M, K);
    ConstDeviceMatrix B(B1d, K, N);
    DeviceMatrix cC(C, M, N);

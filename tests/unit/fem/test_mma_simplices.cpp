@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,9 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #endif
+
+#include <limits>
+#include <cmath>
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
@@ -515,6 +518,430 @@ TEST_CASE("PA Simplices MMA Vector VQ/MQ vs FA",
    {
       Mesh mesh("../../data/ref-tetrahedron.mesh");
       test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, true);
+   }
+}
+
+/** ir_order < 0 → default (use_2p_ir ? 2p : 2p+OrderW+4). */
+void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir,
+                                int ir_order = -1)
+{
+   CAPTURE(filename, p, use_2p_ir, ir_order);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   H1_FECollection fec(p, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   REQUIRE(UsesSimplexMMA(fes));
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = (ir_order >= 0) ? ir_order
+                     : (use_2p_ir ? (2 * p)
+                        : (2 * fe.GetOrder() + Tr.OrderW() + 4));
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   CAPTURE(order, ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   for (int e = 0; e < mesh.GetNE(); e++) { mesh.SetAttribute(e, e % 2 ? 1 : 2); }
+   mesh.SetAttributes();
+   Array<int> elem_marker(mesh.attributes.Max());
+   elem_marker = 1;
+   if (elem_marker.Size() >= 2) { elem_marker[0] = 0; }
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   auto compare = [&](Coefficient &Q)
+   {
+      LinearForm lf_dev(&fes), lf_std(&fes);
+      lf_dev.AddDomainIntegrator(new DomainLFIntegrator(Q, ir), elem_marker);
+      lf_std.AddDomainIntegrator(new DomainLFIntegrator(Q, ir), elem_marker);
+
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.UseFastAssembly(true);
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.Assemble();
+
+      lf_std.UseFastAssembly(false);
+      lf_std.Assemble();
+
+      lf_std -= lf_dev;
+      REQUIRE(lf_std.Norml2() == MFEM_Approx(0.0, 1e-10));
+   };
+
+   compare(const_coeff);
+   compare(funct_coeff);
+}
+
+TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+   const auto use_2p_ir = GENERATE(false, true);
+
+   SECTION("2D")
+   {
+      auto meshs = { "../../data/beam-tri.mesh",
+                     "../../data/inline-tri.mesh",
+                     "../../data/ref-triangle.mesh"
+                   };
+      test_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p, use_2p_ir);
+   }
+
+   SECTION("3D")
+   {
+      auto meshs = { "../../data/beam-tet.mesh",
+                     "../../data/inline-tet.mesh",
+                     "../../data/ref-tetrahedron.mesh"
+                   };
+      test_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p, use_2p_ir);
+   }
+
+   // Unregistered (D1D,nq) → AssembleSimplexMmaKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      // Tables register (2,3/12/...), not (2,7).
+      test_domain_lf_simplex_mma("../../data/ref-triangle.mesh", 1, false, 5);
+      test_domain_lf_simplex_mma("../../data/inline-tri.mesh", 1, false, 5);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      // Tables register (2,4/8/14/24), not (2,35).
+      test_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh", 1, false, 7);
+      test_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1, false, 7);
+   }
+}
+
+static void fvec_dim(const Vector &xvec, Vector &v)
+{
+   const int dim = xvec.Size();
+   real_t val = 2 * xvec[0];
+   if (dim >= 2) { val += 3 * xvec[1] * xvec[0]; }
+   if (dim >= 3) { val += real_t(0.25) * xvec[2] * xvec[1]; }
+   v.SetSize(dim);
+   for (int d = 0; d < dim; ++d) { v[d] = val / real_t(d + 1); }
+}
+
+/** ir_order < 0 → default (use_2p_ir ? 2*GetOrder() : MassIntegrator::GetRule). */
+void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p, bool hcurl,
+                                         bool use_2p_ir, int ir_order = -1)
+{
+   CAPTURE(filename, p, hcurl, use_2p_ir, ir_order);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   const int dim = mesh.Dimension();
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (hcurl) { fec.reset(new ND_FECollection(p, dim)); }
+   else { fec.reset(new RT_FECollection(p, dim)); }
+   FiniteElementSpace fes(&mesh, fec.get());
+
+   {
+      MMAForce on(true);
+      if (hcurl) { REQUIRE(UsesSimplexMmaHcurl(fes)); }
+      else { REQUIRE(UsesSimplexMmaHdiv(fes)); }
+   }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const IntegrationRule *ir = nullptr;
+   if (ir_order >= 0)
+   {
+      ir = &IntRules.Get(fe.GetGeomType(), ir_order);
+   }
+   else if (use_2p_ir)
+   {
+      ir = &IntRules.Get(fe.GetGeomType(), 2 * fe.GetOrder());
+   }
+   else
+   {
+      ir = &MassIntegrator::GetRule(fe, fe, Tr);
+   }
+   CAPTURE(ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (dim == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   for (int e = 0; e < mesh.GetNE(); e++) { mesh.SetAttribute(e, e % 2 ? 1 : 2); }
+   mesh.SetAttributes();
+   Array<int> elem_marker(mesh.attributes.Max());
+   elem_marker = 1;
+   if (elem_marker.Size() >= 2) { elem_marker[0] = 0; }
+
+   Vector cst(dim);
+   cst = M_2_SQRTPI;
+   VectorConstantCoefficient const_coeff(cst);
+   VectorFunctionCoefficient funct_coeff(dim, fvec_dim);
+
+   auto compare = [&](VectorCoefficient &Q)
+   {
+      MMAForce on(true);
+      LinearForm lf_dev(&fes), lf_std(&fes);
+      lf_dev.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Q, ir),
+                                 elem_marker);
+      lf_std.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Q, ir),
+                                 elem_marker);
+
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.UseFastAssembly(true);
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.Assemble();
+
+      lf_std.UseFastAssembly(false);
+      lf_std.Assemble();
+
+      lf_std -= lf_dev;
+      REQUIRE(lf_std.Norml2() == MFEM_Approx(0.0, 1e-10));
+   };
+
+   compare(const_coeff);
+   compare(funct_coeff);
+}
+
+TEST_CASE("VectorFE DomainLF Simplices MMA",
+          "[LinearFormExtension][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+   const auto use_2p_ir = GENERATE(false, true);
+   const auto hcurl = GENERATE(true, false);
+
+   SECTION("2D")
+   {
+      auto meshs = { "../../data/inline-tri.mesh",
+                     "../../data/ref-triangle.mesh"
+                   };
+      test_vectorfe_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p,
+                                          hcurl, use_2p_ir);
+   }
+
+   SECTION("3D")
+   {
+      auto meshs = { "../../data/inline-tet.mesh",
+                     "../../data/ref-tetrahedron.mesh"
+                   };
+      test_vectorfe_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p,
+                                          hcurl, use_2p_ir);
+   }
+
+   // Unregistered (D1D,nq) → AssembleSimplexMmaKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      test_vectorfe_domain_lf_simplex_mma("../../data/ref-triangle.mesh", 1,
+                                          hcurl, false, 5);
+      test_vectorfe_domain_lf_simplex_mma("../../data/inline-tri.mesh", 1,
+                                          hcurl, false, 5);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      test_vectorfe_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh", 1,
+                                          hcurl, false, 7);
+      test_vectorfe_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1,
+                                          hcurl, false, 7);
+   }
+}
+
+enum class VecFeOp { Mass, CurlCurl, DivDiv };
+
+void test_hcurl_hdiv_simplex_fa_vs_mma(Mesh &mesh, int p, bool hcurl, VecFeOp op)
+{
+   const int dim = mesh.Dimension();
+   CAPTURE(dim, p, hcurl, int(op), mesh.GetNE());
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (hcurl) { fec.reset(new ND_FECollection(p, dim)); }
+   else { fec.reset(new RT_FECollection(p, dim)); }
+   FiniteElementSpace fes(&mesh, fec.get());
+
+   {
+      MMAForce on(true);
+      if (hcurl) { REQUIRE(UsesSimplexMmaHcurl(fes)); }
+      else { REQUIRE(UsesSimplexMmaHdiv(fes)); }
+   }
+   {
+      MMAForce off(false);
+      REQUIRE_FALSE((UsesSimplexMmaHcurl(fes) || UsesSimplexMmaHdiv(fes)));
+   }
+
+   GridFunction x(&fes), y_fa(&fes), y_mma(&fes);
+   x.Randomize(0x100001b3);
+   y_fa = 0.0;
+   y_mma = 0.0;
+
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient c2(M_2_SQRTPI);
+   FunctionCoefficient cf([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   const auto &fe = *fes.GetTypicalFE();
+   ElementTransformation &T = *mesh.GetTypicalElementTransformation();
+   const IntegrationRule *ir = &MassIntegrator::GetRule(fe, fe, T);
+
+   auto add_ops = [&](BilinearForm &a)
+   {
+      if (op == VecFeOp::Mass)
+      {
+         auto *i0 = new VectorFEMassIntegrator;
+         auto *i1 = new VectorFEMassIntegrator(c2);
+         auto *i2 = new VectorFEMassIntegrator(cf);
+         i0->SetIntRule(ir); i1->SetIntRule(ir); i2->SetIntRule(ir);
+         a.AddDomainIntegrator(i0);
+         a.AddDomainIntegrator(i1);
+         a.AddDomainIntegrator(i2);
+      }
+      else if (op == VecFeOp::CurlCurl)
+      {
+         auto *i0 = new CurlCurlIntegrator;
+         auto *i1 = new CurlCurlIntegrator(c2);
+         auto *i2 = new CurlCurlIntegrator(cf);
+         i0->SetIntRule(ir); i1->SetIntRule(ir); i2->SetIntRule(ir);
+         a.AddDomainIntegrator(i0);
+         a.AddDomainIntegrator(i1);
+         a.AddDomainIntegrator(i2);
+      }
+      else
+      {
+         auto *i0 = new DivDivIntegrator(one);
+         auto *i1 = new DivDivIntegrator(c2);
+         auto *i2 = new DivDivIntegrator(cf);
+         i0->SetIntRule(ir); i1->SetIntRule(ir); i2->SetIntRule(ir);
+         a.AddDomainIntegrator(i0);
+         a.AddDomainIntegrator(i1);
+         a.AddDomainIntegrator(i2);
+      }
+   };
+
+   BilinearForm fa(&fes), pa(&fes);
+   add_ops(fa);
+   add_ops(pa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   fa.Assemble();
+   fa.Finalize();
+   {
+      MMAForce on(true);
+      pa.Assemble();
+   }
+
+   fa.Mult(x, y_fa);
+   pa.Mult(x, y_mma);
+   y_fa -= y_mma;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+}
+
+TEST_CASE("Hcurl/Hdiv simplex MMA PA vs FA",
+          "[PA][MMA][Hcurl][Hdiv][Simplex][GPU]")
+{
+   const int p = GENERATE(1, 2, 3, 4, 5, 6);
+   SECTION("2D ND triangle")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::CurlCurl);
+   }
+   SECTION("2D RT triangle")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::DivDiv);
+   }
+   SECTION("3D ND tet")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::CurlCurl);
+   }
+   SECTION("3D RT tet")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::DivDiv);
+   }
+}
+
+TEST_CASE("Hcurl simplex MMA PA vs FA large NE tet",
+          "[PA][MMA][Hcurl][Simplex][GPU]")
+{
+   // Old bake used nq*nd*curl_dim*NE and skipped Dual when that overflowed
+   // int Array::SetSize (p=6 tet, ~27k elements). Shared-C + E-vector dual
+   // must still run, and FA vs MMA must match on a large-but-FA-feasible mesh.
+   auto run_mma = [](Mesh &mesh, bool require_overflow)
+   {
+      const int p = 6;
+      ND_FECollection fec(p, mesh.Dimension());
+      FiniteElementSpace fes(&mesh, &fec);
+      {
+         MMAForce on(true);
+         REQUIRE(UsesSimplexMmaHcurl(fes));
+      }
+      const auto &fe = *fes.GetTypicalFE();
+      ElementTransformation &T = *mesh.GetTypicalElementTransformation();
+      const IntegrationRule *ir = &MassIntegrator::GetRule(fe, fe, T);
+      const long long nB = (long long)ir->GetNPoints() * fe.GetDof() *
+                           fe.GetCurlDim() * mesh.GetNE();
+      if (require_overflow)
+      {
+         REQUIRE(nB > static_cast<long long>(std::numeric_limits<int>::max()));
+      }
+
+      GridFunction x(&fes), y_mma(&fes);
+      x.Randomize(0x100001b3);
+      y_mma = 0.0;
+      BilinearForm pa(&fes);
+      auto *ipa = new CurlCurlIntegrator;
+      ipa->SetIntRule(ir);
+      pa.AddDomainIntegrator(ipa);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      {
+         MMAForce on(true);
+         pa.Assemble();
+      }
+      pa.Mult(x, y_mma);
+      REQUIRE(std::isfinite(y_mma.Norml2()));
+      REQUIRE(y_mma.Norml2() > 0.0);
+
+      if (!require_overflow)
+      {
+         GridFunction y_fa(&fes);
+         y_fa = 0.0;
+         BilinearForm fa(&fes);
+         auto *ifa = new CurlCurlIntegrator;
+         ifa->SetIntRule(ir);
+         fa.AddDomainIntegrator(ifa);
+         fa.Assemble();
+         fa.Finalize();
+         fa.Mult(x, y_fa);
+         y_fa -= y_mma;
+         REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+      }
+   };
+
+   SECTION("bake would overflow")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(18, 18, 18, Element::TETRAHEDRON);
+      run_mma(mesh, true);
+   }
+   SECTION("FA vs MMA on large NE")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(8, 8, 8, Element::TETRAHEDRON);
+      REQUIRE(mesh.GetNE() > 2700);
+      run_mma(mesh, false);
    }
 }
 

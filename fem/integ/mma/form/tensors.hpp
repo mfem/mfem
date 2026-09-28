@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,7 +17,8 @@
       - PackPaMetric, ApplyGradQFnVec/Smem
       - Eval×Eval: host dense + device shell (TensorEvalApply / *Device; DIM-templated)
       - Grad×Grad: host multi-RHS tiles + device shell (TensorGradApply / *Device)
-      - form::ApplyTensor<QFn, …> (SFINAE; Grad SYM from qfn_traits)
+      - form::ApplyTensor<QFn, …> (SFINAE; Grad / H(curl) mass+curl / H(div) mass+div)
+      - H(curl)/H(div) smem InterpAx/Grad* shells
       - 2D/3D: outer entries unified; Tile/Element/Ws stay dim-specific
 
     Physics QFns live under fem/integ/ only.
@@ -29,7 +30,6 @@
 #include "../../../../linalg/vector.hpp"
 #include "../../../../linalg/tensor.hpp"
 #include <algorithm>
-#include <type_traits>
 
 /// \cond DO_NOT_DOCUMENT
 
@@ -1754,7 +1754,11 @@ namespace mfem::internal::mma::form
 /** Tensor Eval apply. bt is accepted for API symmetry with registration; unused.
     vdim>1: block-diagonal multi-component (layout D… × vdim × NE). */
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
-inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+inline std::enable_if_t<
+!qfn_traits<QFn>::trial_is_grad &&
+!qfn_traits<QFn>::trial_is_curl &&
+!qfn_traits<QFn>::trial_is_div &&
+!qfn_traits<QFn>::trial_is_vec_eval, void>
 ApplyTensor(const int NE,
             const Array<real_t> &b,
             const Array<real_t> &bt,
@@ -1789,6 +1793,1072 @@ ApplyTensor(const int NE,
 {
    TensorGradApply<QFn, DIM, D1D, Q1D>(
       NE, b, g, bt, gt, d, x, y, d1d, q1d, vdim);
+}
+
+// H(curl)/H(div) tensor PA — smem InterpAx/Grad* engines + ApplyTensor
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// H(curl) / H(div) helpers (ND / RT component sizes + packed O)
+// ---------------------------------------------------------------------------
+
+/** ND / H(curl): open along the component axis. */
+MFEM_HOST_DEVICE inline void CurlCompSizes2D(const int D1D, const int c,
+                                             int &Dx, int &Dy)
+{
+   Dx = (c == 0) ? D1D - 1 : D1D;
+   Dy = (c == 1) ? D1D - 1 : D1D;
+}
+
+MFEM_HOST_DEVICE inline void CurlCompSizes3D(const int D1D, const int c,
+                                             int &Dx, int &Dy, int &Dz)
+{
+   Dx = (c == 0) ? D1D - 1 : D1D;
+   Dy = (c == 1) ? D1D - 1 : D1D;
+   Dz = (c == 2) ? D1D - 1 : D1D;
+}
+
+MFEM_HOST_DEVICE inline bool CurlAxisOpen(const int axis, const int c)
+{
+   return axis == c;
+}
+
+/** RT / H(div): closed along the component axis. */
+MFEM_HOST_DEVICE inline void DivCompSizes2D(const int D1D, const int c,
+                                            int &Dx, int &Dy)
+{
+   Dx = (c == 1) ? D1D - 1 : D1D;
+   Dy = (c == 0) ? D1D - 1 : D1D;
+}
+
+MFEM_HOST_DEVICE inline void DivCompSizes3D(const int D1D, const int c,
+                                            int &Dx, int &Dy, int &Dz)
+{
+   Dx = (c == 0) ? D1D : D1D - 1;
+   Dy = (c == 1) ? D1D : D1D - 1;
+   Dz = (c == 2) ? D1D : D1D - 1;
+}
+
+MFEM_HOST_DEVICE inline bool DivAxisOpen(const int axis, const int c)
+{
+   return axis != c;
+}
+
+template <bool SYM, bool OPEN>
+MFEM_HOST_DEVICE inline void ApplyVecEvalO2D(const real_t u0, const real_t u1,
+                                             const real_t *O,
+                                             real_t &y0, real_t &y1)
+{
+   const real_t O11 = O[0];
+   if constexpr (SYM)
+   {
+      const real_t Ooff = O[1], O22 = O[2];
+      y0 = O11 * u0 + Ooff * u1;
+      y1 = Ooff * u0 + O22 * u1;
+   }
+   else if constexpr (OPEN)
+   {
+      const real_t O21 = O[1], O12 = O[2], O22 = O[3];
+      y0 = O11 * u0 + O12 * u1;
+      y1 = O21 * u0 + O22 * u1;
+   }
+   else
+   {
+      const real_t O12 = O[1], O21 = O[2], O22 = O[3];
+      y0 = O11 * u0 + O12 * u1;
+      y1 = O21 * u0 + O22 * u1;
+   }
+}
+
+template <bool SYM>
+MFEM_HOST_DEVICE inline void ApplyVecEvalO3D(const real_t u[3],
+                                             const real_t *O, real_t y[3])
+{
+   tensor<real_t, 3, 3> A{};
+   PackPaMetric<3, SYM>(A, O);
+   y[0] = A(0, 0) * u[0] + A(0, 1) * u[1] + A(0, 2) * u[2];
+   y[1] = A(1, 0) * u[0] + A(1, 1) * u[1] + A(1, 2) * u[2];
+   y[2] = A(2, 0) * u[0] + A(2, 1) * u[1] + A(2, 2) * u[2];
+}
+
+/** Y += sign * (Byt ⊗ Bxt) qq. qq is qx + Q*qy. */
+template <int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void CurlTranspAdd2D(
+   const int Dx, const int Dy, const int Q1D,
+   const real_t *Bxt, const real_t *Byt,
+   const real_t *qq, real_t *sm0, real_t *sm1,
+   const DeviceTensor<2> &Y, const int osc, const int e,
+   const real_t sign, const int tid, const int stride)
+{
+   mma::GemmMbyK<false>(Q1D, Q1D, Dy, qq, Byt, sm0);
+   MFEM_SYNC_THREAD;
+   mma::InterpAx<MD1, MQ1>(Dx, Dy, Q1D, sm0, Bxt, sm1);
+   MFEM_SYNC_THREAD;
+   const int n = Dx * Dy;
+   for (int t = tid; t < n; t += stride)
+   {
+      const int dx = t % Dx;
+      const int dy = t / Dx;
+      Y(dx + dy * Dx + osc, e) += sign * sm1[dx + Dx * dy];
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/** Y += sign * (Bzt ⊗ Byt ⊗ Bxt) qqq. qqq is (qx+Q*qy)+Q*Q*qz. */
+template <int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void CurlTranspAdd3D(
+   const int Dx, const int Dy, const int Dz, const int Q1D,
+   const real_t *Bxt, const real_t *Byt, const real_t *Bzt,
+   const real_t *qqq, real_t *sm0, real_t *sm1,
+   const DeviceTensor<2> &Y, const int osc, const int e,
+   const real_t sign, const int tid, const int stride)
+{
+   mma::GemmMbyK<false>(Q1D * Q1D, Q1D, Dz, qqq, Bzt, sm0);
+   MFEM_SYNC_THREAD;
+   for (int dz = 0; dz < Dz; ++dz)
+   {
+      mma::GemmMbyK<false>(Q1D, Q1D, Dy, sm0 + Q1D * Q1D * dz, Byt,
+                           sm1 + Q1D * Dy * dz);
+   }
+   MFEM_SYNC_THREAD;
+   mma::InterpAx<MD1, MQ1>(Dx, Dy * Dz, Q1D, sm1, Bxt, sm0);
+   MFEM_SYNC_THREAD;
+   const int n = Dx * Dy * Dz;
+   for (int t = tid; t < n; t += stride)
+   {
+      const int dx = t % Dx;
+      const int rest = t / Dx;
+      const int dy = rest % Dy;
+      const int dz = rest / Dy;
+      Y(dx + (dy + dz * Dy) * Dx + osc, e) +=
+         sign * sm0[dx + Dx * (dy + Dy * dz)];
+   }
+   MFEM_SYNC_THREAD;
+}
+
+MFEM_HOST_DEVICE inline void CurlAccum(real_t *dst, const real_t *src,
+                                       const int n, const real_t sign,
+                                       const int tid, const int stride)
+{
+   for (int t = tid; t < n; t += stride)
+   {
+      dst[t] += sign * src[t];
+   }
+}
+
+template <int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void DivTranspAdd3D(
+   const int Dx, const int Dy, const int Dz, const int Q1D,
+   const real_t *Bxt, const real_t *Byt, const real_t *Bzt,
+   const real_t *qqq, real_t *sm0, real_t *sm1,
+   const DeviceTensor<2> &Y, const int osc, const int e,
+   const real_t sign, const int tid, const int stride)
+{
+   CurlTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt, qqq, sm0, sm1,
+                             Y, osc, e, sign, tid, stride);
+}
+
+MFEM_HOST_DEVICE inline void DivAccum(real_t *dst, const real_t *src,
+                                      const int n, const real_t sign,
+                                      const int tid, const int stride)
+{
+   CurlAccum(dst, src, n, sign, tid, stride);
+}
+
+
+// ---------------------------------------------------------------------------
+// Vector FE mass — Eval×Eval with Bo/Bc (Hcurl OPEN=true, Hdiv OPEN=false)
+// ---------------------------------------------------------------------------
+
+template <int MD1, int MQ1, int MDQ, bool OPEN, bool SYM>
+struct TensorVecEvalKernel2D
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> Bo, Bc;
+   DeviceTensor<3, const real_t> D; // (nq, ncomp, NE)
+   DeviceTensor<2, const real_t> X;
+   DeviceTensor<2, real_t> Y;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      constexpr int VDIM = 2;
+      MFEM_SHARED real_t sm0[MDQ * MDQ];
+      MFEM_SHARED real_t sm1[MDQ * MDQ];
+      MFEM_SHARED real_t sBo[MD1 * MQ1];
+      MFEM_SHARED real_t sBot[MD1 * MQ1];
+      MFEM_SHARED real_t sBc[MD1 * MQ1];
+      MFEM_SHARED real_t sBct[MD1 * MQ1];
+      MFEM_SHARED real_t ucomp[VDIM * MDQ * MDQ];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, Bc, sBc, sBct);
+      MFEM_SYNC_THREAD;
+
+      const int tid = mma::getThreadIdxX();
+      const int stride = mma::getBlockNthreadsX();
+      const int nq = Q1D * Q1D;
+      const int osc_c = (D1D - 1) * D1D;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy;
+            if constexpr (OPEN) { CurlCompSizes2D(D1D, c, Dx, Dy); }
+            else { DivCompSizes2D(D1D, c, Dx, Dy); }
+            const int n = Dx * Dy;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int dy = t / Dx;
+               sm0[dx + Dx * dy] = X(dx + dy * Dx + c * osc_c, e);
+            }
+            MFEM_SYNC_THREAD;
+
+            const real_t *Bx = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBo : sBc;
+            const real_t *By = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBo : sBc;
+            mma::InterpAx<MD1, MQ1>(Dy, Q1D, Dx, Bx, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D, Q1D, Dy, By, sm1, sm0);
+            MFEM_SYNC_THREAD;
+
+            for (int t = tid; t < nq; t += stride)
+            {
+               ucomp[t + nq * c] = sm0[t];
+            }
+            MFEM_SYNC_THREAD;
+         }
+
+         constexpr int PA = SYM ? 3 : 4;
+         for (int t = tid; t < nq; t += stride)
+         {
+            real_t O[PA];
+            for (int k = 0; k < PA; ++k) { O[k] = D(t, k, e); }
+            real_t y0, y1;
+            ApplyVecEvalO2D<SYM, OPEN>(ucomp[t], ucomp[t + nq], O, y0, y1);
+            ucomp[t] = y0;
+            ucomp[t + nq] = y1;
+         }
+         MFEM_SYNC_THREAD;
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy;
+            if constexpr (OPEN) { CurlCompSizes2D(D1D, c, Dx, Dy); }
+            else { DivCompSizes2D(D1D, c, Dx, Dy); }
+            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1,
+                                                                         c)) ? sBot : sBct;
+            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0,
+                                                                         c)) ? sBot : sBct;
+            CurlTranspAdd2D<MD1, MQ1>(Dx, Dy, Q1D, Bxt, Byt, ucomp + nq * c,
+                                      sm0, sm1, Y, c * osc_c, e, 1.0,
+                                      tid, stride);
+         }
+      }
+   }
+};
+
+template <int MD1, int MQ1, bool OPEN, bool SYM>
+struct TensorVecEvalKernel3D
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> Bo, Bc;
+   DeviceTensor<3, const real_t> D; // (nq, ncomp, NE)
+   DeviceTensor<2, const real_t> X;
+   DeviceTensor<2, real_t> Y;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      constexpr int VDIM = 3;
+      MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm1[MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sBo[MD1 * MQ1];
+      MFEM_SHARED real_t sBot[MD1 * MQ1];
+      MFEM_SHARED real_t sBc[MD1 * MQ1];
+      MFEM_SHARED real_t sBct[MD1 * MQ1];
+      MFEM_SHARED real_t ucomp[VDIM * MQ1 * MQ1 * MQ1];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, Bc, sBc, sBct);
+      MFEM_SYNC_THREAD;
+
+      const int tid = mma::getThreadIdxX();
+      const int stride = mma::getBlockNthreadsX();
+      const int nq = Q1D * Q1D * Q1D;
+      const int osc_c = OPEN ? ((D1D - 1) * D1D * D1D)
+                        : ((D1D - 1) * (D1D - 1) * D1D);
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy, Dz;
+            if constexpr (OPEN) { CurlCompSizes3D(D1D, c, Dx, Dy, Dz); }
+            else { DivCompSizes3D(D1D, c, Dx, Dy, Dz); }
+            const int n = Dx * Dy * Dz;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int rest = t / Dx;
+               const int dy = rest % Dy;
+               const int dz = rest / Dy;
+               sm0[dx + Dx * (dy + Dy * dz)] =
+                  X(dx + (dy + dz * Dy) * Dx + c * osc_c, e);
+            }
+            MFEM_SYNC_THREAD;
+
+            const real_t *Bx = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBo : sBc;
+            const real_t *By = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBo : sBc;
+            const real_t *Bz = (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2, c)) ? sBo : sBc;
+            mma::InterpAx<MD1, MQ1>(Dy * Dz, Q1D, Dx, Bx, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dz * Q1D, Q1D, Dy, By, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, Bz, sm0, sm1);
+            MFEM_SYNC_THREAD;
+
+            for (int t = tid; t < nq; t += stride)
+            {
+               ucomp[t + nq * c] = sm1[t];
+            }
+            MFEM_SYNC_THREAD;
+         }
+
+         constexpr int PA = SYM ? 6 : 9;
+         for (int t = tid; t < nq; t += stride)
+         {
+            real_t O[PA];
+            for (int k = 0; k < PA; ++k) { O[k] = D(t, k, e); }
+            const real_t u[3] = {ucomp[t], ucomp[t + nq], ucomp[t + 2 * nq]};
+            real_t yv[3];
+            ApplyVecEvalO3D<SYM>(u, O, yv);
+            ucomp[t] = yv[0];
+            ucomp[t + nq] = yv[1];
+            ucomp[t + 2 * nq] = yv[2];
+         }
+         MFEM_SYNC_THREAD;
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy, Dz;
+            if constexpr (OPEN) { CurlCompSizes3D(D1D, c, Dx, Dy, Dz); }
+            else { DivCompSizes3D(D1D, c, Dx, Dy, Dz); }
+            const real_t *Bzt = (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2,
+                                                                         c)) ? sBot : sBct;
+            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1,
+                                                                         c)) ? sBot : sBct;
+            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0,
+                                                                         c)) ? sBot : sBct;
+            CurlTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt,
+                                      ucomp + nq * c, sm0, sm1, Y,
+                                      c * osc_c, e, 1.0, tid, stride);
+         }
+      }
+   }
+};
+
+/** Device/Emulate vector-mass shell (ND/RT). bot/bct unused: LoadBBoth. */
+template <typename QFn, int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void TensorVecEvalApplyDevice(const int NE,
+                                     const Array<real_t> &bo,
+                                     const Array<real_t> &bc,
+                                     const Array<real_t> &,
+                                     const Array<real_t> &,
+                                     const Vector &d,
+                                     const Vector &x,
+                                     Vector &y,
+                                     const int d1d = 0,
+                                     const int q1d = 0)
+{
+   using Tr = qfn_traits<QFn>;
+   static_assert(DIM == 2 || DIM == 3, "TensorVecEvalApplyDevice: DIM 2 or 3");
+   static_assert(Tr::trial_is_vec_eval, "");
+   constexpr bool OPEN = Tr::open_on_component;
+   constexpr bool SYM = Tr::symmetric_pa;
+   const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
+   const int D1D = dq.D1D, Q1D = dq.Q1D;
+   constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
+   constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
+   dq.Verify(NE, "Tensor H(curl)/H(div) mass MMA D1D/Q1D exceeds shell cap");
+
+   const int nq = (DIM == 2) ? (Q1D * Q1D) : (Q1D * Q1D * Q1D);
+   const int ncomp = SYM ? ((DIM == 2) ? 3 : 6) : ((DIM == 2) ? 4 : 9);
+   MFEM_VERIFY(d.Size() == nq * ncomp * NE, "");
+
+   const int ndof = (DIM == 2)
+                    ? (2 * (D1D - 1) * D1D)
+                    : (OPEN ? (3 * (D1D - 1) * D1D * D1D)
+                       : (3 * (D1D - 1) * (D1D - 1) * D1D));
+   MFEM_VERIFY(x.Size() == ndof * NE && y.Size() == ndof * NE, "");
+
+   const auto Bo = Reshape(bo.Read(), Q1D, D1D - 1);
+   const auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   const auto Dv = Reshape(d.Read(), nq, ncomp, NE);
+   const auto X = Reshape(x.Read(), ndof, NE);
+   auto Y = Reshape(y.ReadWrite(), ndof, NE);
+
+   if constexpr (DIM == 2)
+   {
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
+                     : mma::NB2DRuntime(D1D);
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
+                              : mma::Threads2DRuntime(D1D, Q1D));
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorVecEvalKernel2D<MD1, MQ1, MDQ, OPEN, SYM>
+      {NE, D1D, Q1D, NB, Bo, Bc, Dv, X, Y});
+   }
+   else
+   {
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
+                              mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D,
+                                                            mma::kTensorCostHeavy));
+      const int NB = T_D1D
+                     ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                     : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorVecEvalKernel3D<MD1, MQ1, OPEN, SYM>
+      {NE, D1D, Q1D, NB, Bo, Bc, Dv, X, Y});
+   }
+}
+
+// ---------------------------------------------------------------------------
+// Curl×Curl — Bo / Bc / Gc (2D: Bo+Gc only)
+// ---------------------------------------------------------------------------
+
+template <int MD1, int MQ1, int MDQ>
+struct TensorCurlCurlKernel2D
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> Bo, Gc;
+   DeviceTensor<2, const real_t> D; // (nq, NE)
+   DeviceTensor<2, const real_t> X;
+   DeviceTensor<2, real_t> Y;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      MFEM_SHARED real_t sm0[MDQ * MDQ];
+      MFEM_SHARED real_t sm1[MDQ * MDQ];
+      MFEM_SHARED real_t sBo[MD1 * MQ1];
+      MFEM_SHARED real_t sBot[MD1 * MQ1];
+      MFEM_SHARED real_t sGc[MD1 * MQ1];
+      MFEM_SHARED real_t sGct[MD1 * MQ1];
+      MFEM_SHARED real_t curl[MDQ * MDQ];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, Gc, sGc, sGct);
+      MFEM_SYNC_THREAD;
+
+      const int tid = mma::getThreadIdxX();
+      const int stride = mma::getBlockNthreadsX();
+      const int nq = Q1D * Q1D;
+      const int osc_c = (D1D - 1) * D1D;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int t = tid; t < nq; t += stride) { curl[t] = 0.0; }
+         MFEM_SYNC_THREAD;
+
+         // ux: Bo_x, Gc_y → curl -=
+         {
+            const int Dx = D1D - 1, Dy = D1D;
+            const int n = Dx * Dy;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int dy = t / Dx;
+               sm0[dx + Dx * dy] = X(dx + dy * Dx, e);
+            }
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dy, Q1D, Dx, sBo, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D, Q1D, Dy, sGc, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl, sm0, nq, -1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+         }
+         // uy: Gc_x, Bo_y → curl +=
+         {
+            const int Dx = D1D, Dy = D1D - 1;
+            const int n = Dx * Dy;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int dy = t / Dx;
+               sm0[dx + Dx * dy] = X(dx + dy * Dx + osc_c, e);
+            }
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dy, Q1D, Dx, sGc, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D, Q1D, Dy, sBo, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl, sm0, nq, 1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+         }
+
+         for (int t = tid; t < nq; t += stride)
+         {
+            curl[t] *= D(t, e);
+         }
+         MFEM_SYNC_THREAD;
+
+         // ux adjoint: Yt Gct, Xt Bot, minus
+         CurlTranspAdd2D<MD1, MQ1>(D1D - 1, D1D, Q1D, sBot, sGct, curl,
+                                   sm0, sm1, Y, 0, e, -1.0, tid, stride);
+         // uy adjoint: Yt Bot, Xt Gct
+         CurlTranspAdd2D<MD1, MQ1>(D1D, D1D - 1, Q1D, sGct, sBot, curl,
+                                   sm0, sm1, Y, osc_c, e, 1.0, tid, stride);
+      }
+   }
+};
+
+template <int MD1, int MQ1, bool SYM>
+struct TensorCurlCurlKernel3D
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> Bo, Bc, Gc;
+   DeviceTensor<3, const real_t> D; // (nq, ncomp, NE)
+   DeviceTensor<2, const real_t> X;
+   DeviceTensor<2, real_t> Y;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      constexpr int BUF = MQ1 * MQ1 * MQ1;
+      MFEM_SHARED real_t smA[2][BUF];
+      MFEM_SHARED real_t smC[2][BUF];
+      MFEM_SHARED real_t sBo[MD1 * MQ1];
+      MFEM_SHARED real_t sBot[MD1 * MQ1];
+      MFEM_SHARED real_t BG[2][MD1 * MQ1];
+      MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+      MFEM_SHARED real_t curl[3][BUF];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
+      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, Bc, Gc, BG, BGt);
+      MFEM_SYNC_THREAD;
+
+      const int tid = mma::getThreadIdxX();
+      const int stride = mma::getBlockNthreadsX();
+      const int nq = Q1D * Q1D * Q1D;
+      const int osc_c = (D1D - 1) * D1D * D1D;
+      const real_t *sBc = BG[0];
+      const real_t *sGc = BG[1];
+      const real_t *sBct = BGt[0];
+      const real_t *sGct = BGt[1];
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int t = tid; t < nq; t += stride)
+         {
+            curl[0][t] = curl[1][t] = curl[2][t] = 0.0;
+         }
+         MFEM_SYNC_THREAD;
+
+         // ---- u0 (open x): Bo_x, (Gc,Bc)_y, then curl_y += Bc_y*Gc_z,
+         //      curl_z -= Gc_y*Bc_z
+         {
+            const int Dx = D1D - 1, Dy = D1D, Dz = D1D;
+            const int n = Dx * Dy * Dz;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int rest = t / Dx;
+               const int dy = rest % Dy;
+               const int dz = rest / Dy;
+               smC[0][dx + Dx * (dy + Dy * dz)] =
+                  X(dx + (dy + dz * Dy) * Dx, e);
+            }
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dy * Dz, Q1D, Dx, sBo, smC[0], smA[0]);
+            MFEM_SYNC_THREAD;
+            mma::GradX<MD1, MQ1, BUF>(Dz * Q1D, Q1D, Dy, BG, smA, smC);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, sGc, smC[1], smA[0]);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl[1], smA[0], nq, 1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, sBc, smC[0], smA[0]);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl[2], smA[0], nq, -1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+         }
+
+         // ---- u1 (open y): (Gc,Bc)_x, Bo_y, curl_x -= Bc_x*Gc_z,
+         //      curl_z += Gc_x*Bc_z
+         {
+            const int Dx = D1D, Dy = D1D - 1, Dz = D1D;
+            const int n = Dx * Dy * Dz;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int rest = t / Dx;
+               const int dy = rest % Dy;
+               const int dz = rest / Dy;
+               smA[0][dx + Dx * (dy + Dy * dz)] =
+                  X(dx + (dy + dz * Dy) * Dx + osc_c, e);
+            }
+            MFEM_SYNC_THREAD;
+            mma::GradX<MD1, MQ1, BUF>(Dy * Dz, Q1D, Dx, BG, smA, smC);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dz * Q1D, Q1D, Dy, sBo, smC[0], smA[0]);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dz * Q1D, Q1D, Dy, sBo, smC[1], smA[1]);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, sGc, smA[1], smC[0]);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl[0], smC[0], nq, -1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, sBc, smA[0], smC[0]);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl[2], smC[0], nq, 1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+         }
+
+         // ---- u2 (open z): (Gc,Bc)_x, then Gc_y on Bc_x / Bc_y on Gc_x,
+         //      Bo_z; curl_x += Gc_y*Bc_x, curl_y -= Bc_y*Gc_x
+         {
+            const int Dx = D1D, Dy = D1D, Dz = D1D - 1;
+            const int n = Dx * Dy * Dz;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int rest = t / Dx;
+               const int dy = rest % Dy;
+               const int dz = rest / Dy;
+               smA[0][dx + Dx * (dy + Dy * dz)] =
+                  X(dx + (dy + dz * Dy) * Dx + 2 * osc_c, e);
+            }
+            MFEM_SYNC_THREAD;
+            mma::GradX<MD1, MQ1, BUF>(Dy * Dz, Q1D, Dx, BG, smA, smC);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dz * Q1D, Q1D, Dy, sGc, smC[1], smA[0]);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dz * Q1D, Q1D, Dy, sBc, smC[0], smA[1]);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, sBo, smA[0], smC[0]);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl[0], smC[0], nq, 1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, sBo, smA[1], smC[0]);
+            MFEM_SYNC_THREAD;
+            CurlAccum(curl[1], smC[0], nq, -1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+         }
+
+         constexpr int PA = SYM ? 6 : 9;
+         for (int t = tid; t < nq; t += stride)
+         {
+            real_t O[PA];
+            for (int k = 0; k < PA; ++k) { O[k] = D(t, k, e); }
+            const real_t u[3] = {curl[0][t], curl[1][t], curl[2][t]};
+            real_t yv[3];
+            ApplyVecEvalO3D<SYM>(u, O, yv);
+            curl[0][t] = yv[0];
+            curl[1][t] = yv[1];
+            curl[2][t] = yv[2];
+         }
+         MFEM_SYNC_THREAD;
+
+         // u0 adjoint: curl_y → (Bot, Bct, Gct); curl_z → -(Bot, Gct, Bct)
+         CurlTranspAdd3D<MD1, MQ1>(D1D - 1, D1D, D1D, Q1D, sBot, sBct, sGct,
+                                   curl[1], smA[0], smC[0], Y, 0, e, 1.0,
+                                   tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D - 1, D1D, D1D, Q1D, sBot, sGct, sBct,
+                                   curl[2], smA[0], smC[0], Y, 0, e, -1.0,
+                                   tid, stride);
+         // u1: curl_x → -(Bct, Bot, Gct); curl_z → (Gct, Bot, Bct)
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D - 1, D1D, Q1D, sBct, sBot, sGct,
+                                   curl[0], smA[0], smC[0], Y, osc_c, e, -1.0,
+                                   tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D - 1, D1D, Q1D, sGct, sBot, sBct,
+                                   curl[2], smA[0], smC[0], Y, osc_c, e, 1.0,
+                                   tid, stride);
+         // u2: curl_x → (Bct, Gct, Bot); curl_y → -(Gct, Bct, Bot)
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D, D1D - 1, Q1D, sBct, sGct, sBot,
+                                   curl[0], smA[0], smC[0], Y, 2 * osc_c, e, 1.0,
+                                   tid, stride);
+         CurlTranspAdd3D<MD1, MQ1>(D1D, D1D, D1D - 1, Q1D, sGct, sBct, sBot,
+                                   curl[1], smA[0], smC[0], Y, 2 * osc_c, e, -1.0,
+                                   tid, stride);
+      }
+   }
+};
+
+template <typename QFn, int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void TensorCurlCurlApplyDevice(const int NE,
+                                      const Array<real_t> &bo,
+                                      const Array<real_t> &bc,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &,
+                                      const Array<real_t> &gc,
+                                      const Array<real_t> &,
+                                      const Vector &d,
+                                      const Vector &x,
+                                      Vector &y,
+                                      const int d1d = 0,
+                                      const int q1d = 0)
+{
+   using Tr = qfn_traits<QFn>;
+   static_assert(DIM == 2 || DIM == 3, "TensorCurlCurlApplyDevice: DIM 2 or 3");
+   static_assert(Tr::trial_is_curl, "");
+   constexpr bool SYM = Tr::symmetric_pa;
+   const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
+   const int D1D = dq.D1D, Q1D = dq.Q1D;
+   constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
+   constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
+   dq.Verify(NE, "Tensor curl-curl MMA D1D/Q1D exceeds shell cap");
+
+   const int nq = (DIM == 2) ? (Q1D * Q1D) : (Q1D * Q1D * Q1D);
+   const int ndof = (DIM == 2) ? (2 * (D1D - 1) * D1D)
+                    : (3 * (D1D - 1) * D1D * D1D);
+   MFEM_VERIFY(x.Size() == ndof * NE && y.Size() == ndof * NE, "");
+
+   const auto Bo = Reshape(bo.Read(), Q1D, D1D - 1);
+   const auto X = Reshape(x.Read(), ndof, NE);
+   auto Y = Reshape(y.ReadWrite(), ndof, NE);
+
+   if constexpr (DIM == 2)
+   {
+      MFEM_VERIFY(d.Size() == nq * NE, "");
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
+                     : mma::NB2DRuntime(D1D);
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
+                              : mma::Threads2DRuntime(D1D, Q1D));
+      const int nblocks = (NE + NB - 1) / NB;
+      const auto Gc = Reshape(gc.Read(), Q1D, D1D);
+      const auto Dv = Reshape(d.Read(), nq, NE);
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorCurlCurlKernel2D<MD1, MQ1, MDQ>
+      {NE, D1D, Q1D, NB, Bo, Gc, Dv, X, Y});
+   }
+   else
+   {
+      constexpr int ncomp = SYM ? 6 : 9;
+      MFEM_VERIFY(d.Size() == nq * ncomp * NE, "");
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
+                              mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D,
+                                                            mma::kTensorCostHeavy));
+      const int NB = T_D1D
+                     ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                     : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
+      const int nblocks = (NE + NB - 1) / NB;
+      const auto Bc = Reshape(bc.Read(), Q1D, D1D);
+      const auto Gc = Reshape(gc.Read(), Q1D, D1D);
+      const auto Dv = Reshape(d.Read(), nq, ncomp, NE);
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorCurlCurlKernel3D<MD1, MQ1, SYM>
+      {NE, D1D, Q1D, NB, Bo, Bc, Gc, Dv, X, Y});
+   }
+}
+
+// ---------------------------------------------------------------------------
+// Div×Div — Bo on open faces, Gc on the closed/normal axis
+// ---------------------------------------------------------------------------
+
+template <int MD1, int MQ1, int MDQ>
+struct TensorDivDivKernel2D
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> Bo, Gc;
+   DeviceTensor<2, const real_t> D; // (nq, NE)
+   DeviceTensor<2, const real_t> X;
+   DeviceTensor<2, real_t> Y;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      constexpr int VDIM = 2;
+      MFEM_SHARED real_t sm0[MDQ * MDQ];
+      MFEM_SHARED real_t sm1[MDQ * MDQ];
+      MFEM_SHARED real_t sBo[MD1 * MQ1];
+      MFEM_SHARED real_t sBot[MD1 * MQ1];
+      MFEM_SHARED real_t sGc[MD1 * MQ1];
+      MFEM_SHARED real_t sGct[MD1 * MQ1];
+      MFEM_SHARED real_t divq[MDQ * MDQ];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, Gc, sGc, sGct);
+      MFEM_SYNC_THREAD;
+
+      const int tid = mma::getThreadIdxX();
+      const int stride = mma::getBlockNthreadsX();
+      const int nq = Q1D * Q1D;
+      const int osc_c = (D1D - 1) * D1D;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int t = tid; t < nq; t += stride) { divq[t] = 0.0; }
+         MFEM_SYNC_THREAD;
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy;
+            DivCompSizes2D(D1D, c, Dx, Dy);
+            const int n = Dx * Dy;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int dy = t / Dx;
+               sm0[dx + Dx * dy] = X(dx + dy * Dx + c * osc_c, e);
+            }
+            MFEM_SYNC_THREAD;
+            const real_t *Bx = (c == 0) ? sGc : sBo;
+            const real_t *By = (c == 1) ? sGc : sBo;
+            mma::InterpAx<MD1, MQ1>(Dy, Q1D, Dx, Bx, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D, Q1D, Dy, By, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            DivAccum(divq, sm0, nq, 1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+         }
+
+         for (int t = tid; t < nq; t += stride)
+         {
+            divq[t] *= D(t, e);
+         }
+         MFEM_SYNC_THREAD;
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy;
+            DivCompSizes2D(D1D, c, Dx, Dy);
+            const real_t *Byt = (c == 1) ? sGct : sBot;
+            const real_t *Bxt = (c == 0) ? sGct : sBot;
+            CurlTranspAdd2D<MD1, MQ1>(Dx, Dy, Q1D, Bxt, Byt, divq, sm0, sm1,
+                                      Y, c * osc_c, e, 1.0, tid, stride);
+         }
+      }
+   }
+};
+
+template <int MD1, int MQ1>
+struct TensorDivDivKernel3D
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> Bo, Gc;
+   DeviceTensor<2, const real_t> D; // (nq, NE)
+   DeviceTensor<2, const real_t> X;
+   DeviceTensor<2, real_t> Y;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      constexpr int VDIM = 3;
+      MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm1[MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sBo[MD1 * MQ1];
+      MFEM_SHARED real_t sBot[MD1 * MQ1];
+      MFEM_SHARED real_t sGc[MD1 * MQ1];
+      MFEM_SHARED real_t sGct[MD1 * MQ1];
+      MFEM_SHARED real_t divq[MQ1 * MQ1 * MQ1];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, Gc, sGc, sGct);
+      MFEM_SYNC_THREAD;
+
+      const int tid = mma::getThreadIdxX();
+      const int stride = mma::getBlockNthreadsX();
+      const int nq = Q1D * Q1D * Q1D;
+      const int osc_c = (D1D - 1) * (D1D - 1) * D1D;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int t = tid; t < nq; t += stride) { divq[t] = 0.0; }
+         MFEM_SYNC_THREAD;
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy, Dz;
+            DivCompSizes3D(D1D, c, Dx, Dy, Dz);
+            const int n = Dx * Dy * Dz;
+            for (int t = tid; t < n; t += stride)
+            {
+               const int dx = t % Dx;
+               const int rest = t / Dx;
+               const int dy = rest % Dy;
+               const int dz = rest / Dy;
+               sm0[dx + Dx * (dy + Dy * dz)] =
+                  X(dx + (dy + dz * Dy) * Dx + c * osc_c, e);
+            }
+            MFEM_SYNC_THREAD;
+            const real_t *Bx = (c == 0) ? sGc : sBo;
+            const real_t *By = (c == 1) ? sGc : sBo;
+            const real_t *Bz = (c == 2) ? sGc : sBo;
+            mma::InterpAx<MD1, MQ1>(Dy * Dz, Q1D, Dx, Bx, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Dz * Q1D, Q1D, Dy, By, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1>(Q1D * Q1D, Q1D, Dz, Bz, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            DivAccum(divq, sm1, nq, 1.0, tid, stride);
+            MFEM_SYNC_THREAD;
+         }
+
+         for (int t = tid; t < nq; t += stride)
+         {
+            divq[t] *= D(t, e);
+         }
+         MFEM_SYNC_THREAD;
+
+         for (int c = 0; c < VDIM; ++c)
+         {
+            int Dx, Dy, Dz;
+            DivCompSizes3D(D1D, c, Dx, Dy, Dz);
+            const real_t *Bxt = (c == 0) ? sGct : sBot;
+            const real_t *Byt = (c == 1) ? sGct : sBot;
+            const real_t *Bzt = (c == 2) ? sGct : sBot;
+            DivTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt,
+                                     divq, sm0, sm1, Y, c * osc_c, e, 1.0,
+                                     tid, stride);
+         }
+      }
+   }
+};
+
+template <typename QFn, int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void TensorDivDivApplyDevice(const int NE,
+                                    const Array<real_t> &bo,
+                                    const Array<real_t> &gc,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Vector &d,
+                                    const Vector &x,
+                                    Vector &y,
+                                    const int d1d = 0,
+                                    const int q1d = 0)
+{
+   static_assert(DIM == 2 || DIM == 3, "TensorDivDivApplyDevice: DIM 2 or 3");
+   const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
+   const int D1D = dq.D1D, Q1D = dq.Q1D;
+   constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
+   constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
+   dq.Verify(NE, "Tensor div-div MMA D1D/Q1D exceeds shell cap");
+
+   const int nq = (DIM == 2) ? (Q1D * Q1D) : (Q1D * Q1D * Q1D);
+   const int ndof = (DIM == 2) ? (2 * (D1D - 1) * D1D)
+                    : (3 * (D1D - 1) * (D1D - 1) * D1D);
+   MFEM_VERIFY(d.Size() == nq * NE, "");
+   MFEM_VERIFY(x.Size() == ndof * NE && y.Size() == ndof * NE, "");
+
+   const auto Bo = Reshape(bo.Read(), Q1D, D1D - 1);
+   const auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   const auto Dv = Reshape(d.Read(), nq, NE);
+   const auto X = Reshape(x.Read(), ndof, NE);
+   auto Y = Reshape(y.ReadWrite(), ndof, NE);
+
+   if constexpr (DIM == 2)
+   {
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
+                     : mma::NB2DRuntime(D1D);
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
+                              : mma::Threads2DRuntime(D1D, Q1D));
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorDivDivKernel2D<MD1, MQ1, MDQ>
+      {NE, D1D, Q1D, NB, Bo, Gc, Dv, X, Y});
+   }
+   else
+   {
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
+                              mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D,
+                                                            mma::kTensorCostHeavy));
+      const int NB = T_D1D
+                     ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                     : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorDivDivKernel3D<MD1, MQ1>
+      {NE, D1D, Q1D, NB, Bo, Gc, Dv, X, Y});
+   }
+}
+
+
+// ---------------------------------------------------------------------------
+// ApplyTensor — Vector FE mass (Bo/Bc)
+// ---------------------------------------------------------------------------
+
+template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
+inline std::enable_if_t<qfn_traits<QFn>::trial_is_vec_eval, void>
+ApplyTensor(const int NE,
+            const Array<real_t> &bo, const Array<real_t> &bc,
+            const Array<real_t> &bot, const Array<real_t> &bct,
+            const Vector &d, const Vector &x, Vector &y,
+            const int d1d = 0, const int q1d = 0)
+{
+   using Tr = qfn_traits<QFn>;
+   static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplyTensor DIM");
+   TensorVecEvalApplyDevice<QFn, DIM, D1D, Q1D>(
+      NE, bo, bc, bot, bct, d, x, y, d1d, q1d);
+}
+
+// ---------------------------------------------------------------------------
+// ApplyTensor — Curl×Curl (Bo/Bc/Gc)
+// Host: InterpAx / GradX / GemmMbyK → blas (LAPACK GEMM when enabled).
+// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA), including adjoints.
+// ---------------------------------------------------------------------------
+
+template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
+inline std::enable_if_t<qfn_traits<QFn>::trial_is_curl, void>
+ApplyTensor(const int NE,
+            const Array<real_t> &bo, const Array<real_t> &bc,
+            const Array<real_t> &bot, const Array<real_t> &bct,
+            const Array<real_t> &gc, const Array<real_t> &gct,
+            const Vector &d, const Vector &x, Vector &y,
+            const int d1d = 0, const int q1d = 0)
+{
+   using Tr = qfn_traits<QFn>;
+   static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplyTensor DIM");
+   TensorCurlCurlApplyDevice<QFn, DIM, D1D, Q1D>(
+      NE, bo, bc, bot, bct, gc, gct, d, x, y, d1d, q1d);
+}
+
+// ---------------------------------------------------------------------------
+// ApplyTensor — Div×Div (Bo/Gc)
+// Host: InterpAx / GemmMbyK → blas (LAPACK GEMM when enabled).
+// CUDA/HIP: same calls → MMA_BACKEND_PICK (DMMA / MFMA), including adjoints.
+// ---------------------------------------------------------------------------
+
+template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
+inline std::enable_if_t<qfn_traits<QFn>::trial_is_div, void>
+ApplyTensor(const int NE,
+            const Array<real_t> &bo, const Array<real_t> &gc,
+            const Array<real_t> &bot, const Array<real_t> &gct,
+            const Vector &d, const Vector &x, Vector &y,
+            const int d1d = 0, const int q1d = 0)
+{
+   TensorDivDivApplyDevice<QFn, DIM, D1D, Q1D>(
+      NE, bo, gc, bot, gct, d, x, y, d1d, q1d);
 }
 
 } // namespace mfem::internal::mma::form

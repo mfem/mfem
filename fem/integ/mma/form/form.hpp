@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,23 +11,8 @@
 #pragma once
 
 /** @file form.hpp
-    Generic MMA Apply form layer (pointwise QFns on future::tensor).
-
-    Integrator-agnostic: fields, plans, simplex/tensor apply. Physics QFns live under
-    fem/integ/ only (never under mma/).
-
-    Author convention:
-      - trial:  const eval_t &  /  const grad_t<Dim> &
-      - test:   eval_t &        /  grad_t<Dim> &
-      - coeff:  real_t or tensor (point-local; no q/e)
-      - y = d * u;   or   y = A * u;
-
-    Layout:
-      fields.hpp | plan.hpp | simplex.hpp — simplex dense Apply / ApplyLF
-      tensors.hpp                          — tensor-product ApplyTensor + engines
-
-    Authoring guide: form/README.md
-    Design: docs/design/mma-declarative-kernels.md
+    Generic MMA Apply form layer, pointwise QFns on future::tensor.
+    Integrator-agnostic: fields, plans, simplex/tensor apply.
 */
 
 #include "fields.hpp" // IWYU pragma: export

@@ -14,6 +14,8 @@
 #include "../fem.hpp"
 
 #include "lininteg_domain_kernels.hpp"
+#include "mma/mma.hpp"
+#include "mma/domain_lf.hpp"
 
 namespace mfem
 {
@@ -38,6 +40,20 @@ VectorFEDomainLFIntegrator::Kernels::Kernels()
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 7, 7>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 8, 8>();
 
+   // RT_p: closed D1D=p+2, ir order 2p → Q1D=p+1 (p = 1…6)
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 2, 3, 2>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 2, 4, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 2, 5, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 2, 6, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 2, 7, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 2, 8, 7>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 3, 2>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 4, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 5, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 6, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 7, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 8, 7>();
+
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 1, 1>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 2, 2>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 3, 3>();
@@ -55,6 +71,23 @@ VectorFEDomainLFIntegrator::Kernels::Kernels()
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 6, 7>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 7, 8>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 8, 9>();
+
+   // 2D ND: ir order 2p → Q1D=p+1; also GL Q1D=p+2 (p = 1…6 ⇒ D1D = 2…7)
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 2, 2>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 3, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 4, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 5, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 6, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 7, 7>();
+
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 2, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 3, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 4, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 5, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 6, 7>();
+   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 7, 8>();
+
+   RegisterSimplexMmaKernels();
 }
 
 /// \cond DO_NOT_DOCUMENT
@@ -75,6 +108,10 @@ VectorFEDomainLFIntegrator::AssembleKernels::Fallback(
    }
    else if (TestType == FiniteElement::CURL)
    {
+      if (DIM == 2)
+      {
+         return HcurlDLFAssemble2D<0, 0>;
+      }
       if (DIM == 3)
       {
          return HcurlDLFAssemble3D<0, 0>;
@@ -95,6 +132,12 @@ void VectorFEDomainLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
 
    QuadratureSpace qs(*fes.GetMesh(), *ir);
    CoefficientVector coeff(QF, qs, CoefficientStorage::COMPRESSED);
+
+   if (UsesSimplexMmaHcurl(fes) || UsesSimplexMmaHdiv(fes))
+   {
+      VectorFEDLFAssembleSimplexMma(fes, ir, markers, coeff, b);
+      return;
+   }
 
    const FiniteElement::DerivType fe_type =
       static_cast<FiniteElement::DerivType>(fe.GetDerivType());
