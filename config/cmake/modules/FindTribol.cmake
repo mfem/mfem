@@ -19,4 +19,6 @@ include(MfemCmakeUtilities)
 mfem_find_package(Tribol TRIBOL TRIBOL_DIR "include" tribol/config.hpp "lib" tribol
   "Paths to headers required by Tribol." "Libraries required by Tribol."
   ADD_COMPONENT redecomp
-    "include" redecomp/redecomp.hpp "lib" redecomp)
+    "include" redecomp/redecomp.hpp "lib" redecomp
+  ADD_COMPONENT tribol_shared
+    "include" shared/math/ParSparseMat.hpp "lib" tribol_shared)
