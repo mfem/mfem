@@ -15,6 +15,38 @@
 
 using namespace mfem;
 
+namespace
+{
+
+constexpr int alias_block_size = 1024;
+
+real_t SumBaseAfterAliasWrites(real_t left_value, real_t right_value,
+                               bool sync_aliases)
+{
+   Vector base(2*alias_block_size);
+   base = 0.0;
+   base.UseDevice(true);
+
+   Vector left, right;
+   left.MakeRef(base, 0, alias_block_size);
+   right.MakeRef(base, alias_block_size, alias_block_size);
+   left.UseDevice(true);
+   right.UseDevice(true);
+
+   left = left_value;
+   right = right_value;
+
+   if (sync_aliases)
+   {
+      left.SyncAliasMemory(base);
+      right.SyncAliasMemory(base);
+   }
+
+   return base.Sum();
+}
+
+} // namespace
+
 TEST_CASE("Vector init-list and C-style array constructors", "[Vector]")
 {
    real_t ContigData[6] = {6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
@@ -246,6 +278,26 @@ TEST_CASE("Vector Sum", "[Vector],[GPU]")
    const real_t sum_2 = x.Sum();
 
    REQUIRE(sum_1 == MFEM_Approx(sum_2));
+}
+
+TEST_CASE("Vector aliases require SyncAliasMemory", "[Vector][GPU]")
+{
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      return;
+   }
+
+   const real_t left_value = 1.0;
+   const real_t right_value = 2.0;
+   const real_t expected_sum = alias_block_size*(left_value + right_value);
+
+   const real_t synced_sum =
+      SumBaseAfterAliasWrites(left_value, right_value, true);
+   REQUIRE(synced_sum == MFEM_Approx(expected_sum));
+
+   const real_t unsynced_sum =
+      SumBaseAfterAliasWrites(left_value, right_value, false);
+   REQUIRE(unsynced_sum != MFEM_Approx(expected_sum));
 }
 
 TEST_CASE("Vector delete at indices", "[Vector],[GPU]")
