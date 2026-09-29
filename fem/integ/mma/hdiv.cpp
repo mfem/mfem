@@ -67,8 +67,8 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHdivPA(
    mapsO = mapsC = mapsOtest = mapsCtest = nullptr;
    geom = nullptr;
    trial_fetype = test_fetype = FiniteElement::DIV;
-   use_simplices_mma = true;
-   use_tensors_mma = false;
+   use_simplex_mma = true;
+   use_tensors_mma_sum = false;
 
    internal::BuildRefVShape(el, ir, simplex_B);
 
@@ -110,8 +110,8 @@ void DivDivIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    quad1D = 0;
    mapsO = mapsC = nullptr;
    geom = nullptr;
-   use_simplices_mma = true;
-   use_tensors_mma = false;
+   use_simplex_mma = true;
+   use_tensors_mma_sum = false;
 
    BuildRtRefDivShape(el, ir, simplex_B);
 

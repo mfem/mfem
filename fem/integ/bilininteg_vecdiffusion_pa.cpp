@@ -72,9 +72,9 @@ VectorDiffusionIntegrator::VectorDiffusionIntegrator(MatrixCoefficient &mq)
 
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   use_tensors_mma = false;
-   use_simplices_mma = false;
-   simplex_mma_G.DeleteAll();
+   use_tensors_mma_sum = false;
+   use_simplex_mma = false;
+   mma_G.DeleteAll();
 
    // Simplex MMA before CEED / tensor maps (Q / VQ / MQ; sdim==dim).
    if (UsesSimplexMMA(fes))
@@ -298,14 +298,14 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Tensor MMA: stock PA layouts for Q / VQ / MQ (sdim==dim; no surface).
    if (UsesTensorMMA(fes) && sdim == dim)
    {
-      use_tensors_mma = true;
+      use_tensors_mma_sum = true;
    }
 }
 
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       static bool registered = false;
       if (!registered)
@@ -314,11 +314,11 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
          registered = true;
       }
       ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq,
-                                    ne, vdim, simplex_mma_G, pa_data, x, y);
+                                    ne, vdim, mma_G, pa_data, x, y);
       return;
    }
 
-   if (use_tensors_mma)
+   if (use_tensors_mma_sum)
    {
       // Tensor MQ Grad MMA needs large scratch; use stock apply on stock PA.
       if (coeff_vdim != vdim * vdim)
@@ -576,7 +576,7 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
 
 void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplices_mma || use_tensors_mma)
+   if (use_simplex_mma || use_tensors_mma_sum)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }

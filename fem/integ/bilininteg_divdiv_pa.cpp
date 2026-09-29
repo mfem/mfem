@@ -21,8 +21,8 @@ namespace mfem
 
 void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   use_tensors_mma = false;
-   use_simplices_mma = false;
+   use_tensors_mma_sum = false;
+   use_simplex_mma = false;
 
    if (UsesSimplexMmaHdiv(fes))
    {
@@ -77,12 +77,12 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_ABORT("Unknown kernel.");
    }
 
-   if (UsesTensorMmaHdiv(fes)) { use_tensors_mma = true; }
+   if (UsesTensorMmaHdiv(fes)) { use_tensors_mma_sum = true; }
 }
 
 void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       diag = 0.0;
       return;
@@ -101,13 +101,13 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       internal::MmaDivDivApplySimplex(dim, ne, simplex_nd, simplex_nq, dofs1D,
                                       simplex_B, pa_data, x, y);
       return;
    }
-   if (use_tensors_mma)
+   if (use_tensors_mma_sum)
    {
       if (dim == 3)
       {

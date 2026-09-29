@@ -149,20 +149,44 @@ void RegisterDiffusionSimplexMmaSpecializations()
    Integrator::template AddSimplexMmaSpecialization<3,8,123>();
 }
 
-/// Shared tensor MMA list: p = 3..7 (D1D = 4..8, Q1D = D1D+1).
+/// Shared tensor MMA list: p = 1..7 (D1D = 2..8, Q1D = D1D+1).
 template <class Integrator>
-void RegisterTensorsMmaSpecializations()
+void RegisterTensorsMmaSumSpecializations()
 {
-   Integrator::template AddTensorsMmaSpecialization<2,4,5>();
-   Integrator::template AddTensorsMmaSpecialization<2,5,6>();
-   Integrator::template AddTensorsMmaSpecialization<2,6,7>();
-   Integrator::template AddTensorsMmaSpecialization<2,7,8>();
-   Integrator::template AddTensorsMmaSpecialization<2,8,9>();
-   Integrator::template AddTensorsMmaSpecialization<3,4,5>();
-   Integrator::template AddTensorsMmaSpecialization<3,5,6>();
-   Integrator::template AddTensorsMmaSpecialization<3,6,7>();
-   Integrator::template AddTensorsMmaSpecialization<3,7,8>();
-   Integrator::template AddTensorsMmaSpecialization<3,8,9>();
+   Integrator::template AddTensorsMmaSumSpecialization<2,2,3>();
+   Integrator::template AddTensorsMmaSumSpecialization<2,3,4>();
+   Integrator::template AddTensorsMmaSumSpecialization<3,2,3>();
+   Integrator::template AddTensorsMmaSumSpecialization<3,3,4>();
+   Integrator::template AddTensorsMmaSumSpecialization<2,4,5>();
+   Integrator::template AddTensorsMmaSumSpecialization<2,5,6>();
+   Integrator::template AddTensorsMmaSumSpecialization<2,6,7>();
+   Integrator::template AddTensorsMmaSumSpecialization<2,7,8>();
+   Integrator::template AddTensorsMmaSumSpecialization<2,8,9>();
+   Integrator::template AddTensorsMmaSumSpecialization<3,4,5>();
+   Integrator::template AddTensorsMmaSumSpecialization<3,5,6>();
+   Integrator::template AddTensorsMmaSumSpecialization<3,6,7>();
+   Integrator::template AddTensorsMmaSumSpecialization<3,7,8>();
+   Integrator::template AddTensorsMmaSumSpecialization<3,8,9>();
+}
+
+/// Dense tensor GEM list: same (DIM, D1D, Q1D) pairs as sum-fact, p = 1..7.
+template <class Integrator>
+void RegisterTensorsMmaGemSpecializations()
+{
+   Integrator::template AddTensorsMmaGemSpecialization<2,2,3>();
+   Integrator::template AddTensorsMmaGemSpecialization<2,3,4>();
+   Integrator::template AddTensorsMmaGemSpecialization<3,2,3>();
+   Integrator::template AddTensorsMmaGemSpecialization<3,3,4>();
+   Integrator::template AddTensorsMmaGemSpecialization<2,4,5>();
+   Integrator::template AddTensorsMmaGemSpecialization<2,5,6>();
+   Integrator::template AddTensorsMmaGemSpecialization<2,6,7>();
+   Integrator::template AddTensorsMmaGemSpecialization<2,7,8>();
+   Integrator::template AddTensorsMmaGemSpecialization<2,8,9>();
+   Integrator::template AddTensorsMmaGemSpecialization<3,4,5>();
+   Integrator::template AddTensorsMmaGemSpecialization<3,5,6>();
+   Integrator::template AddTensorsMmaGemSpecialization<3,6,7>();
+   Integrator::template AddTensorsMmaGemSpecialization<3,7,8>();
+   Integrator::template AddTensorsMmaGemSpecialization<3,8,9>();
 }
 
 } // namespace mma

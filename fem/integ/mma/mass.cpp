@@ -48,12 +48,12 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    nq = ir.GetNPoints();
    quad1D = 0;
    ne = mesh->GetNE();
-   use_simplices_mma = true;
+   use_simplex_mma = true;
    maps = nullptr;
 
-   simplex_mma_P.SetSize(nq * ndof, mt);
+   mma_P.SetSize(nq * ndof, mt);
    {
-      real_t *Ph = simplex_mma_P.HostWrite();
+      real_t *Ph = mma_P.HostWrite();
       Vector shape_ref(ndof);
       for (int q = 0; q < nq; q++)
       {
@@ -89,18 +89,17 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 
 void MassIntegrator::RegisterSimplexMmaKernels()
 {
-   // Shared with VectorMass — see form/register.hpp. Unregistered → Fallback.
    internal::mma::RegisterMassSimplexMmaSpecializations<MassIntegrator>();
 }
 
 void MassIntegrator::RegisterTensorsMmaKernels()
 {
-   // Shared tensor list (p = 3..7) — see form/register.hpp.
-   internal::mma::RegisterTensorsMmaSpecializations<MassIntegrator>();
+   internal::mma::RegisterTensorsMmaSumSpecializations<MassIntegrator>();
+   internal::mma::RegisterTensorsMmaGemSpecializations<MassIntegrator>();
 }
 
 MassIntegrator::ApplyTensorsMmaKernelType
-MassIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+MassIntegrator::ApplyTensorsMmaSumPAKernels::Fallback(int dim, int, int)
 {
    if (dim == 2) { return internal::MmaMassApplyTensors2D; }
    if (dim == 3) { return internal::MmaMassApplyTensors3D; }

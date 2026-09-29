@@ -26,10 +26,11 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   use_simplices_mma = false;
-   use_tensors_mma = false;
+   use_simplex_mma = false;
+   use_tensors_mma_sum = false;
+   use_tensors_mma_gem = false;
    nq = 0;
-   simplex_mma_P.DeleteAll();
+   mma_P.DeleteAll();
 
    if (UsesSimplexMMA(fes))
    {
@@ -117,9 +118,19 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       });
    }
 
-   if (UsesTensorMMA(fes))
+   if (UsesTensorMMA(fes) && GetForceGEM())
    {
-      use_tensors_mma = true;
+      use_tensors_mma_gem = true;
+      const int ndof = internal::mma::form::gem::TensorGemPow(dofs1D, dim);
+      MFEM_VERIFY(nq == internal::mma::form::gem::TensorGemPow(quad1D, dim),
+                  "tensor GEM mass nq must be Q1D^dim");
+      mma_P.SetSize(nq * ndof, mt);
+      internal::mma::form::gem::BuildTensorGemMassBasis(dim, dofs1D, quad1D, maps->B.HostRead(),
+                                        mma_P.HostWrite());
+   }
+   else if (UsesTensorMMA(fes))
+   {
+      use_tensors_mma_sum = true;
    }
 }
 
@@ -170,7 +181,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplices_mma || use_tensors_mma)
+   if (use_simplex_mma || use_tensors_mma_sum || use_tensors_mma_gem)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
@@ -190,16 +201,21 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
-      ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq, ne, simplex_mma_P,
+      ApplySimplexMmaGemPAKernels::Run(dim, dofs1D, nq, ne, mma_P,
                                     pa_data, x, y);
    }
-   else if (use_tensors_mma)
+   else if (use_tensors_mma_gem)
+   {
+      ApplyTensorsMmaGemPAKernels::Run(dim, dofs1D, quad1D, ne, mma_P,
+                                     pa_data, x, y);
+   }
+   else if (use_tensors_mma_sum)
    {
       const Array<real_t> &B = maps->B;
       const Array<real_t> &Bt = maps->Bt;
-      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt, pa_data, x,
+      ApplyTensorsMmaSumPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt, pa_data, x,
                                     y, dofs1D, quad1D);
    }
    else if (DeviceCanUseCeed())
@@ -267,7 +283,7 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
                   "AbsMultPA not implemented for ragged tensor basis");
-      MFEM_VERIFY(!use_simplices_mma && !use_tensors_mma,
+      MFEM_VERIFY(!use_simplex_mma && !use_tensors_mma_sum && !use_tensors_mma_gem,
                   "AbsMultPA not implemented for MMA PA");
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();

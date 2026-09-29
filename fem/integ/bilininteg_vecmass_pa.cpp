@@ -22,9 +22,9 @@ namespace mfem
 
 void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   use_tensors_mma = false;
-   use_simplices_mma = false;
-   simplex_mma_P.DeleteAll();
+   use_tensors_mma_sum = false;
+   use_simplex_mma = false;
+   mma_P.DeleteAll();
 
    // Simplex MMA before CEED / tensor maps (Q / VQ / MQ).
    if (UsesSimplexMMA(fes))
@@ -183,13 +183,13 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Tensor MMA: stock PA layouts for Q / VQ / MQ.
    if (UsesTensorMMA(fes))
    {
-      use_tensors_mma = true;
+      use_tensors_mma_sum = true;
    }
 }
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       static bool registered = false;
       if (!registered)
@@ -198,11 +198,11 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
          registered = true;
       }
       ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq,
-                                    ne, vdim, simplex_mma_P, pa_data, x, y);
+                                    ne, vdim, mma_P, pa_data, x, y);
       return;
    }
 
-   if (use_tensors_mma)
+   if (use_tensors_mma_sum)
    {
       static bool registered = false;
       if (!registered)
@@ -258,7 +258,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplices_mma || use_tensors_mma)
+   if (use_simplex_mma || use_tensors_mma_sum)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }

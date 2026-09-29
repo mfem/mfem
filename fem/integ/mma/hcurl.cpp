@@ -240,8 +240,8 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    mapsO = mapsC = mapsOtest = mapsCtest = nullptr;
    geom = nullptr;
    trial_fetype = test_fetype = FiniteElement::CURL;
-   use_simplices_mma = true;
-   use_tensors_mma = false;
+   use_simplex_mma = true;
+   use_tensors_mma_sum = false;
    simplex_fes = &fes;
    internal::GatherNdFaceOrientations(fes, simplex_nd_fo);
 
@@ -286,8 +286,8 @@ void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    quad1D = 0;
    mapsO = mapsC = nullptr;
    geom = nullptr;
-   use_simplices_mma = true;
-   use_tensors_mma = false;
+   use_simplex_mma = true;
+   use_tensors_mma_sum = false;
    simplex_fes = &fes;
    internal::GatherNdFaceOrientations(fes, simplex_nd_fo);
 

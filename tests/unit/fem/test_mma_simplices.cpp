@@ -234,7 +234,7 @@ TEST_CASE("PA Simplices MMA GLL", "[PartialAssembly][MMA][GPU]")
       test_pa_simplices_mma_h1(GENERATE_REF(from_range(meshs)), p);
    }
 
-   // Unregistered (D1D,nq) → ApplySimplexMmaPAKernels::Fallback.
+   // Unregistered (D1D,nq) → ApplySimplexMmaGemPAKernels::Fallback.
    SECTION("Fallback 2D triangle nq=7")
    {
       // Tables register (2,3/4/9/...), not (2,7).

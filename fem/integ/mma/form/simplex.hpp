@@ -1417,7 +1417,6 @@ MFEM_HOST_DEVICE inline void GradFullNqGemm(
 {
    SmemMatAccRt Xacc{XY, x_ld};
    YBatchAcc Yacc{y, ndof, e0};
-   NullDAcc nullD;
 
    LoadXToSmem(XY, X, e0, NE, ndof, x_ld, nb, tid, nthreads);
    MFEM_SYNC_THREAD;
@@ -1428,11 +1427,24 @@ MFEM_HOST_DEVICE inline void GradFullNqGemm(
       MFEM_SYNC_THREAD;
    }
 
-   for (int c = 0; c < DIM; ++c)
+   // Full NQ uses the fused plane GEMMs (Gemm3 / Gemm2). One X load, one Y +=.
+   if constexpr (DIM == 3)
    {
-      GAcc A{g, nq, ndof, c};
-      SmemMatAccRt Uacc{UV + c * u_ld * nb, u_ld};
-      Gemm<MAP, false>(nq, ndof, nb, A, Xacc, Uacc, nullD, e0, NE);
+      GAcc A0{g, nq, ndof, 0};
+      GAcc A1{g, nq, ndof, 1};
+      GAcc A2{g, nq, ndof, 2};
+      SmemMatAccRt U0{UV + 0 * u_ld * nb, u_ld};
+      SmemMatAccRt U1{UV + 1 * u_ld * nb, u_ld};
+      SmemMatAccRt U2{UV + 2 * u_ld * nb, u_ld};
+      Gemm3<MAP>(nq, ndof, nb, A0, A1, A2, Xacc, U0, U1, U2, e0, NE);
+   }
+   else
+   {
+      GAcc A0{g, nq, ndof, 0};
+      GAcc A1{g, nq, ndof, 1};
+      SmemMatAccRt U0{UV + 0 * u_ld * nb, u_ld};
+      SmemMatAccRt U1{UV + 1 * u_ld * nb, u_ld};
+      Gemm2<MAP>(nq, ndof, nb, A0, A1, Xacc, U0, U1, e0, NE);
    }
    MFEM_SYNC_THREAD;
    ApplyGradQFnSmem<DIM, SYM>(qfn, UV, D, e0, NE, 0, nq, nq, u_ld, nb,
@@ -1443,26 +1455,47 @@ MFEM_HOST_DEVICE inline void GradFullNqGemm(
       ZeroSmemTile(XY, x_ld, nb, tid, nthreads);
       MFEM_SYNC_THREAD;
       SmemMatAccRt Ys{XY, x_ld};
-      for (int c = 0; c < DIM; ++c)
+      if constexpr (DIM == 3)
       {
-         GAcc A{g, nq, ndof, c};
-         SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
-         GemmT<MAP>(nq, ndof, nb, A, Vacc, Ys, e0, NE);
-         MFEM_SYNC_THREAD;
+         GAcc A0{g, nq, ndof, 0};
+         GAcc A1{g, nq, ndof, 1};
+         GAcc A2{g, nq, ndof, 2};
+         SmemMatAccRt U0{UV + 0 * u_ld * nb, u_ld};
+         SmemMatAccRt U1{UV + 1 * u_ld * nb, u_ld};
+         SmemMatAccRt U2{UV + 2 * u_ld * nb, u_ld};
+         GemmT3<MAP>(nq, ndof, nb, A0, A1, A2, U0, U1, U2, Ys, e0, NE);
       }
+      else
+      {
+         GAcc A0{g, nq, ndof, 0};
+         GAcc A1{g, nq, ndof, 1};
+         SmemMatAccRt U0{UV + 0 * u_ld * nb, u_ld};
+         SmemMatAccRt U1{UV + 1 * u_ld * nb, u_ld};
+         GemmT2<MAP>(nq, ndof, nb, A0, A1, U0, U1, Ys, e0, NE);
+      }
+      MFEM_SYNC_THREAD;
       ApplyNdDofTransSmem(static_cast<int>(NdDofTransOp::Dual),
                           dual, XY, x_ld, ndof, e0, NE, nb, tid, nthreads);
       MFEM_SYNC_THREAD;
       AddSmemTileToY(XY, y, ndof, x_ld, e0, NE, nb, tid, nthreads);
    }
+   else if constexpr (DIM == 3)
+   {
+      GAcc A0{g, nq, ndof, 0};
+      GAcc A1{g, nq, ndof, 1};
+      GAcc A2{g, nq, ndof, 2};
+      SmemMatAccRt U0{UV + 0 * u_ld * nb, u_ld};
+      SmemMatAccRt U1{UV + 1 * u_ld * nb, u_ld};
+      SmemMatAccRt U2{UV + 2 * u_ld * nb, u_ld};
+      GemmT3<MAP>(nq, ndof, nb, A0, A1, A2, U0, U1, U2, Yacc, e0, NE);
+   }
    else
    {
-      for (int c = 0; c < DIM; ++c)
-      {
-         GAcc A{g, nq, ndof, c};
-         SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
-         GemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
-      }
+      GAcc A0{g, nq, ndof, 0};
+      GAcc A1{g, nq, ndof, 1};
+      SmemMatAccRt U0{UV + 0 * u_ld * nb, u_ld};
+      SmemMatAccRt U1{UV + 1 * u_ld * nb, u_ld};
+      GemmT2<MAP>(nq, ndof, nb, A0, A1, U0, U1, Yacc, e0, NE);
    }
 }
 
@@ -1573,6 +1606,68 @@ MFEM_HOST_DEVICE inline void GradQTileGemm(
       MFEM_SYNC_THREAD;
       GemmT3<MAP>(nq_tile, ndof, NB, A0, A1, A2, U0, U1, U2, Yacc, e0, NE);
       MFEM_SYNC_THREAD;
+   }
+}
+
+/** Runtime leading dimensions. 3D uses fused Gemm3 / GemmT3; 2D one Gemm per plane.
+    GradQTileGemm cannot take a hex basis: its LDs are compile-time. */
+template <typename QFn, int DIM, bool SYM, typename TD, typename XMat>
+MFEM_HOST_DEVICE inline void GradQTileGemmRuntime(
+   QFn qfn, real_t *XY, real_t *UV, TD D,
+   const real_t *g, real_t *y, XMat X,
+   const int e0, const int NE,
+   const int nq, const int ndof, const int tq,
+   const int x_ld, const int u_ld, const int nb,
+   const int tid, const int nthreads)
+{
+   SmemMatAccRt Xacc{XY, x_ld};
+   YBatchAcc Yacc{y, ndof, e0};
+   LoadXToSmem(XY, X, e0, NE, ndof, x_ld, nb, tid, nthreads);
+   MFEM_SYNC_THREAD;
+
+   for (int q0 = 0; q0 < nq; q0 += tq)
+   {
+      const int nq_tile = (nq - q0 < tq) ? (nq - q0) : tq;
+      if constexpr (DIM == 3)
+      {
+         GAccQTile A0{g, nq, ndof, 0, q0};
+         GAccQTile A1{g, nq, ndof, 1, q0};
+         GAccQTile A2{g, nq, ndof, 2, q0};
+         SmemMatAccRt U0{UV + 0 * u_ld * nb, u_ld};
+         SmemMatAccRt U1{UV + 1 * u_ld * nb, u_ld};
+         SmemMatAccRt U2{UV + 2 * u_ld * nb, u_ld};
+         Gemm3<MmaMapDefault>(nq_tile, ndof, nb,
+                              A0, A1, A2, Xacc, U0, U1, U2, e0, NE);
+         MFEM_SYNC_THREAD;
+         ApplyGradQFnSmem<3, SYM>(
+            qfn, UV, D, e0, NE, q0, nq_tile, nq, u_ld, nb, tid, nthreads);
+         MFEM_SYNC_THREAD;
+         GemmT3<MmaMapDefault>(nq_tile, ndof, nb,
+                               A0, A1, A2, U0, U1, U2, Yacc, e0, NE);
+         MFEM_SYNC_THREAD;
+      }
+      else
+      {
+         NullDAcc nullD;
+         for (int c = 0; c < DIM; ++c)
+         {
+            GAccQTile A{g, nq, ndof, c, q0};
+            SmemMatAccRt Uacc{UV + c * u_ld * nb, u_ld};
+            Gemm<MmaMapDefault, false>(
+               nq_tile, ndof, nb, A, Xacc, Uacc, nullD, e0, NE);
+         }
+         MFEM_SYNC_THREAD;
+         ApplyGradQFnSmem<DIM, SYM>(
+            qfn, UV, D, e0, NE, q0, nq_tile, nq, u_ld, nb, tid, nthreads);
+         MFEM_SYNC_THREAD;
+         for (int c = 0; c < DIM; ++c)
+         {
+            GAccQTile A{g, nq, ndof, c, q0};
+            SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
+            GemmT<MmaMapDefault>(nq_tile, ndof, nb, A, Vacc, Yacc, e0, NE);
+         }
+         MFEM_SYNC_THREAD;
+      }
    }
 }
 
@@ -1931,7 +2026,8 @@ MFEM_HOST_DEVICE inline void UnpackSimplexPaMetric2D(
    }
 }
 
-inline void SimplexVecEvalApply(const int dim, const int NE, const int nd,
+inline void SimplexVecEvalApply(const int /*dim*/,
+                                const int NE, const int nd,
                                 const int nq, const int sdim,
                                 const bool symmetric,
                                 const Array<real_t> &B,

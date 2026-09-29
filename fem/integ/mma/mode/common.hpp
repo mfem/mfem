@@ -388,7 +388,7 @@ constexpr int MassLikeNB()
 }
 
 /** Runtime bank-padded LD (MmaMapDefault / HIP pad). */
-inline int PadLdBankRuntime(int n)
+constexpr int PadLdBankRuntime(int n)
 {
 #if defined(MFEM_USE_HIP)
    return PadLdBankHip(n);
@@ -398,7 +398,7 @@ inline int PadLdBankRuntime(int n)
 }
 
 /** Runtime mass / DomainLF NB under a byte cap. */
-inline int MassLikeNBAtRuntime(int ndof, int nq, int bytes_cap)
+constexpr int MassLikeNBAtRuntime(int ndof, int nq, int bytes_cap)
 {
    const int x_ld = PadLdBankRuntime(ndof);
    const int u_ld = PadLdBankRuntime(nq);
@@ -777,8 +777,8 @@ MFEM_HOST_DEVICE inline int NWarps(int mPass)
 /** Prefer host dense tensor sum-fact over smem Emulate shell. */
 inline bool PreferTensorDense(int D1D, int NE)
 {
-   // Registered tensor MMA is p>=3 (D1D>=4). Dense host sum-fact beats Emulate.
-   return NE >= 4 && D1D >= 4;
+   // Includes p=1,2 (D1D=2,3). NE gate keeps tiny meshes on the shell.
+   return NE >= 4 && D1D >= 1;
 }
 
 /** Host tensor element-tile width (used by blas_ dense sum-fact and lapack paths). */
