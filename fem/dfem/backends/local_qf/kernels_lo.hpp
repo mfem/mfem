@@ -763,58 +763,78 @@ private:
       const real_t *By = m.Basis(c, 1, deriv_dir == 1);
       const real_t *Bz = m.Basis(c, 2, deriv_dir == 2);
       MFEM_CONTRACT_VAR(Bz);
-      real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
-      auto sm0 = reinterpret_cast<real_t (*)[MQ1]>(base);
-      auto sm1 = reinterpret_cast<real_t (*)[MQ1]>(base + MQ1 * MQ1);
       // Get the extents of the element along each axis.
       const int ex = m.Extent(c, 0), ey = m.Extent(c, 1);
       const int ez = (DIM == 2) ? 1 : m.Extent(c, 2);
       const int off = m.Offset(c);
-      for (int dz = 0; dz < ez; dz++)
+      
+      // One shared slice per dz, so the z-threads sweep different dz at once.
+      constexpr int NZ = (DIM == 2) ? 1 : MQ1;
+      real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
+      auto sm0 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base);
+      auto sm1 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base + NZ * MQ1 * MQ1);
+      
+      // Gather all qz from registers in shared mem first, since in 3D each 
+      // z-thread holds only the qz it evaluated the q-function at
+      auto smq = reinterpret_cast<real_t (*)[MQ1][MQ1]>(&s.M[1]);
+      MFEM_CONTRACT_VAR(smq);
+
+      if constexpr (DIM == 3)
       {
-         // Sweep along the z-axis for the current element slice.
+         MFEM_SYNC_THREAD;
+         MFEM_FOREACH_THREAD(qz, z, q1d)
          MFEM_FOREACH_THREAD(qy, y, q1d)
          MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            real_t value = 0.0;
-            if constexpr (DIM == 2)
-            { value = vector_src<FOP>(rarg, qx, qy, 0, vt); }
-            else
-            {
-               for (int qz = 0; qz < q1d; qz++)
-               {
-                  value += Bz[qz + q1d * dz] *
-                           vector_src<FOP>(rarg, qx, qy, qz, vt);
-               }
-            }
-            sm0[qy][qx] = value;
-         }
-         MFEM_SYNC_THREAD;
-         // Sweep along the y-axis for the current z-slice.
-         MFEM_FOREACH_THREAD(dy, y, ey)
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            real_t value = 0.0;
-            for (int qy = 0; qy < q1d; qy++)
-            {
-               value += By[qy + q1d * dy] * sm0[qy][qx];
-            }
-            sm1[dy][qx] = value;
-         }
-         MFEM_SYNC_THREAD;
-         // Sweep along the x-axis for the current y-slice.
-         MFEM_FOREACH_THREAD(dy, y, ey)
-         MFEM_FOREACH_THREAD(dx, x, ex)
-         {
-            real_t value = 0.0;
-            for (int qx = 0; qx < q1d; qx++)
-            {
-               value += Bx[qx + q1d * dx] * sm1[dy][qx];
-            }
-            YE(off + dx + ex * (dy + ey * dz), 0, 0, 0, e) += value;
+            smq[qz][qy][qx] = vector_src<FOP>(rarg, qx, qy, qz, vt);
          }
          MFEM_SYNC_THREAD;
       }
+
+      // Sweep along the z-axis, one element slice dz per z-thread.
+      MFEM_FOREACH_THREAD(dz, z, ez)
+      MFEM_FOREACH_THREAD(qy, y, q1d)
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         real_t value = 0.0;
+         if constexpr (DIM == 2)
+         { value = vector_src<FOP>(rarg, qx, qy, 0, vt); }
+         else
+         {
+            for (int qz = 0; qz < q1d; qz++)
+            {
+               value += Bz[qz + q1d * dz] * smq[qz][qy][qx];
+            }
+         }
+         sm0[dz][qy][qx] = value;
+      }
+      MFEM_SYNC_THREAD;
+      // Sweep along the y-axis.
+      MFEM_FOREACH_THREAD(dz, z, ez)
+      MFEM_FOREACH_THREAD(dy, y, ey)
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         real_t value = 0.0;
+         for (int qy = 0; qy < q1d; qy++)
+         {
+            value += By[qy + q1d * dy] * sm0[dz][qy][qx];
+         }
+         sm1[dz][dy][qx] = value;
+      }
+      MFEM_SYNC_THREAD;
+      // Sweep along the x-axis and add into the element vector.
+      MFEM_FOREACH_THREAD(dz, z, ez)
+      MFEM_FOREACH_THREAD(dy, y, ey)
+      MFEM_FOREACH_THREAD(dx, x, ex)
+      {
+         real_t value = 0.0;
+         for (int qx = 0; qx < q1d; qx++)
+         {
+            value += Bx[qx + q1d * dx] * sm1[dz][dy][qx];
+         }
+         YE(off + dx + ex * (dy + ey * dz), 0, 0, 0, e) += value;
+      }
+      MFEM_SYNC_THREAD;
    }
 
 public:

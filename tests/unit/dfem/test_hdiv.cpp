@@ -121,7 +121,8 @@ template <int DIM> struct hdiv_mass_divdiv_global_qf
                    tensor_array<dscalar_t, DIM> &v,
                    tensor_array<dscalar_t> &dv) const
    {
-      mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
       {
          const real_t wq = w(q);
          const dscalar_t duq = du(q);
@@ -142,9 +143,9 @@ template <int DIM> struct hdiv_nonlinear_global_qf
                    tensor_array<dscalar_t, DIM> &v,
                    tensor_array<dscalar_t> &dv) const
    {
-      mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
       {
-         // See hdiv_mass_divdiv_global_qf.
          const real_t wq = w(q);
          const dscalar_t duq = du(q);
          const tensor<real_t, DIM, DIM> Jq = J(q);
@@ -153,6 +154,33 @@ template <int DIM> struct hdiv_nonlinear_global_qf
          const dscalar_t s = 1.0 + dot(uq, uq);
          v(q) = c * (s * dot(transpose(Jq), dot(Jq, uq)));
          dv(q) = (1.0 + duq * duq) * duq * c;
+      });
+   }
+};
+
+// GlobalQF versions of hdiv_to_h1_qf and h1_to_hdiv_qf.
+struct hdiv_to_h1_global_qf
+{
+   void operator()(tensor_array<const dscalar_t> &du,
+                   tensor_array<const real_t> &w,
+                   tensor_array<dscalar_t> &p) const
+   {
+      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      {
+         p(q) = w(q) * du(q);
+      });
+   }
+};
+
+struct h1_to_hdiv_global_qf
+{
+   void operator()(tensor_array<const dscalar_t> &p,
+                   tensor_array<const real_t> &w,
+                   tensor_array<dscalar_t> &du) const
+   {
+      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      {
+         du(q) = w(q) * p(q);
       });
    }
 };
@@ -514,7 +542,12 @@ void hdiv_nonlinear(const char *filename, int p)
    }
 }
 
-template <int DIM>
+template <int DIM, typename backend_t = LocalQFBackend,
+          typename div_to_h1_qf_t = hdiv_to_h1_qf,
+          typename h1_to_div_qf_t = h1_to_hdiv_qf>
+template <int DIM, typename backend_t = LocalQFBackend,
+          typename div_to_h1_qf_t = hdiv_to_h1_qf,
+          typename h1_to_div_qf_t = h1_to_hdiv_qf>
 void hdiv_mixed_assembly(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -540,7 +573,8 @@ void hdiv_mixed_assembly(const char *filename, int p)
          setup.pmesh);
       constexpr auto kernels =
          DerivativeKernels::AssembleMatrix | DerivativeKernels::ApplyTranspose;
-      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      dop.AddDomainIntegrator<backend_t, kernels>(
+      dop.AddDomainIntegrator<backend_t, kernels>(
          qf, tuple{inputs, Weight{}}, tuple{outputs}, *setup.ir,
          setup.all_domain_attr, Derivatives<inputs.GetFieldId()> {});
 
@@ -574,13 +608,15 @@ void hdiv_mixed_assembly(const char *filename, int p)
 
    SECTION("RT trial, H1 test")
    {
-      assemble_and_check(hdiv_to_h1_qf {}, Div<U> {}, Value<P> {}, setup.pfes,
+      assemble_and_check(div_to_h1_qf_t {}, Div<U> {}, Value<P> {}, setup.pfes,
+      assemble_and_check(div_to_h1_qf_t {}, Div<U> {}, Value<P> {}, setup.pfes,
                          h1_fes, new VectorFEDivergenceIntegrator());
    }
 
    SECTION("H1 trial, RT test")
    {
-      assemble_and_check(h1_to_hdiv_qf {}, Value<P> {}, Div<U> {}, h1_fes,
+      assemble_and_check(h1_to_div_qf_t {}, Value<P> {}, Div<U> {}, h1_fes,
+      assemble_and_check(h1_to_div_qf_t {}, Value<P> {}, Div<U> {}, h1_fes,
                          setup.pfes,
                          new TransposeIntegrator(
                             new VectorFEDivergenceIntegrator()));
@@ -610,6 +646,16 @@ TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
       hdiv_nonlinear<2, GlobalQFBackend, hdiv_nonlinear_global_qf<2>>(
                                                                       GenAll(meshs, extra), p);
    }
+   SECTION("GlobalQF Mixed assembly")
+   {
+      hdiv_mixed_assembly<2, GlobalQFBackend, hdiv_to_h1_global_qf,
+                          h1_to_hdiv_global_qf>(GenAll(meshs, extra), p);
+   }
+   SECTION("GlobalQF Mixed assembly")
+   {
+      hdiv_mixed_assembly<2, GlobalQFBackend, hdiv_to_h1_global_qf,
+                          h1_to_hdiv_global_qf>(GenAll(meshs, extra), p);
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -636,6 +682,16 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE]")
    {
       hdiv_nonlinear<3, GlobalQFBackend, hdiv_nonlinear_global_qf<3>>(
                                                                       GenAll(meshs, extra), p);
+   }
+   SECTION("GlobalQF Mixed assembly")
+   {
+      hdiv_mixed_assembly<3, GlobalQFBackend, hdiv_to_h1_global_qf,
+                          h1_to_hdiv_global_qf>(GenAll(meshs, extra), p);
+   }
+   SECTION("GlobalQF Mixed assembly")
+   {
+      hdiv_mixed_assembly<3, GlobalQFBackend, hdiv_to_h1_global_qf,
+                          h1_to_hdiv_global_qf>(GenAll(meshs, extra), p);
    }
 }
 
