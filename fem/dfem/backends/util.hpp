@@ -580,6 +580,11 @@ void finish_native_dual_output(
          native_dual_vector_host_r(dual_storage),
          yq.GetBlock(O).HostWrite(), yq.GetBlock(O).Size());
    }
+   else if constexpr (!unpack_primal_values)
+   {
+      // A real-valued output has no tangent; it holds the primal value here.
+      yq.GetBlock(O) = 0.0;
+   }
 }
 
 template <typename T>
