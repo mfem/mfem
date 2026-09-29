@@ -22,6 +22,7 @@
 
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../../../linalg/tensor_arrays.hpp"
 
 using namespace mfem;
 using namespace mfem::future;
@@ -106,6 +107,53 @@ template <int DIM> struct hdiv_nonlinear_qf
       const dscalar_t s = 1.0 + dot(u, u);
       v = c * (s * dot(transpose(J), dot(J, u)));
       dv = (1.0 + du * du) * du * c;
+   }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// GlobalQF versions of the above
+template <int DIM> struct hdiv_mass_divdiv_global_qf
+{
+   void operator()(tensor_array<const dscalar_t, DIM> &u,
+                   tensor_array<const dscalar_t> &du,
+                   tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &w,
+                   tensor_array<dscalar_t, DIM> &v,
+                   tensor_array<dscalar_t> &dv) const
+   {
+      mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      {
+         const real_t wq = w(q);
+         const dscalar_t duq = du(q);
+         const tensor<real_t, DIM, DIM> Jq = J(q);
+         const real_t c = wq / det(Jq);
+         v(q) = c * dot(transpose(Jq), dot(Jq, u(q)));
+         dv(q) = duq * c;
+      });
+   }
+};
+
+template <int DIM> struct hdiv_nonlinear_global_qf
+{
+   void operator()(tensor_array<const dscalar_t, DIM> &u,
+                   tensor_array<const dscalar_t> &du,
+                   tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &w,
+                   tensor_array<dscalar_t, DIM> &v,
+                   tensor_array<dscalar_t> &dv) const
+   {
+      mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+      {
+         // See hdiv_mass_divdiv_global_qf.
+         const real_t wq = w(q);
+         const dscalar_t duq = du(q);
+         const tensor<real_t, DIM, DIM> Jq = J(q);
+         const tensor<dscalar_t, DIM> uq = u(q);
+         const real_t c = wq / det(Jq);
+         const dscalar_t s = 1.0 + dot(uq, uq);
+         v(q) = c * (s * dot(transpose(Jq), dot(Jq, uq)));
+         dv(q) = (1.0 + duq * duq) * duq * c;
+      });
    }
 };
 
@@ -208,7 +256,8 @@ void AddHdivIntegrators(ParBilinearForm &blf, HdivForm form,
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM, typename inputs_t, typename outputs_t, typename qf_t>
+template <int DIM, typename inputs_t, typename outputs_t,
+          typename backend_t = LocalQFBackend, typename qf_t>
 void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
 {
    ParFiniteElementSpace &pfes = setup.pfes;
@@ -241,7 +290,7 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
    SECTION("Action")
    {
       DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
-      dop.AddDomainIntegrator<LocalQFBackend>(
+      dop.AddDomainIntegrator<backend_t>(
          qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr);
 
       MultiVector MX{ X, setup.N }, MZ{ Z };
@@ -253,7 +302,7 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
    {
       DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
       constexpr auto kernels = DerivativeKernels::Action;
-      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      dop.AddDomainIntegrator<backend_t, kernels>(
          qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
          Derivatives<U> {});
 
@@ -281,7 +330,7 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
       constexpr auto kernels = DerivativeKernels::Action |
                                DerivativeKernels::Apply |
                                DerivativeKernels::ApplyTranspose;
-      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      dop.AddDomainIntegrator<backend_t, kernels>(
          qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
          Derivatives<U> {});
 
@@ -312,7 +361,7 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
    {
       DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
       constexpr auto kernels = DerivativeKernels::AssembleDiagonal;
-      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      dop.AddDomainIntegrator<backend_t, kernels>(
          qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
          Derivatives<U> {});
 
@@ -336,7 +385,7 @@ void CheckHdivOperator(HdivSetup &setup, qf_t qf, HdivForm form)
 
       DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
       constexpr auto kernels = DerivativeKernels::AssembleMatrix;
-      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      dop.AddDomainIntegrator<backend_t, kernels>(
          qf, inputs_t {}, outputs_t {}, *setup.ir, setup.all_domain_attr,
          Derivatives<U> {});
 
@@ -381,7 +430,8 @@ void hdiv_divdiv(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template <int DIM>
+template <int DIM, typename backend_t = LocalQFBackend,
+          typename qf_t = hdiv_mass_divdiv_qf<DIM>>
 void hdiv_mass_divdiv(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -391,14 +441,15 @@ void hdiv_mass_divdiv(const char *filename, int p)
    using IT = Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight>;
    using OT = Outputs<Value<U>, Div<U>>;
 
-   CheckHdivOperator<DIM, IT, OT>(setup, hdiv_mass_divdiv_qf<DIM> {},
-                                  HdivForm::MassDivDiv);
+   CheckHdivOperator<DIM, IT, OT, backend_t>(setup, qf_t {},
+                                             HdivForm::MassDivDiv);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // Nonlinear H(div) test: unlike the linear tests, the derivative depends on u,
 // so a wrong primal load in the derivative will show up. Checked against FD
-template <int DIM>
+template <int DIM, typename backend_t = LocalQFBackend,
+          typename qf_t = hdiv_nonlinear_qf<DIM>>
 void hdiv_nonlinear(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -418,8 +469,8 @@ void hdiv_nonlinear(const char *filename, int p)
    DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
    constexpr auto kernels =
       DerivativeKernels::Action | DerivativeKernels::Apply;
-   hdiv_nonlinear_qf<DIM> qf;
-   dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+   qf_t qf;
+   dop.AddDomainIntegrator<backend_t, kernels>(
       qf, Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight> {},
       Outputs<Value<U>, Div<U>> {}, *setup.ir, setup.all_domain_attr,
       Derivatives<U> {});
@@ -549,6 +600,16 @@ TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
    SECTION("Mass+DivDiv") { hdiv_mass_divdiv<2>(GenAll(meshs, extra), p); }
    SECTION("Nonlinear") { hdiv_nonlinear<2>(GenAll(meshs, extra), p); }
    SECTION("Mixed assembly") { hdiv_mixed_assembly<2>(GenAll(meshs, extra), p); }
+   SECTION("GlobalQF Mass+DivDiv")
+   {
+      hdiv_mass_divdiv<2, GlobalQFBackend, hdiv_mass_divdiv_global_qf<2>>(
+                                                                          GenAll(meshs, extra), p);
+   }
+   SECTION("GlobalQF Nonlinear")
+   {
+      hdiv_nonlinear<2, GlobalQFBackend, hdiv_nonlinear_global_qf<2>>(
+                                                                      GenAll(meshs, extra), p);
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -558,11 +619,25 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE]")
    const auto meshs = { "../../data/inline-hex.mesh" };
    const auto extra = { "../../data/fichera.mesh" };
 
+   // Local backend
    // SECTION("Mass") { hdiv_mass<3>(GenAll(meshs, extra), p); }
    // SECTION("DivDiv") { hdiv_divdiv<3>(GenAll(meshs, extra), p); }
    SECTION("Mass+DivDiv") { hdiv_mass_divdiv<3>(GenAll(meshs, extra), p); }
    SECTION("Nonlinear") { hdiv_nonlinear<3>(GenAll(meshs, extra), p); }
    SECTION("Mixed assembly") { hdiv_mixed_assembly<3>(GenAll(meshs, extra), p); }
+  
+   // Global backend
+   SECTION("GlobalQF Mass+DivDiv")
+   {
+      hdiv_mass_divdiv<3, GlobalQFBackend, hdiv_mass_divdiv_global_qf<3>>(
+                                                                          GenAll(meshs, extra), p);
+   }
+   SECTION("GlobalQF Nonlinear")
+   {
+      hdiv_nonlinear<3, GlobalQFBackend, hdiv_nonlinear_global_qf<3>>(
+                                                                      GenAll(meshs, extra), p);
+   }
 }
+
 
 #endif // MFEM_USE_MPI

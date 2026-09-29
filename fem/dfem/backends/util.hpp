@@ -198,13 +198,14 @@ inline void create_fieldbases(
       {
          bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
       }
-      else if constexpr (is_gradient_fop<fop_t>::value)
+      else if constexpr (is_gradient_fop<fop_t>::value || is_div_fop_v<fop_t>)
       {
+         // QI DERIVATIVES: reference gradient for H1, divergence for H(div)
          bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
       }
-      else if constexpr (is_curl_fop_v<fop_t> || is_div_fop_v<fop_t>)
+      else if constexpr (is_curl_fop_v<fop_t>)
       {
-         MFEM_ABORT("GlobalQF Curl and Div basis operations are not implemented yet");
+         MFEM_ABORT("GlobalQF Curl basis operations are not implemented yet");
       }
    });
 }
