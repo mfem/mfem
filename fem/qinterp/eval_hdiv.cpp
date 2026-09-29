@@ -28,7 +28,7 @@ void InitTensorEvalHDivKernels()
    constexpr auto PM = QuadratureInterpolator::PHYSICAL_MAGNITUDES;
 
    // For now, do not instantiate FLAGS = QuadratureInterpolator::VALUES, nor
-   // the divergence kernels (TensorEvalHDivDivKernels).
+   // the divergence and transpose kernels (TensorEvalHDivDivKernels, TensorEvalHDivTransposeKernels).
 
    // FLAGS = QuadratureInterpolator::PHYSICAL_VALUES:
 
@@ -123,18 +123,50 @@ QuadratureInterpolator::TensorEvalHDivKernels::Fallback(
 
 QuadratureInterpolator::TensorEvalHDivDivKernelType
 QuadratureInterpolator::TensorEvalHDivDivKernels::Fallback(
-   int DIM, bool PHYSICAL, int D1D, int Q1D)
+   int DIM, unsigned FLAGS, int D1D, int Q1D)
 {
    using namespace internal::quadrature_interpolator;
    MFEM_CONTRACT_VAR(D1D);
    MFEM_CONTRACT_VAR(Q1D);
+   constexpr auto RD = QuadratureInterpolator::DERIVATIVES;
+   constexpr auto PD = QuadratureInterpolator::PHYSICAL_DERIVATIVES;
    if (DIM == 2)
    {
-      return PHYSICAL ? EvalHDivDiv2D<true> : EvalHDivDiv2D<false>;
+      return (FLAGS & PD) ? EvalHDivDiv2D<PD> : EvalHDivDiv2D<RD>;
    }
    else if (DIM == 3)
    {
-      return PHYSICAL ? EvalHDivDiv3D<true> : EvalHDivDiv3D<false>;
+      return (FLAGS & PD) ? EvalHDivDiv3D<PD> : EvalHDivDiv3D<RD>;
+   }
+   MFEM_ABORT("DIM = " << DIM << " is not implemented!");
+}
+
+QuadratureInterpolator::TensorEvalHDivKernelType
+QuadratureInterpolator::TensorEvalHDivTransposeKernels::Fallback(
+   int DIM, QVectorLayout Q_LAYOUT, unsigned FLAGS, int D1D, int Q1D)
+{
+   using namespace internal::quadrature_interpolator;
+   MFEM_CONTRACT_VAR(D1D);
+   MFEM_CONTRACT_VAR(Q1D);
+   constexpr auto LNODES = QVectorLayout::byNODES;
+   constexpr auto LVDIM = QVectorLayout::byVDIM;
+   constexpr auto RV = QuadratureInterpolator::VALUES;
+   constexpr auto RD = QuadratureInterpolator::DERIVATIVES;
+   constexpr auto PD = QuadratureInterpolator::PHYSICAL_DERIVATIVES;
+   // The divergence is scalar, so its layout is irrelevant.
+   if (DIM == 2)
+   {
+      if (FLAGS & RD) { return EvalHDivTranspose2D<LNODES,RD>; }
+      if (FLAGS & PD) { return EvalHDivTranspose2D<LNODES,PD>; }
+      return (Q_LAYOUT == LNODES) ? EvalHDivTranspose2D<LNODES,RV> :
+             EvalHDivTranspose2D<LVDIM,RV>;
+   }
+   else if (DIM == 3)
+   {
+      if (FLAGS & RD) { return EvalHDivTranspose3D<LNODES,RD>; }
+      if (FLAGS & PD) { return EvalHDivTranspose3D<LNODES,PD>; }
+      return (Q_LAYOUT == LNODES) ? EvalHDivTranspose3D<LNODES,RV> :
+             EvalHDivTranspose3D<LVDIM,RV>;
    }
    MFEM_ABORT("DIM = " << DIM << " is not implemented!");
 }

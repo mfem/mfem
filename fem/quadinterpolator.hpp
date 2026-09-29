@@ -44,6 +44,10 @@ protected:
    void MultHDiv(const Vector &e_vec, unsigned eval_flags,
                  Vector &q_val, Vector &q_div) const;
 
+   /// Auxiliary method called by AddMultTranspose() when using H(div)-conforming space
+   void AddMultTransposeHDiv(unsigned eval_flags, const Vector &q_val,
+                             const Vector &q_div, Vector &e_vec) const;
+
 public:
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
@@ -158,7 +162,10 @@ public:
        reference coordinates) of the E-vector @a e_vec at quadrature points. */
    void Determinants(const Vector &e_vec, Vector &q_det) const;
 
-   /// Perform the transpose operation of Mult(). (TODO)
+   /** @brief Perform the transpose operation of Mult(), adding to @a e_vec.
+
+       For H(div)-conforming spaces, VALUES and DERIVATIVES /
+       PHYSICAL_DERIVATIVES (divergence) are supported. */
    void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
                          const Vector &q_der, Vector &e_vec) const;
 
@@ -236,7 +243,9 @@ public:
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
                          (int, QVectorLayout, unsigned, int, int));
    MFEM_REGISTER_KERNELS(TensorEvalHDivDivKernels, TensorEvalHDivDivKernelType,
-                         (int, bool, int, int));
+                         (int, unsigned, int, int));
+   MFEM_REGISTER_KERNELS(TensorEvalHDivTransposeKernels, TensorEvalHDivKernelType,
+                         (int, QVectorLayout, unsigned, int, int));
    MFEM_REGISTER_KERNELS(TensorEvalTransposeKernels, TensorEvalTransposeKernelType,
                          (int, QVectorLayout, int, int, int), (int));
    MFEM_REGISTER_KERNELS(GradTransposeKernels, GradTransposeKernelType,

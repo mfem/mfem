@@ -422,22 +422,86 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
          need_J ? geom->J.Read() : nullptr, e_vec.Read(), q_val.Write(),
          nd, nq);
    }
-   if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
+   const unsigned div_eval_mode = eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES);
+   if (div_eval_mode)
    {
-      // The divergence uses the closed derivative along each component's own
-      // axis and the open basis across it, see EvalHDivDiv2D/3D. Only the
-      // fallback is registered, whose shared memory is sized by DofQuadLimits.
       MFEM_VERIFY(nd <= DofQuadLimits::HDIV_MAX_D1D &&
                   nq <= DofQuadLimits::HDIV_MAX_Q1D,
                   "H(div) divergence: D1D = " << nd << ", Q1D = " << nq
                   << " exceed the supported sizes");
       TensorEvalHDivDivKernels::Run(
          // dispatch params: dim + the template params of EvalHDivDiv2D/3D:
-         dim, need_detJ, nd, nq,
+         dim, div_eval_mode, nd, nq,
          // runtime params, see the arguments of EvalHDivDiv2D/3D:
          ne, maps_o.B.Read(), maps_c.G.Read(),
          need_detJ ? geom->detJ.Read() : nullptr, e_vec.Read(), q_div.Write(),
          nd, nq);
+   }
+}
+
+void QuadratureInterpolator::AddMultTransposeHDiv(unsigned eval_flags,
+                                                  const Vector &q_val,
+                                                  const Vector &q_div,
+                                                  Vector &e_vec) const
+{
+   // Checks
+   const int ne = fespace->GetNE();
+   if (ne == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int dim = fespace->GetMesh()->Dimension();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
+   MFEM_VERIFY((dim == 2 || dim == 3) && dim == sdim,
+               "dim = " << dim << ", sdim = " << sdim
+               << " is not supported yet!");
+   MFEM_VERIFY(fespace->GetVDim() == 1, "vdim != 1 is not supported yet!");
+   auto tfe = dynamic_cast<const VectorTensorFiniteElement *>(fe);
+   MFEM_VERIFY(tfe != nullptr && use_tensor_products,
+               "only tensor-product quad and hex elements are supported!");
+   MFEM_VERIFY(!(eval_flags & (PHYSICAL_VALUES | PHYSICAL_MAGNITUDES)),
+               "only VALUES, DERIVATIVES and PHYSICAL_DERIVATIVES are supported");
+   MFEM_VERIFY(bool(eval_flags & DERIVATIVES) +
+               bool(eval_flags & PHYSICAL_DERIVATIVES) <= 1,
+               "only one of DERIVATIVES and PHYSICAL_DERIVATIVES"
+               " can be requested at a time!");
+
+   // Setup ir and DofToQuad maps for the tensor-product element (both open and closed)
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad &maps_c = tfe->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   const DofToQuad &maps_o = tfe->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   const int nd = maps_c.ndof;
+   const int nq = maps_c.nqpt;
+
+   // Only the fallback is registered, for which shmem is sized by DofQuadLimits.
+   MFEM_VERIFY(nd <= DofQuadLimits::HDIV_MAX_D1D &&
+               nq <= DofQuadLimits::HDIV_MAX_Q1D,
+               "H(div) transpose: D1D = " << nd << ", Q1D = " << nq
+               << " exceed the supported sizes");
+
+   // AddMultTranspose for H(div) VALUES
+   if (eval_flags & VALUES)
+   {
+      TensorEvalHDivTransposeKernels::Run(
+         dim, q_layout, VALUES, nd, nq,
+         ne, maps_o.B.Read(), maps_c.B.Read(), nullptr, q_val.Read(),
+         e_vec.ReadWrite(), nd, nq);
+   }
+
+   // AddMultTranspose for H(div) DERIVATIVES (physical or not)
+   const unsigned div_mode = eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES);
+   if (div_mode)
+   {
+      const real_t *detJ = nullptr;
+      if (div_mode == PHYSICAL_DERIVATIVES)
+      {
+         detJ = fespace->GetMesh()->GetGeometricFactors(
+                   *ir, GeometricFactors::DETERMINANTS)->detJ.Read();
+      }
+
+      TensorEvalHDivTransposeKernels::Run(
+         dim, QVectorLayout::byNODES, div_mode, nd, nq,
+         ne, maps_o.B.Read(), maps_c.G.Read(), detJ, q_div.Read(),
+         e_vec.ReadWrite(), nd, nq);
    }
 }
 
@@ -449,6 +513,10 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
    const int ne = fespace->GetNE();
    if (ne == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
+   if (fe->GetMapType() == FiniteElement::MapType::H_DIV)
+   {
+      return AddMultTransposeHDiv(eval_flags, q_val, q_der, e_vec);
+   }
    const int vdim = fespace->GetVDim();
    const int sdim = fespace->GetMesh()->SpaceDimension();
 
