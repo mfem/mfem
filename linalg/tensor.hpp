@@ -480,9 +480,16 @@ MFEM_HOST_DEVICE auto operator+(const tensor<S, n...>& A,
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] + B[i];
+      C.values = A.values + B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] + B[i];
+      }
    }
    return C;
 }
@@ -497,9 +504,16 @@ template <typename T, int... n>
 MFEM_HOST_DEVICE tensor<T, n...> operator-(const tensor<T, n...>& A)
 {
    tensor<T, n...> B{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      B[i] = -A[i];
+      B.values = -A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         B[i] = -A[i];
+      }
    }
    return B;
 }
@@ -518,9 +532,16 @@ MFEM_HOST_DEVICE auto operator-(const tensor<S, n...>& A,
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] - B[i];
+      C.values = A.values - B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] - B[i];
+      }
    }
    return C;
 }
@@ -598,9 +619,16 @@ MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
    tensor<decltype(S{} * T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = scale / A[i];
+      C.values = scale / A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = scale / A[i];
+      }
    }
    return C;
 }
@@ -620,9 +648,16 @@ MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
    tensor<decltype(T{} * S{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] / scale;
+      C.values = A.values / scale;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] / scale;
+      }
    }
    return C;
 }
@@ -639,9 +674,16 @@ template <typename S, typename T, int... n> MFEM_HOST_DEVICE
 tensor<S, n...>& operator+=(tensor<S, n...>& A,
                             const tensor<T, n...>& B)
 {
-   for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      A[i] += B[i];
+      A.values += B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+      {
+         A[i] += B[i];
+      }
    }
    return A;
 }
@@ -705,9 +747,16 @@ tensor<T, n...>& operator+=(tensor<T, n...>& A, zero)
 template <typename S, typename T, int... n> MFEM_HOST_DEVICE
 tensor<S, n...>& operator-=(tensor<S, n...>& A, const tensor<T, n...>& B)
 {
-   for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      A[i] -= B[i];
+      A.values -= B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+      {
+         A[i] -= B[i];
+      }
    }
    return A;
 }
