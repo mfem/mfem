@@ -422,7 +422,8 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
          need_J ? geom->J.Read() : nullptr, e_vec.Read(), q_val.Write(),
          nd, nq);
    }
-   const unsigned div_eval_mode = eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES);
+   const unsigned div_eval_mode = eval_flags & (DERIVATIVES |
+                                                PHYSICAL_DERIVATIVES);
    if (div_eval_mode)
    {
       MFEM_VERIFY(nd <= DofQuadLimits::HDIV_MAX_D1D &&

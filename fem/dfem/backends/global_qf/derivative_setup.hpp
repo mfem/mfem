@@ -197,7 +197,8 @@ struct DerivativeSetup
                      const int c_out    = idx / gnqp_local;
                      const int q        = gq % num_qp_local;
                      const int entity   = gq / num_qp_local;
-                     const int out_comp = out_offset_o + (c_out % test_vdim_o) * test_op_dim_o + c_out / test_vdim_o;
+                     const int out_comp = out_offset_o + (c_out % test_vdim_o) * test_op_dim_o +
+                                          c_out / test_vdim_o;
                      const int cache_idx =
                         out_comp * trial_vdim_local * total_trial_op_dim_local + col;
                      cache_d[q + num_qp_local *

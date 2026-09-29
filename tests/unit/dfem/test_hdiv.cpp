@@ -625,7 +625,7 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE]")
    SECTION("Mass+DivDiv") { hdiv_mass_divdiv<3>(GenAll(meshs, extra), p); }
    SECTION("Nonlinear") { hdiv_nonlinear<3>(GenAll(meshs, extra), p); }
    SECTION("Mixed assembly") { hdiv_mixed_assembly<3>(GenAll(meshs, extra), p); }
-  
+
    // Global backend
    SECTION("GlobalQF Mass+DivDiv")
    {

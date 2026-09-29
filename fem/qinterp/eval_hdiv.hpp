@@ -849,7 +849,7 @@ inline void EvalHDivTranspose2D(const int NE,
             }
          }
       }
-      
+
       MFEM_SYNC_THREAD;
 
       // Contract y: open basis Bo for u_x, closed Bc for u_y
@@ -872,7 +872,7 @@ inline void EvalHDivTranspose2D(const int NE,
       }
 
       MFEM_SYNC_THREAD;
-      
+
       // Contract x and add into the component blocks: closed basis for u_x, open for u_y
       MFEM_FOREACH_THREAD(vd,z,DIM)
       {
