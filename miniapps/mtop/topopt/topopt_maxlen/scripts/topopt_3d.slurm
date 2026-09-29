@@ -7,7 +7,7 @@
 
 #SBATCH --job-name=elast3d_topopt
 #SBATCH --partition=pbatch
-#SBATCH --nodes=8
+#SBATCH --nodes=32
 #SBATCH --ntasks-per-node=112
 #SBATCH --cpus-per-task=1
 #SBATCH --time=24:00:00
@@ -26,7 +26,7 @@ module load mvapich2/2.3.7
 ulimit -c 0
 
 solver=/p/lustre2/yu52/codes/mfem/miniapps/mtop/topopt/topopt_maxlen/ElastTopOpt_3d
-mesh=/p/lustre2/yu52/codes/run_topopt_3d/circular_plate_hex_sleeves_embedded_cylinder.msh
+mesh=/p/lustre2/yu52/codes/run_topopt_3d/circular_plate_hex_sleeves_without_enclosure.msh
 run_dir=${1:-/p/lustre2/yu52/codes/run_topopt_3d/elast3d_${SLURM_JOB_ID}}
 
 if [[ ! -x "${solver}" ]]; then
@@ -47,12 +47,12 @@ cd "${run_dir}"
 
 solver_args=(
    -m "${mesh}"       # Input mesh
-   -r 2               # Parallel uniform refinements (~8x elements per level in 3D)
+   -r 3               # Parallel uniform refinements (~8x elements per level in 3D)
    -o 1               # H1 elasticity/filter polynomial order
    -vf 0.3            # Target volume fraction
    -rf 1.5            # Helmholtz-filter width
    -amin 1e-6         # Lower thickness bound (only with -thickness)
-   -amax 25           # Upper thickness bound (only with -thickness)
+   -amax 13           # Upper thickness bound (only with -thickness)
    -b 4               # Initial Heaviside beta
    -bs 100            # Iterations between beta increases
    -bm 4              # Maximum beta
@@ -75,8 +75,8 @@ solver_args=(
    -pvi 50            # Intermediate ParaView output every N iterations (0 = off)
    -no-vis            # No GLVis
    -opt               # Run optimization (alt: -no-opt)
-   -thickness         # Thickness constraint off (alt: -thickness)
-   -rt 4              # Ray configuration: 1 radialoutward, 2 vertical +z, 3 xy plane
+   -no-thickness      # Thickness constraint off (-no-thickness or -thickness)
+   -rt 2              # Ray configuration: 1 radialoutward, 2 vertical +z, 3 xy plane
    -spl 1             # Solver print level: 0 quiet, 1 iterations, 2 verbose
    -dgo 1             # DG order for thickness advection (ignored with -no-thickness)
    -adv-gmres
