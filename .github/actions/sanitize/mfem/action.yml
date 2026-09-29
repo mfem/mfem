@@ -17,8 +17,8 @@ inputs:
     description: 'Whether to build for parallel (true/false)'
     default: false
   sanitizer:
-    description: 'Sanitizer to use (asan, msan, ubsan)'
-    default: asan
+    description: 'Sanitizer set to use (asan-ubsan, msan)'
+    default: asan-ubsan
 
 runs:
   using: 'composite'
@@ -38,19 +38,14 @@ runs:
         par: ${{inputs.par}}
         sanitizer: ${{inputs.sanitizer}}
 
-    - name: Build with ASAN
-      if: inputs.sanitizer == 'asan'
-      run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.ASAN_CXXFLAGS}} >> $GITHUB_ENV
+    - name: Build with ASAN+UBSAN
+      if: inputs.sanitizer == 'asan-ubsan'
+      run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.ASAN_CXXFLAGS}} ${{env.UBSAN_CXXFLAGS}} >> $GITHUB_ENV
       shell: bash
 
     - name: Build with MSAN
       if: inputs.sanitizer == 'msan'
       run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.MSAN_CXXFLAGS}} >> $GITHUB_ENV
-      shell: bash
-
-    - name: Build with UBSAN
-      if: inputs.sanitizer == 'ubsan'
-      run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.UBSAN_CXXFLAGS}} >> $GITHUB_ENV
       shell: bash
 
     - uses: mfem/github-actions/build-mfem@v2.7
