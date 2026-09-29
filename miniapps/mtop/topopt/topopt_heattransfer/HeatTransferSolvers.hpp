@@ -262,821 +262,343 @@ MixedMultiPhysicsOperator::MixedMultiPhysicsOperator(int n,
  *    Spatial Discretization is Interior Penalty DG. Designed to be used in conjunction with 
  *    the IMEX-RK schemes implemented in TopOptIMEXIntegrators.hpp. The advection term is treated explicitly, and diffusion implicit.
 */
-// class AdvectionDiffusionMixedMultiPhysicsOperator : public MixedMultiPhysicsOperator
-// {
-//    protected:
-//    // Finite Element Spaces, Operators, and Solvers
-//    ParFiniteElementSpace *fespace;
-//    ParFiniteElementSpace *filter_fes;
-//    ParBilinearForm *M, *K, *S, *A; 
-//    std::unique_ptr<HypreParMatrix> M_mat, S_mat, K_mat;
-//    mutable ParLinearForm *b;
-//    mutable std::unique_ptr<HypreParVector> b_vec;
-//    Solver *M_prec;
-//    CGSolver *M_solver;
-//    Implicit_Solver *implicit_solver;
-//    LORSolver<HypreBoomerAMG>* lor_solver;
-//    real_t kappa;
+class AdvectionDiffusionMixedMultiPhysicsOperator : public MixedMultiPhysicsOperator
+{
+   protected:
+   // Finite Element Spaces
+   ParFiniteElementSpace *fluid_heat_fes;
+   ParFiniteElementSpace *filter_fes;
 
-//    // Solution Storage
-//    GridFunctionCoefficient q0; 
-//    mutable ParGridFunction q_gf;
+   // Fluid Region Operators
+   ParBilinearForm *Mf, *Kf, *Sf, *Af; 
+   std::unique_ptr<HypreParMatrix> Mf_mat, Sf_mat, Kf_mat, Mf_no_interp_mat;
 
-//    // Boundary Stuff
-//    Array<int> ess_bdr_attr;
-//    Array<int> ess_tdof_list;
-//    mutable Array<int> inflow_bdr_attr;
+   // Forcing RHS  
 
-//    // Design Optimization
-//    mutable ParGridFunction* rho_tilde;
-//    SIMPCoefficient SIMP_cf;
+   // Heat Productions Forcing
+   mutable ParLinearForm *b_prod;
+   mutable std::unique_ptr<HypreParVector> b_prod_vec;
 
-//    // PDE Coefficients
-//    real_t raw_diff_term;
-//    mutable VectorGridFunctionCoefficient v_base;
-//    mutable FunctionCoefficient raw_inflow;
-//    real_t dt_diff_term;
+
+   // Solvers and Preconditioners
+   Solver *Mf_prec;
+   CGSolver *Mf_solver;
+   Implicit_Solver *implicit_solver_fluid;
+   // LORSolver<HypreBoomerAMG>* lor_solver_solid;
+   LORSolver<HypreBoomerAMG>* lor_solver_fluid;
+   real_t kappa_f;
+
+   GridFunctionCoefficient q0_f; 
+   mutable ParGridFunction qf_gf;
+
+   // Design Optimization, and interpolants
+   mutable ParGridFunction* rho_tilde;
+   SIMPCoefficient *SIMP_cf;
+
+   // PDE Coefficients
+   real_t kf; real_t dtkf; // diffusion terms
+
+   mutable VectorGridFunctionCoefficient v_base;
+   mutable FunctionCoefficient raw_inflow;
+
+   ProductCoefficient *SIMP_product_cf;
+   ScalarVectorProductCoefficient *velocity_cf;
+   ConstantCoefficient *kf_cf;
+   ProductCoefficient *dt_diff_cf;
+   // misc
+   int true_size;
+
+
+   public:
+   AdvectionDiffusionMixedMultiPhysicsOperator(
+      ParFiniteElementSpace &fluid_heat_fes, 
+      GridFunctionCoefficient &q0f,
+      ParGridFunction * rho_tilde, 
+      VectorGridFunctionCoefficient &v_base, 
+      real_t &kf, real_t &dtkf,  
+      real_t dt, 
+      real_t t_final, 
+      FunctionCoefficient raw_inflow,
+      MPI_Comm &comm);
+
+   /**
+    * Set the inflow boundary.
+    */
+   void SetInflowBoundaryConditions(Array<int> inflow_bdr_attr_, FunctionCoefficient &inflow_cf);
+
+   void Minv(const Vector &x, Vector &y) const {y = 0.0; Mf_solver->Mult(x,y);}
+
+   // Return the state vector  corresponding to the true dofs
+   BlockVector InitializeOperators(ParGridFunction &new_rho_til) override; 
+   void Mult(const Vector &x, Vector &y) const override;
+   void ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k) override;
+   void AdjointMult(const Vector &lam, Vector &lam_rhs, Vector &x) const override;
+   void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) override;
+   void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) override;
+   void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) override;
+
+   virtual ~AdvectionDiffusionMixedMultiPhysicsOperator()
+   {
+      delete implicit_solver_fluid;
+      delete lor_solver_fluid;
+      delete Mf_prec;
+      delete Mf_solver;
+      delete Mf;
+      delete Kf;
+      delete Sf;
+      delete Af;
+      delete b_prod;
+      delete SIMP_product_cf;
+      delete velocity_cf;
+      delete kf_cf;
+      delete dt_diff_cf;
+   }
+};
+
+AdvectionDiffusionMixedMultiPhysicsOperator::AdvectionDiffusionMixedMultiPhysicsOperator(
+      ParFiniteElementSpace &fluid_heat_fes_, 
+      GridFunctionCoefficient &q0f_,
+      ParGridFunction * rho_tilde_, 
+      VectorGridFunctionCoefficient &v_base_, 
+      real_t &kf_, real_t &dtkf_, 
+      real_t dt_, 
+      real_t t_final_, 
+      FunctionCoefficient raw_inflow_,
+      MPI_Comm &comm_):
+   MixedMultiPhysicsOperator(fluid_heat_fes_.GetTrueVSize(), 1, comm_, dt_, t_final_),
+   fluid_heat_fes(&fluid_heat_fes_),
+   q0_f(q0f_),
+   rho_tilde(rho_tilde_),
+   v_base(v_base_),
+   kf(kf_), dtkf(dtkf_),
+   raw_inflow(raw_inflow_),
+   Mf(nullptr),
+   Kf(nullptr),
+   Sf(nullptr),
+   Af(nullptr),
+   b_prod(nullptr),
+   Mf_prec(nullptr),
+   Mf_solver(nullptr),
+   implicit_solver_fluid(nullptr),
+   SIMP_cf(nullptr),
+   SIMP_product_cf(nullptr),
+   velocity_cf(nullptr),
+   kf_cf(nullptr),
+   dt_diff_cf(nullptr),
+   lor_solver_fluid(nullptr)
+{
+   int order_fluid = fluid_heat_fes->GetOrder(0);
+   kappa_f = (order_fluid + 1)*(order_fluid + 1);
+
+   rho_tilde->ExchangeFaceNbrData();
+   t = 0.0;
+
+   filter_fes = rho_tilde->ParFESpace();
+
+   offsets[0] = 0;
+   offsets[1] = fluid_heat_fes_.GetTrueVSize();
+   offsets.PartialSum();
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::SetInflowBoundaryConditions(Array<int> inflow_bdr_attr_, 
+   FunctionCoefficient &inflow_cf)
+{
+   raw_inflow = inflow_cf;
+}
+
+BlockVector AdvectionDiffusionMixedMultiPhysicsOperator::InitializeOperators(ParGridFunction &new_rho_til)
+{
+   qf_gf.SetSpace(fluid_heat_fes);
+   qf_gf.ProjectCoefficient(q0_f);
+   qf_gf.ExchangeFaceNbrData();
+
+   trajectory.EnableStorage();
+   BlockVector q_vec;
+   q_vec.Update(offsets);
+   qf_gf.GetTrueDofs(q_vec.GetBlock(0));
+   trajectory.Store(0, q_vec);  
+
+   *rho_tilde = new_rho_til;
+
+   const real_t sigma = -1.0;
+
+   // Mass Matrices
+   Mf = new ParBilinearForm(fluid_heat_fes);     
+   Mf->AddDomainIntegrator(new MassIntegrator());
+   Mf->Assemble();
+   Mf->Finalize();
+
+   // Form the DG Conevection Matrix
+   constexpr real_t alpha = -1.0;
+   SIMP_cf = new SIMPCoefficient(rho_tilde, 1e-6, 1.0, 3.0);
+   velocity_cf = new ScalarVectorProductCoefficient(*SIMP_cf, v_base);   
+   Kf = new ParBilinearForm(fluid_heat_fes);
+   Kf->AddDomainIntegrator(new ConvectionIntegrator(v_base, alpha));
+   Kf->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(v_base, alpha));                             
+   Kf->Assemble();
+   Kf->Finalize();
    
-//    // misc
-//    int true_size;
+   // Form DG Stiffness Matrices
+   kf_cf = new ConstantCoefficient(kf);
+   Sf = new ParBilinearForm(fluid_heat_fes);
+   Sf->AddDomainIntegrator(new DiffusionIntegrator(*kf_cf));
+   Sf->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*kf_cf, sigma, kappa_f));
+   Sf->Assemble();
+   Sf->Finalize();
 
-//    // Helpers
-//    mutable Vector z;
-//    mutable Vector w;
+   // For the preconditioner  - create billinear form corresponding to
+   // operator (M + dt S)
+   dt_diff_cf = new ProductCoefficient(dt, *kf_cf); 
+   Af = new ParBilinearForm(fluid_heat_fes);
+   Af->AddDomainIntegrator(new MassIntegrator);
+   Af->AddDomainIntegrator(new DiffusionIntegrator(*dt_diff_cf));
+   Af->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(*dt_diff_cf, sigma, kappa_f));
+   Af->Assemble();
+   Af->Finalize();
 
-//    public:
-//    AdvectionDiffusionMixedMultiPhysicsOperator(ParFiniteElementSpace &fes,  
-//       VectorGridFunctionCoefficient &v_base, 
-//       real_t &dt_diff_term, 
-//       real_t &raw_diff_term,  
-//       GridFunctionCoefficient &q0, 
-//       ParGridFunction * rho_tilde, 
-//       real_t dt, 
-//       real_t t_final, 
-//       SIMPCoefficient SIMP_cf, 
-//       FunctionCoefficient raw_inflow,
-//       Array<int> inflow_bdr_attr,
-//       MPI_Comm &comm);
+   // Heat Production RHS
+   b_prod = new ParLinearForm(fluid_heat_fes);
+   SIMP_product_cf = new ProductCoefficient(raw_inflow, *SIMP_cf);
+   b_prod->AddDomainIntegrator(new DomainLFIntegrator(*SIMP_product_cf));
+   b_prod->Assemble();
+   b_prod_vec.reset(b_prod->ParallelAssemble());
 
-//    /**
-//     * Set the essential boundary conditions. Maybe be non-homogenous.
-//     */
-//    void SetEssentialBoundaryConditions(Array<int> ess_bdr_attr_);
-//    /**
-//     * Set the inflow boundary.
-//     */
-//    void SetInflowBoundaryConditions(Array<int> inflow_bdr_attr_, FunctionCoefficient &inflow_cf);
+   //Assemble Martrices
+   Mf_mat.reset(Mf->ParallelAssemble());
+   Sf_mat.reset(Sf->ParallelAssemble());
+   Kf_mat.reset(Kf->ParallelAssemble());
 
-//    void Minv(const Vector &x, Vector &y) const {y = 0.0; M_solver->Mult(x,y);}
+   // Mass Matrix Preconditioners and Solvers
+   HypreSmoother *hypre_prec2 = new HypreSmoother(*Mf_mat, HypreSmoother::Jacobi);
+   Mf_prec = hypre_prec2;
+   Mf_solver = new CGSolver(comm);
+   Mf_solver->SetOperator(*Mf_mat);
+   Mf_solver->SetPreconditioner(*Mf_prec);
+   Mf_solver->iterative_mode = false;
+   Mf_solver->SetRelTol(1e-13);
+   Mf_solver->SetAbsTol(0.0);
+   Mf_solver->SetMaxIter(100);
+   Mf_solver->SetPrintLevel(0);
 
-//    // Return the state vector  corresponding to the true dofs
-//    BlockVector InitializeOperators(ParGridFunction &new_rho_til) override; 
-//    void Mult(const Vector &x, Vector &y) const override;
-//    void ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k) override;
-//    void AdjointMult(const Vector &lam, Vector &lam_rhs, Vector &x) const override;
-//    void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) override;
-//    void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) override;
-//    void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) override;
+   int local_max_bdr = fluid_heat_fes->GetParMesh()->bdr_attributes.Size() ? fluid_heat_fes->GetParMesh()->bdr_attributes.Max() : 0;
+   int global_max_bdr = 0;
+   MPI_Allreduce(&local_max_bdr, &global_max_bdr, 1, MPI_INT, MPI_MAX, comm);
 
-//    virtual ~AdvectionDiffusionMixedMultiPhysicsOperator()
-//    {
-//       delete implicit_solver;
-//       delete lor_solver;
-//       delete M_prec;
-//       delete M_solver;
-//       delete M;
-//       delete K;
-//       delete S;
-//       delete A;
-//       delete b;
-//       //delete b_vec;
-//    }
-// };
+   Array<int> ess_bdr_attr;
+   Array<int> ess_tdof_list_f;
 
-// AdvectionDiffusionMixedMultiPhysicsOperator::AdvectionDiffusionMixedMultiPhysicsOperator(ParFiniteElementSpace &fes_,  
-//    VectorGridFunctionCoefficient &v_base_, 
-//    real_t &dt_diff_term_, 
-//    real_t &raw_diff_term_,  
-//    GridFunctionCoefficient &q0_, 
-//    ParGridFunction * rho_tilde_, 
-//    real_t dt_, 
-//    real_t t_final_, 
-//    SIMPCoefficient SIMP_cf_, 
-//    FunctionCoefficient raw_inflow_,
-//    Array<int> inflow_bdr_attr_,
-//    MPI_Comm &comm_) :
-//    MixedMultiPhysicsOperator(fes_.GetTrueVSize(), 1, comm_, dt_, t_final_),
-//    fespace(&fes_),
-//    v_base(v_base_),
-//    dt_diff_term(dt_diff_term_),
-//    raw_diff_term(raw_diff_term_),
-//    q0(q0_),
-//    rho_tilde(rho_tilde_),
-//    SIMP_cf(SIMP_cf_),
-//    raw_inflow(raw_inflow_),
-//    inflow_bdr_attr(inflow_bdr_attr_),
-//    z(fes_.GetTrueVSize()), 
-//    w(fes_.GetTrueVSize()),
-//    M(nullptr),
-//    K(nullptr),
-//    S(nullptr),
-//    A(nullptr),
-//    b(nullptr),
-//    M_prec(nullptr),
-//    M_solver(nullptr),
-//    implicit_solver(nullptr),
-//    lor_solver(nullptr)
-// {
-//    int order = fespace->GetOrder(0);
-//    kappa = (order + 1)*(order + 1);
-//    rho_tilde->ExchangeFaceNbrData();
-//    t = 0.0;
+   ess_bdr_attr.SetSize(global_max_bdr);   
+   ess_bdr_attr = 0;   
+   fluid_heat_fes->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list_f);  
 
-//    filter_fes = rho_tilde->ParFESpace();
+   // Implicit Solvers
+   implicit_solver_fluid = new Implicit_Solver(*Mf_mat, *Sf_mat, *fluid_heat_fes, dt, comm);
+   lor_solver_fluid = new LORSolver<HypreBoomerAMG>(*Af, ess_tdof_list_f); 
+   lor_solver_fluid->GetSolver().SetSystemsOptions(fluid_heat_fes->GetVDim(), true);
+   lor_solver_fluid->GetSolver().SetPrintLevel(0);
+   implicit_solver_fluid -> SetPreconditioner(*lor_solver_fluid);
 
-//    offsets[0] = 0;
-//    offsets[1] = fes_.GetTrueVSize();
-// }
+   return q_vec;
+}
 
-// void AdvectionDiffusionMixedMultiPhysicsOperator::SetEssentialBoundaryConditions(Array<int> ess_bdr_attr_)
-// {
-//    ess_bdr_attr = ess_bdr_attr_;
-//    fespace->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);  
-//    fespace->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list); 
-// }
+void AdvectionDiffusionMixedMultiPhysicsOperator::Mult(const Vector &x, Vector &y) const
+{
+   BlockVector bx(const_cast<Vector&>(x), offsets);  
+   BlockVector by(y, offsets);
 
-// void AdvectionDiffusionMixedMultiPhysicsOperator::SetInflowBoundaryConditions(Array<int> inflow_bdr_attr_, 
-//    FunctionCoefficient &inflow_cf)
-// {
-//    inflow_bdr_attr = inflow_bdr_attr_; 
-//    raw_inflow = inflow_cf;
-// }
+   Vector z(bx.GetBlock(0).Size());
+   Vector w(bx.GetBlock(0).Size());
+   Vector v(bx.GetBlock(0).Size());
 
-// BlockVector AdvectionDiffusionMixedMultiPhysicsOperator::InitializeOperators(ParGridFunction &new_rho_til)
-// {
-//    ParGridFunction q_gf(fespace);
-//    q_gf.ProjectCoefficient(q0);
-//    q_gf.ExchangeFaceNbrData();
-//    trajectory.EnableStorage();
-//    BlockVector q_vec;
-//    q_vec.Update(offsets);
-//    q_gf.GetTrueDofs(q_vec.GetBlock(0));
-//    trajectory.Store(0, q_vec);  
-
-
-//    *rho_tilde = new_rho_til;
-
-
-//    // Boundary Conditions   
-//    if (ess_bdr_attr.Size() == 0)
-//    {
-//        int local_max_bdr = fespace->GetParMesh()->bdr_attributes.Size() ? fespace->GetParMesh()->bdr_attributes.Max() : 0;
-//        int global_max_bdr = 0;
-//        MPI_Allreduce(&local_max_bdr, &global_max_bdr, 1, MPI_INT, MPI_MAX, comm);
-
-//        ess_bdr_attr.SetSize(global_max_bdr);   
-//        ess_bdr_attr = 0;   
-//        fespace->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);  
-//        fespace->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);  
-//    }
-//    if (inflow_bdr_attr.Size() == 0)
-//    {
-//        int local_max_bdr = fespace->GetParMesh()->bdr_attributes.Size() ? fespace->GetParMesh()->bdr_attributes.Max() : 0;
-//        int global_max_bdr = 0;
-//        MPI_Allreduce(&local_max_bdr, &global_max_bdr, 1, MPI_INT, MPI_MAX, comm);
-
-//        inflow_bdr_attr.SetSize(global_max_bdr);   
-//        inflow_bdr_attr = 0;   
-//        fespace->GetParMesh()->MarkExternalBoundaries(inflow_bdr_attr);  
-//    }
-
-//    // if(Mpi::Root())
-//    // {
-//    //    for (int i = 0; i < inflow_bdr_attr.Size(); i++)
-//    //    {
-//    //       std::cout << "inflow bdr attr in ad = " << inflow_bdr_attr[i] << std::endl;
-//    //    }
-//    // }
-//    const real_t sigma = -1.0;
-//    M = new ParBilinearForm(fespace);      
-//    M->AddDomainIntegrator(new MassIntegrator());
-//    // Form the DG Conevection Matrix
-//    constexpr real_t alpha = -1.0;
-//    ScalarVectorProductCoefficient velocity_cf(SIMP_cf, v_base);   
-//    K = new ParBilinearForm(fespace);
-//    K->AddDomainIntegrator(new ConvectionIntegrator(velocity_cf, alpha));
-//    K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha));                                   
-//    K->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha), inflow_bdr_attr);
+   y = 0.0;
    
-//    // Form DG Stiffness Matrix
-//    ProductCoefficient diff_cf(raw_diff_term, SIMP_cf);
-//    S = new ParBilinearForm(fespace);
-//    S->AddDomainIntegrator(new DiffusionIntegrator(diff_cf));
-//    S->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_cf, sigma, kappa));
-
-//    // For the preconditioner  - create billinear form corresponding to
-//    // operator (M + dt S)
-//    ProductCoefficient dt_diff_cf(dt_diff_term, SIMP_cf); 
-//    A = new ParBilinearForm(fespace);
-//    A->AddDomainIntegrator(new MassIntegrator);
-//    A->AddDomainIntegrator(new DiffusionIntegrator(dt_diff_cf));
-//    A->AddInteriorFaceIntegrator(new DGDiffusionIntegrator(dt_diff_cf, sigma, kappa));
-   
-//    M->Assemble();
-//    K->Assemble();
-//    S->Assemble();
-//    A->Assemble();
-//    M->Finalize();
-//    K->Finalize();
-//    S->Finalize();
-//    A->Finalize();
-   
-//    b = new ParLinearForm(fespace);
-//    b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(raw_inflow, velocity_cf, alpha), inflow_bdr_attr);
-//    b->Assemble();
-//    b_vec.reset(b->ParallelAssemble());
-   
-//    //  A->Reset(A->ParallelAssemble(), true);
-//    M_mat.reset(M->ParallelAssemble());
-//    S_mat.reset(S->ParallelAssemble());
-//    K_mat.reset(K->ParallelAssemble());
-//    HypreSmoother *hypre_prec = new HypreSmoother(*M_mat, HypreSmoother::Jacobi);
-//    M_prec = hypre_prec;
-//    implicit_solver = new Implicit_Solver(*M_mat, *S_mat, *fespace, dt, comm);
-//    lor_solver = new LORSolver<HypreBoomerAMG>(*A, ess_tdof_list); 
-//    lor_solver->GetSolver().SetSystemsOptions(fespace->GetVDim(), true);
-//    lor_solver->GetSolver().SetPrintLevel(-1);
-//    implicit_solver -> SetPreconditioner(*lor_solver);
-   
-//    M_solver = new CGSolver(comm);
-//    M_solver->SetOperator(*M_mat);
-//    M_solver->SetPreconditioner(*M_prec);
-//    M_solver->iterative_mode = false;
-//    M_solver->SetRelTol(1e-13);
-//    M_solver->SetAbsTol(0.0);
-//    M_solver->SetMaxIter(100);
-//    M_solver->SetPrintLevel(0);
-
-//    return q_vec;
-// }
-
-// void AdvectionDiffusionMixedMultiPhysicsOperator::Mult(const Vector &x, Vector &y) const
-// {
-//    // Perform the explicit step
-//    // y = M^{-1} (K x + b)
-//    z = 0.0;
-//    K_mat->Mult(x, z);
-//    z += *b_vec;
-//    M_solver->Mult(z, y);
-// }
-
-// void AdvectionDiffusionMixedMultiPhysicsOperator::AdjointMult(const Vector &lam, Vector &lam_rhs, Vector &x) const
-// {
-//    // Plain transpose of the forward RHS Jacobian:
-//    // G(u) = M^{-1} (K u + b)
-//    // lam_rhs = 0.0;
-//    // Adjoint RHS evaluation for discrete adjoint 
-//    // Jac(G) = M^{-1} K 
-//    // Jac(G)^T = K^{T} M^{-T} 
-//    z.SetSize(lam.Size());
-//    z = 0.0;
-
-//    lam_rhs.SetSize(lam.Size());
-//    lam_rhs = 0.0;
-
-//    M_solver->Mult(lam, z);
-//    //std::cout << std::setprecision(14) <<"z norm l2 = " << z.Norml2() << std::endl;
-//    MFEM_VERIFY(z.Size() == lam.Size(), "Invalid mass-solve output size.");
-//    K_mat->MultTranspose(z, lam_rhs);
-// }
-
-// void AdvectionDiffusionMixedMultiPhysicsOperator::ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k)
-// {
-//    // Perform the implicit step
-//    // solve for k, k = -(M+dt S)^{-1} S x
-//    MFEM_VERIFY(implicit_solver != NULL,
-//                "Implicit time integration is not supported with partial assembly");
-//    z = 0.0;
-//    S_mat->Mult(x, z);
-//    z *= -1.0;
-//    implicit_solver->SetTimeStep(dt_pass);
-//    implicit_solver->Mult(z, k);
-// }
-
-// void AdvectionDiffusionMixedMultiPhysicsOperator::AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k)
-// {
-//    // Perform the implicit step
-//    // solve for k, k = -(M+dt S)^{-1} S x
-//    MFEM_VERIFY(implicit_solver != NULL,
-//                "Implicit time integration is not supported with partial assembly");
-//    implicit_solver->SetTimeStep(dt_pass);
-//    z= 0.0;
-//    implicit_solver->Mult(lam, z);
-//    z *= -1.0;
-//    S_mat->Mult(z, k);
-// }
-
-// void AdvectionDiffusionMixedMultiPhysicsOperator::ExplicitMultDesignGradient(const real_t dt_pass, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde)
-// {
-//    // Update the design gradient
-//    // Compute w = M^{-1} lambda
-//    w = 0.0;
-//    M_solver->Mult(dual_vector, w);
-//    ParGridFunction lam_gf(fespace);
-//    lam_gf.SetFromTrueDofs(w);
-//    // Update q_gf to be x. 
-
-//    ParGridFunction q_gf(fespace);
-//    q_gf.SetFromTrueDofs(x);
-//    rho_tilde->ExchangeFaceNbrData();
-//    lam_gf.ExchangeFaceNbrData();
-//    q_gf.ExchangeFaceNbrData();
-//    // Gradient from the Convection term
-//    ParLinearForm adv_lf(filter_fes);
-//    adv_lf.AddDomainIntegrator(new DGAdvectionDesignLFIntegrator(*rho_tilde, q_gf, lam_gf, v_base, SIMP_cf));
-//    adv_lf.AddBdrFaceIntegrator(new DGAdvectionDesignLFIntegrator(*rho_tilde, q_gf, lam_gf, v_base, SIMP_cf), inflow_bdr_attr);
-//    adv_lf.AddInteriorFaceIntegrator(new DGAdvectionDesignLFIntegrator(*rho_tilde, q_gf, lam_gf, v_base, SIMP_cf));
-//    adv_lf.Assemble();
-//    std::unique_ptr<HypreParVector> adv_vec(adv_lf.ParallelAssemble());
-//    dgdrho_tilde.Add(-dt_pass, *adv_vec);
-//    // Gradient from the rhs
-//    ParLinearForm bdr_flow_lf(filter_fes);
-//    bdr_flow_lf.AddBdrFaceIntegrator(new BdrFlowDesignLFIntegrator(*rho_tilde, lam_gf, raw_inflow, v_base, SIMP_cf),inflow_bdr_attr);
-//    bdr_flow_lf.Assemble();
-//    std::unique_ptr<HypreParVector> bdr_flow_vec(bdr_flow_lf.ParallelAssemble());
-//    dgdrho_tilde.Add(-dt_pass, *bdr_flow_vec);
-// }
-
-// void AdvectionDiffusionMixedMultiPhysicsOperator::ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a,Vector &dual_vector, Vector &x, Vector &dfdrho_tilde)
-// {
-//    MFEM_VERIFY(implicit_solver != NULL, "Implicit time integration is not supported with partial assembly");
-//    implicit_solver->SetTimeStep(dt);
-//    //lam A^{-1} dS/drho A^{-1} S q
-//    Vector k_d(dual_vector.Size());  
-//    Vector y(dual_vector.Size());
-//    Vector u(x.Size());
-//    k_d = 0.0;
-//    y = 0.0;
-//    u = 0.0;
-//    w = 0.0;
-//    implicit_solver->Mult(dual_vector, w); // w = A^{-1} lam, A is self adjoint
-//    M_mat->Mult(x, u);
-//    implicit_solver->Mult(u, y); // y = A^{-1}S q
-//    ParLinearForm stiff_lf1(filter_fes); 
-//    ParGridFunction w_gf(fespace);
-//    ParGridFunction y_gf(fespace); 
-//    w_gf.SetFromTrueDofs(w);
-//    y_gf.SetFromTrueDofs(y);
-//    rho_tilde->ExchangeFaceNbrData();
-//    w_gf.ExchangeFaceNbrData();
-//    y_gf.ExchangeFaceNbrData();
-//    stiff_lf1.AddDomainIntegrator(new DGStiffnessDesignLFIntegrator(*rho_tilde, y_gf, w_gf, raw_diff_term, kappa, SIMP_cf));
-//    stiff_lf1.AddInteriorFaceIntegrator(new DGStiffnessDesignLFIntegrator(*rho_tilde, y_gf, w_gf, raw_diff_term, kappa, SIMP_cf));
-//    stiff_lf1.Assemble();
-//    std::unique_ptr<HypreParVector> stiff_vec1(stiff_lf1.ParallelAssemble());   
-//    dfdrho_tilde.Add(a, *stiff_vec1);
-// }
-
-
-
-
-// /**   MixedMultiPhysicsOperator with coupled Stokes and Advection-Diffusion.
-//  *    Spatial Discretization is Interior Penalty DG for Advection Diffusion. Taylor-Hood for Stokes. Designed to be used in conjunction with 
-//  *    the IMEX-RK schemes implemented in TopOptIMEXIntegrators.hpp. The advection term is treated explicitly, and diffusion implicit.
-// */
-// class CoupledSteadyStokesAdvectionDiffusionOperator : public MixedMultiPhysicsOperator
-// {
-//    protected:
-//    AdvectionDiffusionMixedMultiPhysicsOperator *adv_diff_oper;
-//    ParFiniteElementSpace *V_fes;
-//    ParFiniteElementSpace *P_fes;
-//    ParFiniteElementSpace *filter_fes;
-//    BrinkmanCoefficient brinkman_cf;
-//    bool pa;
-//    BrinkmanStokesSolver *brinkman_stokes_solver;
-//    ConstantCoefficient viscosity_cf;
-
-//    ParGridFunction brinkman_gf;
-//    mutable ParGridFunction u_gf, p_gf;
-//    mutable ParGridFunction v_gf, ap_gf;
-//    mutable ParGridFunction q_gf, l_gf;
-
-//    BlockVector x; // holds the stokes solution
-
-//    mutable Array<int> inlet_bdr;
-//    Array<int> noslip_bdr;
-//    Array<int> all_ess_bdr;
-//    int max_attr;
-
-//    mutable ParGridFunction *rho_tilde;
-
-//    // PDE Coefficients
-//    mutable VectorFunctionCoefficient inlet_cf;
-
-//    // Advection Diffusion stuff
-//    ParFiniteElementSpace *adv_fes;
-//    real_t dt_diff_term; 
-//    real_t raw_diff_term;
-//    GridFunctionCoefficient q0;
-//    mutable SIMPCoefficient SIMP_cf;
-//    mutable FunctionCoefficient raw_inflow;
-
-//    public:
-//    CoupledSteadyStokesAdvectionDiffusionOperator(ParFiniteElementSpace &V_fes,  
-//       ParFiniteElementSpace &P_fes,
-//       Array<int> &inlet_bdr,
-//       Array<int> &noslip_bdr,
-//       Array<int> &all_ess_bdr,
-//       ParGridFunction * rho_tilde,
-//       BrinkmanCoefficient &brinkman_cf,
-//       ConstantCoefficient &viscosity_cf,
-//       VectorFunctionCoefficient &inlet_cf,
-//       bool pa,
-//       ParFiniteElementSpace &adv_fes,
-//       real_t &dt_diff_term, 
-//       real_t &raw_diff_term,  
-//       GridFunctionCoefficient &q0, 
-//       real_t dt, 
-//       real_t t_final, 
-//       SIMPCoefficient SIMP_cf, 
-//       FunctionCoefficient raw_inflow,
-//       MPI_Comm &comm);
-
-   
-//    void SetStep(int new_step) override {current_step = new_step; adv_diff_oper->SetStep(new_step);}
-
-//    // Update Dt in case of variable time-stepping
-//    void UpdateDt(real_t &dt_real)  override
-//    {
-//       MPI_Bcast(&dt_real, 1, MPI_DOUBLE, 0, comm);
-//       dt = dt_real;
-//       adv_diff_oper->UpdateDt(dt_real);
-//    }
-
-//    BlockVector InitializeOperators(ParGridFunction &new_rho_til) override; 
-//    void Mult(const Vector &x, Vector &y) const override;
-//    void ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k) override;
-//    void AdjointMult(const Vector &lam, Vector &lam_rhs, Vector &x) const override;
-//    void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) override;
-//    void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) override;
-//    void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) override;
-//    void AddStaticDesignGradient(const Vector &lam, Vector &dgdrho_tilde) override;
-
-//    virtual ~CoupledSteadyStokesAdvectionDiffusionOperator()
-//    {
-//       // if (adv_diff_oper) {
-//       delete adv_diff_oper;
-//       // }
-//       // if (brinkman_stokes_solver) {
-//       delete brinkman_stokes_solver;
-//       // }
-//    }
-// };
-
-// CoupledSteadyStokesAdvectionDiffusionOperator::CoupledSteadyStokesAdvectionDiffusionOperator(ParFiniteElementSpace &V_fes_,  
-//       ParFiniteElementSpace &P_fes_,
-//       Array<int> &inlet_bdr_,
-//       Array<int> &noslip_bdr_,
-//       Array<int> &all_ess_bdr_,
-//       ParGridFunction * rho_tilde_,
-//       BrinkmanCoefficient &brinkman_cf_,
-//       ConstantCoefficient &viscosity_cf_,
-//       VectorFunctionCoefficient &inlet_cf_,
-//       bool pa_,
-//       ParFiniteElementSpace &adv_fes_,
-//       real_t &dt_diff_term_, 
-//       real_t &raw_diff_term_,  
-//       GridFunctionCoefficient &q0_, 
-//       real_t dt_, 
-//       real_t t_final_, 
-//       SIMPCoefficient SIMP_cf_, 
-//       FunctionCoefficient raw_inflow_,
-//       MPI_Comm &comm_) :
-//    MixedMultiPhysicsOperator(adv_fes_.GetTrueVSize() + V_fes_.GetTrueVSize() + P_fes_.GetTrueVSize(), 3, comm_, dt_, t_final_),
-//    V_fes(&V_fes_),
-//    P_fes(&P_fes_),
-//    inlet_bdr(inlet_bdr_),
-//    noslip_bdr(noslip_bdr_),
-//    all_ess_bdr(all_ess_bdr_),
-//    rho_tilde(rho_tilde_),
-//    brinkman_cf(brinkman_cf_),
-//    viscosity_cf(viscosity_cf_),
-//    inlet_cf(inlet_cf_),
-//    pa(pa_),
-//    adv_fes(&adv_fes_),
-//    dt_diff_term(dt_diff_term_),
-//    raw_diff_term(raw_diff_term_),
-//    q0(q0_),
-//    SIMP_cf(SIMP_cf_), 
-//    raw_inflow(raw_inflow_),
-//    u_gf(&V_fes_),
-//    v_gf(&V_fes_),
-//    p_gf(&P_fes_),
-//    brinkman_stokes_solver(nullptr),
-//    adv_diff_oper(nullptr)
-// {
-//    rho_tilde->ExchangeFaceNbrData();
-//    t = 0.0;
-
-//    q_gf.SetSpace(adv_fes);
-//    q_gf.ProjectCoefficient(q0);
-//    q_gf.ExchangeFaceNbrData();
-
-//    filter_fes = rho_tilde->ParFESpace();
-//    brinkman_gf.SetSpace(filter_fes);
-
-//    offsets[0] = 0;
-//    offsets[1] = adv_fes->GetTrueVSize();
-//    offsets[2] = V_fes->GetTrueVSize();
-//    offsets[3] = P_fes->GetTrueVSize();
-//    offsets.PartialSum();
-// }
-
-
-// BlockVector CoupledSteadyStokesAdvectionDiffusionOperator::InitializeOperators(ParGridFunction &new_rho_til)
-// {
-//    *rho_tilde = new_rho_til;
-
-//    max_attr = GlobalMax(comm, V_fes->GetParMesh()->attributes.Size() ? V_fes->GetParMesh()->attributes.Max() : 0);
-//    int dim = V_fes -> GetVDim();
-//    int order_v = V_fes -> GetElementOrder(0);
-//    int order_p = P_fes -> GetElementOrder(0);
-
-//    //brinkman_cf.UpdateRho(*rho_tilde);
-//    rho_tilde->ExchangeFaceNbrData();
-//    brinkman_gf.ProjectCoefficient(brinkman_cf);
-
-//    if (brinkman_stokes_solver) {
-//        delete brinkman_stokes_solver;
-//    }
-//    brinkman_stokes_solver = new BrinkmanStokesSolver(*V_fes, *P_fes);
-//    brinkman_stokes_solver->SetSolverType(StokesSolver::KrylovSolver::MINRES);
-//    brinkman_stokes_solver->SetVelocityPreconditionerType(StokesSolver::VelocityPreconditioner::AMG);
-//    brinkman_stokes_solver->SetPressurePreconditionerType(StokesSolver::PressurePreconditioner::CAHOUET_CHABARD);
-//    brinkman_stokes_solver->SetCCDiffusionSolverType(StokesSolver::CCDiffusionSolver::GMRES);
-//    brinkman_stokes_solver->SetLSCVelocityOperatorType(StokesSolver::LSCVelocityOperator::ASSEMBLED);
-//    brinkman_stokes_solver->SetLSCDiagonalOperatorType(StokesSolver::LSCDiagonalOperator::MATCH_VELOCITY);
-//    brinkman_stokes_solver->SetLSCQPreconditionerType(StokesSolver::LSCQPreconditioner::OPERATOR_JACOBI);
-//    brinkman_stokes_solver->SetRelTol(1e-10);
-//    brinkman_stokes_solver->SetAbsTol(0.0);
-//    brinkman_stokes_solver->SetMaxIter(500);
-//    brinkman_stokes_solver->SetVelocityAMGElasticityNearNullspace(false);
-//    brinkman_stokes_solver->SetVelocityPreconditionerCGRelTol(1.0e-8); 
-//    brinkman_stokes_solver->SetVelocityPreconditionerCGAbsTol(1e-12);
-//    brinkman_stokes_solver->SetVelocityPreconditionerCGMaxIter(100);
-//    brinkman_stokes_solver->SetPressurePreconditionerCGRelTol(1e-8);
-//    brinkman_stokes_solver->SetPressurePreconditionerCGAbsTol(1e-12);
-//    brinkman_stokes_solver->SetPressurePreconditionerCGMaxIter(100);
-//    brinkman_stokes_solver->SetKDim(50);
-//    brinkman_stokes_solver->SetPrintLevel(-1);
-
-//    brinkman_stokes_solver->SetViscosity(viscosity_cf);
-//    brinkman_stokes_solver->SetBrinkmanPenalization(brinkman_gf);
-
-
-//    int max_bdr_attr = GlobalMax(comm, V_fes->GetParMesh()->bdr_attributes.Size() ? V_fes->GetParMesh()->bdr_attributes.Max() : 0);
-
-
-//    for (int attr = 1; attr <= max_bdr_attr; attr++)
-//    {
-//       if (all_ess_bdr[attr-1] == 1){brinkman_stokes_solver->VelocityBoundary().Add(attr, inlet_cf);}
-//    }
-
-
-//    x.Update(brinkman_stokes_solver->GetBlockOffsets());
-//    x = 0.0;
-//    brinkman_stokes_solver->Solve(x);
-//    u_gf.SetFromTrueDofs(x.GetBlock(0));
-//    p_gf.SetFromTrueDofs(x.GetBlock(1));
- 
-
-//    VectorGridFunctionCoefficient u_cf(&u_gf);
-
-//    if (adv_diff_oper) {
-//       delete adv_diff_oper;
-//    }
-
-//    adv_diff_oper = new AdvectionDiffusionMixedMultiPhysicsOperator(
-//       *adv_fes,
-//       u_cf,
-//       dt_diff_term, 
-//       raw_diff_term,
-//       q0,
-//       rho_tilde,
-//       dt,
-//       t_final,
-//       SIMP_cf,
-//       raw_inflow,
-//       inlet_bdr,
-//       comm);
-
-
-//    q_gf.SetSpace(adv_fes);
-//    q_gf.ProjectCoefficient(q0);
-//    q_gf.ExchangeFaceNbrData();
-//    const Array<int> ad_offsets = adv_diff_oper->GetSystemOffsets();
-//    BlockVector q_vec(ad_offsets);
-//    q_vec = adv_diff_oper->InitializeOperators(*rho_tilde);
-
-//    BlockVector initial_state(offsets); 
-
-//    initial_state.GetBlock(2) = x.GetBlock(1);
-//    initial_state.GetBlock(1) = x.GetBlock(0);
-//    q_gf.GetTrueDofs(initial_state.GetBlock(0));
-
-//    trajectory.EnableStorage();
-//    trajectory.Store(0, initial_state); 
-//    // std::cout << std::setprecision(13)<<  "=============INITIAL===================" << std::endl;
-//    // // std::cout << std::setprecision(13)<< "state heat norm = " << initial_state.GetBlock(0).Norml2() << std::endl;
-//    // // std::cout << std::setprecision(13)<< "state vel norm = " << initial_state.GetBlock(1).Norml2() << std::endl;
-//    // std::cout << std::setprecision(13) << "brinkman norm = " << brinkman_gf.Norml2() << std::endl;
-//    // std::cout << std::setprecision(13) << "state vel norm = " << u_gf.Norml2() << std::endl;
-//    // // std::cout << std::setprecision(13)<< "state pressure norm = " << initial_state.GetBlock(2).Norml2() << std::endl;
-//    // std::cout << std::setprecision(13)<< "=============INITIAL===================" << std::endl;
-
-//    int num_procs = Mpi::WorldSize();   
-//    int myid = Mpi::WorldRank();   
-
-//    {
-//       char vishost[] = "localhost";
-//       int  visport   = 19916;
-//       socketstream u_sock(vishost, visport);
-//       u_sock << "parallel " << num_procs << " " << myid << "\n";
-//       u_sock.precision(8);
-//       u_sock << "solution\n" << *(V_fes->GetParMesh()) << u_gf << "window_title 'Velocity'"
-//              << std::endl;
-//       // Make sure all ranks have sent their 'u' solution before initiating
-//       // another set of GLVis connections (one from each rank):
-//       MPI_Barrier(comm);
-//       socketstream p_sock(vishost, visport);
-//       p_sock << "parallel " << num_procs << " " << myid << "\n";
-//       p_sock.precision(8);
-//       p_sock << "solution\n" << *(P_fes->GetParMesh()) << p_gf << "window_title 'Pressure'"
-//              << std::endl;
-
-//       // socketstream b_sock(vishost, visport);
-//       // b_sock << "parallel " << num_procs << " " << myid << "\n";
-//       // b_sock.precision(8);
-//       // b_sock << "solution\n" << *(filter_fes->GetParMesh()) << brinkman_gf << "window_title 'brinkman field'"
-//       //        << std::endl;
-
-//       // socketstream rho_sock(vishost, visport);
-//       // rho_sock << "parallel " << num_procs << " " << myid << "\n";
-//       // rho_sock.precision(8);
-//       // rho_sock << "solution\n" << *(filter_fes->GetParMesh()) << *rho_tilde << "window_title 'rho field'"
-//       //        << std::endl;
-//    }
-//    return initial_state;
-// }
-
-// void CoupledSteadyStokesAdvectionDiffusionOperator::Mult(const Vector &x, Vector &y) const
-// {
-//    BlockVector bx(const_cast<Vector&>(x), offsets);  
-//    BlockVector by(y, offsets);
-//    y = 0.0;
-//    adv_diff_oper->Mult(bx.GetBlock(0),by.GetBlock(0));
-// }
-
-// void CoupledSteadyStokesAdvectionDiffusionOperator::AdjointMult(const Vector &lam, Vector &lam_rhs, Vector &x) const
-// {
-
-//    BlockVector bl(const_cast<Vector&>(lam), offsets);
-//    BlockVector br(lam_rhs, offsets);
-//    lam_rhs = 0.0;
-//    br.GetBlock(0) = 0.0;
-//    adv_diff_oper->AdjointMult(bl.GetBlock(0), br.GetBlock(0), x);
-
-//    VectorGridFunctionCoefficient u_cf(&u_gf);
- 
-//    Vector w(bl.GetBlock(0).Size());
-//    w = 0.0;
-//    adv_diff_oper->Minv(bl.GetBlock(0), w);
-//    //std::cout << std::setprecision(14) << "w norm l2 = " << w.Norml2() << std::endl;
-//    ParGridFunction lam_gf(adv_fes);
-//    lam_gf.SetFromTrueDofs(w);
-
-//    BlockVector state_v(x, offsets);
-//    ParGridFunction qq_gf(adv_fes);
-//    qq_gf.SetFromTrueDofs(state_v.GetBlock(0)); 
-//    rho_tilde->ExchangeFaceNbrData();
-//    lam_gf.ExchangeFaceNbrData();
-//    qq_gf.ExchangeFaceNbrData();
-
-
-//    ParLinearForm adv_lf(V_fes);
-//    adv_lf.AddDomainIntegrator(new StokesVelocityGradientLFIntegrator(*rho_tilde, qq_gf, lam_gf, SIMP_cf, u_cf));
-//    adv_lf.AddBdrFaceIntegrator(new StokesVelocityGradientLFIntegrator(*rho_tilde, qq_gf, lam_gf, SIMP_cf, u_cf), inlet_bdr);
-//    adv_lf.AddInteriorFaceIntegrator(new StokesVelocityGradientLFIntegrator(*rho_tilde, qq_gf, lam_gf, SIMP_cf, u_cf));
-//    adv_lf.Assemble();
-//    std::unique_ptr<HypreParVector> adv_vec(adv_lf.ParallelAssemble());
- 
-   
-
-//    ParLinearForm bdr_flow_lf(V_fes);
-//    bdr_flow_lf.AddBdrFaceIntegrator(new BdrFlowVelocityGradientLFIntegrator(*rho_tilde, lam_gf, raw_inflow, u_cf, SIMP_cf), inlet_bdr);
-//    bdr_flow_lf.Assemble(); 
-//    std::unique_ptr<HypreParVector> bdr_flow_vec(bdr_flow_lf.ParallelAssemble());
-//    //std::cout<<"norm bdr grad = " << bdr_flow_vec->Norml2() << std::endl;
-
-//    adv_vec->Add(1.0, *bdr_flow_vec);
-
-//    *adv_vec *= -1.0;
-
-//    // int max_bdr_attr = GlobalMax(comm, V_fes->GetParMesh()->bdr_attributes.Size() ? V_fes->GetParMesh()->bdr_attributes.Max() : 0);
-//    // brinkman_stokes_solver->VelocityBoundary().Clear();
-//    // Vector zero_v(V_fes->GetVDim());
-//    // zero_v = 0.0;
-//    // auto zero_cf = std::make_shared<VectorConstantCoefficient>(zero_v);
-//    // for (int attr = 1; attr <= max_bdr_attr; attr++)
-//    // {
-//    //    if (all_ess_bdr[attr-1] == 1) { 
-//    //       brinkman_stokes_solver->VelocityBoundary().Add(attr, zero_cf);
-//    //    }
-//    // }
-
-//    //*adv_vec *= -1.0;
-
-//    // 1. Create a BlockVector for the right-hand side
-//    BlockVector rhs_stokes(brinkman_stokes_solver->GetBlockOffsets());
-//    rhs_stokes = 0.0;
-   
-//    // 2. Assign the assembled adjoint forcing to the velocity block (Block 0)
-//    //    (The pressure forcing in Block 1  remains 0.0 for incompressibility)
-//    rhs_stokes.GetBlock(0) = *adv_vec;
-//    MFEM_VERIFY(adv_vec->Size() == V_fes->GetTrueVSize(),
-//                "Adjoint velocity RHS does not match the local velocity size.");
-
-//    HYPRE_BigInt local_size = adv_vec->Size();
-//    HYPRE_BigInt global_size = 0;
-//    MPI_Allreduce(&local_size, &global_size, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
-//                  comm);
-//    MFEM_VERIFY(global_size == V_fes->GlobalTrueVSize(),
-//                "Adjoint velocity RHS does not match the global velocity size.");
- 
-//    BlockVector vv(brinkman_stokes_solver->GetBlockOffsets());
-
-//    vv = 0.0; 
-
-
-//    brinkman_stokes_solver->MultTranspose(rhs_stokes, vv);
-
-//    br.GetBlock(1) = vv.GetBlock(0);
-//    br.GetBlock(2) = vv.GetBlock(1);
-
-//    // brinkman_stokes_solver->VelocityBoundary().Clear();
-// }
-
-// void CoupledSteadyStokesAdvectionDiffusionOperator::ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k)
-// {
-//    BlockVector bx(const_cast<Vector&>(x), offsets);
-//    BlockVector bk(k, offsets);
-//    k = 0.0;
-//    adv_diff_oper->ImplicitSolve(dt_pass, bx.GetBlock(0), bk.GetBlock(0));
-// }
-
-// void CoupledSteadyStokesAdvectionDiffusionOperator::AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k)
-// {
-//    BlockVector bl(const_cast<Vector&>(lam), offsets);
-//    BlockVector bk(k, offsets);
-//    k = 0.0;
-//    adv_diff_oper->AdjointImplicitSolve(dt_pass, bl.GetBlock(0), bk.GetBlock(0));
-// }
-
-// void CoupledSteadyStokesAdvectionDiffusionOperator::ExplicitMultDesignGradient(const real_t dt_pass, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde)
-// {
-//    BlockVector bl(dual_vector, offsets);
-//    BlockVector bx(x, offsets);
-//    adv_diff_oper->ExplicitMultDesignGradient(dt_pass, bl.GetBlock(0), bx.GetBlock(0), dgdrho_tilde);
-
-//    // ParLinearForm mass_b_lf(filter_fes);
-//    // v_gf.SetFromTrueDofs(bl.GetBlock(1));
-//    // mass_b_lf.AddDomainIntegrator(new StokesMassBrinkmanDesignLFIntegrator(*rho_tilde, u_gf, v_gf, brinkman_cf));
-//    // mass_b_lf.Assemble();
-//    // std::unique_ptr<HypreParVector> mass_b_vec(mass_b_lf.ParallelAssemble());
-//    // dgdrho_tilde.Add(dt_pass, *mass_b_vec);  
-
-// }
-
-// void CoupledSteadyStokesAdvectionDiffusionOperator::ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a,Vector &dual_vector, Vector &x, Vector &dfdrho_tilde)
-// {
-//    BlockVector bl(dual_vector, offsets);
-//    BlockVector bx(x, offsets);
-//    adv_diff_oper->ImplicitSolveDesignGradient(dt_pass, a, bl.GetBlock(0), bx.GetBlock(0), dfdrho_tilde);
-// }
-
-// void CoupledSteadyStokesAdvectionDiffusionOperator::AddStaticDesignGradient(const Vector &lam, Vector &dgdrho_tilde)
-// {
-//    // Extract the accumulated velocity adjoint from Block 1
-//    BlockVector bl(const_cast<Vector&>(lam), offsets);
-//    v_gf.SetFromTrueDofs(bl.GetBlock(1)); 
-   
-//    ParLinearForm mass_b_lf(filter_fes);
-//    mass_b_lf.AddDomainIntegrator(new StokesMassBrinkmanDesignLFIntegrator(*rho_tilde, u_gf, v_gf, brinkman_cf));
-//    mass_b_lf.Assemble();
-//    std::unique_ptr<HypreParVector> mass_b_vec(mass_b_lf.ParallelAssemble());
-
-//    dgdrho_tilde.Add(-1.0, *mass_b_vec);  
-// }
+   //Fluid Portion
+   Kf_mat->Mult(bx.GetBlock(0), z); // advection
+   z += *b_prod_vec; // inflow
+   Mf_solver->Mult(z, by.GetBlock(0));
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::AdjointMult(const Vector &lam, Vector &lam_rhs, Vector &x) const
+{
+   // Plain transpose of the forward RHS Jacobian:
+   // G(u) = M^{-1} (K u + b)
+   // lam_rhs = 0.0;
+   // Adjoint RHS evaluation for discrete adjoint 
+   // Jac(G) = M^{-1} K 
+   // Jac(G)^T = K^{T} M^{-T} 
+
+   BlockVector bl(const_cast<Vector&>(lam), offsets);
+   BlockVector br(lam_rhs, offsets);
+   lam_rhs = 0.0;
+   Vector zz(bl.GetBlock(0).Size());
+
+   //Fluid Portion
+   Mf_solver->Mult(bl.GetBlock(0), zz);
+   Kf_mat->MultTranspose(zz, br.GetBlock(0));
+
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::ImplicitSolve(const real_t dt_pass, const Vector &x, Vector &k)
+{
+   BlockVector bx(const_cast<Vector&>(x), offsets);
+   BlockVector bk(k, offsets);
+   k = 0.0;
+
+   Vector z(bx.GetBlock(0).Size());
+   z = 0.0;
+
+   Sf_mat->Mult(bx.GetBlock(0), z);
+   z *= -1.0;
+   implicit_solver_fluid->SetTimeStep(dt_pass);
+   implicit_solver_fluid->Mult(z, bk.GetBlock(0));
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k)
+{
+   BlockVector bl(const_cast<Vector&>(lam), offsets);
+   BlockVector bk(k, offsets);
+   k = 0.0;
+
+   Vector z(bl.GetBlock(0).Size());
+   z = 0.0;
+
+   //Fluid Portion
+   implicit_solver_fluid->SetTimeStep(dt_pass);
+   implicit_solver_fluid->Mult(bl.GetBlock(0), z);
+   z *= -1.0;
+   Sf_mat->Mult(z, bk.GetBlock(0));
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::ExplicitMultDesignGradient(const real_t dt_pass, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde)
+{
+   BlockVector bl(dual_vector, offsets);
+   BlockVector bx(x, offsets);
+
+   Vector wf(bl.GetBlock(0).Size());
+   Mf_solver->Mult(bl.GetBlock(0), wf);
+   ParGridFunction lam_f_gf(fluid_heat_fes);
+
+   lam_f_gf.SetFromTrueDofs(wf);
+   // Update q_gf to be x. 
+
+   qf_gf.SetFromTrueDofs(bx.GetBlock(0)); 
+   rho_tilde->ExchangeFaceNbrData();
+   lam_f_gf.ExchangeFaceNbrData();
+   qf_gf.ExchangeFaceNbrData();
+
+   // Gradient from the rhs
+   ParLinearForm flow_lf(filter_fes);
+   flow_lf.AddDomainIntegrator(new DomainDesignLFIntegrator(lam_f_gf, raw_inflow));
+   flow_lf.Assemble();
+   std::unique_ptr<HypreParVector> flow_vec(flow_lf.ParallelAssemble());
+   dgdrho_tilde.Add(-dt_pass, *flow_vec);
+
+}
+
+void AdvectionDiffusionMixedMultiPhysicsOperator::ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a,Vector &dual_vector, Vector &x, Vector &dfdrho_tilde)
+{
+   // do nothing for this problem
+}
 
 
 
@@ -1495,11 +1017,11 @@ void Pseudo3DAdvectionDiffusionOperator::Mult(const Vector &x, Vector &y) const
    Mf_mat->Mult(bx.GetBlock(1), w);
    w *= 1.0 / finn_height;
    z -= w;
-   qs_gf.SetFromTrueDofs(bx.GetBlock(0));
-   GridFunctionCoefficient qs_cf(&qs_gf);
-   ParGridFunction qs_gf_f(fluid_heat_fes);
-   qs_gf_f.ProjectCoefficient(qs_cf);
-   Mf_mat->Mult(qs_gf_f, v);
+   // qs_gf.SetFromTrueDofs(bx.GetBlock(0));
+   // GridFunctionCoefficient qs_cf(&qs_gf);
+   // ParGridFunction qs_gf_f(fluid_heat_fes);
+   // qs_gf_f.ProjectCoefficient(qs_cf);
+   Mf_mat->Mult(bx.GetBlock(0), v);
    v *= 1.0/finn_height;
    z += v;
    Mf_solver->Mult(z, by.GetBlock(1));
@@ -1516,11 +1038,11 @@ void Pseudo3DAdvectionDiffusionOperator::Mult(const Vector &x, Vector &y) const
    Ms_mat->Mult(bx.GetBlock(0), z);
    z *= -1.0 / plate_thickness;
    z += *b_prod_vec;
-   qf_gf.SetFromTrueDofs(bx.GetBlock(1));
-   GridFunctionCoefficient qf_cf(&qf_gf);
-   ParGridFunction qf_gf_s(solid_heat_fes);
-   qf_gf_s.ProjectCoefficient(qf_cf);
-   Ms_mat->Mult(qf_gf_s, v);
+   // qf_gf.SetFromTrueDofs(bx.GetBlock(1));
+   // GridFunctionCoefficient qf_cf(&qf_gf);
+   // ParGridFunction qf_gf_s(solid_heat_fes);
+   // qf_gf_s.ProjectCoefficient(qf_cf);
+   Ms_mat->Mult(bx.GetBlock(1), v);
    v *= 1.0 / plate_thickness;
    z += v;
    Ms_solver->Mult(z, by.GetBlock(0));
@@ -1551,11 +1073,11 @@ void Pseudo3DAdvectionDiffusionOperator::AdjointMult(const Vector &lam, Vector &
    Mf_mat->Mult(zz, v);
    v *= 1.0 / finn_height;
    br.GetBlock(1) -= v;
-   qs_gf.SetFromTrueDofs(bl.GetBlock(0));
-   GridFunctionCoefficient qs_cf(&qs_gf);
-   ParGridFunction qs_gf_f(fluid_heat_fes);
-   qs_gf_f.ProjectCoefficient(qs_cf);
-   Mf_solver->Mult(qs_gf_f,w);
+   // qs_gf.SetFromTrueDofs(bl.GetBlock(0));
+   // GridFunctionCoefficient qs_cf(&qs_gf);
+   // ParGridFunction qs_gf_f(fluid_heat_fes);
+   // qs_gf_f.ProjectCoefficient(qs_cf);
+   Mf_solver->Mult(bl.GetBlock(0),w);
    Mf_mat->Mult(w, ww);
    ww *= 1.0 / plate_thickness;
    br.GetBlock(1) += ww;
@@ -1570,11 +1092,11 @@ void Pseudo3DAdvectionDiffusionOperator::AdjointMult(const Vector &lam, Vector &
    Ms_solver->Mult(bl.GetBlock(0), zz);
    Ms_mat->Mult(zz, br.GetBlock(0));
    br.GetBlock(0) *= -1.0 / plate_thickness;
-   qf_gf.SetFromTrueDofs(bl.GetBlock(1));
-   GridFunctionCoefficient qf_cf(&qf_gf);
-   ParGridFunction qf_gf_s(solid_heat_fes);
-   qf_gf_s.ProjectCoefficient(qf_cf);
-   Ms_solver->Mult(qf_gf_s,w);
+   // qf_gf.SetFromTrueDofs(bl.GetBlock(1));
+   // GridFunctionCoefficient qf_cf(&qf_gf);
+   // ParGridFunction qf_gf_s(solid_heat_fes);
+   // qf_gf_s.ProjectCoefficient(qf_cf);
+   Ms_solver->Mult(bl.GetBlock(1),w);
    Ms_mat->Mult(w, ww);
    ww *= 1.0 / finn_height;
    br.GetBlock(0) += ww;
@@ -1967,8 +1489,8 @@ BlockVector Pseudo3DStokesOperator::InitializeOperators(ParGridFunction &new_rho
    brinkman_stokes_solver->SetLSCVelocityOperatorType(StokesSolver::LSCVelocityOperator::ASSEMBLED);
    brinkman_stokes_solver->SetLSCDiagonalOperatorType(StokesSolver::LSCDiagonalOperator::MATCH_VELOCITY);
    brinkman_stokes_solver->SetLSCQPreconditionerType(StokesSolver::LSCQPreconditioner::OPERATOR_JACOBI);
-   brinkman_stokes_solver->SetRelTol(1e-6);
-   brinkman_stokes_solver->SetAbsTol(1e-8);
+   brinkman_stokes_solver->SetRelTol(1e-12);
+   brinkman_stokes_solver->SetAbsTol(1e-13);
    brinkman_stokes_solver->SetMaxIter(20000);
    brinkman_stokes_solver->SetVelocityAMGElasticityNearNullspace(false);
    brinkman_stokes_solver->SetVelocityPreconditionerCGRelTol(1.0e-5); 

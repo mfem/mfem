@@ -170,8 +170,8 @@ int main(int argc, char *argv[])
     const char *mesh_file = "rect-quad.mesh";   
     int ser_ref_levels = 0;
     int par_ref_levels = 2;    
-    int order_solid_heat = 2; 
-    int order_fluid_heat = 2;
+    int order_solid_heat = 1; 
+    int order_fluid_heat = 1;
     int order_stokes = 2;
 
     // real_t dynamic_viscosity = 1.94e-5; // 1.94e-5;     
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
     real_t dynamic_viscosity = 1e-3;     
     real_t kf = 0.00024; // thermal conductivity of fluid
     real_t ks = 0.4; // thermal conductivity of solid;
-    real_t hs = 0.2; 
+    real_t hs = 0.2;  
     real_t hf = 5.0e-5;
     real_t Q_prod = 0.175; // heat production rate;
     real_t cf = 1.24; // fluid heat capacity
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
     
 
     int ode_solver_type = 3; 
-    real_t t_final = 10.0;           
+    real_t t_final = 0.001;           
     real_t dt = 0.001;                 
     int vis_steps = 50; 
     real_t b_term = 1.0;
@@ -488,7 +488,7 @@ int main(int argc, char *argv[])
       }
  
 
-      real_t scale = 1.0;  
+      real_t scale = 1000.0;  
       double previous_remainder = -1.0;  
       double trial_best_fd_rel = numeric_limits<double>::infinity();     
       bool trial_has_quadratic_drop = false;  

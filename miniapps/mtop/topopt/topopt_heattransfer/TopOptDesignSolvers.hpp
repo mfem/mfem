@@ -111,15 +111,11 @@ class DesignSolver
       // 2. Safely copy the values from the temporary object into state_vec
       state_vec = oper->InitializeOperators(rho_tilde);
 
-      FiniteElementCollection *fluid_heat_fec = new DG_FECollection(2, 2, BasisType::GaussLobatto);
-      ParFiniteElementSpace *fluid_heat_fes = new ParFiniteElementSpace(qoi_fes.GetParMesh(), fluid_heat_fec); 
-      ParGridFunction qoi2_gf(fluid_heat_fes);
 
       std::unique_ptr<TopOptRKIMEXSolver> ode_solver = TopOptRKIMEXSolver::SelectTopOptRKIMEX(imex_integrator);
       objective.Reset();
 
       qoi_gf.SetFromTrueDofs(state_vec.GetBlock(0));
-      qoi2_gf.SetFromTrueDofs(state_vec.GetBlock(1));
       //if(Mpi::Root()){std::cout<<"pre pv Time: " << 0.0 << "; ||q|| = " << qoi_gf.Norml2() << std::endl;}
  
       real_t acc = objective.AccumulateTimestep(qoi_gf, dt, 0, nsteps);
@@ -131,9 +127,8 @@ class DesignSolver
       {
          pd = new ParaViewDataCollection("forward", qoi_fes.GetParMesh());
          pd->SetPrefixPath("ParaView");
-         pd->RegisterField("solid", &qoi_gf);
-         pd->RegisterField("fluid", &qoi2_gf);
-         pd->SetLevelsOfDetail(fluid_heat_fes->GetOrder(0)); 
+         pd->RegisterField("qoi", &qoi_gf);
+         pd->SetLevelsOfDetail(qoi_fes.GetOrder(0)); 
          pd->SetDataFormat(VTKFormat::BINARY);
          pd->SetHighOrderOutput(true);
          pd->SetCycle(0);
@@ -155,7 +150,7 @@ class DesignSolver
          times.push_back(dt_real);
          ode_solver->Step(state_vec, t, dt_real);
          qoi_gf.SetFromTrueDofs(state_vec.GetBlock(0));
-         qoi2_gf.SetFromTrueDofs(state_vec.GetBlock(1));
+         //qoi2_gf.SetFromTrueDofs(state_vec.GetBlock(1));
          acc = objective.AccumulateTimestep(qoi_gf, dt_real, ti, nsteps);
          ti++;
          oper->SetStep(ti);

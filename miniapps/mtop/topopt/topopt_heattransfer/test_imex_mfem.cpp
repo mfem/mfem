@@ -5,122 +5,155 @@
 #include "../../mtop_solvers.hpp"
 #include <memory>
 
-
 using namespace std;
 using namespace mfem;
 
 
-real_t simple_init_design(const Vector &x)     
-{    
-    real_t x_center1 = 0.6;
-    real_t x_center2 = 1.2;
-    real_t x_center3 = 1.8;
-    real_t x_center4 = 2.4;
 
+// Initial condition for advection-diffusion heat transfer. 
+real_t T0_func(const Vector &x)
+{
+    return 0.0;
+} 
 
-    real_t y_center1 = 0.2;
-    real_t y_center2 = 0.4;
-    real_t y_center3 = 0.6;
-    real_t y_center4 = 0.8;
-    real_t rad = 0.2;
+void velocity_func(const Vector &x, Vector &v)
+{
+    int dim = x.Size();
+//     v(0) = std::sin(M_PI * x(1)) * std::cos(M_PI * x(0));
+//    v(1) = -std::cos(M_PI * x(1)) * std::sin(M_PI * x(0));
+    v(0) = 0.0;
+    v(1) = 0.0;
+}
 
-    if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
-    {
-        return 0.0;
-    }
-    else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
-    {
-        return 0.0;
-    }
-    else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
-    {
-        return 0.0;
-    }
-    else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
-    {
-        return 0.0;
-    }
-    else
+void f_func(const Vector &x, Vector &v)
+{
+    int dim = x.Size();
+    v(0) = 16.0*std::sin(M_PI * x(1)) * std::cos(M_PI * x(0)) - 16.0;
+   v(1) = -16.0*std::cos(M_PI * x(1)) * std::sin(M_PI * x(0));
+}
+
+real_t Target_func(const Vector &x)
+{
+    if (x(0) < 1.0 && x(0) > 0.0 && x(1) > 0.0 && x(1) < 4.0)
     {
         return 1.0;
     }
- 
-    //return 1.0 - (gaussian1 + gaussian2 + gaussian3 + gaussian4);
-    //return 0.9;
+    else
+    {
+        return 0.0;
+    }
 }
 
-bool InitializeDesign(ParGridFunction &rho, real_t x_max, real_t y_max)       
+// Raw Volume Flux for injection
+real_t inflow_flux_func(const Vector &x, real_t t)      
+{
+    real_t x_center1 = 4.0;
+    real_t x_center2 = 8.5;
+    real_t x_center3 = 6.5;
+    real_t x_center4 = 15.0;
+    real_t x_center5 = 12.0;
+    real_t x_center6 = 10.0;
+
+
+    real_t y_center1 = 1.5;
+    real_t y_center2 = 3.5;
+    real_t y_center3 = 2.0;
+    real_t y_center4 = 0.5;
+    real_t y_center5 = 1.5;
+    real_t y_center6 = 3.0;
+    real_t rad = 0.3;
+
+    if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
+    {
+        return 100.0;
+    }
+    else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
+    {
+        return 100.0;
+    }
+    else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
+    {
+        return 100.0;
+    }
+    else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
+    {
+        return 100.0;
+    }
+        else if (((x(0) - x_center5)*(x(0)-x_center5) + (x(1) - y_center5)*(x(1) - y_center5)) < rad*rad)
+    {
+        return 100.0;
+    }
+    else if (((x(0) - x_center6)*(x(0)-x_center6) + (x(1) - y_center6)*(x(1) - y_center6)) < rad*rad)
+    {
+        return 100.0;
+    }
+    else
+    { 
+        return 0.0;
+    }
+}  
+
+// Initial design density for the optimizer
+real_t init_design_func(const Vector &x)    
+{    
+    real_t x_center1 = 4.0;
+    real_t x_center2 = 8.5;
+    real_t x_center3 = 6.5;
+    real_t x_center4 = 15.0;
+    real_t x_center5 = 12.0;
+    real_t x_center6 = 10.0;
+
+
+    real_t y_center1 = 1.5;
+    real_t y_center2 = 3.5;
+    real_t y_center3 = 2.0;
+    real_t y_center4 = 0.5;
+    real_t y_center5 = 1.5;
+    real_t y_center6 = 3.0;
+    real_t rad = 0.05;
+
+    if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
+    {
+        return 1.0;
+    }
+    else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
+    {
+        return 1.0;
+    }
+    else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
+    {
+        return 1.0;
+    }
+    else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
+    {
+        return 1.0;
+    }
+        else if (((x(0) - x_center5)*(x(0)-x_center5) + (x(1) - y_center5)*(x(1) - y_center5)) < rad*rad)
+    {
+        return 1.0;
+    }
+    else if (((x(0) - x_center6)*(x(0)-x_center6) + (x(1) - y_center6)*(x(1) - y_center6)) < rad*rad)
+    {
+        return 1.0;
+    }
+    else
+    {
+        return 0.0;
+    }
+}
+
+
+// Function which initializes the design. If not using Gaussian, x_max and y_max are irrelevant. Boolean to 
+// tell code that the design has in fact been initialized without error.
+bool InitializeDesign(ParGridFunction &rho, real_t x_max=0.0, real_t y_max=0.0)       
 {
    // GaussianDesignCoefficient gaussian(x_max/2.0, y_max/2.0,  
    //                                       0.25*x_max, 0.25*y_max,    
    //                                       0.10, 1.0); 
-   FunctionCoefficient sid(simple_init_design);  
-   rho.ProjectCoefficient(sid);   
+   FunctionCoefficient init_design_cf(init_design_func);  
+   rho.ProjectCoefficient(init_design_cf);   
    return true;
 }
-
-void inlet_vel_func(const Vector &x, Vector &v) 
-{
-   int dim = x.Size();
-   v(0) = 2.0;  
-   v(1) = 0.0;   
-} 
-  
-
-real_t inflow_function(const Vector &x)      
-{
-   return 2.0;  
-}  
-
-// Initial condition
-real_t q0_s_function(const Vector &x)
-{
-    return 6.0;
-    // return 20.0 + 273.15;
-}
-
-real_t q0_f_function(const Vector &x)
-{
-    real_t x_center1 = 0.6;
-    real_t x_center3 = 1.5;
-    real_t x_center4 = 2.4;
-
-
-    real_t y_center1 = 0.2;
-    real_t y_center3 = 0.5;
-    real_t y_center4 = 0.8;
-
-    real_t sigma_x = 0.1;
-    real_t sigma_y = 0.1;
-
-    // Injection 1
-    // Distance from center (normalized by sigma)
-    real_t dx1 = (x(0) - x_center1) / sigma_x;
-    real_t dy1 = (x(1) - y_center1) / sigma_y;
-    real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
-    real_t gaussian1 = std::exp(-0.5 * r_squared1);
-
-
-    // Injection 3
-    // Distance from center (normalized by sigma)
-    real_t dx3 = (x(0) - x_center3) / sigma_x;
-    real_t dy3 = (x(1) - y_center3) / sigma_y;
-    real_t r_squared3 = dx3 * dx3 + dy3 * dy3;
-    real_t gaussian3 = std::exp(-0.5 * r_squared3);
-
-        // Injection 4
-    // Distance from center (normalized by sigma)
-    real_t dx4 = (x(0) - x_center4) / sigma_x;
-    real_t dy4 = (x(1) - y_center4) / sigma_y;
-    real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
-    real_t gaussian4 = std::exp(-0.5 * r_squared4);
-
-
- 
-    //return 20.0*(gaussian1 + gaussian3 + gaussian4) + 30.0 + 273.15;
-    return 5.0;
-}
-
 
 int main(int argc, char *argv[]) 
 {
@@ -131,43 +164,19 @@ int main(int argc, char *argv[])
     int myid = Mpi::WorldRank();                  
     Hypre::Init();   
 
-    const char *mesh_file = "rect-quad.mesh";   
     int ser_ref_levels = 0;
-    int par_ref_levels = 2;    
-    int order_solid_heat = 1; 
-    int order_fluid_heat = 1;
-    int order_stokes = 2;
+    int par_ref_levels = 1;
 
-    // real_t dynamic_viscosity = 1.94e-5; // 1.94e-5;     
-    // real_t kf = 0.024; // thermal conductivity of fluid
-    // real_t ks = 400.0; // thermal conductivity of solid;
-    // real_t hs = 2e5; 
-    // real_t hf = 50.0;
-    // real_t Q_prod = 0.175; // heat production rate;
-    // real_t cf = 1006.0; // fluid heat capacity
-    // real_t rf = 1.204; // fluid density
-    // real_t finn_height = 8.0;
-    // real_t plate_thickness = 0.2;
-
-    real_t dynamic_viscosity = 2e-3;     
-    real_t kf = 0.00024; // thermal conductivity of fluid
-    real_t ks = 0.4; // thermal conductivity of solid;
-    real_t hs = 2e5;  
-    real_t hf = 50.0;
-    real_t Q_prod = 0.175; // heat production rate;
-    real_t cf = 1.0; // fluid heat capacity
-    real_t rf = 1.204; // fluid density
-    real_t finn_height = 8.0;
-    real_t plate_thickness = 0.2;
-    real_t pressure_drop = 0.1;
+    const char *mesh_file = "mfem2.mesh";   
+    int order_fluid_heat = 2;
+  
+    real_t kf = 0.05; // thermal conductivity of fluid
     
-
-    int ode_solver_type = 3; 
-    real_t t_final = 1.0;           
+    int ode_solver_type = 5; 
+    real_t t_final = 2.0;           
     real_t dt = 0.001;                 
     int vis_steps = 100; 
-    real_t b_term = 1.0;
-    bool pv_vis = false; 
+    bool pv_vis = true; 
     bool density_pv = true;
     int maxit = 100;
     const char *device_config = "cpu"; 
@@ -180,36 +189,10 @@ int main(int argc, char *argv[])
                         " -1 for auto.");   
     args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",  
                         "Number of times to refine the mesh uniformly in parallel.");       
-    args.AddOption(&order_solid_heat, "-osh", "--order_solid_heat",
-                        "Finite element order for solid heat (polynomial degree) >= 0."); 
     args.AddOption(&order_fluid_heat, "-ofh", "--order_fluid_heat",
                         "Finite element order for fluid heat (polynomial degree) >= 0."); 
-    args.AddOption(&order_stokes, "-os", "--order_stokes",
-                        "Finite element order for stokes velocity (polynomial degree) >= 0."); 
-
-    args.AddOption(&dynamic_viscosity, "-dv", "--dynamic-viscosity",
-                        "Dynamic Viscosity of the Fluid."); 
     args.AddOption(&kf, "-kf", "--kf",
-                        "Thermal Conductivity of the Fluid.");                         
-    args.AddOption(&ks, "-ks", "--ks",
-                        "Thermal Conductivity of the Solid."); 
-    args.AddOption(&hf, "-hf", "--hf",
-                        "Transfer Param fluid.");                         
-    args.AddOption(&hs, "-hs", "--hs",
-                        "Transfer Param solid."); 
-    args.AddOption(&Q_prod, "-q", "--Q_prod",
-                        "Heat Production Rate.");                         
-    args.AddOption(&cf, "-cf", "--cf",
-                        "Fluid Heat Capacity."); 
-    args.AddOption(&rf, "-rf", "--rf",
-                        "Fluid Density.");  
-    args.AddOption(&maxit, "-mit", "--max-iterations",
-                        "Maximum number of iterations."); 
-    args.AddOption(&finn_height, "-fh", "--finn_height",
-                        "Height of the Fins."); 
-    args.AddOption(&plate_thickness, "-pt", "--plate_thickness",
-                        "Thickness of base plate. ");    
-
+                        "Thermal Conductivity of the Fluid.");                            
     args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",    
                     "--no-visualization", 
                     "Enable or disable Paraview Visualization");
@@ -224,10 +207,6 @@ int main(int argc, char *argv[])
                         "Time step."); 
     args.AddOption(&vis_steps, "-vs", "--visualization-steps", 
                     "Visualize every n-th timestep.");   
-    args.AddOption(&b_term, "-b", "--brinkman-term",                                  
-                    "Brinkman Scaling.");
-    args.AddOption(&pressure_drop, "-pr", "--pressure_drop",                                  
-                    "Pressure Drop.");
     args.AddOption(&device_config, "-d", "--device",
                     "Device configuration string, see Device::Configure().");         
     args.Parse(); 
@@ -268,36 +247,14 @@ int main(int argc, char *argv[])
         pmesh->UniformRefinement();
     }
 
+
     // 6. FE Collections for pressure and velocity spaces, using taylor hood elements for now
     // Also the solid and fluid advection diffusion region fes
-    FiniteElementCollection *v_coll(new H1_FECollection(order_stokes, dim, BasisType::GaussLobatto));  
-    FiniteElementCollection *p_coll(new H1_FECollection(order_stokes-1, dim, BasisType::GaussLobatto));
-    ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, v_coll, dim, Ordering::byNODES);
-    ParFiniteElementSpace *P_space = new ParFiniteElementSpace(pmesh, p_coll);
-    FiniteElementCollection *solid_heat_fec = new DG_FECollection(order_solid_heat, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace *solid_heat_fes = new ParFiniteElementSpace(pmesh, solid_heat_fec);   
     FiniteElementCollection *fluid_heat_fec = new DG_FECollection(order_fluid_heat, dim, BasisType::GaussLobatto);
     ParFiniteElementSpace *fluid_heat_fes = new ParFiniteElementSpace(pmesh, fluid_heat_fec);   
 
-    HYPRE_BigInt dimV = V_space->GlobalTrueVSize(); 
-    HYPRE_BigInt dimP = P_space->GlobalTrueVSize();
-    
-    HYPRE_BigInt dimS = solid_heat_fes->GlobalTrueVSize(); 
-    HYPRE_BigInt dimF = fluid_heat_fes->GlobalTrueVSize();
-
-    if(Mpi::Root())
-    {
-        std::cout << "***********************************************************\n";
-        std::cout << "dim(V) = " << dimV << "\n";
-        std::cout << "dim(P) = " << dimP << "\n";
-        std::cout << "dim(S) = " << dimS << "\n";
-        std::cout << "dim(F) = " << dimF << "\n";
-        std::cout << "dim(V+P+S+F) = " << dimV + dimP  + dimS + dimF << "\n";
-        std::cout << "***********************************************************\n";  
-    }
-
-    H1_FECollection filter_fec(order_stokes, dim);  
-    L2_FECollection control_fec(order_stokes, dim, BasisType::GaussLobatto);
+    H1_FECollection filter_fec(2, dim);  
+    L2_FECollection control_fec(2, dim, BasisType::GaussLobatto);
     ParFiniteElementSpace filter_fes(pmesh, &filter_fec);  
     ParFiniteElementSpace control_fes(pmesh, &control_fec); 
     
@@ -321,62 +278,108 @@ int main(int argc, char *argv[])
     filter.Mult(rho, rho_tilde);     
     rho_tilde.ExchangeFaceNbrData();
     GridFunctionCoefficient rho_cf(&rho);
+
+        //Solve stokes problem to get the velocity field
+    int order = 2;
+    const int pressure_order = order - 1;
+    H1_FECollection vfec(order, dim, BasisType::GaussLobatto);
+    H1_FECollection pfec(pressure_order, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace vspace(pmesh, &vfec, dim, Ordering::byNODES);
+    ParFiniteElementSpace pspace(pmesh, &pfec);
+    BrinkmanStokesSolver brinkman_stokes_solver(vspace, pspace);
+    BrinkmanCoefficient brink_cf(&rho_tilde, 0.5, 1e-12);
+    ParGridFunction brinkman_gf(&filter_fes);
+    brinkman_gf.ProjectCoefficient(brink_cf);
     // const int n = control_fes.GetTrueVSize();      
     // Vector rho_tv(n);
     // rho.GetTrueDofs(rho_tv);
+    brinkman_stokes_solver.SetSolverType(StokesSolver::KrylovSolver::MINRES);
+    brinkman_stokes_solver.SetVelocityPreconditionerType(StokesSolver::VelocityPreconditioner::AMG);
+    brinkman_stokes_solver.SetPressurePreconditionerType(StokesSolver::PressurePreconditioner::CAHOUET_CHABARD);
+    brinkman_stokes_solver.SetCCDiffusionSolverType(StokesSolver::CCDiffusionSolver::GMRES);
+    brinkman_stokes_solver.SetLSCVelocityOperatorType(StokesSolver::LSCVelocityOperator::ASSEMBLED);
+    brinkman_stokes_solver.SetLSCDiagonalOperatorType(StokesSolver::LSCDiagonalOperator::MATCH_VELOCITY);
+    brinkman_stokes_solver.SetLSCQPreconditionerType(StokesSolver::LSCQPreconditioner::OPERATOR_JACOBI);
+    brinkman_stokes_solver.SetRelTol(1e-6);
+    brinkman_stokes_solver.SetAbsTol(1e-8);
+    brinkman_stokes_solver.SetMaxIter(20000);
+    brinkman_stokes_solver.SetVelocityAMGElasticityNearNullspace(false);
+    brinkman_stokes_solver.SetVelocityPreconditionerCGRelTol(1.0e-5); 
+    brinkman_stokes_solver.SetVelocityPreconditionerCGAbsTol(1e-10);
+    brinkman_stokes_solver.SetVelocityPreconditionerCGMaxIter(2000);
+    brinkman_stokes_solver.SetPressurePreconditionerCGRelTol(1e-8);
+    brinkman_stokes_solver.SetPressurePreconditionerCGAbsTol(1e-12);
+    brinkman_stokes_solver.SetPressurePreconditionerCGMaxIter(2000);
+    brinkman_stokes_solver.SetKDim(50);
+    brinkman_stokes_solver.SetPrintLevel(0);
+    ConstantCoefficient viscosity_cf(1e-5);
+    brinkman_stokes_solver.SetViscosity(viscosity_cf);
+    brinkman_stokes_solver.SetBrinkmanPenalization(brinkman_gf);
+    int max_bdr_attr = GlobalMax(comm, vspace.GetParMesh()->bdr_attributes.Size() ? vspace.GetParMesh()->bdr_attributes.Max() : 0);
 
-    // 8. Boundary conditions
-    int local_max_bdr = pmesh->bdr_attributes.Size() ? pmesh->bdr_attributes.Max() : 0;
-    int max_bdr = 0;
-    MPI_Allreduce(&local_max_bdr, &max_bdr, 1, MPI_INT, MPI_MAX, pmesh->GetComm());
-
-    // Separate arrays for projection 
-    Array<int> inlet_bdr(max_bdr);    inlet_bdr = 0;
-    Array<int> noslip_bdr(max_bdr);   noslip_bdr = 0;
-
-    // Combined array for matrix elimination
-    Array<int> all_ess_bdr(max_bdr);  all_ess_bdr = 0;
-
-    if (max_bdr >= 4)
+    int max_attr = GlobalMax(comm, vspace.GetParMesh()->attributes.Size() ? vspace.GetParMesh()->attributes.Max() : 0);
+    VectorFunctionCoefficient inlet_cf(dim, velocity_func);
+    VectorFunctionCoefficient accel_cf(dim, f_func);
+    for (int attr = 1; attr <= max_bdr_attr; attr++)
     {
-        // Set Left (Attr 4) as Inlet
-        inlet_bdr[3] = 1;
-        all_ess_bdr[3] = 1;
+        brinkman_stokes_solver.VelocityBoundary().Add(attr, inlet_cf);
     }
 
-    if (max_bdr >= 3)
+    for (int attr = 1; attr <= max_attr; attr++)
     {
-        // Set Top (Attr 3) and Bottom (Attr 1) as No-Slip
-        noslip_bdr[2] = 1; 
-        noslip_bdr[0] = 1;
-        all_ess_bdr[2] = 1; 
-        all_ess_bdr[0] = 1;
+        brinkman_stokes_solver.VelocityBoundary().Add(attr, accel_cf);
     }
+
+
+//     real_t out_pressure = 0.0;
+
+//    for (int attr = 1; attr <= max_bdr_attr; attr++)
+//    {
+//         brinkman_stokes_solver.AddPressureBoundaryID(attr);
+//         brinkman_stokes_solver.PressureBoundary().Add(attr, out_pressure);
+//    }
+
+   BlockVector x;
+   x.Update(brinkman_stokes_solver.GetBlockOffsets());
+   x = 0.0;
+   brinkman_stokes_solver.Solve(x);
+   ParGridFunction u_gf(&vspace);
+   u_gf.SetFromTrueDofs(x.GetBlock(0));
+   u_gf.ExchangeFaceNbrData();
+
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream u_sock(vishost, visport);
+      u_sock << "parallel " << num_procs << " " << myid << "\n";
+      u_sock.precision(8);
+      u_sock << "solution\n" << *pmesh << u_gf << "window_title 'Velocity'"
+             << endl;
+      // Make sure all ranks have sent their 'u' solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh->GetComm());
+   }
+
+   VectorGridFunctionCoefficient u_cf(&u_gf);
+
     
-    // 9. Define the Coefficients 
-    BrinkmanCoefficient b_coeff(&rho_tilde, 1.0, b_term); 
-    ConstantCoefficient visc_cf(dynamic_viscosity);     
-    ConstantCoefficient inflow(2.0);   
-    FunctionCoefficient q0_f(q0_f_function);   
-    FunctionCoefficient q0_s(q0_s_function);   
-    VectorFunctionCoefficient inlet_cf(dim, inlet_vel_func); 
-
-    ParGridFunction q0_s_gf(solid_heat_fes); 
-    q0_s_gf.ProjectCoefficient(q0_s); 
-    GridFunctionCoefficient q0_s_cf;  
-    q0_s_cf.SetGridFunction(&q0_s_gf); 
+// 9. Define the Coefficients 
+    FunctionCoefficient inflow(inflow_flux_func);   
+    FunctionCoefficient q0_f(T0_func);   
 
     ParGridFunction q0_f_gf(fluid_heat_fes); 
     q0_f_gf.ProjectCoefficient(q0_f); 
     GridFunctionCoefficient q0_f_cf;  
     q0_f_cf.SetGridFunction(&q0_f_gf);  
 
+
     
     // 11. Construct the Objective Function 
-   RectangularIndicator indicator(0, 3, 0, 1); 
-   ParGridFunction target_gf(solid_heat_fes);
-   target_gf.ProjectCoefficient(inflow);     
-   TerminalTargetObjective obj_func(solid_heat_fes, indicator, target_gf, comm);           
+   RectangularIndicator indicator(0.0, 16.0, 0.0, 4.0); 
+   ParGridFunction target_gf(fluid_heat_fes);
+   FunctionCoefficient target_cf(Target_func); 
+   target_gf.ProjectCoefficient(target_cf);    
+   TerminalTargetObjective obj_func(fluid_heat_fes, indicator, target_gf, comm);           
    int n_steps = (int)ceil(t_final / dt);   
 
     // Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
@@ -388,7 +391,7 @@ int main(int argc, char *argv[])
     real_t domain_volume;
     real_t loc = vol_w->Sum();
     MPI_Allreduce(&loc, &domain_volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
-    const real_t Vstar = 0.15 * domain_volume;
+    const real_t Vstar = 1.0 * domain_volume;
     const int num_constraints = 1; // volume constraint
 
     // 12. Set up vectorized design field. Initialize the gradient.
@@ -413,41 +416,26 @@ int main(int argc, char *argv[])
 
    //12. Operator setup
    real_t dtkf = dt*kf;
-   real_t dtks = dt*ks;
 
-    std::unique_ptr<MixedMultiPhysicsOperator> oper = std::make_unique<Pseudo3DStokesOperator>(
-    *V_space, 
-    *P_space, 
-    *fluid_heat_fes,
-    *solid_heat_fes,
-    b_coeff,
-    visc_cf,
-    inlet_cf,
-    inflow,
-    q0_f_cf,
-    q0_s_cf,
-    &rho_tilde,
-    inlet_bdr,  
-    noslip_bdr, 
-    all_ess_bdr, 
-    kf, ks, dtkf, dtks,
-    cf, rf,
-    Q_prod,
-    plate_thickness,
-    finn_height,
-    hs, hf,
-    dt,
-    t_final,
-    pressure_drop, 
-    comm);
+    std::unique_ptr<MixedMultiPhysicsOperator> oper = std::make_unique<AdvectionDiffusionMixedMultiPhysicsOperator>(
+        *fluid_heat_fes,
+        q0_f_cf,
+        &rho_tilde,
+        u_cf,
+        kf,
+        dtkf,
+        dt,
+        t_final,
+        inflow,
+        comm);
 
-    DesignSolver design_solver(*solid_heat_fes,                 
+    DesignSolver design_solver(*fluid_heat_fes,                 
     filter_fes,  
     control_fes, 
     oper,
     filter, 
     obj_func,
-    q0_s_cf, 
+    q0_f_cf, 
     n_steps,   
     dt, 
     t_final,  
@@ -458,20 +446,16 @@ int main(int argc, char *argv[])
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, control_fes_size, num_constraints, rho_tv);
     Vector tx_min(control_fes_size), tx_max(control_fes_size);
     Vector dvol(control_fes_size);                     // volume constraint gradient is constant:  vol_w/Vstar 
-    dvol = *vol_w;  dvol /= -Vstar;
+    dvol = *vol_w;  dvol /= Vstar;
     Vector dfidx[num_constraints];  dfidx[0] = dvol; 
     Vector fival(num_constraints);
-    Vector rho_v(rho_tv.Size());
-    rho_v = rho_tv;
-    rho_v *= -1.0;
-    rho_v += 1.0;
-    real_t initial_vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_v) / domain_volume;
+    real_t initial_vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
     if (myid == 0){std::cout<<"Initial volume = " << initial_vol <<std::endl;}
 
 
         // 15. Optimization loop.
     real_t iterationError = 1.0;
-    real_t tol = 1e-5;
+    real_t tol = 1e-4;
     for (int k = 0; k < maxit && iterationError > tol; k++)
     {
 
@@ -484,7 +468,7 @@ int main(int argc, char *argv[])
         rho.GetTrueDofs(rho_tv);
         rho_old = rho_tv;
         // box constraints:  rho ∈ [0,1],  α_i ∈ [alpha_min, alpha_max]  (move limits)
-        real_t move = 0.2;
+        real_t move = 10.0;
         for (int i = 0; i < control_fes_size; i++)
         {
             tx_min[i] = std::max(real_t(0.0), rho_tv[i] - move);
@@ -493,11 +477,8 @@ int main(int argc, char *argv[])
 
         // volume constraint
         // Vector rho_v(rho_tv.Size());
-        rho_v = rho_tv;
-        rho_v *= -1.0;
-        rho_v += 1.0;
-        real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_v) / domain_volume;
-        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_v) / Vstar - 1.0; 
+        real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
+        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar - 0.0007; 
 
 
         mma.Update(rho_tv, dJ_drho, J0, fival, dfidx, tx_min, tx_max);
@@ -536,14 +517,7 @@ int main(int argc, char *argv[])
  
  
     // Free the used memory.  
-
-    delete P_space;
-    delete V_space;   
-    delete p_coll;
-    delete v_coll; 
     delete pmesh;
-    delete solid_heat_fec;
-    delete solid_heat_fes;
     delete fluid_heat_fec;
     delete fluid_heat_fes;
 

@@ -7,52 +7,66 @@
 
 using namespace std;
 using namespace mfem;
-
+ 
 
 // Pre-defined velocity flow. In future versions, will use a stokes solver for this.
 // Note that this is the raw velocity field over the fluid region. Over solid regions, the velocity is zero.
 void velocity_func(const Vector &x, Vector &v)
 {
-    int dim = x.Size();
-    // v(0) = 1.0;
-    // v(1) = 0.0;
-    v(0) = 5.0*sin(M_PI*2.0*x(0))*cos(M_PI*2.0*x(1)) + 1.0;
-    v(1) = -5.0*cos(M_PI*2.0*x(0))*sin(M_PI*2.0*x(1)); 
+    int dim = x.Size(); 
+    v(0) = 2.0*sin(M_PI*2.0*x(0))*cos(M_PI*2.0*x(1)) + 1.0;
+    v(1) = -2.0*cos(M_PI*2.0*x(0))*sin(M_PI*2.0*x(1)); 
 }
 
 // Initial condition for advection-diffusion heat transfer. 
 real_t T0_func(const Vector &x)
 {
-    // int dim = x.Size(); 
-    // return sin(M_PI*x(0)) * cos(M_PI*x(1));  
-        // return 0.5; 
-    // if ((((x(1) > 0.3 && x(1) < 0.4) ||  (x(1) > 0.5 && x(1) < 0.6)) && (x(0) < 0.2 && x(0) > 0.1)) || ((x(1) > 0.7 && x(1) < 0.8) && (x(0) < 0.8 && x(0) > 0.9)))
-    // {
-    //     return 0.0;
-    // }
-    // else
-    // {
-    //     return 0.0;
-    // }
     return 0.0;
 } 
+
+real_t Target_func(const Vector &x)
+{
+    if (x(0) < 0.76 && x(0) > 0.66 && x(1) > 0.66 && x(1) < 0.76)
+    {
+        return 2.0;
+    }
+    else
+    {
+        return 0.0;
+    }
+}
 
 // Raw Volume Flux for injection
 real_t inflow_flux_func(const Vector &x, real_t t)      
 {
-    real_t rad = 0.1;
-    if (t < 0.1)
+    real_t x_center1 = 0.1;
+    real_t x_center2 = 0.1;
+    real_t x_center3 = 0.9;
+
+
+    real_t y_center1 = 0.1;
+    real_t y_center2 = 0.9;
+    real_t y_center3 = 0.9;
+    real_t rad = 0.05;
+
+    if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
     {
-        if ((fabs(x(0) - 2.0/6.0) < rad || fabs(x(0) - 4.0 / 6.0) < rad) && (fabs(x(1) - 5.0/6.0) < rad || fabs(x(1) - 0.5) < rad || fabs(x(1) - 1.0/6.0) < rad) && !(fabs(x(1) - 0.5) < rad && fabs(x(0) - 4.0/6.0) < rad))
-        {
-            return 100.0;
-        }
-        else
-        {
-            return 0.0;
-        }
+        return 100.0;
     }
-    else{
+    else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
+    {
+        return 100.0;
+    }
+    else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
+    {
+        return 100.0;
+    }
+    // else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
+    // {
+    //     return 0.0;
+    // }
+    else
+    {
         return 0.0;
     }
 }  
@@ -60,93 +74,38 @@ real_t inflow_flux_func(const Vector &x, real_t t)
 // Initial design density for the optimizer
 real_t init_design_func(const Vector &x)    
 {    
-    real_t x_center1 = 2.0/6.0;
-    real_t x_center2 = 2.0/6.0;
-    real_t x_center3 = 2.0/6.0;
-    real_t x_center4 = 4.0 / 6.0;
-    real_t x_center5 = 4.0 / 6.0;
-    real_t x_center6 = 4.0 / 6.0;
+    real_t x_center1 = 0.1;
+    real_t x_center2 = 0.1;
+    real_t x_center3 = 0.9;
 
 
-    real_t y_center1 = 5.0/6.0;
-    real_t y_center2 = 0.5;
-    real_t y_center3 = 1.0/6.0;
-    real_t y_center4 = 5.0/6.0;
-    real_t y_center5 = 0.5;
-    real_t y_center6 = 1.0/6.0;
+    real_t y_center1 = 0.1;
+    real_t y_center2 = 0.9;
+    real_t y_center3 = 0.9;
+    real_t rad = 0.05;
 
-    real_t sigma_x = 0.01;
-    real_t sigma_y = 0.01;
-
-
-    // Injection 1
-    // Distance from center (normalized by sigma)
-    real_t dx1 = (x(0) - x_center1) / sigma_x;
-    real_t dy1 = (x(1) - y_center1) / sigma_y;
-    real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
-    real_t gaussian1 = std::exp(-0.5 * r_squared1);
-
-    // Injection 2
-    // Distance from center (normalized by sigma)
-    real_t dx2 = (x(0) - x_center2) / sigma_x;
-    real_t dy2 = (x(1) - y_center2) / sigma_y;
-    real_t r_squared2 = dx2 * dx2 + dy2 * dy2;
-    real_t gaussian2 = std::exp(-0.5 * r_squared2);
-
-    // Injection 3
-    // Distance from center (normalized by sigma)
-    real_t dx3 = (x(0) - x_center3) / sigma_x;
-    real_t dy3 = (x(1) - y_center3) / sigma_y;
-    real_t r_squared3 = dx3 * dx3 + dy3 * dy3;
-    real_t gaussian3 = std::exp(-0.5 * r_squared3);
-
-        // Injection 4
-    // Distance from center (normalized by sigma)
-    real_t dx4 = (x(0) - x_center4) / sigma_x;
-    real_t dy4 = (x(1) - y_center4) / sigma_y;
-    real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
-    real_t gaussian4 = std::exp(-0.5 * r_squared4);
-
-        // Injection 5
-    // Distance from center (normalized by sigma)
-    real_t dx5 = (x(0) - x_center5) / sigma_x;
-    real_t dy5 = (x(1) - y_center5) / sigma_y;
-    real_t r_squared5 = dx5 * dx5 + dy5 * dy5;
-    real_t gaussian5 = std::exp(-0.5 * r_squared5);
-
-        // Injection 6
-    // Distance from center (normalized by sigma)
-    real_t dx6 = (x(0) - x_center6) / sigma_x;
-    real_t dy6 = (x(1) - y_center6) / sigma_y;
-    real_t r_squared6 = dx6 * dx6 + dy6 * dy6;
-    real_t gaussian6 = std::exp(-0.5 * r_squared6);
-
- 
-    return 3*(gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian6);
-}
-
-real_t target_func(const Vector &x)
-{
-
-    // real_t x_center1 = 5.0/6.0;
-    // real_t y_center1 = 0.5;
-    // if ((x(0) < (5.0 / 6.0) + 0.1 && x(0) > (5.0 / 6.0) - 0.1) && (x(1) < 0.55 && x(1) > 0.45))
-    // {
-    //     return 10.0;
-    // }
-    // else
+    if (((x(0) - x_center1)*(x(0)-x_center1) + (x(1) - y_center1)*(x(1) - y_center1)) < rad*rad)
+    {
+        return 1.0;
+    }
+    else if (((x(0) - x_center2)*(x(0)-x_center2) + (x(1) - y_center2)*(x(1) - y_center2)) < rad*rad)
+    {
+        return 1.0;
+    }
+    else if (((x(0) - x_center3)*(x(0)-x_center3) + (x(1) - y_center3)*(x(1) - y_center3)) < rad*rad)
+    {
+        return 1.0;
+    }
+    // else if (((x(0) - x_center4)*(x(0)-x_center4) + (x(1) - y_center4)*(x(1) - y_center4)) < rad*rad)
     // {
     //     return 0.0;
     // }
-    // real_t sigma_x = 0.05;
-    // real_t sigma_y = 0.05;
-    // real_t dx1 = (x(0) - x_center1) / sigma_x;
-    // real_t dy1 = (x(1) - y_center1) / sigma_y;
-    // real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
-    // real_t gaussian1 = std::exp(-0.5 * r_squared1);
-    // return 10*gaussian1;
-    return 10.0;
+    else
+    {
+        return 0.0;
+    }
 }
+
 
 // Function which initializes the design. If not using Gaussian, x_max and y_max are irrelevant. Boolean to 
 // tell code that the design has in fact been initialized without error.
@@ -162,92 +121,89 @@ bool InitializeDesign(ParGridFunction &rho, real_t x_max=0.0, real_t y_max=0.0)
 
 int main(int argc, char *argv[]) 
 {
-
     // 1. Initialize MPI and HYPRE.
     Mpi::Init();  
     int num_procs = Mpi::WorldSize();   
-    const MPI_Comm comm = MPI_COMM_WORLD;     
-    int myid = Mpi::WorldRank();          
-    Hypre::Init();  
+    MPI_Comm comm = MPI_COMM_WORLD;     
+    int myid = Mpi::WorldRank();                  
+    Hypre::Init();   
 
-    // 2. Parse command-line options.
-    const char *mesh_file = "../../../../data/inline-quad.mesh";       
-    int ser_ref_levels = 1;
-    int par_ref_levels = 1;    
-    int order = 2; 
+    int ser_ref_levels = 0;
+    int par_ref_levels = 3;
+
+    const char *mesh_file = "../../../../data/inline-quad.mesh";   
+    int order_fluid_heat = 2;
+  
+    real_t kf = 0.002; // thermal conductivity of fluid
+    
+    int ode_solver_type = 4; 
+    real_t t_final = 1.0;           
+    real_t dt = 0.001;                 
+    int vis_steps = 100; 
     bool pv_vis = true; 
     bool density_pv = true;
-    int ode_solver_type = 1; 
-    real_t t_final = 3.0;         
-    real_t dt = 0.01; 
-    real_t fl_diff_const = 0.1;     
-    real_t s_diff_const = 1.0;
-    real_t filter_rad = 0.06;
-    real_t SIMP_exp = 3.0;
-    int vis_steps = 10;  
-    const char *device_config = "cpu";  
-    int problem_type = 1;
+    int maxit = 100;
+    const char *device_config = "cpu"; 
+
     OptionsParser args(argc, argv); 
     args.AddOption(&mesh_file, "-m", "--mesh",
                     "Mesh file to use."); 
     args.AddOption(&ser_ref_levels, "-rs", "--refine-serial", 
-                        "Number of times to refine the mesh uniformly in serial," 
-                        " -1 for auto.");    
+                        "Number of times to refine the mesh uniformly in serial,"  
+                        " -1 for auto.");   
     args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",  
                         "Number of times to refine the mesh uniformly in parallel.");       
-    args.AddOption(&order, "-o", "--order",
-                        "Finite element order (polynomial degree) >= 0.");   
-    args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",  
-                        "--no-visualization", 
-                        "Enable or disable Paraview Visualization");
+    args.AddOption(&order_fluid_heat, "-ofh", "--order_fluid_heat",
+                        "Finite element order for fluid heat (polynomial degree) >= 0."); 
+    args.AddOption(&kf, "-kf", "--kf",
+                        "Thermal Conductivity of the Fluid.");                            
+    args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",    
+                    "--no-visualization", 
+                    "Enable or disable Paraview Visualization");
+    args.AddOption(&density_pv, "-dvis", "--density-visualization", "-no-dvis",    
+                    "--no-density-visualization", 
+                    "Enable or disable Paraview Visualization for density");
     args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                         ODESolver::IMEXTypes.c_str()); 
-    args.AddOption(&t_final, "-tf", "--t-final", 
+    args.AddOption(&t_final, "-tf", "--t-final",   
                         "Final time; start time is 0.");   
     args.AddOption(&dt, "-dt", "--time-step",
-                        "Time step.");
-    args.AddOption(&fl_diff_const, "-fdc", "--fl_diff_const",
-                        "Diffusion coefficient in fluid domain.");  
-    args.AddOption(&s_diff_const, "-sdc", "--s_diff_const",
-                        "Diffusion coefficient in solid regions."); 
-    args.AddOption(&filter_rad, "-fr", "--filter_rad",
-                        "PDE filter radius."); 
-    args.AddOption(&SIMP_exp, "-se", "--SIMP_exp",
-                        "Exponent in SIMP interpolation."); 
+                        "Time step."); 
     args.AddOption(&vis_steps, "-vs", "--visualization-steps", 
                     "Visualize every n-th timestep.");   
     args.AddOption(&device_config, "-d", "--device",
-                    "Device configuration string, see Device::Configure().");     
+                    "Device configuration string, see Device::Configure().");         
     args.Parse(); 
+
     if (!args.Good()) 
     {
         if (Mpi::Root())
         {
-            args.PrintUsage(cout);    
+            args.PrintUsage(cout);       
         }
         return 1;       
     }
     if (Mpi::Root())      
     {
         args.PrintOptions(cout); 
-    } 
+    }
 
     // 3. Read the meshfile  
-    Mesh *mesh = new Mesh(mesh_file);  
+    Mesh *mesh = new Mesh(mesh_file); 
     const int dim = mesh->Dimension();
+
+    Device device(device_config);
+    if (myid == 0) { device.Print(); }
 
     // 4. Refine the mesh to increase the resolution. In this example we do
     //    'ref_levels' of uniform refinement, where 'ref_levels' is a
     //    command-line parameter.
     for (int lev = 0; lev < ser_ref_levels; lev++) { mesh->UniformRefinement(); } 
-    if (mesh->NURBSext)   
-    {  
-        mesh->SetCurvature(max(order, 1));  
-    }
 
-    // 5. Define the parallel mesh by a partitioning of the serial mesh. Refine
+
+    // 5. Define the parallel mesh by a partitioning of the serial mesh. Refine 
     //    this mesh further in parallel to increase the resolution. Once the
-    //    parallel mesh is defined, the serial mesh can be deleted.
+    //    parallel mesh is defined, the serial mesh can be deleted.           
     ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
     delete mesh;
     for (int lev = 0; lev < par_ref_levels; lev++)  
@@ -255,81 +211,63 @@ int main(int argc, char *argv[])
         pmesh->UniformRefinement();
     }
 
-    // 6. Define the discontinuous DG finite element space of the given
-    //    polynomial order on the refined mesh.
-    FiniteElementCollection *state_fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace *state_fes = new ParFiniteElementSpace(pmesh, state_fec);
-    HYPRE_BigInt global_vSize = state_fes->GlobalTrueVSize(); 
-    
-    H1_FECollection filter_fec(order+2, dim); 
-    L2_FECollection control_fec(order+2, dim, BasisType::GaussLobatto); 
-    ParFiniteElementSpace filter_fes(pmesh, &filter_fec);  
-    ParFiniteElementSpace control_fes(pmesh, &control_fec);  
-    
-    ParGridFunction rho(&control_fes);   
-    ParGridFunction rho_tilde(&filter_fes); 
+    // 6. FE Collections for pressure and velocity spaces, using taylor hood elements for now
+    // Also the solid and fluid advection diffusion region fes
+    FiniteElementCollection *fluid_heat_fec = new DG_FECollection(order_fluid_heat, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace *fluid_heat_fes = new ParFiniteElementSpace(pmesh, fluid_heat_fec);   
 
-    // 7. Initialize the Design Variable, rho
+    H1_FECollection filter_fec(order_fluid_heat+1, dim);  
+    L2_FECollection control_fec(order_fluid_heat+1, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace filter_fes(pmesh, &filter_fec);  
+    ParFiniteElementSpace control_fes(pmesh, &control_fec); 
+    
+    // 7. Initialize rho and the filter
+    ParGridFunction rho(&control_fes);   
+    ParGridFunction rho_tilde(&filter_fes);  
     if (!InitializeDesign(rho, 1.0, 1.0))  
     { 
         if (myid == 0)
         {
-            cerr << "Error: unknown -init value. Use uniform, solid, void, or gaussian.\n"; 
+            cerr << "Error: unknown -init value. Use uniform, solid, void, or gaussian.\n";         
         }
-        return 1;
+        return 1; 
     } 
-
-    // 8. Boundary Conditions    
-    // Essential Dofs
-    Array<int> ess_tdof_list;  
-    Array<int> ess_bdr(pmesh->bdr_attributes.Max());  
-    ess_bdr = 0;   
-    // ess_bdr[0] = 1;
-    pmesh->MarkExternalBoundaries(ess_bdr);  
-    state_fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
-
-    // Inflow Dofs
-    Array<int> inflow_bdr(pmesh->bdr_attributes.Max()); 
-    inflow_bdr = 0;
-    // inflow_bdr[2] = 1;   
-
-    // 9. Construct the Objective Function
-    FunctionCoefficient target_cf(target_func);
-    ParGridFunction target_gf(state_fes);
-    target_gf.ProjectCoefficient(target_cf); 
-    RectangularIndicator indicator( (5.0 / 6.0) - 0.1,  (5.0 / 6.0) + 0.1, 0.45, 0.55); 
-    TimeIntegratedL2TargetObjective obj_func(state_fes, indicator, target_gf, comm);           
-    int n_steps = (int)ceil(t_final / dt);  
-
-    // 10. PDE Filter
-    toopt::PDEFilterOptions filter_opts; 
-    filter_opts.print_level = 0;
-    filter_opts.filter_radius = filter_rad; 
-    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);   
-    filter.Assemble();    
-    filter.Mult(rho, rho_tilde);   
+    toopt::PDEFilterOptions filter_opts;
+    filter_opts.print_level = 0; 
+    // filter_opts.solver_rtol = 1e-12;
+    filter_opts.filter_radius = 0.02; 
+    toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);     
+    filter.Assemble();   
+    filter.Mult(rho, rho_tilde);     
     rho_tilde.ExchangeFaceNbrData();
     GridFunctionCoefficient rho_cf(&rho);
+    // const int n = control_fes.GetTrueVSize();      
+    // Vector rho_tv(n);
+    // rho.GetTrueDofs(rho_tv);
 
-    // 11. Define the Coefficients  
-    ConstantCoefficient one(1.0); 
-    SIMPCoefficient simp_cf(&rho_tilde, 1e-6, 3.0, SIMP_exp);   
-    //Velocity Field  
-    VectorFunctionCoefficient raw_velocity_cf(dim, velocity_func);  
-    ScalarVectorProductCoefficient velocity_cf(one, raw_velocity_cf);   
-    //Fluid Diffusion Coefficient
-    ConstantCoefficient fl_diff_cf(fl_diff_const);  
-    ConstantCoefficient fl_dt_diff_cf(dt*fl_diff_const);
-    ProductCoefficient fl_simp_diff_cf(fl_diff_cf, one); // DesignSolver expects a product coefficient
-    ProductCoefficient fl_simp_dt_diff_cf(fl_dt_diff_cf, one);  
-    // Inflow 
-    FunctionCoefficient inflow_cf(inflow_flux_func);
-    ProductCoefficient inflow_rho_cf(inflow_cf, simp_cf);  
-    // Initial and Dirichlet Boundary  
-    FunctionCoefficient T0_cf(T0_func);
-    // FunctionCoefficient T_d_cf(T_d_func); 
+    
+    // 9. Define the Coefficients 
+    FunctionCoefficient inflow(inflow_flux_func);   
+    FunctionCoefficient q0_f(T0_func);   
+
+    ParGridFunction q0_f_gf(fluid_heat_fes); 
+    q0_f_gf.ProjectCoefficient(q0_f); 
+    GridFunctionCoefficient q0_f_cf;  
+    q0_f_cf.SetGridFunction(&q0_f_gf);  
+
+    VectorFunctionCoefficient v_base(dim, velocity_func); 
+
+    
+    // 11. Construct the Objective Function 
+   RectangularIndicator indicator(0.0, 1.0, 0.0, 1.0); 
+   ParGridFunction target_gf(fluid_heat_fes);
+   FunctionCoefficient target_cf(Target_func); 
+   target_gf.ProjectCoefficient(target_cf);    
+   TerminalTargetObjective obj_func(fluid_heat_fes, indicator, target_gf, comm);           
+   int n_steps = (int)ceil(t_final / dt);   
 
     // Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
+    ConstantCoefficient one(1.0);
     ParLinearForm vol_form(&control_fes);
     vol_form.AddDomainIntegrator(new DomainLFIntegrator(one));
     vol_form.Assemble();
@@ -338,7 +276,6 @@ int main(int argc, char *argv[])
     real_t loc = vol_w->Sum();
     MPI_Allreduce(&loc, &domain_volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
     const real_t Vstar = 1.0 * domain_volume;
-
     const int num_constraints = 1; // volume constraint
 
     // 12. Set up vectorized design field. Initialize the gradient.
@@ -351,43 +288,43 @@ int main(int argc, char *argv[])
     ParaViewDataCollection paraview_dc("density", pmesh); 
     if (density_pv) {
         paraview_dc.SetPrefixPath("ParaView"); 
-        paraview_dc.SetLevelsOfDetail(order);
+        paraview_dc.SetLevelsOfDetail(order_fluid_heat);
         paraview_dc.SetDataFormat(VTKFormat::BINARY);
         paraview_dc.SetHighOrderOutput(true);
         paraview_dc.RegisterField("density", &rho);
         paraview_dc.RegisterField("rho_filter", &rho_tilde); 
+        paraview_dc.SetCycle(0);
+        paraview_dc.SetTime(0.0);
+        paraview_dc.Save();
     }
 
-    // 13. Set up the solver
-    ParGridFunction T0_gf(state_fes);  
-    T0_gf.ProjectCoefficient(T0_cf); 
-    GridFunctionCoefficient T0_gcf; 
-    T0_gcf.SetGridFunction(&T0_gf);
+   //12. Operator setup
+   real_t dtkf = dt*kf;
 
-    ParFiniteElementSpace *vstate_fes = new ParFiniteElementSpace(pmesh, state_fec, dim);
+    std::unique_ptr<MixedMultiPhysicsOperator> oper = std::make_unique<AdvectionDiffusionMixedMultiPhysicsOperator>(
+        *fluid_heat_fes,
+        q0_f_cf,
+        &rho_tilde,
+        v_base,
+        kf,
+        dtkf,
+        dt,
+        t_final,
+        inflow,
+        comm);
 
-    ParGridFunction v_gf(vstate_fes);  
-    v_gf.ProjectCoefficient(raw_velocity_cf); 
-    VectorGridFunctionCoefficient v_gcf; 
-    v_gcf.SetGridFunction(&v_gf);
-
-    real_t dt_fl_diff_const = dt*fl_diff_const;
-    DesignSolver design_solver(*state_fes, 
-        filter_fes, 
-        control_fes, 
-        filter, 
-        obj_func, 
-        v_gcf, 
-        fl_diff_const, 
-        dt_fl_diff_const, 
-        inflow_cf, 
-        T0_gcf,
-        n_steps, dt, t_final, 
-        rho, rho_tilde, 
-        simp_cf, ode_solver_type,
-        vis_steps, problem_type, 
-        comm);    
-
+    DesignSolver design_solver(*fluid_heat_fes,                 
+    filter_fes,  
+    control_fes, 
+    oper,
+    filter, 
+    obj_func,
+    q0_f_cf, 
+    n_steps,   
+    dt, 
+    t_final,  
+    rho, rho_tilde, ode_solver_type,  
+    vis_steps, comm, pv_vis);
 
     // 14. Set up the MMA optimizer
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, control_fes_size, num_constraints, rho_tv);
@@ -399,28 +336,11 @@ int main(int argc, char *argv[])
     real_t initial_vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
     if (myid == 0){std::cout<<"Initial volume = " << initial_vol <<std::endl;}
 
-    //    Visualize the velocity field
-    // FiniteElementCollection *vel_fec;
-    // ParFiniteElementSpace *vel_fespace;
-    // vel_fec = new H1_FECollection(order, 2);
-    // vel_fespace = new ParFiniteElementSpace(pmesh, vel_fec, 2);
-    // ParGridFunction v_gf(vel_fespace); 
-    // v_gf.ProjectCoefficient(raw_velocity_cf);
-    {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << v_gf << flush;
-    }
 
-
-    // 15. Optimization loop.
+        // 15. Optimization loop.
     real_t iterationError = 1.0;
-    int max_it = 30;
-    real_t tol = 1e-5;
-    for (int k = 0; k < max_it && iterationError > tol; k++)
+    real_t tol = 1e-3;
+    for (int k = 0; k < maxit && iterationError > tol; k++)
     {
 
         design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
@@ -432,16 +352,17 @@ int main(int argc, char *argv[])
         rho.GetTrueDofs(rho_tv);
         rho_old = rho_tv;
         // box constraints:  rho ∈ [0,1],  α_i ∈ [alpha_min, alpha_max]  (move limits)
-        real_t move = 20.0;
+        real_t move = 10.0;
         for (int i = 0; i < control_fes_size; i++)
         {
-            tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
-            tx_max[i] = std::min(real_t(100), rho_tv[i] + move);
+            tx_min[i] = std::max(real_t(0.0), rho_tv[i] - move);
+            tx_max[i] = std::min(real_t(1.0), rho_tv[i] + move);
         }
 
         // volume constraint
+        // Vector rho_v(rho_tv.Size());
         real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
-        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar -  1.0;
+        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar - 0.008; 
 
 
         mma.Update(rho_tv, dJ_drho, J0, fival, dfidx, tx_min, tx_max);
@@ -477,8 +398,13 @@ int main(int argc, char *argv[])
             paraview_dc.Save();
         }
     }
+ 
+ 
+    // Free the used memory.  
+    delete pmesh;
+    delete fluid_heat_fec;
+    delete fluid_heat_fes;
 
-
-
-    return 0;
+    
+    return 0; 
 }
