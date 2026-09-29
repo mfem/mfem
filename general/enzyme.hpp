@@ -62,6 +62,9 @@ template <typename return_type, typename... Args>
 MFEM_HOST_DEVICE
 return_type __enzyme_fwddiff(Args...);
 
+// Type hint: the @a size bytes at @a ptr hold integers.
+extern "C" MFEM_HOST_DEVICE void __enzyme_integer(void *ptr, std::size_t size);
+
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
 #define MFEM_ENZYME_INACTIVE   __attribute__((enzyme_inactive))
 #define MFEM_ENZYME_FN_LIKE(x)   __attribute__((enzyme_function_like(#x)))

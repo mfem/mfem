@@ -399,6 +399,18 @@ template <typename func_t, typename... arg_ts>
 MFEM_HOST_DEVICE inline
 auto qfunction_wrapper(func_t &f, arg_ts...args)
 {
+#ifdef MFEM_USE_ENZYME
+   // Explicitly mark the strides and dynamic sizes of tensor arrays as integers for Enzyme.
+   // In some cases, the type analysis may not correctly infer it.
+   ([&](auto &a)
+   {
+      if constexpr (is_tensor_array<std::decay_t<decltype(a)>>::value)
+      {
+         __enzyme_integer(&a.dyn_sizes, sizeof(a.dyn_sizes));
+         __enzyme_integer(&a.strides, sizeof(a.strides));
+      }
+   }(args), ...);
+#endif
    return f(args...);
 }
 
@@ -567,6 +579,11 @@ void finish_native_dual_output(
       unpack_dual_to_real<unpack_primal_values>(
          native_dual_vector_host_r(dual_storage),
          yq.GetBlock(O).HostWrite(), yq.GetBlock(O).Size());
+   }
+   else if constexpr (!unpack_primal_values)
+   {
+      // A real-valued output has no tangent; it holds the primal value here.
+      yq.GetBlock(O) = 0.0;
    }
 }
 
