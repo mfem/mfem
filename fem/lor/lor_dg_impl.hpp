@@ -29,6 +29,7 @@ Array<int> BatchedLOR_DG::GetFaceInfo() const
 
    int bdr_face_counter = 0;
 
+   MFEM_UNROLL(1)
    for (int f = 0; f < nf; ++f)
    {
       auto finfo = mesh.GetFaceInformation(f);
@@ -74,6 +75,7 @@ Vector BatchedLOR_DG::GetBdrPenaltyFactor() const
    {
       int i_int = 0;
       int i_bdr = 0;
+      MFEM_UNROLL(1)
       for (int i = 0; i < nf; ++i)
       {
          const auto f = mesh.GetFaceInformation(i);
@@ -95,6 +97,7 @@ Vector BatchedLOR_DG::GetBdrPenaltyFactor() const
 
    const int nq = ir_face.Size();
    Vector face_Jh(nq * nf);
+   MFEM_UNROLL(1)
    for (const FaceType ft : {FaceType::Interior, FaceType::Boundary})
    {
       const int nft = mesh.GetNFbyType(ft);
@@ -163,11 +166,13 @@ void BatchedLOR_DG::AssembleFaceTerms()
       const int f_1 = d_face_info(4, f);
       if (f_0 < 0) { return; } // Skip Neumann boundary faces
       const int nsides = (f_1 >= 0) ? 2 : 1;
+      MFEM_UNROLL(1)
       for (int el_i = 0; el_i < nsides; ++el_i)
       {
          const int e = d_face_info(3*el_i, f);
          const int o = d_face_info(3*el_i + 2, f);
          const int v_idx = 1 + ((el_i == 0) ? f_0 : f_1);
+         MFEM_UNROLL(1)
          for (int i = 0; i < nd_face; ++i)
          {
             const int ii = internal::FaceIdxToVolIdx(dim, i, pp1, f_0, f_1, el_i, o);
@@ -208,6 +213,7 @@ void BatchedLOR_DG::Assemble2D()
    IntegrationRule ir_pp1;
    QuadratureFunctions1D::GaussLobatto(pp1, &ir_pp1);
    Vector glx_pp1(pp1), glw_pp1(pp1);
+   MFEM_UNROLL(1)
    for (int i = 0; i < pp1; ++i)
    {
       glx_pp1[i] = ir_pp1[i].x;
@@ -232,15 +238,19 @@ void BatchedLOR_DG::Assemble2D()
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
+      MFEM_UNROLL(1)
       for (int iy = 0; iy < pp1; ++iy)
       {
+         MFEM_UNROLL(1)
          for (int ix = 0; ix < pp1; ++ix)
          {
             const real_t mq = const_mq ? MQ(0,0,0) : MQ(ix, iy, iel_ho);
             const real_t dq = const_dq ? DQ(0,0,0) : DQ(ix, iy, iel_ho);
 
+            MFEM_UNROLL(1)
             for (int n_idx = 0; n_idx < 2; ++n_idx)
             {
+               MFEM_UNROLL(1)
                for (int e_i = 0; e_i < 2; ++e_i)
                {
                   const int i_0 = (n_idx == 0) ? ix + e_i : ix;
@@ -267,6 +277,7 @@ void BatchedLOR_DG::Assemble2D()
                }
             }
             V(0, ix, iy, iel_ho) = mq * detJ(ix, iy, iel_ho) * W(ix, iy);
+            MFEM_UNROLL(1)
             for (int i = 1; i < nnz_per_row; ++i)
             {
                V(0, ix, iy, iel_ho) -= V(i, ix, iy, iel_ho);
@@ -302,6 +313,7 @@ void BatchedLOR_DG::Assemble3D()
    IntegrationRule ir_pp1;
    QuadratureFunctions1D::GaussLobatto(pp1, &ir_pp1);
    Vector glx_pp1(pp1), glw_pp1(pp1);
+   MFEM_UNROLL(1)
    for (int i = 0; i < pp1; ++i)
    {
       glx_pp1[i] = ir_pp1[i].x;
@@ -325,10 +337,13 @@ void BatchedLOR_DG::Assemble3D()
 
    mfem::forall(nel_ho, [=] MFEM_HOST_DEVICE (int iel_ho)
    {
+      MFEM_UNROLL(1)
       for (int iz = 0; iz < pp1; ++iz)
       {
+         MFEM_UNROLL(1)
          for (int iy = 0; iy < pp1; ++iy)
          {
+            MFEM_UNROLL(1)
             for (int ix = 0; ix < pp1; ++ix)
             {
                const real_t mq = const_mq ? MQ(0,0,0,0) : MQ(ix, iy, iz, iel_ho);
@@ -336,8 +351,10 @@ void BatchedLOR_DG::Assemble3D()
 
                const real_t DETJ = detJ(ix, iy, iz, iel_ho);
 
+               MFEM_UNROLL(1)
                for (int n_idx = 0; n_idx < 3; ++n_idx)
                {
+                  MFEM_UNROLL(1)
                   for (int e_i = 0; e_i < 2; ++e_i)
                   {
                      static constexpr int lex_map[] = {5,3,2,4,1,6};
@@ -396,6 +413,7 @@ void BatchedLOR_DG::Assemble3D()
                   }
                }
                V(0, ix, iy, iz, iel_ho) = mq * DETJ * W(ix, iy, iz);
+               MFEM_UNROLL(1)
                for (int i = 1; i < 7; ++i)
                {
                   V(0, ix, iy, iz, iel_ho) -= V(i, ix, iy, iz, iel_ho);

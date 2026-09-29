@@ -279,6 +279,7 @@ inline void SmemPAHcurlMassApply3D(
       const int offset = (D1D - 1) * D1D * D1D;
       MFEM_FOREACH_THREAD_DIRECT(ix, x, offset)
       {
+         MFEM_UNROLL(1)
          for (int dim = 0; dim < VDIM; ++dim)
          {
             X[dim][tidz][ix] = X_(ix + dim * offset, e);
@@ -294,10 +295,12 @@ inline void SmemPAHcurlMassApply3D(
          }
       }
 
+      MFEM_UNROLL(1)
       for (int dim0 = 0; dim0 < VDIM; ++dim0)
       {
          MFEM_SYNC_THREAD;
          // sum factor to QQQ = Q_{dim0,dim1} B X_{dim1}
+         MFEM_UNROLL(1)
          for (int dim1 = 0; dim1 < VDIM; ++dim1)
          {
             const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
@@ -309,6 +312,7 @@ inline void SmemPAHcurlMassApply3D(
                                                  Q1D, Q1D, Q1D)
             {
                real_t u = 0;
+               MFEM_UNROLL(1)
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   real_t b;
@@ -326,6 +330,7 @@ inline void SmemPAHcurlMassApply3D(
             }
          }
          MFEM_SYNC_THREAD;
+         MFEM_UNROLL(1)
          for (int dim1 = 0; dim1 < VDIM; ++dim1)
          {
             const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
@@ -336,6 +341,7 @@ inline void SmemPAHcurlMassApply3D(
                                                  Q1D, Q1D, Q1D)
             {
                real_t u = 0;
+               MFEM_UNROLL(1)
                for (int dy = 0; dy < D1Dy; ++dy)
                {
                   real_t b;
@@ -353,6 +359,7 @@ inline void SmemPAHcurlMassApply3D(
             }
          }
          MFEM_SYNC_THREAD;
+         MFEM_UNROLL(1)
          for (int dim1 = 0; dim1 < VDIM; ++dim1)
          {
             const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
@@ -361,6 +368,7 @@ inline void SmemPAHcurlMassApply3D(
             MFEM_FOREACH_THREAD_DIRECT_3D(qx, qy, qz, x, Q1D, Q1D, Q1D)
             {
                real_t u = 0;
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < D1Dz; ++dz)
                {
                   real_t b;
@@ -411,9 +419,11 @@ inline void SmemPAHcurlMassApply3D(
             MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, D1Dz, Q1D, Q1D,
                                                  Q1D, Q1D, Q1D)
             {
+               MFEM_UNROLL(1)
                for (int dim1 = 0; dim1 < VDIM; ++dim1)
                {
                   real_t u = 0;
+                  MFEM_UNROLL(1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      real_t b = 0;
@@ -435,9 +445,11 @@ inline void SmemPAHcurlMassApply3D(
             MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, D1Dy, D1Dz, Q1D,
                                                  Q1D, Q1D, Q1D)
             {
+               MFEM_UNROLL(1)
                for (int dim1 = 0; dim1 < VDIM; ++dim1)
                {
                   real_t u = 0;
+                  MFEM_UNROLL(1)
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
                      real_t b;
@@ -460,6 +472,7 @@ inline void SmemPAHcurlMassApply3D(
             {
                int ix = dx + D1Dx * (dy + D1Dy * dz);
                real_t u = 0;
+               MFEM_UNROLL(1)
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   real_t b;
@@ -471,6 +484,7 @@ inline void SmemPAHcurlMassApply3D(
                   {
                      b = BC(qx, dx);
                   }
+                  MFEM_UNROLL(1)
                   for (int dim1 = 0; dim1 < VDIM; ++dim1)
                   {
                      u += QDD[dim1][tidz][qx][dz][dy] * b;

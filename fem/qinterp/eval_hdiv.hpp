@@ -165,11 +165,11 @@ inline void EvalHDiv2D(const int NE,
                   real_t u_ref[DIM], u_phys[DIM];
                   real_t J_loc[DIM*DIM];
                   // Piola transformation: u_phys = J/det(J) * u_ref
-                  MFEM_UNROLL(DIM)
+                  MFEM_UNROLL(1)
                   for (int d = 0; d < DIM; d++)
                   {
                      u_ref[d] = QQ(qx,qy,d);
-                     MFEM_UNROLL(DIM)
+                     MFEM_UNROLL(1)
                      for (int sd = 0; sd < DIM; sd++)
                      {
                         J_loc[sd+DIM*d] = J(qx,qy,sd,d,e);
@@ -180,7 +180,7 @@ inline void EvalHDiv2D(const int NE,
                   kernels::Set(DIM, 1, 1_r/detJ, u_phys, u_phys);
                   if (FLAGS & QuadratureInterpolator::PHYSICAL_VALUES)
                   {
-                     MFEM_UNROLL(DIM)
+                     MFEM_UNROLL(1)
                      for (int sd = 0; sd < DIM; sd++)
                      {
                         if (Q_LAYOUT == QVectorLayout::byNODES)
@@ -265,7 +265,7 @@ inline void EvalHDiv3D(const int NE,
          {
             MFEM_FOREACH_THREAD(dy,x,D1D-1)
             {
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dx = 0; dx < D1D; ++dx)
                {
                   X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
@@ -305,18 +305,18 @@ inline void EvalHDiv3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u[MD1];
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dx = 0; dx < nx; ++dx)
                {
-                  MFEM_UNROLL(MD1)
+                  MFEM_UNROLL(1)
                   for (int dz = 0; dz < nz; ++dz)
                   {
                      u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx);
                   }
                }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { QDD(qx,dy,dz,vd) = u[dz]; }
             }
          }
@@ -332,18 +332,18 @@ inline void EvalHDiv3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u[MD1];
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dy = 0; dy < ny; ++dy)
                {
-                  MFEM_UNROLL(MD1)
+                  MFEM_UNROLL(1)
                   for (int dz = 0; dz < nz; ++dz)
                   {
                      u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy);
                   }
                }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { QQD(qx,qy,dz,vd) = u[dz]; }
             }
          }
@@ -358,18 +358,18 @@ inline void EvalHDiv3D(const int NE,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u[MQ1];
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz)
                {
-                  MFEM_UNROLL(MQ1)
+                  MFEM_UNROLL(1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      u[qz] += QQD(qx,qy,dz,vd) * Bz(dz,qz);
                   }
                }
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   if (FLAGS & (QuadratureInterpolator::PHYSICAL_VALUES |
@@ -402,11 +402,11 @@ inline void EvalHDiv3D(const int NE,
                   real_t u_ref[DIM], u_phys[DIM];
                   real_t J_loc[DIM*DIM];
                   // Piola transformation: u_phys = J/det(J) * u_ref
-                  MFEM_UNROLL(DIM)
+                  MFEM_UNROLL(1)
                   for (int d = 0; d < DIM; d++)
                   {
                      u_ref[d] = QQQ(qx,qy,qz,d);
-                     MFEM_UNROLL(DIM)
+                     MFEM_UNROLL(1)
                      for (int sd = 0; sd < DIM; sd++)
                      {
                         J_loc[sd+DIM*d] = J(qx,qy,qz,sd,d,e);
@@ -417,7 +417,7 @@ inline void EvalHDiv3D(const int NE,
                   kernels::Set(DIM, 1, 1_r/detJ, u_phys, u_phys);
                   if (FLAGS & QuadratureInterpolator::PHYSICAL_VALUES)
                   {
-                     MFEM_UNROLL(DIM)
+                     MFEM_UNROLL(1)
                      for (int sd = 0; sd < DIM; sd++)
                      {
                         if (Q_LAYOUT == QVectorLayout::byNODES)

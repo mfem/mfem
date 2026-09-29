@@ -52,8 +52,10 @@ void BatchedLOR_RT::Assemble2D()
       {
          MFEM_FOREACH_THREAD(ix,x,op1)
          {
+            MFEM_UNROLL(1)
             for (int c=0; c<2; ++c)
             {
+               MFEM_UNROLL(1)
                for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix+iy*op1,c,iel_ho) = 0.0;
@@ -76,19 +78,24 @@ void BatchedLOR_RT::Assemble2D()
             DeviceTensor<2> local_mat(local_mat_, ne, ne);
 
             // local_mat is the local (dense) stiffness matrix
+            MFEM_UNROLL(1)
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
             SetupLORQuadData2D<ORDER,SDIM,true,false>(X, iel_ho, kx, ky, Q, true);
 
+            MFEM_UNROLL(1)
             for (int iqx=0; iqx<2; ++iqx)
             {
+               MFEM_UNROLL(1)
                for (int iqy=0; iqy<2; ++iqy)
                {
                   const real_t mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
                   const real_t dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
                   // Loop over x,y components. c=0 => x, c=1 => y
+                  MFEM_UNROLL(1)
                   for (int cj=0; cj<dim; ++cj)
                   {
+                     MFEM_UNROLL(1)
                      for (int bj=0; bj<2; ++bj)
                      {
                         const real_t bxj = (cj == 0 && bj == iqx) ? 1 : 0;
@@ -97,8 +104,10 @@ void BatchedLOR_RT::Assemble2D()
 
                         const real_t jj_loc = bj + 2*cj;
 
+                        MFEM_UNROLL(1)
                         for (int ci=0; ci<dim; ++ci)
                         {
+                           MFEM_UNROLL(1)
                            for (int bi=0; bi<2; ++bi)
                            {
                               const real_t bxi = (ci == 0 && bi == iqx) ? 1 : 0;
@@ -129,6 +138,7 @@ void BatchedLOR_RT::Assemble2D()
             // Assemble the local matrix into the macro-element sparse matrix
             // in a format similar to coordinate format. The (I,J) arrays
             // are implicit (not stored explicitly).
+            MFEM_UNROLL(1)
             for (int ii_loc=0; ii_loc<ne; ++ii_loc)
             {
                const int ci = ii_loc/2;
@@ -138,6 +148,7 @@ void BatchedLOR_RT::Assemble2D()
 
                int ii = kx+ix + (ky+iy)*((ci == 0) ? op1 : o);
 
+               MFEM_UNROLL(1)
                for (int jj_loc=0; jj_loc<ne; ++jj_loc)
                {
                   const int cj = jj_loc/2;
@@ -159,6 +170,7 @@ void BatchedLOR_RT::Assemble2D()
    sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
    auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
+   MFEM_UNROLL(1)
    for (int ci=0; ci<2; ++ci)
    {
       const int i_off = (ci == 0) ? 0 : o*op1;
@@ -167,8 +179,10 @@ void BatchedLOR_RT::Assemble2D()
 
       const int nxi = (ci == 0) ? op1 : o;
 
+      MFEM_UNROLL(1)
       for (int i0=0; i0<op1; ++i0)
       {
+         MFEM_UNROLL(1)
          for (int i1=0; i1<o; ++i1)
          {
             int ii_lex[2];
@@ -176,6 +190,7 @@ void BatchedLOR_RT::Assemble2D()
             ii_lex[id1] = i1;
             const int ii_el = i_off + ii_lex[0] + ii_lex[1]*nxi;
 
+            MFEM_UNROLL(1)
             for (int cj_rel=0; cj_rel<2; ++cj_rel)
             {
                const int cj = (ci + cj_rel) % 2;
@@ -189,9 +204,11 @@ void BatchedLOR_RT::Assemble2D()
                const int j1_begin = i1;
                const int j1_end = (cj_rel == 0) ? i1 : i1+1;
 
+               MFEM_UNROLL(1)
                for (int j0=j0_begin; j0<=j0_end; ++j0)
                {
                   const int d0 = 1 + j0 - i0;
+                  MFEM_UNROLL(1)
                   for (int j1=j1_begin; j1<=j1_end; ++j1)
                   {
                      const int d1 = j1 - i1;
@@ -249,8 +266,10 @@ void BatchedLOR_RT::Assemble3D()
          {
             MFEM_FOREACH_THREAD(ix,x,op1)
             {
+               MFEM_UNROLL(1)
                for (int c=0; c<dim; ++c)
                {
+                  MFEM_UNROLL(1)
                   for (int j=0; j<nnz_per_row; ++j)
                   {
                      V(j,ix+iy*op1+iz*o*op1,c,iel_ho) = 0.0;
@@ -274,15 +293,19 @@ void BatchedLOR_RT::Assemble3D()
 
                real_t local_mat_[sz_local_mat];
                DeviceTensor<2> local_mat(local_mat_, nf, nf);
+               MFEM_UNROLL(1)
                for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
                real_t vx[8], vy[8], vz[8];
                LORVertexCoordinates3D<ORDER>(X, iel_ho, kx, ky, kz, vx, vy, vz);
 
+               MFEM_UNROLL(1)
                for (int iqz=0; iqz<2; ++iqz)
                {
+                  MFEM_UNROLL(1)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
+                     MFEM_UNROLL(1)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
                         const real_t x = iqx;
@@ -308,15 +331,19 @@ void BatchedLOR_RT::Assemble3D()
                      }
                   }
                }
+               MFEM_UNROLL(1)
                for (int iqz=0; iqz<2; ++iqz)
                {
+                  MFEM_UNROLL(1)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
+                     MFEM_UNROLL(1)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
                         const real_t mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
                         const real_t dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
                         // Loop over x,y,z components. 0 => x, 1 => y, 2 => z
+                        MFEM_UNROLL(1)
                         for (int cj=0; cj<dim; ++cj)
                         {
                            const real_t jq0 = (cj == 0) ? iqx : ((cj == 1) ? iqy : iqz);
@@ -325,6 +352,7 @@ void BatchedLOR_RT::Assemble3D()
                            const int jd_1 = (cj + 1)%3;
                            const int jd_2 = (cj + 2)%3;
 
+                           MFEM_UNROLL(1)
                            for (int bj=0; bj<2; ++bj) // 2 faces in each dim
                            {
                               const real_t div_j = (bj == 0) ? -1 : 1;
@@ -336,6 +364,7 @@ void BatchedLOR_RT::Assemble3D()
 
                               const int jj_loc = bj + 2*cj;
 
+                              MFEM_UNROLL(1)
                               for (int ci=0; ci<dim; ++ci)
                               {
                                  const real_t iq0 = (ci == 0) ? iqx : ((ci == 1) ? iqy : iqz);
@@ -344,6 +373,7 @@ void BatchedLOR_RT::Assemble3D()
                                  const int id_1 = (ci + 1)%3;
                                  const int id_2 = (ci + 2)%3;
 
+                                 MFEM_UNROLL(1)
                                  for (int bi=0; bi<2; ++bi)
                                  {
                                     const real_t div_i = (bi == 0) ? -1 : 1;
@@ -391,6 +421,7 @@ void BatchedLOR_RT::Assemble3D()
                //
                // The nonzeros are then given in "rotated lexicographic"
                // ordering, according to these axes.
+               MFEM_UNROLL(1)
                for (int ii_loc=0; ii_loc<nf; ++ii_loc)
                {
                   const int ci = ii_loc/2;
@@ -414,6 +445,7 @@ void BatchedLOR_RT::Assemble3D()
 
                   const int ii = kx+ii_lex[0] + (ky+ii_lex[1])*nx + (kz+ii_lex[2])*nx*ny;
 
+                  MFEM_UNROLL(1)
                   for (int jj_loc=0; jj_loc<nf; ++jj_loc)
                   {
                      const int cj = jj_loc/2;
@@ -455,6 +487,7 @@ void BatchedLOR_RT::Assemble3D()
    sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
    auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
+   MFEM_UNROLL(1)
    for (int ci=0; ci<dim; ++ci)
    {
       const int i_off = ci*o*o*op1;
@@ -465,10 +498,13 @@ void BatchedLOR_RT::Assemble3D()
       const int nxi = (ci == 0) ? op1 : o;
       const int nyi = (ci == 1) ? op1 : o;
 
+      MFEM_UNROLL(1)
       for (int i0=0; i0<op1; ++i0)
       {
+         MFEM_UNROLL(1)
          for (int i1=0; i1<o; ++i1)
          {
+            MFEM_UNROLL(1)
             for (int i2=0; i2<o; ++i2)
             {
                int ii_lex[3];
@@ -477,6 +513,7 @@ void BatchedLOR_RT::Assemble3D()
                ii_lex[id2] = i2;
                const int ii_el = i_off + ii_lex[0] + ii_lex[1]*nxi + ii_lex[2]*nxi*nyi;
 
+               MFEM_UNROLL(1)
                for (int cj_rel=0; cj_rel<dim; ++cj_rel)
                {
                   const int cj = (ci + cj_rel) % 3;
@@ -494,12 +531,15 @@ void BatchedLOR_RT::Assemble3D()
                   const int j2_begin = i2;
                   const int j2_end = (cj_rel == 2) ? i2+1 : i2;
 
+                  MFEM_UNROLL(1)
                   for (int j0=j0_begin; j0<=j0_end; ++j0)
                   {
                      const int d0 = 1 + j0 - i0;
+                     MFEM_UNROLL(1)
                      for (int j1=j1_begin; j1<=j1_end; ++j1)
                      {
                         const int d1 = j1 - i1;
+                        MFEM_UNROLL(1)
                         for (int j2=j2_begin; j2<=j2_end; ++j2)
                         {
                            const int d2 = j2 - i2;
