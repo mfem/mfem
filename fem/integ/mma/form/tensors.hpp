@@ -18,6 +18,7 @@
       - Eval×Eval: host dense + device shell (TensorEvalApply / *Device; DIM-templated)
       - Grad×Grad: host multi-RHS tiles + device shell (TensorGradApply / *Device)
       - form::ApplyTensor<QFn, …> (SFINAE; Grad / H(curl) mass+curl / H(div) mass+div)
+      - form::gem: dense element GEMM for tensor Mass and Diffusion
       - H(curl)/H(div) smem InterpAx/Grad* shells
       - 2D/3D: outer entries unified; Tile/Element/Ws stay dim-specific
 
@@ -26,7 +27,10 @@
 
 #include "../mma.hpp"
 #include "fields.hpp"
+#include "simplex.hpp"
 #include "../../../../general/array.hpp"
+#include "../../../../general/device.hpp"
+#include "../../../../general/forall.hpp"
 #include "../../../../linalg/vector.hpp"
 #include "../../../../linalg/tensor.hpp"
 #include <algorithm>
@@ -2860,6 +2864,500 @@ ApplyTensor(const int NE,
    TensorDivDivApplyDevice<QFn, DIM, D1D, Q1D>(
       NE, bo, gc, bot, gct, d, x, y, d1d, q1d);
 }
+
+
+namespace gem
+{
+
+constexpr int TensorGemPow(int base, int exp)
+{
+   int r = 1;
+   for (int i = 0; i < exp; ++i) { r *= base; }
+   return r;
+}
+
+inline void BuildTensorGemMassBasis(const int dim, const int D1D, const int Q1D,
+                                    const real_t *B, real_t *P)
+{
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   if (dim == 2)
+   {
+      const int nq = Q1D * Q1D;
+      for (int iy = 0; iy < D1D; ++iy)
+      {
+         for (int ix = 0; ix < D1D; ++ix)
+         {
+            const int i = ix + D1D * iy;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               const real_t by = B[qy + Q1D * iy];
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const int q = qx + Q1D * qy;
+                  P[q + nq * i] = B[qx + Q1D * ix] * by;
+               }
+            }
+         }
+      }
+      return;
+   }
+   const int nq = Q1D * Q1D * Q1D;
+   for (int iz = 0; iz < D1D; ++iz)
+   {
+      for (int iy = 0; iy < D1D; ++iy)
+      {
+         for (int ix = 0; ix < D1D; ++ix)
+         {
+            const int i = ix + D1D * (iy + D1D * iz);
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const real_t bz = B[qz + Q1D * iz];
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const real_t by = B[qy + Q1D * iy];
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const int q = qx + Q1D * (qy + Q1D * qz);
+                     P[q + nq * i] = B[qx + Q1D * ix] * by * bz;
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+inline void BuildTensorGemGradBasis(const int dim, const int D1D, const int Q1D,
+                                    const real_t *B, const real_t *G, real_t *Grad)
+{
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   if (dim == 2)
+   {
+      const int nq = Q1D * Q1D;
+      const int ndof = D1D * D1D;
+      real_t *Gx = Grad;
+      real_t *Gy = Grad + nq * ndof;
+      for (int iy = 0; iy < D1D; ++iy)
+      {
+         for (int ix = 0; ix < D1D; ++ix)
+         {
+            const int i = ix + D1D * iy;
+            for (int qy = 0; qy < Q1D; ++qy)
+            {
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  const int q = qx + Q1D * qy;
+                  const real_t bqx = B[qx + Q1D * ix];
+                  const real_t bqy = B[qy + Q1D * iy];
+                  const real_t gqx = G[qx + Q1D * ix];
+                  const real_t gqy = G[qy + Q1D * iy];
+                  Gx[q + nq * i] = gqx * bqy;
+                  Gy[q + nq * i] = bqx * gqy;
+               }
+            }
+         }
+      }
+      return;
+   }
+   const int nq = Q1D * Q1D * Q1D;
+   const int ndof = D1D * D1D * D1D;
+   real_t *Gx = Grad;
+   real_t *Gy = Grad + nq * ndof;
+   real_t *Gz = Grad + 2 * nq * ndof;
+   for (int iz = 0; iz < D1D; ++iz)
+   {
+      for (int iy = 0; iy < D1D; ++iy)
+      {
+         for (int ix = 0; ix < D1D; ++ix)
+         {
+            const int i = ix + D1D * (iy + D1D * iz);
+            for (int qz = 0; qz < Q1D; ++qz)
+            {
+               const real_t bqz = B[qz + Q1D * iz];
+               const real_t gqz = G[qz + Q1D * iz];
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  const real_t bqy = B[qy + Q1D * iy];
+                  const real_t gqy = G[qy + Q1D * iy];
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     const int q = qx + Q1D * (qy + Q1D * qz);
+                     const real_t bqx = B[qx + Q1D * ix];
+                     const real_t gqx = G[qx + Q1D * ix];
+                     Gx[q + nq * i] = gqx * bqy * bqz;
+                     Gy[q + nq * i] = bqx * gqy * bqz;
+                     Gz[q + nq * i] = bqx * bqy * gqz;
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+#if defined(MFEM_USE_HIP)
+constexpr int TensorGemHipSmemFloats =
+   mma::SharedMemBytesPerBlock / int(sizeof(real_t));
+#endif
+
+struct TensorGemBatch
+{
+   int x_ld, u_ld, nb, tq, smem_floats;
+   bool qtile;
+};
+
+constexpr int TensorGemCapNb(int nb)
+{
+   const int cap = mma::NBATCH;
+   if (nb > cap) { return cap; }
+   return nb > 0 ? nb : 1;
+}
+
+constexpr int TensorGemBytes(int x_ld, int u_ld, int nplanes, int nb)
+{
+   return int(sizeof(real_t)) * (x_ld + nplanes * u_ld) * nb;
+}
+
+constexpr int TensorGemFitNb(int nb, int x_ld, int u_ld, int nplanes,
+                             int bytes_cap)
+{
+   nb = TensorGemCapNb(nb);
+   while (nb > mma::mmaN &&
+          TensorGemBytes(x_ld, u_ld, nplanes, nb) > bytes_cap)
+   {
+      nb -= mma::mmaN;
+   }
+   while (nb > 1 && TensorGemBytes(x_ld, u_ld, nplanes, nb) > bytes_cap)
+   {
+      --nb;
+   }
+   return nb;
+}
+
+constexpr int TensorGemQTile(int dim, int ndof, int nq, int nb, int bytes_cap)
+{
+   const int x_ld = mma::PadLdBankRuntime(ndof);
+   const int step = mma::mmaM;
+   int best = (nq < step) ? nq : step;
+   for (int tq = step; tq <= nq; tq += step)
+   {
+      const int u_ld = mma::PadLdBankRuntime(tq);
+      if (TensorGemBytes(x_ld, u_ld, dim, nb) > bytes_cap) { break; }
+      best = tq;
+   }
+   return best > 0 ? best : 1;
+}
+
+inline int TensorGemThreads(int m, int k, int cap)
+{
+   int nthreads = mma::LaunchNthreads(m, k);
+   if (nthreads > cap) { nthreads = cap; }
+   if (nthreads < mma::WarpSize) { nthreads = mma::WarpSize; }
+   return nthreads;
+}
+
+/** Mass: one U plane, full quadrature, NB from the 128KB (CUDA) budget. */
+constexpr TensorGemBatch TensorGemMassBatch(int ndof, int nq)
+{
+   const int bytes = mma::SharedMemBytesPerBlock;
+   const int x_ld = mma::PadLdBankRuntime(ndof);
+   const int u_ld = mma::PadLdBankRuntime(nq);
+   int nb = TensorGemFitNb(mma::MassLikeNBAtRuntime(ndof, nq, bytes),
+                           x_ld, u_ld, 1, bytes);
+   const int floats = TensorGemBytes(x_ld, u_ld, 1, nb) / int(sizeof(real_t));
+   return {x_ld, u_ld, nb, nq, floats, false};
+}
+
+/** Diffusion: full NQ when NB >= mmaN fits in the device smem budget.
+    Otherwise a quadrature tile (Gemm3), same idea as GradQTileGemm. */
+constexpr TensorGemBatch TensorGemGradBatch(int dim, int ndof, int nq)
+{
+   const int bytes = mma::SharedMemBytesPerBlock;
+   const int x_ld = mma::PadLdBankRuntime(ndof);
+   const int u_full = mma::PadLdBankRuntime(nq);
+   int nb = TensorGemFitNb(
+               mma::BatchNBFullNqAtRuntime(ndof, nq, dim, bytes),
+               x_ld, u_full, dim, bytes);
+   if (nb >= mma::mmaN &&
+       TensorGemBytes(x_ld, u_full, dim, nb) <= bytes)
+   {
+      const int floats =
+         TensorGemBytes(x_ld, u_full, dim, nb) / int(sizeof(real_t));
+      return {x_ld, u_full, nb, nq, floats, false};
+   }
+
+   const int try_nb[3] = {mma::NBATCH, mma::mmaN, 1};
+   for (int i = 0; i < 3; ++i)
+   {
+      const int nb_try = TensorGemCapNb(try_nb[i]);
+      const int tq = TensorGemQTile(dim, ndof, nq, nb_try, bytes);
+      const int u_ld = mma::PadLdBankRuntime(tq);
+      if (TensorGemBytes(x_ld, u_ld, dim, nb_try) <= bytes)
+      {
+         const int floats =
+            TensorGemBytes(x_ld, u_ld, dim, nb_try) / int(sizeof(real_t));
+         return {x_ld, u_ld, nb_try, tq, floats, true};
+      }
+   }
+   const int u_ld = mma::PadLdBankRuntime(1);
+   const int floats = TensorGemBytes(x_ld, u_ld, dim, 1) / int(sizeof(real_t));
+   return {x_ld, u_ld, 1, 1, floats, true};
+}
+
+template <typename QFn, int NQ = 0, int NDOF = 0>
+struct TensorGemEvalKernel
+{
+   int NE, nq, ndof, x_ld, u_ld, nb;
+   const real_t *P;
+   const real_t *D;
+   const real_t *X;
+   real_t *Y;
+
+   MFEM_HOST_DEVICE void operator()(int batch) const
+   {
+#if defined(__CUDA_ARCH__)
+      real_t *sm = reinterpret_cast<real_t *>(mma::SimplexMmaDynSmem());
+#elif defined(__HIP_DEVICE_COMPILE__)
+      MFEM_SHARED real_t store[TensorGemHipSmemFloats];
+      real_t *sm = store;
+#else
+      real_t *sm = nullptr;
+#endif
+      MFEM_CONTRACT_VAR(sm);
+      if constexpr (mma::DeviceGemmEnabled())
+      {
+         real_t *XY = sm;
+         real_t *Us = sm + static_cast<size_t>(x_ld) * nb;
+         if constexpr (NQ > 0 && NDOF > 0)
+         {
+            EvalBatchBody<QFn, mma::MmaMapDefault>(
+               QFn{}, batch * nb, NE, NQ, NDOF, x_ld, u_ld, nb,
+               P, D, X, Y, XY, Us,
+               mma::getThreadIdx(), mma::getBlockNthreads());
+         }
+         else
+         {
+            EvalBatchBody<QFn, mma::MmaMapDefault>(
+               QFn{}, batch * nb, NE, nq, ndof, x_ld, u_ld, nb,
+               P, D, X, Y, XY, Us,
+               mma::getThreadIdx(), mma::getBlockNthreads());
+         }
+      }
+   }
+};
+
+template <typename QFn, int DIM, bool QTILE, int NQ = 0, int NDOF = 0>
+struct TensorGemGradKernel
+{
+   using Tr = qfn_traits<QFn>;
+   static constexpr bool SYM = Tr::symmetric_pa;
+   static constexpr int PA = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+
+   int NE, nq, ndof, x_ld, u_ld, nb, tq;
+   const real_t *G;
+   const real_t *Dv;
+   const real_t *X;
+   real_t *Y;
+
+   MFEM_HOST_DEVICE void operator()(int batch) const
+   {
+#if defined(__CUDA_ARCH__)
+      real_t *sm = reinterpret_cast<real_t *>(mma::SimplexMmaDynSmem());
+#elif defined(__HIP_DEVICE_COMPILE__)
+      MFEM_SHARED real_t store[TensorGemHipSmemFloats];
+      real_t *sm = store;
+#else
+      real_t *sm = nullptr;
+#endif
+      MFEM_CONTRACT_VAR(sm);
+      if constexpr (mma::DeviceGemmEnabled())
+      {
+         real_t *XY = sm;
+         real_t *UV = sm + static_cast<size_t>(x_ld) * nb;
+         const int e0 = batch * nb;
+         const int tid = mma::getThreadIdx();
+         const int nthreads = mma::getBlockNthreads();
+         if constexpr (NQ > 0 && NDOF > 0)
+         {
+            const auto D = Reshape(Dv, NQ, PA, NE);
+            const auto Xm = ConstDeviceMatrix(X, NDOF, NE);
+            if constexpr (QTILE)
+            {
+               GradQTileGemmRuntime<QFn, DIM, SYM>(
+                  QFn{}, XY, UV, D, G, Y, Xm, e0, NE, NQ, NDOF, tq,
+                  x_ld, u_ld, nb, tid, nthreads);
+            }
+            else
+            {
+               GradFullNqGemm<DIM, SYM, mma::MmaMapDefault>(
+                  QFn{}, XY, UV, D, G, Y, Xm, e0, NE, NQ, NDOF,
+                  x_ld, u_ld, nb, tid, nthreads);
+            }
+         }
+         else
+         {
+            const auto D = Reshape(Dv, nq, PA, NE);
+            const auto Xm = ConstDeviceMatrix(X, ndof, NE);
+            if constexpr (QTILE)
+            {
+               GradQTileGemmRuntime<QFn, DIM, SYM>(
+                  QFn{}, XY, UV, D, G, Y, Xm, e0, NE, nq, ndof, tq,
+                  x_ld, u_ld, nb, tid, nthreads);
+            }
+            else
+            {
+               GradFullNqGemm<DIM, SYM, mma::MmaMapDefault>(
+                  QFn{}, XY, UV, D, G, Y, Xm, e0, NE, nq, ndof,
+                  x_ld, u_ld, nb, tid, nthreads);
+            }
+         }
+      }
+   }
+};
+
+template <typename Kernel>
+inline void LaunchTensorGem(const int nbatches, const int nthreads,
+                            const int bytes, Kernel body)
+{
+#if defined(MFEM_USE_HIP)
+   MFEM_VERIFY(bytes <= TensorGemHipSmemFloats * int(sizeof(real_t)),
+               "tensor GEM scratch exceeds static smem");
+#endif
+   mma::VerifySharedMemBytes(bytes);
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, bytes, body);
+}
+
+template <typename QFn, int NQ = 0, int NDOF = 0>
+inline void ApplyTensorGemEval(const int NE, const int nq, const int ndof,
+                               const Array<real_t> &basis,
+                               const Vector &d, const Vector &x, Vector &y)
+{
+   MFEM_VERIFY(NE > 0 && nq > 0 && ndof > 0, "");
+   MFEM_VERIFY(basis.Size() == nq * ndof, "");
+   MFEM_VERIFY(d.Size() == nq * NE, "");
+   MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
+   if constexpr (NQ > 0 && NDOF > 0)
+   {
+      MFEM_VERIFY(nq == NQ && ndof == NDOF, "");
+   }
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      HostScalarEvalApply(QFn{}, NE, nq, ndof,
+                          basis.Read(), d.Read(), x.Read(), y.ReadWrite());
+      return;
+   }
+
+   const auto P = basis.Read();
+   const auto D = d.Read();
+   const auto X = x.Read();
+   auto Y = y.ReadWrite();
+   if constexpr (NQ > 0 && NDOF > 0)
+   {
+      constexpr TensorGemBatch plan = TensorGemMassBatch(NDOF, NQ);
+      const int bytes = plan.smem_floats * int(sizeof(real_t));
+      const int nbatches = (NE + plan.nb - 1) / plan.nb;
+      TensorGemEvalKernel<QFn, NQ, NDOF> body
+      {
+         NE, NQ, NDOF, plan.x_ld, plan.u_ld, plan.nb, P, D, X, Y};
+      LaunchTensorGem(nbatches, TensorGemThreads(NQ, NDOF, 1024), bytes, body);
+   }
+   else
+   {
+      const TensorGemBatch plan = TensorGemMassBatch(ndof, nq);
+      const int bytes = plan.smem_floats * int(sizeof(real_t));
+      const int nbatches = (NE + plan.nb - 1) / plan.nb;
+      TensorGemEvalKernel<QFn> body
+      {
+         NE, nq, ndof, plan.x_ld, plan.u_ld, plan.nb, P, D, X, Y};
+      LaunchTensorGem(nbatches, TensorGemThreads(nq, ndof, 1024), bytes, body);
+   }
+}
+
+template <typename QFn, int DIM, int NQ = 0, int NDOF = 0>
+inline void ApplyTensorGemGrad(const int NE, const int nq, const int ndof,
+                               const Array<real_t> &basis,
+                               const Vector &d, const Vector &x, Vector &y)
+{
+   using Tr = qfn_traits<QFn>;
+   constexpr int PA = Tr::symmetric_pa ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   MFEM_VERIFY(NE > 0 && nq > 0 && ndof > 0, "");
+   MFEM_VERIFY(basis.Size() == DIM * nq * ndof, "");
+   MFEM_VERIFY(d.Size() == PA * nq * NE, "");
+   MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
+   if constexpr (NQ > 0 && NDOF > 0)
+   {
+      MFEM_VERIFY(nq == NQ && ndof == NDOF, "");
+   }
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      const real_t *Dv = d.Read();
+      QFn qfn{};
+      HostPlaneEvalApply<DIM>(
+         NE, nq, ndof, basis.Read(), x.Read(), y.ReadWrite(),
+         [qfn, Dv, nq, NE](const real_t *u, real_t *v, int q, int e)
+      {
+         HostApplyPlaneQFn<QFn, DIM>(qfn, Dv, nq, NE, q, e, u, v);
+      });
+      return;
+   }
+
+   const auto G = basis.Read();
+   const auto D = d.Read();
+   const auto X = x.Read();
+   auto Y = y.ReadWrite();
+   if constexpr (NQ > 0 && NDOF > 0)
+   {
+      constexpr TensorGemBatch plan = TensorGemGradBatch(DIM, NDOF, NQ);
+      const int bytes = plan.smem_floats * int(sizeof(real_t));
+      const int nbatches = (NE + plan.nb - 1) / plan.nb;
+      const int gem_m = plan.qtile ? plan.tq : NQ;
+      const int nthreads = TensorGemThreads(gem_m, NDOF, 1024);
+      if constexpr (plan.qtile)
+      {
+         TensorGemGradKernel<QFn, DIM, true, NQ, NDOF> body
+         {
+            NE, NQ, NDOF, plan.x_ld, plan.u_ld, plan.nb, plan.tq,
+            G, D, X, Y};
+         LaunchTensorGem(nbatches, nthreads, bytes, body);
+      }
+      else
+      {
+         TensorGemGradKernel<QFn, DIM, false, NQ, NDOF> body
+         {
+            NE, NQ, NDOF, plan.x_ld, plan.u_ld, plan.nb, plan.tq,
+            G, D, X, Y};
+         LaunchTensorGem(nbatches, nthreads, bytes, body);
+      }
+   }
+   else
+   {
+      const TensorGemBatch plan = TensorGemGradBatch(DIM, ndof, nq);
+      const int bytes = plan.smem_floats * int(sizeof(real_t));
+      const int nbatches = (NE + plan.nb - 1) / plan.nb;
+      const int gem_m = plan.qtile ? plan.tq : nq;
+      const int nthreads = TensorGemThreads(gem_m, ndof, 1024);
+      if (plan.qtile)
+      {
+         TensorGemGradKernel<QFn, DIM, true> body
+         {
+            NE, nq, ndof, plan.x_ld, plan.u_ld, plan.nb, plan.tq,
+            G, D, X, Y};
+         LaunchTensorGem(nbatches, nthreads, bytes, body);
+      }
+      else
+      {
+         TensorGemGradKernel<QFn, DIM, false> body
+         {
+            NE, nq, ndof, plan.x_ld, plan.u_ld, plan.nb, plan.tq,
+            G, D, X, Y};
+         LaunchTensorGem(nbatches, nthreads, bytes, body);
+      }
+   }
+}
+
+} // namespace gem
 
 } // namespace mfem::internal::mma::form
 

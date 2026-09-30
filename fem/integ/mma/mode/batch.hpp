@@ -152,8 +152,8 @@ constexpr int BatchNB()
 
 /** Runtime full-NQ batch NB under a byte cap.
     @param n_u_planes  U planes in smem (typically dim for Grad). */
-inline int BatchNBFullNqAtRuntime(int ndof, int nq, int n_u_planes,
-                                  int bytes_cap)
+constexpr int BatchNBFullNqAtRuntime(int ndof, int nq, int n_u_planes,
+                                     int bytes_cap)
 {
    const int x_ld = PadLdBankRuntime(ndof);
    const int u_ld = PadLdBankRuntime(nq);

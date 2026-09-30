@@ -113,14 +113,14 @@ void VectorMassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    nq = ir.GetNPoints();
    quad1D = 0;
    ne = mesh->GetNE();
-   use_simplices_mma = true;
-   use_tensors_mma = false;
+   use_simplex_mma = true;
+   use_tensors_mma_sum = false;
    maps = nullptr;
    geom = nullptr;
 
-   simplex_mma_P.SetSize(nq * ndof, mt);
+   mma_P.SetSize(nq * ndof, mt);
    {
-      real_t *Ph = simplex_mma_P.HostWrite();
+      real_t *Ph = mma_P.HostWrite();
       Vector shape_ref(ndof);
       for (int q = 0; q < nq; q++)
       {
@@ -192,7 +192,7 @@ VectorMassIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 void VectorMassIntegrator::RegisterTensorsMmaKernels()
 {
    // Shared tensor list (p = 3..7) — see form/register.hpp.
-   internal::mma::RegisterTensorsMmaSpecializations<VectorMassIntegrator>();
+   internal::mma::RegisterTensorsMmaSumSpecializations<VectorMassIntegrator>();
 }
 
 VectorMassIntegrator::ApplyTensorsMmaKernelType

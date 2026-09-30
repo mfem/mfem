@@ -76,6 +76,27 @@ inline void MmaMassApplyTensors3D(
    MmaMassApplyTensors<3, 0, 0>(NE, b, bt, d, x, y, d1d, q1d);
 }
 
+template <int DIM, int T_D1D, int T_Q1D>
+inline void MmaGemMassApplyTensors(const int NE, const Array<real_t> &P,
+                                   const Vector &d, const Vector &x, Vector &y)
+{
+   using mma::form::Mass;
+   using mma::form::gem::ApplyTensorGemEval;
+   using mma::form::gem::TensorGemPow;
+   if constexpr (T_D1D > 0 && T_Q1D > 0)
+   {
+      constexpr int nq = TensorGemPow(T_Q1D, DIM);
+      constexpr int ndof = TensorGemPow(T_D1D, DIM);
+      ApplyTensorGemEval<Mass, nq, ndof>(NE, nq, ndof, P, d, x, y);
+   }
+   else
+   {
+      const int nq = d.Size() / NE;
+      const int ndof = P.Size() / nq;
+      ApplyTensorGemEval<Mass>(NE, nq, ndof, P, d, x, y);
+   }
+}
+
 template <int DIM, int D1D, int QND>
 inline void MmaVectorMassApplySimplex(
    const int NE, const int vdim,
@@ -142,7 +163,7 @@ inline void MmaVectorMassApplyTensors3D(
 
 template<int DIM, int D1D, int QND>
 MassIntegrator::ApplySimplexMmaKernelType
-MassIntegrator::ApplySimplexMmaPAKernels::Kernel()
+MassIntegrator::ApplySimplexMmaGemPAKernels::Kernel()
 {
    using internal::mma::form::ApplySimplex;
    using internal::mma::form::Mass;
@@ -162,7 +183,7 @@ MassIntegrator::ApplySimplexMmaPAKernels::Kernel()
 }
 
 inline MassIntegrator::ApplySimplexMmaKernelType
-MassIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
+MassIntegrator::ApplySimplexMmaGemPAKernels::Fallback(int dim, int, int)
 {
    using internal::mma::form::ApplySimplex;
    using internal::mma::form::Mass;
@@ -176,9 +197,28 @@ MassIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
    return static_cast<Fn>(ApplySimplex<Mass, 3>);
 }
 
+template<int DIM, int T_D1D, int T_Q1D>
+MassIntegrator::ApplySimplexMmaKernelType
+MassIntegrator::ApplyTensorsMmaGemPAKernels::Kernel()
+{
+   return internal::MmaGemMassApplyTensors<DIM, T_D1D, T_Q1D>;
+}
+
+inline MassIntegrator::ApplySimplexMmaKernelType
+MassIntegrator::ApplyTensorsMmaGemPAKernels::Fallback(int dim, int, int)
+{
+   using Fn = ApplySimplexMmaKernelType;
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   if (dim == 2)
+   {
+      return static_cast<Fn>(internal::MmaGemMassApplyTensors<2, 0, 0>);
+   }
+   return static_cast<Fn>(internal::MmaGemMassApplyTensors<3, 0, 0>);
+}
+
 template <int DIM, int T_D1D, int T_Q1D>
 MassIntegrator::ApplyTensorsMmaKernelType
-MassIntegrator::ApplyTensorsMmaPAKernels::Kernel()
+MassIntegrator::ApplyTensorsMmaSumPAKernels::Kernel()
 {
    return internal::MmaMassApplyTensors<DIM, T_D1D, T_Q1D>;
 }

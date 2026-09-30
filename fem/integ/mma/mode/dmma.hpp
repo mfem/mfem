@@ -161,6 +161,122 @@ MFEM_HOST_DEVICE inline void GemmT8(const int M, const int K, const int N,
    }
 }
 
+/** Fused 2-comp forward: U_d = G_d * X (shared X loads). */
+template <int MAP, typename TA0, typename TA1, typename TB,
+          typename TC0, typename TC1>
+MFEM_HOST_DEVICE inline void Gemm8_Fwd2(const int M, const int K,
+                                        const int N,
+                                        TA0 A0, TA1 A1, TB B,
+                                        TC0 C0, TC1 C1)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   const int mPass = (M + mmaM - 1) / mmaM;
+   const int nTiles = (N + mmaN - 1) / mmaN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * mmaM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * mmaN;
+         const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         double c0[2] = {}, c1[2] = {};
+
+         for (int mK = 0; mK < (K + mmaK - 1) / mmaK; mK++)
+         {
+            const int aRow = row0 + groupId;
+            const int aColumn = threadIdInGroup + mK * mmaK;
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MapCol<MAP>(groupId);
+            const double bV = (bRow < K && bColumn < nTile)
+                              ? static_cast<double>(B(bRow, n0 + bColumn))
+                              : 0.0;
+            double aReg[1], bReg[1] = {bV};
+            aReg[0] = (aRow < M && aColumn < K)
+                      ? static_cast<double>(A0(aRow, aColumn)) : 0.0;
+            Sync(aReg, bReg, c0);
+            aReg[0] = (aRow < M && aColumn < K)
+                      ? static_cast<double>(A1(aRow, aColumn)) : 0.0;
+            Sync(aReg, bReg, c1);
+         }
+         MFEM_UNROLL(2)
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = row0 + groupId;
+            const int cColumn = MapCol<MAP>(threadIdInGroup * 2 + i);
+            if (cRow < M && cColumn < nTile)
+            {
+               C0(cRow, n0 + cColumn) = static_cast<real_t>(c0[i]);
+               C1(cRow, n0 + cColumn) = static_cast<real_t>(c1[i]);
+            }
+         }
+      }
+   }
+}
+
+/** Fused 2-comp GemmT: Y += G_d^T * U_d (shared Y accumulate). */
+template <int MAP, typename TA0, typename TA1,
+          typename TB0, typename TB1, typename TC>
+MFEM_HOST_DEVICE inline void GemmT8_2(const int M, const int K,
+                                      const int N,
+                                      TA0 A0, TA1 A1,
+                                      TB0 B0, TB1 B1, TC C,
+                                      const int e0, const int NE)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   const int mPass = (K + mmaM - 1) / mmaM;
+   const int nTiles = (N + mmaN - 1) / mmaN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * mmaM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * mmaN;
+         const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         double cReg[2] = {};
+
+         for (int mK = 0; mK < (M + mmaK - 1) / mmaK; mK++)
+         {
+            const int aT_row = row0 + groupId;
+            const int aT_col = threadIdInGroup + mK * mmaK;
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MapCol<MAP>(groupId);
+            const bool a_ok = (aT_row < K && aT_col < M);
+            const bool b_ok = (bRow < M && bColumn < nTile);
+            double aReg[1], bReg[1];
+            aReg[0] = a_ok ? static_cast<double>(A0(aT_col, aT_row)) : 0.0;
+            bReg[0] = b_ok ? static_cast<double>(B0(bRow, n0 + bColumn)) : 0.0;
+            Sync(aReg, bReg, cReg);
+            aReg[0] = a_ok ? static_cast<double>(A1(aT_col, aT_row)) : 0.0;
+            bReg[0] = b_ok ? static_cast<double>(B1(bRow, n0 + bColumn)) : 0.0;
+            Sync(aReg, bReg, cReg);
+         }
+         MFEM_UNROLL(2)
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = row0 + groupId;
+            const int cColumn = MapCol<MAP>(threadIdInGroup * 2 + i);
+            const int e = e0 + n0 + cColumn;
+            if (cRow < K && cColumn < nTile && e < NE)
+            {
+               C(cRow, n0 + cColumn) += static_cast<real_t>(cReg[i]);
+            }
+         }
+      }
+   }
+}
+
 /** Fused 3-comp forward: U_d = G_d * X (shared X loads). */
 template <int MAP, typename TA0, typename TA1, typename TA2,
           typename TB, typename TC0, typename TC1, typename TC2>

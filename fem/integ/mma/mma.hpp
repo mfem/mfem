@@ -17,7 +17,8 @@
     - Programmatic: ForceMMA(true) / MMAForce RAII
     - Env: MFEM_USE_MMA set and not "0" (see GetForceMMA)
     - UsesSimplexMMA: fixed-order H1/H1Pos tri/tet; Positive only if ForceMMA
-    - UsesTensorMMA: ForceMMA + H1 GLL quad/hex, double, p >= 3
+    - UsesTensorMMA: ForceMMA + H1 GLL quad/hex, double (any order)
+    - ForceGEM: with UsesTensorMMA, Mass/Diffusion use dense element GEMM
 
     ## Host apply tree
     - Tensor: PreferTensorDense → dense sum-fact vs Emulate shell
@@ -68,6 +69,24 @@ public:
    ~MMAForce() { ForceMMA(previous); }
    MMAForce(const MMAForce &) = delete;
    MMAForce &operator=(const MMAForce &) = delete;
+};
+
+/** @brief Dense element GEMM for tensor Mass and Diffusion.
+    Read only at AssemblePA, and only when UsesTensorMMA is also true.
+    Sum-factorized tensor MMA stays the default. H(curl)/H(div) ignore this.
+    @return Previous flag. */
+bool ForceGEM(bool enable = true);
+bool GetForceGEM();
+
+/** @brief RAII: ForceGEM(enable) for this scope, then restore the previous flag. */
+class GEMForce
+{
+   const bool previous;
+public:
+   explicit GEMForce(bool enable) : previous(ForceGEM(enable)) { }
+   ~GEMForce() { ForceGEM(previous); }
+   GEMForce(const GEMForce &) = delete;
+   GEMForce &operator=(const GEMForce &) = delete;
 };
 
 /// \cond DO_NOT_DOCUMENT
@@ -127,12 +146,14 @@ inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
    return dynamic_cast<const H1_HexahedronElement *>(&el) != nullptr;
 }
 
-/** Opt-in sum-factored tensor MMA for fixed-order H1 GLL quad/hex.
+/** Opt-in tensor MMA for fixed-order H1 GLL quad/hex, any order.
+    Default apply is sum-factored. ForceGEM selects dense element GEMM for
+    Mass and Diffusion only.
     GPU: MMA smem shell (Interp/Grad/GemmMbyK + dmma/mfma when TensorMmaEnabled,
     else fine-grained blas::Sumf / blas::GemmMbyK).
     CPU: 1D LAPACK GEMM when profitable (mass), else same MMA shell + dense blas_*.
     Unregistered (D1D,Q1D) Fallback is the runtime MMA shell.
-    Requires ForceMMA / MFEM_USE_MMA; double precision only; p >= 3. */
+    Requires ForceMMA / MFEM_USE_MMA; double precision only. */
 inline bool UsesTensorMMA(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }
@@ -155,9 +176,6 @@ inline bool UsesTensorMMA(const FiniteElementSpace &fes)
       if (el.GetGeomType() != Geometry::CUBE) { return false; }
    }
    if (!IsTensorsMmaH1Element(el, dim)) { return false; }
-   // m8n8k4 pad waste dominates at p=2 (D,Q)=(3,4); use stock SUM there.
-   // Fragment math needs D1D >= 3; require p >= 3 for MMA competitiveness.
-   if (el.GetOrder() < 3) { return false; }
    return true;
 #endif
 }

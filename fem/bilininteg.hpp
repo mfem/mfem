@@ -2270,9 +2270,11 @@ public:
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
                          (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaGemPAKernels, ApplySimplexMmaKernelType,
                          (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaGemPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaSumPAKernels, ApplyTensorsMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2297,10 +2299,13 @@ private:
    int dim, ne, nq, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-   bool use_simplices_mma = false;
-   bool use_tensors_mma = false;
-   /// Dense reference gradients at quads: nq × ndof × dim
-   Array<real_t> simplex_mma_G;
+   bool use_simplex_mma = false;
+   bool use_tensors_mma_sum = false;
+   /// Dense lex GEMM (tensor Mass/Diffusion). Mutually exclusive with sum-fact.
+   bool use_tensors_mma_gem = false;
+   /// Dense reference gradients at quads: nq × ndof × dim.
+   /// Simplex MMA, or tensor GEM planes (component-major).
+   Array<real_t> mma_G;
 
    // Data for NURBS patch PA
 
@@ -2460,16 +2465,25 @@ public:
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,QND>::Add();
+         ApplySimplexMmaGemPAKernels::Specialization<DIM,D1D,QND>::Add();
       }
    }
 
    template <int DIM, int D1D, int Q1D>
-   static void AddTensorsMmaSpecialization()
+   static void AddTensorsMmaSumSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplyTensorsMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+         ApplyTensorsMmaSumPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorsMmaGemSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplyTensorsMmaGemPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 
@@ -2501,10 +2515,12 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   bool use_simplices_mma = false;
-   bool use_tensors_mma = false;
-   /// Dense basis evaluation at quadrature points (nq × ndof).
-   Array<real_t> simplex_mma_P;
+   bool use_simplex_mma = false;
+   bool use_tensors_mma_sum = false;
+   bool use_tensors_mma_gem = false;
+   /// Dense basis at quadrature points (nq × ndof).
+   /// Simplex MMA, or tensor GEM lex Kronecker of the 1D basis.
+   Array<real_t> mma_P;
 
    void AssembleEA_(Vector &ea, const bool add);
 
@@ -2534,9 +2550,11 @@ public:
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
                          (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaGemPAKernels, ApplySimplexMmaKernelType,
                          (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaGemPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaSumPAKernels, ApplyTensorsMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2616,16 +2634,25 @@ public:
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,QND>::Add();
+         ApplySimplexMmaGemPAKernels::Specialization<DIM,D1D,QND>::Add();
       }
    }
 
    template <int DIM, int D1D, int Q1D>
-   static void AddTensorsMmaSpecialization()
+   static void AddTensorsMmaSumSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplyTensorsMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+         ApplyTensorsMmaSumPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorsMmaGemSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplyTensorsMmaGemPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 
@@ -2788,11 +2815,9 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int ne, dim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
-   /// Tensor-product MMA form path (scalar / block-diag PA, ForceMMA).
-   bool use_tensors_mma = false;
-   /// Simplex MMA form path (tri/tet, scalar / block-diag PA).
-   bool use_simplices_mma = false;
-   Array<real_t> simplex_mma_P;
+   bool use_tensors_mma_sum = false;
+   bool use_simplex_mma = false;
+   Array<real_t> mma_P;
 
 public:
    /// Construct an integrator with coefficient 1.0
@@ -2855,7 +2880,7 @@ public:
                          (int, int, int));
 
    template <int DIM, int D1D, int Q1D>
-   static void AddTensorsMmaSpecialization()
+   static void AddTensorsMmaSumSpecialization()
    {
       ApplyTensorsMmaPAKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
@@ -3053,8 +3078,8 @@ protected:
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-   bool use_tensors_mma = false;
-   bool use_simplices_mma = false;
+   bool use_tensors_mma_sum = false;
+   bool use_simplex_mma = false;
    Array<real_t> simplex_B; ///< Dense ref curl (or value) basis at Q
    int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
    const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
@@ -3221,8 +3246,8 @@ protected:
    int dim, ne, nq, dofs1D, dofs1Dtest, quad1D;
    FiniteElement::DerivType trial_fetype, test_fetype;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-   bool use_tensors_mma = false;
-   bool use_simplices_mma = false;
+   bool use_tensors_mma_sum = false;
+   bool use_simplex_mma = false;
    Array<real_t> simplex_B; ///< Dense ref vector basis at Q
    int simplex_nd = 0, simplex_sdim = 0, simplex_curl_dim = 0;
    const FiniteElementSpace *simplex_fes = nullptr; ///< Not owned
@@ -3378,8 +3403,8 @@ private:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq = 0, dofs1D, quad1D;
-   bool use_tensors_mma = false;
-   bool use_simplices_mma = false;
+   bool use_tensors_mma_sum = false;
+   bool use_simplex_mma = false;
    Array<real_t> simplex_B; ///< Dense ref div basis at Q
    int simplex_nd = 0, simplex_nq = 0, simplex_sdim = 0, simplex_curl_dim = 0;
 
@@ -3437,11 +3462,9 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int ne, dim, sdim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
-   /// Tensor-product MMA form path (scalar / block-diag PA, ForceMMA).
-   bool use_tensors_mma = false;
-   /// Simplex MMA form path (tri/tet, scalar / block-diag PA).
-   bool use_simplices_mma = false;
-   Array<real_t> simplex_mma_G;
+   bool use_tensors_mma_sum = false;
+   bool use_simplex_mma = false;
+   Array<real_t> mma_G;
 
 public:
    VectorDiffusionIntegrator(const IntegrationRule *ir = nullptr);
@@ -3533,7 +3556,7 @@ public:
                          (int, int, int));
 
    template <int DIM, int D1D, int Q1D>
-   static void AddTensorsMmaSpecialization()
+   static void AddTensorsMmaSumSpecialization()
    {
       ApplyTensorsMmaPAKernels::Specialization<DIM, D1D, Q1D>::Add();
    }

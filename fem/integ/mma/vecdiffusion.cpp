@@ -156,12 +156,12 @@ void VectorDiffusionIntegrator::AssembleSimplexMmaPA(
    dofs1D = p + 1;
    quad1D = 0;
    ne = mesh->GetNE();
-   use_simplices_mma = true;
-   use_tensors_mma = false;
+   use_simplex_mma = true;
+   use_tensors_mma_sum = false;
 
-   simplex_mma_G.SetSize(nq * dof * dim, mt);
+   mma_G.SetSize(nq * dof * dim, mt);
    {
-      real_t *Gh = simplex_mma_G.HostWrite();
+      real_t *Gh = mma_G.HostWrite();
       dshape.SetSize(dof, dim);
       for (int q = 0; q < nq; q++)
       {
@@ -238,7 +238,7 @@ VectorDiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 void VectorDiffusionIntegrator::RegisterTensorsMmaKernels()
 {
    // Shared tensor list (p = 3..7) — see form/register.hpp.
-   internal::mma::RegisterTensorsMmaSpecializations<VectorDiffusionIntegrator>();
+   internal::mma::RegisterTensorsMmaSumSpecializations<VectorDiffusionIntegrator>();
 }
 
 VectorDiffusionIntegrator::ApplyTensorsMmaKernelType
