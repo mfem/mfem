@@ -29,7 +29,7 @@ constexpr char nurbs_hdf5_group[] = "/MFEM/NURBS";
 constexpr int nurbs_hdf5_schema_version[] = {1, 0};
 
 /// Values stored in the NURBS HDF5 `token_types` dataset.
-enum class NURBSHDF5TokenType : uint8_t
+enum class HDF5TokenType : uint8_t
 {
    String  = 0,
    Integer = 1,
@@ -58,9 +58,9 @@ void CheckHDF5(herr_t status, const char *operation)
 }
 
 template <typename T>
-void WriteNURBSHDF5Vector(hid_t group, const char *name,
-                          const std::vector<T> &values, hid_t file_type,
-                          hid_t memory_type, int compression_level)
+void WriteHDF5Vector(hid_t group, const char *name,
+                     const std::vector<T> &values, hid_t file_type,
+                     hid_t memory_type, int compression_level)
 {
    const hsize_t size = values.size();
    HDF5Handle space(size ? H5Screate_simple(1, &size, NULL) :
@@ -95,8 +95,8 @@ void WriteNURBSHDF5Vector(hid_t group, const char *name,
 }
 
 template <typename T>
-std::vector<T> ReadNURBSHDF5Vector(hid_t group, const char *name,
-                                   hid_t memory_type)
+std::vector<T> ReadHDF5Vector(hid_t group, const char *name,
+                              hid_t memory_type)
 {
    HDF5Handle dataset(H5Dopen2(group, name, H5P_DEFAULT), H5Dclose);
    MFEM_VERIFY(hid_t(dataset) >= 0, "Missing HDF5 dataset " << name);
@@ -177,7 +177,7 @@ std::string ReadNativeNURBSHDF5(const std::string &filename)
                "Unsupported MFEM NURBS HDF5 schema version "
                << schema_version[0] << '.' << schema_version[1]);
 
-   const std::vector<uint8_t> format = ReadNURBSHDF5Vector<uint8_t>(
+   const std::vector<uint8_t> format = ReadHDF5Vector<uint8_t>(
                                           group, "format", H5T_NATIVE_UCHAR);
    const std::string header(format.begin(), format.end());
    MFEM_VERIFY(header == "MFEM NURBS mesh v1.0" ||
@@ -185,16 +185,16 @@ std::string ReadNativeNURBSHDF5(const std::string &filename)
                header == "MFEM NURBS NC-patch mesh v1.0",
                "Invalid NURBS mesh format in " << filename);
 
-   const std::vector<NURBSHDF5TokenType> types =
-      ReadNURBSHDF5Vector<NURBSHDF5TokenType>(
+   const std::vector<HDF5TokenType> types =
+      ReadHDF5Vector<HDF5TokenType>(
          group, "token_types", H5T_NATIVE_UCHAR);
-   const std::vector<int64_t> integers = ReadNURBSHDF5Vector<int64_t>(
+   const std::vector<int64_t> integers = ReadHDF5Vector<int64_t>(
                                             group, "integers", H5T_NATIVE_INT64);
-   const std::vector<double> reals = ReadNURBSHDF5Vector<double>(
+   const std::vector<double> reals = ReadHDF5Vector<double>(
                                         group, "reals", H5T_NATIVE_DOUBLE);
-   const std::vector<uint64_t> offsets = ReadNURBSHDF5Vector<uint64_t>(
+   const std::vector<uint64_t> offsets = ReadHDF5Vector<uint64_t>(
                                             group, "string_offsets", H5T_NATIVE_UINT64);
-   const std::vector<uint8_t> strings = ReadNURBSHDF5Vector<uint8_t>(
+   const std::vector<uint8_t> strings = ReadHDF5Vector<uint8_t>(
                                            group, "strings", H5T_NATIVE_UCHAR);
 
    MFEM_VERIFY(!offsets.empty() && offsets[0] == 0 &&
@@ -205,15 +205,15 @@ std::string ReadNativeNURBSHDF5(const std::string &filename)
    bool line_start = true;
    std::ostringstream text;
    text << header << '\n' << std::setprecision(17);
-   for (NURBSHDF5TokenType type : types)
+   for (HDF5TokenType type : types)
    {
       switch (type)
       {
-         case NURBSHDF5TokenType::Newline:
+         case HDF5TokenType::Newline:
             text << '\n';
             line_start = true;
             continue;
-         case NURBSHDF5TokenType::String:
+         case HDF5TokenType::String:
             if (!line_start) { text << ' '; }
             line_start = false;
             MFEM_VERIFY(ns + 1 < offsets.size() &&
@@ -225,14 +225,14 @@ std::string ReadNativeNURBSHDF5(const std::string &filename)
                offsets[ns+1] - offsets[ns]);
             ns++;
             break;
-         case NURBSHDF5TokenType::Integer:
+         case HDF5TokenType::Integer:
             if (!line_start) { text << ' '; }
             line_start = false;
             MFEM_VERIFY(ni < integers.size(),
                         "Invalid integer token stream in " << filename);
             text << integers[ni++];
             break;
-         case NURBSHDF5TokenType::Real:
+         case HDF5TokenType::Real:
             if (!line_start) { text << ' '; }
             line_start = false;
             MFEM_VERIFY(nr < reals.size(),
@@ -274,7 +274,7 @@ void Mesh::SaveNURBSHDF5(const std::string &fname,
                header == "MFEM NURBS NC-patch mesh v1.0",
                "Unsupported native NURBS mesh format: " << header);
 
-   std::vector<NURBSHDF5TokenType> types;
+   std::vector<HDF5TokenType> types;
    std::vector<int64_t> integers;
    std::vector<double> reals;
    std::vector<uint64_t> string_offsets(1, 0);
@@ -292,7 +292,7 @@ void Mesh::SaveNURBSHDF5(const std::string &fname,
          const long long integer = std::strtoll(token.c_str(), &end, 10);
          if (errno == 0 && end == token.c_str() + token.size())
          {
-            types.push_back(NURBSHDF5TokenType::Integer);
+            types.push_back(HDF5TokenType::Integer);
             integers.push_back(static_cast<int64_t>(integer));
             continue;
          }
@@ -301,17 +301,17 @@ void Mesh::SaveNURBSHDF5(const std::string &fname,
          const double real = std::strtod(token.c_str(), &end);
          if (errno == 0 && end == token.c_str() + token.size())
          {
-            types.push_back(NURBSHDF5TokenType::Real);
+            types.push_back(HDF5TokenType::Real);
             reals.push_back(real);
             continue;
          }
 
-         types.push_back(NURBSHDF5TokenType::String);
+         types.push_back(HDF5TokenType::String);
          strings.insert(strings.end(), token.begin(), token.end());
          string_offsets.push_back(strings.size());
       }
       // Preserve line-sensitive GridFunction metadata.
-      types.push_back(NURBSHDF5TokenType::Newline);
+      types.push_back(HDF5TokenType::Newline);
    }
 
    HDF5Handle file(H5Fcreate(fname.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT,
@@ -338,18 +338,18 @@ void Mesh::SaveNURBSHDF5(const std::string &fname,
                       nurbs_hdf5_schema_version), "write schema version");
 
    const std::vector<uint8_t> format(header.begin(), header.end());
-   WriteNURBSHDF5Vector(nurbs_group, "format", format, H5T_STD_U8LE,
-                        H5T_NATIVE_UCHAR, compression_level);
-   WriteNURBSHDF5Vector(nurbs_group, "token_types", types, H5T_STD_U8LE,
-                        H5T_NATIVE_UCHAR, compression_level);
-   WriteNURBSHDF5Vector(nurbs_group, "integers", integers, H5T_STD_I64LE,
-                        H5T_NATIVE_INT64, compression_level);
-   WriteNURBSHDF5Vector(nurbs_group, "reals", reals, H5T_IEEE_F64LE,
-                        H5T_NATIVE_DOUBLE, compression_level);
-   WriteNURBSHDF5Vector(nurbs_group, "string_offsets", string_offsets,
-                        H5T_STD_U64LE, H5T_NATIVE_UINT64, compression_level);
-   WriteNURBSHDF5Vector(nurbs_group, "strings", strings, H5T_STD_U8LE,
-                        H5T_NATIVE_UCHAR, compression_level);
+   WriteHDF5Vector(nurbs_group, "format", format, H5T_STD_U8LE,
+                   H5T_NATIVE_UCHAR, compression_level);
+   WriteHDF5Vector(nurbs_group, "token_types", types, H5T_STD_U8LE,
+                   H5T_NATIVE_UCHAR, compression_level);
+   WriteHDF5Vector(nurbs_group, "integers", integers, H5T_STD_I64LE,
+                   H5T_NATIVE_INT64, compression_level);
+   WriteHDF5Vector(nurbs_group, "reals", reals, H5T_IEEE_F64LE,
+                   H5T_NATIVE_DOUBLE, compression_level);
+   WriteHDF5Vector(nurbs_group, "string_offsets", string_offsets,
+                   H5T_STD_U64LE, H5T_NATIVE_UINT64, compression_level);
+   WriteHDF5Vector(nurbs_group, "strings", strings, H5T_STD_U8LE,
+                   H5T_NATIVE_UCHAR, compression_level);
 }
 
 } // namespace mfem
