@@ -87,8 +87,7 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@.o
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $@.o -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 

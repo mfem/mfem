@@ -47,7 +47,7 @@ static void PrintTimingTable(const double packed_assembly_ms,
    cout << "Summary (times in ms; apply totals use reps=" << reps << ")\n";
    cout << "  Assembly packed EA: " << fixed << setprecision(6)
         << packed_assembly_ms << '\n';
-   cout << "  Assembly full EA (sum-fact): " << fixed << setprecision(6)
+   cout << "  Assembly full EA: " << fixed << setprecision(6)
         << full_assembly_ms << '\n';
    cout << '\n';
 
