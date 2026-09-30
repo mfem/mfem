@@ -13,7 +13,9 @@
 #define MFEM_PARALLEL_DIRECT_SOLVER
 
 #include "mfem.hpp"
-
+#include <functional>
+#include <memory>
+#include <vector>
 
 namespace mfem
 {
@@ -126,6 +128,56 @@ public:
 
    virtual void SetPrintLevel(int print_lvl);
 
+};
+
+
+/**
+ * @class AMGFSchwarzSolver
+ * @brief AMGF whose filtered subspace solver is an AdditiveSchwarz smoother
+ *        with one patch per row of the gap Jacobian, instead of a direct
+ *        solver.
+ *
+ * The patch of row @a i of the gap Jacobian @a J consists of the dofs of the
+ * nonzeros of that row that lie in the filtered subspace defined by the
+ * transfer operator @a P. Each MPI rank owns the patches of its local rows of
+ * @a J.
+ *
+ * The solver is meant to precondition the reduced IP-Newton operator
+ * K + J^T D J with diagonal D, and the patch of row @a i is skipped when
+ * D_i is below a threshold. Since D changes in every IP-Newton iteration, the
+ * patches are rebuilt from the current D in every call to SetOperator().
+ */
+class AMGFSchwarzSolver : public AMGFSolver
+{
+public:
+   /**
+    * @param J Gap Jacobian; only used during construction.
+    * @param P Filtered subspace transfer operator (not owned).
+    * @param get_D_ Fills its argument with the current diagonal of D, whose
+    *               first J.Height() entries correspond to the local rows of
+    *               @a J.
+    * @param D_threshold_ The patch of row @a i is skipped if D_i is below
+    *                     this value.
+    */
+   AMGFSchwarzSolver(const HypreParMatrix &J, const HypreParMatrix &P,
+                     std::function<void(Vector &)> get_D_,
+                     real_t D_threshold_ = 0.0);
+
+   /// Set the operator, and rebuild the Schwarz patches from the current D.
+   void SetOperator(const Operator &op) override;
+
+   /// Global number of Schwarz patches used after each SetOperator() call.
+   Array<HYPRE_BigInt> & GetNumPatches() { return num_patches; }
+
+private:
+   MPI_Comm comm;
+   /// Global subspace dofs of the nonzeros of each local row of J.
+   std::vector<Array<HYPRE_BigInt>> row_patches;
+   std::function<void(Vector &)> get_D;
+   real_t D_threshold;
+   /// Subspace solver, rebuilt in every SetOperator() call.
+   std::unique_ptr<AdditiveSchwarz> schwarz;
+   Array<HYPRE_BigInt> num_patches;
 };
 
 
