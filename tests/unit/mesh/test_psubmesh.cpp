@@ -1202,7 +1202,7 @@ TEST_CASE("ParSubMesh Rotated Shared Face Orientation", "[Parallel],[SubMesh]")
    }
 
    Mesh serial_mesh = Mesh::MakeCartesian3D(4, 4, 4,
-                                             Element::TETRAHEDRON);
+                                            Element::TETRAHEDRON);
    for (int e = 0; e < serial_mesh.GetNE(); e++)
    {
       Vector center;
