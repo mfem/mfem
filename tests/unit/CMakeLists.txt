@@ -57,11 +57,13 @@ set(UNIT_TESTS_SRCS
   linalg/test_complex_dense_matrix.cpp
   linalg/test_complex_operator.cpp
   linalg/test_constrainedsolver.cpp
+  linalg/test_deflation.cpp
   linalg/test_direct_solvers.cpp
   linalg/test_hypre_ilu.cpp
   linalg/test_hypre_prec.cpp
   linalg/test_hypre_vector.cpp
   linalg/test_ilu.cpp
+  linalg/test_krylov_breakdown.cpp
   linalg/test_matrix_block.cpp
   linalg/test_matrix_dense.cpp
   linalg/test_matrix_hypre.cpp

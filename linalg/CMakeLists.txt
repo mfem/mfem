@@ -22,6 +22,7 @@ list(APPEND SRCS
   complex_densemat.cpp
   complex_operator.cpp
   constraints.cpp
+  deflation.cpp
   densemat.cpp
   filteredsolver.cpp
   handle.cpp
@@ -52,6 +53,7 @@ list(APPEND HDRS
   complex_densemat.hpp
   complex_operator.hpp
   constraints.hpp
+  deflation.hpp
   densemat.hpp
   dinvariants.hpp
   dtensor.hpp
