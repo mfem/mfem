@@ -615,14 +615,15 @@ struct lo_ker_backend
       const XE_T &XE, ArgRegT &rarg)
    {
       const int q1d = m.Q1D();
+      const int nqz = (DIM == 2) ? 1 : q1d;
       const int nslots = vector_num_slots<FOP>(m.range_dim);
+      MFEM_FOREACH_THREAD(qz, z, nqz)
       MFEM_FOREACH_THREAD(qy, y, q1d)
       MFEM_FOREACH_THREAD(qx, x, q1d)
-      for (int qz = 0; qz < ((DIM == 2) ? 1 : q1d); qz++)
-         for (int c = 0; c < nslots; c++)
-         {
-            lok::at<DIM>(rarg, qx, qy, qz)[c] = 0.0;
-         }
+      for (int c = 0; c < nslots; c++)
+      {
+         lok::at<DIM>(rarg, qx, qy, qz)[c] = 0.0;
+      }
       MFEM_SYNC_THREAD;
 
       const int nterms = vector_num_terms<FOP>(m.range_dim);
@@ -734,7 +735,7 @@ private:
             if constexpr (DIM == 2) { vector_accum<FOP>(rarg, qx, qy, 0, vt, value); }
             else
             {
-               for (int qz = 0; qz < q1d; qz++)
+               MFEM_FOREACH_THREAD(qz, z, q1d)
                {
                   vector_accum<FOP>(rarg, qx, qy, qz, vt,
                                     Bz[qz + q1d * dz] * value);
