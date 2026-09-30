@@ -59,6 +59,25 @@ void BuildLowerDense(const TriPackLowerMatrix &packed,
 
 }
 
+TEST_CASE("TriPackLowerMatrix memory type", "[TriPackLowerMatrix]")
+{
+   constexpr int n = 3;
+   constexpr int batch_size = 2;
+
+   TriPackLowerMatrix packed(n, batch_size, MemoryType::HOST_64);
+   REQUIRE(packed.GetNumRows() == n);
+   REQUIRE(packed.GetNumMatrices() == batch_size);
+   REQUIRE(packed.Size() == batch_size*TriPackLowerMatrix::PackedSize(n));
+   REQUIRE(packed.Data().GetMemory().GetMemoryType() == MemoryType::HOST_64);
+
+   packed.SetSize(n + 1, batch_size + 1, MemoryType::HOST_32);
+   REQUIRE(packed.GetNumRows() == n + 1);
+   REQUIRE(packed.GetNumMatrices() == batch_size + 1);
+   REQUIRE(packed.Size() == (batch_size + 1)*TriPackLowerMatrix::PackedSize(
+              n + 1));
+   REQUIRE(packed.Data().GetMemory().GetMemoryType() == MemoryType::HOST_32);
+}
+
 TEST_CASE("TriPackLowerMatrix operations", "[TriPackLowerMatrix]")
 {
    constexpr int n = 3;

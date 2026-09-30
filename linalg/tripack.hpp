@@ -35,6 +35,11 @@ public:
       SetSize(n, batch_size);
    }
 
+   TriPackLowerMatrix(int n, int batch_size, MemoryType mt)
+   {
+      SetSize(n, batch_size, mt);
+   }
+
    MFEM_HOST_DEVICE static int PackedSize(const int n)
    {
       return n*(n + 1)/2;
@@ -57,6 +62,13 @@ public:
       nrows = n;
       nmats = batch_size;
       data.SetSize(batch_size*PackedSize(n));
+   }
+
+   void SetSize(const int n, const int batch_size, MemoryType mt)
+   {
+      nrows = n;
+      nmats = batch_size;
+      data.SetSize(batch_size*PackedSize(n), mt);
    }
 
    int GetNumRows() const { return nrows; }
