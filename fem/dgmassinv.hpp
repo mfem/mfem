@@ -13,6 +13,7 @@
 #define MFEM_DGMASSINV_HPP
 
 #include "../linalg/operator.hpp"
+#include "../linalg/tripack.hpp"
 #include "fespace.hpp"
 #include "kernel_dispatch.hpp"
 #include <memory>
@@ -37,6 +38,8 @@ protected:
    std::unique_ptr<class BilinearForm> M; ///< Mass bilinear form.
    class MassIntegrator *m; ///< Mass integrator, owned by the form @ref M.
    Vector diag_inv; ///< Jacobi preconditioner.
+   TriPackLowerMatrix mass_chol; ///< Direct packed Cholesky factor.
+   bool use_packed_inverse = false; ///< Use direct packed Cholesky solve.
    real_t rel_tol = 1e-12; ///< Relative CG tolerance.
    real_t abs_tol = 1e-12; ///< Absolute CG tolerance.
    int max_iter = 100; ///< Maximum number of CG iterations;

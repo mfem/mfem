@@ -11,6 +11,7 @@
 
 #include "dgmassinv.hpp"
 #include "bilinearform.hpp"
+#include "ceed/interface/util.hpp"
 #include "dgmassinv_kernels.hpp"
 
 namespace mfem
@@ -67,6 +68,9 @@ DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
    if (coeff) { m = new MassIntegrator(*coeff, ir); }
    else { m = new MassIntegrator(ir); }
 
+   use_packed_inverse = (d2q == nullptr) && UsesTensorBasis(fes) &&
+                        !DeviceCanUseCeed();
+
    diag_inv.SetSize(height);
    // Workspace vectors used for CG
    r_.SetSize(height);
@@ -112,14 +116,29 @@ void DGMassInverse::SetMaxIter(const int max_iter_) { max_iter = max_iter_; }
 void DGMassInverse::Update()
 {
    M->Assemble();
-   M->AssembleDiagonal(diag_inv);
-   diag_inv.Reciprocal();
+   if (use_packed_inverse)
+   {
+      TriPackLowerMatrix mass_ea;
+      m->AssembleEATriangular(fes, mass_ea, false);
+      tripack::ComputeCholeskyLower(mass_ea, mass_chol);
+   }
+   else
+   {
+      M->AssembleDiagonal(diag_inv);
+      diag_inv.Reciprocal();
+   }
 }
 
 DGMassInverse::~DGMassInverse() = default;
 
 void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 {
+   if (use_packed_inverse)
+   {
+      tripack::SolveCholesky(mass_chol, Mu, u);
+      return;
+   }
+
    // Dispatch to templated version based on dim, d1d, and q1d.
    const int dim = fes.GetMesh()->Dimension();
    const int d1d = m->dofs1D;

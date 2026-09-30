@@ -11,6 +11,7 @@
 
 #include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
+#include "../ceed/interface/util.hpp"
 #include "../gridfunc.hpp"
 #include "bilininteg_mass_kernels.hpp"
 
@@ -153,6 +154,8 @@ void MassIntegrator::AssembleEATriangular_(
    TriPackLowerMatrix &ea_data,
    const bool add)
 {
+   MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
+               "AssembleEATriangular not implemented for ragged tensor bases");
    Vector &data = ea_data.Data();
    const Array<real_t> &B = maps->B;
    return AssembleEATriangularImpl(dim, ne, dofs1D, quad1D, B, pa_data, data,
@@ -171,6 +174,8 @@ void MassIntegrator::AssembleEATriangular(const FiniteElementSpace &fes,
                                           TriPackLowerMatrix &ea_data,
                                           const bool add)
 {
+   MFEM_VERIFY(!DeviceCanUseCeed(),
+               "AssembleEATriangular is not implemented with libCEED");
    AssemblePA(fes);
    if (ne == 0) { return; }
 

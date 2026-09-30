@@ -129,6 +129,7 @@ private:
    Solver *M_prec;
    CGSolver M_solver;
    DG_Solver *dg_solver;
+   bool direct_mass_solver = false;
 
    mutable Vector z;
 
@@ -443,18 +444,27 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
       M_solver.SetOperator(M.SpMat());
       dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
    }
+   else if (M.GetAssemblyLevel() == AssemblyLevel::ELEMENT)
+   {
+      M_prec = new DGMassInverse(*M.FESpace(), BasisType::GaussLobatto);
+      direct_mass_solver = true;
+      dg_solver = NULL;
+   }
    else
    {
       M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
       M_solver.SetOperator(M);
       dg_solver = NULL;
    }
-   M_solver.SetPreconditioner(*M_prec);
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
+   if (!direct_mass_solver)
+   {
+      M_solver.SetPreconditioner(*M_prec);
+      M_solver.iterative_mode = false;
+      M_solver.SetRelTol(1e-9);
+      M_solver.SetAbsTol(0.0);
+      M_solver.SetMaxIter(100);
+      M_solver.SetPrintLevel(0);
+   }
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -462,13 +472,20 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
    z += b;
-   M_solver.Mult(z, y);
+   if (direct_mass_solver)
+   {
+      M_prec->Mult(z, y);
+   }
+   else
+   {
+      M_solver.Mult(z, y);
+   }
 }
 
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
-               "Implicit time integration is not supported with partial assembly");
+               "Implicit time integration is not supported with non-legacy assembly");
    // Construct current right-hand side for stage state vs. slope solve
    real_t c = 1.0;
    if (ImplicitVarTypeIsState())

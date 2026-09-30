@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <type_traits>
+
 using namespace mfem;
 
 namespace
@@ -82,7 +84,7 @@ TEST_CASE("TriPackLowerMatrix operations", "[TriPackLowerMatrix]")
 {
    constexpr int n = 3;
    constexpr int batch_size = 2;
-   constexpr real_t tol = 1e-12;
+   const double tol = std::is_same<real_t, float>::value ? 1e-5 : 1e-12;
 
    DenseMatrix A0(n), A1(n);
    A0 = 0.0;

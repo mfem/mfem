@@ -16,6 +16,7 @@ using namespace mfem;
 
 #if defined(MFEM_USE_MAGMA) && (defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA))
 
+#include <type_traits>
 #include <vector>
 
 #if defined(MFEM_USE_HIP)
@@ -107,7 +108,7 @@ TEST_CASE("MAGMA packed-lower Cholesky factor+solve",
 
    constexpr int n = 8;
    constexpr int batch_size = 17;
-   constexpr double tol = 5e-9;
+   const double tol = std::is_same<real_t, float>::value ? 1e-4 : 5e-9;
 
    TriPackLowerMatrix A_packed(n, batch_size);
    A_packed.UseDevice(true);
