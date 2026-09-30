@@ -122,7 +122,6 @@ template <int DIM> struct hdiv_mass_divdiv_global_qf
                    tensor_array<dscalar_t> &dv) const
    {
       mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
-      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
       {
          const real_t wq = w(q);
          const dscalar_t duq = du(q);
@@ -143,7 +142,6 @@ template <int DIM> struct hdiv_nonlinear_global_qf
                    tensor_array<dscalar_t, DIM> &v,
                    tensor_array<dscalar_t> &dv) const
    {
-      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
       mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
       {
          const real_t wq = w(q);
@@ -545,9 +543,6 @@ void hdiv_nonlinear(const char *filename, int p)
 template <int DIM, typename backend_t = LocalQFBackend,
           typename div_to_h1_qf_t = hdiv_to_h1_qf,
           typename h1_to_div_qf_t = h1_to_hdiv_qf>
-template <int DIM, typename backend_t = LocalQFBackend,
-          typename div_to_h1_qf_t = hdiv_to_h1_qf,
-          typename h1_to_div_qf_t = h1_to_hdiv_qf>
 void hdiv_mixed_assembly(const char *filename, int p)
 {
    CAPTURE(filename, DIM, p);
@@ -573,7 +568,6 @@ void hdiv_mixed_assembly(const char *filename, int p)
          setup.pmesh);
       constexpr auto kernels =
          DerivativeKernels::AssembleMatrix | DerivativeKernels::ApplyTranspose;
-      dop.AddDomainIntegrator<backend_t, kernels>(
       dop.AddDomainIntegrator<backend_t, kernels>(
          qf, tuple{inputs, Weight{}}, tuple{outputs}, *setup.ir,
          setup.all_domain_attr, Derivatives<inputs.GetFieldId()> {});
@@ -609,13 +603,11 @@ void hdiv_mixed_assembly(const char *filename, int p)
    SECTION("RT trial, H1 test")
    {
       assemble_and_check(div_to_h1_qf_t {}, Div<U> {}, Value<P> {}, setup.pfes,
-      assemble_and_check(div_to_h1_qf_t {}, Div<U> {}, Value<P> {}, setup.pfes,
                          h1_fes, new VectorFEDivergenceIntegrator());
    }
 
    SECTION("H1 trial, RT test")
    {
-      assemble_and_check(h1_to_div_qf_t {}, Value<P> {}, Div<U> {}, h1_fes,
       assemble_and_check(h1_to_div_qf_t {}, Value<P> {}, Div<U> {}, h1_fes,
                          setup.pfes,
                          new TransposeIntegrator(
@@ -625,7 +617,7 @@ void hdiv_mixed_assembly(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
+TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE][GPU]")
 {
    const auto p = GenAll({ 0 }, { 1, 2 });
    const auto meshs = { "../../data/inline-quad.mesh" };
@@ -659,7 +651,7 @@ TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE]")
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE]")
+TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE][GPU]")
 {
    const auto p = GenAll({ 0 }, { 1 });
    const auto meshs = { "../../data/inline-hex.mesh" };
