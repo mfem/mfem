@@ -144,15 +144,21 @@ public:
    group_num_test_dof_1d(
       [&]
    {
+      // Dofs per side of each row block: the dof extent of its test basis,
+      // p + 1 for H1 and the closed extent p + 2 (the largest) for ND/RT.
       std::vector<int> v(output_groups->field_ids.size(), 0);
-      for (size_t g = 0; g < v.size(); g++)
+      for_constexpr<n_outputs>([&](auto o)
       {
-         if (output_groups->num_test_dof[g] > 0)
+         using output_fop_t = std::decay_t<decltype(get<o>(outputs_in))>;
+         const int g = output_groups->output_to_group[o];
+         if constexpr (!is_identity_fop_v<output_fop_t>)
          {
-            v[g] = tensor_1d_size(output_groups->num_test_dof[g],
-                                  ctx_in.mesh.Dimension());
+            if (output_groups->num_test_dof[g] > 0)
+            {
+               v[g] = output_dtq_maps[o].D1D();
+            }
          }
-      }
+      });
       return v;
    }()),
    group_has_diagonal(
@@ -190,9 +196,16 @@ public:
          inputs, input_is_dependent, input_size_on_qp);
    }()),
    num_trial_dof_1d(
-      trial_fes ? tensor_1d_size(trial_fes->GetFE(0)->GetDof(),
-                                 ctx_in.mesh.Dimension())
-      : 0),
+      [&]
+   {
+      // Same as for the test dofs above, from the trial basis.
+      int n = 0;
+      for_constexpr<n_inputs>([&](auto i)
+      {
+         if (trial_fes && input_is_dependent[i]) { n = input_dtq_maps[i].D1D(); }
+      });
+      return n;
+   }()),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
    dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),

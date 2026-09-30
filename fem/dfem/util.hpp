@@ -52,9 +52,9 @@ namespace mfem::future
 {
 
 /// Number of points along one axis of a tensor-product set: given `total`
-/// points (e.g. quadrature points or dofs) spread over `dim` dimensions,
-/// returns the rounded `dim`-th root, round(total^(1/dim)). Recovers q1d from
-/// the number of quadrature points, or d1d from the number of dofs.
+/// points spread over `dim` dimensions, returns the rounded `dim`-th root,
+/// round(total^(1/dim)). Only valid when `total` is a perfect cube, e.g. q1d
+/// from a tensor quadrature rule. ND/RT dofs are not: use DofToQuadMap::D1D().
 MFEM_HOST_DEVICE inline int tensor_1d_size(int total, int dim)
 {
    if (dim <= 0) { return 0; }
@@ -2654,6 +2654,14 @@ inline const FiniteElement *GetTypicalFiniteElement(const FieldDescriptor &f)
    }, f.data);
 }
 
+/// @brief Return whether @a f is an ND (H_CURL) or RT (H_DIV) space.
+inline bool IsVectorFESpace(const FieldDescriptor &f)
+{
+   const auto *fe = GetTypicalFiniteElement<Entity::Element>(f);
+   return fe && (fe->GetMapType() == FiniteElement::H_DIV ||
+                 fe->GetMapType() == FiniteElement::H_CURL);
+}
+
 /// @brief Return whether a field operator can be applied to a field.
 ///
 /// The general compatibility rules are:
@@ -2731,6 +2739,12 @@ bool IsCompatible(const FieldDescriptor &f)
 template <typename entity_t, typename field_operator_t>
 void CheckCompatibility(const FieldDescriptor &f)
 {
+   if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      // The boundary trace of an ND/RT field would be read as a scalar field.
+      MFEM_VERIFY(!IsVectorFESpace(f),
+                  "boundary integrators do not support ND/RT fields");
+   }
    MFEM_VERIFY((IsCompatible<entity_t, field_operator_t>(f)),
                "FieldOperator is not compatible with its FieldDescriptor");
 }

@@ -504,6 +504,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    if (tvfe_ptr != nullptr)
    {
       const DofToQuadMap &tvfe = *tvfe_ptr;
+      for (int tv = 0; tv < test_vdim; tv++)
       {
          for (int cj = 0; cj < tvfe.range_dim; cj++)
          {
@@ -522,8 +523,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      const int J = off_j + Jx + ex * (Jy + ey * Jz);
                      auto bvtfhat =
                         Reshape(&Ae(0, 0, J, 0, e), num_test_dof, test_vdim);
-                     auto fhat =
-                        Reshape(&fhat_storage[0], test_vdim, test_op_dim, nq);
+                     auto fhat = Reshape(&fhat_storage[0], 1, test_op_dim, nq);
 
                      // 2. Zero initialize fhat for the current test component
                      for (int tod = 0; tod < test_op_dim; tod++)
@@ -570,7 +570,8 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  ((DIM == 3) ? basis[2][qz + q1d * Jz] : 1.0);
                               for (int k = 0; k < test_op_dim; k++)
                               {
-                                 const real_t f = qpdc(q, 0, col, row_offset + k, e);
+                                 const real_t f = qpdc(q, 0, col,
+                                                       row_offset + tv * test_op_dim + k, e);
                                  fhat(0, k, q) += f * w;
                               }
                            });
@@ -604,7 +605,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                      else
                      {
                         map_quadrature_data_to_fields<DIM, MQ1>(
-                           bvtfhat, fhat, output, output_dtq, smem);
+                           bvtfhat, fhat, output, output_dtq, smem, tv);
                      }
                   }
                }
@@ -948,7 +949,17 @@ public:
    num_trial_dof(trial_fes ? trial_fes->GetFE(0)->GetDof() : 0),
    dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
-   num_trial_dof_1d(tensor_1d_size(num_trial_dof, dim)), total_trial_op_dim(
+   num_trial_dof_1d(
+      [&]
+   {
+      // Dof extent of the trial basis (only the scalar trial branch uses it).
+      int n = 0;
+      for_constexpr<n_inputs>([&](auto i)
+      {
+         if (trial_fes && input_is_dependent[i]) { n = input_dtq_maps[i].D1D(); }
+      });
+      return n;
+   }()), total_trial_op_dim(
       [&]
    {
       const auto in_qp_sizes =
@@ -1040,8 +1051,7 @@ public:
          if (!group_assemblable[g]) { continue; }
 
          // The kernel accumulates into Ae, so the bank has to start clean on
-         // every call: otherwise assembling twice (the next Newton step, say)
-         // would double every entry.
+         // every call.
          group_Ae_mem[g] = 0.0;
 
          DerivativeAssembleHO::Run(dim,
@@ -1217,7 +1227,8 @@ public:
          });
       },
       ne,
-      backend_t::thread_blocks(q1d),
+      backend_t::thread_blocks(
+         kernel_tile_size(q1d, input_dtq_maps, output_dtq_maps)),
       0,
       nullptr);
    }
