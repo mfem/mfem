@@ -4861,8 +4861,7 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
 #ifdef MFEM_USE_HDF5
    if (IsNativeNURBSHDF5(filename))
    {
-      const std::string contents = ReadNativeNURBSHDF5(filename);
-      std::istringstream input(contents);
+      std::istringstream input(ReadNativeNURBSHDF5(filename));
       Load(input, generate_edges, refine, fix_orientation);
       return;
    }
