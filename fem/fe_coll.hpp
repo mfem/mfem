@@ -184,7 +184,7 @@ public:
    FEC.  It is selected from one of (BiCubic2DFiniteElement, Quad_Q3, Nedelec1HexFiniteElement,
       Hex_ND1, H1_[DIM]_[ORDER],H1Pos_[DIM]_[ORDER], L2_[DIM]_[ORDER] )
    */
-   static FiniteElementCollection *New(const char *name);
+   [[nodiscard]] static FiniteElementCollection *New(const char *name);
 
    /** @brief Get the local dofs for a given sub-manifold.
 
