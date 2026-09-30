@@ -16,10 +16,6 @@
 //
 //  See: https://ceed.exascaleproject.org/bps
 //
-//  Official CEED BPs are BP1–BP6 (H1). MFEM-local: BP7 curl-curl, BP8 Hcurl
-//  mass, BP9 div-div, BP10 Hdiv mass. No BK7–BK10.
-//  hex_sum / quad_sum are stock MFEM PA (not MMA); *_mma is MMA; tet/tri
-//  are simplex MMA additions.
 
 #include "bench.hpp" // IWYU pragma: keep
 
@@ -271,7 +267,7 @@ template <> struct BakeOffIntegrator<6> { using type = VectorDiffusionIntegrator
 // Bake-off base class
 // QGL: true → CEED GL quadrature q=p+2 (BP/BK 1–4); false → GLL q=p+1 (BP/BK 5–6)
 template <int BFI, int DIM, int VDIM, bool QGL,
-          bool SIMPLEX, bool POS, bool MMA>
+          bool SIMPLEX, bool POS, bool MMA, bool GEM>
 struct BakeOff
 {
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
@@ -285,6 +281,7 @@ struct BakeOff
    static constexpr bool simplex = SIMPLEX;
    static constexpr bool pos = POS;
    static constexpr bool mma = MMA;
+   static constexpr bool gem = GEM;
    static constexpr bool mass = (BFI == 1);
 
    const int p, c, q, n, nx, ny, nz;
@@ -418,8 +415,8 @@ struct BakeOff
 
 // Bake-off Problems (BPs)
 template
-<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA>
-struct BP : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
+<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA, bool GEM>
+struct BP : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>
 {
    const int max_it = 32, print_lvl = -1;
 
@@ -430,7 +427,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
    Vector B, X;
    CGSolver cg;
 
-   using base = BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>;
    using base::a;
    using base::ir_rhs;
    using base::one;
@@ -509,12 +506,12 @@ struct BP : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
 
 // Bake-off Kernels (BKs)
 template
-<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA>
-struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
+<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA, bool GEM>
+struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>
 {
    Vector xe, ye;
 
-   using base = BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>;
    using base::ir;
    using base::one;
    using base::bfi;
@@ -576,6 +573,7 @@ struct BakeOffDeRham
    static constexpr bool visualization = false;
    static constexpr bool simplex = SIMPLEX;
    static constexpr bool mma = MMA;
+   static constexpr bool gem = false;
 
    const int p, c, n, nx, ny, nz;
 
@@ -765,6 +763,7 @@ template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
    MMAForce mma(T::mma);
+   GEMForce tgem(T::gem);
 
    T run(state.range(0), state.range(1));
    while (state.KeepRunning()) { run.benchmark(); }
@@ -789,8 +788,12 @@ static void Benchmark(bm::State& state) noexcept
 
 inline constexpr char s_hex_sum[] = "hex_sum";
 inline constexpr char s_hex_mma[] = "hex_mma";
+inline constexpr char s_hex_mma_sum[] = "hex_mma_sum";
+inline constexpr char s_hex_mma_gem[] = "hex_mma_gem";
 inline constexpr char s_quad_sum[] = "quad_sum";
 inline constexpr char s_quad_mma[] = "quad_mma";
+inline constexpr char s_quad_mma_sum[] = "quad_mma_sum";
+inline constexpr char s_quad_mma_gem[] = "quad_mma_gem";
 inline constexpr char s_tet_gll_mma[] = "tet_gll_mma";
 inline constexpr char s_tet_pos_sum[] = "tet_pos_sum";
 inline constexpr char s_tet_pos_mma[] = "tet_pos_mma";
@@ -798,26 +801,30 @@ inline constexpr char s_tri_gll_mma[] = "tri_gll_mma";
 inline constexpr char s_tri_pos_sum[] = "tri_pos_sum";
 inline constexpr char s_tri_pos_mma[] = "tri_pos_mma";
 
-template <int DIM, bool SMPLX, bool POS, bool MMA, const char *SUFFIX>
+template <int DIM, bool SMPLX, bool POS, bool MMA, bool GEM, const char *SUFFIX>
 struct Geom
 {
    static constexpr int dim = DIM;
-   static constexpr bool simplex = SMPLX, pos = POS, mma = MMA;
+   static constexpr bool simplex = SMPLX, pos = POS, mma = MMA, gem = GEM;
    static constexpr const char *suffix = SUFFIX;
 };
 
-//                   DIM, SMPLX, POS,   MMA,   SUFFIX
-using HexSum    = Geom<3, false, false, false, s_hex_sum>;
-using HexMma    = Geom<3, false, false, true,  s_hex_mma>;
-using QuadSum   = Geom<2, false, false, false, s_quad_sum>;
-using QuadMma   = Geom<2, false, false, true,  s_quad_mma>;
+//                   DIM, SMPLX, POS,   MMA,   GEM,   SUFFIX
+using HexSum    = Geom<3, false, false, false, false, s_hex_sum>;
+using HexMma    = Geom<3, false, false, true,  false, s_hex_mma>;
+using HexMmaSum = Geom<3, false, false, true,  false, s_hex_mma_sum>;
+using HexMmaGem = Geom<3, false, false, true,  true,  s_hex_mma_gem>;
+using QuadSum   = Geom<2, false, false, false, false, s_quad_sum>;
+using QuadMma   = Geom<2, false, false, true,  false, s_quad_mma>;
+using QuadMmaSum = Geom<2, false, false, true, false, s_quad_mma_sum>;
+using QuadMmaGem = Geom<2, false, false, true, true,  s_quad_mma_gem>;
 // GLL simplices already use dense MMA without ForceMMA; MMA=true matches *_mma
-using TetGllMma = Geom<3, true,  false, true,  s_tet_gll_mma>;
-using TetPosSum = Geom<3, true,  true,  false, s_tet_pos_sum>;
-using TetPosMma = Geom<3, true,  true,  true,  s_tet_pos_mma>;
-using TriGllMma = Geom<2, true,  false, true,  s_tri_gll_mma>;
-using TriPosSum = Geom<2, true,  true,  false, s_tri_pos_sum>;
-using TriPosMma = Geom<2, true,  true,  true,  s_tri_pos_mma>;
+using TetGllMma = Geom<3, true,  false, true,  false, s_tet_gll_mma>;
+using TetPosSum = Geom<3, true,  true,  false, false, s_tet_pos_sum>;
+using TetPosMma = Geom<3, true,  true,  true,  false, s_tet_pos_mma>;
+using TriGllMma = Geom<2, true,  false, true,  false, s_tri_gll_mma>;
+using TriPosSum = Geom<2, true,  true,  false, false, s_tri_pos_sum>;
+using TriPosMma = Geom<2, true,  true,  true,  false, s_tri_pos_mma>;
 
 #define REGISTER(PK, BFI, GEOM) \
    BENCHMARK_TEMPLATE(Benchmark, \
@@ -825,19 +832,21 @@ using TriPosMma = Geom<2, true,  true,  true,  s_tri_pos_mma>;
         /* DIM*/ GEOM::dim, \
         /*VDIM*/ ((BFI) % 2 ? 1 : GEOM::dim), \
         /* QGL*/ ((BFI) <= 4), \
-         GEOM::simplex, GEOM::pos, GEOM::mma>) \
+         GEOM::simplex, GEOM::pos, GEOM::mma, GEOM::gem>) \
    ->Name(std::string(#PK #BFI) + GEOM::suffix) \
    ->Apply(CustomArguments)->Unit(bm::kMillisecond)
 
 // BP1: scalar CG with mass kernel, q=p+2
 REGISTER(BP, 1, HexSum);
-REGISTER(BP, 1, HexMma);
+REGISTER(BP, 1, HexMmaSum);
+REGISTER(BP, 1, HexMmaGem);
 REGISTER(BP, 1, QuadSum);
-REGISTER(BP, 1, QuadMma);
-// REGISTER(BP, 1, TetGllMma);
+REGISTER(BP, 1, QuadMmaSum);
+REGISTER(BP, 1, QuadMmaGem);
+REGISTER(BP, 1, TetGllMma);
 REGISTER(BP, 1, TetPosSum);
 REGISTER(BP, 1, TetPosMma);
-// REGISTER(BP, 1, TriGllMma);
+REGISTER(BP, 1, TriGllMma);
 REGISTER(BP, 1, TriPosSum);
 REGISTER(BP, 1, TriPosMma);
 
@@ -847,13 +856,15 @@ REGISTER(BP, 2, QuadSum);
 
 // BP3: scalar CG with stiffness kernel, q=p+2
 REGISTER(BP, 3, HexSum);
-REGISTER(BP, 3, HexMma);
+REGISTER(BP, 3, HexMmaSum);
+REGISTER(BP, 3, HexMmaGem);
 REGISTER(BP, 3, QuadSum);
-REGISTER(BP, 3, QuadMma);
-// REGISTER(BP, 3, TetGllMma);
+REGISTER(BP, 3, QuadMmaSum);
+REGISTER(BP, 3, QuadMmaGem);
+REGISTER(BP, 3, TetGllMma);
 REGISTER(BP, 3, TetPosSum);
 REGISTER(BP, 3, TetPosMma);
-// REGISTER(BP, 3, TriGllMma);
+REGISTER(BP, 3, TriGllMma);
 REGISTER(BP, 3, TriPosSum);
 REGISTER(BP, 3, TriPosMma);
 
@@ -936,25 +947,14 @@ REGISTER_DERHAM(10, TriGllMma);
  * Command line options:
  *    --benchmark_context=device=gpu
  *    --benchmark_context=cg=true|false  (default false; skipped for BP7–BP10)
- *    --benchmark_filter=BP1hex_sum
- *    --benchmark_filter=BP3hex_mma
- *    --benchmark_filter=BP1tet_gll_mma
- *    --benchmark_filter=BP1tri_pos_sum
- *    --benchmark_filter=BP1tri_pos_mma
- *    --benchmark_filter=BP7hex_mma
- *    --benchmark_filter=BP7tet_gll_mma
- *    --benchmark_filter=BP8hex_mma
- *    --benchmark_filter=BP8tet_gll_mma
- *    --benchmark_filter=BP9quad_sum
- *    --benchmark_filter=BP9tri_gll_mma
- *    --benchmark_filter=BP10hex_mma
- *    --benchmark_filter=BP10tet_gll_mma
  *    --benchmark_out_format=csv
  *    --benchmark_out=bp1.csv
  *
  * Names: {geom}[_{basis}]_{algo}
- *    hex_sum / quad_sum     — stock MFEM tensor PA (MMAForce off)
- *    hex_mma / quad_mma     — tensor sum-fact + small per-direction MMA
+ *    hex_sum / quad_sum         — stock MFEM tensor PA (MMAForce off)
+ *    hex_mma_sum / quad_mma_sum — BP1/BP3 tensor sum-fact + small per-direction MMA
+ *    hex_mma_gem / quad_mma_gem — BP1/BP3 dense element GEMM
+ *    hex_mma / quad_mma         — BP7–BP10 tensor sum-fact MMA
  *    tet_gll_mma / tri_gll_mma — simplex GLL nodal, dense MMA GEMM
  *    tet_pos_sum / tri_pos_sum — simplex Positive, Stroud sum-fact
  *    tet_pos_mma / tri_pos_mma — simplex Positive, dense MMA

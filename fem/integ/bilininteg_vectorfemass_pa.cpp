@@ -160,8 +160,8 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                         const FiniteElementSpace &test_fes)
 {
-   use_tensors_mma = false;
-   use_simplices_mma = false;
+   use_tensors_mma_sum = false;
+   use_simplex_mma = false;
 
    // Same-space simplex ND/RT mass under ForceMMA
    if (&trial_fes == &test_fes ||
@@ -298,17 +298,17 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
    if (trial_curl && test_curl && UsesTensorMmaHcurl(trial_fes))
    {
-      use_tensors_mma = true;
+      use_tensors_mma_sum = true;
    }
    else if (trial_div && test_div && UsesTensorMmaHdiv(trial_fes))
    {
-      use_tensors_mma = true;
+      use_tensors_mma_sum = true;
    }
 }
 
 void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       diag = 0.0;
       return;
@@ -383,7 +383,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       auto apply = [&](const Vector &xh, Vector &yh, internal::NdDualCtx dual)
       {
@@ -414,7 +414,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       return;
    }
-   if (use_tensors_mma)
+   if (use_tensors_mma_sum)
    {
       const bool scalar_coeff = !(DQ || MQ);
       if (trial_fetype == FiniteElement::CURL)
@@ -462,7 +462,7 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(!use_simplices_mma,
+   MFEM_VERIFY(!use_simplex_mma,
                "AbsMultPA not implemented for simplex MMA PA");
    const bool scalar_coeff = !(DQ || MQ);
 

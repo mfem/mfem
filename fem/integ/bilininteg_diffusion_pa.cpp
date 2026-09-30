@@ -22,7 +22,7 @@ namespace mfem
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplices_mma || use_tensors_mma)
+   if (use_simplex_mma || use_tensors_mma_sum || use_tensors_mma_gem)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
@@ -48,20 +48,25 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    MFEM_PERF_FUNCTION;
 
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
-      ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq, ne, symmetric,
-                                    simplex_mma_G, pa_data, x, y);
+      ApplySimplexMmaGemPAKernels::Run(dim, dofs1D, nq, ne, symmetric,
+                                       mma_G, pa_data, x, y);
    }
-   else if (use_tensors_mma)
+   else if (use_tensors_mma_gem)
+   {
+      ApplyTensorsMmaGemPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                       mma_G, pa_data, x, y);
+   }
+   else if (use_tensors_mma_sum)
    {
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
       const Array<real_t> &Bt = maps->Bt;
       const Array<real_t> &Gt = maps->Gt;
-      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
-                                    B, G, Bt, Gt, pa_data, x, y,
-                                    dofs1D, quad1D);
+      ApplyTensorsMmaSumPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                       B, G, Bt, Gt, pa_data, x, y,
+                                       dofs1D, quad1D);
    }
    else if (DeviceCanUseCeed())
    {
@@ -132,10 +137,11 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    MFEM_PERF_FUNCTION;
 
-   use_simplices_mma = false;
-   use_tensors_mma = false;
+   use_simplex_mma = false;
+   use_tensors_mma_sum = false;
+   use_tensors_mma_gem = false;
    nq = 0;
-   simplex_mma_G.DeleteAll();
+   mma_G.DeleteAll();
 
    if (UsesSimplexMMA(fes))
    {
@@ -224,10 +230,20 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
                               ir->GetWeights(), geom->J, coeff, pa_data);
 
-   // Opt-in sum-factored tensor MMA apply (reuse maps + pa_data)
-   if (UsesTensorMMA(fes))
+   if (UsesTensorMMA(fes) && GetForceGEM())
    {
-      use_tensors_mma = true;
+      use_tensors_mma_gem = true;
+      const int ndof = internal::mma::form::gem::TensorGemPow(dofs1D, dim);
+      MFEM_VERIFY(nq == internal::mma::form::gem::TensorGemPow(quad1D, dim),
+                  "tensor GEM diffusion nq must be Q1D^dim");
+      mma_G.SetSize(nq * ndof * dim, mt);
+      internal::mma::form::gem::BuildTensorGemGradBasis(dim, dofs1D, quad1D,
+                                                        maps->B.HostRead(), maps->G.HostRead(),
+                                                        mma_G.HostWrite());
+   }
+   else if (UsesTensorMMA(fes))
+   {
+      use_tensors_mma_sum = true;
    }
 }
 
@@ -260,7 +276,7 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Ceed AbsMult not implemented yet");
    }
-   MFEM_VERIFY(!use_simplices_mma && !use_tensors_mma,
+   MFEM_VERIFY(!use_simplex_mma && !use_tensors_mma_sum && !use_tensors_mma_gem,
                "AbsMultPA not implemented for MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();

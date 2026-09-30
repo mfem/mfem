@@ -114,6 +114,54 @@ void test_pa_tensors_mma(Mesh &mesh, int p, Kind kind, int ir_order = -1)
    REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
 
+/** Scalar mass + diffusion: dense tensor GEM matches stock SUM-PA. */
+void test_pa_tensors_gem(Mesh &mesh, int p)
+{
+   const int dim = mesh.Dimension();
+   const int order = 2 * p + 2;
+   CAPTURE(dim, p, order, mesh.GetNE());
+
+   H1_FECollection fec(p, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   {
+      MMAForce on(true);
+      REQUIRE(UsesTensorMMA(fes));
+   }
+
+   GridFunction x(&fes), y_gem(&fes), y_sum(&fes);
+   x.Randomize(0x100001b3);
+   y_gem.Randomize(0x9e3779b9);
+   y_sum = y_gem;
+
+   const auto &fe = *fes.GetTypicalFE();
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   BilinearForm pa_gem(&fes), pa_sum(&fes);
+   AddIntegrators(Kind::Scalar, pa_gem, ir, const_coeff, funct_coeff);
+   AddIntegrators(Kind::Scalar, pa_sum, ir, const_coeff, funct_coeff);
+   pa_gem.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   {
+      MMAForce on(true);
+      GEMForce gem(true);
+      pa_gem.Assemble();
+   }
+   {
+      MMAForce off(false);
+      pa_sum.Assemble();
+   }
+
+   pa_gem.Mult(x, y_gem);
+   pa_sum.Mult(x, y_sum);
+   y_sum -= y_gem;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
 void test_pa_tensors_mma_cartesian(int dim, int p, Kind kind, int ir_order = -1)
 {
    Mesh mesh = (dim == 2)
@@ -209,8 +257,7 @@ TEST_CASE("Tensors MMA PA vs SUM-PA", "[MMA][GPU]")
    const Kind kind = GENERATE(Kind::Scalar, Kind::VectorMass,
                               Kind::VectorDiffusion);
    const int dim = GENERATE(2, 3);
-   // p=2 uses SUM (m8n8k4 pad); MMA path starts at p>=3.
-   const int p = GENERATE(3, 4, 5, 6, 7);
+   const int p = GENERATE(1, 2, 3, 4, 5, 6, 7);
 
    SECTION("Specialized")
    {
@@ -221,6 +268,36 @@ TEST_CASE("Tensors MMA PA vs SUM-PA", "[MMA][GPU]")
       // Registered table is only (p+1,p+2); order 2p+5 → Q1D=p+3 <= MaxQ1D.
       if (p + 3 > internal::mma::TensorsMmaMaxQ1D) { return; }
       test_pa_tensors_mma_cartesian(dim, p, kind, 2 * p + 5);
+   }
+}
+
+TEST_CASE("Tensors dense GEM MMA vs SUM-PA", "[MMA][GPU]")
+{
+   const int p = GENERATE(1, 2, 3, 6);
+
+   SECTION("quad")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+      test_pa_tensors_gem(mesh, p);
+   }
+   SECTION("hex")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+      test_pa_tensors_gem(mesh, p);
+   }
+   SECTION("fichera-quad")
+   {
+      if (p > 3) { return; }
+      Mesh mesh("../../data/fichera-quad.mesh");
+      REQUIRE(mesh.Dimension() == 2);
+      test_pa_tensors_gem(mesh, p);
+   }
+   SECTION("fichera")
+   {
+      if (p > 3) { return; }
+      Mesh mesh("../../data/fichera.mesh");
+      REQUIRE(mesh.Dimension() == 3);
+      test_pa_tensors_gem(mesh, p);
    }
 }
 
@@ -321,15 +398,15 @@ TEST_CASE("Tensors MMA eligibility", "[MMA][GPU]")
 
    REQUIRE_FALSE(UsesTensorMMA(fes));
 
-   // p=1 and p=2 are intentionally unsupported (pad / SUM preferred)
+   // p=1 and p=2 take the MMA path (m8n8k4 pads the short tiles).
    H1_FECollection fec1(1, 3, BasisType::GaussLobatto);
    FiniteElementSpace fes1(&mesh, &fec1);
    {
       MMAForce on(true);
-      REQUIRE_FALSE(UsesTensorMMA(fes1));
+      REQUIRE(UsesTensorMMA(fes1));
       H1_FECollection fec2(2, 3, BasisType::GaussLobatto);
       FiniteElementSpace fes2(&mesh, &fec2);
-      REQUIRE_FALSE(UsesTensorMMA(fes2));
+      REQUIRE(UsesTensorMMA(fes2));
    }
 }
 

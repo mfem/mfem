@@ -149,6 +149,46 @@ inline void MmaDiffusionApplyTensors3D(
       NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
 }
 
+template <int DIM, int T_D1D, int T_Q1D>
+inline void MmaGemDiffusionApplyTensors(const int NE, const bool symmetric,
+                                        const Array<real_t> &G,
+                                        const Vector &d, const Vector &x,
+                                        Vector &y)
+{
+   using mma::form::Diffusion;
+   using mma::form::gem::ApplyTensorGemGrad;
+   using mma::form::gem::TensorGemPow;
+   if constexpr (T_D1D > 0 && T_Q1D > 0)
+   {
+      constexpr int nq = TensorGemPow(T_Q1D, DIM);
+      constexpr int ndof = TensorGemPow(T_D1D, DIM);
+      if (symmetric)
+      {
+         ApplyTensorGemGrad<Diffusion<DIM, true>, DIM, nq, ndof>(
+            NE, nq, ndof, G, d, x, y);
+      }
+      else
+      {
+         ApplyTensorGemGrad<Diffusion<DIM, false>, DIM, nq, ndof>(
+            NE, nq, ndof, G, d, x, y);
+      }
+   }
+   else if (symmetric)
+   {
+      constexpr int PA = (DIM * (DIM + 1)) / 2;
+      const int nq = d.Size() / (PA * NE);
+      const int ndof = G.Size() / (nq * DIM);
+      ApplyTensorGemGrad<Diffusion<DIM, true>, DIM>(NE, nq, ndof, G, d, x, y);
+   }
+   else
+   {
+      constexpr int PA = DIM * DIM;
+      const int nq = d.Size() / (PA * NE);
+      const int ndof = G.Size() / (nq * DIM);
+      ApplyTensorGemGrad<Diffusion<DIM, false>, DIM>(NE, nq, ndof, G, d, x, y);
+   }
+}
+
 template <int DIM, int D1D, int QND>
 inline void MmaVectorDiffusionApplySimplex(
    const int NE, const int vdim,
@@ -220,7 +260,7 @@ inline void MmaVectorDiffusionApplyTensors3D(
 
 template<int DIM, int D1D, int QND>
 DiffusionIntegrator::ApplySimplexMmaKernelType
-DiffusionIntegrator::ApplySimplexMmaPAKernels::Kernel()
+DiffusionIntegrator::ApplySimplexMmaGemPAKernels::Kernel()
 {
    using internal::mma::form::ApplyDiffusionDispatch;
    if constexpr (DIM == 2)
@@ -239,7 +279,7 @@ DiffusionIntegrator::ApplySimplexMmaPAKernels::Kernel()
 }
 
 inline DiffusionIntegrator::ApplySimplexMmaKernelType
-DiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
+DiffusionIntegrator::ApplySimplexMmaGemPAKernels::Fallback(int dim, int, int)
 {
    using internal::mma::form::ApplyDiffusionDispatch;
    using Fn = ApplySimplexMmaKernelType;
@@ -252,9 +292,28 @@ DiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
    return static_cast<Fn>(ApplyDiffusionDispatch<3>);
 }
 
+template<int DIM, int T_D1D, int T_Q1D>
+DiffusionIntegrator::ApplySimplexMmaKernelType
+DiffusionIntegrator::ApplyTensorsMmaGemPAKernels::Kernel()
+{
+   return internal::MmaGemDiffusionApplyTensors<DIM, T_D1D, T_Q1D>;
+}
+
+inline DiffusionIntegrator::ApplySimplexMmaKernelType
+DiffusionIntegrator::ApplyTensorsMmaGemPAKernels::Fallback(int dim, int, int)
+{
+   using Fn = ApplySimplexMmaKernelType;
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   if (dim == 2)
+   {
+      return static_cast<Fn>(internal::MmaGemDiffusionApplyTensors<2, 0, 0>);
+   }
+   return static_cast<Fn>(internal::MmaGemDiffusionApplyTensors<3, 0, 0>);
+}
+
 template <int DIM, int T_D1D, int T_Q1D>
 DiffusionIntegrator::ApplyTensorsMmaKernelType
-DiffusionIntegrator::ApplyTensorsMmaPAKernels::Kernel()
+DiffusionIntegrator::ApplyTensorsMmaSumPAKernels::Kernel()
 {
    return internal::MmaDiffusionApplyTensors<DIM, T_D1D, T_Q1D>;
 }

@@ -96,6 +96,128 @@ MFEM_HOST_DEVICE inline void Gemm16(const int M, const int K, const int N,
    }
 }
 
+/** Fused 2-component forward: U_d = G_d * X for d=0..1, loading each X fragment once. */
+template <typename TA0, typename TA1, typename TB, typename TC0, typename TC1>
+MFEM_HOST_DEVICE inline void Gemm16_Fwd2(const int M, const int K,
+                                         const int N,
+                                         TA0 A0, TA1 A1, TB B,
+                                         TC0 C0, TC1 C1)
+{
+   constexpr int TM = 16, TN = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int aRow = lane % TM;
+   const int aColK = lane / TM;
+   const int bCol = lane % TN;
+   const int cRowBase = lane / TN;
+   const int mPass = (M + TM - 1) / TM;
+   const int nTiles = (N + TN - 1) / TN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * TN;
+         const int nTile = (N - n0 < TN) ? (N - n0) : TN;
+         double4 c0 = {0, 0, 0, 0};
+         double4 c1 = {0, 0, 0, 0};
+
+         for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aR = row0 + aRow;
+            const int aC = k0 + aColK;
+            const int bR = k0 + aColK;
+            const double bV = (bR < K && bCol < nTile)
+                              ? static_cast<double>(B(bR, n0 + bCol)) : 0.0;
+            const double a0V = (aR < M && aC < K)
+                               ? static_cast<double>(A0(aR, aC)) : 0.0;
+            const double a1V = (aR < M && aC < K)
+                               ? static_cast<double>(A1(aR, aC)) : 0.0;
+            Sync16(a0V, bV, c0);
+            Sync16(a1V, bV, c1);
+         }
+
+         for (int i = 0; i < 4; ++i)
+         {
+            const int cRow = row0 + cRowBase + 4 * i;
+            const int cCol = bCol;
+            if (cRow < M && cCol < nTile)
+            {
+               C0(cRow, n0 + cCol) = static_cast<real_t>(c0[i]);
+               C1(cRow, n0 + cCol) = static_cast<real_t>(c1[i]);
+            }
+         }
+      }
+   }
+}
+
+/** Fused 2-component GemmT: Y += G_d^T * U_d for d=0..1 (shared Y accumulate). */
+template <typename TA0, typename TA1, typename TB0, typename TB1, typename TC>
+MFEM_HOST_DEVICE inline void GemmT16_2(const int M, const int K,
+                                       const int N,
+                                       TA0 A0, TA1 A1,
+                                       TB0 B0, TB1 B1, TC C,
+                                       const int e0, const int NE)
+{
+   constexpr int TM = 16, TN = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int lane = getLaneId(thread);
+   const int aRow = lane % TM;
+   const int aColK = lane / TM;
+   const int bCol = lane % TN;
+   const int cRowBase = lane / TN;
+   const int mPass = (K + TM - 1) / TM;
+   const int nTiles = (N + TN - 1) / TN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * TN;
+         const int nTile = (N - n0 < TN) ? (N - n0) : TN;
+         double4 cReg = {0, 0, 0, 0};
+
+         for (int mK = 0; mK < (M + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aT_row = row0 + aRow;
+            const int aT_col = k0 + aColK;
+            const int bR = k0 + aColK;
+            const bool a_ok = (aT_row < K && aT_col < M);
+            const bool b_ok = (bR < M && bCol < nTile);
+            const double a0V = a_ok ? static_cast<double>(A0(aT_col, aT_row))
+                               : 0.0;
+            const double a1V = a_ok ? static_cast<double>(A1(aT_col, aT_row))
+                               : 0.0;
+            const double b0V = b_ok ? static_cast<double>(B0(bR, n0 + bCol))
+                               : 0.0;
+            const double b1V = b_ok ? static_cast<double>(B1(bR, n0 + bCol))
+                               : 0.0;
+            Sync16(a0V, b0V, cReg);
+            Sync16(a1V, b1V, cReg);
+         }
+
+         for (int i = 0; i < 4; ++i)
+         {
+            const int cRow = row0 + cRowBase + 4 * i;
+            const int cCol = bCol;
+            const int e = e0 + n0 + cCol;
+            if (cRow < K && cCol < nTile && e < NE)
+            {
+               C(cRow, n0 + cCol) += static_cast<real_t>(cReg[i]);
+            }
+         }
+      }
+   }
+}
+
 /** Fused 3-component forward: U_d = G_d * X for d=0..2, loading each X fragment once. */
 template <typename TA0, typename TA1, typename TA2, typename TB,
           typename TC0, typename TC1, typename TC2>

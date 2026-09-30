@@ -21,6 +21,7 @@ namespace mfem
 namespace
 {
 bool force_mma = false;
+bool force_gem = false;
 }
 
 bool ForceMMA(bool enable)
@@ -42,6 +43,18 @@ bool GetForceMMA()
       env_mma = (e && std::strcmp(e, "0") != 0) ? 1 : 0;
    }
    return env_mma == 1;
+}
+
+bool ForceGEM(bool enable)
+{
+   const bool previous = force_gem;
+   force_gem = enable;
+   return previous;
+}
+
+bool GetForceGEM()
+{
+   return force_gem;
 }
 
 } // namespace mfem

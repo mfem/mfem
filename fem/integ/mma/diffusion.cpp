@@ -208,11 +208,11 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    dofs1D = p + 1;
    quad1D = 0;
    ne = mesh->GetNE();
-   use_simplices_mma = true;
+   use_simplex_mma = true;
 
-   simplex_mma_G.SetSize(nq * dof * dim, mt);
+   mma_G.SetSize(nq * dof * dim, mt);
    {
-      real_t *Gh = simplex_mma_G.HostWrite();
+      real_t *Gh = mma_G.HostWrite();
       dshape.SetSize(dof, dim);
       for (int q = 0; q < nq; q++)
       {
@@ -263,11 +263,12 @@ void DiffusionIntegrator::RegisterSimplexMmaKernels()
 void DiffusionIntegrator::RegisterTensorsMmaKernels()
 {
    // Shared tensor list (p = 3..7) — see form/register.hpp.
-   internal::mma::RegisterTensorsMmaSpecializations<DiffusionIntegrator>();
+   internal::mma::RegisterTensorsMmaSumSpecializations<DiffusionIntegrator>();
+   internal::mma::RegisterTensorsMmaGemSpecializations<DiffusionIntegrator>();
 }
 
 DiffusionIntegrator::ApplyTensorsMmaKernelType
-DiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+DiffusionIntegrator::ApplyTensorsMmaSumPAKernels::Fallback(int dim, int, int)
 {
    if (dim == 2) { return internal::MmaDiffusionApplyTensors2D; }
    if (dim == 3) { return internal::MmaDiffusionApplyTensors3D; }

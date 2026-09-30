@@ -73,6 +73,81 @@ MFEM_HOST_DEVICE inline void GemmT(const int M, const int ndof,
    gemm(M, ndof, NB, B, U, Y, e0, NE);
 }
 
+/** Fused 2D GradP forward: U0,U1 = G0,G1 * X. */
+template <int MAP = 0, typename Basis0, typename Basis1,
+          typename XAcc, typename U0, typename U1>
+MFEM_HOST_DEVICE inline void Gemm2(const int M, const int ndof,
+                                   const int NB,
+                                   Basis0 B0, Basis1 B1,
+                                   XAcc X, U0 U0a, U1 U1a,
+                                   const int e0, const int NE)
+{
+   if (TensorMmaEnabled())
+   {
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+      (void)e0; (void)NE;
+      dmma::Gemm8_Fwd2<MAP>(M, ndof, NB, B0, B1, X, U0a, U1a);
+#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+      if (PreferMfma4(M, ndof))
+      {
+         NullDAcc nullD;
+         Gemm(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
+         Gemm(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
+      }
+      else
+      {
+         (void)e0; (void)NE;
+         mfma::Gemm16_Fwd2(M, ndof, NB, B0, B1, X, U0a, U1a);
+      }
+#else
+      NullDAcc nullD;
+      Gemm(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
+#endif
+   }
+   else
+   {
+      NullDAcc nullD;
+      Gemm(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
+   }
+}
+
+/** Fused 2D GradP^T accumulate into Y. */
+template <int MAP = 0, typename Basis0, typename Basis1,
+          typename U0, typename U1, typename YAcc>
+MFEM_HOST_DEVICE inline void GemmT2(const int M, const int ndof,
+                                    const int NB,
+                                    Basis0 B0, Basis1 B1,
+                                    U0 U0a, U1 U1a, YAcc Y,
+                                    const int e0, const int NE)
+{
+   if (TensorMmaEnabled())
+   {
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+      dmma::GemmT8_2<MAP>(M, ndof, NB, B0, B1, U0a, U1a, Y, e0, NE);
+#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+      if (PreferMfma4(M, ndof))
+      {
+         GemmT(M, ndof, NB, B0, U0a, Y, e0, NE);
+         GemmT(M, ndof, NB, B1, U1a, Y, e0, NE);
+      }
+      else
+      {
+         mfma::GemmT16_2(M, ndof, NB, B0, B1, U0a, U1a, Y, e0, NE);
+      }
+#else
+      GemmT(M, ndof, NB, B0, U0a, Y, e0, NE);
+      GemmT(M, ndof, NB, B1, U1a, Y, e0, NE);
+#endif
+   }
+   else
+   {
+      GemmT(M, ndof, NB, B0, U0a, Y, e0, NE);
+      GemmT(M, ndof, NB, B1, U1a, Y, e0, NE);
+   }
+}
+
 /** Fused 3D GradP forward: U0,U1,U2 = G0,G1,G2 * X. */
 template <int MAP = 0, typename Basis0, typename Basis1, typename Basis2,
           typename XAcc, typename U0, typename U1, typename U2>

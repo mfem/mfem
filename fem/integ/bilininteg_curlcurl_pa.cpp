@@ -109,8 +109,8 @@ CurlCurlIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
 
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   use_tensors_mma = false;
-   use_simplices_mma = false;
+   use_tensors_mma_sum = false;
+   use_simplex_mma = false;
 
    if (UsesSimplexMmaHcurl(fes))
    {
@@ -175,12 +175,12 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
                                   pa_data);
    }
 
-   if (UsesTensorMmaHcurl(fes)) { use_tensors_mma = true; }
+   if (UsesTensorMmaHcurl(fes)) { use_tensors_mma_sum = true; }
 }
 
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       // Dense simplex path: fall back to assembling diagonal via Mult of e_i
       // is expensive; for now zero and let tests focus on Mult.
@@ -194,7 +194,7 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (use_simplices_mma)
+   if (use_simplex_mma)
    {
       auto apply = [&](const Vector &xh, Vector &yh, internal::NdDualCtx dual)
       {
@@ -215,7 +215,7 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       return;
    }
-   if (use_tensors_mma)
+   if (use_tensors_mma_sum)
    {
       if (dim == 2)
       {
@@ -238,7 +238,7 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(!use_simplices_mma,
+   MFEM_VERIFY(!use_simplex_mma,
                "AbsMultPA not implemented for simplex MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
