@@ -23,6 +23,7 @@
 // Device sample runs:
 //    ex9 -pa
 //    ex9 -ea
+//    ex9 -ea --mass-storage full
 //    ex9 -fa
 //    ex9 -pa -m ../data/periodic-cube.mesh
 //    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
@@ -44,6 +45,7 @@
 //               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -134,7 +136,8 @@ private:
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
+   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_,
+                DGMassInverse::MassStorage mass_storage);
 
    void Mult(const Vector &x, Vector &y) const override;
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
@@ -153,6 +156,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    bool ea = false;
    bool fa = false;
+   const char *mass_storage = "packed";
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    real_t t_final = 10.0;
@@ -182,6 +186,8 @@ int main(int argc, char *argv[])
                   "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
                   "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&mass_storage, "-ms", "--mass-storage",
+                  "Local mass storage: packed or full.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -213,6 +219,9 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   MFEM_VERIFY(strcmp(mass_storage, "packed") == 0 ||
+               strcmp(mass_storage, "full") == 0,
+               "--mass-storage must be packed or full.");
    args.PrintOptions(cout);
 
    Device device(device_config);
@@ -371,7 +380,10 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b);
+   const auto mass_storage_type =
+      strcmp(mass_storage, "full") == 0 ?
+      DGMassInverse::MassStorage::Full : DGMassInverse::MassStorage::Packed;
+   FE_Evolution adv(m, k, b, mass_storage_type);
    using ImplicitVariableType = FE_Evolution::ImplicitVariableType;
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
@@ -433,7 +445,8 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
+FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_,
+                           DGMassInverse::MassStorage mass_storage)
    : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
      M(M_), K(K_), b(b_), z(height)
 {
@@ -446,7 +459,9 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
    }
    else if (M.GetAssemblyLevel() == AssemblyLevel::ELEMENT)
    {
-      M_prec = new DGMassInverse(*M.FESpace(), BasisType::GaussLobatto);
+      M_prec = new DGMassInverse(
+         *M.FESpace(), BasisType::GaussLobatto,
+         mass_storage);
       direct_mass_solver = true;
       dg_solver = NULL;
    }

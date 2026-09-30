@@ -14,21 +14,34 @@
 
 #include "../linalg/operator.hpp"
 #include "../linalg/tripack.hpp"
+#include "../linalg/batched/batched.hpp"
 #include "fespace.hpp"
 #include "kernel_dispatch.hpp"
 #include <memory>
+
+#ifdef MFEM_USE_MAGMA
+#include "../linalg/tripack_magma.hpp"
+#endif
 
 namespace mfem
 {
 
 /// @brief Solver for the discontinuous Galerkin mass matrix.
 ///
-/// This class performs a @a local (diagonally preconditioned) conjugate
-/// gradient iteration for each element. Optionally, a change of basis is
-/// performed to iterate on a better-conditioned system. This class fully
-/// supports execution on device (GPU).
+/// This class performs a direct local element solve when a tensor-product L2
+/// basis is used, or a diagonally preconditioned conjugate gradient iteration
+/// otherwise. Optionally, a change of basis is performed for the iterative
+/// solve. This class fully supports execution on device (GPU).
 class DGMassInverse : public Solver
 {
+public:
+   /// Local element-matrix storage used by the direct inverse path.
+   enum class MassStorage
+   {
+      Packed, ///< Packed symmetric storage with Cholesky factorization.
+      Full    ///< Dense storage with batched LU factorization.
+   };
+
 protected:
    DG_FECollection fec; ///< FE collection in requested basis.
    FiniteElementSpace fes; ///< FE space in requested basis.
@@ -39,7 +52,14 @@ protected:
    class MassIntegrator *m; ///< Mass integrator, owned by the form @ref M.
    Vector diag_inv; ///< Jacobi preconditioner.
    TriPackLowerMatrix mass_chol; ///< Direct packed Cholesky factor.
+   DenseTensor mass_lu; ///< Direct full element LU factors.
+   Array<int> mass_lu_pivots; ///< Pivots for the full element LU factors.
+#ifdef MFEM_USE_MAGMA
+   std::unique_ptr<MagmaPackedLowerCholesky> magma_chol;
+#endif
+   MassStorage mass_storage = MassStorage::Packed;
    bool use_packed_inverse = false; ///< Use direct packed Cholesky solve.
+   bool use_full_inverse = false; ///< Use direct full element LU solve.
    real_t rel_tol = 1e-12; ///< Relative CG tolerance.
    real_t abs_tol = 1e-12; ///< Absolute CG tolerance.
    int max_iter = 100; ///< Maximum number of CG iterations;
@@ -54,7 +74,9 @@ protected:
    /// Custom coefficient and integration rule are used if @a coeff and @a ir
    /// are non-NULL.
    DGMassInverse(const FiniteElementSpace &fes_, Coefficient *coeff,
-                 const IntegrationRule *ir, int btype);
+                 const IntegrationRule *ir, int btype,
+                 MassStorage storage=MassStorage::Packed);
+
 public:
    /// @brief Construct the DG inverse mass operator for @a fes_.
    ///
@@ -68,6 +90,9 @@ public:
    /// used internally, and only has an effect on the convergence rate.
    DGMassInverse(const FiniteElementSpace &fes_,
                  int btype=BasisType::GaussLegendre);
+   /// @brief Construct the DG inverse mass operator with local storage mode.
+   DGMassInverse(const FiniteElementSpace &fes_, int btype,
+                 MassStorage storage);
    /// @brief Construct the DG inverse mass operator for @a fes_ with
    /// Coefficient @a coeff.
    ///
