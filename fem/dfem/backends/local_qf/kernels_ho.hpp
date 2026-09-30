@@ -340,12 +340,6 @@ struct ho_ker_backend
    /// Run sweep @a t of component block @a c under field operator @a FOP, accumulating
    /// into the q-function register bank @a rarg.
    /// Bx -> By -> Bz
-   ///
-   /// Basically the vector-FE counterpart of ker::Contract3d<false>. Follows
-   /// the same axis sweep order, with two differences forced by ND/RT: the 1D
-   /// factors are taken per component, since a component uses the closed basis
-   /// along some axes and the open basis along the others, and the destination
-   /// is a bank slot picked by the operator rather than the component index.
    template<typename FOP, typename Smem, typename ArgReg>
    static MFEM_HOST_DEVICE void contract_vector_component(
       const DofToQuadMap &m, const int c, const int t,
@@ -370,6 +364,16 @@ struct ho_ker_backend
 
       for (int dz = 0; dz < ez; dz++)
       {
+         // Stage the current z-slice of dofs in shared memory
+         // ( x-sweep needs to read whole row, not just the register of this thread )
+         MFEM_FOREACH_THREAD(dy, y, ey)
+         MFEM_FOREACH_THREAD(dx, x, ex)
+         {
+            if constexpr (DIM == 2) { s.B[dy][dx] = dofs[dy][dx]; }
+            else { s.B[dy][dx] = dofs[dz][dy][dx]; }
+         }
+         MFEM_SYNC_THREAD;
+
          // Sweep along the x-axis for the current z-slice.
          MFEM_FOREACH_THREAD(dy, y, ey)
          MFEM_FOREACH_THREAD(qx, x, q1d)
@@ -377,15 +381,7 @@ struct ho_ker_backend
             real_t value = 0.0;
             for (int dx = 0; dx < ex; dx++)
             {
-               if constexpr (DIM == 2)
-               {
-                  value += Bx[qx + q1d * dx] * dofs[dy][dx];
-               }
-               else
-               {
-                  value += Bx[qx + q1d * dx] *
-                           dofs[dz][dy][dx];
-               }
+               value += Bx[qx + q1d * dx] * s.B[dy][dx];
             }
             s.M[dy][qx] = value;
          }

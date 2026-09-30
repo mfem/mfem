@@ -687,5 +687,80 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE][GPU]")
    }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Check for LocalQF with HO kernels (tile size > 8; order 16 gives q1d = 9). 
+TEST_CASE("dFEM H(div) 3D HO", "[Parallel][dFEM][VectorFE][GPU]")
+{
+   const int p = GENERATE(0, 1);
+   CAPTURE(p);
+   HdivSetup setup("../../data/inline-hex.mesh", 3, p);
+   constexpr int order = 16;
+   REQUIRE(IntRules.Get(Geometry::SEGMENT, order).GetNPoints() == 9);
+   setup.ir = &IntRules.Get(setup.pmesh.GetTypicalElementGeometry(), order);
+
+   ParFiniteElementSpace &pfes = setup.pfes;
+   const int tvsize = pfes.GetTrueVSize();
+   const MPI_Comm comm = setup.pmesh.GetComm();
+
+   ParBilinearForm blf(&pfes);
+   AddHdivIntegrators(blf, HdivForm::MassDivDiv, setup.ir);
+   blf.Assemble();
+   blf.Finalize();
+   const auto reference = [&](const Vector &X, Vector &Y)
+   {
+      ParGridFunction x(&pfes), y(&pfes);
+      x.SetFromTrueDofs(X);
+      blf.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+   };
+
+   static constexpr int U = 0, Coords = 1;
+   const auto in_fds = std::vector
+   {
+      FieldDescriptor{ U, &pfes },
+      FieldDescriptor{ Coords, setup.nodes->ParFESpace() }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
+   DifferentiableOperator dop(in_fds, out_fds, setup.pmesh);
+   hdiv_mass_divdiv_qf<3> qf;
+   dop.AddDomainIntegrator<LocalQFBackend>(
+      qf, Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight> {},
+      Outputs<Value<U>, Div<U>> {}, *setup.ir, setup.all_domain_attr,
+      Derivatives<U> {});
+
+   Vector X(tvsize), dX(tvsize), Y(tvsize), Z(tvsize);
+   X.Randomize(1);
+   dX.Randomize(2);
+   MultiVector MX{ X, setup.N }, MdX{ dX }, MZ{ Z };
+
+   SECTION("Action")
+   {
+      reference(X, Y);
+      REQUIRE(Y.Normlinf() > 1e-8);
+      dop.Mult(MX, MZ);
+      REQUIRE(HdivMaxError(comm, Y, Z) == MFEM_Approx(0.0, 1e-10, 1e-10));
+   }
+
+   SECTION("Derivative action, MF and cached, and transpose")
+   {
+      reference(dX, Y);
+      REQUIRE(Y.Normlinf() > 1e-8);
+      for (const bool cached : { false, true })
+      {
+         CAPTURE(cached);
+         auto dRdU = dop.GetDerivative(U, MX, cached);
+         dRdU->Mult(dX, MZ);
+         REQUIRE(HdivMaxError(comm, Y, Z) == MFEM_Approx(0.0, 1e-10, 1e-10));
+         if (cached)
+         {
+            // The form is symmetric, so the transpose gives the same result.
+            Z = 0.0;
+            dRdU->MultTranspose(MdX, MZ);
+            REQUIRE(HdivMaxError(comm, Y, Z) == MFEM_Approx(0.0, 1e-10, 1e-10));
+         }
+      }
+   }
+}
+
 
 #endif // MFEM_USE_MPI
