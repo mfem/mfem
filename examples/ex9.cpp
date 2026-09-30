@@ -128,10 +128,10 @@ class FE_Evolution : public TimeDependentOperator
 private:
    BilinearForm &M, &K;
    const Vector &b;
-   Solver *M_prec;
-   CGSolver M_solver;
+   Solver *mass_solver; ///< Selected mass solver; not owned.
+   Solver *owned_mass_operator; ///< Preconditioner or direct solver; owned.
+   CGSolver iterative_mass_solver;
    DG_Solver *dg_solver;
-   bool direct_mass_solver = false;
 
    mutable Vector z;
 
@@ -453,32 +453,34 @@ FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_,
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
    {
-      M_prec = new DSmoother(M.SpMat());
-      M_solver.SetOperator(M.SpMat());
+      owned_mass_operator = new DSmoother(M.SpMat());
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(M.SpMat());
       dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
    }
    else if (M.GetAssemblyLevel() == AssemblyLevel::ELEMENT)
    {
-      M_prec = new DGMassInverse(
+      owned_mass_operator = new DGMassInverse(
          *M.FESpace(), BasisType::GaussLobatto,
          mass_storage);
-      direct_mass_solver = true;
+      mass_solver = owned_mass_operator;
       dg_solver = NULL;
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-      M_solver.SetOperator(M);
+      owned_mass_operator = new OperatorJacobiSmoother(M, ess_tdof_list);
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(M);
       dg_solver = NULL;
    }
-   if (!direct_mass_solver)
+   if (mass_solver != owned_mass_operator)
    {
-      M_solver.SetPreconditioner(*M_prec);
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-9);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(100);
-      M_solver.SetPrintLevel(0);
+      iterative_mass_solver.SetPreconditioner(*owned_mass_operator);
+      iterative_mass_solver.iterative_mode = false;
+      iterative_mass_solver.SetRelTol(1e-9);
+      iterative_mass_solver.SetAbsTol(0.0);
+      iterative_mass_solver.SetMaxIter(100);
+      iterative_mass_solver.SetPrintLevel(0);
    }
 }
 
@@ -487,14 +489,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
    z += b;
-   if (direct_mass_solver)
-   {
-      M_prec->Mult(z, y);
-   }
-   else
-   {
-      M_solver.Mult(z, y);
-   }
+   mass_solver->Mult(z, y);
 }
 
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
@@ -521,7 +516,7 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 
 FE_Evolution::~FE_Evolution()
 {
-   delete M_prec;
+   delete owned_mass_operator;
    delete dg_solver;
 }
 

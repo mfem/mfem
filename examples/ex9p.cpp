@@ -216,10 +216,10 @@ class FE_Evolution : public TimeDependentOperator
 private:
    OperatorHandle M, K;
    const Vector &b;
-   Solver *M_prec;
-   CGSolver M_solver;
+   Solver *mass_solver; ///< Selected mass solver; not owned.
+   Solver *owned_mass_operator; ///< Preconditioner or direct solver; owned.
+   CGSolver iterative_mass_solver;
    DG_Solver *dg_solver;
-   bool direct_mass_solver = false;
 
    mutable Vector z;
 
@@ -654,7 +654,7 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
                            const Vector &b_, PrecType prec_type,
                            DGMassInverse::MassStorage mass_storage)
    : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
-     M_solver(M_.ParFESpace()->GetComm()),
+     iterative_mass_solver(M_.ParFESpace()->GetComm()),
      z(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
@@ -668,40 +668,42 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
       K.Reset(&K_, false);
    }
 
-   M_solver.SetOperator(*M);
-
    Array<int> ess_tdof_list;
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
-      M_prec = hypre_prec;
+      owned_mass_operator = hypre_prec;
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(*M);
 
       dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace(), prec_type);
    }
    else if (M_.GetAssemblyLevel()==AssemblyLevel::ELEMENT)
    {
-      M_prec = new DGMassInverse(
+      owned_mass_operator = new DGMassInverse(
          *M_.FESpace(), BasisType::GaussLobatto,
          mass_storage);
-      direct_mass_solver = true;
+      mass_solver = owned_mass_operator;
       dg_solver = NULL;
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
+      owned_mass_operator = new OperatorJacobiSmoother(M_, ess_tdof_list);
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(*M);
       dg_solver = NULL;
    }
 
-   if (!direct_mass_solver)
+   if (mass_solver != owned_mass_operator)
    {
-      M_solver.SetPreconditioner(*M_prec);
-      M_solver.iterative_mode = false;
-      M_solver.SetRelTol(1e-9);
-      M_solver.SetAbsTol(0.0);
-      M_solver.SetMaxIter(100);
-      M_solver.SetPrintLevel(0);
+      iterative_mass_solver.SetPreconditioner(*owned_mass_operator);
+      iterative_mass_solver.iterative_mode = false;
+      iterative_mass_solver.SetRelTol(1e-9);
+      iterative_mass_solver.SetAbsTol(0.0);
+      iterative_mass_solver.SetMaxIter(100);
+      iterative_mass_solver.SetPrintLevel(0);
    }
 }
 
@@ -736,19 +738,12 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    K->Mult(x, z);
    z += b;
-   if (direct_mass_solver)
-   {
-      M_prec->Mult(z, y);
-   }
-   else
-   {
-      M_solver.Mult(z, y);
-   }
+   mass_solver->Mult(z, y);
 }
 
 FE_Evolution::~FE_Evolution()
 {
-   delete M_prec;
+   delete owned_mass_operator;
    delete dg_solver;
 }
 
