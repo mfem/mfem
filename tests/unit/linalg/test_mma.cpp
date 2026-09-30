@@ -124,9 +124,12 @@ TEST_CASE("MMA Test", "[MMA]")
 
    Vector x(num_var);
    Vector dx(num_var);
-   Vector xmin(num_var); xmin=-1.0;
-   Vector xmax(num_var); xmax=2.0;
-   x=xmin; x+=0.5;
+   Vector xmin(num_var);
+   xmin=-1.0;
+   Vector xmax(num_var);
+   xmax=2.0;
+   x=xmin;
+   x+=0.5;
 
    MMA* mma = nullptr;
 
@@ -136,8 +139,10 @@ TEST_CASE("MMA Test", "[MMA]")
    mma = new MMA(num_var,1,x);
 #endif
 
-   Vector g(1); g=-1.0;
-   Vector dg(num_var); dg=0.0;
+   Vector g(1);
+   g=-1.0;
+   Vector dg(num_var);
+   dg=0.0;
 
    real_t o;
    for (int it=0; it<30; it++)
@@ -214,9 +219,12 @@ TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
 
    Vector x(num_var);
    Vector dx(num_var);
-   Vector xmin(num_var); xmin=0.0;
-   Vector xmax(num_var); xmax=2.0;
-   x=xmin; x+=1.5;
+   Vector xmin(num_var);
+   xmin=0.0;
+   Vector xmax(num_var);
+   xmax=2.0;
+   x=xmin;
+   x+=1.5;
 
    MMA* mma = nullptr;
 
@@ -240,3 +248,60 @@ TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
 
    REQUIRE( std::fabs(o - 75.977534018859) < 1e-12 );
 }
+
+#ifdef MFEM_USE_MPI
+/** \brief Unconstrained Unit test with fewer variables than MPI ranks
+ *
+ *    minimize   F(x) = \sum[ (1 / x) + 10x ],
+ *
+ * */
+TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
+{
+   int world_size = 1, my_rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+   const int global_num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+   for (int offset = 0; offset < world_size;
+        ++offset)  // rotate which rank has no decision variables
+   {
+      const int adjustedRank = ((my_rank+offset) % world_size);
+      const int num_var = (global_num_var/world_size) + static_cast<int>
+                          (adjustedRank <
+                           (global_num_var % world_size));
+      int global_var_check = 1;
+      MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE( global_num_var == global_var_check );
+
+      Vector x(num_var);
+      Vector dx(num_var);
+      Vector xmin(num_var);
+      xmin=0.0;
+      Vector xmax(num_var);
+      xmax=2.0;
+      x=xmin;
+      x+=1.5;
+
+      ::std::unique_ptr<MMA> mma =
+#if  __cplusplus >= 201402L
+         ::std::make_unique<MMA>(MPI_COMM_WORLD,num_var,0,x);
+
+#else
+         ::std::unique_ptr<MMA>(new MMA(MPI_COMM_WORLD,num_var,0,x));
+#endif
+
+      real_t o;
+      for (int it=0; it<30; it++)
+      {
+         o=dobj0_c(x,dx);
+
+         mma->Update(dx,xmin,xmax,x);
+      }
+      o=obj0_c(x);
+
+      constexpr double amountPerVar = (75.977534018859/12);
+      const double expectedResult = (amountPerVar*global_num_var);
+      REQUIRE( std::fabs(o - expectedResult) < 1e-11 );
+   }
+}
+#endif
