@@ -70,7 +70,7 @@ public:
          case 0: return Q.type == QuantityType::OBJ;
          case 1: return Q.active && Q.type == QuantityType::EQ;
          default: return Q.active && (Q.type == QuantityType::LE ||
-                                      Q.type == QuantityType::GE);
+                                         Q.type == QuantityType::GE);
       }
    }
    bool Summed(const Quantity &Q) const { return kind == 0 || Q.weighted; }
@@ -533,7 +533,7 @@ void OptProblem::GroupedDerivative::Mult(const Vector &v, Vector &jv) const
 }
 
 void OptProblem::GroupedDerivative::MultTranspose(const Vector &y,
-                                               Vector &dx) const
+                                                  Vector &dx) const
 {
    Check();
    MFEM_VERIFY(y.Size() == height, "OptProblem: input has size " << y.Size()
@@ -637,7 +637,7 @@ void OptProblem::GroupedSecondDerivative::Mult(const Vector &v,
 }
 
 void OptProblem::GroupedSecondDerivative::MultTranspose(const Vector &Y,
-                                                     Vector &dx) const
+                                                        Vector &dx) const
 {
    Check();
    MFEM_VERIFY(Y.Size() == height, "OptProblem: input has size " << Y.Size()
