@@ -645,7 +645,7 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       int num_samp = ncoarse*ncoarse; // 16 if 2-dimensional, 64 if 3-dimensional.
       DenseMatrix B(A_prev.Height(), num_samp); 
       std::random_device rd;
-      std::mt19937 gen(rd()); 
+      std::mt19937 gen(12345); 
       std::normal_distribution<double> dist(0.0, 1.0);
       for (int i = 0; i < B.Height(); i++)
       {
