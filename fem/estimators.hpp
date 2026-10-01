@@ -688,6 +688,93 @@ public:
 
    /// Change the coefficients back to default as described above.
    void ResetCoefficientFunctions();
+
+};
+
+/** @brief Abstract element estimator, analogous to LinearFormIntegrator. */
+class DomainErrorEstimator
+{
+public:
+   /** Return the non-negative contribution for one mesh element. */
+   virtual real_t GetElementError(const FiniteElement &el,
+                                  ElementTransformation &Tr) = 0;
+   virtual ~DomainErrorEstimator() { }
+};
+
+/** @brief Abstract face estimator, analogous to a face LinearFormIntegrator. */
+class FaceErrorEstimator
+{
+public:
+   /** Prepare face-neighbor data before evaluating parallel shared faces.
+
+       The default implementation is a no-op. Face estimators which evaluate
+       one or more ParGridFunctions on both sides of a shared face should
+       override this method and exchange the needed data here. */
+   virtual void ExchangeFaceNbrData() { }
+
+   /** Return contributions for the two elements adjacent to an interior face. */
+   virtual void GetFaceError(const FiniteElement &el1, const FiniteElement &el2,
+                             FaceElementTransformations &Tr,
+                             real_t &error1, real_t &error2)
+   { MFEM_ABORT("interior face estimation is not implemented"); }
+
+   /** Return the contribution for the element adjacent to a boundary face. */
+   virtual real_t GetFaceError(const FiniteElement &el,
+                               FaceElementTransformations &Tr)
+   { MFEM_ABORT("boundary face estimation is not implemented"); }
+
+   virtual ~FaceErrorEstimator() { }
+};
+
+class GeneralErrorEstimator : public ErrorEstimator
+{
+protected:
+  bool reset_;
+  long current_sequence_ = -1;
+  FiniteElementSpace *fes_;
+
+  Vector elem_errors_;
+
+  Array<DomainErrorEstimator*> domain_estims_;
+  Array<Array<int>*> domain_estims_marker_;
+  Array<DomainErrorEstimator*> bdr_estims_;
+  Array<Array<int>*> bdr_estims_marker_;
+  Array<FaceErrorEstimator*> face_estims_;
+  Array<FaceErrorEstimator*> bdr_face_estims_;
+  Array<Array<int>*> bdr_face_estims_marker_;
+
+  void ComputeEstimates();
+
+public:
+   /** Construct an estimator associated with @a fes. The space is not owned. */
+   GeneralErrorEstimator(FiniteElementSpace &fes) : reset_(true), fes_(&fes) {}
+   ~GeneralErrorEstimator();
+
+   /** Return the global L2 norm of the local element indicators. */
+   real_t GetTotalError() const override;
+
+   /// Get a Vector with all element errors.
+   const Vector &GetLocalErrors() override;
+
+   /// Force recomputation of the estimates on the next call to GetLocalErrors.
+   void Reset() override { reset_ = true; }
+
+   /** Add an element estimator. The GeneralErrorEstimator owns @a dee. */
+   void AddDomainEstimator(DomainErrorEstimator *dee);
+   void AddDomainEstimator(DomainErrorEstimator *dee,
+			   Array<int> &elem_marker);
+
+   /** Add a boundary-element estimator. Ownership of @a dee is transferred. */
+   void AddBdrEstimator(DomainErrorEstimator *dee);
+   void AddBdrEstimator(DomainErrorEstimator *dee, Array<int> &bdr_marker);
+
+   /** Add an interior-face estimator. Ownership of @a fee is transferred. */
+   void AddInteriorFaceEstimator(FaceErrorEstimator *fee);
+
+   /** Add a boundary-face estimator. Ownership of @a fee is transferred. */
+   void AddBdrFaceEstimator(FaceErrorEstimator *fee);
+   void AddBdrFaceEstimator(FaceErrorEstimator *fee,
+                            Array<int> &bdr_marker);
 };
 
 } // namespace mfem

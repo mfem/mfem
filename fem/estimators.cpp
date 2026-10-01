@@ -498,4 +498,229 @@ void LpErrorEstimator::ComputeEstimates()
    current_sequence = sol->FESpace()->GetMesh()->GetSequence();
 }
 
+
+real_t GeneralErrorEstimator::GetTotalError() const
+{
+   real_t local_error_sq = elem_errors_ * elem_errors_;
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(fes_))
+   {
+      real_t global_error_sq = 0.0;
+      MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, pfes->GetComm());
+      local_error_sq = global_error_sq;
+   }
+#endif
+   return sqrt(local_error_sq);
+}
+
+/// Get a Vector with all element errors.
+const Vector &GeneralErrorEstimator::GetLocalErrors()
+{
+  if (reset_ || current_sequence_ != fes_->GetMesh()->GetSequence())
+  {
+     ComputeEstimates();
+  }
+  return elem_errors_;
+}
+
+GeneralErrorEstimator::~GeneralErrorEstimator()
+{
+   for (auto *estimator : domain_estims_) { delete estimator; }
+   for (auto *estimator : bdr_estims_) { delete estimator; }
+   for (auto *estimator : face_estims_) { delete estimator; }
+   for (auto *estimator : bdr_face_estims_) { delete estimator; }
+}
+
+void GeneralErrorEstimator::AddDomainEstimator(DomainErrorEstimator *dee)
+{
+  domain_estims_.Append(dee);
+  domain_estims_marker_.Append(NULL); // NULL marker means apply everywhere
+  Reset();
+}
+
+void GeneralErrorEstimator::AddDomainEstimator(DomainErrorEstimator *dee,
+					       Array<int> &elem_marker)
+{
+  domain_estims_.Append(dee);
+  domain_estims_marker_.Append(&elem_marker);
+  Reset();
+}
+
+void GeneralErrorEstimator::AddBdrEstimator(DomainErrorEstimator *dee)
+{
+   bdr_estims_.Append(dee);
+   bdr_estims_marker_.Append(NULL);
+   Reset();
+}
+
+void GeneralErrorEstimator::AddBdrEstimator(DomainErrorEstimator *dee,
+                                             Array<int> &bdr_marker)
+{
+   bdr_estims_.Append(dee);
+   bdr_estims_marker_.Append(&bdr_marker);
+   Reset();
+}
+
+void GeneralErrorEstimator::AddInteriorFaceEstimator(FaceErrorEstimator *fee)
+{
+  face_estims_.Append(fee);
+  Reset();
+}
+
+void GeneralErrorEstimator::AddBdrFaceEstimator(FaceErrorEstimator *fee)
+{
+  bdr_face_estims_.Append(fee);
+  bdr_face_estims_marker_.Append(NULL); // NULL marker means apply everywhere
+  Reset();
+}
+
+void GeneralErrorEstimator::AddBdrFaceEstimator(FaceErrorEstimator *fee,
+                            Array<int> &bdr_marker)
+
+{
+  bdr_face_estims_.Append(fee);
+  bdr_face_estims_marker_.Append(&bdr_marker);
+  Reset();
+}
+
+void GeneralErrorEstimator::ComputeEstimates()
+{
+  Mesh *mesh = fes_->GetMesh();
+  elem_errors_.SetSize(fes_->GetNE());
+  elem_errors_ = 0.0;
+
+   if (domain_estims_.Size())
+   {
+      for (int k = 0; k < domain_estims_.Size(); k++)
+      {
+         if (domain_estims_marker_[k] != NULL)
+         {
+            MFEM_VERIFY(domain_estims_marker_[k]->Size() ==
+                        (mesh->attributes.Size() ? mesh->attributes.Max() : 0),
+                        "invalid element marker for domain estimator #"
+                        << k << ", counting from zero");
+         }
+      }
+   }
+
+   const int max_bdr_attr = mesh->bdr_attributes.Size() ?
+                            mesh->bdr_attributes.Max() : 0;
+   for (int k = 0; k < bdr_estims_marker_.Size(); k++)
+   {
+      if (bdr_estims_marker_[k])
+      {
+         MFEM_VERIFY(bdr_estims_marker_[k]->Size() == max_bdr_attr,
+                     "invalid boundary marker for boundary estimator #" << k);
+      }
+   }
+   for (int k = 0; k < bdr_face_estims_marker_.Size(); k++)
+   {
+      if (bdr_face_estims_marker_[k])
+      {
+         MFEM_VERIFY(bdr_face_estims_marker_[k]->Size() == max_bdr_attr,
+                     "invalid boundary marker for boundary face estimator #" << k);
+      }
+   }
+
+   for (int e = 0; e < fes_->GetNE(); e++)
+   {
+      const int elem_attr = mesh->GetAttribute(e);
+      ElementTransformation *eltrans = fes_->GetElementTransformation(e);
+
+      real_t elerr = 0.0;
+      for (int k = 0; k < domain_estims_.Size(); k++)
+      {
+	if (domain_estims_marker_[k]) { domain_estims_marker_[k]->HostRead(); }
+	if ((domain_estims_marker_[k] == NULL ||
+	     (*(domain_estims_marker_[k]))[elem_attr-1] == 1))
+	{
+	  elerr += domain_estims_[k]->GetElementError(*fes_->GetFE(e), *eltrans);
+	}
+      }
+      elem_errors_[e] += elerr;
+   }
+
+   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   {
+      FaceElementTransformations *tr = mesh->GetInteriorFaceTransformations(f);
+      if (!tr) { continue; }
+      for (auto *estimator : face_estims_)
+      {
+         real_t error1 = 0.0, error2 = 0.0;
+         estimator->GetFaceError(*fes_->GetFE(tr->Elem1No),
+                                 *fes_->GetFE(tr->Elem2No), *tr,
+                                 error1, error2);
+         elem_errors_(tr->Elem1No) += error1;
+         elem_errors_(tr->Elem2No) += error2;
+      }
+   }
+
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(fes_))
+   {
+      // A shared face is evaluated on both ranks. Each rank retains only its
+      // local-side contribution, so every element indicator receives the jump
+      // contribution exactly once without communicating element indicators.
+      // This also initializes the parallel mesh's face-neighbor geometry.
+      pfes->ExchangeFaceNbrData();
+      for (auto *estimator : face_estims_)
+      {
+         estimator->ExchangeFaceNbrData();
+      }
+
+      ParMesh *pmesh = pfes->GetParMesh();
+      for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
+      {
+         FaceElementTransformations *tr =
+            pmesh->GetSharedFaceTransformations(sf, true);
+         if (!tr) { continue; }
+
+         for (auto *estimator : face_estims_)
+         {
+            real_t local_error = 0.0, neighbor_error = 0.0;
+            estimator->GetFaceError(*fes_->GetFE(tr->Elem1No),
+                                     *fes_->GetFE(tr->Elem2No), *tr,
+                                     local_error, neighbor_error);
+            elem_errors_(tr->Elem1No) += local_error;
+         }
+      }
+   }
+#endif
+
+   for (int be = 0; be < mesh->GetNBE(); be++)
+   {
+      const int attr = mesh->GetBdrAttribute(be);
+      ElementTransformation *tr = fes_->GetBdrElementTransformation(be);
+      for (int k = 0; k < bdr_estims_.Size(); k++)
+      {
+         const Array<int> *marker = bdr_estims_marker_[k];
+         if (marker) { marker->HostRead(); }
+         if (marker && (*marker)[attr - 1] == 0) { continue; }
+         int el, info;
+         mesh->GetBdrElementAdjacentElement(be, el, info);
+         elem_errors_(el) += bdr_estims_[k]->GetElementError(*fes_->GetBE(be),
+                                                              *tr);
+      }
+   }
+
+   for (int be = 0; be < mesh->GetNBE(); be++)
+   {
+      const int attr = mesh->GetBdrAttribute(be);
+      FaceElementTransformations *tr = mesh->GetBdrFaceTransformations(be);
+      if (!tr) { continue; }
+      for (int k = 0; k < bdr_face_estims_.Size(); k++)
+      {
+         const Array<int> *marker = bdr_face_estims_marker_[k];
+         if (marker) { marker->HostRead(); }
+         if (marker && (*marker)[attr - 1] == 0) { continue; }
+         elem_errors_(tr->Elem1No) += bdr_face_estims_[k]->GetFaceError(
+                                      *fes_->GetFE(tr->Elem1No), *tr);
+      }
+   }
+
+  current_sequence_ = mesh->GetSequence();
+  reset_ = false;
+}
+
 } // namespace mfem

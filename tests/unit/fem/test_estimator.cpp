@@ -720,3 +720,173 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
 }
 
 #endif
+
+namespace
+{
+
+class FixedDomainErrorEstimator : public DomainErrorEstimator
+{
+private:
+   real_t value;
+
+public:
+   explicit FixedDomainErrorEstimator(real_t value_) : value(value_) { }
+
+   real_t GetElementError(const FiniteElement &,
+                          ElementTransformation &) override
+   {
+      return value;
+   }
+};
+
+class FixedFaceErrorEstimator : public FaceErrorEstimator
+{
+private:
+   real_t first, second, boundary;
+
+public:
+   FixedFaceErrorEstimator(real_t first_, real_t second_, real_t boundary_)
+      : first(first_), second(second_), boundary(boundary_) { }
+
+   void GetFaceError(const FiniteElement &, const FiniteElement &,
+                     FaceElementTransformations &, real_t &error1,
+                     real_t &error2) override
+   {
+      error1 = first;
+      error2 = second;
+   }
+
+   real_t GetFaceError(const FiniteElement &,
+                       FaceElementTransformations &) override
+   {
+      return boundary;
+   }
+};
+
+void ConstantElectricField(const Vector &, Vector &value)
+{
+   value.SetSize(3);
+   value = 0.0;
+   value(0) = 1.0;
+}
+
+}
+
+TEST_CASE("General error estimator accumulates all serial contributions",
+          "[GeneralErrorEstimator]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GeneralErrorEstimator estimator(fes);
+   estimator.AddDomainEstimator(new FixedDomainErrorEstimator(1.0));
+   estimator.AddBdrEstimator(new FixedDomainErrorEstimator(4.0));
+   estimator.AddInteriorFaceEstimator(new FixedFaceErrorEstimator(2.0, 3.0, 0.0));
+   estimator.AddBdrFaceEstimator(new FixedFaceErrorEstimator(0.0, 0.0, 5.0));
+
+   const Vector &errors = estimator.GetLocalErrors();
+   REQUIRE(errors.Size() == 2);
+   REQUIRE(errors(0) == MFEM_Approx(30.0));
+   REQUIRE(errors(1) == MFEM_Approx(31.0));
+   REQUIRE(estimator.GetTotalError() == MFEM_Approx(std::sqrt(30.0 * 30.0 +
+                                                            31.0 * 31.0)));
+}
+
+TEST_CASE("Maxwell residual estimators reproduce the monolithic serial indicator",
+          "[GeneralErrorEstimator][MaxwellResidualEstimator]")
+{
+   constexpr int order = 1;
+   constexpr real_t omega = 2.0;
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   ND_FECollection e_fec(order, 3);
+   L2_FECollection residual_fec(order, 3);
+   FiniteElementSpace e_fes(&mesh, &e_fec);
+   FiniteElementSpace residual_fes(&mesh, &residual_fec, 3, Ordering::byVDIM);
+   GridFunction electric(&e_fes), source(&residual_fes), magnetic_flux(&residual_fes),
+      displacement(&residual_fes);
+   VectorFunctionCoefficient electric_coef(3, ConstantElectricField);
+   electric.ProjectCoefficient(electric_coef);
+   source = 0.0;
+
+   ConstantCoefficient epsilon(2.0), mu_inv(1.0);
+   BuildMaxwellResidualFields(electric, mu_inv, epsilon, magnetic_flux, displacement);
+
+   MaxwellResidualEstimator monolithic(electric, source, epsilon, mu_inv, omega, order);
+   const Vector &monolithic_errors = monolithic.GetLocalErrors();
+
+   GeneralErrorEstimator general(e_fes);
+   general.AddDomainEstimator(new MaxwellResidualDomainEstimator(
+                                electric, source, magnetic_flux, displacement,
+                                epsilon, mu_inv, omega, order));
+   general.AddInteriorFaceEstimator(new MaxwellResidualFaceEstimator(
+                                      magnetic_flux, displacement, epsilon, mu_inv,
+                                      omega, order));
+   const Vector &general_errors = general.GetLocalErrors();
+
+   REQUIRE(general_errors.Size() == monolithic_errors.Size());
+   for (int i = 0; i < general_errors.Size(); i++)
+   {
+      REQUIRE(general_errors(i) == MFEM_Approx(monolithic_errors(i) *
+                                                monolithic_errors(i)));
+   }
+}
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("General and Maxwell residual estimators process parallel shared faces",
+          "[Parallel][GeneralErrorEstimator][MaxwellResidualEstimator]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+
+   Mesh serial_mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   Array<int> partition(2);
+   partition[0] = 0;
+   partition[1] = 1;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partition.GetData());
+
+   H1_FECollection h1_fec(1, 3);
+   ParFiniteElementSpace h1_fes(&mesh, &h1_fec);
+   GeneralErrorEstimator generic(h1_fes);
+   generic.AddDomainEstimator(new FixedDomainErrorEstimator(1.0));
+   // The remote-side value must not be added to a local indicator.
+   generic.AddInteriorFaceEstimator(new FixedFaceErrorEstimator(2.0, 99.0, 0.0));
+   const Vector &generic_errors = generic.GetLocalErrors();
+   REQUIRE(generic_errors.Size() == 1);
+   REQUIRE(generic_errors(0) == MFEM_Approx(3.0));
+   REQUIRE(generic.GetTotalError() == MFEM_Approx(std::sqrt(18.0)));
+
+   constexpr int order = 1;
+   constexpr real_t omega = 2.0;
+   ND_FECollection e_fec(order, 3);
+   L2_FECollection residual_fec(order, 3);
+   ParFiniteElementSpace e_fes(&mesh, &e_fec);
+   ParFiniteElementSpace residual_fes(&mesh, &residual_fec, 3, Ordering::byVDIM);
+   ParGridFunction electric(&e_fes), source(&residual_fes),
+      magnetic_flux(&residual_fes), displacement(&residual_fes);
+   VectorFunctionCoefficient electric_coef(3, ConstantElectricField);
+   electric.ProjectCoefficient(electric_coef);
+   source = 0.0;
+
+   ConstantCoefficient epsilon(2.0), mu_inv(1.0);
+   BuildMaxwellResidualFields(electric, mu_inv, epsilon, magnetic_flux, displacement);
+
+   GeneralErrorEstimator maxwell(e_fes);
+   maxwell.AddDomainEstimator(new MaxwellResidualDomainEstimator(
+                                electric, source, magnetic_flux, displacement,
+                                epsilon, mu_inv, omega, order));
+   maxwell.AddInteriorFaceEstimator(new MaxwellResidualFaceEstimator(
+                                      magnetic_flux, displacement, epsilon, mu_inv,
+                                      omega, order));
+   const Vector &maxwell_errors = maxwell.GetLocalErrors();
+   REQUIRE(maxwell_errors.Size() == 1);
+   REQUIRE(maxwell_errors(0) > 0.0);
+
+   real_t local_error_sq = maxwell_errors * maxwell_errors;
+   real_t global_error_sq = 0.0;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(maxwell.GetTotalError() == MFEM_Approx(std::sqrt(global_error_sq)));
+}
+
+#endif
