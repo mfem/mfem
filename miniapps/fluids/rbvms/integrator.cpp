@@ -404,9 +404,9 @@ void RBVMSIntegrator::AssembleElementGrad(
    mat_qu = 0.0;
    mat_qp = 0.0;
 
-   DenseMatrix mat_wu1(dof_u, dof_u);
+   mat_wu1.SetSize(dof_u, dof_u);
    mat_wu1 = 0.0;
-   //DenseMatrix mat_wp1[dim], mat_qu1[dim], mat_up[dim];
+
    for (int i_dim = 0; i_dim < dim; ++i_dim)
    {
       mat_wp1[i_dim].SetSize(dof_u,dof_p);
@@ -418,7 +418,6 @@ void RBVMSIntegrator::AssembleElementGrad(
    }
 
    int dim2 = (dim*(dim+1))/2;
-   //DenseMatrix  mat_uu[dim*dim];
    for (int i_dim = 0; i_dim < dim2; ++i_dim)
    {
       mat_uu[i_dim].SetSize(dof_u,dof_u);
@@ -429,12 +428,11 @@ void RBVMSIntegrator::AssembleElementGrad(
 
    sh_u.SetSize(dof_u);
    shg_u.SetSize(dof_u, dim);
+   shg_uT.SetSize(dim, dof_u);
    ushg_u.SetSize(dof_u);
    dupdu.SetSize(dof_u);
    sh_p.SetSize(dof_p);
    shg_p.SetSize(dof_p, dim);
-
-   DenseMatrix shg_uT(dim, dof_u);
 
    int intorder = 2*el[0]->GetOrder();
    const IntegrationRule &ir = IntRules.Get(el[0]->GetGeomType(), intorder);

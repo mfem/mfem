@@ -45,7 +45,7 @@ private:
 
    /// Shape function data
    Vector sh_u, ushg_u, sh_p, dupdu;
-   DenseMatrix shg_u, shh_u, shg_p, grad_u, hess_u;
+   DenseMatrix shg_u, shg_uT, shh_u, shg_p, grad_u, hess_u;
 
    /// Compute RBVMS stabilisation parameters
    void GetTau(real_t &tau_m, real_t &tau_c, real_t &cfl2,
@@ -55,6 +55,7 @@ private:
    real_t cfl = 0;
 
    DenseMatrix *mat_wp1, *mat_qu1, *mat_up, *mat_uu;
+   DenseMatrix mat_wu1;
 
 public:
    /// Constructor
