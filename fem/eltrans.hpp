@@ -28,7 +28,7 @@ class ElementTransformation
 {
 protected:
    const IntegrationPoint *IntPoint;
-   DenseMatrix dFdx, adjJ, invJ;
+   DenseMatrix dFdx, adjJ, invJ, PJ, PInvJ, Gij;
    DenseMatrix d2Fdx2, adjJT;
    real_t Wght;
    int EvalState;
@@ -39,7 +39,10 @@ protected:
       ADJUGATE_MASK = 4,
       INVERSE_MASK  = 8,
       HESSIAN_MASK  = 16,
-      TRANS_ADJUGATE_MASK = 32
+      TRANS_ADJUGATE_MASK = 32,
+      PERF_JACOBIAN_MASK  = 64,
+      PERF_INVERSE_MASK  = 128,
+      METRIC_MASK = 256
    };
    Geometry::Type geom;
 
@@ -55,6 +58,9 @@ protected:
    const DenseMatrix &EvalAdjugateJ();
    const DenseMatrix &EvalTransAdjugateJ();
    const DenseMatrix &EvalInverseJ();
+   const DenseMatrix &EvalPerfectJ();
+   const DenseMatrix &EvalPerfectInverseJ();
+   const DenseMatrix &EvalMetric();
 
    /// @name Tolerance used for point comparisons
    ///@{
@@ -132,7 +138,6 @@ public:
    const DenseMatrix &Jacobian()
    { return (EvalState & JACOBIAN_MASK) ? dFdx : EvalJacobian(); }
 
-
    /** @brief Return the Hessian matrix of the transformation at the currently
        set IntegrationPoint, using the method SetIntPoint(). */
    const DenseMatrix &Hessian()
@@ -157,6 +162,21 @@ public:
         at the currently set IntegrationPoint. */
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
+
+   /** @brief Return the metric tensor of the transformation
+        at the currently set IntegrationPoint. */
+   const DenseMatrix &PerfectJacobian()
+   { return (EvalState & PERF_JACOBIAN_MASK) ? PJ : EvalPerfectJ(); }
+
+   /** @brief Return the metric tensor of the transformation
+        at the currently set IntegrationPoint. */
+   const DenseMatrix &PerfectInverseJacobian()
+   { return (EvalState & PERF_INVERSE_MASK) ? PInvJ : EvalPerfectInverseJ(); }
+
+   /** @brief Return the metric tensor of the transformation
+        at the currently set IntegrationPoint. */
+   const DenseMatrix &Metric()
+   { return (EvalState & METRIC_MASK) ? Gij : EvalMetric(); }
 
    /// Return the order of the current element we are using for the transformation.
    virtual int Order() const = 0;
