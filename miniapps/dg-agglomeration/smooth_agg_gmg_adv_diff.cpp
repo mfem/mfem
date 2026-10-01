@@ -22,6 +22,8 @@
 using namespace std;
 using namespace mfem;
 
+int problem;
+
 // RHS
 real_t rhs_function(const Vector &x);
 
@@ -30,22 +32,33 @@ real_t u_true(const Vector &x);
 
 void velocity_func(const Vector &x, Vector &v)
 {
-   //  v(0) = 1.0;
-   //  v(1) = 2.0;
-   //  v(2) = 3.0;
-   //  v *= 1.0/sqrt(14);
-   int dim = x.Size();
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
+
+   switch (problem)
    {
-      real_t center = 0.5;
-      X(i) = 2 * (x(i) - center);
+      case 1:
+      {
+         v(0) = 1.0;
+         v(1) = 2.0;
+         v(2) = 3.0;
+         v *= 1.0/sqrt(14);
+         break;
+      }
+      case 2: 
+      {
+         int dim = x.Size();
+         Vector X(dim);
+         for (int i = 0; i < dim; i++)
+         {
+            real_t center = 0.5;
+            X(i) = 2 * (x(i) - center);
+         }
+         const real_t w = M_PI/2;
+         v(0) = w*X(1); 
+         v(1) = -w*X(0); 
+         v(2) = 0.0;
+         v /= v.Norml2();
+      }
    }
-   const real_t w = M_PI/2;
-   v(0) = w*X(1); 
-   v(1) = -w*X(0); 
-   v(2) = 0.0;
-   v /= v.Norml2();
 }
 
 // Algebraic multigrid preconditioner for advective problems based on
@@ -112,9 +125,12 @@ int main(int argc, char *argv[])
     int num_levels = 2;
     real_t diff_c = 1.0;
     int agglom = 0;
+    problem = 2;
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file.");
+    args.AddOption(&problem, "-p", "--problem",
+                  "Problem setup to use. See options in velocity_function().");
     args.AddOption(&agglom, "-agg", "--agglomeration-prec", "Choose Preconditioner. 0 is agglom. 1 is AIR.");
     // args.AddOption(&ref_levels, "-r", "--refine", "Refinement levels.");
     args.AddOption(&order, "-o", "--order", "Polynomial degree.");
