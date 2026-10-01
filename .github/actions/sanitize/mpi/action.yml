@@ -21,7 +21,7 @@ runs:
   using: 'composite'
   steps:
     - name: Install
-      run:
+      run: |
         sudo rm -rf /var/lib/apt/lists/*
         sudo apt-get clean
         sudo apt-get update
