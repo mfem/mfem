@@ -1224,8 +1224,15 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
+#if defined(__CUDACC__) || defined(__HIP__)
    ForallWrap<DIM, MAX_THREADS_PER_BLOCK, use_enzyme>(use_dev, N, body, body, X, Y,
                                                       Z, G);
+#else
+   // The second body is the only one used for host compilation.
+   // Passing the body twice causes possible issues with Enzyme activity analysis.
+   ForallWrap<DIM, MAX_THREADS_PER_BLOCK, use_enzyme>(use_dev, N, 0, body, X, Y,
+                                                      Z, G);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
