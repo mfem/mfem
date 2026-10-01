@@ -777,7 +777,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < nstate; i++)
    {
       delete dx_u[i];
-      delete  dx_p[i];
+      delete dx_p[i];
    }
    return 0;
 }
