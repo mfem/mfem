@@ -790,7 +790,7 @@ TEST_CASE("General error estimator accumulates all serial contributions",
    REQUIRE(errors(0) == MFEM_Approx(30.0));
    REQUIRE(errors(1) == MFEM_Approx(31.0));
    REQUIRE(estimator.GetTotalError() == MFEM_Approx(std::sqrt(30.0 * 30.0 +
-                                                            31.0 * 31.0)));
+                                                              31.0 * 31.0)));
 }
 
 TEST_CASE("Maxwell residual estimators reproduce the monolithic serial indicator",
@@ -803,32 +803,35 @@ TEST_CASE("Maxwell residual estimators reproduce the monolithic serial indicator
    L2_FECollection residual_fec(order, 3);
    FiniteElementSpace e_fes(&mesh, &e_fec);
    FiniteElementSpace residual_fes(&mesh, &residual_fec, 3, Ordering::byVDIM);
-   GridFunction electric(&e_fes), source(&residual_fes), magnetic_flux(&residual_fes),
-      displacement(&residual_fes);
+   GridFunction electric(&e_fes), source(&residual_fes),
+                magnetic_flux(&residual_fes),
+                displacement(&residual_fes);
    VectorFunctionCoefficient electric_coef(3, ConstantElectricField);
    electric.ProjectCoefficient(electric_coef);
    source = 0.0;
 
    ConstantCoefficient epsilon(2.0), mu_inv(1.0);
-   BuildMaxwellResidualFields(electric, mu_inv, epsilon, magnetic_flux, displacement);
+   BuildMaxwellResidualFields(electric, mu_inv, epsilon, magnetic_flux,
+                              displacement);
 
-   MaxwellResidualEstimator monolithic(electric, source, epsilon, mu_inv, omega, order);
+   MaxwellResidualEstimator monolithic(electric, source, epsilon, mu_inv, omega,
+                                       order);
    const Vector &monolithic_errors = monolithic.GetLocalErrors();
 
    GeneralErrorEstimator general(e_fes);
    general.AddDomainEstimator(new MaxwellResidualDomainEstimator(
-                                electric, source, magnetic_flux, displacement,
-                                epsilon, mu_inv, omega, order));
+                                 electric, source, magnetic_flux, displacement,
+                                 epsilon, mu_inv, omega, order));
    general.AddInteriorFaceEstimator(new MaxwellResidualFaceEstimator(
-                                      magnetic_flux, displacement, epsilon, mu_inv,
-                                      omega, order));
+                                       magnetic_flux, displacement, epsilon, mu_inv,
+                                       omega, order));
    const Vector &general_errors = general.GetLocalErrors();
 
    REQUIRE(general_errors.Size() == monolithic_errors.Size());
    for (int i = 0; i < general_errors.Size(); i++)
    {
       REQUIRE(general_errors(i) == MFEM_Approx(monolithic_errors(i) *
-                                                monolithic_errors(i)));
+                                               monolithic_errors(i)));
    }
 }
 
@@ -863,21 +866,22 @@ TEST_CASE("General and Maxwell residual estimators process parallel shared faces
    ParFiniteElementSpace e_fes(&mesh, &e_fec);
    ParFiniteElementSpace residual_fes(&mesh, &residual_fec, 3, Ordering::byVDIM);
    ParGridFunction electric(&e_fes), source(&residual_fes),
-      magnetic_flux(&residual_fes), displacement(&residual_fes);
+                   magnetic_flux(&residual_fes), displacement(&residual_fes);
    VectorFunctionCoefficient electric_coef(3, ConstantElectricField);
    electric.ProjectCoefficient(electric_coef);
    source = 0.0;
 
    ConstantCoefficient epsilon(2.0), mu_inv(1.0);
-   BuildMaxwellResidualFields(electric, mu_inv, epsilon, magnetic_flux, displacement);
+   BuildMaxwellResidualFields(electric, mu_inv, epsilon, magnetic_flux,
+                              displacement);
 
    GeneralErrorEstimator maxwell(e_fes);
    maxwell.AddDomainEstimator(new MaxwellResidualDomainEstimator(
-                                electric, source, magnetic_flux, displacement,
-                                epsilon, mu_inv, omega, order));
+                                 electric, source, magnetic_flux, displacement,
+                                 epsilon, mu_inv, omega, order));
    maxwell.AddInteriorFaceEstimator(new MaxwellResidualFaceEstimator(
-                                      magnetic_flux, displacement, epsilon, mu_inv,
-                                      omega, order));
+                                       magnetic_flux, displacement, epsilon, mu_inv,
+                                       omega, order));
    const Vector &maxwell_errors = maxwell.GetLocalErrors();
    REQUIRE(maxwell_errors.Size() == 1);
    REQUIRE(maxwell_errors(0) > 0.0);

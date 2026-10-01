@@ -517,11 +517,11 @@ real_t GeneralErrorEstimator::GetTotalError() const
 /// Get a Vector with all element errors.
 const Vector &GeneralErrorEstimator::GetLocalErrors()
 {
-  if (reset_ || current_sequence_ != fes_->GetMesh()->GetSequence())
-  {
-     ComputeEstimates();
-  }
-  return elem_errors_;
+   if (reset_ || current_sequence_ != fes_->GetMesh()->GetSequence())
+   {
+      ComputeEstimates();
+   }
+   return elem_errors_;
 }
 
 GeneralErrorEstimator::~GeneralErrorEstimator()
@@ -534,17 +534,17 @@ GeneralErrorEstimator::~GeneralErrorEstimator()
 
 void GeneralErrorEstimator::AddDomainEstimator(DomainErrorEstimator *dee)
 {
-  domain_estims_.Append(dee);
-  domain_estims_marker_.Append(NULL); // NULL marker means apply everywhere
-  Reset();
+   domain_estims_.Append(dee);
+   domain_estims_marker_.Append(NULL); // NULL marker means apply everywhere
+   Reset();
 }
 
 void GeneralErrorEstimator::AddDomainEstimator(DomainErrorEstimator *dee,
-					       Array<int> &elem_marker)
+                                               Array<int> &elem_marker)
 {
-  domain_estims_.Append(dee);
-  domain_estims_marker_.Append(&elem_marker);
-  Reset();
+   domain_estims_.Append(dee);
+   domain_estims_marker_.Append(&elem_marker);
+   Reset();
 }
 
 void GeneralErrorEstimator::AddBdrEstimator(DomainErrorEstimator *dee)
@@ -555,7 +555,7 @@ void GeneralErrorEstimator::AddBdrEstimator(DomainErrorEstimator *dee)
 }
 
 void GeneralErrorEstimator::AddBdrEstimator(DomainErrorEstimator *dee,
-                                             Array<int> &bdr_marker)
+                                            Array<int> &bdr_marker)
 {
    bdr_estims_.Append(dee);
    bdr_estims_marker_.Append(&bdr_marker);
@@ -564,31 +564,31 @@ void GeneralErrorEstimator::AddBdrEstimator(DomainErrorEstimator *dee,
 
 void GeneralErrorEstimator::AddInteriorFaceEstimator(FaceErrorEstimator *fee)
 {
-  face_estims_.Append(fee);
-  Reset();
+   face_estims_.Append(fee);
+   Reset();
 }
 
 void GeneralErrorEstimator::AddBdrFaceEstimator(FaceErrorEstimator *fee)
 {
-  bdr_face_estims_.Append(fee);
-  bdr_face_estims_marker_.Append(NULL); // NULL marker means apply everywhere
-  Reset();
+   bdr_face_estims_.Append(fee);
+   bdr_face_estims_marker_.Append(NULL); // NULL marker means apply everywhere
+   Reset();
 }
 
 void GeneralErrorEstimator::AddBdrFaceEstimator(FaceErrorEstimator *fee,
-                            Array<int> &bdr_marker)
+                                                Array<int> &bdr_marker)
 
 {
-  bdr_face_estims_.Append(fee);
-  bdr_face_estims_marker_.Append(&bdr_marker);
-  Reset();
+   bdr_face_estims_.Append(fee);
+   bdr_face_estims_marker_.Append(&bdr_marker);
+   Reset();
 }
 
 void GeneralErrorEstimator::ComputeEstimates()
 {
-  Mesh *mesh = fes_->GetMesh();
-  elem_errors_.SetSize(fes_->GetNE());
-  elem_errors_ = 0.0;
+   Mesh *mesh = fes_->GetMesh();
+   elem_errors_.SetSize(fes_->GetNE());
+   elem_errors_ = 0.0;
 
    if (domain_estims_.Size())
    {
@@ -631,12 +631,12 @@ void GeneralErrorEstimator::ComputeEstimates()
       real_t elerr = 0.0;
       for (int k = 0; k < domain_estims_.Size(); k++)
       {
-	if (domain_estims_marker_[k]) { domain_estims_marker_[k]->HostRead(); }
-	if ((domain_estims_marker_[k] == NULL ||
-	     (*(domain_estims_marker_[k]))[elem_attr-1] == 1))
-	{
-	  elerr += domain_estims_[k]->GetElementError(*fes_->GetFE(e), *eltrans);
-	}
+         if (domain_estims_marker_[k]) { domain_estims_marker_[k]->HostRead(); }
+         if ((domain_estims_marker_[k] == NULL ||
+              (*(domain_estims_marker_[k]))[elem_attr-1] == 1))
+         {
+            elerr += domain_estims_[k]->GetElementError(*fes_->GetFE(e), *eltrans);
+         }
       }
       elem_errors_[e] += elerr;
    }
@@ -680,8 +680,8 @@ void GeneralErrorEstimator::ComputeEstimates()
          {
             real_t local_error = 0.0, neighbor_error = 0.0;
             estimator->GetFaceError(*fes_->GetFE(tr->Elem1No),
-                                     *fes_->GetFE(tr->Elem2No), *tr,
-                                     local_error, neighbor_error);
+                                    *fes_->GetFE(tr->Elem2No), *tr,
+                                    local_error, neighbor_error);
             elem_errors_(tr->Elem1No) += local_error;
          }
       }
@@ -700,7 +700,7 @@ void GeneralErrorEstimator::ComputeEstimates()
          int el, info;
          mesh->GetBdrElementAdjacentElement(be, el, info);
          elem_errors_(el) += bdr_estims_[k]->GetElementError(*fes_->GetBE(be),
-                                                              *tr);
+                                                             *tr);
       }
    }
 
@@ -715,12 +715,12 @@ void GeneralErrorEstimator::ComputeEstimates()
          if (marker) { marker->HostRead(); }
          if (marker && (*marker)[attr - 1] == 0) { continue; }
          elem_errors_(tr->Elem1No) += bdr_face_estims_[k]->GetFaceError(
-                                      *fes_->GetFE(tr->Elem1No), *tr);
+                                         *fes_->GetFE(tr->Elem1No), *tr);
       }
    }
 
-  current_sequence_ = mesh->GetSequence();
-  reset_ = false;
+   current_sequence_ = mesh->GetSequence();
+   reset_ = false;
 }
 
 } // namespace mfem

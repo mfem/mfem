@@ -16,7 +16,7 @@ namespace mfem
 {
 
 real_t MaxwellResidualEstimator::EpsilonMin(ElementTransformation &trans,
-                                             const IntegrationPoint &ip) const
+                                            const IntegrationPoint &ip) const
 {
    if (epsilon) { return epsilon->Eval(trans, ip); }
 
@@ -116,7 +116,7 @@ void MaxwellResidualEstimator::ComputeEstimates()
       }
       error_estimates(el) = mu * pow(h_el / order, 2) * curl_residual
                             + pow(h_el / order, 2) * div_residual
-                              / (omega * omega * eps);
+                            / (omega * omega * eps);
    }
 
    // Each interior-face jump contributes to both adjacent element indicators.
@@ -204,8 +204,10 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
    FiniteElementSpace h_fes(mesh, &h_fec, 3, Ordering::byVDIM);
    FiniteElementSpace d_fes(mesh, &d_fec, 3, Ordering::byVDIM);
    ComplexGridFunction h(&h_fes), d(&d_fes), tmp(&d_fes);
-   CurlGridFunctionCoefficient curl_er(&solution.real()), curl_ei(&solution.imag());
-   ScalarVectorProductCoefficient hr_coef(mu_inv, curl_er), hi_coef(mu_inv, curl_ei);
+   CurlGridFunctionCoefficient curl_er(&solution.real()),
+                               curl_ei(&solution.imag());
+   ScalarVectorProductCoefficient hr_coef(mu_inv, curl_er), hi_coef(mu_inv,
+                                                                    curl_ei);
    h.ProjectCoefficient(hr_coef, hi_coef);
    VectorGridFunctionCoefficient er(&solution.real()), ei(&solution.imag());
    if (epsilon_real_scalar)
@@ -220,8 +222,10 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
    }
    else
    {
-      MatrixVectorProductCoefficient epsr_er(*epsilon_real, er), epsi_ei(*epsilon_imag, ei);
-      MatrixVectorProductCoefficient epsr_ei(*epsilon_real, ei), epsi_er(*epsilon_imag, er);
+      MatrixVectorProductCoefficient epsr_er(*epsilon_real, er),
+                                     epsi_ei(*epsilon_imag, ei);
+      MatrixVectorProductCoefficient epsr_ei(*epsilon_real, ei),
+                                     epsi_er(*epsilon_imag, er);
       d.ProjectCoefficient(epsr_er, epsr_ei);
       tmp.ProjectCoefficient(epsi_ei, epsi_er);
       d.real() -= tmp.real(); d.imag() += tmp.imag();
@@ -235,17 +239,19 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
       ElementTransformation *tr = mesh->GetElementTransformation(el);
       const FiniteElement *fe = fes->GetFE(el);
       const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
-                                                std::max(2 * fe->GetOrder() + 2, 2));
+                                               std::max(2 * fe->GetOrder() + 2, 2));
       const IntegrationPoint &center = Geometries.GetCenter(fe->GetGeomType());
       tr->SetIntPoint(&center);
-      const real_t eps_min = EpsilonMin(*tr, center), mu = 1.0 / mu_inv.Eval(*tr, center);
+      const real_t eps_min = EpsilonMin(*tr, center), mu = 1.0 / mu_inv.Eval(*tr,
+                                                                             center);
       MFEM_VERIFY(eps_min > 0.0 && mu > 0.0,
                   "epsilon_real and mu_inv must be positive.");
       real_t curl_res = 0.0, div_res = 0.0;
       for (int q = 0; q < ir.GetNPoints(); q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q); tr->SetIntPoint(&ip);
-         source.real().GetVectorValue(*tr, ip, fr); source.imag().GetVectorValue(*tr, ip, fi);
+         source.real().GetVectorValue(*tr, ip, fr);
+         source.imag().GetVectorValue(*tr, ip, fi);
          solution.real().GetVectorValue(*tr, ip, er_val);
          solution.imag().GetVectorValue(*tr, ip, ei_val);
          if (epsilon_real_scalar)
@@ -255,7 +261,8 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
          }
          else
          {
-            DenseMatrix ar, ai; epsilon_real->Eval(ar, *tr, ip); epsilon_imag->Eval(ai, *tr, ip);
+            DenseMatrix ar, ai; epsilon_real->Eval(ar, *tr, ip);
+            epsilon_imag->Eval(ai, *tr, ip);
             ar.Mult(er_val, epsr); ai.Mult(ei_val, epsi);
          }
          epsr -= epsi;
@@ -267,14 +274,17 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
          }
          else
          {
-            DenseMatrix ar, ai; epsilon_real->Eval(ar, *tr, ip); epsilon_imag->Eval(ai, *tr, ip);
+            DenseMatrix ar, ai; epsilon_real->Eval(ar, *tr, ip);
+            epsilon_imag->Eval(ai, *tr, ip);
             ar.Mult(ei_val, epsr); ai.Mult(er_val, epsi);
          }
          epsr += epsi;
          fi.Add(omega * omega, epsr); h.imag().GetCurl(*tr, ci); fi -= ci;
          curl_res += (fr * fr + fi * fi) * ip.weight * tr->Weight();
-         const real_t div_r = source.real().GetDivergence(*tr) + omega * omega * d.real().GetDivergence(*tr);
-         const real_t div_i = source.imag().GetDivergence(*tr) + omega * omega * d.imag().GetDivergence(*tr);
+         const real_t div_r = source.real().GetDivergence(*tr) + omega * omega *
+                              d.real().GetDivergence(*tr);
+         const real_t div_i = source.imag().GetDivergence(*tr) + omega * omega *
+                              d.imag().GetDivergence(*tr);
          div_res += (div_r * div_r + div_i * div_i) * ip.weight * tr->Weight();
       }
       const real_t he = mesh->GetElementSize(el);
@@ -288,16 +298,18 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
       if (!tr) { continue; }
       const int e1 = tr->Elem1No, e2 = tr->Elem2No;
       const IntegrationRule &ir = IntRules.Get(tr->FaceGeom,
-                                                std::max(2 * fes->GetFE(e1)->GetOrder() + 2, 2));
+                                               std::max(2 * fes->GetFE(e1)->GetOrder() + 2, 2));
       real_t jt = 0.0, jn = 0.0; Vector a(3), b(3), n(3);
       for (int q = 0; q < ir.GetNPoints(); q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q); tr->SetAllIntPoints(&ip);
          CalcOrtho(tr->Face->Jacobian(), n);
          h.real().GetVectorValue(*tr->Elem1, tr->GetElement1IntPoint(), a);
-         h.real().GetVectorValue(*tr->Elem2, tr->GetElement2IntPoint(), b); a -= b; n.cross3D(a, fr);
+         h.real().GetVectorValue(*tr->Elem2, tr->GetElement2IntPoint(), b); a -= b;
+         n.cross3D(a, fr);
          h.imag().GetVectorValue(*tr->Elem1, tr->GetElement1IntPoint(), a);
-         h.imag().GetVectorValue(*tr->Elem2, tr->GetElement2IntPoint(), b); a -= b; n.cross3D(a, fi);
+         h.imag().GetVectorValue(*tr->Elem2, tr->GetElement2IntPoint(), b); a -= b;
+         n.cross3D(a, fi);
          jt += (fr * fr + fi * fi) * ip.weight * tr->Face->Weight();
          d.real().GetVectorValue(*tr->Elem1, tr->GetElement1IntPoint(), a);
          d.real().GetVectorValue(*tr->Elem2, tr->GetElement2IntPoint(), b); a -= b;
@@ -309,9 +321,12 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
       for (int el : {e1, e2})
       {
          ElementTransformation *et = mesh->GetElementTransformation(el);
-         const IntegrationPoint &c = Geometries.GetCenter(fes->GetFE(el)->GetGeomType()); et->SetIntPoint(&c);
-         const real_t eps = EpsilonMin(*et, c), mu = 1.0 / mu_inv.Eval(*et, c), he = mesh->GetElementSize(el);
-         error_estimates(el) += mu * he / order * jt + omega * omega * he / (order * eps) * jn;
+         const IntegrationPoint &c = Geometries.GetCenter(fes->GetFE(el)->GetGeomType());
+         et->SetIntPoint(&c);
+         const real_t eps = EpsilonMin(*et, c), mu = 1.0 / mu_inv.Eval(*et, c),
+                      he = mesh->GetElementSize(el);
+         error_estimates(el) += mu * he / order * jt + omega * omega * he /
+                                (order * eps) * jn;
       }
    }
    for (int el = 0; el < ne; el++) { error_estimates(el) = sqrt(error_estimates(el)); }
@@ -321,7 +336,8 @@ void ComplexMaxwellResidualEstimator::ComputeEstimates()
 
 namespace
 {
-real_t MaxwellEpsilonMin(Coefficient *epsilon, MatrixCoefficient *epsilon_matrix,
+real_t MaxwellEpsilonMin(Coefficient *epsilon,
+                         MatrixCoefficient *epsilon_matrix,
                          ElementTransformation &trans, const IntegrationPoint &ip)
 {
    if (epsilon) { return epsilon->Eval(trans, ip); }
@@ -334,13 +350,15 @@ real_t MaxwellEpsilonMin(Coefficient *epsilon, MatrixCoefficient *epsilon_matrix
 }
 
 MaxwellResidualDomainEstimator::MaxwellResidualDomainEstimator(
-   GridFunction &solution_, GridFunction &source_, GridFunction &h_, GridFunction &d_,
+   GridFunction &solution_, GridFunction &source_, GridFunction &h_,
+   GridFunction &d_,
    Coefficient &epsilon_, Coefficient &mu_inv_, real_t omega_, int order_)
    : solution(solution_), source(source_), h(h_), d(d_), epsilon(&epsilon_),
      epsilon_matrix(nullptr), mu_inv(mu_inv_), omega(omega_), order(order_) { }
 
 MaxwellResidualDomainEstimator::MaxwellResidualDomainEstimator(
-   GridFunction &solution_, GridFunction &source_, GridFunction &h_, GridFunction &d_,
+   GridFunction &solution_, GridFunction &source_, GridFunction &h_,
+   GridFunction &d_,
    MatrixCoefficient &epsilon_, Coefficient &mu_inv_, real_t omega_, int order_)
    : solution(solution_), source(source_), h(h_), d(d_), epsilon(nullptr),
      epsilon_matrix(&epsilon_), mu_inv(mu_inv_), omega(omega_), order(order_) { }
@@ -374,11 +392,11 @@ void BuildMaxwellResidualFields(GridFunction &solution, Coefficient &mu_inv,
 }
 
 real_t MaxwellResidualDomainEstimator::GetElementError(const FiniteElement &el,
-                                                        ElementTransformation &tr)
+                                                       ElementTransformation &tr)
 {
    MFEM_VERIFY(omega > 0.0 && order > 0, "omega and order must be positive.");
    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
-                                             std::max(2 * el.GetOrder() + 2, 2));
+                                            std::max(2 * el.GetOrder() + 2, 2));
    const IntegrationPoint &center = Geometries.GetCenter(el.GetGeomType());
    tr.SetIntPoint(&center);
    const real_t eps = EpsilonMin(tr, center), mu = 1.0 / mu_inv.Eval(tr, center);
@@ -398,7 +416,8 @@ real_t MaxwellResidualDomainEstimator::GetElementError(const FiniteElement &el,
       }
       h.GetCurl(tr, curl_h); residual -= curl_h;
       curl_term += (residual * residual) * ip.weight * tr.Weight();
-      const real_t div = source.GetDivergence(tr) + omega * omega * d.GetDivergence(tr);
+      const real_t div = source.GetDivergence(tr) + omega * omega * d.GetDivergence(
+                            tr);
       div_term += div * div * ip.weight * tr.Weight();
    }
    const real_t he = solution.FESpace()->GetMesh()->GetElementSize(tr.ElementNo);
@@ -413,7 +432,8 @@ MaxwellResidualFaceEstimator::MaxwellResidualFaceEstimator(
      omega(omega_), order(order_) { }
 
 MaxwellResidualFaceEstimator::MaxwellResidualFaceEstimator(
-   GridFunction &h_, GridFunction &d_, MatrixCoefficient &epsilon_, Coefficient &mu_inv_,
+   GridFunction &h_, GridFunction &d_, MatrixCoefficient &epsilon_,
+   Coefficient &mu_inv_,
    real_t omega_, int order_)
    : h(h_), d(d_), epsilon(nullptr), epsilon_matrix(&epsilon_), mu_inv(mu_inv_),
      omega(omega_), order(order_) { }
@@ -428,7 +448,7 @@ void MaxwellResidualFaceEstimator::GetFaceError(
 {
    MFEM_VERIFY(omega > 0.0 && order > 0, "omega and order must be positive.");
    const IntegrationRule &ir = IntRules.Get(tr.FaceGeom,
-                                             std::max(2 * el1.GetOrder() + 2, 2));
+                                            std::max(2 * el1.GetOrder() + 2, 2));
    Vector h1(3), h2(3), d1(3), d2(3), normal(3), jump(3);
    real_t tangential = 0.0, normal_jump = 0.0;
    for (int q = 0; q < ir.GetNPoints(); q++)
@@ -462,10 +482,12 @@ void MaxwellResidualFaceEstimator::GetFaceError(
       }
 #endif
       else { MFEM_ABORT("invalid element number in face estimator"); }
-      const IntegrationPoint &center = Geometries.GetCenter(h.FESpace()->GetFE(el)->GetGeomType());
+      const IntegrationPoint &center = Geometries.GetCenter(h.FESpace()->GetFE(
+                                                               el)->GetGeomType());
       et->SetIntPoint(&center);
       const real_t eps = EpsilonMin(*et, center), mu = 1.0 / mu_inv.Eval(*et, center);
-      return mu * he / order * tangential + omega * omega * he / (order * eps) * normal_jump;
+      return mu * he / order * tangential + omega * omega * he /
+             (order * eps) * normal_jump;
    };
    error1 = contribution(tr.Elem1No);
    error2 = contribution(tr.Elem2No);
@@ -502,14 +524,17 @@ ComplexMaxwellResidualDomainEstimator::ComplexMaxwellResidualDomainEstimator(
    ComplexGridFunction &d_, MatrixCoefficient &er, MatrixCoefficient &ei,
    Coefficient &mu, real_t w, int p)
    : solution(s), source(j), h(h_), d(d_), epsilon_real(&er), epsilon_imag(&ei),
-     epsilon_real_scalar(nullptr), epsilon_imag_scalar(nullptr), mu_inv(mu), omega(w), order(p) { }
+     epsilon_real_scalar(nullptr), epsilon_imag_scalar(nullptr), mu_inv(mu),
+     omega(w), order(p) { }
 
 ComplexMaxwellResidualDomainEstimator::ComplexMaxwellResidualDomainEstimator(
    ComplexGridFunction &s, ComplexGridFunction &j, ComplexGridFunction &h_,
    ComplexGridFunction &d_, Coefficient &er, Coefficient &ei, Coefficient &mu,
    real_t w, int p)
-   : solution(s), source(j), h(h_), d(d_), epsilon_real(nullptr), epsilon_imag(nullptr),
-     epsilon_real_scalar(&er), epsilon_imag_scalar(&ei), mu_inv(mu), omega(w), order(p) { }
+   : solution(s), source(j), h(h_), d(d_), epsilon_real(nullptr),
+     epsilon_imag(nullptr),
+     epsilon_real_scalar(&er), epsilon_imag_scalar(&ei), mu_inv(mu), omega(w),
+     order(p) { }
 
 real_t ComplexMaxwellResidualDomainEstimator::EpsilonMin(
    ElementTransformation &tr, const IntegrationPoint &ip) const
@@ -524,7 +549,8 @@ void BuildComplexMaxwellResidualFields(ComplexGridFunction &solution,
    ScalarVectorProductCoefficient hr(mu_inv, cer), hi(mu_inv, cei);
    h.ProjectCoefficient(hr, hi);
    VectorGridFunctionCoefficient vr(&solution.real()), vi(&solution.imag());
-   MatrixVectorProductCoefficient er_r(er, vr), er_i(er, vi), ei_r(ei, vr), ei_i(ei, vi);
+   MatrixVectorProductCoefficient er_r(er, vr), er_i(er, vi), ei_r(ei, vr),
+                                  ei_i(ei, vi);
    d.ProjectCoefficient(er_r, er_i);
    ComplexGridFunction tmp(d.FESpace()); tmp.ProjectCoefficient(ei_i, ei_r);
    d.real() -= tmp.real(); d.imag() += tmp.imag();
@@ -539,7 +565,8 @@ void BuildComplexMaxwellResidualFields(ComplexGridFunction &solution,
    ScalarVectorProductCoefficient hr(mu_inv, cer), hi(mu_inv, cei);
    h.ProjectCoefficient(hr, hi);
    VectorGridFunctionCoefficient vr(&solution.real()), vi(&solution.imag());
-   ScalarVectorProductCoefficient er_r(er, vr), er_i(er, vi), ei_r(ei, vr), ei_i(ei, vi);
+   ScalarVectorProductCoefficient er_r(er, vr), er_i(er, vi), ei_r(ei, vr),
+                                  ei_i(ei, vi);
    d.ProjectCoefficient(er_r, er_i);
    ComplexGridFunction tmp(d.FESpace()); tmp.ProjectCoefficient(ei_i, ei_r);
    d.real() -= tmp.real(); d.imag() += tmp.imag();
@@ -548,47 +575,59 @@ void BuildComplexMaxwellResidualFields(ComplexGridFunction &solution,
 real_t ComplexMaxwellResidualDomainEstimator::GetElementError(
    const FiniteElement &el, ElementTransformation &tr)
 {
-   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(), std::max(2 * el.GetOrder() + 2, 2));
-   const IntegrationPoint &c = Geometries.GetCenter(el.GetGeomType()); tr.SetIntPoint(&c);
+   const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                            std::max(2 * el.GetOrder() + 2, 2));
+   const IntegrationPoint &c = Geometries.GetCenter(el.GetGeomType());
+   tr.SetIntPoint(&c);
    const real_t eps = EpsilonMin(tr, c), mu = 1.0 / mu_inv.Eval(tr, c);
    Vector rr(3), ri(3), cr(3), ci(3), evr(3), evi(3), a(3), b(3);
    real_t curl_term = 0.0, div_term = 0.0;
    for (int q = 0; q < ir.GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q); tr.SetIntPoint(&ip);
-      source.real().GetVectorValue(tr, ip, rr); source.imag().GetVectorValue(tr, ip, ri);
-      solution.real().GetVectorValue(tr, ip, evr); solution.imag().GetVectorValue(tr, ip, evi);
+      source.real().GetVectorValue(tr, ip, rr);
+      source.imag().GetVectorValue(tr, ip, ri);
+      solution.real().GetVectorValue(tr, ip, evr);
+      solution.imag().GetVectorValue(tr, ip, evi);
       if (epsilon_real_scalar)
       {
-         a = evr; a *= epsilon_real_scalar->Eval(tr, ip); b = evi; b *= epsilon_imag_scalar->Eval(tr, ip);
+         a = evr; a *= epsilon_real_scalar->Eval(tr, ip); b = evi;
+         b *= epsilon_imag_scalar->Eval(tr, ip);
       }
       else { DenseMatrix ar, ai; epsilon_real->Eval(ar, tr, ip); epsilon_imag->Eval(ai, tr, ip); ar.Mult(evr, a); ai.Mult(evi, b); }
       a -= b; rr.Add(omega * omega, a); h.real().GetCurl(tr, cr); rr -= cr;
       if (epsilon_real_scalar)
       {
-         a = evi; a *= epsilon_real_scalar->Eval(tr, ip); b = evr; b *= epsilon_imag_scalar->Eval(tr, ip);
+         a = evi; a *= epsilon_real_scalar->Eval(tr, ip); b = evr;
+         b *= epsilon_imag_scalar->Eval(tr, ip);
       }
       else { DenseMatrix ar, ai; epsilon_real->Eval(ar, tr, ip); epsilon_imag->Eval(ai, tr, ip); ar.Mult(evi, a); ai.Mult(evr, b); }
       a += b; ri.Add(omega * omega, a); h.imag().GetCurl(tr, ci); ri -= ci;
       curl_term += (rr * rr + ri * ri) * ip.weight * tr.Weight();
-      const real_t dr = source.real().GetDivergence(tr) + omega * omega * d.real().GetDivergence(tr);
-      const real_t di = source.imag().GetDivergence(tr) + omega * omega * d.imag().GetDivergence(tr);
+      const real_t dr = source.real().GetDivergence(tr) + omega * omega *
+                        d.real().GetDivergence(tr);
+      const real_t di = source.imag().GetDivergence(tr) + omega * omega *
+                        d.imag().GetDivergence(tr);
       div_term += (dr * dr + di * di) * ip.weight * tr.Weight();
    }
    const real_t he = solution.FESpace()->GetMesh()->GetElementSize(tr.ElementNo);
-   return mu * pow(he / order, 2) * curl_term + pow(he / order, 2) * div_term / (omega * omega * eps);
+   return mu * pow(he / order, 2) * curl_term + pow(he / order,
+                                                    2) * div_term / (omega * omega * eps);
 }
 
 ComplexMaxwellResidualFaceEstimator::ComplexMaxwellResidualFaceEstimator(
    ComplexGridFunction &h_, ComplexGridFunction &d_, MatrixCoefficient &er,
    MatrixCoefficient &ei, Coefficient &mu, real_t w, int p)
-   : h(h_), d(d_), epsilon_real(&er), epsilon_imag(&ei), epsilon_real_scalar(nullptr),
+   : h(h_), d(d_), epsilon_real(&er), epsilon_imag(&ei),
+     epsilon_real_scalar(nullptr),
      epsilon_imag_scalar(nullptr), mu_inv(mu), omega(w), order(p) { }
 
 ComplexMaxwellResidualFaceEstimator::ComplexMaxwellResidualFaceEstimator(
-   ComplexGridFunction &h_, ComplexGridFunction &d_, Coefficient &er, Coefficient &ei,
+   ComplexGridFunction &h_, ComplexGridFunction &d_, Coefficient &er,
+   Coefficient &ei,
    Coefficient &mu, real_t w, int p)
-   : h(h_), d(d_), epsilon_real(nullptr), epsilon_imag(nullptr), epsilon_real_scalar(&er),
+   : h(h_), d(d_), epsilon_real(nullptr), epsilon_imag(nullptr),
+     epsilon_real_scalar(&er),
      epsilon_imag_scalar(&ei), mu_inv(mu), omega(w), order(p) { }
 
 real_t ComplexMaxwellResidualFaceEstimator::EpsilonMin(
@@ -599,16 +638,20 @@ void ComplexMaxwellResidualFaceEstimator::GetFaceError(
    const FiniteElement &el1, const FiniteElement &, FaceElementTransformations &tr,
    real_t &error1, real_t &error2)
 {
-   const IntegrationRule &ir = IntRules.Get(tr.FaceGeom, std::max(2 * el1.GetOrder() + 2, 2));
+   const IntegrationRule &ir = IntRules.Get(tr.FaceGeom,
+                                            std::max(2 * el1.GetOrder() + 2, 2));
    Vector a(3), b(3), n(3), jr(3), ji(3);
    real_t tangential = 0.0, normal_jump = 0.0;
    for (int q = 0; q < ir.GetNPoints(); q++)
    {
-      const IntegrationPoint &ip = ir.IntPoint(q); tr.SetAllIntPoints(&ip); CalcOrtho(tr.Face->Jacobian(), n);
+      const IntegrationPoint &ip = ir.IntPoint(q); tr.SetAllIntPoints(&ip);
+      CalcOrtho(tr.Face->Jacobian(), n);
       h.real().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
-      h.real().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b; n.cross3D(a, jr);
+      h.real().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
+      n.cross3D(a, jr);
       h.imag().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
-      h.imag().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b; n.cross3D(a, ji);
+      h.imag().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
+      n.cross3D(a, ji);
       tangential += (jr * jr + ji * ji) * ip.weight * tr.Face->Weight();
       d.real().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
       d.real().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
@@ -636,9 +679,11 @@ void ComplexMaxwellResidualFaceEstimator::GetFaceError(
       }
 #endif
       else { MFEM_ABORT("invalid element number in face estimator"); }
-      const IntegrationPoint &c = Geometries.GetCenter(h.FESpace()->GetFE(el)->GetGeomType()); et->SetIntPoint(&c);
+      const IntegrationPoint &c = Geometries.GetCenter(h.FESpace()->GetFE(
+                                                          el)->GetGeomType()); et->SetIntPoint(&c);
       const real_t eps = EpsilonMin(*et, c), mu = 1.0 / mu_inv.Eval(*et, c);
-      return mu * he / order * tangential + omega * omega * he / (order * eps) * normal_jump;
+      return mu * he / order * tangential + omega * omega * he /
+             (order * eps) * normal_jump;
    };
    error1 = contribution(tr.Elem1No); error2 = contribution(tr.Elem2No);
 }
@@ -674,7 +719,7 @@ real_t ComplexTangentialTraceError(ComplexGridFunction &field,
                                    FaceElementTransformations &tr)
 {
    const IntegrationRule &ir = IntRules.Get(tr.FaceGeom,
-                                             std::max(2 * el.GetOrder() + 2, 2));
+                                            std::max(2 * el.GetOrder() + 2, 2));
    Vector value_r(3), value_i(3), trace_r(3), trace_i(3), prescribed(3), normal(3);
    real_t error = 0.0;
    for (int q = 0; q < ir.GetNPoints(); q++)
@@ -698,7 +743,8 @@ real_t ComplexTangentialTraceError(ComplexGridFunction &field,
          data_imag->Eval(prescribed, *tr.Elem1, eip);
          trace_i -= prescribed;
       }
-      error += (trace_r * trace_r + trace_i * trace_i) * ip.weight * tr.Face->Weight();
+      error += (trace_r * trace_r + trace_i * trace_i) * ip.weight *
+               tr.Face->Weight();
    }
    return error;
 }

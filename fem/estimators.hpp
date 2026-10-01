@@ -729,21 +729,21 @@ public:
 class GeneralErrorEstimator : public ErrorEstimator
 {
 protected:
-  bool reset_;
-  long current_sequence_ = -1;
-  FiniteElementSpace *fes_;
+   bool reset_;
+   long current_sequence_ = -1;
+   FiniteElementSpace *fes_;
 
-  Vector elem_errors_;
+   Vector elem_errors_;
 
-  Array<DomainErrorEstimator*> domain_estims_;
-  Array<Array<int>*> domain_estims_marker_;
-  Array<DomainErrorEstimator*> bdr_estims_;
-  Array<Array<int>*> bdr_estims_marker_;
-  Array<FaceErrorEstimator*> face_estims_;
-  Array<FaceErrorEstimator*> bdr_face_estims_;
-  Array<Array<int>*> bdr_face_estims_marker_;
+   Array<DomainErrorEstimator*> domain_estims_;
+   Array<Array<int>*> domain_estims_marker_;
+   Array<DomainErrorEstimator*> bdr_estims_;
+   Array<Array<int>*> bdr_estims_marker_;
+   Array<FaceErrorEstimator*> face_estims_;
+   Array<FaceErrorEstimator*> bdr_face_estims_;
+   Array<Array<int>*> bdr_face_estims_marker_;
 
-  void ComputeEstimates();
+   void ComputeEstimates();
 
 public:
    /** Construct an estimator associated with @a fes. The space is not owned. */
@@ -762,7 +762,7 @@ public:
    /** Add an element estimator. The GeneralErrorEstimator owns @a dee. */
    void AddDomainEstimator(DomainErrorEstimator *dee);
    void AddDomainEstimator(DomainErrorEstimator *dee,
-			   Array<int> &elem_marker);
+                           Array<int> &elem_marker);
 
    /** Add a boundary-element estimator. Ownership of @a dee is transferred. */
    void AddBdrEstimator(DomainErrorEstimator *dee);

@@ -310,12 +310,14 @@ private:
    VectorCoefficient *data_imag;
 
 public:
-   explicit ComplexMaxwellNeumannBCErrorEstimator(ComplexGridFunction &magnetic_flux_)
+   explicit ComplexMaxwellNeumannBCErrorEstimator(ComplexGridFunction
+                                                  &magnetic_flux_)
       : magnetic_flux(magnetic_flux_), data_real(nullptr), data_imag(nullptr) { }
    ComplexMaxwellNeumannBCErrorEstimator(ComplexGridFunction &magnetic_flux_,
                                          VectorCoefficient &data_real_,
                                          VectorCoefficient &data_imag_)
-      : magnetic_flux(magnetic_flux_), data_real(&data_real_), data_imag(&data_imag_) { }
+      : magnetic_flux(magnetic_flux_), data_real(&data_real_),
+        data_imag(&data_imag_) { }
    real_t GetFaceError(const FiniteElement &el,
                        FaceElementTransformations &Tr) override;
 };
