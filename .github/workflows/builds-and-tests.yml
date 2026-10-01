@@ -179,8 +179,13 @@ jobs:
 
       # Update the apt repo before using it
         - name: Refresh APT cache
+          if: matrix.os == 'ubuntu-latest'
           run: |
-            sudo rm -rf /var/lib/apt/lists/*
+            sudo rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/*
+            sudo tee /etc/apt/sources.list > /dev/null <<EOF
+            deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+            deb http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+            EOF
             sudo apt-get clean
             sudo apt-get update
 
