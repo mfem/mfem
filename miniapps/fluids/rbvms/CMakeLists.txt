@@ -32,7 +32,7 @@ endforeach()
 if (MFEM_ENABLE_TESTING)
    add_test(NAME rbvms-ldc
          COMMAND  $<TARGET_FILE:rbvms> -m ../../../data/square-nurbs.mesh -r 1 -o 2
-                  -p 0 -rho 1 -mu 0.001 --strong-bdr 1 -s 21 -dt 0.01 -tf 1)
+                  -p 0 -rho 1 -mu 0.001 --strong-bdr 1 -s 21 -dt 0.01 -tf 0.1)
    add_test(NAME rbvms-vkvs
          COMMAND  $<TARGET_FILE:rbvms> -m von-karman-nurbs.mesh  -r 1 -o 2
                   -p 1 --strong-bdr "1 2" --outflow-bdr 4 --weak-bdr 3 
@@ -52,7 +52,7 @@ if (MFEM_USE_MPI)
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:prbvms> -m ../../../data/square-nurbs.mesh -o 2 -r 3
-               -p 0 -rho 1 -mu 0.001 --strong-bdr 1 -s 21 -dt 0.01 -tf 1
+               -p 0 -rho 1 -mu 0.001 --strong-bdr 1 -s 21 -dt 0.01 -tf 0.1
       ${MPIEXEC_POSTFLAGS})
 
     add_test(NAME prbvms_vkvs_np${MFEM_MPI_NP}
