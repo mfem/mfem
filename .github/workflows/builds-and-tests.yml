@@ -177,6 +177,13 @@ jobs:
           env
         shell: bash
 
+      # Update the apt repo before using it
+        - name: Refresh APT cache
+          run: |
+            sudo rm -rf /var/lib/apt/lists/*
+            sudo apt-get clean
+            sudo apt-get update
+
       # Only get MPI if defined for the job.
       # TODO: It would be nice to have only one step, e.g. with a dedicated
       # action, but I (@adrienbernede) don't see how at the moment.
