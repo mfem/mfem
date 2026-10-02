@@ -357,7 +357,8 @@ void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>& gl
             derefine_element_count++;
          }
       }
-      const int factor = mesh->Dimension() == 2 ? 4 : 8;
+      const int factor = mesh->Dimension() == 1 ? 2 :
+         (mesh->Dimension() == 2 ? 4 : 8);
       MFEM_ASSERT(derefine_element_count % factor == 0,
          "Elements marked for derefinement need to be in blocks of 2^D");
       mesh->DerefineByError(pseudo_error, error_threshold);
@@ -410,7 +411,9 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
       Array<Refinement> refinements(refine_element_inds.Size());
       Vector scale = ToVector(level_ratio);
       scale.Reciprocal();
-      if (scale.Size() < 3) // this enables 3D scale vector for 2D refinement
+      // if mesh is not 3D, extend scale length to 3 noting that any added
+      // entries will not be used by Refinement
+      if (scale.Size() < 3)
       {
          scale.Reserve(3);
          scale.SetSize(3);
@@ -457,7 +460,9 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
                }
                if (skip)
                   continue;
-               if (scale.Size() < 3) // this enables 3D scale vector for 2D refinement
+               // if mesh is not 3D, extend scale length to 3 noting that any
+               // added entries will not be used by Refinement
+               if (scale.Size() < 3)
                {
                   scale.Reserve(3);
                   scale.SetSize(3);
