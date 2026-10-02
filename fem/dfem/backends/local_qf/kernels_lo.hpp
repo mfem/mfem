@@ -614,228 +614,202 @@ struct lo_ker_backend
       Shared &s, const int e, const DofToQuadMap &m,
       const XE_T &XE, ArgRegT &rarg)
    {
+      constexpr int NZ = (DIM == 2) ? 1 : MQ1;
       const int q1d = m.Q1D();
       const int nqz = (DIM == 2) ? 1 : q1d;
-      const int nslots = vector_num_slots<FOP>(m.range_dim);
+      const int na = m.Extent(0, 0), nt = m.Extent(0, 1);
+      // Dof extent of component c along axis k, and its 1D factor at (d, q).
+      // In 2D both are 1 along z, which makes the z-sweep a copy.
+      auto n = [=](int c, int k) { return k < DIM ? (c == k ? na : nt) : 1; };
+      auto b = [&](int c, int k, int d, int q)
+      { return k < DIM ? (c == k ? s.B : s.G)[d][q] : real_t(1); };
+      const int bs = n(0, 0) * n(0, 1) * n(0, 2); // dofs per component
+
+      real_t *X = reinterpret_cast<real_t *>(&s.M[1]);
+      auto T0 = reinterpret_cast<real_t (*)[NZ][MQ1][MQ1]>(&s.M[0]);
+      auto T1 = reinterpret_cast<real_t (*)[NZ][MQ1][MQ1]>(&s.M[1]);
+      const int nx = MFEM_THREAD_SIZE(x), ny = MFEM_THREAD_SIZE(y);
+      const int tid = MFEM_THREAD_ID(x) +
+                      nx * (MFEM_THREAD_ID(y) + ny * MFEM_THREAD_ID(z));
+      for (int i = tid; i < DIM * bs; i += nx * ny * MFEM_THREAD_SIZE(z))
+      {
+         X[i] = XE(i, 0, 0, 0, e);
+      }
+      load_vector_bases<FOP>(s, m);
+      MFEM_SYNC_THREAD;
+      // x-sweep: T0[c][dz][dy][qx]
+      for_constexpr<DIM>([&](auto ic)
+      {
+         constexpr int c = ic.value;
+         MFEM_FOREACH_THREAD(dz, z, n(c, 2))
+         MFEM_FOREACH_THREAD(dy, y, n(c, 1))
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            const real_t *Xc = X + c * bs + n(c, 0) * (dy + n(c, 1) * dz);
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dx = 0; dx < n(c, 0); dx++)
+            {
+               u += b(c, 0, dx, qx) * Xc[dx];
+            }
+            T0[c][dz][dy][qx] = u;
+         }
+      });
+      MFEM_SYNC_THREAD;
+      // y-sweep: T1[c][dz][qy][qx], over the staged dofs
+      for_constexpr<DIM>([&](auto ic)
+      {
+         constexpr int c = ic.value;
+         MFEM_FOREACH_THREAD(dz, z, n(c, 2))
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dy = 0; dy < n(c, 1); dy++)
+            {
+               u += b(c, 1, dy, qy) * T0[c][dz][dy][qx];
+            }
+            T1[c][dz][qy][qx] = u;
+         }
+      });
+      MFEM_SYNC_THREAD;
+      // z-sweep into the register slots: Value fills slot c, Div sums the
+      // components into slot 0
       MFEM_FOREACH_THREAD(qz, z, nqz)
       MFEM_FOREACH_THREAD(qy, y, q1d)
       MFEM_FOREACH_THREAD(qx, x, q1d)
-      for (int c = 0; c < nslots; c++)
       {
-         lok::at<DIM>(rarg, qx, qy, qz)[c] = 0.0;
+         auto &r = lok::at<DIM>(rarg, qx, qy, qz);
+         [[maybe_unused]] real_t sum = 0.0;
+         for_constexpr<DIM>([&](auto ic)
+         {
+            constexpr int c = ic.value;
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < n(c, 2); dz++)
+            {
+               u += b(c, 2, dz, qz) * T1[c][dz][qy][qx];
+            }
+            if constexpr (is_div_fop_v<FOP>) { sum += u; }
+            else { r[c] = u; }
+         });
+         if constexpr (is_div_fop_v<FOP>) { r[0] = sum; }
       }
       MFEM_SYNC_THREAD;
-
-      const int nterms = vector_num_terms<FOP>(m.range_dim);
-      for (int c = 0; c < m.range_dim; c++)
-      {
-         for (int t = 0; t < nterms; t++)
-         {
-            contract_vector_component<FOP>(s, e, m, XE, c, t, rarg);
-         }
-      }
    }
 
    /// Integrate quadrature-point data against a vector element under field
-   /// operator @a FOP and add the result into the element vector. The adjoint of
-   /// load_vector, off the same vector_term() table.
+   /// operator @a FOP and add the result into the element vector. 
    template<typename FOP, typename YE_T, typename ArgRegT>
    static MFEM_HOST_DEVICE void write_vector(
       Shared &s, const int e, const DofToQuadMap &m,
       const YE_T &YE, ArgRegT &rarg)
    {
-      const int nterms = vector_num_terms<FOP>(m.range_dim);
-      for (int c = 0; c < m.range_dim; c++)
-      {
-         for (int t = 0; t < nterms; t++)
-         {
-            // The scatter adds into YE, so several sweeps of one component
-            // accumulate rather than overwrite.
-            contract_vector_component_transpose<FOP>(s, e, m, c, t, rarg, YE);
-         }
-      }
-   }
-private:
-   /// Accumulate one quadrature-point contribution into the slot named by
-   /// @a vt. The sign is only ever non-unit for a Curl, so the other
-   /// operators keep a bare add in the innermost loop.
-   template<typename FOP, typename Reg>
-   static MFEM_HOST_DEVICE void vector_accum(
-      Reg &reg, int qx, int qy, int qz, const VecTerm &vt, real_t value)
-   {
-      if constexpr (is_curl_fop_v<FOP>)
-      {
-         lok::at<DIM>(reg, qx, qy, qz)[vt.slot] += vt.sgn * value;
-      }
-      else { lok::at<DIM>(reg, qx, qy, qz)[vt.slot] += value; }
-   }
-
-   /// Read back the slot named by @a vt, the mirror of vector_accum.
-   template<typename FOP, typename Reg>
-   static MFEM_HOST_DEVICE real_t vector_src(
-      Reg &reg, int qx, int qy, int qz, const VecTerm &vt)
-   {
-      const real_t value = lok::at<DIM>(reg, qx, qy, qz)[vt.slot];
-      if constexpr (is_curl_fop_v<FOP>) { return vt.sgn * value; }
-      else { return value; }
-   }
-
-   /// Run sweep @a t of component block @a c under field operator @a FOP,
-   /// accumulating into the q-function register bank @a rarg.
-   /// Bx -> By -> Bz
-   ///
-   /// See the HO kernel for why the destination comes from vector_term()
-   /// rather than the component index. Here the gather from XE is fused into
-   /// the x-sweep instead of staging the dofs first.
-   template<typename FOP, typename XE_T, typename ArgRegT>
-   static MFEM_HOST_DEVICE void contract_vector_component(
-      Shared &s, const int e, const DofToQuadMap &m,
-      const XE_T &XE, const int c, const int t, ArgRegT &rarg)
-   {
-      const VecTerm vt = vector_term<FOP>(c, t);
-      const int deriv_dir = vt.deriv_dir;
-      const int q1d = m.Q1D();
-      // The 1D factor for a given (component, axis, deriv) is fixed for the
-      // whole sweep, so it is resolved once here instead of per multiply-add.
-      const real_t *Bx = m.Basis(c, 0, deriv_dir == 0);
-      const real_t *By = m.Basis(c, 1, deriv_dir == 1);
-      const real_t *Bz = m.Basis(c, 2, deriv_dir == 2);
-      MFEM_CONTRACT_VAR(Bz);
-      auto sm = reinterpret_cast<real_t (*)[MQ1]>(
-                   reinterpret_cast<real_t *>(&s.M[0]));
-      // Get the extents of the element along each axis.
-      const int ex = m.Extent(c, 0), ey = m.Extent(c, 1);
-      const int ez = (DIM == 2) ? 1 : m.Extent(c, 2);
-      const int off = m.Offset(c);
-      for (int dz = 0; dz < ez; dz++)
-      {
-         // Sweep along the x-axis for the current z-slice.
-         MFEM_FOREACH_THREAD(dy, y, ey)
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            real_t value = 0.0;
-            for (int dx = 0; dx < ex; dx++)
-            {
-               const int idx = off + dx + ex * (dy + ey * dz);
-               value += Bx[qx + q1d * dx] *
-                        XE(idx, 0, 0, 0, e);
-            }
-            sm[dy][qx] = value;
-         }
-         MFEM_SYNC_THREAD;
-         // Sweep along the y-axis for the current z-slice.
-         MFEM_FOREACH_THREAD(qy, y, q1d)
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            real_t value = 0.0;
-            for (int dy = 0; dy < ey; dy++)
-            {
-               value += By[qy + q1d * dy] * sm[dy][qx];
-            }
-            if constexpr (DIM == 2) { vector_accum<FOP>(rarg, qx, qy, 0, vt, value); }
-            else
-            {
-               MFEM_FOREACH_THREAD(qz, z, q1d)
-               {
-                  vector_accum<FOP>(rarg, qx, qy, qz, vt,
-                                    Bz[qz + q1d * dz] * value);
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      }
-   }
-
-   /// Integrate quadrature-point values against one component block,
-   /// producing that block's degrees of freedom.
-   /// Same assumptions as for the forward contraction above.
-   /// Bzt -> Byt -> Bxt
-   template<typename FOP, typename ArgRegT, typename YE_T>
-   static MFEM_HOST_DEVICE void contract_vector_component_transpose(
-      Shared &s, const int e, const DofToQuadMap &m, const int c,
-      const int t, ArgRegT &rarg, const YE_T &YE)
-   {
-      const VecTerm vt = vector_term<FOP>(c, t);
-      const int deriv_dir = vt.deriv_dir;
-      const int q1d = m.Q1D();
-      // The 1D factor for a given (component, axis, deriv) is fixed for the
-      // whole sweep, so it is resolved once here instead of per multiply-add.
-      const real_t *Bx = m.Basis(c, 0, deriv_dir == 0);
-      const real_t *By = m.Basis(c, 1, deriv_dir == 1);
-      const real_t *Bz = m.Basis(c, 2, deriv_dir == 2);
-      MFEM_CONTRACT_VAR(Bz);
-      // Get the extents of the element along each axis.
-      const int ex = m.Extent(c, 0), ey = m.Extent(c, 1);
-      const int ez = (DIM == 2) ? 1 : m.Extent(c, 2);
-      const int off = m.Offset(c);
-      
-      // One shared slice per dz, so the z-threads sweep different dz at once.
       constexpr int NZ = (DIM == 2) ? 1 : MQ1;
-      real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
-      auto sm0 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base);
-      auto sm1 = reinterpret_cast<real_t (*)[MQ1][MQ1]>(base + NZ * MQ1 * MQ1);
-      
-      // Gather all qz from registers in shared mem first, since in 3D each 
-      // z-thread holds only the qz it evaluated the q-function at
-      auto smq = reinterpret_cast<real_t (*)[MQ1][MQ1]>(&s.M[1]);
-      MFEM_CONTRACT_VAR(smq);
+      constexpr int NS = is_div_fop_v<FOP> ? 1 : DIM; // register slots
+      const int q1d = m.Q1D();
+      const int nqz = (DIM == 2) ? 1 : q1d;
+      const int na = m.Extent(0, 0), nt = m.Extent(0, 1);
+      auto n = [=](int c, int k) { return k < DIM ? (c == k ? na : nt) : 1; };
+      auto b = [&](int c, int k, int d, int q)
+      { return k < DIM ? (c == k ? s.B : s.G)[d][q] : real_t(1); };
+      const int bs = n(0, 0) * n(0, 1) * n(0, 2);
 
-      if constexpr (DIM == 3)
-      {
-         MFEM_SYNC_THREAD;
-         MFEM_FOREACH_THREAD(qz, z, q1d)
-         MFEM_FOREACH_THREAD(qy, y, q1d)
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         {
-            smq[qz][qy][qx] = vector_src<FOP>(rarg, qx, qy, qz, vt);
-         }
-         MFEM_SYNC_THREAD;
-      }
-
-      // Sweep along the z-axis, one element slice dz per z-thread.
-      MFEM_FOREACH_THREAD(dz, z, ez)
+      auto Q = reinterpret_cast<real_t (*)[NZ][MQ1][MQ1]>(&s.M[0]);
+      auto T1 = reinterpret_cast<real_t (*)[NZ][MQ1][MQ1]>(&s.M[1]);
+      auto T2 = Q;
+      // Other threads may still read shared memory from the previous sweep
+      MFEM_SYNC_THREAD;
+      load_vector_bases<FOP>(s, m);
+      // Gather the slots in shared memory: each z-thread holds only its qz
+      MFEM_FOREACH_THREAD(qz, z, nqz)
       MFEM_FOREACH_THREAD(qy, y, q1d)
       MFEM_FOREACH_THREAD(qx, x, q1d)
       {
-         real_t value = 0.0;
-         if constexpr (DIM == 2)
-         { value = vector_src<FOP>(rarg, qx, qy, 0, vt); }
-         else
+         const auto &r = lok::at<DIM>(rarg, qx, qy, qz);
+         for_constexpr<NS>([&](auto i) { Q[i][qz][qy][qx] = r[i]; });
+      }
+      MFEM_SYNC_THREAD;
+      // z-sweep: T1[c][dz][qy][qx]
+      for_constexpr<DIM>([&](auto ic)
+      {
+         constexpr int c = ic.value, sl = (NS == 1) ? 0 : c;
+         MFEM_FOREACH_THREAD(dz, z, n(c, 2))
+         MFEM_FOREACH_THREAD(qy, y, q1d)
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            for (int qz = 0; qz < q1d; qz++)
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < nqz; qz++)
             {
-               value += Bz[qz + q1d * dz] * smq[qz][qy][qx];
+               u += b(c, 2, dz, qz) * Q[sl][qz][qy][qx];
             }
+            T1[c][dz][qy][qx] = u;
          }
-         sm0[dz][qy][qx] = value;
-      }
+      });
       MFEM_SYNC_THREAD;
-      // Sweep along the y-axis.
-      MFEM_FOREACH_THREAD(dz, z, ez)
-      MFEM_FOREACH_THREAD(dy, y, ey)
-      MFEM_FOREACH_THREAD(qx, x, q1d)
+      // y-sweep: T2[c][dz][dy][qx], over the gathered slots
+      for_constexpr<DIM>([&](auto ic)
       {
-         real_t value = 0.0;
-         for (int qy = 0; qy < q1d; qy++)
+         constexpr int c = ic.value;
+         MFEM_FOREACH_THREAD(dz, z, n(c, 2))
+         MFEM_FOREACH_THREAD(dy, y, n(c, 1))
+         MFEM_FOREACH_THREAD(qx, x, q1d)
          {
-            value += By[qy + q1d * dy] * sm0[dz][qy][qx];
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qy = 0; qy < q1d; qy++)
+            {
+               u += b(c, 1, dy, qy) * T1[c][dz][qy][qx];
+            }
+            T2[c][dz][dy][qx] = u;
          }
-         sm1[dz][dy][qx] = value;
-      }
+      });
       MFEM_SYNC_THREAD;
-      // Sweep along the x-axis and add into the element vector.
-      MFEM_FOREACH_THREAD(dz, z, ez)
-      MFEM_FOREACH_THREAD(dy, y, ey)
-      MFEM_FOREACH_THREAD(dx, x, ex)
+      // x-sweep, added into the element vector
+      for_constexpr<DIM>([&](auto ic)
       {
-         real_t value = 0.0;
-         for (int qx = 0; qx < q1d; qx++)
+         constexpr int c = ic.value;
+         MFEM_FOREACH_THREAD(dz, z, n(c, 2))
+         MFEM_FOREACH_THREAD(dy, y, n(c, 1))
+         MFEM_FOREACH_THREAD(dx, x, n(c, 0))
          {
-            value += Bx[qx + q1d * dx] * sm1[dz][dy][qx];
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               u += b(c, 0, dx, qx) * T2[c][dz][dy][qx];
+            }
+            YE(c * bs + dx + n(c, 0) * (dy + n(c, 1) * dz), 0, 0, 0, e) += u;
          }
-         YE(off + dx + ex * (dy + ey * dz), 0, 0, 0, e) += value;
-      }
+      });
       MFEM_SYNC_THREAD;
+   }
+private:
+
+   /// Stage the 1D factors of a vector element in shared memory as
+   /// [dof][qp]: s.B along a component's own direction, s.G across it. 
+   // Value and Div fop need only these two. Same extents for component blocks
+   /// up to a permutation.
+   template<typename FOP>
+   static MFEM_HOST_DEVICE void load_vector_bases(Shared &s,
+                                                  const DofToQuadMap &m)
+   {
+      static_assert(is_value_fop_v<FOP> || is_div_fop_v<FOP>,
+                    "LocalQF: vector elements support Value and Div");
+      const int q1d = m.Q1D();
+      const int na = m.Extent(0, 0), nt = m.Extent(0, 1);
+      // Div differentiates each component along its own direction only
+      const real_t *Ba = m.Basis(0, 0, is_div_fop_v<FOP>);
+      const real_t *Bt = m.Basis(0, 1, false);
+      if (MFEM_THREAD_ID(z) == 0)
+      {
+         MFEM_FOREACH_THREAD(d, y, na)
+         MFEM_FOREACH_THREAD(q, x, q1d) { s.B[d][q] = Ba[q + q1d * d]; }
+         MFEM_FOREACH_THREAD(d, y, nt)
+         MFEM_FOREACH_THREAD(q, x, q1d) { s.G[d][q] = Bt[q + q1d * d]; }
+      }
    }
 
 public:
