@@ -11,6 +11,11 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
+  refined on one side only: on parallel meshes, the edges on the unrefined side
+  of essential boundaries were not essential, and on serial meshes, those of
+  all interior boundaries were.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
