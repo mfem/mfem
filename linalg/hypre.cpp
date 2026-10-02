@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -4463,7 +4463,7 @@ HypreParVector HyprePCG::GetResiduals() const
 void HyprePCG::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4532,7 +4532,7 @@ HypreParVector HypreGMRES::GetResiduals() const
 void HypreGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4880,7 +4880,7 @@ void HypreFGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm,
                                           real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -5841,6 +5841,10 @@ void HypreAMS::MakeGradientAndInterpolation(
    if (trace_space)
    {
       grad->AddTraceFaceInterpolator(new GradientInterpolator);
+   }
+   else if (dynamic_cast<const RT_FECollection *>(edge_fec))
+   {
+      grad->AddDomainInterpolator(new CurlInterpolator);
    }
    else
    {

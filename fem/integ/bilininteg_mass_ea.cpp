@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,6 +24,8 @@ void MassIntegrator::AssembleEA_(Vector &ea_data,
    using internal::EAMassAssemble2D;
    using internal::EAMassAssemble3D;
 
+   MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
+               "AssembleEA not implemented for ragged tensor bases");
    const Array<real_t> &B = maps->B;
    if (dim == 1)
    {

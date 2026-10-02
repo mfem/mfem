@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,8 +100,12 @@ public:
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
        data from @a *gf is used as the local data of the ParGridFunction on each
-       processor. The ParGridFunction does not assume ownership of the data. */
-   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf);
+       processor. The ParGridFunction does not assume ownership of the data.
+       The boolean, @a preserve, indicates that the data stored in @a *gf should
+       remain unchanged. An error will occur if @a preserve is true and
+       construction of a valid ParGridFunction requires the data to change. */
+   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf,
+                   bool preserve = true);
 
    /** @brief Creates grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */
@@ -658,7 +662,7 @@ public:
    GridFunction GetSerialGridFunction(
       int save_rank, FiniteElementSpace &serial_fes) const;
 
-   /// Write the serial GridFunction a single file (written using MPI rank 0).
+   /// Write the serial GridFunction to a single file (written using MPI rank 0).
    /// The given @a precision will be used for ASCII output.
    void SaveAsSerial(const char *fname, int precision=16, int save_rank=0) const;
 

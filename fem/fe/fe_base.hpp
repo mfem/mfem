@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -957,10 +957,11 @@ protected:
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
-   // rotated gradient in 2D
-   void ProjectGrad_RT(const real_t *nk, const Array<int> &d2n,
-                       const FiniteElement &fe, ElementTransformation &Trans,
-                       DenseMatrix &grad) const;
+   // Input is a scalar representing the Z (out of plane) component, Output is
+   // the X-Y (in-plane) RT curl
+   void ProjectCurl2D_RT(const real_t *nk, const Array<int> &d2n,
+                         const FiniteElement &fe, ElementTransformation &Trans,
+                         DenseMatrix &grad) const;
 
    // Compute the curl as a discrete operator from ND FE (fe) to ND FE (this).
    // The natural FE for the range is RT, so this is an approximation.
@@ -968,9 +969,9 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-   void ProjectCurl_RT(const real_t *nk, const Array<int> &d2n,
-                       const FiniteElement &fe, ElementTransformation &Trans,
-                       DenseMatrix &curl) const;
+   void ProjectCurl3D_RT(const real_t *nk, const Array<int> &d2n,
+                         const FiniteElement &fe, ElementTransformation &Trans,
+                         DenseMatrix &curl) const;
 
    /** @brief Project a vector coefficient onto the ND basis functions
        @param tk    Edge tangent vectors for this element type
@@ -1445,6 +1446,8 @@ public:
       return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
                                 dof2quad_array_open);
    }
+
+   const Poly_1D::Basis &GetOpenBasis1D() const { return obasis1d; }
 
    virtual ~VectorTensorFiniteElement();
 };

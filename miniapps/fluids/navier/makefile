@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -52,6 +52,8 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common clean clean-build clean-exec
+# Keeping the *.o files fixes an issue with the MacOS version of 'make'.
+.PRECIOUS: %.o
 
 # Remove built-in rules
 %: %.cpp
