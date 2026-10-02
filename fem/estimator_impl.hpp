@@ -22,7 +22,7 @@ class ComplexGridFunction;
 /** @brief Shared discontinuous reconstructions used by Maxwell residual terms.
 
     The object owns the L2 spaces and fields for
-    \f$H=\mu^{-1}\curl E\f$ and \f$D=\epsilon E\f$. It is updated at most
+    $H=\mu^{-1}\curl E$ and $D=\epsilon E$. It is updated at most
     once during a GeneralErrorEstimator sweep. */
 class MaxwellResidualFields : public ErrorEstimatorData
 {
@@ -86,7 +86,7 @@ public:
     This implements the real-valued indicator of
     Chaumont-Frelet and Vega, SIAM J. Numer. Anal. 60 (2022), (3.3)--(3.4),
     for
-    \f$ \curl(\mu^{-1}\curl E)-\omega^2\epsilon E=f \f$.
+    $ \curl(\mu^{-1}\curl E)-\omega^2\epsilon E=f $.
 
     The source must be a GridFunction so that its divergence can be evaluated.
     The estimator assumes elementwise constant positive @a mu_inv and either
@@ -147,7 +147,7 @@ public:
 
 /** @brief Complex extension of MaxwellResidualEstimator.
 
-    Uses \f$\epsilon=\epsilon_r+i\epsilon_i\f$ and complex solution/source
+    Uses $\epsilon=\epsilon_r+i\epsilon_i$ and complex solution/source
     GridFunctions. Matrix coefficients must be symmetric; @a epsilon_real must
     be positive definite. The indicator combines the coupled real and imaginary
     residuals before taking its elementwise norm.
@@ -208,7 +208,7 @@ public:
 /** @brief Volume terms of the residual estimator for real Maxwell problems.
 
     The supplied @a h and @a d fields must be discontinuous L2 projections of
-    \f$\mu^{-1}\curl E\f$ and \f$\epsilon E\f$, respectively. This is the same
+    $\mu^{-1}\curl E$ and $\epsilon E$, respectively. This is the same
     reconstruction used by MaxwellResidualEstimator. The returned value is the
     squared local indicator contribution. */
 class MaxwellResidualDomainEstimator final : public DomainErrorEstimator
@@ -296,7 +296,7 @@ public:
 /** @brief Volume terms of ComplexMaxwellResidualEstimator.
 
     @a h and @a d are discontinuous complex fields representing
-    \f$\mu^{-1}\curl E\f$ and \f$\epsilon E\f$. Returned values are squared
+    $\mu^{-1}\curl E$ and $\epsilon E$. Returned values are squared
     local indicator contributions. */
 class ComplexMaxwellResidualDomainEstimator final : public DomainErrorEstimator
 {
@@ -381,7 +381,7 @@ public:
 
 /** @brief Check a complex tangential-electric (Dirichlet) boundary trace.
 
-    The estimator returns \f$\|E\times n-g_D\|^2_{L^2(F)}\f$. Passing no
+    The estimator returns $\|E\times n-g_D\|^2_{L^2(F)}$. Passing no
     boundary data checks homogeneous Dirichlet conditions. */
 class ComplexMaxwellDirichletBCErrorEstimator final : public FaceErrorEstimator
 {
@@ -404,8 +404,8 @@ public:
 /** @brief Check a complex tangential magnetic-flux (Neumann) boundary trace.
 
     @a magnetic_flux must be the reconstructed field
-    \f$H=\mu^{-1}\curl E\f$. The estimator returns
-    \f$\|H\times n-g_N\|^2_{L^2(F)}\f$. */
+    $H=\mu^{-1}\curl E$. The estimator returns
+    $\|H\times n-g_N\|^2_{L^2(F)}$. */
 class ComplexMaxwellNeumannBCErrorEstimator final : public FaceErrorEstimator
 {
 private:
