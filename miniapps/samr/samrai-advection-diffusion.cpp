@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Compile with: make samrai-advection-diffusion
+// Build with CMake using the samrai-advection-diffusion target.
 //
 // Sample runs:
 //
