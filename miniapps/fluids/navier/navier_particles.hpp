@@ -42,9 +42,9 @@ namespace navier
  *  ζ depends on the lift properties, and
  *  γ and ê depend on body forces such as gravity.
  *
- *  The model from Dutta et al. is general but this implementation is currently
- *  limited to 2D problems. Simple reflection and recirculation boundary
- *  conditions are also supported.
+ *  Particle motion is supported in 2D and 3D, with gravity in the negative
+ *  y direction. Reflection and recirculation are supported in 2D; in 3D,
+ *  reflection is supported on axis-aligned rectangular faces.
  *
  */
 class NavierParticles
@@ -110,7 +110,18 @@ protected:
       const bool invert_outlet_normal;
    };
 
-   using BCVariant = std::variant<ReflectionBC_2D, RecirculationBC_2D>;
+   /// Axis-aligned rectangular reflecting face, with inward normal.
+   struct ReflectionBC_3D
+   {
+      const Vector face_min;
+      const Vector face_max;
+      const int axis;
+      const real_t normal;
+      const real_t e;
+   };
+
+   using BCVariant = std::variant<ReflectionBC_2D, RecirculationBC_2D,
+         ReflectionBC_3D>;
 
    /// std::vector of all boundary condition structs
    std::vector<BCVariant> bcs;
@@ -120,6 +131,12 @@ protected:
 
    /// 2D particle step for particle at index \p p
    void ParticleStep2D(const real_t &dt, int p);
+
+   /// 3D particle step for particle at index \p p.
+   void ParticleStep3D(const real_t &dt, int p);
+
+   /// Update particle position using the BDF coefficients and new velocity.
+   void UpdateParticlePosition(const real_t &dt, int p);
 
    /** @brief Given two 2D points, get the unit normal to the line
     *  connecting them.
@@ -163,6 +180,9 @@ protected:
    /// Apply 2D recirculation BCs
    void Apply2DRecirculationBC(const RecirculationBC_2D &bc);
 
+   /// Apply 3D reflections in the order in which the trajectory hits faces.
+   void Apply3DReflectionBCs();
+
    /// Apply all BCs in \ref bcs
    void ApplyBCs();
 
@@ -187,8 +207,12 @@ public:
    /// Initialize NavierParticles with \p num_particles using fluid mesh \p m .
    NavierParticles(MPI_Comm comm, int num_particles, Mesh &m);
 
-   /// Set initial timestep in time history array
-   void Setup(const real_t dt) { dthist[0] = dt; }
+   /// Initialize timestep history. Particle fields must be initialized separately.
+   void Setup(const real_t dt)
+   {
+      MFEM_VERIFY(dt > 0.0, "Particle timestep must be positive.");
+      dthist = dt;
+   }
 
    /** @brief Step the particles in time.
     *
@@ -279,7 +303,27 @@ public:
     */
    void Add2DReflectionBC(const Vector &line_start, const Vector &line_end,
                           real_t e, bool invert_normal)
-   { bcs.push_back(ReflectionBC_2D{line_start, line_end, e, invert_normal}); }
+   {
+      MFEM_VERIFY(fluid_particles.GetDim() == 2,
+                  "2D reflection requires a 2D particle set.");
+      bcs.push_back(ReflectionBC_2D{line_start, line_end, e, invert_normal});
+   }
+
+   /** @brief Add a reflecting rectangular face parallel to Cartesian axes.
+    *
+    *  Exactly one component of \p face_min and \p face_max must be equal,
+    *  specifying the plane coordinate. The other components give the finite
+    *  face bounds and must satisfy face_min < face_max. The inward normal is
+    *  along the positive coordinate axis unless \p invert_normal is true.
+    *
+    *  For example, the x=1 face of the unit cube, with inward normal -x, is
+    *  Add3DReflectionBC(Vector({1,0,0}), Vector({1,1,1}), 1.0, true).
+    *  The restitution coefficient \p e is in [0,1]; tangential velocity is
+    *  unchanged. Position overshoot is reflected with the same restitution,
+    *  and the particle's integration order is reset after a collision.
+    */
+   void Add3DReflectionBC(const Vector &face_min, const Vector &face_max,
+                          real_t e, bool invert_normal=false);
 
    /** @brief Add a 2D recirculation / one-way periodic boundary condition.
     *
@@ -300,6 +344,8 @@ public:
                              const Vector &outlet_end,
                              bool invert_outlet_normal)
    {
+      MFEM_VERIFY(fluid_particles.GetDim() == 2,
+                  "2D recirculation requires a 2D particle set.");
       MFEM_ASSERT([&]()
       {
          real_t inlet_dist = inlet_start.DistanceTo(inlet_end);

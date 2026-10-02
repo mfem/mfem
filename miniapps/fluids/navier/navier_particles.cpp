@@ -86,7 +86,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    // Extrapolate particle vorticity using EXTk (w_n is new vorticity at old
    // particle loc)
    // w_n_ext = alpha1*w_nm1 + alpha2*w_nm2 + alpha3*w_nm3
-   for (int j = 1; j <= 3; j++)
+   for (int j = 1; j <= Order()[p]; j++)
    {
       w_n_ext += alpha[j-1]*W(j)(p, 0);
    }
@@ -97,7 +97,7 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
 
    // Assemble the RHS with BDF and EXT terms
    r = 0.0;
-   for (int j = 1; j <= 3; j++)
+   for (int j = 1; j <= Order()[p]; j++)
    {
       U(j).GetValuesRef(p, up);
       V(j).GetValuesRef(p, vp);
@@ -120,10 +120,61 @@ void NavierParticles::ParticleStep2D(const real_t &dt, int p)
    V(0).GetValuesRef(p, vp);
    B_inv.Mult(r, vp);
 
+   UpdateParticlePosition(dt, p);
+}
+
+void NavierParticles::ParticleStep3D(const real_t &dt, int p)
+{
+   const int order = Order()[p];
+   const Array<real_t> &beta = beta_k[order-1];
+   const Array<real_t> &alpha = alpha_k[order-1];
+   const real_t kappa = Kappa()[p];
+   const real_t zeta = Zeta()[p];
+   const real_t gamma = Gamma()[p];
+
+   Vector w_ext(3), wp, lift(3);
+   w_ext = 0.0;
+   for (int j = 1; j <= order; j++)
+   {
+      W(j).GetValuesRef(p, wp);
+      add(w_ext, alpha[j-1], wp, w_ext);
+   }
+
+   // B = (beta_0 + dt*kappa) I + dt*zeta C_w, where C_w v = v x w.
+   const real_t a = beta[0] + dt*kappa;
+   const real_t wx = dt*zeta*w_ext[0];
+   const real_t wy = dt*zeta*w_ext[1];
+   const real_t wz = dt*zeta*w_ext[2];
+   DenseMatrix B({{a, wz, -wy}, {-wz, a, wx}, {wy, -wx, a}});
+
+   r = 0.0;
+   for (int j = 1; j <= order; j++)
+   {
+      U(j).GetValuesRef(p, up);
+      V(j).GetValuesRef(p, vp);
+      add(r, -beta[j], vp, r);
+
+      C = up;
+      C *= kappa;
+      C[1] -= gamma;
+      up.cross3D(w_ext, lift);
+      add(C, zeta, lift, C);
+      add(r, dt*alpha[j-1], C, r);
+   }
+
+   DenseMatrixInverse B_inv(B);
+   V().GetValuesRef(p, vp);
+   B_inv.Mult(r, vp);
+   UpdateParticlePosition(dt, p);
+}
+
+void NavierParticles::UpdateParticlePosition(const real_t &dt, int p)
+{
+   const Array<real_t> &beta = beta_k[Order()[p]-1];
    // Compute updated particle position
    X(0).GetValuesRef(p, xpn);
    xpn = 0.0;
-   for (int j = 1; j <= 3; j++)
+   for (int j = 1; j <= Order()[p]; j++)
    {
       X(j).GetValuesRef(p, xp);
       add(xpn, -beta[j], xp, xpn);
@@ -232,7 +283,9 @@ void NavierParticles::Apply2DReflectionBC(const ReflectionBC_2D &bc)
 
          // Correct the position
          int &o = Order()[i];
-         add(p_xn, (1.0/beta_k[o][0])*(dt_c - dthist[0]), p_vdiff, p_xn);
+         // Another wall may already have reset the order in this step.
+         const real_t beta0 = beta_k[std::max(o, 1)-1][0];
+         add(p_xn, (1.0/beta0)*(dt_c - dthist[0]), p_vdiff, p_xn);
 
          // Set order to 0 (so that it becomes 1 on next iteration)
          o = 0;
@@ -295,8 +348,105 @@ void NavierParticles::Apply2DRecirculationBC(const RecirculationBC_2D &bc)
    }
 }
 
+void NavierParticles::Add3DReflectionBC(const Vector &face_min,
+                                        const Vector &face_max, real_t e,
+                                        bool invert_normal)
+{
+   MFEM_VERIFY(fluid_particles.GetDim() == 3,
+               "3D reflection requires a 3D particle set.");
+   MFEM_VERIFY(face_min.Size() == 3 && face_max.Size() == 3,
+               "A reflecting face requires two 3D corners.");
+   MFEM_VERIFY(e >= 0.0 && e <= 1.0,
+               "Restitution must be between zero and one.");
+   int axis = -1;
+   for (int d = 0; d < 3; d++)
+   {
+      MFEM_VERIFY(std::isfinite(face_min[d]) && std::isfinite(face_max[d]) &&
+                  face_min[d] <= face_max[d], "Invalid reflecting face bounds.");
+      if (face_min[d] == face_max[d])
+      {
+         MFEM_VERIFY(axis == -1, "A reflecting face must have positive area.");
+         axis = d;
+      }
+   }
+   MFEM_VERIFY(axis != -1, "A reflecting face must be axis-aligned and planar.");
+   bcs.push_back(ReflectionBC_3D{face_min, face_max, axis,
+                                 invert_normal ? -1.0_r : 1.0_r, e});
+}
+
+void NavierParticles::Apply3DReflectionBCs()
+{
+   Vector start(3), end, velocity;
+   for (int p = 0; p < fluid_particles.GetNParticles(); p++)
+   {
+      X(1).GetValues(p, start);
+      X().GetValuesRef(p, end);
+      V().GetValuesRef(p, velocity);
+      int num_reflections = 0;
+      while (true)
+      {
+         const ReflectionBC_3D *first_face = nullptr;
+         real_t first_t = 1.0;
+         for (const BCVariant &bc : bcs)
+         {
+            const auto *face = std::get_if<ReflectionBC_3D>(&bc);
+            if (!face) { continue; }
+            const int axis = face->axis;
+            const real_t plane = face->face_min[axis];
+            const real_t d0 = face->normal*(start[axis] - plane);
+            const real_t d1 = face->normal*(end[axis] - plane);
+            if (d0 < 0.0 || d1 >= 0.0) { continue; }
+            const real_t t = d0/(d0 - d1);
+            if (t > first_t) { continue; }
+
+            bool on_face = true;
+            for (int d = 0; d < 3; d++)
+            {
+               if (d == axis) { continue; }
+               const real_t x = start[d] + t*(end[d] - start[d]);
+               const real_t scale = std::max(1.0_r,
+                                             std::max(std::abs(face->face_min[d]),
+                                                      std::abs(face->face_max[d])));
+               const real_t tol = 64*std::numeric_limits<real_t>::epsilon()*scale;
+               if (x < face->face_min[d] - tol || x > face->face_max[d] + tol)
+               {
+                  on_face = false;
+                  break;
+               }
+            }
+            if (on_face)
+            {
+               first_face = face;
+               first_t = t;
+            }
+         }
+         if (!first_face) { break; }
+         MFEM_VERIFY(num_reflections++ < 100,
+                     "Too many particle reflections in one step; reduce dt.");
+
+         // Start the remaining trajectory at the collision point. Reflect
+         // normal overshoot and velocity, leaving tangential components intact.
+         for (int d = 0; d < 3; d++)
+         {
+            start[d] += first_t*(end[d] - start[d]);
+         }
+         const int axis = first_face->axis;
+         const real_t plane = first_face->face_min[axis];
+         start[axis] = plane;
+         end[axis] = plane - first_face->e*(end[axis] - plane);
+         velocity[axis] *= -first_face->e;
+         Order()[p] = 0;
+      }
+   }
+}
+
 void NavierParticles::ApplyBCs()
 {
+   if (fluid_particles.GetDim() == 3)
+   {
+      Apply3DReflectionBCs();
+      return;
+   }
    for (BCVariant &bc_v : bcs)
    {
       std::visit(
@@ -321,6 +471,9 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
      inactive_fluid_particles(comm, 0, m.SpaceDimension()),
      finder(comm)
 {
+   MFEM_VERIFY(m.Dimension() == m.SpaceDimension() &&
+               (m.SpaceDimension() == 2 || m.SpaceDimension() == 3),
+               "Particles require a volume mesh in 2D or 3D.");
 
    for (int o = 0; o < 3; o++)
    {
@@ -369,6 +522,12 @@ NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
 void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
                            const ParGridFunction &w_gf)
 {
+   MFEM_VERIFY(dt > 0.0 && dthist[0] > 0.0,
+               "Call Setup with a positive timestep before stepping particles.");
+   // Include the current step when computing variable-step BDF/EXT ratios.
+   dthist[2] = dthist[1];
+   dthist[1] = dthist[0];
+   dthist[0] = dt;
    // Shift fluid velocity, fluid vorticity, particle velocity, and particle position
    for (int i = N_HIST-1; i > 0; i--)
    {
@@ -384,22 +543,19 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
 
    SetTimeIntegrationCoefficients();
 
-   if (fluid_particles.GetDim() == 2)
+   for (int i = 0; i < fluid_particles.GetNParticles(); i++)
    {
-      for (int i = 0; i < fluid_particles.GetNParticles(); i++)
+      int &order = Order()[i];
+      MFEM_VERIFY(order >= 0 && order <= 3, "Invalid particle integration order.");
+      if (order < 3) { order++; }
+      if (fluid_particles.GetDim() == 2)
       {
-         // Increment particle order
-         int &order = Order()[i];
-         if (order < 3)
-         {
-            order++;
-         }
          ParticleStep2D(dt, i);
       }
-   }
-   else
-   {
-      MFEM_ABORT("3D particles not yet implemented.");
+      else
+      {
+         ParticleStep3D(dt, i);
+      }
    }
 
    // Apply any BCs
@@ -411,11 +567,6 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
    // Move lost particles from active to inactive. We don't search for points again
    // because that is already done in InterpolateUW.
    DeactivateLostParticles(false);
-
-   // Rotate values in time step history
-   dthist[2] = dthist[1];
-   dthist[1] = dthist[0];
-   dthist[0] = dt;
 }
 
 void NavierParticles::InterpolateUW(const ParGridFunction &u_gf,

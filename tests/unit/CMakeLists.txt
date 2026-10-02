@@ -342,6 +342,22 @@ endif()
 #-----------------------------------------------------------
 # Define executables and tests
 if (MFEM_USE_MPI)
+    if (MFEM_USE_GSLIB)
+        mfem_add_executable(navier_particles_tests
+            punit_test_main.cpp
+            miniapps/test_navier_particles.cpp
+            ${MFEM_SOURCE_DIR}/miniapps/fluids/navier/navier_particles.cpp)
+        target_link_libraries(navier_particles_tests mfem)
+        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} navier_particles_tests)
+        foreach(np 1 ${MFEM_MPI_NP})
+            if (MFEM_USE_DOUBLE)
+                add_test(NAME navier_particles_tests_np=${np}
+                    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:navier_particles_tests>
+                    ${MPIEXEC_POSTFLAGS})
+            endif()
+        endforeach()
+    endif()
     # punit_tests
     if (MFEM_USE_CUDA)
         set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)

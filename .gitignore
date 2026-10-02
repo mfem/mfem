@@ -451,6 +451,7 @@ miniapps/plasma/pic/*.csv
 tests/unit/output_meshes
 tests/unit/unit_tests
 tests/unit/punit_tests
+tests/unit/navier_particles_tests
 tests/unit/gpu_unit_tests
 tests/unit/pgpu_unit_tests
 tests/unit/sedov_tests_*

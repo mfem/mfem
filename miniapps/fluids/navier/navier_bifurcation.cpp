@@ -6,7 +6,7 @@
 // availability visit https://mfem.org.
 //
 //   ---------------------------------------------------------------------
-//   Navier Bifurcation: Tracer Particles in a 2D Bifurcating Channel Flow
+//   Navier Bifurcation: Particles in a 2D or 3D Bifurcating Channel Flow
 //   ---------------------------------------------------------------------
 //
 // Note: MFEM must be compiled with GSLIB for this miniapp to include
@@ -20,6 +20,7 @@
 //
 // Sample run:
 // * mpirun -np 10 navier_bifurcation -rs 3 -npt 100 -nt 4e5 -traj 10
+// * mpirun -np 2 navier_bifurcation -rs 1 -nz 2 -depth 1 -npt 100 -nt 1000
 
 
 #include "navier_solver.hpp"
@@ -44,6 +45,8 @@ struct flow_context
    // fluid
    int rs_levels = 3;
    int order = 4;
+   int nz = 0;                  // extrusion layers; zero keeps the 2D mesh
+   real_t depth = 1.0;          // z extent of the extruded 3D channel
    real_t Re = 1000;             // Reynolds number
    int paraview_freq = 500;      // frequency of ParaView output
 
@@ -95,6 +98,10 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh in serial.");
    args.AddOption(&ctx.order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&ctx.nz, "-nz", "--extrusion-layers",
+                  "Number of z layers for a 3D channel. 0 keeps the 2D case.");
+   args.AddOption(&ctx.depth, "-depth", "--channel-depth",
+                  "Depth of the extruded 3D channel.");
    args.AddOption(&ctx.Re, "-Re", "--reynolds-number", "Reynolds number.");
    args.AddOption(&ctx.paraview_freq, "-pv", "--paraview-freq",
                   "ParaView data collection write frequency. 0 to disable.");
@@ -125,6 +132,8 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+   MFEM_VERIFY(ctx.nz >= 0 && ctx.depth > 0.0,
+               "Extrusion layers must be nonnegative and depth positive.");
 
    // Load mesh + complete any serial refinements
    Mesh mesh("../../../data/channel-bifurcation-2d.mesh");
@@ -132,6 +141,13 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
+   const int bdr_max_2d = mesh.bdr_attributes.Max();
+   if (ctx.nz > 0)
+   {
+      std::unique_ptr<Mesh> mesh3d(Extrude2D(&mesh, ctx.nz, ctx.depth));
+      mesh = std::move(*mesh3d);
+   }
+   const int dim = mesh.Dimension();
 
    // Parallel decompose mesh
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -145,7 +161,7 @@ int main(int argc, char *argv[])
    real_t time = 0.0;
 
    // Initialize fluid IC
-   VectorFunctionCoefficient u_excoeff(2, vel_dbc);
+   VectorFunctionCoefficient u_excoeff(dim, vel_dbc);
    ParGridFunction &u_gf = *flow_solver.GetCurrentVelocity();
    u_excoeff.SetTime(time);
 
@@ -156,6 +172,11 @@ int main(int argc, char *argv[])
    attr[0] = 1;
    // Walls is attribute 2.
    attr[1] = 1;
+   if (dim == 3)
+   {
+      // Extrude2D assigns the end caps attributes above the original maximum.
+      for (int a = bdr_max_2d; a < attr.Size(); a++) { attr[a] = 1; }
+   }
    flow_solver.AddVelDirichletBC(vel_dbc, attr);
 
 #ifdef MFEM_USE_GSLIB
@@ -168,16 +189,37 @@ int main(int argc, char *argv[])
 
    // Set particle BCs - left normal for line connecting start to end must
    // point into the domain. If not, we set invert_normal to true.
-   particle_solver.Add2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}),
-                                     1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}),
-                                     1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}),
-                                     1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}),
-                                     1.0, true);
-   particle_solver.Add2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}),
-                                     1.0, false);
+   if (dim == 2)
+   {
+      particle_solver.Add2DReflectionBC(Vector({0.0, 1.0}), Vector({8.0, 1.0}),
+                                        1.0, true);
+      particle_solver.Add2DReflectionBC(Vector({8.0, 1.0}), Vector({8.0, 9.0}),
+                                        1.0, true);
+      particle_solver.Add2DReflectionBC(Vector({9.0, 9.0}), Vector({9.0, 1.0}),
+                                        1.0, true);
+      particle_solver.Add2DReflectionBC(Vector({9.0, 1.0}), Vector({17.0, 1.0}),
+                                        1.0, true);
+      particle_solver.Add2DReflectionBC(Vector({0.0, 0.0}), Vector({17.0, 0.0}),
+                                        1.0, false);
+   }
+   else
+   {
+      const real_t z = ctx.depth;
+      particle_solver.Add3DReflectionBC(Vector({0.0, 1.0, 0.0}),
+                                        Vector({8.0, 1.0, z}), 1.0, true);
+      particle_solver.Add3DReflectionBC(Vector({8.0, 1.0, 0.0}),
+                                        Vector({8.0, 9.0, z}), 1.0);
+      particle_solver.Add3DReflectionBC(Vector({9.0, 1.0, 0.0}),
+                                        Vector({9.0, 9.0, z}), 1.0, true);
+      particle_solver.Add3DReflectionBC(Vector({9.0, 1.0, 0.0}),
+                                        Vector({17.0, 1.0, z}), 1.0, true);
+      particle_solver.Add3DReflectionBC(Vector({0.0, 0.0, 0.0}),
+                                        Vector({17.0, 0.0, z}), 1.0);
+      particle_solver.Add3DReflectionBC(Vector({0.0, 0.0, 0.0}),
+                                        Vector({17.0, 9.0, 0.0}), 1.0);
+      particle_solver.Add3DReflectionBC(Vector({0.0, 0.0, z}),
+                                        Vector({17.0, 9.0, z}), 1.0, true);
+   }
 #endif
 
    // Set up solution and particle visualization
@@ -188,7 +230,7 @@ int main(int argc, char *argv[])
    int Wx = 10, Wy = 0; // window position
    char keys[] = "mAcRjlmm]]]]]]]]]";
    std::unique_ptr<ParticleTrajectories> traj_vis;
-   // Extract boundary mesh for particle visualization
+   // Extract a boundary edge mesh for particle trajectory visualization.
    int nattr = pmesh.bdr_attributes.Max();
    Array<int> subdomain_attributes(nattr);
    for (int i = 0; i < nattr; i++)
@@ -197,6 +239,21 @@ int main(int argc, char *argv[])
    }
    auto psubmesh = std::unique_ptr<ParMesh>(new ParMesh(
                                                ParSubMesh::CreateFromBoundary(pmesh, subdomain_attributes)));
+   Mesh boundary_edges(1, psubmesh->GetNV(), psubmesh->GetNEdges(), 0, dim);
+   if (dim == 3)
+   {
+      for (int i = 0; i < psubmesh->GetNV(); i++)
+      {
+         boundary_edges.AddVertex(psubmesh->GetVertex(i));
+      }
+      Array<int> vertices;
+      for (int i = 0; i < psubmesh->GetNEdges(); i++)
+      {
+         psubmesh->GetEdgeVertices(i, vertices);
+         boundary_edges.AddSegment(vertices);
+      }
+      boundary_edges.FinalizeMesh();
+   }
 
    if (ctx.visualization)
    {
@@ -211,7 +268,8 @@ int main(int argc, char *argv[])
                        traj_length, vishost, visport,
                        "Particle Trajectories",
                        Ww+Wx, Wy, Ww, Wh, "bbm");
-         traj_vis->AddMeshForVisualization(psubmesh.get());
+         traj_vis->AddMeshForVisualization(dim == 2 ? psubmesh.get() :
+                                           &boundary_edges);
          traj_vis->Visualize();
       }
 #endif
@@ -352,6 +410,10 @@ void SetInjectedParticles(NavierParticles &particle_solver,
    MPI_Comm_rank(comm, &my_rank);
    Vector rand_init_yloc(p_idxs.Size());
    rand_init_yloc.Randomize(my_rank + step);
+   const int dim = particle_solver.GetParticles().GetDim();
+   Vector rand_init_zloc(p_idxs.Size()), position(dim), zero(dim);
+   zero = 0.0;
+   if (dim == 3) { rand_init_zloc.Randomize(my_rank + step + 1); }
    for (int i = 0; i < p_idxs.Size(); i++)
    {
       int idx = p_idxs[i];
@@ -362,18 +424,21 @@ void SetInjectedParticles(NavierParticles &particle_solver,
          {
             // Set position randomly along inlet
             real_t yval = rand_init_yloc(i);
-            particle_solver.X().SetValues(idx, Vector({0.0, yval}));
+            position = 0.0;
+            position[1] = yval;
+            if (dim == 3) { position[2] = ctx.depth*rand_init_zloc(i); }
+            particle_solver.X().SetValues(idx, position);
          }
          else
          {
             // Zero-out position history
-            particle_solver.X(j).SetValues(idx, Vector({0.0,0.0}));
+            particle_solver.X(j).SetValues(idx, zero);
          }
 
          // Zero-out particle velocities, fluid velocities, and fluid vorticities
-         particle_solver.V(j).SetValues(idx, Vector({0.0,0.0}));
-         particle_solver.U(j).SetValues(idx, Vector({0.0,0.0}));
-         particle_solver.W(j).SetValues(idx, Vector({0.0,0.0}));
+         particle_solver.V(j).SetValues(idx, zero);
+         particle_solver.U(j).SetValues(idx, zero);
+         particle_solver.W(j).SetValues(idx, zero);
 
          // Set Kappa, Zeta, Gamma
          std::mt19937 gen(kappa_seed);
@@ -395,7 +460,11 @@ void vel_dbc(const Vector &x, real_t t, Vector &u)
 {
    real_t yi = x(1);
    real_t height = 1.0;
-   u(0) = 0.;
-   u(1) = 0.;
+   u = 0.0;
    if (std::fabs(yi)<1.0) { u(0) = 6.0*yi*(height-yi)/(height*height); }
+   if (x.Size() == 3)
+   {
+      const real_t z = x(2);
+      u(0) *= 6.0*z*(ctx.depth-z)/(ctx.depth*ctx.depth);
+   }
 }
