@@ -119,11 +119,14 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
    return atomicAdd(&add,val);
 #else
-   T old = add;
+   T old;
 #ifdef MFEM_USE_OPENMP
-   #pragma omp atomic
+   #pragma omp atomic capture
 #endif
-   add += val;
+   {
+      old = add;
+      add += val;
+   }
    return old;
 #endif
 }
