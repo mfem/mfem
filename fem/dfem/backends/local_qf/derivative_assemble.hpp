@@ -991,17 +991,6 @@ public:
       });
 
       group_Ae_mem.resize(output_groups->field_ids.size());
-      for (size_t g = 0; g < group_Ae_mem.size(); g++)
-      {
-         if (!group_assemblable[g]) { continue; }
-         const int elem_mat_size = output_groups->num_test_dof[g] *
-                                   output_groups->test_vdim[g] * num_trial_dof *
-                                   trial_vdim;
-         group_Ae_mem[g].SetSize(elem_mat_size * ne,
-                                 Device::GetDeviceMemoryType());
-         group_Ae_mem[g].UseDevice(true);
-         group_Ae_mem[g] = 0.0;
-      }
    }
 
    /// @brief Assemble one SparseMatrix per assemblable output field.
@@ -1049,6 +1038,19 @@ public:
       for (size_t g = 0; g < group_Ae_mem.size(); g++)
       {
          if (!group_assemblable[g]) { continue; }
+
+         if (group_Ae_mem[g].Size() == 0)
+         {
+            const long long bank_size =
+               static_cast<long long>(output_groups->num_test_dof[g]) *
+               output_groups->test_vdim[g] * num_trial_dof * trial_vdim * ne;
+            MFEM_VERIFY(bank_size <= std::numeric_limits<int>::max(),
+                        "DerivativeAssemble: the element matrices, "
+                        << bank_size << " entries, do not fit in a Vector");
+            group_Ae_mem[g].SetSize(static_cast<int>(bank_size),
+                                    Device::GetDeviceMemoryType());
+            group_Ae_mem[g].UseDevice(true);
+         }
 
          // The kernel accumulates into Ae, so the bank has to start clean on
          // every call.
