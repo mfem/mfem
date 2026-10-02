@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
    int ti = 1;
    bool last_step = false;
    double time = samrai_time_integrator->getIntegratorTime();
-   while (time < final_time)
+   while (time < final_time && samrai_time_integrator->stepsRemaining())
    {
       if (time + dt >=  final_time - 0.5*dt)
       {
