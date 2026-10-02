@@ -260,14 +260,14 @@ int main(int argc, char *argv[])
       createConductionODESolver(u_fespace.get(), kappa, ode_solver_type, solve_implicit_state);
 
    // Write out the mesh and initial condition
+   coupling_manager.GetMesh().Save("samrai-init.mesh", precision);
+   u_gf->Save("samrai-init.gf", precision);
+   if (Mpi::Root())
    {
-      std::ofstream omesh("ex16.mesh");
-      omesh.precision(precision);
-      coupling_manager.GetMesh().Print(omesh);
-      std::ofstream osol("ex16-init.gf");
-      osol.precision(precision);
-      u_gf->Save(osol);
+      std::cout << "\nMFEM final solution saved to: "
+                << "samrai-final.mesh.*, samrai-final.gf.*" << std::endl;
    }
+
 
    // Optionally, create the visualization stream and visualize initial condition
    socketstream sout;
@@ -365,14 +365,13 @@ int main(int argc, char *argv[])
    }
 
    // 10. Save final solution
-   {
-      std::ofstream osol("ex16-final.gf");
-      osol.precision(precision);
-      u_gf->Save(osol);
-   }
-
+   coupling_manager.GetMesh().Save("samrai-final.mesh", precision);
+   u_gf->Save("samrai-final.gf", precision);
    if (Mpi::Root())
-      std::cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << std::endl;
+   {
+      std::cout << "\nMFEM final solution saved to: "
+                << "samrai-final.mesh.*, samrai-final.gf.*" << std::endl;
+   }
 
    SAMRAI::tbox::SAMRAIManager::shutdown();
    SAMRAI::tbox::SAMRAIManager::finalize();
