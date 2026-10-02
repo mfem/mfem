@@ -19,6 +19,7 @@ set(SRCS
   mesh.cpp
   mesh_operators.cpp
   mesh_readers.cpp
+  mesh_hdf5.cpp
   ncmesh.cpp
   ncnurbs.cpp
   nurbs.cpp
