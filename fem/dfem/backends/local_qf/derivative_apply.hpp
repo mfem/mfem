@@ -43,6 +43,8 @@ class DerivativeApply
    static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
                  "LocalQF: q-function arity must match inputs + outputs");
 
+   using Layout = QpCacheLayout<derivative_id, qfunc_t, inputs_t, outputs_t>;
+
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext ctx;
@@ -72,157 +74,6 @@ class DerivativeApply
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
    mutable RestrictionCache<Entity::Element> direction_rcache;
-
-   template <std::size_t slot>
-   static constexpr int ParamRank()
-   {
-      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
-      return qf_param_shape<param_t>::rank;
-   }
-
-   template <std::size_t slot, int dim_idx>
-   static constexpr int ParamExtent()
-   {
-      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
-      return qf_param_shape<param_t>::extents[dim_idx];
-   }
-
-   template <typename fop_t, std::size_t slot>
-   static constexpr int StaticVDim()
-   {
-      constexpr int rank = ParamRank<slot>();
-      if constexpr (is_gradient_fop_v<fop_t>)
-      {
-         if constexpr (rank <= 1) { return 1; }
-         else { return ParamExtent<slot, 0>(); }
-      }
-      else
-      {
-         if constexpr (rank == 0) { return 1; }
-         else { return ParamExtent<slot, 0>(); }
-      }
-   }
-
-   template <typename fop_t, std::size_t slot>
-   static constexpr int StaticOpDim()
-   {
-      constexpr int rank = ParamRank<slot>();
-      if constexpr (is_gradient_fop_v<fop_t>)
-      {
-         if constexpr (rank == 0) { return 1; }
-         else if constexpr (rank == 1) { return ParamExtent<slot, 0>(); }
-         else { return ParamExtent<slot, 1>(); }
-      }
-      else
-      {
-         if constexpr (rank <= 1) { return 1; }
-         else { return ParamExtent<slot, 1>(); }
-      }
-   }
-
-   template <std::size_t input_slot>
-   static constexpr bool StaticInputDep()
-   {
-      using fop_t = tuple_element_t<input_slot, inputs_t>;
-      return fop_t::GetFieldId() == derivative_id;
-   }
-
-   template <std::size_t input_slot>
-   static constexpr int StaticInputVDim()
-   {
-      using fop_t = tuple_element_t<input_slot, inputs_t>;
-      return StaticVDim<fop_t, input_slot>();
-   }
-
-   template <std::size_t input_slot>
-   static constexpr int StaticInputOpDim()
-   {
-      using fop_t = tuple_element_t<input_slot, inputs_t>;
-      return StaticOpDim<fop_t, input_slot>();
-   }
-
-   /// Components of the dependent inputs before @a input_slot, i.e. where the
-   /// columns of that input start in a derivative cache row.
-   template <std::size_t input_slot>
-   static constexpr int StaticInputCacheOffset()
-   {
-      int offset = 0;
-      for_constexpr<input_slot>([&](auto sc)
-      {
-         constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>())
-         {
-            offset += StaticInputComponents<s>();
-         }
-      });
-      return offset;
-   }
-
-   /// Width of a derivative cache row
-   static constexpr int StaticCacheColumns()
-   {
-      return StaticInputCacheOffset<n_inputs>();
-   }
-
-   template <std::size_t output_slot>
-   static constexpr int StaticOutputVDim()
-   {
-      using fop_t = tuple_element_t<output_slot, outputs_t>;
-      return StaticVDim<fop_t, n_inputs + output_slot>();
-   }
-
-   template <std::size_t output_slot>
-   static constexpr int StaticOutputOpDim()
-   {
-      using fop_t = tuple_element_t<output_slot, outputs_t>;
-      return StaticOpDim<fop_t, n_inputs + output_slot>();
-   }
-
-   template <std::size_t output_slot>
-   static constexpr int StaticOutputOffset()
-   {
-      int offset = 0;
-      for_constexpr<output_slot>([&](auto oc)
-      {
-         constexpr size_t o = oc.value;
-         offset += StaticOutputVDim<o>() * StaticOutputOpDim<o>();
-      });
-      return offset;
-   }
-
-   template <std::size_t input_slot>
-   static constexpr int StaticInputOpOffset()
-   {
-      int offset = 0;
-      for_constexpr<input_slot>([&](auto sc)
-      {
-         constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>()) { offset += StaticInputOpDim<s>(); }
-      });
-      return offset;
-   }
-
-   static constexpr int StaticTrialVDim()
-   {
-      int vdim = 1;
-      for_constexpr<n_inputs>([&](auto sc)
-      {
-         constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>()) { vdim = StaticInputVDim<s>(); }
-      });
-      return vdim;
-   }
-
-   static constexpr int StaticTotalTrialOpDim()
-   {
-      int op_dim = 0;
-      for_constexpr<n_inputs>([&](auto sc)
-      {
-         constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>()) { op_dim += StaticInputOpDim<s>(); }
-      });
-      return op_dim;
-   }
 
 public:
    DerivativeApply() = delete;
@@ -406,15 +257,17 @@ public:
       for_constexpr<n_inputs>([&](auto sc)
       {
          constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>())
+         if constexpr (Layout::template StaticInputDep<s>())
          {
-            MFEM_ASSERT(StaticInputComponents<s>() == in_size_on_qp[s],
+            MFEM_ASSERT(Layout::template StaticInputComponents<s>() ==
+                        in_size_on_qp[s],
                         "DerivativeApply: q-function parameter size does not "
                         "match the field for input " << s);
          }
       });
 
-      MFEM_VERIFY(StaticCacheColumns() == trial_vdim * total_trial_op_dim,
+      MFEM_VERIFY(Layout::StaticCacheColumns() ==
+                  trial_vdim * total_trial_op_dim,
                   "DerivativeApply: derivative cache row width mismatch");
 
       if (ctx.attr.Size() == 0) { return; }
@@ -509,7 +362,7 @@ public:
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
-            if constexpr (!StaticInputDep<i>()) { return; }
+            if constexpr (!Layout::template StaticInputDep<i>()) { return; }
             const auto &XE = in_XE_dir[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
             const real_t *B = in_B[i], *G = in_G[i];
@@ -561,7 +414,7 @@ public:
                   for_constexpr<n_inputs>([&](auto sc)
                   {
                      constexpr size_t s = sc.value;
-                     if constexpr (StaticInputDep<s>())
+                     if constexpr (Layout::template StaticInputDep<s>())
                      {
                         using SARG =
                            typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
@@ -576,11 +429,10 @@ public:
                      using FOP = tuple_element_t<o, outputs_t>;
                      using ARG =
                         typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
-                     constexpr int tv = StaticOutputVDim<o>();
-                     constexpr int to = StaticOutputOpDim<o>();
-                     constexpr int offset_o = StaticOutputOffset<o>();
-                     constexpr int trial_vdim_ct = StaticTrialVDim();
-                     constexpr int total_trial_op_dim_ct = StaticTotalTrialOpDim();
+                     constexpr int tv = Layout::template StaticOutputVDim<o>();
+                     constexpr int to = Layout::template StaticOutputOpDim<o>();
+                     constexpr int offset_o =
+                        Layout::template StaticOutputOffset<o>();
 
                      ARG fhat{};
                      MFEM_UNROLL(tv)
@@ -590,17 +442,20 @@ public:
                         for (int k = 0; k < to; k++)
                         {
                            const int row = offset_o + i * to + k;
-                           const int cache_row = row * StaticCacheColumns();
+                           const int cache_row =
+                              row * Layout::StaticCacheColumns();
                            real_t sum = 0.0;
                            for_constexpr<n_inputs>([&](auto sc)
                            {
                               constexpr size_t s = sc.value;
-                              if constexpr (StaticInputDep<s>())
+                              constexpr bool dep_s =
+                                 Layout::template StaticInputDep<s>();
+                              if constexpr (dep_s)
                               {
                                  constexpr int ncomp_s =
-                                    StaticInputComponents<s>();
+                                    Layout::template StaticInputComponents<s>();
                                  constexpr int c_offset_s =
-                                    StaticInputCacheOffset<s>();
+                                    Layout::template StaticInputCacheOffset<s>();
                                  const auto &dvec = get<s>(dvecs);
                                  MFEM_UNROLL(ncomp_s)
                                  for (int c = 0; c < ncomp_s; c++)
