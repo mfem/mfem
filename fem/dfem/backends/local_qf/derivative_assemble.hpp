@@ -951,7 +951,7 @@ public:
                         ne);
 
       dfem::forall(
-         [=] MFEM_HOST_DEVICE(const int e, void *)
+         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
