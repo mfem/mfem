@@ -65,11 +65,9 @@ struct DerivativeSetup
          xq_offsets[i + 1] = nqp * get<i>(inputs).size_on_qp * nentities;
       });
       xq_offsets.PartialSum();
-      InitBlockVector(xq, xq_offsets);
 
       shadow_xq_offsets.SetSize(xq_offsets.Size());
       shadow_xq_offsets = xq_offsets;
-      InitBlockVector(shadow_xq, shadow_xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -78,13 +76,6 @@ struct DerivativeSetup
          yq_offsets[o + 1] = nqp * get<o>(outputs).size_on_qp * nentities;
       });
       yq_offsets.PartialSum();
-      InitBlockVector(yq, yq_offsets);
-
-      constexpr_for<0, noutputs>([&](auto o)
-      {
-         primal_output_storage[o].UseDevice(true);
-         primal_output_storage[o].SetSize(yq.GetBlock(o).Size());
-      });
 
       total_out_size_on_qp = 0;
       constexpr_for<0, noutputs>([&](auto o)
@@ -116,9 +107,27 @@ struct DerivativeSetup
       qp_cache.UseDevice(true);
    }
 
+   /// Allocates the quadrature point buffers on the first call, so that the
+   /// copies made while registering this object do not duplicate them.
+   void InitBuffers()
+   {
+      if (buffers_ready) { return; }
+      InitBlockVector(xq, xq_offsets);
+      InitBlockVector(shadow_xq, shadow_xq_offsets);
+      InitBlockVector(yq, yq_offsets);
+
+      constexpr_for<0, noutputs>([&](auto o)
+      {
+         primal_output_storage[o].UseDevice(true);
+         primal_output_storage[o].SetSize(yq.GetBlock(o).Size());
+      });
+      buffers_ready = true;
+   }
+
    void operator()(const std::vector<Vector *> &xe)
    {
       if (ctx.attr.Size() == 0) { return; }
+      InitBuffers();
 
       interpolate(input_to_infd, input_bases, xe, xq);
 
@@ -236,6 +245,7 @@ struct DerivativeSetup
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
    mutable std::array<Vector, noutputs> primal_output_storage;
+   bool buffers_ready = false;
 
    int total_out_size_on_qp = 0;
    int trial_vdim = 0;

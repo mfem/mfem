@@ -71,7 +71,6 @@ struct DerivativeApplyTranspose
          dir_q_offsets[i + 1] =
             dir_q_offsets[i] + get<i>(this->outputs).size_on_qp * nqp * ne;
       });
-      InitBlockVector(dir_q_local, dir_q_offsets);
 
       result_q_offsets.SetSize(n_inputs + 1);
       result_q_offsets[0] = 0;
@@ -80,7 +79,6 @@ struct DerivativeApplyTranspose
          result_q_offsets[i + 1] =
             result_q_offsets[i] + get<i>(this->inputs).size_on_qp * nqp * ne;
       });
-      InitBlockVector(result_q_local, result_q_offsets);
 
       // Cache layout metadata
       residual_size_on_qp = 0;
@@ -103,6 +101,16 @@ struct DerivativeApplyTranspose
       residual_size_on_qp *= trial_vdim * total_trial_op_dim;
    }
 
+   /// Allocates the quadrature point buffers on the first call, so that the
+   /// copies made while registering this object do not duplicate them.
+   void InitBuffers() const
+   {
+      if (buffers_ready) { return; }
+      InitBlockVector(dir_q_local, dir_q_offsets);
+      InitBlockVector(result_q_local, result_q_offsets);
+      buffers_ready = true;
+   }
+
    void operator()(
       const std::vector<Vector *> & /*xe*/,
       const Vector *direction_l,
@@ -112,6 +120,8 @@ struct DerivativeApplyTranspose
 
       MFEM_ASSERT(direction_l != nullptr,
                   "Global DerivativeApplyTranspose: direction vector is null");
+
+      InitBuffers();
 
       // Re-zero the pre-allocated Q temporaries
       dir_q_local = 0.0;
@@ -214,6 +224,7 @@ private:
    Array<int> result_q_offsets;
    mutable BlockVector dir_q_local;
    mutable BlockVector result_q_local;
+   mutable bool buffers_ready = false;
 
    // Pre-allocated owning storage for output cotangent temporaries
    mutable std::array<Vector, n_outputs> dir_out_l_owned;
