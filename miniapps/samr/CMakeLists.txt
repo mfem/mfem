@@ -9,14 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-add_mfem_miniapp(reconstruction
-  MAIN reconstruction.cpp LIBRARIES mfem)
-
-if (MFEM_USE_MPI)
-  add_mfem_miniapp(p-reconstruction
-    MAIN p-reconstruction.cpp LIBRARIES mfem)
-endif()
-
 if (MFEM_USE_SAMRAI)
   enable_language(Fortran)
   add_mfem_miniapp(samrai-advection-diffusion
