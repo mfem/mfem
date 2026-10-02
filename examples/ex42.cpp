@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
          break;
       case 2:
       {
-         auto *general = new GeneralErrorEstimator(fespace);
+         auto *general = new GeneralErrorEstimator(*mesh);
          AddMaxwellResidualEstimators(*general, solution, source, epsilon,
                                       mu_inv, omega, order);
          estimator.reset(general);

@@ -503,11 +503,11 @@ real_t GeneralErrorEstimator::GetTotalError() const
 {
    real_t local_error_sq = elem_errors_ * elem_errors_;
 #ifdef MFEM_USE_MPI
-   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(fes_))
+   if (auto *pmesh = dynamic_cast<ParMesh*>(mesh_))
    {
       real_t global_error_sq = 0.0;
       MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
-                    MPITypeMap<real_t>::mpi_type, MPI_SUM, pfes->GetComm());
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, pmesh->GetComm());
       local_error_sq = global_error_sq;
    }
 #endif
@@ -517,7 +517,7 @@ real_t GeneralErrorEstimator::GetTotalError() const
 /// Get a Vector with all element errors.
 const Vector &GeneralErrorEstimator::GetLocalErrors()
 {
-   if (reset_ || current_sequence_ != fes_->GetMesh()->GetSequence())
+   if (reset_ || current_sequence_ != mesh_->GetSequence())
    {
       ComputeEstimates();
    }
@@ -586,8 +586,8 @@ void GeneralErrorEstimator::AddBdrFaceEstimator(FaceErrorEstimator *fee,
 
 void GeneralErrorEstimator::ComputeEstimates()
 {
-   Mesh *mesh = fes_->GetMesh();
-   elem_errors_.SetSize(fes_->GetNE());
+   Mesh *mesh = mesh_;
+   elem_errors_.SetSize(mesh_->GetNE());
    elem_errors_ = 0.0;
 
    // Preparation is separate from element/face traversal so data shared by
@@ -632,10 +632,10 @@ void GeneralErrorEstimator::ComputeEstimates()
       }
    }
 
-   for (int e = 0; e < fes_->GetNE(); e++)
+   for (int e = 0; e < mesh_->GetNE(); e++)
    {
       const int elem_attr = mesh->GetAttribute(e);
-      ElementTransformation *eltrans = fes_->GetElementTransformation(e);
+      ElementTransformation *eltrans = mesh_->GetElementTransformation(e);
 
       real_t elerr = 0.0;
       for (int k = 0; k < domain_estims_.Size(); k++)
@@ -644,7 +644,7 @@ void GeneralErrorEstimator::ComputeEstimates()
          if ((domain_estims_marker_[k] == NULL ||
               (*(domain_estims_marker_[k]))[elem_attr-1] == 1))
          {
-            elerr += domain_estims_[k]->GetElementError(*fes_->GetFE(e), *eltrans);
+            elerr += domain_estims_[k]->GetElementError(*eltrans);
          }
       }
       elem_errors_[e] += elerr;
@@ -657,28 +657,24 @@ void GeneralErrorEstimator::ComputeEstimates()
       for (auto *estimator : face_estims_)
       {
          real_t error1 = 0.0, error2 = 0.0;
-         estimator->GetFaceError(*fes_->GetFE(tr->Elem1No),
-                                 *fes_->GetFE(tr->Elem2No), *tr,
-                                 error1, error2);
+         estimator->GetFaceError(*tr, error1, error2);
          elem_errors_(tr->Elem1No) += error1;
          elem_errors_(tr->Elem2No) += error2;
       }
    }
 
 #ifdef MFEM_USE_MPI
-   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(fes_))
+   if (auto *pmesh = dynamic_cast<ParMesh*>(mesh_))
    {
       // A shared face is evaluated on both ranks. Each rank retains only its
       // local-side contribution, so every element indicator receives the jump
       // contribution exactly once without communicating element indicators.
       // This also initializes the parallel mesh's face-neighbor geometry.
-      pfes->ExchangeFaceNbrData();
       for (auto *estimator : face_estims_)
       {
          estimator->ExchangeFaceNbrData();
       }
 
-      ParMesh *pmesh = pfes->GetParMesh();
       for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
       {
          FaceElementTransformations *tr =
@@ -688,9 +684,7 @@ void GeneralErrorEstimator::ComputeEstimates()
          for (auto *estimator : face_estims_)
          {
             real_t local_error = 0.0, neighbor_error = 0.0;
-            estimator->GetFaceError(*fes_->GetFE(tr->Elem1No),
-                                    *fes_->GetFE(tr->Elem2No), *tr,
-                                    local_error, neighbor_error);
+            estimator->GetFaceError(*tr, local_error, neighbor_error);
             elem_errors_(tr->Elem1No) += local_error;
          }
       }
@@ -700,7 +694,7 @@ void GeneralErrorEstimator::ComputeEstimates()
    for (int be = 0; be < mesh->GetNBE(); be++)
    {
       const int attr = mesh->GetBdrAttribute(be);
-      ElementTransformation *tr = fes_->GetBdrElementTransformation(be);
+      ElementTransformation *tr = mesh_->GetBdrElementTransformation(be);
       for (int k = 0; k < bdr_estims_.Size(); k++)
       {
          const Array<int> *marker = bdr_estims_marker_[k];
@@ -708,8 +702,7 @@ void GeneralErrorEstimator::ComputeEstimates()
          if (marker && (*marker)[attr - 1] == 0) { continue; }
          int el, info;
          mesh->GetBdrElementAdjacentElement(be, el, info);
-         elem_errors_(el) += bdr_estims_[k]->GetElementError(*fes_->GetBE(be),
-                                                             *tr);
+         elem_errors_(el) += bdr_estims_[k]->GetElementError(*tr);
       }
    }
 
@@ -723,8 +716,7 @@ void GeneralErrorEstimator::ComputeEstimates()
          const Array<int> *marker = bdr_face_estims_marker_[k];
          if (marker) { marker->HostRead(); }
          if (marker && (*marker)[attr - 1] == 0) { continue; }
-         elem_errors_(tr->Elem1No) += bdr_face_estims_[k]->GetFaceError(
-                                         *fes_->GetFE(tr->Elem1No), *tr);
+         elem_errors_(tr->Elem1No) += bdr_face_estims_[k]->GetFaceError(*tr);
       }
    }
 

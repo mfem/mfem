@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
    }
    else if (estimator_type == 2)
    {
-      auto *general = new GeneralErrorEstimator(fes);
+      auto *general = new GeneralErrorEstimator(*pmesh);
       AddMaxwellResidualEstimators(*general, solution, source, epsilon,
                                    mu_inv, omega, order);
       estimator.reset(general);

@@ -732,8 +732,7 @@ private:
 public:
    explicit FixedDomainErrorEstimator(real_t value_) : value(value_) { }
 
-   real_t GetElementError(const FiniteElement &,
-                          ElementTransformation &) override
+   real_t GetElementError(ElementTransformation &) override
    {
       return value;
    }
@@ -748,16 +747,14 @@ public:
    FixedFaceErrorEstimator(real_t first_, real_t second_, real_t boundary_)
       : first(first_), second(second_), boundary(boundary_) { }
 
-   void GetFaceError(const FiniteElement &, const FiniteElement &,
-                     FaceElementTransformations &, real_t &error1,
+   void GetFaceError(FaceElementTransformations &, real_t &error1,
                      real_t &error2) override
    {
       error1 = first;
       error2 = second;
    }
 
-   real_t GetFaceError(const FiniteElement &,
-                       FaceElementTransformations &) override
+   real_t GetFaceError(FaceElementTransformations &) override
    {
       return boundary;
    }
@@ -768,6 +765,21 @@ void ConstantElectricField(const Vector &, Vector &value)
    value.SetSize(3);
    value = 0.0;
    value(0) = 1.0;
+}
+
+void ConstantElectricField2D(const Vector &, Vector &value)
+{
+   value.SetSize(2);
+   value(0) = 1.0;
+   value(1) = -0.5;
+}
+
+void ConstantElectricFieldR2D(const Vector &, Vector &value)
+{
+   value.SetSize(3);
+   value(0) = 1.0;
+   value(1) = -0.5;
+   value(2) = 0.25;
 }
 
 void DivergentElectricField(const Vector &x, Vector &value)
@@ -810,7 +822,7 @@ TEST_CASE("General error estimator accumulates all serial contributions",
    H1_FECollection fec(1, mesh.Dimension());
    FiniteElementSpace fes(&mesh, &fec);
 
-   GeneralErrorEstimator estimator(fes);
+   GeneralErrorEstimator estimator(mesh);
    estimator.AddDomainEstimator(new FixedDomainErrorEstimator(1.0));
    estimator.AddBdrEstimator(new FixedDomainErrorEstimator(4.0));
    estimator.AddInteriorFaceEstimator(new FixedFaceErrorEstimator(2.0, 3.0, 0.0));
@@ -844,7 +856,7 @@ TEST_CASE("Maxwell residual estimators reproduce the monolithic serial indicator
                                        order);
    const Vector &monolithic_errors = monolithic.GetLocalErrors();
 
-   GeneralErrorEstimator general(e_fes);
+   GeneralErrorEstimator general(mesh);
    AddMaxwellResidualEstimators(general, electric, source, epsilon, mu_inv,
                                 omega, order);
    const Vector &general_errors = general.GetLocalErrors();
@@ -853,6 +865,98 @@ TEST_CASE("Maxwell residual estimators reproduce the monolithic serial indicator
    for (int i = 0; i < general_errors.Size(); i++)
    {
       REQUIRE(general_errors(i) == MFEM_Approx(monolithic_errors(i)));
+   }
+}
+
+TEST_CASE("Maxwell residual estimators support two-dimensional meshes",
+          "[GeneralErrorEstimator][MaxwellResidualEstimator]")
+{
+   constexpr int order = 1;
+   constexpr real_t omega = 2.0;
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   ND_FECollection nd_fec(order, 2);
+   L2_FECollection l2_fec(order, 2);
+   FiniteElementSpace nd_fes(&mesh, &nd_fec);
+   FiniteElementSpace l2_fes(&mesh, &l2_fec, 2, Ordering::byVDIM);
+   GridFunction electric(&nd_fes), source(&l2_fes);
+   VectorFunctionCoefficient electric_coef(2, ConstantElectricField2D);
+   electric.ProjectCoefficient(electric_coef);
+   source = 0.0;
+
+   ConstantCoefficient epsilon(2.0), mu_inv(1.0), epsilon_imag(0.25);
+   MaxwellResidualEstimator dedicated(electric, source, epsilon, mu_inv, omega,
+                                      order);
+   GeneralErrorEstimator general(mesh);
+   AddMaxwellResidualEstimators(general, electric, source, epsilon, mu_inv,
+                                omega, order);
+   const Vector &dedicated_errors = dedicated.GetLocalErrors();
+   const Vector &general_errors = general.GetLocalErrors();
+   REQUIRE(general_errors.Size() == dedicated_errors.Size());
+   for (int i = 0; i < general_errors.Size(); i++)
+   {
+      REQUIRE(general_errors(i) == MFEM_Approx(dedicated_errors(i)));
+   }
+   REQUIRE(general.GetTotalError() == MFEM_Approx(dedicated.GetTotalError()));
+
+   MatrixFunctionCoefficient epsilon_matrix(2, [](const Vector &x, DenseMatrix &m)
+   {
+      m.SetSize(2); m = 0.0;
+      m(0, 0) = 1.0 + x(0); m(1, 1) = 2.0 + x(1);
+   });
+   MaxwellResidualEstimator matrix_dedicated(electric, source, epsilon_matrix,
+                                             mu_inv, omega, order);
+   GeneralErrorEstimator matrix_general(mesh);
+   AddMaxwellResidualEstimators(matrix_general, electric, source, epsilon_matrix,
+                                mu_inv, omega, order);
+   const Vector &matrix_dedicated_errors = matrix_dedicated.GetLocalErrors();
+   const Vector &matrix_general_errors = matrix_general.GetLocalErrors();
+   for (int i = 0; i < matrix_general_errors.Size(); i++)
+   {
+      REQUIRE(matrix_general_errors(i) == MFEM_Approx(matrix_dedicated_errors(i)));
+   }
+
+   ComplexGridFunction complex_electric(&nd_fes), complex_source(&l2_fes);
+   complex_electric.ProjectCoefficient(electric_coef, electric_coef);
+   complex_source = 0.0;
+   ComplexMaxwellResidualEstimator complex_dedicated(
+      complex_electric, complex_source, epsilon, epsilon_imag, mu_inv, omega, order);
+   GeneralErrorEstimator complex_general(mesh);
+   AddComplexMaxwellResidualEstimators(complex_general, complex_electric,
+                                       complex_source, epsilon, epsilon_imag,
+                                       mu_inv, omega, order);
+   const Vector &complex_dedicated_errors = complex_dedicated.GetLocalErrors();
+   const Vector &complex_general_errors = complex_general.GetLocalErrors();
+   for (int i = 0; i < complex_general_errors.Size(); i++)
+   {
+      REQUIRE(complex_general_errors(i) ==
+              MFEM_Approx(complex_dedicated_errors(i)));
+   }
+   REQUIRE(complex_general.GetTotalError() ==
+           MFEM_Approx(complex_dedicated.GetTotalError()));
+
+   DenseMatrix epsilon_real_tensor(2), epsilon_imag_tensor(2);
+   epsilon_real_tensor = 0.0; epsilon_imag_tensor = 0.0;
+   epsilon_real_tensor(0, 0) = 2.0;
+   epsilon_real_tensor(1, 1) = 3.0;
+   epsilon_imag_tensor(0, 0) = 0.25;
+   epsilon_imag_tensor(1, 1) = 0.5;
+   MatrixConstantCoefficient epsilon_real_matrix(epsilon_real_tensor);
+   MatrixConstantCoefficient epsilon_imag_matrix(epsilon_imag_tensor);
+   ComplexMaxwellResidualEstimator complex_matrix_dedicated(
+      complex_electric, complex_source, epsilon_real_matrix, epsilon_imag_matrix,
+      mu_inv, omega, order);
+   GeneralErrorEstimator complex_matrix_general(mesh);
+   AddComplexMaxwellResidualEstimators(complex_matrix_general, complex_electric,
+                                       complex_source, epsilon_real_matrix,
+                                       epsilon_imag_matrix, mu_inv, omega, order);
+   const Vector &complex_matrix_dedicated_errors =
+      complex_matrix_dedicated.GetLocalErrors();
+   const Vector &complex_matrix_general_errors =
+      complex_matrix_general.GetLocalErrors();
+   for (int i = 0; i < complex_matrix_general_errors.Size(); i++)
+   {
+      REQUIRE(complex_matrix_general_errors(i) ==
+              MFEM_Approx(complex_matrix_dedicated_errors(i)));
    }
 }
 
@@ -875,7 +979,7 @@ TEST_CASE("Maxwell residual estimators support divergence and variable permittiv
 
    MaxwellResidualEstimator dedicated(electric, source, epsilon, mu_inv, omega,
                                       order);
-   GeneralErrorEstimator general(nd_fes);
+   GeneralErrorEstimator general(mesh);
    AddMaxwellResidualEstimators(general, electric, source, epsilon, mu_inv,
                                 omega, order);
    const Vector &dedicated_errors = dedicated.GetLocalErrors();
@@ -894,7 +998,7 @@ TEST_CASE("Maxwell residual estimators support divergence and variable permittiv
    });
    MaxwellResidualEstimator matrix_dedicated(electric, source, epsilon_matrix,
                                              mu_inv, omega, order);
-   GeneralErrorEstimator matrix_general(nd_fes);
+   GeneralErrorEstimator matrix_general(mesh);
    AddMaxwellResidualEstimators(matrix_general, electric, source, epsilon_matrix,
                                 mu_inv, omega, order);
    const Vector &matrix_dedicated_errors = matrix_dedicated.GetLocalErrors();
@@ -902,6 +1006,127 @@ TEST_CASE("Maxwell residual estimators support divergence and variable permittiv
    for (int i = 0; i < matrix_general_errors.Size(); i++)
    {
       REQUIRE(matrix_general_errors(i) == MFEM_Approx(matrix_dedicated_errors(i)));
+   }
+}
+
+TEST_CASE("Maxwell residual estimators support R2D vector finite elements",
+          "[GeneralErrorEstimator][MaxwellResidualEstimator]")
+{
+   constexpr int order = 1;
+   constexpr real_t omega = 2.0;
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   ND_R2D_FECollection nd_fec(order, 2);
+   RT_R2D_FECollection rt_fec(order, 2);
+   FiniteElementSpace nd_fes(&mesh, &nd_fec);
+   FiniteElementSpace rt_fes(&mesh, &rt_fec);
+   GridFunction electric(&nd_fes), source(&rt_fes);
+   VectorFunctionCoefficient field(3, ConstantElectricFieldR2D);
+   electric.ProjectCoefficient(field);
+   source = 0.0;
+
+   DenseMatrix epsilon_tensor(3);
+   epsilon_tensor = 0.0;
+   epsilon_tensor(0, 0) = 2.0;
+   epsilon_tensor(1, 1) = 3.0;
+   epsilon_tensor(2, 2) = 4.0;
+   MatrixConstantCoefficient epsilon(epsilon_tensor);
+   ConstantCoefficient mu_inv(1.0);
+
+   MaxwellResidualEstimator dedicated(electric, source, epsilon, mu_inv, omega,
+                                      order);
+   GeneralErrorEstimator general(mesh);
+   AddMaxwellResidualEstimators(general, electric, source, epsilon, mu_inv,
+                                omega, order);
+   const Vector &dedicated_errors = dedicated.GetLocalErrors();
+   const Vector &general_errors = general.GetLocalErrors();
+   REQUIRE(general_errors.Size() == dedicated_errors.Size());
+   for (int i = 0; i < general_errors.Size(); i++)
+   {
+      REQUIRE(general_errors(i) == MFEM_Approx(dedicated_errors(i)));
+   }
+   REQUIRE(general.GetTotalError() == MFEM_Approx(dedicated.GetTotalError()));
+
+   DenseMatrix epsilon_imag_tensor(3);
+   epsilon_imag_tensor = 0.0;
+   epsilon_imag_tensor(0, 0) = 0.25;
+   epsilon_imag_tensor(1, 1) = 0.5;
+   epsilon_imag_tensor(2, 2) = 0.75;
+   MatrixConstantCoefficient epsilon_imag(epsilon_imag_tensor);
+   ComplexGridFunction complex_electric(&nd_fes), complex_source(&rt_fes);
+   complex_electric.ProjectCoefficient(field, field);
+   complex_source = 0.0;
+   ComplexMaxwellResidualEstimator complex_dedicated(
+      complex_electric, complex_source, epsilon, epsilon_imag, mu_inv, omega, order);
+   GeneralErrorEstimator complex_general(mesh);
+   AddComplexMaxwellResidualEstimators(complex_general, complex_electric,
+                                       complex_source, epsilon, epsilon_imag,
+                                       mu_inv, omega, order);
+   const Vector &complex_dedicated_errors = complex_dedicated.GetLocalErrors();
+   const Vector &complex_general_errors = complex_general.GetLocalErrors();
+   for (int i = 0; i < complex_general_errors.Size(); i++)
+   {
+      REQUIRE(complex_general_errors(i) ==
+              MFEM_Approx(complex_dedicated_errors(i)));
+   }
+   REQUIRE(complex_general.GetTotalError() ==
+           MFEM_Approx(complex_dedicated.GetTotalError()));
+}
+
+TEST_CASE("Maxwell residual estimators support R1D vector finite elements",
+          "[GeneralErrorEstimator][MaxwellResidualEstimator]")
+{
+   constexpr int order = 1;
+   constexpr real_t omega = 2.0;
+   Mesh mesh = Mesh::MakeCartesian1D(2);
+   ND_R1D_FECollection nd_fec(order, 1);
+   RT_R1D_FECollection rt_fec(order, 1);
+   FiniteElementSpace nd_fes(&mesh, &nd_fec);
+   FiniteElementSpace rt_fes(&mesh, &rt_fec);
+   GridFunction electric(&nd_fes), source(&rt_fes);
+   VectorFunctionCoefficient field(3, ConstantElectricFieldR2D);
+   electric.ProjectCoefficient(field);
+   source = 0.0;
+
+   DenseMatrix epsilon_tensor(3), epsilon_imag_tensor(3);
+   epsilon_tensor = 0.0; epsilon_imag_tensor = 0.0;
+   epsilon_tensor(0, 0) = 2.0;
+   epsilon_tensor(1, 1) = 3.0;
+   epsilon_tensor(2, 2) = 4.0;
+   epsilon_imag_tensor(0, 0) = 0.25;
+   epsilon_imag_tensor(1, 1) = 0.5;
+   epsilon_imag_tensor(2, 2) = 0.75;
+   MatrixConstantCoefficient epsilon(epsilon_tensor);
+   MatrixConstantCoefficient epsilon_imag(epsilon_imag_tensor);
+   ConstantCoefficient mu_inv(1.0);
+
+   MaxwellResidualEstimator dedicated(electric, source, epsilon, mu_inv, omega,
+                                      order);
+   GeneralErrorEstimator general(mesh);
+   AddMaxwellResidualEstimators(general, electric, source, epsilon, mu_inv,
+                                omega, order);
+   const Vector &dedicated_errors = dedicated.GetLocalErrors();
+   const Vector &general_errors = general.GetLocalErrors();
+   REQUIRE(general_errors.Size() == dedicated_errors.Size());
+   for (int i = 0; i < general_errors.Size(); i++)
+   {
+      REQUIRE(general_errors(i) == MFEM_Approx(dedicated_errors(i)));
+   }
+
+   ComplexGridFunction complex_electric(&nd_fes), complex_source(&rt_fes);
+   complex_electric.ProjectCoefficient(field, field);
+   complex_source = 0.0;
+   ComplexMaxwellResidualEstimator complex_dedicated(
+      complex_electric, complex_source, epsilon, epsilon_imag, mu_inv, omega, order);
+   GeneralErrorEstimator complex_general(mesh);
+   AddComplexMaxwellResidualEstimators(complex_general, complex_electric,
+                                       complex_source, epsilon, epsilon_imag,
+                                       mu_inv, omega, order);
+   const Vector &complex_dedicated_errors = complex_dedicated.GetLocalErrors();
+   const Vector &complex_general_errors = complex_general.GetLocalErrors();
+   for (int i = 0; i < complex_general_errors.Size(); i++)
+   {
+      REQUIRE(complex_general_errors(i) ==
+              MFEM_Approx(complex_dedicated_errors(i)));
    }
 }
 
@@ -919,12 +1144,12 @@ TEST_CASE("Complex Maxwell boundary estimators accept nonhomogeneous traces",
    electric.ProjectCoefficient(constant_x, zero);
    magnetic_flux.ProjectCoefficient(constant_x, zero);
 
-   GeneralErrorEstimator dirichlet(fes);
+   GeneralErrorEstimator dirichlet(mesh);
    dirichlet.AddBdrFaceEstimator(new ComplexMaxwellDirichletBCErrorEstimator(
                                     electric, trace, zero));
    REQUIRE(dirichlet.GetTotalError() == MFEM_Approx(0.0).margin(1e-12));
 
-   GeneralErrorEstimator neumann(fes);
+   GeneralErrorEstimator neumann(mesh);
    neumann.AddBdrFaceEstimator(new ComplexMaxwellNeumannBCErrorEstimator(
                                   magnetic_flux, trace, zero));
    REQUIRE(neumann.GetTotalError() == MFEM_Approx(0.0).margin(1e-12));
@@ -945,7 +1170,7 @@ TEST_CASE("General and Maxwell residual estimators process parallel shared faces
 
    H1_FECollection h1_fec(1, 3);
    ParFiniteElementSpace h1_fes(&mesh, &h1_fec);
-   GeneralErrorEstimator generic(h1_fes);
+   GeneralErrorEstimator generic(mesh);
    generic.AddDomainEstimator(new FixedDomainErrorEstimator(1.0));
    // The remote-side value must not be added to a local indicator.
    generic.AddInteriorFaceEstimator(new FixedFaceErrorEstimator(2.0, 99.0, 0.0));
@@ -970,7 +1195,7 @@ TEST_CASE("General and Maxwell residual estimators process parallel shared faces
    MaxwellResidualEstimator dedicated(electric, source, epsilon, mu_inv, omega,
                                       order);
    const Vector &dedicated_errors = dedicated.GetLocalErrors();
-   GeneralErrorEstimator maxwell(e_fes);
+   GeneralErrorEstimator maxwell(mesh);
    AddMaxwellResidualEstimators(maxwell, electric, source, epsilon, mu_inv,
                                 omega, order);
    const Vector &maxwell_errors = maxwell.GetLocalErrors();

@@ -730,8 +730,7 @@ public:
 
        GeneralErrorEstimator sums all element and face contributions, then
        takes the square root to form its local error indicator. */
-   virtual real_t GetElementError(const FiniteElement &el,
-                                  ElementTransformation &Tr) = 0;
+   virtual real_t GetElementError(ElementTransformation &Tr) = 0;
    virtual ~DomainErrorEstimator() { }
 };
 
@@ -750,15 +749,13 @@ public:
 
    /** Return squared-error contributions for the two elements adjacent to an
        interior face. */
-   virtual void GetFaceError(const FiniteElement &el1, const FiniteElement &el2,
-                             FaceElementTransformations &Tr,
+   virtual void GetFaceError(FaceElementTransformations &Tr,
                              real_t &error1, real_t &error2)
    { MFEM_ABORT("interior face estimation is not implemented"); }
 
    /** Return the squared-error contribution for the element adjacent to a
        boundary face. */
-   virtual real_t GetFaceError(const FiniteElement &el,
-                               FaceElementTransformations &Tr)
+   virtual real_t GetFaceError(FaceElementTransformations &Tr)
    { MFEM_ABORT("boundary face estimation is not implemented"); }
 
    virtual ~FaceErrorEstimator() { }
@@ -769,7 +766,7 @@ class GeneralErrorEstimator : public ErrorEstimator
 protected:
    bool reset_;
    long current_sequence_ = -1;
-   FiniteElementSpace *fes_;
+   Mesh *mesh_;
 
    Vector elem_errors_;
 
@@ -784,8 +781,8 @@ protected:
    void ComputeEstimates();
 
 public:
-   /** Construct an estimator associated with @a fes. The space is not owned. */
-   GeneralErrorEstimator(FiniteElementSpace &fes) : reset_(true), fes_(&fes) {}
+   /** Construct an estimator associated with @a mesh. The mesh is not owned. */
+   GeneralErrorEstimator(Mesh &mesh) : reset_(true), mesh_(&mesh) {}
    ~GeneralErrorEstimator();
 
    /** Return the global L2 norm of the local element indicators. */
