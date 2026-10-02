@@ -41,6 +41,8 @@ class DerivativeSetup
    static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
                  "LocalQF: q-function arity must match inputs + outputs");
 
+   using Layout = QpCacheLayout<derivative_id, qfunc_t, inputs_t, outputs_t>;
+
    qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
@@ -186,6 +188,33 @@ public:
       });
    }
 
+   /// Stores the tangent of every output component, @a tangent(o, i, k), in
+   /// cache column @a col, with the row layout DerivativeApply reads.
+   template <typename tangent_t>
+   static MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE void
+   store_cache_column(const DeviceTensor<3, real_t> &cache, const int q,
+                      const int e, const int col, tangent_t &&tangent)
+   {
+      for_constexpr<n_outputs>([&](auto oc)
+      {
+         constexpr size_t o = oc.value;
+         constexpr int tv = Layout::template StaticOutputVDim<o>();
+         constexpr int to = Layout::template StaticOutputOpDim<o>();
+         constexpr int offset_o = Layout::template StaticOutputOffset<o>();
+         MFEM_UNROLL(tv)
+         for (int i = 0; i < tv; i++)
+         {
+            MFEM_UNROLL(to)
+            for (int k = 0; k < to; k++)
+            {
+               const int row = offset_o + i * to + k;
+               cache(q, row * Layout::StaticCacheColumns() + col, e) =
+                  tangent(oc, i, k);
+            }
+         }
+      });
+   }
+
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
@@ -214,6 +243,14 @@ public:
    {
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       if (ctx.attr.Size() == 0) { return; }
+
+      MFEM_CONTRACT_VAR(in_size_on_qp);
+      MFEM_CONTRACT_VAR(input_dep);
+      MFEM_CONTRACT_VAR(out_vdim);
+      MFEM_CONTRACT_VAR(out_op_dim);
+      MFEM_CONTRACT_VAR(out_offsets);
+      MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
+                  "DerivativeSetup: derivative cache row width mismatch");
 
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
@@ -379,51 +416,39 @@ public:
                      }
                   });
 
-                  for (int j = 0; j < trial_vdim; j++)
+                  // One seed per cache column, with compile-time extents, so
+                  // the seed and the tangents stay in registers.
+                  for_constexpr<n_inputs>([&](auto sc)
                   {
-                     int c_offset = 0;
-                     for_constexpr<n_inputs>([&](auto sc)
+                     constexpr size_t s = sc.value;
+                     if constexpr (Layout::template StaticInputDep<s>())
                      {
-                        constexpr size_t s = sc.value;
-                        if (!input_dep[s]) { return; }
+                        constexpr int ncomp_s =
+                           Layout::template StaticInputComponents<s>();
+                        constexpr int c_offset_s =
+                           Layout::template StaticInputCacheOffset<s>();
 
-                        const int vdim_s = in_vdim[s];
-                        const int op_dim_s = in_size_on_qp[s] / vdim_s;
-
-                        for (int m = 0; m < op_dim_s; m++)
+                        MFEM_UNROLL(ncomp_s)
+                        for (int c = 0; c < ncomp_s; c++)
                         {
-                           const int col = derivative_cache_col(c_offset, vdim_s, j, m);
-
                            // Enzyme writes through the output slots of the
                            // primal tuple, so they are reset per seed.
                            reset_output_args(primal_args);
 
                            args_tuple_t shadow_args {};
-                           qf_set_value_at(get<s>(shadow_args), j, m, 1.0);
+                           qf_set_flat_value(get<s>(shadow_args), c, 1.0);
 
                            call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
 
-                           for_constexpr<n_outputs>([&](auto oc)
+                           store_cache_column(cache_tensor, q, e, c_offset_s + c,
+                                              [&](auto oc, int i, int k)
                            {
-                              constexpr size_t o = oc.value, ao = n_inputs + o;
-                              const auto &tangent = get<ao>(shadow_args);
-                              const int tv = out_vdim[o], to = out_op_dim[o];
-                              for (int i = 0; i < tv; i++)
-                              {
-                                 for (int k = 0; k < to; k++)
-                                 {
-                                    const int row = out_offsets[o] + i * to + k;
-                                    const int cache_idx =
-                                       row * trial_vdim * total_trial_op_dim + col;
-                                    cache_tensor(q, cache_idx, e) =
-                                       qf_value_at(tangent, i, k);
-                                 }
-                              }
+                              constexpr size_t ao = n_inputs + oc.value;
+                              return qf_value_at(get<ao>(shadow_args), i, k);
                            });
                         }
-                        c_offset += in_size_on_qp[s];
-                     });
-                  }
+                     }
+                  });
 #else  // MFEM_USE_ENZYME
                   args_tuple_t qargs {};
                   for_constexpr<n_inputs>([&](auto ic)
@@ -466,54 +491,40 @@ public:
                      }
                   });
 
-                  for (int j = 0; j < trial_vdim; j++)
+                  for_constexpr<n_inputs>([&](auto sc)
                   {
-                     int c_offset = 0;
-                     for_constexpr<n_inputs>([&](auto sc)
+                     constexpr size_t s = sc.value;
+                     if constexpr (Layout::template StaticInputDep<s>())
                      {
-                        constexpr size_t s = sc.value;
-                        if (!input_dep[s]) { return; }
+                        constexpr int ncomp_s =
+                           Layout::template StaticInputComponents<s>();
+                        constexpr int c_offset_s =
+                           Layout::template StaticInputCacheOffset<s>();
 
-                        const int vdim_s = in_vdim[s];
-                        const int op_dim_s = in_size_on_qp[s] / vdim_s;
-
-                        for (int m = 0; m < op_dim_s; m++)
+                        MFEM_UNROLL(ncomp_s)
+                        for (int c = 0; c < ncomp_s; c++)
                         {
-                           const int col = derivative_cache_col(c_offset, vdim_s, j, m);
-
                            // The q-function writes through the output slots,
                            // so they are reset per seed.
                            reset_output_args(qargs);
 
-                           qf_set_gradient_at(get<s>(qargs), j, m, 1.0);
+                           qf_set_flat_gradient(get<s>(qargs), c, 1.0);
 
                            call_qfunc_no_move(qfunc, qargs);
 
-                           for_constexpr<n_outputs>([&](auto oc)
+                           store_cache_column(cache_tensor, q, e, c_offset_s + c,
+                                              [&](auto oc, int i, int k)
                            {
-                              constexpr size_t o = oc.value, ao = n_inputs + o;
-                              const auto &tangent = get<ao>(qargs);
-                              const int tv = out_vdim[o], to = out_op_dim[o];
-                              for (int i = 0; i < tv; i++)
-                              {
-                                 for (int k = 0; k < to; k++)
-                                 {
-                                    const int row = out_offsets[o] + i * to + k;
-                                    const int cache_idx =
-                                       row * trial_vdim * total_trial_op_dim + col;
-                                    cache_tensor(q, cache_idx, e) =
-                                       qf_gradient_at(tangent, i, k);
-                                 }
-                              }
+                              constexpr size_t ao = n_inputs + oc.value;
+                              return qf_gradient_at(get<ao>(qargs), i, k);
                            });
 
                            // Clear the seed so the next direction starts from
                            // the pristine (zero-tangent) primal state.
-                           qf_set_gradient_at(get<s>(qargs), j, m, 0.0);
+                           qf_set_flat_gradient(get<s>(qargs), c, 0.0);
                         }
-                        c_offset += in_size_on_qp[s];
-                     });
-                  }
+                     }
+                  });
 #endif // MFEM_USE_ENZYME
                }
             }

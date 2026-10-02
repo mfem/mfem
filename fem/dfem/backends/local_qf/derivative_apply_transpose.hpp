@@ -57,6 +57,14 @@ class DerivativeApplyTranspose
    static_assert(deriv_input_idx_ct < n_inputs,
                  "DerivativeApplyTranspose: derivative input slot not found");
 
+   using Layout = QpCacheLayout<derivative_id, qfunc_t, inputs_t, outputs_t>;
+
+   /// Trial register bank: only the dependent input slots are materialized.
+   template <typename backend_t, int MQ1, std::size_t... Is>
+   static auto trial_bank_type(std::index_sequence<Is...>)
+   -> masked_input_args_reg_t<backend_t, qfunc_t, MQ1,
+   Layout::template StaticInputDep<Is>()...>;
+
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext ctx;
@@ -276,6 +284,13 @@ public:
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       if (ctx.attr.Size() == 0) { return; }
 
+      MFEM_CONTRACT_VAR(in_size_on_qp);
+      MFEM_CONTRACT_VAR(input_dep);
+      MFEM_CONTRACT_VAR(out_op_dim);
+      MFEM_CONTRACT_VAR(out_offsets);
+      MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
+                  "DerivativeApplyTranspose: derivative cache row width mismatch");
+
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
@@ -353,10 +368,13 @@ public:
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          // -----------------------------------------------
-         // Output cotangent (direction) registers live in the output slots;
-         // the trial integration data is pushed into the input slots.
+         // Output cotangent (direction) registers live in oargs; the trial
+         // integration data is pushed into iargs, which only holds the dependent
+         // input slots.
          // -----------------------------------------------
-         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+         output_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> oargs;
+         decltype(trial_bank_type<backend_t, MQ1>(
+         std::make_index_sequence<n_inputs> {})) iargs;
          MFEM_SHARED typename backend_t::Shared smem;
 
          // -----------------------------------------------
@@ -369,7 +387,7 @@ public:
             const auto &XE = out_XE_dir[o];
             const int d = out_d1d[o], q = out_q1d[o], Q1D = q1d;
             const DofToQuadMap &dtq = out_dtq[o];
-            auto &oarg = get<ao>(rargs);
+            auto &oarg = get<o>(oargs);
             if constexpr (is_value_fop_v<FOP>)
             {
                backend_t::LoadValue(smem, e, dtq, XE, oarg);
@@ -436,77 +454,65 @@ public:
                         using OARG =
                            typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
                         get<ao>(wvecs) = backend_t::template qp_pull<OARG>(
-                           get<ao>(rargs), qx, qy, qz);
+                           get<o>(oargs), qx, qy, qz);
                      }
                   });
 
-                  int c_offset = 0;
                   for_constexpr<n_inputs>([&](auto sc)
                   {
                      constexpr size_t s = sc.value;
-                     if (!input_dep[s]) { return; }
-                     using SARG =
-                        typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
-                     const int vdim_s = in_vdim[s];
-                     const int op_dim_s = in_size_on_qp[s] / vdim_s;
-
-                     SARG fhat{};
-                     for (int j = 0; j < trial_vdim; j++)
+                     if constexpr (Layout::template StaticInputDep<s>())
                      {
-                        for (int m = 0; m < op_dim_s; m++)
+                        using SARG =
+                           typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
+                        constexpr int ncomp_s =
+                           Layout::template StaticInputComponents<s>();
+                        constexpr int c_offset_s =
+                           Layout::template StaticInputCacheOffset<s>();
+
+                        SARG fhat{};
+                        MFEM_UNROLL(ncomp_s)
+                        for (int c = 0; c < ncomp_s; c++)
                         {
-                           const int col = derivative_cache_col(c_offset, vdim_s, j, m);
                            real_t sum = 0.0;
                            for_constexpr<n_outputs>([&](auto oc)
                            {
                               constexpr size_t o = oc.value, ao = n_inputs + o;
                               using OFOP = tuple_element_t<o, outputs_t>;
-                              const int tv = out_vdim[o], to = out_op_dim[o];
-                              const auto offset_o = out_offsets[o];
-                              const auto &cache = cache_tensor;
-                              if constexpr (is_value_fop_v<OFOP> ||
-                                            is_gradient_fop_v<OFOP> ||
-                                            is_div_fop_v<OFOP>)
+                              constexpr int tv =
+                                 Layout::template StaticOutputVDim<o>();
+                              constexpr int to =
+                                 Layout::template StaticOutputOpDim<o>();
+                              constexpr int offset_o =
+                                 Layout::template StaticOutputOffset<o>();
+                              MFEM_UNROLL(tv)
+                              for (int i = 0; i < tv; i++)
                               {
-                                 const auto &wvec = get<ao>(wvecs);
-                                 for (int i = 0; i < tv; i++)
+                                 MFEM_UNROLL(to)
+                                 for (int k = 0; k < to; k++)
                                  {
-                                    for (int k = 0; k < to; k++)
+                                    const int cache_idx =
+                                       (offset_o + i * to + k) *
+                                       Layout::StaticCacheColumns() +
+                                       c_offset_s + c;
+                                    real_t w;
+                                    if constexpr (is_identity_fop_v<OFOP>)
                                     {
-                                       const int row = offset_o + i * to + k;
-                                       const int cache_idx =
-                                          row * trial_vdim *
-                                          total_trial_op_dim +
-                                          col;
-                                       sum += cache(q, cache_idx, e) *
-                                              qf_value_at(wvec, i, k);
+                                       w = out_XE_dir[o](i + tv * k, qx, qy, qz, e);
                                     }
-                                 }
-                              }
-                              else if constexpr (is_identity_fop_v<OFOP>)
-                              {
-                                 const auto &XEo = out_XE_dir[o];
-                                 for (int i = 0; i < tv; i++)
-                                 {
-                                    for (int k = 0; k < to; k++)
+                                    else
                                     {
-                                       const int row = offset_o + i * to + k;
-                                       const int cache_idx =
-                                          row * trial_vdim *
-                                          total_trial_op_dim +
-                                          col;
-                                       sum += cache(q, cache_idx, e) *
-                                              XEo(i + tv * k, qx, qy, qz, e);
+                                       w = qf_value_at(get<ao>(wvecs), i, k);
                                     }
+                                    sum += cache_tensor(q, cache_idx, e) * w;
                                  }
                               }
                            });
-                           qf_set_value_at(fhat, j, m, sum);
+                           qf_set_flat_value(fhat, c, sum);
                         }
+                        backend_t::template qp_push<SARG>(
+                           get<s>(iargs), qx, qy, qz, fhat);
                      }
-                     backend_t::template qp_push<SARG>(
-                        get<s>(rargs), qx, qy, qz, fhat);
-                     c_offset += in_size_on_qp[s];
                   });
                }
             }
@@ -521,13 +527,14 @@ public:
          for_constexpr<n_inputs>([&](auto sc)
          {
             constexpr size_t s = sc.value;
-            if (!input_dep[s]) { return; }
             using FOP = tuple_element_t<s, inputs_t>;
             const int d = in_d1d[s], q = in_q1d[s], Q1D = q1d;
             const DofToQuadMap &dtq = in_dtq[s];
-            auto &sarg = get<s>(rargs);
+            auto &sarg = get<s>(iargs);
             auto &YE = ye_XE;
-            if constexpr (is_value_fop_v<FOP>)
+            // Only trial slots have a register bank to integrate
+            if constexpr (!Layout::template StaticInputDep<s>()) { }
+            else if constexpr (is_value_fop_v<FOP>)
             {
                backend_t::WriteValue(smem, e, dtq, YE, sarg);
             }

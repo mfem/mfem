@@ -1248,6 +1248,129 @@ MFEM_HOST_DEVICE inline VecTerm vector_term(int c, int t)
    }
 }
 
+/// Compile-time layout of the derivative qp cache.
+/// A cache row holds one output component, and its columns hold the
+/// components of the inputs that depend on @a derivative_id.
+/// Unifies some utils and makes sure Setup/Apply/ApplyTranspose use
+/// the same cache contract.
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t>
+struct QpCacheLayout
+{
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
+   template <std::size_t slot>
+   static constexpr int ParamRank()
+   {
+      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
+      return qf_param_shape<param_t>::rank;
+   }
+
+   template <std::size_t slot, int dim_idx>
+   static constexpr int ParamExtent()
+   {
+      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
+      return qf_param_shape<param_t>::extents[dim_idx];
+   }
+
+   template <typename fop_t, std::size_t slot>
+   static constexpr int StaticVDim()
+   {
+      constexpr int rank = ParamRank<slot>();
+      if constexpr (is_gradient_fop_v<fop_t>)
+      {
+         if constexpr (rank <= 1) { return 1; }
+         else { return ParamExtent<slot, 0>(); }
+      }
+      else
+      {
+         if constexpr (rank == 0) { return 1; }
+         else { return ParamExtent<slot, 0>(); }
+      }
+   }
+
+   template <typename fop_t, std::size_t slot>
+   static constexpr int StaticOpDim()
+   {
+      constexpr int rank = ParamRank<slot>();
+      if constexpr (is_gradient_fop_v<fop_t>)
+      {
+         if constexpr (rank == 0) { return 1; }
+         else if constexpr (rank == 1) { return ParamExtent<slot, 0>(); }
+         else { return ParamExtent<slot, 1>(); }
+      }
+      else
+      {
+         if constexpr (rank <= 1) { return 1; }
+         else { return ParamExtent<slot, 1>(); }
+      }
+   }
+
+   template <std::size_t input_slot>
+   static constexpr bool StaticInputDep()
+   {
+      using fop_t = tuple_element_t<input_slot, inputs_t>;
+      return fop_t::GetFieldId() == derivative_id;
+   }
+
+   template <std::size_t input_slot>
+   static constexpr int StaticInputComponents()
+   {
+      using fop_t = tuple_element_t<input_slot, inputs_t>;
+      return StaticVDim<fop_t, input_slot>() * StaticOpDim<fop_t, input_slot>();
+   }
+
+   /// Components of the dependent inputs before @a input_slot, i.e. where the
+   /// columns of that input start in a derivative cache row.
+   template <std::size_t input_slot>
+   static constexpr int StaticInputCacheOffset()
+   {
+      int offset = 0;
+      for_constexpr<input_slot>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (StaticInputDep<s>())
+         {
+            offset += StaticInputComponents<s>();
+         }
+      });
+      return offset;
+   }
+
+   /// Width of a derivative cache row
+   static constexpr int StaticCacheColumns()
+   {
+      return StaticInputCacheOffset<n_inputs>();
+   }
+
+   template <std::size_t output_slot>
+   static constexpr int StaticOutputVDim()
+   {
+      using fop_t = tuple_element_t<output_slot, outputs_t>;
+      return StaticVDim<fop_t, n_inputs + output_slot>();
+   }
+
+   template <std::size_t output_slot>
+   static constexpr int StaticOutputOpDim()
+   {
+      using fop_t = tuple_element_t<output_slot, outputs_t>;
+      return StaticOpDim<fop_t, n_inputs + output_slot>();
+   }
+
+   template <std::size_t output_slot>
+   static constexpr int StaticOutputOffset()
+   {
+      int offset = 0;
+      for_constexpr<output_slot>([&](auto oc)
+      {
+         constexpr size_t o = oc.value;
+         offset += StaticOutputVDim<o>() * StaticOutputOpDim<o>();
+      });
+      return offset;
+   }
+};
 
 } // namespace mfem::future
