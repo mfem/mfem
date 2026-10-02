@@ -658,8 +658,8 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
       = ExtractBufferInfo(node_fields, cell_fields);
 
    // send local node/cell values to ranks that have corresponding elements
-   std::vector<std::vector<double>> samrai_value_buffers(ranks);
-   std::vector<MPI_Request> requests(ranks);
+   std::vector<std::vector<double>> samrai_value_buffers(ranks-1);
+   std::vector<MPI_Request> requests(ranks-1);
    for (int remote_rank=0; remote_rank < ranks; remote_rank++)
    {
       // local cells that correspond to local elements will be accounted for later
@@ -667,7 +667,9 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
          continue;
 
       const std::vector<CellInfo>& cell_info_for_rank = local_cell_info[remote_rank];
-      std::vector<double>& local_samrai_values = samrai_value_buffers[remote_rank];
+      const unsigned buffer_request_index = remote_rank - (remote_rank > rank);
+      std::vector<double>& local_samrai_values =
+         samrai_value_buffers[buffer_request_index];
       local_samrai_values.resize(num_variables * cell_info_for_rank.size());
       for (int cell_ind=0; cell_ind < cell_info_for_rank.size(); cell_ind++)
       {
@@ -707,12 +709,11 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
             local_samrai_values[samrai_values_cell_field_ind+i] =
                field_SAMRAI(cell_index);
          }
-
       }
 
       MPI_Isend(local_samrai_values.data(), local_samrai_values.size(),
          MPI_DOUBLE, remote_rank, samrai_values_tag, mesh->GetComm(),
-         &requests[remote_rank]);
+         &requests[buffer_request_index]);
    }
 
    // receive remote node/cell values that correspond to local elements
@@ -806,8 +807,10 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
       }
    }
 
+   // before updating MFEM objects, ensure all ranks have received remote
+   // information (which should ensure all non-blocking sends have completed)
+   // and that remote and local information has been transfered to mesh & fields
    MPI_Barrier(mesh->GetComm());
-
    mesh->NodesUpdated();
    for (int i=0; i < cell_fields.size(); i++)
    {
@@ -843,8 +846,8 @@ void SAMRAICouplingManager::TransferToSAMRAI(
    const int ranks = mesh->GetNRanks();
 
    // send local element values to ranks that have corresponding cells
-   std::vector<std::vector<double>> element_value_buffers(ranks);
-   std::vector<MPI_Request> requests(ranks);
+   std::vector<std::vector<double>> element_value_buffers(ranks-1);
+   std::vector<MPI_Request> requests(ranks-1);
    for (int remote_rank=0; remote_rank < ranks; remote_rank++)
    {
       // local elements that correspond to local cells will be accounted for later
@@ -852,7 +855,9 @@ void SAMRAICouplingManager::TransferToSAMRAI(
          continue;
 
       const std::vector<int>& element_inds = local_element_inds[remote_rank];
-      std::vector<double>& local_element_values = element_value_buffers[remote_rank];
+      const unsigned buffer_request_index = remote_rank - (remote_rank > rank);
+      std::vector<double>& local_element_values =
+         element_value_buffers[buffer_request_index];
       local_element_values.resize(num_variables * element_inds.size());
       for (int element_inds_ind=0; element_inds_ind < element_inds.size();
          element_inds_ind++)
@@ -893,7 +898,7 @@ void SAMRAICouplingManager::TransferToSAMRAI(
 
       MPI_Isend(local_element_values.data(), local_element_values.size(),
          MPI_DOUBLE, remote_rank, element_values_tag, mesh->GetComm(),
-         &requests[remote_rank]);
+         &requests[buffer_request_index]);
    }
 
    // receive remote element values that correspond to local cells
@@ -998,7 +1003,8 @@ void SAMRAICouplingManager::TransferToSAMRAI(
       }
    }
 
-   MPI_Barrier(mesh->GetComm());
+   // before returning, ensure all local information has been sent
+   MPI_Waitall(requests.size(), requests.data(), MPI_STATUS_IGNORE);
 }
 
 std::tuple<int,Array<int>,Array<int>> SAMRAICouplingManager::ExtractBufferInfo(
