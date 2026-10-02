@@ -282,6 +282,10 @@ void SAMRAICouplingManager::CreateMesh()
       default:
          MFEM_ABORT("dimension not valid");
    }
+   if (domain_lower > SAMRAI::hier::Index::getZeroIndex(domain_lower.getDim()))
+   {
+      serial_mesh.MoveVertices(ToVector(domain_lower));
+   }
    serial_mesh.EnsureNCMesh();
    // distribute mesh across ranks in SAMRAI communicator
    mesh = std::make_unique<ParMesh>(comm, serial_mesh);
