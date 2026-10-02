@@ -121,22 +121,21 @@ void SAMRAICouplingManager::AddNewPatchesToGlobalPatchInfo()
       for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
             patch_iter != patch_level->end(); patch_iter++)
       {
-         bool added = true;
+         const PatchInfo current_patch(rank, level_number,
+            patch_iter->getBox().lower(), patch_iter->getBox().upper());
+         bool already_exists = false;
          for (unsigned patch_ind=0; patch_ind < global_patch_info.size(); patch_ind++)
          {
-            const PatchInfo& patch_info = global_patch_info[patch_ind];
-            if (patch_info.rank == rank &&
-                  patch_info.lower_index == patch_iter->getBox().lower() &&
-                  patch_info.upper_index == patch_iter->getBox().upper())
+            const PatchInfo& search_patch = global_patch_info[patch_ind];
+            if (current_patch == search_patch)
             {
-               added = false;
+               already_exists = true;
                break;
             }
          }
-         if (added)
+         if (already_exists == false)
          {
-            local_added_patch_info.emplace_back(rank, level_number,
-               patch_iter->getBox().lower(), patch_iter->getBox().upper());
+            local_added_patch_info.push_back(current_patch);
          }
       }
    }
