@@ -59,7 +59,8 @@ void reconstructL2Field(const ParGridFunction& src, ParGridFunction& dst)
    Vector b_xhat(src_fe_space.GetNE());
    ParBilinearForm B_xhat(src.ParFESpace());
    B_xhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(xhat, 1.0, 0.0));
-   B_xhat.AddBdrFaceIntegrator(new DGTraceIntegrator(xhat, 2.0, 0.0)); // note the 2 enforces du/dx=0 at the x boundaries
+   B_xhat.AddBdrFaceIntegrator(new DGTraceIntegrator(xhat, 2.0,
+                                                     0.0)); // note the 2 enforces du/dx=0 at the x boundaries
    B_xhat.Assemble();
    B_xhat.Finalize();
    matrix = std::unique_ptr<HypreParMatrix>(B_xhat.ParallelAssemble());
@@ -70,7 +71,8 @@ void reconstructL2Field(const ParGridFunction& src, ParGridFunction& dst)
    Vector b_yhat(src_fe_space.GetNE());
    ParBilinearForm B_yhat(src.ParFESpace());
    B_yhat.AddInteriorFaceIntegrator(new DGTraceIntegrator(yhat, 1.0, 0.0));
-   B_yhat.AddBdrFaceIntegrator(new DGTraceIntegrator(yhat, 2.0, 0.0)); // note the 2 enforces du/dy=0 at the y boundaries
+   B_yhat.AddBdrFaceIntegrator(new DGTraceIntegrator(yhat, 2.0,
+                                                     0.0)); // note the 2 enforces du/dy=0 at the y boundaries
    B_yhat.Assemble();
    B_yhat.Finalize();
    matrix = std::unique_ptr<HypreParMatrix>(B_yhat.ParallelAssemble());
@@ -82,7 +84,8 @@ void reconstructL2Field(const ParGridFunction& src, ParGridFunction& dst)
    {
       const FiniteElement& src_element = *(src_fe_space.GetFE(element_ind));
       const FiniteElement& dst_element = *(dst_fe_space.GetFE(element_ind));
-      ElementTransformation& transform = *(src_fe_space.GetElementTransformation(element_ind));
+      ElementTransformation& transform = *(src_fe_space.GetElementTransformation(
+                                              element_ind));
       DenseMatrix A(dst_element.GetDof());
       Vector b(dst_element.GetDof());
       DenseMatrix Arow;

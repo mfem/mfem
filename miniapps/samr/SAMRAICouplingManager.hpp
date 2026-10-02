@@ -54,8 +54,8 @@ public:
    //   2) the SAMRAI node fields have depth NDIM
    //   3) the SAMRAI cell fields have depth 1
    std::vector<std::unique_ptr<ParGridFunction>> TransferToMFEM(
-      const int position_id, const std::vector<int>& node_ids,
-      const std::vector<int>& cell_ids);
+                                                 const int position_id, const std::vector<int>& node_ids,
+                                                 const std::vector<int>& cell_ids);
 
    // transfer MFEM grid function values to SAMRAI cell values (considers cell
    // values == element averages). This method assumes the following about the
@@ -73,12 +73,12 @@ public:
    // also transferred (assumes an external mesh grid function containing the
    // mesh topology, specified by SetMeshGridFunction, has been changed)
    void TransferToSAMRAI(int position_id,
-      std::vector<std::pair<int, GridFunction&>> node_fields,
-      std::vector<std::pair<int, ParGridFunction&>> cell_fields)
+                         std::vector<std::pair<int, GridFunction&>> node_fields,
+                         std::vector<std::pair<int, ParGridFunction&>> cell_fields)
    {
       mesh->NewNodes(*mesh_grid_function);
       node_fields.emplace_back(position_id,
-         const_cast<GridFunction&>(*mesh_grid_function));
+                               const_cast<GridFunction&>(*mesh_grid_function));
       TransferToSAMRAI(node_fields, cell_fields);
    }
 
@@ -89,7 +89,7 @@ private:
    static inline SAMRAI::hier::Index ToIndex(const Vector& vector);
 
    static inline SAMRAI::hier::Index ToIndex(const Array<int>& array,
-      const unsigned dim, const int start);
+                                             const unsigned dim, const int start);
 
    static Vector ToVector(const SAMRAI::hier::IntVector& vector);
 
@@ -118,7 +118,8 @@ private:
 
       int Size() const;
 
-      void GetElementCounts(const Array<PODType> &block_counts, Array<int> &element_counts) const;
+      void GetElementCounts(const Array<PODType> &block_counts,
+                            Array<int> &element_counts) const;
 
    };
 
@@ -131,8 +132,8 @@ private:
       SAMRAI::hier::Index upper_index;
 
       PatchInfo(const int rank_, const int level_number_,
-         const SAMRAI::hier::Index lower_index_,
-         const SAMRAI::hier::Index upper_index_);
+                const SAMRAI::hier::Index lower_index_,
+                const SAMRAI::hier::Index upper_index_);
 
       Array<int> AsArray() const;
 
@@ -172,14 +173,16 @@ private:
    //   2) the vector dimension of each node field
    //   3) the offsets with a specified element block of buffer for each node field
    std::tuple<int,Array<int>,Array<int>> ExtractBufferInfo(
-      std::vector<std::pair<int, GridFunction&>> node_fields,
-      std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
+                                         std::vector<std::pair<int, GridFunction&>> node_fields,
+                                         std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
 
    void GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
-      std::vector<PatchInfo>& gathered_patch_info) const;
+                              std::vector<PatchInfo>& gathered_patch_info) const;
 
-   using PatchLevelBounds = std::vector<std::pair<const SAMRAI::hier::Index, const SAMRAI::hier::Index>>;
-   void GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds) const;
+   using PatchLevelBounds =
+      std::vector<std::pair<const SAMRAI::hier::Index, const SAMRAI::hier::Index>>;
+   void GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds)
+   const;
 
    /***** SAMRAI grid state update methods *****/
 
@@ -214,12 +217,15 @@ private:
 
    const Array<SAMRAI::pdat::NodeIndex::Corner>& corners;
 
-   const Array<SAMRAI::pdat::NodeIndex::Corner> corners1D{
+   const Array<SAMRAI::pdat::NodeIndex::Corner> corners1D
+   {
       SAMRAI::pdat::NodeIndex::Left, SAMRAI::pdat::NodeIndex::Right};
-   const Array<SAMRAI::pdat::NodeIndex::Corner> corners2D{
+   const Array<SAMRAI::pdat::NodeIndex::Corner> corners2D
+   {
       SAMRAI::pdat::NodeIndex::LowerLeft, SAMRAI::pdat::NodeIndex::LowerRight,
       SAMRAI::pdat::NodeIndex::UpperRight, SAMRAI::pdat::NodeIndex::UpperLeft};
-   const Array<SAMRAI::pdat::NodeIndex::Corner> corners3D{
+   const Array<SAMRAI::pdat::NodeIndex::Corner> corners3D
+   {
       SAMRAI::pdat::NodeIndex::LLL, SAMRAI::pdat::NodeIndex::ULL,
       SAMRAI::pdat::NodeIndex::UUL, SAMRAI::pdat::NodeIndex::LUL,
       SAMRAI::pdat::NodeIndex::LLU, SAMRAI::pdat::NodeIndex::ULU,

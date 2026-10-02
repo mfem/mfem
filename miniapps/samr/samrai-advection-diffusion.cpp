@@ -112,9 +112,9 @@ public:
 };
 
 std::tuple<std::unique_ptr<ConductionOperator>,
-           std::unique_ptr<ODESolver>>
-   createConductionODESolver(ParFiniteElementSpace* fespace, const real_t kappa,
-                             const int ode_solver_type, const bool solve_implicit_state)
+    std::unique_ptr<ODESolver>>
+    createConductionODESolver(ParFiniteElementSpace* fespace, const real_t kappa,
+                              const int ode_solver_type, const bool solve_implicit_state)
 {
    // Create the conduction operator
    auto conduction = std::make_unique<ConductionOperator>(fespace, kappa);
@@ -175,11 +175,15 @@ int main(int argc, char *argv[])
    if (!args.Good())
    {
       if (Mpi::Root())
+      {
          args.PrintUsage(std::cout);
+      }
       return 1;
    }
    if (Mpi::Root())
+   {
       args.PrintOptions(std::cout);
+   }
 
    // Initialize SAMRAI with global communicator specified by MFEM
    SAMRAI::tbox::SAMRAI_MPI::init(mfem::GetGlobalMPI_Comm());
@@ -196,28 +200,31 @@ int main(int argc, char *argv[])
    const SAMRAI::tbox::Dimension samrai_dim(
       static_cast<unsigned short>(input_db->getDatabase("Main")->getInteger("dim")));
    auto grid_geometry = std::make_shared<SAMRAI::geom::CartesianGridGeometry>(
-      samrai_dim, "CartesianGeometry", input_db->getDatabase("CartesianGeometry"));
+                           samrai_dim, "CartesianGeometry", input_db->getDatabase("CartesianGeometry"));
    auto patch_hierarchy = std::make_shared<SAMRAI::hier::PatchHierarchy>(
-      "PatchHierarchy", grid_geometry, input_db->getDatabase("PatchHierarchy"));
+                             "PatchHierarchy", grid_geometry, input_db->getDatabase("PatchHierarchy"));
    auto linadv_model = std::make_shared<LinAdv>("LinAdv", samrai_dim,
-      input_db->getDatabase("LinAdv"), grid_geometry);
-   auto hyp_level_integrator = std::make_shared<SAMRAI::algs::HyperbolicLevelIntegrator>(
-      "HyperbolicLevelIntegrator", input_db->getDatabase("HyperbolicLevelIntegrator"),
-      linadv_model.get(), true);
+                                                input_db->getDatabase("LinAdv"), grid_geometry);
+   auto hyp_level_integrator =
+      std::make_shared<SAMRAI::algs::HyperbolicLevelIntegrator>(
+         "HyperbolicLevelIntegrator", input_db->getDatabase("HyperbolicLevelIntegrator"),
+         linadv_model.get(), true);
    auto error_detector = std::make_shared<SAMRAI::mesh::StandardTagAndInitialize>(
-      "StandardTagAndInitialize", hyp_level_integrator.get(),
-      input_db->getDatabase("StandardTagAndInitialize"));
+                            "StandardTagAndInitialize", hyp_level_integrator.get(),
+                            input_db->getDatabase("StandardTagAndInitialize"));
    auto box_generator = std::make_shared<SAMRAI::mesh::BergerRigoutsos>(samrai_dim,
-      input_db->getDatabase("BergerRigoutsos"));
-   auto load_balancer = std::make_shared<SAMRAI::mesh::CascadePartitioner>(samrai_dim,
-      "CascadePartitioner", input_db->getDatabase("LoadBalancer"));
+                                                                        input_db->getDatabase("BergerRigoutsos"));
+   auto load_balancer = std::make_shared<SAMRAI::mesh::CascadePartitioner>
+                        (samrai_dim,
+                         "CascadePartitioner", input_db->getDatabase("LoadBalancer"));
    auto gridding_algorithm = std::make_shared<SAMRAI::mesh::GriddingAlgorithm>(
-      patch_hierarchy, "GriddingAlgorithm",
-      input_db->getDatabase("GriddingAlgorithm"), error_detector, box_generator,
-      load_balancer);
-   auto samrai_time_integrator = std::make_unique<SAMRAI::algs::TimeRefinementIntegrator>(
-      "TimeRefinementIntegrator", input_db->getDatabase("TimeRefinementIntegrator"),
-      patch_hierarchy, hyp_level_integrator, gridding_algorithm);
+                                patch_hierarchy, "GriddingAlgorithm",
+                                input_db->getDatabase("GriddingAlgorithm"), error_detector, box_generator,
+                                load_balancer);
+   auto samrai_time_integrator =
+      std::make_unique<SAMRAI::algs::TimeRefinementIntegrator>(
+         "TimeRefinementIntegrator", input_db->getDatabase("TimeRefinementIntegrator"),
+         patch_hierarchy, hyp_level_integrator, gridding_algorithm);
 
    double dt = samrai_time_integrator->initializeHierarchy();
    const int samrai_position_id = linadv_model->getPositionId();
@@ -226,14 +233,15 @@ int main(int argc, char *argv[])
    /************************** Create MFEM objects ****************************/
 
    // Create coupling manager with SAMRAI hierarchy
-   SAMRAICouplingManager coupling_manager(samrai_time_integrator->getPatchHierarchy());
+   SAMRAICouplingManager coupling_manager(
+      samrai_time_integrator->getPatchHierarchy());
 
    // Transfer initial SAMRAI state (cell averages) to an MFEM grid function
    // (piecewise-constant representation)
    std::unique_ptr<ParGridFunction> uavg_gf;
    {
       std::vector<std::unique_ptr<ParGridFunction>> gfs =
-         coupling_manager.TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
+                                                    coupling_manager.TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
       uavg_gf = std::move(gfs[0]);
    }
 
@@ -257,7 +265,8 @@ int main(int argc, char *argv[])
    std::unique_ptr<ConductionOperator> conduction;
    std::unique_ptr<ODESolver> mfem_ode_solver;
    std::tie(conduction, mfem_ode_solver) =
-      createConductionODESolver(u_fespace.get(), kappa, ode_solver_type, solve_implicit_state);
+      createConductionODESolver(u_fespace.get(), kappa, ode_solver_type,
+                                solve_implicit_state);
 
    // Write out the mesh and initial condition
    coupling_manager.GetMesh().Save("samrai-init.mesh", precision);
@@ -281,7 +290,7 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             std::cout << "Unable to connect to GLVis server at "
-                     << vishost << ':' << visport << std::endl;
+                      << vishost << ':' << visport << std::endl;
             std::cout << "GLVis visualization disabled.\n";
          }
          visualization = false;
@@ -290,7 +299,7 @@ int main(int argc, char *argv[])
       {
          sout.precision(precision);
          sout << "parallel " << coupling_manager.GetMesh().GetNRanks() << " "
-                             << coupling_manager.GetMesh().GetMyRank() << "\n";
+              << coupling_manager.GetMesh().GetMyRank() << "\n";
          sout << "solution\n" << coupling_manager.GetMesh() << *u_gf;
          sout << "pause\n";
          sout << std::flush;
@@ -324,12 +333,13 @@ int main(int argc, char *argv[])
       u_gf = std::make_unique<ParGridFunction>(u_fespace.get());
       {
          std::vector<std::unique_ptr<ParGridFunction>> gfs =
-            coupling_manager.TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
+                                                       coupling_manager.TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
          uavg_gf = std::move(gfs[0]);
       }
       reconstructH1Field(*uavg_gf, *u_gf);
       std::tie(conduction, mfem_ode_solver) =
-         createConductionODESolver(u_fespace.get(), kappa, ode_solver_type, solve_implicit_state);
+         createConductionODESolver(u_fespace.get(), kappa, ode_solver_type,
+                                   solve_implicit_state);
 
       // MFEM heat equation step
       u_gf->GetTrueDofs(u_dofs);
@@ -350,7 +360,7 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             sout << "parallel " << coupling_manager.GetMesh().GetNRanks() << " "
-                                << coupling_manager.GetMesh().GetMyRank() << "\n";
+                 << coupling_manager.GetMesh().GetMyRank() << "\n";
             sout << "solution\n" << coupling_manager.GetMesh() << *u_gf << std::flush;
          }
       }
@@ -381,7 +391,7 @@ int main(int argc, char *argv[])
 }
 
 ConductionOperator::ConductionOperator(ParFiniteElementSpace *fespace,
-   real_t kappa) : TimeDependentOperator(fespace->GetTrueVSize(), (real_t) 0.0),
+                                       real_t kappa) : TimeDependentOperator(fespace->GetTrueVSize(), (real_t) 0.0),
    current_dt(0.0), M_solver(fespace->GetComm()), T_solver(fespace->GetComm()),
    z(height)
 {

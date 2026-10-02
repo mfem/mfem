@@ -9,7 +9,7 @@ SAMRAICouplingManager::SAMRAICouplingManager(
    std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
    hierarchy(hierarchy),
    corners(hierarchy->getDim().getValue() == 3 ? corners3D :
-            hierarchy->getDim().getValue() == 2 ? corners2D : corners1D),
+           hierarchy->getDim().getValue() == 2 ? corners2D : corners1D),
    fe_collection_node(1, hierarchy->getDim().getValue()),
    fe_collection_cell(0, hierarchy->getDim().getValue())
 {
@@ -21,8 +21,8 @@ void SAMRAICouplingManager::SynchronizeMeshToHierarchy(bool create_new_mesh)
    // if the finite element space under mesh grid function has been changed,
    // ensure that a new mesh is being created
    MFEM_ASSERT(create_new_mesh == true ||
-      mesh_grid_function->FESpace() == fe_spaces_node[mesh->Dimension()].get(),
-      "An existing higher-order mesh cannot be synchronized: create a new mesh instead");
+               mesh_grid_function->FESpace() == fe_spaces_node[mesh->Dimension()].get(),
+               "An existing higher-order mesh cannot be synchronized: create a new mesh instead");
 
    // update global patch info and obtain corresponding patch bounds
    std::vector<PatchLevelBounds> global_patch_bounds;
@@ -46,7 +46,7 @@ void SAMRAICouplingManager::SynchronizeMeshToHierarchy(bool create_new_mesh)
       // create the finite element space and grid function for the mesh topology
       fe_spaces_node[mesh->Dimension()] =
          std::make_unique<ParFiniteElementSpace>(mesh.get(),
-            &fe_collection_node, mesh->Dimension());
+                                                 &fe_collection_node, mesh->Dimension());
       mesh_grid_function =
          std::make_shared<ParGridFunction>(fe_spaces_node[mesh->Dimension()].get());
       mesh->SetNodalGridFunction(mesh_grid_function.get());
@@ -66,8 +66,9 @@ void SAMRAICouplingManager::SynchronizeMeshToHierarchy(bool create_new_mesh)
    mesh_grid_function->GetTrueDofs(mesh_index_space_tdofs);
 }
 
-void SAMRAICouplingManager::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
-   std::vector<PatchInfo>& gathered_patch_info) const
+void SAMRAICouplingManager::GatherGlobalPatchInfo(const std::vector<PatchInfo>&
+                                                  local_patch_info,
+                                                  std::vector<PatchInfo>& gathered_patch_info) const
 {
    const int dim = hierarchy->getDim().getValue();
    const int ranks = hierarchy->getMPI().getSize();
@@ -86,10 +87,11 @@ void SAMRAICouplingManager::GatherGlobalPatchInfo(const std::vector<PatchInfo>& 
    // gather the number of patches from each rank
    Array<int> global_patch_counts(ranks);
    MPI_Allgather(&local_patch_count, 1, MPI_INT, global_patch_counts.GetData(),
-      1, MPI_INT, comm);
+                 1, MPI_INT, comm);
 
    // gather the serialized global patch info on each rank
-   BlockArray<int> gathered_patch_info_buffer(patch_info_size, global_patch_counts.Sum());
+   BlockArray<int> gathered_patch_info_buffer(patch_info_size,
+                                              global_patch_counts.Sum());
    {
       Array<int> gather_counts;
       gathered_patch_info_buffer.GetElementCounts(global_patch_counts, gather_counts);
@@ -97,15 +99,15 @@ void SAMRAICouplingManager::GatherGlobalPatchInfo(const std::vector<PatchInfo>& 
       gather_offsets.Prepend(0);
       gather_offsets.PartialSum();
       MPI_Allgatherv(local_patch_info_buffer.GetData(),
-         local_patch_info_buffer.Size(), MPI_INT,
-         gathered_patch_info_buffer.GetData(), gather_counts.GetData(),
-         gather_offsets.GetData(), MPI_INT, comm);
+                     local_patch_info_buffer.Size(), MPI_INT,
+                     gathered_patch_info_buffer.GetData(), gather_counts.GetData(),
+                     gather_offsets.GetData(), MPI_INT, comm);
    }
 
    // unserialize patch data and note rank that has each patch
    gathered_patch_info.reserve(gathered_patch_info_buffer.NumBlocks());
    for (int block_ind=0; block_ind < gathered_patch_info_buffer.NumBlocks();
-      block_ind++)
+        block_ind++)
    {
       gathered_patch_info.emplace_back(
          PatchInfo::FromArray(gathered_patch_info_buffer.GetBlock(block_ind)));
@@ -120,15 +122,15 @@ void SAMRAICouplingManager::AddNewPatchesToGlobalPatchInfo()
    // info
    std::vector<PatchInfo> local_added_patch_info;
    for (int level_number = 0; level_number <= hierarchy->getFinestLevelNumber();
-      level_number++)
+        level_number++)
    {
       std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
          hierarchy->getPatchLevel(level_number);
       for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
-            patch_iter != patch_level->end(); patch_iter++)
+           patch_iter != patch_level->end(); patch_iter++)
       {
          const PatchInfo current_patch(rank, level_number,
-            patch_iter->getBox().lower(), patch_iter->getBox().upper());
+                                       patch_iter->getBox().lower(), patch_iter->getBox().upper());
          bool already_exists = false;
          for (unsigned patch_ind=0; patch_ind < global_patch_info.size(); patch_ind++)
          {
@@ -167,16 +169,18 @@ void SAMRAICouplingManager::RemoveOldPatchesFromGlobalPatchInfo()
       bool removed = true;
       const PatchInfo& patch_info = global_patch_info[patch_ind];
       if (patch_info.rank != rank)
+      {
          continue;
+      }
       if (patch_info.level_number < hierarchy->getNumberOfLevels())
       {
          std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
             hierarchy->getPatchLevel(patch_info.level_number);
          for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
-               patch_iter != patch_level->end(); patch_iter++)
+              patch_iter != patch_level->end(); patch_iter++)
          {
             if (patch_info.lower_index == patch_iter->getBox().lower() &&
-                  patch_info.upper_index == patch_iter->getBox().upper())
+                patch_info.upper_index == patch_iter->getBox().upper())
             {
                removed = false;
                break;
@@ -212,7 +216,8 @@ void SAMRAICouplingManager::RemoveOldPatchesFromGlobalPatchInfo()
    global_patch_info = std::move(new_global_patch_info);
 }
 
-void SAMRAICouplingManager::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds) const
+void SAMRAICouplingManager::GetGlobalPatchBounds(std::vector<PatchLevelBounds>&
+                                                 global_patch_bounds) const
 {
    // organize patch bounds by level
    global_patch_bounds.resize(hierarchy->getMaxNumberOfLevels());
@@ -231,11 +236,13 @@ void SAMRAICouplingManager::CreateMesh()
    const unsigned short dim = hierarchy->getDim().getValue();
 
    // determine the number of SAMRAI cells in each dimension
-   SAMRAI::hier::Index domain_lower = SAMRAI::hier::Index::getMaxIndex(hierarchy->getDim());
-   SAMRAI::hier::Index domain_upper = SAMRAI::hier::Index::getMinIndex(hierarchy->getDim());
+   SAMRAI::hier::Index domain_lower = SAMRAI::hier::Index::getMaxIndex(
+                                         hierarchy->getDim());
+   SAMRAI::hier::Index domain_upper = SAMRAI::hier::Index::getMinIndex(
+                                         hierarchy->getDim());
    std::shared_ptr<SAMRAI::hier::PatchLevel> level0 = hierarchy->getPatchLevel(0);
    for (SAMRAI::hier::PatchLevel::iterator patch_iter=level0->begin();
-         patch_iter != level0->end(); patch_iter++)
+        patch_iter != level0->end(); patch_iter++)
    {
       const SAMRAI::hier::Box& box = patch_iter->getBox();
       domain_lower.min(box.lower());
@@ -251,7 +258,7 @@ void SAMRAICouplingManager::CreateMesh()
 
    // create mesh in SAMRAI index space (unit-size elements)
    Mesh serial_mesh;
-   switch(dim)
+   switch (dim)
    {
       case 1:
       {
@@ -267,7 +274,7 @@ void SAMRAICouplingManager::CreateMesh()
          const int num_x = num_cells(0);
          const int num_y = num_cells(1);
          serial_mesh = mfem::Mesh::MakeCartesian2D(num_x, num_y,
-            mfem::Element::Type::QUADRILATERAL, true, num_x, num_y);
+                                                   mfem::Element::Type::QUADRILATERAL, true, num_x, num_y);
          break;
       }
       case 3:
@@ -276,7 +283,7 @@ void SAMRAICouplingManager::CreateMesh()
          const int num_y = num_cells(1);
          const int num_z = num_cells(2);
          serial_mesh = mfem::Mesh::MakeCartesian3D(num_x, num_y, num_z,
-            mfem::Element::Type::HEXAHEDRON, num_x, num_y, num_z);
+                                                   mfem::Element::Type::HEXAHEDRON, num_x, num_y, num_z);
          break;
       }
       default:
@@ -308,12 +315,14 @@ void SAMRAICouplingManager::UpdateFiniteElementSpaces()
    }
 }
 
-void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
+void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>&
+                                         global_patch_bounds)
 {
    const real_t error_threshold = 1.0;
    Array<real_t> pseudo_error(mesh->GetNE());
 
-   for (int level_num=hierarchy->getMaxNumberOfLevels()-1; level_num > 0; level_num--)
+   for (int level_num=hierarchy->getMaxNumberOfLevels()-1; level_num > 0;
+        level_num--)
    {
       SAMRAI::hier::IntVector level_ratio(SAMRAI::tbox::Dimension(mesh->Dimension()));
       SAMRAI::hier::IntVector level0_ratio(level_ratio.getDim(), 1);
@@ -341,9 +350,13 @@ void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>& gl
          const Vector element_h = GetElementDimensions(*mesh, element_ind);
          bool skip = true;
          for (int i=0; skip && i < h.Size(); i++)
+         {
             skip = std::abs(element_h[i] - h[i]) > 1e-12;
+         }
          if (skip)
+         {
             continue;
+         }
 
          // get center in current level coordinates
          Vector center;
@@ -368,19 +381,21 @@ void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>& gl
          }
       }
       const int factor = mesh->Dimension() == 1 ? 2 :
-         (mesh->Dimension() == 2 ? 4 : 8);
+                         (mesh->Dimension() == 2 ? 4 : 8);
       MFEM_ASSERT(derefine_element_count % factor == 0,
-         "Elements marked for derefinement need to be in blocks of 2^D");
+                  "Elements marked for derefinement need to be in blocks of 2^D");
       mesh->DerefineByError(pseudo_error, error_threshold);
       UpdateFiniteElementSpaces();
       MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(level_ratio.getDim(),2),
-            "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
+                  "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
    }
 }
 
-void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
+void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>&
+                                       global_patch_bounds)
 {
-   for (int level_num=1; level_num <= hierarchy->getFinestLevelNumber(); level_num++)
+   for (int level_num=1; level_num <= hierarchy->getFinestLevelNumber();
+        level_num++)
    {
       const SAMRAI::hier::IntVector level0_ratio =
          hierarchy->getPatchLevel(level_num)->getRatioToLevelZero();
@@ -397,9 +412,13 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
          const Vector element_h = GetElementDimensions(*mesh, element_ind);
          bool skip = true;
          for (int i=0; skip && i < h.Size(); i++)
+         {
             skip = element_h[i] < h[i] + 1e-12;
+         }
          if (skip)
+         {
             continue;
+         }
 
          // get center in current level coordinates
          Vector center;
@@ -431,8 +450,10 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
       for (int i=0; i < refinements.Size(); i++)
       {
          refinements[i] = Refinement(refine_element_inds[i],
-            {{Refinement::X, scale[0]}, {Refinement::Y, scale[1]},
-             {Refinement::Z, scale[2]}});
+         {
+            {Refinement::X, scale[0]}, {Refinement::Y, scale[1]},
+            {Refinement::Z, scale[2]}
+         });
       }
       mesh->GeneralRefinement(refinements);
       UpdateFiniteElementSpaces();
@@ -440,7 +461,7 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
       if (level_ratio != SAMRAI::hier::IntVector(level_ratio.getDim(),2))
       {
          MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(level_ratio.getDim(),3),
-            "Refinement ratio " << level_ratio << " not yet supported");
+                     "Refinement ratio " << level_ratio << " not yet supported");
          Table coarse_to_fine;
          mesh->ncmesh->GetRefinementTransforms().MakeCoarseToFineTable(coarse_to_fine);
          refinements.DeleteAll();
@@ -464,12 +485,18 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
                for (int i=0; i < h.Size(); i++)
                {
                   if (scale[i] < 1.0 - 1e-12)
+                  {
                      skip = false;
+                  }
                   else
-                     scale[i] = 0.0; // ensure no refinement in this direction
+                  {
+                     scale[i] = 0.0;   // ensure no refinement in this direction
+                  }
                }
                if (skip)
+               {
                   continue;
+               }
                // if mesh is not 3D, extend scale length to 3 noting that any
                // added entries will not be used by Refinement
                if (scale.Size() < 3)
@@ -478,8 +505,10 @@ void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& glob
                   scale.SetSize(3);
                }
                refinements.Append(Refinement(new_element_ind,
-                  {{Refinement::X, scale[0]}, {Refinement::Y, scale[1]},
-                   {Refinement::Z, scale[2]}}));
+               {
+                  {Refinement::X, scale[0]}, {Refinement::Y, scale[1]},
+                  {Refinement::Z, scale[2]}
+               }));
             }
          }
          mesh->GeneralRefinement(refinements);
@@ -509,20 +538,23 @@ void SAMRAICouplingManager::CreateTransferMaps()
          const SAMRAI::hier::IntVector& ratio =
             hierarchy->getRatioToCoarserLevel(level_number);
          for (int i=0; i < mesh->Dimension(); i++)
+         {
             level_volume /= ratio[i];
+         }
       }
       // get center in level zero coordinates
       Vector center;
       mesh->GetElementCenter(element_ind, center);
       // convert center to patch level coordinates
-      center *= ToVector(hierarchy->getPatchLevel(level_number)->getRatioToLevelZero());
+      center *= ToVector(hierarchy->getPatchLevel(
+                            level_number)->getRatioToLevelZero());
       SAMRAI::hier::Index index = ToIndex(center);
       // use patch level coordinates to find associated patch to determine rank
       int index_rank = -1;
       for (const PatchInfo& patch : global_patch_info)
       {
          if (patch.level_number == level_number &&
-               patch.lower_index <= index && index <= patch.upper_index)
+             patch.lower_index <= index && index <= patch.upper_index)
          {
             index_rank = patch.rank;
             break;
@@ -541,27 +573,29 @@ void SAMRAICouplingManager::CreateTransferMaps()
    {
       // local elements that correspond to local cells will be accounted for later
       if (remote_rank == rank)
+      {
          continue;
+      }
 
       const std::vector<ElementInfo>& element_info_for_rank =
          local_element_info[remote_rank];
 
       element_info_buffers[remote_rank] =
          std::make_unique<BlockArray<int>>(element_info_size,
-            element_info_for_rank.size());
+                                           element_info_for_rank.size());
       for (unsigned data_ind=0; data_ind < element_info_for_rank.size(); data_ind++)
       {
          element_info_buffers[remote_rank]->SetBlock(data_ind,
-            element_info_for_rank[data_ind].AsArray());
+                                                     element_info_for_rank[data_ind].AsArray());
       }
       MPI_Isend(element_info_buffers[remote_rank]->GetData(),
-         element_info_buffers[remote_rank]->Size(), MPI_INT, remote_rank,
-         element_info_tag, mesh->GetComm(), &requests[remote_rank]);
+                element_info_buffers[remote_rank]->Size(), MPI_INT, remote_rank,
+                element_info_tag, mesh->GetComm(), &requests[remote_rank]);
    }
 
    // define utility lambda function for setting local cell info
    auto SetLocalCellInfo = [&](int source_rank,
-      const std::vector<ElementInfo>& element_info_list)
+                               const std::vector<ElementInfo>& element_info_list)
    {
       for (const ElementInfo& element_info : element_info_list)
       {
@@ -570,7 +604,7 @@ void SAMRAICouplingManager::CreateTransferMaps()
             hierarchy->getPatchLevel(element_info.level_number);
          std::shared_ptr<SAMRAI::hier::Patch> patch;
          for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
-               patch_iter != patch_level->end(); patch_iter++)
+              patch_iter != patch_level->end(); patch_iter++)
          {
             if (patch_iter->getBox().contains(index))
             {
@@ -579,8 +613,8 @@ void SAMRAICouplingManager::CreateTransferMaps()
             }
          }
          MFEM_VERIFY(patch != nullptr, "Level " << element_info.level_number
-            << ", index " << index << " received from rank " << source_rank
-            << " is not on any local patches");
+                     << ", index " << index << " received from rank " << source_rank
+                     << " is not on any local patches");
          local_cell_info[source_rank].push_back({SAMRAI::pdat::CellIndex(index), patch});
       }
    };
@@ -596,16 +630,17 @@ void SAMRAICouplingManager::CreateTransferMaps()
       MPI_Probe(MPI_ANY_SOURCE, element_info_tag, mesh->GetComm(), &status);
       MPI_Get_count(&status, MPI_INT, &count);
       MFEM_ASSERT(count % element_info_size == 0, "Unexpected message size");
-      BlockArray<int> remote_element_info(element_info_size, count / element_info_size);
+      BlockArray<int> remote_element_info(element_info_size,
+                                          count / element_info_size);
       MPI_Recv(remote_element_info.GetData(), remote_element_info.Size(),
-         MPI_INT, status.MPI_SOURCE, element_info_tag, mesh->GetComm(), &status);
+               MPI_INT, status.MPI_SOURCE, element_info_tag, mesh->GetComm(), &status);
       messages_received++;
 
       // unserialize and store cell info for received remote elements
       std::vector<ElementInfo> element_info_list;
       element_info_list.reserve(remote_element_info.NumBlocks());
       for (unsigned block_ind=0; block_ind < remote_element_info.NumBlocks();
-            block_ind++)
+           block_ind++)
       {
          element_info_list.emplace_back(
             ElementInfo::FromArray(remote_element_info.GetBlock(block_ind)));
@@ -619,15 +654,17 @@ void SAMRAICouplingManager::CreateTransferMaps()
    MPI_Barrier(mesh->GetComm());
 }
 
-std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToMFEM(
-   const int position_id, const std::vector<int>& node_ids,
-   const std::vector<int>& cell_ids)
+std::vector<std::unique_ptr<ParGridFunction>>
+                                           SAMRAICouplingManager::TransferToMFEM(
+                                              const int position_id, const std::vector<int>& node_ids,
+                                              const std::vector<int>& cell_ids)
 {
    // check that finite element space under mesh grid function has not been
    // changed (it can later be replaced with a higher-order finite element space
    // and grid function via setMeshGridFunction)
-   MFEM_ASSERT(mesh_grid_function->FESpace() == fe_spaces_node[mesh->Dimension()].get(),
-      "An external mesh grid function can only be set after the call to transferToMFEM");
+   MFEM_ASSERT(mesh_grid_function->FESpace() ==
+               fe_spaces_node[mesh->Dimension()].get(),
+               "An external mesh grid function can only be set after the call to transferToMFEM");
 
    // with mesh node positions, start maps of SAMRAI ids to grid functions
    std::vector<std::pair<int, GridFunction&>> node_fields;
@@ -678,7 +715,9 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
    {
       // local cells that correspond to local elements will be accounted for later
       if (remote_rank == rank)
+      {
          continue;
+      }
 
       const std::vector<CellInfo>& cell_info_for_rank = local_cell_info[remote_rank];
       const unsigned buffer_request_index = remote_rank - (remote_rank > rank);
@@ -726,8 +765,8 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
       }
 
       MPI_Isend(local_samrai_values.data(), local_samrai_values.size(),
-         MPI_DOUBLE, remote_rank, samrai_values_tag, mesh->GetComm(),
-         &requests[buffer_request_index]);
+                MPI_DOUBLE, remote_rank, samrai_values_tag, mesh->GetComm(),
+                &requests[buffer_request_index]);
    }
 
    // receive remote node/cell values that correspond to local elements
@@ -739,7 +778,7 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
       const std::vector<int>& element_inds = local_element_inds[status.MPI_SOURCE];
       std::vector<double> remote_samrai_values(num_variables * element_inds.size());
       MPI_Recv(remote_samrai_values.data(), remote_samrai_values.size(),
-         MPI_DOUBLE, status.MPI_SOURCE, samrai_values_tag, mesh->GetComm(), &status);
+               MPI_DOUBLE, status.MPI_SOURCE, samrai_values_tag, mesh->GetComm(), &status);
       messages_received++;
 
       // set local element values from received cell values
@@ -768,7 +807,7 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
          }
          // set cell field element values
          const int samrai_values_cell_field_ind = samrai_values_ind +
-            node_field_offsets.Last();
+                                                  node_field_offsets.Last();
          for (int i=0; i < cell_fields.size(); i++)
          {
             ParGridFunction& cell_field_MFEM =
@@ -776,7 +815,7 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
             Array<int> dof_indices;
             cell_field_MFEM.FESpace()->GetElementDofs(element_ind, dof_indices);
             cell_field_MFEM.SetSubVector(dof_indices,
-               remote_samrai_values[samrai_values_cell_field_ind+i]);
+                                         remote_samrai_values[samrai_values_cell_field_ind+i]);
          }
       }
    }
@@ -784,7 +823,8 @@ std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToM
    // account for local cells that correspond to local elements
    for (int cell_ind=0; cell_ind < local_cell_info[rank].size(); cell_ind++)
    {
-      const SAMRAI::pdat::CellIndex cell_index = local_cell_info[rank][cell_ind].index;
+      const SAMRAI::pdat::CellIndex cell_index =
+         local_cell_info[rank][cell_ind].index;
       const SAMRAI::hier::Patch& cell_patch = *local_cell_info[rank][cell_ind].patch;
       const int element_ind = local_element_inds[rank][cell_ind];
       // node field values
@@ -866,7 +906,9 @@ void SAMRAICouplingManager::TransferToSAMRAI(
    {
       // local elements that correspond to local cells will be accounted for later
       if (remote_rank == rank)
+      {
          continue;
+      }
 
       const std::vector<int>& element_inds = local_element_inds[remote_rank];
       const unsigned buffer_request_index = remote_rank - (remote_rank > rank);
@@ -874,7 +916,7 @@ void SAMRAICouplingManager::TransferToSAMRAI(
          element_value_buffers[buffer_request_index];
       local_element_values.resize(num_variables * element_inds.size());
       for (int element_inds_ind=0; element_inds_ind < element_inds.size();
-         element_inds_ind++)
+           element_inds_ind++)
       {
          const int element_values_ind = num_variables * element_inds_ind;
          const int element_ind = element_inds[element_inds_ind];
@@ -889,7 +931,7 @@ void SAMRAICouplingManager::TransferToSAMRAI(
             {
                node_field.GetNodalValues(element_ind, dof_values, d+1);
                MFEM_ASSERT(dof_values.Size() == corners.Size(),
-                  "Received an unexpected number of node values for dimension.");
+                           "Received an unexpected number of node values for dimension.");
                const int element_values_node_field_value_ind =
                   element_values_node_field_ind + d*corners.Size();
                for (int c=0; c < corners.Size(); c++)
@@ -901,7 +943,7 @@ void SAMRAICouplingManager::TransferToSAMRAI(
          }
          // cell field values
          const int element_values_cell_field_ind = element_values_ind +
-            node_field_offsets.Last();
+                                                   node_field_offsets.Last();
          for (int i=0; i < cell_fields.size(); i++)
          {
             Vector dof_values;
@@ -911,8 +953,8 @@ void SAMRAICouplingManager::TransferToSAMRAI(
       }
 
       MPI_Isend(local_element_values.data(), local_element_values.size(),
-         MPI_DOUBLE, remote_rank, element_values_tag, mesh->GetComm(),
-         &requests[buffer_request_index]);
+                MPI_DOUBLE, remote_rank, element_values_tag, mesh->GetComm(),
+                &requests[buffer_request_index]);
    }
 
    // receive remote element values that correspond to local cells
@@ -921,11 +963,13 @@ void SAMRAICouplingManager::TransferToSAMRAI(
    while (messages_received < ranks - 1)
    {
       MPI_Probe(MPI_ANY_SOURCE, element_values_tag, mesh->GetComm(), &status);
-      const std::vector<CellInfo>& cell_info_for_rank = local_cell_info[status.MPI_SOURCE];
-      std::vector<double> remote_element_values(num_variables * cell_info_for_rank.size());
+      const std::vector<CellInfo>& cell_info_for_rank =
+         local_cell_info[status.MPI_SOURCE];
+      std::vector<double> remote_element_values(num_variables *
+                                                cell_info_for_rank.size());
       MPI_Recv(remote_element_values.data(), remote_element_values.size(),
-         MPI_DOUBLE, status.MPI_SOURCE, element_values_tag, mesh->GetComm(),
-         &status);
+               MPI_DOUBLE, status.MPI_SOURCE, element_values_tag, mesh->GetComm(),
+               &status);
       messages_received++;
 
       // set local cell values from received element values
@@ -941,7 +985,7 @@ void SAMRAICouplingManager::TransferToSAMRAI(
                *SAMRAI_SHARED_PTR_CAST<SAMRAI::pdat::NodeData<double>>(
                   cell_patch.getPatchData(std::get<int>(node_fields[i])));
             const int element_values_node_field_ind = element_values_ind
-               + node_field_offsets[i];
+                                                      + node_field_offsets[i];
             // TODO: check this is the correct order using something like
             //       what is done in GetNodalValues
             //    const FiniteElement *FElem = fes->GetFE(i);
@@ -961,7 +1005,7 @@ void SAMRAICouplingManager::TransferToSAMRAI(
          }
          // set cell field values
          const int element_values_cell_field_ind = element_values_ind +
-            node_field_offsets.Last();
+                                                   node_field_offsets.Last();
          for (int i=0; i < cell_fields.size(); i++)
          {
             SAMRAI::pdat::CellData<double>& cell_values =
@@ -975,11 +1019,13 @@ void SAMRAICouplingManager::TransferToSAMRAI(
 
    // account for local elements that correspond to local cells
    for (int element_inds_ind=0; element_inds_ind < local_element_inds[rank].size();
-      element_inds_ind++)
+        element_inds_ind++)
    {
       const int element_ind = local_element_inds[rank][element_inds_ind];
-      const SAMRAI::pdat::CellIndex& cell_index = local_cell_info[rank][element_inds_ind].index;
-      const SAMRAI::hier::Patch& cell_patch = *local_cell_info[rank][element_inds_ind].patch;
+      const SAMRAI::pdat::CellIndex& cell_index =
+         local_cell_info[rank][element_inds_ind].index;
+      const SAMRAI::hier::Patch& cell_patch =
+         *local_cell_info[rank][element_inds_ind].patch;
       // set node field values
       for (int i=0; i < node_fields.size(); i++)
       {
@@ -1022,8 +1068,8 @@ void SAMRAICouplingManager::TransferToSAMRAI(
 }
 
 std::tuple<int,Array<int>,Array<int>> SAMRAICouplingManager::ExtractBufferInfo(
-   std::vector<std::pair<int, GridFunction&>> node_fields,
-   std::vector<std::pair<int, ParGridFunction&>> cell_fields) const
+                                      std::vector<std::pair<int, GridFunction&>> node_fields,
+                                      std::vector<std::pair<int, ParGridFunction&>> cell_fields) const
 {
    Array<int> node_field_vector_dimensions;
    Array<int> node_field_offsets;
@@ -1031,7 +1077,7 @@ std::tuple<int,Array<int>,Array<int>> SAMRAICouplingManager::ExtractBufferInfo(
    {
       const GridFunction& node_field = std::get<GridFunction&>(field);
       MFEM_ASSERT(node_field.FESpace()->GetOrdering() == Ordering::byNODES,
-            "GridFunction for node fields must have FE space ordered by node.");
+                  "GridFunction for node fields must have FE space ordered by node.");
       node_field_vector_dimensions.Append(field.second.FESpace()->GetVectorDim());
       node_field_offsets.Append(node_field_vector_dimensions.Last() * corners.Size());
    }
@@ -1048,7 +1094,7 @@ SAMRAI::hier::Index SAMRAICouplingManager::ToIndex(const Vector& vector)
 }
 
 SAMRAI::hier::Index SAMRAICouplingManager::ToIndex(const Array<int>& array,
-   const unsigned dim, const int start)
+                                                   const unsigned dim, const int start)
 {
    MFEM_VERIFY(start + dim <= array.Size(), "size mismatch");
 
@@ -1061,11 +1107,14 @@ Vector SAMRAICouplingManager::ToVector(const SAMRAI::hier::IntVector& vector)
 {
    Vector result(vector.getDim().getValue());
    for (int i=0; i < result.Size(); i++)
+   {
       result[i] = vector[i];
+   }
    return result;
 }
 
-Vector SAMRAICouplingManager::GetElementDimensions(Mesh& mesh, const int element_ind)
+Vector SAMRAICouplingManager::GetElementDimensions(Mesh& mesh,
+                                                   const int element_ind)
 {
    Vector x0, h;
    ElementTransformation* transform = mesh.GetElementTransformation(element_ind);
@@ -1078,29 +1127,31 @@ Vector SAMRAICouplingManager::GetElementDimensions(Mesh& mesh, const int element
 }
 
 template<typename PODType>
-SAMRAICouplingManager::BlockArray<PODType>::BlockArray(const unsigned block_size,
-   const unsigned num_blocks) : block_size(block_size),num_blocks(num_blocks),
+SAMRAICouplingManager::BlockArray<PODType>::BlockArray(const unsigned
+                                                       block_size,
+                                                       const unsigned num_blocks) : block_size(block_size),num_blocks(num_blocks),
    data(num_blocks*block_size) {}
 
 template<typename PODType>
 void SAMRAICouplingManager::BlockArray<PODType>::SetBlock(const unsigned index,
-   const Array<PODType> &values)
+                                                          const Array<PODType> &values)
 {
    MFEM_ASSERT(values.Size() == block_size,
-      "Provided array is not the correct size.");
+               "Provided array is not the correct size.");
    // TODO: consider replacing with memcpy
-   for(unsigned i=0; i < block_size; i++)
+   for (unsigned i=0; i < block_size; i++)
    {
       data[index*block_size + i] = values[i];
    }
 }
 
 template<typename PODType>
-Array<PODType> SAMRAICouplingManager::BlockArray<PODType>::GetBlock(const unsigned index) const
+Array<PODType> SAMRAICouplingManager::BlockArray<PODType>::GetBlock(
+   const unsigned index) const
 {
    Array<PODType> values(block_size);
    // TODO: consider replacing with memcpy
-   for(unsigned i=0; i < block_size; i++)
+   for (unsigned i=0; i < block_size; i++)
    {
       values[i] = data[index*block_size + i];
    }
@@ -1126,18 +1177,22 @@ int SAMRAICouplingManager::BlockArray<PODType>::Size() const
 }
 
 template<typename PODType>
-void SAMRAICouplingManager::BlockArray<PODType>::GetElementCounts(const Array<PODType> &block_counts,
+void SAMRAICouplingManager::BlockArray<PODType>::GetElementCounts(
+   const Array<PODType> &block_counts,
    Array<int> &element_counts) const
 {
    element_counts.SetSize(block_counts.Size());
    for (int i=0; i < block_counts.Size(); i++)
+   {
       element_counts[i] = block_counts[i] * block_size;
+   }
 }
 
-SAMRAICouplingManager::PatchInfo SAMRAICouplingManager::PatchInfo::FromArray(const Array<int>& values)
+SAMRAICouplingManager::PatchInfo SAMRAICouplingManager::PatchInfo::FromArray(
+   const Array<int>& values)
 {
    MFEM_ASSERT((values.Size() - 2) % 2 == 0,
-      "Provided array is not a valid size.")
+               "Provided array is not a valid size.")
    const unsigned dimension = (values.Size()-2) / 2;
    const int rank = values[0];
    const int level_number = values[1];
@@ -1146,8 +1201,10 @@ SAMRAICouplingManager::PatchInfo SAMRAICouplingManager::PatchInfo::FromArray(con
    return PatchInfo(rank, level_number, lower_index, upper_index);
 }
 
-SAMRAICouplingManager::PatchInfo::PatchInfo(const int rank_, const int level_number_,
-   const SAMRAI::hier::Index lower_index_, const SAMRAI::hier::Index upper_index_) :
+SAMRAICouplingManager::PatchInfo::PatchInfo(const int rank_,
+                                            const int level_number_,
+                                            const SAMRAI::hier::Index lower_index_,
+                                            const SAMRAI::hier::Index upper_index_) :
    rank(rank_), level_number(level_number_), lower_index(lower_index_),
    upper_index(upper_index_) {}
 
@@ -1159,9 +1216,13 @@ Array<int> SAMRAICouplingManager::PatchInfo::AsArray() const
    array[1] = level_number;
    // TODO: consider replacing loops with memcpy
    for (int d=0; d < dimension; d++)
+   {
       array[2+d] = lower_index(d);
+   }
    for (int d=0; d < dimension; d++)
+   {
       array[2+dimension+d] = upper_index(d);
+   }
    return array;
 }
 
@@ -1173,14 +1234,15 @@ unsigned SAMRAICouplingManager::PatchInfo::Size(const unsigned dimension)
 bool SAMRAICouplingManager::PatchInfo::operator==(const PatchInfo& other) const
 {
    return rank == other.rank && level_number == other.level_number &&
-            lower_index == other.lower_index && upper_index == other.upper_index;
+          lower_index == other.lower_index && upper_index == other.upper_index;
 }
 
 SAMRAICouplingManager::ElementInfo::ElementInfo(const int level_number_,
-   const SAMRAI::hier::Index index_) : level_number(level_number_),
+                                                const SAMRAI::hier::Index index_) : level_number(level_number_),
    index(index_) {}
 
-SAMRAICouplingManager::ElementInfo SAMRAICouplingManager::ElementInfo::FromArray(const Array<int>& values)
+SAMRAICouplingManager::ElementInfo
+SAMRAICouplingManager::ElementInfo::FromArray(const Array<int>& values)
 {
    MFEM_ASSERT(values.Size() > 1, "Provided array is not a valid size.");
    const unsigned dimension = values.Size()-1;
@@ -1196,7 +1258,9 @@ Array<int> SAMRAICouplingManager::ElementInfo::AsArray() const
    array[0] = level_number;
    // TODO: consider replacing loops with memcpy
    for (int d=0; d < dimension; d++)
+   {
       array[1+d] = index(d);
+   }
    return array;
 }
 
