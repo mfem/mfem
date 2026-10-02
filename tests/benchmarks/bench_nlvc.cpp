@@ -21,8 +21,14 @@
 
 using namespace mfem;
 
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+constexpr bool mfem_use_gpu = true;
+#else
+constexpr bool mfem_use_gpu = false;
+#endif
+
 // Custom benchmark arguments generator ///////////////////////////////////////
-static void CustomArguments(bm::Benchmark *b) noexcept
+static void CustomArguments(bmi::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
@@ -186,7 +192,7 @@ struct VectorConvectionNLFBenchmark
       const auto order = static_cast<int>(state.range(0));           \
       const auto side = static_cast<int>(state.range(1));            \
       VectorConvectionNLFBenchmark<DIM> ker(order, side);            \
-      while (state.KeepRunning()) { ker.Benchmark(); }               \
+      for (auto _ : state) { ker.Benchmark(); }                      \
       bm::Counter::Flags flags = bm::Counter::kIsRate;               \
       state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
       state.counters["Dofs"] = bm::Counter(ker.dofs);                \
