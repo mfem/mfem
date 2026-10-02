@@ -7,12 +7,10 @@
 
 #SBATCH --job-name=elast3d_topopt
 #SBATCH --partition=pbatch
-#SBATCH --nodes=32
+#SBATCH --nodes=16
 #SBATCH --ntasks-per-node=112
 #SBATCH --cpus-per-task=1
 #SBATCH --time=24:00:00
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=yu52
 #SBATCH --output=/p/lustre2/yu52/codes/run_topopt_3d/run_outputs/elast3d_%j.out
 #SBATCH --error=/p/lustre2/yu52/codes/run_topopt_3d/run_errors/elast3d_%j.err
 #SBATCH -A gradient
@@ -52,16 +50,16 @@ solver_args=(
    -vf 0.3            # Target volume fraction
    -rf 1.5            # Helmholtz-filter width
    -amin 1e-6         # Lower thickness bound (only with -thickness)
-   -amax 13           # Upper thickness bound (only with -thickness)
+   -amax 12.5         # Upper thickness bound (only with -thickness)
    -b 4               # Initial Heaviside beta
    -bs 100            # Iterations between beta increases
    -bm 4              # Maximum beta
    -eta 0.2           # Heaviside threshold
-   -e 1e-2            # Initial thickness-constraint tolerance (only with -thickness)
+   -e 1e-4            # Initial thickness-constraint tolerance (only with -thickness)
    -d 0.5             # Thickness-tolerance decay factor (only with -thickness)
    -di 50             # Iterations between tolerance reductions (only with -thickness)
    -ii 5              # Initial iterations before decay/convergence checks
-   -mi 300            # Maximum topology iterations
+   -mi 100            # Maximum topology iterations
    -tol 1e-15         # Stopping tolerance on max design change
    -mv 0.02           # MMA move limit
    -pc 4              # Elasticity PC: 0 Jacobi, 1 LOR diag AMG, 2 LOR mono AMG, 3 full diag AMG, 4 full mono AMG
@@ -70,12 +68,12 @@ solver_args=(
    -ert 1e-5          # Elasticity relative tolerance
    -erc 10            # Recompute true residual every N CG iterations (0 = native CG stopping)
    -cp 1              # Checkpointing: 0 off, 1 density, 2 density + thickness/MMA state
-   -restart 0         # Restart: 0 fresh, 1 density, 2 full state
+   -restart 1         # Restart: 0 fresh, 1 density, 2 full state
    -pv                # ParaView output (alt: -no-pv)
    -pvi 50            # Intermediate ParaView output every N iterations (0 = off)
    -no-vis            # No GLVis
    -opt               # Run optimization (alt: -no-opt)
-   -no-thickness      # Thickness constraint off (-no-thickness or -thickness)
+   -thickness         # Thickness constraint off (-no-thickness or -thickness)
    -rt 2              # Ray configuration: 1 radialoutward, 2 vertical +z, 3 xy plane
    -spl 1             # Solver print level: 0 quiet, 1 iterations, 2 verbose
    -dgo 1             # DG order for thickness advection (ignored with -no-thickness)

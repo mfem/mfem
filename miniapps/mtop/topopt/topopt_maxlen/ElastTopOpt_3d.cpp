@@ -852,7 +852,7 @@ int main(int argc, char *argv[])
         {
             // forward + adjoint GMRES and BlockILU
             // (print level, rel tol, abs tol, max iter, restart)
-            advect[r]->AssembleLinearSolver(solver_print, 1e-8, 1e-12, 1000, 100);
+            advect[r]->AssembleLinearSolver(solver_print, 1e-8, 1e-12, 2000, 200);
             continue;
         }
         if (minv_fa) { advect[r]->GetSolver().SetMinv(*minv_fa_mat); }
