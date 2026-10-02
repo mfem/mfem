@@ -5,6 +5,7 @@
 // Sample runs:  mpirun -np 4 ex39p
 //               mpirun -np 4 ex39p -ess "Southern Boundary"
 //               mpirun -np 4 ex39p -src Base
+//               mpirun -np 4 ex39p -m ../data/compass_nc.mesh
 //
 // Description:  This example code demonstrates the use of named attribute
 //               sets in MFEM to specify material regions, boundary regions,
