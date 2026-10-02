@@ -247,7 +247,11 @@ public:
        GetInterpolationMatrix() or GetInverseInterpolationMatrix() instead.
        For the knot location @a u one can use for instance GetBotella, GetDemko or
        GetGreville. The Demko points might be most appropriate. If no knots are
-       specified the routine will use the Demko points*/
+       specified the routine will use the Demko points.
+
+       The routines use the BandMatrix class, factorization is performed using
+       efficient LAPACK routines if available. Inefficient DenseMatrix routines
+       are used as fall-back.*/
    ///@{
    /** @brief Global curve interpolation through the points @a x (overwritten)
        at the knot location @a u. The control points of the interpolated curve
@@ -271,7 +275,11 @@ public:
 
        For the knot location one can use  for instance GetBotella, GetDemko or
        GetGreville. The Demko points might be most appropriate. If no knots are
-       specified the routine will use the Demko points*/
+       specified the routine will use the Demko points.
+
+       The routines use the BandMatrix class, factorization is performed using
+       efficient LAPACK routines if available. Inefficient DenseMatrix routines
+       are used as fall-back.*/
    ///@{
    /// Compute the global interpolation matrix using knots @a u.
    void GetInterpolationMatrix(const Vector &u, BandMatrix &A_coll) const;

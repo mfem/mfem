@@ -115,7 +115,6 @@ void BandMatrix::Reset(const DenseMatrix &dm, int bw)
    }
 }
 
-
 void BandMatrix::SetSize(int s, int bw)
 {
    MFEM_ASSERT(s >= 0, "invalid BandMatrix size: " << s);
@@ -202,14 +201,21 @@ void BandMatrix::Mult(const Vector &x, Vector &y) const
    Mult(x.HostRead(), y.HostWrite());
 }
 
-void BandMatrix::Solve(const Vector &x, Vector &y) const
+void BandMatrix::Solve(const Vector &x, Vector &y, bool verbose) const
 {
+   solve_cnt++;
+   if (solve_cnt > 1 && verbose)
+   {
+      MFEM_WARNING("BandMatrix::Solve() does not reuse the factorization\n"
+                   "Consider using BandMatrix::Inverse() or BandMatrix::Invert()\n");
+   }
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
    MatrixInverse *inv = Inverse();
    inv->Mult(x, y);
    delete inv;
+
 }
 
 void BandMatrix::Inverse(DenseMatrix &dm)

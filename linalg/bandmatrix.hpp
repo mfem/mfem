@@ -29,8 +29,9 @@ private:
    Array<real_t> data;
    int bandwidth, stride;
    real_t zero = -0.0;
+   mutable int solve_cnt = 0;
 
-   /// Replaces the given DenseMatrix @ dm with the inverse
+   /// Compute the inverse and places it in DenseMatrix @ dm
    void Inverse(DenseMatrix &dm);
 
 public:
@@ -64,7 +65,7 @@ public:
    /// Copy assignment (deep copy).
    BandMatrix &operator=(const BandMatrix &) = default;
 
-   /// Move assignment.
+   /// Move assignment
    BandMatrix &operator=(BandMatrix &&) = default;
 
    /// Construct a BandMatrix using an existing data array.
@@ -192,25 +193,35 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
 
    /// Matrix vector multiplication with the inverse.
-   /** Uses Inverse() and deletes factorisation afterwards.
-       Unnecesarily inefficient when called multiple times.
-       When solving multiple times, please consider using Inverse()
-       and reuse the factorisation, or Invert() which
-       computes an inplace inverse.*/
-   void Solve(const Vector &x, Vector &y) const;
+   /** Calls Inverse() to get a MatrixInverse and deletes it afterwards.
+       This routine is unnecesarily inefficient when called multiple times.
+       A WARNING message is given if multiple calls are done. This message
+       can be suppressed using the @a verbose flag.
+       When solving multiple times, please consider using Inverse(),
+       or Invert().*/
+   void Solve(const Vector &x, Vector &y, bool verbose = true) const;
 
    /// Returns a pointer to the matrix inverse.
-   /// Caller gets ownership.
+   /** If LAPACK routines are available a BandMatrixInverse is returned,
+       otherwise a DenseInverseMatrix is returned.
+       In the latter case is inefficient and a WARNING is issued.
+       Caller gets ownership.*/
    MatrixInverse *Inverse() const override;
 
    /// Returns a pointer to (an approximation of) the matrix inverse.
    /** If @a tol is zero or negative the exact inverse is computed.
        Otherwise the factorisation is computed with a matrix
        with a reduced bandwidth. The bandwidth is the minimum bandwidth
-       required to achieve the specified tolerance, when computing the
-       Frobenius norm of inv(approx(A))*A - I. If @a bw is specified this is the
-       bandwidth used, the result is compared with the tolerance.
-       Note: the INPUT matrix of the factorisation is reduced in bandwidth.*/
+       required to achieve the specified tolerance in the Frobenius norm of
+       inv(approx(A))*A - I.
+       The minimim bandwidth required is returned in @a bw.
+       Note: the INPUT matrix of the factorisation is reduced in bandwidth.
+
+       Routine use Inverse(), therefor
+       If LAPACK routines are available a BandMatrixInverse is returned,
+       otherwise a DenseInverseMatrix is returned.
+       In the latter case is inefficient and a WARNING is issued.
+       Caller gets ownership.*/
    MatrixInverse *Inverse(real_t tol, int &bw) const;
 
    MatrixInverse *Inverse(real_t tol) const
@@ -222,10 +233,16 @@ public:
    /// Replaces the current matrix with its inverse
    /** If @a tol is negative the exact inverse is computed, otherwise the
        resulting matrix has the minimum bandwidth to achieve the specified
-       tolerance, when computing the Frobenius norm of approx(inv(A))*A - I.
+       tolerance in the Frobenius norm of approx(inv(A))*A - I.
        If @a bw is specified this is the bandwidth used, the result is compared
-       with the tolerance. Note that in general the inverse is fully dense.
-       Note: the OUTPUT matrix of the factorisation is reduced in bandwidth.*/
+       with the tolerance. Note that in general the inverse is dense matrix.
+       Note: the OUTPUT matrix of the factorisation is reduced in bandwidth.
+
+       Routine use Inverse(eal_t tol, int &bw), therefor
+       If LAPACK routines are available a BandMatrixInverse is returned,
+       otherwise a DenseInverseMatrix is returned.
+       In the latter case is inefficient and a WARNING is issued.
+       Caller gets ownership.*/
    void Invert(real_t tol = -1.0, int bw = -1);
 
    /// Returns a reference to BandMatrix as DenseMatrix.
