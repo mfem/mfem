@@ -199,9 +199,14 @@ void ParNCMesh::BuildFaceList()
 
    face_list.Clear();
    shared_faces.Clear();
+
+   // In 2D, the boundary faces are collected by BuildEdgeList, as in the serial
+   // NCMesh::BuildFaceList.
+   if (Dim < 3) { return; }
+
    boundary_faces.SetSize(0);
 
-   if (Dim < 3 || !leaf_elements.Size()) { return; }
+   if (!leaf_elements.Size()) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
