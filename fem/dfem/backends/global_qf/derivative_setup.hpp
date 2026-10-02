@@ -175,7 +175,7 @@ struct DerivativeSetup
                      std::make_index_sequence<noutputs> {});
                }
 
-               real_t *cache_d = qp_cache.ReadWrite();
+               real_t *cache_d = qp_cache.Write();
 
                // Write yq into the cache column
                const int col = c_offset + c_shadow;
