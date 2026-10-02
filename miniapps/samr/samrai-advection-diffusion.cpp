@@ -264,8 +264,8 @@ int main(int argc, char *argv[])
    u_gf->Save("samrai-init.gf", precision);
    if (Mpi::Root())
    {
-      std::cout << "\nMFEM final solution saved to: "
-                << "samrai-final.mesh.*, samrai-final.gf.*" << std::endl;
+      std::cout << "MFEM initial condition saved to: "
+                << "samrai-init.mesh.*, samrai-init.gf.*" << std::endl;
    }
 
 
