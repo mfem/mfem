@@ -152,8 +152,8 @@ void mfem_warning(const char *msg = NULL);
    ", valid range is [" << (imin) << ',' << (imax) << ')')
 
 
-// Additional abort functions for HIP
-#if defined(__HIP_DEVICE_COMPILE__)
+// Additional abort function for HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
 template<typename T>
 __device__ void abort_msg(T & msg)
 {
@@ -162,13 +162,13 @@ __device__ void abort_msg(T & msg)
 #endif
 
 // Abort inside a device kernel
-#if defined(__CUDA_ARCH__)
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 #define MFEM_ABORT_KERNEL(...) \
    {                           \
       printf(__VA_ARGS__);     \
       asm("trap;");            \
    }
-#elif defined(__HIP_DEVICE_COMPILE__)
+#elif defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_ABORT_KERNEL(...) \
    {                           \
       printf(__VA_ARGS__);     \
