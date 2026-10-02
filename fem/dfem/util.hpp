@@ -1953,28 +1953,17 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l,
 {
    const auto P = get_prolongation(field);
 
-   // If P is nullptr or Identity, just copy
-   if (P == nullptr || dynamic_cast<const IdentityOperator *>(P.get()))
+   // Check if input is already L-vector sized (skip prolongation if so)
+   if (is_lvector && (P == nullptr || x.Size() == P->Height()))
    {
-      if (Device::Allows(Backend::DEBUG_DEVICE))
-      {
-         int n = x.Size();
-         field_l.SetSize(n);
-         bool use_dev = false; // x.UseDevice();
-         field_l.UseDevice(use_dev);
-         const auto xr = x.Read(use_dev);
-         auto fw = field_l.ReadWrite(use_dev);
-         mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { fw[i] = xr[i]; });
-      }
-      else
-      {
-         field_l = x;
-      }
+      field_l.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      field_l.UseDevice(x.UseDevice());
+      field_l.SyncMemory(x);
       return;
    }
 
-   // Check if input is already L-vector sized (skip prolongation if so)
-   if (is_lvector && x.Size() == P->Height())
+   // If P is nullptr or Identity, just copy
+   if (P == nullptr || dynamic_cast<const IdentityOperator *>(P.get()))
    {
       if (Device::Allows(Backend::DEBUG_DEVICE))
       {
@@ -2239,9 +2228,7 @@ void prolongation_transpose(
    {
       if (is_lvector)
       {
-         x[i].NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
-         x[i].UseDevice(x_l[i]->UseDevice());
-         x[i].SyncMemory(*x_l[i]);
+         x[i] = *x_l[i];
          continue;
       }
 
@@ -2291,6 +2278,7 @@ void restriction(
       if (x_e[i] == nullptr)
       {
          x_e[i] = new Vector(s);
+         x_e[i]->UseDevice(true);
       }
       x_e[i]->SetSize(s);
 
@@ -2375,10 +2363,36 @@ void restriction_transpose(
       if (x_l[i] == nullptr)
       {
          x_l[i] = new Vector(s);
+         x_l[i]->UseDevice(true);
       }
       x_l[i]->SetSize(s);
 
       R->MultTranspose(*x_e[i], *x_l[i]);
+   }
+}
+
+/// @brief Apply the transposed restrictions of @a fields straight into the
+/// blocks of @a y, which keep their own memory.
+///
+/// @see RestrictionCache
+template <typename entity_t>
+void restriction_transpose(
+   const std::vector<FieldDescriptor> &fields,
+   RestrictionCache<entity_t> &cache,
+   const std::vector<Vector *> &x_e,
+   MultiVector &y)
+{
+   cache.EnsureSetup(fields);
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      const Operator *R = cache.Get(i);
+      if (R == nullptr || cache.IsPassthrough(i))
+      {
+         y[i] = *x_e[i];
+         continue;
+      }
+      y[i].SetSize(cache.Width(i));
+      R->MultTranspose(*x_e[i], y[i]);
    }
 }
 
@@ -2409,7 +2423,11 @@ void restriction_transpose_abs(
 
       const int s = cache.Width(i);
       if (x_l[i] == x_e[i]) { x_l[i] = nullptr; }
-      if (x_l[i] == nullptr) { x_l[i] = new Vector(s); }
+      if (x_l[i] == nullptr)
+      {
+         x_l[i] = new Vector(s);
+         x_l[i]->UseDevice(true);
+      }
       x_l[i]->SetSize(s);
 
       if (const auto *ER = dynamic_cast<const ElementRestriction *>(R))

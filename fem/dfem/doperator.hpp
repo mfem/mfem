@@ -198,55 +198,29 @@ struct has_qfunc_shadow_member<T,
 : std::true_type { };
 }
 
-template <typename derivative_action_impl_t>
-derivative_action_t MakeDerivativeActionCallback(
-   derivative_action_impl_t &&impl)
+/// Wrap @a impl in a std::shared_ptr and return it as a @a callback_t, so that
+/// the copies every DerivativeOperator takes share its work buffers instead of
+/// duplicating them. Callback structs also expose the q-functions of @a impl.
+template <typename callback_t, typename impl_t>
+callback_t MakeSharedCallback(impl_t &&impl)
 {
-   using impl_t = std::decay_t<derivative_action_impl_t>;
-   auto action = std::make_shared<impl_t>(
-                    std::forward<derivative_action_impl_t>(impl));
-   derivative_action_t callback;
-   callback.apply = [action](const std::vector<Vector *> &xe,
-                             const Vector *de,
-                             std::vector<Vector *> &ye)
+   using shared_t = std::decay_t<impl_t>;
+   auto shared = std::make_shared<shared_t>(std::forward<impl_t>(impl));
+   callback_t callback = [shared](auto &&...args)
    {
-      (*action)(xe, de, ye);
+      (*shared)(std::forward<decltype(args)>(args)...);
    };
-   if constexpr (detail::has_qfunc_member<impl_t>::value)
+   if constexpr (detail::has_qfunc_member<callback_t>::value &&
+                 detail::has_qfunc_member<shared_t>::value)
    {
-      callback.qfunc = [action]() -> void * { return &action->qfunc; };
+      callback.qfunc = [shared]() -> void * { return &shared->qfunc; };
    }
-   if constexpr (detail::has_qfunc_shadow_member<impl_t>::value)
+   if constexpr (detail::has_qfunc_shadow_member<callback_t>::value &&
+                 detail::has_qfunc_shadow_member<shared_t>::value)
    {
-      callback.qfunc_shadow = [action]() -> void *
+      callback.qfunc_shadow = [shared]() -> void *
       {
-         return &action->qfunc_shadow;
-      };
-   }
-   return callback;
-}
-
-template <typename derivative_setup_impl_t>
-derivative_setup_t MakeDerivativeSetupCallback(
-   derivative_setup_impl_t &&impl)
-{
-   using impl_t = std::decay_t<derivative_setup_impl_t>;
-   auto setup = std::make_shared<impl_t>(
-                   std::forward<derivative_setup_impl_t>(impl));
-   derivative_setup_t callback;
-   callback.apply = [setup](const std::vector<Vector *> &xe)
-   {
-      (*setup)(xe);
-   };
-   if constexpr (detail::has_qfunc_member<impl_t>::value)
-   {
-      callback.qfunc = [setup]() -> void * { return &setup->qfunc; };
-   }
-   if constexpr (detail::has_qfunc_shadow_member<impl_t>::value)
-   {
-      callback.qfunc_shadow = [setup]() -> void *
-      {
-         return &setup->qfunc_shadow;
+         return &shared->qfunc_shadow;
       };
    }
    return callback;
@@ -368,7 +342,8 @@ public:
       &assemble_diagonal_callbacks = {},
       const std::vector<derivative_setup_t> &derivative_setup_callbacks = {},
       const bool lvector_mode = false,
-      const bool functional_gradient = false) :
+      const bool functional_gradient = false,
+      const bool cached_apply = false) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       infds(infds),
@@ -380,7 +355,8 @@ public:
       assemble_diagonal_callbacks(assemble_diagonal_callbacks),
       derivative_setup_callbacks(derivative_setup_callbacks),
       lvector_mode(lvector_mode),
-      functional_gradient(functional_gradient)
+      functional_gradient(functional_gradient),
+      cached_apply(cached_apply)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -483,14 +459,23 @@ public:
       MFEM_VERIFY(!derivative_actions.empty(),
                   "derivative can't be applied: the integrator was registered "
                   "without DerivativeKernels::Action");
-      EnsureQpCache();
+      if (cached_apply) { EnsureQpCache(); }
       prolongation(direction, x, direction_l, lvector_mode);
-      restriction(infds, in_rcache, infields_l, infields_e);
+      if (!cached_apply) { restriction(infds, in_rcache, infields_l, infields_e); }
       prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
          f(infields_e, &direction_l, daction_e);
+      }
+      if constexpr (std::is_same_v<vector_t, MultiVector>)
+      {
+         if (lvector_mode)
+         {
+            // Apply transposed restriction straight into the output vector.
+            restriction_transpose(outfds, out_rcache, daction_e, y);
+            return;
+         }
       }
       restriction_transpose(outfds, out_rcache, daction_e, daction_l);
       prolongation_transpose(outfds, daction_l, y, lvector_mode);
@@ -547,7 +532,7 @@ public:
                   "derivative can't be applied in transpose mode: the "
                   "integrator was registered without "
                   "DerivativeKernels::ApplyTranspose");
-      EnsureQpCache();
+      if (cached_transpose) { EnsureQpCache(); }
 
       // Prolong each output field from T-space to L-space into the
       // pre-allocated concat buffer.
@@ -571,7 +556,10 @@ public:
          }
       }
 
-      restriction(infds, in_rcache, infields_l, infields_e);
+      if (!cached_transpose)
+      {
+         restriction(infds, in_rcache, infields_l, infields_e);
+      }
 
       prepare_residual(infds, in_rcache, transpose_result_e);
       for (auto *v : transpose_result_e) { *v = 0.0; }
@@ -856,6 +844,15 @@ private:
    /// Only then the derivative can be assembled into a Vector.
    bool functional_gradient = false;
 
+   /// Whether Mult uses the cached apply instead of the direct action.
+   bool cached_apply = false;
+
+   /// Whether MultTranspose uses the cached apply.
+   /// @note This is always true for now as ApplyTranspose is based on cached QP data.
+   ///       So some ops like state restriction can therefore be skipped for now,
+   ///       but will be needed in the future if cached apply gets a MF version.
+   bool cached_transpose = true;
+
    mutable bool qp_cache_filled = false;
 
    /// @brief Ensure the qp cache is filled.
@@ -983,6 +980,15 @@ public:
       for (size_t i = 0; i < action_callbacks.size(); i++)
       {
          action_callbacks[i](infields_e, residual_e);
+      }
+      if constexpr (std::is_same_v<y_t, MultiVector>)
+      {
+         if (is_lvector)
+         {
+            // Apply transposed restriction straight into the output vector.
+            restriction_transpose(outfds, out_rcache, residual_e, y);
+            return;
+         }
       }
       restriction_transpose(outfds, out_rcache, residual_e, residual_l);
       prolongation_transpose(outfds, residual_l, y, is_lvector);
@@ -1646,7 +1652,7 @@ void DifferentiableOperator::AddIntegrator(
          if constexpr (NeedsQpCache(kernels))
          {
             setup_callbacks[callback_key].push_back(
-               MakeDerivativeSetupCallback(
+               MakeSharedCallback<derivative_setup_t>(
                   backend_t::template MakeDerivativeSetup<derivative_idx>(
                      callback_ctx, qf, inputs, outputs, callback_qp_cache)));
          }
@@ -1655,7 +1661,7 @@ void DifferentiableOperator::AddIntegrator(
          if constexpr (HasAllKernels(kernels, DerivativeKernels::Apply))
          {
             apply_callbacks[callback_key].push_back(
-               derivative_action_t(
+               MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeApply<derivative_idx>(
                      callback_ctx, qf, inputs, outputs, callback_qp_cache)));
          }
@@ -1665,7 +1671,7 @@ void DifferentiableOperator::AddIntegrator(
                                      DerivativeKernels::ApplyTranspose))
          {
             transpose_callbacks[callback_key].push_back(
-               derivative_action_t(
+               MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeApplyTranspose<derivative_idx>(
                      callback_ctx, qf, inputs, outputs, callback_qp_cache)));
          }
@@ -1686,9 +1692,10 @@ void DifferentiableOperator::AddIntegrator(
                {
                   // Assemble the derivative into a SparseMatrix
                   assemble_sparsematrix_callbacks[callback_key].push_back(
-                     backend_t::template MakeDerivativeAssemble<derivative_idx>(
-                        callback_ctx, qf, inputs, outputs, callback_qp_cache,
-                        output_groups));
+                     MakeSharedCallback<assemble_derivative_sparsematrix_callback_t>(
+                        backend_t::template MakeDerivativeAssemble<derivative_idx>(
+                           callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                           output_groups)));
 
                   // Assemble the derivative into a HypreParMatrix. This one runs
                   // every sparse callback registered under the key, so it is
@@ -1709,10 +1716,11 @@ void DifferentiableOperator::AddIntegrator(
                {
                   // Assemble the diagonal of the derivative into an L-vector
                   assemble_diagonal_cbs[callback_key].push_back(
-                     backend_t::template
-                     MakeDerivativeAssembleDiagonal<derivative_idx>(
-                        callback_ctx, qf, inputs, outputs, callback_qp_cache,
-                        output_groups));
+                     MakeSharedCallback<assemble_diagonal_callback_t>(
+                        backend_t::template
+                        MakeDerivativeAssembleDiagonal<derivative_idx>(
+                           callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                           output_groups)));
                }
             }
          }
@@ -1721,7 +1729,7 @@ void DifferentiableOperator::AddIntegrator(
          if constexpr (HasAllKernels(kernels, DerivativeKernels::Action))
          {
             action_cbs[callback_key].push_back(
-               MakeDerivativeActionCallback(
+               MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeAction<derivative_idx>(
                      callback_ctx, qf, inputs, outputs)));
          }
@@ -1820,9 +1828,10 @@ void DifferentiableOperator::AddIntegrator(
          // DerivativeOperator passes a direction to its action callbacks; the
          // gradient is a function of the captured state only, so the direction
          // is ignored here.
-         auto grad_action =
+         auto grad_impl =
             backend_t::MakeAction(first_derivative_ctx, dqfunc, inputs,
                                   first_derivative_outputs);
+         auto grad_action = MakeSharedCallback<action_t>(std::move(grad_impl));
          derivative_action_callbacks[idx].push_back(
             [grad_action](const std::vector<Vector *> &xe,
                           const Vector * /*direction*/,

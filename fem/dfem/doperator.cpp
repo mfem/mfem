@@ -132,7 +132,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
              FindOrEmpty(callbacks.assemble_diagonal, derivative_id),
              FindOrEmpty(callbacks.setup, derivative_id),
              lvector_mode,
-             functional_gradient);
+             functional_gradient,
+             cached_actions != nullptr);
 }
 
 template <typename vector_t>
@@ -182,7 +183,9 @@ std::shared_ptr<DerivativeOperator> MakeStatefulSecondDerivativeOperator(
              FindOrEmpty(callbacks.assemble_hypre, derivative_key),
              FindOrEmpty(callbacks.assemble_diagonal, derivative_key),
              FindOrEmpty(callbacks.setup, derivative_key),
-             lvector_mode);
+             lvector_mode,
+             false,
+             cached_actions != nullptr);
 }
 }
 
