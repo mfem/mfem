@@ -13,6 +13,7 @@
 #define MFEM_ERROR_ESTIMATORS
 
 #include <functional>
+#include <memory>
 
 #include "../config/config.hpp"
 #include "../linalg/vector.hpp"
@@ -692,10 +693,43 @@ public:
 };
 
 /** @brief Abstract element estimator, analogous to LinearFormIntegrator. */
+/** @brief Shared data prepared before an error-estimator sweep. */
+class ErrorEstimatorData
+{
+public:
+   /** Update the data for the current solution and mesh. */
+   virtual void Update() = 0;
+   virtual ~ErrorEstimatorData() { }
+};
+
+/** @brief Coordinates shared data preparation during one estimator sweep. */
+class ErrorEstimatorContext
+{
+private:
+   Array<ErrorEstimatorData*> prepared_;
+
+public:
+   /** Ensure that @a data is updated exactly once in this sweep. */
+   void Ensure(ErrorEstimatorData &data)
+   {
+      for (auto *prepared : prepared_)
+      {
+         if (prepared == &data) { return; }
+      }
+      data.Update();
+      prepared_.Append(&data);
+   }
+};
+
 class DomainErrorEstimator
 {
 public:
-   /** Return the non-negative contribution for one mesh element. */
+   /** Prepare data required by this estimator before element evaluation. */
+   virtual void Prepare(ErrorEstimatorContext &) { }
+   /** Return a non-negative squared-error contribution for one mesh element.
+
+       GeneralErrorEstimator sums all element and face contributions, then
+       takes the square root to form its local error indicator. */
    virtual real_t GetElementError(const FiniteElement &el,
                                   ElementTransformation &Tr) = 0;
    virtual ~DomainErrorEstimator() { }
@@ -705,6 +739,8 @@ public:
 class FaceErrorEstimator
 {
 public:
+   /** Prepare data required by this estimator before face evaluation. */
+   virtual void Prepare(ErrorEstimatorContext &) { }
    /** Prepare face-neighbor data before evaluating parallel shared faces.
 
        The default implementation is a no-op. Face estimators which evaluate
@@ -712,13 +748,15 @@ public:
        override this method and exchange the needed data here. */
    virtual void ExchangeFaceNbrData() { }
 
-   /** Return contributions for the two elements adjacent to an interior face. */
+   /** Return squared-error contributions for the two elements adjacent to an
+       interior face. */
    virtual void GetFaceError(const FiniteElement &el1, const FiniteElement &el2,
                              FaceElementTransformations &Tr,
                              real_t &error1, real_t &error2)
    { MFEM_ABORT("interior face estimation is not implemented"); }
 
-   /** Return the contribution for the element adjacent to a boundary face. */
+   /** Return the squared-error contribution for the element adjacent to a
+       boundary face. */
    virtual real_t GetFaceError(const FiniteElement &el,
                                FaceElementTransformations &Tr)
    { MFEM_ABORT("boundary face estimation is not implemented"); }
@@ -753,7 +791,10 @@ public:
    /** Return the global L2 norm of the local element indicators. */
    real_t GetTotalError() const override;
 
-   /// Get a Vector with all element errors.
+   /** Get a Vector with all local error indicators.
+
+       Contributions supplied by DomainErrorEstimator and FaceErrorEstimator
+       are accumulated as squared errors and square-rooted elementwise. */
    const Vector &GetLocalErrors() override;
 
    /// Force recomputation of the estimates on the next call to GetLocalErrors.

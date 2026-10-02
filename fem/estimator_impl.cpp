@@ -15,6 +15,162 @@
 namespace mfem
 {
 
+namespace
+{
+real_t GlobalMaxwellEstimatorError(const FiniteElementSpace *fes,
+                                   const real_t local_error)
+{
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(fes))
+   {
+      real_t global_error_sq = 0.0;
+      const real_t local_error_sq = local_error * local_error;
+      MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, pfes->GetComm());
+      return sqrt(global_error_sq);
+   }
+#endif
+   return local_error;
+}
+}
+
+real_t MaxwellResidualEstimator::GetTotalError() const
+{
+   return GlobalMaxwellEstimatorError(solution.FESpace(), total_error);
+}
+
+real_t ComplexMaxwellResidualEstimator::GetTotalError() const
+{
+   return GlobalMaxwellEstimatorError(solution.FESpace(), total_error);
+}
+
+MaxwellResidualFields::MaxwellResidualFields(GridFunction &solution_,
+                                             Coefficient &epsilon_,
+                                             Coefficient &mu_inv_, int order_)
+   : solution(solution_), epsilon(&epsilon_), epsilon_matrix(nullptr),
+     mu_inv(mu_inv_), order(order_) { }
+
+MaxwellResidualFields::MaxwellResidualFields(GridFunction &solution_,
+                                             MatrixCoefficient &epsilon_,
+                                             Coefficient &mu_inv_, int order_)
+   : solution(solution_), epsilon(nullptr), epsilon_matrix(&epsilon_),
+     mu_inv(mu_inv_), order(order_) { }
+
+MaxwellResidualFields::~MaxwellResidualFields() = default;
+
+void MaxwellResidualFields::BuildSpaces()
+{
+   Mesh *mesh = solution.FESpace()->GetMesh();
+   h.reset(); d.reset();
+   h_fes.reset(); d_fes.reset();
+   h_fec.reset(); d_fec.reset();
+   h_fec = std::make_unique<L2_FECollection>(std::max(0, order - 1), 3);
+   d_fec = std::make_unique<L2_FECollection>(order, 3);
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(solution.FESpace()))
+   {
+      ParMesh *pmesh = pfes->GetParMesh();
+      h_fes = std::make_unique<ParFiniteElementSpace>(pmesh, h_fec.get(), 3,
+                                                      Ordering::byVDIM);
+      d_fes = std::make_unique<ParFiniteElementSpace>(pmesh, d_fec.get(), 3,
+                                                      Ordering::byVDIM);
+      h = std::make_unique<ParGridFunction>(
+             static_cast<ParFiniteElementSpace*>(h_fes.get()));
+      d = std::make_unique<ParGridFunction>(
+             static_cast<ParFiniteElementSpace*>(d_fes.get()));
+   }
+   else
+#endif
+   {
+      h_fes = std::make_unique<FiniteElementSpace>(mesh, h_fec.get(), 3,
+                                                   Ordering::byVDIM);
+      d_fes = std::make_unique<FiniteElementSpace>(mesh, d_fec.get(), 3,
+                                                   Ordering::byVDIM);
+      h = std::make_unique<GridFunction>(h_fes.get());
+      d = std::make_unique<GridFunction>(d_fes.get());
+   }
+   mesh_sequence = mesh->GetSequence();
+}
+
+void MaxwellResidualFields::Update()
+{
+   MFEM_VERIFY(order > 0, "order must be positive.");
+   if (!h || mesh_sequence != solution.FESpace()->GetMesh()->GetSequence())
+   {
+      BuildSpaces();
+   }
+   if (epsilon) { BuildMaxwellResidualFields(solution, mu_inv, *epsilon, *h, *d); }
+   else { BuildMaxwellResidualFields(solution, mu_inv, *epsilon_matrix, *h, *d); }
+}
+
+ComplexMaxwellResidualFields::ComplexMaxwellResidualFields(
+   ComplexGridFunction &solution_, MatrixCoefficient &epsilon_real_,
+   MatrixCoefficient &epsilon_imag_, Coefficient &mu_inv_, int order_)
+   : solution(solution_), epsilon_real(&epsilon_real_),
+     epsilon_imag(&epsilon_imag_),
+     epsilon_real_scalar(nullptr), epsilon_imag_scalar(nullptr), mu_inv(mu_inv_),
+     order(order_) { }
+
+ComplexMaxwellResidualFields::ComplexMaxwellResidualFields(
+   ComplexGridFunction &solution_, Coefficient &epsilon_real_,
+   Coefficient &epsilon_imag_, Coefficient &mu_inv_, int order_)
+   : solution(solution_), epsilon_real(nullptr), epsilon_imag(nullptr),
+     epsilon_real_scalar(&epsilon_real_), epsilon_imag_scalar(&epsilon_imag_),
+     mu_inv(mu_inv_), order(order_) { }
+
+ComplexMaxwellResidualFields::~ComplexMaxwellResidualFields() = default;
+
+void ComplexMaxwellResidualFields::BuildSpaces()
+{
+   Mesh *mesh = solution.FESpace()->GetMesh();
+   h.reset(); d.reset();
+   h_fes.reset(); d_fes.reset();
+   h_fec.reset(); d_fec.reset();
+   h_fec = std::make_unique<L2_FECollection>(std::max(0, order - 1), 3);
+   d_fec = std::make_unique<L2_FECollection>(order, 3);
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(solution.FESpace()))
+   {
+      ParMesh *pmesh = pfes->GetParMesh();
+      h_fes = std::make_unique<ParFiniteElementSpace>(pmesh, h_fec.get(), 3,
+                                                      Ordering::byVDIM);
+      d_fes = std::make_unique<ParFiniteElementSpace>(pmesh, d_fec.get(), 3,
+                                                      Ordering::byVDIM);
+      h = std::make_unique<ComplexGridFunction>(h_fes.get());
+      d = std::make_unique<ComplexGridFunction>(d_fes.get());
+   }
+   else
+#endif
+   {
+      h_fes = std::make_unique<FiniteElementSpace>(mesh, h_fec.get(), 3,
+                                                   Ordering::byVDIM);
+      d_fes = std::make_unique<FiniteElementSpace>(mesh, d_fec.get(), 3,
+                                                   Ordering::byVDIM);
+      h = std::make_unique<ComplexGridFunction>(h_fes.get());
+      d = std::make_unique<ComplexGridFunction>(d_fes.get());
+   }
+   mesh_sequence = mesh->GetSequence();
+}
+
+void ComplexMaxwellResidualFields::Update()
+{
+   MFEM_VERIFY(order > 0, "order must be positive.");
+   if (!h || mesh_sequence != solution.FESpace()->GetMesh()->GetSequence())
+   {
+      BuildSpaces();
+   }
+   if (epsilon_real_scalar)
+   {
+      BuildComplexMaxwellResidualFields(solution, mu_inv, *epsilon_real_scalar,
+                                        *epsilon_imag_scalar, *h, *d);
+   }
+   else
+   {
+      BuildComplexMaxwellResidualFields(solution, mu_inv, *epsilon_real,
+                                        *epsilon_imag, *h, *d);
+   }
+}
+
 real_t MaxwellResidualEstimator::EpsilonMin(ElementTransformation &trans,
                                             const IntegrationPoint &ip) const
 {
@@ -353,15 +509,37 @@ MaxwellResidualDomainEstimator::MaxwellResidualDomainEstimator(
    GridFunction &solution_, GridFunction &source_, GridFunction &h_,
    GridFunction &d_,
    Coefficient &epsilon_, Coefficient &mu_inv_, real_t omega_, int order_)
-   : solution(solution_), source(source_), h(h_), d(d_), epsilon(&epsilon_),
+   : solution(solution_), source(source_), h(&h_), d(&d_),
+     epsilon(&epsilon_),
      epsilon_matrix(nullptr), mu_inv(mu_inv_), omega(omega_), order(order_) { }
 
 MaxwellResidualDomainEstimator::MaxwellResidualDomainEstimator(
    GridFunction &solution_, GridFunction &source_, GridFunction &h_,
    GridFunction &d_,
    MatrixCoefficient &epsilon_, Coefficient &mu_inv_, real_t omega_, int order_)
-   : solution(solution_), source(source_), h(h_), d(d_), epsilon(nullptr),
+   : solution(solution_), source(source_), h(&h_), d(&d_), epsilon(nullptr),
      epsilon_matrix(&epsilon_), mu_inv(mu_inv_), omega(omega_), order(order_) { }
+
+MaxwellResidualDomainEstimator::MaxwellResidualDomainEstimator(
+   GridFunction &solution_, GridFunction &source_,
+   std::shared_ptr<MaxwellResidualFields> fields_, Coefficient &epsilon_,
+   Coefficient &mu_inv_, real_t omega_, int order_)
+   : solution(solution_), source(source_), h(nullptr), d(nullptr),
+     fields(std::move(fields_)), epsilon(&epsilon_), epsilon_matrix(nullptr),
+     mu_inv(mu_inv_), omega(omega_), order(order_)
+{ MFEM_VERIFY(fields, "Maxwell residual fields must be provided."); }
+
+MaxwellResidualDomainEstimator::MaxwellResidualDomainEstimator(
+   GridFunction &solution_, GridFunction &source_,
+   std::shared_ptr<MaxwellResidualFields> fields_, MatrixCoefficient &epsilon_,
+   Coefficient &mu_inv_, real_t omega_, int order_)
+   : solution(solution_), source(source_), h(nullptr), d(nullptr),
+     fields(std::move(fields_)), epsilon(nullptr), epsilon_matrix(&epsilon_),
+     mu_inv(mu_inv_), omega(omega_), order(order_)
+{ MFEM_VERIFY(fields, "Maxwell residual fields must be provided."); }
+
+void MaxwellResidualDomainEstimator::Prepare(ErrorEstimatorContext &context)
+{ if (fields) { context.Ensure(*fields); } }
 
 real_t MaxwellResidualDomainEstimator::EpsilonMin(
    ElementTransformation &trans, const IntegrationPoint &ip) const
@@ -395,6 +573,8 @@ real_t MaxwellResidualDomainEstimator::GetElementError(const FiniteElement &el,
                                                        ElementTransformation &tr)
 {
    MFEM_VERIFY(omega > 0.0 && order > 0, "omega and order must be positive.");
+   GridFunction &h_field = fields ? fields->H() : *h;
+   GridFunction &d_field = fields ? fields->D() : *d;
    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
                                             std::max(2 * el.GetOrder() + 2, 2));
    const IntegrationPoint &center = Geometries.GetCenter(el.GetGeomType());
@@ -414,9 +594,10 @@ real_t MaxwellResidualDomainEstimator::GetElementError(const FiniteElement &el,
          DenseMatrix eps_tensor; epsilon_matrix->Eval(eps_tensor, tr, ip);
          eps_tensor.Mult(e, eps_e); residual.Add(omega * omega, eps_e);
       }
-      h.GetCurl(tr, curl_h); residual -= curl_h;
+      h_field.GetCurl(tr, curl_h); residual -= curl_h;
       curl_term += (residual * residual) * ip.weight * tr.Weight();
-      const real_t div = source.GetDivergence(tr) + omega * omega * d.GetDivergence(
+      const real_t div = source.GetDivergence(tr) + omega * omega *
+                         d_field.GetDivergence(
                             tr);
       div_term += div * div * ip.weight * tr.Weight();
    }
@@ -428,15 +609,32 @@ real_t MaxwellResidualDomainEstimator::GetElementError(const FiniteElement &el,
 MaxwellResidualFaceEstimator::MaxwellResidualFaceEstimator(
    GridFunction &h_, GridFunction &d_, Coefficient &epsilon_, Coefficient &mu_inv_,
    real_t omega_, int order_)
-   : h(h_), d(d_), epsilon(&epsilon_), epsilon_matrix(nullptr), mu_inv(mu_inv_),
+   : h(&h_), d(&d_), epsilon(&epsilon_), epsilon_matrix(nullptr), mu_inv(mu_inv_),
      omega(omega_), order(order_) { }
 
 MaxwellResidualFaceEstimator::MaxwellResidualFaceEstimator(
    GridFunction &h_, GridFunction &d_, MatrixCoefficient &epsilon_,
    Coefficient &mu_inv_,
    real_t omega_, int order_)
-   : h(h_), d(d_), epsilon(nullptr), epsilon_matrix(&epsilon_), mu_inv(mu_inv_),
+   : h(&h_), d(&d_), epsilon(nullptr), epsilon_matrix(&epsilon_), mu_inv(mu_inv_),
      omega(omega_), order(order_) { }
+
+MaxwellResidualFaceEstimator::MaxwellResidualFaceEstimator(
+   std::shared_ptr<MaxwellResidualFields> fields_, Coefficient &epsilon_,
+   Coefficient &mu_inv_, real_t omega_, int order_)
+   : h(nullptr), d(nullptr), fields(std::move(fields_)), epsilon(&epsilon_),
+     epsilon_matrix(nullptr), mu_inv(mu_inv_), omega(omega_), order(order_)
+{ MFEM_VERIFY(fields, "Maxwell residual fields must be provided."); }
+
+MaxwellResidualFaceEstimator::MaxwellResidualFaceEstimator(
+   std::shared_ptr<MaxwellResidualFields> fields_, MatrixCoefficient &epsilon_,
+   Coefficient &mu_inv_, real_t omega_, int order_)
+   : h(nullptr), d(nullptr), fields(std::move(fields_)), epsilon(nullptr),
+     epsilon_matrix(&epsilon_), mu_inv(mu_inv_), omega(omega_), order(order_)
+{ MFEM_VERIFY(fields, "Maxwell residual fields must be provided."); }
+
+void MaxwellResidualFaceEstimator::Prepare(ErrorEstimatorContext &context)
+{ if (fields) { context.Ensure(*fields); } }
 
 real_t MaxwellResidualFaceEstimator::EpsilonMin(
    ElementTransformation &trans, const IntegrationPoint &ip) const
@@ -447,6 +645,8 @@ void MaxwellResidualFaceEstimator::GetFaceError(
    real_t &error1, real_t &error2)
 {
    MFEM_VERIFY(omega > 0.0 && order > 0, "omega and order must be positive.");
+   GridFunction &h_field = fields ? fields->H() : *h;
+   GridFunction &d_field = fields ? fields->D() : *d;
    const IntegrationRule &ir = IntRules.Get(tr.FaceGeom,
                                             std::max(2 * el1.GetOrder() + 2, 2));
    Vector h1(3), h2(3), d1(3), d2(3), normal(3), jump(3);
@@ -455,17 +655,17 @@ void MaxwellResidualFaceEstimator::GetFaceError(
    {
       const IntegrationPoint &ip = ir.IntPoint(q); tr.SetAllIntPoints(&ip);
       CalcOrtho(tr.Face->Jacobian(), normal);
-      h.GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), h1);
-      h.GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), h2); h1 -= h2;
+      h_field.GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), h1);
+      h_field.GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), h2); h1 -= h2;
       normal.cross3D(h1, jump);
       tangential += (jump * jump) * ip.weight * tr.Face->Weight();
-      d.GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), d1);
-      d.GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), d2); d1 -= d2;
+      d_field.GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), d1);
+      d_field.GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), d2); d1 -= d2;
       normal_jump += pow(normal * d1, 2) * ip.weight * tr.Face->Weight();
    }
    auto contribution = [&](int el)
    {
-      Mesh *mesh = h.FESpace()->GetMesh();
+      Mesh *mesh = h_field.FESpace()->GetMesh();
       ElementTransformation *et = NULL;
       real_t he = 0.0;
       if (el < mesh->GetNE())
@@ -482,7 +682,7 @@ void MaxwellResidualFaceEstimator::GetFaceError(
       }
 #endif
       else { MFEM_ABORT("invalid element number in face estimator"); }
-      const IntegrationPoint &center = Geometries.GetCenter(h.FESpace()->GetFE(
+      const IntegrationPoint &center = Geometries.GetCenter(h_field.FESpace()->GetFE(
                                                                el)->GetGeomType());
       et->SetIntPoint(&center);
       const real_t eps = EpsilonMin(*et, center), mu = 1.0 / mu_inv.Eval(*et, center);
@@ -496,11 +696,13 @@ void MaxwellResidualFaceEstimator::GetFaceError(
 void MaxwellResidualFaceEstimator::ExchangeFaceNbrData()
 {
 #ifdef MFEM_USE_MPI
-   if (auto *ph = dynamic_cast<ParGridFunction*>(&h))
+   GridFunction &h_field = fields ? fields->H() : *h;
+   GridFunction &d_field = fields ? fields->D() : *d;
+   if (auto *ph = dynamic_cast<ParGridFunction*>(&h_field))
    {
       ph->ExchangeFaceNbrData();
    }
-   if (auto *pd = dynamic_cast<ParGridFunction*>(&d))
+   if (auto *pd = dynamic_cast<ParGridFunction*>(&d_field))
    {
       pd->ExchangeFaceNbrData();
    }
@@ -523,7 +725,7 @@ ComplexMaxwellResidualDomainEstimator::ComplexMaxwellResidualDomainEstimator(
    ComplexGridFunction &s, ComplexGridFunction &j, ComplexGridFunction &h_,
    ComplexGridFunction &d_, MatrixCoefficient &er, MatrixCoefficient &ei,
    Coefficient &mu, real_t w, int p)
-   : solution(s), source(j), h(h_), d(d_), epsilon_real(&er), epsilon_imag(&ei),
+   : solution(s), source(j), h(&h_), d(&d_), epsilon_real(&er), epsilon_imag(&ei),
      epsilon_real_scalar(nullptr), epsilon_imag_scalar(nullptr), mu_inv(mu),
      omega(w), order(p) { }
 
@@ -531,10 +733,32 @@ ComplexMaxwellResidualDomainEstimator::ComplexMaxwellResidualDomainEstimator(
    ComplexGridFunction &s, ComplexGridFunction &j, ComplexGridFunction &h_,
    ComplexGridFunction &d_, Coefficient &er, Coefficient &ei, Coefficient &mu,
    real_t w, int p)
-   : solution(s), source(j), h(h_), d(d_), epsilon_real(nullptr),
+   : solution(s), source(j), h(&h_), d(&d_), epsilon_real(nullptr),
      epsilon_imag(nullptr),
      epsilon_real_scalar(&er), epsilon_imag_scalar(&ei), mu_inv(mu), omega(w),
      order(p) { }
+
+ComplexMaxwellResidualDomainEstimator::ComplexMaxwellResidualDomainEstimator(
+   ComplexGridFunction &s, ComplexGridFunction &j,
+   std::shared_ptr<ComplexMaxwellResidualFields> fields_,
+   MatrixCoefficient &er, MatrixCoefficient &ei, Coefficient &mu, real_t w, int p)
+   : solution(s), source(j), h(nullptr), d(nullptr), fields(std::move(fields_)),
+     epsilon_real(&er), epsilon_imag(&ei), epsilon_real_scalar(nullptr),
+     epsilon_imag_scalar(nullptr), mu_inv(mu), omega(w), order(p)
+{ MFEM_VERIFY(fields, "Complex Maxwell residual fields must be provided."); }
+
+ComplexMaxwellResidualDomainEstimator::ComplexMaxwellResidualDomainEstimator(
+   ComplexGridFunction &s, ComplexGridFunction &j,
+   std::shared_ptr<ComplexMaxwellResidualFields> fields_, Coefficient &er,
+   Coefficient &ei, Coefficient &mu, real_t w, int p)
+   : solution(s), source(j), h(nullptr), d(nullptr), fields(std::move(fields_)),
+     epsilon_real(nullptr), epsilon_imag(nullptr), epsilon_real_scalar(&er),
+     epsilon_imag_scalar(&ei), mu_inv(mu), omega(w), order(p)
+{ MFEM_VERIFY(fields, "Complex Maxwell residual fields must be provided."); }
+
+void ComplexMaxwellResidualDomainEstimator::Prepare(ErrorEstimatorContext
+                                                    &context)
+{ if (fields) { context.Ensure(*fields); } }
 
 real_t ComplexMaxwellResidualDomainEstimator::EpsilonMin(
    ElementTransformation &tr, const IntegrationPoint &ip) const
@@ -575,6 +799,8 @@ void BuildComplexMaxwellResidualFields(ComplexGridFunction &solution,
 real_t ComplexMaxwellResidualDomainEstimator::GetElementError(
    const FiniteElement &el, ElementTransformation &tr)
 {
+   ComplexGridFunction &h_field = fields ? fields->H() : *h;
+   ComplexGridFunction &d_field = fields ? fields->D() : *d;
    const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
                                             std::max(2 * el.GetOrder() + 2, 2));
    const IntegrationPoint &c = Geometries.GetCenter(el.GetGeomType());
@@ -595,19 +821,19 @@ real_t ComplexMaxwellResidualDomainEstimator::GetElementError(
          b *= epsilon_imag_scalar->Eval(tr, ip);
       }
       else { DenseMatrix ar, ai; epsilon_real->Eval(ar, tr, ip); epsilon_imag->Eval(ai, tr, ip); ar.Mult(evr, a); ai.Mult(evi, b); }
-      a -= b; rr.Add(omega * omega, a); h.real().GetCurl(tr, cr); rr -= cr;
+      a -= b; rr.Add(omega * omega, a); h_field.real().GetCurl(tr, cr); rr -= cr;
       if (epsilon_real_scalar)
       {
          a = evi; a *= epsilon_real_scalar->Eval(tr, ip); b = evr;
          b *= epsilon_imag_scalar->Eval(tr, ip);
       }
       else { DenseMatrix ar, ai; epsilon_real->Eval(ar, tr, ip); epsilon_imag->Eval(ai, tr, ip); ar.Mult(evi, a); ai.Mult(evr, b); }
-      a += b; ri.Add(omega * omega, a); h.imag().GetCurl(tr, ci); ri -= ci;
+      a += b; ri.Add(omega * omega, a); h_field.imag().GetCurl(tr, ci); ri -= ci;
       curl_term += (rr * rr + ri * ri) * ip.weight * tr.Weight();
       const real_t dr = source.real().GetDivergence(tr) + omega * omega *
-                        d.real().GetDivergence(tr);
+                        d_field.real().GetDivergence(tr);
       const real_t di = source.imag().GetDivergence(tr) + omega * omega *
-                        d.imag().GetDivergence(tr);
+                        d_field.imag().GetDivergence(tr);
       div_term += (dr * dr + di * di) * ip.weight * tr.Weight();
    }
    const real_t he = solution.FESpace()->GetMesh()->GetElementSize(tr.ElementNo);
@@ -618,7 +844,7 @@ real_t ComplexMaxwellResidualDomainEstimator::GetElementError(
 ComplexMaxwellResidualFaceEstimator::ComplexMaxwellResidualFaceEstimator(
    ComplexGridFunction &h_, ComplexGridFunction &d_, MatrixCoefficient &er,
    MatrixCoefficient &ei, Coefficient &mu, real_t w, int p)
-   : h(h_), d(d_), epsilon_real(&er), epsilon_imag(&ei),
+   : h(&h_), d(&d_), epsilon_real(&er), epsilon_imag(&ei),
      epsilon_real_scalar(nullptr),
      epsilon_imag_scalar(nullptr), mu_inv(mu), omega(w), order(p) { }
 
@@ -626,9 +852,29 @@ ComplexMaxwellResidualFaceEstimator::ComplexMaxwellResidualFaceEstimator(
    ComplexGridFunction &h_, ComplexGridFunction &d_, Coefficient &er,
    Coefficient &ei,
    Coefficient &mu, real_t w, int p)
-   : h(h_), d(d_), epsilon_real(nullptr), epsilon_imag(nullptr),
+   : h(&h_), d(&d_), epsilon_real(nullptr), epsilon_imag(nullptr),
      epsilon_real_scalar(&er),
      epsilon_imag_scalar(&ei), mu_inv(mu), omega(w), order(p) { }
+
+ComplexMaxwellResidualFaceEstimator::ComplexMaxwellResidualFaceEstimator(
+   std::shared_ptr<ComplexMaxwellResidualFields> fields_, MatrixCoefficient &er,
+   MatrixCoefficient &ei, Coefficient &mu, real_t w, int p)
+   : h(nullptr), d(nullptr), fields(std::move(fields_)), epsilon_real(&er),
+     epsilon_imag(&ei), epsilon_real_scalar(nullptr), epsilon_imag_scalar(nullptr),
+     mu_inv(mu), omega(w), order(p)
+{ MFEM_VERIFY(fields, "Complex Maxwell residual fields must be provided."); }
+
+ComplexMaxwellResidualFaceEstimator::ComplexMaxwellResidualFaceEstimator(
+   std::shared_ptr<ComplexMaxwellResidualFields> fields_, Coefficient &er,
+   Coefficient &ei, Coefficient &mu, real_t w, int p)
+   : h(nullptr), d(nullptr), fields(std::move(fields_)), epsilon_real(nullptr),
+     epsilon_imag(nullptr), epsilon_real_scalar(&er), epsilon_imag_scalar(&ei),
+     mu_inv(mu), omega(w), order(p)
+{ MFEM_VERIFY(fields, "Complex Maxwell residual fields must be provided."); }
+
+void ComplexMaxwellResidualFaceEstimator::Prepare(ErrorEstimatorContext
+                                                  &context)
+{ if (fields) { context.Ensure(*fields); } }
 
 real_t ComplexMaxwellResidualFaceEstimator::EpsilonMin(
    ElementTransformation &tr, const IntegrationPoint &ip) const
@@ -638,6 +884,8 @@ void ComplexMaxwellResidualFaceEstimator::GetFaceError(
    const FiniteElement &el1, const FiniteElement &, FaceElementTransformations &tr,
    real_t &error1, real_t &error2)
 {
+   ComplexGridFunction &h_field = fields ? fields->H() : *h;
+   ComplexGridFunction &d_field = fields ? fields->D() : *d;
    const IntegrationRule &ir = IntRules.Get(tr.FaceGeom,
                                             std::max(2 * el1.GetOrder() + 2, 2));
    Vector a(3), b(3), n(3), jr(3), ji(3);
@@ -646,23 +894,23 @@ void ComplexMaxwellResidualFaceEstimator::GetFaceError(
    {
       const IntegrationPoint &ip = ir.IntPoint(q); tr.SetAllIntPoints(&ip);
       CalcOrtho(tr.Face->Jacobian(), n);
-      h.real().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
-      h.real().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
+      h_field.real().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
+      h_field.real().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
       n.cross3D(a, jr);
-      h.imag().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
-      h.imag().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
+      h_field.imag().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
+      h_field.imag().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
       n.cross3D(a, ji);
       tangential += (jr * jr + ji * ji) * ip.weight * tr.Face->Weight();
-      d.real().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
-      d.real().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
+      d_field.real().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
+      d_field.real().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
       const real_t nr = n * a;
-      d.imag().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
-      d.imag().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
+      d_field.imag().GetVectorValue(*tr.Elem1, tr.GetElement1IntPoint(), a);
+      d_field.imag().GetVectorValue(*tr.Elem2, tr.GetElement2IntPoint(), b); a -= b;
       normal_jump += (nr * nr + pow(n * a, 2)) * ip.weight * tr.Face->Weight();
    }
    auto contribution = [&](int el)
    {
-      Mesh *mesh = h.FESpace()->GetMesh();
+      Mesh *mesh = h_field.FESpace()->GetMesh();
       ElementTransformation *et = NULL;
       real_t he = 0.0;
       if (el < mesh->GetNE())
@@ -679,7 +927,7 @@ void ComplexMaxwellResidualFaceEstimator::GetFaceError(
       }
 #endif
       else { MFEM_ABORT("invalid element number in face estimator"); }
-      const IntegrationPoint &c = Geometries.GetCenter(h.FESpace()->GetFE(
+      const IntegrationPoint &c = Geometries.GetCenter(h_field.FESpace()->GetFE(
                                                           el)->GetGeomType()); et->SetIntPoint(&c);
       const real_t eps = EpsilonMin(*et, c), mu = 1.0 / mu_inv.Eval(*et, c);
       return mu * he / order * tangential + omega * omega * he /
@@ -691,19 +939,21 @@ void ComplexMaxwellResidualFaceEstimator::GetFaceError(
 void ComplexMaxwellResidualFaceEstimator::ExchangeFaceNbrData()
 {
 #ifdef MFEM_USE_MPI
-   if (auto *ph_real = dynamic_cast<ParGridFunction*>(&h.real()))
+   ComplexGridFunction &h_field = fields ? fields->H() : *h;
+   ComplexGridFunction &d_field = fields ? fields->D() : *d;
+   if (auto *ph_real = dynamic_cast<ParGridFunction*>(&h_field.real()))
    {
       ph_real->ExchangeFaceNbrData();
    }
-   if (auto *ph_imag = dynamic_cast<ParGridFunction*>(&h.imag()))
+   if (auto *ph_imag = dynamic_cast<ParGridFunction*>(&h_field.imag()))
    {
       ph_imag->ExchangeFaceNbrData();
    }
-   if (auto *pd_real = dynamic_cast<ParGridFunction*>(&d.real()))
+   if (auto *pd_real = dynamic_cast<ParGridFunction*>(&d_field.real()))
    {
       pd_real->ExchangeFaceNbrData();
    }
-   if (auto *pd_imag = dynamic_cast<ParGridFunction*>(&d.imag()))
+   if (auto *pd_imag = dynamic_cast<ParGridFunction*>(&d_field.imag()))
    {
       pd_imag->ExchangeFaceNbrData();
    }
@@ -760,6 +1010,64 @@ real_t ComplexMaxwellNeumannBCErrorEstimator::GetFaceError(
    const FiniteElement &el, FaceElementTransformations &tr)
 {
    return ComplexTangentialTraceError(magnetic_flux, data_real, data_imag, el, tr);
+}
+
+void AddMaxwellResidualEstimators(GeneralErrorEstimator &estimator,
+                                  GridFunction &solution, GridFunction &source,
+                                  Coefficient &epsilon, Coefficient &mu_inv,
+                                  real_t omega, int order)
+{
+   auto fields = std::make_shared<MaxwellResidualFields>(solution, epsilon,
+                                                         mu_inv, order);
+   estimator.AddDomainEstimator(new MaxwellResidualDomainEstimator(
+                                   solution, source, fields, epsilon, mu_inv,
+                                   omega, order));
+   estimator.AddInteriorFaceEstimator(new MaxwellResidualFaceEstimator(
+                                         fields, epsilon, mu_inv, omega, order));
+}
+
+void AddMaxwellResidualEstimators(GeneralErrorEstimator &estimator,
+                                  GridFunction &solution, GridFunction &source,
+                                  MatrixCoefficient &epsilon, Coefficient &mu_inv,
+                                  real_t omega, int order)
+{
+   auto fields = std::make_shared<MaxwellResidualFields>(solution, epsilon,
+                                                         mu_inv, order);
+   estimator.AddDomainEstimator(new MaxwellResidualDomainEstimator(
+                                   solution, source, fields, epsilon, mu_inv,
+                                   omega, order));
+   estimator.AddInteriorFaceEstimator(new MaxwellResidualFaceEstimator(
+                                         fields, epsilon, mu_inv, omega, order));
+}
+
+void AddComplexMaxwellResidualEstimators(
+   GeneralErrorEstimator &estimator, ComplexGridFunction &solution,
+   ComplexGridFunction &source, MatrixCoefficient &epsilon_real,
+   MatrixCoefficient &epsilon_imag, Coefficient &mu_inv, real_t omega, int order)
+{
+   auto fields = std::make_shared<ComplexMaxwellResidualFields>(
+                    solution, epsilon_real, epsilon_imag, mu_inv, order);
+   estimator.AddDomainEstimator(new ComplexMaxwellResidualDomainEstimator(
+                                   solution, source, fields, epsilon_real,
+                                   epsilon_imag, mu_inv, omega, order));
+   estimator.AddInteriorFaceEstimator(new ComplexMaxwellResidualFaceEstimator(
+                                         fields, epsilon_real, epsilon_imag,
+                                         mu_inv, omega, order));
+}
+
+void AddComplexMaxwellResidualEstimators(
+   GeneralErrorEstimator &estimator, ComplexGridFunction &solution,
+   ComplexGridFunction &source, Coefficient &epsilon_real,
+   Coefficient &epsilon_imag, Coefficient &mu_inv, real_t omega, int order)
+{
+   auto fields = std::make_shared<ComplexMaxwellResidualFields>(
+                    solution, epsilon_real, epsilon_imag, mu_inv, order);
+   estimator.AddDomainEstimator(new ComplexMaxwellResidualDomainEstimator(
+                                   solution, source, fields, epsilon_real,
+                                   epsilon_imag, mu_inv, omega, order));
+   estimator.AddInteriorFaceEstimator(new ComplexMaxwellResidualFaceEstimator(
+                                         fields, epsilon_real, epsilon_imag,
+                                         mu_inv, omega, order));
 }
 
 } // namespace mfem

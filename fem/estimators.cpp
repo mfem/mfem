@@ -590,6 +590,15 @@ void GeneralErrorEstimator::ComputeEstimates()
    elem_errors_.SetSize(fes_->GetNE());
    elem_errors_ = 0.0;
 
+   // Preparation is separate from element/face traversal so data shared by
+   // several estimators (for example a reconstructed residual field) is
+   // updated only once per sweep.
+   ErrorEstimatorContext context;
+   for (auto *estimator : domain_estims_) { estimator->Prepare(context); }
+   for (auto *estimator : bdr_estims_) { estimator->Prepare(context); }
+   for (auto *estimator : face_estims_) { estimator->Prepare(context); }
+   for (auto *estimator : bdr_face_estims_) { estimator->Prepare(context); }
+
    if (domain_estims_.Size())
    {
       for (int k = 0; k < domain_estims_.Size(); k++)
@@ -717,6 +726,16 @@ void GeneralErrorEstimator::ComputeEstimates()
          elem_errors_(tr->Elem1No) += bdr_face_estims_[k]->GetFaceError(
                                          *fes_->GetFE(tr->Elem1No), *tr);
       }
+   }
+
+   // Domain and face estimators return squared contributions. Finalizing here
+   // gives GeneralErrorEstimator the same local-indicator convention as the
+   // dedicated residual estimators.
+   for (int e = 0; e < elem_errors_.Size(); e++)
+   {
+      MFEM_VERIFY(elem_errors_(e) >= 0.0,
+                  "error-estimator contributions must be non-negative.");
+      elem_errors_(e) = sqrt(elem_errors_(e));
    }
 
    current_sequence_ = mesh->GetSequence();

@@ -19,12 +19,74 @@ namespace mfem
 
 class ComplexGridFunction;
 
+/** @brief Shared discontinuous reconstructions used by Maxwell residual terms.
+
+    The object owns the L2 spaces and fields for
+    \f$H=\mu^{-1}\curl E\f$ and \f$D=\epsilon E\f$. It is updated at most
+    once during a GeneralErrorEstimator sweep. */
+class MaxwellResidualFields : public ErrorEstimatorData
+{
+private:
+   GridFunction &solution;
+   Coefficient *epsilon;
+   MatrixCoefficient *epsilon_matrix;
+   Coefficient &mu_inv;
+   int order;
+   long mesh_sequence = -1;
+   std::unique_ptr<L2_FECollection> h_fec, d_fec;
+   std::unique_ptr<FiniteElementSpace> h_fes, d_fes;
+   std::unique_ptr<GridFunction> h, d;
+
+   void BuildSpaces();
+
+public:
+   MaxwellResidualFields(GridFunction &solution_, Coefficient &epsilon_,
+                         Coefficient &mu_inv_, int order_);
+   MaxwellResidualFields(GridFunction &solution_, MatrixCoefficient &epsilon_,
+                         Coefficient &mu_inv_, int order_);
+   ~MaxwellResidualFields();
+   void Update() override;
+   GridFunction &H() { return *h; }
+   GridFunction &D() { return *d; }
+};
+
+/** @brief Complex counterpart of MaxwellResidualFields. */
+class ComplexMaxwellResidualFields : public ErrorEstimatorData
+{
+private:
+   ComplexGridFunction &solution;
+   MatrixCoefficient *epsilon_real, *epsilon_imag;
+   Coefficient *epsilon_real_scalar, *epsilon_imag_scalar;
+   Coefficient &mu_inv;
+   int order;
+   long mesh_sequence = -1;
+   std::unique_ptr<L2_FECollection> h_fec, d_fec;
+   std::unique_ptr<FiniteElementSpace> h_fes, d_fes;
+   std::unique_ptr<ComplexGridFunction> h, d;
+
+   void BuildSpaces();
+
+public:
+   ComplexMaxwellResidualFields(ComplexGridFunction &solution_,
+                                MatrixCoefficient &epsilon_real_,
+                                MatrixCoefficient &epsilon_imag_,
+                                Coefficient &mu_inv_, int order_);
+   ComplexMaxwellResidualFields(ComplexGridFunction &solution_,
+                                Coefficient &epsilon_real_,
+                                Coefficient &epsilon_imag_,
+                                Coefficient &mu_inv_, int order_);
+   ~ComplexMaxwellResidualFields();
+   void Update() override;
+   ComplexGridFunction &H() { return *h; }
+   ComplexGridFunction &D() { return *d; }
+};
+
 /** @brief Residual estimator for the time-harmonic Maxwell equation.
 
     This implements the real-valued indicator of
     Chaumont-Frelet and Vega, SIAM J. Numer. Anal. 60 (2022), (3.3)--(3.4),
     for
-    @f$ \curl(\mu^{-1}\curl E)-\omega^2\epsilon E=f @f$.
+    \f$ \curl(\mu^{-1}\curl E)-\omega^2\epsilon E=f \f$.
 
     The source must be a GridFunction so that its divergence can be evaluated.
     The estimator assumes elementwise constant positive @a mu_inv and either
@@ -79,13 +141,13 @@ public:
 
    const Vector &GetLocalErrors() override
    { if (MeshIsModified()) { ComputeEstimates(); } return error_estimates; }
-   real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override;
    void Reset() override { current_sequence = -1; }
 };
 
 /** @brief Complex extension of MaxwellResidualEstimator.
 
-    Uses @f$\epsilon=\epsilon_r+i\epsilon_i@f$ and complex solution/source
+    Uses \f$\epsilon=\epsilon_r+i\epsilon_i\f$ and complex solution/source
     GridFunctions. Matrix coefficients must be symmetric; @a epsilon_real must
     be positive definite. The indicator combines the coupled real and imaginary
     residuals before taking its elementwise norm.
@@ -138,7 +200,7 @@ public:
 
    const Vector &GetLocalErrors() override
    { if (MeshIsModified()) { ComputeEstimates(); } return error_estimates; }
-   real_t GetTotalError() const override { return total_error; }
+   real_t GetTotalError() const override;
    void Reset() override { current_sequence = -1; }
 };
 
@@ -146,13 +208,15 @@ public:
 /** @brief Volume terms of the residual estimator for real Maxwell problems.
 
     The supplied @a h and @a d fields must be discontinuous L2 projections of
-    @f$\mu^{-1}\curl E@f$ and @f$\epsilon E@f$, respectively. This is the same
+    \f$\mu^{-1}\curl E\f$ and \f$\epsilon E\f$, respectively. This is the same
     reconstruction used by MaxwellResidualEstimator. The returned value is the
     squared local indicator contribution. */
 class MaxwellResidualDomainEstimator final : public DomainErrorEstimator
 {
 private:
-   GridFunction &solution, &source, &h, &d;
+   GridFunction &solution, &source;
+   GridFunction *h, *d;
+   std::shared_ptr<MaxwellResidualFields> fields;
    Coefficient *epsilon;
    MatrixCoefficient *epsilon_matrix;
    Coefficient &mu_inv;
@@ -170,6 +234,15 @@ public:
                                   GridFunction &h_, GridFunction &d_,
                                   MatrixCoefficient &epsilon_, Coefficient &mu_inv_,
                                   real_t omega_, int order_);
+   MaxwellResidualDomainEstimator(GridFunction &solution_, GridFunction &source_,
+                                  std::shared_ptr<MaxwellResidualFields> fields_,
+                                  Coefficient &epsilon_, Coefficient &mu_inv_,
+                                  real_t omega_, int order_);
+   MaxwellResidualDomainEstimator(GridFunction &solution_, GridFunction &source_,
+                                  std::shared_ptr<MaxwellResidualFields> fields_,
+                                  MatrixCoefficient &epsilon_, Coefficient &mu_inv_,
+                                  real_t omega_, int order_);
+   void Prepare(ErrorEstimatorContext &context) override;
    real_t GetElementError(const FiniteElement &el,
                           ElementTransformation &Tr) override;
 };
@@ -190,7 +263,8 @@ void BuildMaxwellResidualFields(GridFunction &solution, Coefficient &mu_inv,
 class MaxwellResidualFaceEstimator final : public FaceErrorEstimator
 {
 private:
-   GridFunction &h, &d;
+   GridFunction *h, *d;
+   std::shared_ptr<MaxwellResidualFields> fields;
    Coefficient *epsilon;
    MatrixCoefficient *epsilon_matrix;
    Coefficient &mu_inv;
@@ -206,6 +280,13 @@ public:
    MaxwellResidualFaceEstimator(GridFunction &h_, GridFunction &d_,
                                 MatrixCoefficient &epsilon_, Coefficient &mu_inv_,
                                 real_t omega_, int order_);
+   MaxwellResidualFaceEstimator(std::shared_ptr<MaxwellResidualFields> fields_,
+                                Coefficient &epsilon_, Coefficient &mu_inv_,
+                                real_t omega_, int order_);
+   MaxwellResidualFaceEstimator(std::shared_ptr<MaxwellResidualFields> fields_,
+                                MatrixCoefficient &epsilon_, Coefficient &mu_inv_,
+                                real_t omega_, int order_);
+   void Prepare(ErrorEstimatorContext &context) override;
    void GetFaceError(const FiniteElement &el1, const FiniteElement &el2,
                      FaceElementTransformations &Tr, real_t &error1,
                      real_t &error2) override;
@@ -215,12 +296,14 @@ public:
 /** @brief Volume terms of ComplexMaxwellResidualEstimator.
 
     @a h and @a d are discontinuous complex fields representing
-    @f$\mu^{-1}\curl E@f$ and @f$\epsilon E@f$. Returned values are squared
+    \f$\mu^{-1}\curl E\f$ and \f$\epsilon E\f$. Returned values are squared
     local indicator contributions. */
 class ComplexMaxwellResidualDomainEstimator final : public DomainErrorEstimator
 {
 private:
-   ComplexGridFunction &solution, &source, &h, &d;
+   ComplexGridFunction &solution, &source;
+   ComplexGridFunction *h, *d;
+   std::shared_ptr<ComplexMaxwellResidualFields> fields;
    MatrixCoefficient *epsilon_real, *epsilon_imag;
    Coefficient *epsilon_real_scalar, *epsilon_imag_scalar;
    Coefficient &mu_inv;
@@ -236,6 +319,17 @@ public:
                                          MatrixCoefficient &epsilon_real_,
                                          MatrixCoefficient &epsilon_imag_,
                                          Coefficient &mu_inv_, real_t omega_, int order_);
+   ComplexMaxwellResidualDomainEstimator(
+      ComplexGridFunction &solution_, ComplexGridFunction &source_,
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
+      MatrixCoefficient &epsilon_real_, MatrixCoefficient &epsilon_imag_,
+      Coefficient &mu_inv_, real_t omega_, int order_);
+   ComplexMaxwellResidualDomainEstimator(
+      ComplexGridFunction &solution_, ComplexGridFunction &source_,
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
+      Coefficient &epsilon_real_, Coefficient &epsilon_imag_,
+      Coefficient &mu_inv_, real_t omega_, int order_);
+   void Prepare(ErrorEstimatorContext &context) override;
    ComplexMaxwellResidualDomainEstimator(ComplexGridFunction &solution_,
                                          ComplexGridFunction &source_,
                                          ComplexGridFunction &h_, ComplexGridFunction &d_,
@@ -250,7 +344,8 @@ public:
 class ComplexMaxwellResidualFaceEstimator final : public FaceErrorEstimator
 {
 private:
-   ComplexGridFunction &h, &d;
+   ComplexGridFunction *h, *d;
+   std::shared_ptr<ComplexMaxwellResidualFields> fields;
    MatrixCoefficient *epsilon_real, *epsilon_imag;
    Coefficient *epsilon_real_scalar, *epsilon_imag_scalar;
    Coefficient &mu_inv;
@@ -265,6 +360,15 @@ public:
                                        MatrixCoefficient &epsilon_real_,
                                        MatrixCoefficient &epsilon_imag_,
                                        Coefficient &mu_inv_, real_t omega_, int order_);
+   ComplexMaxwellResidualFaceEstimator(
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
+      MatrixCoefficient &epsilon_real_, MatrixCoefficient &epsilon_imag_,
+      Coefficient &mu_inv_, real_t omega_, int order_);
+   ComplexMaxwellResidualFaceEstimator(
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
+      Coefficient &epsilon_real_, Coefficient &epsilon_imag_,
+      Coefficient &mu_inv_, real_t omega_, int order_);
+   void Prepare(ErrorEstimatorContext &context) override;
    ComplexMaxwellResidualFaceEstimator(ComplexGridFunction &h_,
                                        ComplexGridFunction &d_, Coefficient &epsilon_real_,
                                        Coefficient &epsilon_imag_, Coefficient &mu_inv_,
@@ -277,7 +381,7 @@ public:
 
 /** @brief Check a complex tangential-electric (Dirichlet) boundary trace.
 
-    The estimator returns @f$\|E\times n-g_D\|^2_{L^2(F)}@f$. Passing no
+    The estimator returns \f$\|E\times n-g_D\|^2_{L^2(F)}\f$. Passing no
     boundary data checks homogeneous Dirichlet conditions. */
 class ComplexMaxwellDirichletBCErrorEstimator final : public FaceErrorEstimator
 {
@@ -300,8 +404,8 @@ public:
 /** @brief Check a complex tangential magnetic-flux (Neumann) boundary trace.
 
     @a magnetic_flux must be the reconstructed field
-    @f$H=\mu^{-1}\curl E@f$. The estimator returns
-    @f$\|H\times n-g_N\|^2_{L^2(F)}@f$. */
+    \f$H=\mu^{-1}\curl E\f$. The estimator returns
+    \f$\|H\times n-g_N\|^2_{L^2(F)}\f$. */
 class ComplexMaxwellNeumannBCErrorEstimator final : public FaceErrorEstimator
 {
 private:
@@ -329,6 +433,26 @@ void BuildComplexMaxwellResidualFields(ComplexGridFunction &solution,
                                        MatrixCoefficient &epsilon_imag,
                                        ComplexGridFunction &h,
                                        ComplexGridFunction &d);
+
+/** Add all real Maxwell residual terms using one shared reconstruction. */
+void AddMaxwellResidualEstimators(GeneralErrorEstimator &estimator,
+                                  GridFunction &solution, GridFunction &source,
+                                  Coefficient &epsilon, Coefficient &mu_inv,
+                                  real_t omega, int order);
+void AddMaxwellResidualEstimators(GeneralErrorEstimator &estimator,
+                                  GridFunction &solution, GridFunction &source,
+                                  MatrixCoefficient &epsilon, Coefficient &mu_inv,
+                                  real_t omega, int order);
+
+/** Add all complex Maxwell residual terms using one shared reconstruction. */
+void AddComplexMaxwellResidualEstimators(
+   GeneralErrorEstimator &estimator, ComplexGridFunction &solution,
+   ComplexGridFunction &source, MatrixCoefficient &epsilon_real,
+   MatrixCoefficient &epsilon_imag, Coefficient &mu_inv, real_t omega, int order);
+void AddComplexMaxwellResidualEstimators(
+   GeneralErrorEstimator &estimator, ComplexGridFunction &solution,
+   ComplexGridFunction &source, Coefficient &epsilon_real,
+   Coefficient &epsilon_imag, Coefficient &mu_inv, real_t omega, int order);
 void BuildComplexMaxwellResidualFields(ComplexGridFunction &solution,
                                        Coefficient &mu_inv, Coefficient &epsilon_real,
                                        Coefficient &epsilon_imag,
