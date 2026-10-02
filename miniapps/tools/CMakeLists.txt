@@ -55,15 +55,15 @@ add_mfem_miniapp(tmop-metric-magnitude
   LIBRARIES mfem-common)
 
 if (MFEM_USE_MPI)
-    add_mfem_miniapp(gridfunction-bounds
-      MAIN gridfunction-bounds.cpp
-      ${MFEM_MINIAPPS_COMMON_HEADERS}
-      LIBRARIES mfem-common)
-      add_dependencies(gridfunction-bounds copy_miniapps_tools_data)
+  add_mfem_miniapp(gridfunction-bounds
+    MAIN gridfunction-bounds.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+    add_dependencies(gridfunction-bounds copy_miniapps_tools_data)
 
-    add_mfem_miniapp(plor-transfer
-      MAIN plor-transfer.cpp LIBRARIES mfem)
+  add_mfem_miniapp(plor-transfer
+    MAIN plor-transfer.cpp LIBRARIES mfem)
 
-   add_mfem_miniapp(nodal-transfer
-     MAIN nodal-transfer.cpp LIBRARIES mfem)
+  add_mfem_miniapp(nodal-transfer
+    MAIN nodal-transfer.cpp LIBRARIES mfem)
 endif()
