@@ -63,7 +63,6 @@ struct Action
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
-      InitBlockVector(xq, xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -73,6 +72,14 @@ struct Action
          yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
+   }
+
+   /// Allocates the quadrature point buffers on the first call, so that the
+   /// copies made while registering this object do not duplicate them.
+   void InitBuffers() const
+   {
+      if (buffers_ready) { return; }
+      InitBlockVector(xq, xq_offsets);
       InitBlockVector(yq, yq_offsets);
 
       constexpr_for<0, ninputs>([&](auto i)
@@ -84,6 +91,7 @@ struct Action
             input_bases[i].forward(empty, xq.GetBlock(i));
          }
       });
+      buffers_ready = true;
    }
 
    void operator()(
@@ -91,6 +99,7 @@ struct Action
       std::vector<Vector *> &ye) const
    {
       if (ctx.attr.Size() == 0) { return; }
+      InitBuffers();
 
       // E -> Q
       constexpr auto interpolate_input = []
@@ -136,6 +145,7 @@ struct Action
    int gnqp = 0;
    Array<int> xq_offsets, yq_offsets;
    mutable BlockVector xq, yq;
+   mutable bool buffers_ready = false;
 };
 
 }

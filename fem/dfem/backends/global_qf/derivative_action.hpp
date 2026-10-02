@@ -61,7 +61,6 @@ struct DerivativeAction
          xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
       });
       xq_offsets.PartialSum();
-      InitBlockVector(xq, xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -71,18 +70,10 @@ struct DerivativeAction
          yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
       });
       yq_offsets.PartialSum();
-      InitBlockVector(yq, yq_offsets);
 
       // Shadow blocks use the same offsets as xq so tensor_array views
       shadow_xq_offsets.SetSize(xq_offsets.Size());
       shadow_xq_offsets = xq_offsets;
-      InitBlockVector(shadow_xq, shadow_xq_offsets);
-
-      constexpr_for<0, noutputs>([&](auto i)
-      {
-         primal_output_storage[i].UseDevice(true);
-         primal_output_storage[i].SetSize(yq.GetBlock(i).Size());
-      });
 
       dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
@@ -92,12 +83,30 @@ struct DerivativeAction
       direction_fd = ctx.infds[direction_fd_idx];
    }
 
+   /// Allocates the quadrature point buffers on the first call, so that the
+   /// copies made while registering this object do not duplicate them.
+   void InitBuffers()
+   {
+      if (buffers_ready) { return; }
+      InitBlockVector(xq, xq_offsets);
+      InitBlockVector(yq, yq_offsets);
+      InitBlockVector(shadow_xq, shadow_xq_offsets);
+
+      constexpr_for<0, noutputs>([&](auto i)
+      {
+         primal_output_storage[i].UseDevice(true);
+         primal_output_storage[i].SetSize(yq.GetBlock(i).Size());
+      });
+      buffers_ready = true;
+   }
+
    void operator()(
       const std::vector<Vector *> &xe,
       const Vector *de,
       std::vector<Vector *> &ye)
    {
       if (ctx.attr.Size() == 0) { return; }
+      InitBuffers();
 
       // E -> Q
       interpolate(input_to_infd, input_bases, xe, xq);
@@ -175,6 +184,7 @@ struct DerivativeAction
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
    mutable std::array<Vector, noutputs> primal_output_storage;
+   bool buffers_ready = false;
 
    FieldDescriptor direction_fd;
    ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
