@@ -573,12 +573,12 @@ TEST_CASE("File checkpoint storage is persistent and transactional",
       const auto reserved = directory / "checkpoint_4.tmp.0";
       std::filesystem::create_directory(reserved);
       {
-         std::ofstream payload(reserved / "payload");
+         std::ofstream payload(reserved / "snapshot");
          payload << "reserved";
       }
       storage.Store(4, first);
       {
-         std::ifstream payload(reserved / "payload");
+         std::ifstream payload(reserved / "snapshot");
          std::string contents;
          payload >> contents;
          REQUIRE(contents == "reserved");

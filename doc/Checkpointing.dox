@@ -160,7 +160,7 @@ Vector values + StateId + physical time + dt + solver restart bytes
 \endcode
 
 The adapter writes no solver restart bytes. Restore requires positive `dt`,
-finite physical time, and an empty solver restart payload; violations raise
+finite physical time, and an empty solver restart data; violations raise
 InvalidCheckpointState before the application is modified. Restore resets the
 Vector, TimePoint, and `dt`, then calls the protected OnRestored() hook so that
 subclasses can reinitialize solver-side state. The ForwardEulerCheckpointAdapter
@@ -170,7 +170,7 @@ history, so nothing else is needed.
 ODEStatePropagator advances with the normal ODESolver::Step() implementation.
 Its constructor rejects ODESolverWithStates solvers (Adams-Bashforth,
 Adams-Moulton, generalized-alpha) with InvalidCheckpointState: their stage
-history is not part of the ODE payload, so replay after a restore would
+history is not part of the ODE snapshot, so replay after a restore would
 silently continue from stale history. Other solvers with hidden cross-step
 state, such as SUNDIALS integrators, cannot be detected and require an
 application-specific adapter and propagator.
@@ -197,13 +197,13 @@ offset  bytes  field
  32      8    physical time
  40      8    continuation dt
  48      8    Vector length
- 56      8    solver restart payload length
+ 56      8    solver restart data length
  64     ...   Vector entries followed by solver restart bytes
 \endcode
 
 The meaning and byte positions are unchanged: StepId is now an alias for the
 same signed 64-bit StateId, and the remaining fields are the ODE adapter's
-opaque payload. Version 1 therefore remains valid. Generic application adapters
+opaque snapshot. Version 1 therefore remains valid. Generic application adapters
 define and validate their own Snapshot encodings.
 
 ODE decoding rejects unsupported versions, malformed lengths, ID or StateId
@@ -212,7 +212,7 @@ InvalidCheckpointFormat; ordinary filesystem failures raise
 CheckpointStorageError.
 
 FileCheckpointStorage uses one deterministic file per logical checkpoint. It
-atomically reserves a private staging directory, writes and closes a payload
+atomically reserves a private staging directory, writes and closes a snapshot
 file inside it, then renames that file to the canonical path on the same
 filesystem. A failed overwrite leaves the prior canonical file unchanged.
 Concurrent writers publish complete snapshots; the last successful rename
@@ -390,7 +390,7 @@ never retains an element reference across refinement.
 
 The application adapter stores StateId, `selection_index`, and the result of
 Mesh::Print(). Restore reconstructs the mesh with the MFEM stream constructor
-and verifies that the payload is a nonempty two-dimensional nonconforming mesh.
+and verifies that the snapshot is a nonempty two-dimensional nonconforming mesh.
 Thus the application adapter, rather than the checkpoint core, defines and
 restores the complete Mesh state.
 

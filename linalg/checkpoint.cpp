@@ -103,7 +103,7 @@ inline std::size_t CheckedSize(std::uint64_t value, const char *description)
 }
 
 /// Return total serialized size after checking every addition/multiplication.
-inline std::size_t CheckedPayloadSize(std::size_t states, std::size_t restart)
+inline std::size_t CheckedSnapshotSize(std::size_t states, std::size_t restart)
 {
    if (states > (std::numeric_limits<std::size_t>::max() -
                  ODECheckpointSerializer::HeaderSize) / sizeof(double))
@@ -189,7 +189,7 @@ public:
          std::error_code error;
          if (std::filesystem::create_directory(staging, error))
          {
-            return staging / "payload";
+            return staging / "snapshot";
          }
          if (error && error != std::errc::file_exists)
          {
@@ -381,7 +381,7 @@ Snapshot ODECheckpointSerializer::Encode(
    const std::size_t state_size =
       static_cast<std::size_t>(checkpoint.state.Size());
    const std::size_t total_size =
-      CheckedPayloadSize(state_size, checkpoint.restart.Size());
+      CheckedSnapshotSize(state_size, checkpoint.restart.Size());
    std::vector<unsigned char> encoded;
    encoded.reserve(total_size);
    AppendLittleEndian(encoded, checkpoint_magic);
@@ -432,7 +432,7 @@ ODECheckpointData ODECheckpointSerializer::Decode(
 {
    if (snapshot.Size() < HeaderSize)
    {
-      throw InvalidCheckpointFormat("checkpoint payload is truncated");
+      throw InvalidCheckpointFormat("checkpoint snapshot is truncated");
    }
    std::size_t offset = 0;
    if (ReadLittleEndian<std::uint64_t>(snapshot, offset) != checkpoint_magic)
@@ -489,7 +489,7 @@ ODECheckpointData ODECheckpointSerializer::Decode(
    std::size_t expected_size = 0;
    try
    {
-      expected_size = CheckedPayloadSize(state_size, restart_size);
+      expected_size = CheckedSnapshotSize(state_size, restart_size);
    }
    catch (const InvalidCheckpointState &error)
    {
@@ -551,7 +551,7 @@ void ODEVectorCheckpointAdapter::Restore(
    {
       throw InvalidCheckpointState(
          "ODE restart requires positive dt, finite time, and no solver "
-         "payload");
+         "restart data");
    }
    state = restored.state;
    time = restored.time;
@@ -563,7 +563,7 @@ ODEStatePropagator::ODEStatePropagator(ODESolver &solver_, Vector &state_,
                                        TimePoint &time_, real_t &dt_)
    : solver(solver_), state(state_), time(time_), dt(dt_)
 {
-   // Solver history is not part of the ODE checkpoint payload; replay after a
+   // Solver history is not part of the ODE checkpoint snapshot; replay after a
    // restore would continue from stale history instead of the restored state.
    if (dynamic_cast<const ODESolverWithStates *>(&solver) != nullptr)
    {

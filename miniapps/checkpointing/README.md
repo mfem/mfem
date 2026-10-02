@@ -63,7 +63,7 @@ k_i = -lambda_i*u_i / (1 + gamma*lambda_i).
 `StateId` counts completed fixed-size time steps. The miniapp-specific adapter
 captures the solution vector, StateId, physical time, step size, operator
 parameters, snapshot version, and optional persistent checkpoint identity. On
-restore it validates the complete payload and reinitializes the solver, which
+restore it validates the complete snapshot and reinitializes the solver, which
 recreates its temporary stage vector.
 
 The forward run stores every state, then retains only the requested interior

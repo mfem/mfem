@@ -135,7 +135,7 @@ public:
           restored_mesh->GetNE() < 1)
       {
          throw InvalidCheckpointFormat(
-            "invalid nonconforming MeshState payload");
+            "invalid nonconforming MeshState snapshot");
       }
 
       state.mesh = std::move(restored_mesh);

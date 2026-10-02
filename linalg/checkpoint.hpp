@@ -41,13 +41,13 @@ using StepId = StateId;
 /// Logical checkpoint identity, independent of its physical representation.
 using CheckpointId = std::uint64_t;
 
-/// Owning opaque byte container used for restart and persistent payloads.
+/// Owning opaque byte container used for restart and persistent snapshots.
 /** Copies are independent, moves transfer ownership, and zero-length snapshots
     are valid. The byte layout is intentionally not interpreted by this type. */
 class Snapshot
 {
 private:
-   std::vector<unsigned char> bytes; ///< Owned opaque payload.
+   std::vector<unsigned char> bytes; ///< Owned opaque bytes.
 
 public:
    /// Construct an empty snapshot.
@@ -65,10 +65,10 @@ public:
    /// Return the number of stored bytes.
    std::size_t Size() const { return bytes.size(); }
 
-   /// Resize the payload and preserve the common prefix.
+   /// Resize the snapshot and preserve the common prefix.
    void SetSize(std::size_t size) { bytes.resize(size); }
 
-   /// Exchange payload ownership without allocating.
+   /// Exchange byte ownership without allocating.
    void Swap(Snapshot &other) noexcept { bytes.swap(other.bytes); }
 };
 
@@ -137,19 +137,20 @@ public:
    /// Destroy a storage backend without implying removal of stored snapshots.
    virtual ~CheckpointStorage() = default;
 
-   /// Store or atomically replace the payload associated with @a id.
+   /// Store or atomically replace the snapshot associated with @a id.
    /// @throws CheckpointStorageError when the operation cannot be completed.
    virtual void Store(CheckpointId id, Snapshot snapshot) = 0;
 
-   /// Return an independent copy of the payload associated with @a id.
+   /// Return an independent copy of the snapshot associated with @a id.
    /// @throws CheckpointStorageError when @a id cannot be read.
    virtual Snapshot Restore(CheckpointId id) const = 0;
 
-   /// Return true when a payload is associated with @a id.
+   /// Return true when a snapshot is associated with @a id.
    virtual bool Contains(CheckpointId id) const = 0;
 
    /// Erase @a id; absence is a no-op.
-   /// @throws CheckpointStorageError when an existing payload cannot be erased.
+   /// @throws CheckpointStorageError when an existing snapshot cannot be
+   /// erased.
    virtual void Erase(CheckpointId id) = 0;
 };
 
@@ -475,7 +476,7 @@ struct ODECheckpointData
    Snapshot restart;
 };
 
-/// Encoder/decoder for the stable exact ODE checkpoint payload.
+/// Encoder/decoder for the stable exact ODE snapshot encoding.
 /** The 64-byte header contains, in order, an eight-byte magic value, version,
     byte-order and scalar-width markers, reserved bits, logical ID, trajectory
     step, physical time, continuation step size, Vector length, and restart
@@ -483,7 +484,7 @@ struct ODECheckpointData
 class ODECheckpointSerializer
 {
 public:
-   /// Current persisted payload version.
+   /// Current persisted encoding version.
    static constexpr std::uint32_t FormatVersion = 1;
 
    /// Exact encoded header size in bytes.
@@ -499,7 +500,7 @@ public:
 
 /// Exact state adapter for Vector-valued fixed-step ODE continuations.
 /** Captures and restores the borrowed Vector, TimePoint, and step size using
-    the version 1 payload format and no solver-defined restart bytes. The
+    the version 1 snapshot format and no solver-defined restart bytes. The
     borrowed step size must be positive and the physical time finite.
     Subclasses reinitialize solver-side state by overriding OnRestored().
     Dependencies are borrowed and must outlive the adapter. */
