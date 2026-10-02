@@ -262,3 +262,8 @@ endif()
 if(MFEM_USE_MOONOLITH)
   add_subdirectory(moonolith)
 endif()
+
+# Include the examples/magma directory if MAGMA is enabled.
+if (MFEM_USE_MAGMA)
+  add_subdirectory(magma)
+endif()

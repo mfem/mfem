@@ -23,6 +23,7 @@
 // Device sample runs:
 //    ex9 -pa
 //    ex9 -ea
+//    ex9 -ea --mass-storage full
 //    ex9 -fa
 //    ex9 -pa -m ../data/periodic-cube.mesh
 //    ex9 -pa -m ../data/periodic-cube.mesh -d cuda
@@ -44,6 +45,7 @@
 //               (paraview.org) is also illustrated.
 
 #include "mfem.hpp"
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <algorithm>
@@ -126,14 +128,16 @@ class FE_Evolution : public TimeDependentOperator
 private:
    BilinearForm &M, &K;
    const Vector &b;
-   Solver *M_prec;
-   CGSolver M_solver;
+   Solver *mass_solver; ///< Selected mass solver; not owned.
+   Solver *owned_mass_operator; ///< Preconditioner or direct solver; owned.
+   CGSolver iterative_mass_solver;
    DG_Solver *dg_solver;
 
    mutable Vector z;
 
 public:
-   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_);
+   FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_,
+                DGMassInverse::MassStorage mass_storage);
 
    void Mult(const Vector &x, Vector &y) const override;
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
@@ -152,6 +156,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    bool ea = false;
    bool fa = false;
+   const char *mass_storage = "packed";
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    real_t t_final = 10.0;
@@ -181,6 +186,8 @@ int main(int argc, char *argv[])
                   "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
                   "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&mass_storage, "-ms", "--mass-storage",
+                  "Local mass storage: packed or full.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -212,6 +219,9 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   MFEM_VERIFY(strcmp(mass_storage, "packed") == 0 ||
+               strcmp(mass_storage, "full") == 0,
+               "--mass-storage must be packed or full.");
    args.PrintOptions(cout);
 
    Device device(device_config);
@@ -370,7 +380,10 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m, k, b);
+   const auto mass_storage_type =
+      strcmp(mass_storage, "full") == 0 ?
+      DGMassInverse::MassStorage::Full : DGMassInverse::MassStorage::Packed;
+   FE_Evolution adv(m, k, b, mass_storage_type);
    using ImplicitVariableType = FE_Evolution::ImplicitVariableType;
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
@@ -432,29 +445,43 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_)
+FE_Evolution::FE_Evolution(BilinearForm &M_, BilinearForm &K_, const Vector &b_,
+                           DGMassInverse::MassStorage mass_storage)
    : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
      M(M_), K(K_), b(b_), z(height)
 {
    Array<int> ess_tdof_list;
    if (M.GetAssemblyLevel() == AssemblyLevel::LEGACY)
    {
-      M_prec = new DSmoother(M.SpMat());
-      M_solver.SetOperator(M.SpMat());
+      owned_mass_operator = new DSmoother(M.SpMat());
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(M.SpMat());
       dg_solver = new DG_Solver(M.SpMat(), K.SpMat(), *M.FESpace());
+   }
+   else if (M.GetAssemblyLevel() == AssemblyLevel::ELEMENT)
+   {
+      owned_mass_operator = new DGMassInverse(
+         *M.FESpace(), BasisType::GaussLobatto,
+         mass_storage);
+      mass_solver = owned_mass_operator;
+      dg_solver = NULL;
    }
    else
    {
-      M_prec = new OperatorJacobiSmoother(M, ess_tdof_list);
-      M_solver.SetOperator(M);
+      owned_mass_operator = new OperatorJacobiSmoother(M, ess_tdof_list);
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(M);
       dg_solver = NULL;
    }
-   M_solver.SetPreconditioner(*M_prec);
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
+   if (mass_solver != owned_mass_operator)
+   {
+      iterative_mass_solver.SetPreconditioner(*owned_mass_operator);
+      iterative_mass_solver.iterative_mode = false;
+      iterative_mass_solver.SetRelTol(1e-9);
+      iterative_mass_solver.SetAbsTol(0.0);
+      iterative_mass_solver.SetMaxIter(100);
+      iterative_mass_solver.SetPrintLevel(0);
+   }
 }
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
@@ -462,13 +489,13 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    K.Mult(x, z);
    z += b;
-   M_solver.Mult(z, y);
+   mass_solver->Mult(z, y);
 }
 
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    MFEM_VERIFY(dg_solver != NULL,
-               "Implicit time integration is not supported with partial assembly");
+               "Implicit time integration is not supported with non-legacy assembly");
    // Construct current right-hand side for stage state vs. slope solve
    real_t c = 1.0;
    if (ImplicitVarTypeIsState())
@@ -489,7 +516,7 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 
 FE_Evolution::~FE_Evolution()
 {
-   delete M_prec;
+   delete owned_mass_operator;
    delete dg_solver;
 }
 

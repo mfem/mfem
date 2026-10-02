@@ -77,3 +77,62 @@ TEST_CASE("DG Mass Inverse", "[GPU]")
       REQUIRE(X2.Normlinf() == MFEM_Approx(0.0, 1e2*tol, 1e2*tol));
    }
 }
+
+TEST_CASE("DG Mass Inverse packed local solve",
+          "[DGMassInverse][Mass][TensorBasis]")
+{
+   Mesh mesh = Mesh::LoadFromFile("../../data/inline-quad.mesh");
+   L2_FECollection fec(2, mesh.Dimension(), BasisType::Positive);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement*>(fes.GetTypicalFE());
+   REQUIRE(tbe != nullptr);
+   REQUIRE(tbe->GetDofMap().Size() == 0);
+
+   BilinearForm mass(&fes);
+   mass.AddDomainIntegrator(new MassIntegrator);
+   mass.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   mass.Assemble();
+
+   Vector x(fes.GetTrueVSize()), rhs(fes.GetTrueVSize()),
+          recovered(fes.GetTrueVSize());
+   x.Randomize(1234);
+   mass.Mult(x, rhs);
+
+   DGMassInverse inverse(fes, BasisType::Positive);
+   inverse.Mult(rhs, recovered);
+
+   x -= recovered;
+   REQUIRE(x.Normlinf() == MFEM_Approx(0.0, 1e-11, 1e-11));
+}
+
+TEST_CASE("DG Mass Inverse full local solve",
+          "[DGMassInverse][Mass][TensorBasis]")
+{
+   Mesh mesh = Mesh::LoadFromFile("../../data/inline-quad.mesh");
+   L2_FECollection fec(2, mesh.Dimension(), BasisType::Positive);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   const TensorBasisElement *tbe =
+      dynamic_cast<const TensorBasisElement*>(fes.GetTypicalFE());
+   REQUIRE(tbe != nullptr);
+   REQUIRE(tbe->GetDofMap().Size() == 0);
+
+   BilinearForm mass(&fes);
+   mass.AddDomainIntegrator(new MassIntegrator);
+   mass.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   mass.Assemble();
+
+   Vector x(fes.GetTrueVSize()), rhs(fes.GetTrueVSize()),
+          recovered(fes.GetTrueVSize());
+   x.Randomize(4321);
+   mass.Mult(x, rhs);
+
+   DGMassInverse inverse(fes, BasisType::Positive,
+                         DGMassInverse::MassStorage::Full);
+   inverse.Mult(rhs, recovered);
+
+   x -= recovered;
+   REQUIRE(x.Normlinf() == MFEM_Approx(0.0, 1e-11, 1e-11));
+}
