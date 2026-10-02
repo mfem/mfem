@@ -119,6 +119,10 @@ namespace mfem {
  * - <a class="el" href="ex40p_8cpp_source.html">Example 40p</a>: parallel eikonal equation
  * - <a class="el" href="ex41_8cpp_source.html">Example 41</a>: DG/CG IMEX time-dependent advection-diffusion
  * - <a class="el" href="ex41p_8cpp_source.html">Example 41p</a>: parallel DG/CG IMEX time-dependent advection-diffusion
+ * - <a class="el" href="ode-state_8cpp_source.html">ODE-state checkpointing
+ *   miniapp</a>: exact ODE checkpoint/replay
+ * - <a class="el" href="backward-euler_8cpp_source.html">Backward Euler
+ *   checkpointing miniapp</a>: exact implicit ODE checkpoint/replay
  *
  * <H4>AmgX Examples</H4>
  * - Variants of Examples
