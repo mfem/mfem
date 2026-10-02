@@ -6065,8 +6065,11 @@ Array<int> Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    sequence = orig_mesh.GetSequence();
    last_operation = orig_mesh.last_operation;
 
-   MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+   if (orig_mesh.GetNodes() == nullptr)
+   {
+      MFEM_VERIFY(CheckElementOrientation(false) == 0, "");
+      MFEM_VERIFY(CheckBdrElementOrientation(false) == 0, "");
+   }
 
    return parent_elems;
 }
@@ -6078,7 +6081,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
    // Higher order associated to vertices are unchanged, and those for
    // previously existing edges. DOFs associated to new elements need to be set.
    const int sdim = orig_mesh.SpaceDimension();
-   auto *orig_fespace = orig_mesh.GetNodes()->FESpace();
+   auto *orig_fespace = orig_mesh.GetNodalFESpace();
    SetCurvature(orig_fespace->GetMaxElementOrder(), orig_fespace->IsDGSpace(),
                 orig_mesh.SpaceDimension(), orig_fespace->GetOrdering());
 
@@ -6097,7 +6100,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
 
    Array<int> edofs; // element dofs in new element
    Array<int> parent_vertices, child_vertices; // vertices of parent and child.
-   Array<int> node_map; // node indices of parent from child.
+   Array<int> vertex_map; // vertex indices of parent from child.
    Vector edofvals; // values of elements dofs in original element
    // Storage for evaluating node function on parent element, at node locations
    // of child element
@@ -6115,7 +6118,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
          case Geometry::Type::SEGMENT : // fall through
          case Geometry::Type::TRIANGLE : // fall through
          case Geometry::Type::TETRAHEDRON :
-            GetNodes()->FESpace()->GetElementVDofs(i, edofs);
+            GetNodalFESpace()->GetElementVDofs(i, edofs);
             GetNodes()->SetSubVector(edofs, edofvals);
             break;
          case Geometry::Type::CUBE : // fall through
@@ -6125,34 +6128,34 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
          {
             // Extract the vertices of parent and child, can then form the
             // map from child reference coordinates to parent reference
-            // coordinates. Exploit the fact that for Nodes, the vertex
-            // entries come first, and their indexing matches the vertex
-            // numbering. Thus we have already have an inverse index map.
+            // coordinates.
             orig_mesh.GetElementVertices(ip, parent_vertices);
             GetElementVertices(i, child_vertices);
-            node_map.SetSize(0);
+            vertex_map.SetSize(0);
             for (auto cv : child_vertices)
                for (int ipv = 0; ipv < parent_vertices.Size(); ipv++)
                   if (cv == parent_vertices[ipv])
                   {
-                     node_map.Append(ipv);
+                     vertex_map.Append(ipv);
                      break;
                   }
-            MFEM_ASSERT(node_map.Size() == Geometry::NumVerts[GetElementBaseGeometry(i)],
-                        "!");
-            // node_map now says which of the parent vertex nodes map to each
+            MFEM_ASSERT(vertex_map.Size() == Geometry::NumVerts[GetElementBaseGeometry(i)],
+                        "");
+            // vertex_map now says which of the parent vertex nodes map to each
             // of the child vertex nodes. Using this can build a basis in the
             // parent element from child Node values, exploit the linearity
             // to then transform all nodes.
             child_nodes_in_parent.SetSize(0);
-            const auto *orig_FE = orig_mesh.GetNodes()->FESpace()->GetFE(ip);
-            for (auto pn : node_map)
+            const auto *orig_FE = orig_fespace->GetFE(ip);
+            const IntegrationRule &parent_ref_vertices =
+               *Geometries.GetVertices(orig_geom);
+            for (auto pv : vertex_map)
             {
-               child_nodes_in_parent.Append(orig_FE->GetNodes()[pn]);
+               child_nodes_in_parent.Append(parent_ref_vertices[pv]);
             }
-            const auto *simplex_FE = GetNodes()->FESpace()->GetFE(i);
-            shape.SetSize(orig_FE->GetDof(),
-                          simplex_FE->GetDof()); // One set of evaluations per simplex dof.
+            const auto *simplex_FE = GetNodalFESpace()->GetFE(i);
+            // One set of evaluations per simplex dof.
+            shape.SetSize(orig_FE->GetDof(), simplex_FE->GetDof());
             Vector col;
             for (int j = 0; j < simplex_FE->GetNodes().Size(); j++)
             {
@@ -6189,7 +6192,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
             DenseMatrix edofvals_mat(edofvals.GetData(), orig_FE->GetDof(), sdim);
             point_matrix.SetSize(simplex_FE->GetDof(), sdim);
             MultAtB(shape, edofvals_mat, point_matrix);
-            GetNodes()->FESpace()->GetElementVDofs(i, edofs);
+            GetNodalFESpace()->GetElementVDofs(i, edofs);
             GetNodes()->SetSubVector(edofs, point_matrix.GetData());
          }
          break;
@@ -6199,6 +6202,9 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
             MFEM_ABORT("Internal Error!");
       }
    }
+
+   MFEM_VERIFY(CheckElementOrientation(false) == 0, "");
+   MFEM_VERIFY(CheckBdrElementOrientation(false) == 0, "");
 }
 
 
