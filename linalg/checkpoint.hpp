@@ -470,9 +470,15 @@ struct TimePoint
 /// Complete ODE continuation encoded by ODECheckpointSerializer.
 struct ODECheckpointData
 {
-   Vector state;
-   TimePoint time;
-   real_t dt = 0.0;
+   Vector state;    ///< Solution Vector.
+   TimePoint time;  ///< Logical step and physical time.
+   real_t dt = 0.0; ///< Continuation step size.
+
+   /// Opaque solver restart data, e.g. multistep or step-controller history.
+   /** Stored after the Vector entries with its length in the header and
+       copied verbatim by ODECheckpointSerializer, which never interprets it.
+       The adapter that writes it owns its layout, versioning, and validation.
+       ODEVectorCheckpointAdapter always leaves it empty. */
    Snapshot restart;
 };
 
@@ -480,7 +486,9 @@ struct ODECheckpointData
 /** The 64-byte header contains, in order, an eight-byte magic value, version,
     byte-order and scalar-width markers, reserved bits, logical ID, trajectory
     step, physical time, continuation step size, Vector length, and restart
-    length. Vector entries and restart bytes follow the header. */
+    length. Vector entries and restart bytes follow the header.
+    FormatVersion covers this layout only; the meaning of the restart bytes is
+    versioned by the adapter that writes them. */
 class ODECheckpointSerializer
 {
 public:
@@ -491,9 +499,11 @@ public:
    static constexpr std::size_t HeaderSize = 64;
 
    /// Serialize @a checkpoint and record its logical @a id.
+   /// @throws InvalidCheckpointState for a negative step or size overflow.
    static Snapshot Encode(CheckpointId id, const ODECheckpointData &checkpoint);
 
    /// Decode @a snapshot and verify that it contains @a expected_id.
+   /// @throws InvalidCheckpointFormat for a malformed or mismatched snapshot.
    static ODECheckpointData Decode(CheckpointId expected_id,
                                    const Snapshot &snapshot);
 };
@@ -503,7 +513,9 @@ public:
     the version 1 snapshot format and no solver-defined restart bytes. The
     borrowed step size must be positive and the physical time finite.
     Subclasses reinitialize solver-side state by overriding OnRestored().
-    Dependencies are borrowed and must outlive the adapter. */
+    Solvers with cross-step state need a custom CheckpointStateAdapter that
+    stores it in ODECheckpointData::restart and calls ODECheckpointSerializer
+    directly. Dependencies are borrowed and must outlive the adapter. */
 class ODEVectorCheckpointAdapter : public CheckpointStateAdapter
 {
 protected:

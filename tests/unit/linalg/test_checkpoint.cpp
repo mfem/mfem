@@ -265,6 +265,125 @@ void RequireSameToyState(const ToyState &actual, const ToyState &expected)
    REQUIRE(actual.mode == expected.mode);
 }
 
+std::uint64_t ScalarBits(real_t value)
+{
+   const double widened = static_cast<double>(value);
+   std::uint64_t bits = 0;
+   std::memcpy(&bits, &widened, sizeof(bits));
+   return bits;
+}
+
+real_t BitsScalar(std::uint64_t bits)
+{
+   double value = 0.0;
+   std::memcpy(&value, &bits, sizeof(value));
+   return static_cast<real_t>(value);
+}
+
+// Two-step Adams-Bashforth with accessible history: a stand-in for a solver
+// whose cross-step state must travel in the ODE solver restart data.
+class SlopeHistorySolver : public ODESolver
+{
+public:
+   Vector previous_slope;    ///< Slope of the last accepted step.
+   bool has_history = false; ///< False until the first step completes.
+
+   void Init(TimeDependentOperator &f_) override
+   {
+      ODESolver::Init(f_);
+      previous_slope.SetSize(f->Width());
+      previous_slope = 0.0;
+      has_history = false;
+   }
+
+   void Step(Vector &x, real_t &t, real_t &dt) override
+   {
+      Vector slope(x.Size());
+      f->SetTime(t);
+      f->Mult(x, slope);
+      if (has_history)
+      {
+         x.Add(1.5 * dt, slope);
+         x.Add(-0.5 * dt, previous_slope);
+      }
+      else
+      {
+         x.Add(dt, slope);
+      }
+      previous_slope = slope;
+      has_history = true;
+      t += dt;
+   }
+};
+
+// Stores the solver history in ODECheckpointData::restart. The restart layout
+// is owned by this adapter: version, history flag, slope length, slope bits.
+class SlopeHistoryCheckpointAdapter : public CheckpointStateAdapter
+{
+private:
+   static constexpr std::uint64_t restart_version = 1;
+
+   SlopeHistorySolver &solver;
+   Vector &state;
+   TimePoint &time;
+   real_t &dt;
+
+public:
+   SlopeHistoryCheckpointAdapter(SlopeHistorySolver &solver_, Vector &state_,
+                                 TimePoint &time_, real_t &dt_)
+      : solver(solver_), state(state_), time(time_), dt(dt_) { }
+
+   Snapshot Capture(
+      StateId id,
+      std::optional<CheckpointId> checkpoint = std::nullopt) const override
+   {
+      if (time.step != id)
+      {
+         throw InvalidCheckpointState("application is not at the state");
+      }
+      const int size = solver.previous_slope.Size();
+      ODECheckpointData data{state, time, dt, Snapshot(8 * (3 + size))};
+      WriteLittleEndian64(data.restart, 0, restart_version);
+      WriteLittleEndian64(data.restart, 8, solver.has_history ? 1 : 0);
+      WriteLittleEndian64(data.restart, 16, static_cast<std::uint64_t>(size));
+      for (int i = 0; i < size; i++)
+      {
+         WriteLittleEndian64(data.restart, 24 + 8 * i,
+                             ScalarBits(solver.previous_slope[i]));
+      }
+      return ODECheckpointSerializer::Encode(checkpoint.value_or(0), data);
+   }
+
+   void Restore(
+      StateId id, const Snapshot &snapshot,
+      std::optional<CheckpointId> checkpoint = std::nullopt) override
+   {
+      const ODECheckpointData data =
+         ODECheckpointSerializer::Decode(checkpoint.value_or(0), snapshot);
+      const Snapshot &restart = data.restart;
+      const std::size_t size = static_cast<std::size_t>(data.state.Size());
+      if (data.time.step != id || restart.Size() != 8 * (3 + size) ||
+          ReadLittleEndian64(restart, 0) != restart_version ||
+          ReadLittleEndian64(restart, 8) > 1 ||
+          ReadLittleEndian64(restart, 16) != size)
+      {
+         throw InvalidCheckpointFormat("invalid solver restart data");
+      }
+      // Decode everything before modifying the application.
+      Vector slope(static_cast<int>(size));
+      for (std::size_t i = 0; i < size; i++)
+      {
+         slope[static_cast<int>(i)] =
+            BitsScalar(ReadLittleEndian64(restart, 24 + 8 * i));
+      }
+      solver.previous_slope = slope;
+      solver.has_history = ReadLittleEndian64(restart, 8) == 1;
+      state = data.state;
+      time = data.time;
+      dt = data.dt;
+   }
+};
+
 } // namespace
 
 TEST_CASE("Checkpoint identity, time, and Snapshot semantics", "[Checkpoint]")
@@ -454,6 +573,99 @@ TEST_CASE("ODE propagation rejects solvers with history", "[Checkpoint]")
 
    RK4Solver rk4;
    REQUIRE_NOTHROW(ODEStatePropagator(rk4, state, time, dt));
+}
+
+TEST_CASE("ODE serializer round-trips solver restart data", "[Checkpoint]")
+{
+   ODECheckpointData data;
+   data.state.SetSize(3);
+   data.state[0] = 1.5;
+   data.state[1] = -0.0;
+   data.state[2] = 4.25;
+   data.time = TimePoint{6, 0.75};
+   data.dt = 0.125;
+   data.restart.SetSize(5);
+   for (std::size_t i = 0; i < data.restart.Size(); i++)
+   {
+      data.restart.Data()[i] = static_cast<unsigned char>(0xf0 + i);
+   }
+
+   const Snapshot encoded = ODECheckpointSerializer::Encode(11, data);
+   REQUIRE(encoded.Size() ==
+           ODECheckpointSerializer::HeaderSize + 3 * sizeof(double) + 5);
+   REQUIRE(ReadLittleEndian64(encoded, 48) == 3);
+   REQUIRE(ReadLittleEndian64(encoded, 56) == 5);
+   REQUIRE(std::memcmp(encoded.Data() + encoded.Size() - 5,
+                       data.restart.Data(), 5) == 0);
+
+   const ODECheckpointData decoded =
+      ODECheckpointSerializer::Decode(11, encoded);
+   RequireSameVector(decoded.state, data.state);
+   REQUIRE(decoded.time.step == 6);
+   REQUIRE(decoded.time.time == 0.75);
+   REQUIRE(decoded.dt == 0.125);
+   REQUIRE(decoded.restart.Size() == 5);
+   REQUIRE(std::memcmp(decoded.restart.Data(), data.restart.Data(), 5) == 0);
+
+   Snapshot truncated(encoded.Size() - 1);
+   std::memcpy(truncated.Data(), encoded.Data(), truncated.Size());
+   REQUIRE_THROWS_AS(ODECheckpointSerializer::Decode(11, truncated),
+                     InvalidCheckpointFormat);
+
+   Snapshot trailing(encoded.Size() + 1);
+   std::memcpy(trailing.Data(), encoded.Data(), encoded.Size());
+   trailing.Data()[encoded.Size()] = 0;
+   REQUIRE_THROWS_AS(ODECheckpointSerializer::Decode(11, trailing),
+                     InvalidCheckpointFormat);
+}
+
+TEST_CASE("Solver restart data replays hidden solver history exactly",
+          "[Checkpoint]")
+{
+   LinearODE oper;
+   const real_t step_size = 0.125;
+
+   SlopeHistorySolver reference_solver;
+   reference_solver.Init(oper);
+   Vector reference(2);
+   reference[0] = 1.0;
+   reference[1] = 2.0;
+   real_t reference_time = 0.0;
+   real_t reference_dt = step_size;
+   for (int i = 0; i < 10; i++)
+   {
+      reference_solver.Step(reference, reference_time, reference_dt);
+   }
+
+   SlopeHistorySolver solver;
+   solver.Init(oper);
+   Vector state(2);
+   state[0] = 1.0;
+   state[1] = 2.0;
+   TimePoint time{0, 0.0};
+   real_t dt = step_size;
+   SlopeHistoryCheckpointAdapter adapter(solver, state, time, dt);
+   ODEStatePropagator propagator(solver, state, time, dt);
+   MemoryCheckpointStorage storage;
+   ExactCheckpointWindow window(0);
+   CheckpointController controller(adapter, propagator, storage, window);
+
+   controller.Initialize(0);
+   controller.RestoreState(4);
+   controller.Store(5);
+   REQUIRE(ReadLittleEndian64(storage.Restore(5), 56) == 8 * (3 + 2));
+   controller.RestoreState(10);
+   RequireSameVector(state, reference);
+
+   // Corrupt the live history: replay is exact only if Restore takes the
+   // history from the restart data.
+   solver.previous_slope = 1.0e3;
+   state = 0.0;
+   controller.Restore(5);
+   REQUIRE(solver.has_history);
+   controller.RestoreState(10);
+   RequireSameVector(state, reference);
+   REQUIRE(time.time == reference_time);
 }
 
 TEST_CASE("Malformed exact checkpoints are rejected", "[Checkpoint]")
