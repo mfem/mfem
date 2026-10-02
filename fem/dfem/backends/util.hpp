@@ -40,7 +40,7 @@ constexpr std::array<bool, N> all_true()
    return all_true_impl<N>(std::make_index_sequence<N> {});
 }
 
-inline void InitBlockVector(BlockVector &v, Array<int> &offsets)
+inline void InitBlockVector(BlockVector &v, const Array<int> &offsets)
 {
    v.Update(offsets, Device::GetMemoryType());
    v.UseDevice(true);
@@ -487,14 +487,9 @@ inline const native_dual_t *native_dual_vector_r(const Vector &v)
    return reinterpret_cast<const native_dual_t *>(v.Read());
 }
 
-inline native_dual_t *native_dual_vector_host_rw(Vector &v)
+inline native_dual_t *native_dual_vector_w(Vector &v)
 {
-   return reinterpret_cast<native_dual_t *>(v.HostReadWrite());
-}
-
-inline const native_dual_t *native_dual_vector_host_r(const Vector &v)
-{
-   return reinterpret_cast<const native_dual_t *>(v.HostRead());
+   return reinterpret_cast<native_dual_t *>(v.Write());
 }
 
 inline void pack_dual_from_primal_shadow(
@@ -504,11 +499,11 @@ inline void pack_dual_from_primal_shadow(
    const int n,
    const bool active)
 {
-   for (int i = 0; i < n; i++)
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
    {
       out[i].value = primal[i];
       out[i].gradient = active ? shadow[i] : real_t(0);
-   }
+   });
 }
 
 template <bool unpack_primal_values>
@@ -517,10 +512,10 @@ inline void unpack_dual_to_real(
    real_t *yq,
    const int n)
 {
-   for (int i = 0; i < n; i++)
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
    {
       yq[i] = unpack_primal_values ? dual_out[i].value : dual_out[i].gradient;
-   }
+   });
 }
 
 template <typename decay_t, std::size_t I>
@@ -537,8 +532,8 @@ decltype(auto) make_native_dual_input(
       const int sz = xq.GetBlock(I).Size();
       ensure_native_dual_vector(dual_storage, sz);
       pack_dual_from_primal_shadow(
-         xq.GetBlock(I).HostRead(), shadow_xq.GetBlock(I).HostRead(),
-         native_dual_vector_host_rw(dual_storage), sz, active);
+         xq.GetBlock(I).Read(), shadow_xq.GetBlock(I).Read(),
+         native_dual_vector_w(dual_storage), sz, active);
       return make_tensor_array<decay_t>(
                 native_dual_vector_rw(dual_storage), &layout, gnqp);
    }
@@ -560,7 +555,7 @@ decltype(auto) make_native_dual_output(
       const int sz = yq.GetBlock(O).Size();
       ensure_native_dual_vector(dual_storage, sz);
       return make_tensor_array<decay_t>(
-                native_dual_vector_rw(dual_storage), &layout, gnqp);
+                native_dual_vector_w(dual_storage), &layout, gnqp);
    }
    else
    {
@@ -577,8 +572,8 @@ void finish_native_dual_output(
    if constexpr (qp_type_uses_dual_v<decay_t>)
    {
       unpack_dual_to_real<unpack_primal_values>(
-         native_dual_vector_host_r(dual_storage),
-         yq.GetBlock(O).HostWrite(), yq.GetBlock(O).Size());
+         native_dual_vector_r(dual_storage),
+         yq.GetBlock(O).Write(), yq.GetBlock(O).Size());
    }
    else if constexpr (!unpack_primal_values)
    {
