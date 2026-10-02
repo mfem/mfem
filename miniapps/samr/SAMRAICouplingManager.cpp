@@ -18,6 +18,12 @@ SAMRAICouplingManager::SAMRAICouplingManager(
 
 void SAMRAICouplingManager::SynchronizeMeshToHierarchy(bool create_new_mesh)
 {
+   // if the finite element space under mesh grid function has been changed,
+   // ensure that a new mesh is being created
+   MFEM_ASSERT(create_new_mesh == true ||
+      mesh_grid_function->FESpace() == fe_spaces_node[mesh->Dimension()].get(),
+      "An existing higher-order mesh cannot be synchronized: create a new mesh instead");
+
    // update global patch info and obtain corresponding patch bounds
    std::vector<PatchLevelBounds> global_patch_bounds;
    RemoveOldPatchesFromGlobalPatchInfo();
