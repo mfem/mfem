@@ -139,7 +139,8 @@ Device::Device()
       {
          MFEM_ABORT("Unknown memory backend!");
       }
-      mm.Configure(host_mem_type, device_mem_type);
+      auto &inst = MemoryManager::Instance();
+      inst.Configure(host_mem_type, device_mem_type);
    }
 
    if (GetEnv("MFEM_DEVICE"))
@@ -178,7 +179,8 @@ Device::~Device()
       // Destroy Ceed context
       CeedDestroy(&internal::ceed);
 #endif
-      mm.Destroy();
+      auto& inst = MemoryManager::Instance();
+      inst.Destroy();
    }
    Get().ngpu = -1;
    Get().backends = Backend::CPU;
@@ -293,7 +295,8 @@ void Device::Configure(const std::string &device, const int device_id)
 }
 
 // static method
-void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
+void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt, MemoryType hp_mt,
+                            MemoryType m_mt)
 {
    // If the device and/or the MemoryTypes are configured through the
    // environment (variables 'MFEM_DEVICE', 'MFEM_MEMORY'), ignore calls to this
@@ -310,6 +313,8 @@ void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
 
    Get().host_mem_type = h_mt;
    Get().device_mem_type = d_mt;
+   Get().host_pinned_mem_type = hp_mt;
+   Get().managed_mem_type = m_mt;
    mem_types_set = true;
 
    // h_mt and d_mt will be set as dual to each other during configuration by
@@ -358,15 +363,17 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
 {
    const bool debug = Device::Allows(Backend::DEBUG_DEVICE);
    const bool device = Device::Allows(Backend::DEVICE_MASK);
+   bool use_umpire = false;
 
 #ifdef MFEM_USE_UMPIRE
    // If MFEM has been compiled with Umpire support, use it as the default
    if (!mem_host_env && !mem_types_set)
    {
-      host_mem_type = MemoryType::HOST_UMPIRE;
+      host_mem_type = MemoryType::HOST;
+      use_umpire = true;
       if (!mem_device_env)
       {
-         device_mem_type = MemoryType::HOST_UMPIRE;
+         device_mem_type = MemoryType::HOST;
       }
    }
 #endif
@@ -387,7 +394,14 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
                   device_mem_type = MemoryType::DEVICE_DEBUG;
                   break;
                default:
-                  device_mem_type = MemoryType::DEVICE;
+                  if (use_umpire)
+                  {
+                     device_mem_type = MemoryType::DEVICE_UMPIRE;
+                  }
+                  else
+                  {
+                     device_mem_type = MemoryType::DEVICE;
+                  }
             }
          }
          else if (!mem_types_set)
@@ -420,7 +434,9 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
                "invalid device memory configuration!");
 
    // Update the memory manager with the new settings
-   mm.Configure(host_mem_type, device_mem_type);
+   auto& inst = MemoryManager::Instance();
+   inst.Configure(host_mem_type, device_mem_type, host_pinned_mem_type,
+                  managed_mem_type);
 }
 
 // static method
