@@ -435,6 +435,27 @@ TEST_CASE("Exact Vector checkpoint serialization", "[Checkpoint]")
    RequireSameVector(state, expected);
 }
 
+TEST_CASE("ODE propagation rejects solvers with history", "[Checkpoint]")
+{
+   Vector state(1);
+   state = 1.0;
+   TimePoint time{0, 0.0};
+   real_t dt = 0.1;
+
+   AB2Solver ab2;
+   AM2Solver am2;
+   GeneralizedAlphaSolver alpha;
+   REQUIRE_THROWS_AS(ODEStatePropagator(ab2, state, time, dt),
+                     InvalidCheckpointState);
+   REQUIRE_THROWS_AS(ODEStatePropagator(am2, state, time, dt),
+                     InvalidCheckpointState);
+   REQUIRE_THROWS_AS(ODEStatePropagator(alpha, state, time, dt),
+                     InvalidCheckpointState);
+
+   RK4Solver rk4;
+   REQUIRE_NOTHROW(ODEStatePropagator(rk4, state, time, dt));
+}
+
 TEST_CASE("Malformed exact checkpoints are rejected", "[Checkpoint]")
 {
    ForwardEulerSolver solver;

@@ -532,6 +532,13 @@ public:
 };
 
 /// Exact ODE transitions using the normal ODESolver::Step() implementation.
+/** Only solvers whose Step() depends solely on the borrowed Vector, time, and
+    step size are supported. ODESolverWithStates solvers (multistep and
+    generalized-alpha methods) keep cross-step history that
+    ODEVectorCheckpointAdapter cannot capture, so replay from a checkpoint
+    would silently diverge; they are rejected at construction. Other solvers
+    with hidden history, such as SUNDIALS integrators, are not detected and
+    require an application-specific adapter and propagator. */
 class ODEStatePropagator : public StatePropagator
 {
 private:
@@ -542,9 +549,9 @@ private:
 
 public:
    /// Borrow ODE continuation state and solver for the propagator lifetime.
+   /// @throws InvalidCheckpointState if @a solver_ is an ODESolverWithStates.
    ODEStatePropagator(ODESolver &solver_, Vector &state_, TimePoint &time_,
-                      real_t &dt_)
-      : solver(solver_), state(state_), time(time_), dt(dt_) { }
+                      real_t &dt_);
 
    /// @copydoc StatePropagator::Advance()
    void Advance(StateId from, StateId to) override;

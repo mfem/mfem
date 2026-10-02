@@ -168,6 +168,12 @@ defined in `miniapps/checkpointing/forward-euler.cpp` overrides that hook to set
 the operator time and reinitialize the solver; Forward Euler keeps no stage
 history, so nothing else is needed.
 ODEStatePropagator advances with the normal ODESolver::Step() implementation.
+Its constructor rejects ODESolverWithStates solvers (Adams-Bashforth,
+Adams-Moulton, generalized-alpha) with InvalidCheckpointState: their stage
+history is not part of the ODE payload, so replay after a restore would
+silently continue from stale history. Other solvers with hidden cross-step
+state, such as SUNDIALS integrators, cannot be detected and require an
+application-specific adapter and propagator.
 
 Vector values are encoded by the ODE adapter using Vector::HostRead() and
 restored using Vector::HostWrite(). Capture can therefore synchronize device

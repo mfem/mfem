@@ -19,6 +19,13 @@
 #include <utility>
 #include <vector>
 
+// Older standard libraries ship std::filesystem in a separate link library
+// (-lstdc++fs or -lc++fs), which MFEM does not support.
+#if (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 9) || \
+    (defined(_LIBCPP_VERSION) && _LIBCPP_VERSION < 9000)
+#error "MFEM requires a standard library with built-in <filesystem> support"
+#endif
+
 namespace mfem
 {
 
@@ -550,6 +557,20 @@ void ODEVectorCheckpointAdapter::Restore(
    time = restored.time;
    dt = restored.dt;
    OnRestored();
+}
+
+ODEStatePropagator::ODEStatePropagator(ODESolver &solver_, Vector &state_,
+                                       TimePoint &time_, real_t &dt_)
+   : solver(solver_), state(state_), time(time_), dt(dt_)
+{
+   // Solver history is not part of the ODE checkpoint payload; replay after a
+   // restore would continue from stale history instead of the restored state.
+   if (dynamic_cast<const ODESolverWithStates *>(&solver) != nullptr)
+   {
+      throw InvalidCheckpointState(
+         "ODEStatePropagator does not support ODESolverWithStates because "
+         "solver history is not checkpointed");
+   }
 }
 
 void ODEStatePropagator::Advance(StateId from, StateId to)
