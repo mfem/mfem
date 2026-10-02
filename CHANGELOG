@@ -86,6 +86,9 @@ Discretization improvements
   H1_FECollection, L2_FECollection, and the SetCurvature methods of Mesh and
   ParMesh, improving support for high-order meshes with pyramids.
 
+- Added class VectorQuadratureSpace that represents a vector (multi-component)
+  version of the scalar (single-component) class QuadratureSpaceBase.
+
 Meshing improvements
 --------------------
 - Added support for reading Gmsh meshes in format version 4.1, in both ASCII and
