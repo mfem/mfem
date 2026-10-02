@@ -101,6 +101,14 @@ void l_vector_interface(const char *filename, int p)
    MultiVector mz{z};
    dop.Mult(mx, mz);
 
+   // Sanity check to confirm that the two consecutive multiplications
+   // don't share memory with the previous output
+   ParGridFunction x2(&pfes), w(&pfes);
+   x2 = x;
+   x2 *= 2.0;
+   MultiVector mx2{x2, *nodes}, mw{w};
+   dop.Mult(mx2, mw);
+
    blf_fa.Mult(x, y);
 
    z -= y;
