@@ -586,9 +586,8 @@ static void FindPointsSurfLocal3DKernel(const int npt,
    const int p_NE  = D1D*D1D;  // total nos. points in an element
    MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
-               "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    const int nThreads = D1D*sDIM > 9 ? D1D*sDIM : 9;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
@@ -804,12 +803,6 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                            resid_temp[sDIM*qp+d] = sums_k[0] * J1[qp];
                            jac_temp[sDIM*rDIM*qp+rDIM*d+0] = sums_k[0]*D1[qp];
                            jac_temp[sDIM*rDIM*qp+rDIM*d+1] = sums_k[1]*J1[qp];
-                           if (d==0)
-                           {
-                              hes_temp[3*qp + 0] = sums_k[0] * DD1[qp];
-                              hes_temp[3*qp + 1] = sums_k[1] * D1[qp];
-                              hes_temp[3*qp + 2] = sums_k[2] * J1[qp];
-                           }
                         }
                         MFEM_SYNC_THREAD;
 
@@ -828,14 +821,38 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                            {
                               jac[l] += jac_temp[l + j*sDIM*rDIM];
                            }
-                           if (l<sDIM)   // d2f/dr2, d2f/ds2, and d2f/drds
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        // Hessian entries are ordered as rr, rs, and ss.
+                        MFEM_FOREACH_THREAD(j,x,sDIM*D1D)
+                        {
+                           const int qp = j % D1D;
+                           const int row = j / D1D;
+                           const double *wt_j = row == 0 ? J2 :
+                                                row == 1 ? D2 : DD2;
+                           const double wt_qp = row == 0 ? DD1[qp] :
+                                                row == 1 ? D1[qp] : J1[qp];
+                           hes_temp[j] = 0.0;
+                           for (int d=0; d<sDIM; ++d)
                            {
-                              hes[l] = 0;
-                              for (int j=0; j<D1D; ++j)
+                              const double *u = elx[d];
+                              double sum = 0.0;
+                              for (int k=0; k<D1D; ++k)
                               {
-                                 hes[l] += hes_temp[l + sDIM*j];
+                                 sum += u[qp + k*D1D] * wt_j[k];
                               }
-                              hes[l] *= resid[l];
+                              hes_temp[j] += resid[d] * sum * wt_qp;
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,sDIM)
+                        {
+                           hes[j] = 0.0;
+                           for (int k=0; k<D1D; ++k)
+                           {
+                              hes[j] += hes_temp[j*D1D + k];
                            }
                         }
                         MFEM_SYNC_THREAD;
@@ -1021,7 +1038,8 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                                                     resid[1] * hes[3+ 0] +
                                                     resid[2] * hes[6 + 0];
                                     newton_edge(fpt,jac,rh,resid,de,dn,
-                                                (tmp->flags & ~(3u<<2*de)),tmp,tol);
+                                                (tmp->flags & FLAG_MASK) &
+                                                ~(3u << (2*de)), tmp, tol);
                                  }
                               }
                               else
@@ -1034,7 +1052,8 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                                                       resid[1] * hes[5] +
                                                       resid[2] * hes[8];
                                     newton_edge(fpt,jac,rh,resid,de,dn,
-                                                (tmp->flags & ~(3u<<2*de)),tmp,tol);
+                                                (tmp->flags & FLAG_MASK) &
+                                                ~(3u << (2*de)), tmp, tol);
                                  }
                                  else
                                  {
