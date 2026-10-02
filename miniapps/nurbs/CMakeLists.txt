@@ -74,6 +74,10 @@ add_mfem_miniapp(nurbs_surface
   MAIN nurbs_surface.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(nurbs_spacing
+  MAIN nurbs_spacing.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser
     COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis
@@ -248,6 +252,14 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_surface_10_10_40_40_ex1_o3_ser
     COMMAND $<TARGET_FILE:nurbs_surface> -no-vis
         -o 3 -nx 10 -ny 10 -fnx 40 -fny 14 -ex 1)
+
+  add_test(NAME nurbs_spacing_1_ser
+    COMMAND $<TARGET_FILE:nurbs_spacing> -no-vis
+        -ex 1)
+
+  add_test(NAME nurbs_spacing_2_ser
+    COMMAND $<TARGET_FILE:nurbs_spacing> -no-vis
+        -ex 2)
 
 endif()
 
