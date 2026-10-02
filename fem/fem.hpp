@@ -49,6 +49,7 @@
 #include "lor/lor.hpp"
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
+#include "darcy/darcy.hpp"
 #include "bounds.hpp"
 #include "particleset.hpp"
 
