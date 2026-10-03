@@ -329,9 +329,9 @@ bool AMGFSolver::GenerateFilteredSubspaceTransferOperator(int max_iter,
 
    real_t mu[2] = {global_min, global_max};
    real_t var[2];
-   var[0] = var[1] = std::max((global_max-global_min)*(global_max-global_min)/4.0,
-                              var_floor);
-   real_t log_pi[2] = {std::log(0.5), std::log(0.5)};
+   var[0] = var[1] = std::max((global_max-global_min)*(global_max-global_min)/
+                              real_t(4.0), var_floor);
+   real_t log_pi[2] = {std::log(real_t(0.5)), std::log(real_t(0.5))};
 
    Vector resp0(nrows_local), resp1(nrows_local);
 
