@@ -307,9 +307,9 @@ bool AMGFSolver::GenerateFilteredSubspaceTransferOperator(int max_iter,
    // distributed operator lives on exactly one rank), and only the six
    // scalar M-step sums need to be reduced across ranks each iteration.
    real_t local_min = (nrows_local > 0) ? x.Min() :
-                       std::numeric_limits<real_t>::max();
+                      std::numeric_limits<real_t>::max();
    real_t local_max = (nrows_local > 0) ? x.Max() :
-                       std::numeric_limits<real_t>::lowest();
+                      std::numeric_limits<real_t>::lowest();
    real_t global_min, global_max;
    MPI_Allreduce(&local_min, &global_min, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_MIN, comm);

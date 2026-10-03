@@ -498,8 +498,8 @@ int main(int argc, char *argv[])
             schwarzprec = new AMGFSchwarzSolver(
                *contact.GetGapJacobian(),
                *contact.GetContactSubspaceTransferOperator(),
-               [&optimizer](Vector &D) { optimizer.GetWmm()->GetDiag(D); },
-               amgf_schwarz_dmin);
+            [&optimizer](Vector &D) { optimizer.GetWmm()->GetDiag(D); },
+            amgf_schwarz_dmin);
             prec = schwarzprec;
          }
          else
@@ -525,13 +525,13 @@ int main(int argc, char *argv[])
             amgfprec->EnableAutoFilteredSubspace(
                true,
                [amgf_fsolver]() -> std::unique_ptr<Solver>
-               {
-                  auto s = std::make_unique<ParallelDirectSolver>(
-                     MPI_COMM_WORLD, amgf_fsolver);
-                  s->SetPrintLevel(0);
-                  return s;
-               },
-               amgf_gmm_max_iter, amgf_gmm_tol, amgf_jump_threshold);
+            {
+               auto s = std::make_unique<ParallelDirectSolver>(
+                  MPI_COMM_WORLD, amgf_fsolver);
+               s->SetPrintLevel(0);
+               return s;
+            },
+            amgf_gmm_max_iter, amgf_gmm_tol, amgf_jump_threshold);
          }
          else if (!amgf_schwarz)
          {
