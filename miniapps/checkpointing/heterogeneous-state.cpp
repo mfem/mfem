@@ -40,7 +40,9 @@ using namespace std;
 namespace
 {
 
+/// Identifies DemoStateAdapter snapshots ("FCHDEMO1").
 constexpr std::uint64_t snapshot_magic = 0x314f4d4544484346ULL;
+/// Version of the DemoStateAdapter snapshot layout.
 constexpr std::uint64_t snapshot_version = 1;
 
 /// Complete non-time application state at one logical iteration.
@@ -49,22 +51,29 @@ constexpr std::uint64_t snapshot_version = 1;
     synchronization. */
 struct DemoState
 {
-   StateId iteration = 0;
-   std::uint64_t fibonacci = 0;
-   std::uint64_t next_fibonacci = 1;
-   real_t floating_value = 1.0;
-   std::string text = "state-0";
+   StateId iteration = 0;            ///< Completed transitions k.
+   std::uint64_t fibonacci = 0;      ///< F_k.
+   std::uint64_t next_fibonacci = 1; ///< F_{k+1}, hidden continuation state.
+   real_t floating_value = 1.0;      ///< x_k with x_{k+1} = 0.5 x_k + 0.125.
+   std::string text = "state-0";     ///< "state-0|state-1|...|state-k".
 };
 
 /// Capture and restore all fields required to continue DemoState exactly.
+/** The snapshot is written with SnapshotWriter in the order magic, version,
+    iteration, fibonacci, next_fibonacci, floating_value (binary64), and
+    text. The checkpoint ID is ignored and not stored. The DemoState is
+    borrowed and must outlive the adapter. */
 class DemoStateAdapter : public CheckpointStateAdapter
 {
 private:
-   DemoState &state;
+   DemoState &state; ///< Borrowed application state.
 
 public:
+   /// Borrow the application state.
    explicit DemoStateAdapter(DemoState &state_) : state(state_) { }
 
+   /// Encode every DemoState field at iteration @a id.
+   /// @throws InvalidCheckpointState if the state is not at @a id.
    Snapshot Capture(
       StateId id,
       std::optional<CheckpointId> checkpoint = std::nullopt) const override
@@ -87,6 +96,10 @@ public:
       return writer.Finish();
    }
 
+   /// Decode @a snapshot into a temporary and move it into the live state.
+   /** The live state is modified only after the whole snapshot is decoded.
+       @throws InvalidCheckpointFormat for a wrong header, truncated or
+       trailing bytes, or an iteration different from @a id. */
    void Restore(
       StateId id, const Snapshot &snapshot,
       std::optional<CheckpointId> checkpoint = std::nullopt) override
@@ -117,14 +130,22 @@ public:
 };
 
 /// Advance the three deterministic sequences without using physical time.
+/** One transition maps (F_k, F_{k+1}) to (F_{k+1}, F_k + F_{k+1}), applies
+    x_{k+1} = 0.5 x_k + 0.125, and appends "|state-(k+1)" to the text. */
 class DemoStatePropagator : public StatePropagator
 {
 private:
-   DemoState &state;
+   DemoState &state; ///< Borrowed application state.
 
 public:
+   /// Borrow the application state.
    explicit DemoStatePropagator(DemoState &state_) : state(state_) { }
 
+   /// Apply transitions one at a time from iteration @a from through @a to.
+   /** @throws InvalidCheckpointState if the state is not at @a from, @a to
+       precedes @a from, or the next Fibonacci number would overflow uint64
+       (beyond iteration 92). A throw can leave partial transitions, which
+       CheckpointController rolls back. */
    void Advance(StateId from, StateId to) override
    {
       if (state.iteration != from || to < from)
@@ -150,6 +171,7 @@ public:
    }
 };
 
+/// Return true when every DemoState field is exactly equal.
 bool SameState(const DemoState &left, const DemoState &right)
 {
    return left.iteration == right.iteration &&
@@ -159,6 +181,7 @@ bool SameState(const DemoState &left, const DemoState &right)
           left.text == right.text;
 }
 
+/// Print the visible DemoState values, the float at max_digits10 precision.
 void PrintState(const char *name, const DemoState &state)
 {
    cout << name << " state:\n"
@@ -171,8 +194,18 @@ void PrintState(const char *name, const DemoState &state)
 
 } // namespace
 
+/** Run the sequences forward through a CheckpointController with an
+    IntervalCheckpointSchedule, then recover the non-persisted terminal state
+    twice, overwriting the live state each time, and compare both results
+    with the forward-run reference.
+
+    Exit codes: 0 when both recoveries match, 1 for unparsable options, 2 for
+    invalid option values, 3 when either recovery differs from the reference,
+    and 4 when a checkpoint operation throws. */
 int main(int argc, char *argv[])
 {
+   // 1. Parse command-line options. 92 transitions is the largest count for
+   //    which the next Fibonacci number still fits in uint64.
    int num_states = 12;
    int checkpoint_interval = 4;
    int window_size = 2;
@@ -200,6 +233,10 @@ int main(int argc, char *argv[])
 
    try
    {
+      // 2. Assemble the checkpoint services around the externally owned
+      //    DemoState. The schedule stores state 0 and every
+      //    checkpoint_interval-th state before num_states, never the terminal
+      //    state.
       DemoState state;
       DemoStateAdapter adapter(state);
       DemoStatePropagator propagator(state);
@@ -208,27 +245,34 @@ int main(int argc, char *argv[])
       CheckpointController controller(adapter, propagator, storage, window);
       IntervalCheckpointSchedule schedule(num_states, checkpoint_interval);
 
+      // 3. Run forward to num_states and keep a copy as the reference.
       controller.Initialize();
       controller.ExecuteForward(schedule, num_states);
       const DemoState reference = state;
 
-      // Remove the forward-run cache so the first reconstruction must start
-      // from persistent storage. Restore and replay then repopulate the window.
+      // 4. Remove the forward-run cache so the first reconstruction must start
+      //    from persistent storage. Restore and replay then repopulate the
+      //    window.
       window.Clear();
 
-      // Destroy every live value, restore the latest earlier checkpoint, then
-      // replay deterministic transitions to the non-persisted terminal state.
+      // 5. Destroy every live value, restore the latest earlier checkpoint,
+      //    then replay deterministic transitions to the non-persisted terminal
+      //    state.
       state = DemoState{-1, 99, 100, -1.0, "discarded"};
       controller.Restore(schedule.LastCheckpointId());
       controller.RestoreState(num_states);
       const DemoState restored = state;
 
-      // The terminal state is not persistent. Destroy the live state again and
-      // recover the exact terminal snapshot retained by the moving window.
+      // 6. The terminal state is not persistent. Destroy the live state again
+      //    and recover it without replay. The terminal snapshot is now both
+      //    the controller's committed active state and the newest window
+      //    entry; RestoreState() prefers the active snapshot on a tie, so this
+      //    restores it directly.
       state = DemoState{-1, 101, 102, -2.0, "discarded-again"};
       controller.RestoreState(num_states);
       const DemoState window_restored = state;
 
+      // 7. Report all three states and compare both recoveries exactly.
       PrintState("Reference", reference);
       cout << '\n';
       PrintState("Restored", restored);
@@ -248,6 +292,8 @@ int main(int argc, char *argv[])
    }
    catch (const std::exception &error)
    {
+      // Checkpoint failures raise CheckpointError subclasses; report any
+      // exception and exit without a verdict.
       cerr << "Checkpoint demo failed: " << error.what() << '\n';
       return 4;
    }

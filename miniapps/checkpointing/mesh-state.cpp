@@ -44,7 +44,9 @@ using namespace std;
 namespace
 {
 
+/// Identifies MeshStateAdapter snapshots ("MCFMESH1").
 constexpr std::uint64_t snapshot_magic = 0x314853454d46434dULL;
+/// Version of the MeshStateAdapter snapshot layout.
 constexpr std::uint64_t snapshot_version = 1;
 
 /// Complete state for deterministic nonconforming refinement replay.
@@ -52,11 +54,15 @@ constexpr std::uint64_t snapshot_version = 1;
     next element through selection_index % mesh.GetNE(). */
 struct MeshState
 {
-   std::unique_ptr<Mesh> mesh;
-   StateId cycle = 0;
-   std::uint64_t selection_index = 0;
+   std::unique_ptr<Mesh> mesh;        ///< Owned mesh; replaced on restore.
+   StateId cycle = 0;                 ///< Completed refinement cycles.
+   std::uint64_t selection_index = 0; ///< Selects the next refined element.
 };
 
+/// Return the MFEM text format of @a mesh, written by Mesh::Print().
+/** Uses max_digits10 precision so that vertex coordinates survive the text
+    round trip exactly.
+    @throws InvalidCheckpointState if writing to the stream fails. */
 std::string SerializeMesh(const Mesh &mesh)
 {
    ostringstream output;
@@ -70,14 +76,23 @@ std::string SerializeMesh(const Mesh &mesh)
 }
 
 /// Application-owned Mesh serializer; the checkpoint core sees opaque bytes.
+/** The snapshot is written with SnapshotWriter in the order magic, version,
+    cycle, selection_index, and the SerializeMesh() text as a string. The
+    checkpoint ID is ignored and not stored. Only nonempty two-dimensional
+    nonconforming meshes are supported. The MeshState is borrowed and must
+    outlive the adapter. */
 class MeshStateAdapter : public CheckpointStateAdapter
 {
 private:
-   MeshState &state;
+   MeshState &state; ///< Borrowed application state.
 
 public:
+   /// Borrow the application state.
    explicit MeshStateAdapter(MeshState &state_) : state(state_) { }
 
+   /// Encode the cycle, selection index, and complete mesh at cycle @a id.
+   /** @throws InvalidCheckpointState if there is no mesh, the state is not at
+       @a id, or the mesh is conforming. */
    Snapshot Capture(
       StateId id,
       std::optional<CheckpointId> checkpoint = std::nullopt) const override
@@ -103,6 +118,12 @@ public:
       return writer.Finish();
    }
 
+   /// Rebuild the mesh with the Mesh stream constructor and replace the state.
+   /** The new mesh is built and validated before the live state is modified;
+       the previous mesh is then destroyed.
+       @throws InvalidCheckpointFormat for a wrong header, truncated or
+       trailing bytes, a cycle different from @a id, unread mesh text, or a
+       mesh that is not a nonempty two-dimensional nonconforming mesh. */
    void Restore(
       StateId id, const Snapshot &snapshot,
       std::optional<CheckpointId> checkpoint = std::nullopt) override
@@ -125,6 +146,7 @@ public:
             "MeshState snapshot contains the wrong StateId");
       }
 
+      // Arguments: generate edges, refine flag 1, fix element orientation.
       istringstream mesh_input(mesh_bytes);
       std::unique_ptr<Mesh> restored_mesh(
          new Mesh(mesh_input, 1, 1, true));
@@ -145,14 +167,23 @@ public:
 };
 
 /// Repeat deterministic local refinement without retaining stale elements.
+/** Each cycle refines element selection_index % GetNE() nonconformingly and
+    increments selection_index and cycle. The target is recomputed from the
+    current mesh every cycle, because refinement renumbers elements. */
 class MeshStatePropagator : public StatePropagator
 {
 private:
-   MeshState &state;
+   MeshState &state; ///< Borrowed application state.
 
 public:
+   /// Borrow the application state.
    explicit MeshStatePropagator(MeshState &state_) : state(state_) { }
 
+   /// Apply refinement cycles one at a time from @a from through @a to.
+   /** @throws InvalidCheckpointState if there is no mesh, the state is not
+       at @a from, @a to precedes @a from, or the mesh has no elements. A
+       throw can leave partial refinements, which CheckpointController rolls
+       back. */
    void Advance(StateId from, StateId to) override
    {
       if (!state.mesh || state.cycle != from || to < from)
@@ -184,18 +215,20 @@ public:
    }
 };
 
+/// Counts and flags compared and printed for a mesh.
 struct MeshSummary
 {
-   int elements;
-   int vertices;
-   int boundary_elements;
-   int edges;
-   int faces;
-   int dimension;
-   int space_dimension;
-   bool nonconforming;
+   int elements;          ///< Mesh::GetNE().
+   int vertices;          ///< Mesh::GetNV().
+   int boundary_elements; ///< Mesh::GetNBE().
+   int edges;             ///< Mesh::GetNEdges().
+   int faces;             ///< Mesh::GetNumFaces().
+   int dimension;         ///< Mesh::Dimension().
+   int space_dimension;   ///< Mesh::SpaceDimension().
+   bool nonconforming;    ///< Mesh::Nonconforming().
 };
 
+/// Collect the MeshSummary of @a mesh.
 MeshSummary Summarize(const Mesh &mesh)
 {
    return {mesh.GetNE(), mesh.GetNV(), mesh.GetNBE(), mesh.GetNEdges(),
@@ -203,6 +236,11 @@ MeshSummary Summarize(const Mesh &mesh)
            mesh.Nonconforming()};
 }
 
+/// Return true when two meshes are identical.
+/** Compares the MeshSummary, every element attribute and geometry, every
+    boundary attribute, and finally the full SerializeMesh() text. The text
+    comparison alone implies the others; the earlier checks give a cheaper
+    early exit. */
 bool SameStructure(const Mesh &left, const Mesh &right)
 {
    const MeshSummary a = Summarize(left);
@@ -233,11 +271,16 @@ bool SameStructure(const Mesh &left, const Mesh &right)
    return SerializeMesh(left) == SerializeMesh(right);
 }
 
+/// Linear test function c(x) = 1 + 0.5 x_0 - 0.25 x_1.
 real_t ProjectedCoefficient(const Vector &position)
 {
    return 1.0 + 0.5 * position[0] - 0.25 * position[1];
 }
 
+/// Project ProjectedCoefficient() into both fields and compare them.
+/** Overwrites both fields with the projection. Returns the maximum absolute
+    difference between corresponding entries, or infinity when the sizes
+    differ or a difference is not finite. */
 real_t CompareProjections(GridFunction &reference_field,
                           GridFunction &restored_field)
 {
@@ -265,6 +308,9 @@ real_t CompareProjections(GridFunction &reference_field,
    return error;
 }
 
+/// Write @a mesh and @a field to the ParaView collection <prefix>/<name>.
+/** Uses high-order ASCII VTK output with @a order levels of detail.
+    @throws CheckpointStorageError if the collection reports an error. */
 void SaveParaView(const string &prefix, const string &name, Mesh &mesh,
                   GridFunction &field, int order)
 {
@@ -282,6 +328,7 @@ void SaveParaView(const string &prefix, const string &name, Mesh &mesh,
    }
 }
 
+/// Print the element, vertex, boundary element, edge, and face counts.
 void PrintSummary(const char *name, const MeshSummary &summary)
 {
    cout << name << " mesh:\n"
@@ -294,8 +341,17 @@ void PrintSummary(const char *name, const MeshSummary &summary)
 
 } // namespace
 
+/** Refine a nonconforming mesh through a CheckpointController with an
+    IntervalCheckpointSchedule, replace the live mesh, rebuild the terminal
+    mesh from the newest interval checkpoint, and require it to match the
+    forward-run reference in structure, metadata, and projected H1 fields.
+
+    Exit codes: 0 on success, 1 for unparsable options, 2 for invalid option
+    values, 3 when the rebuilt mesh differs from the reference, and 4 when a
+    checkpoint operation or ParaView output throws. */
 int main(int argc, char *argv[])
 {
+   // 1. Parse command-line options.
    int refinement_steps = 4;
    int checkpoint_interval = 2;
    int order = 1;
@@ -330,6 +386,9 @@ int main(int argc, char *argv[])
 
    try
    {
+      // 2. Build the initial state: a 2-by-2 quadrilateral mesh of the unit
+      //    square, converted to a nonconforming mesh so that local
+      //    refinement creates hanging nodes.
       MeshState state;
       Mesh initial_mesh = Mesh::MakeCartesian2D(
                              2, 2, Element::QUADRILATERAL, true, 1.0, 1.0);
@@ -341,6 +400,10 @@ int main(int argc, char *argv[])
             "failed to create the initial nonconforming mesh");
       }
 
+      // 3. Assemble the checkpoint services. The window has capacity 0, so
+      //    no states are cached and every reconstruction starts from
+      //    persistent storage. The schedule stores cycle 0 and every
+      //    checkpoint_interval-th cycle before refinement_steps.
       MeshStateAdapter adapter(state);
       MeshStatePropagator propagator(state);
       MemoryCheckpointStorage storage;
@@ -349,13 +412,16 @@ int main(int argc, char *argv[])
       IntervalCheckpointSchedule schedule(refinement_steps,
                                           checkpoint_interval);
 
+      // 4. Refine forward and copy the terminal mesh and selection index as
+      //    the reference.
       controller.Initialize();
       controller.ExecuteForward(schedule, refinement_steps);
       Mesh reference_mesh(*state.mesh);
       const std::uint64_t reference_index = state.selection_index;
 
-      // Replace the live mesh and controller-related metadata before restoring
-      // an earlier snapshot and replaying the remaining refinement cycles.
+      // 5. Replace the live mesh with an unrelated triangle mesh and corrupt
+      //    the metadata, then restore the newest interval checkpoint and
+      //    replay the remaining refinement cycles.
       state.mesh.reset(new Mesh(Mesh::MakeCartesian2D(
                                    1, 1, Element::TRIANGLE, true, 2.0, 2.0)));
       state.cycle = -1;
@@ -363,6 +429,10 @@ int main(int argc, char *argv[])
       controller.Restore(schedule.LastCheckpointId());
       controller.RestoreState(refinement_steps);
 
+      // 6. Compare the rebuilt mesh with the reference: structure and text,
+      //    the cycle and selection index, and an H1 projection on both
+      //    meshes. Identical meshes give identical DOF layouts, so the fields
+      //    are compared entrywise with a tolerance of 100 epsilon.
       const MeshSummary reference_summary = Summarize(reference_mesh);
       const MeshSummary restored_summary = Summarize(*state.mesh);
       const bool structure_matches = SameStructure(reference_mesh,
@@ -382,6 +452,8 @@ int main(int argc, char *argv[])
                                numeric_limits<real_t>::epsilon();
       const bool projection_matches = projection_error <= tolerance;
 
+      // 7. Optionally write both meshes and fields for visual inspection.
+      //    The output is diagnostic only and does not affect the verdict.
       if (paraview)
       {
          SaveParaView(output_prefix, "reference", reference_mesh,
@@ -390,6 +462,7 @@ int main(int argc, char *argv[])
                       restored_field, order);
       }
 
+      // 8. Report both meshes and the verdict.
       PrintSummary("Reference", reference_summary);
       cout << '\n';
       PrintSummary("Restored", restored_summary);
@@ -412,6 +485,8 @@ int main(int argc, char *argv[])
    }
    catch (const std::exception &error)
    {
+      // Checkpoint and ParaView failures throw; report any exception and exit
+      // without a verdict.
       cerr << "Mesh checkpoint demo failed: " << error.what() << '\n';
       return 4;
    }

@@ -28,7 +28,7 @@
 //              discards every persistent checkpoint except the initial one,
 //              clears the transient moving window, and reconstructs the
 //              terminal step from checkpoint 1. It succeeds only when the
-//              replayed and reference terminal states are bitwise identical.
+//              replayed and reference terminal states are exactly equal.
 
 #include "mfem.hpp"
 
@@ -41,15 +41,22 @@ using namespace std;
 namespace
 {
 
+/// Scalar autonomous ODE du/dt = alpha u - u^3.
+/** For alpha > 0 the solution approaches the stable equilibrium sqrt(alpha).
+    The cubic term makes Forward Euler updates nonlinear, so an exact replay
+    match is a meaningful check of deterministic propagation. The right-hand
+    side does not depend on time. */
 class CubicOperator : public TimeDependentOperator
 {
 private:
-   real_t parameter;
+   real_t parameter; ///< Linear growth rate alpha.
 
 public:
+   /// Construct the one-component operator with growth rate @a parameter_.
    explicit CubicOperator(real_t parameter_)
       : TimeDependentOperator(1), parameter(parameter_) { }
 
+   /// Evaluate the slope: rate = alpha u - u^3.
    void Mult(const Vector &state, Vector &rate) const override
    {
       rate.SetSize(1);
@@ -86,6 +93,14 @@ public:
 
 } // namespace
 
+/** Integrate a reference trajectory, run the same integration through a
+    CheckpointController, and rebuild the terminal state by replaying every
+    step from the initial checkpoint. The replay must match the reference
+    exactly.
+
+    Exit codes: 0 on success, 1 for unparsable options, 2 for a non-positive
+    step count, 3 when the replayed state differs from the reference, and 4
+    when a checkpoint operation throws. */
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options. The visualization option is accepted for
@@ -114,13 +129,15 @@ int main(int argc, char *argv[])
 
    try
    {
-      // 2. Define the scalar problem, fixed step size, and initial condition.
+      // 2. Define the scalar problem, fixed step size, and initial condition:
+      //    alpha = 0.7, dt = 0.01, and u(0) = 0.4.
       const real_t parameter = 0.7;
       const real_t dt = 0.01;
       Vector initial(1);
       initial[0] = 0.4;
 
       // 3. Compute an ordinary Forward Euler trajectory as the exact reference.
+      //    It shares no objects with the checkpointed run.
       CubicOperator reference_operator(parameter);
       ForwardEulerSolver reference_solver;
       reference_solver.Init(reference_operator);
@@ -134,6 +151,9 @@ int main(int argc, char *argv[])
 
       // 4. Assemble the checkpoint/replay services. The ODE adapter binds the
       //    generic state-centric core to this externally owned continuation.
+      //    The adapter and propagator borrow the same solver, solution, time,
+      //    and step size. Storage keeps persistent checkpoints in memory; the
+      //    window caches the two most recent states.
       CubicOperator checkpoint_operator(parameter);
       ForwardEulerSolver checkpoint_solver;
       Vector checkpoint_state(initial);
@@ -149,7 +169,9 @@ int main(int argc, char *argv[])
       ExactCheckpointWindow window(2);
       CheckpointController controller(adapter, propagator, storage, window);
       // 5. StoreEverything assigns checkpoint ID step + 1 to every state from
-      //    the initial state through the terminal state.
+      //    the initial state through the terminal state, so it needs
+      //    steps + 1 slots. Initialize() captures state 0; ExecuteForward()
+      //    then advances one step at a time and stores every state.
       StoreEverythingSchedule schedule;
       schedule.Configure(steps, static_cast<size_t>(steps) + 1);
 
@@ -158,6 +180,8 @@ int main(int argc, char *argv[])
 
       // 6. Retain only the initial persistent checkpoint and clear transient
       //    replay state, forcing RestoreStep() to replay the full trajectory.
+      //    Restore(1) loads state 0 into the application; RestoreStep() then
+      //    replays all steps from it.
       const CheckpointId last_id = static_cast<CheckpointId>(steps) + 1;
       for (CheckpointId id = 2; id <= last_id; id++)
       {
@@ -167,7 +191,8 @@ int main(int argc, char *argv[])
       controller.Restore(1);
       controller.RestoreStep(steps);
 
-      // 7. Exact deterministic replay must reproduce the reference bit for bit.
+      // 7. Exact deterministic replay must reproduce the reference exactly:
+      //    any nonzero difference fails.
       const real_t replay_error =
          std::abs(checkpoint_state[0] - reference_state[0]);
       cout << "terminal replay error: " << replay_error << '\n';
@@ -176,6 +201,8 @@ int main(int argc, char *argv[])
    }
    catch (const std::exception &error)
    {
+      // Checkpoint failures raise CheckpointError subclasses; report any
+      // exception and exit without a verdict.
       cerr << "Checkpoint failure: " << error.what() << '\n';
       return 4;
    }

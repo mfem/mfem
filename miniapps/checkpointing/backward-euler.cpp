@@ -45,16 +45,23 @@ using namespace std;
 namespace
 {
 
+/// Identifies BackwardEulerStateAdapter snapshots ("BCHPTBE1").
 constexpr std::uint64_t snapshot_magic = 0x3145425450484342ULL;
+/// Version of the BackwardEulerStateAdapter snapshot layout.
 constexpr std::uint64_t snapshot_version = 1;
 
 /// Stiff diagonal system u_i' = -lambda_i u_i.
+/** Two uncoupled decay modes with a slow rate lambda_0 and a fast rate
+    lambda_1. The fast mode makes the system stiff, so it is integrated with
+    BackwardEulerSolver. The rates are immutable after construction and are
+    part of the compatibility check performed by BackwardEulerStateAdapter. */
 class StiffDecayOperator : public TimeDependentOperator
 {
 private:
-   real_t rates[2];
+   real_t rates[2]; ///< Decay rates {lambda_0, lambda_1}.
 
 public:
+   /// Construct the two-component operator with the given decay rates.
    StiffDecayOperator(real_t slow_rate, real_t fast_rate)
       : TimeDependentOperator(2)
    {
@@ -62,8 +69,10 @@ public:
       rates[1] = fast_rate;
    }
 
+   /// Return the decay rate lambda_i of @a component (0 or 1).
    real_t Rate(int component) const { return rates[component]; }
 
+   /// Evaluate the slope: rate_i = -lambda_i state_i.
    void Mult(const Vector &state, Vector &rate) const override
    {
       rate.SetSize(2);
@@ -73,6 +82,11 @@ public:
       }
    }
 
+   /// Solve k = f(state + gamma k) for the slope @a rate in closed form.
+   /** Each component satisfies k_i = -lambda_i (u_i + gamma k_i), so
+       k_i = -lambda_i u_i / (1 + gamma lambda_i).
+       @throws InvalidCheckpointState unless @a gamma is positive and
+       @a state has two entries. */
    void ImplicitSolve(real_t gamma, const Vector &state,
                       Vector &rate) override
    {
@@ -91,21 +105,47 @@ public:
 };
 
 /// Miniapp-specific adapter for a complete Backward Euler restart.
+/** Captures the solution Vector, TimePoint, and step size, together with the
+    operator rates used to reject snapshots from an incompatible operator. The
+    snapshot is a canonical little-endian sequence written by SnapshotWriter:
+
+    | Field                  | Encoding                    |
+    |------------------------|-----------------------------|
+    | snapshot_magic         | uint64                      |
+    | snapshot_version       | uint64                      |
+    | StateId                | int64 bits                  |
+    | has checkpoint ID      | uint64, 0 or 1              |
+    | checkpoint ID          | uint64, 0 when absent       |
+    | slow and fast rates    | 2 x binary64                |
+    | physical time, dt      | 2 x binary64                |
+    | Vector length          | uint64, always 2            |
+    | Vector entries         | 2 x binary64                |
+
+    BackwardEulerSolver keeps no cross-step history; its internal vector is
+    temporary stage storage. Restore therefore reinitializes the solver
+    instead of storing solver data. All dependencies are borrowed and must
+    outlive the adapter. */
 class BackwardEulerStateAdapter : public CheckpointStateAdapter
 {
 private:
-   BackwardEulerSolver &solver;
-   StiffDecayOperator &oper;
-   Vector &state;
-   TimePoint &time;
-   real_t &dt;
+   BackwardEulerSolver &solver; ///< Borrowed solver, reinitialized on restore.
+   StiffDecayOperator &oper;    ///< Borrowed operator; rates are validated.
+   Vector &state;               ///< Borrowed two-component solution.
+   TimePoint &time;             ///< Borrowed logical step and physical time.
+   real_t &dt;                  ///< Borrowed fixed step size.
 
 public:
+   /// Borrow the solver, operator, and continuation state.
    BackwardEulerStateAdapter(BackwardEulerSolver &solver_,
                              StiffDecayOperator &oper_, Vector &state_,
                              TimePoint &time_, real_t &dt_)
       : solver(solver_), oper(oper_), state(state_), time(time_), dt(dt_) { }
 
+   /// Encode the complete restart at state @a id.
+   /** Records @a checkpoint when present so Restore() can verify it.
+       @throws InvalidCheckpointState if the application is not at @a id, the
+       state does not have two entries, the step size is not positive and
+       finite, or any value is non-finite. */
    Snapshot Capture(
       StateId id,
       std::optional<CheckpointId> checkpoint = std::nullopt) const override
@@ -143,6 +183,14 @@ public:
       return writer.Finish();
    }
 
+   /// Restore the complete restart at state @a id from @a snapshot.
+   /** Decodes and validates the whole snapshot before modifying the
+       application, then sets the operator time and calls
+       BackwardEulerSolver::Init() to recreate its stage storage.
+       @throws InvalidCheckpointFormat for a malformed snapshot or a StateId
+       or checkpoint ID mismatch.
+       @throws InvalidCheckpointState for different operator rates or
+       invalid numerical values. */
    void Restore(
       StateId id, const Snapshot &snapshot,
       std::optional<CheckpointId> checkpoint = std::nullopt) override
@@ -210,6 +258,9 @@ public:
    }
 };
 
+/// Return true when @a left and @a right have equal sizes and entries.
+/** Entries are compared exactly with operator==, with no tolerance, because
+    checkpoint replay must reproduce the reference trajectory exactly. */
 bool SameVector(const Vector &left, const Vector &right)
 {
    if (left.Size() != right.Size()) { return false; }
@@ -220,6 +271,9 @@ bool SameVector(const Vector &left, const Vector &right)
    return true;
 }
 
+/// Print the two solution components and the physical time of a trajectory.
+/** Values are printed with max_digits10 precision, so equal printed values
+    imply equal real_t values. @a name labels the trajectory. */
 void PrintState(const char *name, const Vector &state, real_t time)
 {
    cout << name << " state:\n"
@@ -231,8 +285,16 @@ void PrintState(const char *name, const Vector &state, real_t time)
 
 } // namespace
 
+/** Run a reference integration and a checkpointed integration of the same
+    problem, then rebuild the terminal state from one interior checkpoint and
+    require it to match the reference exactly.
+
+    Exit codes: 0 on success, 1 for unparsable options, 2 for invalid option
+    values, 3 when the restored state differs from the reference, and 4 when
+    a checkpoint operation throws. */
 int main(int argc, char *argv[])
 {
+   // 1. Parse command-line options.
    int steps = 12;
    int restart_step = 4;
    real_t dt = 0.1;
@@ -254,6 +316,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+   // The restart checkpoint must be strictly interior, so that at least one
+   // step precedes it and at least one step must be replayed after it.
    if (steps < 2 || restart_step < 1 || restart_step >= steps ||
        !std::isfinite(dt) || !(dt > 0.0))
    {
@@ -264,12 +328,15 @@ int main(int argc, char *argv[])
 
    try
    {
+      // 2. Define the problem: u(0) = (1, 1) with decay rates 1 and 50.
       const real_t slow_rate = 1.0;
       const real_t fast_rate = 50.0;
       Vector initial(2);
       initial = 1.0;
 
-      // Integrate an independent reference trajectory.
+      // 3. Integrate an independent reference trajectory with no
+      //    checkpointing. Its objects are never shared with the checkpointed
+      //    run, so it serves as ground truth.
       StiffDecayOperator reference_operator(slow_rate, fast_rate);
       BackwardEulerSolver reference_solver;
       reference_solver.Init(reference_operator);
@@ -281,7 +348,11 @@ int main(int argc, char *argv[])
          reference_solver.Step(reference, reference_time, reference_dt);
       }
 
-      // Integrate the checkpointed trajectory and persist every state.
+      // 4. Set up the checkpointed run. The adapter and propagator borrow the
+      //    same solver, solution, time, and step size, which remain owned
+      //    here. Storage keeps persistent checkpoints in memory; the window
+      //    caches the two most recent states. StoreEverythingSchedule needs
+      //    steps + 1 slots and stores state s under checkpoint ID s + 1.
       StiffDecayOperator checkpoint_operator(slow_rate, fast_rate);
       BackwardEulerSolver checkpoint_solver;
       Vector state(initial);
@@ -298,13 +369,18 @@ int main(int argc, char *argv[])
       StoreEverythingSchedule schedule;
       schedule.Configure(steps, static_cast<std::size_t>(steps) + 1);
 
+      // 5. Capture state 0, then run the forward schedule: Advance one step
+      //    at a time and Store every state. The forward result must already
+      //    match the reference.
       controller.Initialize();
       controller.ExecuteForward(schedule, steps);
       const bool forward_matches = SameVector(state, reference) &&
                                    time.time == reference_time;
 
-      // Keep only the selected interior persistent checkpoint. Clearing the
-      // transient cache guarantees that terminal recovery includes replay.
+      // 6. Keep only the selected interior persistent checkpoint. Clearing the
+      //    transient cache guarantees that terminal recovery includes replay.
+      //    Restore() loads the checkpoint into the application and
+      //    RestoreState() replays steps - restart_step implicit steps from it.
       const CheckpointId restart_id =
          static_cast<CheckpointId>(restart_step) + 1;
       for (CheckpointId id = 1;
@@ -316,6 +392,9 @@ int main(int argc, char *argv[])
       controller.Restore(restart_id);
       controller.RestoreState(steps);
 
+      // 7. Verify the result. The reported error is informational: the test
+      //    requires exactly equal values, the same StateId, time, and step
+      //    size, and a controller active state at the terminal StateId.
       real_t replay_error = 0.0;
       for (int i = 0; i < state.Size(); i++)
       {
@@ -328,6 +407,7 @@ int main(int argc, char *argv[])
                           checkpoint_dt == reference_dt &&
                           controller.ActiveState().id == steps;
 
+      // 8. Report both trajectories and the verdict.
       PrintState("Reference", reference, reference_time);
       cout << '\n';
       PrintState("Restored", state, time.time);
@@ -339,6 +419,8 @@ int main(int argc, char *argv[])
    }
    catch (const std::exception &error)
    {
+      // Checkpoint failures raise CheckpointError subclasses; report any
+      // exception and exit without a verdict.
       cerr << "Backward Euler checkpoint miniapp failed: "
            << error.what() << '\n';
       return 4;
