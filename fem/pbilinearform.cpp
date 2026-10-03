@@ -719,12 +719,20 @@ void ParMixedBilinearForm::AssembleSharedFaces(int skip_zeros)
 
       for (int k = 0; k < interior_face_integs.Size(); k++)
       {
-         interior_face_integs[k]->
-         AssembleFaceMatrix(*trial_pfes->GetFE(T->Elem1No),
-                            *test_pfes->GetFE(T->Elem1No),
-                            *trial_pfes->GetFaceNbrFE(Elem2NbrNo),
-                            *test_pfes->GetFaceNbrFE(Elem2NbrNo),
-                            *T, elemmat);
+         if (trial_pfes == test_pfes)
+         {
+            interior_face_integs[k]->AssembleFaceMatrix(
+               *trial_pfes->GetFE(T->Elem1No),
+               *trial_pfes->GetFaceNbrFE(Elem2NbrNo), *T, elemmat);
+         }
+         else
+         {
+            interior_face_integs[k]->AssembleFaceMatrix(
+               *trial_pfes->GetFE(T->Elem1No),
+               *test_pfes->GetFE(T->Elem1No),
+               *trial_pfes->GetFaceNbrFE(Elem2NbrNo),
+               *test_pfes->GetFaceNbrFE(Elem2NbrNo), *T, elemmat);
+         }
          if (keep_nbr_block)
          {
             mat->AddSubMatrix(te_vdofs_all, tr_vdofs_all, elemmat, skip_zeros);
@@ -754,6 +762,41 @@ void ParMixedBilinearForm::Assemble(int skip_zeros)
    if (!ext && interior_face_integs.Size() > 0)
    {
       AssembleSharedFaces(skip_zeros);
+   }
+}
+
+void ParMixedBilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(trial_pfes == test_pfes,
+               "AssembleDiagonal requires identical trial and test spaces");
+   MFEM_ASSERT(diag.Size() == test_pfes->GetTrueVSize(),
+               "vector for holding diagonal has wrong size");
+   if (!ext)
+   {
+      MFEM_ASSERT(p_mat.Ptr(), "the ParMixedBilinearForm is not assembled");
+      p_mat->AssembleDiagonal(diag);
+      return;
+   }
+
+   const Operator *P = test_pfes->GetProlongationMatrix();
+   if (IsIdentityProlongation(P))
+   {
+      ext->AssembleDiagonal(diag);
+      return;
+   }
+   Vector local_diag(P->Height());
+   ext->AssembleDiagonal(local_diag);
+   if (test_pfes->Conforming())
+   {
+      P->MultTranspose(local_diag, diag);
+   }
+   else if (const auto *HP = dynamic_cast<const HypreParMatrix*>(P))
+   {
+      HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
+   }
+   else
+   {
+      MFEM_ABORT("unsupported prolongation matrix type");
    }
 }
 
@@ -896,7 +939,7 @@ void ParMixedBilinearForm::FormRectangularSystemMatrix(
    const Array<int> &test_tdof_list,
    OperatorHandle &A)
 {
-   if (ext)
+   if (ext && assembly != AssemblyLevel::FULL)
    {
       ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, A);
       return;
@@ -906,8 +949,11 @@ void ParMixedBilinearForm::FormRectangularSystemMatrix(
    {
       Finalize();
       ParallelAssemble(p_mat);
-      delete mat;
-      mat = NULL;
+      if (assembly != AssemblyLevel::FULL)
+      {
+         delete mat;
+         mat = NULL;
+      }
       delete mat_e;
       mat_e = NULL;
       ParallelEliminateTrialTDofs(trial_tdof_list);
@@ -924,7 +970,7 @@ void ParMixedBilinearForm::FormRectangularLinearSystem(
    Vector &b, OperatorHandle &A, Vector &X,
    Vector &B)
 {
-   if (ext)
+   if (ext && assembly != AssemblyLevel::FULL)
    {
       ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list,
                                        x, b, A, X, B);

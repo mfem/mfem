@@ -102,14 +102,17 @@ public:
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add = true);
    /** Used with BilinearFormIntegrators that have different spaces. */
-   // virtual void AssembleEA(const FiniteElementSpace &trial_fes,
-   //                         const FiniteElementSpace &test_fes,
-   //                         Vector &emat);
+   virtual void AssembleEA(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes,
+                           Vector &emat, const bool add = true);
 
    /// Method defining matrix-free assembly.
    /** The result of fully matrix-free assembly is stored internally so that it
        can be used later in the methods AddMultMF() and AddMultTransposeMF(). */
    void AssembleMF(const FiniteElementSpace &fes) override;
+   /** Used with matrix-free integrators that have different spaces. */
+   virtual void AssembleMF(const FiniteElementSpace &trial_fes,
+                           const FiniteElementSpace &test_fes);
 
    /** Perform the action of integrator on the input @a x and add the result to
        the output @a y. Both @a x and @a y are E-vectors, i.e. they represent

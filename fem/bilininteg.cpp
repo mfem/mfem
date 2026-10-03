@@ -68,8 +68,17 @@ void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                         Vector &emat,
                                         const bool add)
 {
-   MFEM_ABORT("BilinearFormIntegrator::AssembleEA(...)\n"
+   MFEM_ABORT("BilinearFormIntegrator::AssembleEA(trial_fes, emat, add)\n"
               "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &trial_fes,
+                                        const FiniteElementSpace &test_fes,
+                                        Vector &emat, const bool add)
+{
+   MFEM_ABORT(
+       "BilinearFormIntegrator::AssembleEA(trial_fes,test_fes, emat, add)\n"
+       "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleEABoundary(const FiniteElementSpace &fes,
@@ -149,6 +158,13 @@ void BilinearFormIntegrator::AddAbsMultTransposePA(const Vector &,
 void BilinearFormIntegrator::AssembleMF(const FiniteElementSpace &fes)
 {
    MFEM_ABORT("BilinearFormIntegrator::AssembleMF(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AssembleMF(const FiniteElementSpace &,
+                                        const FiniteElementSpace &)
+{
+   MFEM_ABORT("BilinearFormIntegrator::AssembleMF(trial_fes, test_fes)\n"
               "   is not implemented for this class.");
 }
 

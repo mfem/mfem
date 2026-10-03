@@ -16,6 +16,190 @@
 
 using namespace mfem;
 
+namespace
+{
+
+class SingleSpaceOnlyIntegrator : public BilinearFormIntegrator
+{
+public:
+   void AssembleElementMatrix(const FiniteElement &fe,
+                              ElementTransformation &,
+                              DenseMatrix &elmat) override
+   {
+      elmat.SetSize(fe.GetDof());
+      elmat = 0.0;
+      for (int i = 0; i < fe.GetDof(); i++) { elmat(i, i) = 1.0; }
+   }
+};
+
+class SingleSpaceMatrixFreeIntegrator : public BilinearFormIntegrator
+{
+public:
+   void AssembleMF(const FiniteElementSpace &) override { }
+   void AddMultMF(const Vector &x, Vector &y) const override { y += x; }
+   void AddMultTransposeMF(const Vector &x, Vector &y) const override { y += x; }
+   void AssembleDiagonalMF(Vector &diag) override { diag += 1.0; }
+};
+
+} // namespace
+
+TEST_CASE("MixedBilinearForm forwards identical spaces to the single-space API",
+          "[MixedBilinearForm]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(2, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   BilinearForm square(&fes);
+   square.AddDomainIntegrator(new SingleSpaceOnlyIntegrator);
+   square.Assemble();
+   square.Finalize();
+
+   MixedBilinearForm mixed(&fes, &fes);
+   mixed.AddDomainIntegrator(new SingleSpaceOnlyIntegrator);
+   mixed.Assemble();
+   mixed.Finalize();
+
+   SparseMatrix *error = Add(1.0, square.SpMat(), -1.0, mixed.SpMat());
+   REQUIRE(error->MaxNorm() == MFEM_Approx(0.0));
+   delete error;
+}
+
+TEST_CASE("MixedBilinearForm forwards matrix-free single-space API",
+          "[MixedBilinearForm]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(2, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   BilinearForm square(&fes);
+   square.AddDomainIntegrator(new SingleSpaceMatrixFreeIntegrator);
+   square.SetAssemblyLevel(AssemblyLevel::NONE);
+   square.Assemble();
+   MixedBilinearForm mixed(&fes, &fes);
+   mixed.AddDomainIntegrator(new SingleSpaceMatrixFreeIntegrator);
+   mixed.SetAssemblyLevel(AssemblyLevel::NONE);
+   mixed.Assemble();
+
+   Vector x(fes.GetVSize()), expected(fes.GetVSize()), y(fes.GetVSize());
+   x.Randomize(19);
+   square.Mult(x, expected);
+   mixed.Mult(x, y);
+   y -= expected;
+   REQUIRE(y.Norml2() == MFEM_Approx(0.0));
+
+   Vector expected_diag(fes.GetTrueVSize()), diag(fes.GetTrueVSize());
+   square.AssembleDiagonal(expected_diag);
+   mixed.AssembleDiagonal(diag);
+   diag -= expected_diag;
+   REQUIRE(diag.Norml2() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("MixedBilinearForm supports square assembly levels",
+          "[MixedBilinearForm][GPU]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(2, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   Vector x(fes.GetVSize());
+   x.Randomize(91);
+
+   for (AssemblyLevel level : {AssemblyLevel::FULL, AssemblyLevel::ELEMENT,
+                               AssemblyLevel::PARTIAL})
+   {
+      DYNAMIC_SECTION("assembly level " << static_cast<int>(level))
+      {
+         BilinearForm square(&fes);
+         square.AddDomainIntegrator(new MassIntegrator);
+         square.SetAssemblyLevel(level);
+         square.Assemble();
+
+         MixedBilinearForm mixed(&fes, &fes);
+         mixed.AddDomainIntegrator(new MassIntegrator);
+         mixed.SetAssemblyLevel(level);
+         mixed.Assemble();
+
+         Vector y_square(fes.GetVSize()), y_mixed(fes.GetVSize());
+         square.Mult(x, y_square);
+         mixed.Mult(x, y_mixed);
+         y_mixed -= y_square;
+         REQUIRE(y_mixed.Norml2() == MFEM_Approx(0.0));
+
+         Vector d_square(fes.GetTrueVSize()), d_mixed(fes.GetTrueVSize());
+         square.AssembleDiagonal(d_square);
+         mixed.AssembleDiagonal(d_mixed);
+         d_mixed -= d_square;
+         REQUIRE(d_mixed.Norml2() == MFEM_Approx(0.0));
+
+         if (level == AssemblyLevel::FULL)
+         {
+            REQUIRE(mixed.HasSpMat());
+            REQUIRE(mixed.SpMat().Height() == fes.GetVSize());
+            REQUIRE(mixed.SpMat().Width() == fes.GetVSize());
+         }
+      }
+   }
+}
+
+TEST_CASE("MixedBilinearForm supports rectangular element and full assembly",
+          "[MixedBilinearForm][GPU]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection trial_fec(2, mesh.Dimension());
+   H1_FECollection test_fec(3, mesh.Dimension());
+   FiniteElementSpace trial_fes(&mesh, &trial_fec);
+   FiniteElementSpace test_fes(&mesh, &test_fec);
+
+   MixedBilinearForm legacy(&trial_fes, &test_fes);
+   legacy.AddDomainIntegrator(new MassIntegrator);
+   legacy.Assemble();
+   legacy.Finalize();
+
+   Vector x(trial_fes.GetVSize()), expected(test_fes.GetVSize());
+   x.Randomize(37);
+   legacy.Mult(x, expected);
+
+   for (AssemblyLevel level : {AssemblyLevel::ELEMENT, AssemblyLevel::FULL})
+   {
+      DYNAMIC_SECTION("assembly level " << static_cast<int>(level))
+      {
+         MixedBilinearForm mixed(&trial_fes, &test_fes);
+         mixed.AddDomainIntegrator(new MassIntegrator);
+         mixed.SetAssemblyLevel(level);
+         mixed.Assemble();
+
+         Vector actual(test_fes.GetVSize());
+         mixed.Mult(x, actual);
+         actual -= expected;
+         REQUIRE(actual.Norml2() <= 2e-13 * expected.Norml2());
+
+         Vector xt(test_fes.GetVSize()), expected_t(trial_fes.GetVSize()),
+                actual_t(trial_fes.GetVSize());
+         xt.Randomize(73);
+         legacy.MultTranspose(xt, expected_t);
+         mixed.MultTranspose(xt, actual_t);
+         actual_t -= expected_t;
+         REQUIRE(actual_t.Norml2() <= 2e-13 * expected_t.Norml2());
+
+         const DenseTensor &element_matrices = mixed.GetElementMatrices();
+         for (int e = 0; e < mesh.GetNE(); e++)
+         {
+            DenseMatrix expected_element;
+            legacy.ComputeElementMatrix(e, expected_element);
+            DenseMatrix difference = element_matrices(e);
+            difference -= expected_element;
+            REQUIRE(difference.MaxMaxNorm() == MFEM_Approx(0.0));
+         }
+
+         if (level == AssemblyLevel::FULL)
+         {
+            REQUIRE(mixed.HasSpMat());
+            REQUIRE(mixed.SpMat().Height() == test_fes.GetVSize());
+            REQUIRE(mixed.SpMat().Width() == trial_fes.GetVSize());
+         }
+      }
+   }
+}
+
 TEST_CASE("Test order of boundary integrators",
           "[BilinearForm]")
 {

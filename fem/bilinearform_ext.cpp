@@ -22,6 +22,108 @@
 namespace mfem
 {
 
+namespace
+{
+
+void AssembleDomainPAIntegrators(
+   const Array<BilinearFormIntegrator*> &integrators,
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
+{
+   const bool same_space = &trial_fes == &test_fes;
+   for (BilinearFormIntegrator *integ : integrators)
+   {
+      if (same_space && integ->Patchwise())
+      {
+         MFEM_VERIFY(trial_fes.GetNURBSext(),
+                     "Patchwise integration requires a NURBS FE space");
+         integ->AssembleNURBSPA(trial_fes);
+      }
+      else if (same_space)
+      {
+         integ->AssemblePA(trial_fes);
+      }
+      else
+      {
+         integ->AssemblePA(trial_fes, test_fes);
+      }
+   }
+}
+
+void AssembleDomainMFIntegrators(
+   const Array<BilinearFormIntegrator*> &integrators,
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes)
+{
+   const bool same_space = &trial_fes == &test_fes;
+   for (BilinearFormIntegrator *integ : integrators)
+   {
+      if (same_space) { integ->AssembleMF(trial_fes); }
+      else { integ->AssembleMF(trial_fes, test_fes); }
+   }
+}
+
+void AddEADataWithMarkers(const Vector &source, Vector &destination,
+                          const int ne, const Array<int> &markers,
+                          const Array<int> &attributes, const bool add)
+{
+   if (ne == 0) { return; }
+   MFEM_ASSERT(source.Size() == destination.Size(),
+               "incompatible element assembly data sizes");
+   const int element_size = source.Size() / ne;
+   const int *marker_data = markers.Read();
+   const int *attribute_data = attributes.Read();
+   const real_t *src = source.Read();
+   real_t *dst = add ? destination.ReadWrite() : destination.Write();
+   mfem::forall(source.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int e = i / element_size;
+      const real_t value = attribute_data[e] > 0 &&
+                           marker_data[attribute_data[e] - 1] ? src[i] : 0.0;
+      if (add) { dst[i] += value; }
+      else { dst[i] = value; }
+   });
+}
+
+void AssembleDomainEAIntegrators(
+   const Array<BilinearFormIntegrator*> &integrators,
+   const Array<Array<int>*> &marker_arrays,
+   const FiniteElementSpace &trial_fes,
+   const FiniteElementSpace &test_fes,
+   const Array<int> &attributes, const int ne,
+   Vector &ea_data, Vector &ea_data_tmp)
+{
+   MFEM_ASSERT(integrators.Size() == marker_arrays.Size(),
+               "invalid domain integrator marker data");
+   if (integrators.Size() == 0) { ea_data = 0.0; }
+
+   const bool same_space = &trial_fes == &test_fes;
+   for (int i = 0; i < integrators.Size(); ++i)
+   {
+      const bool add = i > 0;
+      const Array<int> *markers = marker_arrays[i];
+      Vector &target = markers ? ea_data_tmp : ea_data;
+      if (markers) { target.SetSize(ea_data.Size()); }
+
+      if (same_space)
+      {
+         integrators[i]->AssembleEA(trial_fes, target, markers ? false : add);
+      }
+      else
+      {
+         integrators[i]->AssembleEA(trial_fes, test_fes, target,
+                                    markers ? false : add);
+      }
+
+      if (markers)
+      {
+         AddEADataWithMarkers(target, ea_data, ne, *markers, attributes, add);
+      }
+   }
+}
+
+} // namespace
+
 BilinearFormExtension::BilinearFormExtension(BilinearForm *form)
    : Operator(form->Size()), a(form)
 {
@@ -52,11 +154,7 @@ MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
 void MFBilinearFormExtension::Assemble()
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   const int integratorCount = integrators.Size();
-   for (int i = 0; i < integratorCount; ++i)
-   {
-      integrators[i]->AssembleMF(*a->FESpace());
-   }
+   AssembleDomainMFIntegrators(integrators, *a->FESpace(), *a->FESpace());
 
    MFEM_VERIFY(a->GetBBFI()->Size() == 0, "AddBoundaryIntegrator is not "
                "currently supported in MFBilinearFormExtension");
@@ -334,19 +432,7 @@ void PABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   for (BilinearFormIntegrator *integ : integrators)
-   {
-      if (integ->Patchwise())
-      {
-         MFEM_VERIFY(a->FESpace()->GetNURBSext(),
-                     "Patchwise integration requires a NURBS FE space");
-         integ->AssembleNURBSPA(*a->FESpace());
-      }
-      else
-      {
-         integ->AssemblePA(*a->FESpace());
-      }
-   }
+   AssembleDomainPAIntegrators(integrators, *a->FESpace(), *a->FESpace());
 
    Array<BilinearFormIntegrator*> &bdr_integrators = *a->GetBBFI();
    for (BilinearFormIntegrator *integ : bdr_integrators)
@@ -864,60 +950,14 @@ void EABilinearFormExtension::Assemble()
    ne = trial_fes->GetMesh()->GetNE();
    elemDofs = trial_fes->GetTypicalFE()->GetDof();
 
-   Vector ea_data_tmp;
-
-   auto add_with_markers = [&](const Vector &ea_1, Vector &ea_2, const int ne_,
-                               const Array<int> &markers, const Array<int> &attrs,
-                               const bool add)
-   {
-      if (ne_ == 0) { return; }
-      const int sz = ea_1.Size() / ne_;
-      const int *d_m = markers.Read();
-      const int *d_a = attrs.Read();
-      const auto d_ea_1 = Reshape(ea_1.Read(), sz, ne_);
-      auto d_ea_2 = Reshape(add ? ea_2.ReadWrite() : ea_2.Write(), sz, ne_);
-
-      mfem::forall(sz*ne_, [=] MFEM_HOST_DEVICE (int idx)
-      {
-         const int i = idx % sz;
-         const int e = idx / sz;
-         const real_t val =
-            d_a[e] > 0 ? (d_m[d_a[e] - 1] ? d_ea_1(i, e) : 0) : 0;
-         if (add)
-         {
-            d_ea_2(i, e) += val;
-         }
-         else
-         {
-            d_ea_2(i, e) = val;
-         }
-      });
-   };
-
    {
       ea_data.SetSize(ne*elemDofs*elemDofs);
       ea_data.UseDevice(true);
       Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
       Array<Array<int>*> &markers_array = *a->GetDBFI_Marker();
-
-      if (integrators.Size() == 0) { ea_data = 0.0; }
-
-      for (int i = 0; i < integrators.Size(); ++i)
-      {
-         const bool add = (i > 0);
-         const Array<int> *markers = markers_array[i];
-         if (markers == nullptr)
-         {
-            integrators[i]->AssembleEA(*a->FESpace(), ea_data, add);
-         }
-         else
-         {
-            ea_data_tmp.SetSize(ea_data.Size());
-            integrators[i]->AssembleEA(*a->FESpace(), ea_data_tmp, false);
-            add_with_markers(ea_data_tmp, ea_data, ne, *markers,
-                             *elem_attributes, add);
-         }
-      }
+      AssembleDomainEAIntegrators(integrators, markers_array,
+                                  *a->FESpace(), *a->FESpace(),
+                                  *elem_attributes, ne, ea_data, ea_data_tmp);
    }
 
    faceDofs = trial_fes->GetTypicalTraceElement()->GetDof();
@@ -943,8 +983,8 @@ void EABilinearFormExtension::Assemble()
          {
             ea_data_tmp.SetSize(ea_data_bdr.Size());
             bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
-            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
-                             *bdr_face_attributes, add);
+            AddEADataWithMarkers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                                 *bdr_face_attributes, add);
          }
       }
    }
@@ -992,8 +1032,8 @@ void EABilinearFormExtension::Assemble()
             bdr_face_integs[i]->AssembleEABoundaryFaces(*a->FESpace(),
                                                         ea_data_tmp,
                                                         add);
-            add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
-                             *bdr_face_attributes, add);
+            AddEADataWithMarkers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
+                                 *bdr_face_attributes, add);
          }
       }
    }
@@ -1735,11 +1775,7 @@ PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(
 void PAMixedBilinearFormExtension::Assemble()
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
-   const int integratorCount = integrators.Size();
-   for (int i = 0; i < integratorCount; ++i)
-   {
-      integrators[i]->AssemblePA(*trial_fes, *test_fes);
-   }
+   AssembleDomainPAIntegrators(integrators, *trial_fes, *test_fes);
    MFEM_VERIFY(a->GetBBFI()->Size() == 0,
                "Partial assembly does not support AddBoundaryIntegrator yet.");
    MFEM_VERIFY(a->GetTFBFI()->Size() == 0,
@@ -1960,6 +1996,620 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
          }
       }
    }
+}
+
+void PAMixedBilinearFormExtension::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(trial_fes == test_fes,
+               "diagonal assembly requires identical trial and test spaces");
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   Vector &local_diag = elem_restrict_test ? localTest : diag;
+   local_diag.UseDevice(true);
+   local_diag = 0.0;
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleDiagonalPA(local_diag);
+   }
+   if (elem_restrict_test)
+   {
+      if (const auto *restriction =
+             dynamic_cast<const ElementRestriction*>(elem_restrict_test))
+      {
+         restriction->AbsMultTranspose(local_diag, diag);
+      }
+      else
+      {
+         elem_restrict_test->MultTranspose(local_diag, diag);
+      }
+   }
+}
+
+// Data and methods for matrix-free mixed bilinear forms
+
+MFMixedBilinearFormExtension::MFMixedBilinearFormExtension(
+   MixedBilinearForm *form)
+   : PAMixedBilinearFormExtension(form)
+{
+}
+
+void MFMixedBilinearFormExtension::Assemble()
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   AssembleDomainMFIntegrators(integrators, *trial_fes, *test_fes);
+   MFEM_VERIFY(a->GetBBFI()->Size() == 0 && a->GetFBFI()->Size() == 0 &&
+               a->GetBFBFI()->Size() == 0 && a->GetTFBFI()->Size() == 0 &&
+               a->GetBTFBFI()->Size() == 0,
+               "mixed matrix-free assembly currently supports domain "
+               "integrators only");
+}
+
+void MFMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+   AddMult(x, y);
+}
+
+void MFMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                           const real_t c) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   if (trial_fes == test_fes)
+   {
+      if (c == 1.0)
+      {
+         for (int i = 0; i < integrators.Size(); i++)
+         {
+            integrators[i]->AddMultMF(x, y);
+         }
+      }
+      else
+      {
+         tempY.SetSize(y.Size());
+         tempY = 0.0;
+         for (int i = 0; i < integrators.Size(); i++)
+         {
+            integrators[i]->AddMultMF(x, tempY);
+         }
+         y.Add(c, tempY);
+      }
+      return;
+   }
+   SetupMultInputs(elem_restrict_trial, x, localTrial,
+                   elem_restrict_test, y, localTest, c);
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultMF(localTrial, localTest);
+   }
+   if (elem_restrict_test)
+   {
+      tempY.SetSize(y.Size());
+      elem_restrict_test->MultTranspose(localTest, tempY);
+      y += tempY;
+   }
+}
+
+void MFMixedBilinearFormExtension::MultTranspose(const Vector &x,
+                                                 Vector &y) const
+{
+   y = 0.0;
+   AddMultTranspose(x, y);
+}
+
+void MFMixedBilinearFormExtension::AddMultTranspose(
+   const Vector &x, Vector &y, const real_t c) const
+{
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   if (trial_fes == test_fes)
+   {
+      if (c == 1.0)
+      {
+         for (int i = 0; i < integrators.Size(); i++)
+         {
+            integrators[i]->AddMultTransposeMF(x, y);
+         }
+      }
+      else
+      {
+         tempY.SetSize(y.Size());
+         tempY = 0.0;
+         for (int i = 0; i < integrators.Size(); i++)
+         {
+            integrators[i]->AddMultTransposeMF(x, tempY);
+         }
+         y.Add(c, tempY);
+      }
+      return;
+   }
+   SetupMultInputs(elem_restrict_test, x, localTest,
+                   elem_restrict_trial, y, localTrial, c);
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddMultTransposeMF(localTest, localTrial);
+   }
+   if (elem_restrict_trial)
+   {
+      tempY.SetSize(y.Size());
+      elem_restrict_trial->MultTranspose(localTrial, tempY);
+      y += tempY;
+   }
+}
+
+void MFMixedBilinearFormExtension::AssembleDiagonal_ADAt(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("matrix-free AssembleDiagonal_ADAt is not implemented");
+}
+
+void MFMixedBilinearFormExtension::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(trial_fes == test_fes,
+               "diagonal assembly requires identical trial and test spaces");
+   diag.UseDevice(true);
+   diag = 0.0;
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AssembleDiagonalMF(diag);
+   }
+}
+
+// Data and methods for element-assembled mixed bilinear forms
+
+EAMixedBilinearFormExtension::EAMixedBilinearFormExtension(
+   MixedBilinearForm *form)
+   : PAMixedBilinearFormExtension(form)
+{
+}
+
+void EAMixedBilinearFormExtension::Assemble()
+{
+   ne = trial_fes->GetNE();
+   MFEM_VERIFY(ne == test_fes->GetNE(),
+               "trial and test spaces have different element counts");
+   trial_elem_dofs = ne == 0 ? 0 :
+                     (elem_restrict_trial ? elem_restrict_trial->Height() / ne :
+                      trial_fes->GetVSize() / ne);
+   test_elem_dofs = ne == 0 ? 0 :
+                    (elem_restrict_test ? elem_restrict_test->Height() / ne :
+                     test_fes->GetVSize() / ne);
+   ea_data.SetSize(ne * trial_elem_dofs * test_elem_dofs);
+   ea_data.UseDevice(true);
+
+   Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
+   Array<Array<int>*> &marker_arrays = *a->GetDBFI_Marker();
+   const Array<int> &attributes = trial_fes->GetMesh()->GetElementAttributes();
+   AssembleDomainEAIntegrators(integrators, marker_arrays,
+                               *trial_fes, *test_fes, attributes, ne,
+                               ea_data, ea_data_tmp);
+
+   MFEM_VERIFY(a->GetBBFI()->Size() == 0,
+               "mixed element assembly does not support boundary element "
+               "integrators yet");
+   MFEM_VERIFY(a->GetFBFI()->Size() == 0 && a->GetBFBFI()->Size() == 0,
+               "mixed element assembly does not support volume face "
+               "integrators yet");
+   MFEM_VERIFY(a->GetTFBFI()->Size() == 0 && a->GetBTFBFI()->Size() == 0,
+               "mixed element assembly does not support trace face "
+               "integrators yet");
+}
+
+void EAMixedBilinearFormExtension::MultInternal(
+   const Vector &x, Vector &y, const bool transpose, const real_t c) const
+{
+   const Operator *input_restriction = transpose ? elem_restrict_test :
+                                       elem_restrict_trial;
+   const Operator *output_restriction = transpose ? elem_restrict_trial :
+                                        elem_restrict_test;
+   Vector &localX = transpose ? localTest : localTrial;
+   Vector &localY = transpose ? localTrial : localTest;
+   SetupMultInputs(input_restriction, x, localX,
+                   output_restriction, y, localY, c);
+
+   const real_t *X = localX.Read();
+   real_t *Y = localY.ReadWrite();
+   const real_t *A = ea_data.Read();
+   const int in_dofs = transpose ? test_elem_dofs : trial_elem_dofs;
+   const int out_dofs = transpose ? trial_elem_dofs : test_elem_dofs;
+   const int trial_dofs = trial_elem_dofs;
+   const int test_dofs = test_elem_dofs;
+   mfem::forall(ne * out_dofs, [=] MFEM_HOST_DEVICE (int index)
+   {
+      const int e = index / out_dofs;
+      const int j = index % out_dofs;
+      real_t value = 0.0;
+      for (int i = 0; i < in_dofs; i++)
+      {
+         const int trial = transpose ? j : i;
+         const int test = transpose ? i : j;
+         value += A[trial + trial_dofs * (test + test_dofs * e)] *
+                  X[i + in_dofs * e];
+      }
+      Y[j + out_dofs * e] += value;
+   });
+
+   if (output_restriction)
+   {
+      tempY.SetSize(y.Size());
+      output_restriction->MultTranspose(localY, tempY);
+      y += tempY;
+   }
+}
+
+void EAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   y = 0.0;
+   MultInternal(x, y, false, 1.0);
+}
+
+void EAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                           const real_t c) const
+{
+   MultInternal(x, y, false, c);
+}
+
+void EAMixedBilinearFormExtension::MultTranspose(const Vector &x,
+                                                 Vector &y) const
+{
+   y = 0.0;
+   MultInternal(x, y, true, 1.0);
+}
+
+void EAMixedBilinearFormExtension::AddMultTranspose(
+   const Vector &x, Vector &y, const real_t c) const
+{
+   MultInternal(x, y, true, c);
+}
+
+void EAMixedBilinearFormExtension::AssembleDiagonal_ADAt(
+   const Vector &D, Vector &diag) const
+{
+   if (elem_restrict_trial)
+   {
+      if (const auto *restriction =
+             dynamic_cast<const ElementRestriction*>(elem_restrict_trial))
+      {
+         restriction->AbsMult(D, localTrial);
+      }
+      else
+      {
+         elem_restrict_trial->Mult(D, localTrial);
+      }
+   }
+   else
+   {
+      localTrial.SyncAliasMemory(D);
+   }
+
+   Vector &local_diag = elem_restrict_test ? localTest : diag;
+   local_diag.UseDevice(true);
+   local_diag = 0.0;
+   const real_t *local_D = localTrial.Read();
+   const real_t *A = ea_data.Read();
+   real_t *result = local_diag.ReadWrite();
+   const int trial_dofs = trial_elem_dofs;
+   const int test_dofs = test_elem_dofs;
+   mfem::forall(ne * test_dofs, [=] MFEM_HOST_DEVICE (int index)
+   {
+      const int e = index / test_dofs;
+      const int j = index % test_dofs;
+      real_t value = 0.0;
+      for (int i = 0; i < trial_dofs; i++)
+      {
+         const real_t entry = A[i + trial_dofs * (j + test_dofs * e)];
+         value += entry * entry * local_D[i + trial_dofs * e];
+      }
+      result[index] += value;
+   });
+
+   if (elem_restrict_test)
+   {
+      if (const auto *restriction =
+             dynamic_cast<const ElementRestriction*>(elem_restrict_test))
+      {
+         restriction->AbsMultTranspose(local_diag, diag);
+      }
+      else
+      {
+         elem_restrict_test->MultTranspose(local_diag, diag);
+      }
+   }
+}
+
+void EAMixedBilinearFormExtension::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(trial_fes == test_fes &&
+               trial_elem_dofs == test_elem_dofs,
+               "diagonal assembly requires identical trial and test spaces");
+   Vector &local_diag = elem_restrict_test ? localTest : diag;
+   local_diag.UseDevice(true);
+   const real_t *A = ea_data.Read();
+   real_t *result = local_diag.Write();
+   const int dofs = trial_elem_dofs;
+   mfem::forall(ne * dofs, [=] MFEM_HOST_DEVICE (int index)
+   {
+      const int e = index / dofs;
+      const int i = index % dofs;
+      result[index] = A[i + dofs * (i + dofs * e)];
+   });
+   if (elem_restrict_test)
+   {
+      if (const auto *restriction =
+             dynamic_cast<const ElementRestriction*>(elem_restrict_test))
+      {
+         restriction->AbsMultTranspose(local_diag, diag);
+      }
+      else
+      {
+         elem_restrict_test->MultTranspose(local_diag, diag);
+      }
+   }
+}
+
+void EAMixedBilinearFormExtension::GetElementMatrices(
+   DenseTensor &element_matrices, const ElementDofOrdering ordering)
+{
+   if (ea_data.Size() == 0) { Assemble(); }
+   element_matrices.SetSize(test_elem_dofs, trial_elem_dofs, ne);
+
+   trial_dof_map.SetSize(trial_elem_dofs);
+   test_dof_map.SetSize(test_elem_dofs);
+   auto set_map = [ordering](const FiniteElementSpace &fes,
+                             const int element_dofs, Array<int> &map)
+   {
+      const FiniteElement *fe = fes.GetTypicalFE();
+      const auto *nodal = dynamic_cast<const NodalFiniteElement*>(fe);
+      const auto *tensor = dynamic_cast<const TensorBasisElement*>(fe);
+      const Array<int> *scalar_map =
+         nodal ? &nodal->GetLexicographicOrdering() :
+         tensor ? &tensor->GetDofMap() : nullptr;
+      const int scalar_dofs = fe->GetDof();
+      int *host_map = map.HostWrite();
+      for (int i = 0; i < element_dofs; i++)
+      {
+         const int component = i / scalar_dofs;
+         const int lex = i % scalar_dofs;
+         const int signed_native = ordering == ElementDofOrdering::NATIVE &&
+                                   scalar_map ? (*scalar_map)[lex] : lex;
+         if (signed_native >= 0)
+         {
+            host_map[i] = signed_native + scalar_dofs * component;
+         }
+         else
+         {
+            host_map[i] = -1 - (-1 - signed_native + scalar_dofs * component);
+         }
+      }
+   };
+   set_map(*trial_fes, trial_elem_dofs, trial_dof_map);
+   set_map(*test_fes, test_elem_dofs, test_dof_map);
+
+   const real_t *source = ea_data.Read();
+   real_t *destination = element_matrices.Write();
+   const int *trial_indices = trial_dof_map.Read();
+   const int *test_indices = test_dof_map.Read();
+   const int trial_dofs = trial_elem_dofs;
+   const int test_dofs = test_elem_dofs;
+   mfem::forall(ea_data.Size(), [=] MFEM_HOST_DEVICE (int index)
+   {
+      const int trial = index % trial_dofs;
+      const int test = (index / trial_dofs) % test_dofs;
+      const int e = index / (trial_dofs * test_dofs);
+      const int signed_trial = trial_indices[trial];
+      const int signed_test = test_indices[test];
+      const int native_trial = signed_trial >= 0 ? signed_trial :
+                               -1 - signed_trial;
+      const int native_test = signed_test >= 0 ? signed_test :
+                              -1 - signed_test;
+      const int sign = (signed_trial >= 0 ? 1 : -1) *
+                       (signed_test >= 0 ? 1 : -1);
+      destination[native_test + test_dofs *
+                  (native_trial + trial_dofs * e)] = sign * source[index];
+   });
+   if (Device::Allows(Backend::DEBUG_DEVICE))
+   {
+      element_matrices.HostRead();
+   }
+}
+
+void EAMixedBilinearFormExtension::Update()
+{
+   PAMixedBilinearFormExtension::Update();
+   ne = trial_elem_dofs = test_elem_dofs = 0;
+   ea_data.SetSize(0);
+   ea_data_tmp.SetSize(0);
+   trial_dof_map.SetSize(0);
+   test_dof_map.SetSize(0);
+}
+
+namespace
+{
+
+void BuildElementToLVectorMap(const FiniteElementSpace &fes,
+                              const Operator *restriction,
+                              const int ne, const int element_dofs,
+                              Array<int> &map)
+{
+   map.SetSize(ne * element_dofs);
+   if (!restriction)
+   {
+      MFEM_VERIFY(map.Size() == fes.GetVSize(),
+                  "an identity element restriction has an unexpected size");
+      for (int i = 0; i < map.Size(); i++) { map[i] = i; }
+      return;
+   }
+
+   Vector lvector(fes.GetVSize()), evector(restriction->Height());
+   real_t *codes = lvector.HostWrite();
+   for (int i = 0; i < lvector.Size(); i++) { codes[i] = i + 1; }
+   restriction->Mult(lvector, evector);
+   const real_t *values = evector.HostRead();
+   for (int i = 0; i < map.Size(); i++)
+   {
+      const long code = std::lround(values[i]);
+      MFEM_VERIFY(code != 0 && std::abs(code) <= fes.GetVSize(),
+                  "could not recover an element-to-L-vector map");
+      // MFEM's signed dof convention represents a negative global dof g as
+      // -1-g. Since code is sign*(g+1), the negative case is simply code.
+      map[i] = code > 0 ? static_cast<int>(code - 1) :
+               static_cast<int>(code);
+   }
+}
+
+MFEM_HOST_DEVICE inline int DecodeSignedDof(const int dof)
+{
+   return dof >= 0 ? dof : -1 - dof;
+}
+
+MFEM_HOST_DEVICE inline int DofSign(const int dof)
+{
+   return dof >= 0 ? 1 : -1;
+}
+
+} // namespace
+
+FAMixedBilinearFormExtension::FAMixedBilinearFormExtension(
+   MixedBilinearForm *form)
+   : EAMixedBilinearFormExtension(form)
+{
+}
+
+void FAMixedBilinearFormExtension::Assemble()
+{
+   EAMixedBilinearFormExtension::Assemble();
+
+   if (a->mat)
+   {
+      delete a->mat;
+      a->mat = nullptr;
+   }
+   a->mat = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
+   SparseMatrix &mat = *a->mat;
+
+   Array<int> trial_map, test_map;
+   BuildElementToLVectorMap(*trial_fes, elem_restrict_trial, ne,
+                            trial_elem_dofs, trial_map);
+   BuildElementToLVectorMap(*test_fes, elem_restrict_test, ne,
+                            test_elem_dofs, test_map);
+
+   DenseMatrix zero(test_elem_dofs, trial_elem_dofs);
+   zero = 0.0;
+   Array<int> trial_dofs(trial_elem_dofs), test_dofs(test_elem_dofs);
+   for (int e = 0; e < ne; e++)
+   {
+      for (int i = 0; i < trial_elem_dofs; i++)
+      {
+         trial_dofs[i] = trial_map[i + trial_elem_dofs * e];
+      }
+      for (int j = 0; j < test_elem_dofs; j++)
+      {
+         test_dofs[j] = test_map[j + test_elem_dofs * e];
+      }
+      mat.AddSubMatrix(test_dofs, trial_dofs, zero, 0);
+   }
+   mat.Finalize(0);
+
+   const int matrix_size = trial_elem_dofs * test_elem_dofs;
+   csr_indices.SetSize(ne * matrix_size);
+   csr_entry_signs.SetSize(ne * matrix_size);
+   int *host_csr_indices = csr_indices.HostWrite();
+   int *host_entry_signs = csr_entry_signs.HostWrite();
+   const int *I = mat.HostReadI();
+   const int *J = mat.HostReadJ();
+   for (int e = 0; e < ne; e++)
+   {
+      for (int j = 0; j < test_elem_dofs; j++)
+      {
+         const int signed_row = test_map[j + test_elem_dofs * e];
+         const int row = DecodeSignedDof(signed_row);
+         for (int i = 0; i < trial_elem_dofs; i++)
+         {
+            const int signed_col = trial_map[i + trial_elem_dofs * e];
+            const int col = DecodeSignedDof(signed_col);
+            int p = I[row];
+            while (p < I[row + 1] && J[p] != col) { p++; }
+            MFEM_VERIFY(p < I[row + 1],
+                        "element entry is missing from sparse matrix pattern");
+            const int index = i + trial_elem_dofs *
+                              (j + test_elem_dofs * e);
+            host_csr_indices[index] = p;
+            host_entry_signs[index] =
+               DofSign(signed_row) * DofSign(signed_col);
+         }
+      }
+   }
+
+   real_t *data = mat.WriteData();
+   const real_t *element_data = ea_data.Read();
+   const int *indices = csr_indices.Read();
+   const int *signs = csr_entry_signs.Read();
+   mfem::forall(mat.NumNonZeroElems(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      data[i] = 0.0;
+   });
+   mfem::forall(ea_data.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      AtomicAdd(data[indices[i]], signs[i] * element_data[i]);
+   });
+   if (a->sort_sparse_matrix) { mat.SortColumnIndices(); }
+}
+
+void FAMixedBilinearFormExtension::Mult(const Vector &x, Vector &y) const
+{
+   a->mat->Mult(x, y);
+}
+
+void FAMixedBilinearFormExtension::AddMult(const Vector &x, Vector &y,
+                                           const real_t c) const
+{
+   a->mat->AddMult(x, y, c);
+}
+
+void FAMixedBilinearFormExtension::MultTranspose(const Vector &x,
+                                                 Vector &y) const
+{
+   a->mat->MultTranspose(x, y);
+}
+
+void FAMixedBilinearFormExtension::AddMultTranspose(
+   const Vector &x, Vector &y, const real_t c) const
+{
+   a->mat->AddMultTranspose(x, y, c);
+}
+
+void FAMixedBilinearFormExtension::AssembleDiagonal_ADAt(
+   const Vector &D, Vector &diag) const
+{
+   MFEM_VERIFY(D.Size() == a->mat->Width() &&
+               diag.Size() == a->mat->Height(),
+               "invalid vector size in AssembleDiagonal_ADAt");
+   const int *I = a->mat->ReadI();
+   const int *J = a->mat->ReadJ();
+   const real_t *data = a->mat->ReadData();
+   const real_t *d = D.Read();
+   real_t *result = diag.Write();
+   mfem::forall(a->mat->Height(), [=] MFEM_HOST_DEVICE (int row)
+   {
+      real_t value = 0.0;
+      for (int p = I[row]; p < I[row + 1]; p++)
+      {
+         value += data[p] * data[p] * d[J[p]];
+      }
+      result[row] = value;
+   });
+}
+
+void FAMixedBilinearFormExtension::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(a->mat->Height() == a->mat->Width(),
+               "diagonal assembly requires a square matrix");
+   a->mat->GetDiag(diag);
+}
+
+void FAMixedBilinearFormExtension::Update()
+{
+   EAMixedBilinearFormExtension::Update();
+   csr_indices.SetSize(0);
+   csr_entry_signs.SetSize(0);
 }
 
 PADiscreteLinearOperatorExtension::PADiscreteLinearOperatorExtension(

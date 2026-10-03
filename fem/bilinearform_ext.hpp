@@ -151,6 +151,8 @@ protected:
    int elemDofs;
    // The element matrices are stored row major
    Vector ea_data;
+   /// Scratch referenced by asynchronous element-assembly kernels.
+   Vector ea_data_tmp;
    int nf_int, nf_bdr;
    int faceDofs;
    Vector ea_data_int, ea_data_ext, ea_data_bdr;
@@ -284,6 +286,11 @@ public:
 
    virtual void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const = 0;
 
+   void AssembleDiagonal(Vector &diag) const override
+   {
+      MFEM_ABORT("diagonal assembly requires identical trial and test spaces");
+   }
+
    virtual void Update() = 0;
 };
 
@@ -337,8 +344,83 @@ public:
                          const real_t c=1.0) const override;
    /// Assemble the diagonal of ADA^T for a diagonal vector D.
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const override;
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Update internals for when a new MixedBilinearForm is given to this class
+   void Update() override;
+};
+
+/// Data and methods for matrix-free mixed bilinear forms.
+class MFMixedBilinearFormExtension : public PAMixedBilinearFormExtension
+{
+public:
+   MFMixedBilinearFormExtension(MixedBilinearForm *form);
+
+   void Assemble() override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void AddMult(const Vector &x, Vector &y,
+                const real_t c = 1.0) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t c = 1.0) const override;
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const override;
+   void AssembleDiagonal(Vector &diag) const override;
+};
+
+/// Data and methods for element-assembled mixed bilinear forms.
+class EAMixedBilinearFormExtension : public PAMixedBilinearFormExtension
+{
+protected:
+   int ne = 0;
+   int trial_elem_dofs = 0;
+   int test_elem_dofs = 0;
+   /// Element matrices use (trial dof, test dof, element) ordering.
+   Vector ea_data;
+   /// Scratch and maps referenced by asynchronous device kernels.
+   Vector ea_data_tmp;
+   Array<int> trial_dof_map;
+   Array<int> test_dof_map;
+
+   void MultInternal(const Vector &x, Vector &y, bool transpose,
+                     real_t c) const;
+
+public:
+   EAMixedBilinearFormExtension(MixedBilinearForm *form);
+
+   void Assemble() override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void AddMult(const Vector &x, Vector &y,
+                const real_t c = 1.0) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t c = 1.0) const override;
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const override;
+   void AssembleDiagonal(Vector &diag) const override;
+   void GetElementMatrices(DenseTensor &element_matrices,
+                           ElementDofOrdering ordering);
+   void Update() override;
+};
+
+/// Data and methods for device-compatible fully assembled mixed forms.
+class FAMixedBilinearFormExtension : public EAMixedBilinearFormExtension
+{
+protected:
+   /// CSR locations and signs referenced by asynchronous device kernels.
+   Array<int> csr_indices;
+   Array<int> csr_entry_signs;
+
+public:
+   FAMixedBilinearFormExtension(MixedBilinearForm *form);
+
+   void Assemble() override;
+   void Mult(const Vector &x, Vector &y) const override;
+   void AddMult(const Vector &x, Vector &y,
+                const real_t c = 1.0) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t c = 1.0) const override;
+   void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const override;
+   void AssembleDiagonal(Vector &diag) const override;
    void Update() override;
 };
 

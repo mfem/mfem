@@ -1387,6 +1387,11 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    boundary_integs = mbf->boundary_integs;
    boundary_integs_marker = mbf->boundary_integs_marker;
 
+   interior_face_integs = mbf->interior_face_integs;
+
+   boundary_face_integs = mbf->boundary_face_integs;
+   boundary_face_integs_marker = mbf->boundary_face_integs_marker;
+
    trace_face_integs = mbf->trace_face_integs;
 
    boundary_trace_face_integs = mbf->boundary_trace_face_integs;
@@ -1408,19 +1413,16 @@ void MixedBilinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       case AssemblyLevel::LEGACY:
          break;
       case AssemblyLevel::FULL:
-         // ext.reset(new FAMixedBilinearFormExtension(this));
-         // Use the original BilinearForm implementation for now
+         ext.reset(new FAMixedBilinearFormExtension(this));
          break;
       case AssemblyLevel::ELEMENT:
-         MFEM_ABORT("Element assembly not supported yet... stay tuned!");
-         // ext.reset(new EAMixedBilinearFormExtension(this));
+         ext.reset(new EAMixedBilinearFormExtension(this));
          break;
       case AssemblyLevel::PARTIAL:
          ext.reset(new PAMixedBilinearFormExtension(this));
          break;
       case AssemblyLevel::NONE:
-         MFEM_ABORT("Matrix-free action not supported yet... stay tuned!");
-         // ext.reset(new MFMixedBilinearFormExtension(this));
+         ext.reset(new MFMixedBilinearFormExtension(this));
          break;
       default:
          MFEM_ABORT("Unknown assembly level");
@@ -1506,7 +1508,7 @@ void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 
    blocks.SetSize(test_fes->GetVDim(), trial_fes->GetVDim());
 
-   mat->GetBlocks(blocks);
+   SpMat().GetBlocks(blocks);
 }
 
 void MixedBilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi)
@@ -1618,9 +1620,17 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             if (domain_integs_marker[k] == NULL ||
                 (*(domain_integs_marker[k]))[elem_attr-1] == 1)
             {
-               domain_integs[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
-                                                           *test_fes  -> GetFE(i),
-                                                           *eltrans, elemmat);
+               if (trial_fes == test_fes)
+               {
+                  domain_integs[k]->AssembleElementMatrix(
+                     *trial_fes->GetFE(i), *eltrans, elemmat);
+               }
+               else
+               {
+                  domain_integs[k]->AssembleElementMatrix2(
+                     *trial_fes->GetFE(i), *test_fes->GetFE(i),
+                     *eltrans, elemmat);
+               }
                elmat += elemmat;
             }
          }
@@ -1669,9 +1679,17 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             if (boundary_integs_marker[k] &&
                 (*boundary_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-            boundary_integs[k]->AssembleElementMatrix2 (*trial_fes -> GetBE(i),
-                                                        *test_fes  -> GetBE(i),
-                                                        *eltrans, elemmat);
+            if (trial_fes == test_fes)
+            {
+               boundary_integs[k]->AssembleElementMatrix(
+                  *trial_fes->GetBE(i), *eltrans, elemmat);
+            }
+            else
+            {
+               boundary_integs[k]->AssembleElementMatrix2(
+                  *trial_fes->GetBE(i), *test_fes->GetBE(i),
+                  *eltrans, elemmat);
+            }
             elmat += elemmat;
          }
          TransformDual(ran_dof_trans, dom_dof_trans, elmat);
@@ -1714,9 +1732,17 @@ void MixedBilinearForm::Assemble(int skip_zeros)
             }
             for (int k = 0; k < interior_face_integs.Size(); k++)
             {
-               interior_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
-                                                           *test_fe2,
-                                                           *ftr, elemmat);
+               if (trial_fes == test_fes)
+               {
+                  interior_face_integs[k]->AssembleFaceMatrix(
+                     *trial_fe1, *trial_fe2, *ftr, elemmat);
+               }
+               else
+               {
+                  interior_face_integs[k]->AssembleFaceMatrix(
+                     *trial_fe1, *test_fe1, *trial_fe2, *test_fe2,
+                     *ftr, elemmat);
+               }
                mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
             }
          }
@@ -1773,9 +1799,17 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                if (boundary_face_integs_marker[k] &&
                    (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               boundary_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
-                                                           *test_fe2,
-                                                           *ftr, elemmat);
+               if (trial_fes == test_fes)
+               {
+                  boundary_face_integs[k]->AssembleFaceMatrix(
+                     *trial_fe1, *trial_fe2, *ftr, elemmat);
+               }
+               else
+               {
+                  boundary_face_integs[k]->AssembleFaceMatrix(
+                     *trial_fe1, *test_fe1, *trial_fe2, *test_fe2,
+                     *ftr, elemmat);
+               }
                TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
                mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
             }
@@ -1928,6 +1962,68 @@ void MixedBilinearForm::AssembleDiagonal_ADAt(const Vector &D,
    }
 }
 
+void MixedBilinearForm::AssembleDiagonal(Vector &diag) const
+{
+   MFEM_VERIFY(trial_fes == test_fes,
+               "AssembleDiagonal requires identical trial and test spaces");
+   MFEM_ASSERT(diag.Size() == test_fes->GetTrueVSize(),
+               "vector for holding diagonal has wrong size");
+   if (ext)
+   {
+      const SparseMatrix *P = test_fes->GetConformingProlongation();
+      if (P)
+      {
+         Vector local_diag(P->Height());
+         ext->AssembleDiagonal(local_diag);
+         P->AbsMultTranspose(local_diag, diag);
+      }
+      else
+      {
+         ext->AssembleDiagonal(diag);
+      }
+      return;
+   }
+   MFEM_VERIFY(assembly == AssemblyLevel::LEGACY && mat,
+               "the MixedBilinearForm is not assembled");
+   mat->GetDiag(diag);
+}
+
+void MixedBilinearForm::ComputeElementMatrices()
+{
+   if (element_matrices) { return; }
+   if (auto *ea_ext = dynamic_cast<EAMixedBilinearFormExtension*>(ext.get()))
+   {
+      element_matrices.reset(new DenseTensor);
+      ea_ext->GetElementMatrices(*element_matrices,
+                                 ElementDofOrdering::NATIVE);
+      return;
+   }
+
+   const int ne = trial_fes->GetNE();
+   if (domain_integs.Size() == 0 || ne == 0)
+   {
+      element_matrices.reset(new DenseTensor);
+      return;
+   }
+   const int trial_dofs = trial_fes->GetTypicalFE()->GetDof() *
+                          trial_fes->GetVDim();
+   const int test_dofs = test_fes->GetTypicalFE()->GetDof() *
+                         test_fes->GetVDim();
+   element_matrices.reset(new DenseTensor(test_dofs, trial_dofs, ne));
+   for (int e = 0; e < ne; e++)
+   {
+      DenseMatrix matrix(element_matrices->GetData(e), test_dofs, trial_dofs);
+      ComputeElementMatrix(e, matrix);
+      matrix.ClearExternalData();
+   }
+}
+
+const DenseTensor &MixedBilinearForm::GetElementMatrices()
+{
+   ComputeElementMatrices();
+   return *element_matrices;
+}
+
 void MixedBilinearForm::ConformingAssemble()
 {
    if (assembly != AssemblyLevel::LEGACY)
@@ -1969,12 +2065,27 @@ void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
    if (domain_integs.Size())
    {
       ElementTransformation *eltrans = test_fes->GetElementTransformation(i);
-      domain_integs[0]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans,
-                                               elmat);
+      if (trial_fes == test_fes)
+      {
+         domain_integs[0]->AssembleElementMatrix(trial_fe, *eltrans, elmat);
+      }
+      else
+      {
+         domain_integs[0]->AssembleElementMatrix2(trial_fe, test_fe,
+                                                  *eltrans, elmat);
+      }
       for (int k = 1; k < domain_integs.Size(); k++)
       {
-         domain_integs[k]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans,
-                                                  elemmat);
+         if (trial_fes == test_fes)
+         {
+            domain_integs[k]->AssembleElementMatrix(trial_fe, *eltrans,
+                                                     elemmat);
+         }
+         else
+         {
+            domain_integs[k]->AssembleElementMatrix2(trial_fe, test_fe,
+                                                      *eltrans, elemmat);
+         }
          elmat += elemmat;
       }
    }
@@ -1996,12 +2107,27 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const
    if (boundary_integs.Size())
    {
       ElementTransformation *eltrans = test_fes->GetBdrElementTransformation(i);
-      boundary_integs[0]->AssembleElementMatrix2(trial_be, test_be, *eltrans,
-                                                 elmat);
+      if (trial_fes == test_fes)
+      {
+         boundary_integs[0]->AssembleElementMatrix(trial_be, *eltrans, elmat);
+      }
+      else
+      {
+         boundary_integs[0]->AssembleElementMatrix2(trial_be, test_be,
+                                                    *eltrans, elmat);
+      }
       for (int k = 1; k < boundary_integs.Size(); k++)
       {
-         boundary_integs[k]->AssembleElementMatrix2(trial_be, test_be, *eltrans,
-                                                    elemmat);
+         if (trial_fes == test_fes)
+         {
+            boundary_integs[k]->AssembleElementMatrix(trial_be, *eltrans,
+                                                       elemmat);
+         }
+         else
+         {
+            boundary_integs[k]->AssembleElementMatrix2(trial_be, test_be,
+                                                        *eltrans, elemmat);
+         }
          elmat += elemmat;
       }
    }
@@ -2042,14 +2168,28 @@ void MixedBilinearForm::ComputeFaceMatrix(int i, DenseMatrix &elmat) const
 
    if (interior_face_integs.Size())
    {
-      interior_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
-                                                  *test_fe2,
-                                                  *ftr, elmat);
+      if (trial_fes == test_fes)
+      {
+         interior_face_integs[0]->AssembleFaceMatrix(
+            *trial_fe1, *trial_fe2, *ftr, elmat);
+      }
+      else
+      {
+         interior_face_integs[0]->AssembleFaceMatrix(
+            *trial_fe1, *test_fe1, *trial_fe2, *test_fe2, *ftr, elmat);
+      }
       for (int k = 1; k < interior_face_integs.Size(); k++)
       {
-         interior_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
-                                                     *test_fe2,
-                                                     *ftr, elemmat);
+         if (trial_fes == test_fes)
+         {
+            interior_face_integs[k]->AssembleFaceMatrix(
+               *trial_fe1, *trial_fe2, *ftr, elemmat);
+         }
+         else
+         {
+            interior_face_integs[k]->AssembleFaceMatrix(
+               *trial_fe1, *test_fe1, *trial_fe2, *test_fe2, *ftr, elemmat);
+         }
          elmat += elemmat;
       }
    }
@@ -2087,14 +2227,28 @@ void MixedBilinearForm::ComputeBdrFaceMatrix(int i, DenseMatrix &elmat) const
 
    if (boundary_face_integs.Size())
    {
-      boundary_face_integs[0]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
-                                                  *test_fe2,
-                                                  *ftr, elmat);
+      if (trial_fes == test_fes)
+      {
+         boundary_face_integs[0]->AssembleFaceMatrix(
+            *trial_fe1, *trial_fe2, *ftr, elmat);
+      }
+      else
+      {
+         boundary_face_integs[0]->AssembleFaceMatrix(
+            *trial_fe1, *test_fe1, *trial_fe2, *test_fe2, *ftr, elmat);
+      }
       for (int k = 1; k < boundary_face_integs.Size(); k++)
       {
-         boundary_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
-                                                     *test_fe2,
-                                                     *ftr, elemmat);
+         if (trial_fes == test_fes)
+         {
+            boundary_face_integs[k]->AssembleFaceMatrix(
+               *trial_fe1, *trial_fe2, *ftr, elemmat);
+         }
+         else
+         {
+            boundary_face_integs[k]->AssembleFaceMatrix(
+               *trial_fe1, *test_fe1, *trial_fe2, *test_fe2, *ftr, elemmat);
+         }
          elmat += elemmat;
       }
    }
@@ -2320,7 +2474,7 @@ void MixedBilinearForm::FormRectangularSystemMatrix(
    OperatorHandle &A)
 
 {
-   if (ext)
+   if (ext && assembly != AssemblyLevel::FULL)
    {
       ext->FormRectangularSystemOperator(trial_tdof_list, test_tdof_list, A);
       return;
@@ -2363,7 +2517,7 @@ void MixedBilinearForm::FormRectangularLinearSystem(
    OperatorHandle &A,
    Vector &X, Vector &B)
 {
-   if (ext)
+   if (ext && assembly != AssemblyLevel::FULL)
    {
       ext->FormRectangularLinearSystem(trial_tdof_list, test_tdof_list,
                                        x, b, A, X, B);
@@ -2392,6 +2546,7 @@ void MixedBilinearForm::Update()
    mat = NULL;
    delete mat_e;
    mat_e = NULL;
+   element_matrices.reset();
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
    if (ext) { ext->Update(); }

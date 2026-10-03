@@ -394,6 +394,9 @@ public:
       return *mat_e;
    }
 
+   /// Return true if the eliminated sparse matrix is available.
+   bool HasSpMatElim() const { return mat_e != nullptr; }
+
    /**  @brief Returns true if the sparse matrix of eliminated b.c.s is not
         null, false otherwise.
 
@@ -753,6 +756,8 @@ public:
 */
 class MixedBilinearForm : public Matrix
 {
+   friend EAMixedBilinearFormExtension;
+   friend FAMixedBilinearFormExtension;
 protected:
    SparseMatrix *mat; ///< Owned.
    SparseMatrix *mat_e; ///< Owned.
@@ -766,6 +771,8 @@ protected:
    /** Extension for supporting Full Assembly (FA), Element Assembly (EA),
        Partial Assembly (PA), or Matrix Free assembly (MF). */
    std::unique_ptr<MixedBilinearFormExtension> ext;
+
+   bool sort_sparse_matrix = false;
 
    /** @brief Indicates the BilinearFormIntegrator%s stored in
        MixedBilinearForm#domain_integs, MixedBilinearForm#boundary_integs,
@@ -802,6 +809,8 @@ protected:
 
    mutable DenseMatrix elemmat;
    mutable Array<int>  trial_vdofs, test_vdofs;
+
+   std::unique_ptr<DenseTensor> element_matrices;
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -880,6 +889,10 @@ public:
       MFEM_VERIFY(mat, "mat is NULL and can't be dereferenced");
       return *mat;
    }
+
+   /// Return true if a sparse matrix has been assembled.
+   bool HasSpMat() const
+   { return mat != nullptr; }
 
    /**  @brief Nullifies the internal matrix $ M $ and returns a pointer
         to it.  Used for transferring ownership. */
@@ -984,7 +997,31 @@ public:
    /** This method must be called before assembly. See ::AssemblyLevel*/
    void SetAssemblyLevel(AssemblyLevel assembly_level);
 
+   /// Return the selected assembly level.
+   AssemblyLevel GetAssemblyLevel() const { return assembly; }
+
+   /** @brief Force deterministic sparse column ordering for device full
+       assembly. */
+   void EnableSparseMatrixSorting(bool enable_it)
+   { sort_sparse_matrix = enable_it; }
+
+   /// Indicate that the integrators are owned by another form.
+   void UseExternalIntegrators() { extern_bfs = 1; }
+
    void Assemble(int skip_zeros = 1);
+
+   /** @brief Assemble the diagonal. This is defined when the trial and test
+       spaces are identical. */
+   void AssembleDiagonal(Vector &diag) const override;
+
+   /// Compute and cache the rectangular element matrices.
+   void ComputeElementMatrices();
+
+   /// Free the memory used by the cached element matrices.
+   void FreeElementMatrices() { element_matrices.reset(); }
+
+   /// Return the element matrices with test dofs in rows and trial dofs in columns.
+   const DenseTensor &GetElementMatrices();
 
    /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
        bilinear form and D is a diagonal. */
