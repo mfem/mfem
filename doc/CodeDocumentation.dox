@@ -24,7 +24,8 @@ namespace mfem {
  * - Vector and LinearForm
  * - DenseMatrix and SparseMatrix
  * - Sparse \link sparsesmoothers.hpp smoothers\endlink and linear
- *   \link solvers.hpp solvers\endlink
+ *   \link solvers.hpp solvers\endlink, including
+ *   \link deflation.hpp deflated Krylov solvers\endlink
  *
  * <H3>Main parallel classes</H3>
  * - ParMesh

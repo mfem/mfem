@@ -11,6 +11,24 @@
 Version 4.10.1 (development)
 ============================
 
+- Added deflated Krylov solvers DeflatedCGSolver, DeflatedGMRESSolver, and
+  DeflatedFGMRESSolver, with the shared algebra in the new class
+  DeflationSpaces (linalg/deflation.hpp). Exact null spaces, which control
+  right-hand side compatibility and the solution gauge, and acceleration
+  coarse spaces can be registered, replaced, or cleared independently, with
+  shared or paired left/right bases. Projected and balanced coarse
+  corrections are available. Convergence is tested on the physical residual,
+  and working and original residual diagnostics are reported. Setup
+  tolerances are precision-aware. The coarse solve uses Cholesky or pivoted
+  LU, or optionally an SVD when MFEM is built with LAPACK. Coarse-space
+  images A U, and optionally A^T V, are cached to avoid operator applications
+  in the projectors. Coarse spaces may also be general operators, such as
+  sparse HypreParMatrix prolongations with distributed coarse DOFs, solved by
+  a user-supplied coarse solver; the new VectorDeflationBasis class supplies
+  explicit vector sets. The solvers support MPI, with collective error
+  handling, and use MFEM's device-aware vector operations; GPU-aware MPI is
+  not required. See doc/deflation.md.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
