@@ -34,6 +34,7 @@
 #include "hybridization.hpp"
 #include "datacollection.hpp"
 #include "estimators.hpp"
+#include "estimator_impl.hpp"
 #include "staticcond.hpp"
 #include "tmop.hpp"
 #include "tmop_tools.hpp"
