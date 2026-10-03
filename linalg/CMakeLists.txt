@@ -83,12 +83,14 @@ list(APPEND HDRS
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     hypre.cpp
-    hypre_parcsr.cpp)
+    hypre_parcsr.cpp
+    schwarz.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
     hypre.hpp
-    hypre_parcsr.hpp)
+    hypre_parcsr.hpp
+    schwarz.hpp)
   if (MFEM_USE_PETSC)
     list(APPEND SRCS
       petsc.cpp)
