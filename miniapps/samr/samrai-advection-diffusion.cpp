@@ -105,6 +105,7 @@ protected:
 public:
    ConductionOperator(ParFiniteElementSpace* fes, real_t kappa);
 
+   /// Evaluate du/dt = -M^{-1} K u.
    void Mult(const Vector &u, Vector &du_dt) const override;
    /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
        This is the only requirement for high-order SDIRK implicit integration.*/
@@ -116,7 +117,7 @@ std::tuple<std::unique_ptr<ConductionOperator>,
     createConductionODESolver(ParFiniteElementSpace* fespace, const real_t kappa,
                               const int ode_solver_type, const bool solve_implicit_state)
 {
-   // Create the conduction operator
+   // Construct the conduction operator and select its implicit-solve convention.
    auto conduction = std::make_unique<ConductionOperator>(fespace, kappa);
    using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
    ImplicitVariableType imp_var = solve_implicit_state ?
@@ -124,7 +125,7 @@ std::tuple<std::unique_ptr<ConductionOperator>,
                                   : ImplicitVariableType::SLOPE;
    conduction->SetImplicitVariableType(imp_var);
 
-   // Create the ODE solver used for time integration
+   // Select and initialize the MFEM time integrator.
    std::unique_ptr<ODESolver> solver = ODESolver::Select(ode_solver_type);
    solver->Init(*conduction);
    return std::make_tuple(std::move(conduction), std::move(solver));
@@ -149,10 +150,10 @@ int main(int argc, char *argv[])
 
    bool use_new_mesh = false;
 
-   // Define command line argument defaults for SAMRAI
+   // Default SAMRAI input describes a two-dimensional advection problem.
    const char *samrai_input_file = "linadv_input.2d";
 
-   // Parse command line arguments
+   // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::Types.c_str());
@@ -190,9 +191,9 @@ int main(int argc, char *argv[])
    SAMRAI::tbox::SAMRAIManager::initialize();
    SAMRAI::tbox::SAMRAIManager::startup();
 
-   /************************* Create SAMRAI objects ***************************/
+   // Construct the SAMRAI hierarchy and advection integrator.
 
-   // Parse SAMRAI input file
+   // Read the selected SAMRAI input database.
    SAMRAI::tbox::InputManager::getManager()->parseInputFile(samrai_input_file);
    std::shared_ptr<SAMRAI::tbox::Database> input_db =
       SAMRAI::tbox::InputManager::getManager()->getInputDatabase();
@@ -230,7 +231,7 @@ int main(int argc, char *argv[])
    const int samrai_position_id = linadv_model->getPositionId();
    const int samrai_state_id = linadv_model->getStateId();
 
-   /************************** Create MFEM objects ****************************/
+   // Construct the MFEM representation of the SAMRAI hierarchy.
 
    // Create coupling manager with SAMRAI hierarchy
    SAMRAICouplingManager coupling_manager(
@@ -261,14 +262,14 @@ int main(int argc, char *argv[])
    }
    reconstructH1Field(*uavg_gf, *u_gf);
 
-   // Create the conduction operator and ODE solver used for time integration
+   // Set up the MFEM diffusion operator and time integrator.
    std::unique_ptr<ConductionOperator> conduction;
    std::unique_ptr<ODESolver> mfem_ode_solver;
    std::tie(conduction, mfem_ode_solver) =
       createConductionODESolver(u_fespace.get(), kappa, ode_solver_type,
                                 solve_implicit_state);
 
-   // Write out the mesh and initial condition
+   // Save the initial MFEM mesh and reconstructed temperature field.
    coupling_manager.GetMesh().Save("samrai-init.mesh", precision);
    u_gf->Save("samrai-init.gf", precision);
    if (Mpi::Root())
@@ -278,7 +279,7 @@ int main(int argc, char *argv[])
    }
 
 
-   // Optionally, create the visualization stream and visualize initial condition
+   // Optionally connect to GLVis and display the initial MFEM field.
    socketstream sout;
    if (visualization)
    {
@@ -311,7 +312,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   /*************************** Advance Solutions *****************************/
+   // Advance the coupled SAMRAI advection and MFEM diffusion solutions.
 
    const double final_time = samrai_time_integrator->getEndTime();
    int ti = 1;
@@ -324,10 +325,10 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      // SAMRAI advection step
+      // Advance advection and update the adaptive SAMRAI hierarchy.
       const double dt_new = samrai_time_integrator->advanceHierarchy(dt);
 
-      // Transfer SAMRAI values to MFEM mesh
+      // Rebuild or adapt the MFEM mesh, then transfer SAMRAI values.
       coupling_manager.SynchronizeMeshToHierarchy(use_new_mesh);
       u_fespace = coupling_manager.CreateFESpace(&u_fecollection);
       u_gf = std::make_unique<ParGridFunction>(u_fespace.get());
@@ -341,12 +342,12 @@ int main(int argc, char *argv[])
          createConductionODESolver(u_fespace.get(), kappa, ode_solver_type,
                                    solve_implicit_state);
 
-      // MFEM heat equation step
+      // Advance diffusion from the transfered field on the current MFEM mesh.
       u_gf->GetTrueDofs(u_dofs);
       mfem_ode_solver->Step(u_dofs, time, dt);
       u_gf->SetFromTrueDofs(u_dofs);
 
-      // Transfer MFEM values back to SAMRAI grid
+      // Transfer the updated MFEM field to SAMRAI cell averages.
       std::pair<int, ParGridFunction&> u_fields = {samrai_state_id, *u_gf};
       coupling_manager.TransferToSAMRAI({}, {u_fields});
 
@@ -374,7 +375,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Save final solution
+   // Save the final MFEM mesh and temperature field.
    coupling_manager.GetMesh().Save("samrai-final.mesh", precision);
    u_gf->Save("samrai-final.gf", precision);
    if (Mpi::Root())

@@ -11,67 +11,68 @@
 namespace mfem
 {
 
+/// Manages an MFEM mesh that mirrors a SAMRAI patch hierarchy.
+/// Transfers nodal and cell-centered data between the two representations.
 class SAMRAICouplingManager
 {
 public:
 
+   /// Boundary attribute identifiers.
    enum BDR_ATTRIBUTE {Ylower=1, Xupper=2, Yupper=3, Xlower=4};
 
+   /// Construct a manager for @a hierarchy and create the initial mesh.
    SAMRAICouplingManager(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy);
 
-   // read-only access to current MFEM mesh object (meant for temporary access)
+   /// Read-only access to the managed MFEM mesh (meant for temporary access).
    const ParMesh& GetMesh() const { return *mesh; }
 
-   // create an "unmanaged" finite element space on the managed MFEM mesh, which
-   // can be used for MFEM-only fields **the space becomes invalid after call to
-   // SynchronizeMeshToHierarchy**.
+   /// Create an "unmanaged" finite element space on the managed MFEM mesh.
+   /** The caller owns the returned space. It is not updated after a call to
+       SynchronizeMeshToHierarchy() and must not be used after that call. */
    std::unique_ptr<ParFiniteElementSpace> CreateFESpace(
       FiniteElementCollection* fe_collection, int dim=1)
    {
       return std::make_unique<ParFiniteElementSpace>(mesh.get(), fe_collection, dim);
    }
 
-   // specify the MFEM mesh topology by an externally provided grid function
-   // defined on a finite element space created by CreateFESpace
+   /// Set the nodal GridFunction that defines the physical mesh positions.
+   /** The GridFunction must be defined on a space created by CreateFESpace().
+       A subsequent call to SynchronizeMeshToHierarchy() must create a new mesh. */
    void SetMeshGridFunction(std::shared_ptr<GridFunction> grid_function)
    {
       mesh->SetNodalGridFunction(grid_function.get());
       mesh_grid_function = grid_function;
    }
 
-   // synchronizes the MFEM mesh to the SAMRAI grid by either updating the
-   // existing MFEM mesh or creating a new mesh, with all "managed" finite
-   // element spaces updated in either case (**"unmanaged" spaces created by
-   // CreateFESpace become invalid)**
+   /// Synchronize the managed MFEM mesh with the current SAMRAI hierarchy.
+   /** When @a create_new_mesh is true, rebuild the MFEM mesh. Otherwise, update
+       the existing mesh by derefining and refining it, after which all 
+       "unmanaged" finite element spaces created by CreateFESpace() become 
+       invalid. */
    void SynchronizeMeshToHierarchy(bool create_new_mesh=false);
 
-   // transfer SAMRAI node positions and specified node and cell values to the
-   // MFEM mesh nodes and specified grid function. This method assumes the
-   // following about the arguments:
-   //   1) the PatchHierarchy object under position and the SAMRAI field ids
-   //      is the same one passed to the MeshOps constructor (and has not
-   //      changed since then)
-   //   2) the SAMRAI node fields have depth NDIM
-   //   3) the SAMRAI cell fields have depth 1
+   /// Transfer SAMRAI data to new MFEM grid functions and update the mesh position.
+   /** @a position_id and every entry in @a node_ids must identify NodeData<double>
+       with depth equal to the mesh dimension. Each entry in @a cell_ids must
+       identify CellData<double> with depth one. All fields must belong to the
+       managed patch hierarchy. The caller owns the returned grid fuctions, which
+       are not updated after a call to SynchronizeMeshToHierarchy() and must not be
+       used after that call. */
    std::vector<std::unique_ptr<ParGridFunction>> TransferToMFEM(
                                                  const int position_id, const std::vector<int>& node_ids,
                                                  const std::vector<int>& cell_ids);
 
-   // transfer MFEM grid function values to SAMRAI cell values (considers cell
-   // values == element averages). This method assumes the following about the
-   // arguments:
-   //   1) the PatchHierarchy object under the CellData<double> object is the
-   //      same one passed to the MeshOps constructor (and has not changed since
-   //      then)
-   //   2) the finite element spaces under the MFEM grid functions were created
-   //      using MeshOps::createFESpace()
+   /// Transfer MFEM nodal and cell field values to the SAMRAI hierarchy.
+   /** Each pair contains a SAMRAI patch-data identifier and its source MFEM field.
+       Nodal fields must use by-node ordering. Cell fields are transferred as
+       MFEM element averages. */
    void TransferToSAMRAI(
       std::vector<std::pair<int, GridFunction&>> node_fields,
       std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
 
-   // similar to other TransferToSAMRAI method except the MFEM mesh position is
-   // also transferred (assumes an external mesh grid function containing the
-   // mesh topology, specified by SetMeshGridFunction, has been changed)
+   /// Transfer MFEM mesh position and field values to the SAMRAI hierarchy.
+   /** The position field is taken from the nodal GridFunction set by
+       SetMeshGridFunction(). */
    void TransferToSAMRAI(int position_id,
                          std::vector<std::pair<int, GridFunction&>> node_fields,
                          std::vector<std::pair<int, ParGridFunction&>> cell_fields)
@@ -84,7 +85,7 @@ public:
 
 private:
 
-   /***** general utility methods *****/
+   // General utility methods.
 
    static inline SAMRAI::hier::Index ToIndex(const Vector& vector);
 
@@ -95,9 +96,9 @@ private:
 
    static Vector GetElementDimensions(Mesh& mesh, const int element_ind);
 
-   /***** utility classes *****/
+   // Utility classes.
 
-   // an Array wrapper for data serialized (by blocks) for MPI communication
+   /// Array wrapper for data serialized (by blocks) for MPI communication.
    template<typename PODType>
    class BlockArray
    {
@@ -123,7 +124,7 @@ private:
 
    };
 
-   // class storing SAMRAI patch information for MFEM mesh mirroring
+   /// Describes a SAMRAI patch used to mirror the hierarchy in the MFEM mesh.
    struct PatchInfo
    {
       int rank;
@@ -144,7 +145,7 @@ private:
       static PatchInfo FromArray(const Array<int>& values);
    };
 
-   // class storing MFEM element information for SAMRAI<=>MFEM data transfers
+   /// Identifies an MFEM element by its corresponding SAMRAI level and cell.
    struct ElementInfo
    {
       int level_number;
@@ -159,19 +160,18 @@ private:
       static ElementInfo FromArray(const Array<int>& values);
    };
 
-   // class storing SAMRAI cell information for SAMRAI<=>MFEM data transfers
+   /// Locates a SAMRAI cell and its owning patch for data transfer.
    struct CellInfo
    {
       SAMRAI::pdat::CellIndex index;
       std::shared_ptr<SAMRAI::hier::Patch> patch;
    };
 
-   /***** MPI utility methods *****/
+   // MPI utility methods.
 
-   // extracts the following information for the gather/scatter buffer:
-   //   1) the number of values per element
-   //   2) the vector dimension of each node field
-   //   3) the offsets with a specified element block of buffer for each node field
+   /// Return the value # per element, nodal field dimensions, and field offsets.
+   /** The offsets identify the nodal fields within one packed element record;
+       cell fields follow the final nodal offset. */
    std::tuple<int,Array<int>,Array<int>> ExtractBufferInfo(
                                          std::vector<std::pair<int, GridFunction&>> node_fields,
                                          std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
@@ -184,13 +184,13 @@ private:
    void GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds)
    const;
 
-   /***** SAMRAI grid state update methods *****/
+   // SAMRAI hierarchy bookkeeping.
 
    void AddNewPatchesToGlobalPatchInfo();
 
    void RemoveOldPatchesFromGlobalPatchInfo();
 
-   /***** MFEM mesh creation and update methods *****/
+   // MFEM mesh creation and update.
 
    void CreateMesh();
 
@@ -202,18 +202,18 @@ private:
 
    void CreateTransferMaps();
 
-   /***** MPI tags *****/
+   // MPI message tags.
 
    const int element_info_tag = 0;
    const int samrai_values_tag = 1;
    const int element_values_tag = 2;
 
-   /***** SAMRAI state variables *****/
+   // SAMRAI hierarchy state.
 
    std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy;
    std::vector<PatchInfo> global_patch_info;
 
-   /***** SAMRAI<=>MFEM data transfer variables *****/
+   // SAMRAI-to-MFEM data transfer state.
 
    const Array<SAMRAI::pdat::NodeIndex::Corner>& corners;
 
@@ -231,12 +231,12 @@ private:
       SAMRAI::pdat::NodeIndex::LLU, SAMRAI::pdat::NodeIndex::ULU,
       SAMRAI::pdat::NodeIndex::UUU, SAMRAI::pdat::NodeIndex::LUU};
 
-   // (rank) -> {CellInfo for local cell that corresponds to element on rank}
+   // Indexed by rank; identifies locally owned cells for that rank's elements.
    std::vector<std::vector<CellInfo>> local_cell_info;
-   // (rank) -> {local element ind that corresponds to cell on rank}
+   // Indexed by rank; identifies local elements that correspond to that rank's cells.
    std::vector<std::vector<int>> local_element_inds;
 
-   /***** MFEM variables *****/
+   // Managed MFEM objects.
 
    std::unique_ptr<ParMesh> mesh;
    std::shared_ptr<GridFunction> mesh_grid_function;
@@ -244,7 +244,7 @@ private:
    H1_FECollection fe_collection_node;
    L2_FECollection fe_collection_cell;
 
-   // maps are from field dimension to finite element space
+   // Maps field vector dimension to its managed finite element space.
    std::map<int,std::unique_ptr<ParFiniteElementSpace>> fe_spaces_cell;
    std::map<int,std::unique_ptr<ParFiniteElementSpace>> fe_spaces_node;
 
