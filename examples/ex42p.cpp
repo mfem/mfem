@@ -35,9 +35,10 @@ int main(int argc, char *argv[])
    Hypre::Init();
    const int myid = Mpi::WorldRank();
    const char *mesh_file = "../data/inline-hex.mesh";
-   int order = 1, estimator_type = 2, amr_iterations = 2;
+   int order = 1, estimator_type = 2, amr_iterations = 3;
    real_t fraction = 0.5;
    bool visualization = true;
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Nedelec polynomial degree.");
@@ -55,14 +56,17 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(order > 0 && omega > 0.0 && fraction > 0.0 && fraction < 1.0,
                "invalid options");
 
-   Mesh serial_mesh(mesh_file, 1, 1);
-   MFEM_VERIFY(serial_mesh.Dimension() == 3 && serial_mesh.SpaceDimension() == 3,
+   Mesh mesh(mesh_file, 1, 1);
+   MFEM_VERIFY(mesh.Dimension() == 3 && mesh.SpaceDimension() == 3,
                "Example 42p requires a three-dimensional volume mesh.");
-   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   mesh.EnsureNCMesh();
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+
    ND_FECollection nd_fec(order, 3);
    L2_FECollection l2_fec(order, 3);
-   ParFiniteElementSpace fes(&mesh, &nd_fec);
-   ParFiniteElementSpace source_fes(&mesh, &l2_fec, 3, Ordering::byVDIM);
+   ParFiniteElementSpace fes(&pmesh, &nd_fec);
+   ParFiniteElementSpace source_fes(&pmesh, &l2_fec, 3, Ordering::byVDIM);
    ParGridFunction solution(&fes), source(&source_fes);
    ConstantCoefficient mu_inv(1.0), epsilon(1.0), negative_mass(-omega*omega);
    VectorFunctionCoefficient e_exact(3, EExact), f_exact(3, FExact),
@@ -72,7 +76,7 @@ int main(int argc, char *argv[])
    a.AddDomainIntegrator(new VectorFEMassIntegrator(negative_mass));
    ParLinearForm b(&fes);
    b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_exact));
-   Array<int> ess_bdr(mesh.bdr_attributes.Max()); ess_bdr = 1;
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max()); ess_bdr = 1;
    CurlCurlIntegrator zz_integrator(mu_inv);
    ND_FECollection zz_fec(order, 3);
    unique_ptr<ErrorEstimator> estimator;
@@ -80,7 +84,7 @@ int main(int argc, char *argv[])
    {
       estimator.reset(new ZienkiewiczZhuEstimator(
                          zz_integrator, solution,
-                         new ParFiniteElementSpace(&mesh, &zz_fec)));
+                         new ParFiniteElementSpace(&pmesh, &zz_fec)));
    }
    else if (estimator_type == 1)
    {
@@ -89,7 +93,7 @@ int main(int argc, char *argv[])
    }
    else if (estimator_type == 2)
    {
-      auto *general = new GeneralErrorEstimator(*pmesh);
+      auto *general = new GeneralErrorEstimator(pmesh);
       AddMaxwellResidualEstimators(*general, solution, source, epsilon,
                                    mu_inv, omega, order);
       estimator.reset(general);
@@ -101,10 +105,11 @@ int main(int argc, char *argv[])
 
    for (int it = 0; it <= amr_iterations; it++)
    {
+      const auto global_dofs = fes.GlobalTrueVSize();
       if (!myid)
       {
          cout << "\nAMR iteration " << it << ", unknowns: "
-              << fes.GlobalTrueVSize() << endl;
+              << global_dofs << endl;
       }
       source.ProjectCoefficient(f_exact);
       b.Assemble(); a.Assemble();
@@ -132,7 +137,7 @@ int main(int argc, char *argv[])
               << ", Maxwell energy-norm error: " << energy_error << endl;
       }
       if (it == amr_iterations) { break; }
-      refiner.Apply(mesh);
+      refiner.Apply(pmesh);
       if (refiner.Stop()) { break; }
       fes.Update(); source_fes.Update(); solution.Update(); source.Update();
       a.Update(); b.Update(); refiner.Reset();
