@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -781,6 +781,23 @@ void PAHcurlL2Setup2D(const int Q1D,
       for (int q = 0; q < NQ; ++q)
       {
          y(q,e) = W[q] * C(q,e);
+      }
+   });
+}
+
+void PAHcurlL2IntSetup2D(const int Q1D, const int NE, const Array<real_t> &w,
+                         Vector &coeff, const Vector &detJ, Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto J = Reshape(detJ.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         y(q,e) = W[q] * C(q,e) / J(q,e);
       }
    });
 }

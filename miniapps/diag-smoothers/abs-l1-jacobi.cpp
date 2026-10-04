@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
    }
 
    // 6. Extract the list of the essential boundary DoFs. We mark all boundary
-   //    attibutes as essential. Then we get the list of essential DoFs.
+   //    attributes as essential. Then we get the list of essential DoFs.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    if (mesh->bdr_attributes.Size())
@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   // 8. Construct the preconditioner. Uses AbsMult to construct an appoximation
+   // 8. Construct the preconditioner. Uses AbsMult to construct an approximation
    //    of the diagonal of the matrix.
 
    Solver *jacobi = nullptr;
