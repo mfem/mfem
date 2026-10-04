@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,11 +18,12 @@
 #include <functional>
 #include <utility>
 #include <cstdint>
+#include <type_traits>
 
 namespace mfem
 {
 
-/// @brief streaming implementation for murmurhash3 128 (x64).
+/// @brief Streaming implementation of MurmurHash3 128 (x64).
 ///
 /// Constructs the hash in 3 stages: init, append, finalize.
 struct Hasher
