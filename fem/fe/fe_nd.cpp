@@ -3177,7 +3177,8 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          Jinv.Mult(t2, pt_data);
