@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -108,7 +108,7 @@ public:
             isca=space->GetVDim();
          }
 
-         // intialize the bounding box
+         // initialize the bounding box
          const FiniteElement* el = space->GetTypicalFE();
          trans = mesh->GetTypicalElementTransformation();
          ir=&(el->GetNodes());

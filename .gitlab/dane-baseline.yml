@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -159,5 +159,5 @@ baselinepublish_mfem_dane:
     - .gitlab/scripts/rebaseline
 
 include:
-  - local: .gitlab/custom-jobs-and-variables.yml
+  - local: .gitlab/custom-variables.yml
   - local: .gitlab/configs/setup-baseline.yml
