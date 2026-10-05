@@ -1060,11 +1060,12 @@ void FindPointsGSLIB::FindPointsSurfSetup3(DevStruct &devs,
    const uint nel_orig = mesh->GetNE();
    MFEM_ASSERT(split_element_map.Size() == (int)nel_split,
                "Invalid split-element map.");
+   auto h_split_element_map = split_element_map.HostRead();
 
    Vector elmin(3*nel_split), elmax(3*nel_split);
    for (uint i = 0; i < nel_split; i++)
    {
-      const int e = split_element_map[i];
+      const int e = h_split_element_map[i];
       const int min_off = (store_obb ? sd : 0) + n_box_ents*i;
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 3; d++)
@@ -1143,11 +1144,12 @@ void FindPointsGSLIB::FindPointsEdgeSetup2(DevStruct &devs,
    const uint nel_orig = mesh->GetNE();
    MFEM_ASSERT(split_element_map.Size() == (int)nel_split,
                "Invalid split-element map.");
+   auto h_split_element_map = split_element_map.HostRead();
 
    Vector elmin(2*nel_split), elmax(2*nel_split);
    for (uint i = 0; i < nel_split; i++)
    {
-      const int e = split_element_map[i];
+      const int e = h_split_element_map[i];
       const int min_off = (store_obb ? sd : 0) + n_box_ents*i;
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 2 && aabb_sz_inc; d++)

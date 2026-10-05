@@ -429,7 +429,9 @@ public:
     *  @details This method computes only axis-aligned bounding boxes and
     *  increases their total length by a user-specified amount in each
     *  physical direction. The absolute AABB expansion is applied
-    *  symmetrically to the lower and upper bounds.
+    *  symmetrically to the lower and upper bounds. For simplical meshes,
+    *  each element is split internally into quads/hexes and the user input
+    *  is mapped to each sub-element.
     *
     *  The size of @a aabb_sz_inc determines how the expansion values are
     *  interpreted:
