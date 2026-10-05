@@ -30,10 +30,11 @@ real_t u_true(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-   const char *mesh_file = "../../data/inline-hex.mesh";
+   const char *mesh_file = "../../data/inline-quad.mesh";
    int order = 1;
    real_t kappa_0 = 1.0;
    int num_levels = 2;
+   real_t dc = 1.0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file.");
@@ -42,6 +43,7 @@ int main(int argc, char *argv[])
    args.AddOption(&kappa_0, "-k", "--kappa", "DG penalty parameter.");
    // args.AddOption(&ncoarse, "-nc", "--ncoarse", "Number of Fine Elements per Coarse.");
    args.AddOption(&num_levels, "-nl", "--levels", "Number of Multigrid Levels.");
+   args.AddOption(&dc, "-dc", "--diffusion-coefficient", "Diffusion Coefficient.");
    args.ParseCheck();
 
    Mesh mesh(mesh_file);
@@ -128,6 +130,7 @@ int main(int argc, char *argv[])
 
    // LinearForm b(&fespace);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient mu(dc);
    ConstantCoefficient mone(-1.0);
    ConstantCoefficient zero(0.0);
    FunctionCoefficient rhs(rhs_function);
@@ -140,9 +143,9 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new DiffusionIntegrator(one));
-   a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
-   a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(one, sigma, kappa));
+   a.AddDomainIntegrator(new DiffusionIntegrator(mu));
+   a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(mu, sigma, kappa));
+   a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(mu, sigma, kappa));
    a.Assemble();
    a.Finalize();
 
@@ -153,35 +156,35 @@ int main(int argc, char *argv[])
    // A.PrintMM(ofs1); 
    // ofs1.close();
 
-   {
-      std::ofstream f("A.txt");
-      A.PrintMatlab(f);
-   }
-   {
-      const auto &e2e = mesh.ElementToElementTable();
-      Array<int> fn;
+   // {
+   //    std::ofstream f("A.txt");
+   //    A.PrintMatlab(f);
+   // }
+   // {
+   //    const auto &e2e = mesh.ElementToElementTable();
+   //    Array<int> fn;
 
-      std::ofstream f("t2t.txt");
-      for (int e = 0; e < mesh.GetNE(); ++e)
-      {
-         e2e.GetRow(e, fn);
-         int i = 0;
-         for (; i < fn.Size(); ++i)
-         {
-            if (fn[i] != e)
-            {
-               f << (fn[i] + 1) << " ";
-            }
-         }
-         const int nf = dim == 2 ? Geometry::NumEdges[mesh.GetElementGeometry(e)]
-                        : Geometry::NumFaces[mesh.GetElementGeometry(e)];
-         for (; i < nf; ++i)
-         {
-            f << -1 << " ";
-         }
-         f << '\n';
-      }
-   }
+   //    std::ofstream f("t2t.txt");
+   //    for (int e = 0; e < mesh.GetNE(); ++e)
+   //    {
+   //       e2e.GetRow(e, fn);
+   //       int i = 0;
+   //       for (; i < fn.Size(); ++i)
+   //       {
+   //          if (fn[i] != e)
+   //          {
+   //             f << (fn[i] + 1) << " ";
+   //          }
+   //       }
+   //       const int nf = dim == 2 ? Geometry::NumEdges[mesh.GetElementGeometry(e)]
+   //                      : Geometry::NumFaces[mesh.GetElementGeometry(e)];
+   //       for (; i < nf; ++i)
+   //       {
+   //          f << -1 << " ";
+   //       }
+   //       f << '\n';
+   //    }
+   // }
 
    SmoothedAggregationGMG mg(fespace, A, ncoarse, num_levels, false);
    mg.SetCycleType(mfem::MultigridBase::CycleType::VCYCLE, 3, 3);
@@ -196,6 +199,16 @@ int main(int argc, char *argv[])
    bb = 1.0;
    x = 0.0;
    cg.Mult(bb, x);
+
+   GridFunction xgf(&fespace);
+   xgf = x;
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << xgf << flush;
+   }
 
    // FunctionCoefficient true_solution(u_true);
    // GridFunction true_sol_gf(&fespace);

@@ -53,8 +53,8 @@ void velocity_func(const Vector &x, Vector &v)
             X(i) = 2 * (x(i) - center);
          }
          const real_t w = M_PI/2;
-         v(0) = w*X(1); 
-         v(1) = -w*X(0); 
+         v(0) = -w*X(1); 
+         v(1) = w*X(0); 
          v(2) = 0.0;
          v /= v.Norml2();
       }
@@ -166,6 +166,7 @@ int main(int argc, char *argv[])
 
     // LinearForm b(&fespace);
     ConstantCoefficient diff_coef(diff_c);
+    ConstantCoefficient mone(-1.0);
     ConstantCoefficient one(1.0);
     ConstantCoefficient zero(0.0);
     VectorFunctionCoefficient velocity(dim, velocity_func);
@@ -174,22 +175,23 @@ int main(int argc, char *argv[])
     x = 0.0;
 
     ParBilinearForm a(fespace);
-    a.AddDomainIntegrator(new DiffusionIntegrator(diff_coef));
-    a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
-    a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
-
-    a.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
-    a.AddInteriorFaceIntegrator(
-        new NonconservativeDGTraceIntegrator(velocity, -1.0));
-    a.AddBdrFaceIntegrator(
-        new NonconservativeDGTraceIntegrator(velocity, -1.0));
+    if (diff_c != 0.0)
+    {
+      a.AddDomainIntegrator(new DiffusionIntegrator(diff_coef));
+      a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
+      a.AddBdrFaceIntegrator(new DGDiffusionIntegrator(diff_coef, sigma, kappa));
+    }
+    a.AddDomainIntegrator(new ConvectionIntegrator(velocity, 1.0));
+    a.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 1.0));
+    a.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 1.0));
     a.Assemble();
     a.Finalize();
 
     ParLinearForm b(fespace);
-    b.AddDomainIntegrator(new DomainLFIntegrator(zero));
+    b.AddDomainIntegrator(new DomainLFIntegrator(one));
     b.Assemble();
     SparseMatrix &A = a.SpMat();
+    //A *= -1.0; // So doing this works????
     Solver *prec;
 
     if(agglom == 0)
@@ -216,7 +218,7 @@ int main(int argc, char *argv[])
         // std::ofstream ofsb("../../../adaptiveMG/" + file_name_b);
         // b_vec.Print(ofsb); 
         // ofsb.close();
-        x = 1.0;
+        x = 0.0;
         gmres.Mult(b_vec, x);
     }
     else
@@ -232,15 +234,27 @@ int main(int argc, char *argv[])
         gmres.SetKDim(1000);
         gmres.SetPreconditioner(*prec);
         gmres.SetOperator(*Ap);
-        Vector& b_vec = b;
+        HypreParVector* b_vec = b.ParallelAssemble();
         x = 1.0;
-        gmres.Mult(b_vec, x);
+        gmres.Mult(*b_vec, x);
         delete prec;
         delete Ap;
+        delete b_vec;
 
     }
 
     std::cout << "Solution norm = " << x.Norml2() << std::endl;
+
+
+   GridFunction xgf(fespace);
+   xgf = x;
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << xgf << flush;
+   }
 
 
     delete fespace;
