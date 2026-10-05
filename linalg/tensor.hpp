@@ -535,8 +535,8 @@ tensor<decltype(S {} + T{}), n...>
  * @param[in] A The tensor to be scaled
  */
 template <typename S, typename T, int... n,
-          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
-                                      is_dual_number<S>::value>>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -557,8 +557,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The scaling factor
  */
 template <typename S, typename T, int... n,
-          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
-                                      is_dual_number<S>::value>>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -579,8 +579,8 @@ tensor<decltype(T {} * S{}), n...>
  * @param[in] A The tensor of denominators
  */
 template <typename S, typename T, int... n,
-          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
-                                      is_dual_number<S>::value>>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -601,8 +601,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The denominator
  */
 template <typename S, typename T, int... n,
-          typename = std::enable_if_t<std::is_arithmetic<S>::value ||
-                                      is_dual_number<S>::value>>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {

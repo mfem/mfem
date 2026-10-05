@@ -128,7 +128,7 @@ public:
 
    /// Create a vector using a braced initializer list
    template <typename CT, std::enable_if_t<
-                std::is_convertible<CT,real_t>::value,bool> = true>
+                std::is_convertible_v<CT,real_t>,bool> = true>
    explicit Vector(std::initializer_list<CT> values) :
       Vector(static_cast<int> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
