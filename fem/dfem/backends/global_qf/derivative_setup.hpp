@@ -141,9 +141,6 @@ struct DerivativeSetup
 
             for (int m = 0; m < trial_op_dim_s; m++)
             {
-               shadow_xq = 0.0;
-               shadow_xq.SyncToBlocks();
-
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
                real_t *shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
@@ -151,9 +148,6 @@ struct DerivativeSetup
                {
                   shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
                });
-
-               yq = 0.0;
-               yq.SyncToBlocks();
 
                if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
                {
@@ -175,7 +169,7 @@ struct DerivativeSetup
                      std::make_index_sequence<noutputs> {});
                }
 
-               real_t *cache_d = qp_cache.ReadWrite();
+               real_t *cache_d = qp_cache.Write();
 
                // Write yq into the cache column
                const int m_global = m + m_offset;
@@ -206,6 +200,13 @@ struct DerivativeSetup
                      cache_d[q + num_qp_local *
                                (cache_idx + residual_size_local * entity)] =
                                 yq_d[c_out + yq_out_size * gq];
+                     if constexpr (o.value == 0)
+                     {
+                        if (c_out == 0)
+                        {
+                           shadow_ptr[c_shadow + input_size_s * gq] = 0.0;
+                        }
+                     }
                   });
                   out_offset += yq_out_size;
                });

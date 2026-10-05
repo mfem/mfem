@@ -368,7 +368,8 @@ public:
       &assemble_diagonal_callbacks = {},
       const std::vector<derivative_setup_t> &derivative_setup_callbacks = {},
       const bool lvector_mode = false,
-      const bool functional_gradient = false) :
+      const bool functional_gradient = false,
+      const bool cached_apply = false) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       infds(infds),
@@ -380,7 +381,8 @@ public:
       assemble_diagonal_callbacks(assemble_diagonal_callbacks),
       derivative_setup_callbacks(derivative_setup_callbacks),
       lvector_mode(lvector_mode),
-      functional_gradient(functional_gradient)
+      functional_gradient(functional_gradient),
+      cached_apply(cached_apply)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -417,6 +419,26 @@ public:
       else if constexpr (std::is_same_v<vector_t, MultiVector>)
       {
          prolongation(infds, x, infields_l, lvector_mode);
+      }
+
+      if (lvector_mode)
+      {
+         captured_state.reserve(infields_l.size());
+         if constexpr (std::is_same_v<vector_t, Vector>)
+         {
+            const auto &bx = static_cast<const BlockVector &>(x);
+            for (int i = 0; i < bx.NumBlocks(); i++)
+            {
+               captured_state.push_back(&bx.GetBlock(i));
+            }
+         }
+         else if constexpr (std::is_same_v<vector_t, MultiVector>)
+         {
+            for (int i = 0; i < x.NumBlocks(); i++)
+            {
+               captured_state.push_back(&x[i]);
+            }
+         }
       }
    }
 
@@ -485,7 +507,10 @@ public:
                   "without DerivativeKernels::Action");
       EnsureQpCache();
       prolongation(direction, x, direction_l, lvector_mode);
-      restriction(infds, in_rcache, infields_l, infields_e);
+      if (!cached_apply)
+      {
+         restriction(infds, in_rcache, infields_l, infields_e);
+      }
       prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
@@ -855,6 +880,10 @@ private:
    /// Only then the derivative can be assembled into a Vector.
    bool functional_gradient = false;
 
+   bool cached_apply = false;
+
+   std::vector<const Vector *> captured_state;
+
    mutable bool qp_cache_filled = false;
 
    /// @brief Ensure the qp cache is filled.
@@ -866,6 +895,10 @@ private:
       if (qp_cache_filled || derivative_setup_callbacks.empty()) { return; }
 
       restriction(infds, in_rcache, infields_l, infields_e);
+      for (size_t i = 0; i < captured_state.size(); i++)
+      {
+         captured_state[i]->SyncMemory(*infields_l[i]);
+      }
       for (const auto &setup_callback : derivative_setup_callbacks)
       {
          setup_callback(infields_e);

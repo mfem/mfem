@@ -867,12 +867,12 @@ inline void enzyme_fwddiff(
    auto primals_out = std::make_tuple(
                          make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                          typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                            primal_storage[Os].ReadWrite(), &out_layouts[Os], gnqp)...);
+                            primal_storage[Os].Write(), &out_layouts[Os], gnqp)...);
 
    auto derivs_out = std::make_tuple(
                         make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                         typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                           yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
+                           yq.GetBlock(Os).Write(), &out_layouts[Os], gnqp)...);
 
    using wrapper_fn_t = qf_return_t (*)(
                            qfunc_t &,

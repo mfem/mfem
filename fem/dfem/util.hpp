@@ -2330,6 +2330,7 @@ void prepare_residual(
       if (r_e[i] == nullptr)
       {
          r_e[i] = new Vector(s);
+         r_e[i]->UseDevice(true);
       }
       else
       {

@@ -120,7 +120,7 @@ public:
       // Quadrature index is fastest-varying so that adjacent threads (one per
       // quadrature point) touch adjacent addresses.
       auto cache_tensor = DeviceTensor<3, real_t>(
-                             qp_cache.ReadWrite(), nq, residual_size_on_qp, ne);
+                             qp_cache.Write(), nq, residual_size_on_qp, ne);
 
       if (tile_size() <= LocalQFLOBackendMQ1())
       {
