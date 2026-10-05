@@ -1549,20 +1549,17 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
       constexpr int D1D = T_D1D;
       constexpr int Q1D = T_Q1D;
       constexpr int COLB = T_COLB;
-      constexpr int NT = T_NT;
       constexpr int ND = D1D*D1D*D1D;
       constexpr int NQ = Q1D*Q1D*Q1D;
       constexpr int T1S = D1D*Q1D*Q1D;
       constexpr int T2S = D1D*D1D*Q1D;
-
-      const int tid = MFEM_THREAD_ID(x);
 
       MFEM_SHARED real_t s_B[Q1D][D1D];
       MFEM_SHARED real_t uW[NQ*COLB];
       MFEM_SHARED real_t t1[D1D*Q1D*Q1D*COLB];
       MFEM_SHARED real_t t2[D1D*D1D*Q1D*COLB];
 
-      for (int qb = tid; qb < Q1D*D1D; qb += NT)
+      MFEM_FOREACH_THREAD(qb,x,Q1D*D1D)
       {
          const int q = qb % Q1D;
          const int d = qb / Q1D;
@@ -1587,7 +1584,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
             }
          }
 
-         for (int q = tid; q < NQ; q += NT)
+         MFEM_FOREACH_THREAD(q,x,NQ)
          {
             const int q1 = q % Q1D;
             const int tmp = q / Q1D;
@@ -1603,7 +1600,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
          }
          MFEM_SYNC_THREAD;
 
-         for (int a = tid; a < T1S; a += NT)
+         MFEM_FOREACH_THREAD(a,x,T1S)
          {
             const int i1 = a % D1D;
             const int tmp = a / D1D;
@@ -1623,7 +1620,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
          }
          MFEM_SYNC_THREAD;
 
-         for (int a = tid; a < T2S; a += NT)
+         MFEM_FOREACH_THREAD(a,x,T2S)
          {
             const int i1 = a % D1D;
             const int tmp = a / D1D;
@@ -1646,7 +1643,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
          for (int c = 0; c < b; ++c)
          {
             const int col = j0 + c;
-            for (int offset = tid; offset < ND - col; offset += NT)
+            MFEM_FOREACH_THREAD(offset,x,ND - col)
             {
                const int row = col + offset;
                const int i1 = row % D1D;
