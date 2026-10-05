@@ -65,6 +65,10 @@ struct is_dual_number<dual<value_type, gradient_type> >
    static constexpr bool value = true;  ///< whether or not type T is a dual number
 };
 
+/** @brief helper variable template for is_dual_number */
+template <typename T>
+constexpr bool is_dual_number_v = is_dual_number<T>::value;
+
 /** @brief addition of a dual number and a non-dual number */
 template <typename other_type, typename value_type, typename gradient_type,
           typename = std::enable_if_t<
