@@ -5732,6 +5732,7 @@ Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
    {
       mesh.MakeHigherOrderSimplicial_(orig_mesh, parent_elements);
    }
+   MFEM_VERIFY(mesh.CheckBdrElementOrientation(false) == 0, "");
    return mesh;
 }
 
@@ -6068,7 +6069,6 @@ Array<int> Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    if (orig_mesh.GetNodes() == nullptr)
    {
       MFEM_VERIFY(CheckElementOrientation(false) == 0, "");
-      MFEM_VERIFY(CheckBdrElementOrientation(false) == 0, "");
    }
 
    return parent_elems;
@@ -6204,7 +6204,6 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
    }
 
    MFEM_VERIFY(CheckElementOrientation(false) == 0, "");
-   MFEM_VERIFY(CheckBdrElementOrientation(false) == 0, "");
 }
 
 
