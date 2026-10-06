@@ -208,41 +208,43 @@ public:
        Caller gets ownership.*/
    MatrixInverse *Inverse() const override;
 
-   /// Returns a pointer to (an approximation of) the matrix inverse.
-   /** If @a tol is zero or negative the exact inverse is computed.
-       Otherwise the factorisation is computed with a matrix
-       with a reduced bandwidth. The bandwidth is the minimum bandwidth
-       required to achieve the specified tolerance in the Frobenius norm of
-       inv(approx(A))*A - I.
-       The minimim bandwidth required is returned in @a bw.
-       Note: the INPUT matrix of the factorisation is reduced in bandwidth.
 
-       Routine use Inverse(), therefor
-       If LAPACK routines are available a BandMatrixInverse is returned,
-       otherwise a DenseInverseMatrix is returned.
-       In the latter case is inefficient and a WARNING is issued.
-       Caller gets ownership.*/
+   /** @anchor mfem_KnotVector_interpolation
+       @name Methods for interpolating NURBS curves.
+
+       If @a tol is zero or negative the inverse of the full matrix is computed.
+       Otherwise the factorisation is computed of a matrix with a reduced
+       bandwidth. This bandwidth is the minimum bandwidth required to achieve
+       the specified tolerance in the Frobenius norm of
+       inv(approx(A))*A - I.
+
+       This routine uses Inverse(). See description of Inverse() for
+       relevant performance implications.*/
+   ///@{
+   /// Returns a pointer to (an approximation of) the matrix inverse. Caller
+   /// gets ownership of MatrixInverse object.
+   /// Minimim bandwidth required  to achieve tolarnace is returned in @a bw.
    MatrixInverse *Inverse(real_t tol, int &bw) const;
 
+   /// Returns a pointer to (an approximation of) the matrix inverse. Caller
+   /// gets ownership of MatrixInverse object.
    MatrixInverse *Inverse(real_t tol) const
    {
       int bw = -1;
       return Inverse(tol, bw);
    }
+   ///@}
 
    /// Replaces the current matrix with its inverse
    /** If @a tol is negative the exact inverse is computed, otherwise the
        resulting matrix has the minimum bandwidth to achieve the specified
        tolerance in the Frobenius norm of approx(inv(A))*A - I.
        If @a bw is specified this is the bandwidth used, the result is compared
-       with the tolerance. Note that in general the inverse is dense matrix.
-       Note: the OUTPUT matrix of the factorisation is reduced in bandwidth.
+       with the tolerance. Note that in general the inverse is a matrix with
+       full bandwidth.
 
-       Routine use Inverse(eal_t tol, int &bw), therefor
-       If LAPACK routines are available a BandMatrixInverse is returned,
-       otherwise a DenseInverseMatrix is returned.
-       In the latter case is inefficient and a WARNING is issued.
-       Caller gets ownership.*/
+       This routine uses Inverse(real_t tol, int &bw). See description of
+       Inverse(real_t tol, int &bw) for relevant performance implications.*/
    void Invert(real_t tol = -1.0, int bw = -1);
 
    /// Returns a reference to BandMatrix as DenseMatrix.
