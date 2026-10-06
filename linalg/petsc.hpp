@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,6 +41,9 @@
 #endif
 #if !defined(PETSC_USE_64BIT_INDICES) && (defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT))
 #error "Mismatch between HYPRE (64bit) and PETSc (32bit) integer types"
+#endif
+#if !defined(PETSC_HAVE_HYPRE)
+#error "MFEM requires PETSc built with HYPRE support"
 #endif
 
 #include "petscversion.h"
@@ -121,7 +124,7 @@ public:
    }
    inline void SyncBase()
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       base->Sync(*this);
    }
    inline void SyncBaseAndReset()
@@ -132,17 +135,17 @@ public:
    }
    inline bool ReadRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return read;
    }
    inline bool WriteRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return write;
    }
    inline bool DeviceRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return usedev;
    }
    const real_t *GetHostPointer() const;

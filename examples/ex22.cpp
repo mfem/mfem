@@ -471,10 +471,13 @@ int main(int argc, char *argv[])
 
       ofstream sol_r_ofs("sol_r.gf");
       ofstream sol_i_ofs("sol_i.gf");
+      ofstream sol_z_ofs("sol_z.gf");
       sol_r_ofs.precision(8);
       sol_i_ofs.precision(8);
+      sol_z_ofs.precision(8);
       u.real().Save(sol_r_ofs);
       u.imag().Save(sol_i_ofs);
+      u.Save(sol_z_ofs);
    }
 
    // 14. Send the solution by socket to a GLVis server.

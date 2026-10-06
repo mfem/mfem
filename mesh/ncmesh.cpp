@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2060,7 +2060,7 @@ void NCMesh::DerefineElement(int elem)
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
    {
-      // Sets corner nodes from childs
+      // Sets corner nodes from children
       constexpr int nb_cube_childs = 8;
       for (int i = 0; i < nb_cube_childs; i++)
       {
@@ -3542,7 +3542,7 @@ void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
 
             // create a slave face record with a degenerate point matrix
             face_list.slaves.Append(
-               Slave(-1 - enode.edge_index,
+               Slave(FlipIndexSign(enode.edge_index),
                      eid[0].element, eid[0].local, Geometry::SQUARE));
             Slave &sl = face_list.slaves.Last();
 
@@ -3589,7 +3589,7 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
          // non-slave edge is really a (face-)slave itself.
          const MeshId &eid = *eid_and_type.id;
          face_list.slaves.Append(
-            Slave(-1 - eid.index, eid.element, eid.local, Geometry::TRIANGLE));
+            Slave(FlipIndexSign(eid.index), eid.element, eid.local, Geometry::TRIANGLE));
 
          int v0index = nodes[vn0].vert_index;
          int v1index = nodes[vn1].vert_index;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,10 +13,7 @@
 #define MFEM_LINALG_KERNELS_HPP
 
 #include "../config/config.hpp"
-#include "../general/backends.hpp"
-#include "../general/globals.hpp"
 
-#include "matrix.hpp"
 #include "tmatrix.hpp"
 #include "tlayout.hpp"
 #include "ttensor.hpp"

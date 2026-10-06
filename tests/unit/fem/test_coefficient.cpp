@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -451,6 +451,7 @@ TEST_CASE("Project Sum/Product/Ratio Coefficients", "[Coefficient][GPU]")
    {
       QuadratureFunction qf(qs);
       coeff.Project(qf);
+      qf.HostRead();
       Vector vals;
       for (int e = 0; e < qs.GetNE(); ++e)
       {
@@ -460,7 +461,7 @@ TEST_CASE("Project Sum/Product/Ratio Coefficients", "[Coefficient][GPU]")
          for (int iq = 0; iq < ir.Size(); ++iq)
          {
             const real_t val = coeff.Eval(T, ir[iq]);
-            REQUIRE(val == MFEM_Approx(vals[iq]));
+            REQUIRE(val == MFEM_Approx(AsConst(vals)[iq]));
          }
       }
    };

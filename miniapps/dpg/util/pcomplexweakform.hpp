@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -80,8 +80,8 @@ public:
    /// Assembles the form i.e. sums over all domain integrators.
    void Assemble(int skip_zeros = 1);
 
-   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix has to be deleted by the caller. */
+   /// Assembles the matrix on the true dofs, i.e. P^t A P.
+   /** The result is stored internally. */
    void ParallelAssemble(BlockMatrix *mat_r, BlockMatrix *mat_i);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
@@ -97,6 +97,17 @@ public:
    virtual void RecoverFEMSolution(const Vector &X, Vector &x);
 
    virtual void Update();
+
+   void GetTraceFESpaces(Array<ParFiniteElementSpace *> & trace_fes) const
+   {
+      Array<FiniteElementSpace *> sr_trace_fes;
+      ComplexDPGWeakForm::GetTraceFESpaces(sr_trace_fes);
+      trace_fes.SetSize(sr_trace_fes.Size());
+      for (int i = 0; i < sr_trace_fes.Size(); i++)
+      {
+         trace_fes[i] = dynamic_cast<ParFiniteElementSpace *>(sr_trace_fes[i]);
+      }
+   }
 
    /// Destroys bilinear form.
    virtual ~ParComplexDPGWeakForm();

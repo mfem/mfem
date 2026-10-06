@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,14 +34,16 @@ class ParNCSubMesh;
  * subset of the parent Mesh and reuses the parallel distribution.
  *
  * The attributes are taken from the parent. That means if a volume is extracted
- * from a volume, it has the same domain attribute as the parent. Its boundary
- * attributes are generated (there will be one boundary attribute 1 for all of
- * the boundaries).
+ * from a volume, it has the same domain attribute as the parent. Its new
+ * boundary attributes are, for any boundary common to the parent and the new
+ * submesh, the boundary attribute of the parent; and, for all new boundaries,
+ * a single, generated, common attribute equal to one plus the largest boundary
+ * attribute of the parent.
  *
  * If a surface is extracted from a volume, the boundary attribute from the
- * parent is assigned to be the new domain attribute. Its boundary attributes
- * are generated (there will be one boundary attribute 1 for all of the
- * boundaries).
+ * parent is assigned to be the new domain attribute. Its new boundary attribute
+ * is a single, generated, common attribute equal to one plus the largest
+ * boundary attribute of the parent.
  *
  * For more customized boundary attributes, the resulting ParSubMesh has to be
  * postprocessed.
@@ -165,7 +167,7 @@ public:
    }
 
    /**
-    * @brief Get the submesh vertex corresponding to a parent element. -1 == not
+    * @brief Get the submesh vertex corresponding to a parent vertex. -1 == not
     * present.
     * @param pv The parent vertex id.
     * @return int
@@ -177,7 +179,7 @@ public:
    }
 
    /**
-    * @brief Get the submesh edge corresponding to a parent element. -1 == not
+    * @brief Get the submesh edge corresponding to a parent edge. -1 == not
     * present.
     * @param pe The parent edge id.
     * @return int
@@ -189,7 +191,7 @@ public:
    }
 
    /**
-    * @brief Get the submesh face corresponding to a parent element. -1 == not
+    * @brief Get the submesh face corresponding to a parent face. -1 == not
     * present.
     * @param pf The parent face id.
     * @return int
@@ -225,13 +227,27 @@ public:
                                            const ParGridFunction &dst);
 
    /**
-   * @brief Check if ParMesh @a m is a ParSubMesh.
+   * @brief Check if Mesh @a m is a ParSubMesh.
    *
-   * @param m The input ParMesh
+   * @param m The input Mesh
    */
-   static bool IsParSubMesh(const ParMesh *m)
+   static bool IsParSubMesh(const Mesh *m)
    {
       return dynamic_cast<const ParSubMesh *>(m) != nullptr;
+   }
+
+   /**
+   * @brief Check if Mesh @a sub is a ParSubMesh of Mesh @a parent.
+   *
+   * @param sub The potential submesh Mesh
+   * @param parent The potential parent Mesh
+   */
+   static bool IsParSubMesh(const Mesh* sub, const Mesh* parent)
+   {
+      while (IsParSubMesh(sub) &&
+             (sub = static_cast<const ParSubMesh *>(sub)->GetParent()) &&
+             sub != parent);
+      return sub == parent;
    }
 
 private:

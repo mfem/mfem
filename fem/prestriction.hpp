@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -88,7 +88,7 @@ public:
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
        for the gathering: E-vector to L-vector, and the interpolators from
-       coarse to fine face for master non-comforming faces.
+       coarse to fine face for master non-conforming faces.
 
        @param[in] f_ordering Request a specific face dof ordering.
        @param[in] type       Request internal or boundary faces dofs.
@@ -110,15 +110,15 @@ public: // For nvcc
    /** @brief Apply a change of basis from coarse element basis to fine element
        basis for the coarse face dofs.
 
-       @param[in,out] x The dofs vector that needs coarse dofs to be express in
-                        term of the fine basis.
+       @param[in,out] x The dofs vector that needs coarse dofs to be expressed in
+                        terms of the fine basis.
    */
    void NonconformingInterpolation(Vector& x) const;
 
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs.
 
-       @param[in] x The dofs vector that needs coarse dofs to be express in term
+       @param[in] x The dofs vector that needs coarse dofs to be expressed in terms
                     of the coarse basis, the result is stored in x_interp.
    */
    void NonconformingTransposeInterpolation(const Vector& x) const;
@@ -126,7 +126,7 @@ public: // For nvcc
    /** @brief Apply a change of basis from fine element basis to coarse element
        basis for the coarse face dofs.
 
-       @param[in] x The dofs vector that needs coarse dofs to be express in term
+       @param[in] x The dofs vector that needs coarse dofs to be expressed in terms
                     of the coarse basis, the result is stored in x_interp.
    */
    void NonconformingTransposeInterpolationInPlace(Vector& x) const;
@@ -175,8 +175,8 @@ public:
 
        @param[in]  x The L-vector degrees of freedom.
        @param[out] y The face E-Vector degrees of freedom with the given format:
-                     if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
-                     if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                     if L2FaceValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                     if L2FaceValues::SingleValued (face_dofs x vdim x nf),
                      where nf is the number of interior or boundary faces
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
@@ -243,7 +243,7 @@ private:
 public:
    /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
        face E-Vector. Should only be used with conforming faces and when:
-       m == L2FacesValues::DoubleValued
+       m == L2FaceValues::DoubleValued
 
        @param[in]  x The L-vector degrees of freedom.
        @param[out] y The face E-Vector degrees of freedom with the given format:
@@ -280,8 +280,8 @@ public:
 
        @param[in]  x The L-vector degrees of freedom.
        @param[out] y The face E-Vector degrees of freedom with the given format:
-                     if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
-                     if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                     if L2FaceValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                     if L2FaceValues::SingleValued (face_dofs x vdim x nf),
                      where nf is the number of interior or boundary faces
                      requested by @a type in the constructor.
                      The face_dofs are ordered according to the given
@@ -292,8 +292,8 @@ public:
        L-Vector.
 
        @param[in]  x The face E-Vector degrees of freedom with the given format:
-                     if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
-                     if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                     if L2FaceValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                     if L2FaceValues::SingleValued (face_dofs x vdim x nf),
                      where nf is the number of interior or boundary faces
                      requested by @a type in the constructor.
                      The face_dofs should be ordered according to the given
@@ -307,8 +307,8 @@ public:
        L-Vector.
 
        @param[in,out]  x The face E-Vector degrees of freedom with the given format:
-                         if L2FacesValues::DoubleValued (face_dofs x vdim x 2 x nf),
-                         if L2FacesValues::SingleValued (face_dofs x vdim x nf),
+                         if L2FaceValues::DoubleValued (face_dofs x vdim x 2 x nf),
+                         if L2FaceValues::SingleValued (face_dofs x vdim x nf),
                          where nf is the number of interior or boundary faces
                          requested by @a type in the constructor.
                          The face_dofs should be ordered according to the given
@@ -326,9 +326,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillI(SparseMatrix &mat,
               const bool keep_nbr_block = false) const override;
 
@@ -364,9 +362,7 @@ public:
        @param[in] keep_nbr_block When set to true the SparseMatrix will
                                  include the rows (in addition to the columns)
                                  corresponding to face-neighbor dofs. The
-                                 default behavior is to disregard those rows.
-
-       @warning This method is not implemented yet. */
+                                 default behavior is to disregard those rows. */
    void FillJAndData(const Vector &fea_data,
                      SparseMatrix &mat,
                      const bool keep_nbr_block = false) const override;
@@ -374,7 +370,7 @@ public:
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, the offsets
        for the gathering: E-vector to L-vector, and the interpolators from
-       coarse to fine face for master non-comforming faces.
+       coarse to fine face for master non-conforming faces.
    */
    void ComputeScatterIndicesAndOffsets();
 

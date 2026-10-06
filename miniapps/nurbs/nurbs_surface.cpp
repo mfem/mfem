@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -458,11 +458,9 @@ SurfaceInterpolator::SurfaceInterpolator(int num_elem_x, int num_elem_y,
    hy = 1.0 / (real_t) (ncp[1] - 1);
    hz = 1.0 / (real_t) (ncp[2] - 1);
 
-   Vector xi_args;
-   Array<int> i_args;
    for (int i = 0; i < 2; ++i)
    {
-      kv[i].FindMaxima(i_args, xi_args, ugrid[i]);
+      kv[i].GetDemko(ugrid[i]);
    }
 }
 
@@ -533,7 +531,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
          }
 
          const bool reuse_factorization = j > 0;
-         kv[0].FindInterpolant(x, reuse_factorization);
+         kv[0].GetInterpolant(x,ugrid[0], reuse_factorization);
 
          for (int i = 0; i < ncp[0]; i++)
          {
@@ -558,7 +556,7 @@ void SurfaceInterpolator::ComputeNURBS(int coordinate,
          }
 
          const bool reuse_factorization = i > 0;
-         kv[1].FindInterpolant(x, reuse_factorization);
+         kv[1].GetInterpolant(x, ugrid[1], reuse_factorization);
 
          for (int j = 0; j < ncp[1]; ++j)
          {

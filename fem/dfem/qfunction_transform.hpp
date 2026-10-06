@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i).value = u((i * m) + j);
+         arg(j, i).value = u((i * n) + j);
       }
    }
 }
@@ -94,8 +94,8 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i).value = u((i * m) + j);
-         arg(j, i).gradient = v((i * m) + j);
+         arg(j, i).value = u((i * n) + j);
+         arg(j, i).gradient = v((i * n) + j);
       }
    }
 }
@@ -181,6 +181,14 @@ void process_derivative_from_native_dual(
    }
 }
 
+template <typename T>
+MFEM_HOST_DEVICE inline
+void process_derivative_from_native_dual(
+   DeviceTensor<1, T> &r,
+   const dual<T, T> &x)
+{
+   r(0) = x.gradient;
+}
 
 template <typename T0, typename T1>
 MFEM_HOST_DEVICE inline
@@ -230,7 +238,7 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i) = u((i * m) + j);
+         arg(j, i) = u((i * n) + j);
       }
    }
 }
@@ -330,7 +338,7 @@ void process_qf_arg(
    {
       for (int j = 0; j < n; j++)
       {
-         arg(j, i) = u((i * m) + j);
+         arg(j, i) = u((i * n) + j);
       }
    }
 }
