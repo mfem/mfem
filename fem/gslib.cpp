@@ -1680,6 +1680,26 @@ void FindPointsGSLIB::SetupDevice()
 void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
                                          const int point_pos_ordering)
 {
+   // gslib sets up a cache on host at first interpolation call that is
+   // automatically cleared on subsequent searches (findpts). We do the same
+   // here in case this object has been used for interpolation on host.
+   auto invalidate_gslib_cache = [](auto *fd)
+   {
+      if (fd->fevsetup == 1)
+      {
+         array_free(&fd->savpt);
+         fd->fevsetup = 0;
+      }
+   };
+   if (dim == 2)
+   {
+      invalidate_gslib_cache(static_cast<gslib::findpts_data_2 *>(fdataD));
+   }
+   else
+   {
+      invalidate_gslib_cache(static_cast<gslib::findpts_data_3 *>(fdataD));
+   }
+
    if (!DEV.setup_device)
    {
       SetupDevice();
@@ -3385,6 +3405,9 @@ void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
 
    // Setup map for non tensor-product elements
    NE_split_total = 0;
+   split_element_map.HostWrite();
+   split_element_index.HostWrite();
+   split_element_geom.HostWrite();
    split_element_map.SetSize(0);
    split_element_index.SetSize(0);
    split_element_geom.SetSize(0);
@@ -4085,6 +4108,11 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
    MFEM_VERIFY(points_cnt == gsl_code.Size(),
                "FindPointsGSLIB::InterpolateH1: Inconsistent size of gsl_code");
 
+   const auto h_gsl_code = gsl_code.HostRead();
+   const auto h_gsl_proc = gsl_proc.HostRead();
+   const auto h_gsl_elem = gsl_elem.HostRead();
+   const auto h_gsl_ref = gsl_ref.HostRead();
+
    field_out.SetSize(points_cnt*ncomp);
    real_t *h_field_out = field_out.HostWrite();
    std::fill(h_field_out, h_field_out + field_out.Size(),
@@ -4111,20 +4139,20 @@ void FindPointsGSLIB::InterpolateH1(const GridFunction &field_in,
       if (dim==2)
       {
          findpts_eval_2(h_field_out+dataptrout, sizeof(double),
-                        gsl_code.GetData(),       sizeof(unsigned int),
-                        gsl_proc.GetData(),    sizeof(unsigned int),
-                        gsl_elem.GetData(),    sizeof(unsigned int),
-                        gsl_ref.GetData(),     sizeof(double) * dim,
+                        h_gsl_code,            sizeof(unsigned int),
+                        h_gsl_proc,            sizeof(unsigned int),
+                        h_gsl_elem,            sizeof(unsigned int),
+                        h_gsl_ref,             sizeof(double) * dim,
                         points_cnt, node_vals.GetData(),
                         (gslib::findpts_data_2 *)this->fdataD);
       }
       else
       {
          findpts_eval_3(h_field_out+dataptrout, sizeof(double),
-                        gsl_code.GetData(),       sizeof(unsigned int),
-                        gsl_proc.GetData(),    sizeof(unsigned int),
-                        gsl_elem.GetData(),    sizeof(unsigned int),
-                        gsl_ref.GetData(),     sizeof(double) * dim,
+                        h_gsl_code,            sizeof(unsigned int),
+                        h_gsl_proc,            sizeof(unsigned int),
+                        h_gsl_elem,            sizeof(unsigned int),
+                        h_gsl_ref,             sizeof(double) * dim,
                         points_cnt, node_vals.GetData(),
                         (gslib::findpts_data_3 *)this->fdataD);
       }
