@@ -45,6 +45,15 @@ void ParLinearForm::MakeRef(ParFiniteElementSpace *pf, Vector &v, int v_offset)
 
 void ParLinearForm::Assemble()
 {
+   if (fast_assembly && ext && boundary_integs.Size())
+   {
+      // Ranks without boundary elements also participate in geometry setup.
+      // Complete its collective communication before integrators can return.
+      ParMesh *mesh = pfes->GetParMesh();
+      mesh->EnsureNodes();
+      mesh->ExchangeFaceNbrData();
+   }
+
    LinearForm::Assemble();
 
    if (interior_face_integs.Size())
