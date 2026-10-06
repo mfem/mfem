@@ -1403,7 +1403,9 @@ void ComplexMaxwellResidualTangentialFaceEstimator::GetFaceError(
    const IntegrationRule &ir = IntRules.Get(tr.FaceGeom,
                                             std::max(2 * el1.GetOrder() + 2, 2));
    const FieldLayout layout = GetFieldLayout(h_field.real());
-   const int vector_dim = h_field.real().VectorDim();
+   const int vector_dim = layout.mesh_dim == 2 &&
+                          h_field.real().VectorDim() == 1 ? 2 :
+                          h_field.real().VectorDim();
    Vector a(h_field.real().VectorDim()), b(a.Size()), n(vector_dim),
           jr(vector_dim);
    real_t tangential = 0.0;
