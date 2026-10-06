@@ -381,9 +381,9 @@ protected:
 enum class FaceJumpScaling
 {
    NONE, /**< Use only the supplied constant scale factor. */
-   H_OVER_P, /**< Scale each element contribution by \f$h_K/p_K\f$. */
+   H_OVER_P, /**< Scale each element contribution by $h_K/p_K$. */
    H_OVER_P_OVER_COEFFICIENT /**< Scale each contribution by
-      \f$h_K/(p_K a_{\min,K})\f$. Requires a positive scalar coefficient or
+      $h_K/(p_K a_{\min,K})$. Requires a positive scalar coefficient or
       a symmetric positive-definite matrix coefficient. */
 };
 
@@ -413,12 +413,12 @@ protected:
     Omitting @a a applies the identity map. The optional @a alpha scales the
     squared contribution and defaults to one.
 
-    The @a scaling policy additionally selects no mesh scaling, \f$h_K/p_K\f$
-    scaling, or \f$h_K/(p_K a_{\min,K})\f$ scaling for each element. The last
+    The @a scaling policy additionally selects no mesh scaling, $h_K/p_K$
+    scaling, or $h_K/(p_K a_{\min,K})$ scaling for each element. The last
     option requires a positive scalar @a a or a symmetric positive-definite
     matrix @a a. Its weights can match a Maxwell normal-jump term when
-    @a a is permittivity and @a alpha is \f$\omega^2\f$, but this estimator
-    evaluates \f$a x\f$ directly. It does not reproduce a specialized Maxwell
+    @a a is permittivity and @a alpha is $\omega^2$, but this estimator
+    evaluates $a x$ directly. It does not reproduce a specialized Maxwell
     indicator that instead jumps a discontinuous reconstructed field. */
 class NedelecNormalJumpErrorEstimator final
    : public WeightedFaceJumpErrorEstimatorBase
@@ -440,18 +440,18 @@ public:
 
     On each interior face this estimator evaluates the coefficient separately
     on its two adjacent elements and returns the same contribution for each:
-    \f$\alpha\|n\times((a x)_1-(a x)_2)\|^2_{L^2(F)}\f$.
+    $\alpha\|n\times((a x)_1-(a x)_2)\|^2_{L^2(F)}$.
     In two dimensions, the cross product denotes its scalar out-of-plane
     component. Thus, @a a may be discontinuous. The field @a x must use an
     H(div), H(div)-R2D, or H(div)-R1D finite-element map. Omitting @a a
     applies the identity map. The optional @a alpha scales the squared
     contribution and defaults to one.
 
-    The @a scaling policy additionally selects no mesh scaling, \f$h_K/p_K\f$
-    scaling, or \f$h_K/(p_K a_{\min,K})\f$ scaling for each element. The last
+    The @a scaling policy additionally selects no mesh scaling, $h_K/p_K$
+    scaling, or $h_K/(p_K a_{\min,K})$ scaling for each element. The last
     option requires a positive scalar @a a or a symmetric positive-definite
     matrix @a a. Its weights can match a Maxwell tangential-jump term when
-    @a a is inverse permeability, but this estimator evaluates \f$a x\f$
+    @a a is inverse permeability, but this estimator evaluates $a x$
     directly. It does not reproduce a specialized Maxwell indicator that
     jumps a discontinuous reconstructed curl-flux field. */
 class RTTangentialJumpErrorEstimator final
