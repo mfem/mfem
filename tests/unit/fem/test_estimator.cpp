@@ -889,7 +889,7 @@ TEST_CASE("Complex ZZ estimator supports distinct recovery spaces",
    ConstantCoefficient mu_inv(1.0);
    CurlCurlIntegrator integrator(mu_inv);
    ComplexZienkiewiczZhuEstimator shared_spaces(integrator, electric,
-                                                 shared_flux_fes);
+                                                shared_flux_fes);
    ComplexZienkiewiczZhuEstimator distinct_spaces(
       integrator, electric, new FiniteElementSpace(&mesh, &flux_fec),
       new FiniteElementSpace(&mesh, &flux_fec));
@@ -1452,8 +1452,8 @@ TEST_CASE("Nedelec normal-jump estimator processes parallel shared faces",
    h_over_p_field.ProjectCoefficient(constant_x);
    GeneralErrorEstimator h_over_p(mesh);
    h_over_p.AddInteriorFaceEstimator(new NedelecNormalJumpErrorEstimator(
-                                          h_over_p_field, a, 1.0,
-                                          FaceJumpScaling::H_OVER_P));
+                                        h_over_p_field, a, 1.0,
+                                        FaceJumpScaling::H_OVER_P));
    const Vector &h_over_p_errors = h_over_p.GetLocalErrors();
    REQUIRE(h_over_p_errors.Size() == 1);
    REQUIRE(h_over_p_errors(0) > 0.0);
@@ -1467,8 +1467,8 @@ TEST_CASE("Nedelec normal-jump estimator processes parallel shared faces",
    coefficient_scaled_field.ProjectCoefficient(constant_x);
    GeneralErrorEstimator coefficient_scaled(mesh);
    coefficient_scaled.AddInteriorFaceEstimator(new NedelecNormalJumpErrorEstimator(
-                                                coefficient_scaled_field, a, 1.0,
-                                                FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+                                                  coefficient_scaled_field, a, 1.0,
+                                                  FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
    const Vector &coefficient_scaled_errors = coefficient_scaled.GetLocalErrors();
    REQUIRE(coefficient_scaled_errors.Size() == 1);
    REQUIRE(coefficient_scaled_errors(0) > 0.0);
@@ -1512,8 +1512,8 @@ TEST_CASE("RT tangential-jump estimator processes parallel shared faces",
    h_over_p_field.ProjectCoefficient(constant_tangent);
    GeneralErrorEstimator h_over_p(mesh);
    h_over_p.AddInteriorFaceEstimator(new RTTangentialJumpErrorEstimator(
-                                          h_over_p_field, a, 1.0,
-                                          FaceJumpScaling::H_OVER_P));
+                                        h_over_p_field, a, 1.0,
+                                        FaceJumpScaling::H_OVER_P));
    const Vector &h_over_p_errors = h_over_p.GetLocalErrors();
    REQUIRE(h_over_p_errors.Size() == 1);
    REQUIRE(h_over_p_errors(0) > 0.0);
@@ -1527,8 +1527,8 @@ TEST_CASE("RT tangential-jump estimator processes parallel shared faces",
    coefficient_scaled_field.ProjectCoefficient(constant_tangent);
    GeneralErrorEstimator coefficient_scaled(mesh);
    coefficient_scaled.AddInteriorFaceEstimator(new RTTangentialJumpErrorEstimator(
-                                                coefficient_scaled_field, a, 1.0,
-                                                FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+                                                  coefficient_scaled_field, a, 1.0,
+                                                  FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
    const Vector &coefficient_scaled_errors = coefficient_scaled.GetLocalErrors();
    REQUIRE(coefficient_scaled_errors.Size() == 1);
    REQUIRE(coefficient_scaled_errors(0) > 0.0);
