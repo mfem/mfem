@@ -196,18 +196,19 @@ static void FindPointsDeviceSetCode(int pts_cnt,
 
 // Static helper: scatter interpolated values back into field_out.
 // nvcc does not allow lambdas in non-public members.
-static void InterpolateDeviceScatter(int nlocal,
-                                     const int *d_index_temp,
-                                     const real_t *d_interp_vals,
-                                     real_t *d_field_out,
-                                     int interp_offset,
-                                     int ncomp,
-                                     int pts_cnt,
-                                     int ordering)
+static void InterpolateScatter(bool use_dev,
+                               int nlocal,
+                               const int *d_index_temp,
+                               const real_t *d_interp_vals,
+                               real_t *d_field_out,
+                               int interp_offset,
+                               int ncomp,
+                               int pts_cnt,
+                               int ordering)
 {
    if (nlocal == 0 || ncomp == 0) { return; }
 
-   mfem::forall(nlocal*ncomp, [=] MFEM_HOST_DEVICE (int k)
+   mfem::forall_switch(use_dev, nlocal*ncomp, [=] MFEM_HOST_DEVICE (int k)
    {
       const int j = k % nlocal;
       const int i = k / nlocal;
@@ -515,11 +516,12 @@ static double GetAABBPad(const Vector *aabb_sz_inc, const int aabb_sz_inc_size,
                aabb_sz_inc_size == sd || aabb_sz_inc_size == (int)nel*sd,
                "Invalid aabb_sz_inc layout.");
 
+   const auto h_aabb_sz_inc = aabb_sz_inc->HostRead();
    double s = 0.0;
-   if (aabb_sz_inc_size == 1) { s = (*aabb_sz_inc)(0); }
-   else if (aabb_sz_inc_size == (int)nel) { s = (*aabb_sz_inc)((int)e); }
-   else if (aabb_sz_inc_size == sd) { s = (*aabb_sz_inc)(d); }
-   else { s = (*aabb_sz_inc)((int)e*sd + d); }
+   if (aabb_sz_inc_size == 1) { s = h_aabb_sz_inc[0]; }
+   else if (aabb_sz_inc_size == (int)nel) { s = h_aabb_sz_inc[e]; }
+   else if (aabb_sz_inc_size == sd) { s = h_aabb_sz_inc[d]; }
+   else { s = h_aabb_sz_inc[e*sd + d]; }
 
    MFEM_VERIFY(s >= 0.0,
                "aabb_sz_inc absolute AABB expansion must be non-negative.");
@@ -1449,6 +1451,12 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    }
 
    auto pp = point_pos.HostRead();
+   gsl_mesh.HostRead();
+   auto h_gsl_code = gsl_code.HostWrite();
+   auto h_gsl_proc = gsl_proc.HostWrite();
+   auto h_gsl_elem = gsl_elem.HostWrite();
+   auto h_gsl_ref = gsl_ref.HostWrite();
+   auto h_gsl_dist = gsl_dist.HostWrite();
    auto xvFill = [&](const double *xv_base[], unsigned xv_stride[])
    {
       for (int d = 0; d < dim; d++)
@@ -1472,11 +1480,11 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       const double *xv_base[2];
       unsigned xv_stride[2];
       xvFill(xv_base, xv_stride);
-      findpts_2(gsl_code.GetData(), sizeof(unsigned int),
-                gsl_proc.GetData(), sizeof(unsigned int),
-                gsl_elem.GetData(), sizeof(unsigned int),
-                gsl_ref.GetData(),  sizeof(double) * dim,
-                gsl_dist.GetData(), sizeof(double),
+      findpts_2(h_gsl_code, sizeof(unsigned int),
+                h_gsl_proc, sizeof(unsigned int),
+                h_gsl_elem, sizeof(unsigned int),
+                h_gsl_ref,  sizeof(double) * dim,
+                h_gsl_dist, sizeof(double),
                 xv_base, xv_stride, points_cnt, findptsData);
    }
    else  // dim == 3
@@ -1485,11 +1493,11 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
       const double *xv_base[3];
       unsigned xv_stride[3];
       xvFill(xv_base, xv_stride);
-      findpts_3(gsl_code.GetData(), sizeof(unsigned int),
-                gsl_proc.GetData(), sizeof(unsigned int),
-                gsl_elem.GetData(), sizeof(unsigned int),
-                gsl_ref.GetData(),  sizeof(double) * dim,
-                gsl_dist.GetData(), sizeof(double),
+      findpts_3(h_gsl_code, sizeof(unsigned int),
+                h_gsl_proc, sizeof(unsigned int),
+                h_gsl_elem, sizeof(unsigned int),
+                h_gsl_ref,  sizeof(double) * dim,
+                h_gsl_dist, sizeof(double),
                 xv_base, xv_stride, points_cnt,
                 findptsData);
    }
@@ -1497,13 +1505,13 @@ void FindPointsGSLIB::FindPoints(const Vector &point_pos,
    // Set the element number and reference position to 0 for points not found
    for (int i = 0; i < points_cnt; i++)
    {
-      if (gsl_code[i] == 2 ||
-          (gsl_code[i] == 1 && gsl_dist(i) > bdr_tol))
+      if (h_gsl_code[i] == 2 ||
+          (h_gsl_code[i] == 1 && h_gsl_dist[i] > bdr_tol))
       {
-         gsl_elem[i] = 0;
-         for (int d = 0; d < dim; d++) { gsl_ref(i*dim + d) = -1.; }
-         gsl_code[i] = 2;
-         gsl_proc[i] = gsl_comm->id;
+         h_gsl_elem[i] = 0;
+         for (int d = 0; d < dim; d++) { h_gsl_ref[i*dim + d] = -1.; }
+         h_gsl_code[i] = 2;
+         h_gsl_proc[i] = gsl_comm->id;
       }
    }
 
@@ -2161,9 +2169,9 @@ void FindPointsGSLIB::InterpolateOnDevice(const Vector &field_in_evec,
       const int interp_Offset = interp_vals.Size()/ncomp;
       const int pts_cnt = points_cnt;
 
-      InterpolateDeviceScatter(nlocal, d_index_temp, d_interp_vals,
-                               d_field_out, interp_Offset, ncomp, pts_cnt,
-                               ordering);
+      InterpolateScatter(true, nlocal, d_index_temp, d_interp_vals,
+                         d_field_out, interp_Offset, ncomp, pts_cnt,
+                         ordering);
    }
 #ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
@@ -2382,7 +2390,7 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
    // We do not mark points as CODE_INTERNAL because the found solution could
    // be interior to the element even when the point is not on the surface.
    // This case is handled in the kernels.
-   MFEM_FORALL(index, points_cnt,
+   MFEM_FORALL_SWITCH(use_dev, index, points_cnt,
    {
       if (d_gsl_code[index] == CODE_NOT_FOUND)
       {
@@ -2879,9 +2887,9 @@ void FindPointsGSLIB::InterpolateSurfBase(const Vector &field_in,
       auto d_index_temp  = index_temp.Read(use_dev);
       auto d_field_out   = field_out.ReadWrite(use_dev); // no-op
       const int interp_offset = interp_vals.Size()/ncomp;
-      InterpolateDeviceScatter(nlocal, d_index_temp, d_interp_vals,
-                               d_field_out, interp_offset, ncomp, points_cnt,
-                               field_out_ordering);
+      InterpolateScatter(use_dev, nlocal, d_index_temp, d_interp_vals,
+                         d_field_out, interp_offset, ncomp, points_cnt,
+                         field_out_ordering);
    }
 #ifdef MFEM_USE_MPI
    MPI_Barrier(gsl_comm->c);
@@ -3558,11 +3566,21 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 {
    gsl_mfem_ref.SetSize(points_cnt*dim);
    gsl_mfem_elem.SetSize(points_cnt);
-   gsl_mfem_ref = gsl_ref.HostRead();
-   gsl_mfem_elem = gsl_elem;
+   auto h_gsl_code = gsl_code.HostReadWrite();
+   const auto h_gsl_proc = gsl_proc.HostRead();
+   const auto h_gsl_elem = gsl_elem.HostRead();
+   const auto h_gsl_ref = gsl_ref.HostRead();
+   auto h_gsl_mfem_ref = gsl_mfem_ref.HostWrite();
+   auto h_gsl_mfem_elem = gsl_mfem_elem.HostWrite();
 
-   gsl_mfem_ref += 1.;  // map  [-1, 1] to [0, 2] to [0, 1]
-   gsl_mfem_ref *= 0.5;
+   for (int i = 0; i < points_cnt*dim; i++)
+   {
+      h_gsl_mfem_ref[i] = 0.5*(h_gsl_ref[i] + 1.); // [-1,1] to [0,1]
+   }
+   for (int i = 0; i < points_cnt; i++)
+   {
+      h_gsl_mfem_elem[i] = h_gsl_elem[i];
+   }
 
    int nptorig = points_cnt,
        npt = points_cnt;
@@ -3576,7 +3594,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
 
    for (int index = 0; index < npt; index++)
    {
-      if (gsl_code[index] != 2 && gsl_proc[index] != gsl_comm->id)
+      if (h_gsl_code[index] != 2 && h_gsl_proc[index] != gsl_comm->id)
       {
          nptsend +=1;
       }
@@ -3591,18 +3609,18 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    pt = (struct out_pt *)outpt->ptr;
    for (int index = 0; index < npt; index++)
    {
-      if (gsl_code[index] == 2 || gsl_proc[index] == gsl_comm->id)
+      if (h_gsl_code[index] == 2 || h_gsl_proc[index] == gsl_comm->id)
       {
          continue;
       }
       for (int d = 0; d < dim; ++d)
       {
-         pt->r[d]= gsl_mfem_ref(index*dim + d);
+         pt->r[d]= h_gsl_mfem_ref[index*dim + d];
       }
       pt->index = index;
-      pt->proc  = gsl_proc[index];
-      pt->el    = gsl_elem[index];
-      pt->code  = gsl_code[index];
+      pt->proc  = h_gsl_proc[index];
+      pt->el    = h_gsl_elem[index];
+      pt->code  = h_gsl_code[index];
       ++pt;
    }
 
@@ -3671,12 +3689,12 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    pt = (struct out_pt *)outpt->ptr;
    for (int index = 0; index < npt; index++)
    {
-      gsl_mfem_elem[pt->index] = pt->el;
+      h_gsl_mfem_elem[pt->index] = pt->el;
       for (int d = 0; d < dim; d++)
       {
-         gsl_mfem_ref(d + pt->index*dim) = pt->r[d];
+         h_gsl_mfem_ref[d + pt->index*dim] = pt->r[d];
       }
-      gsl_code[pt->index] = pt->code;
+      h_gsl_code[pt->index] = pt->code;
       ++pt;
    }
    array_free(outpt);
@@ -3685,22 +3703,22 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
    // Now map information for points on the same proc
    for (int index = 0; index < nptorig; index++)
    {
-      if (gsl_code[index] != 2 && gsl_proc[index] == gsl_comm->id)
+      if (h_gsl_code[index] != 2 && h_gsl_proc[index] == gsl_comm->id)
       {
 
          IntegrationPoint ip;
-         Vector mfem_ref(gsl_mfem_ref.GetData()+index*dim, dim);
+         Vector mfem_ref(h_gsl_mfem_ref+index*dim, dim);
          ip.Set2(mfem_ref.GetData());
          if (dim == 3) { ip.z = mfem_ref(2); }
 
-         const int elem = gsl_elem[index];
+         const int elem = h_gsl_elem[index];
          const int mesh_elem = split_element_map[elem];
          const FiniteElement *fe = mesh->GetNodalFESpace()->GetFE(mesh_elem);
          const Geometry::Type gt = fe->GetGeomType();
-         gsl_mfem_elem[index] = mesh_elem;
+         h_gsl_mfem_elem[index] = mesh_elem;
          if (gt == Geometry::SQUARE || gt == Geometry::CUBE)
          {
-            gsl_code[index] = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
+            h_gsl_code[index] = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
             continue;
          }
          else if (gt == Geometry::TRIANGLE)
@@ -3726,7 +3744,7 @@ void FindPointsGSLIB::MapRefPosAndElemIndices()
          // Check if the point is on element boundary
          ip.Set2(mfem_ref.GetData());
          if (dim == 3) { ip.z = mfem_ref(2); }
-         gsl_code[index]  = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
+         h_gsl_code[index]  = Geometry::CheckPoint(gt, ip, -rbtol) ? 0 : 1;
       }
    }
 }
@@ -4318,6 +4336,11 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
                "Invalid size. Please make sure to call FindPoints method "
                "before calling this function.");
 
+   const auto h_gsl_mfem_elem = gsl_mfem_elem.HostRead();
+   const auto h_gsl_proc = gsl_proc.HostRead();
+   const auto h_gsl_code = gsl_code.HostRead();
+   const auto h_gsl_mfem_ref = gsl_mfem_ref.HostRead();
+
    // Pack data to send via crystal router
    struct gslib::array *outpt = new gslib::array;
 
@@ -4330,12 +4353,12 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
    for (int index = 0; index < points_cnt; index++)
    {
       pt->index = index;
-      pt->elem = gsl_mfem_elem[index];
-      pt->proc  = gsl_proc[index];
-      pt->code = gsl_code[index];
+      pt->elem = h_gsl_mfem_elem[index];
+      pt->proc  = h_gsl_proc[index];
+      pt->code = h_gsl_code[index];
       for (int d = 0; d < dim; ++d)
       {
-         pt->rst[d]= gsl_mfem_ref(index*dim + d);
+         pt->rst[d]= h_gsl_mfem_ref[index*dim + d];
       }
       ++pt;
    }
@@ -4351,16 +4374,22 @@ void FindPointsGSLIB::DistributePointInfoToOwningMPIRanks(
    recv_code.SetSize(points_recv);
    recv_ref.SetSize(points_recv*dim);
 
+   auto h_recv_proc = recv_proc.HostWrite();
+   auto h_recv_elem = recv_elem.HostWrite();
+   auto h_recv_index = recv_index.HostWrite();
+   auto h_recv_code = recv_code.HostWrite();
+   auto h_recv_ref = recv_ref.HostWrite();
+
    pt = (struct out_pt *)outpt->ptr;
    for (int index = 0; index < points_recv; index++)
    {
-      recv_index[index] = pt->index;
-      recv_elem[index] = pt->elem;
-      recv_proc[index] = pt->proc;
-      recv_code[index] = pt->code;
+      h_recv_index[index] = pt->index;
+      h_recv_elem[index] = pt->elem;
+      h_recv_proc[index] = pt->proc;
+      h_recv_code[index] = pt->code;
       for (int d = 0; d < dim; ++d)
       {
-         recv_ref(index*dim + d)= pt->rst[d];
+         h_recv_ref[index*dim + d]= pt->rst[d];
       }
       ++pt;
    }
@@ -4378,7 +4407,12 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
    MFEM_VERIFY(int_vals.Size() == points_recv*vdim,
                "Incompatible size. int_vals must contain vdim values for "
                "each point received by DistributePointInfoToOwningMPIRanks.");
+
    field_out.SetSize(points_cnt*vdim);
+   const auto h_int_vals = int_vals.HostRead();
+   const auto h_recv_index = recv_index.HostRead();
+   const auto h_recv_proc = recv_proc.HostRead();
+   auto h_field_out = field_out.HostWrite();
 
    for (int v = 0; v < vdim; v++)
    {
@@ -4391,11 +4425,11 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
       pt = (struct out_pt *)outpt->ptr;
       for (int index = 0; index < points_recv; index++)
       {
-         pt->index = recv_index[index];
-         pt->proc  = recv_proc[index];
+         pt->index = h_recv_index[index];
+         pt->proc  = h_recv_proc[index];
          pt->val = ordering == Ordering::byNODES ?
-                   int_vals(index + v*points_recv) :
-                   int_vals(index*vdim + v);
+                   h_int_vals[index + v*points_recv] :
+                   h_int_vals[index*vdim + v];
          ++pt;
       }
 
@@ -4414,7 +4448,7 @@ void FindPointsGSLIB::DistributeInterpolatedValues(const Vector &int_vals,
          int idx = ordering == Ordering::byNODES ?
                    pt->index + v*points_cnt :
                    pt->index*vdim + v;
-         field_out(idx) = pt->val;
+         h_field_out[idx] = pt->val;
          ++pt;
       }
 
@@ -4653,6 +4687,7 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
    obbA.SetSize(spacedim, spacedim, nel);
    obbC.SetSize(spacedim*nel);
    obbV.SetSize(spacedim*nve*nel);
+   auto h_bb_ptr = DEV.bb.HostRead();
    if (spacedim == 3)
    {
       for (int e = 0; e < nel; e++)
@@ -4678,13 +4713,13 @@ void FindPointsGSLIB::GetOrientedBoundingBoxes(DenseTensor &obbA, Vector &obbC,
             int n_el_ents = 18;
             for (int d = 0; d < spacedim; d++)
             {
-               obbC(e*spacedim + d) = DEV.bb(n_el_ents*e + d);
+               obbC(e*spacedim + d) = h_bb_ptr[n_el_ents*e + d];
             }
             for (int i = 0; i < spacedim; i++)
             {
                for (int j = 0; j < spacedim; j++)
                {
-                  Ad[i*spacedim + j] = DEV.bb[n_el_ents*e + 9 + j*spacedim+i];
+                  Ad[i*spacedim + j] = h_bb_ptr[n_el_ents*e + 9 + j*spacedim+i];
                }
             }
          }
@@ -4814,8 +4849,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
    mesh = &m;
    dim  = mesh->Dimension();
    spacedim = dim;
-   const FiniteElement *fe = mesh->GetNodalFESpace()->GetTypicalFE();
-   unsigned dof1D = fe->GetOrder() + 1;
+   const unsigned dof1D = meshOrder + 1;
 
    SetupSplitMeshesAndIntegrationRules(meshOrder);
 
@@ -4823,8 +4857,7 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
 
    MFEM_ASSERT(meshid>=0, " The ID should be greater than or equal to 0.");
 
-   const int pts_cnt = gsl_mesh.Size()/dim,
-             NEtot = pts_cnt/(int)pow(dof1D, dim);
+   const int pts_cnt = gsl_mesh.Size()/dim;
 
    distfint.SetSize(pts_cnt);
    if (!gfmax)
@@ -4846,10 +4879,11 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
          pts_cnt == 0 ? nullptr : &gsl_mesh(0),
          pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt)
       };
-      fdataD = findptsms_setup_2(gsl_comm, elx, nr, NEtot, mr,
+      fdataD = findptsms_setup_2(gsl_comm, elx, nr, NE_split_total, mr,
                                  bbox_rel_size_inc, pts_cnt, pts_cnt,
                                  npt_max, newt_tol,
-                                 &u_meshid, &distfint(0));
+                                 &u_meshid,
+                                 pts_cnt == 0 ? nullptr : &distfint(0));
    }
    else // dim = 3
    {
@@ -4861,10 +4895,11 @@ void OversetFindPointsGSLIB::Setup(Mesh &m, const int meshid,
          pts_cnt == 0 ? nullptr : &gsl_mesh(pts_cnt),
          pts_cnt == 0 ? nullptr : &gsl_mesh(2*pts_cnt)
       };
-      fdataD = findptsms_setup_3(gsl_comm, elx, nr, NEtot, mr,
+      fdataD = findptsms_setup_3(gsl_comm, elx, nr, NE_split_total, mr,
                                  bbox_rel_size_inc, pts_cnt, pts_cnt,
                                  npt_max, newt_tol,
-                                 &u_meshid, &distfint(0));
+                                 &u_meshid,
+                                 pts_cnt == 0 ? nullptr : &distfint(0));
    }
    setupflag = true;
    overset   = true;

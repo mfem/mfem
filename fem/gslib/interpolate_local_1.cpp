@@ -36,7 +36,8 @@ namespace mfem
 using gslib::lagrange_eval;
 
 template<int T_D1D = 0>
-static void InterpolateLocal1DKernel(const double *const gf_in,
+static void InterpolateLocal1DKernel(const bool use_dev,
+                                     const double *const gf_in,
                                      int *const el,
                                      double *const r,
                                      double *const int_out,
@@ -54,7 +55,7 @@ static void InterpolateLocal1DKernel(const double *const gf_in,
    MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
    MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    // for each point of the npt points, create a thread block of size dof1Dsol
-   mfem::forall_2D(npt, D1D, 1, [=] MFEM_HOST_DEVICE (int i)
+   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
    {
       MFEM_SHARED double wtr[MD1];
       MFEM_SHARED double sums[MD1];
@@ -90,7 +91,7 @@ static void InterpolateLocal1DKernel(const double *const gf_in,
          }
          MFEM_SYNC_THREAD;
       }
-   });
+   }, D1D, 1, 1);
 }
 
 void FindPointsGSLIB::InterpolateLocal1( const Vector &field_in,
@@ -113,23 +114,23 @@ void FindPointsGSLIB::InterpolateLocal1( const Vector &field_in,
    switch (dof1Dsol)
    {
       case 2:
-         InterpolateLocal1DKernel<2>(pfin, pgsl, pgslr, pfout,
+         InterpolateLocal1DKernel<2>(use_dev, pfin, pgsl, pgslr, pfout,
                                      npt, ncomp, pgll, plcf);
          break;
       case 3:
-         InterpolateLocal1DKernel<3>(pfin, pgsl, pgslr, pfout,
+         InterpolateLocal1DKernel<3>(use_dev, pfin, pgsl, pgslr, pfout,
                                      npt, ncomp, pgll, plcf);
          break;
       case 4:
-         InterpolateLocal1DKernel<4>(pfin, pgsl, pgslr, pfout,
+         InterpolateLocal1DKernel<4>(use_dev, pfin, pgsl, pgslr, pfout,
                                      npt, ncomp, pgll, plcf);
          break;
       case 5:
-         InterpolateLocal1DKernel<5>(pfin, pgsl, pgslr, pfout,
+         InterpolateLocal1DKernel<5>(use_dev, pfin, pgsl, pgslr, pfout,
                                      npt, ncomp, pgll, plcf);
          break;
       default:
-         InterpolateLocal1DKernel(pfin, pgsl, pgslr, pfout,
+         InterpolateLocal1DKernel(use_dev, pfin, pgsl, pgslr, pfout,
                                   npt, ncomp, pgll, plcf, dof1Dsol);
          break;
    }

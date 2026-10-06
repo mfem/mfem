@@ -559,7 +559,8 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
 // global memory access of element coordinates.
 // Are the structs being stored in "local memory" or registers?
 template<int T_D1D = 0>
-static void FindPointsSurfLocal3DKernel(const int npt,
+static void FindPointsSurfLocal3DKernel(const bool use_dev,
+                                        const int npt,
                                         const double tol,
                                         const double dist2tol,
                                         const double *x,
@@ -590,7 +591,7 @@ static void FindPointsSurfLocal3DKernel(const int npt,
    MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    const int nThreads = D1D*sDIM > 9 ? D1D*sDIM : 9;
 
-   mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
+   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
    {
       constexpr int size1 = 18*MD1 + 12;
       constexpr int size2 = 9*MD1;
@@ -1111,7 +1112,7 @@ static void FindPointsSurfLocal3DKernel(const int npt,
             }
          } // findpts_local
       } // elp
-   });
+   }, nThreads, 1, 1);
 }
 
 void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
@@ -1147,7 +1148,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
    switch (DEV.dof1d)
    {
       case 2:
-         FindPointsSurfLocal3DKernel<2>(npt, DEV.newt_tol, dist2tol,
+         FindPointsSurfLocal3DKernel<2>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -1155,7 +1156,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                         pgll1d, plc);
          break;
       case 3:
-         FindPointsSurfLocal3DKernel<3>(npt, DEV.newt_tol, dist2tol,
+         FindPointsSurfLocal3DKernel<3>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -1163,7 +1164,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                         pgll1d, plc);
          break;
       case 4:
-         FindPointsSurfLocal3DKernel<4>(npt, DEV.newt_tol, dist2tol,
+         FindPointsSurfLocal3DKernel<4>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -1171,7 +1172,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                         pgll1d, plc);
          break;
       default:
-         FindPointsSurfLocal3DKernel(npt, DEV.newt_tol, dist2tol, pp,
+         FindPointsSurfLocal3DKernel(use_dev, npt, DEV.newt_tol, dist2tol, pp,
                                      point_pos_ordering, pgslm,
                                      NE_split_total, pwt, pbb, obb_chk,
                                      DEV.lh_nx, plhm, plhf, plho,
