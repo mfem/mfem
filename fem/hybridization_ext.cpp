@@ -1124,7 +1124,7 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
    if (!R)
    {
       MFEM_ASSERT(x.Size() == h.fes.GetVSize(), "");
-      tmp2.MakeRef(x, 0);
+      tmp2.MakeRef(x, 0, x.Size());
    }
    else
    {
@@ -1151,8 +1151,9 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
       d_lvec[j] = sgn*d_evec[i];
    });
 
-   // Convert from L-vector to T-vector.
+   // Convert from L-vector to T-vector, or synchronize the full-size alias.
    if (R) { R->Mult(tmp2, x); }
+   else { x.SyncMemory(tmp2); }
 }
 
 void HybridizationExtension::MultRt(const Vector &b, Vector &b_hat) const
