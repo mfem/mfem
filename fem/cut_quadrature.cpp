@@ -38,9 +38,9 @@ bool IsFinite(const Vector &values)
 
 template <typename NodalElement, typename PositiveElement, typename Sampler>
 CutQuadratureStatus InterpolateToBernstein(int order,
-                                          ElementTransformation &Tr,
-                                          Sampler sample,
-                                          ElementLevelSet &result)
+                                           ElementTransformation &Tr,
+                                           Sampler sample,
+                                           ElementLevelSet &result)
 {
    NodalElement nodal(order);
    PositiveElement positive(order);
@@ -81,12 +81,12 @@ CutQuadratureStatus ExtractTensorPolynomial(Geometry::Type geometry, int order,
    if (geometry == Geometry::SQUARE)
    {
       status = InterpolateToBernstein<H1_QuadrilateralElement,
-             H1Pos_QuadrilateralElement>(order, Tr, sample, result);
+      H1Pos_QuadrilateralElement>(order, Tr, sample, result);
    }
    else if (geometry == Geometry::CUBE)
    {
       status = InterpolateToBernstein<H1_HexahedronElement,
-             H1Pos_HexahedronElement>(order, Tr, sample, result);
+      H1Pos_HexahedronElement>(order, Tr, sample, result);
    }
    else
    {

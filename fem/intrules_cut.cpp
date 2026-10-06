@@ -45,7 +45,8 @@ struct AlgoimIntegrationRules::Impl
       : extractor(level_set, order), workspace(constructor.CreateWorkspace()) { }
 };
 
-AlgoimIntegrationRules::AlgoimIntegrationRules(int order, Coefficient &level_set,
+AlgoimIntegrationRules::AlgoimIntegrationRules(int order,
+                                               Coefficient &level_set,
                                                int level_set_order)
    : CutIntegrationRules(order, level_set, level_set_order),
      impl(new Impl(level_set, level_set_order))
@@ -102,8 +103,8 @@ ReferenceCutQuadrature GenerateLegacyRule(ImplType &impl,
    request.compute_reference_normals = normals;
    ReferenceCutQuadrature result;
    const CutQuadratureStatus status = impl.constructor.GenerateReference(
-                                        level_set, request, result,
-                                        *impl.workspace);
+                                         level_set, request, result,
+                                         *impl.workspace);
    MFEM_VERIFY(status == CutQuadratureStatus::Success,
                "legacy Algoim rule generation failed");
    return result;

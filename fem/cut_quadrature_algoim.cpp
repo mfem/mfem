@@ -70,7 +70,7 @@ int CoefficientCount(Geometry::Type geometry, int order)
    for (int d = 0; d < dimension; d++)
    {
       if (count > static_cast<std::uint64_t>(
-                     std::numeric_limits<int>::max()) / n)
+             std::numeric_limits<int>::max()) / n)
       {
          return -1;
       }
@@ -247,7 +247,7 @@ CutQuadratureStatus GenerateBoundaryInterface(
       }
    }
    const Geometry::Type face_geometry = N == 2 ? Geometry::SEGMENT :
-                                             Geometry::SQUARE;
+                                        Geometry::SQUARE;
    const IntegrationRule &face_rule = IntRules.Get(face_geometry, request.order);
    const int nq = static_cast<int>(faces.size()) * face_rule.GetNPoints();
    result.rule.SetSize(nq);
@@ -263,8 +263,8 @@ CutQuadratureStatus GenerateBoundaryInterface(
       scale = std::max(scale, std::abs(level_set.coefficients(i)));
    }
    const real_t gradient_tolerance = 64.0 *
-      std::numeric_limits<real_t>::epsilon() *
-      std::max(1, level_set.order) * scale;
+                                     std::numeric_limits<real_t>::epsilon() *
+                                     std::max(1, level_set.order) * scale;
    int q = 0;
    for (const auto &face : faces)
    {
@@ -326,7 +326,7 @@ bool DegenerateInterfaceOnSampleGrid(const ElementLevelSet &level_set,
                                      real_t scale)
 {
    AlgoimBernsteinLevelSet<N> polynomial(level_set.coefficients,
-                                        level_set.order);
+                                         level_set.order);
    const int subdivisions = std::max(2, 2*level_set.order);
    const int point_count = N == 2 ? (subdivisions + 1)*(subdivisions + 1) :
                            (subdivisions + 1)*(subdivisions + 1)*
@@ -475,7 +475,7 @@ CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &level_set,
             result.interface.reference_normals.SetSize(N, nq);
          }
          const real_t gradient_tolerance = 64.0 *
-            std::numeric_limits<real_t>::epsilon() * level_set.order * scale;
+                                           std::numeric_limits<real_t>::epsilon() * level_set.order * scale;
          bool all_degenerate = nq > 0;
          bool any_degenerate = false;
          for (int i = 0; i < nq; i++)
@@ -567,7 +567,7 @@ void PackRules(const std::vector<ReferenceCutQuadrature> &local,
       if (local[i].status == CutQuadratureStatus::Success)
       {
          count = interface ? local[i].interface.rule.GetNPoints() :
-                 local[i].volume.GetNPoints();
+                    local[i].volume.GetNPoints();
       }
       packed.offsets[i + 1] = packed.offsets[i] + count;
    }
@@ -581,7 +581,7 @@ void PackRules(const std::vector<ReferenceCutQuadrature> &local,
    {
       if (local[e].status != CutQuadratureStatus::Success) { continue; }
       const IntegrationRule &rule = interface ? local[e].interface.rule :
-                                    local[e].volume;
+                                       local[e].volume;
       for (int j = 0; j < rule.GetNPoints(); j++)
       {
          const int p = packed.offsets[e] + j;

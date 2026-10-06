@@ -368,7 +368,7 @@ class GridFunctionLevelSetExtractor : public ElementLevelSetExtractor
 {
 public:
    explicit GridFunctionLevelSetExtractor(const GridFunction &level_set,
-                                         LevelSetRevision revision = 0);
+                                          LevelSetRevision revision = 0);
    CutQuadratureStatus GetElementLevelSet(
       int element, ElementTransformation &Tr,
       ElementLevelSet &result) const override;
@@ -394,7 +394,7 @@ class CoefficientLevelSetExtractor : public ElementLevelSetExtractor
 {
 public:
    CoefficientLevelSetExtractor(Coefficient &level_set, int approximation_order,
-                               LevelSetRevision revision = 0);
+                                LevelSetRevision revision = 0);
    /// Sample through Tr; the element argument is unused by this extractor.
    CutQuadratureStatus GetElementLevelSet(
       int element, ElementTransformation &Tr,

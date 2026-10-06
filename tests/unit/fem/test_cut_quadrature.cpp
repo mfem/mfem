@@ -86,7 +86,7 @@ public:
       result.classification = CutCellClass::Cut;
       result.volume.SetSize(1);
       result.volume[0].Set2w(0.5, 0.5,
-                            caps_.nonnegative_weights ? 1.0 : -1.0);
+                             caps_.nonnegative_weights ? 1.0 : -1.0);
       result.volume.SetPointIndices();
       return result.status;
    }
@@ -142,8 +142,10 @@ private:
 
 } // namespace
 
-static_assert(!std::is_copy_constructible<TestExtractor>::value, "extractor copy");
-static_assert(!std::is_move_constructible<TestExtractor>::value, "extractor move");
+static_assert(!std::is_copy_constructible<TestExtractor>::value,
+              "extractor copy");
+static_assert(!std::is_move_constructible<TestExtractor>::value,
+              "extractor move");
 
 TEST_CASE("Cut quadrature value semantics and retention", "[CutQuadrature]")
 {
@@ -205,7 +207,7 @@ TEST_CASE("Cut quadrature value semantics and retention", "[CutQuadrature]")
 
    std::vector<std::uint64_t> ids(64);
 #ifdef MFEM_USE_OPENMP
-#pragma omp parallel for
+   #pragma omp parallel for
 #endif
    for (int i = 0; i < 64; i++)
    {
@@ -225,18 +227,18 @@ TEST_CASE("Cut quadrature mock weight and execution contracts",
    auto workspace = signed_constructor.CreateWorkspace();
    ReferenceCutQuadrature result;
    REQUIRE(signed_constructor.GenerateReference(level_set, request, result,
-                                               *workspace) == result.status);
+                                                *workspace) == result.status);
    REQUIRE(result.volume[0].weight < 0.0);
    request.weight_policy = QuadratureWeightPolicy::Nonnegative;
    REQUIRE(signed_constructor.GenerateReference(level_set, request, result,
-                                               *workspace) ==
+                                                *workspace) ==
            CutQuadratureStatus::UnsupportedWeightPolicy);
    REQUIRE(result.classification == CutCellClass::Unclassified);
 
    MockCutConstructor nonnegative_constructor(true, false);
    workspace = nonnegative_constructor.CreateWorkspace();
    REQUIRE(nonnegative_constructor.GenerateReference(level_set, request, result,
-                                                    *workspace) ==
+                                                     *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.volume[0].weight >= 0.0);
 
@@ -251,8 +253,8 @@ TEST_CASE("Cut quadrature mock weight and execution contracts",
    BatchedReferenceCutQuadrature batch_result;
    workspace = failing_constructor.CreateWorkspace();
    REQUIRE(failing_constructor.GenerateReferenceBatch(batch, request,
-                                                     batch_result,
-                                                     *workspace) ==
+                                                      batch_result,
+                                                      *workspace) ==
            CutQuadratureStatus::ExecutionFailure);
    REQUIRE(batch_result.status.Size() == 0);
 }
@@ -495,7 +497,7 @@ TEST_CASE("Cut rules retain reference data under non-affine deformation",
               CutQuadratureStatus::Success);
       ReferenceCutQuadrature result;
       REQUIRE(constructor.GenerateReference(local, request, result,
-                                           *workspace) ==
+                                            *workspace) ==
               CutQuadratureStatus::Success);
 
       VectorFunctionCoefficient deform(2, [](const Vector &x, Vector &y)
@@ -524,7 +526,7 @@ TEST_CASE("Cut rules retain reference data under non-affine deformation",
               CutQuadratureStatus::Success);
       ReferenceCutQuadrature result;
       REQUIRE(constructor.GenerateReference(local, request, result,
-                                           *workspace) ==
+                                            *workspace) ==
               CutQuadratureStatus::Success);
 
       VectorFunctionCoefficient deform(3, [](const Vector &x, Vector &y)
@@ -577,7 +579,7 @@ TEST_CASE("Algoim packed batch validation and equivalence",
 
    BatchedReferenceCutQuadrature result;
    REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.status.Size() == 4);
    REQUIRE(result.status[0] == CutQuadratureStatus::Success);
@@ -599,26 +601,26 @@ TEST_CASE("Algoim packed batch validation and equivalence",
    CutQuadratureRequest high_order = request;
    high_order.order = 20;
    REQUIRE(constructor.GenerateReferenceBatch(batch, high_order, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.status[0] == CutQuadratureStatus::UnsupportedOrder);
    REQUIRE(result.classification[0] == CutCellClass::Unclassified);
 
    batch.extraction_status[2] = CutQuadratureStatus::ExecutionFailure;
    REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::InvalidBatch);
    REQUIRE(result.status.Size() == 0);
    batch.extraction_status[2] = CutQuadratureStatus::UnsupportedSourceBasis;
    batch.element_descriptors[0].order = 2;
    REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::HeterogeneousBatch);
    REQUIRE(result.status.Size() == 0);
    batch.element_descriptors[0] = batch.descriptor;
    batch.coefficients.SetSize(3, 4);
    REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::InvalidBatch);
 
    batch.coefficients.SetSize(4, 4);
@@ -627,7 +629,7 @@ TEST_CASE("Algoim packed batch validation and equivalence",
    batch.element_descriptors[0].basis = PolynomialBasis::BernsteinSimplex;
    batch.extraction_status[1] = CutQuadratureStatus::UnsupportedSourceBasis;
    REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.status[0] ==
            CutQuadratureStatus::UnsupportedPolynomialBasis);
@@ -637,11 +639,11 @@ TEST_CASE("Algoim packed batch validation and equivalence",
    request.execution = CutExecutionMode::Device;
    batch.extraction_status.SetSize(0);
    REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::InvalidRequest);
    request.order = 4;
    REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
-                                             *workspace) ==
+                                              *workspace) ==
            CutQuadratureStatus::UnsupportedExecutionMode);
 }
 
@@ -693,7 +695,7 @@ TEST_CASE("Cut level-set extractors and physical mapping",
    request.compute_reference_normals = true;
    ReferenceCutQuadrature result;
    REQUIRE(constructor.GenerateReference(grid_local, request, result,
-                                       *workspace) ==
+                                         *workspace) ==
            CutQuadratureStatus::Success);
 
    ConstantCoefficient one(1.0);
@@ -745,14 +747,14 @@ TEST_CASE("Algoim shared constructor uses per-thread workspaces",
    const CutQuadratureRequest request;
    std::vector<CutQuadratureStatus> statuses(4);
 #ifdef MFEM_USE_OPENMP
-#pragma omp parallel for
+   #pragma omp parallel for
 #endif
    for (int i = 0; i < 4; i++)
    {
       auto workspace = constructor.CreateWorkspace();
       ReferenceCutQuadrature result;
       statuses[i] = constructor.GenerateReference(cut, request, result,
-                                                *workspace);
+                                                  *workspace);
    }
    for (auto status : statuses)
    {
