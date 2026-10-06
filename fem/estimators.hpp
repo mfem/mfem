@@ -25,6 +25,11 @@
 namespace mfem
 {
 
+class ComplexGridFunction;
+#ifdef MFEM_USE_MPI
+class ParComplexGridFunction;
+#endif
+
 /** @brief Base class for all error estimators.
  */
 class AbstractErrorEstimator
@@ -42,15 +47,24 @@ public:
 class ErrorEstimator : public AbstractErrorEstimator
 {
 public:
-   /// Return the total error from the last error estimate.
-   /** @note This method is optional for derived classes to override and the
-       base class implementation simply returns 0. */
+   /** Return the total error from the most recently computed estimate.
+
+       Call GetLocalErrors() first to compute or update the estimate, in
+       particular after Reset() or a mesh modification. GetTotalError() is not
+       required to initiate this computation. This method is optional for
+       derived classes to override; the base class implementation returns 0. */
    virtual real_t GetTotalError() const { return 0.0; }
 
-   /// Get a Vector with all element errors.
+   /** Compute the estimate if necessary and return all element errors.
+
+       Estimators that defer computation until a result is requested update
+       their cached estimate in this method. */
    virtual const Vector &GetLocalErrors() = 0;
 
-   /// Force recomputation of the estimates on the next call to GetLocalErrors.
+   /** Invalidate the cached estimate.
+
+       The estimate is recomputed on the next call to GetLocalErrors(); a call
+       to GetTotalError() alone does not require recomputation. */
    virtual void Reset() = 0;
 
    /// Destruct the error estimator
@@ -200,6 +214,43 @@ public:
    {
       if (own_flux_fes) { delete flux_space; }
    }
+};
+
+/** @brief Complex extension of ZienkiewiczZhuEstimator.
+
+    Applies ZZ recovery independently to the real and imaginary components of
+    a ComplexGridFunction or ParComplexGridFunction and combines their squared
+    local indicators. In parallel, GetTotalError returns their global L2
+    combination. By default, the two component estimators share one non-owned
+    flux space. */
+class ComplexZienkiewiczZhuEstimator : public ErrorEstimator
+{
+private:
+   ZienkiewiczZhuEstimator real_estimator;
+   ZienkiewiczZhuEstimator imag_estimator;
+   Vector error_estimates;
+   long current_sequence = -1;
+   FiniteElementSpace &fespace;
+
+   bool MeshIsModified();
+   void ComputeEstimates();
+
+public:
+   /** Construct an estimator whose real and imaginary recoveries share
+       @a flux_fes. The caller retains ownership of the flux space. */
+   ComplexZienkiewiczZhuEstimator(BilinearFormIntegrator &integ,
+                                  ComplexGridFunction &solution,
+                                  FiniteElementSpace &flux_fes);
+
+   /** Construct an estimator with separately owned real and imaginary flux
+       spaces. Use this only when the two recoveries require different spaces. */
+   ComplexZienkiewiczZhuEstimator(BilinearFormIntegrator &integ,
+                                  ComplexGridFunction &solution,
+                                  FiniteElementSpace *real_flux_fes,
+                                  FiniteElementSpace *imag_flux_fes);
+   real_t GetTotalError() const override;
+   const Vector &GetLocalErrors() override;
+   void Reset() override;
 };
 
 
@@ -785,16 +836,19 @@ public:
    GeneralErrorEstimator(Mesh &mesh) : reset_(true), mesh_(&mesh) {}
    ~GeneralErrorEstimator();
 
-   /** Return the global L2 norm of the local element indicators. */
+   /** Return the global L2 norm of the most recently computed local indicators.
+
+       Call GetLocalErrors() first to compute or update the indicators. */
    real_t GetTotalError() const override;
 
    /** Get a Vector with all local error indicators.
 
        Contributions supplied by DomainErrorEstimator and FaceErrorEstimator
-       are accumulated as squared errors and square-rooted elementwise. */
+       are accumulated as squared errors and square-rooted elementwise. This
+       call computes the indicators when they are invalid or stale. */
    const Vector &GetLocalErrors() override;
 
-   /// Force recomputation of the estimates on the next call to GetLocalErrors.
+   /// Invalidate the indicators; GetLocalErrors() recomputes them on demand.
    void Reset() override { reset_ = true; }
 
    /** Add an element estimator. The GeneralErrorEstimator owns @a dee. */

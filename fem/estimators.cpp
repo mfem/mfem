@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "estimators.hpp"
+#include "complex_fem.hpp"
 
 namespace mfem
 {
@@ -28,6 +29,71 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
                                   with_coeff);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+}
+
+ComplexZienkiewiczZhuEstimator::ComplexZienkiewiczZhuEstimator(
+   BilinearFormIntegrator &integ, ComplexGridFunction &solution_,
+   FiniteElementSpace &flux_fes)
+   : real_estimator(integ, solution_.real(), flux_fes),
+     imag_estimator(integ, solution_.imag(), flux_fes),
+     fespace(*solution_.FESpace())
+{ }
+
+ComplexZienkiewiczZhuEstimator::ComplexZienkiewiczZhuEstimator(
+   BilinearFormIntegrator &integ, ComplexGridFunction &solution_,
+   FiniteElementSpace *real_flux_fes, FiniteElementSpace *imag_flux_fes)
+   : real_estimator(integ, solution_.real(), real_flux_fes),
+     imag_estimator(integ, solution_.imag(), imag_flux_fes),
+     fespace(*solution_.FESpace())
+{ }
+
+bool ComplexZienkiewiczZhuEstimator::MeshIsModified()
+{
+   const long sequence = fespace.GetMesh()->GetSequence();
+   MFEM_ASSERT(sequence >= current_sequence, "improper mesh update sequence");
+   return sequence > current_sequence;
+}
+
+void ComplexZienkiewiczZhuEstimator::ComputeEstimates()
+{
+   const Vector &real_errors = real_estimator.GetLocalErrors();
+   const Vector &imag_errors = imag_estimator.GetLocalErrors();
+   MFEM_VERIFY(real_errors.Size() == imag_errors.Size(),
+               "incompatible real and imaginary ZZ estimates");
+   error_estimates.SetSize(real_errors.Size());
+   for (int i = 0; i < error_estimates.Size(); i++)
+   {
+      error_estimates(i) = hypot(real_errors(i), imag_errors(i));
+   }
+   current_sequence = fespace.GetMesh()->GetSequence();
+}
+
+real_t ComplexZienkiewiczZhuEstimator::GetTotalError() const
+{
+   real_t error_sq = error_estimates * error_estimates;
+#ifdef MFEM_USE_MPI
+   if (auto *pfes = dynamic_cast<const ParFiniteElementSpace*>(&fespace))
+   {
+      real_t global_error_sq = 0.0;
+      MPI_Allreduce(&error_sq, &global_error_sq, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, pfes->GetComm());
+      error_sq = global_error_sq;
+   }
+#endif
+   return sqrt(error_sq);
+}
+
+const Vector &ComplexZienkiewiczZhuEstimator::GetLocalErrors()
+{
+   if (MeshIsModified()) { ComputeEstimates(); }
+   return error_estimates;
+}
+
+void ComplexZienkiewiczZhuEstimator::Reset()
+{
+   current_sequence = -1;
+   real_estimator.Reset();
+   imag_estimator.Reset();
 }
 
 void LSZienkiewiczZhuEstimator::ComputeEstimates()
@@ -656,6 +722,19 @@ void GeneralErrorEstimator::ComputeEstimates()
       if (!tr) { continue; }
       for (auto *estimator : face_estims_)
       {
+         // On a serial mesh, face estimators may evaluate material data at
+         // element points in addition to face quadrature points. Refresh the
+         // shared transformation before each term so this temporary state
+         // cannot affect another term's traces. ParMesh uses a single cache
+         // for both local and shared face transformations, so its state is
+         // managed by the separate shared-face traversal below.
+#ifdef MFEM_USE_MPI
+         if (!dynamic_cast<ParMesh*>(mesh))
+#endif
+         {
+            tr = mesh->GetInteriorFaceTransformations(f);
+            if (!tr) { continue; }
+         }
          real_t error1 = 0.0, error2 = 0.0;
          estimator->GetFaceError(*tr, error1, error2);
          elem_errors_(tr->Elem1No) += error1;
@@ -669,7 +748,9 @@ void GeneralErrorEstimator::ComputeEstimates()
       // A shared face is evaluated on both ranks. Each rank retains only its
       // local-side contribution, so every element indicator receives the jump
       // contribution exactly once without communicating element indicators.
-      // This also initializes the parallel mesh's face-neighbor geometry.
+      // Initialize face-neighbor geometry before obtaining any shared-face
+      // transformations. Individual estimators then exchange their field data.
+      pmesh->ExchangeFaceNbrData();
       for (auto *estimator : face_estims_)
       {
          estimator->ExchangeFaceNbrData();
