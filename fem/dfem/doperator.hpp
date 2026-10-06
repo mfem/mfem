@@ -1033,7 +1033,7 @@ public:
    /// Pairs::Diagonal for the diagonal blocks only, or an explicit list of
    /// DerivativePair entries.
    template <
-      typename backend_t = GlobalQFBackend,
+      typename backend_t = LocalQFBackend,
       DerivativeKernels kernels = DerivativeKernels::All,
       typename qfunc_t,
       typename input_t,
@@ -1064,7 +1064,7 @@ public:
    /// @param second_derivative_ids Second derivative (Hessian) blocks to be
    /// made available for this integrator, see AddDomainIntegrator().
    template <
-      typename backend_t = GlobalQFBackend,
+      typename backend_t = LocalQFBackend,
       DerivativeKernels kernels = DerivativeKernels::All,
       typename qfunc_t,
       typename input_t,
