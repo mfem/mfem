@@ -686,7 +686,6 @@ struct HdivBakeOff
       {
          Operator *A_ptr = nullptr;
          wop = std::make_unique<WrapOpArg1>(dop, height, width, arg1);
-         VerifyAgainstMFEM(*wop);
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       };
@@ -694,7 +693,6 @@ struct HdivBakeOff
       {
          Operator *A_ptr = nullptr;
          dwop = std::make_unique<WrapDerivativeOp>(ddop, height, width);
-         VerifyAgainstMFEM(*dwop);
          dwop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       };
@@ -703,8 +701,11 @@ struct HdivBakeOff
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          AddHdivIntegrators(a);
-         timeSetup([&] { a.Assemble(); });
-         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+         timeSetup([&]
+         {
+            a.Assemble();
+            a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+         });
       };
       // MF ∂FEM setup
       const auto dMFSetup = [&] (auto backend, auto qfunction)
@@ -724,6 +725,7 @@ struct HdivBakeOff
          using OT = decltype(tuple{Value<U>{}});
          AddLocalQFActionSpecializations<backend_t, DIM, QT, IT, OT>(Q1Ds{});
          formLinearSystem(nodes);
+         VerifyAgainstMFEM(*wop);
       };
       // MF ∂FEM GetDerivative setup
       const auto dMFGetDerivativeSetup = [&] (auto backend, auto qfunction,
@@ -747,9 +749,17 @@ struct HdivBakeOff
          ddop = dop->GetDerivative(U, state, use_cached_setup);
          if (use_cached_setup)
          {
-            timeSetup([&] { ddop->SetupQpCache(); });
+            timeSetup([&]
+            {
+               ddop->SetupQpCache();
+               formLinearSystemDerivative();
+            });
          }
-         formLinearSystemDerivative();
+         else
+         {
+            formLinearSystemDerivative();
+         }
+         VerifyAgainstMFEM(*dwop);
       };
       // PA ∂FEM setup
       const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
@@ -786,7 +796,8 @@ struct HdivBakeOff
          using ApplyOT = decltype(tuple{Value<U>{}});
          AddLocalQFActionSpecializations<backend_t, DIM, ApplyQT, ApplyIT, ApplyOT>
          (Q1Ds{});
-         formLinearSystem(qfct);
+         timeSetup([&] { formLinearSystem(qfct); });
+         VerifyAgainstMFEM(*wop);
       };
 
       // MFEM PA version

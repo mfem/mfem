@@ -861,8 +861,11 @@ struct BakeOff
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          a.AddDomainIntegrator(integrator);
-         timeSetup([&] { a.Assemble(); });
-         a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+         timeSetup([&]
+         {
+            a.Assemble();
+            a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+         });
       };
       // MF ∂FEM setup
       const auto dMFSetup = [&] (auto backend, auto qfunction)
@@ -908,9 +911,16 @@ struct BakeOff
          ddop = dop->GetDerivative(U, state, use_cached_setup);
          if (use_cached_setup)
          {
-            timeSetup([&] { ddop->SetupQpCache(); });
+            timeSetup([&]
+            {
+               ddop->SetupQpCache();
+               formLinearSystemDerivative();
+            });
          }
-         formLinearSystemDerivative();
+         else
+         {
+            formLinearSystemDerivative();
+         }
       };
       // PA ∂FEM setup
       const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
@@ -945,7 +955,7 @@ struct BakeOff
          using ApplyIT = decltype(tuple{GradValU, Identity<Q>{}});
          using ApplyOT = decltype(tuple{GradValU});
          AddLocalQFActionSpecializations<backend_t, DIM, ApplyQT, ApplyIT, ApplyOT>();
-         formLinearSystem(qfct);
+         timeSetup([&] { formLinearSystem(qfct); });
       };
 
       if constexpr (BFI == 1)
