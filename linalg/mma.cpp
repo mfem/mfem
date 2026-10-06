@@ -971,7 +971,7 @@ void MMA::InitData(real_t *xval)
 MMA::MMA(int nVar, int nCon, real_t *xval, int iter)
 {
 #ifdef MFEM_USE_MPI
-  comm = MPI_COMM_SELF;
+   comm = MPI_COMM_SELF;
 #endif
 
    AllocData(nVar,nCon);
