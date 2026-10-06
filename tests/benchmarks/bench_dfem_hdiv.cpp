@@ -668,6 +668,7 @@ struct HdivBakeOff
 
       // LinearForm b
       b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(unit_vec));
+      b.UseFastAssembly(true);
       b.Assemble();
 
       // BilinearForm a
