@@ -5,7 +5,7 @@
 //
 //  1. Represent a level set with either a GridFunction or a Coefficient.
 //  2. Extract deformation-independent reference-element polynomials.
-//  3. Generate scalar and packed host rules with the Algoim backend.
+//  3. Construct scalar and packed host rules with the Algoim backend.
 //  4. Retain a reference rule using the complete application-owned cache key.
 //  5. Apply current physical metrics while integrating volume and interface
 //     measures, including after mesh deformation.
@@ -39,20 +39,20 @@ int main()
    FunctionCoefficient phi([](const Vector &x) { return x(0) - 0.45; });
    level_set.ProjectCoefficient(phi);
 
-   // Providers translate application fields into ElementLevelSet objects.
+   // Extractors translate application fields into ElementLevelSet objects.
    // Their revisions are caller-controlled value revisions; they are not
    // inferred from object addresses or GridFunction sequence numbers.
-   GridFunctionLevelSetProvider provider(level_set, 1);
+   GridFunctionLevelSetExtractor grid_function_extractor(level_set, 1);
 
    // A general Coefficient is the alternative source. Unlike the exact
    // GridFunction path above, it is interpolated locally at the requested
    // approximation order (two here).
-   CoefficientLevelSetProvider coefficient_provider(phi, 2, 1);
+   CoefficientLevelSetExtractor coefficient_extractor(phi, 2, 1);
 
-   // A generator may be shared by concurrent callers, but each thread must
+   // A constructor may be shared by concurrent callers, but each thread must
    // own a separate workspace.
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor quadrature_constructor;
+   auto workspace = quadrature_constructor.CreateWorkspace();
 
    // The order is an MFEM target order, not Algoim's native `qo`. Requesting
    // normals stores reference normals needed for physical surface metrics.
@@ -62,7 +62,7 @@ int main()
    request.compute_reference_normals = true;
 
    // Extract once per element. The batch records the descriptor and status of
-   // every extraction so the generator can validate homogeneity and preserve
+   // every extraction so the constructor can validate homogeneity and preserve
    // per-element extraction failures.
    const int ne = mesh.GetNE();
    std::vector<ElementLevelSet> local(ne);
@@ -73,7 +73,7 @@ int main()
    {
       ElementTransformation &Tr = *mesh.GetElementTransformation(e);
       batch.extraction_status[e] =
-         provider.GetElementLevelSet(e, Tr, local[e]);
+         grid_function_extractor.GetElementLevelSet(e, Tr, local[e]);
       if (batch.extraction_status[e] == CutQuadratureStatus::Success)
       {
          batch.element_descriptors[e] =
@@ -98,23 +98,24 @@ int main()
    // entry of packed.status must still be checked before consuming that
    // element's range in the packed points, weights, normals, and offsets.
    BatchedReferenceCutQuadrature packed;
-   const CutQuadratureStatus batch_status = generator.GenerateReferenceBatch(
-      batch, request, packed, *workspace);
+   const CutQuadratureStatus batch_status =
+      quadrature_constructor.GenerateReferenceBatch(
+         batch, request, packed, *workspace);
    MFEM_VERIFY(batch_status == CutQuadratureStatus::Success,
-               "batch generation failed");
+               "batch construction failed");
 
    // A retained scalar result is application-owned. Its complete reuse key is
-   // provider identity, element identity, provider revision, and exact request
+   // extractor identity, element identity, extractor revision, and exact request
    // equality. The result itself deliberately carries none of this metadata.
    RetainedCutQuadrature retained;
-   retained.provider_id = provider.Id();
+   retained.extractor_id = grid_function_extractor.Id();
    retained.element = 0;
-   retained.revision = provider.Revision();
+   retained.revision = grid_function_extractor.Revision();
    retained.request = request;
-   MFEM_VERIFY(generator.GenerateReference(local[0], request, retained.result,
-                                           *workspace) ==
+   MFEM_VERIFY(quadrature_constructor.GenerateReference(
+                  local[0], request, retained.result, *workspace) ==
                CutQuadratureStatus::Success,
-               "scalar generation failed");
+               "scalar construction failed");
 
    // Integrating the constant one returns geometric measure. The integrator
    // applies Tr.Weight() exactly once for volume. For the interface it also
@@ -136,7 +137,7 @@ int main()
       y(1) = 0.8*x(1);
    });
    mesh.Transform(deform);
-   MFEM_VERIFY(retained.IsValid(provider, 0, request),
+   MFEM_VERIFY(retained.IsValid(grid_function_extractor, 0, request),
                "mesh deformation invalidated a reference rule");
    ElementTransformation &deformed_Tr = *mesh.GetElementTransformation(0);
    const real_t deformed_volume = CutQuadratureIntegrator::IntegrateVolume(
@@ -146,14 +147,14 @@ int main()
    // the application-owned key would still match and silently reuse stale
    // quadrature data.
    level_set += 0.1;
-   provider.IncrementRevision();
-   MFEM_VERIFY(!retained.IsValid(provider, 0, request),
+   grid_function_extractor.IncrementRevision();
+   MFEM_VERIFY(!retained.IsValid(grid_function_extractor, 0, request),
                "field revision failed to invalidate retained rule");
 
    // Coefficient extraction evaluates phi through the current (deformed)
    // element transformation and constructs a new local polynomial.
    ElementLevelSet coefficient_local;
-   MFEM_VERIFY(coefficient_provider.GetElementLevelSet(
+   MFEM_VERIFY(coefficient_extractor.GetElementLevelSet(
                   0, deformed_Tr, coefficient_local) ==
                CutQuadratureStatus::Success,
                "coefficient extraction failed");
@@ -163,10 +164,10 @@ int main()
    CutQuadratureRequest device_request = request;
    device_request.execution = CutExecutionMode::Device;
    ReferenceCutQuadrature rejected;
-   MFEM_VERIFY(generator.GenerateReference(coefficient_local, device_request,
-                                           rejected, *workspace) ==
+   MFEM_VERIFY(quadrature_constructor.GenerateReference(
+                  coefficient_local, device_request, rejected, *workspace) ==
                CutQuadratureStatus::UnsupportedExecutionMode,
-               "device generation must be rejected explicitly");
+               "device construction must be rejected explicitly");
 
    std::cout << "batch elements: " << packed.status.Size()
              << ", reference points: " << packed.volume.weights.Size()

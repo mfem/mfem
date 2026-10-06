@@ -20,7 +20,7 @@ namespace mfem
 namespace
 {
 
-std::atomic<std::uint64_t> next_provider_id(1);
+std::atomic<std::uint64_t> next_extractor_id(1);
 
 bool HasMeasure(CutMeasure set, CutMeasure measure)
 {
@@ -178,18 +178,18 @@ bool CutQuadratureCapabilities::Supports(
    return true;
 }
 
-ElementLevelSetProvider::ElementLevelSetProvider()
-   : id_(next_provider_id.fetch_add(1))
+ElementLevelSetExtractor::ElementLevelSetExtractor()
+   : id_(next_extractor_id.fetch_add(1))
 {
 }
 
-GridFunctionLevelSetProvider::GridFunctionLevelSetProvider(
+GridFunctionLevelSetExtractor::GridFunctionLevelSetExtractor(
    const GridFunction &level_set, LevelSetRevision revision)
    : level_set_(&level_set), revision_(revision)
 {
 }
 
-CutQuadratureStatus GridFunctionLevelSetProvider::GetElementLevelSet(
+CutQuadratureStatus GridFunctionLevelSetExtractor::GetElementLevelSet(
    int element, ElementTransformation &Tr, ElementLevelSet &result) const
 {
    const FiniteElementSpace *fes = level_set_->FESpace();
@@ -214,14 +214,14 @@ CutQuadratureStatus GridFunctionLevelSetProvider::GetElementLevelSet(
    }, result);
 }
 
-CoefficientLevelSetProvider::CoefficientLevelSetProvider(
+CoefficientLevelSetExtractor::CoefficientLevelSetExtractor(
    Coefficient &level_set, int approximation_order, LevelSetRevision revision)
    : level_set_(&level_set), approximation_order_(approximation_order),
      revision_(revision)
 {
 }
 
-CutQuadratureStatus CoefficientLevelSetProvider::GetElementLevelSet(
+CutQuadratureStatus CoefficientLevelSetExtractor::GetElementLevelSet(
    int, ElementTransformation &Tr, ElementLevelSet &result) const
 {
    if (approximation_order_ < 1)
@@ -238,18 +238,18 @@ CutQuadratureStatus CoefficientLevelSetProvider::GetElementLevelSet(
 }
 
 bool RetainedCutQuadrature::IsValid(
-   const ElementLevelSetProvider &provider, int element_id,
+   const ElementLevelSetExtractor &extractor, int element_id,
    const CutQuadratureRequest &requested) const
 {
-   return provider_id == provider.Id() && element == element_id &&
-          revision == provider.Revision() && request == requested;
+   return extractor_id == extractor.Id() && element == element_id &&
+          revision == extractor.Revision() && request == requested;
 }
 
 bool RetainedBatchedCutQuadrature::IsValid(
-   const ElementLevelSetProvider &provider, const Array<int> &element_ids,
+   const ElementLevelSetExtractor &extractor, const Array<int> &element_ids,
    const CutQuadratureRequest &requested) const
 {
-   if (provider_id != provider.Id() || revision != provider.Revision() ||
+   if (extractor_id != extractor.Id() || revision != extractor.Revision() ||
        request != requested || elements.Size() != element_ids.Size())
    {
       return false;

@@ -37,12 +37,12 @@ void CutIntegrationRules::SetLevelSetProjectionOrder(int order)
 
 struct AlgoimIntegrationRules::Impl
 {
-   CoefficientLevelSetProvider provider;
-   AlgoimCutQuadratureGenerator generator;
+   CoefficientLevelSetExtractor extractor;
+   AlgoimCutQuadratureConstructor constructor;
    std::unique_ptr<CutQuadratureWorkspace> workspace;
 
    Impl(Coefficient &level_set, int order)
-      : provider(level_set, order), workspace(generator.CreateWorkspace()) { }
+      : extractor(level_set, order), workspace(constructor.CreateWorkspace()) { }
 };
 
 AlgoimIntegrationRules::AlgoimIntegrationRules(int order, Coefficient &level_set,
@@ -92,7 +92,7 @@ ReferenceCutQuadrature GenerateLegacyRule(ImplType &impl,
 {
    ElementLevelSet level_set;
    const CutQuadratureStatus extraction =
-      impl.provider.GetElementLevelSet(Tr.ElementNo, Tr, level_set);
+      impl.extractor.GetElementLevelSet(Tr.ElementNo, Tr, level_set);
    MFEM_VERIFY(extraction == CutQuadratureStatus::Success,
                "failed to extract the legacy Algoim level set");
    CutQuadratureRequest request;
@@ -101,7 +101,7 @@ ReferenceCutQuadrature GenerateLegacyRule(ImplType &impl,
    request.measures = measures;
    request.compute_reference_normals = normals;
    ReferenceCutQuadrature result;
-   const CutQuadratureStatus status = impl.generator.GenerateReference(
+   const CutQuadratureStatus status = impl.constructor.GenerateReference(
                                         level_set, request, result,
                                         *impl.workspace);
    MFEM_VERIFY(status == CutQuadratureStatus::Success,
@@ -131,7 +131,7 @@ void AlgoimIntegrationRules::GetSurfaceWeights(ElementTransformation &Tr,
 {
    ElementLevelSet level_set;
    const CutQuadratureStatus extraction =
-      impl->provider.GetElementLevelSet(Tr.ElementNo, Tr, level_set);
+      impl->extractor.GetElementLevelSet(Tr.ElementNo, Tr, level_set);
    MFEM_VERIFY(extraction == CutQuadratureStatus::Success,
                "failed to extract the legacy Algoim level set");
 

@@ -54,6 +54,15 @@ add_mfem_miniapp(tmop-metric-magnitude
   ${MFEM_MINIAPPS_COMMON_HEADERS}
   LIBRARIES mfem-common)
 
+if (MFEM_USE_ALGOIM)
+  add_mfem_miniapp(cut-quadrature
+    MAIN cut-quadrature.cpp
+    LIBRARIES mfem)
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME cut-quadrature COMMAND cut-quadrature)
+  endif()
+endif()
+
 if (MFEM_USE_MPI)
     add_mfem_miniapp(gridfunction-bounds
       MAIN gridfunction-bounds.cpp

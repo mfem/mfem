@@ -13,13 +13,13 @@ also carry an explicit `CutExecutionMode`; this implementation supports host
 execution and rejects device execution rather than silently falling back.
 
 Level-set extraction and quadrature generation are separate operations.
-`ElementLevelSetProvider::GetElementLevelSet` returns only `Success`,
+`ElementLevelSetExtractor::GetElementLevelSet` returns only `Success`,
 `UnsupportedSourceBasis`, or `InvalidLevelSet`.  The first failure means that
 the source finite-element representation cannot be converted exactly.  In
-contrast, `UnsupportedPolynomialBasis` is produced by a generator that cannot
-consume an otherwise well-formed `ElementLevelSet`; providers never return it.
+contrast, `UnsupportedPolynomialBasis` is produced by a constructor that cannot
+consume an otherwise well-formed `ElementLevelSet`; extractors never return it.
 Batch callers record both a per-element descriptor and extraction status.
-`extraction_status` is a closed set containing only those three provider
+`extraction_status` is a closed set containing only those three extractor
 outcomes.  Any other value makes the whole call `InvalidBatch`; it is never
 passed through as an element result.  Descriptors of successful extractions
 must match the declared descriptor, otherwise the call is
@@ -65,36 +65,36 @@ independent volume reliability make a separate volume-only request.
 
 Status alone governs output readability.  A non-`Success` element's rules are
 never consumed.  `classification` is diagnostic after classification has run,
-but is `Unclassified` for pre-classification failures.  Provider-owned
+but is `Unclassified` for pre-classification failures.  Extractor-owned
 `UnsupportedSourceBasis` reaches that state only through batch passthrough;
-generator-owned `UnsupportedPolynomialBasis` can occur in scalar and batch
+constructor-owned `UnsupportedPolynomialBasis` can occur in scalar and batch
 calls.
 
 Algoim's verified native range is `1 <= qo <= 10`.  With
 `qo = ceil((target_order + 1)/2)`, capabilities therefore report MFEM target
 orders 0 through 19 and reject other values without clamping.
 
-## Providers, retention, and concurrency
+## Extractors, retention, and concurrency
 
-The `GridFunction` provider converts supported scalar tensor H1 elements
-exactly to Bernstein coefficients.  The `Coefficient` provider samples the
+The `GridFunction` extractor converts supported scalar tensor H1 elements
+exactly to Bernstein coefficients.  The `Coefficient` extractor samples the
 coefficient at tensor H1 nodes at a caller-selected order and documents this
 as an element-local interpolation.  Both expose a caller-controlled revision;
 pointer identity and `GridFunction::GetSequence()` are not value revisions.
 
-Retained results are reusable only when provider `Id()`, element identity (or
-ordered batch identity), provider revision, and exact request equality all
-match.  Provider IDs come from an atomic, never-decremented process counter.
-Providers are non-copyable and non-movable so two live objects never share an
+Retained results are reusable only when extractor `Id()`, element identity (or
+ordered batch identity), extractor revision, and exact request equality all
+match.  Extractor IDs come from an atomic, never-decremented process counter.
+Extractors are non-copyable and non-movable so two live objects never share an
 ID and an ID is never transferred ambiguously.
 
 The important failure mode is silent stale reuse: after changing a
 `GridFunction` value or a `Coefficient`'s behavior, the application **must bump
-the provider revision**.  If it forgets, all keys still match and stale rules
+the extractor revision**.  If it forgets, all keys still match and stale rules
 are reused without an error.  Applications should couple field updates and
 revision increments in the same operation.
 
-Generators, capabilities, and providers are safe for concurrent calls as
+Constructors, capabilities, and extractors are safe for concurrent calls as
 shared const objects, provided the wrapped source is not concurrently mutated
 and its read access is itself thread safe.  Each thread must use its own
 workspace; workspaces are intentionally not thread safe.  Host batch generation

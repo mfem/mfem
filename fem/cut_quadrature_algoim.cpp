@@ -604,7 +604,7 @@ void PackRules(const std::vector<ReferenceCutQuadrature> &local,
 
 } // namespace
 
-AlgoimCutQuadratureGenerator::AlgoimCutQuadratureGenerator()
+AlgoimCutQuadratureConstructor::AlgoimCutQuadratureConstructor()
 {
    capabilities_.geometries.Append(Geometry::SQUARE);
    capabilities_.geometries.Append(Geometry::CUBE);
@@ -623,13 +623,13 @@ AlgoimCutQuadratureGenerator::AlgoimCutQuadratureGenerator()
 }
 
 std::unique_ptr<CutQuadratureWorkspace>
-AlgoimCutQuadratureGenerator::CreateWorkspace() const
+AlgoimCutQuadratureConstructor::CreateWorkspace() const
 {
    return std::unique_ptr<CutQuadratureWorkspace>(
              new AlgoimCutQuadratureWorkspace);
 }
 
-CutQuadratureStatus AlgoimCutQuadratureGenerator::GenerateReference(
+CutQuadratureStatus AlgoimCutQuadratureConstructor::GenerateReference(
    const ElementLevelSet &level_set, const CutQuadratureRequest &request,
    ReferenceCutQuadrature &result, CutQuadratureWorkspace &) const
 {
@@ -686,7 +686,7 @@ CutQuadratureStatus AlgoimCutQuadratureGenerator::GenerateReference(
    }
 }
 
-CutQuadratureStatus AlgoimCutQuadratureGenerator::GenerateReferenceBatch(
+CutQuadratureStatus AlgoimCutQuadratureConstructor::GenerateReferenceBatch(
    const ElementLevelSetBatch &level_sets,
    const CutQuadratureRequest &request,
    BatchedReferenceCutQuadrature &result,

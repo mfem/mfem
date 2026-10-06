@@ -37,10 +37,10 @@ real_t WeightSum(const IntegrationRule &rule)
 }
 #endif
 
-class TestProvider : public ElementLevelSetProvider
+class TestExtractor : public ElementLevelSetExtractor
 {
 public:
-   explicit TestProvider(LevelSetRevision revision = 0) : revision_(revision) { }
+   explicit TestExtractor(LevelSetRevision revision = 0) : revision_(revision) { }
    CutQuadratureStatus GetElementLevelSet(
       int, ElementTransformation &, ElementLevelSet &) const override
    { return CutQuadratureStatus::InvalidLevelSet; }
@@ -52,10 +52,10 @@ private:
 
 class MockWorkspace : public CutQuadratureWorkspace { };
 
-class MockCutGenerator : public CutQuadratureGenerator
+class MockCutConstructor : public CutQuadratureConstructor
 {
 public:
-   MockCutGenerator(bool nonnegative, bool fail_batch)
+   MockCutConstructor(bool nonnegative, bool fail_batch)
       : fail_batch_(fail_batch)
    {
       caps_.geometries.Append(Geometry::SQUARE);
@@ -142,8 +142,8 @@ private:
 
 } // namespace
 
-static_assert(!std::is_copy_constructible<TestProvider>::value, "provider copy");
-static_assert(!std::is_move_constructible<TestProvider>::value, "provider move");
+static_assert(!std::is_copy_constructible<TestExtractor>::value, "extractor copy");
+static_assert(!std::is_move_constructible<TestExtractor>::value, "extractor move");
 
 TEST_CASE("Cut quadrature value semantics and retention", "[CutQuadrature]")
 {
@@ -172,20 +172,20 @@ TEST_CASE("Cut quadrature value semantics and retention", "[CutQuadrature]")
    changed = request; changed.compute_reference_normals = true;
    REQUIRE(request != changed);
 
-   TestProvider provider(7), other(7);
+   TestExtractor extractor(7), other(7);
    RetainedCutQuadrature retained;
-   retained.provider_id = provider.Id();
+   retained.extractor_id = extractor.Id();
    retained.element = 3;
-   retained.revision = provider.Revision();
+   retained.revision = extractor.Revision();
    retained.request = request;
-   REQUIRE(retained.IsValid(provider, 3, request));
+   REQUIRE(retained.IsValid(extractor, 3, request));
    REQUIRE_FALSE(retained.IsValid(other, 3, request));
-   REQUIRE_FALSE(retained.IsValid(provider, 4, request));
-   provider.Bump();
-   REQUIRE_FALSE(retained.IsValid(provider, 3, request));
+   REQUIRE_FALSE(retained.IsValid(extractor, 4, request));
+   extractor.Bump();
+   REQUIRE_FALSE(retained.IsValid(extractor, 3, request));
 
    RetainedBatchedCutQuadrature retained_batch;
-   retained_batch.provider_id = other.Id();
+   retained_batch.extractor_id = other.Id();
    retained_batch.revision = other.Revision();
    retained_batch.request = request;
    retained_batch.elements.Append(1);
@@ -197,8 +197,8 @@ TEST_CASE("Cut quadrature value semantics and retention", "[CutQuadrature]")
    REQUIRE_FALSE(retained_batch.IsValid(other, reordered_elements, request));
 
    // A missed bump is intentionally undetectable and permits stale reuse.
-   TestProvider missed_bump(4);
-   retained.provider_id = missed_bump.Id();
+   TestExtractor missed_bump(4);
+   retained.extractor_id = missed_bump.Id();
    retained.element = 0;
    retained.revision = 4;
    REQUIRE(retained.IsValid(missed_bump, 0, request));
@@ -209,7 +209,7 @@ TEST_CASE("Cut quadrature value semantics and retention", "[CutQuadrature]")
 #endif
    for (int i = 0; i < 64; i++)
    {
-      TestProvider p;
+      TestExtractor p;
       ids[i] = p.Id();
    }
    std::sort(ids.begin(), ids.end());
@@ -221,26 +221,26 @@ TEST_CASE("Cut quadrature mock weight and execution contracts",
 {
    ElementLevelSet level_set = SquareLinear(-0.5, 0.5);
    CutQuadratureRequest request;
-   MockCutGenerator signed_generator(false, false);
-   auto workspace = signed_generator.CreateWorkspace();
+   MockCutConstructor signed_constructor(false, false);
+   auto workspace = signed_constructor.CreateWorkspace();
    ReferenceCutQuadrature result;
-   REQUIRE(signed_generator.GenerateReference(level_set, request, result,
+   REQUIRE(signed_constructor.GenerateReference(level_set, request, result,
                                                *workspace) == result.status);
    REQUIRE(result.volume[0].weight < 0.0);
    request.weight_policy = QuadratureWeightPolicy::Nonnegative;
-   REQUIRE(signed_generator.GenerateReference(level_set, request, result,
+   REQUIRE(signed_constructor.GenerateReference(level_set, request, result,
                                                *workspace) ==
            CutQuadratureStatus::UnsupportedWeightPolicy);
    REQUIRE(result.classification == CutCellClass::Unclassified);
 
-   MockCutGenerator nonnegative_generator(true, false);
-   workspace = nonnegative_generator.CreateWorkspace();
-   REQUIRE(nonnegative_generator.GenerateReference(level_set, request, result,
+   MockCutConstructor nonnegative_constructor(true, false);
+   workspace = nonnegative_constructor.CreateWorkspace();
+   REQUIRE(nonnegative_constructor.GenerateReference(level_set, request, result,
                                                     *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.volume[0].weight >= 0.0);
 
-   MockCutGenerator failing_generator(true, true);
+   MockCutConstructor failing_constructor(true, true);
    ElementLevelSetBatch batch;
    batch.descriptor =
    { Geometry::SQUARE, PolynomialBasis::BernsteinTensor, 1 };
@@ -249,8 +249,8 @@ TEST_CASE("Cut quadrature mock weight and execution contracts",
    batch.element_descriptors.Append(batch.descriptor);
    batch.extraction_status.Append(CutQuadratureStatus::Success);
    BatchedReferenceCutQuadrature batch_result;
-   workspace = failing_generator.CreateWorkspace();
-   REQUIRE(failing_generator.GenerateReferenceBatch(batch, request,
+   workspace = failing_constructor.CreateWorkspace();
+   REQUIRE(failing_constructor.GenerateReferenceBatch(batch, request,
                                                      batch_result,
                                                      *workspace) ==
            CutQuadratureStatus::ExecutionFailure);
@@ -261,17 +261,17 @@ TEST_CASE("Cut quadrature mock weight and execution contracts",
 
 TEST_CASE("Algoim cut quadrature scalar contracts", "[CutQuadrature][Algoim]")
 {
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
    ReferenceCutQuadrature result;
    CutQuadratureRequest request;
 
-   REQUIRE(generator.Capabilities().min_order == 0);
-   REQUIRE(generator.Capabilities().max_order == 19);
-   REQUIRE_FALSE(generator.Capabilities().device_batch);
+   REQUIRE(constructor.Capabilities().min_order == 0);
+   REQUIRE(constructor.Capabilities().max_order == 19);
+   REQUIRE_FALSE(constructor.Capabilities().device_batch);
 
    ElementLevelSet cut = SquareLinear(-0.5, 0.5);
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            result.status);
    REQUIRE(result.status == CutQuadratureStatus::Success);
    REQUIRE(result.classification == CutCellClass::Cut);
@@ -288,82 +288,82 @@ TEST_CASE("Algoim cut quadrature scalar contracts", "[CutQuadrature][Algoim]")
    }
 
    request.region = CutRegion::Positive;
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.5));
 
    ElementLevelSet full = SquareLinear(-1.0, -1.0);
    request.region = CutRegion::Negative;
-   REQUIRE(generator.GenerateReference(full, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(full, request, result, *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.classification == CutCellClass::Full);
    REQUIRE(WeightSum(result.volume) == MFEM_Approx(1.0));
 
    ElementLevelSet empty = SquareLinear(1.0, 1.0);
-   REQUIRE(generator.GenerateReference(empty, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(empty, request, result, *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.classification == CutCellClass::Empty);
    REQUIRE(result.volume.GetNPoints() == 0);
 
    ElementLevelSet zero = SquareLinear(0.0, 0.0);
-   REQUIRE(generator.GenerateReference(zero, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(zero, request, result, *workspace) ==
            CutQuadratureStatus::DegenerateVolume);
    REQUIRE(result.classification == CutCellClass::Degenerate);
    request.measures = CutMeasure::Volume | CutMeasure::Interface;
-   REQUIRE(generator.GenerateReference(zero, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(zero, request, result, *workspace) ==
            CutQuadratureStatus::DegenerateVolume);
    REQUIRE(result.classification == CutCellClass::Degenerate);
 
    request = CutQuadratureRequest();
    request.order = -1;
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::InvalidRequest);
    REQUIRE(result.classification == CutCellClass::Unclassified);
    request.order = 20;
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::UnsupportedOrder);
    REQUIRE(result.classification == CutCellClass::Unclassified);
    request.order = 4;
    request.execution = CutExecutionMode::Device;
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::UnsupportedExecutionMode);
    REQUIRE(result.classification == CutCellClass::Unclassified);
    request.execution = CutExecutionMode::Host;
    request.measures = static_cast<CutMeasure>(0u);
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::InvalidRequest);
    request.measures = static_cast<CutMeasure>(8u);
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::InvalidRequest);
 
    request = CutQuadratureRequest();
    cut.basis = PolynomialBasis::BernsteinSimplex;
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::UnsupportedPolynomialBasis);
    REQUIRE(result.classification == CutCellClass::Unclassified);
    cut = SquareLinear(-0.5, 0.5);
    cut.geometry = Geometry::TRIANGLE;
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::UnsupportedGeometry);
    REQUIRE(result.classification == CutCellClass::Unclassified);
    cut = SquareLinear(-0.5, 0.5);
    cut.coefficients.SetSize(3);
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::InvalidLevelSet);
    REQUIRE(result.classification == CutCellClass::Unclassified);
 }
 
 TEST_CASE("Algoim interface and normal contracts", "[CutQuadrature][Algoim]")
 {
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
    ReferenceCutQuadrature result;
    CutQuadratureRequest request;
    request.measures = CutMeasure::Volume | CutMeasure::Interface;
    request.compute_reference_normals = true;
 
    ElementLevelSet boundary = SquareLinear(0.0, 1.0);
-   REQUIRE(generator.GenerateReference(boundary, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(boundary, request, result, *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.classification == CutCellClass::Empty);
    REQUIRE(result.interface.rule.GetNPoints() > 0);
@@ -374,11 +374,11 @@ TEST_CASE("Algoim interface and normal contracts", "[CutQuadrature][Algoim]")
    }
 
    ElementLevelSet cut = SquareLinear(-0.5, 0.5);
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::Success);
    const DenseMatrix negative_normals(result.interface.reference_normals);
    request.region = CutRegion::Positive;
-   REQUIRE(generator.GenerateReference(cut, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, result, *workspace) ==
            CutQuadratureStatus::Success);
    for (int i = 0; i < result.interface.rule.GetNPoints(); i++)
    {
@@ -390,8 +390,8 @@ TEST_CASE("Algoim interface and normal contracts", "[CutQuadrature][Algoim]")
 TEST_CASE("Algoim separates interface and volume degeneracy",
           "[CutQuadrature][Algoim]")
 {
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
    ElementLevelSet cubic;
    cubic.geometry = Geometry::SQUARE;
    cubic.order = 3;
@@ -405,22 +405,22 @@ TEST_CASE("Algoim separates interface and volume degeneracy",
 
    CutQuadratureRequest request;
    ReferenceCutQuadrature result;
-   REQUIRE(generator.GenerateReference(cubic, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cubic, request, result, *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.classification == CutCellClass::Cut);
    REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.5));
 
    request.measures = CutMeasure::Volume | CutMeasure::Interface;
    request.compute_reference_normals = true;
-   REQUIRE(generator.GenerateReference(cubic, request, result, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cubic, request, result, *workspace) ==
            CutQuadratureStatus::DegenerateInterface);
    REQUIRE(result.classification == CutCellClass::Cut);
 }
 
 TEST_CASE("Algoim circle and sphere rules", "[CutQuadrature][Algoim]")
 {
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
    CutQuadratureRequest request;
    request.order = 8;
    request.measures = CutMeasure::Volume | CutMeasure::Interface;
@@ -435,13 +435,13 @@ TEST_CASE("Algoim circle and sphere rules", "[CutQuadrature][Algoim]")
          return (x(0) - 0.5)*(x(0) - 0.5) +
                 (x(1) - 0.5)*(x(1) - 0.5) - 0.0625;
       });
-      CoefficientLevelSetProvider provider(phi, 2);
+      CoefficientLevelSetExtractor extractor(phi, 2);
       ElementTransformation &Tr = *mesh.GetElementTransformation(0);
       ElementLevelSet local;
-      REQUIRE(provider.GetElementLevelSet(0, Tr, local) ==
+      REQUIRE(extractor.GetElementLevelSet(0, Tr, local) ==
               CutQuadratureStatus::Success);
       ReferenceCutQuadrature result;
-      REQUIRE(generator.GenerateReference(local, request, result, *workspace) ==
+      REQUIRE(constructor.GenerateReference(local, request, result, *workspace) ==
               CutQuadratureStatus::Success);
       REQUIRE(CutQuadratureIntegrator::IntegrateVolume(one, Tr, result) ==
               MFEM_Approx(3.14159265358979323846/16.0).epsilon(2e-4));
@@ -458,13 +458,13 @@ TEST_CASE("Algoim circle and sphere rules", "[CutQuadrature][Algoim]")
                 (x(1) - 0.5)*(x(1) - 0.5) +
                 (x(2) - 0.5)*(x(2) - 0.5) - 0.0625;
       });
-      CoefficientLevelSetProvider provider(phi, 2);
+      CoefficientLevelSetExtractor extractor(phi, 2);
       ElementTransformation &Tr = *mesh.GetElementTransformation(0);
       ElementLevelSet local;
-      REQUIRE(provider.GetElementLevelSet(0, Tr, local) ==
+      REQUIRE(extractor.GetElementLevelSet(0, Tr, local) ==
               CutQuadratureStatus::Success);
       ReferenceCutQuadrature result;
-      REQUIRE(generator.GenerateReference(local, request, result, *workspace) ==
+      REQUIRE(constructor.GenerateReference(local, request, result, *workspace) ==
               CutQuadratureStatus::Success);
       REQUIRE(CutQuadratureIntegrator::IntegrateVolume(one, Tr, result) ==
               MFEM_Approx(3.14159265358979323846/48.0).epsilon(5e-4));
@@ -476,8 +476,8 @@ TEST_CASE("Algoim circle and sphere rules", "[CutQuadrature][Algoim]")
 TEST_CASE("Cut rules retain reference data under non-affine deformation",
           "[CutQuadrature][Algoim]")
 {
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
    CutQuadratureRequest request;
    request.order = 6;
    request.measures = CutMeasure::Volume | CutMeasure::Interface;
@@ -488,13 +488,13 @@ TEST_CASE("Cut rules retain reference data under non-affine deformation",
    {
       Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
       FunctionCoefficient phi([](const Vector &x) { return x(0) - 0.5; });
-      CoefficientLevelSetProvider provider(phi, 1, 2);
+      CoefficientLevelSetExtractor extractor(phi, 1, 2);
       ElementTransformation &Tr = *mesh.GetElementTransformation(0);
       ElementLevelSet local;
-      REQUIRE(provider.GetElementLevelSet(0, Tr, local) ==
+      REQUIRE(extractor.GetElementLevelSet(0, Tr, local) ==
               CutQuadratureStatus::Success);
       ReferenceCutQuadrature result;
-      REQUIRE(generator.GenerateReference(local, request, result,
+      REQUIRE(constructor.GenerateReference(local, request, result,
                                            *workspace) ==
               CutQuadratureStatus::Success);
 
@@ -517,13 +517,13 @@ TEST_CASE("Cut rules retain reference data under non-affine deformation",
    {
       Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
       FunctionCoefficient phi([](const Vector &x) { return x(0) - 0.5; });
-      CoefficientLevelSetProvider provider(phi, 1, 2);
+      CoefficientLevelSetExtractor extractor(phi, 1, 2);
       ElementTransformation &Tr = *mesh.GetElementTransformation(0);
       ElementLevelSet local;
-      REQUIRE(provider.GetElementLevelSet(0, Tr, local) ==
+      REQUIRE(extractor.GetElementLevelSet(0, Tr, local) ==
               CutQuadratureStatus::Success);
       ReferenceCutQuadrature result;
-      REQUIRE(generator.GenerateReference(local, request, result,
+      REQUIRE(constructor.GenerateReference(local, request, result,
                                            *workspace) ==
               CutQuadratureStatus::Success);
 
@@ -547,8 +547,8 @@ TEST_CASE("Cut rules retain reference data under non-affine deformation",
 TEST_CASE("Algoim packed batch validation and equivalence",
           "[CutQuadrature][Algoim]")
 {
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
    CutQuadratureRequest request;
    ElementLevelSet cut = SquareLinear(-0.5, 0.5);
    ElementLevelSet full = SquareLinear(-1.0, -1.0);
@@ -576,7 +576,7 @@ TEST_CASE("Algoim packed batch validation and equivalence",
    }
 
    BatchedReferenceCutQuadrature result;
-   REQUIRE(generator.GenerateReferenceBatch(batch, request, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
                                              *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.status.Size() == 4);
@@ -592,32 +592,32 @@ TEST_CASE("Algoim packed batch validation and equivalence",
       packed_sum += result.volume.weights[i];
    }
    ReferenceCutQuadrature scalar;
-   REQUIRE(generator.GenerateReference(cut, request, scalar, *workspace) ==
+   REQUIRE(constructor.GenerateReference(cut, request, scalar, *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(packed_sum == MFEM_Approx(WeightSum(scalar.volume)));
 
    CutQuadratureRequest high_order = request;
    high_order.order = 20;
-   REQUIRE(generator.GenerateReferenceBatch(batch, high_order, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, high_order, result,
                                              *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.status[0] == CutQuadratureStatus::UnsupportedOrder);
    REQUIRE(result.classification[0] == CutCellClass::Unclassified);
 
    batch.extraction_status[2] = CutQuadratureStatus::ExecutionFailure;
-   REQUIRE(generator.GenerateReferenceBatch(batch, request, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
                                              *workspace) ==
            CutQuadratureStatus::InvalidBatch);
    REQUIRE(result.status.Size() == 0);
    batch.extraction_status[2] = CutQuadratureStatus::UnsupportedSourceBasis;
    batch.element_descriptors[0].order = 2;
-   REQUIRE(generator.GenerateReferenceBatch(batch, request, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
                                              *workspace) ==
            CutQuadratureStatus::HeterogeneousBatch);
    REQUIRE(result.status.Size() == 0);
    batch.element_descriptors[0] = batch.descriptor;
    batch.coefficients.SetSize(3, 4);
-   REQUIRE(generator.GenerateReferenceBatch(batch, request, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
                                              *workspace) ==
            CutQuadratureStatus::InvalidBatch);
 
@@ -626,7 +626,7 @@ TEST_CASE("Algoim packed batch validation and equivalence",
    batch.descriptor.basis = PolynomialBasis::BernsteinSimplex;
    batch.element_descriptors[0].basis = PolynomialBasis::BernsteinSimplex;
    batch.extraction_status[1] = CutQuadratureStatus::UnsupportedSourceBasis;
-   REQUIRE(generator.GenerateReferenceBatch(batch, request, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
                                              *workspace) ==
            CutQuadratureStatus::Success);
    REQUIRE(result.status[0] ==
@@ -636,16 +636,16 @@ TEST_CASE("Algoim packed batch validation and equivalence",
    request.order = -1;
    request.execution = CutExecutionMode::Device;
    batch.extraction_status.SetSize(0);
-   REQUIRE(generator.GenerateReferenceBatch(batch, request, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
                                              *workspace) ==
            CutQuadratureStatus::InvalidRequest);
    request.order = 4;
-   REQUIRE(generator.GenerateReferenceBatch(batch, request, result,
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, result,
                                              *workspace) ==
            CutQuadratureStatus::UnsupportedExecutionMode);
 }
 
-TEST_CASE("Cut level-set providers and physical mapping",
+TEST_CASE("Cut level-set extractors and physical mapping",
           "[CutQuadrature][Algoim]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
@@ -657,26 +657,26 @@ TEST_CASE("Cut level-set providers and physical mapping",
    field.ProjectCoefficient(level_set);
    ElementTransformation &Tr = *mesh.GetElementTransformation(0);
 
-   GridFunctionLevelSetProvider grid_provider(field, 3);
-   CoefficientLevelSetProvider coefficient_provider(level_set, 2, 3);
+   GridFunctionLevelSetExtractor grid_extractor(field, 3);
+   CoefficientLevelSetExtractor coefficient_extractor(level_set, 2, 3);
    ElementLevelSet grid_local, coefficient_local;
-   REQUIRE(grid_provider.GetElementLevelSet(0, Tr, grid_local) ==
+   REQUIRE(grid_extractor.GetElementLevelSet(0, Tr, grid_local) ==
            CutQuadratureStatus::Success);
-   REQUIRE(coefficient_provider.GetElementLevelSet(0, Tr, coefficient_local) ==
+   REQUIRE(coefficient_extractor.GetElementLevelSet(0, Tr, coefficient_local) ==
            CutQuadratureStatus::Success);
 
    FiniteElementSpace vector_space(&mesh, &collection, 2);
    GridFunction vector_field(&vector_space);
-   GridFunctionLevelSetProvider unsupported_provider(vector_field);
+   GridFunctionLevelSetExtractor unsupported_extractor(vector_field);
    ElementLevelSet unused;
-   REQUIRE(unsupported_provider.GetElementLevelSet(0, Tr, unused) ==
+   REQUIRE(unsupported_extractor.GetElementLevelSet(0, Tr, unused) ==
            CutQuadratureStatus::UnsupportedSourceBasis);
    FunctionCoefficient not_finite([](const Vector &)
    {
       return std::numeric_limits<real_t>::quiet_NaN();
    });
-   CoefficientLevelSetProvider invalid_provider(not_finite, 1);
-   REQUIRE(invalid_provider.GetElementLevelSet(0, Tr, unused) ==
+   CoefficientLevelSetExtractor invalid_extractor(not_finite, 1);
+   REQUIRE(invalid_extractor.GetElementLevelSet(0, Tr, unused) ==
            CutQuadratureStatus::InvalidLevelSet);
    REQUIRE(grid_local.coefficients.Size() == 9);
    for (int j = 0; j < 3; j++)
@@ -686,13 +686,13 @@ TEST_CASE("Cut level-set providers and physical mapping",
       REQUIRE(grid_local.coefficients[3*j + 2] == MFEM_Approx(1.0));
    }
 
-   AlgoimCutQuadratureGenerator generator;
-   auto workspace = generator.CreateWorkspace();
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
    CutQuadratureRequest request;
    request.measures = CutMeasure::Volume | CutMeasure::Interface;
    request.compute_reference_normals = true;
    ReferenceCutQuadrature result;
-   REQUIRE(generator.GenerateReference(grid_local, request, result,
+   REQUIRE(constructor.GenerateReference(grid_local, request, result,
                                        *workspace) ==
            CutQuadratureStatus::Success);
 
@@ -715,16 +715,16 @@ TEST_CASE("Cut level-set providers and physical mapping",
    }
 
    RetainedCutQuadrature retained;
-   retained.provider_id = grid_provider.Id();
+   retained.extractor_id = grid_extractor.Id();
    retained.element = 0;
-   retained.revision = grid_provider.Revision();
+   retained.revision = grid_extractor.Revision();
    retained.request = request;
    retained.result = result;
-   REQUIRE(retained.IsValid(grid_provider, 0, request));
+   REQUIRE(retained.IsValid(grid_extractor, 0, request));
    field = 2.0; // Without a bump this deliberately remains a stale hit.
-   REQUIRE(retained.IsValid(grid_provider, 0, request));
-   grid_provider.IncrementRevision();
-   REQUIRE_FALSE(retained.IsValid(grid_provider, 0, request));
+   REQUIRE(retained.IsValid(grid_extractor, 0, request));
+   grid_extractor.IncrementRevision();
+   REQUIRE_FALSE(retained.IsValid(grid_extractor, 0, request));
 
    AlgoimIntegrationRules legacy(4, level_set, 1);
    IntegrationRule legacy_volume, legacy_surface;
@@ -737,10 +737,10 @@ TEST_CASE("Cut level-set providers and physical mapping",
    REQUIRE(legacy_surface.GetNPoints() == legacy_surface_metric.Size());
 }
 
-TEST_CASE("Algoim shared generator uses per-thread workspaces",
+TEST_CASE("Algoim shared constructor uses per-thread workspaces",
           "[CutQuadrature][Algoim]")
 {
-   const AlgoimCutQuadratureGenerator generator;
+   const AlgoimCutQuadratureConstructor constructor;
    const ElementLevelSet cut = SquareLinear(-0.5, 0.5);
    const CutQuadratureRequest request;
    std::vector<CutQuadratureStatus> statuses(4);
@@ -749,9 +749,9 @@ TEST_CASE("Algoim shared generator uses per-thread workspaces",
 #endif
    for (int i = 0; i < 4; i++)
    {
-      auto workspace = generator.CreateWorkspace();
+      auto workspace = constructor.CreateWorkspace();
       ReferenceCutQuadrature result;
-      statuses[i] = generator.GenerateReference(cut, request, result,
+      statuses[i] = constructor.GenerateReference(cut, request, result,
                                                 *workspace);
    }
    for (auto status : statuses)

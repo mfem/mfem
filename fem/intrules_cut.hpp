@@ -121,7 +121,7 @@ public:
 #ifdef MFEM_USE_ALGOIM
 /** Compatibility wrapper for the historical cut-rule interface.
 
-    New code should use AlgoimCutQuadratureGenerator. This wrapper preserves
+    New code should use AlgoimCutQuadratureConstructor. This wrapper preserves
     the existing public API while keeping all Algoim types private. */
 class AlgoimIntegrationRules : public CutIntegrationRules
 {
