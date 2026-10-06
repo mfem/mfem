@@ -175,10 +175,17 @@ private:
    /// the row-norm clusters are not well separated; Mult() then falls back
    /// to a single application of the base AMG solver.
    bool filtering_enabled = true;
-   /// See EnableAutoFilteredSubspace().
+   /// If true, SetOperator() calls GenerateFilteredSubspaceTransferOperator();
+   /// see EnableAutoFilteredSubspace().
    bool auto_subspace = false;
+   /// Maximum number of EM iterations passed to
+   /// GenerateFilteredSubspaceTransferOperator() when auto_subspace is true.
    int auto_max_iter = 20;
+   /// EM convergence tolerance passed to
+   /// GenerateFilteredSubspaceTransferOperator() when auto_subspace is true.
    real_t auto_tol = 1e-3;
+   /// Cluster-mean jump threshold passed to
+   /// GenerateFilteredSubspaceTransferOperator() when auto_subspace is true.
    real_t auto_jump_threshold = 10.0;
    /// Builds a fresh solver for the auto-generated filtered subspace; see
    /// EnableAutoFilteredSubspace(). May be called more than once, since the
@@ -238,6 +245,22 @@ public:
    *     and Mult() falls back to a single application of the base AMG
    *     solver until this function is called again.
    *
+   * This method is collective over the communicator of the operator, and
+   * SetOperator() must have been called first. The operator is not owned and
+   * must remain valid while this object uses it.
+   *
+   * The generated transfer operator is owned by this object and replaces any
+   * transfer operator set previously via SetFilteredSubspaceTransferOperator().
+   * Since the subspace size is not known in advance, the subspace solver must
+   * be able to handle it: if a solver factory was given to
+   * EnableAutoFilteredSubspace(), a new subspace solver is built and installed
+   * whenever the subspace size changes; otherwise the solver set via
+   * SetFilteredSubspaceSolver() is kept, and it is the caller's
+   * responsibility that it supports the new subspace operator.
+   *
+   * See the `-amgf-auto-subspace` option of the contact miniapp
+   * (miniapps/contact/contact.cpp) for an example of use.
+   *
    * @param max_iter Maximum number of EM iterations for the GMM fit.
    * @param tol Relative tolerance on the change of the two cluster means,
    *            used as the EM convergence criterion.
@@ -272,6 +295,15 @@ public:
    * Instead, @a solver_factory is called to build a fresh subspace solver
    * whenever the subspace width changes; AMGFSolver owns the resulting
    * solver and destroys it when it is replaced or when *this is destroyed.
+   *
+   * While automatic generation is enabled, every SetOperator() call replaces
+   * the transfer operator and, when the subspace size changes, the subspace
+   * solver, so a transfer operator or subspace solver set manually via
+   * SetFilteredSubspaceTransferOperator() or SetFilteredSubspaceSolver() is
+   * overwritten.
+   *
+   * See the `-amgf-auto-subspace` option of the contact miniapp
+   * (miniapps/contact/contact.cpp) for an example of use.
    *
    * @param enable Turn automatic generation on or off.
    * @param solver_factory Builds a new solver for the filtered subspace

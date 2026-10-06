@@ -205,6 +205,8 @@ public:
    HypreParMatrix * GetContactSubspaceTransferOperator();
 
    /// Return the Jacobian of the gap function (without bound constraints).
+   /// The matrix is owned by this object, and is deleted by the next call to
+   /// FormContactSystem() or when this object is destroyed.
    HypreParMatrix * GetGapJacobian() {return J;}
 
    /// Evaluate gap function

@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
                   "with an additive Schwarz smoother with one dense patch "
                   "per row of the gap Jacobian J (requires -amgf).");
    args.AddOption(&amgf_schwarz_dmin, "-amgf-schwarz-dmin",
-                  "--amgf-schwarz-d-threshold",
+                  "--amgf-schwarz-dmin",
                   "Skip the Schwarz patch of a row of J whose D value is "
                   "below this threshold, where the reduced IP-Newton "
                   "operator is K + J^T D J.");

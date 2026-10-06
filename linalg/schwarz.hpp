@@ -52,6 +52,14 @@ namespace mfem
 *
 * SetSubdomains() and SetOperator() are collective, and the smoother is
 * (re)built whenever either is called once both have been set.
+*
+* The operator @a A is not owned: it must remain valid, and must not be
+* modified, while the smoother is in use (call SetOperator() again to rebuild
+* the smoother after changing it). The subdomain lists are copied.
+*
+* See the `-amgf-schwarz` option of the contact miniapp
+* (miniapps/contact/contact.cpp) for an example of use as the subspace solver
+* of AMGFSolver.
 */
 class AdditiveSchwarz : public Solver
 {
@@ -61,7 +69,8 @@ public:
    AdditiveSchwarz() : Solver() { }
 
    /// Construct the smoother for @a A_ with the given @a subdomains_; see
-   /// SetSubdomains().
+   /// SetSubdomains(). The operator @a A_ is not owned and must outlive the
+   /// smoother.
    AdditiveSchwarz(const HypreParMatrix &A_,
                    const std::vector<Array<HYPRE_BigInt>> &subdomains_);
 
@@ -73,11 +82,13 @@ public:
    * rank, may appear in any order, and may be shared with any number of other
    * subdomains on this or other ranks. Repeated dofs within one subdomain are
    * counted once. Ranks that own no subdomain must still call this method,
-   * with an empty list.
+   * with an empty list. The lists are copied, so @a subdomains_ need not
+   * outlive this call.
    */
    void SetSubdomains(const std::vector<Array<HYPRE_BigInt>> &subdomains_);
 
-   /// Set the operator, which must be a square HypreParMatrix.
+   /// Set the operator, which must be a square HypreParMatrix. The operator
+   /// is not owned and must outlive the smoother.
    void SetOperator(const Operator &op) override;
 
    /// Apply the smoother: $ y = M x $, or $ y \mathrel{+}= M (x - A y) $ if
@@ -93,10 +104,14 @@ private:
    const HypreParMatrix *A = nullptr;
    /// Global dofs of the local subdomains, each sorted and without repeats.
    std::vector<Array<HYPRE_BigInt>> subdomains;
+   /// True once SetSubdomains() has been called (possibly with an empty list).
    bool subdomains_set = false;
    /// Boolean restriction from the global dofs onto the concatenated local
-   /// subdomain dofs; subdomain s occupies rows [offsets[s], offsets[s+1]).
+   /// subdomain dofs; subdomain s occupies rows [offsets[s], offsets[s+1])
+   /// (owned).
    std::unique_ptr<HypreParMatrix> R;
+   /// Offsets of the local subdomains in the rows of R, of size
+   /// subdomains.size() + 1.
    Array<int> offsets;
    /// Correction weight of each local subdomain.
    Vector weights;
@@ -105,8 +120,10 @@ private:
    std::vector<DenseMatrix> lu;
    Array<int> ipiv;
 
-   // Work vectors used in Mult.
+   /// Work vector for the restricted residual and the local corrections, of
+   /// size offsets.Last().
    mutable Vector xs;
+   /// Work vector for the residual when iterative_mode is true.
    mutable Vector r;
 
    /// Build R and the weights, then assemble and factor the local subdomain

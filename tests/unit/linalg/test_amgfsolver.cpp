@@ -226,6 +226,32 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
       REQUIRE(amgf_iter <= iteration_bound);
       REQUIRE(fs_iter <= iteration_bound);
 
+      // Reversed and additive combination modes.
+      using Mode = FilteredSolver::Mode;
+      for (Mode mode : {Mode::REVERSED, Mode::ADDITIVE})
+      {
+         amgf.SetMode(mode);
+         Xamgf = 0.0;
+         cg.SetPreconditioner(amgf);
+         cg.SetOperator(*A);
+         cg.Mult(B, Xamgf);
+         REQUIRE(cg.GetNumIterations() <= 2*iteration_bound);
+      }
+
+      // Automatically generated filtered subspace.
+      AMGFSolver amgf_auto;
+      amgf_auto.GetAMG().SetPrintLevel(0);
+      auto factory = []() -> std::unique_ptr<Solver>
+      {
+         return std::make_unique<DenseMatrixSolver>();
+      };
+      amgf_auto.EnableAutoFilteredSubspace(true, factory);
+      Xamgf = 0.0;
+      cg.SetPreconditioner(amgf_auto);
+      cg.SetOperator(*A);
+      cg.Mult(B, Xamgf);
+      REQUIRE(cg.GetNumIterations() <= iteration_bound);
+
       delete P;
    }
 }

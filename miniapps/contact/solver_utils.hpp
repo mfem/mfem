@@ -151,11 +151,14 @@ class AMGFSchwarzSolver : public AMGFSolver
 {
 public:
    /**
-    * @param J Gap Jacobian; only used during construction.
-    * @param P Filtered subspace transfer operator (not owned).
+    * @param J Gap Jacobian (not owned); only used during construction, so it
+    *          need not outlive this object.
+    * @param P Filtered subspace transfer operator (not owned); it must outlive
+    *          this object.
     * @param get_D_ Fills its argument with the current diagonal of D, whose
     *               first J.Height() entries correspond to the local rows of
-    *               @a J.
+    *               @a J. It is copied, but anything it captures by reference
+    *               must outlive this object.
     * @param D_threshold_ The patch of row @a i is skipped if D_i is below
     *                     this value.
     */
@@ -167,16 +170,21 @@ public:
    void SetOperator(const Operator &op) override;
 
    /// Global number of Schwarz patches used after each SetOperator() call.
-   Array<HYPRE_BigInt> & GetNumPatches() { return num_patches; }
+   /// The returned array is owned by this object.
+   const Array<HYPRE_BigInt> & GetNumPatches() const { return num_patches; }
 
 private:
+   /// Communicator of the gap Jacobian.
    MPI_Comm comm;
    /// Global subspace dofs of the nonzeros of each local row of J.
    std::vector<Array<HYPRE_BigInt>> row_patches;
+   /// Returns the current diagonal of D; see the constructor.
    std::function<void(Vector &)> get_D;
+   /// The patch of row i of J is skipped if D_i is below this value.
    real_t D_threshold;
-   /// Subspace solver, rebuilt in every SetOperator() call.
+   /// Subspace solver (owned), rebuilt in every SetOperator() call.
    std::unique_ptr<AdditiveSchwarz> schwarz;
+   /// Global number of patches used after each SetOperator() call.
    Array<HYPRE_BigInt> num_patches;
 };
 

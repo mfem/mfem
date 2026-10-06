@@ -11,6 +11,30 @@
 Version 4.10.1 (development)
 ============================
 
+Linear and nonlinear solvers
+----------------------------
+- Added FilteredSolver::SetMode to select how the base solver and the filtered
+  subspace correction are combined: multiplicative (the default, unchanged),
+  reversed (subspace correction, base solver, subspace correction), or additive.
+
+- Added automatic construction of the AMGF filtered subspace from the L1 row
+  norms of the system matrix, using a two-component Gaussian mixture model that
+  is fitted in parallel. When the row norms show no clear separation, AMGF falls
+  back to plain AMG. See AMGFSolver::GenerateFilteredSubspaceTransferOperator
+  and AMGFSolver::EnableAutoFilteredSubspace.
+
+- Added class AdditiveSchwarz, an additive Schwarz smoother for HypreParMatrix
+  operators with user-defined, possibly overlapping, subdomains that may span
+  multiple MPI ranks. The subdomain problems are solved with dense LU.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added new AMGF options to the contact miniapp: -amgf-mode selects the
+  FilteredSolver combination mode, -amgf-auto-subspace generates the filtered
+  subspace automatically, and -amgf-schwarz replaces the direct subspace solver
+  with an additive Schwarz smoother (one patch per row of the gap Jacobian),
+  which does not require an external direct solver.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
