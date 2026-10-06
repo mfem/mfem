@@ -255,6 +255,105 @@ TEST_CASE("FilteredSolver and AMGFSolver", "[Parallel]")
       delete P;
    }
 }
+
+// Subspace solver that, like most parallel direct solvers (e.g. SuperLU), only
+// accepts operators with the local size it was first set up with. It applies
+// the inverse of the diagonal of the operator.
+class FixedLocalSizeSolver : public Solver
+{
+private:
+   bool initialized = false;
+   Vector inv_diag;
+public:
+   bool size_changed = false;
+
+   void SetOperator(const Operator &op) override
+   {
+      auto Oph = dynamic_cast<const HypreParMatrix *>(&op);
+      MFEM_VERIFY(Oph, "Not a compatible matrix type");
+      if (initialized && Oph->Height() != height) { size_changed = true; }
+      initialized = true;
+      height = width = Oph->Height();
+      Oph->GetDiag(inv_diag);
+      for (int i = 0; i < inv_diag.Size(); i++)
+      {
+         inv_diag(i) = 1.0/inv_diag(i);
+      }
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      for (int i = 0; i < x.Size(); i++) { y(i) = inv_diag(i)*x(i); }
+   }
+};
+
+// Tridiagonal matrix with n_loc rows per rank, -1 off the diagonal and 4 on the
+// diagonal, except for the global rows in large_rows, which get 1e6 instead.
+HypreParMatrix * MakeTridiagonalMatrix(
+   MPI_Comm comm, int n_loc, const std::vector<HYPRE_BigInt> &large_rows)
+{
+   int rank, nranks;
+   MPI_Comm_rank(comm, &rank);
+   MPI_Comm_size(comm, &nranks);
+   HYPRE_BigInt n_glob = (HYPRE_BigInt)n_loc*nranks;
+   HYPRE_BigInt row_begin = (HYPRE_BigInt)n_loc*rank;
+   HYPRE_BigInt rows[2] = {row_begin, row_begin+n_loc};
+
+   std::vector<int> I = {0};
+   std::vector<HYPRE_BigInt> J;
+   std::vector<real_t> data;
+   for (HYPRE_BigInt row = rows[0]; row < rows[1]; row++)
+   {
+      bool large = std::find(large_rows.begin(), large_rows.end(), row) !=
+                   large_rows.end();
+      if (row > 0) { J.push_back(row-1); data.push_back(-1.0); }
+      J.push_back(row); data.push_back(large ? 1e6 : 4.0);
+      if (row < n_glob-1) { J.push_back(row+1); data.push_back(-1.0); }
+      I.push_back((int)J.size());
+   }
+   return new HypreParMatrix(comm, n_loc, n_glob, n_glob, I.data(), J.data(),
+                             data.data(), rows, rows);
+}
+
+TEST_CASE("AMGFSolver auto subspace moving between ranks", "[Parallel]")
+{
+   // The automatically generated filtered subspace can keep the same global
+   // size while its rows move between ranks. The subspace solver must then
+   // be rebuilt, since it only accepts operators of its original local size.
+   MPI_Comm comm = MPI_COMM_WORLD;
+   const int n_loc = 8;
+   const HYPRE_BigInt n_glob = (HYPRE_BigInt)n_loc*Mpi::WorldSize();
+
+   // Both operators have two rows of much larger norm: on rank 0 for the
+   // first one, and on the first and last rank for the second one.
+   std::unique_ptr<HypreParMatrix> A1(
+      MakeTridiagonalMatrix(comm, n_loc, {1, 2}));
+   std::unique_ptr<HypreParMatrix> A2(
+      MakeTridiagonalMatrix(comm, n_loc, {1, n_glob-2}));
+
+   FixedLocalSizeSolver *subspacesolver = nullptr;
+   AMGFSolver amgf;
+   amgf.GetAMG().SetPrintLevel(0);
+   amgf.EnableAutoFilteredSubspace(true, [&subspacesolver]()
+                                   -> std::unique_ptr<Solver>
+   {
+      auto s = std::make_unique<FixedLocalSizeSolver>();
+      subspacesolver = s.get();
+      return s;
+   });
+
+   Vector b(n_loc), x(n_loc);
+   b = 1.0;
+   for (HypreParMatrix *A : {A1.get(), A2.get()})
+   {
+      amgf.SetOperator(*A);
+      REQUIRE(amgf.FilteringEnabled());
+      // The subspace solver is set up on the first application.
+      x = 0.0;
+      amgf.Mult(b, x);
+      REQUIRE(!subspacesolver->size_changed);
+   }
+}
 #endif
 
 } // namespace mfem

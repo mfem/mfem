@@ -193,10 +193,11 @@ private:
    std::function<std::unique_ptr<Solver>()> auto_subspace_solver_factory;
    /// Solver most recently built by auto_subspace_solver_factory (owned).
    std::unique_ptr<Solver> auto_subspace_solver;
-   /// Global width of the filtered subspace that auto_subspace_solver was
-   /// built for, so a new one is only built when the subspace size actually
-   /// changes; -1 if auto_subspace_solver has not been built yet.
-   HYPRE_BigInt auto_subspace_width = -1;
+   /// Local (this rank's) width of the filtered subspace that
+   /// auto_subspace_solver was built for, so a new one is only built when the
+   /// subspace size actually changes on some rank; -1 if auto_subspace_solver
+   /// has not been built yet.
+   int auto_subspace_local_width = -1;
 public:
    /// Construct AMGF solver with default HypreBoomerAMG.
    AMGFSolver() : FilteredSolver()
@@ -254,8 +255,8 @@ public:
    * Since the subspace size is not known in advance, the subspace solver must
    * be able to handle it: if a solver factory was given to
    * EnableAutoFilteredSubspace(), a new subspace solver is built and installed
-   * whenever the subspace size changes; otherwise the solver set via
-   * SetFilteredSubspaceSolver() is kept, and it is the caller's
+   * whenever the subspace size changes on any rank; otherwise the solver set
+   * via SetFilteredSubspaceSolver() is kept, and it is the caller's
    * responsibility that it supports the new subspace operator.
    *
    * See the `-amgf-auto-subspace` option of the contact miniapp
@@ -291,9 +292,10 @@ public:
    * Because the size of an automatically-generated subspace can change
    * every time it is regenerated, a fixed subspace solver (as set by
    * SetFilteredSubspaceSolver()) generally cannot be reused across calls:
-   * most direct solvers assume a fixed operator size for their lifetime.
-   * Instead, @a solver_factory is called to build a fresh subspace solver
-   * whenever the subspace width changes; AMGFSolver owns the resulting
+   * most direct solvers assume a fixed local operator size for their
+   * lifetime. Instead, @a solver_factory is called to build a fresh subspace
+   * solver whenever the local subspace width changes on any rank (even if
+   * the global width does not); AMGFSolver owns the resulting
    * solver and destroys it when it is replaced or when *this is destroyed.
    *
    * While automatic generation is enabled, every SetOperator() call replaces
@@ -307,8 +309,9 @@ public:
    *
    * @param enable Turn automatic generation on or off.
    * @param solver_factory Builds a new solver for the filtered subspace
-   *        operator; called on the first use and again whenever the
-   *        subspace width changes. Required if @a enable is true.
+   *        operator; called on the first use and again whenever the local
+   *        subspace width changes on any rank. Required if @a enable is
+   *        true.
    * @param max_iter,tol,jump_threshold Forwarded to
    *        GenerateFilteredSubspaceTransferOperator() on every SetOperator()
    *        call.

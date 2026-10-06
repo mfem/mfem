@@ -251,7 +251,7 @@ void AMGFSolver::EnableAutoFilteredSubspace(
    auto_subspace = enable;
    auto_subspace_solver_factory = std::move(solver_factory);
    auto_subspace_solver.reset();
-   auto_subspace_width = -1;
+   auto_subspace_local_width = -1;
    auto_max_iter = max_iter;
    auto_tol = tol;
    auto_jump_threshold = jump_threshold;
@@ -455,20 +455,29 @@ bool AMGFSolver::GenerateFilteredSubspaceTransferOperator(int max_iter,
    generated_transfer.reset(P_ft->Transpose());
    SetFilteredSubspaceTransferOperator(*generated_transfer);
 
-   // The subspace size just changed (or this is the first time), so a fixed
-   // subspace solver generally cannot be reused: most direct solvers assume
-   // a fixed operator size for their lifetime. Build a fresh one via the
-   // factory whenever the (global) subspace size differs from the one the
-   // current solver was built for.
-   if (auto_subspace_solver_factory &&
-       (!auto_subspace_solver || auto_subspace_width != glob_nrows_f))
+   // The subspace size may have just changed (or this is the first time), so
+   // a fixed subspace solver generally cannot be reused: most direct solvers
+   // assume a fixed local operator size for their lifetime. Build a fresh one
+   // via the factory whenever the local subspace size on any rank differs
+   // from the one the current solver was built for. Comparing only the global
+   // size is not enough, since the selected rows can move between ranks
+   // without changing their total number. The decision is reduced over all
+   // ranks because building the solver is generally collective.
+   if (auto_subspace_solver_factory)
    {
-      auto_subspace_solver = auto_subspace_solver_factory();
-      MFEM_VERIFY(auto_subspace_solver,
-                  "AMGFSolver::GenerateFilteredSubspaceTransferOperator: "
-                  "auto_subspace_solver_factory returned a null solver.");
-      SetFilteredSubspaceSolver(*auto_subspace_solver);
-      auto_subspace_width = glob_nrows_f;
+      int local_changed = !auto_subspace_solver ||
+                          nrows_f != auto_subspace_local_width;
+      int changed;
+      MPI_Allreduce(&local_changed, &changed, 1, MPI_INT, MPI_LOR, comm);
+      if (changed)
+      {
+         auto_subspace_solver = auto_subspace_solver_factory();
+         MFEM_VERIFY(auto_subspace_solver,
+                     "AMGFSolver::GenerateFilteredSubspaceTransferOperator: "
+                     "auto_subspace_solver_factory returned a null solver.");
+         SetFilteredSubspaceSolver(*auto_subspace_solver);
+         auto_subspace_local_width = nrows_f;
+      }
    }
 
    filtering_enabled = true;
