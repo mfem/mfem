@@ -19,12 +19,32 @@ namespace mfem
 
 class ComplexGridFunction;
 
-/** @brief Common geometric operations for Maxwell residual estimators.
+/** @brief Common operations for weighted interior face-jump estimators. */
+class FaceJumpEstimatorBase
+{
+protected:
+   FaceJumpEstimatorBase() = default;
+   ~FaceJumpEstimatorBase() = default;
+
+   static real_t SmallestEigenvalue(const DenseMatrix &a, int vector_dim,
+                                    const char *name);
+   static real_t CoefficientMinimum(Coefficient *scalar,
+                                    MatrixCoefficient *matrix,
+                                    ElementTransformation &tr,
+                                    const IntegrationPoint &ip, int vector_dim,
+                                    const char *name);
+   static void GetFaceNormal(FaceElementTransformations &tr, int vector_dim,
+                             Vector &normal);
+   static real_t TangentialComponentSquared(const Vector &normal,
+                                            const Vector &value);
+};
+
+/** @brief Common Maxwell-specific operations for residual estimators.
 
     This non-instantiable base class centralizes the dimensional conventions
     shared by the real and complex estimators. In particular, it distinguishes
     ordinary 2D fields from the embedded three-component R1D/R2D fields. */
-class MaxwellResidualEstimatorBase
+class MaxwellResidualEstimatorBase : protected FaceJumpEstimatorBase
 {
 protected:
    struct FieldLayout
@@ -38,17 +58,10 @@ protected:
    ~MaxwellResidualEstimatorBase() = default;
 
    static FieldLayout GetFieldLayout(const GridFunction &field);
-   static real_t SmallestEigenvalue(const DenseMatrix &a, int vector_dim,
-                                    const char *name);
-   static real_t EpsilonMinimum(Coefficient *scalar,
-                                MatrixCoefficient *matrix,
-                                ElementTransformation &tr,
-                                const IntegrationPoint &ip, int vector_dim,
-                                const char *name);
+   static FieldLayout GetFieldLayout(const FiniteElementSpace &fes,
+                                     int vector_dim);
    static void GetCurl(const GridFunction &field, ElementTransformation &tr,
                        const FieldLayout &layout, Vector &curl);
-   static void GetFaceNormal(FaceElementTransformations &tr, int vector_dim,
-                             Vector &normal);
    static real_t TangentialJump(const GridFunction &field,
                                 FaceElementTransformations &tr,
                                 const FieldLayout &layout,
@@ -364,6 +377,99 @@ protected:
    void Prepare(ErrorEstimatorContext &context) override;
 };
 
+/** @brief Scaling policy for general weighted face-jump estimators. */
+enum class FaceJumpScaling
+{
+   NONE, /**< Use only the supplied constant scale factor. */
+   H_OVER_P, /**< Scale each element contribution by \f$h_K/p_K\f$. */
+   H_OVER_P_OVER_COEFFICIENT /**< Scale each contribution by
+      \f$h_K/(p_K a_{\min,K})\f$. Requires a positive scalar coefficient or
+      a symmetric positive-definite matrix coefficient. */
+};
+
+/** @brief Common state and scaling for weighted face-jump estimators. */
+class WeightedFaceJumpErrorEstimatorBase : public FaceErrorEstimator,
+   protected FaceJumpEstimatorBase
+{
+protected:
+   GridFunction &x;
+   Coefficient *a;
+   MatrixCoefficient *a_matrix;
+   real_t alpha;
+   FaceJumpScaling scaling;
+
+   WeightedFaceJumpErrorEstimatorBase(GridFunction &x_, Coefficient *a_,
+                                      MatrixCoefficient *a_matrix_, real_t alpha_,
+                                      FaceJumpScaling scaling_);
+   real_t FaceScale(int element) const;
+   void ExchangeFaceNbrData() override;
+};
+
+/** @brief Estimate the jump in the normal trace of a weighted Nedelec field.
+
+    On each interior face this estimator evaluates the coefficient separately
+    on its two adjacent elements. Thus, @a a may be discontinuous. The field
+    @a x must use an H(curl), H(curl)-R2D, or H(curl)-R1D finite-element map.
+    Omitting @a a applies the identity map. The optional @a alpha scales the
+    squared contribution and defaults to one.
+
+    The @a scaling policy additionally selects no mesh scaling, \f$h_K/p_K\f$
+    scaling, or \f$h_K/(p_K a_{\min,K})\f$ scaling for each element. The last
+    option requires a positive scalar @a a or a symmetric positive-definite
+    matrix @a a. Its weights can match a Maxwell normal-jump term when
+    @a a is permittivity and @a alpha is \f$\omega^2\f$, but this estimator
+    evaluates \f$a x\f$ directly. It does not reproduce a specialized Maxwell
+    indicator that instead jumps a discontinuous reconstructed field. */
+class NedelecNormalJumpErrorEstimator final
+   : public WeightedFaceJumpErrorEstimatorBase
+{
+public:
+   NedelecNormalJumpErrorEstimator(GridFunction &x_, real_t alpha_ = 1.0,
+                                   FaceJumpScaling scaling_ = FaceJumpScaling::NONE);
+   NedelecNormalJumpErrorEstimator(GridFunction &x_, Coefficient &a_,
+                                   real_t alpha_ = 1.0,
+                                   FaceJumpScaling scaling_ = FaceJumpScaling::NONE);
+   NedelecNormalJumpErrorEstimator(GridFunction &x_, MatrixCoefficient &a_,
+                                   real_t alpha_ = 1.0,
+                                   FaceJumpScaling scaling_ = FaceJumpScaling::NONE);
+   void GetFaceError(FaceElementTransformations &Tr, real_t &error1,
+                     real_t &error2) override;
+};
+
+/** @brief Estimate the jump in the tangential trace of a weighted RT field.
+
+    On each interior face this estimator evaluates the coefficient separately
+    on its two adjacent elements and returns the same contribution for each:
+    \f$\alpha\|n\times((a x)_1-(a x)_2)\|^2_{L^2(F)}\f$.
+    In two dimensions, the cross product denotes its scalar out-of-plane
+    component. Thus, @a a may be discontinuous. The field @a x must use an
+    H(div), H(div)-R2D, or H(div)-R1D finite-element map. Omitting @a a
+    applies the identity map. The optional @a alpha scales the squared
+    contribution and defaults to one.
+
+    The @a scaling policy additionally selects no mesh scaling, \f$h_K/p_K\f$
+    scaling, or \f$h_K/(p_K a_{\min,K})\f$ scaling for each element. The last
+    option requires a positive scalar @a a or a symmetric positive-definite
+    matrix @a a. Its weights can match a Maxwell tangential-jump term when
+    @a a is inverse permeability, but this estimator evaluates \f$a x\f$
+    directly. It does not reproduce a specialized Maxwell indicator that
+    jumps a discontinuous reconstructed curl-flux field. */
+class RTTangentialJumpErrorEstimator final
+   : public WeightedFaceJumpErrorEstimatorBase
+{
+public:
+   RTTangentialJumpErrorEstimator(GridFunction &x_, real_t alpha_ = 1.0,
+                                  FaceJumpScaling scaling_ = FaceJumpScaling::NONE);
+   RTTangentialJumpErrorEstimator(GridFunction &x_, Coefficient &a_,
+                                  real_t alpha_ = 1.0,
+                                  FaceJumpScaling scaling_ = FaceJumpScaling::NONE);
+   RTTangentialJumpErrorEstimator(GridFunction &x_, MatrixCoefficient &a_,
+                                  real_t alpha_ = 1.0,
+                                  FaceJumpScaling scaling_ = FaceJumpScaling::NONE);
+   void GetFaceError(FaceElementTransformations &Tr, real_t &error1,
+                     real_t &error2) override;
+};
+
 /** @brief Tangential curl-flux jump term for real Maxwell problems.
 
     This specialized term jumps the shared discontinuous reconstruction
@@ -424,12 +530,8 @@ public:
    void ExchangeFaceNbrData() override;
 };
 
-/** @brief Curl-residual volume term of ComplexMaxwellResidualEstimator.
-
-    @a h and @a d are discontinuous complex fields representing
-    $\mu^{-1}\curl E$ and $\epsilon E$. Returned values are squared
-    local indicator contributions. */
-class ComplexMaxwellResidualCurlDomainEstimator : public DomainErrorEstimator,
+/** @brief Shared state for complex Maxwell residual volume terms. */
+class ComplexMaxwellResidualDomainEstimatorBase : public DomainErrorEstimator,
    protected MaxwellResidualEstimatorBase
 {
 protected:
@@ -445,39 +547,79 @@ protected:
                      const IntegrationPoint &ip) const;
 
 public:
-   ComplexMaxwellResidualCurlDomainEstimator(ComplexGridFunction &e_,
+   ComplexMaxwellResidualDomainEstimatorBase(ComplexGridFunction &e_,
                                              ComplexGridFunction &j_src_,
-                                             ComplexGridFunction &h_, ComplexGridFunction &d_,
+                                             ComplexGridFunction &h_,
+                                             ComplexGridFunction &d_,
                                              MatrixCoefficient &epsilon_real_,
                                              MatrixCoefficient &epsilon_imag_,
                                              Coefficient &mu_inv_, real_t omega_, int order_);
-   ComplexMaxwellResidualCurlDomainEstimator(
+   ComplexMaxwellResidualDomainEstimatorBase(
       ComplexGridFunction &e_, ComplexGridFunction &j_src_,
       std::shared_ptr<ComplexMaxwellResidualFields> fields_,
       MatrixCoefficient &epsilon_real_, MatrixCoefficient &epsilon_imag_,
       Coefficient &mu_inv_, real_t omega_, int order_);
-   ComplexMaxwellResidualCurlDomainEstimator(
+   ComplexMaxwellResidualDomainEstimatorBase(
       ComplexGridFunction &e_, ComplexGridFunction &j_src_,
       std::shared_ptr<ComplexMaxwellResidualFields> fields_,
       Coefficient &epsilon_real_, Coefficient &epsilon_imag_,
       Coefficient &mu_inv_, real_t omega_, int order_);
    void Prepare(ErrorEstimatorContext &context) override;
-   ComplexMaxwellResidualCurlDomainEstimator(ComplexGridFunction &e_,
+   ComplexMaxwellResidualDomainEstimatorBase(ComplexGridFunction &e_,
                                              ComplexGridFunction &j_src_,
-                                             ComplexGridFunction &h_, ComplexGridFunction &d_,
+                                             ComplexGridFunction &h_,
+                                             ComplexGridFunction &d_,
                                              Coefficient &epsilon_real_,
                                              Coefficient &epsilon_imag_,
                                              Coefficient &mu_inv_, real_t omega_, int order_);
+};
+
+/** @brief Curl-residual volume term of ComplexMaxwellResidualEstimator.
+
+    @a h and @a d are discontinuous complex fields representing
+    $\mu^{-1}\curl E$ and $\epsilon E$. Returned values are squared
+    local indicator contributions. */
+class ComplexMaxwellResidualCurlDomainEstimator
+   : public ComplexMaxwellResidualDomainEstimatorBase
+{
+public:
+   using ComplexMaxwellResidualDomainEstimatorBase::ComplexMaxwellResidualDomainEstimatorBase;
    real_t GetElementError(ElementTransformation &Tr) override;
 };
 
 /** @brief Divergence-residual volume term of ComplexMaxwellResidualEstimator. */
 class ComplexMaxwellResidualDivergenceDomainEstimator final
-   : public ComplexMaxwellResidualCurlDomainEstimator
+   : public ComplexMaxwellResidualDomainEstimatorBase
 {
 public:
-   using ComplexMaxwellResidualCurlDomainEstimator::ComplexMaxwellResidualCurlDomainEstimator;
+   using ComplexMaxwellResidualDomainEstimatorBase::ComplexMaxwellResidualDomainEstimatorBase;
    real_t GetElementError(ElementTransformation &Tr) override;
+};
+
+/** @brief Shared reconstruction state for complex Maxwell face terms. */
+class ComplexMaxwellResidualFaceEstimatorBase : public FaceErrorEstimator,
+   protected MaxwellResidualEstimatorBase
+{
+protected:
+   ComplexGridFunction *h, *d;
+   std::shared_ptr<ComplexMaxwellResidualFields> fields;
+
+   ComplexMaxwellResidualFaceEstimatorBase(ComplexGridFunction *h_,
+                                           ComplexGridFunction *d_)
+      : h(h_), d(d_) { }
+   explicit ComplexMaxwellResidualFaceEstimatorBase(
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_)
+      : h(nullptr), d(nullptr), fields(std::move(fields_))
+   { MFEM_VERIFY(fields, "Complex Maxwell residual fields must be provided."); }
+
+   ComplexGridFunction &CurlFlux()
+   { return fields ? fields->CurlFlux() : *h; }
+   ComplexGridFunction &D()
+   { return fields ? fields->D() : *d; }
+   const ComplexGridFunction &D() const
+   { return fields ? fields->D() : *d; }
+   void Prepare(ErrorEstimatorContext &context) override;
+   static void ExchangeFieldFaceNbrData(ComplexGridFunction &field);
 };
 
 /** @brief Tangential curl-flux jump term of ComplexMaxwellResidualEstimator.
@@ -486,39 +628,19 @@ public:
     $\mathcal{H}_h\approx\mu^{-1}\curl E$, preserving equivalence with
     ComplexMaxwellResidualEstimator and sharing it with the related complex
     residual terms. */
-class ComplexMaxwellResidualTangentialFaceEstimator : public FaceErrorEstimator,
-   protected MaxwellResidualEstimatorBase
+class ComplexMaxwellResidualTangentialFaceEstimator final
+   : public ComplexMaxwellResidualFaceEstimatorBase
 {
-protected:
-   ComplexGridFunction *h, *d;
-   std::shared_ptr<ComplexMaxwellResidualFields> fields;
-   MatrixCoefficient *epsilon_real, *epsilon_imag;
-   Coefficient *epsilon_real_scalar, *epsilon_imag_scalar;
+private:
    Coefficient &mu_inv;
-   real_t omega;
    int order;
-   real_t EpsilonMin(ElementTransformation &trans,
-                     const IntegrationPoint &ip) const;
 
 public:
    ComplexMaxwellResidualTangentialFaceEstimator(ComplexGridFunction &h_,
-                                                 ComplexGridFunction &d_,
-                                                 MatrixCoefficient &epsilon_real_,
-                                                 MatrixCoefficient &epsilon_imag_,
-                                                 Coefficient &mu_inv_, real_t omega_, int order_);
+                                                 Coefficient &mu_inv_, int order_);
    ComplexMaxwellResidualTangentialFaceEstimator(
-      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
-      MatrixCoefficient &epsilon_real_, MatrixCoefficient &epsilon_imag_,
-      Coefficient &mu_inv_, real_t omega_, int order_);
-   ComplexMaxwellResidualTangentialFaceEstimator(
-      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
-      Coefficient &epsilon_real_, Coefficient &epsilon_imag_,
-      Coefficient &mu_inv_, real_t omega_, int order_);
-   void Prepare(ErrorEstimatorContext &context) override;
-   ComplexMaxwellResidualTangentialFaceEstimator(ComplexGridFunction &h_,
-                                                 ComplexGridFunction &d_, Coefficient &epsilon_real_,
-                                                 Coefficient &epsilon_imag_, Coefficient &mu_inv_,
-                                                 real_t omega_, int order_);
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_, Coefficient &mu_inv_,
+      int order_);
    void GetFaceError(FaceElementTransformations &Tr, real_t &error1,
                      real_t &error2) override;
    void ExchangeFaceNbrData() override;
@@ -531,12 +653,32 @@ public:
     the face. This preserves equivalence with ComplexMaxwellResidualEstimator
     and shares the reconstruction with the related complex residual terms. */
 class ComplexMaxwellResidualNormalFaceEstimator final
-   : public ComplexMaxwellResidualTangentialFaceEstimator
+   : public ComplexMaxwellResidualFaceEstimatorBase
 {
+private:
+   MatrixCoefficient *epsilon_real;
+   Coefficient *epsilon_real_scalar;
+   real_t omega;
+   int order;
+   real_t EpsilonMin(ElementTransformation &trans,
+                     const IntegrationPoint &ip) const;
+
 public:
-   using ComplexMaxwellResidualTangentialFaceEstimator::ComplexMaxwellResidualTangentialFaceEstimator;
+   ComplexMaxwellResidualNormalFaceEstimator(ComplexGridFunction &d_,
+                                             MatrixCoefficient &epsilon_real_,
+                                             real_t omega_, int order_);
+   ComplexMaxwellResidualNormalFaceEstimator(ComplexGridFunction &d_,
+                                             Coefficient &epsilon_real_,
+                                             real_t omega_, int order_);
+   ComplexMaxwellResidualNormalFaceEstimator(
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
+      MatrixCoefficient &epsilon_real_, real_t omega_, int order_);
+   ComplexMaxwellResidualNormalFaceEstimator(
+      std::shared_ptr<ComplexMaxwellResidualFields> fields_,
+      Coefficient &epsilon_real_, real_t omega_, int order_);
    void GetFaceError(FaceElementTransformations &Tr, real_t &error1,
                      real_t &error2) override;
+   void ExchangeFaceNbrData() override;
 };
 
 /** @brief Check a complex tangential-electric (Dirichlet) boundary trace.
