@@ -2052,6 +2052,40 @@ bool L2ProjectionGridTransfer::SupportsBackwardsOperator() const
 }
 
 
+namespace
+{
+/// Return true if TensorProductPRefinementTransferOperator can be used to
+/// transfer between @a lFESpace and @a hFESpace: both spaces are continuous
+/// and use tensor-product elements on a 2D or 3D mesh, the high-order element
+/// is nodal (its DOFs are point values at its nodes), and the 1D DOF counts fit
+/// within the kernel limits of the active backend.
+bool SupportsTensorProductPTransfer(const FiniteElementSpace& lFESpace,
+                                    const FiniteElementSpace& hFESpace)
+{
+   const int dim = lFESpace.GetMesh()->Dimension();
+   if (dim != 2 && dim != 3) { return false; }
+
+   constexpr int continuous = FiniteElementCollection::CONTINUOUS;
+   if (lFESpace.FEColl()->GetContType() != continuous ||
+       hFESpace.FEColl()->GetContType() != continuous)
+   {
+      return false;
+   }
+
+   const FiniteElement* lfe = lFESpace.GetTypicalFE();
+   const FiniteElement* hfe = hFESpace.GetTypicalFE();
+   if (!dynamic_cast<const TensorBasisElement*>(lfe)
+       || !dynamic_cast<const NodalTensorFiniteElement*>(hfe))
+   {
+      return false;
+   }
+
+   const DeviceDofQuadLimits& limits = DeviceDofQuadLimits::Get();
+   return lfe->GetOrder() + 1 <= limits.MAX_D1D
+          && hfe->GetOrder() + 1 <= limits.MAX_Q1D;
+}
+} // anonymous namespace
+
 TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
@@ -2068,14 +2102,8 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
       P.SetOperatorOwner(false);
       opr = P.Ptr();
    }
-   else if (!is_trace_space
-            && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetTypicalFE())
-            && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetTypicalFE())
-            && !isvar_order
-            && (hFESpace_.FEColl()->GetContType() ==
-                mfem::FiniteElementCollection::CONTINUOUS ||
-                hFESpace_.FEColl()->GetContType() ==
-                mfem::FiniteElementCollection::DISCONTINUOUS))
+   else if (!is_trace_space && !isvar_order
+            && SupportsTensorProductPTransfer(lFESpace_, hFESpace_))
    {
       opr = new TensorProductPRefinementTransferOperator(lFESpace_, hFESpace_);
    }
@@ -2523,6 +2551,12 @@ TensorProductPRefinementTransferOperator(
    Q1D = maps.nqpt;
    B = maps.B;
    Bt = maps.Bt;
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "TensorProductPRefinementTransferOperator requires a 2D or 3D "
+               "mesh");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D &&
+               Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
+               "Element orders exceed the limits of the active backend");
    vdim = lFESpace.GetVDim();
    MFEM_VERIFY(vdim == hFESpace.GetVDim(),
                "low- and high-order spaces must have the same vector dimension");
