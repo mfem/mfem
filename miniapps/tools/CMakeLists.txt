@@ -59,7 +59,7 @@ if (MFEM_USE_ALGOIM)
     MAIN cut-quadrature.cpp
     LIBRARIES mfem)
   if (MFEM_ENABLE_TESTING)
-    add_test(NAME cut-quadrature COMMAND cut-quadrature)
+    add_test(NAME cut-quadrature COMMAND cut-quadrature -no-vis)
   endif()
 endif()
 
