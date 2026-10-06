@@ -24,6 +24,7 @@
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
 //    mpirun -np 4 ex9p -ea
+//    mpirun -np 4 ex9p -ea --mass-storage full
 //    mpirun -np 4 ex9p -fa
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh
 //    mpirun -np 4 ex9p -pa -m ../data/periodic-cube.mesh -d cuda
@@ -46,6 +47,7 @@
 //               are also illustrated.
 
 #include "mfem.hpp"
+#include <cstring>
 #include <fstream>
 #include <iostream>
 
@@ -214,15 +216,17 @@ class FE_Evolution : public TimeDependentOperator
 private:
    OperatorHandle M, K;
    const Vector &b;
-   Solver *M_prec;
-   CGSolver M_solver;
+   Solver *mass_solver; ///< Selected mass solver; not owned.
+   Solver *owned_mass_operator; ///< Preconditioner or direct solver; owned.
+   CGSolver iterative_mass_solver;
    DG_Solver *dg_solver;
 
    mutable Vector z;
 
 public:
    FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_, const Vector &b_,
-                PrecType prec_type);
+                PrecType prec_type,
+                DGMassInverse::MassStorage mass_storage);
 
    void Mult(const Vector &x, Vector &y) const override;
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
@@ -248,6 +252,7 @@ int main(int argc, char *argv[])
    bool pa = false;
    bool ea = false;
    bool fa = false;
+   const char *mass_storage = "packed";
    const char *device_config = "cpu";
    int ode_solver_type = 4;
    real_t t_final = 10.0;
@@ -284,6 +289,8 @@ int main(int argc, char *argv[])
                   "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
                   "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&mass_storage, "-ms", "--mass-storage",
+                  "Local mass storage: packed or full.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
@@ -323,6 +330,9 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   MFEM_VERIFY(strcmp(mass_storage, "packed") == 0 ||
+               strcmp(mass_storage, "full") == 0,
+               "--mass-storage must be packed or full.");
    if (Mpi::Root())
    {
       args.PrintOptions(cout);
@@ -540,7 +550,10 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*m, *k, *B, prec_type);
+   const auto mass_storage_type =
+      strcmp(mass_storage, "full") == 0 ?
+      DGMassInverse::MassStorage::Full : DGMassInverse::MassStorage::Packed;
+   FE_Evolution adv(*m, *k, *B, prec_type, mass_storage_type);
    using ImplicitVariableType = FE_Evolution::ImplicitVariableType;
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
@@ -638,9 +651,10 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
-                           const Vector &b_, PrecType prec_type)
+                           const Vector &b_, PrecType prec_type,
+                           DGMassInverse::MassStorage mass_storage)
    : TimeDependentOperator(M_.ParFESpace()->GetTrueVSize()), b(b_),
-     M_solver(M_.ParFESpace()->GetComm()),
+     iterative_mass_solver(M_.ParFESpace()->GetComm()),
      z(height)
 {
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
@@ -654,30 +668,43 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
       K.Reset(&K_, false);
    }
 
-   M_solver.SetOperator(*M);
-
    Array<int> ess_tdof_list;
    if (M_.GetAssemblyLevel()==AssemblyLevel::LEGACY)
    {
       HypreParMatrix &M_mat = *M.As<HypreParMatrix>();
       HypreParMatrix &K_mat = *K.As<HypreParMatrix>();
       HypreSmoother *hypre_prec = new HypreSmoother(M_mat, HypreSmoother::Jacobi);
-      M_prec = hypre_prec;
+      owned_mass_operator = hypre_prec;
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(*M);
 
       dg_solver = new DG_Solver(M_mat, K_mat, *M_.FESpace(), prec_type);
    }
+   else if (M_.GetAssemblyLevel()==AssemblyLevel::ELEMENT)
+   {
+      owned_mass_operator = new DGMassInverse(
+         *M_.FESpace(), BasisType::GaussLobatto,
+         mass_storage);
+      mass_solver = owned_mass_operator;
+      dg_solver = NULL;
+   }
    else
    {
-      M_prec = new OperatorJacobiSmoother(M_, ess_tdof_list);
+      owned_mass_operator = new OperatorJacobiSmoother(M_, ess_tdof_list);
+      mass_solver = &iterative_mass_solver;
+      iterative_mass_solver.SetOperator(*M);
       dg_solver = NULL;
    }
 
-   M_solver.SetPreconditioner(*M_prec);
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-9);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
-   M_solver.SetPrintLevel(0);
+   if (mass_solver != owned_mass_operator)
+   {
+      iterative_mass_solver.SetPreconditioner(*owned_mass_operator);
+      iterative_mass_solver.iterative_mode = false;
+      iterative_mass_solver.SetRelTol(1e-9);
+      iterative_mass_solver.SetAbsTol(0.0);
+      iterative_mass_solver.SetMaxIter(100);
+      iterative_mass_solver.SetPrintLevel(0);
+   }
 }
 
 // Solve the equation:
@@ -686,6 +713,8 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 //    (M - dt*K) d = K*u + b
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
+   MFEM_VERIFY(dg_solver != NULL,
+               "Implicit time integration is not supported with non-legacy assembly");
    // Construct current right-hand side for stage state vs. slope solve
    real_t c = 1.0;
    if (ImplicitVarTypeIsState())
@@ -709,12 +738,12 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // y = M^{-1} (K x + b)
    K->Mult(x, z);
    z += b;
-   M_solver.Mult(z, y);
+   mass_solver->Mult(z, y);
 }
 
 FE_Evolution::~FE_Evolution()
 {
-   delete M_prec;
+   delete owned_mass_operator;
    delete dg_solver;
 }
 
