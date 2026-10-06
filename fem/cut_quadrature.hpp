@@ -197,6 +197,10 @@ struct CutQuadratureCapabilities
 
    /** Check advertised support for the request and polynomial metadata.
        This does not validate coefficient data or guarantee successful generation.
+       @param request Quadrature order, measures, region, weight policy, execution
+                      mode, and normal requirements to check.
+       @param level_set Reference geometry, polynomial basis, and degree describing
+                        the input level set.
        @param batch Select batch support instead of scalar support. */
    bool Supports(const CutQuadratureRequest &request,
                  const ElementLevelSetDescriptor &level_set,

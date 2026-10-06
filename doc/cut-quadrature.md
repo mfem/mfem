@@ -4,6 +4,77 @@ This note defines the contracts implemented by MFEM's backend-neutral cut
 quadrature API.  The first backend uses Algoim commit
 `da1d81499608e1d499695d255f0233140b8c81e8`.
 
+## Building and running the miniapp
+
+The MFEM Algoim interface uses header-only `algoim/quadrature_general.hpp`.
+It requires C++17 and does not require building Algoim or installing Blitz++.
+Other enabled MFEM dependencies, such as RAJA or Umpire, may require C++20.
+
+With `mfem/` and `algoim/` as sibling source directories, obtain the supported
+Algoim revision from their parent directory:
+
+```sh
+git clone https://github.com/algoim/algoim.git algoim
+git -C algoim checkout da1d81499608e1d499695d255f0233140b8c81e8
+```
+
+For an existing Algoim checkout, only the checkout command is needed. The
+`ALGOIM_DIR` setting must name the checkout root containing
+`algoim/quadrature_general.hpp`, rather than the nested header directory.
+
+From the same parent directory, configure MFEM with Algoim enabled and build
+the miniapp:
+
+```sh
+cmake -S mfem -B build -DMFEM_USE_ALGOIM=ON -DALGOIM_DIR="$PWD/algoim"
+cmake --build build --target cut-quadrature --parallel 4
+```
+
+Include the remaining options and dependency paths needed by your normal MFEM
+configuration, or set them in `mfem/config/user.cmake`. The commands also work
+with an existing `build/` directory configured for this MFEM source tree.
+`MFEM_ENABLE_MINIAPPS=ON` is not needed when building the named target explicitly.
+For an MFEM library configured with GNU make, build the tool from
+`mfem/miniapps/tools` with `make cut-quadrature`; enable `MFEM_USE_ALGOIM=YES`
+and set `ALGOIM_DIR` when configuring the library.
+
+The source is `miniapps/tools/cut-quadrature.cpp`. For the CMake layout above:
+
+```sh
+./build/miniapps/tools/cut-quadrature -h
+./build/miniapps/tools/cut-quadrature -no-vis
+./build/miniapps/tools/cut-quadrature -r 2 -no-vis
+./build/miniapps/tools/cut-quadrature -r 5 -no-vis
+./build/miniapps/tools/cut-quadrature -r 1 -o 3 -qo 8 -c 0.3 -no-vis
+```
+
+The tool uses MFEM's `OptionsParser` and prints the selected settings:
+
+| Option | Purpose | Default |
+| --- | --- | --- |
+| `-h`, `--help` | Print usage and exit | |
+| `-m`, `--mesh` | Read a nonempty planar quadrilateral mesh | Generated two-element unit square |
+| `-r`, `--refine` | Number of uniform refinements, at least zero | `0` |
+| `-o`, `--order` | Finite-element and coefficient interpolation degree, at least one | `2` |
+| `-qo`, `--quadrature-order` | Target integration order, from 0 through 19 | `6` |
+| `-c`, `--cut-position` | Set the level set to `phi(x,y) = x - c` | `0.45` |
+| `-d`, `--device` | Configure MFEM's device; Algoim construction still runs on the host | `cpu` |
+| `-vis`, `--visualization` / `-no-vis`, `--no-visualization` | Enable or disable initial level-set visualization in GLVis | Disabled |
+| `-p`, `--visualization-port` | GLVis server port on localhost | `19916` |
+
+For visualization, start a GLVis server separately and use
+`./build/miniapps/tools/cut-quadrature -vis -p 19916`. GLVis is optional and is
+not needed for construction or integration.
+
+The reported measures are totals over all elements, rather than values for
+element 0. With the default mesh and cut position, refinement should leave
+total volume near `0.45` and total interface length near `1`. Deformation scales
+the mesh by `1.2` in x and `0.8` in y while reusing the reference rules, giving
+deformed total volume near `0.432` and interface length near `0.8`. Element and
+quadrature-point counts change with refinement. Interfaces coincident with
+shared element faces are counted per element; the tool does not deduplicate
+those faces.
+
 ## API decisions
 
 `CutMeasure` is a scoped enum.  MFEM supplies explicit `operator|` and
@@ -23,8 +94,9 @@ Batch callers record both a per-element descriptor and extraction status.
 outcomes.  Any other value makes the whole call `InvalidBatch`; it is never
 passed through as an element result.  Descriptors of successful extractions
 must match the declared descriptor, otherwise the call is
-`HeterogeneousBatch`.  Coefficients use a structure-of-arrays layout: each
-matrix column is one element and each row one fixed descriptor coefficient.
+`HeterogeneousBatch`. Each coefficient matrix column is one element and each
+row one fixed descriptor coefficient. `DenseMatrix` stores columns contiguously,
+so all coefficients for an element are adjacent in memory.
 
 Scalar calls check `InvalidRequest` and `UnsupportedExecutionMode`, in that
 order, before inspecting element data.  Batch calls check `InvalidRequest`,
@@ -103,8 +175,9 @@ workspace per thread.
 
 ## Rules, mapping, and future backends
 
-Packed points and optional normals are structure-of-arrays matrices (`dim` by
-total point count); offsets delimit elements.  Reference rules never change
+Packed points and optional normals are column-major matrices (`dim` by
+total point count), with one point or normal per column; offsets delimit
+elements. Reference rules never change
 when a mesh deforms.  Volume consumers multiply each reference weight by
 `Tr.Weight()` exactly once.  Surface consumers additionally multiply by
 `norm(J^{-T} n_ref)` and obtain the unit physical normal by normalizing that
