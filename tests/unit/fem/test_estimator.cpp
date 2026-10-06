@@ -767,6 +767,13 @@ void ConstantElectricField(const Vector &, Vector &value)
    value(0) = 1.0;
 }
 
+void ConstantTangentialField(const Vector &, Vector &value)
+{
+   value.SetSize(3);
+   value = 0.0;
+   value(1) = 1.0;
+}
+
 void ConstantElectricField2D(const Vector &, Vector &value)
 {
    value.SetSize(2);
@@ -833,6 +840,259 @@ TEST_CASE("General error estimator accumulates all serial contributions",
    REQUIRE(errors(0) == MFEM_Approx(std::sqrt(30.0)));
    REQUIRE(errors(1) == MFEM_Approx(std::sqrt(31.0)));
    REQUIRE(estimator.GetTotalError() == MFEM_Approx(std::sqrt(61.0)));
+}
+
+TEST_CASE("Complex ZZ estimator combines real and imaginary indicators",
+          "[ComplexZienkiewiczZhuEstimator]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   ND_FECollection nd_fec(1, 3);
+   FiniteElementSpace fes(&mesh, &nd_fec);
+   ComplexGridFunction electric(&fes);
+   VectorFunctionCoefficient real_field(3, DivergentElectricField);
+   VectorFunctionCoefficient imag_field(3, ConstantElectricField);
+   electric.ProjectCoefficient(real_field, imag_field);
+
+   ConstantCoefficient mu_inv(1.0);
+   CurlCurlIntegrator integrator(mu_inv);
+   ND_FECollection flux_fec(1, 3);
+   FiniteElementSpace flux_fes(&mesh, &flux_fec);
+   ComplexZienkiewiczZhuEstimator complex_zz(integrator, electric, flux_fes);
+   const Vector &complex_errors = complex_zz.GetLocalErrors();
+
+   ZienkiewiczZhuEstimator real_zz(
+      integrator, electric.real(), new FiniteElementSpace(&mesh, &flux_fec));
+   ZienkiewiczZhuEstimator imag_zz(
+      integrator, electric.imag(), new FiniteElementSpace(&mesh, &flux_fec));
+   const Vector &real_errors = real_zz.GetLocalErrors();
+   const Vector &imag_errors = imag_zz.GetLocalErrors();
+   REQUIRE(complex_errors.Size() == real_errors.Size());
+   for (int i = 0; i < complex_errors.Size(); i++)
+   {
+      REQUIRE(complex_errors(i) ==
+              MFEM_Approx(hypot(real_errors(i), imag_errors(i))));
+   }
+   REQUIRE(complex_zz.GetTotalError() == MFEM_Approx(complex_errors.Norml2()));
+}
+
+TEST_CASE("Complex ZZ estimator supports distinct recovery spaces",
+          "[ComplexZienkiewiczZhuEstimator]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   ND_FECollection nd_fec(1, 3), flux_fec(1, 3);
+   FiniteElementSpace fes(&mesh, &nd_fec), shared_flux_fes(&mesh, &flux_fec);
+   ComplexGridFunction electric(&fes);
+   VectorFunctionCoefficient real_field(3, DivergentElectricField);
+   VectorFunctionCoefficient imag_field(3, ConstantElectricField);
+   electric.ProjectCoefficient(real_field, imag_field);
+
+   ConstantCoefficient mu_inv(1.0);
+   CurlCurlIntegrator integrator(mu_inv);
+   ComplexZienkiewiczZhuEstimator shared_spaces(integrator, electric,
+                                                 shared_flux_fes);
+   ComplexZienkiewiczZhuEstimator distinct_spaces(
+      integrator, electric, new FiniteElementSpace(&mesh, &flux_fec),
+      new FiniteElementSpace(&mesh, &flux_fec));
+   const Vector &shared_errors = shared_spaces.GetLocalErrors();
+   const Vector &distinct_errors = distinct_spaces.GetLocalErrors();
+
+   REQUIRE(distinct_errors.Size() == shared_errors.Size());
+   for (int i = 0; i < distinct_errors.Size(); i++)
+   {
+      REQUIRE(distinct_errors(i) == MFEM_Approx(shared_errors(i)));
+   }
+   REQUIRE(distinct_spaces.GetTotalError() ==
+           MFEM_Approx(shared_spaces.GetTotalError()));
+}
+
+TEST_CASE("Nedelec normal-jump estimator supports scalar and matrix weights",
+          "[GeneralErrorEstimator][NedelecNormalJumpErrorEstimator]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   mesh.GetElement(1)->SetAttribute(2);
+   ND_FECollection fec(1, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction x(&fes);
+   VectorFunctionCoefficient constant_x(3, ConstantElectricField);
+   x.ProjectCoefficient(constant_x);
+
+   Vector scalar_values(2);
+   scalar_values(0) = 1.0;
+   scalar_values(1) = 3.0;
+   PWConstCoefficient scalar_a(scalar_values);
+   GeneralErrorEstimator scalar_estimator(mesh);
+   scalar_estimator.AddInteriorFaceEstimator(
+      new NedelecNormalJumpErrorEstimator(x, scalar_a, 0.25));
+   const Vector &scalar_errors = scalar_estimator.GetLocalErrors();
+   REQUIRE(scalar_errors.Size() == 2);
+   REQUIRE(scalar_errors(0) == MFEM_Approx(1.0));
+   REQUIRE(scalar_errors(1) == MFEM_Approx(1.0));
+   REQUIRE(scalar_estimator.GetTotalError() == MFEM_Approx(sqrt(2.0)));
+
+   GeneralErrorEstimator coefficient_scaled_estimator(mesh);
+   coefficient_scaled_estimator.AddInteriorFaceEstimator(
+      new NedelecNormalJumpErrorEstimator(
+         x, scalar_a, 1.0, FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+   const Vector &coefficient_scaled_errors =
+      coefficient_scaled_estimator.GetLocalErrors();
+   const real_t h0 = mesh.GetElementSize(0, 0);
+   const real_t h1 = mesh.GetElementSize(1, 0);
+   const int p0 = std::max(1, fes.GetFE(0)->GetOrder());
+   const int p1 = std::max(1, fes.GetFE(1)->GetOrder());
+   REQUIRE(coefficient_scaled_errors(0) == MFEM_Approx(sqrt(4.0 * h0 / p0)));
+   REQUIRE(coefficient_scaled_errors(1) ==
+           MFEM_Approx(sqrt(4.0 * h1 / (3.0 * p1))));
+   REQUIRE(coefficient_scaled_estimator.GetTotalError() ==
+           MFEM_Approx(sqrt(4.0 * h0 / p0 + 4.0 * h1 / (3.0 * p1))));
+
+   GeneralErrorEstimator unit_coefficient_estimator(mesh);
+   unit_coefficient_estimator.AddInteriorFaceEstimator(
+      new NedelecNormalJumpErrorEstimator(
+         x, 1.0, FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+   const Vector &unit_coefficient_errors =
+      unit_coefficient_estimator.GetLocalErrors();
+   REQUIRE(unit_coefficient_errors.Norml2() == MFEM_Approx(0.0).margin(1e-12));
+   REQUIRE(unit_coefficient_estimator.GetTotalError() ==
+           MFEM_Approx(0.0).margin(1e-12));
+
+   DenseMatrix matrix1(3), matrix2(3);
+   matrix1 = 0.0;
+   matrix2 = 0.0;
+   matrix1(0, 0) = 2.0;
+   matrix2(0, 0) = 5.0;
+   MatrixConstantCoefficient matrix_coefficient1(matrix1);
+   MatrixConstantCoefficient matrix_coefficient2(matrix2);
+   Array<int> attributes(2);
+   attributes[0] = 1;
+   attributes[1] = 2;
+   Array<MatrixCoefficient *> matrix_coefficients(2);
+   matrix_coefficients[0] = &matrix_coefficient1;
+   matrix_coefficients[1] = &matrix_coefficient2;
+   PWMatrixCoefficient matrix_a(3, attributes, matrix_coefficients);
+   GeneralErrorEstimator matrix_estimator(mesh);
+   matrix_estimator.AddInteriorFaceEstimator(
+      new NedelecNormalJumpErrorEstimator(x, matrix_a, 2.0));
+   const Vector &matrix_errors = matrix_estimator.GetLocalErrors();
+   REQUIRE(matrix_errors.Size() == 2);
+   REQUIRE(matrix_errors(0) == MFEM_Approx(sqrt(18.0)));
+   REQUIRE(matrix_errors(1) == MFEM_Approx(sqrt(18.0)));
+   REQUIRE(matrix_estimator.GetTotalError() == MFEM_Approx(6.0));
+}
+
+TEST_CASE("RT tangential-jump estimator supports scalar and matrix weights",
+          "[GeneralErrorEstimator][RTTangentialJumpErrorEstimator]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   mesh.GetElement(1)->SetAttribute(2);
+   RT_FECollection fec(1, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction x(&fes);
+   VectorFunctionCoefficient constant_tangent(3, ConstantTangentialField);
+   x.ProjectCoefficient(constant_tangent);
+
+   Vector scalar_values(2);
+   scalar_values(0) = 1.0;
+   scalar_values(1) = 3.0;
+   PWConstCoefficient scalar_a(scalar_values);
+   GeneralErrorEstimator scalar_estimator(mesh);
+   scalar_estimator.AddInteriorFaceEstimator(
+      new RTTangentialJumpErrorEstimator(x, scalar_a, 0.25));
+   const Vector &scalar_errors = scalar_estimator.GetLocalErrors();
+   REQUIRE(scalar_errors.Size() == 2);
+   REQUIRE(scalar_errors(0) == MFEM_Approx(1.0));
+   REQUIRE(scalar_errors(1) == MFEM_Approx(1.0));
+   REQUIRE(scalar_estimator.GetTotalError() == MFEM_Approx(sqrt(2.0)));
+
+   GeneralErrorEstimator coefficient_scaled_estimator(mesh);
+   coefficient_scaled_estimator.AddInteriorFaceEstimator(
+      new RTTangentialJumpErrorEstimator(
+         x, scalar_a, 1.0, FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+   const Vector &coefficient_scaled_errors =
+      coefficient_scaled_estimator.GetLocalErrors();
+   const real_t h0 = mesh.GetElementSize(0, 0);
+   const real_t h1 = mesh.GetElementSize(1, 0);
+   const int p0 = std::max(1, fes.GetFE(0)->GetOrder());
+   const int p1 = std::max(1, fes.GetFE(1)->GetOrder());
+   REQUIRE(coefficient_scaled_errors(0) == MFEM_Approx(sqrt(4.0 * h0 / p0)));
+   REQUIRE(coefficient_scaled_errors(1) ==
+           MFEM_Approx(sqrt(4.0 * h1 / (3.0 * p1))));
+   REQUIRE(coefficient_scaled_estimator.GetTotalError() ==
+           MFEM_Approx(sqrt(4.0 * h0 / p0 + 4.0 * h1 / (3.0 * p1))));
+
+   GeneralErrorEstimator unit_coefficient_estimator(mesh);
+   unit_coefficient_estimator.AddInteriorFaceEstimator(
+      new RTTangentialJumpErrorEstimator(
+         x, 1.0, FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+   const Vector &unit_coefficient_errors =
+      unit_coefficient_estimator.GetLocalErrors();
+   REQUIRE(unit_coefficient_errors.Norml2() == MFEM_Approx(0.0).margin(1e-12));
+   REQUIRE(unit_coefficient_estimator.GetTotalError() ==
+           MFEM_Approx(0.0).margin(1e-12));
+
+   DenseMatrix matrix1(3), matrix2(3);
+   matrix1 = 0.0;
+   matrix2 = 0.0;
+   matrix1(1, 1) = 2.0;
+   matrix2(1, 1) = 5.0;
+   MatrixConstantCoefficient matrix_coefficient1(matrix1);
+   MatrixConstantCoefficient matrix_coefficient2(matrix2);
+   Array<int> attributes(2);
+   attributes[0] = 1;
+   attributes[1] = 2;
+   Array<MatrixCoefficient *> matrix_coefficients(2);
+   matrix_coefficients[0] = &matrix_coefficient1;
+   matrix_coefficients[1] = &matrix_coefficient2;
+   PWMatrixCoefficient matrix_a(3, attributes, matrix_coefficients);
+   GeneralErrorEstimator matrix_estimator(mesh);
+   matrix_estimator.AddInteriorFaceEstimator(
+      new RTTangentialJumpErrorEstimator(x, matrix_a, 2.0));
+   const Vector &matrix_errors = matrix_estimator.GetLocalErrors();
+   REQUIRE(matrix_errors.Size() == 2);
+   REQUIRE(matrix_errors(0) == MFEM_Approx(sqrt(18.0)));
+   REQUIRE(matrix_errors(1) == MFEM_Approx(sqrt(18.0)));
+   REQUIRE(matrix_estimator.GetTotalError() == MFEM_Approx(6.0));
+}
+
+TEST_CASE("Weighted face-jump estimators support embedded R1D and R2D fields",
+          "[GeneralErrorEstimator][NedelecNormalJumpErrorEstimator]"
+          "[RTTangentialJumpErrorEstimator]")
+{
+   VectorFunctionCoefficient field(3, ConstantElectricFieldR2D);
+
+   auto test_mesh = [&](Mesh &mesh, FiniteElementCollection &nd_fec,
+                        FiniteElementCollection &rt_fec)
+   {
+      FiniteElementSpace nd_fes(&mesh, &nd_fec);
+      GridFunction nd_field(&nd_fes);
+      nd_field.ProjectCoefficient(field);
+      GeneralErrorEstimator normal_estimator(mesh);
+      normal_estimator.AddInteriorFaceEstimator(
+         new NedelecNormalJumpErrorEstimator(nd_field));
+      const Vector &normal_errors = normal_estimator.GetLocalErrors();
+      REQUIRE(normal_errors.Norml2() == MFEM_Approx(0.0).margin(1e-12));
+      REQUIRE(normal_estimator.GetTotalError() == MFEM_Approx(0.0).margin(1e-12));
+
+      FiniteElementSpace rt_fes(&mesh, &rt_fec);
+      GridFunction rt_field(&rt_fes);
+      rt_field.ProjectCoefficient(field);
+      GeneralErrorEstimator tangential_estimator(mesh);
+      tangential_estimator.AddInteriorFaceEstimator(
+         new RTTangentialJumpErrorEstimator(rt_field));
+      const Vector &tangential_errors = tangential_estimator.GetLocalErrors();
+      REQUIRE(tangential_errors.Norml2() == MFEM_Approx(0.0).margin(1e-12));
+      REQUIRE(tangential_estimator.GetTotalError() ==
+              MFEM_Approx(0.0).margin(1e-12));
+   };
+
+   Mesh mesh1d = Mesh::MakeCartesian1D(2);
+   ND_R1D_FECollection nd_r1d(1, 1);
+   RT_R1D_FECollection rt_r1d(1, 1);
+   test_mesh(mesh1d, nd_r1d, rt_r1d);
+
+   Mesh mesh2d = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   ND_R2D_FECollection nd_r2d(1, 2);
+   RT_R2D_FECollection rt_r2d(1, 2);
+   test_mesh(mesh2d, nd_r2d, rt_r2d);
 }
 
 TEST_CASE("Maxwell residual estimators reproduce the monolithic serial indicator",
@@ -1147,15 +1407,137 @@ TEST_CASE("Complex Maxwell boundary estimators accept nonhomogeneous traces",
    GeneralErrorEstimator dirichlet(mesh);
    dirichlet.AddBdrFaceEstimator(new ComplexMaxwellDirichletBCErrorEstimator(
                                     electric, trace, zero));
+   dirichlet.GetLocalErrors();
    REQUIRE(dirichlet.GetTotalError() == MFEM_Approx(0.0).margin(1e-12));
 
    GeneralErrorEstimator neumann(mesh);
    neumann.AddBdrFaceEstimator(new ComplexMaxwellNeumannBCErrorEstimator(
                                   magnetic_flux, trace, zero));
+   neumann.GetLocalErrors();
    REQUIRE(neumann.GetTotalError() == MFEM_Approx(0.0).margin(1e-12));
 }
 
 #ifdef MFEM_USE_MPI
+
+TEST_CASE("Nedelec normal-jump estimator processes parallel shared faces",
+          "[Parallel][GeneralErrorEstimator][NedelecNormalJumpErrorEstimator]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+
+   Mesh serial_mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   serial_mesh.GetElement(1)->SetAttribute(2);
+   Array<int> partition(2);
+   partition[0] = 0;
+   partition[1] = 1;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partition.GetData());
+   ND_FECollection fec(1, 3);
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction x(&fes);
+   VectorFunctionCoefficient constant_x(3, ConstantElectricField);
+   x.ProjectCoefficient(constant_x);
+
+   Vector scalar_values(2);
+   scalar_values(0) = 1.0;
+   scalar_values(1) = 3.0;
+   PWConstCoefficient a(scalar_values);
+   GeneralErrorEstimator estimator(mesh);
+   estimator.AddInteriorFaceEstimator(
+      new NedelecNormalJumpErrorEstimator(x, a, 0.25));
+   const Vector &errors = estimator.GetLocalErrors();
+   REQUIRE(errors.Size() == 1);
+   REQUIRE(errors(0) == MFEM_Approx(1.0));
+   REQUIRE(estimator.GetTotalError() == MFEM_Approx(sqrt(2.0)));
+
+   ParGridFunction h_over_p_field(&fes);
+   h_over_p_field.ProjectCoefficient(constant_x);
+   GeneralErrorEstimator h_over_p(mesh);
+   h_over_p.AddInteriorFaceEstimator(new NedelecNormalJumpErrorEstimator(
+                                          h_over_p_field, a, 1.0,
+                                          FaceJumpScaling::H_OVER_P));
+   const Vector &h_over_p_errors = h_over_p.GetLocalErrors();
+   REQUIRE(h_over_p_errors.Size() == 1);
+   REQUIRE(h_over_p_errors(0) > 0.0);
+   real_t local_error_sq = h_over_p_errors * h_over_p_errors;
+   real_t global_error_sq = 0.0;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(h_over_p.GetTotalError() == MFEM_Approx(sqrt(global_error_sq)));
+
+   ParGridFunction coefficient_scaled_field(&fes);
+   coefficient_scaled_field.ProjectCoefficient(constant_x);
+   GeneralErrorEstimator coefficient_scaled(mesh);
+   coefficient_scaled.AddInteriorFaceEstimator(new NedelecNormalJumpErrorEstimator(
+                                                coefficient_scaled_field, a, 1.0,
+                                                FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+   const Vector &coefficient_scaled_errors = coefficient_scaled.GetLocalErrors();
+   REQUIRE(coefficient_scaled_errors.Size() == 1);
+   REQUIRE(coefficient_scaled_errors(0) > 0.0);
+   local_error_sq = coefficient_scaled_errors * coefficient_scaled_errors;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(coefficient_scaled.GetTotalError() ==
+           MFEM_Approx(sqrt(global_error_sq)));
+}
+
+TEST_CASE("RT tangential-jump estimator processes parallel shared faces",
+          "[Parallel][GeneralErrorEstimator][RTTangentialJumpErrorEstimator]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+
+   Mesh serial_mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   serial_mesh.GetElement(1)->SetAttribute(2);
+   Array<int> partition(2);
+   partition[0] = 0;
+   partition[1] = 1;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partition.GetData());
+   RT_FECollection fec(1, 3);
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction x(&fes);
+   VectorFunctionCoefficient constant_tangent(3, ConstantTangentialField);
+   x.ProjectCoefficient(constant_tangent);
+
+   Vector scalar_values(2);
+   scalar_values(0) = 1.0;
+   scalar_values(1) = 3.0;
+   PWConstCoefficient a(scalar_values);
+   GeneralErrorEstimator estimator(mesh);
+   estimator.AddInteriorFaceEstimator(
+      new RTTangentialJumpErrorEstimator(x, a, 0.25));
+   const Vector &errors = estimator.GetLocalErrors();
+   REQUIRE(errors.Size() == 1);
+   REQUIRE(errors(0) == MFEM_Approx(1.0));
+   REQUIRE(estimator.GetTotalError() == MFEM_Approx(sqrt(2.0)));
+
+   ParGridFunction h_over_p_field(&fes);
+   h_over_p_field.ProjectCoefficient(constant_tangent);
+   GeneralErrorEstimator h_over_p(mesh);
+   h_over_p.AddInteriorFaceEstimator(new RTTangentialJumpErrorEstimator(
+                                          h_over_p_field, a, 1.0,
+                                          FaceJumpScaling::H_OVER_P));
+   const Vector &h_over_p_errors = h_over_p.GetLocalErrors();
+   REQUIRE(h_over_p_errors.Size() == 1);
+   REQUIRE(h_over_p_errors(0) > 0.0);
+   real_t local_error_sq = h_over_p_errors * h_over_p_errors;
+   real_t global_error_sq = 0.0;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(h_over_p.GetTotalError() == MFEM_Approx(sqrt(global_error_sq)));
+
+   ParGridFunction coefficient_scaled_field(&fes);
+   coefficient_scaled_field.ProjectCoefficient(constant_tangent);
+   GeneralErrorEstimator coefficient_scaled(mesh);
+   coefficient_scaled.AddInteriorFaceEstimator(new RTTangentialJumpErrorEstimator(
+                                                coefficient_scaled_field, a, 1.0,
+                                                FaceJumpScaling::H_OVER_P_OVER_COEFFICIENT));
+   const Vector &coefficient_scaled_errors = coefficient_scaled.GetLocalErrors();
+   REQUIRE(coefficient_scaled_errors.Size() == 1);
+   REQUIRE(coefficient_scaled_errors(0) > 0.0);
+   local_error_sq = coefficient_scaled_errors * coefficient_scaled_errors;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(coefficient_scaled.GetTotalError() ==
+           MFEM_Approx(sqrt(global_error_sq)));
+}
 
 TEST_CASE("General and Maxwell residual estimators process parallel shared faces",
           "[Parallel][GeneralErrorEstimator][MaxwellResidualEstimator]")
@@ -1209,6 +1591,107 @@ TEST_CASE("General and Maxwell residual estimators process parallel shared faces
                  MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
    REQUIRE(maxwell.GetTotalError() == MFEM_Approx(std::sqrt(global_error_sq)));
    REQUIRE(maxwell.GetTotalError() == MFEM_Approx(dedicated.GetTotalError()));
+
+   ParComplexGridFunction complex_electric(&e_fes), complex_source(&residual_fes);
+   complex_electric.ProjectCoefficient(electric_coef, electric_coef);
+   complex_source = 0.0;
+   ConstantCoefficient epsilon_imag(0.25);
+   ComplexMaxwellResidualEstimator complex_dedicated(
+      complex_electric, complex_source, epsilon, epsilon_imag, mu_inv,
+      omega, order);
+   const Vector &complex_dedicated_errors = complex_dedicated.GetLocalErrors();
+   GeneralErrorEstimator complex_general(mesh);
+   AddComplexMaxwellResidualEstimators(complex_general, complex_electric,
+                                       complex_source, epsilon, epsilon_imag,
+                                       mu_inv, omega, order);
+   const Vector &complex_general_errors = complex_general.GetLocalErrors();
+   REQUIRE(complex_general_errors.Size() == 1);
+   REQUIRE(complex_general_errors(0) > 0.0);
+   REQUIRE(complex_general_errors(0) ==
+           MFEM_Approx(complex_dedicated_errors(0)));
+
+   local_error_sq = complex_general_errors * complex_general_errors;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(complex_general.GetTotalError() ==
+           MFEM_Approx(std::sqrt(global_error_sq)));
+   REQUIRE(complex_general.GetTotalError() ==
+           MFEM_Approx(complex_dedicated.GetTotalError()));
+
+   DenseMatrix epsilon_real_tensor(3), epsilon_imag_tensor(3);
+   epsilon_real_tensor = 0.0;
+   epsilon_imag_tensor = 0.0;
+   epsilon_real_tensor(0, 0) = 2.0;
+   epsilon_real_tensor(1, 1) = 3.0;
+   epsilon_real_tensor(2, 2) = 4.0;
+   epsilon_imag_tensor(0, 0) = 0.25;
+   epsilon_imag_tensor(1, 1) = 0.5;
+   epsilon_imag_tensor(2, 2) = 0.75;
+   MatrixConstantCoefficient epsilon_real_matrix(epsilon_real_tensor);
+   MatrixConstantCoefficient epsilon_imag_matrix(epsilon_imag_tensor);
+   ComplexMaxwellResidualEstimator complex_matrix_dedicated(
+      complex_electric, complex_source, epsilon_real_matrix, epsilon_imag_matrix,
+      mu_inv, omega, order);
+   const Vector &complex_matrix_dedicated_errors =
+      complex_matrix_dedicated.GetLocalErrors();
+   GeneralErrorEstimator complex_matrix_general(mesh);
+   AddComplexMaxwellResidualEstimators(
+      complex_matrix_general, complex_electric, complex_source,
+      epsilon_real_matrix, epsilon_imag_matrix, mu_inv, omega, order);
+   const Vector &complex_matrix_general_errors =
+      complex_matrix_general.GetLocalErrors();
+   REQUIRE(complex_matrix_general_errors.Size() == 1);
+   REQUIRE(complex_matrix_general_errors(0) ==
+           MFEM_Approx(complex_matrix_dedicated_errors(0)));
+   local_error_sq = complex_matrix_general_errors * complex_matrix_general_errors;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(complex_matrix_general.GetTotalError() ==
+           MFEM_Approx(std::sqrt(global_error_sq)));
+   REQUIRE(complex_matrix_general.GetTotalError() ==
+           MFEM_Approx(complex_matrix_dedicated.GetTotalError()));
+}
+
+TEST_CASE("Complex ZZ estimator combines parallel indicators globally",
+          "[Parallel][ComplexZienkiewiczZhuEstimator]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+
+   Mesh serial_mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   Array<int> partition(2);
+   partition[0] = 0;
+   partition[1] = 1;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partition.GetData());
+   ND_FECollection nd_fec(1, 3), flux_fec(1, 3);
+   ParFiniteElementSpace fes(&mesh, &nd_fec);
+   ParComplexGridFunction electric(&fes);
+   VectorFunctionCoefficient real_field(3, DivergentElectricField);
+   VectorFunctionCoefficient imag_field(3, ConstantElectricField);
+   electric.ProjectCoefficient(real_field, imag_field);
+
+   ConstantCoefficient mu_inv(1.0);
+   CurlCurlIntegrator integrator(mu_inv);
+   ParFiniteElementSpace flux_fes(&mesh, &flux_fec);
+   ComplexZienkiewiczZhuEstimator complex_zz(integrator, electric, flux_fes);
+   const Vector &complex_errors = complex_zz.GetLocalErrors();
+
+   ZienkiewiczZhuEstimator real_zz(
+      integrator, electric.real(), new ParFiniteElementSpace(&mesh, &flux_fec));
+   ZienkiewiczZhuEstimator imag_zz(
+      integrator, electric.imag(), new ParFiniteElementSpace(&mesh, &flux_fec));
+   const Vector &real_errors = real_zz.GetLocalErrors();
+   const Vector &imag_errors = imag_zz.GetLocalErrors();
+   REQUIRE(complex_errors.Size() == 1);
+   REQUIRE(complex_errors(0) ==
+           MFEM_Approx(hypot(real_errors(0), imag_errors(0))));
+
+   real_t local_error_sq = complex_errors * complex_errors;
+   real_t global_error_sq = 0.0;
+   MPI_Allreduce(&local_error_sq, &global_error_sq, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(complex_zz.GetTotalError() == MFEM_Approx(sqrt(global_error_sq)));
+   REQUIRE(complex_zz.GetTotalError() ==
+           MFEM_Approx(hypot(real_zz.GetTotalError(), imag_zz.GetTotalError())));
 }
 
 #endif
