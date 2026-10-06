@@ -21,11 +21,7 @@
 namespace
 {
 // check if C++ 14 or beyond
-#if __cplusplus >= 201402L
 inline ::std::unique_ptr<::mfem::real_t[]> allocArray(int size) { return (size != 0) ? ::std::make_unique<::mfem::real_t[]>(size) : nullptr; }
-#else
-inline ::std::unique_ptr<::mfem::real_t[]> allocArray(int size) { return (size != 0) ? ::std::unique_ptr<::mfem::real_t[]>(new ::mfem::real_t[size]) : nullptr; }
-#endif
 }
 
 #ifdef MFEM_USE_LAPACK
@@ -975,17 +971,13 @@ void MMA::InitData(real_t *xval)
 MMA::MMA(int nVar, int nCon, real_t *xval, int iter)
 {
 #ifdef MFEM_USE_MPI
-   MPI_Comm_dup(MPI_COMM_SELF, &comm);
+  comm = MPI_COMM_SELF;
 #endif
 
    AllocData(nVar,nCon);
    InitData(xval);
    // allocate the serial subproblem
-#if  __cplusplus >= 201402L
    mSubProblem = ::std::make_unique<MMA::MMASubSvanberg>(*this, nVar, nCon);
-#else
-   mSubProblem.reset(new MMA::MMASubSvanberg(*this, nVar, nCon));
-#endif
 }
 
 MMA::MMA(const int nVar, int nCon, Vector &xval, int iter) : MMA(nVar, nCon,
@@ -1000,8 +992,8 @@ MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
    int rank = 0;
    MPI_Comm_rank(comm_, &rank);
 
-   // Split the global communicator
-   MPI_Comm_dup(comm_, &comm);
+   // cache the communicator
+   comm = comm_;
 
    AllocData(nVar,nCon);
    InitData(xval);
@@ -1019,9 +1011,6 @@ MMA::MMA(MPI_Comm comm_, const int nVar, const int nCon,
 
 MMA::~MMA()
 {
-#ifdef MFEM_USE_MPI
-   MPI_Comm_free(&comm);
-#endif
 }
 
 void MMA::AllocData(int nVariables,int nConstr)
