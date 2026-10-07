@@ -223,7 +223,7 @@ public:
    ///@{
    /// Returns a pointer to (an approximation of) the matrix inverse. Caller
    /// gets ownership of MatrixInverse object.
-   /// Minimim bandwidth required  to achieve tolarnace is returned in @a bw.
+   /// Minimim bandwidth required to achieve tolarnace is returned in @a bw.
    MatrixInverse *Inverse(real_t tol, int &bw) const;
 
    /// Returns a pointer to (an approximation of) the matrix inverse. Caller
