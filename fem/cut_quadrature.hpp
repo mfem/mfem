@@ -305,8 +305,10 @@ public:
 
 /** Backend-neutral cut-rule constructor.
 
-    Const constructors are safe to share between threads. Workspaces are not:
-    every concurrent caller must use a separate workspace. */
+    Const constructors may be shared subject to the backend's and MFEM's
+    thread-safety requirements, including shared-cache initialization. Every
+    concurrent caller must use separate workspace and result objects. Separate
+    workspaces do not synchronize shared MFEM state used by the backend. */
 class CutQuadratureConstructor
 {
 public:
@@ -340,10 +342,12 @@ using LevelSetRevision = std::uint64_t;
 
 /** Extract an element-local polynomial from an application field.
 
-    Extractors and their wrapped read-only sources may be shared by concurrent
-    callers. The source must not be mutated concurrently. A caller that changes
-    source values must also change Revision(); forgetting to do so can silently
-    reuse stale application-owned rules. */
+    Concurrent use depends on the concrete extractor, its source, and MFEM's
+    thread-safety build settings. Read-only source values do not ensure that
+    finite-element evaluation or shared caches are thread safe. The source and
+    its mesh/finite-element space must not be mutated concurrently. A caller
+    that changes source values must also change Revision(); forgetting to do so
+    can silently reuse stale application-owned rules. */
 class ElementLevelSetExtractor
 {
 public:
@@ -359,7 +363,9 @@ public:
 
    /** Extract element's polynomial using its matching transformation Tr.
        result is usable only on Success. Concurrent calls require separate
-       transformations because sampling may change their current point. */
+       transformations and result objects, in addition to the extractor's
+       source and MFEM thread-safety requirements. Sampling may change the
+       transformation's current point. */
    virtual CutQuadratureStatus GetElementLevelSet(
       int element, ElementTransformation &Tr, ElementLevelSet &result) const = 0;
    /// Current source version; update it whenever extraction results may change.
@@ -373,7 +379,15 @@ private:
     Supports scalar VALUE-mapped TensorBasisElement sources on squares and cubes
     with degree at least one. The source is sampled at tensor H1 nodes and
     converted to Bernstein coefficients. The GridFunction is borrowed and must
-    outlive the extractor; source updates require a revision change. */
+    outlive the extractor; source updates require a revision change.
+
+    Sampling calls GridFunction::GetValue(), which evaluates a finite element
+    shared by the source finite-element space. Concurrent extraction from a
+    shared H1 GridFunction requires MFEM built with MFEM_THREAD_SAFE enabled,
+    together with thread-safe access to the source space and MFEM caches.
+    In the default build, extraction must be serialized even for read-only
+    fields and separate transformations. Separate extractor instances wrapping
+    the same GridFunction do not isolate its finite-element scratch storage. */
 class GridFunctionLevelSetExtractor : public ElementLevelSetExtractor
 {
 public:
@@ -399,7 +413,10 @@ private:
     source rather than preserving an arbitrary nonpolynomial zero set exactly.
     The Coefficient is borrowed and must outlive the extractor. Changes to source
     values, time, or geometry affecting sampling require a revision change.
-    Concurrent sampling also requires a thread-safe Coefficient::Eval(). */
+    Concurrent sampling also requires a thread-safe Coefficient::Eval() and
+    thread-safe MFEM cache access. This includes all fields and finite-element
+    evaluations used by the coefficient; a coefficient sampling a shared H1
+    GridFunction inherits the MFEM_THREAD_SAFE requirement described above. */
 class CoefficientLevelSetExtractor : public ElementLevelSetExtractor
 {
 public:
@@ -501,6 +518,12 @@ public:
     Batches are processed element by element on the host. Both weight policies
     are advertised. The target order p selects (p+2)/2 Algoim quadrature nodes
     per one-dimensional rule (integer division).
+
+    Concurrent generation requires separate workspaces and results, immutable
+    polynomial inputs, and safe access to MFEM's shared integration-rule cache.
+    Its lazy initialization is guarded when both MFEM_THREAD_SAFE and
+    MFEM_USE_OPENMP are enabled; otherwise initialize the required cached rules
+    serially and avoid concurrent cache mutation.
 
     Values and derivatives use de Casteljau evaluation in the Bernstein basis
     with Algoim's real type. Interval evaluation uses centered Taylor enclosures

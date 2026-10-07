@@ -225,12 +225,35 @@ the extractor revision**.  If it forgets, all keys still match and stale rules
 are reused without an error.  Applications should couple field updates and
 revision increments in the same operation.
 
-Constructors, capabilities, and extractors are safe for concurrent calls as
-shared const objects, provided the wrapped source is not concurrently mutated
-and its read access is itself thread safe.  Each thread must use its own
-workspace; workspaces are intentionally not thread safe.  Host batch generation
-is serial within one workspace, while callers may parallelize chunks using one
-workspace per thread.
+Concurrency is conditional on the backend, source evaluation, and MFEM's
+thread-safety build settings. Reading const capability metadata is safe, but
+const extraction and generation methods can still reach mutable shared MFEM
+state. Each concurrent caller needs separate result and workspace objects;
+extractors also need separate transformations. The source field, mesh, and
+finite-element space must not be mutated concurrently.
+
+`GridFunctionLevelSetExtractor` samples with `GridFunction::GetValue()`, which
+calls `CalcShape()` on a finite element shared by the source space. In the
+default build, H1 elements keep mutable shape-evaluation scratch vectors on
+that shared element. Consequently, read-only H1 grid functions are not safe
+for concurrent extraction merely because callers supply separate
+transformations, workspaces, or extractor instances. Serialize extraction in
+that build. Concurrent shared-H1 sampling requires configuring and rebuilding
+MFEM with `-DMFEM_THREAD_SAFE=ON` in CMake or `MFEM_THREAD_SAFE=YES` with GNU make,
+as well as thread-safe access to the source space and supporting caches. This
+must be a library build setting. `CoefficientLevelSetExtractor` additionally
+requires a thread-safe `Coefficient::Eval()`, including any wrapped fields and
+finite-element evaluations.
+
+`MFEM_THREAD_SAFE` does not make every MFEM operation thread safe. The shared
+one-dimensional basis and integration-rule caches are initialized lazily, and
+their initialization guards require both `MFEM_THREAD_SAFE` and
+`MFEM_USE_OPENMP` in this implementation. Where those guards are unavailable,
+initialize the required cache entries serially before concurrent calls and
+avoid cache mutation while workers read them. Constructor workspaces do not
+synchronize these caches. Host batch generation is serial within one workspace;
+callers may parallelize chunks only when these MFEM and source requirements are
+satisfied, using one workspace per thread.
 
 ## Rules, mapping, and future backends
 

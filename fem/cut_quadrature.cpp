@@ -212,6 +212,8 @@ CutQuadratureStatus GridFunctionLevelSetExtractor::GetElementLevelSet(
              geometry, order, Tr,
              [this, element](const IntegrationPoint &ip)
    {
+      // GetValue uses the source space's shared finite element. Const sampling
+      // still needs MFEM_THREAD_SAFE for concurrent H1 shape evaluation.
       return level_set_->GetValue(element, ip);
    }, result);
 }
