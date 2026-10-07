@@ -496,6 +496,9 @@ public:
     An identically zero polynomial returns DegenerateVolume. Classification uses
     Bernstein coefficient bounds, so Cut is conservative. Interface normals are
     normalized gradients of the original polynomial, even for the positive phase.
+    Zero faces are integrated explicitly, including in Cut cells. Their polynomial
+    factors are removed only for interior interface generation to avoid counting
+    the same boundary components twice.
     Available only when MFEM is configured with MFEM_USE_ALGOIM. */
 class AlgoimCutQuadratureConstructor : public CutQuadratureConstructor
 {

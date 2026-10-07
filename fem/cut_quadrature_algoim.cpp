@@ -231,6 +231,112 @@ bool FaceIsZero(const ElementLevelSet &level_set, int direction, int side)
 }
 
 template <int N>
+void DeflateZeroFace(ElementLevelSet &polynomial, int direction, int side)
+{
+   // Divide a Bernstein polynomial by x_d or (1-x_d), then elevate the
+   // quotient back to the original degree to preserve the tensor layout.
+   // The caller has established that the restriction to this face is zero.
+   const int p = polynomial.order;
+   const int n = p + 1;
+   int stride = 1;
+   for (int d = 0; d < direction; d++) { stride *= n; }
+   std::vector<algoim::real> quotient(p);
+   for (int base = 0; base < polynomial.coefficients.Size(); base++)
+   {
+      if ((base / stride) % n != 0) { continue; }
+      for (int i = 0; i < p; i++)
+      {
+         const int source = side == 0 ? i + 1 : i;
+         const int divisor = side == 0 ? i + 1 : p - i;
+         quotient[i] = algoim::real(p) *
+                       polynomial.coefficients(base + source*stride) / divisor;
+      }
+      for (int i = 0; i <= p; i++)
+      {
+         algoim::real value = 0.0;
+         if (i > 0) { value += algoim::real(i)/p * quotient[i - 1]; }
+         if (i < p) { value += algoim::real(p - i)/p * quotient[i]; }
+         polynomial.coefficients(base + i*stride) = static_cast<real_t>(value);
+      }
+   }
+}
+
+template <int N>
+CutQuadratureStatus DeflateZeroFaces(const ElementLevelSet &original,
+                                     ElementLevelSet &interior)
+{
+   interior = original;
+   for (int direction = 0; direction < N; direction++)
+   {
+      for (int side = 0; side < 2; side++)
+      {
+         if (!FaceIsZero<N>(original, direction, side)) { continue; }
+         // Remove all multiplicities, without allowing an unbounded loop.
+         for (int multiplicity = 0; multiplicity < original.order &&
+              FaceIsZero<N>(interior, direction, side); multiplicity++)
+         {
+            DeflateZeroFace<N>(interior, direction, side);
+         }
+         if (FaceIsZero<N>(interior, direction, side))
+         {
+            return CutQuadratureStatus::GenerationFailure;
+         }
+      }
+   }
+   for (int i = 0; i < interior.coefficients.Size(); i++)
+   {
+      if (!std::isfinite(interior.coefficients(i)))
+      {
+         return CutQuadratureStatus::GenerationFailure;
+      }
+   }
+   return CutQuadratureStatus::Success;
+}
+
+void AppendInterfaceRule(ReferenceInterfaceRule &destination,
+                         const ReferenceInterfaceRule &source, bool normals)
+{
+   const int first = destination.rule.GetNPoints();
+   const int second = source.rule.GetNPoints();
+   if (first == 0)
+   {
+      // Also preserve the dim-by-zero normal matrix for an empty interface.
+      destination = source;
+      return;
+   }
+   if (second == 0) { return; }
+
+   IntegrationRule combined(first + second);
+   combined.SetOrder(source.rule.GetOrder());
+   for (int i = 0; i < first; i++)
+   {
+      combined.IntPoint(i) = destination.rule.IntPoint(i);
+   }
+   for (int i = 0; i < second; i++)
+   {
+      combined.IntPoint(first + i) = source.rule.IntPoint(i);
+   }
+   if (normals)
+   {
+      const int dim = source.reference_normals.Height();
+      DenseMatrix combined_normals(dim, first + second);
+      for (int d = 0; d < dim; d++)
+      {
+         for (int i = 0; i < first; i++)
+         {
+            combined_normals(d, i) = destination.reference_normals(d, i);
+         }
+         for (int i = 0; i < second; i++)
+         {
+            combined_normals(d, first + i) = source.reference_normals(d, i);
+         }
+      }
+      destination.reference_normals = combined_normals;
+   }
+   destination.rule = combined;
+}
+
+template <int N>
 CutQuadratureStatus GenerateBoundaryInterface(
    const ElementLevelSet &level_set, const CutQuadratureRequest &request,
    ReferenceInterfaceRule &result)
@@ -452,21 +558,33 @@ CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &level_set,
 
    if (HasMeasure(request.measures, CutMeasure::Interface))
    {
-      if (result.classification != CutCellClass::Cut)
+      // Boundary components are independent of the volume classification.
+      ReferenceInterfaceRule boundary;
+      const CutQuadratureStatus boundary_status =
+         GenerateBoundaryInterface<N>(level_set, request, boundary);
+      if (boundary_status != CutQuadratureStatus::Success)
       {
-         const CutQuadratureStatus boundary_status =
-            GenerateBoundaryInterface<N>(level_set, request, result.interface);
-         if (boundary_status != CutQuadratureStatus::Success)
+         result.status = boundary_status;
+         return result.status;
+      }
+      if (result.classification == CutCellClass::Cut)
+      {
+         // Assign known zero faces to the boundary rule. Removing their factors
+         // keeps Algoim from generating the same components a second time.
+         ElementLevelSet interior;
+         const CutQuadratureStatus deflation_status =
+            DeflateZeroFaces<N>(level_set, interior);
+         if (deflation_status != CutQuadratureStatus::Success)
          {
-            result.status = boundary_status;
+            result.status = deflation_status;
             return result.status;
          }
-      }
-      else
-      {
+         AlgoimBernsteinLevelSet<N> interior_phi(interior.coefficients,
+                                                 interior.order);
+         // Normal orientation and degeneracy checks still use the original phi.
          AlgoimBernsteinLevelSet<N> original(level_set.coefficients,
                                              level_set.order);
-         const auto quadrature = algoim::quadGen<N>(original, box, N, -1, qo);
+         const auto quadrature = algoim::quadGen<N>(interior_phi, box, N, -1, qo);
          const int nq = static_cast<int>(quadrature.nodes.size());
          result.interface.rule.SetSize(nq);
          result.interface.rule.SetOrder(request.order);
@@ -525,8 +643,11 @@ CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &level_set,
             result.status = CutQuadratureStatus::GenerationFailure;
             return result.status;
          }
-         result.interface.rule.SetPointIndices();
       }
+      AppendInterfaceRule(result.interface, boundary,
+                          request.compute_reference_normals);
+      result.interface.rule.SetOrder(request.order);
+      result.interface.rule.SetPointIndices();
    }
 
    result.status = CutQuadratureStatus::Success;

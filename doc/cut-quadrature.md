@@ -120,7 +120,16 @@ otherwise generation proceeds as a candidate `Cut` cell.
 
 Interface presence is checked independently on the closed element.  In
 particular, a boundary-aligned interface may be nonempty when the requested
-open volume phase is `Empty` or `Full`.  This is an element-local rule only;
+open volume phase is `Empty` or `Full`, and may coexist with an interior
+interface in a `Cut` cell. Identically zero face restrictions are integrated
+using reference-face rules for every classification. For `Cut` cells, their
+boundary factors are removed from a copy of the Bernstein polynomial before
+Algoim generates the remaining interface. Coefficient deflation and degree
+elevation preserve the tensor layout and assign each boundary component to
+the face rule exactly once. Volume rules, interface normals, and gradient
+degeneracy checks continue to use the original polynomial. A repeated boundary
+factor with a vanishing original gradient is still a degenerate interface.
+This is an element-local rule only;
 ownership or deduplication across neighboring elements is out of scope.
 
 Algoim diagnoses volume degeneracy when the Bernstein coefficient norm is

@@ -389,6 +389,264 @@ TEST_CASE("Algoim interface and normal contracts", "[CutQuadrature][Algoim]")
    }
 }
 
+TEST_CASE("Algoim combines interior and boundary interfaces without duplication",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   for (int dim = 2; dim <= 3; dim++)
+   {
+      for (int direction = 0; direction < dim; direction++)
+      {
+         for (int side = 0; side < 2; side++)
+         {
+            CAPTURE(dim, direction, side);
+            // side 1: (t-0.25)(t-1); side 0: t(t-0.75).
+            // Both have negative volume 0.75 and two unit interface components.
+            const real_t row[3] =
+            {
+               side == 0 ? real_t(0.0) : real_t(0.25), real_t(-0.375),
+               side == 0 ? real_t(0.25) : real_t(0.0)
+            };
+            ElementLevelSet polynomial;
+            polynomial.geometry = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+            polynomial.basis = PolynomialBasis::BernsteinTensor;
+            polynomial.order = 2;
+            polynomial.coefficients.SetSize(dim == 2 ? 9 : 27);
+            int stride = 1;
+            for (int d = 0; d < direction; d++) { stride *= 3; }
+            for (int i = 0; i < polynomial.coefficients.Size(); i++)
+            {
+               polynomial.coefficients(i) = row[(i / stride) % 3];
+            }
+
+            CutQuadratureRequest request;
+            request.measures = CutMeasure::Volume | CutMeasure::Interface;
+            request.compute_reference_normals = true;
+            ReferenceCutQuadrature result;
+            REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                                  *workspace) ==
+                    CutQuadratureStatus::Success);
+            REQUIRE(result.classification == CutCellClass::Cut);
+            REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.75));
+            REQUIRE(WeightSum(result.interface.rule) == MFEM_Approx(2.0));
+            REQUIRE(result.interface.rule.GetOrder() == request.order);
+            REQUIRE(result.interface.reference_normals.Height() == dim);
+            REQUIRE(result.interface.reference_normals.Width() ==
+                    result.interface.rule.GetNPoints());
+
+            real_t boundary_measure = 0.0, interior_measure = 0.0;
+            for (int i = 0; i < result.interface.rule.GetNPoints(); i++)
+            {
+               const IntegrationPoint &ip = result.interface.rule.IntPoint(i);
+               const real_t coordinate = direction == 0 ? ip.x :
+                                         (direction == 1 ? ip.y : ip.z);
+               const bool boundary = coordinate == real_t(side);
+               if (boundary) { boundary_measure += ip.weight; }
+               else
+               {
+                  REQUIRE(coordinate == MFEM_Approx(side == 0 ? 0.75 : 0.25));
+                  interior_measure += ip.weight;
+               }
+               const real_t normal = boundary ? (side == 0 ? -1.0 : 1.0) :
+                                     (side == 0 ? 1.0 : -1.0);
+               for (int d = 0; d < dim; d++)
+               {
+                  REQUIRE(result.interface.reference_normals(d, i) ==
+                          MFEM_Approx(d == direction ? normal : real_t(0.0))
+                          .margin(64*std::numeric_limits<real_t>::epsilon()));
+               }
+               REQUIRE(ip.index == i);
+            }
+            REQUIRE(boundary_measure == MFEM_Approx(1.0));
+            REQUIRE(interior_measure == MFEM_Approx(1.0));
+
+            // Phase selection changes volume, not the interface or its normals.
+            request.region = CutRegion::Positive;
+            ReferenceCutQuadrature positive;
+            REQUIRE(constructor.GenerateReference(polynomial, request, positive,
+                                                  *workspace) ==
+                    CutQuadratureStatus::Success);
+            REQUIRE(WeightSum(positive.volume) == MFEM_Approx(0.25));
+            REQUIRE(WeightSum(positive.interface.rule) == MFEM_Approx(2.0));
+            REQUIRE(positive.interface.rule.GetNPoints() ==
+                    result.interface.rule.GetNPoints());
+            for (int i = 0; i < positive.interface.rule.GetNPoints(); i++)
+            {
+               for (int d = 0; d < dim; d++)
+               {
+                  REQUIRE(positive.interface.reference_normals(d, i) ==
+                          MFEM_Approx(result.interface.reference_normals(d, i)));
+               }
+            }
+
+            // Pack phi and -phi to check point/normal alignment after merging.
+            request.region = CutRegion::Negative;
+            ElementLevelSetBatch batch;
+            batch.descriptor =
+            { polynomial.geometry, polynomial.basis, polynomial.order };
+            batch.coefficients.SetSize(polynomial.coefficients.Size(), 2);
+            batch.element_descriptors.SetSize(2);
+            batch.extraction_status.SetSize(2);
+            for (int e = 0; e < 2; e++)
+            {
+               batch.element_descriptors[e] = batch.descriptor;
+               batch.extraction_status[e] = CutQuadratureStatus::Success;
+               for (int i = 0; i < polynomial.coefficients.Size(); i++)
+               {
+                  batch.coefficients(i, e) =
+                     (e == 0 ? 1.0 : -1.0)*polynomial.coefficients(i);
+               }
+            }
+            BatchedReferenceCutQuadrature packed;
+            ElementLevelSet negated = polynomial;
+            negated.coefficients *= -1.0;
+            ReferenceCutQuadrature reversed;
+            REQUIRE(constructor.GenerateReference(negated, request, reversed,
+                                                  *workspace) ==
+                    CutQuadratureStatus::Success);
+            REQUIRE(constructor.GenerateReferenceBatch(batch, request, packed,
+                                                       *workspace) ==
+                    CutQuadratureStatus::Success);
+            for (int e = 0; e < 2; e++)
+            {
+               REQUIRE(packed.status[e] == CutQuadratureStatus::Success);
+               real_t volume = 0.0, surface = 0.0;
+               for (int q = packed.volume.offsets[e];
+                    q < packed.volume.offsets[e + 1]; q++)
+               {
+                  volume += packed.volume.weights(q);
+               }
+               REQUIRE(volume == MFEM_Approx(e == 0 ? 0.75 : 0.25));
+               const ReferenceInterfaceRule &expected = e == 0 ?
+                                                        result.interface :
+                                                        reversed.interface;
+               const int begin = packed.interface.offsets[e];
+               const int end = packed.interface.offsets[e + 1];
+               REQUIRE(end - begin == expected.rule.GetNPoints());
+               for (int q = begin; q < end; q++)
+               {
+                  surface += packed.interface.weights(q);
+                  const IntegrationPoint &ip = expected.rule[q - begin];
+                  REQUIRE(packed.interface.points(0, q) == MFEM_Approx(ip.x));
+                  REQUIRE(packed.interface.points(1, q) == MFEM_Approx(ip.y));
+                  REQUIRE(packed.interface.weights(q) == MFEM_Approx(ip.weight));
+                  if (dim == 3)
+                  {
+                     REQUIRE(packed.interface.points(2, q) == MFEM_Approx(ip.z));
+                  }
+                  for (int d = 0; d < dim; d++)
+                  {
+                     REQUIRE(packed.interface.normals(d, q) ==
+                             MFEM_Approx(expected.reference_normals(
+                                            d, q - begin)));
+                  }
+                  const real_t coordinate =
+                     packed.interface.points(direction, q);
+                  const bool boundary = coordinate == real_t(side);
+                  const real_t normal = boundary ? (side == 0 ? -1.0 : 1.0) :
+                                        (side == 0 ? 1.0 : -1.0);
+                  REQUIRE(packed.interface.normals(direction, q) ==
+                          MFEM_Approx((e == 0 ? 1.0 : -1.0)*normal));
+               }
+               REQUIRE(surface == MFEM_Approx(2.0));
+            }
+
+            // Boundary weights must also be included without requesting normals.
+            request.measures = CutMeasure::Interface;
+            request.compute_reference_normals = false;
+            REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                                  *workspace) ==
+                    CutQuadratureStatus::Success);
+            REQUIRE(result.volume.GetNPoints() == 0);
+            REQUIRE(WeightSum(result.interface.rule) == MFEM_Approx(2.0));
+            REQUIRE(result.interface.reference_normals.Width() == 0);
+         }
+      }
+   }
+}
+
+TEST_CASE("Algoim deflates both boundary sides and preserves singular interfaces",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   ElementLevelSet polynomial;
+   polynomial.geometry = Geometry::SQUARE;
+   polynomial.basis = PolynomialBasis::BernsteinTensor;
+   polynomial.order = 3;
+   polynomial.coefficients.SetSize(16);
+   CutQuadratureRequest request;
+   request.measures = CutMeasure::Volume | CutMeasure::Interface;
+   request.compute_reference_normals = true;
+   ReferenceCutQuadrature result;
+
+   SECTION("two zero faces and one interior component")
+   {
+      // phi = x(1-x)(x-0.25): three distinct unit-length components.
+      const real_t row[4] = {0.0, real_t(-1.0/12.0), 0.25, 0.0};
+      for (int j = 0; j < 4; j++)
+      {
+         for (int i = 0; i < 4; i++)
+         {
+            polynomial.coefficients(i + 4*j) = row[i];
+         }
+      }
+      REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                            *workspace) ==
+              CutQuadratureStatus::Success);
+      REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.25));
+      REQUIRE(WeightSum(result.interface.rule) == MFEM_Approx(3.0));
+   }
+
+   SECTION("conservative Cut classification with only a boundary interface")
+   {
+      // phi = (1-x)*(24*(x-0.5)^2+3) is positive inside, despite mixed bounds.
+      const real_t row[4] = {9.0, -2.0, 3.0, 0.0};
+      for (int j = 0; j < 4; j++)
+      {
+         for (int i = 0; i < 4; i++)
+         {
+            polynomial.coefficients(i + 4*j) = row[i];
+         }
+      }
+      REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                            *workspace) ==
+              CutQuadratureStatus::Success);
+      REQUIRE(result.classification == CutCellClass::Cut);
+      REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.0));
+      REQUIRE(WeightSum(result.interface.rule) == MFEM_Approx(1.0));
+      REQUIRE(result.interface.reference_normals.Width() ==
+              result.interface.rule.GetNPoints());
+      for (int i = 0; i < result.interface.rule.GetNPoints(); i++)
+      {
+         REQUIRE(result.interface.rule[i].x == MFEM_Approx(1.0));
+         REQUIRE(result.interface.reference_normals(0, i) == MFEM_Approx(-1.0));
+      }
+   }
+
+   SECTION("repeated boundary factor remains degenerate")
+   {
+      // phi = (x-0.25)(x-1)^2: the original gradient vanishes at x=1.
+      const real_t row[4] = {-0.25, 0.25, 0.0, 0.0};
+      for (int j = 0; j < 4; j++)
+      {
+         for (int i = 0; i < 4; i++)
+         {
+            polynomial.coefficients(i + 4*j) = row[i];
+         }
+      }
+      REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                            *workspace) ==
+              CutQuadratureStatus::DegenerateInterface);
+      request.measures = CutMeasure::Volume;
+      REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                            *workspace) ==
+              CutQuadratureStatus::Success);
+      REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.25));
+   }
+}
+
 TEST_CASE("Algoim separates interface and volume degeneracy",
           "[CutQuadrature][Algoim]")
 {
