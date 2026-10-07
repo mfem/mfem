@@ -27,46 +27,69 @@ namespace
 {
 
 real_t omega = 1.0, epsilon_r = 1.0, epsilon_i = 0.1, sigma = 0.1;
+const real_t imag_amplitude = real_t(0.5);
+
+real_t FundamentalMode(const Vector &x)
+{
+   return sin(M_PI * x(0)) * sin(M_PI * x(1));
+}
+
+real_t HigherMode(const Vector &x)
+{
+   return sin(2.0 * M_PI * x(0)) * sin(M_PI * x(1));
+}
 
 void EExactReal(const Vector &x, Vector &e)
 {
    e.SetSize(3);
    e = 0.0;
-   e(2) = sin(M_PI * x(0)) * sin(M_PI * x(1));
+   e(2) = FundamentalMode(x);
 }
 
 void EExactImag(const Vector &x, Vector &e)
 {
    e.SetSize(3);
    e = 0.0;
-   e(2) = 0.3 * sin(M_PI * x(0)) * sin(M_PI * x(1));
+   e(2) = imag_amplitude * HigherMode(x);
 }
 
 void FExactReal(const Vector &x, Vector &f)
 {
    f.SetSize(3); f = 0.0;
-   const real_t u = sin(M_PI * x(0)) * sin(M_PI * x(1));
+   const real_t u = FundamentalMode(x);
+   const real_t v = HigherMode(x);
    const real_t lambda = 2.0 * M_PI * M_PI;
    const real_t eta = epsilon_i + sigma / omega;
-   f(2) = (lambda - omega * omega * epsilon_r +
-           0.3 * omega * omega * eta) * u;
+   f(2) = (lambda - omega * omega * epsilon_r) * u +
+          imag_amplitude * omega * omega * eta * v;
 }
 
 void FExactImag(const Vector &x, Vector &f)
 {
    f.SetSize(3); f = 0.0;
-   const real_t u = sin(M_PI * x(0)) * sin(M_PI * x(1));
-   const real_t lambda = 2.0 * M_PI * M_PI;
+   const real_t u = FundamentalMode(x);
+   const real_t v = HigherMode(x);
+   const real_t lambda = 5.0 * M_PI * M_PI;
    const real_t eta = epsilon_i + sigma / omega;
-   f(2) = (0.3 * (lambda - omega * omega * epsilon_r) -
-           omega * omega * eta) * u;
+   f(2) = imag_amplitude * (lambda - omega * omega * epsilon_r) * v -
+          omega * omega * eta * u;
 }
 
-void CurlEExact(const Vector &x, Vector &curl_e)
+void CurlEExactReal(const Vector &x, Vector &curl_e)
 {
    curl_e.SetSize(3);
    curl_e(0) = M_PI * sin(M_PI * x(0)) * cos(M_PI * x(1));
    curl_e(1) = -M_PI * cos(M_PI * x(0)) * sin(M_PI * x(1));
+   curl_e(2) = 0.0;
+}
+
+void CurlEExactImag(const Vector &x, Vector &curl_e)
+{
+   curl_e.SetSize(3);
+   curl_e(0) = imag_amplitude * M_PI * sin(2.0 * M_PI * x(0)) *
+               cos(M_PI * x(1));
+   curl_e(1) = -2.0 * imag_amplitude * M_PI * cos(2.0 * M_PI * x(0)) *
+               sin(M_PI * x(1));
    curl_e(2) = 0.0;
 }
 
@@ -132,7 +155,8 @@ int main(int argc, char *argv[])
                        positive_mass(omega * omega * epsilon_r);
    VectorFunctionCoefficient e_exact_r(3, EExactReal), e_exact_i(3, EExactImag),
                              f_exact_r(3, FExactReal), f_exact_i(3, FExactImag),
-                             curl_e_exact(3, CurlEExact);
+                             curl_e_exact_r(3, CurlEExactReal),
+                             curl_e_exact_i(3, CurlEExactImag);
 
    ParComplexLinearForm b(&fespace, ComplexOperator::HERMITIAN);
    b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(f_exact_r),
@@ -179,9 +203,9 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       sol_sock_r.open("localhost", 19916);
-      sol_sock_r << "parallel " << nranks << " " << myid << "\n";
+      sol_sock_r.precision(8);
       sol_sock_i.open("localhost", 19916);
-      sol_sock_i << "parallel " << nranks << " " << myid << "\n";
+      sol_sock_i.precision(8);
    }
 
    for (int it = 0; it <= amr_iterations; it++)
@@ -239,9 +263,9 @@ int main(int argc, char *argv[])
       estimator->GetLocalErrors();
       const real_t estimated_error = estimator->GetTotalError();
       const real_t l2_error = solution.ComputeL2Error(e_exact_r, e_exact_i);
-      const real_t curl_error = hypot(solution.real().ComputeCurlError(&curl_e_exact),
-                                      0.3 * solution.imag().ComputeCurlError(
-                                         &curl_e_exact));
+      const real_t curl_error = hypot(
+         solution.real().ComputeCurlError(&curl_e_exact_r),
+         solution.imag().ComputeCurlError(&curl_e_exact_i));
       const real_t energy_error = sqrt(mu_inv_value * curl_error * curl_error +
                                        omega * omega * epsilon_r * l2_error *
                                        l2_error);
@@ -254,13 +278,16 @@ int main(int argc, char *argv[])
 
       if (visualization && sol_sock_r.good() && sol_sock_i.good())
       {
+         sol_sock_r << "parallel " << nranks << " " << myid << "\n";
          sol_sock_r << "solution\n" << pmesh << solution.real()
                     << "window_title 'Electric field: Real Part'"
                     << "window_geometry 0 0 400 350" << flush;
          MPI_Barrier(MPI_COMM_WORLD);
+         sol_sock_i << "parallel " << nranks << " " << myid << "\n";
          sol_sock_i << "solution\n" << pmesh << solution.imag()
                     << "window_title 'Electric field: Imaginary Part'"
                     << "window_geometry 400 0 400 350" << flush;
+         MPI_Barrier(MPI_COMM_WORLD);
       }
       if (it == amr_iterations) { break; }
 
