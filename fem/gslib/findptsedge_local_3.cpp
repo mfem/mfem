@@ -47,12 +47,12 @@ struct findptsElementPoint_t
 
 struct findptsElementGEdge_t
 {
-   double *x[sDIM], *dxdn[sDIM], *d2xdn[sDIM];
+   double *x[sDIM];
 };
 
 struct findptsElementGPT_t
 {
-   double x[sDIM], jac[sDIM], hes[sDIM*(1+1)];
+   double x[sDIM], jac[sDIM], hes[sDIM];
 };
 
 using dbl_range_t = gslib::dbl_range_t;
@@ -274,7 +274,7 @@ static void FindPointsEdgeLocal3DKernel(const bool use_dev,
 
    mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
    {
-      constexpr int size1 = 3*MD1 + 13;
+      constexpr int size1 = 3*MD1 + 10;
       constexpr int size2 = 3*MD1;
       constexpr int size3 = MD1*sDIM;
 

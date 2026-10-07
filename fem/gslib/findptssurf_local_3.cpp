@@ -793,12 +793,11 @@ static void FindPointsSurfLocal3DKernel(const bool use_dev,
                            const int qp = j % D1D;
                            const int d = j / D1D;
                            const double *u  = elx[d];
-                           double sums_k[3] = {0.0, 0.0, 0.0};
+                           double sums_k[2] = {0.0, 0.0};
                            for (int k=0; k<D1D; ++k)
                            {
                               sums_k[0] += u[qp + k*D1D] * J2[k];
                               sums_k[1] += u[qp + k*D1D] * D2[k];
-                              sums_k[2] += u[qp + k*D1D] * DD2[k];
                            }
 
                            resid_temp[sDIM*qp+d] = sums_k[0] * J1[qp];
