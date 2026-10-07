@@ -55,7 +55,7 @@ The tool uses MFEM's `OptionsParser` and prints the selected settings:
 | `-h`, `--help` | Print usage and exit | |
 | `-m`, `--mesh` | Read a nonempty planar quadrilateral mesh | Generated two-element unit square |
 | `-r`, `--refine` | Number of uniform refinements, at least zero | `0` |
-| `-o`, `--order` | Finite-element and coefficient interpolation degree, at least one | `2` |
+| `-o`, `--order` | Finite-element and coefficient interpolation degree, from 1 through 64 | `2` |
 | `-qo`, `--quadrature-order` | Target integration order, from 0 through 19 | `6` |
 | `-c`, `--cut-position` | Set the level set to `phi(x,y) = x - c` | `0.45` |
 | `-d`, `--device` | Configure MFEM's device; Algoim construction still runs on the host | `cpu` |
@@ -124,9 +124,13 @@ open volume phase is `Empty` or `Full`, and may coexist with an interior
 interface in a `Cut` cell. Identically zero face restrictions are integrated
 using reference-face rules for every classification. For `Cut` cells, their
 boundary factors are removed from a copy of the Bernstein polynomial before
-Algoim generates the remaining interface. Coefficient deflation and degree
-elevation preserve the tensor layout and assign each boundary component to
-the face rule exactly once. Volume rules, interface normals, and gradient
+Algoim generates volume rules and the remaining interface. The removed factors
+are `x_d` and `1-x_d`, which are strictly positive inside the reference cell,
+so both open volume sign regions are preserved. Removing them from the volume
+path also avoids Algoim root searches on identically zero face restrictions
+during dimension reduction. Coefficient deflation and degree elevation preserve
+the tensor layout and assign each boundary component to
+the face rule exactly once. Classification, interface normals, and gradient
 degeneracy checks continue to use the original polynomial. A repeated boundary
 factor with a vanishing original gradient is still a degenerate interface.
 This is an element-local rule only;
@@ -154,6 +158,52 @@ calls.
 Algoim's verified native range is `1 <= qo <= 10`.  With
 `qo = ceil((target_order + 1)/2)`, capabilities therefore report MFEM target
 orders 0 through 19 and reject other values without clamping.
+
+Polynomial degree is a separate capability: `min_polynomial_degree` and
+`max_polynomial_degree` bound `ElementLevelSet::order`, and `Supports()` checks
+both polynomial degree and target quadrature order. The Algoim adapter accepts
+tensor Bernstein degrees 0 through 64 in each coordinate. This explicit cap
+bounds tensor storage, derivative preparation, and evaluation costs; it is not
+an accuracy guarantee for arbitrary cuts. Negative degrees are `InvalidLevelSet`;
+degrees above 64 are `UnsupportedPolynomialDegree`. Scalar calls check the degree
+before coefficient count validation or evaluation. Unsupported target orders
+remain `UnsupportedOrder`. A well-formed batch reports unsupported polynomial degrees
+per element, preserving failed extraction statuses and empty rule ranges.
+The miniapp validates its interpolation degree before constructing a mesh or
+finite-element space; it requires at least degree one.
+
+The legacy `AlgoimIntegrationRules` wrapper retains its historical minimum of
+one for both target order and level-set projection degree. Its constructor and
+setters check the backend capabilities, currently allowing target orders 1--19
+and projection degrees 1--64. Unsupported values are rejected immediately with
+an `MFEM_VERIFY` range diagnostic instead of failing later during rule generation.
+Rejected setter calls leave the existing configuration intact. Values are not
+clamped. These limits are specific to the Algoim wrapper; the shared
+`CutIntegrationRules` base does not impose them on other backends. Callers needing
+status-returning validation should use the backend-neutral cut-quadrature API.
+
+The adapter retains the Bernstein basis throughout evaluation. Values use
+tensor de Casteljau evaluation, and derivatives use Bernstein coefficient
+differences, all in Algoim's `real` type (double in the supported revision).
+There is no conversion to monomials or integer binomial calculation. Exactly
+constant coordinate directions are removed from internal tensors without
+approximating the polynomial. Evaluation buffers are reused within each
+generation call; the adapters do not share mutable buffers between callers.
+The interface degeneracy check skips sampling when Bernstein derivative bounds
+certify a gradient component stays above its degeneracy tolerance in magnitude.
+Otherwise it samples only dependent coordinate directions and stops as soon as
+a sampled zero has a nondegenerate gradient. These shortcuts preserve the
+original sample-grid diagnosis without approximating the polynomial or reducing
+the sampling resolution in dependent directions.
+
+Algoim interval evaluations use centered Taylor enclosures with Hessian bounds
+from the convex hull of Bernstein derivative
+coefficients on the reference element. Gradients use the same enclosure
+construction. This avoids the repeated interval dependency of directly
+evaluating a high-degree Bernstein polynomial with interval coordinates.
+Intervals extending outside the reference element use interval de Casteljau
+evaluation instead, since the reference-element convex-hull bounds no longer
+apply there. MFEM coefficient storage and returned rules still use `real_t`.
 
 ## Extractors, retention, and concurrency
 

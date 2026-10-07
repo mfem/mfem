@@ -122,15 +122,25 @@ public:
 /** Compatibility wrapper for the historical cut-rule interface.
 
     New code should use AlgoimCutQuadratureConstructor. This wrapper preserves
-    the existing public API while keeping all Algoim types private. */
+    the existing public API while keeping all Algoim types private. Target orders
+    1--19 and level-set projection degrees 1--64 are supported. The constructor
+    and setters enforce these ranges with MFEM_VERIFY before extraction or rule
+    generation; unsupported values are not clamped. Use the backend-neutral API
+    for status-returning validation and capability queries. */
 class AlgoimIntegrationRules : public CutIntegrationRules
 {
 public:
+   /** Configure the legacy positive-phase rules.
+       @param order Target quadrature order, from 1 through 19.
+       @param lvlset Borrowed coefficient defining the level set.
+       @param lsO Level-set interpolation degree, from 1 through 64. */
    AlgoimIntegrationRules(int order, Coefficient &lvlset, int lsO = 2);
    ~AlgoimIntegrationRules() override;
 
+   /// Set target order (1--19); invalid values leave the current order intact.
    void SetOrder(int order) override;
    void SetLevelSetCoefficient(Coefficient &ls) override;
+   /// Set projection degree (1--64); validate before replacing the extractor.
    void SetLevelSetProjectionOrder(int order) override;
    void GetSurfaceIntegrationRule(ElementTransformation &Tr,
                                   IntegrationRule &result) override;

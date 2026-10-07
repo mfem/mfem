@@ -21,6 +21,7 @@
 
 #include "mfem.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -46,7 +47,7 @@ int main(int argc, char *argv[])
                   "Number of uniform mesh refinements.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element and coefficient interpolation order "
-                  "(at least one).");
+                  "(1 through 64).");
    args.AddOption(&quadrature_order, "-qo", "--quadrature-order",
                   "Target cut-quadrature order (0 through 19).");
    args.AddOption(&cut_position, "-c", "--cut-position",
@@ -82,6 +83,14 @@ int main(int argc, char *argv[])
 #else
    AlgoimCutQuadratureConstructor quadrature_constructor;
    const auto &capabilities = quadrature_constructor.Capabilities();
+   if (order < capabilities.min_polynomial_degree ||
+       order > capabilities.max_polynomial_degree)
+   {
+      std::cerr << "Level-set degree must be between "
+                << std::max(1, capabilities.min_polynomial_degree) << " and "
+                << capabilities.max_polynomial_degree << ".\n";
+      return 1;
+   }
    if (quadrature_order < capabilities.min_order ||
        quadrature_order > capabilities.max_order)
    {

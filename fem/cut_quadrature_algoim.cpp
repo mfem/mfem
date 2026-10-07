@@ -10,9 +10,11 @@
 #include <algoim/quadrature_general.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace mfem
@@ -82,132 +84,271 @@ int CoefficientCount(Geometry::Type geometry, int order)
 template <int N>
 class AlgoimBernsteinLevelSet
 {
+   struct Tensor
+   {
+      std::array<int, N> degree;
+      std::vector<algoim::real> coefficients;
+   };
+
+   struct EvaluationData
+   {
+      Tensor polynomial;
+      std::array<Tensor, N> derivatives;
+      std::array<std::array<algoim::real, N>, N> hessian_bounds;
+   };
+
 public:
    AlgoimBernsteinLevelSet(const Vector &coefficients, int order,
                            real_t selection_sign = 1.0)
-      : order_(order), sign_(selection_sign)
+      : sign_(selection_sign)
    {
-      const int n = order_ + 1;
-      power_coefficients_ = coefficients;
-      Vector next(coefficients.Size());
-      int stride = 1;
-      for (int direction = 0; direction < N; direction++)
+      Tensor polynomial;
+      polynomial.degree.fill(order);
+      polynomial.coefficients.resize(coefficients.Size());
+      for (int i = 0; i < coefficients.Size(); i++)
       {
-         for (int index = 0; index < power_coefficients_.Size(); index++)
-         {
-            const int degree = (index / stride) % n;
-            const int base = index - degree*stride;
-            real_t value = 0.0;
-            for (int i = 0; i <= degree; i++)
-            {
-               const real_t sign = ((degree - i) & 1) ? -1.0 : 1.0;
-               value += power_coefficients_(base + i*stride) *
-                        Binomial(order_, i) * Binomial(order_ - i, degree - i) *
-                        sign;
-            }
-            next(index) = value;
-         }
-         power_coefficients_ = next;
-         stride *= n;
+         polynomial.coefficients[i] = coefficients(i);
+      }
+      ReduceConstantDirections(polynomial);
+      value_ = Prepare(polynomial);
+      for (int d = 0; d < N; d++)
+      {
+         gradient_[d] = Prepare(value_.derivatives[d]);
       }
    }
 
    template <typename T>
    T operator()(const algoim::uvector<T, N> &x) const
    {
-      std::vector<T> powers[N];
-      for (int d = 0; d < N; d++)
-      {
-         powers[d].resize(order_ + 1);
-         powers[d][0] = T(1.0);
-         for (int i = 1; i <= order_; i++)
-         {
-            powers[d][i] = powers[d][i - 1] * x(d);
-         }
-      }
-      T value = T(0.0);
-      int c = 0;
-      if (N == 2)
-      {
-         for (int j = 0; j <= order_; j++)
-         {
-            for (int i = 0; i <= order_; i++, c++)
-            {
-               value += T(power_coefficients_(c)) * powers[0][i] *
-                        powers[1][j];
-            }
-         }
-      }
-      else
-      {
-         for (int k = 0; k <= order_; k++)
-         {
-            for (int j = 0; j <= order_; j++)
-            {
-               for (int i = 0; i <= order_; i++, c++)
-               {
-                  value += T(power_coefficients_(c)) * powers[0][i] *
-                           powers[1][j] * powers[2][k];
-               }
-            }
-         }
-      }
-      return T(sign_) * value;
+      return Evaluate(value_, x) * sign_;
    }
 
    template <typename T>
    algoim::uvector<T, N> grad(const algoim::uvector<T, N> &x) const
    {
-      std::vector<T> powers[N];
+      algoim::uvector<T, N> gradient = T(0.0);
       for (int d = 0; d < N; d++)
       {
-         powers[d].resize(order_ + 1);
-         powers[d][0] = T(1.0);
-         for (int i = 1; i <= order_; i++)
-         {
-            powers[d][i] = powers[d][i - 1] * x(d);
-         }
+         gradient(d) = Evaluate(gradient_[d], x) * sign_;
       }
-      algoim::uvector<T, N> gradient = T(0.0);
-      const int n = order_ + 1;
-      for (int c = 0; c < power_coefficients_.Size(); c++)
-      {
-         int remainder = c;
-         int degree[N];
-         for (int d = 0; d < N; d++)
-         {
-            degree[d] = remainder % n;
-            remainder /= n;
-         }
-         for (int direction = 0; direction < N; direction++)
-         {
-            if (degree[direction] == 0) { continue; }
-            T term = T(power_coefficients_(c) * degree[direction]);
-            for (int d = 0; d < N; d++)
-            {
-               const int exponent = degree[d] - (d == direction ? 1 : 0);
-               term *= powers[d][exponent];
-            }
-            gradient(direction) += term;
-         }
-      }
-      for (int d = 0; d < N; d++) { gradient(d) *= T(sign_); }
       return gradient;
    }
 
-private:
-   static long long Binomial(int n, int k)
+   int Degree(int direction) const
    {
-      if (k < 0 || k > n) { return 0; }
-      k = std::min(k, n - k);
-      long long value = 1;
-      for (int i = 1; i <= k; i++) { value = value*(n - k + i)/i; }
-      return value;
+      return value_.polynomial.degree[direction];
    }
 
-   Vector power_coefficients_;
-   int order_;
-   real_t sign_;
+   bool HasNonvanishingGradient(algoim::real tolerance) const
+   {
+      for (const auto &derivative : value_.derivatives)
+      {
+         const auto bounds = std::minmax_element(derivative.coefficients.begin(),
+                                                 derivative.coefficients.end());
+         // The convex hull bounds this gradient component throughout the cell.
+         // One component bounded away from zero certifies a regular interface.
+         if (*bounds.first > tolerance || *bounds.second < -tolerance)
+         {
+            return true;
+         }
+      }
+      return false;
+   }
+
+private:
+   // Remove only exactly constant coordinate directions, without approximating
+   // or lowering a nonconstant polynomial's degree.
+   static void ReduceConstantDirections(Tensor &polynomial)
+   {
+      int stride = 1;
+      for (int d = 0; d < N; d++)
+      {
+         const int width = polynomial.degree[d] + 1;
+         const int size = static_cast<int>(polynomial.coefficients.size());
+         bool constant = true;
+         for (int i = 0; i < size; i++)
+         {
+            const int base = i - ((i / stride) % width)*stride;
+            if (polynomial.coefficients[i] != polynomial.coefficients[base])
+            {
+               constant = false;
+               break;
+            }
+         }
+         if (constant && width > 1)
+         {
+            std::vector<algoim::real> reduced(size / width);
+            for (int i = 0; i < size / width; i++)
+            {
+               reduced[i] = polynomial.coefficients[
+                               i % stride + (i / stride)*stride*width];
+            }
+            polynomial.coefficients.swap(reduced);
+            polynomial.degree[d] = 0;
+         }
+         stride *= polynomial.degree[d] + 1;
+      }
+   }
+
+   static Tensor Differentiate(const Tensor &polynomial, int direction)
+   {
+      Tensor derivative;
+      const int degree = polynomial.degree[direction];
+      if (degree == 0)
+      {
+         derivative.degree.fill(0);
+         derivative.coefficients.assign(1, 0.0);
+         return derivative;
+      }
+      derivative.degree = polynomial.degree;
+      derivative.degree[direction]--;
+      int stride = 1;
+      for (int d = 0; d < direction; d++)
+      {
+         stride *= polynomial.degree[d] + 1;
+      }
+      const int size = static_cast<int>(polynomial.coefficients.size()) /
+                       (degree + 1)*degree;
+      derivative.coefficients.resize(size);
+      for (int i = 0; i < size; i++)
+      {
+         const int source = i % stride +
+                            ((i / stride) % degree)*stride +
+                            (i / (stride*degree))*stride*(degree + 1);
+         derivative.coefficients[i] = algoim::real(degree) *
+                                      (polynomial.coefficients[source + stride] -
+                                       polynomial.coefficients[source]);
+         if (!std::isfinite(derivative.coefficients[i]))
+         {
+            throw std::overflow_error("Nonfinite Bernstein derivative");
+         }
+      }
+      ReduceConstantDirections(derivative);
+      return derivative;
+   }
+
+   static EvaluationData Prepare(const Tensor &polynomial)
+   {
+      EvaluationData data;
+      data.polynomial = polynomial;
+      for (int d = 0; d < N; d++)
+      {
+         data.derivatives[d] = Differentiate(polynomial, d);
+         for (int e = 0; e < N; e++)
+         {
+            const Tensor second = Differentiate(data.derivatives[d], e);
+            algoim::real bound = 0.0;
+            for (const auto coefficient : second.coefficients)
+            {
+               bound = std::max(bound, std::abs(coefficient));
+            }
+            // Bernstein coefficients bound each derivative on [0,1]^N.
+            data.hessian_bounds[d][e] = bound;
+         }
+      }
+      return data;
+   }
+
+   template <typename T>
+   T EvaluateTensor(const Tensor &polynomial,
+                    const algoim::uvector<T, N> &x) const
+   {
+      const int size = static_cast<int>(polynomial.coefficients.size());
+      if (size == 1) { return T(polynomial.coefficients[0]); }
+      auto &values = Scratch(T(0.0));
+      if (values.size() < polynomial.coefficients.size())
+      {
+         values.resize(polynomial.coefficients.size());
+      }
+      std::copy(polynomial.coefficients.begin(), polynomial.coefficients.end(),
+                values.begin());
+      int remaining_size = size;
+      for (int d = 0; d < N; d++)
+      {
+         const int width = polynomial.degree[d] + 1;
+         if (width == 1) { continue; }
+         const int fibers = remaining_size / width;
+         for (int f = 0; f < fibers; f++)
+         {
+            const int base = f*width;
+            for (int remaining = width - 1; remaining > 0; remaining--)
+            {
+               for (int i = 0; i < remaining; i++)
+               {
+                  values[base + i] = values[base + i] +
+                                     x(d)*(values[base + i + 1] -
+                                           values[base + i]);
+               }
+            }
+            values[f] = values[base];
+         }
+         remaining_size = fibers;
+      }
+      return values[0];
+   }
+
+   template <typename T>
+   T Evaluate(const EvaluationData &data,
+              const algoim::uvector<T, N> &x) const
+   {
+      return EvaluateTensor(data.polynomial, x);
+   }
+
+   algoim::Interval<N> Evaluate(
+      const EvaluationData &data,
+      const algoim::uvector<algoim::Interval<N>, N> &x) const
+   {
+      algoim::uvector<algoim::real, N> center = 0.0;
+      algoim::uvector<algoim::real, N> radius = 0.0;
+      for (int d = 0; d < N; d++)
+      {
+         center(d) = x(d).alpha;
+         radius(d) = x(d).maxDeviation();
+         if (center(d) - radius(d) < 0.0 ||
+             center(d) + radius(d) > 1.0)
+         {
+            // Convex-hull bounds below apply on the reference element only.
+            return EvaluateTensor(data.polynomial, x);
+         }
+      }
+
+      // A centered Taylor enclosure avoids the repeated interval dependency
+      // introduced by directly applying de Casteljau to interval coordinates.
+      algoim::uvector<algoim::real, N> beta = 0.0;
+      algoim::real remainder = 0.0;
+      for (int d = 0; d < N; d++)
+      {
+         const algoim::real derivative = EvaluateTensor(data.derivatives[d],
+                                                        center);
+         for (int e = 0; e < N; e++)
+         {
+            beta(e) += derivative*x(d).beta(e);
+            remainder += 0.5*data.hessian_bounds[d][e]*radius(d)*radius(e);
+         }
+         remainder += std::abs(derivative)*x(d).eps;
+      }
+      return algoim::Interval<N>(EvaluateTensor(data.polynomial, center),
+                                 beta, remainder);
+   }
+
+   std::vector<algoim::real> &Scratch(algoim::real) const
+   {
+      return scalar_scratch_;
+   }
+
+   std::vector<algoim::Interval<N>> &Scratch(const algoim::Interval<N> &) const
+   {
+      return interval_scratch_;
+   }
+
+   EvaluationData value_;
+   std::array<EvaluationData, N> gradient_;
+   algoim::real sign_;
+   // Each adapter belongs to one generation call. Algoim evaluates it
+   // sequentially, so scalar and interval buffers can be reused across values
+   // and gradient components without sharing mutable state between callers.
+   mutable std::vector<algoim::real> scalar_scratch_;
+   mutable std::vector<algoim::Interval<N>> interval_scratch_;
 };
 
 template <int N>
@@ -362,6 +503,7 @@ CutQuadratureStatus GenerateBoundaryInterface(
    {
       result.reference_normals.SetSize(N, nq);
    }
+   if (nq == 0) { return CutQuadratureStatus::Success; }
    AlgoimBernsteinLevelSet<N> original(level_set.coefficients, level_set.order);
    real_t scale = 0.0;
    for (int i = 0; i < level_set.coefficients.Size(); i++)
@@ -434,23 +576,29 @@ bool DegenerateInterfaceOnSampleGrid(const ElementLevelSet &level_set,
    AlgoimBernsteinLevelSet<N> polynomial(level_set.coefficients,
                                          level_set.order);
    const int subdivisions = std::max(2, 2*level_set.order);
-   const int point_count = N == 2 ? (subdivisions + 1)*(subdivisions + 1) :
-                           (subdivisions + 1)*(subdivisions + 1)*
-                           (subdivisions + 1);
    const real_t value_tolerance = 64.0 *
                                   std::numeric_limits<real_t>::epsilon()*scale;
    const real_t gradient_tolerance = value_tolerance *
                                      std::max(1, level_set.order);
+   if (polynomial.HasNonvanishingGradient(gradient_tolerance)) { return false; }
+   std::array<int, N> widths;
+   int point_count = 1;
+   for (int d = 0; d < N; d++)
+   {
+      // Constant directions contribute identical values and gradients at all
+      // grid coordinates. Keep the original grid in every dependent direction.
+      widths[d] = polynomial.Degree(d) == 0 ? 1 : subdivisions + 1;
+      point_count *= widths[d];
+   }
    bool found_zero = false;
-   bool all_zero_gradients = true;
    for (int index = 0; index < point_count; index++)
    {
       int remainder = index;
       algoim::uvector<algoim::real, N> point;
       for (int d = 0; d < N; d++)
       {
-         point(d) = real_t(remainder % (subdivisions + 1))/subdivisions;
-         remainder /= subdivisions + 1;
+         point(d) = real_t(remainder % widths[d])/subdivisions;
+         remainder /= widths[d];
       }
       if (std::abs(polynomial(point)) > value_tolerance) { continue; }
       found_zero = true;
@@ -460,10 +608,9 @@ bool DegenerateInterfaceOnSampleGrid(const ElementLevelSet &level_set,
       {
          norm_squared += gradient(d)*gradient(d);
       }
-      all_zero_gradients = all_zero_gradients &&
-                           std::sqrt(norm_squared) <= gradient_tolerance;
+      if (!(std::sqrt(norm_squared) <= gradient_tolerance)) { return false; }
    }
-   return found_zero && all_zero_gradients;
+   return found_zero;
 }
 
 template <int N>
@@ -513,6 +660,22 @@ CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &level_set,
    const int qo = (request.order + 2) / 2;
    const algoim::HyperRectangle<algoim::real, N> box(0.0, 1.0);
 
+   ElementLevelSet interior;
+   if (result.classification == CutCellClass::Cut)
+   {
+      // x_d and (1-x_d) are strictly positive inside the reference cell.
+      // Removing these boundary factors preserves both open volume phases and
+      // also prevents Algoim from root-finding an identically zero face
+      // restriction during volume dimension reduction.
+      const CutQuadratureStatus deflation_status =
+         DeflateZeroFaces<N>(level_set, interior);
+      if (deflation_status != CutQuadratureStatus::Success)
+      {
+         result.status = deflation_status;
+         return result.status;
+      }
+   }
+
    if (HasMeasure(request.measures, CutMeasure::Volume))
    {
       if (result.classification == CutCellClass::Full)
@@ -528,8 +691,8 @@ CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &level_set,
       else
       {
          const real_t sign = request.region == CutRegion::Negative ? 1.0 : -1.0;
-         AlgoimBernsteinLevelSet<N> selected(level_set.coefficients,
-                                             level_set.order, sign);
+         AlgoimBernsteinLevelSet<N> selected(interior.coefficients,
+                                             interior.order, sign);
          const auto quadrature = algoim::quadGen<N>(selected, box, -1, -1, qo);
          result.volume.SetSize(static_cast<int>(quadrature.nodes.size()));
          result.volume.SetOrder(request.order);
@@ -569,16 +732,8 @@ CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &level_set,
       }
       if (result.classification == CutCellClass::Cut)
       {
-         // Assign known zero faces to the boundary rule. Removing their factors
-         // keeps Algoim from generating the same components a second time.
-         ElementLevelSet interior;
-         const CutQuadratureStatus deflation_status =
-            DeflateZeroFaces<N>(level_set, interior);
-         if (deflation_status != CutQuadratureStatus::Success)
-         {
-            result.status = deflation_status;
-            return result.status;
-         }
+         // The same deflated polynomial generates only the interior interface;
+         // known zero faces are assigned to the boundary rule exactly once.
          AlgoimBernsteinLevelSet<N> interior_phi(interior.coefficients,
                                                  interior.order);
          // Normal orientation and degeneracy checks still use the original phi.
@@ -732,6 +887,10 @@ AlgoimCutQuadratureConstructor::AlgoimCutQuadratureConstructor()
    capabilities_.bases.Append(PolynomialBasis::BernsteinTensor);
    capabilities_.min_order = 0;
    capabilities_.max_order = 19;
+   capabilities_.min_polynomial_degree = 0;
+   // Resource policy for tensor evaluation, also bounding signed-int indexing
+   // and the (2*degree + 1)^N interface sampling grid before generation starts.
+   capabilities_.max_polynomial_degree = 64;
    capabilities_.volume = true;
    capabilities_.interface = true;
    capabilities_.negative_phase = true;
@@ -778,8 +937,18 @@ CutQuadratureStatus AlgoimCutQuadratureConstructor::GenerateReference(
       result.status = CutQuadratureStatus::UnsupportedOrder;
       return result.status;
    }
-   if (level_set.order < 0 ||
-       level_set.coefficients.Size() !=
+   if (level_set.order < 0)
+   {
+      result.status = CutQuadratureStatus::InvalidLevelSet;
+      return result.status;
+   }
+   if (level_set.order < capabilities_.min_polynomial_degree ||
+       level_set.order > capabilities_.max_polynomial_degree)
+   {
+      result.status = CutQuadratureStatus::UnsupportedPolynomialDegree;
+      return result.status;
+   }
+   if (level_set.coefficients.Size() !=
        CoefficientCount(level_set.geometry, level_set.order))
    {
       result.status = CutQuadratureStatus::InvalidLevelSet;

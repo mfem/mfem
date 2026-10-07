@@ -140,6 +140,8 @@ bool CutQuadratureCapabilities::Supports(
                             static_cast<unsigned>(CutMeasure::Interface);
    if (measures == 0u || (measures & ~allowed) != 0u) { return false; }
    if (request.order < min_order || request.order > max_order) { return false; }
+   if (level_set.order < min_polynomial_degree ||
+       level_set.order > max_polynomial_degree) { return false; }
    if (request.execution != CutExecutionMode::Host &&
        request.execution != CutExecutionMode::Device) { return false; }
    if ((request.execution == CutExecutionMode::Host &&

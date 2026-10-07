@@ -13,6 +13,7 @@
 
 #include "fem.hpp"
 #include "cut_quadrature.hpp"
+#include <algorithm>
 #include <cmath>
 
 using namespace std;
@@ -35,21 +36,59 @@ void CutIntegrationRules::SetLevelSetProjectionOrder(int order)
 
 #ifdef MFEM_USE_ALGOIM
 
+namespace
+{
+
+void ValidateLegacyAlgoimOrder(const CutQuadratureCapabilities &capabilities,
+                               int order)
+{
+   const int minimum = std::max(1, capabilities.min_order);
+   MFEM_VERIFY(order >= minimum && order <= capabilities.max_order,
+               "AlgoimIntegrationRules target order " << order
+               << " must be between " << minimum << " and "
+               << capabilities.max_order);
+}
+
+void ValidateLegacyAlgoimProjectionOrder(
+   const CutQuadratureCapabilities &capabilities, int order)
+{
+   const int minimum = std::max(1, capabilities.min_polynomial_degree);
+   MFEM_VERIFY(order >= minimum &&
+               order <= capabilities.max_polynomial_degree,
+               "AlgoimIntegrationRules level-set projection degree " << order
+               << " must be between " << minimum << " and "
+               << capabilities.max_polynomial_degree);
+}
+
+} // namespace
+
 struct AlgoimIntegrationRules::Impl
 {
-   CoefficientLevelSetExtractor extractor;
    AlgoimCutQuadratureConstructor constructor;
+   CoefficientLevelSetExtractor extractor;
    std::unique_ptr<CutQuadratureWorkspace> workspace;
 
-   Impl(Coefficient &level_set, int order)
-      : extractor(level_set, order), workspace(constructor.CreateWorkspace()) { }
+   static int ValidateOrders(const CutQuadratureCapabilities &capabilities,
+                             int order, int level_set_order)
+   {
+      // Called while constructing extractor arguments, before the extractor or
+      // workspace exists. Failed validation unwinds the backend automatically.
+      ValidateLegacyAlgoimOrder(capabilities, order);
+      ValidateLegacyAlgoimProjectionOrder(capabilities, level_set_order);
+      return level_set_order;
+   }
+
+   Impl(Coefficient &level_set, int order, int level_set_order)
+      : extractor(level_set, ValidateOrders(constructor.Capabilities(), order,
+                                            level_set_order)),
+        workspace(constructor.CreateWorkspace()) { }
 };
 
 AlgoimIntegrationRules::AlgoimIntegrationRules(int order,
                                                Coefficient &level_set,
                                                int level_set_order)
    : CutIntegrationRules(order, level_set, level_set_order),
-     impl(new Impl(level_set, level_set_order))
+     impl(new Impl(level_set, order, level_set_order))
 {
 }
 
@@ -60,13 +99,13 @@ AlgoimIntegrationRules::~AlgoimIntegrationRules()
 
 void AlgoimIntegrationRules::SetOrder(int order)
 {
-   MFEM_VERIFY(order > 0, "Invalid input");
+   ValidateLegacyAlgoimOrder(impl->constructor.Capabilities(), order);
    Order = order;
 }
 
 void AlgoimIntegrationRules::SetLevelSetCoefficient(Coefficient &level_set)
 {
-   Impl *new_impl = new Impl(level_set, lsOrder);
+   Impl *new_impl = new Impl(level_set, Order, lsOrder);
    LvlSet = &level_set;
    delete impl;
    impl = new_impl;
@@ -74,8 +113,8 @@ void AlgoimIntegrationRules::SetLevelSetCoefficient(Coefficient &level_set)
 
 void AlgoimIntegrationRules::SetLevelSetProjectionOrder(int order)
 {
-   MFEM_VERIFY(order > 0, "Invalid input");
-   Impl *new_impl = new Impl(*LvlSet, order);
+   ValidateLegacyAlgoimProjectionOrder(impl->constructor.Capabilities(), order);
+   Impl *new_impl = new Impl(*LvlSet, Order, order);
    lsOrder = order;
    delete impl;
    impl = new_impl;

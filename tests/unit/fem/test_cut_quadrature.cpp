@@ -5,6 +5,7 @@
 #include "unit_tests.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <type_traits>
 #include <vector>
@@ -389,6 +390,293 @@ TEST_CASE("Algoim interface and normal contracts", "[CutQuadrature][Algoim]")
    }
 }
 
+TEST_CASE("Algoim preserves degree-elevated linear cuts",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   const real_t tolerance = std::max(real_t(1e-11),
+                                     128*std::numeric_limits<real_t>::epsilon());
+   for (const int degree : {36, 62, 64})
+   {
+      for (int direction = 0; direction < 2; direction++)
+      {
+         CAPTURE(degree, direction);
+         ElementLevelSet polynomial;
+         polynomial.geometry = Geometry::SQUARE;
+         polynomial.order = degree;
+         const int width = degree + 1;
+         polynomial.coefficients.SetSize(width*width);
+         for (int j = 0; j < width; j++)
+         {
+            for (int i = 0; i < width; i++)
+            {
+               // Exact Bernstein degree elevation of phi = x_d - 0.4,
+               // up to storage rounding; no interpolation or basis conversion.
+               const int index = direction == 0 ? i : j;
+               polynomial.coefficients(i + width*j) =
+                  real_t(index)/degree - real_t(0.4);
+            }
+         }
+         CutQuadratureRequest request;
+         // The cut is planar; a low integration order still exercises the full
+         // elevated level-set degree while avoiding redundant rule points.
+         request.order = 2;
+         request.measures = CutMeasure::Volume | CutMeasure::Interface;
+         request.compute_reference_normals = true;
+         ReferenceCutQuadrature result;
+         for (const auto region : {CutRegion::Negative, CutRegion::Positive})
+         {
+            CAPTURE(region);
+            request.region = region;
+            if (region == CutRegion::Positive)
+            {
+               // Interface geometry is phase-independent and its orientation
+               // is checked separately below and in the normal contracts test.
+               // Preserve both phase volumes without regenerating the interface.
+               request.measures = CutMeasure::Volume;
+               request.compute_reference_normals = false;
+            }
+            REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                                  *workspace) ==
+                    CutQuadratureStatus::Success);
+            REQUIRE(WeightSum(result.volume) ==
+                    MFEM_Approx(region == CutRegion::Negative ? 0.4 : 0.6,
+                                tolerance, tolerance));
+            if (region == CutRegion::Positive) { continue; }
+            REQUIRE(WeightSum(result.interface.rule) ==
+                    MFEM_Approx(1.0, tolerance, tolerance));
+            REQUIRE(result.interface.rule.GetNPoints() > 0);
+            for (int q = 0; q < result.interface.rule.GetNPoints(); q++)
+            {
+               const auto &ip = result.interface.rule[q];
+               REQUIRE((direction == 0 ? ip.x : ip.y) ==
+                       MFEM_Approx(0.4, tolerance, tolerance));
+               for (int d = 0; d < 2; d++)
+               {
+                  REQUIRE(result.interface.reference_normals(d, q) ==
+                          MFEM_Approx(d == direction ? 1.0 : 0.0,
+                                      tolerance, tolerance));
+               }
+            }
+         }
+      }
+   }
+}
+
+TEST_CASE("Algoim detects singular interfaces in constant tensor directions",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   const real_t row[4] = {-0.125, 0.125, -0.125, 0.125};
+   CutQuadratureRequest request;
+   request.measures = CutMeasure::Interface;
+   for (int dim = 2; dim <= 3; dim++)
+   {
+      for (int direction = 0; direction < dim; direction++)
+      {
+         CAPTURE(dim, direction);
+         ElementLevelSet polynomial;
+         polynomial.geometry = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+         polynomial.order = 3;
+         polynomial.coefficients.SetSize(dim == 2 ? 16 : 64);
+         int stride = 1;
+         for (int d = 0; d < direction; d++) { stride *= 4; }
+         for (int i = 0; i < polynomial.coefficients.Size(); i++)
+         {
+            // phi = (x_d - 0.5)^3, independent of every other coordinate.
+            polynomial.coefficients(i) = row[(i / stride) % 4];
+         }
+         ReferenceCutQuadrature result;
+         REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                               *workspace) ==
+                 CutQuadratureStatus::DegenerateInterface);
+         REQUIRE(result.classification == CutCellClass::Cut);
+      }
+   }
+}
+
+TEST_CASE("Algoim evaluates elevated multivariate Bernstein planes",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   const real_t tolerance = std::max(real_t(1e-11),
+                                     128*std::numeric_limits<real_t>::epsilon());
+   for (int dim = 2; dim <= 3; dim++)
+   {
+      const int degree = dim == 2 ? 12 : 4;
+      CAPTURE(dim, degree);
+      ElementLevelSet polynomial;
+      polynomial.geometry = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+      polynomial.order = degree;
+      const int width = degree + 1;
+      polynomial.coefficients.SetSize(dim == 2 ? width*width :
+                                      width*width*width);
+      for (int i = 0; i < polynomial.coefficients.Size(); i++)
+      {
+         int index = i;
+         real_t coefficient = -0.8;
+         for (int d = 0; d < dim; d++)
+         {
+            coefficient += real_t(index % width)/degree;
+            index /= width;
+         }
+         polynomial.coefficients(i) = coefficient;
+      }
+      CutQuadratureRequest request;
+      // Two Gauss points suffice for these planar simplex measures in 2D/3D.
+      request.order = 2;
+      request.measures = CutMeasure::Volume | CutMeasure::Interface;
+      request.compute_reference_normals = true;
+      ReferenceCutQuadrature result;
+      REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                            *workspace) ==
+              CutQuadratureStatus::Success);
+      // x+y(+z) < 0.8 is a reference simplex wholly inside the element.
+      REQUIRE(WeightSum(result.volume) ==
+              MFEM_Approx(dim == 2 ? 0.8*0.8/2 : 0.8*0.8*0.8/6,
+                          tolerance, tolerance));
+      REQUIRE(WeightSum(result.interface.rule) ==
+              MFEM_Approx(dim == 2 ? std::sqrt(2.0)*0.8 :
+                          std::sqrt(3.0)*0.8*0.8/2, tolerance, tolerance));
+      for (int q = 0; q < result.interface.rule.GetNPoints(); q++)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            REQUIRE(result.interface.reference_normals(d, q) ==
+                    MFEM_Approx(1/std::sqrt(real_t(dim)), tolerance, tolerance));
+         }
+      }
+   }
+}
+
+TEST_CASE("Algoim preserves an elevated quadratic cut",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   ElementLevelSet polynomial;
+   polynomial.geometry = Geometry::SQUARE;
+   polynomial.order = 36;
+   const int degree = polynomial.order;
+   const int width = degree + 1;
+   polynomial.coefficients.SetSize(width*width);
+   for (int j = 0; j < width; j++)
+   {
+      for (int i = 0; i < width; i++)
+      {
+         // Elevated Bernstein coefficients of (x-0.2)(x-0.7).
+         const real_t quadratic = real_t(i)*(i - 1)/(degree*(degree - 1));
+         polynomial.coefficients(i + width*j) =
+            real_t(0.14) - real_t(0.9)*i/degree + quadratic;
+      }
+   }
+   CutQuadratureRequest request;
+   // Both zero sets are straight lines, irrespective of the elevated degree.
+   request.order = 2;
+   request.measures = CutMeasure::Volume | CutMeasure::Interface;
+   request.compute_reference_normals = true;
+   ReferenceCutQuadrature result;
+   REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                         *workspace) ==
+           CutQuadratureStatus::Success);
+   const real_t tolerance = std::max(real_t(1e-11),
+                                     128*std::numeric_limits<real_t>::epsilon());
+   REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.5, tolerance, tolerance));
+   REQUIRE(WeightSum(result.interface.rule) ==
+           MFEM_Approx(2.0, tolerance, tolerance));
+   real_t left_measure = 0.0, right_measure = 0.0;
+   for (int q = 0; q < result.interface.rule.GetNPoints(); q++)
+   {
+      const auto &ip = result.interface.rule[q];
+      const bool left = ip.x < 0.45;
+      REQUIRE(ip.x == MFEM_Approx(left ? 0.2 : 0.7, tolerance, tolerance));
+      REQUIRE(result.interface.reference_normals(0, q) ==
+              MFEM_Approx(left ? -1.0 : 1.0, tolerance, tolerance));
+      REQUIRE(result.interface.reference_normals(1, q) ==
+              MFEM_Approx(0.0, tolerance, tolerance));
+      (left ? left_measure : right_measure) += ip.weight;
+   }
+   REQUIRE(left_measure == MFEM_Approx(1.0, tolerance, tolerance));
+   REQUIRE(right_measure == MFEM_Approx(1.0, tolerance, tolerance));
+}
+
+TEST_CASE("Algoim validates polynomial degrees independently of quadrature order",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   const auto &caps = constructor.Capabilities();
+   REQUIRE(caps.min_polynomial_degree == 0);
+   REQUIRE(caps.max_polynomial_degree == 64);
+   CutQuadratureRequest request;
+   ElementLevelSetDescriptor descriptor =
+   { Geometry::SQUARE, PolynomialBasis::BernsteinTensor, 64 };
+   REQUIRE(caps.Supports(request, descriptor));
+   REQUIRE(caps.Supports(request, descriptor, true));
+   descriptor.order = 65;
+   REQUIRE_FALSE(caps.Supports(request, descriptor));
+   REQUIRE_FALSE(caps.Supports(request, descriptor, true));
+   descriptor.order = -1;
+   REQUIRE_FALSE(caps.Supports(request, descriptor));
+   descriptor.order = 0;
+   REQUIRE(caps.Supports(request, descriptor));
+   request.order = 20;
+   REQUIRE_FALSE(caps.Supports(request, descriptor));
+   request.order = 4;
+
+   ElementLevelSet polynomial = SquareLinear(-0.4, 0.6);
+   ReferenceCutQuadrature result;
+   for (const int degree : {65, std::numeric_limits<int>::max()})
+   {
+      CAPTURE(degree);
+      // Deliberately retain the small coefficient array: reject metadata before
+      // coefficient-count arithmetic, allocations, or polynomial evaluation.
+      polynomial.order = degree;
+      REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                            *workspace) ==
+              CutQuadratureStatus::UnsupportedPolynomialDegree);
+      REQUIRE(result.status == CutQuadratureStatus::UnsupportedPolynomialDegree);
+      REQUIRE(result.classification == CutCellClass::Unclassified);
+      REQUIRE(result.volume.GetNPoints() == 0);
+      REQUIRE(result.interface.rule.GetNPoints() == 0);
+   }
+   polynomial.order = -1;
+   REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                         *workspace) ==
+           CutQuadratureStatus::InvalidLevelSet);
+   polynomial.order = 0;
+   polynomial.coefficients.SetSize(1);
+   polynomial.coefficients(0) = -1.0;
+   REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                         *workspace) ==
+           CutQuadratureStatus::Success);
+   REQUIRE(WeightSum(result.volume) == MFEM_Approx(1.0));
+
+   ElementLevelSetBatch batch;
+   batch.descriptor =
+   { Geometry::SQUARE, PolynomialBasis::BernsteinTensor, 65 };
+   batch.coefficients.SetSize(66*66, 2);
+   batch.coefficients = 1.0;
+   batch.element_descriptors.SetSize(2);
+   batch.element_descriptors[0] = batch.element_descriptors[1] = batch.descriptor;
+   batch.extraction_status.SetSize(2);
+   batch.extraction_status[0] = CutQuadratureStatus::Success;
+   batch.extraction_status[1] = CutQuadratureStatus::UnsupportedSourceBasis;
+   BatchedReferenceCutQuadrature packed;
+   REQUIRE(constructor.GenerateReferenceBatch(batch, request, packed,
+                                              *workspace) ==
+           CutQuadratureStatus::Success);
+   REQUIRE(packed.status[0] == CutQuadratureStatus::UnsupportedPolynomialDegree);
+   REQUIRE(packed.status[1] == CutQuadratureStatus::UnsupportedSourceBasis);
+   REQUIRE(packed.classification[0] == CutCellClass::Unclassified);
+   REQUIRE(packed.classification[1] == CutCellClass::Unclassified);
+   REQUIRE(packed.volume.weights.Size() == 0);
+   REQUIRE(packed.interface.weights.Size() == 0);
+}
+
 TEST_CASE("Algoim combines interior and boundary interfaces without duplication",
           "[CutQuadrature][Algoim]")
 {
@@ -644,6 +932,58 @@ TEST_CASE("Algoim deflates both boundary sides and preserves singular interfaces
                                             *workspace) ==
               CutQuadratureStatus::Success);
       REQUIRE(WeightSum(result.volume) == MFEM_Approx(0.25));
+   }
+}
+
+TEST_CASE("Algoim removes boundary factors for volume-only requests",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   const real_t rows[3][4] =
+   {
+      {0.0, real_t(-1.0/12.0), 0.25, 0.0},  // t(1-t)(t-0.25)
+      {0.0, 0.0, real_t(-1.0/12.0), 0.75},  // t^2(t-0.25)
+      {-0.25, 0.25, 0.0, 0.0}       // (1-t)^2(t-0.25)
+   };
+   for (int dim = 2; dim <= 3; dim++)
+   {
+      for (int direction = 0; direction < dim; direction++)
+      {
+         for (int factor = 0; factor < 3; factor++)
+         {
+            CAPTURE(dim, direction, factor);
+            ElementLevelSet polynomial;
+            polynomial.geometry = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+            polynomial.order = 3;
+            polynomial.coefficients.SetSize(dim == 2 ? 16 : 64);
+            int stride = 1;
+            for (int d = 0; d < direction; d++) { stride *= 4; }
+            for (int i = 0; i < polynomial.coefficients.Size(); i++)
+            {
+               polynomial.coefficients(i) = rows[factor][(i / stride) % 4];
+            }
+            // Boundary factors are positive inside the cell, including repeated
+            // factors whose boundary gradients vanish. Both open volume phases
+            // agree with those of t-0.25, without requesting an interface.
+            CutQuadratureRequest request;
+            request.order = 2;
+            request.measures = CutMeasure::Volume;
+            ReferenceCutQuadrature result;
+            for (const auto region : {CutRegion::Negative, CutRegion::Positive})
+            {
+               CAPTURE(region);
+               request.region = region;
+               REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                                     *workspace) ==
+                       CutQuadratureStatus::Success);
+               REQUIRE(result.classification == CutCellClass::Cut);
+               REQUIRE(WeightSum(result.volume) ==
+                       MFEM_Approx(region == CutRegion::Negative ? 0.25 : 0.75));
+               REQUIRE(result.interface.rule.GetNPoints() == 0);
+            }
+         }
+      }
    }
 }
 
@@ -995,6 +1335,85 @@ TEST_CASE("Cut level-set extractors and physical mapping",
                             legacy_surface_metric);
    REQUIRE(legacy_volume.GetNPoints() > 0);
    REQUIRE(legacy_surface.GetNPoints() == legacy_surface_metric.Size());
+}
+
+TEST_CASE("Legacy Algoim validates orders before rule generation",
+          "[CutQuadrature][Algoim]")
+{
+   class LegacyRuleState : public AlgoimIntegrationRules
+   {
+   public:
+      using AlgoimIntegrationRules::AlgoimIntegrationRules;
+      int TargetOrder() const { return Order; }
+      int ProjectionOrder() const { return lsOrder; }
+   };
+
+   AlgoimCutQuadratureConstructor backend;
+   const auto &caps = backend.Capabilities();
+   const int minimum_order = std::max(1, caps.min_order);
+   const int minimum_degree = std::max(1, caps.min_polynomial_degree);
+   FunctionCoefficient phi([](const Vector &x) { return x(0) - 0.4; });
+   LegacyRuleState maximum(caps.max_order, phi, caps.max_polynomial_degree);
+   REQUIRE(maximum.TargetOrder() == caps.max_order);
+   REQUIRE(maximum.ProjectionOrder() == caps.max_polynomial_degree);
+
+   LegacyRuleState legacy(minimum_order, phi, minimum_degree);
+   CutIntegrationRules &base = legacy;
+   base.SetOrder(caps.max_order);
+   base.SetLevelSetProjectionOrder(caps.max_polynomial_degree);
+   REQUIRE(legacy.TargetOrder() == caps.max_order);
+   REQUIRE(legacy.ProjectionOrder() == caps.max_polynomial_degree);
+   // Acceptance at the maximum degree does not require expensive high-degree
+   // interpolation. Generate a linear cut at the maximum target order instead.
+   base.SetLevelSetProjectionOrder(1);
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   ElementTransformation &Tr = *mesh.GetElementTransformation(0);
+   IntegrationRule volume, surface;
+   legacy.GetVolumeIntegrationRule(Tr, volume);
+   legacy.GetSurfaceIntegrationRule(Tr, surface);
+   REQUIRE(volume.GetOrder() == caps.max_order);
+   REQUIRE(surface.GetOrder() == caps.max_order);
+   REQUIRE(WeightSum(volume) == MFEM_Approx(0.6));
+   REQUIRE(WeightSum(surface) == MFEM_Approx(1.0));
+
+#ifdef MFEM_USE_EXCEPTIONS
+   struct ErrorActionGuard
+   {
+      ErrorAction previous;
+      ErrorActionGuard() : previous(get_error_action())
+      { set_error_action(MFEM_ERROR_THROW); }
+      ~ErrorActionGuard() { set_error_action(previous); }
+   } error_action_guard;
+
+   for (const int order :
+        {
+           0, -1, caps.max_order + 1,
+           std::numeric_limits<int>::max()
+        })
+   {
+      CAPTURE(order);
+      REQUIRE_THROWS_AS(LegacyRuleState(order, phi, 1), ErrorException);
+      REQUIRE_THROWS_AS(base.SetOrder(order), ErrorException);
+      REQUIRE(legacy.TargetOrder() == caps.max_order);
+   }
+   for (const int degree :
+        {
+           0, -1, caps.max_polynomial_degree + 1,
+           std::numeric_limits<int>::max()
+        })
+   {
+      CAPTURE(degree);
+      REQUIRE_THROWS_AS(LegacyRuleState(minimum_order, phi, degree),
+                        ErrorException);
+      REQUIRE_THROWS_AS(base.SetLevelSetProjectionOrder(degree), ErrorException);
+      REQUIRE(legacy.ProjectionOrder() == 1);
+   }
+   // The old extractor and configuration remain usable after rejected setters.
+   base.SetLevelSetCoefficient(phi);
+   legacy.GetVolumeIntegrationRule(Tr, volume);
+   REQUIRE(volume.GetOrder() == caps.max_order);
+   REQUIRE(WeightSum(volume) == MFEM_Approx(0.6));
+#endif
 }
 
 TEST_CASE("Algoim shared constructor uses per-thread workspaces",

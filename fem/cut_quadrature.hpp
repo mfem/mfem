@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <limits>
 #include <memory>
 
 namespace mfem
@@ -96,7 +97,8 @@ enum class CutQuadratureStatus
    DegenerateVolume,           ///< Degenerate sign-region definition.
    DegenerateInterface,        ///< Singular or otherwise degenerate zero set.
    WeightConstraintInfeasible, ///< The requested weight constraint cannot be met.
-   GenerationFailure          ///< Rule generation failed or produced invalid data.
+   GenerationFailure,         ///< Rule generation failed or produced invalid data.
+   UnsupportedPolynomialDegree ///< Level-set degree exceeds backend capabilities.
 };
 
 /** Polynomial defining the cut in reference-element coordinates.
@@ -182,6 +184,10 @@ struct CutQuadratureCapabilities
    int min_order = 0;
    /// Inclusive upper target-order bound; -1 means no nonnegative order fits.
    int max_order = -1;
+   /// Inclusive lower level-set degree bound (ElementLevelSet::order).
+   int min_polynomial_degree = 0;
+   /// Inclusive upper level-set degree bound, independent of quadrature order.
+   int max_polynomial_degree = std::numeric_limits<int>::max();
    bool volume = false;         ///< Can generate volume rules.
    bool interface = false;      ///< Can generate interface rules.
    bool negative_phase = false; ///< Can select the negative region.
@@ -488,17 +494,25 @@ public:
 #ifdef MFEM_USE_ALGOIM
 /** Host-only Algoim backend for tensor Bernstein polynomials on squares and cubes.
     Supports scalar calls and homogeneous batches, either sign region, volume
-    and interface rules, optional reference normals, and target orders 0--19.
+    and interface rules, optional reference normals, target orders 0--19, and
+    level-set polynomial degrees 0--64 in each coordinate. Higher degrees return
+    UnsupportedPolynomialDegree before coefficient evaluation. The degree cap
+    bounds tensor storage and evaluation costs; it is not an accuracy guarantee.
     Batches are processed element by element on the host. Both weight policies
     are advertised. The target order p selects (p+2)/2 Algoim quadrature nodes
     per one-dimensional rule (integer division).
+
+    Values and derivatives use de Casteljau evaluation in the Bernstein basis
+    with Algoim's real type. Interval evaluation uses centered Taylor enclosures
+    bounded by Bernstein derivative coefficients on the reference element.
 
     An identically zero polynomial returns DegenerateVolume. Classification uses
     Bernstein coefficient bounds, so Cut is conservative. Interface normals are
     normalized gradients of the original polynomial, even for the positive phase.
     Zero faces are integrated explicitly, including in Cut cells. Their polynomial
-    factors are removed only for interior interface generation to avoid counting
-    the same boundary components twice.
+    factors are removed for volume and interior interface generation. These
+    factors are positive in the open cell, so both volume sign regions are
+    preserved while boundary components are counted only by the face rules.
     Available only when MFEM is configured with MFEM_USE_ALGOIM. */
 class AlgoimCutQuadratureConstructor : public CutQuadratureConstructor
 {
