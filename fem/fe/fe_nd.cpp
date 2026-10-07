@@ -3164,6 +3164,11 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, vdim);
+#else
+   // 'vshape' is initialized with 'dim' (2) instead of 'vdim' (3) columns.
+   // 'vshape' may be modified by ND_R2D_FiniteElement::LocalInterpolation to
+   // use the number of dofs of another FE as the number of rows.
+   vshape.SetSize(dof, vdim);
 #endif
 
    real_t * tk_ptr = const_cast<real_t*>(tk);

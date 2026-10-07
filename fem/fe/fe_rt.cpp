@@ -2469,6 +2469,9 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, vdim);
+#else
+   // 'vshape' is initialized with 'dim' (2) instead of 'vdim' (3) columns.
+   vshape.SetSize(dof, vdim);
 #endif
 
    real_t * nk_ptr = const_cast<real_t*>(nk);
