@@ -11,6 +11,11 @@
 Version 4.10.1 (development)
 ============================
 
+Miscellaneous
+-------------
+- Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
+  failure if an MPI rank had no design parameters (aka decision variables).
+  Also plugged a MPI communicator leak that would cause memory leaks.
 
 Version 4.10, released on Sep 1, 2026
 =====================================
