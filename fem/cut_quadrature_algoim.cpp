@@ -614,25 +614,37 @@ bool DegenerateInterfaceOnSampleGrid(const ElementLevelSet &level_set,
 }
 
 template <int N>
-CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &level_set,
+CutQuadratureStatus GenerateAlgoim(const ElementLevelSet &input,
                                    const CutQuadratureRequest &request,
                                    ReferenceCutQuadrature &result)
 {
-   real_t minimum = level_set.coefficients.Min();
-   real_t maximum = level_set.coefficients.Max();
-   real_t scale = 0.0;
-   for (int i = 0; i < level_set.coefficients.Size(); i++)
+   const real_t minimum = input.coefficients.Min();
+   const real_t maximum = input.coefficients.Max();
+   real_t coefficient_norm = 0.0;
+   for (int i = 0; i < input.coefficients.Size(); i++)
    {
-      scale = std::max(scale, std::abs(level_set.coefficients(i)));
+      coefficient_norm = std::max(coefficient_norm,
+                                  std::abs(input.coefficients(i)));
    }
 
    // An identically zero Bernstein polynomial has a positive-measure zero set.
-   if (scale == 0.0)
+   if (coefficient_norm == 0.0)
    {
       result.classification = CutCellClass::Degenerate;
       result.status = CutQuadratureStatus::DegenerateVolume;
       return result.status;
    }
+
+   // A positive rescaling preserves the zero set, phase signs, and gradient
+   // orientation. Normalize before deflation, Algoim evaluation, and gradient
+   // norm checks so large/small overall scales cannot overflow/underflow them.
+   // Divide directly: the reciprocal of a tiny finite norm can overflow.
+   ElementLevelSet level_set(input);
+   for (int i = 0; i < level_set.coefficients.Size(); i++)
+   {
+      level_set.coefficients(i) /= coefficient_norm;
+   }
+   const real_t scale = 1.0;
 
    if (request.region == CutRegion::Negative)
    {

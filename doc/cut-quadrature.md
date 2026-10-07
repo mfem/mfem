@@ -185,6 +185,15 @@ status-returning validation should use the backend-neutral cut-quadrature API.
 The adapter retains the Bernstein basis throughout evaluation. Values use
 tensor de Casteljau evaluation, and derivatives use Bernstein coefficient
 differences, all in Algoim's `real` type (double in the supported revision).
+After finite-value validation and the exact zero-polynomial check, a private
+copy of the coefficients is divided by its largest absolute coefficient before
+deflation, evaluation, and gradient-norm checks. Direct division avoids forming
+an overflowing reciprocal for tiny scales. The positive divisor preserves the
+zero set, both phase signs, and normal orientation; the caller's coefficients
+remain unchanged. Degeneracy tolerances use the normalized coefficient scale.
+This handles overall rescalings such as `1e-200 * (x - 0.4)` and
+`1e200 * (x - 0.4)` in double precision. Normalization cannot recover information
+already lost to overflow or underflow when the input coefficients were formed.
 There is no conversion to monomials or integer binomial calculation. Exactly
 constant coordinate directions are removed from internal tensors without
 approximating the polynomial. Evaluation buffers are reused within each

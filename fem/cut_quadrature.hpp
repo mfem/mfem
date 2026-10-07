@@ -525,6 +525,10 @@ public:
     MFEM_USE_OPENMP are enabled; otherwise initialize the required cached rules
     serially and avoid concurrent cache mutation.
 
+    A private coefficient copy is divided by its largest absolute coefficient
+    before evaluation, deflation, and gradient checks. This positive rescaling
+    preserves phase signs and normal orientation, while avoiding overflow and
+    underflow caused by the overall coefficient scale. Input data is unchanged.
     Values and derivatives use de Casteljau evaluation in the Bernstein basis
     with Algoim's real type. Interval evaluation uses centered Taylor enclosures
     bounded by Bernstein derivative coefficients on the reference element.

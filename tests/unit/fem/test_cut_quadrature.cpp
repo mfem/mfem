@@ -390,6 +390,104 @@ TEST_CASE("Algoim interface and normal contracts", "[CutQuadrature][Algoim]")
    }
 }
 
+TEST_CASE("Algoim preserves cuts under extreme coefficient rescaling",
+          "[CutQuadrature][Algoim]")
+{
+   AlgoimCutQuadratureConstructor constructor;
+   auto workspace = constructor.CreateWorkspace();
+   // The reported scales require double storage. Use representable extremes
+   // that also expose gradient-norm underflow/overflow in single precision.
+   const bool double_precision = std::numeric_limits<real_t>::digits > 24;
+   const real_t tiny = static_cast<real_t>(double_precision ? 1e-200 : 1e-20);
+   const real_t large = static_cast<real_t>(double_precision ? 1e200 : 1e20);
+   const real_t tolerance = std::max(real_t(1e-11),
+                                     128*std::numeric_limits<real_t>::epsilon());
+   for (const int dim : {2, 3})
+   {
+      for (const int example : {0, 1, 2})
+      {
+         // x-0.4; (x-0.25)(x-1); x. Cover interior interfaces, a
+         // combined interior/boundary interface, and Full/Empty zero faces.
+         const int degree = example == 1 ? 2 : 1;
+         const real_t row[3] =
+         {
+            example == 0 ? real_t(-0.4) :
+            (example == 1 ? real_t(0.25) : real_t(0.0)),
+            example == 0 ? real_t(0.6) :
+            (example == 1 ? real_t(-0.375) : real_t(1.0)), 0.0
+         };
+         for (const real_t scale :
+              {
+                 real_t(1.0), tiny, large, -tiny, -large,
+                 std::numeric_limits<real_t>::min(),
+                 std::numeric_limits<real_t>::max()
+              })
+         {
+            CAPTURE(dim, example, scale);
+            ElementLevelSet polynomial;
+            polynomial.geometry = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+            polynomial.order = degree;
+            const int width = degree + 1;
+            polynomial.coefficients.SetSize(dim == 2 ? width*width :
+                                            width*width*width);
+            for (int i = 0; i < polynomial.coefficients.Size(); i++)
+            {
+               polynomial.coefficients(i) = scale*row[i % width];
+            }
+            const Vector input_coefficients(polynomial.coefficients);
+            CutQuadratureRequest request;
+            request.order = 2; // All interface components are planar.
+            request.measures = CutMeasure::Volume | CutMeasure::Interface;
+            request.compute_reference_normals = true;
+            for (const auto region : {CutRegion::Negative, CutRegion::Positive})
+            {
+               CAPTURE(region);
+               request.region = region;
+               ReferenceCutQuadrature result;
+               REQUIRE(constructor.GenerateReference(polynomial, request, result,
+                                                     *workspace) ==
+                       CutQuadratureStatus::Success);
+               const bool original_negative =
+                  (region == CutRegion::Negative) == (scale > 0.0);
+               const real_t negative_volume = example == 0 ? real_t(0.4) :
+                                              (example == 1 ? real_t(0.75) :
+                                               real_t(0.0));
+               REQUIRE(WeightSum(result.volume) ==
+                       MFEM_Approx(original_negative ? negative_volume :
+                                   1.0 - negative_volume, tolerance, tolerance));
+               const CutCellClass classification = example != 2 ? CutCellClass::Cut :
+                                                   (original_negative ? CutCellClass::Empty :
+                                                    CutCellClass::Full);
+               REQUIRE(result.classification == classification);
+               REQUIRE(WeightSum(result.interface.rule) ==
+                       MFEM_Approx(example == 1 ? 2.0 : 1.0, tolerance, tolerance));
+               for (int q = 0; q < result.interface.rule.GetNPoints(); q++)
+               {
+                  const auto &ip = result.interface.rule[q];
+                  const bool boundary = example == 1 && ip.x == real_t(1.0);
+                  const real_t coordinate = example == 0 ? real_t(0.4) :
+                                            (example == 1 ? (boundary ? real_t(1.0) : real_t(0.25)) :
+                                             real_t(0.0));
+                  REQUIRE(ip.x == MFEM_Approx(coordinate, tolerance, tolerance));
+                  const real_t normal = (scale > 0.0 ? 1.0 : -1.0) *
+                                        (example == 1 && !boundary ? -1.0 : 1.0);
+                  for (int d = 0; d < dim; d++)
+                  {
+                     REQUIRE(result.interface.reference_normals(d, q) ==
+                             MFEM_Approx(d == 0 ? normal : real_t(0.0),
+                                         tolerance, tolerance));
+                  }
+               }
+               for (int i = 0; i < input_coefficients.Size(); i++)
+               {
+                  REQUIRE(polynomial.coefficients(i) == input_coefficients(i));
+               }
+            }
+         }
+      }
+   }
+}
+
 TEST_CASE("Algoim preserves degree-elevated linear cuts",
           "[CutQuadrature][Algoim]")
 {
