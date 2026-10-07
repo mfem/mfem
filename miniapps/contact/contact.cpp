@@ -94,6 +94,8 @@ int main(int argc, char *argv[])
    int nsteps = 1;
    // number of times steps in the x-direction (problem 1)
    int msteps = 0;
+   // Maximum number of iterations for the optimizer
+   int opt_maxit = 100;
    // Use non-linear elasticity (only for problem 2)
    bool nonlinear = false;
    // Tribol search proximity ratio
@@ -104,6 +106,8 @@ int main(int argc, char *argv[])
    // Direct solver for AMGF filtered subspace
    // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
    const char *amgf_fsolver = "auto";
+   // Device configuration string.
+   const char *device_config = "cpu";
 
 
    // 1. Parse command-line options.
@@ -117,6 +121,8 @@ int main(int argc, char *argv[])
                   "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
                   "Number of uniform refinements.");
+   args.AddOption(&opt_maxit, "-opt-maxit", "--optimizer-max-iterations",
+                  "Maximum number of iterations for the optimizer.");
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
    args.AddOption(&msteps, "-msteps", "--msteps",
@@ -134,6 +140,8 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&tribol_ratio, "-tr", "--tribol-proximity-parameter",
                   "Tribol-proximity-parameter.");
 
@@ -150,6 +158,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
 
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
@@ -425,7 +436,7 @@ int main(int argc, char *argv[])
       // 9(g). Interior-Point optimizer driving contact resolution.
       IPSolver optimizer(&contact);
       optimizer.SetTol(1e-6);
-      optimizer.SetMaxIter(100);
+      optimizer.SetMaxIter(opt_maxit);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetPrintLevel(0);
 

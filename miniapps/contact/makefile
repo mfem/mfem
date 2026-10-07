@@ -47,7 +47,7 @@ CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 %.o: %.cpp
 
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -x none -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
 		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
 
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
