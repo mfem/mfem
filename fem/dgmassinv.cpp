@@ -70,30 +70,26 @@ DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
    if (coeff) { m = new MassIntegrator(*coeff, ir); }
    else { m = new MassIntegrator(ir); }
 
-   const bool direct_inverse = (d2q == nullptr) && UsesTensorBasis(fes) &&
-                               !DeviceCanUseCeed();
-   MFEM_VERIFY(storage != MassStorage::Full || direct_inverse,
+   // Direct element solves operate on the input vector without a basis change.
+   // They also require the tensor-product EA kernels, which are unavailable
+   // with libCEED.
+   const bool can_use_direct_inverse =
+      d2q == nullptr && UsesTensorBasis(fes) && !DeviceCanUseCeed();
+   MFEM_VERIFY(storage != MassStorage::Full || can_use_direct_inverse,
                "Full local mass storage requires a tensor-product DG space "
                "with matching basis and without libCEED.");
-   use_packed_inverse = direct_inverse &&
+   use_packed_inverse = can_use_direct_inverse &&
                         mass_storage == MassStorage::Packed;
-   use_full_inverse = direct_inverse && mass_storage == MassStorage::Full;
+   use_full_inverse = can_use_direct_inverse &&
+                      mass_storage == MassStorage::Full;
 
-   if (use_packed_inverse || use_full_inverse)
-   {
-      const TensorBasisElement *tbe =
-         dynamic_cast<const TensorBasisElement*>(fes.GetTypicalFE());
-      MFEM_VERIFY(tbe != nullptr, "Expected a tensor basis element.");
-      MFEM_VERIFY(tbe->GetDofMap().Size() == 0,
-                  "Direct DG mass inversion requires lexicographic L2 dofs.");
 #ifdef MFEM_USE_MAGMA
-      if (use_packed_inverse &&
-          Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-      {
-         magma_chol.reset(new MagmaPackedLowerCholesky);
-      }
-#endif
+   if (use_packed_inverse &&
+       Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      magma_chol.reset(new MagmaPackedLowerCholesky);
    }
+#endif
 
    diag_inv.SetSize(height);
    // Workspace vectors used for CG
