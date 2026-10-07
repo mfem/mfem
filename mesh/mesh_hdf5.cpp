@@ -152,6 +152,9 @@ bool IsNativeNURBSHDF5(const std::string &filename)
    return has_schema > 0;
 }
 
+// Read the serial native NURBS mesh from the file with input name, and return
+// the entire mesh as a string. This is inefficient in terms of memory usage and
+// string construction, but it enables more compressed files than ASCII.
 std::string ReadNativeNURBSHDF5(const std::string &filename)
 {
    HDF5Handle file(H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT),
