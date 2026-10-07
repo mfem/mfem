@@ -44,9 +44,9 @@ namespace mfem
 
 #ifdef MFEM_USE_SINGLE
 typedef float real_t;
-/** @brief Macro to simplify the selection of different values, e.g. tolerances,
-    based on the selected build-time precision, double or single. The first
-    parameter is the value for double precision, the second -- for single. */
+// Macro to simplify the selection of different values, e.g. tolerances, based
+// on the selected build-time precision, double or single. The first parameter
+// is the value for double precision, the second -- for single.
 #define MFEM_PRECISION_SWITCH(dbl,flt) (flt)
 #elif defined MFEM_USE_DOUBLE
 typedef double real_t;
