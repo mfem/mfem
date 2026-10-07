@@ -765,7 +765,7 @@ void PADivDivAssembleDiagonal3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      int osc = 0;
+      int offset = 0;
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
@@ -773,41 +773,53 @@ void PADivDivAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D : D1D - 1;
          const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-         for (int dz = 0; dz < D1Dz; ++dz)
+         for (int dx = 0; dx < D1Dx; ++dx)
          {
-            for (int dy = 0; dy < D1Dy; ++dy)
+            real_t mass_1[DofQuadLimits::HDIV_MAX_Q1D * DofQuadLimits::HDIV_MAX_Q1D];
+            for (int qz = 0; qz < Q1D; ++qz)
             {
-               real_t a[DofQuadLimits::HDIV_MAX_Q1D];
-
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  a[qx] = 0.0;
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     const real_t wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
-
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        const real_t wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
-                        a[qx] += wy * wy * wz * wz * op(qx,qy,qz,e);
-                     }
-                  }
-               }
-
-               for (int dx = 0; dx < D1Dx; ++dx)
+               for (int qy = 0; qy < Q1D; ++qy)
                {
                   real_t val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const real_t wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                     val += a[qx] * wx * wx;
+                     const real_t b = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
+                     val += b * b * op(qx,qy,qz,e);
                   }
-                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
+                  mass_1[qy + qz*Q1D] = val;
+               }
+            }
+
+            real_t mass_2[DofQuadLimits::HDIV_MAX_D1D * DofQuadLimits::HDIV_MAX_Q1D];
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  real_t val = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const real_t b = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+                     val += b * b * mass_1[qy + qz*Q1D];
+                  }
+                  mass_2[qz + dy*Q1D] = val;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     const real_t b = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
+                     val += b * b * mass_2[qz + dy*Q1D];
+                  }
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
-
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // loop c
    }); // end of element loop
 }
