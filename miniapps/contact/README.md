@@ -19,7 +19,7 @@ condition. Linear systems arising in the IP iterations are solved with
 ### AMG with Filtering (AMGF)
 
 The **AMGF** preconditioner extends classical AMG with a targeted small-subspace 
-correction restricted to degrees of freedom involed in active contact constraints. 
+correction restricted to degrees of freedom involved in active contact constraints. 
 This correction significantly improves solver convergence in late-stage IP iterations 
 where contact constraints dominate and classical AMG performance typically degrades.
 
