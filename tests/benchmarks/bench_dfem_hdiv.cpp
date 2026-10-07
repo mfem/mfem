@@ -379,8 +379,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   // p <= 6: the registered MFEM and dFEM kernels. On GPUs, the dFEM GlobalQF
-   // variants are limited to p <= 3 (QuadratureInterpolator H(div) fallbacks)
+   // p <= 6: the registered MFEM, QuadratureInterpolator and dFEM kernels
    const auto orders = std::vector<int> { 6, 5, 4, 3, 2, 1, 0 };
 
    constexpr auto inc = [](int n) constexpr noexcept -> int
@@ -974,7 +973,7 @@ int main(int argc, char *argv[])
    device.Print();
 
    AddMFEMHdivMassSpecializations(Q1Ds{});
-   AddQIHdivSpecializations(std::integer_sequence<int, 2, 3, 4, 5> {});
+   AddQIHdivSpecializations(Q1Ds{});
 
    if (bm::ReportUnrecognizedArguments(argc, argv)) { return EXIT_FAILURE; }
 

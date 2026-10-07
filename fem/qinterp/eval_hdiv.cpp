@@ -65,6 +65,18 @@ void InitTensorEvalHDivKernels()
    k::Specialization<3,LNODES,PM,5,6>::Add(); // RT(3), 6^3 qpts
 }
 
+// The fallback kernels size their arrays by DofQuadLimits, which on a GPU is
+// smaller than on the host: check against the limits of the configured device.
+static void CheckHDivFallbackSizes(int D1D, int Q1D)
+{
+   const auto &limits = DeviceDofQuadLimits::Get();
+   MFEM_VERIFY(D1D <= limits.HDIV_MAX_D1D && Q1D <= limits.HDIV_MAX_Q1D,
+               "H(div) QuadratureInterpolator: no kernel registered for D1D = "
+               << D1D << ", Q1D = " << Q1D << ", and the fallback supports "
+               "D1D <= " << limits.HDIV_MAX_D1D << ", Q1D <= "
+               << limits.HDIV_MAX_Q1D);
+}
+
 } // namespace quadrature_interpolator
 } // namespace internal
 
@@ -75,8 +87,7 @@ QuadratureInterpolator::TensorEvalHDivKernels::Fallback(
    int DIM, QVectorLayout Q_LAYOUT, unsigned FLAGS, int D1D, int Q1D)
 {
    using namespace internal::quadrature_interpolator;
-   MFEM_CONTRACT_VAR(D1D);
-   MFEM_CONTRACT_VAR(Q1D);
+   CheckHDivFallbackSizes(D1D, Q1D);
    constexpr auto RV = QuadratureInterpolator::VALUES;
    constexpr auto PV = QuadratureInterpolator::PHYSICAL_VALUES;
    constexpr auto PM = QuadratureInterpolator::PHYSICAL_MAGNITUDES;
@@ -126,8 +137,7 @@ QuadratureInterpolator::TensorEvalHDivDivKernels::Fallback(
    int DIM, unsigned FLAGS, int D1D, int Q1D)
 {
    using namespace internal::quadrature_interpolator;
-   MFEM_CONTRACT_VAR(D1D);
-   MFEM_CONTRACT_VAR(Q1D);
+   CheckHDivFallbackSizes(D1D, Q1D);
    constexpr auto RD = QuadratureInterpolator::DERIVATIVES;
    constexpr auto PD = QuadratureInterpolator::PHYSICAL_DERIVATIVES;
    if (DIM == 2)
@@ -146,8 +156,7 @@ QuadratureInterpolator::TensorEvalHDivTransposeKernels::Fallback(
    int DIM, QVectorLayout Q_LAYOUT, unsigned FLAGS, int D1D, int Q1D)
 {
    using namespace internal::quadrature_interpolator;
-   MFEM_CONTRACT_VAR(D1D);
-   MFEM_CONTRACT_VAR(Q1D);
+   CheckHDivFallbackSizes(D1D, Q1D);
    constexpr auto LNODES = QVectorLayout::byNODES;
    constexpr auto LVDIM = QVectorLayout::byVDIM;
    constexpr auto RV = QuadratureInterpolator::VALUES;

@@ -426,10 +426,6 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
                                                 PHYSICAL_DERIVATIVES);
    if (div_eval_mode)
    {
-      MFEM_VERIFY(nd <= DofQuadLimits::HDIV_MAX_D1D &&
-                  nq <= DofQuadLimits::HDIV_MAX_Q1D,
-                  "H(div) divergence: D1D = " << nd << ", Q1D = " << nq
-                  << " exceed the supported sizes");
       TensorEvalHDivDivKernels::Run(
          // dispatch params: dim + the template params of EvalHDivDiv2D/3D:
          dim, div_eval_mode, nd, nq,
@@ -473,11 +469,6 @@ void QuadratureInterpolator::AddMultTransposeHDiv(unsigned eval_flags,
    const int nd = maps_c.ndof;
    const int nq = maps_c.nqpt;
 
-   // Only the fallback is registered, for which shmem is sized by DofQuadLimits.
-   MFEM_VERIFY(nd <= DofQuadLimits::HDIV_MAX_D1D &&
-               nq <= DofQuadLimits::HDIV_MAX_Q1D,
-               "H(div) transpose: D1D = " << nd << ", Q1D = " << nq
-               << " exceed the supported sizes");
 
    // AddMultTranspose for H(div) VALUES
    if (eval_flags & VALUES)
