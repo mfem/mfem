@@ -283,12 +283,7 @@ TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
       x+=1.5;
 
       ::std::unique_ptr<MMA> mma =
-#if  __cplusplus >= 201402L
          ::std::make_unique<MMA>(MPI_COMM_WORLD,num_var,0,x);
-
-#else
-         ::std::unique_ptr<MMA>(new MMA(MPI_COMM_WORLD,num_var,0,x));
-#endif
 
       real_t o;
       for (int it=0; it<30; it++)
