@@ -39,7 +39,8 @@ real_t FaceJumpEstimatorBase::SmallestEigenvalue(const DenseMatrix &a,
 {
    MFEM_VERIFY(a.Height() == vector_dim && a.Width() == vector_dim,
                name << " must have dimensions matching the mesh.");
-   const real_t tol = 1e-12 * std::max(1.0, a.MaxMaxNorm());
+   const real_t tol = real_t(1e-12) *
+                      std::max(real_t(1.0), a.MaxMaxNorm());
    for (int i = 0; i < vector_dim; i++)
    {
       for (int j = i + 1; j < vector_dim; j++)
