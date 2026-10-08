@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -104,9 +104,9 @@ struct DofQuadLimits_CPU
 ///
 /// @sa For accessing the limits according to the runtime configuration of the
 /// Device, see DeviceDofQuadLimits.
-#if defined(__CUDA_ARCH__)
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 using DofQuadLimits = internal::DofQuadLimits_CUDA;
-#elif defined(__HIP_DEVICE_COMPILE__)
+#elif defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
 using DofQuadLimits = internal::DofQuadLimits_HIP;
 #else
 using DofQuadLimits = internal::DofQuadLimits_CPU;
