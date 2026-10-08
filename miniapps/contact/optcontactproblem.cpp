@@ -11,8 +11,49 @@
 
 #include "optcontactproblem.hpp"
 
+#include <chrono>
+#include <thread>
+
 namespace mfem
 {
+
+namespace
+{
+
+class ScopedHypreHostPolicy
+{
+private:
+   HYPRE_MemoryLocation old_memory = HYPRE_MEMORY_UNDEFINED;
+   HYPRE_ExecutionPolicy old_execution = HYPRE_EXEC_UNDEFINED;
+   bool restore = false;
+
+public:
+   ScopedHypreHostPolicy()
+   {
+      if (HYPRE_Initialized())
+      {
+         HYPRE_GetMemoryLocation(&old_memory);
+         HYPRE_GetExecutionPolicy(&old_execution);
+         HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
+         HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
+         restore = true;
+      }
+   }
+
+   void Restore()
+   {
+      if (restore)
+      {
+         HYPRE_SetMemoryLocation(old_memory);
+         HYPRE_SetExecutionPolicy(old_execution);
+         restore = false;
+      }
+   }
+
+   ~ScopedHypreHostPolicy() { Restore(); }
+};
+
+}
 
 void OptContactProblem::ReleaseMemory()
 {
@@ -68,6 +109,16 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    comm = problem->GetComm();
    vfes = problem->GetFESpace();
    block_offsetsg.SetSize(4);
+
+   grad_ref.UseDevice(true);
+   xref.UseDevice(true);
+   xrefbc.UseDevice(true);
+   gapv.UseDevice(true);
+   Mvlump.UseDevice(true);
+   Mcslumpfull.UseDevice(true);
+   Mcslump.UseDevice(true);
+   dl.UseDevice(true);
+   eps.UseDevice(true);
 }
 
 void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
@@ -76,9 +127,20 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    ReleaseMemory();
 
    coords = coords_;
-   xref.SetDataAndSize(xref_.GetData(), xref_.Size());
+   xref.NewMemoryAndSize(xref_.GetMemory(), xref_.Size(), false);
+   xref.UseDevice(true);
 
    ComputeGapJacobian();
+
+   // Debugging checkpoint: make CPU progress visible, then surface any
+   // asynchronous HIP error from the host-only Tribol/HYPRE path before
+   // launching the next MFEM kernel.
+   mfem::out << "Contact HIP checkpoint: CPU reached the end of "
+             << "ComputeGapJacobian(); pausing for 5 seconds." << std::endl;
+   std::this_thread::sleep_for(std::chrono::seconds(5));
+   MFEM_DEVICE_SYNC;
+   mfem::out << "Contact HIP checkpoint: device synchronization passed."
+             << std::endl;
 
    problem->Getxrefbc(xrefbc);
    const Array<int> & ess_tdof_list = problem->GetEssentialDofs();
@@ -104,16 +166,18 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    block_offsetsg[3] = dimU;
    block_offsetsg.PartialSum();
 
-   Vector diagVec(dimU); diagVec = 0.0;
+   Vector diagVec(dimU); diagVec.UseDevice(true); diagVec = 0.0;
    SparseMatrix * tempSparse;
 
    diagVec = 1.0;
+   diagVec.HostRead();
    tempSparse = new SparseMatrix(diagVec);
    Iu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(), tempSparse);
    HypreStealOwnership(*Iu, *tempSparse);
    delete tempSparse;
 
    diagVec = -1.0;
+   diagVec.HostRead();
    tempSparse = new SparseMatrix(diagVec);
    negIu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
                               tempSparse);
@@ -131,7 +195,7 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    Mv = new HypreParMatrix();
    MassForm.FormSystemMatrix(empty_tdof_list,*Mv);
 
-   Vector onev(Mv->Width()); onev = 1.0;
+   Vector onev(Mv->Width()); onev.UseDevice(true); onev = 1.0;
    Mvlump.SetSize(Mv->Height());
    Mv->Mult(onev, Mvlump);
 
@@ -167,7 +231,8 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
 {
    if (!NegId)
    {
-      Vector negone(dimM); negone = -1.0;
+      Vector negone(dimM); negone.UseDevice(true); negone = -1.0;
+      negone.HostRead();
       SparseMatrix diag(negone);
       NegId = new HypreParMatrix(comm, GetGlobalNumConstraints(),
                                  GetConstraintsStarts(), &diag);
@@ -188,6 +253,9 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
       int hJt = Jt->Height();
       SparseMatrix mergedJt;
       Jt->MergeDiagAndOffd(mergedJt);
+      mergedJt.HostReadI();
+      mergedJt.HostReadJ();
+      mergedJt.HostReadData();
       Array<int> nonzerorows;
       for (int i = 0; i<hJt; i++)
       {
@@ -247,7 +315,7 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
 
 void OptContactProblem::g(const Vector & d, Vector & gd)
 {
-   Vector temp(dimU); temp = 0.0;
+   Vector temp(dimU); temp.UseDevice(true); temp = 0.0;
    temp.Set(1.0, d);
    temp.Add(-1.0, xref);
    J->Mult(temp, gd);
@@ -259,12 +327,19 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
 //           [ eps - (d - dl) ]
 void OptContactProblem::c(const BlockVector & x, Vector & y)
 {
+   x.SyncToBlocks();
    const Vector disp  = x.GetBlock(0);
    const Vector slack = x.GetBlock(1);
 
    if (bound_constraints_activated)
    {
-      BlockVector yblock(block_offsetsg); yblock = 0.0;
+      BlockVector yblock(block_offsetsg);
+      yblock.UseDevice(true);
+      for (int i = 0; i < yblock.NumBlocks(); i++)
+      {
+         yblock.GetBlock(i).UseDevice(true);
+      }
+      yblock = 0.0;
 
       g(disp, yblock.GetBlock(0));
       yblock.GetBlock(1).Set( 1.0, disp );
@@ -272,6 +347,7 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
       yblock.GetBlock(2).Set(-1.0, yblock.GetBlock(1));
       yblock.GetBlock(1).Add(1.0, eps);
       yblock.GetBlock(2).Add(1.0, eps);
+      yblock.SyncFromBlocks();
       y.Set(1.0, yblock);
       y.Add(-1.0, slack);
    }
@@ -284,14 +360,18 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
 
 real_t OptContactProblem::CalcObjective(const BlockVector & x, int & eval_err)
 {
+   x.SyncToBlocks();
    return E(x.GetBlock(0), eval_err);
 }
 
 void OptContactProblem::CalcObjectiveGrad(const BlockVector & x,
                                           BlockVector & y)
 {
+   x.SyncToBlocks();
+   y.SyncToBlocks();
    DdE(x.GetBlock(0), y.GetBlock(0));
    y.GetBlock(1) = 0.0;
+   y.SyncFromBlocks();
 }
 
 real_t OptContactProblem::E(const Vector & d, int & eval_err)
@@ -300,8 +380,8 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
    {
       // (d - xref)^T [ 1/2 K * (d - xref) + gradEQP] + EQP
       real_t energy = 0.0;
-      Vector dx(dimU); dx = 0.0;
-      Vector temp(dimU); temp = 0.0;
+      Vector dx(dimU); dx.UseDevice(true); dx = 0.0;
+      Vector temp(dimU); temp.UseDevice(true); temp = 0.0;
       dx.Set(1.0, d);
       dx.Add(-1.0, xrefbc);
       Kref->Mult(dx, temp);
@@ -337,7 +417,7 @@ void OptContactProblem::DdE(const Vector & d, Vector & gradE)
    if (problem->IsNonlinear())
    {
       // KQP * (d - xref) + gradEQP
-      Vector dx(dimU); dx = 0.0;
+      Vector dx(dimU); dx.UseDevice(true); dx = 0.0;
       dx.Set(1.0, d);
       dx.Add(-1.0, xrefbc);
       Kref->Mult(dx, gradE);
@@ -357,19 +437,21 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 void OptContactProblem::SetDisplacement(const Vector & dx,
                                         bool activate_constraints)
 {
+   real_t *eps_h = eps.HostReadWrite();
    if (activate_constraints)
    {
       eps_min = std::max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
       for (int j = 0; j < dimU; j++)
       {
-         eps(j) = std::max(eps_min, eps(j));
+         eps_h[j] = std::max(eps_min, eps_h[j]);
       }
    }
    else
    {
+      const real_t *dx_h = dx.HostRead();
       for (int j = 0; j < dimU; j++)
       {
-         eps(j) = std::max(eps(j), std::abs(dx(j)));
+         eps_h[j] = std::max(eps_h[j], std::abs(dx_h[j]));
       }
    }
 }
@@ -394,9 +476,18 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
 
+   // Tribol and its MFEM adapter are host-only in this build. Keep both
+   // HYPRE allocation and execution on the host for the complete Tribol
+   // lifetime; switching only the allocation policy leaves HYPRE kernels
+   // operating on host pointers.
+   ScopedHypreHostPolicy hypre_host_policy;
+
    int coupling_scheme_id = 0;
    int mesh1_id = 0; int mesh2_id = 1;
 
+   // Tribol's implicit mortar path is host-only. Make the coordinates current
+   // on the host before handing the grid function to Tribol.
+   coords->HostRead();
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
       *pmesh, *coords, mortar_attrs, non_mortar_attrs,
@@ -420,7 +511,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    Mcs = new HypreParMatrix();
    acs_form.FormSystemMatrix(empty_tdof_list,*Mcs);
 
-   Vector onecs(Mcs->Width()); onecs = 1.0;
+   Vector onecs(Mcs->Width()); onecs.UseDevice(true); onecs = 1.0;
    Mcslumpfull.SetSize(Mcs->Height()); //Vector
    Mcs->Mult(onecs, Mcslumpfull);
 
@@ -450,6 +541,10 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    int h = Mfull->Height();
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);
+   // Row inspection and compaction below are deliberately a host boundary.
+   merged.HostReadI();
+   merged.HostReadJ();
+   merged.HostReadData();
    Array<int> nonzero_rows;
 
    real_t max_l1_row_norm = 0.0;
@@ -523,21 +618,39 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    Vector gap_full;
    tribol::getMfemGap(coupling_scheme_id, gap_full);
+   gap_full.HostRead();
+   gap_full.UseDevice(true);
 
    auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
    Vector gap_true(P_submesh.Width());
+   gap_true.UseDevice(true);
 
    P_submesh.MultTranspose(gap_full,gap_true);
    gap.SetSize(nrows);
+   gap.UseDevice(true);
    Mcslump.SetSize(nrows);
+   Mcslump.UseDevice(true);
 
+   const real_t *gap_true_h = gap_true.HostRead();
+   const real_t *Mcslumpfull_h = Mcslumpfull.HostRead();
+   real_t *gap_h = gap.HostWrite();
+   real_t *Mcslump_h = Mcslump.HostWrite();
+   const int *nonzero_rows_h = nonzero_rows.HostRead();
    for (int i = 0; i<nrows; i++)
    {
-      gap[i] = gap_true[nonzero_rows[i]];
-      Mcslump(i) = Mcslumpfull(nonzero_rows[i]);
+      gap_h[i] = gap_true_h[nonzero_rows_h[i]];
+      Mcslump_h[i] = Mcslumpfull_h[nonzero_rows_h[i]];
    }
    gap /= Mcslump;
+
+   // Destroy all host-only Tribol/HYPRE objects before restoring HYPRE's GPU
+   // policy. The filtered matrix is then made current in HYPRE's memory space.
+   A_blk.reset();
+   delete Mcs;
+   Mcs = nullptr;
    tribol::finalize();
+   hypre_host_policy.Restore();
+   M->HypreRead();
    return M;
 }
 

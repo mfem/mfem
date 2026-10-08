@@ -16,6 +16,10 @@ namespace mfem
 
 void ElasticityOperator::Init()
 {
+   B.UseDevice(true);
+   X.UseDevice(true);
+   xref.UseDevice(true);
+
    int dim = pmesh->Dimension();
    fec = new H1_FECollection(order,dim);
    fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
@@ -155,7 +159,7 @@ real_t ElasticityOperator::GetEnergy(const Vector & u) const
    if (nonlinear)
    {
       real_t energy = 0.0;
-      Vector tu(xref); tu += u;
+      Vector tu(xref); tu.UseDevice(true); tu += u;
       ParGridFunction u_gf(fes);
       u_gf.SetFromTrueDofs(tu);
       energy += dynamic_cast<ParNonlinearForm*>(op)->GetEnergy(u_gf);
@@ -164,7 +168,7 @@ real_t ElasticityOperator::GetEnergy(const Vector & u) const
    }
    else
    {
-      Vector ku(K->Height());
+      Vector ku(K->Height()); ku.UseDevice(true);
       K->Mult(u,ku);
       return 0.5 * InnerProduct(comm,u, ku) - InnerProduct(comm,u, B);
    }
@@ -174,7 +178,7 @@ void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) const
 {
    if (nonlinear)
    {
-      Vector tu(xref); tu += u;
+      Vector tu(xref); tu.UseDevice(true); tu += u;
       gradE.SetSize(op->Height());
       dynamic_cast<ParNonlinearForm*>(op)->Mult(tu, gradE);
    }
@@ -190,7 +194,7 @@ HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
 {
    if (nonlinear)
    {
-      Vector tu(xref); tu += u;
+      Vector tu(xref); tu.UseDevice(true); tu += u;
       return dynamic_cast<HypreParMatrix *>(&dynamic_cast<ParNonlinearForm*>
                                             (op)->GetGradient(tu));
    }

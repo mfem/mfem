@@ -381,6 +381,7 @@ int main(int argc, char *argv[])
 
       // Store the current (reference) displacement in true dofs.
       Vector xref;
+      xref.UseDevice(true);
       x_gf.GetTrueDofs(xref);
 
       // 9(c). Form the contact system. This also builds the filtered subspace
@@ -443,18 +444,18 @@ int main(int argc, char *argv[])
       // Initial guess = previous reference configuration.
       x_gf.SetTrueVector();
       int ndofs = prob.GetFESpace()->GetTrueVSize();
-      Vector x0(ndofs); x0 = 0.0;
+      Vector x0(ndofs); x0.UseDevice(true); x0 = 0.0;
       x0.Set(1.0, xref);
 
       // Solve for the next step displacement (xf).
-      Vector xf(ndofs); xf = 0.0;
+      Vector xf(ndofs); xf.UseDevice(true); xf = 0.0;
       optimizer.Mult(x0, xf);
 
       delete prec;
       if (subspacesolver) { delete subspacesolver; }
 
       // Update internal state for next step (for bound constraints).
-      Vector dx(xf); dx -= x0;
+      Vector dx(xf); dx.UseDevice(true); dx -= x0;
       if (bound_constraints)
       {
          contact.SetDisplacement(dx, (i>=activation_step));
