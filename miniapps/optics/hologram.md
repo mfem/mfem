@@ -51,10 +51,10 @@ to $1/(2\delta)$:
 
 $$
 u(x,y) = \sum_{j,\ell} u_{j\ell}\thinspace
-\operatorname{sinc}\negthinspace\Bigl(\frac{x-x_j}{\delta}\Bigr)
-\operatorname{sinc}\negthinspace\Bigl(\frac{y-y_\ell}{\delta}\Bigr),
+\mathrm{sinc}\Bigl(\frac{x-x_j}{\delta}\Bigr)
+\mathrm{sinc}\Bigl(\frac{y-y_\ell}{\delta}\Bigr),
 \qquad
-\operatorname{sinc}(t)=\frac{\sin(\pi t)}{\pi t}.
+\mathrm{sinc}(t)=\frac{\sin(\pi t)}{\pi t}.
 $$
 
 The source and observation grids are the same $n_x\times n_y$ pixels, with
