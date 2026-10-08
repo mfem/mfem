@@ -869,7 +869,13 @@ struct VisualizerBase : private Options
          {
             const auto X = Reshape(solver.nodes.Read(), dim, ndofs);
             auto viz_h1_w = vis_gf.Write();
-            mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int i)
+            mfem::forall(ndofs,
+#if __cplusplus < 202002L
+                         [=]
+#else
+                         [=, this]
+#endif
+                         MFEM_HOST_DEVICE(int i)
             {
                viz_h1_w[i] = vis_data == Options::VisData::X ? X(0,i):
                              vis_data == Options::VisData::Y ? X(1,i):
