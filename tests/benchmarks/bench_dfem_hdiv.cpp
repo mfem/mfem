@@ -55,6 +55,7 @@ using future::tuple;
 #include "fem/dfem/doperator.hpp"
 #include "fem/integ/bilininteg_vectorfemass_kernels.hpp"
 #include "fem/qinterp/eval_hdiv.hpp" // IWYU pragma: keep
+#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "linalg/tensor.hpp"
 #include "linalg/tensor_arrays.hpp"
 
@@ -416,6 +417,7 @@ void AddQIHdivSpecializations(std::integer_sequence<int, D1D...> = {})
     ...);
    (QI::TensorEvalHDivTransposeKernels::Specialization<3, L, QI::VALUES, D1D, D1D>::Add(),
     ...);
+   (QI::GradKernels::Specialization<3, L, false, 3, 2, D1D>::Add(), ...);
 }
 
 template<typename backend_t, int DIM, typename QT, typename IT, typename OT,
