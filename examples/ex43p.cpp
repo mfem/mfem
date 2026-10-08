@@ -264,8 +264,8 @@ int main(int argc, char *argv[])
       const real_t estimated_error = estimator->GetTotalError();
       const real_t l2_error = solution.ComputeL2Error(e_exact_r, e_exact_i);
       const real_t curl_error = hypot(
-         solution.real().ComputeCurlError(&curl_e_exact_r),
-         solution.imag().ComputeCurlError(&curl_e_exact_i));
+                                   solution.real().ComputeCurlError(&curl_e_exact_r),
+                                   solution.imag().ComputeCurlError(&curl_e_exact_i));
       const real_t energy_error = sqrt(mu_inv_value * curl_error * curl_error +
                                        omega * omega * epsilon_r * l2_error *
                                        l2_error);
