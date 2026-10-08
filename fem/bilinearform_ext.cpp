@@ -2362,6 +2362,8 @@ void EAMixedBilinearFormExtension::GetElementMatrices(
       const Array<int> *scalar_map =
          nodal ? &nodal->GetLexicographicOrdering() :
          tensor ? &tensor->GetDofMap() : nullptr;
+      const int *host_scalar_map = scalar_map ? scalar_map->HostRead() :
+                                   nullptr;
       const int scalar_dofs = fe->GetDof();
       int *host_map = map.HostWrite();
       for (int i = 0; i < element_dofs; i++)
@@ -2369,7 +2371,7 @@ void EAMixedBilinearFormExtension::GetElementMatrices(
          const int component = i / scalar_dofs;
          const int lex = i % scalar_dofs;
          const int signed_native = ordering == ElementDofOrdering::NATIVE &&
-                                   scalar_map ? (*scalar_map)[lex] : lex;
+                                   host_scalar_map ? host_scalar_map[lex] : lex;
          if (signed_native >= 0)
          {
             host_map[i] = signed_native + scalar_dofs * component;
