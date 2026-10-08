@@ -184,6 +184,7 @@ int main(int argc, char *argv[])
     a.AddDomainIntegrator(new ConvectionIntegrator(velocity, 1.0));
     a.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 1.0));
     a.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 1.0));
+    a.AddDomainIntegrator(new MassIntegrator);
     a.Assemble();
     a.Finalize();
 
@@ -191,7 +192,6 @@ int main(int argc, char *argv[])
     b.AddDomainIntegrator(new DomainLFIntegrator(one));
     b.Assemble();
     SparseMatrix &A = a.SpMat();
-    //A *= -1.0; // So doing this works????
     Solver *prec;
 
     if(agglom == 0)

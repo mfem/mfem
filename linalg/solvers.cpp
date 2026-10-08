@@ -3036,7 +3036,7 @@ void BlockJacobi::Mult(const Vector &b, Vector &x) const
 void BlockJacobi::MultTranspose(const Vector &b, Vector &x) const
 {
    MFEM_VERIFY(height > 0, "BlockJacobi preconditioner is not constructed");
-   Block_Diag_Mat.MultTranspose(b, x);
+   Block_Diag_Mat.Mult(b, x);
 }
 
 BlockGS::BlockGS(const Operator &op, int block_size_, real_t damping_)

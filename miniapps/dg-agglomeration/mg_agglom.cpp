@@ -579,7 +579,7 @@ SparseMatrix AdaptiveSmoother(Operator &op, SparseMatrix &A, Array<int> block_si
          norm_prev = norm;
          it += 1;
       }
-      while(it < 80 && tol < ratio);
+      while(it < 20);
 
       for(int i = 0; i < num_B_rows; i++){B(i, j) = b(i);}
    }
