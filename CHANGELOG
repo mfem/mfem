@@ -11,6 +11,20 @@
 Version 4.10.1 (development)
 ============================
 
+New and updated examples and miniapps
+-------------------------------------
+- Added the optics hologram miniapps (miniapps/optics). Serial hologram and
+  parallel phologram turn a PNG target into a phase mask and a monochromatic
+  hologram. They require MFEM_USE_ZLIB.
+
+Miscellaneous
+-------------
+- Added header-only PNG input and output as mfem::png in general/zpng.hpp.
+  Images are 8-bit RGB. Requires MFEM_USE_ZLIB to be set.
+
+- Added mfem::complex_t in linalg/complex.hpp, used by the optics,
+  minimal-surface, and Schrödinger miniapps.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

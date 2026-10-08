@@ -51,6 +51,7 @@ set(UNIT_TESTS_SRCS
   general/test_text.cpp
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
+  general/test_zpng.cpp
   linalg/test_amgfsolver.cpp
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp

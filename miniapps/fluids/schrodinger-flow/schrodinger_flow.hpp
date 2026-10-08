@@ -23,6 +23,7 @@
 #pragma once
 
 #include "mfem.hpp"
+#include "linalg/complex.hpp"
 
 using namespace mfem;
 
@@ -125,105 +126,6 @@ struct Options: public OptionsParser
 };
 
 } // namespace mfem
-
-/// @brief Complex number type for device.
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-#include <cmath>
-#include <complex>
-#include <utility>
-using complex_t = std::complex<real_t>;
-#else // CUDA or HIP
-
-#ifdef MFEM_USE_CUDA
-#include <cuComplex.h>
-#ifdef MFEM_USE_SINGLE
-using RealComplex_t = cuFloatComplex;
-#else
-using RealComplex_t = cuDoubleComplex;
-#endif // MFEM_USE_SINGLE
-#endif // MFEM_USE_CUDA
-
-#ifdef MFEM_USE_HIP
-#include <hip/hip_complex.h>
-#ifdef MFEM_USE_SINGLE
-using RealComplex_t = hipFloatComplex;
-#else
-using RealComplex_t = hipDoubleComplex;
-#endif // MFEM_USE_SINGLE
-#endif // MFEM_USE_HIP
-
-struct Complex : public RealComplex_t
-{
-   MFEM_HOST_DEVICE Complex() = default;
-   MFEM_HOST_DEVICE Complex(real_t r) { x = r, y = 0.0; }
-   MFEM_HOST_DEVICE Complex(real_t r, real_t i) { x = r, y = i; }
-   MFEM_HOST_DEVICE real_t real() const { return x; }
-   MFEM_HOST_DEVICE void real(real_t r) { x = r; }
-   MFEM_HOST_DEVICE real_t imag() const { return y; }
-   MFEM_HOST_DEVICE void imag(real_t i) { y = i; }
-
-   template <typename U>
-   MFEM_HOST_DEVICE inline Complex &operator*=(const U &z)
-   {
-      return (*this = *this * z, *this);
-   }
-
-   template <typename U>
-   MFEM_HOST_DEVICE inline Complex &operator/=(const U &z)
-   {
-      return (*this = *this / z, *this);
-   }
-};
-
-MFEM_HOST_DEVICE inline Complex operator*(const Complex &x, const real_t &y)
-{
-   return Complex(x.real() * y, x.imag() * y);
-}
-
-MFEM_HOST_DEVICE inline Complex operator+(const Complex &a, const Complex &b)
-{
-   return Complex(a.real() + b.real(), a.imag() + b.imag());
-}
-
-MFEM_HOST_DEVICE inline Complex operator*(const real_t d, const Complex &z)
-{
-   return Complex(z.real() * d, z.imag() * d);
-}
-
-MFEM_HOST_DEVICE inline Complex operator*(const Complex &a, const Complex &b)
-{
-   return Complex(a.real() * b.real() - a.imag() * b.imag(),
-                  a.real() * b.imag() + a.imag() * b.real());
-}
-
-MFEM_HOST_DEVICE inline Complex operator/(const Complex &z, const real_t &d)
-{
-   return Complex(z.real() / d, z.imag() / d);
-}
-
-MFEM_HOST_DEVICE inline real_t abs(const Complex &z)
-{
-   return std::hypot(z.real(), z.imag());
-}
-
-MFEM_HOST_DEVICE inline Complex exp(const Complex &q)
-{
-   real_t s, c, e = std::exp(q.real());
-#ifdef MFEM_USE_SINGLE
-   sincosf(q.imag(), &s, &c);
-#else
-   sincos(q.imag(), &s, &c);
-#endif
-   return Complex(c * e, s * e);
-}
-
-MFEM_HOST_DEVICE inline real_t norm(const Complex &z)
-{
-   return z.real() * z.real() + z.imag() * z.imag();
-}
-
-using complex_t = Complex;
-#endif // MFEM_USE_CUDA || MFEM_USE_HIP
 
 namespace mfem
 {
