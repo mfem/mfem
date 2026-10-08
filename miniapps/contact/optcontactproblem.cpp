@@ -11,9 +11,6 @@
 
 #include "optcontactproblem.hpp"
 
-#include <chrono>
-#include <thread>
-
 namespace mfem
 {
 
@@ -132,23 +129,34 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
 
    ComputeGapJacobian();
 
-   // Debugging checkpoint: make CPU progress visible, then surface any
-   // asynchronous HIP error from the host-only Tribol/HYPRE path before
-   // launching the next MFEM kernel.
-   mfem::out << "Contact HIP checkpoint: CPU reached the end of "
-             << "ComputeGapJacobian(); pausing for 5 seconds." << std::endl;
-   std::this_thread::sleep_for(std::chrono::seconds(5));
-   MFEM_DEVICE_SYNC;
-   mfem::out << "Contact HIP checkpoint: device synchronization passed."
-             << std::endl;
-
    problem->Getxrefbc(xrefbc);
    const Array<int> & ess_tdof_list = problem->GetEssentialDofs();
-   Vector ess_values;
-
-   xrefbc.GetSubVector(ess_tdof_list, ess_values);
+   Vector ess_values(ess_tdof_list.Size());
+   const int num_ess_tdofs = ess_tdof_list.Size();
+   const int *ess_tdofs_h = ess_tdof_list.HostRead();
+   const real_t *xrefbc_h = xrefbc.HostRead();
+   real_t *ess_values_h = ess_values.HostWrite();
+   for (int i = 0; i < num_ess_tdofs; i++)
+   {
+      const int dof = ess_tdofs_h[i];
+      ess_values_h[i] = dof >= 0 ? xrefbc_h[dof] : -xrefbc_h[-dof-1];
+   }
    xrefbc=xref;
-   xrefbc.SetSubVector(ess_tdof_list, ess_values);
+   ess_values_h = ess_values.HostReadWrite();
+   real_t *updated_xrefbc_h = xrefbc.HostReadWrite();
+   for (int i = 0; i < num_ess_tdofs; i++)
+   {
+      const int dof = ess_tdofs_h[i];
+      if (dof >= 0)
+      {
+         updated_xrefbc_h[dof] = ess_values_h[i];
+      }
+      else
+      {
+         updated_xrefbc_h[-dof-1] = -ess_values_h[i];
+      }
+   }
+   xrefbc.UseDevice(true);
 
    if (problem->IsNonlinear())
    {
@@ -191,9 +199,8 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    MassForm.AddDomainIntegrator(new VectorMassIntegrator);
    MassForm.Assemble();
 
-   Array<int> empty_tdof_list;
-   Mv = new HypreParMatrix();
-   MassForm.FormSystemMatrix(empty_tdof_list,*Mv);
+   MassForm.Finalize(0);
+   Mv = MassForm.ParallelAssemble();
 
    Vector onev(Mv->Width()); onev.UseDevice(true); onev = 1.0;
    Mvlump.SetSize(Mv->Height());
@@ -507,9 +514,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    ParBilinearForm acs_form(pressure.ParFESpace());
    acs_form.AddDomainIntegrator(new MassIntegrator);
    acs_form.Assemble();
-   Array<int> empty_tdof_list;
-   Mcs = new HypreParMatrix();
-   acs_form.FormSystemMatrix(empty_tdof_list,*Mcs);
+   acs_form.Finalize(0);
+   Mcs = acs_form.ParallelAssemble();
 
    Vector onecs(Mcs->Width()); onecs.UseDevice(true); onecs = 1.0;
    Mcslumpfull.SetSize(Mcs->Height()); //Vector
@@ -595,6 +601,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
                  MPI_SUM,Mfull->GetComm());
 
    HYPRE_BigInt glob_ncols = reduced_merged->Width();
+   MPI_Comm matrix_comm = Mfull->GetComm();
+   HYPRE_BigInt cols[2] = { Mfull->ColPart()[0], Mfull->ColPart()[1] };
 
    HYPRE_BigInt * J;
 #ifndef HYPRE_BIGINT
@@ -605,15 +613,6 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    {
       J[i] = reduced_merged->GetJ()[i];
    }
-#endif
-
-   HypreParMatrix * M = new HypreParMatrix(Mfull->GetComm(), nrows, glob_nrows,
-                                           glob_ncols, reduced_merged->GetI(), J,
-                                           reduced_merged->GetData(), rows, Mfull->ColPart());
-   delete reduced_merged;
-
-#ifdef HYPRE_BIGINT
-   delete [] J;
 #endif
 
    Vector gap_full;
@@ -643,14 +642,21 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    }
    gap /= Mcslump;
 
-   // Destroy all host-only Tribol/HYPRE objects before restoring HYPRE's GPU
-   // policy. The filtered matrix is then made current in HYPRE's memory space.
    A_blk.reset();
    delete Mcs;
    Mcs = nullptr;
    tribol::finalize();
    hypre_host_policy.Restore();
-   M->HypreRead();
+
+   HypreParMatrix * M = new HypreParMatrix(matrix_comm, nrows, glob_nrows,
+                                           glob_ncols, reduced_merged->GetI(), J,
+                                           reduced_merged->GetData(), rows, cols);
+   delete reduced_merged;
+
+#ifdef HYPRE_BIGINT
+   delete [] J;
+#endif
+
    return M;
 }
 

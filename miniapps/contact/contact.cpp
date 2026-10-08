@@ -106,6 +106,10 @@ int main(int argc, char *argv[])
    // Direct solver for AMGF filtered subspace
    // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
    const char *amgf_fsolver = "auto";
+   // BoomerAMG options. Defaults match MFEM/HYPRE's GPU-oriented defaults.
+   int amg_coarsen_type = 8;
+   int amg_agg_levels = 0;
+   int amg_relax_type = 18;
    // Device configuration string.
    const char *device_config = "cpu";
 
@@ -134,6 +138,15 @@ int main(int argc, char *argv[])
    args.AddOption(&amgf_fsolver, "-amgf-fsolver", "--amgf-filtered-solver",
                   "Direct solver for AMGF filtered subspace.\n"
                   "Choices: auto, mumps, cpardiso, superlu, strumpack.");
+   args.AddOption(&amg_coarsen_type, "-amg-coarsen-type",
+                  "--amg-coarsen-type",
+                  "BoomerAMG coarsening type.");
+   args.AddOption(&amg_agg_levels, "-amg-agg-levels",
+                  "--amg-agg-levels",
+                  "BoomerAMG number of aggressive coarsening levels.");
+   args.AddOption(&amg_relax_type, "-amg-relax-type",
+                  "--amg-relax-type",
+                  "BoomerAMG relaxation/smoother type.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -398,18 +411,13 @@ int main(int argc, char *argv[])
       // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
       Solver * prec = nullptr;
       ParallelDirectSolver * subspacesolver = nullptr;
-#if MFEM_HYPRE_VERSION >= 23000
-      // new l1-hybrid symmetric Gauss-Seidel smoother
-      int amg_relax_type = 88;
-#else
-      int amg_relax_type = (!amgf && prob_name==problem_name::ironing) ? 18 : 8;
-#endif
-
       if (amgf)
       {
          prec = new AMGFSolver();
          auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
          amgfprec->GetAMG().SetSystemsOptions(3);
+         amgfprec->GetAMG().SetCoarsening(amg_coarsen_type);
+         amgfprec->GetAMG().SetAggressiveCoarsening(amg_agg_levels);
          amgfprec->GetAMG().SetPrintLevel(0);
          amgfprec->GetAMG().SetRelaxType(amg_relax_type);
          subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
@@ -423,13 +431,15 @@ int main(int argc, char *argv[])
          prec = new HypreBoomerAMG();
          auto * amgprec = dynamic_cast<HypreBoomerAMG *>(prec);
          amgprec->SetSystemsOptions(3);
+         amgprec->SetCoarsening(amg_coarsen_type);
+         amgprec->SetAggressiveCoarsening(amg_agg_levels);
          amgprec->SetPrintLevel(0);
          amgprec->SetRelaxType(amg_relax_type);
       }
 
       // 9(f). Linear solver used inside the IP optimizer.
       CGSolver cgsolver(MPI_COMM_WORLD);
-      cgsolver.SetPrintLevel(0);
+      cgsolver.SetPrintLevel(3);
       cgsolver.SetRelTol(1e-10);
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
