@@ -1044,6 +1044,7 @@ void GeneralizedAlphaSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    if (state.Size() == 0)
    {
+      f->SetTime(t);
       f->Mult(x,state[0]);
       state.Increment();
    }
