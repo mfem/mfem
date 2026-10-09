@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -195,7 +195,7 @@ const Vector &QuadratureSpace::GetGeometricFactorWeights() const
 {
    auto flags = GeometricFactors::DETERMINANTS;
    // TODO: assumes only one integration rule. This should be fixed once
-   // Mesh::GetGeometricFactors acceps a QuadratureSpace instead of
+   // Mesh::GetGeometricFactors accepts a QuadratureSpace instead of
    // IntegrationRule.
    const IntegrationRule &ir = GetIntRule(0);
    auto *geom = mesh.GetGeometricFactors(ir, flags);
@@ -317,7 +317,7 @@ const Vector &FaceQuadratureSpace::GetGeometricFactorWeights() const
 {
    auto flags = FaceGeometricFactors::DETERMINANTS;
    // TODO: assumes only one integration rule. This should be fixed once
-   // Mesh::GetFaceGeometricFactors acceps a QuadratureSpace instead of
+   // Mesh::GetFaceGeometricFactors accepts a QuadratureSpace instead of
    // IntegrationRule.
    const IntegrationRule &ir = GetIntRule(0);
    auto *geom = mesh.GetFaceGeometricFactors(ir, flags, face_type);

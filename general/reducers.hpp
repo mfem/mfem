@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -251,7 +251,7 @@ template <> struct MinMaxReducer<double>
 /// @brief i = argmin(a[i], a[j])
 ///
 /// Note: for ties the returned index can correspond to any min entry, not
-/// necesarily the first one
+/// necessarily the first one
 template <class T, class I> struct ArgMinReducer
 {
    using value_type = DevicePair<T, I>;
@@ -308,7 +308,7 @@ template <class I> struct ArgMinReducer<double, I>
 /// @brief i = argmax(a[i], a[j])
 ///
 /// Note: for ties the returned index can correspond to any min entry, not
-/// necesarily the first one.
+/// necessarily the first one.
 template <class T, class I> struct ArgMaxReducer
 {
    using value_type = DevicePair<T, I>;
@@ -550,10 +550,10 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 
       int num_mp = Device::NumMultiprocessors(Device::GetId());
 #if defined(MFEM_USE_CUDA)
-      // good value of mp_sat found experimentally on Lassen
+      // good value of mp_sat found experimentally on Lassen (V100)
       constexpr int mp_sat = 8;
 #elif defined(MFEM_USE_HIP)
-      // good value of mp_sat found experimentally on Tuolumne
+      // good value of mp_sat found experimentally on Tuolumne (MI300A)
       constexpr int mp_sat = 4;
 #else
       num_mp = 1;

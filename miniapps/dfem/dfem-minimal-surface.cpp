@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -320,7 +320,7 @@ public:
       // on the reference coordinates of the FIELD_ID field to be interpolated
       // and translated to the pointwise function as the first and second input.
       // Other choices are possible, e.g. Value<FIELD_ID> to interpolate the
-      // pointwise funciton. `Weight` is a special field that translates the
+      // pointwise function. `Weight` is a special field that translates the
       // integration rule weights to the input of the pointwise function.
       auto input_operators = tuple
       {
@@ -363,6 +363,14 @@ public:
       res->AddDomainIntegrator<LocalQFBackend, kernels>(
          mf_apply_qf, input_operators, output_operators,
          ir, all_domain_attr, derivatives);
+
+      // Before we are able to use DifferentiableOperator::Mult, we need to call
+      // DifferentiableOperator::SetParameters to set the parameters of the
+      // operator. Here, only the mesh node function is required. We do this
+      // here once, because we know that the nodes won't change. If they do,
+      // we'd have to call SetParameters before each call to Mult. This is done
+      // to be mathematically consistent with fixing parameters.
+      res->SetParameters({&mesh_nodes});
 
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;

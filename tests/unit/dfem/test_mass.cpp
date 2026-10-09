@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -114,10 +114,11 @@ void mass_action(const char *filename, int p)
    // Add two mass integrators as we use both local and global QF backends
    // If GPU is enabled, we only add the local QF backend
    blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-   if constexpr(!mfem_use_gpu)
+#ifndef MFEM_USE_CUDA_OR_HIP
    {
       blf.AddDomainIntegrator(new MassIntegrator(one, ir));
    }
+#endif
    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf.Assemble();
 
@@ -147,12 +148,13 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr);
 
-      if constexpr(!mfem_use_gpu)
+#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr);
       }
+#endif
 
       MultiVector MX{X, N}, MZ{Z};
       dop.Mult(MX, MZ);
@@ -178,12 +180,13 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-      if constexpr(!mfem_use_gpu)
+#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
+#endif
 
       MultiVector MX{X, N}, MZ{Z}, MdZ{dZ};
 
@@ -225,12 +228,13 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-      if constexpr(!mfem_use_gpu)
+#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
+#endif
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
 

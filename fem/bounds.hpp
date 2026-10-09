@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,7 +61,7 @@ private:
    real_t tol = 0.0; // offset bounds to avoid round-off errors
    Vector nodes, weights, control_points;
    DenseMatrix lbound, ubound; // ncp x nb matrices with bounds of all bases
-   // Some auxillary storage for computing the bounds with Bernstein
+   // Some auxiliary storage for computing the bounds with Bernstein
    DenseMatrix basisMatNodes; // Bernstein bases at equispaced nodes
    DenseMatrix basisMatInt;   // Bernstein bases at GLL nodes
    Vector nodes_int, weights_int; // Integration nodes and weights
