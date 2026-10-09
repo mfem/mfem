@@ -49,7 +49,9 @@
 
 #include "mfem.hpp"
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <string>
 #include "ip.hpp"
 #include "solver_utils.hpp"
 
@@ -64,6 +66,122 @@ enum problem_name
 };
 
 Mesh * GetProblemMesh(problem_name prob_name);
+
+template <typename T>
+void PrintAMGOption(const char *option, const T &value)
+{
+   const int option_width = 28;
+   cout << "  " << left << setw(option_width) << option << value << endl;
+}
+
+void PrintAMGIntOption(const char *option, HYPRE_Solver solver,
+                       HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Int *))
+{
+   HYPRE_Int value = 0;
+   const HYPRE_Int ierr = getter(solver, &value);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGRealOption(const char *option, HYPRE_Solver solver,
+                        HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Real *))
+{
+   HYPRE_Real value = 0.0;
+   const HYPRE_Int ierr = getter(solver, &value);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGCycleIntOption(const char *option, HYPRE_Solver solver,
+                            HYPRE_Int cycle,
+                            HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Int *,
+                                                HYPRE_Int))
+{
+   HYPRE_Int value = 0;
+   const HYPRE_Int ierr = getter(solver, &value, cycle);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGOptions(const HypreBoomerAMG &amg,
+                     const char *preconditioner,
+                     int amg_agg_levels,
+                     const char *amgf_fsolver = nullptr)
+{
+   const int option_width = 28;
+   HYPRE_Solver solver = amg;
+
+   cout << "BoomerAMG options from configured object:" << endl
+        << "  " << left << setw(option_width) << "option" << "value" << endl
+        << "  " << left << setw(option_width) << "preconditioner"
+        << preconditioner << endl;
+
+   if (amgf_fsolver)
+   {
+      PrintAMGOption("filtered-solver", amgf_fsolver);
+   }
+
+   PrintAMGIntOption("num-functions", solver, HYPRE_BoomerAMGGetNumFunctions);
+   PrintAMGIntOption("filter-functions", solver,
+                     HYPRE_BoomerAMGGetFilterFunctions);
+   PrintAMGIntOption("converge-type", solver, HYPRE_BoomerAMGGetConvergeType);
+   PrintAMGRealOption("tol", solver, HYPRE_BoomerAMGGetTol);
+   PrintAMGIntOption("max-iter", solver, HYPRE_BoomerAMGGetMaxIter);
+   PrintAMGIntOption("max-coarse-size", solver,
+                     HYPRE_BoomerAMGGetMaxCoarseSize);
+   PrintAMGIntOption("min-coarse-size", solver,
+                     HYPRE_BoomerAMGGetMinCoarseSize);
+   PrintAMGIntOption("max-levels", solver, HYPRE_BoomerAMGGetMaxLevels);
+   PrintAMGIntOption("coarsen-cut-factor", solver,
+                     HYPRE_BoomerAMGGetCoarsenCutFactor);
+   PrintAMGRealOption("strong-threshold", solver,
+                      HYPRE_BoomerAMGGetStrongThreshold);
+   PrintAMGRealOption("strong-threshold-r", solver,
+                      HYPRE_BoomerAMGGetStrongThresholdR);
+   PrintAMGRealOption("filter-threshold-r", solver,
+                      HYPRE_BoomerAMGGetFilterThresholdR);
+   PrintAMGRealOption("max-row-sum", solver, HYPRE_BoomerAMGGetMaxRowSum);
+   PrintAMGIntOption("coarsen-type", solver, HYPRE_BoomerAMGGetCoarsenType);
+   PrintAMGOption("aggressive-levels", amg_agg_levels);
+   PrintAMGIntOption("measure-type", solver, HYPRE_BoomerAMGGetMeasureType);
+   PrintAMGRealOption("trunc-factor", solver, HYPRE_BoomerAMGGetTruncFactor);
+   PrintAMGIntOption("p-max-elmts", solver, HYPRE_BoomerAMGGetPMaxElmts);
+   PrintAMGIntOption("cycle-type", solver, HYPRE_BoomerAMGGetCycleType);
+   PrintAMGIntOption("f-cycle", solver, HYPRE_BoomerAMGGetFCycle);
+   PrintAMGIntOption("additive", solver, HYPRE_BoomerAMGGetAdditive);
+   PrintAMGIntOption("mult-additive", solver, HYPRE_BoomerAMGGetMultAdditive);
+   PrintAMGIntOption("simple", solver, HYPRE_BoomerAMGGetSimple);
+   PrintAMGIntOption("seq-threshold", solver, HYPRE_BoomerAMGGetSeqThreshold);
+   PrintAMGIntOption("redundant", solver, HYPRE_BoomerAMGGetRedundant);
+   PrintAMGCycleIntOption("num-sweeps-down", solver, 1,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("num-sweeps-up", solver, 2,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("num-sweeps-coarse", solver, 3,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("relax-type-down", solver, 1,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGCycleIntOption("relax-type-up", solver, 2,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGCycleIntOption("relax-type-coarse", solver, 3,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGIntOption("smooth-type", solver, HYPRE_BoomerAMGGetSmoothType);
+   PrintAMGIntOption("smooth-num-levels", solver,
+                     HYPRE_BoomerAMGGetSmoothNumLevels);
+   PrintAMGIntOption("smooth-num-sweeps", solver,
+                     HYPRE_BoomerAMGGetSmoothNumSweeps);
+   PrintAMGIntOption("variant", solver, HYPRE_BoomerAMGGetVariant);
+   PrintAMGIntOption("overlap", solver, HYPRE_BoomerAMGGetOverlap);
+   PrintAMGIntOption("domain-type", solver, HYPRE_BoomerAMGGetDomainType);
+   PrintAMGRealOption("schwarz-relax-weight", solver,
+                      HYPRE_BoomerAMGGetSchwarzRlxWeight);
+   PrintAMGIntOption("print-level", solver, HYPRE_BoomerAMGGetPrintLevel);
+   PrintAMGIntOption("logging", solver, HYPRE_BoomerAMGGetLogging);
+   PrintAMGIntOption("debug-flag", solver, HYPRE_BoomerAMGGetDebugFlag);
+   PrintAMGIntOption("post-interp-type", solver,
+                     HYPRE_BoomerAMGGetPostInterpType);
+   PrintAMGRealOption("jacobi-trunc-threshold", solver,
+                      HYPRE_BoomerAMGGetJacobiTruncThreshold);
+
+   cout << right;
+}
 
 int main(int argc, char *argv[])
 {
@@ -110,6 +228,7 @@ int main(int argc, char *argv[])
    int amg_coarsen_type = 8;
    int amg_agg_levels = 0;
    int amg_relax_type = 18;
+   bool amg_print_options = false;
    // Device configuration string.
    const char *device_config = "cpu";
 
@@ -147,6 +266,10 @@ int main(int argc, char *argv[])
    args.AddOption(&amg_relax_type, "-amg-relax-type",
                   "--amg-relax-type",
                   "BoomerAMG relaxation/smoother type.");
+   args.AddOption(&amg_print_options, "-amg-print-options",
+                  "--amg-print-options", "-no-amg-print-options",
+                  "--no-amg-print-options",
+                  "Print BoomerAMG options configured by this miniapp.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -420,6 +543,11 @@ int main(int argc, char *argv[])
          amgfprec->GetAMG().SetAggressiveCoarsening(amg_agg_levels);
          amgfprec->GetAMG().SetPrintLevel(0);
          amgfprec->GetAMG().SetRelaxType(amg_relax_type);
+         if (amg_print_options && myid == 0)
+         {
+            PrintAMGOptions(amgfprec->GetAMG(), "AMGF", amg_agg_levels,
+                            amgf_fsolver);
+         }
          subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
          subspacesolver->SetPrintLevel(0);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
@@ -435,6 +563,10 @@ int main(int argc, char *argv[])
          amgprec->SetAggressiveCoarsening(amg_agg_levels);
          amgprec->SetPrintLevel(0);
          amgprec->SetRelaxType(amg_relax_type);
+         if (amg_print_options && myid == 0)
+         {
+            PrintAMGOptions(*amgprec, "AMG", amg_agg_levels);
+         }
       }
 
       // 9(f). Linear solver used inside the IP optimizer.
