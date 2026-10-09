@@ -881,6 +881,12 @@ struct VisualizerBase : private Options
                              vis_data == Options::VisData::Y ? X(1,i):
                              vis_data == Options::VisData::Z ? dim == 3 ? X(2,i) : 0.0:
                              0.0;
+            const auto VisX = vis_data == Options::VisData::X,
+                       VisY = vis_data == Options::VisData::Y,
+                       VisZ = vis_data == Options::VisData::Z && dim == 3;
+            mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int i)
+            {
+               viz_h1_w[i] = VisX ? X(0,i): VisY ? X(1,i): VisZ ? X(2,i): 0.0;
             });
             vis_gf.HostRead();
          };
