@@ -928,6 +928,28 @@ struct LocalQFLOBackend
       real_t *base = reinterpret_cast<real_t *>(&s.M[0]);
       auto s0 = reinterpret_cast<real_t(*)[Q1D][Q1D]>(base);
 
+      // Stage the per-axis weight products wt * wi in shared memory, after
+      // the contraction buffers: two Q1D^3 slabs in 3D, one Q1D^2 in 2D.
+      auto W = reinterpret_cast<real_t(*)[Q1D][Q1D]>(
+                  base + (DIM == 3 ? 2 * Q1D * Q1D * Q1D : Q1D * Q1D));
+      static_assert(sizeof(s.M) >= sizeof(real_t) *
+                    (DIM == 3 ? 2 * Q1D * Q1D * Q1D + 3 * Q1D * Q1D
+                     : 3 * Q1D * Q1D), "DiagContract shared scratch too small");
+      // Unrolled so nd[a] stays in registers; one z slice writes, the
+      // others would store the same values.
+      const int nd[3] = { ndx, ndy, ndz_in };
+      if (MFEM_THREAD_ID(z) == 0)
+      {
+         MFEM_UNROLL(DIM)
+         for (int a = 0; a < DIM; a++)
+         {
+            MFEM_FOREACH_THREAD(d, y, nd[a])
+            MFEM_FOREACH_THREAD(q, x, q1d)
+            { W[a][d][q] = wt(a, q, d) * wi(a, q, d); }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
       if constexpr (DIM == 3)
       {
          auto s1 =
@@ -942,7 +964,7 @@ struct LocalQFLOBackend
             for (int qz = 0; qz < q1d; qz++)
             {
                const int q = qx + (qy + qz * q1d) * q1d;
-               u += wt(2, qz, dz) * wi(2, qz, dz) * cache(q);
+               u += W[2][dz][qz] * cache(q);
             }
             s0[dz][qy][qx] = u;
          }
@@ -956,7 +978,7 @@ struct LocalQFLOBackend
             real_t u = 0.0;
             for (int qy = 0; qy < q1d; qy++)
             {
-               u += wt(1, qy, dy) * wi(1, qy, dy) * s0[dz][qy][qx];
+               u += W[1][dy][qy] * s0[dz][qy][qx];
             }
             s1[dz][dy][qx] = u;
          }
@@ -970,7 +992,7 @@ struct LocalQFLOBackend
             real_t u = 0.0;
             for (int qx = 0; qx < q1d; qx++)
             {
-               u += wt(0, qx, dx) * wi(0, qx, dx) * s1[dz][dy][qx];
+               u += W[0][dx][qx] * s1[dz][dy][qx];
             }
             add_y(dx, dy, dz, u);
          }
@@ -986,7 +1008,7 @@ struct LocalQFLOBackend
             for (int qy = 0; qy < q1d; qy++)
             {
                const int q = qx + qy * q1d;
-               u += wt(1, qy, dy) * wi(1, qy, dy) * cache(q);
+               u += W[1][dy][qy] * cache(q);
             }
             s0[0][dy][qx] = u;
          }
@@ -999,7 +1021,7 @@ struct LocalQFLOBackend
             real_t u = 0.0;
             for (int qx = 0; qx < q1d; qx++)
             {
-               u += wt(0, qx, dx) * wi(0, qx, dx) * s0[0][dy][qx];
+               u += W[0][dx][qx] * s0[0][dy][qx];
             }
             add_y(dx, dy, 0, u);
          }

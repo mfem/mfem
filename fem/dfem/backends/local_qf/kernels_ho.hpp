@@ -754,6 +754,22 @@ struct LocalQFHOBackend
       ker::s_regs3d_t<MQ1> rz, ry;
       auto &smem = s.M;
 
+      // Stage the per-axis weight products wt * wi in shared memory: x in
+      // s.G, y in s.B, and z in s.M, which is free until the first pass ends.
+      // Unrolled so W[a] and nd[a] stay in registers.
+      real_t (*W[3])[MQ1] = { s.G, s.B, s.M };
+      const int nd[3] = { ndx, ndy, ndz };
+      MFEM_UNROLL(DIM)
+      for (int a = 0; a < DIM; a++)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(d, y, nd[a])
+         {
+            MFEM_FOREACH_THREAD_DIRECT(q, x, q1d)
+            { W[a][d][q] = wt(a, q, d) * wi(a, q, d); }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
       MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
       {
          MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
@@ -765,7 +781,7 @@ struct LocalQFHOBackend
                {
                   const int q = qx + (qy + qz * q1d) * q1d;
                   const real_t wz =
-                     (DIM == 3) ? (wt(2, qz, dz) * wi(2, qz, dz)) : real_t(1);
+                     (DIM == 3) ? W[2][dz][qz] : real_t(1);
                   u += wz * cache(q);
                }
                rz[dz][qy][qx] = u;
@@ -790,7 +806,7 @@ struct LocalQFHOBackend
                real_t u = 0.0;
                for (int qy = 0; qy < q1d; qy++)
                {
-                  u += wt(1, qy, dy) * wi(1, qy, dy) * smem[qy][qx];
+                  u += W[1][dy][qy] * smem[qy][qx];
                }
                ry[dz][dy][qx] = u;
             }
@@ -814,7 +830,7 @@ struct LocalQFHOBackend
                real_t u = 0.0;
                for (int qx = 0; qx < q1d; qx++)
                {
-                  u += wt(0, qx, dx) * wi(0, qx, dx) * smem[dy][qx];
+                  u += W[0][dx][qx] * smem[dy][qx];
                }
                add_y(dx, dy, dz, u);
             }
