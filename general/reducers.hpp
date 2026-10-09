@@ -326,7 +326,8 @@ template <class T, class I> struct ArgMaxReducer
       // get around this
       a = value_type
       {
-         std::integral_constant<T, std::numeric_limits<T>::max()>::value, I{0}};
+         std::integral_constant<T, std::numeric_limits<T>::min()>::value, I{0}
+      };
    }
 };
 

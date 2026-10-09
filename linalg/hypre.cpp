@@ -16,7 +16,6 @@
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
 #include "../general/forall.hpp"
-
 #include <fstream>
 #include <iomanip>
 #include <cmath>
@@ -476,39 +475,6 @@ real_t InnerProduct(HypreParVector *x, HypreParVector *y)
 real_t InnerProduct(HypreParVector &x, HypreParVector &y)
 {
    return hypre_ParVectorInnerProd(x, y);
-}
-
-
-real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
-{
-   real_t norm = 0.0;
-   if (p == 1.0)
-   {
-      real_t loc_norm = vec.Norml1();
-      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-   }
-   if (p == 2.0)
-   {
-      real_t loc_norm = vec*vec;
-      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      norm = sqrt(norm);
-   }
-   if (p < infinity())
-   {
-      real_t sum = 0.0;
-      for (int i = 0; i < vec.Size(); i++)
-      {
-         sum += pow(fabs(vec(i)), p);
-      }
-      MPI_Allreduce(&sum, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      norm = pow(norm, 1.0/p);
-   }
-   else
-   {
-      real_t loc_norm = vec.Normlinf();
-      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
-   }
-   return norm;
 }
 
 /** @brief Shallow or deep copy @a src to @a dst with the goal to make the

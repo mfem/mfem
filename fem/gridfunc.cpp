@@ -1288,6 +1288,11 @@ void GridFunction::AccumulateAndCountDerivativeValues(
 
    zones_per_dof = 0;
    der = 0.0;
+   // in case zero-fill happens on GPU
+   zones_per_dof.HostReadWrite();
+   der.HostReadWrite();
+   // also need to host read our data
+   auto h_data = HostRead();
 
    comp--;
    for (i = 0; i < der_fes->GetNE(); i++)
@@ -1307,7 +1312,7 @@ void GridFunction::AccumulateAndCountDerivativeValues(
       transf = fes->GetElementTransformation(i);
       for (j = 0; j < dof; j++)
          loc_func(j) = ( (ind=vdofs[comp*dof+j]) >= 0 ) ?
-                       (data[ind]) : (-data[-1-ind]);
+                       (h_data[ind]) : (-h_data[-1-ind]);
       for (k = 0; k < der_dof; k++)
       {
          const IntegrationPoint &ip = ir.IntPoint(k);

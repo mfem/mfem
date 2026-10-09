@@ -21,6 +21,10 @@
 #include <omp.h>
 #endif
 
+#ifdef MFEM_USE_MPI
+#include "../general/communication.hpp"
+#endif
+
 #include <iostream>
 #include <cmath>
 #include <ctime>
@@ -1285,5 +1289,43 @@ void Vector::DeleteAt(const Array<int> &indices)
       size -= indices.Size();
    }
 }
+
+#ifdef MFEM_USE_MPI
+/// implementation here so we can reuse vector_workspace
+real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
+{
+   real_t norm = 0.0;
+   if (p == 1.0)
+   {
+      real_t loc_norm = vec.Norml1();
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+   }
+   else if (p < infinity())
+   {
+      real_t loc_norm = 0;
+      const auto m_data = vec.Read(vec.UseDevice());
+      reduce(vec.Size(), loc_norm, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      {
+         r += pow(fabs(m_data[i]), p);
+      }, SumReducer<real_t> {}, vec.UseDevice(), vector_workspace());
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    comm);
+      if (p == 2)
+      {
+         norm = sqrt(norm);
+      }
+      else
+      {
+         norm = pow(norm, 1.0 / p);
+      }
+   }
+   else
+   {
+      real_t loc_norm = vec.Normlinf();
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
+   }
+   return norm;
+}
+#endif
 
 } // namespace mfem
