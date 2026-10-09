@@ -663,7 +663,7 @@ void Vector::median(const Vector &lo, const Vector &hi)
    // Note: get read access first, in case *this is the same as lo/hi.
    const auto l = lo.Read(use_dev);
    const auto h = hi.Read(use_dev);
-   auto m = Write(use_dev);
+   auto m = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    {
       if (m[i] < l[i])
