@@ -673,6 +673,72 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 }
 
 
+TEST_CASE("Uniform pyramid refinement transfer", "[Transfer][Pyramid]")
+{
+   dimension = 3;
+   coeff_order = 1;
+   const int pyr_type = GENERATE(0, 1);
+   CAPTURE(pyr_type);
+
+   Mesh mesh("../../data/ref-pyramid.mesh");
+   H1_FECollection fec(2, dimension, BasisType::GaussLobatto, pyr_type);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction x(&fes);
+   FunctionCoefficient func_coeff(&coeff);
+   x.ProjectCoefficient(func_coeff);
+
+   mesh.UniformRefinement();
+
+   REQUIRE(mesh.GetNE() == 10);
+   int num_pyramids = 0;
+   int num_tets = 0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      num_pyramids += mesh.GetElementType(i) == Element::PYRAMID;
+      num_tets += mesh.GetElementType(i) == Element::TETRAHEDRON;
+   }
+   REQUIRE(num_pyramids == 6);
+   REQUIRE(num_tets == 4);
+
+   const CoarseFineTransformations &trans = mesh.GetRefinementTransforms();
+   REQUIRE(trans.embeddings.Size() == 10);
+   const DenseMatrixStack &pmats =
+      trans.point_matrices[Geometry::PYRAMID];
+   REQUIRE(pmats.SizeK() == 10);
+   for (int i = 0; i < trans.embeddings.Size(); i++)
+   {
+      REQUIRE(trans.embeddings[i].parent == 0);
+      REQUIRE(trans.embeddings[i].geom == Geometry::PYRAMID);
+      REQUIRE(trans.embeddings[i].matrix == i);
+      REQUIRE(pmats.SizeI(i) == 3);
+      REQUIRE(pmats.SizeJ(i) == (i < 6 ? 5 : 4));
+   }
+
+   fes.Update();
+   x.Update();
+
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(func_coeff);
+   x -= exact;
+   REQUIRE(x.Normlinf() == Approx(0.0).margin(1e-12));
+
+   Mesh coarse_mesh("../../data/ref-pyramid.mesh");
+   Mesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   FiniteElementSpace coarse_fes(&coarse_mesh, &fec);
+   FiniteElementSpace fine_fes(&fine_mesh, &fec);
+   GridFunction fine_x(&fine_fes);
+   GridFunction coarse_x(&coarse_fes);
+   GridFunction coarse_exact(&coarse_fes);
+   fine_x.ProjectCoefficient(func_coeff);
+   coarse_exact.ProjectCoefficient(func_coeff);
+
+   InterpolationGridTransfer transfer(coarse_fes, fine_fes);
+   transfer.BackwardOperator().Mult(fine_x, coarse_x);
+   coarse_x -= coarse_exact;
+   REQUIRE(coarse_x.Normlinf() == Approx(0.0).margin(1e-12));
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
