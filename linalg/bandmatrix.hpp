@@ -209,7 +209,7 @@ public:
    MatrixInverse *Inverse() const override;
 
 
-   /** @anchor mfem_KnotVector_interpolation
+   /** @anchor mfem_BandMatrix_Inverse
        @name Methods for interpolating NURBS curves.
 
        If @a tol is zero or negative the inverse of the full matrix is computed.
