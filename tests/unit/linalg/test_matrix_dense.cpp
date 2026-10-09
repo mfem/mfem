@@ -660,6 +660,53 @@ TEST_CASE("DenseMatrixStack AddMult", "[DenseMatrix][DenseMatrixStack]")
    REQUIRE(y(4) == 25.0);
 }
 
+TEST_CASE("DenseMatrixStack rectangular AddMult",
+          "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{2, 1};
+   Array<int> nj{3, 2};
+   DenseMatrixStack matrices(ni, nj, 2);
+   matrices(0, 0, 0) = 1.0;
+   matrices(1, 0, 0) = 4.0;
+   matrices(0, 1, 0) = 2.0;
+   matrices(1, 1, 0) = 5.0;
+   matrices(0, 2, 0) = 3.0;
+   matrices(1, 2, 0) = 6.0;
+   matrices(0, 0, 1) = 7.0;
+   matrices(0, 1, 1) = 8.0;
+
+   Table domain_dof;
+   domain_dof.MakeI(2);
+   domain_dof.AddColumnsInRow(0, 3);
+   domain_dof.AddColumnsInRow(1, 2);
+   domain_dof.MakeJ();
+   const int domain0[] = {0, 1, 2};
+   const int domain1[] = {3, 4};
+   domain_dof.AddConnections(0, domain0, 3);
+   domain_dof.AddConnections(1, domain1, 2);
+   domain_dof.ShiftUpI();
+
+   Table range_dof;
+   range_dof.MakeI(2);
+   range_dof.AddColumnsInRow(0, 2);
+   range_dof.AddColumnsInRow(1, 1);
+   range_dof.MakeJ();
+   const int range0[] = {5, 6};
+   const int range1[] = {7};
+   range_dof.AddConnections(0, range0, 2);
+   range_dof.AddConnections(1, range1, 1);
+   range_dof.ShiftUpI();
+
+   Vector x{1.0, 2.0, 3.0, 4.0, 5.0};
+   Vector y(8);
+   y = 0.0;
+   matrices.AddMult(domain_dof, x, range_dof, y);
+
+   REQUIRE(y(5) == 14.0);
+   REQUIRE(y(6) == 32.0);
+   REQUIRE(y(7) == 68.0);
+}
+
 TEST_CASE("MatrixInverse", "[DenseMatrix]")
 {
    real_t tol = 1e-10;

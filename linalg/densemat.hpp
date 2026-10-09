@@ -1586,9 +1586,37 @@ public:
    Memory<real_t> &GetMemory() { return tdata; }
    const Memory<real_t> &GetMemory() const { return tdata; }
 
-   /** Matrix-vector product from unassembled element matrices, assuming both
-       'x' and 'y' use the same elem_dof table. */
+   /** @brief Accumulate the action of square element matrices in a global
+       vector.
+
+       For each layer @a k, this method adds `A_k x_k` to `y_k`, where @a A_k
+       is the matrix stored in layer @a k and @a x_k and @a y_k are gathered
+       from @a x and @a y using row @a k of @a elem_dof. Every matrix must be
+       square and its dimensions must equal `elem_dof.RowSize(k)`.
+
+       This is intended for locally assembled element operators, such as mass
+       or stiffness matrices in scalar finite element spaces. It assumes that
+       the table entries are direct vector indices; callers that require DOF
+       transformations must apply them separately.
+
+       See the rectangular overload for transfer operators with distinct
+       source and destination DOF tables. */
    void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
+
+   /** @brief Accumulate the action of rectangular local matrices in a global
+       vector.
+
+       For each layer @a k, this method adds `A_k x_k` to `y_k`. The entries
+       of @a x_k are gathered from row @a k of @a domain_dof, while the result
+       is scattered into row @a k of @a range_dof. The dimensions of @a A_k
+       must be `range_dof.RowSize(k)` by `domain_dof.RowSize(k)`.
+
+       This supports, for example, local coarse-to-fine transfer matrices. The
+       two tables must have one row for every stack layer; for a child matrix,
+       the corresponding row of @a domain_dof identifies its parent DOFs.
+       As above, table entries are assumed to be direct vector indices. */
+   void AddMult(const Table &domain_dof, const Vector &x,
+                const Table &range_dof, Vector &y) const;
 
    void Clear()
    {

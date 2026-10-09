@@ -4451,29 +4451,41 @@ void DenseMatrixStack::InitOffset()
 void DenseMatrixStack::AddMult(const Table &elem_dof, const Vector &x,
                                Vector &y) const
 {
-   MFEM_ASSERT(elem_dof.Size() == SizeK(),
-               "incompatible element dof table size");
+   AddMult(elem_dof, x, elem_dof, y);
+}
 
-   const int *I = elem_dof.GetI();
-   const int *J = elem_dof.GetJ();
+void DenseMatrixStack::AddMult(const Table &domain_dof, const Vector &x,
+                               const Table &range_dof, Vector &y) const
+{
+   MFEM_ASSERT(domain_dof.Size() == SizeK(),
+               "incompatible domain dof table size");
+   MFEM_ASSERT(range_dof.Size() == SizeK(),
+               "incompatible range dof table size");
+
+   const int *domain_I = domain_dof.GetI();
+   const int *domain_J = domain_dof.GetJ();
+   const int *range_I = range_dof.GetI();
+   const int *range_J = range_dof.GetJ();
    const real_t *data = mfem::HostRead(tdata, tsize);
    const real_t *xp = x.HostRead();
    real_t *yp = y.HostReadWrite();
 
    for (int k = 0; k < SizeK(); k++)
    {
-      const int n = I[k + 1] - I[k];
-      MFEM_ASSERT(SizeI(k) == n && SizeJ(k) == n,
-                  "element matrix and dof table sizes do not match");
+      const int ncols = domain_I[k + 1] - domain_I[k];
+      const int nrows = range_I[k + 1] - range_I[k];
+      MFEM_ASSERT(SizeI(k) == nrows && SizeJ(k) == ncols,
+                  "local matrix and dof table sizes do not match");
 
-      const int *dofs = J + I[k];
+      const int *domain_dofs = domain_J + domain_I[k];
+      const int *range_dofs = range_J + range_I[k];
       const real_t *A = data + off[k];
-      for (int j = 0; j < n; j++)
+      for (int j = 0; j < ncols; j++)
       {
-         const real_t xj = xp[dofs[j]];
-         for (int i = 0; i < n; i++)
+         const real_t xj = xp[domain_dofs[j]];
+         for (int i = 0; i < nrows; i++)
          {
-            yp[dofs[i]] += A[i + n*j] * xj;
+            yp[range_dofs[i]] += A[i + SizeI(k)*j] * xj;
          }
       }
    }
