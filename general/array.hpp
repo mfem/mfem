@@ -671,7 +671,8 @@ protected:
       int b_end_idx;
       bool stop;
 
-      iterator_base() { }
+      // The end iterator is default constructed, so start out stopped.
+      iterator_base() : stop(true) { }
       iterator_base(bool stop) : stop(stop) { }
       iterator_base(cA *a)
          : array(a), ptr(a->blocks[0]), ref(ptr), stop(false)
@@ -715,8 +716,14 @@ public:
    public:
       iterator &operator++() { base::next(); return *this; }
 
-      bool operator==(const iterator &other) const { return base::stop; }
-      bool operator!=(const iterator &other) const { return !base::stop; }
+      bool operator==(const iterator &other) const
+      {
+         // A stopped iterator's position fields are uninitialized, so once
+         // either side is stopped only the stop flags are comparable.
+         if (base::stop || other.stop) { return base::stop == other.stop; }
+         return base::array == other.array && base::ptr == other.ptr;
+      }
+      bool operator!=(const iterator &other) const { return !(*this == other); }
    };
 
    class const_iterator : public iterator_base<const BlockArray, const T>
@@ -732,8 +739,12 @@ public:
    public:
       const_iterator &operator++() { base::next(); return *this; }
 
-      bool operator==(const const_iterator &other) const { return base::stop; }
-      bool operator!=(const const_iterator &other) const { return !base::stop; }
+      bool operator==(const const_iterator &other) const
+      {
+         if (base::stop || other.stop) { return base::stop == other.stop; }
+         return base::array == other.array && base::ptr == other.ptr;
+      }
+      bool operator!=(const const_iterator &other) const { return !(*this == other); }
    };
 
    iterator begin() { return size ? iterator(this) : iterator(true); }
