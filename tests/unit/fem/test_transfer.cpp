@@ -896,9 +896,9 @@ TEST_CASE("Parallel InterpolationGridTransfer Round Trip",
    transfer.BackwardOperator().Mult(Y, X_rt);
 
    X_rt -= X;
-   const real_t err = std::sqrt(InnerProduct(MPI_COMM_WORLD, X_rt, X_rt));
-   const real_t nrm = std::sqrt(InnerProduct(MPI_COMM_WORLD, X, X));
-   REQUIRE(err < 1e-12 * nrm);
+   const real_t err_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, X_rt, X_rt));
+   const real_t X_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, X, X));
+   REQUIRE(err_norm < 1e-12 * X_norm);
 }
 
 TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
