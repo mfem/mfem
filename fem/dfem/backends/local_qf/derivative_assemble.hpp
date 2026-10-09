@@ -716,7 +716,7 @@ public:
       }
       for_constexpr<n_outputs>([&](auto o)
       {
-         using output_fop_t = std::decay_t<decltype(get<o>(outputs_in))>;
+         using output_fop_t = std::decay_t<decltype(get<o>(outputs))>;
          if constexpr (is_identity_fop_v<output_fop_t>)
          {
             v[output_groups->output_to_group[o]] = false;
@@ -882,6 +882,10 @@ public:
       }
    }
 
+   // Quadrature points per dimension the kernel is sized for
+   template<typename backend_t, int T_Q1D>
+   static constexpr int max_q1d_v = T_Q1D ? T_Q1D : backend_t::MQ1;
+
    template<typename backend_t = LocalQFHOBackend<3>, int T_Q1D = 0>
    static void derivative_assemble_callback(
       const IntegratorContext &ctx,
@@ -910,7 +914,7 @@ public:
       const int dim)
    {
       static constexpr int DIM = backend_t::DIM;
-      static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
+      static constexpr int MQ1 = max_q1d_v<backend_t, T_Q1D>;
       static constexpr int MNQ = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
 
       MFEM_VERIFY(dim == DIM,
@@ -952,7 +956,7 @@ public:
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
          static constexpr int DIM = backend_t::DIM;
-         static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
+         static constexpr int MQ1 = max_q1d_v<backend_t, T_Q1D>;
 
          static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
          static constexpr int fhat_slab_size = MQN * 4;
@@ -987,7 +991,8 @@ public:
                // The outputs share fhat_storage, so one has to be done with it
                // before the next zeroes it.
                MFEM_SYNC_THREAD;
-               detail::assemble_element_mat_sumfact<DIM, MQ1>(Ae,
+               detail::assemble_element_mat_sumfact<backend_t::DIM,
+                                                    max_q1d_v<backend_t, T_Q1D>>(Ae,
                                                               qpdc,
                                                               e,
                                                               itod,

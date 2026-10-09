@@ -129,15 +129,15 @@ public:
          &ctx_in.unionfds[trial_field_uf].data);
       return fes ? *fes : nullptr;
    }()),
-   out_vdim(get_vdim(outputs_in)),
-   out_op_dim(compute_out_op_dim(outputs_in)),
+   out_vdim(get_vdim(outputs)),
+   out_op_dim(compute_out_op_dim(outputs)),
    out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
    output_size_on_qp(
       [&]
    {
       int s = 0;
       for_constexpr<n_outputs>([&](auto o)
-      { s += get<o>(outputs_in).size_on_qp; });
+      { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
    output_groups(std::move(output_groups_in)),
@@ -173,7 +173,7 @@ public:
       }
       for_constexpr<n_outputs>([&](auto o)
       {
-         using output_fop_t = std::decay_t<decltype(get<o>(outputs_in))>;
+         using output_fop_t = std::decay_t<decltype(get<o>(outputs))>;
          if constexpr (is_identity_fop_v<output_fop_t>)
          {
             v[output_groups->output_to_group[o]] = false;
