@@ -27,6 +27,7 @@
 //               generated as a demonstration.
 
 #include "mfem.hpp"
+#include "nurbs_spacing_solver.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -86,7 +87,7 @@ int main(int argc, char *argv[])
    }
 
    // Solve for the physical spacing of elements.
-   mesh->NURBSext->PhysicalSpacing(*mesh->GetNodes(), sweep1D);
+   PhysicalSpacing(*mesh->NURBSext, *mesh->GetNodes(), sweep1D);
 
    // Update mesh nodes from patches.
    mesh->NURBSext->SetCoordsFromPatches(*mesh->GetNodes(),

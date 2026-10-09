@@ -5878,54 +5878,6 @@ void NURBSExtension::RefineWithKVFactors(int rf,
    MFEM_ABORT("RefineWithKVFactors is supported only in NCNURBSExtension");
 }
 
-// Return a newly constructed 2D or 3D mesh with a single patch, using the
-// input data.
-Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
-                  const Array3D<double> &patchCP)
-{
-   Array<real_t> intervals_array({1});
-   Vector intervals(intervals_array.GetData(), intervals_array.Size());
-   Array<int> continuity({-1, -1});
-
-   const KnotVector kv(degree, intervals, continuity);
-
-   MFEM_VERIFY(dim == 2 || dim == 3, "");
-   MFEM_VERIFY(sdim == 2 || sdim == 3, "");
-   MFEM_VERIFY(kv.GetNCP() == ncp, "");
-   MFEM_VERIFY(patchCP.GetSize2() == std::pow(ncp, dim) &&
-               patchCP.GetSize3() == sdim + 1, "");
-
-   const int ncpz = dim == 3 ? ncp : 1;
-
-   Vector points((sdim + 1) * ncp * ncp * ncpz);
-   for (int k = 0, count = 0; k < ncpz; ++k)
-      for (int j = 0; j < ncp; ++j)
-         for (int i = 0; i < ncp; ++i)
-         {
-            const int ijk = i + (ncp * j) + (ncp * ncp * k);
-            const real_t w = patchCP(p, ijk, sdim);
-            for (int l=0; l<sdim; ++l)
-            {
-               points[count++] = patchCP(p, ijk, l) * w;
-            }
-            points[count++] = w;
-         }
-
-   NURBSPatch *patch = dim == 2 ? new NURBSPatch(&kv, &kv, sdim + 1,
-                                                 points.GetData()) :
-                       new NURBSPatch(&kv, &kv, &kv, sdim + 1, points.GetData());
-
-   Array<NURBSPatch*> patches;
-   patches.Append(patch);
-   Mesh patch_topology =
-      dim == 2 ? Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
-      Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
-
-   NURBSExtension ne(&patch_topology, patches);
-   delete patch;
-   return Mesh(ne);
-}
-
 void NURBSExtension::SetNumCoarsePatches(int n)
 {
    num_structured_patches = n;
@@ -5966,71 +5918,6 @@ void NURBSExtension::GetCoarsePatchCP(int p, Array2D<real_t> &cp) const
       {
          cp(i, j) = patchCP(p, i, j);
       }
-   }
-}
-
-void PatchPhysicalSpacing(NURBSPatch *patch, int patchIndex,
-                          const Array3D<double> &coarsePatchCP,
-                          const Mesh &mesh0, int mOrder, int ned,
-                          std::array<int, 3> nel, bool sweep1D, real_t tol);
-
-void NURBSExtension::PhysicalSpacing(const GridFunction &Nodes, bool sweep1D,
-                                     real_t tol)
-{
-   if (patches.Size() == 0)
-   {
-      ConvertToPatches(Nodes);
-   }
-
-   MFEM_VERIFY(patches.Size() == GetNP(), "");
-
-   const int dim = Dimension(); // Reference space dimension
-   const int numStructuredPatches = patchCP.GetSize1();
-   for (int p = 0; p < numStructuredPatches; p++)
-   {
-      NURBSPatch *patch = patches[p];
-      MFEM_VERIFY(patch->GetNKV() == dim, "");
-
-      std::array<int, 3> ne, ncp;
-      for (int i=0; i<dim; ++i)
-      {
-         ne[i] = patch->GetKV(i)->GetNE();
-         ncp[i] = patch->GetKV(i)->GetNCP();
-      }
-
-      Array<int> pdofs;
-      GetPatchDofs(p, pdofs);
-
-      if (dim == 2)
-      {
-         ne[2] = 1;
-         ncp[2] = 1;
-      }
-
-      MFEM_VERIFY(patch_to_el[p].Size() == ne[0] * ne[1] * ne[2], "");
-      MFEM_VERIFY(pdofs.Size() == ncp[0] * ncp[1] * ncp[2], "");
-
-      // ncp = (ne * ned) + 1 where ned = number of DOFs per element minus 1.
-      const int ned = (ncp[0] - 1) / ne[0];
-      MFEM_VERIFY(ned == (ncp[1] - 1) / ne[1], "");
-      MFEM_VERIFY(patch->GetKV(0)->GetOrder() == ned, "");
-      MFEM_VERIFY(patch->GetKV(0)->GetOrder() == patch->GetKV(1)->GetOrder(),
-                  "");
-
-      const int ncp0 = mOrder + 1;
-
-      MFEM_VERIFY(p < patchCP.GetSize1(), "Missing coarse patch data for "
-                  "physical NURBS spacing.");
-      MFEM_VERIFY(patchCP.GetSize3() == Dimension() + 1, "");
-      Mesh mesh0 = GetPatchMesh(p, dim, dim, mOrder, ncp0, patchCP);
-
-      if (mesh0.NURBSext->GetOrder() < mOrder)
-      {
-         mesh0.DegreeElevate(mOrder - mesh0.NURBSext->GetOrder());
-      }
-
-      PatchPhysicalSpacing(patch, p, patchCP, mesh0, mOrder, ned, ne, sweep1D,
-                           tol);
    }
 }
 

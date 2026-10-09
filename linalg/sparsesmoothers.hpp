@@ -51,6 +51,8 @@ class GSSmoother : public SparseSmoother
 public:
    enum GSType
    {
+      // Note that we only capitalize the first letter, since the name FORWARD
+      // may conflict with another library.
       Symmetric, ///< Forward Gauss-Seidel, then backward.
       Forward, ///< Forward Gauss-Seidel ($L^{-1}$).
       Backward ///< Backward Gauss-Seidel ($U^{-1}$).

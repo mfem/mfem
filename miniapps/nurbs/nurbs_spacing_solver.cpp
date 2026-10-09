@@ -9,8 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "nurbs.hpp"
-#include "../fem/gridfunc.hpp"
+#include "nurbs_spacing_solver.hpp"
 
 namespace mfem
 {
@@ -592,8 +591,53 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
    mesh.GetNodes()->FESpace()->Update();
 }
 
+// Return a newly constructed 2D or 3D mesh with a single patch, using the
+// input data.
 Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
-                  const Array3D<double> &patchCP);
+                  const Array3D<double> &patchCP)
+{
+   Array<real_t> intervals_array({1});
+   Vector intervals(intervals_array.GetData(), intervals_array.Size());
+   Array<int> continuity({-1, -1});
+
+   const KnotVector kv(degree, intervals, continuity);
+
+   MFEM_VERIFY(dim == 2 || dim == 3, "");
+   MFEM_VERIFY(sdim == 2 || sdim == 3, "");
+   MFEM_VERIFY(kv.GetNCP() == ncp, "");
+   MFEM_VERIFY(patchCP.GetSize2() == std::pow(ncp, dim) &&
+               patchCP.GetSize3() == sdim + 1, "");
+
+   const int ncpz = dim == 3 ? ncp : 1;
+
+   Vector points((sdim + 1) * ncp * ncp * ncpz);
+   for (int k = 0, count = 0; k < ncpz; ++k)
+      for (int j = 0; j < ncp; ++j)
+         for (int i = 0; i < ncp; ++i)
+         {
+            const int ijk = i + (ncp * j) + (ncp * ncp * k);
+            const real_t w = patchCP(p, ijk, sdim);
+            for (int l=0; l<sdim; ++l)
+            {
+               points[count++] = patchCP(p, ijk, l) * w;
+            }
+            points[count++] = w;
+         }
+
+   NURBSPatch *patch = dim == 2 ? new NURBSPatch(&kv, &kv, sdim + 1,
+                                                 points.GetData()) :
+                       new NURBSPatch(&kv, &kv, &kv, sdim + 1, points.GetData());
+
+   Array<NURBSPatch*> patches;
+   patches.Append(patch);
+   Mesh patch_topology =
+      dim == 2 ? Mesh::MakeCartesian2D(1, 1, Element::Type::QUADRILATERAL) :
+      Mesh::MakeCartesian3D(1, 1, 1, Element::Type::HEXAHEDRON);
+
+   NURBSExtension ne(&patch_topology, patches);
+   delete patch;
+   return Mesh(ne);
+}
 
 void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
                            const Array3D<double> &coarsePatchCP, int order,
@@ -1215,6 +1259,97 @@ void PatchPhysicalSpacing(NURBSPatch *patch, int patchIndex,
                (*patch)(i,j,k,sdim) = w;
             }
          }
+}
+
+void PhysicalSpacing(NURBSExtension &nurbs, const GridFunction &nodes,
+                     bool sweep_1d, real_t tol)
+{
+   nurbs.ConvertToPatches(nodes);
+
+   Array<NURBSPatch*> patches;
+   nurbs.GetPatches(patches);
+   MFEM_VERIFY(patches.Size() == nurbs.GetNP(), "");
+
+   const int dim = nurbs.Dimension();
+   const int order = nurbs.GetOrder();
+   const int num_patches = nurbs.NumCoarsePatches();
+   MFEM_VERIFY(num_patches <= patches.Size(), "More coarse patches than "
+               "NURBS patches.");
+
+   Array3D<double> coarse_patch_cp;
+   if (num_patches > 0)
+   {
+      Array2D<real_t> cp;
+      nurbs.GetCoarsePatchCP(0, cp);
+      coarse_patch_cp.SetSize(num_patches, cp.NumRows(), cp.NumCols());
+
+      for (int p=0; p<num_patches; ++p)
+      {
+         nurbs.GetCoarsePatchCP(p, cp);
+         MFEM_VERIFY(cp.NumRows() == coarse_patch_cp.GetSize2() &&
+                     cp.NumCols() == coarse_patch_cp.GetSize3(), "");
+         for (int i=0; i<cp.NumRows(); ++i)
+         {
+            for (int j=0; j<cp.NumCols(); ++j)
+            {
+               coarse_patch_cp(p, i, j) = cp(i, j);
+            }
+         }
+      }
+   }
+
+   for (int p=0; p<num_patches; ++p)
+   {
+      NURBSPatch *patch = patches[p];
+      MFEM_VERIFY(patch->GetNKV() == dim, "");
+
+      std::array<int, 3> ne, ncp;
+      for (int i=0; i<dim; ++i)
+      {
+         ne[i] = patch->GetKV(i)->GetNE();
+         ncp[i] = patch->GetKV(i)->GetNCP();
+      }
+
+      Array<int> pdofs;
+      nurbs.GetPatchDofs(p, pdofs);
+
+      if (dim == 2)
+      {
+         ne[2] = 1;
+         ncp[2] = 1;
+      }
+
+      MFEM_VERIFY(nurbs.GetPatchElements(p).Size() == ne[0] * ne[1] * ne[2],
+                  "");
+      MFEM_VERIFY(pdofs.Size() == ncp[0] * ncp[1] * ncp[2], "");
+
+      // ncp = (ne * ned) + 1 where ned = number of DOFs per element minus 1.
+      const int ned = (ncp[0] - 1) / ne[0];
+      MFEM_VERIFY(ned == (ncp[1] - 1) / ne[1], "");
+      MFEM_VERIFY(patch->GetKV(0)->GetOrder() == ned, "");
+      MFEM_VERIFY(patch->GetKV(0)->GetOrder() == patch->GetKV(1)->GetOrder(),
+                  "");
+
+      const int coarse_ncp = order + 1;
+      MFEM_VERIFY(coarse_patch_cp.GetSize3() == dim + 1, "Missing coarse "
+                  "patch data for physical NURBS spacing.");
+      Mesh mesh0 = GetPatchMesh(p, dim, dim, order, coarse_ncp,
+                                coarse_patch_cp);
+
+      if (mesh0.NURBSext->GetOrder() < order)
+      {
+         mesh0.DegreeElevate(order - mesh0.NURBSext->GetOrder());
+      }
+
+      PatchPhysicalSpacing(patch, p, coarse_patch_cp, mesh0, order, ned, ne,
+                           sweep_1d, tol);
+
+      // SetPatchControlPoints expects unweighted physical control points.
+      patch->DivideOutWeights();
+      nurbs.SetPatchControlPoints(p, *patch);
+   }
+
+   for (auto patch : patches) { delete patch; }
 }
 
 } // namespace mfem

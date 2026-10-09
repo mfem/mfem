@@ -1180,19 +1180,6 @@ public:
    /// Print control points for coarse patches @a patchCP.
    void PrintCoarsePatches(std::ostream &os);
 
-   /** @brief Recompute control points so that the relative physical spacing of
-       elements approximately matches the reference spacing of knots.
-
-       If patches are not already set, then they will be set by using control
-       point data from the input @a Nodes. If @a sweep1D is true, an approximate
-       1D sweeping solver is used; otherwise, a more expensive full-dimensional
-       system solver is used on each patch. The 1D sweeping solver is more
-       efficient, usually with a small loss of accuracy. The input tolerance is
-       used for solver convergence. */
-   void PhysicalSpacing(const GridFunction &Nodes, bool sweep1D = true,
-                        real_t tol = 100 *
-                                     std::numeric_limits<mfem::real_t>::epsilon());
-
    /// Set the number of patches which should have coarse control point data.
    void SetNumCoarsePatches(int n);
 };
