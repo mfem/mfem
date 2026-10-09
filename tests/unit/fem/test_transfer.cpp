@@ -221,6 +221,76 @@ TEST_CASE("Transfer", "[Transfer]")
    delete c_fec;
 }
 
+TEST_CASE("InterpolationGridTransfer Round Trip", "[Transfer]")
+{
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim, VecSpace::ND, VecSpace::RT);
+   auto simplex = GENERATE(true, false);
+   dimension = GENERATE(2, 3);
+   const int order = 2;
+   const int ne = 2;
+   CAPTURE(VecSpaceName(vectorspace), dimension, simplex, order);
+
+   Mesh mesh;
+   if (dimension == 2)
+   {
+      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
+      mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
+   }
+   else
+   {
+      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
+   }
+   Mesh fineMesh(mesh);
+   fineMesh.UniformRefinement();
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   switch (vectorspace)
+   {
+      case VecSpace::H1:
+      case VecSpace::VectorH1nodes:
+      case VecSpace::VectorH1vdim:
+         fec.reset(new H1_FECollection(order, dimension));
+         break;
+      case VecSpace::ND:
+         fec.reset(new ND_FECollection(order, dimension));
+         break;
+      case VecSpace::RT:
+         fec.reset(new RT_FECollection(order - 1, dimension));
+         break;
+   }
+
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
+   Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
+                             ? Ordering::byVDIM : Ordering::byNODES;
+   FiniteElementSpace c_fespace(&mesh, fec.get(), vdim, ordering);
+   FiniteElementSpace f_fespace(&fineMesh, fec.get(), vdim, ordering);
+
+   GridFunction X(&c_fespace), Y(&f_fespace), X_rt(&c_fespace);
+   coeff_order = 1;
+   if (vectorspace == VecSpace::H1)
+   {
+      FunctionCoefficient funcCoeff(&coeff);
+      X.ProjectCoefficient(funcCoeff);
+   }
+   else
+   {
+      VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
+      X.ProjectCoefficient(funcCoeff);
+   }
+
+   // The backward operator is a left inverse of the forward operator, so a
+   // forward/backward round trip must reproduce any coarse field.
+   InterpolationGridTransfer transfer(c_fespace, f_fespace);
+   transfer.ForwardOperator().Mult(X, Y);
+   transfer.BackwardOperator().Mult(Y, X_rt);
+
+   X_rt -= X;
+   REQUIRE(X_rt.Norml2() < 1e-12 * X.Norml2());
+}
+
 TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
 {
    auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
@@ -795,6 +865,40 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
    if (!geometric) { delete f_h1_fec; }
    delete c_h1_fec;
    delete pmesh;
+}
+
+TEST_CASE("Parallel InterpolationGridTransfer Round Trip",
+          "[Transfer][Parallel]")
+{
+   auto simplex = GENERATE(true, false);
+   dimension = 3;
+   const int order = 2;
+   const int ne = 2;
+   CAPTURE(simplex, order);
+
+   Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+   Mesh mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParMesh pfineMesh(pmesh);
+   pfineMesh.UniformRefinement();
+
+   ND_FECollection fec(order, dimension);
+   ParFiniteElementSpace c_fespace(&pmesh, &fec);
+   ParFiniteElementSpace f_fespace(&pfineMesh, &fec);
+
+   ParGridFunction X(&c_fespace), Y(&f_fespace), X_rt(&c_fespace);
+   coeff_order = 1;
+   VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
+   X.ProjectCoefficient(funcCoeff);
+
+   InterpolationGridTransfer transfer(c_fespace, f_fespace);
+   transfer.ForwardOperator().Mult(X, Y);
+   transfer.BackwardOperator().Mult(Y, X_rt);
+
+   X_rt -= X;
+   const real_t err = std::sqrt(InnerProduct(MPI_COMM_WORLD, X_rt, X_rt));
+   const real_t nrm = std::sqrt(InnerProduct(MPI_COMM_WORLD, X, X));
+   REQUIRE(err < 1e-12 * nrm);
 }
 
 TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
