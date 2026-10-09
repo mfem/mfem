@@ -173,7 +173,8 @@ TEST_CASE("ParNormlp", "[Parallel], [HypreParVector], [GPU]")
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    int size_per_rank = 2;
 
-   // v contains negative integers -[0, 1, ..., world_size*size_per_rank-1]
+   // global vector contains negative integers -[0, 1, ..., world_size*size_per_rank-1]
+   // our rank only holds a portion
    Vector v(size_per_rank);
    for (int i=0; i<size_per_rank; ++i)
    {
