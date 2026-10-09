@@ -474,3 +474,81 @@ TEST_CASE("First order ODE methods", "[ODE]")
    }
 
 }
+
+class TimeSlope : public mfem::TimeDependentOperator
+{
+public:
+   TimeSlope()
+      : mfem::TimeDependentOperator(1)
+   {
+   }
+
+   void Mult(const mfem::Vector &, mfem::Vector &k) const override
+   {
+      k(0) = GetTime();
+   }
+
+   void ImplicitSolve(const mfem::real_t,
+                      const mfem::Vector &,
+                      mfem::Vector &k) override
+   {
+      k(0) = GetTime();
+   }
+};
+
+
+TEST_CASE("ODE solvers integrate a time-dependent slope",
+          "[ODE][TimeDependentOperator]")
+{
+   constexpr real_t t0 = 2.0;
+   constexpr real_t x0 = 0.0;
+   constexpr real_t t_final = 3.0;
+   constexpr real_t exact = (t_final*t_final  - t0*t0)/2;
+   constexpr real_t tolerance = 1e-9;
+   constexpr int nsteps = 10;
+   real_t dt = 1.0/nsteps;
+
+   // The excluded methods are not expected to give the exact answer
+   for (const int method : {2,3,4,6,      // 1
+                            12,13,14,15,  // 11
+                            22,23,        // 21
+                            32,33,34,
+                            50,           // 40,45
+                            51,52,53,54})
+   {
+      SECTION("ODE solver method " + std::to_string(method))
+      {
+         TimeSlope op;
+         op.SetTime(t0);
+
+         auto solver = mfem::ODESolver::Select(method);
+         REQUIRE(solver != nullptr);
+
+         solver->Init(op);
+
+         Vector x(1);
+         x = x0;
+
+         real_t t = t0;
+
+         for (int i = 0; i < nsteps; ++i)
+         {
+            solver->Step(x, t, dt);
+         }
+
+         const real_t error = std::abs(x(0) - exact);
+         const real_t time_error = std::abs(t - t_final);
+
+         INFO("ODE solver method = " << method);
+         INFO("Computed value = " << x(0));
+         INFO("Exact value = " << exact);
+         INFO("Absolute error = " << error);
+         INFO("Final time = " << t);
+
+         REQUIRE(error < tolerance);
+         REQUIRE(time_error < 1e-12);
+      }
+   }
+}
+
+
