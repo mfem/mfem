@@ -1306,7 +1306,7 @@ real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
       const auto m_data = vec.Read(vec.UseDevice());
       reduce(vec.Size(), loc_norm, [=] MFEM_HOST_DEVICE(int i, real_t &r)
       {
-         r += fabs(pow(m_data[i], p));
+         r += pow(fabs(m_data[i]), p);
       }, SumReducer<real_t> {}, vec.UseDevice(), vector_workspace());
       MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     comm);
