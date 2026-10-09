@@ -509,12 +509,15 @@ TEST_CASE("ODE solvers integrate a time-dependent slope",
    real_t dt = 1.0/nsteps;
 
    // The excluded methods are not expected to give the exact answer
-   for (const int method : {2,3,4,6,      // 1
-                            12,13,14,15,  // 11
-                            22,23,        // 21
-                            32,33,34,
-                            50,           // 40,45
-                            51,52,53,54})
+   for (const int method :
+        {
+           2,3,4,6,      // 1
+           12,13,14,15,  // 11
+           22,23,        // 21
+           32,33,34,
+           50,           // 40,45
+           51,52,53,54
+        })
    {
       SECTION("ODE solver method " + std::to_string(method))
       {
