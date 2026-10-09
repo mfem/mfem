@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -616,7 +616,8 @@ private:
 
 
 /** @brief Type that enables viewing Vector objects as Array<real_t> objects and
-    vice versa. For example, see Vector::GetArrayView(). */
+    vice versa. Currently, viewing methods are provided only for the first
+    direction, see Vector::GetArrayView(). */
 template <typename ViewedType>
 class MemoryView
 {
