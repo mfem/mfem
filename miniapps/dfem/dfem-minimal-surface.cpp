@@ -364,14 +364,6 @@ public:
          mf_apply_qf, input_operators, output_operators,
          ir, all_domain_attr, derivatives);
 
-      // Before we are able to use DifferentiableOperator::Mult, we need to call
-      // DifferentiableOperator::SetParameters to set the parameters of the
-      // operator. Here, only the mesh node function is required. We do this
-      // here once, because we know that the nodes won't change. If they do,
-      // we'd have to call SetParameters before each call to Mult. This is done
-      // to be mathematically consistent with fixing parameters.
-      res->SetParameters({&mesh_nodes});
-
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;
       H1.GetEssentialTrueDofs(ess_bdr, ess_tdofs);

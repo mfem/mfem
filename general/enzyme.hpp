@@ -12,6 +12,7 @@
 #define MFEM_ENZYME_HPP
 
 #include "../config/config.hpp" // IWYU pragma: keep
+#include <cstddef>
 
 namespace mfem
 {
