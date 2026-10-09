@@ -65,115 +65,6 @@ enum problem_name
    beamsphere
 };
 
-/// BoomerAMG variant that retains function filtering across operator resets.
-class ContactBoomerAMG : public HypreBoomerAMG
-{
-private:
-   bool filter_functions = true;
-
-   void ApplyFunctionFiltering()
-   {
-      HYPRE_BoomerAMGSetFilterFunctions(*this, filter_functions);
-   }
-
-public:
-   void SetFilterFunctions(bool filter)
-   {
-      filter_functions = filter;
-      ApplyFunctionFiltering();
-   }
-
-   void SetOperator(const Operator &op) override
-   {
-      HypreBoomerAMG::SetOperator(op);
-      ApplyFunctionFiltering();
-   }
-};
-
-/// Standard AMGF composition with a function-filtered BoomerAMG option.
-class ContactAMGFSolver : public Solver
-{
-private:
-   mutable ContactBoomerAMG amg;
-   const HypreParMatrix *A = nullptr;
-   const HypreParMatrix *P = nullptr;
-   Solver *S = nullptr;
-   mutable unique_ptr<HypreParMatrix> PtAP;
-   mutable bool solver_set = false;
-   mutable Vector z, r, rf, xf;
-
-   void MakeSolver() const
-   {
-      if (solver_set) { return; }
-
-      MFEM_VERIFY(A, "System operator is not set.");
-      MFEM_VERIFY(P, "Filtered subspace transfer operator is not set.");
-      MFEM_VERIFY(S, "Filtered subspace solver is not set.");
-
-      amg.SetOperator(*A);
-      PtAP.reset(RAP(A, P));
-      S->SetOperator(*PtAP);
-
-      z.SetSize(height);  z.UseDevice(true);
-      r.SetSize(height);  r.UseDevice(true);
-      rf.SetSize(P->Width()); rf.UseDevice(true);
-      xf.SetSize(P->Width()); xf.UseDevice(true);
-      solver_set = true;
-   }
-
-   void ApplyStandardAMGF(const Vector &b, Vector &x) const
-   {
-      x = 0.0;
-      r = b;
-
-      amg.Mult(b, z);
-      x += z;
-      A->AddMult(z, r, -1.0);
-      P->MultTranspose(r, rf);
-      S->Mult(rf, xf);
-      P->Mult(xf, z);
-      x += z;
-      A->AddMult(z, r, -1.0);
-      amg.Mult(r, z);
-      x += z;
-   }
-
-public:
-   void SetOperator(const Operator &op) override
-   {
-      A = dynamic_cast<const HypreParMatrix *>(&op);
-      MFEM_VERIFY(A, "ContactAMGFSolver requires a HypreParMatrix.");
-      height = op.Height();
-      width = op.Width();
-      solver_set = false;
-   }
-
-   void SetFilteredSubspaceTransferOperator(const HypreParMatrix &op)
-   {
-      P = &op;
-      solver_set = false;
-   }
-
-   void SetFilteredSubspaceSolver(Solver &solver)
-   {
-      S = &solver;
-      solver_set = false;
-   }
-
-   ContactBoomerAMG &GetAMG() { return amg; }
-
-   void SetFilterFunctions(bool filter)
-   {
-      amg.SetFilterFunctions(filter);
-   }
-
-   void Mult(const Vector &b, Vector &x) const override
-   {
-      MakeSolver();
-      ApplyStandardAMGF(b, x);
-   }
-};
-
 Mesh * GetProblemMesh(problem_name prob_name);
 
 template <typename T>
@@ -228,8 +119,6 @@ void PrintAMGOptions(const HypreBoomerAMG &amg,
    }
 
    PrintAMGIntOption("num-functions", solver, HYPRE_BoomerAMGGetNumFunctions);
-   PrintAMGIntOption("filter-functions", solver,
-                     HYPRE_BoomerAMGGetFilterFunctions);
    PrintAMGIntOption("converge-type", solver, HYPRE_BoomerAMGGetConvergeType);
    PrintAMGRealOption("tol", solver, HYPRE_BoomerAMGGetTol);
    PrintAMGIntOption("max-iter", solver, HYPRE_BoomerAMGGetMaxIter);
@@ -337,7 +226,6 @@ int main(int argc, char *argv[])
    int amg_coarsen_type = 8;
    int amg_agg_levels = 0;
    int amg_relax_type = 18;
-   bool amg_filter_functions = true;
    bool amg_print_options = false;
    // Device configuration string.
    const char *device_config = "cpu";
@@ -376,11 +264,6 @@ int main(int argc, char *argv[])
    args.AddOption(&amg_relax_type, "-amg-relax-type",
                   "--amg-relax-type",
                   "BoomerAMG relaxation/smoother type.");
-   args.AddOption(&amg_filter_functions, "-amg-filter-functions",
-                  "--amg-filter-functions", "-no-amg-filter-functions",
-                  "--no-amg-filter-functions",
-                  "Restrict BoomerAMG strength connections to each "
-                  "displacement component.");
    args.AddOption(&amg_print_options, "-amg-print-options",
                   "--amg-print-options", "-no-amg-print-options",
                   "--no-amg-print-options",
@@ -651,10 +534,9 @@ int main(int argc, char *argv[])
       ParallelDirectSolver * subspacesolver = nullptr;
       if (amgf)
       {
-         auto *amgfprec = new ContactAMGFSolver();
+         auto *amgfprec = new AMGFSolver();
          prec = amgfprec;
          amgfprec->GetAMG().SetSystemsOptions(3);
-         amgfprec->SetFilterFunctions(amg_filter_functions);
          amgfprec->GetAMG().SetCoarsening(amg_coarsen_type);
          amgfprec->GetAMG().SetAggressiveCoarsening(amg_agg_levels);
          amgfprec->GetAMG().SetPrintLevel(0);
@@ -672,10 +554,9 @@ int main(int argc, char *argv[])
       }
       else
       {
-         auto *amgprec = new ContactBoomerAMG();
+         auto *amgprec = new HypreBoomerAMG();
          prec = amgprec;
          amgprec->SetSystemsOptions(3);
-         amgprec->SetFilterFunctions(amg_filter_functions);
          amgprec->SetCoarsening(amg_coarsen_type);
          amgprec->SetAggressiveCoarsening(amg_agg_levels);
          amgprec->SetPrintLevel(0);

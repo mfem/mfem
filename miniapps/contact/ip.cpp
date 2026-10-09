@@ -497,7 +497,7 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    JuT->Mult(tempVec, breduced);
    breduced.Add(1.0, b.GetBlock(0));
 
-   // Solver the system with the given solver
+   // Solve the system with the given solver
    solver->SetOperator(*Areduced);
    solver->Mult(breduced, Xhat.GetBlock(0));
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
