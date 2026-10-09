@@ -4418,6 +4418,67 @@ DenseTensor &DenseTensor::operator=(real_t c)
    return *this;
 }
 
+DenseMatrixStack &DenseMatrixStack::operator=(real_t c)
+{
+   real_t *data = mfem::HostWrite(tdata, tsize);
+   for (int i = 0; i < tsize; i++)
+   {
+      data[i] = c;
+   }
+   return *this;
+}
+
+DenseMatrixStack &DenseMatrixStack::operator=(const DenseMatrixStack &other)
+{
+   if (this != &other)
+   {
+      DenseMatrixStack copy(other);
+      Swap(copy);
+   }
+   return *this;
+}
+
+void DenseMatrixStack::InitOffset()
+{
+   off.SetSize(nk);
+   if (nk > 0) { off[0] = 0; }
+   for (int k = 1; k < nk; k++)
+   {
+      off[k] = off[k - 1] + ni[k - 1] * nj[k - 1];
+   }
+}
+
+void DenseMatrixStack::AddMult(const Table &elem_dof, const Vector &x,
+                               Vector &y) const
+{
+   MFEM_ASSERT(elem_dof.Size() == SizeK(),
+               "incompatible element dof table size");
+
+   const int *I = elem_dof.GetI();
+   const int *J = elem_dof.GetJ();
+   const real_t *data = mfem::HostRead(tdata, tsize);
+   const real_t *xp = x.HostRead();
+   real_t *yp = y.HostReadWrite();
+
+   for (int k = 0; k < SizeK(); k++)
+   {
+      const int n = I[k + 1] - I[k];
+      MFEM_ASSERT(SizeI(k) == n && SizeJ(k) == n,
+                  "element matrix and dof table sizes do not match");
+
+      const int *dofs = J + I[k];
+      const real_t *A = data + off[k];
+      for (int j = 0; j < n; j++)
+      {
+         const real_t xj = xp[dofs[j]];
+         for (int i = 0; i < n; i++)
+         {
+            yp[dofs[i]] += A[i + n*j] * xj;
+         }
+      }
+   }
+}
+
 void BatchLUFactor(DenseTensor &Mlu, Array<int> &P, const real_t TOL)
 {
    BatchedLinAlg::LUFactor(Mlu, P);
