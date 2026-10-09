@@ -16,8 +16,6 @@
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
 #include "../general/forall.hpp"
-#include "../general/reducers.hpp"
-
 #include <fstream>
 #include <iomanip>
 #include <cmath>
