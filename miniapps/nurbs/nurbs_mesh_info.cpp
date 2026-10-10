@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 
    // Read the mesh
    Mesh mesh(mesh_file, 1, 1);
-   NURBSExtension *ext = mesh.NURBSext;
+   NURBSExtension *ext = mesh.NURBSExt();
 
    if (!ext)
    {
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
    // Refine the mesh as specified
    mesh.DegreeElevate(16, order);
 
-   if (mesh.NURBSext && (strlen(ref_file) != 0))
+   if (mesh.IsNURBS() && (strlen(ref_file) != 0))
    {
       mesh.RefineNURBSFromFile(ref_file);
    }

@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
    // 4. Since a NURBS mesh can currently only be refined uniformly, we need to
    //    convert it to a piecewise-polynomial curved mesh. First we refine the
    //    NURBS mesh a bit more and then project the curvature to quadratic Nodes.
-   if (mesh.NURBSext)
+   if (mesh.IsNURBS())
    {
       for (int i = 0; i < 2; i++)
       {

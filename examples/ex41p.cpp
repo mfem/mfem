@@ -390,7 +390,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement, where 'ref_levels' is a
    //    command-line parameter.
    for (int lev = 0; lev < ser_ref_levels; lev++) { mesh->UniformRefinement(); }
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       mesh->SetCurvature(max(order, 1));
    }
