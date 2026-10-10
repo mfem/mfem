@@ -249,15 +249,14 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
          Jt->EliminateRows(problem->GetEssentialDofs());
       }
       int hJt = Jt->Height();
-      SparseMatrix mergedJt;
-      Jt->MergeDiagAndOffd(mergedJt);
-      mergedJt.HostReadI();
-      mergedJt.HostReadJ();
-      mergedJt.HostReadData();
+      SparseMatrix Jt_diag, Jt_offd;
+      HYPRE_BigInt *Jt_cmap = nullptr;
+      Jt->GetDiag(Jt_diag);
+      Jt->GetOffd(Jt_offd, Jt_cmap);
       Array<int> nonzerorows;
       for (int i = 0; i<hJt; i++)
       {
-         if (!mergedJt.RowIsEmpty(i))
+         if (!Jt_diag.RowIsEmpty(i) || !Jt_offd.RowIsEmpty(i))
          {
             nonzerorows.Append(i);
          }
