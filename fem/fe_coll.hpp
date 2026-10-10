@@ -90,6 +90,7 @@ public:
    int GetDerivType(int dim) const;
    int GetDerivMapType(int dim) const;
    int GetRangeDim(int dim) const;
+   int GetCurlDim(int dim) const;
    /** @} */
 
    int HasFaceDofs(Geometry::Type geom, int p) const;
