@@ -281,7 +281,7 @@ private:
        s + s*r + s*r^2 + ... + s*r^(n-1) = 1
        s * (r^n - 1) / (r - 1) = 1
     The initial spacing s and number of intervals n are inputs, and r is solved
-    for by Newton's method. The parameter s can be scaled. This function is not
+    for by bisection. The parameter s can be scaled. This function is not
     nested. */
 class GeometricSpacingFunction : public SpacingFunction
 {
