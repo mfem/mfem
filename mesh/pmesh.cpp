@@ -1401,6 +1401,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
       vglobal[iv] = fes.GetGlobalTDofNumber(iv);
    }
    auto parent_elements = mesh.MakeSimplicial_(orig_mesh, vglobal);
+   mesh.ReduceMeshGen(); // Set the global element types, including on empty ranks.
 
    // count the number of entries in each row of group_s{vert,edge,face}
    mesh.group_svert.MakeI(mesh.GetNGroups()-1); // exclude the local group 0
