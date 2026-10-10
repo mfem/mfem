@@ -28,6 +28,7 @@
 #include "densemat.hpp"
 #include "symmat.hpp"
 #include "ode.hpp"
+#include "checkpoint.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"

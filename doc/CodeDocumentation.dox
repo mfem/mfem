@@ -23,6 +23,7 @@ namespace mfem {
  * - Operator and BilinearForm
  * - Vector and LinearForm
  * - DenseMatrix and SparseMatrix
+ * - Checkpointer and \ref checkpointing "application-state checkpointing"
  * - Sparse \link sparsesmoothers.hpp smoothers\endlink and linear
  *   \link solvers.hpp solvers\endlink
  *

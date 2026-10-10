@@ -1,0 +1,109 @@
+/** \page checkpointing Combined application-state checkpointing
+
+\section checkpointing_interface One application-facing checkpointer
+
+mfem::Checkpointer binds live application state and owns saved checkpoint
+representations. Store(id) captures complete continuation state and Restore(id)
+restores it, including dependent solver objects. Callers do not pass a byte
+snapshot between separate adapter and storage objects. Implementations may save
+typed objects directly or use serialization internally. Borrowed application
+objects must outlive the checkpointer.
+
+mfem::StateId denotes an ordered logical application position, not physical time.
+mfem::CheckpointId identifies a saved record independently of its physical slot
+or filename. GetInfo(id) returns both identities. FindAtOrBefore(target, info)
+chooses the greatest saved state at or before the target, breaking ties by lowest
+checkpoint ID; on absence it leaves info unchanged and returns false.
+
+Capacity() returns an optional checkpoint-count limit. No value permits growing
+the number of separate snapshots without a predetermined horizon, subject to
+resources and identifier ranges. Replacing an ID does not increase Size(), and
+no operation silently evicts live records. Erasing an absent ID is a no-op.
+
+\section checkpointing_direct Direct schedule execution
+
+mfem::CheckpointSchedule produces mfem::CheckpointCommand values but does not
+own or execute application transitions. A caller can use an ordinary switch:
+
+- Advance: validate the live source position, propagate, verify the destination.
+- Store: verify the live position and checkpoint identity, then Store(id).
+- Restore: verify the named saved position, then Restore(id).
+- Erase: verify the saved position, then Erase(id) without changing live state.
+- Finished: verify the terminal position and finish.
+
+For storage actions from_step and to_step denote the same saved StateId. Restore
+and Erase do not require the live state to match that position beforehand.
+Advance and Finished carry no checkpoint identity. Finished commands repeat
+after completion. Reset rewinds a schedule without resetting application state
+or removing saved checkpoints.
+
+mfem::StoreEverythingSchedule generates Store 0, Advance 0->1, Store 1, ...,
+Store N, Finished at N, assigning checkpoint ID state+1. It requires N+1 logical
+records but generates commands incrementally without a horizon-sized array.
+An offline schedule's finite budget is explicit even with growing storage.
+mfem::IntervalSchedule saves state 0 and every K-th state strictly before its
+terminal state N, assigning checkpoint ID state+1 and advancing one state at a
+time. It needs 1 + floor((N-1)/K) saved records. The horizon and interval must be
+positive; an interval at least as large as the horizon saves only state 0.
+The terminal state is left unsaved so restoration requires some replay.
+mfem::StatePropagator is an optional interface for application transitions;
+applications may instead call their normal propagation functions directly.
+
+The checkpointing miniapps supply application-specific classes derived directly
+from Checkpointer and own their saved records. The heterogeneous example stores
+complete typed copies and demonstrates all five actions. The Euler and mesh
+examples also dispatch schedules directly. Independent references and replay
+compare complete continuation state. Neither a controller nor a moving window
+is needed.
+
+\section checkpointing_errors MFEM errors and ownership
+
+Use MFEM_VERIFY for runtime conditions and MFEM_ABORT for unrecoverable failures.
+Missing required records, exhausted capacity, invalid states, incompatible
+formats, and I/O failures follow MFEM's configured error action. The checkpoint
+path has no explicit C++ exception handling and no rollback contract. The
+miniapp explicitly selects MFEM_ERROR_ABORT. Capture leaves live state unchanged;
+restoration validates saved representations before applying them where possible.
+Operations are synchronous, and instances are not thread-safe.
+
+\section checkpointing_miniapps Application-specific storage examples
+
+Forward Euler integrates scalar cubic growth. Backward Euler integrates two
+stiff diagonal decay modes using a closed-form implicit solve. Their miniapp
+EulerCheckpointer owns complete solution, step, time, timestep, and operator
+parameter records and reinitializes the solver on restore. Both support
+memory-block, file-block, memory-snapshots, and file-snapshots, selected through
+--storage; memory-block is the default. Blocks preallocate steps+1 fixed 64-byte
+records and recycle slots without increasing payload extent. Separate records
+grow by default; --max-checkpoints supplies an optional count limit.
+
+The mesh example refines a changing nonconforming quadrilateral mesh. Its local
+MeshCheckpointer saves complete MFEM mesh text, the refinement cycle, and the
+element-selection index. It supports memory-snapshots and file-snapshots only,
+defaulting to memory-snapshots. mfem::IntervalSchedule omits the terminal state,
+forcing replay after restoration. Independent runs compare mesh structure,
+serialized coordinates, continuation metadata, and reconstructed H1 fields.
+Memory records retain map nodes and string allocations for reuse after erase.
+
+File modes use --checkpoint-path to create a new directory and refuse existing
+paths. Without a path they own a temporary directory removed on success.
+Examples close file stores and reopen them against fresh application objects
+before restoring and replaying. Explicitly requested stores remain on disk.
+Both file modes validate native metadata, compatibility, lengths, and checksums;
+an open marker rejects unclean stores. Reopening requires the same byte order
+and real_t precision. File blocks use a fixed-size payload file and manifest;
+separate mesh/Euler files have a growing manifest. Close() is checked and
+idempotent. No crash recovery or power-loss durability is promised.
+
+\section checkpointing_stages Subsequent implementation stages
+
+Stages 1 and 6 are source-complete; Stages 2-5 are skipped. The removed generic
+helpers and separate adapter/storage APIs have not been reintroduced. All
+storage code is miniapp-local; reusable schedules belong to the library.
+The remaining work in checkpoint-implementation-plan.txt is the optional
+controller/FIFO moving window and further integration and fatal-error coverage.
+Normal-path example cases are registered for every storage mode and optional
+snapshot count limits; none have been executed.
+
+No compilation or execution was performed.
+*/
