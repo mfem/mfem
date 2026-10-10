@@ -113,11 +113,12 @@ AttributeSets::GetAttributeSetMarker(const std::string & set_name) const
 
 Array<int> AttributeSets::AttrToMarker(int max_attr, const Array<int> &attrs)
 {
-   MFEM_VERIFY(attrs.Min() >= 1, "Found attribute less than one")
-   MFEM_ASSERT(attrs.Max() <= max_attr, "Found attribute greater than max_attr")
-
    Array<int> marker(max_attr);
    marker = 0;
+   if (attrs.Size() == 0) { return marker; }
+
+   MFEM_VERIFY(attrs.Min() >= 1, "Found attribute less than one")
+   MFEM_ASSERT(attrs.Max() <= max_attr, "Found attribute greater than max_attr")
    for (auto const &attr : attrs)
    {
       marker[attr-1] = 1;
