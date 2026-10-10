@@ -469,6 +469,21 @@ int KnotVector::GetCoarseningFactor() const
    }
 }
 
+int KnotVector::ElementIndex(int knot_span) const
+{
+   MFEM_ASSERT(knot_span < knot.Size(), "");
+   int el = 0;
+   for (int i=Order; i<knot_span; ++i)
+   {
+      if (isElement(i - Order))
+      {
+         el++;
+      }
+   }
+
+   return el;
+}
+
 Vector KnotVector::GetFineKnots(const int cf) const
 {
    Vector fine;
@@ -3116,7 +3131,7 @@ NURBSExtension::NURBSExtension(const Mesh *patch_topology,
                "Number of patches must equal number of elements in patch_topology");
 
    // Copy patch_topology mesh and NURBSPatch(es)
-   patchTopo = new Mesh( *patch_topology );
+   patchTopo = new Mesh(*patch_topology);
    patches.SetSize(patches_.Size());
    for (int p = 0; p < patches.Size(); p++)
    {
@@ -5026,6 +5041,8 @@ void NURBSExtension::ConvertToPatches(const Vector &Nodes)
 {
    delete el_dof;
    delete bel_dof;
+   el_dof = nullptr;
+   bel_dof = nullptr;
 
    if (patches.Size() == 0)
    {
@@ -5046,6 +5063,7 @@ void NURBSExtension::SetCoordsFromPatches(Vector &Nodes, int vdim)
    if (patches.Size() == 0) { return; }
 
    SetSolutionVector(Nodes, vdim);
+   for (auto &patch : patches) { delete patch; }
    patches.SetSize(0);
 }
 
@@ -5083,8 +5101,14 @@ void NURBSExtension::SetKnotsFromPatches()
 
    GenerateActiveVertices();
    InitDofMap();
+
+   delete el_dof;
+   el_dof = nullptr;
    GenerateElementDofTable();
    GenerateActiveBdrElems();
+
+   delete bel_dof;
+   bel_dof = nullptr;
    GenerateBdrElementDofTable();
 
    ConnectBoundaries();
@@ -5591,6 +5615,7 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
       }
 
       delete patches[p];
+      patches[p] = nullptr;
    }
 }
 
@@ -5623,6 +5648,7 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
          }
       }
       delete patches[p];
+      patches[p] = nullptr;
    }
 }
 
@@ -5658,6 +5684,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
          }
       }
       delete patches[p];
+      patches[p] = nullptr;
    }
 }
 
@@ -5689,6 +5716,11 @@ void NURBSExtension::SetPatchToElements()
 {
    const int np = GetNP();
    patch_to_el.resize(np);
+
+   for (int p=0; p<np; ++p)
+   {
+      patch_to_el[p].SetSize(0);
+   }
 
    for (int e=0; e<el_to_patch.Size(); ++e)
    {
@@ -5770,6 +5802,11 @@ void NURBSExtension::ReadCoarsePatchCP(std::istream &input)
    MFEM_ABORT("ReadCoarsePatchCP is supported only in NCNURBSExtension");
 }
 
+void NURBSExtension::ReadCoarsePatchWeights(std::istream &input)
+{
+   MFEM_ABORT("ReadCoarsePatchWeights is supported only in NCNURBSExtension");
+}
+
 void NURBSExtension::PrintCoarsePatches(std::ostream &os)
 {
    const int patchCP_size1 = patchCP.GetSize1();
@@ -5778,7 +5815,43 @@ void NURBSExtension::PrintCoarsePatches(std::ostream &os)
 
    if (patchCP_size1 == 0) { return; }
 
-   MFEM_ABORT("PrintCoarsePatches is supported only in NCNURBSExtension");
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single element,
+   // and the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = static_cast<int>(pow(ncp1D, Dimension()));
+
+   MFEM_VERIFY(patchCP.GetSize3() == Dimension() + 1, "");
+
+   if (patchCP.GetSize2() < ncp)
+   {
+      return;
+   }
+
+   os << "\npatch_cp\n" << num_structured_patches << "\n";
+   for (int p=0; p<num_structured_patches; ++p)
+   {
+      for (int i=0; i<ncp; ++i)
+      {
+         os << patchCP(p, i, 0);
+         for (int j = 1; j < Dimension(); ++j)
+         {
+            os << ' ' << patchCP(p, i, j);
+         }
+         os << '\n';
+      }
+   }
+
+   os << "\npatch_w\n" << num_structured_patches << "\n";
+   for (int p=0; p<num_structured_patches; ++p)
+   {
+      for (int i=0; i<ncp; ++i)
+      {
+         os << patchCP(p, i, Dimension()) << '\n';
+      }
+   }
 }
 
 int NURBSExtension::VertexPairToEdge(const std::pair<int, int> &vertices) const
@@ -5803,6 +5876,49 @@ void NURBSExtension::RefineWithKVFactors(int rf,
                                          bool coarsened)
 {
    MFEM_ABORT("RefineWithKVFactors is supported only in NCNURBSExtension");
+}
+
+void NURBSExtension::SetNumCoarsePatches(int n)
+{
+   num_structured_patches = n;
+
+   const int maxOrder = mOrders.Max();
+
+   // For degree maxOrder, there are 2*(maxOrder + 1) knots for a single
+   // element, and the number of control points in each dimension is
+   // 2*(maxOrder + 1) - maxOrder - 1
+   const int ncp1D = maxOrder + 1;
+   const int ncp = pow(ncp1D, Dimension());
+
+   patchCP.SetSize(n, ncp, Dimension() + 1);
+   patchCP = 0.0;
+}
+
+void NURBSExtension::SetCoarsePatchCP(int p, const Array2D<real_t> &cp)
+{
+   MFEM_VERIFY(cp.NumRows() == patchCP.GetSize2(), "");
+   MFEM_VERIFY(cp.NumCols() == patchCP.GetSize3(), "");
+
+   for (int i=0; i<cp.NumRows(); ++i)
+   {
+      for (int j=0; j<cp.NumCols(); ++j)
+      {
+         patchCP(p, i, j) = cp(i, j);
+      }
+   }
+}
+
+void NURBSExtension::GetCoarsePatchCP(int p, Array2D<real_t> &cp) const
+{
+   cp.SetSize(patchCP.GetSize2(), patchCP.GetSize3());
+
+   for (int i=0; i<cp.NumRows(); ++i)
+   {
+      for (int j=0; j<cp.NumCols(); ++j)
+      {
+         cp(i, j) = patchCP(p, i, j);
+      }
+   }
 }
 
 NURBSPatch::NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_,
@@ -5839,6 +5955,78 @@ NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
    }
    init(dim_);
    memcpy(data, control_points, sizeof(real_t)*n);
+}
+
+void NURBSPatch::DivideOutWeights()
+{
+   // Divide weights from control points
+   if (Dim == 4) // 3D case
+   {
+      for (int i=0; i<ni; ++i)
+         for (int j=0; j<nj; ++j)
+            for (int k=0; k<nk; ++k)
+            {
+               const real_t w = (*this)(i,j,k,Dim-1); // Weight
+               for (int l=0; l<3; ++l) // Weighted control point
+               {
+                  (*this)(i,j,k,l) /= w;
+               }
+            }
+   }
+   else if (Dim == 3) // 2D case
+   {
+      for (int i=0; i<ni; ++i)
+         for (int j=0; j<nj; ++j)
+         {
+            const real_t w = (*this)(i,j,Dim-1); // Weight
+            for (int k=0; k<2; ++k) // Weighted control point
+            {
+               (*this)(i,j,k) /= w;
+            }
+         }
+   }
+   else
+   {
+      MFEM_ABORT("This dimension is not supported.");
+   }
+}
+
+void NURBSPatch::SetControlPoints(const NURBSPatch &p)
+{
+   MFEM_ASSERT(p.Dim == Dim, "");
+
+   // Set weights and weighted control points
+   if (Dim == 4) // 3D case
+   {
+      MFEM_ASSERT(p.ni == ni && p.nj == nj && p.nk == nk, "");
+      for (int i=0; i<ni; ++i)
+         for (int j=0; j<nj; ++j)
+            for (int k=0; k<nk; ++k)
+            {
+               (*this)(i,j,k,Dim-1) = p(i,j,k,Dim-1); // Weight
+               for (int l=0; l<3; ++l) // Weighted control point
+               {
+                  (*this)(i,j,k,l) = p(i,j,k,l) * (*this)(i,j,k,Dim-1);
+               }
+            }
+   }
+   else if (Dim == 3) // 2D case
+   {
+      MFEM_ASSERT(p.ni == ni && p.nj == nj, "");
+      for (int i=0; i<ni; ++i)
+         for (int j=0; j<nj; ++j)
+         {
+            (*this)(i,j,Dim-1) = p(i,j,Dim-1); // Weight
+            for (int k=0; k<2; ++k) // Weighted control point
+            {
+               (*this)(i,j,k) = p(i,j,k) * (*this)(i,j,Dim-1);
+            }
+         }
+   }
+   else
+   {
+      MFEM_ABORT("This dimension is not supported.");
+   }
 }
 
 #ifdef MFEM_USE_MPI

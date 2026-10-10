@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex10 \
    nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh \
-   nurbs_mesh_info nurbs_surface
+   nurbs_mesh_info nurbs_surface nurbs_spacing
 PAR_MINIAPPS = nurbs_ex1p nurbs_ex10p nurbs_ex11p
 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -42,6 +42,10 @@ endif
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+
+nurbs_spacing: $(SRC)nurbs_spacing.cpp $(SRC)nurbs_spacing_solver.cpp \
+   $(SRC)nurbs_spacing_solver.hpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $(word 1,$^) $(word 2,$^) -o $@ $(MFEM_LIBS)
 
 all: $(MINIAPPS)
 
@@ -167,6 +171,13 @@ nurbs_surface-test-seq: nurbs_surface
 	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_1))
 	@$(call mfem-test,$<,, NURBS miniapp,$(SURF_ARGS_2))
 
+SPAC_ARGS_1 := -ex 1
+SPAC_ARGS_2 := -ex 2
+
+nurbs_spacing-test-seq: nurbs_spacing
+	@$(call mfem-test,$<,, NURBS miniapp,$(SPAC_ARGS_1))
+	@$(call mfem-test,$<,, NURBS miniapp,$(SPAC_ARGS_2))
+
 EX1P_ARGS_1 :=
 EX1P_ARGS_2 := -m ../../data/pipe-nurbs-2d.mesh -o 2 -no-ibp
 EX1P_ARGS_3 := -m ../../data/ball-nurbs.mesh -o 2 --weak-bc -r 0
@@ -204,4 +215,4 @@ clean-exec:
 	@rm -f naca-cmesh.mesh sol_?.gf k?_*.dat *-Surface.mesh
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
-	@rm -rf velocity.* elastic_energy.* deformed.*
+	@rm -rf velocity.* elastic_energy.* deformed.* spaced.mesh
