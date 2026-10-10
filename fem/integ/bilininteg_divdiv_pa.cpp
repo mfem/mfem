@@ -17,6 +17,43 @@
 namespace mfem
 {
 
+DivDivIntegrator::DivDivIntegrator() : Q(nullptr)
+{
+   static Kernels kernels;
+}
+
+DivDivIntegrator::DivDivIntegrator(Coefficient &q, const IntegrationRule *ir)
+   : BilinearFormIntegrator(ir), Q(&q)
+{
+   static Kernels kernels;
+}
+
+/// \cond DO_NOT_DOCUMENT
+
+DivDivIntegrator::Kernels::Kernels()
+{
+   // Q = P (2D)
+   DivDivIntegrator::AddSpecialization<2, 2, 2>();
+   DivDivIntegrator::AddSpecialization<2, 3, 3>();
+   DivDivIntegrator::AddSpecialization<2, 4, 4>();
+   DivDivIntegrator::AddSpecialization<2, 5, 5>();
+   // Q = P + 1 (3D)
+   DivDivIntegrator::AddSpecialization<3, 2, 3>();
+   DivDivIntegrator::AddSpecialization<3, 3, 4>();
+   DivDivIntegrator::AddSpecialization<3, 4, 5>();
+   DivDivIntegrator::AddSpecialization<3, 5, 6>();
+}
+
+DivDivIntegrator::ApplyKernelType
+DivDivIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADivDivApply2D; }
+   else if (DIM == 3) { return internal::PADivDivApply3D; }
+   else { MFEM_ABORT("Unsupported dimension!"); }
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
 void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    // Assumes tensor-product elements
@@ -83,16 +120,8 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (dim == 3)
-      internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   else if (dim == 2)
-      internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   else
-   {
-      MFEM_ABORT("Unsupported dimension!");
-   }
+   ApplyPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, ne, mapsO->B,
+                       mapsC->G, mapsO->Bt, mapsC->Gt, pa_data, x, y);
 }
 
 } // namespace mfem

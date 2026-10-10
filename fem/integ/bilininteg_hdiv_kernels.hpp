@@ -592,6 +592,461 @@ void PADivDivApply3D(const int D1D,
                      const Vector &x_,
                      Vector &y_);
 
+// Shared memory PA H(div) div-div Apply 2D kernel
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void SmemPADivDivApply2D(const int d1d,
+                                const int q1d,
+                                const int NE,
+                                const Array<real_t> &Bo_,
+                                const Array<real_t> &Gc_,
+                                const Array<real_t> &Bot_,
+                                const Array<real_t> &Gct_,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_)
+{
+   MFEM_CONTRACT_VAR(Bot_);
+   MFEM_CONTRACT_VAR(Gct_);
+
+   static constexpr int VDIM = 2;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Q1D > HDIV_MAX_Q1D");
+
+   const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   const auto gc = Reshape(Gc_.Read(), Q1D, D1D);
+   const auto op = Reshape(op_.Read(), Q1D, Q1D, NE);
+   const auto x = Reshape(x_.Read(), D1D*(D1D-1), VDIM, NE);
+   auto y = y_.ReadWrite();
+
+   mfem::forall_3D(NE, Q1D, Q1D, VDIM, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
+      MFEM_SHARED real_t smo[MQ1*(MD1-1)];
+      DeviceMatrix Bo(smo, D1D-1, Q1D);
+
+      MFEM_SHARED real_t smg[MQ1*MD1];
+      DeviceMatrix Gc(smg, D1D, Q1D);
+
+      MFEM_SHARED real_t sm0[VDIM*MDQ*MDQ];
+      MFEM_SHARED real_t sm1[VDIM*MDQ*MDQ];
+      DeviceMatrix X(sm0, D1D*(D1D-1), VDIM);
+      DeviceCube QD(sm1, Q1D, D1D, VDIM);
+      DeviceCube QQ(sm0, Q1D, Q1D, VDIM);
+      DeviceMatrix DIV(sm0, Q1D, Q1D);
+      DeviceCube DQ(sm1, D1D, Q1D, VDIM);
+
+      // Load X into shared memory
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         MFEM_FOREACH_THREAD(dy,y,D1D-1)
+         {
+            MFEM_FOREACH_THREAD(dx,x,D1D)
+            {
+               X(dx + dy*D1D,vd) = x(dx + dy*D1D,vd,e);
+            }
+         }
+      }
+      // Load Bo and Gc into shared memory
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               if (d < D1D-1) { Bo(d,q) = bo(q,d); }
+               Gc(d,q) = gc(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply B operator (derivative in the direction of the component)
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceCube Xxy(X, nx, ny, VDIM);
+         DeviceMatrix Bx = (vd == 0) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               real_t dq = 0.0;
+               for (int dx = 0; dx < nx; ++dx)
+               {
+                  dq += Xxy(dx,dy,vd) * Bx(dx,qx);
+               }
+               QD(qx,dy,vd) = dq;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceMatrix By = (vd == 1) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               real_t qq = 0.0;
+               for (int dy = 0; dy < ny; ++dy)
+               {
+                  qq += QD(qx,dy,vd) * By(dy,qy);
+               }
+               QQ(qx,qy,vd) = qq;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply D operator to the divergence
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               const real_t div = QQ(qx,qy,0) + QQ(qx,qy,1);
+               DIV(qx,qy) = op(qx,qy,e) * div;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply Bt operator
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         DeviceMatrix Btx = (vd == 0) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t qd = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  qd += DIV(qx,qy) * Btx(dx,qx);
+               }
+               DQ(dx,qy,vd) = qd;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceMatrix Bty = (vd == 1) ? Gc : Bo;
+         DeviceTensor<4> Yxy(y, nx, ny, VDIM, NE);
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t dd = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  dd += DQ(dx,qy,vd) * Bty(dy,qy);
+               }
+               Yxy(dx,dy,vd,e) += dd;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+// Shared memory PA H(div) div-div Apply 3D kernel
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void SmemPADivDivApply3D(const int d1d,
+                                const int q1d,
+                                const int NE,
+                                const Array<real_t> &Bo_,
+                                const Array<real_t> &Gc_,
+                                const Array<real_t> &Bot_,
+                                const Array<real_t> &Gct_,
+                                const Vector &op_,
+                                const Vector &x_,
+                                Vector &y_)
+{
+   MFEM_CONTRACT_VAR(Bot_);
+   MFEM_CONTRACT_VAR(Gct_);
+
+   static constexpr int VDIM = 3;
+
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
+
+   const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
+   const auto gc = Reshape(Gc_.Read(), Q1D, D1D);
+   const auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, NE);
+   const auto x = Reshape(x_.Read(), D1D*(D1D-1)*(D1D-1), VDIM, NE);
+   auto y = y_.ReadWrite();
+
+   mfem::forall_3D(NE, Q1D, Q1D, VDIM, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int tidz = MFEM_THREAD_ID(z);
+
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+
+      MFEM_SHARED real_t smo[MQ1*(MD1-1)];
+      DeviceMatrix Bo(smo, D1D-1, Q1D);
+
+      MFEM_SHARED real_t smg[MQ1*MD1];
+      DeviceMatrix Gc(smg, D1D, Q1D);
+
+      MFEM_SHARED real_t sm0[VDIM*MDQ*MDQ*MDQ];
+      MFEM_SHARED real_t sm1[VDIM*MDQ*MDQ*MDQ];
+      DeviceMatrix X(sm0, D1D*(D1D-1)*(D1D-1), VDIM);
+      DeviceTensor<4> QDD(sm1, Q1D, D1D, D1D, VDIM);
+      DeviceTensor<4> QQD(sm0, Q1D, Q1D, D1D, VDIM);
+      DeviceTensor<4> QQQ(sm1, Q1D, Q1D, Q1D, VDIM);
+      DeviceTensor<3> DIV(sm1, Q1D, Q1D, Q1D);
+      DeviceTensor<4> DQQ(sm0, D1D, Q1D, Q1D, VDIM);
+      DeviceTensor<4> DDQ(sm1, D1D, D1D, Q1D, VDIM);
+
+      // Load X into shared memory
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         MFEM_FOREACH_THREAD(dz,y,D1D-1)
+         {
+            MFEM_FOREACH_THREAD(dy,x,D1D-1)
+            {
+               MFEM_UNROLL(MD1)
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
+               }
+            }
+         }
+      }
+      // Load Bo and Gc into shared memory
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(d,y,D1D-1)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Bo(d,q) = bo(q,d);
+            }
+         }
+         MFEM_FOREACH_THREAD(d,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(q,x,Q1D)
+            {
+               Gc(d,q) = gc(q,d);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply B operator (derivative in the direction of the component)
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceTensor<4> Xxyz(X, nx, ny, nz, VDIM);
+         DeviceMatrix Bx = (vd == 0) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               real_t u[MD1];
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               MFEM_UNROLL(MD1)
+               for (int dx = 0; dx < nx; ++dx)
+               {
+                  MFEM_UNROLL(MD1)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx);
+                  }
+               }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { QDD(qx,dy,dz,vd) = u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceMatrix By = (vd == 1) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               real_t u[MD1];
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               MFEM_UNROLL(MD1)
+               for (int dy = 0; dy < ny; ++dy)
+               {
+                  MFEM_UNROLL(MD1)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy);
+                  }
+               }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { QQD(qx,qy,dz,vd) = u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceMatrix Bz = (vd == 2) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               real_t u[MQ1];
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz)
+               {
+                  MFEM_UNROLL(MQ1)
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     u[qz] += QQD(qx,qy,dz,vd) * Bz(dz,qz);
+                  }
+               }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { QQQ(qx,qy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply D operator to the divergence
+      if (tidz == 0)
+      {
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            {
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  const real_t div = QQQ(qx,qy,qz,0) + QQQ(qx,qy,qz,1) +
+                                     QQQ(qx,qy,qz,2);
+                  DIV(qx,qy,qz) = op(qx,qy,qz,e) * div;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply Bt operator
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         DeviceMatrix Btx = (vd == 0) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t u[MQ1];
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(MQ1)
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  MFEM_UNROLL(MQ1)
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     u[qz] += DIV(qx,qy,qz) * Btx(dx,qx);
+                  }
+               }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { DQQ(dx,qy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         DeviceMatrix Bty = (vd == 1) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t u[MQ1];
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(MQ1)
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  MFEM_UNROLL(MQ1)
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     u[qz] += DQQ(dx,qy,qz,vd) * Bty(dy,qy);
+                  }
+               }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz) { DDQ(dx,dy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,VDIM)
+      {
+         const int nx = (vd == 0) ? D1D : D1D-1;
+         const int ny = (vd == 1) ? D1D : D1D-1;
+         const int nz = (vd == 2) ? D1D : D1D-1;
+         DeviceTensor<5> Yxyz(y, nx, ny, nz, VDIM, NE);
+         DeviceMatrix Btz = (vd == 2) ? Gc : Bo;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t u[MD1];
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  MFEM_UNROLL(MD1)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz);
+                  }
+               }
+               MFEM_UNROLL(MD1)
+               for (int dz = 0; dz < nz; ++dz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
 // PA H(div)-L2 Assemble 2D kernel
 // if geom != nullptr, then coeff_ is divided by detJ
 void PAHdivL2Setup2D(const int Q1D, const int NE, const Array<real_t> &w,
@@ -675,6 +1130,24 @@ void PAHdivL2ApplyTranspose3D(const int D1D,
                               Vector &y_);
 
 } // namespace internal
+
+/// \cond DO_NOT_DOCUMENT
+
+template<int DIM, int T_D1D, int T_Q1D>
+DivDivIntegrator::ApplyKernelType DivDivIntegrator::ApplyPAKernels::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return internal::SmemPADivDivApply2D<T_D1D, T_Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::SmemPADivDivApply3D<T_D1D, T_Q1D>;
+   }
+   MFEM_ABORT("");
+}
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
 
