@@ -5879,18 +5879,26 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       for (int f : boundary_faces)
       {
          Face &face = faces[f];
+         // Boundary faces of ghost elements are handled by their owners, see
+         // ParNCMesh::GetBoundaryClosure.
+         if ((face.elem[0] < 0 || IsGhost(elements[face.elem[0]])) &&
+             (face.elem[1] < 0 || IsGhost(elements[face.elem[1]])))
+         {
+            continue;
+         }
          if (bdr_attr_is_ess[face.attribute - 1])
          {
             bdr_vertices.Append(nodes[face.p1].vert_index);
             bdr_vertices.Append(nodes[face.p3].vert_index);
-         }
 
-         const auto id_and_type = GetEdgeList().GetMeshIdAndType(face.index);
-         if (id_and_type.type == NCList::MeshIdType::SLAVE)
-         {
-            // A slave face must mark its masters
-            const auto &slave_edge_id = static_cast<const Slave&>(*id_and_type.id);
-            bdr_edges.Append(slave_edge_id.master);
+            const auto id_and_type = GetEdgeList().GetMeshIdAndType(face.index);
+            if (id_and_type.type == NCList::MeshIdType::SLAVE)
+            {
+               // A slave face must mark its masters
+               const auto &slave_edge_id =
+                  static_cast<const Slave&>(*id_and_type.id);
+               bdr_edges.Append(slave_edge_id.master);
+            }
          }
       }
    }
