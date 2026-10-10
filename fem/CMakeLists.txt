@@ -61,6 +61,7 @@ set(SRCS
   integ/nonlininteg_vecconvection_pa_grad.cpp
   integ/nonlininteg_vecconvection_mf.cpp
   coefficient.cpp
+  autodiff.cpp
   complex_fem.cpp
   convergence.cpp
   datacollection.cpp
@@ -213,6 +214,7 @@ set(HDRS
   integ/nonlininteg_vecconvection_pa_diag.hpp
   integ/nonlininteg_vecconvection_pa_grad.hpp
   coefficient.hpp
+  autodiff.hpp
   complex_fem.hpp
   convergence.hpp
   datacollection.hpp
