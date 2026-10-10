@@ -200,7 +200,6 @@ struct tuple<>
  * @tparam T the variadic template parameter for tuple types
  */
 template <typename... T>
-MFEM_HOST_DEVICE
 tuple(T...) -> tuple<T...>;
 
 /**
