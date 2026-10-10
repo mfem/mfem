@@ -47,6 +47,14 @@ FiniteElement::FiniteElement(int D, Geometry::Type G,
 #endif
 }
 
+void FiniteElement::SetDof(int newdof) const
+{
+   dof = newdof;
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
+}
+
 void FiniteElement::CalcVShape(
    const IntegrationPoint &ip, DenseMatrix &shape) const
 {
