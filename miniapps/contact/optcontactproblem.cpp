@@ -131,32 +131,34 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
 
    problem->Getxrefbc(xrefbc);
    const Array<int> & ess_tdof_list = problem->GetEssentialDofs();
-   Vector ess_values(ess_tdof_list.Size());
    const int num_ess_tdofs = ess_tdof_list.Size();
-   const int *ess_tdofs_h = ess_tdof_list.HostRead();
-   const real_t *xrefbc_h = xrefbc.HostRead();
-   real_t *ess_values_h = ess_values.HostWrite();
-   for (int i = 0; i < num_ess_tdofs; i++)
+   Vector ess_values(num_ess_tdofs); ess_values.UseDevice(true);
+   const bool use_dev = Device::IsEnabled();
+   const int *ess_tdofs = ess_tdof_list.Read(use_dev);
+   const real_t *xrefbc_in = xrefbc.Read(use_dev);
+   real_t *ess_values_data = ess_values.Write(use_dev);
+   mfem::forall(num_ess_tdofs, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int dof = ess_tdofs_h[i];
-      ess_values_h[i] = dof >= 0 ? xrefbc_h[dof] : -xrefbc_h[-dof-1];
-   }
-   xrefbc=xref;
-   ess_values_h = ess_values.HostReadWrite();
-   real_t *updated_xrefbc_h = xrefbc.HostReadWrite();
-   for (int i = 0; i < num_ess_tdofs; i++)
+      const int dof = ess_tdofs[i];
+      ess_values_data[i] = dof >= 0 ? xrefbc_in[dof] : -xrefbc_in[-dof-1];
+   });
+
+   xrefbc = xref;
+   ess_tdofs = ess_tdof_list.Read(use_dev);
+   const real_t *ess_values_read = ess_values.Read(use_dev);
+   real_t *xrefbc_out = xrefbc.ReadWrite(use_dev);
+   mfem::forall(num_ess_tdofs, [=] MFEM_HOST_DEVICE (int i)
    {
-      const int dof = ess_tdofs_h[i];
+      const int dof = ess_tdofs[i];
       if (dof >= 0)
       {
-         updated_xrefbc_h[dof] = ess_values_h[i];
+         xrefbc_out[dof] = ess_values_read[i];
       }
       else
       {
-         updated_xrefbc_h[-dof-1] = -ess_values_h[i];
+         xrefbc_out[-dof-1] = -ess_values_read[i];
       }
-   }
-   xrefbc.UseDevice(true);
+   });
 
    if (problem->IsNonlinear())
    {
@@ -444,22 +446,24 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 void OptContactProblem::SetDisplacement(const Vector & dx,
                                         bool activate_constraints)
 {
-   real_t *eps_h = eps.HostReadWrite();
+   const bool use_dev = eps.UseDevice() || dx.UseDevice();
+   real_t *eps_data = eps.ReadWrite(use_dev);
    if (activate_constraints)
    {
       eps_min = std::max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
-      for (int j = 0; j < dimU; j++)
+      const real_t eps_floor = eps_min;
+      mfem::forall(dimU, [=] MFEM_HOST_DEVICE (int j)
       {
-         eps_h[j] = std::max(eps_min, eps_h[j]);
-      }
+         eps_data[j] = fmax(eps_floor, eps_data[j]);
+      });
    }
    else
    {
-      const real_t *dx_h = dx.HostRead();
-      for (int j = 0; j < dimU; j++)
+      const real_t *dx_data = dx.Read(use_dev);
+      mfem::forall(dimU, [=] MFEM_HOST_DEVICE (int j)
       {
-         eps_h[j] = std::max(eps_h[j], std::abs(dx_h[j]));
-      }
+         eps_data[j] = fmax(eps_data[j], fabs(dx_data[j]));
+      });
    }
 }
 
@@ -594,8 +598,8 @@ OptContactProblem::FilterContactMatrixAndGap(
    SparseMatrix merged;
    contact_matrix.MergeDiagAndOffd(merged);
 
-   // Row filtering and compaction are a deliberate host boundary: Tribol's
-   // mortar data are host-owned, and the sparse row structure is inspected here.
+   // Row filtering is a deliberate host boundary: Tribol's mortar data are
+   // host-owned, and the sparse row structure is inspected here.
    merged.HostReadI();
    merged.HostReadJ();
    merged.HostReadData();
@@ -667,16 +671,19 @@ OptContactProblem::FilterContactMatrixAndGap(
    Mcslump.SetSize(nrows);
    Mcslump.UseDevice(true);
 
-   const real_t *gap_true_h = gap_true.HostRead();
-   const real_t *Mcslumpfull_h = Mcslumpfull.HostRead();
-   real_t *gap_h = gap.HostWrite();
-   real_t *Mcslump_h = Mcslump.HostWrite();
-   const int *nonzero_rows_h = nonzero_rows.HostRead();
-   for (int i = 0; i<nrows; i++)
+   const bool use_dev = Device::IsEnabled();
+   nonzero_rows.UseDevice(use_dev);
+   const real_t *gap_true_data = gap_true.Read(use_dev);
+   const real_t *Mcslumpfull_data = Mcslumpfull.Read(use_dev);
+   real_t *gap_data = gap.Write(use_dev);
+   real_t *Mcslump_data = Mcslump.Write(use_dev);
+   const int *nonzero_rows_data = nonzero_rows.Read(use_dev);
+   mfem::forall(nrows, [=] MFEM_HOST_DEVICE (int i)
    {
-      gap_h[i] = gap_true_h[nonzero_rows_h[i]];
-      Mcslump_h[i] = Mcslumpfull_h[nonzero_rows_h[i]];
-   }
+      const int row = nonzero_rows_data[i];
+      gap_data[i] = gap_true_data[row];
+      Mcslump_data[i] = Mcslumpfull_data[row];
+   });
    gap /= Mcslump;
 
    return filtered;
