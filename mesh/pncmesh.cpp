@@ -1558,6 +1558,19 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
 {
    if (Dim < 3 || NRanks == 1) { return false; }
 
+   bool half_scale = true;
+   for (int i = 0; i < refinements.Size(); i++)
+   {
+      const Refinement &ref = refinements[i];
+      for (int d = 0; d < 3; d++)
+      {
+         if (ref.s[d] > real_t(0))
+         {
+            half_scale = half_scale && ref.s[d] == real_t(0.5);
+         }
+      }
+   }
+
    for (int i = 0; i < refinements.Size() && Iso; i++)
    {
       const Refinement &ref = refinements[i];
@@ -1567,9 +1580,14 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
       }
    }
 
-   // Reduce the Iso flag over all MPI ranks.
-   bool globalIso = false;
-   MPI_Allreduce(&Iso, &globalIso, 1, MFEM_MPI_CXX_BOOL, MPI_LAND, MyComm);
+   // Reduce the Iso flag and validate the proposed scales over all MPI ranks.
+   const bool local_flags[2] = {Iso, half_scale};
+   bool global_flags[2] = {false, false};
+   MPI_Allreduce(local_flags, global_flags, 2, MFEM_MPI_CXX_BOOL, MPI_LAND,
+                 MyComm);
+   const bool globalIso = global_flags[0];
+   MFEM_VERIFY(global_flags[1],
+               "AnisotropicConflict requires refinement scale 0.5");
 
    if (globalIso) { return false; }
 
@@ -1619,7 +1637,7 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
    {
       const Refinement &ref = refinements[i];
       CheckRefinement(leaf_elements[ref.index], ref, refinements, elemToRef,
-                      conflicts);
+                      conflicts, half_scale);
    }
 
    // Receive (ghost layer) refinements from all neighbors
@@ -1638,14 +1656,21 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
          Refinement ghost_ref(msg.elements[i], msg.values[i].ref_type);
          ghost_ref.SetScaleForType(msg.values[i].scale);
          CheckRefinement(msg.elements[i], ghost_ref, refinements, elemToRef,
-                         conflicts);
+                         conflicts, half_scale);
       }
    }
 
    // Make sure we can delete the send buffers
    NeighborRefinementMessage::WaitAllSent(send_ref);
 
-   CheckRefinementMaster(refinements, elemToRef, conflicts);
+   CheckRefinementMaster(refinements, elemToRef, conflicts, half_scale);
+
+   bool global_half_scale = false;
+   MPI_Allreduce(&half_scale, &global_half_scale, 1, MFEM_MPI_CXX_BOOL,
+                 MPI_LAND, MyComm);
+   MFEM_VERIFY(global_half_scale,
+               "AnisotropicConflict requires refinement scale 0.5 on all "
+               "affected elements and faces");
 
    const bool conflict = conflicts.size() > 0;
    bool globalConflict = false;
@@ -1687,35 +1712,64 @@ char GetHexFaceRefType(const bool (&refDir)[3], int face)
 // slave faces of this face. This recursive function is similar to
 // NCMesh::CheckAnisoFace.
 bool ParNCMesh::CheckRefAnisoFaceSplits(int vn1, int vn2, int vn3, int vn4,
-                                        int level)
+                                        bool &half_scale, int level)
 {
+   half_scale = half_scale && nodes[vn1].GetScale() == real_t(0.5) &&
+                nodes[vn2].GetScale() == real_t(0.5) &&
+                nodes[vn3].GetScale() == real_t(0.5) &&
+                nodes[vn4].GetScale() == real_t(0.5);
+
    const int mid23 = FindMidEdgeNode(vn2, vn3);
    const int mid41 = FindMidEdgeNode(vn4, vn1);
+
+   if (mid23 >= 0)
+   {
+      half_scale = half_scale &&
+                   nodes[mid23].GetScale() == real_t(0.5);
+   }
+   if (mid41 >= 0)
+   {
+      half_scale = half_scale &&
+                   nodes[mid41].GetScale() == real_t(0.5);
+   }
 
    if (mid23 >= 0 && mid41 >= 0) // If horizontally split
    {
       const int midf = nodes.FindId(mid23, mid41);
       if (midf >= 0)
       {
-         if (CheckRefAnisoFaceSplits(vn1, vn2, mid23, mid41, level + 1))
-         {
-            return true;
-         }
-         if (CheckRefAnisoFaceSplits(mid41, mid23, vn3, vn4, level + 1))
-         {
-            return true;
-         }
+         half_scale = half_scale &&
+                      nodes[midf].GetScale() == real_t(0.5);
+         const bool first = CheckRefAnisoFaceSplits(
+                               vn1, vn2, mid23, mid41, half_scale, level + 1);
+         const bool second = CheckRefAnisoFaceSplits(
+                                mid41, mid23, vn3, vn4, half_scale, level + 1);
+         return first || second;
       }
    }
 
-   if (level > 0) { return true; }
+   return (level > 0);
+}
 
-   return false;
+bool ParNCMesh::CheckRefIsoFaceSplits(int vn1, int vn2, int vn3, int vn4,
+                                      int en1, int en2, int en3, int en4,
+                                      bool &half_scale)
+{
+   const bool first =
+      CheckRefAnisoFaceSplits(vn1, vn2, en2, en4, half_scale);
+   const bool second =
+      CheckRefAnisoFaceSplits(en4, en2, vn3, vn4, half_scale);
+   const bool third =
+      CheckRefAnisoFaceSplits(vn4, vn1, en1, en3, half_scale);
+   const bool fourth =
+      CheckRefAnisoFaceSplits(en3, en1, vn2, vn3, half_scale);
+   return first || second || third || fourth;
 }
 
 void ParNCMesh::CheckRefinementMaster(const Array<Refinement> &refinements,
                                       const std::map<int, int> &elemToRef,
-                                      std::set<int> &conflicts)
+                                      std::set<int> &conflicts,
+                                      bool &half_scale)
 {
    MFEM_VERIFY(Dim == 3, "");
    const NCList &faceList = GetFaceList();
@@ -1742,19 +1796,31 @@ void ParNCMesh::CheckRefinementMaster(const Array<Refinement> &refinements,
                     Geometry::Constants<Geometry::CUBE>::FaceVert[mf.local][i]];
       }
 
-      if (faceRefType != 2) // X or XY split w.r.t. the face.
+      if (faceRefType == 1) // X split w.r.t. the face.
       {
          // Check X face split
-         if (CheckRefAnisoFaceSplits(fv[0], fv[1], fv[2], fv[3]))
+         if (CheckRefAnisoFaceSplits(fv[0], fv[1], fv[2], fv[3], half_scale))
          {
             conflicts.insert(refIndex);
          }
       }
-
-      if (faceRefType != 1) // Y or XY split w.r.t. the face.
+      else if (faceRefType == 2) // Y split w.r.t. the face.
       {
          // Check Y face split
-         if (CheckRefAnisoFaceSplits(fv[1], fv[2], fv[3], fv[0]))
+         if (CheckRefAnisoFaceSplits(fv[1], fv[2], fv[3], fv[0], half_scale))
+         {
+            conflicts.insert(refIndex);
+         }
+      }
+      else // XY split w.r.t. the face.
+      {
+         const int mid01 = GetMidEdgeNode(fv[0], fv[1]);
+         const int mid12 = GetMidEdgeNode(fv[1], fv[2]);
+         const int mid23 = GetMidEdgeNode(fv[2], fv[3]);
+         const int mid30 = GetMidEdgeNode(fv[3], fv[0]);
+
+         if (CheckRefIsoFaceSplits(fv[0], fv[1], fv[2], fv[3], mid01,
+                                   mid12, mid23, mid30, half_scale))
          {
             conflicts.insert(refIndex);
          }
@@ -1828,7 +1894,8 @@ void ParNCMesh::CheckRefAnisoFace(const Refinement &ref, int elem,
                                   int vn1, int vn2, int vn3, int vn4,
                                   const Array<Refinement> &refinements,
                                   const std::map<int, int> &elemToRef,
-                                  std::set<int> &conflicts)
+                                  std::set<int> &conflicts,
+                                  real_t elem_scale)
 {
    Face* face = faces.Find(vn1, vn2, vn3, vn4);
    if (!face) { return; }
@@ -1885,11 +1952,12 @@ void ParNCMesh::CheckRefAnisoFace(const Refinement &ref, int elem,
          }
          else
          {
-            const real_t elem_scale =
+            const real_t scale =
+               elem_scale >= 0.0 ? elem_scale :
                DirectedHexEdgeScale(elements[elem].node, ref, vn1, vn2);
             const real_t nghb_scale =
                DirectedHexEdgeScale(nghb.node, nghb_ref, vn1, vn2);
-            if (!SameSplitScale(elem_scale, nghb_scale))
+            if (!SameSplitScale(scale, nghb_scale))
             {
                conflicts.insert(refIndex);
             }
@@ -1905,22 +1973,34 @@ void ParNCMesh::CheckRefIsoFace(const Refinement &ref, int elem,
                                 int en1, int en2, int en3, int en4,
                                 const Array<Refinement> &refinements,
                                 const std::map<int, int> &elemToRef,
-                                std::set<int> &conflicts)
+                                std::set<int> &conflicts, bool &half_scale)
 {
+   half_scale = half_scale && nodes[en1].GetScale() == real_t(0.5) &&
+                nodes[en2].GetScale() == real_t(0.5) &&
+                nodes[en3].GetScale() == real_t(0.5) &&
+                nodes[en4].GetScale() == real_t(0.5);
+
+   // Calls 2 and 4 start on face midlines. Preserve their direction using
+   // the parallel, actual edge of elem.
+   const real_t scale12 =
+      DirectedHexEdgeScale(elements[elem].node, ref, vn1, vn2);
+   const real_t scale41 =
+      DirectedHexEdgeScale(elements[elem].node, ref, vn4, vn1);
+
    CheckRefAnisoFace(ref, elem, vn1, vn2, en2, en4, refinements, elemToRef,
-                     conflicts);
+                     conflicts, scale12);
    CheckRefAnisoFace(ref, elem, en4, en2, vn3, vn4, refinements, elemToRef,
-                     conflicts);
+                     conflicts, scale12);
    CheckRefAnisoFace(ref, elem, vn4, vn1, en1, en3, refinements, elemToRef,
-                     conflicts);
+                     conflicts, scale41);
    CheckRefAnisoFace(ref, elem, en3, en1, vn2, vn3, refinements, elemToRef,
-                     conflicts);
+                     conflicts, scale41);
 }
 
 void ParNCMesh::CheckRefinement(int elem, const Refinement &ref,
                                 const Array<Refinement> &refinements,
                                 const std::map<int, int> &elemToRef,
-                                std::set<int> &conflicts)
+                                std::set<int> &conflicts, bool &half_scale)
 {
    const char ref_type = ref.GetType();
    const Element &el = elements[elem];
@@ -1928,6 +2008,19 @@ void ParNCMesh::CheckRefinement(int elem, const Refinement &ref,
                "Element must be an unrefined hexahedron");
 
    const int* no = el.node;
+
+   for (int d = 0; d < 3; d++)
+   {
+      if (ref.s[d] > real_t(0))
+      {
+         half_scale = half_scale && ref.s[d] == real_t(0.5);
+      }
+   }
+   for (int i = 0; i < 8; i++)
+   {
+      half_scale = half_scale &&
+                   nodes[el.node[i]].GetScale() == real_t(0.5);
+   }
 
    // Check the faces of this element being refined (depends on ref_type).
    // This follows the logic of NCMesh::RefineElement().
@@ -1986,9 +2079,9 @@ void ParNCMesh::CheckRefinement(int elem, const Refinement &ref,
       const int mid74 = GetMidEdgeNode(no[7], no[4]);
 
       CheckRefIsoFace(ref, elem, no[3], no[2], no[1], no[0], mid23, mid12, mid01,
-                      mid30, refinements, elemToRef, conflicts);
+                      mid30, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[4], no[5], no[6], no[7], mid45, mid56, mid67,
-                      mid74, refinements, elemToRef, conflicts);
+                      mid74, refinements, elemToRef, conflicts, half_scale);
    }
    else if (ref_type == Refinement::XZ) // XZ split
    {
@@ -2012,9 +2105,9 @@ void ParNCMesh::CheckRefinement(int elem, const Refinement &ref,
       const int mid37 = GetMidEdgeNode(no[3], no[7]);
 
       CheckRefIsoFace(ref, elem, no[0], no[1], no[5], no[4], mid01, mid15, mid45,
-                      mid04, refinements, elemToRef, conflicts);
+                      mid04, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[2], no[3], no[7], no[6], mid23, mid37, mid67,
-                      mid26, refinements, elemToRef, conflicts);
+                      mid26, refinements, elemToRef, conflicts, half_scale);
    }
    else if (ref_type == Refinement::YZ) // YZ split
    {
@@ -2038,9 +2131,9 @@ void ParNCMesh::CheckRefinement(int elem, const Refinement &ref,
                         elemToRef, conflicts);
 
       CheckRefIsoFace(ref, elem, no[1], no[2], no[6], no[5], mid12, mid26, mid56,
-                      mid15, refinements, elemToRef, conflicts);
+                      mid15, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[3], no[0], no[4], no[7], mid30, mid04, mid74,
-                      mid37, refinements, elemToRef, conflicts);
+                      mid37, refinements, elemToRef, conflicts, half_scale);
    }
    else if (ref_type == Refinement::XYZ) // XYZ split
    {
@@ -2060,17 +2153,17 @@ void ParNCMesh::CheckRefinement(int elem, const Refinement &ref,
       const int mid37 = GetMidEdgeNode(no[3], no[7]);
 
       CheckRefIsoFace(ref, elem, no[3], no[2], no[1], no[0], mid23, mid12, mid01,
-                      mid30, refinements, elemToRef, conflicts);
+                      mid30, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[0], no[1], no[5], no[4], mid01, mid15, mid45,
-                      mid04, refinements, elemToRef, conflicts);
+                      mid04, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[1], no[2], no[6], no[5], mid12, mid26, mid56,
-                      mid15, refinements, elemToRef, conflicts);
+                      mid15, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[2], no[3], no[7], no[6], mid23, mid37, mid67,
-                      mid26, refinements, elemToRef, conflicts);
+                      mid26, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[3], no[0], no[4], no[7], mid30, mid04, mid74,
-                      mid37, refinements, elemToRef, conflicts);
+                      mid37, refinements, elemToRef, conflicts, half_scale);
       CheckRefIsoFace(ref, elem, no[4], no[5], no[6], no[7], mid45, mid56, mid67,
-                      mid74, refinements, elemToRef, conflicts);
+                      mid74, refinements, elemToRef, conflicts, half_scale);
    }
    else
    {

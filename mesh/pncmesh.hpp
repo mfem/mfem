@@ -632,35 +632,48 @@ protected: // implementation
                           int vn1, int vn2, int vn3, int vn4,
                           const Array<Refinement> &refinements,
                           const std::map<int, int> &elemToRef,
-                          std::set<int> &conflicts);
+                          std::set<int> &conflicts,
+                          real_t elem_scale = -1.0);
 
    /** For the face with ordered vertices vn*, edge midpoints en*, and
        neighboring element @a elem, check whether the other neighboring element
        (if it exists) is marked for a refinement conflicting with an isotropic
-       refinement of the face. */
+       refinement of the face. Also invalidate @a half_scale if an involved node
+       does not have scale 0.5. */
    void CheckRefIsoFace(const Refinement &ref, int elem,
                         int vn1, int vn2, int vn3, int vn4,
                         int en1, int en2, int en3, int en4,
                         const Array<Refinement> &refinements,
                         const std::map<int, int> &elemToRef,
-                        std::set<int> &conflicts);
+                        std::set<int> &conflicts, bool &half_scale);
 
-   /// Check whether any master face is marked for a conflicting refinement.
+   /** Check whether any master face is marked for a conflicting refinement,
+       invalidating @a half_scale if an involved node does not have scale 0.5. */
    void CheckRefinementMaster(const Array<Refinement> &refinements,
                               const std::map<int, int> &elemToRef,
-                              std::set<int> &conflicts);
+                              std::set<int> &conflicts, bool &half_scale);
 
-   /// Check whether the input refinement would cause a conflict.
+   /** Check whether the input refinement would cause a conflict, invalidating
+       @a half_scale if the refinement or an involved node has scale != 0.5. */
    void CheckRefinement(int elem, const Refinement &ref,
                         const Array<Refinement> &refinements,
                         const std::map<int, int> &elemToRef,
-                        std::set<int> &conflicts);
+                        std::set<int> &conflicts, bool &half_scale);
 
    /** For a vertical split of the master face with ordered vertices
        (vn1, vn2, vn3, vn4), check whether there is a horizontal split among the
-       slave faces. */
+       slave faces. Also invalidate @a half_scale if an involved node does not
+       have scale 0.5. */
    bool CheckRefAnisoFaceSplits(int vn1, int vn2, int vn3, int vn4,
-                                int level = 0);
+                                bool &half_scale, int level = 0);
+
+   /** For an isotropic split of the master face with ordered vertices vn* and
+       edge midpoints en*, check the resulting subfaces for conflicts. Also
+       invalidate @a half_scale if an involved node does not have scale 0.5. */
+   bool CheckRefIsoFaceSplits(int vn1, int vn2, int vn3, int vn4,
+                              int en1, int en2, int en3, int en4,
+                              bool &half_scale);
+
    friend class NeighborRowMessage;
    friend class NeighborOrderMessage;
 };

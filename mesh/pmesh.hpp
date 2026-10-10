@@ -859,7 +859,8 @@ public:
        Conflicts are checked for the mesh that would result from the input
        refinements. If there are no conflicts, then the refinements can be
        performed without forced refinements. This function is supported only for
-       3D meshes with all hexahedral elements. */
+       3D meshes with all hexahedral elements and refinement scale 0.5 throughout
+       the mesh. */
    bool AnisotropicConflict(const Array<Refinement> &refinements,
                             std::set<int> &conflicts) const;
 
