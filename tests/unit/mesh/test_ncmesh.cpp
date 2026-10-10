@@ -1470,7 +1470,6 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
       IntegrationRule left_eir(ir.GetNPoints()),
                       right_eir(ir.GetNPoints()); // element integration rules
 
-      bool y_valid = true, z_valid = true;
       for (int n = 0; n < mesh.GetNBE(); n++)
       {
          auto f = mesh.GetBdrElementFaceIndex(n);
@@ -1483,7 +1482,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
          face_element_transform.Loc1.Transform(ir, left_eir);
          face_element_transform.Loc2.Transform(ir, right_eir);
 
-         constexpr real_t tol = 1e-14;
+         constexpr real_t tol = 1e3*std::numeric_limits<real_t>::epsilon();
          REQUIRE(left_eir.GetNPoints() == ir.GetNPoints());
          REQUIRE(right_eir.GetNPoints() == ir.GetNPoints());
          Vector left_val, right_val;
@@ -1491,10 +1490,10 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
          {
             face_element_transform.Elem1->SetIntPoint(&left_eir[i]);
             coords->GetVectorValue(*face_element_transform.Elem1, left_eir[i], left_val);
-            coords->GetVectorValue(*face_element_transform.Elem1, left_eir[i], right_val);
-            REQUIRE(std::abs(left_val(0) - right_val(0)) < tol);
-            REQUIRE(std::abs(left_val(1) - right_val(1)) < tol);
-            REQUIRE(std::abs(left_val(2) - right_val(2)) < tol);
+            coords->GetVectorValue(*face_element_transform.Elem2, right_eir[i], right_val);
+            REQUIRE(left_val(0) - right_val(0) == MFEM_Approx(0.0, tol));
+            REQUIRE(left_val(1) - right_val(1) == MFEM_Approx(0.0, tol));
+            REQUIRE(left_val(2) - right_val(2) == MFEM_Approx(0.0, tol));
             E.GetVectorValue(*face_element_transform.Elem1, left_eir[i], left_val);
 
             face_element_transform.Elem2->SetIntPoint(&right_eir[i]);
@@ -1502,12 +1501,10 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
 
             // Check that the second and third rows agree. The y and z should
             // agree as the normal is in the x direction.
-            y_valid &= (std::abs(left_val(1) - right_val(1)) < tol);
-            z_valid &= (std::abs(left_val(2) - right_val(2)) < tol);
+            REQUIRE(left_val(1) - right_val(1) == MFEM_Approx(0.0, tol));
+            REQUIRE(left_val(2) - right_val(2) == MFEM_Approx(0.0, tol));
          }
       }
-      CHECK(y_valid);
-      CHECK(z_valid);
 
       return fe_space.GlobalTrueVSize();
    };
@@ -2641,7 +2638,6 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
          CHECK(num_essential_vdof == vdof_list.Size());
       }
 
-      bool y_valid = true, z_valid = true;
       for (int n = 0; n < mesh.GetNBE(); n++)
       {
          // NOTE: only works for internal boundaries
@@ -2659,7 +2655,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
             face_element_transform.Loc1.Transform(ir, left_eir);
             face_element_transform.Loc2.Transform(ir, right_eir);
 
-            constexpr real_t tol = 1e-14;
+            constexpr real_t tol = 1e3*std::numeric_limits<real_t>::epsilon();
             REQUIRE(left_eir.GetNPoints() == ir.GetNPoints());
             REQUIRE(right_eir.GetNPoints() == ir.GetNPoints());
             Vector left_val, right_val;
@@ -2667,10 +2663,10 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
             {
                face_element_transform.Elem1->SetIntPoint(&left_eir[i]);
                coords->GetVectorValue(*face_element_transform.Elem1, left_eir[i], left_val);
-               coords->GetVectorValue(*face_element_transform.Elem1, left_eir[i], right_val);
-               REQUIRE(std::abs(left_val(0) - right_val(0)) < tol);
-               REQUIRE(std::abs(left_val(1) - right_val(1)) < tol);
-               REQUIRE(std::abs(left_val(2) - right_val(2)) < tol);
+               coords->GetVectorValue(*face_element_transform.Elem2, right_eir[i], right_val);
+               REQUIRE(left_val(0) - right_val(0) == MFEM_Approx(0.0, tol));
+               REQUIRE(left_val(1) - right_val(1) == MFEM_Approx(0.0, tol));
+               REQUIRE(left_val(2) - right_val(2) == MFEM_Approx(0.0, tol));
                E.GetVectorValue(*face_element_transform.Elem1, left_eir[i], left_val);
 
                face_element_transform.Elem2->SetIntPoint(&right_eir[i]);
@@ -2678,13 +2674,11 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
 
                // Check that the second and third rows agree. The y and z should
                // agree as the normal is in the x direction
-               y_valid &= (std::abs(left_val(1) - right_val(1)) < tol);
-               z_valid &= (std::abs(left_val(2) - right_val(2)) < tol);
+               REQUIRE(left_val(1) - right_val(1) == MFEM_Approx(0.0, tol));
+               REQUIRE(left_val(2) - right_val(2) == MFEM_Approx(0.0, tol));
             }
          }
       }
-      CHECK(y_valid);
-      CHECK(z_valid);
    };
 
    SECTION("Conformal")
