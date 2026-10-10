@@ -34,6 +34,11 @@ if (MFEM_USE_MPI)
    EXTRA_HEADERS maxwell_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
    LIBRARIES mfem-common)
 
+ add_mfem_miniapp(maxwell-gpu
+   MAIN maxwell_gpu.cpp
+   EXTRA_HEADERS ${MFEM_MINIAPPS_COMMON_HEADERS}
+   LIBRARIES mfem-common)
+
  if (MFEM_USE_GSLIB)
   add_mfem_miniapp(lorentz
     MAIN lorentz.cpp

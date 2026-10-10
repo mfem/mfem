@@ -308,7 +308,7 @@ MaxwellSolver::~MaxwellSolver()
    {
       int i = mit1->first;
       delete pcg_[i];
-      delete diagScale_[i];
+      // delete diagScale_[i];
       delete A1_[i];
       delete a1_[i];
    }
@@ -377,7 +377,7 @@ MaxwellSolver::Mult(const Vector &B, Vector &dEdt) const
 void
 MaxwellSolver::ImplicitSolve(real_t dt, const Vector &B, Vector &dEdt)
 {
-   implicitSolve(dt, B, dEdt);
+   const_cast<const MaxwellSolver *>(this)->implicitSolve(dt, B, dEdt);
 }
 
 void
@@ -420,12 +420,12 @@ MaxwellSolver::setupSolver(const int idt, const real_t dt) const
       a1_[idt]->Finalize();
       A1_[idt] = a1_[idt]->ParallelAssemble();
 
-      diagScale_[idt] = new HypreDiagScale(*A1_[idt]);
+      // diagScale_[idt] = new HypreDiagScale(*A1_[idt]);
       pcg_[idt] = new HyprePCG(*A1_[idt]);
       pcg_[idt]->SetTol(1.0e-12);
       pcg_[idt]->SetMaxIter(200);
       pcg_[idt]->SetPrintLevel(0);
-      pcg_[idt]->SetPreconditioner(*diagScale_[idt]);
+      // pcg_[idt]->SetPreconditioner(*diagScale_[idt]);
    }
 }
 
