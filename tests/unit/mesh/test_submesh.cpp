@@ -913,3 +913,121 @@ TEST_CASE("ExteriorSurfaceNCSubMesh", "[SubMesh]")
    }
 }
 
+TEST_CASE("Non-Contiguous SubMesh", "[SubMesh]")
+{
+   std::string mesh_file = "../../data/checker-3d.mesh";
+
+   std::ifstream ifs(mesh_file);
+   Mesh mesh(ifs);
+
+   REQUIRE(mesh.GetNV() == 64);
+   REQUIRE(mesh.GetNE() == 27);
+   REQUIRE(mesh.GetNBE() == 54);
+   REQUIRE(mesh.EulerNumber() == 1); // 64 - 144 + 108 - 27
+
+   Array<int> attr1(1); attr1 = 1;
+   Mesh submesh1 = SubMesh::CreateFromDomain(mesh, attr1);
+
+   // Corner elements (non-contiguous)
+   REQUIRE(submesh1.GetNV() == 64);
+   REQUIRE(submesh1.GetNE() == 8);
+   REQUIRE(submesh1.GetNBE() == 48);
+   REQUIRE(submesh1.EulerNumber() == 8); // 64 - 96 + 48 - 8
+
+   // Edge elements (shared vertices and edges)
+   Array<int> attr2(1); attr2 = 2;
+   Mesh submesh2 = SubMesh::CreateFromDomain(mesh, attr2);
+
+   REQUIRE(submesh2.GetNV() == 56);
+   REQUIRE(submesh2.GetNE() == 12);
+   REQUIRE(submesh2.GetNBE() == 72);
+   REQUIRE(submesh2.EulerNumber() == -4); // 56 - 120  + 72 - 12
+
+   // Corner and zone-center elements (shared vertices)
+   Array<int> attr14(2); attr14[0] = 1; attr14[1] = 4;
+   Mesh submesh14 = SubMesh::CreateFromDomain(mesh, attr14);
+
+   REQUIRE(submesh14.GetNV() == 64);
+   REQUIRE(submesh14.GetNE() == 9);
+   REQUIRE(submesh14.GetNBE() == 54);
+   REQUIRE(submesh14.EulerNumber() == 1); // 64 - 108 + 54 - 9
+
+   // 3D checkerboard pattern including corners
+   Array<int> attr13(2); attr13[0] = 1; attr13[1] = 3;
+   SubMesh submesh13 = SubMesh::CreateFromDomain(mesh, attr13);
+
+   REQUIRE(submesh13.GetNV() == 64);
+   REQUIRE(submesh13.GetNE() == 14);
+   REQUIRE(submesh13.GetNBE() == 84);
+   REQUIRE(submesh13.EulerNumber() == 2); // 64 - 132 + 84 - 14
+
+   // 3D checkerboard pattern excluding corners
+   Array<int> attr24(2); attr24[0] = 2; attr24[1] = 4;
+   SubMesh submesh24 = SubMesh::CreateFromDomain(mesh, attr24);
+
+   REQUIRE(submesh24.GetNV() == 56);
+   REQUIRE(submesh24.GetNE() == 13);
+   REQUIRE(submesh24.GetNBE() == 78);
+   REQUIRE(submesh24.EulerNumber() == 1); // 56 - 120 + 78 - 13
+}
+
+TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
+{
+   int order = 3; // Produce multiple DoFs per edge and face
+   int dim = GENERATE(2, 3);
+   auto fec_type = GENERATE(FECType::H1, FECType::ND, FECType::RT, FECType::L2);
+
+   std::string mesh_file = (dim == 2) ?
+                           "../../data/checker-2d.mesh" : "../../data/checker-3d.mesh";
+
+   CAPTURE(dim);
+   CAPTURE(mesh_file);
+   CAPTURE(fec_type);
+
+   std::ifstream ifs(mesh_file);
+   Mesh mesh(ifs);
+
+   // 3D checkerboard pattern including corners
+   Array<int> attr13(2); attr13[0] = 1; attr13[1] = 3;
+   SubMesh submesh13 = SubMesh::CreateFromDomain(mesh, attr13);
+
+   // 3D checkerboard pattern excluding corners
+   Array<int> attr24(dim-1); attr24[0] = 2;
+   if (dim == 3) { attr24[1] = 4; }
+   SubMesh submesh24 = SubMesh::CreateFromDomain(mesh, attr24);
+
+   // Project random field onto full domain
+   FiniteElementCollection *fec = create_fec(fec_type, order, dim);
+   FiniteElementSpace fes(&mesh, fec);
+   GridFunction gf0(&fes); gf0.Randomize();
+   real_t nrm = gf0.Norml2();
+   CAPTURE(gf0.Size());
+   REQUIRE(nrm != 0.0);
+
+   // Transfer portion of random field to submesh
+   FiniteElementSpace fes13(&submesh13, fec);
+   GridFunction gf13(&fes13);
+   SubMesh::Transfer(gf0, gf13);
+
+   // Transfer complimentary portion of random field to submesh
+   FiniteElementSpace fes24(&submesh24, fec);
+   GridFunction gf24(&fes24);
+   SubMesh::Transfer(gf0, gf24);
+
+   // Create a target field on the full domain
+   GridFunction gf1(&fes);
+
+   // Transfer both portions and compare to original field
+   SubMesh::Transfer(gf13, gf1);
+   SubMesh::Transfer(gf24, gf1);
+   gf1 -= gf0;
+   REQUIRE(gf1.Norml2() < 1e-10);
+
+   // Transfer both portions in the opposite order and compare to original field
+   SubMesh::Transfer(gf24, gf1);
+   SubMesh::Transfer(gf13, gf1);
+   gf1 -= gf0;
+   REQUIRE(gf1.Norml2() < 1e-10 * nrm);
+
+   delete fec;
+}
