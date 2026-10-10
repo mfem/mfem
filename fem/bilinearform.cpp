@@ -865,6 +865,10 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
          {
             R->MultTranspose(conf_b, b); // store eliminated rhs in b
          }
+         else
+         {
+            b.SyncMemory(conf_b); // b was modified through its alias conf_b
+         }
 
          hybridization->ReduceRHS(conf_b, B);
          X.SetSize(B.Size());

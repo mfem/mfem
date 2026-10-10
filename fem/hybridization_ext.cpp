@@ -1121,32 +1121,26 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
    //
    // If R is not null, we first convert to intermediate L-vector (with the
    // correct BCs), and then from L-vector to T-vector.
-   if (!R)
-   {
-      MFEM_ASSERT(x.Size() == h.fes.GetVSize(), "");
-      tmp2.MakeRef(x, 0);
-   }
-   else
+   if (R)
    {
       tmp2.SetSize(R->Width());
       R->MultTranspose(x, tmp2);
    }
 
-   const ElementDofOrdering ordering = ElementDofOrdering::NATIVE;
-   const auto *restr = static_cast<const ElementRestriction*>(
-                          h.fes.GetElementRestriction(ordering));
-   const int *gather_map = restr->GatherMap().Read();
+   const int *gather_map = hat_dof_gather_map.Read();
    const DofType *d_hat_dof_marker = hat_dof_marker.Read();
    const real_t *d_evec = x_hat.Read();
-   real_t *d_lvec = tmp2.ReadWrite();
+   real_t *d_lvec = (R == nullptr) ? x.ReadWrite() : tmp2.ReadWrite();
    mfem::forall(num_hat_dofs, [=] MFEM_HOST_DEVICE (int i)
    {
-      // Skip essential DOFs
-      if (d_hat_dof_marker[i] == ESSENTIAL) { return; }
-
       const int j_s = gather_map[i];
+
+      // Skip essential DOFs, and ensure only one thread writes
+      if (j_s == -1 || d_hat_dof_marker[i] == ESSENTIAL) { return; }
+
       const int sgn = (j_s >= 0) ? 1 : -1;
-      const int j = (j_s >= 0) ? j_s : -1 - j_s;
+      // hat_dof_gather_map uses -1 to encode invalid, so shift by -2
+      const int j = (j_s >= 0) ? j_s : -2 - j_s;
 
       d_lvec[j] = sgn*d_evec[i];
    });
