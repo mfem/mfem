@@ -234,7 +234,8 @@ static MFEM_HOST_DEVICE void seed_j( const double *elx[sDIM],
 }
 
 template<int T_D1D = 0>
-static void FindPointsEdgeLocal2DKernel( const int     npt,
+static void FindPointsEdgeLocal2DKernel( const bool    use_dev,
+                                         const int     npt,
                                          const double  tol,
                                          const double  dist2tol,
                                          const double  *x,
@@ -261,12 +262,11 @@ static void FindPointsEdgeLocal2DKernel( const int     npt,
    const int p_NEL = nel*D1D;
    MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
-               "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    const int nThreads = D1D*sDIM;
 
-   mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
+   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
    {
       // 2D1D for seed, 3D1D + 7 for edge
       constexpr int size1 = 3*MD1 + 7;
@@ -568,7 +568,7 @@ static void FindPointsEdgeLocal2DKernel( const int     npt,
             } //findpts_local
          } //obbox_test
       } //elp
-   });
+   }, nThreads, 1, 1);
 }
 
 void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
@@ -603,7 +603,7 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
    switch (DEV.dof1d)
    {
       case 2:
-         FindPointsEdgeLocal2DKernel<2>(npt, DEV.newt_tol, dist2tol,
+         FindPointsEdgeLocal2DKernel<2>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -611,7 +611,7 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
                                         pgll1d, plc);
          break;
       case 3:
-         FindPointsEdgeLocal2DKernel<3>(npt, DEV.newt_tol, dist2tol,
+         FindPointsEdgeLocal2DKernel<3>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -619,7 +619,7 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
                                         pgll1d, plc);
          break;
       case 4:
-         FindPointsEdgeLocal2DKernel<4>(npt, DEV.newt_tol, dist2tol,
+         FindPointsEdgeLocal2DKernel<4>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -627,7 +627,7 @@ void FindPointsGSLIB::FindPointsEdgeLocal2( const Vector &point_pos,
                                         pgll1d, plc);
          break;
       default:
-         FindPointsEdgeLocal2DKernel(npt, DEV.newt_tol, dist2tol, pp,
+         FindPointsEdgeLocal2DKernel(use_dev, npt, DEV.newt_tol, dist2tol, pp,
                                      point_pos_ordering, pgslm,
                                      NE_split_total, pwt, pbb, obb_chk,
                                      DEV.lh_nx, plhm, plhf, plho,
