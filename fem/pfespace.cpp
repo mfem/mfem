@@ -4098,6 +4098,7 @@ int ParFiniteElementSpace
                constexpr int variant = 0;
                const int q = GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
                if (q < 0) { break; }
+               if (slave_dofs.Size() == 0) { continue; }
 
                list.OrientedPointMatrix(sf, T.GetPointMat());
 
