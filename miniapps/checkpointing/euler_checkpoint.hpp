@@ -658,7 +658,7 @@ inline bool SameEulerState(const EulerState &left, const EulerState &right)
    return true;
 }
 
-/// Run either Euler example with direct scheduling and independent replay.
+/// Run either Euler example with independent replay and optional controller.
 /** File modes additionally close and reopen against entirely fresh application
     objects. Automatic file directories are removed after the demonstration;
     explicitly supplied checkpoint directories retain their clean records. */
@@ -668,10 +668,12 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
    int steps = backward ? 12 : 20;
    int restart = backward ? 4 : 0;
    int maximum = -1;
+   int window_size = 0;
    real_t dt = backward ? 0.1 : 0.01;
    const char *storage = "memory-block";
    const char *path = "";
    bool visualization = false;
+   bool controller = false;
    OptionsParser args(argc, argv);
    args.AddOption(&steps, "-s", "--steps", "Number of fixed-size Euler steps.");
    args.AddOption(&restart, "-r", "--restart-step",
@@ -684,6 +686,10 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
                   "New file-storage directory (empty uses a temporary store).");
    args.AddOption(&maximum, "-m", "--max-checkpoints",
                   "Snapshot count limit (-1 allows growth; not for blocks).");
+   args.AddOption(&controller, "-ctrl", "--controller", "-no-ctrl",
+                  "--no-controller", "Use the optional checkpoint controller.");
+   args.AddOption(&window_size, "-w", "--window-size",
+                  "Controller's memory FIFO record limit (0 disables it).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Accepted; no visualization is produced.");
@@ -692,7 +698,9 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
    args.PrintOptions(out);
    MFEM_VERIFY(steps > 0 && restart >= 0 && restart < steps &&
                (!backward || restart > 0) && std::isfinite(dt) && dt > 0.0 &&
-               maximum >= -1, "Invalid Euler example parameters.");
+               maximum >= -1 && window_size >= 0 &&
+               (controller || window_size == 0),
+               "Invalid Euler example parameters.");
    const auto mode = ParseEulerStorage(storage);
    const bool block = mode == EulerStorage::MemoryBlock ||
                       mode == EulerStorage::FileBlock;
@@ -721,10 +729,21 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
    solver->Init(oper);
    EulerCheckpointer checkpoints(state, *solver, oper, mode, limit, path);
    EulerPropagator propagator(state, *solver);
+   std::unique_ptr<EulerCheckpointer> window_store;
+   std::unique_ptr<ExactCheckpointWindow> window;
+   if (window_size > 0)
+   {
+      window_store = std::make_unique<EulerCheckpointer>(
+                        state, *solver, oper, EulerStorage::MemoryBlock,
+                        static_cast<std::size_t>(window_size));
+      window = std::make_unique<ExactCheckpointWindow>(
+                  *window_store, static_cast<std::size_t>(window_size));
+   }
    const auto extent = block ? checkpoints.FixedBytes() : 0;
    StoreEverythingSchedule forward;
    forward.Configure(steps, required);
-   ExecuteSchedule(forward, checkpoints, propagator, steps);
+   ExecuteExampleSchedule(forward, checkpoints, propagator, steps,
+                          controller, window.get());
    MFEM_VERIFY(SameEulerState(state, reference) &&
                checkpoints.Size() == required,
                "Euler forward trajectory or checkpoint count differs.");
@@ -762,8 +781,18 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
    state.dt = -1.0;
    state.solution = -99.0;
    ReplayFromSchedule replay(origin, steps);
-   ExecuteSchedule(replay, checkpoints, propagator, steps);
+   ExecuteExampleSchedule(replay, checkpoints, propagator, steps,
+                          controller, window.get());
    MFEM_VERIFY(SameEulerState(state, reference), "Euler replay differs.");
+   if (controller)
+   {
+      CheckpointController service(checkpoints, propagator, window.get());
+      service.RestoreState(restart);
+      MFEM_VERIFY(state.step == restart, "Controller missed restart state.");
+      service.RestoreState(steps);
+      MFEM_VERIFY(SameEulerState(state, reference),
+                  "Controller Euler nearest-origin replay differs.");
+   }
    if (file)
    {
       const auto directory = checkpoints.Path();
@@ -779,11 +808,35 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
       EulerCheckpointer reopened(fresh, *fresh_solver, fresh_operator,
                                   mode, limit, directory.string(), true);
       EulerPropagator fresh_propagator(fresh, *fresh_solver);
+      std::unique_ptr<EulerCheckpointer> fresh_window_store;
+      std::unique_ptr<ExactCheckpointWindow> fresh_window;
+      if (window_size > 0)
+      {
+         fresh_window_store = std::make_unique<EulerCheckpointer>(
+                                 fresh, *fresh_solver, fresh_operator,
+                                 EulerStorage::MemoryBlock,
+                                 static_cast<std::size_t>(window_size));
+         fresh_window = std::make_unique<ExactCheckpointWindow>(
+                           *fresh_window_store,
+                           static_cast<std::size_t>(window_size));
+      }
       MFEM_VERIFY(reopened.Size() == 1 &&
                   reopened.GetInfo(origin_id).state == restart,
                   "Euler reopened metadata differs.");
       ReplayFromSchedule fresh_replay(origin, steps);
-      ExecuteSchedule(fresh_replay, reopened, fresh_propagator, steps);
+      ExecuteExampleSchedule(fresh_replay, reopened, fresh_propagator, steps,
+                             controller, fresh_window.get());
+      if (controller)
+      {
+         fresh.step = -1;
+         fresh.time = -1.0;
+         fresh.dt = -1.0;
+         fresh.solution = -99.0;
+         if (fresh_window) { fresh_window->Clear(); }
+         CheckpointController service(reopened, fresh_propagator,
+                                      fresh_window.get());
+         service.RestoreState(steps);
+      }
       MFEM_VERIFY(SameEulerState(fresh, reference),
                   "Euler reopened replay differs.");
       reopened.Store(0);
@@ -793,11 +846,14 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
          MFEM_VERIFY(reopened.FixedBytes() == extent, "Block grew.");
       }
       reopened.Close();
+      if (fresh_window) { fresh_window->Clear(); }
       if (std::string(path).empty()) { RemoveTemporaryStore(directory); }
       else { out << "Clean checkpoint store: " << directory << '\n'; }
    }
+   if (window) { window->Clear(); }
    out << (backward ? "Backward" : "Forward")
-       << " Euler checkpoint restore/replay (" << storage << "): PASS\n";
+       << " Euler checkpoint restore/replay (" << storage << ", "
+       << (controller ? "controller" : "direct") << "): PASS\n";
    return 0;
 }
 

@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 namespace mfem
 {
@@ -228,6 +229,116 @@ public:
    /** The application must represent @a from initially and @a to on success.
        Invalid transitions use MFEM error handling. No rollback is provided. */
    virtual void Advance(StateId from, StateId to) = 0;
+};
+
+/// Bounded FIFO of exact states in a dedicated memory checkpointer.
+/** The backing checkpointer must be initially empty, bound to the same live
+    application as its user, and used exclusively through this window. It must
+    outlive the window. The caller supplies a memory implementation; the
+    Checkpointer interface does not distinguish memory from file storage.
+
+    Only checkpoint IDs are retained here; saved positions and payloads remain
+    in the checkpointer. Replacing an ID preserves its FIFO position. Erasing
+    or clearing records makes backing storage reusable. Destruction does not
+    clear or close the borrowed checkpointer. Instances cannot be copied. */
+class ExactCheckpointWindow
+{
+private:
+   Checkpointer &checkpoints;
+   std::size_t capacity;
+   std::vector<CheckpointId> fifo;
+
+   friend class CheckpointController;
+
+public:
+   /// Bind an empty memory store and a positive maximum record count.
+   /** A finite backing capacity must be at least @a num_checkpoints. An
+       unlimited backing capacity still obeys this window's finite limit. */
+   ExactCheckpointWindow(Checkpointer &checkpoints_,
+                         std::size_t num_checkpoints);
+   ExactCheckpointWindow(const ExactCheckpointWindow &) = delete;
+   ExactCheckpointWindow &operator=(const ExactCheckpointWindow &) = delete;
+
+   /// Capture the current state; evict the oldest ID before adding a new ID
+   /// when full. Replacing an existing ID does not change FIFO order.
+   void Capture(CheckpointId id);
+
+   /// Restore a complete saved state; a missing ID is fatal.
+   void Restore(CheckpointId id);
+
+   /// Erase a saved ID without changing live state; absence is a no-op.
+   void Erase(CheckpointId id);
+
+   /// Erase all window records while retaining allocations for future capture.
+   void Clear();
+
+   /// Return whether an ID belongs to the window.
+   bool Contains(CheckpointId id) const;
+
+   /// Query saved metadata directly from the backing checkpointer.
+   CheckpointInfo GetInfo(CheckpointId id) const;
+
+   /// Find the greatest saved state at or before a non-negative target.
+   /** Ties use the lowest checkpoint ID; absence leaves @a result unchanged. */
+   bool FindAtOrBefore(StateId target, CheckpointInfo &result) const;
+
+   /// Return the number of live window records.
+   std::size_t Size() const { return fifo.size(); }
+
+   /// Return the fixed positive window count limit.
+   std::size_t Capacity() const { return capacity; }
+};
+
+/// Optional command dispatch and replay over borrowed application objects.
+/** The checkpointer, propagator, and optional window must outlive the
+    controller and be bound to the same live application. Window backing
+    storage must be separate from the primary checkpointer. No saved metadata
+    or payloads are owned by the controller. Copying is disabled.
+
+    With a window, propagation is split into single-state transitions. Capture
+    the origin and each reached state using checkpoint ID equal to StateId.
+    Without a window, pass each requested advance directly to the propagator.
+    Scheduled Store/Restore/Erase commands refer to the primary checkpointer;
+    Erase does not remove independent window records.
+
+    RestoreState() may reuse a valid live origin. After external modification,
+    restore a saved checkpoint first, or mark CurrentState() negative to exclude
+    the live state from origin selection. A non-negative position alone cannot
+    detect changed application fields. All errors use MFEM error handling. */
+class CheckpointController
+{
+private:
+   Checkpointer &checkpoints;
+   StatePropagator &propagator;
+   ExactCheckpointWindow *window;
+
+   void CaptureWindow();
+   void Advance(StateId from, StateId to);
+
+public:
+   /// Bind application services and, optionally, a finite exact-state window.
+   CheckpointController(Checkpointer &checkpoints_,
+                        StatePropagator &propagator_,
+                        ExactCheckpointWindow *window_ = nullptr);
+   CheckpointController(const CheckpointController &) = delete;
+   CheckpointController &operator=(const CheckpointController &) = delete;
+
+   /// Validate and execute one command without consuming a schedule.
+   /** Finished verifies the live terminal position and has no side effects. */
+   void Execute(const CheckpointCommand &command);
+
+   /// Consume and execute commands through Finished at @a terminal.
+   /** Advance destinations must not exceed the non-negative terminal state.
+       Does not reset the schedule, close storage, or clear window records. */
+   void Run(CheckpointSchedule &schedule, StateId terminal);
+
+   /// Reach a non-negative target from the nearest eligible saved/live state.
+   /** Select the greatest origin position not exceeding @a target. Prefer a
+       saved state over live state on ties, then primary storage over the
+       window. Each store resolves its own ties using the lowest checkpoint ID.
+       Saved origins are restored before replay, including exact target hits.
+       Absence of a saved or valid live origin is fatal. */
+   void RestoreState(StateId target);
 };
 
 } // namespace mfem

@@ -17,6 +17,9 @@
     exactly with an independent reference. Operator rates are saved and checked
     before solver reinitialization. All four storage modes are available; file
     modes also demonstrate clean close and replay into fresh objects.
+    --controller selects optional library dispatch; --window-size adds a
+    bounded memory window for exact-state replay. Direct dispatch is the
+    default.
 
     Example: checkpoint-backward-euler --storage file-snapshots -s 12 -r 4 */
 

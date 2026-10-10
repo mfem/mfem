@@ -56,6 +56,50 @@ examples also dispatch schedules directly. Independent references and replay
 compare complete continuation state. Neither a controller nor a moving window
 is needed.
 
+\section checkpointing_controller Optional controller and exact-state window
+
+mfem::CheckpointController borrows a Checkpointer, StatePropagator, and optional
+mfem::ExactCheckpointWindow bound to the same live application. Execute(command)
+validates and dispatches one command. Run(schedule, terminal) consumes commands
+through Finished, validating the requested terminal state. Neither closes
+storage nor resets the schedule. Scheduled storage commands use the primary
+checkpointer. Saved metadata is queried on demand rather than cached, including
+for reopened storage.
+
+RestoreState(target) selects the greatest saved or valid live position at or
+before the non-negative target. Saved state wins ties with live state; primary
+storage wins ties with the window. Each checkpointer resolves its own ties by
+lowest checkpoint ID. Saved origins are restored even for exact target hits,
+then propagated if needed. A negative live position excludes that origin.
+After externally changing application fields, restore a saved checkpoint before
+using live-origin replay, or mark the live position negative. A non-negative
+position cannot prove that other fields remain valid. No eligible origin is
+fatal.
+
+ExactCheckpointWindow maintains bounded FIFO checkpoint IDs around a dedicated,
+initially empty memory checkpointer. The caller supplies the memory backend;
+the Checkpointer interface cannot identify the storage medium. Use the backing
+store exclusively through the window and keep it separate from primary storage.
+Capture replaces an existing ID without moving its FIFO position. When full,
+capture of a new ID erases the oldest first. Erase and Clear leave the live
+application unchanged and make stored allocations reusable. Saved metadata and
+payloads remain in the backing checkpointer. The backing store may have finite
+or absent capacity, but the window always has a positive finite count limit.
+Destruction does not clear or close borrowed storage.
+
+With a window, the controller splits propagation into single-state transitions,
+capturing the origin and every reached state under ID equal to StateId. Without
+a window, it passes each requested interval directly to the propagator.
+Controller/window instances cannot be copied, are synchronous, and are not
+thread-safe. Borrowed objects must outlive their users.
+
+All four miniapps accept --controller/--no-controller; direct execution remains
+the default. --window-size N enables a memory window in controller mode; zero
+disables it. Euler windows use fixed memory blocks; mesh and heterogeneous
+windows use typed or variable-size memory records. Additional nearest-origin
+replays are checked against independent references. File examples bind fresh
+windows after reopen and clear them before replaying from reopened metadata.
+
 \section checkpointing_errors MFEM errors and ownership
 
 Use MFEM_VERIFY for runtime conditions and MFEM_ABORT for unrecoverable failures.
@@ -97,13 +141,15 @@ idempotent. No crash recovery or power-loss durability is promised.
 
 \section checkpointing_stages Subsequent implementation stages
 
-Stages 1 and 6 are source-complete; Stages 2-5 are skipped. The removed generic
+Stages 1, 6, and 7 are source-complete; Stages 2-5 are skipped. The removed generic
 helpers and separate adapter/storage APIs have not been reintroduced. All
 storage code is miniapp-local; reusable schedules belong to the library.
-The remaining work in checkpoint-implementation-plan.txt is the optional
-controller/FIFO moving window and further integration and fatal-error coverage.
+The remaining work in checkpoint-implementation-plan.txt is Stage 8 integration
+and fatal-error coverage.
 Normal-path example cases are registered for every storage mode and optional
-snapshot count limits; none have been executed.
+snapshot count limits in direct, controller, and controller/window modes (54
+cases). Unit sources cover schedules, command dispatch, FIFO replacement and
+eviction, and nearest-origin replay. None have been executed.
 
 No compilation or execution was performed.
 */

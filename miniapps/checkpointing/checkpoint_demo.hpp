@@ -245,6 +245,26 @@ inline void ExecuteSchedule(CheckpointSchedule &schedule,
    }
 }
 
+/// Select optional controller dispatch while preserving the direct example.
+/** Window storage is borrowed and used only in controller mode. */
+inline void ExecuteExampleSchedule(CheckpointSchedule &schedule,
+                                   Checkpointer &checkpoints,
+                                   StatePropagator &propagator,
+                                   StateId terminal, bool controller,
+                                   ExactCheckpointWindow *window)
+{
+   if (controller)
+   {
+      CheckpointController service(checkpoints, propagator, window);
+      service.Run(schedule, terminal);
+   }
+   else
+   {
+      MFEM_VERIFY(!window, "A checkpoint window requires controller mode.");
+      ExecuteSchedule(schedule, checkpoints, propagator, terminal);
+   }
+}
+
 /// Restore one saved origin and replay to a later terminal position.
 class ReplayFromSchedule : public CheckpointSchedule
 {

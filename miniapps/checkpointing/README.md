@@ -25,7 +25,7 @@ The miniapp performs these operations:
    equal-state checkpoints using the lowest checkpoint ID.
 
 Its application-owned dispatch loop handles Advance, Store, Restore, Erase, and
-Finished directly, without requiring a controller.
+Finished directly by default. `--controller` selects library dispatch instead.
 
 The store grows its checkpoint count by default. `--max-checkpoints` supplies an
 optional count limit; the offline reference schedule still needs `N+1` saved
@@ -67,6 +67,35 @@ serialized coordinates, metadata, and H1 projections with an independent run.
 Use `-r/--refinement-steps`, `-c/--checkpoint-interval`, and `-p/--order`.
 Optional `-pv/--paraview` writes the reference and restored projected fields;
 it is off by default.
+
+All four examples default to `--no-controller`. Use `--controller` to dispatch
+the same schedules through `mfem::CheckpointController` and additionally
+demonstrate `RestoreState(target)` with nearest-origin selection. It queries
+saved metadata on demand, including after reopening file storage. It selects
+the greatest saved or valid live position at or before the target, preferring
+saved state over live state on ties, then primary storage over the window.
+
+With `--controller`, `-w/--window-size N` enables a separate memory FIFO holding
+at most N exact states. Zero (the default) disables the window; positive sizes
+require controller mode. Euler uses preallocated memory blocks for this store;
+mesh and heterogeneous state use memory records. The controller captures the
+origin and every state reached during propagation, using StateId as the window
+checkpoint ID. A full window erases the oldest ID before capturing a new ID;
+replacement keeps its FIFO position. Primary scheduled records have independent
+IDs and capacity. The window also remains bounded when its backing store has
+no configured capacity. `Clear()` erases records for reuse, without changing
+the live application or primary storage.
+
+Controller propagation with a window calls the propagator one transition at a
+time. Without a window, an Advance command retains its requested interval.
+Borrowed checkpointers, propagators, and windows must outlive the controller
+and bind the same application. Window backing storage must be a separate,
+initially empty memory store, used exclusively through the window.
+After modifying application fields externally, restore a saved state before
+using a live replay origin, or mark the live position negative to exclude it.
+The examples invalidate the position and verify complete state after replay.
+File examples clear their fresh windows before an additional `RestoreState()`
+demonstration to exercise the reopened primary records.
 
 Select storage with `-st/--storage`:
 
@@ -112,17 +141,25 @@ checkpoint-backward-euler --storage memory-snapshots -s 12 -r 4 -m 13
 checkpoint-backward-euler --storage file-snapshots --checkpoint-path ./be-files
 checkpoint-mesh-state --storage memory-snapshots -r 4 -c 2 -m 2 -no-pv
 checkpoint-mesh-state --storage file-snapshots --checkpoint-path ./mesh-files -no-pv
+checkpoint-heterogeneous-state -n 8 --controller --window-size 2
+checkpoint-forward-euler --storage file-block --controller --window-size 3
+checkpoint-backward-euler --storage memory-snapshots --controller
+checkpoint-mesh-state --storage file-snapshots --controller --window-size 2 -no-pv
 ```
 
-CMake registers 18 example cases covering every mode and bounded/growing
-snapshot counts. For later use, build the four miniapp targets and run
+CMake registers 54 example cases covering every mode and bounded/growing
+snapshot counts under direct dispatch, controller dispatch, and controller
+dispatch with a two-state window. For later use, build the four miniapp targets
+and run
 `ctest --test-dir <build-directory> -R '^checkpoint-' --output-on-failure`.
 Makefile builds provide the corresponding `make test` cases in this directory.
-The `[Checkpoint]` unit-test tag separately covers the library schedule.
+The `[Checkpoint]` unit-test tag separately covers library schedules, controller
+command dispatch, FIFO replacement/eviction/clear, and replay origin selection.
 
 The staged implementation is in `../../checkpoint-implementation-plan.txt`.
 Stages 2-5 are skipped. Stage 6 uses application-specific miniapp classes;
 rejected generic snapshot, catalog, reader/writer, and adapter/storage interfaces
-have not been added. Stage 7 will add optional controller/window services.
+have not been added. Stage 7 provides optional library controller/window
+services. Stage 8 integration and fatal-error coverage remain pending.
 
 No compilation, miniapp execution, or test execution was performed.

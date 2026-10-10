@@ -36,24 +36,31 @@ $(SEQ_MINIAPPS): checkpoint-%: $(SRC)%.cpp $(SRC)checkpoint_demo.hpp \
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
+# Three independent recipe lines preserve mfem-test's per-case exit checks.
+define checkpoint-test
+@$(call mfem-test,$(1),$(2),$(3),$(4),$(5))
+@$(call mfem-test,$(1),$(2),$(3),$(4) --controller,$(5)-controller)
+@$(call mfem-test,$(1),$(2),$(3),$(4) --controller --window-size 2,$(5)-controller-window)
+endef
+
 checkpoint-heterogeneous-state-test-seq: checkpoint-heterogeneous-state
-	@$(call mfem-test,$<,,Checkpointing miniapp,-n 8,growing-storage)
-	@$(call mfem-test,$<,,Checkpointing miniapp,-n 8 -m 9,bounded-storage)
+	$(call checkpoint-test,$<,,Checkpointing miniapp,-n 8,growing-storage)
+	$(call checkpoint-test,$<,,Checkpointing miniapp,-n 8 -m 9,bounded-storage)
 
 checkpoint-forward-euler-test-seq checkpoint-backward-euler-test-seq: \
    %-test-seq: %
-	@$(call mfem-test,$<,,Euler checkpointing,-s 8 -r 2 --storage memory-block,memory-block)
-	@$(call mfem-test,$<,,Euler checkpointing,-s 8 -r 2 --storage file-block,file-block)
-	@$(call mfem-test,$<,,Euler checkpointing,-s 8 -r 2 --storage memory-snapshots,memory-snapshots)
-	@$(call mfem-test,$<,,Euler checkpointing,-s 8 -r 2 --storage file-snapshots,file-snapshots)
-	@$(call mfem-test,$<,,Euler checkpointing,-s 8 -r 2 --storage memory-snapshots -m 9,bounded-memory)
-	@$(call mfem-test,$<,,Euler checkpointing,-s 8 -r 2 --storage file-snapshots -m 9,bounded-file)
+	$(call checkpoint-test,$<,,Euler checkpointing,-s 8 -r 2 --storage memory-block,memory-block)
+	$(call checkpoint-test,$<,,Euler checkpointing,-s 8 -r 2 --storage file-block,file-block)
+	$(call checkpoint-test,$<,,Euler checkpointing,-s 8 -r 2 --storage memory-snapshots,memory-snapshots)
+	$(call checkpoint-test,$<,,Euler checkpointing,-s 8 -r 2 --storage file-snapshots,file-snapshots)
+	$(call checkpoint-test,$<,,Euler checkpointing,-s 8 -r 2 --storage memory-snapshots -m 9,bounded-memory)
+	$(call checkpoint-test,$<,,Euler checkpointing,-s 8 -r 2 --storage file-snapshots -m 9,bounded-file)
 
 checkpoint-mesh-state-test-seq: checkpoint-mesh-state
-	@$(call mfem-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage memory-snapshots -no-pv,memory-snapshots)
-	@$(call mfem-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage file-snapshots -no-pv,file-snapshots)
-	@$(call mfem-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage memory-snapshots -m 2 -no-pv,bounded-memory)
-	@$(call mfem-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage file-snapshots -m 2 -no-pv,bounded-file)
+	$(call checkpoint-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage memory-snapshots -no-pv,memory-snapshots)
+	$(call checkpoint-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage file-snapshots -no-pv,file-snapshots)
+	$(call checkpoint-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage memory-snapshots -m 2 -no-pv,bounded-memory)
+	$(call checkpoint-test,$<,,Mesh checkpointing,-r 4 -c 2 --storage file-snapshots -m 2 -no-pv,bounded-file)
 
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)

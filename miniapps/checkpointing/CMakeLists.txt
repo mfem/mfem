@@ -16,26 +16,42 @@ foreach(example heterogeneous-state mesh-state forward-euler backward-euler)
 endforeach()
 
 if (MFEM_ENABLE_TESTING)
-  add_test(NAME checkpoint-heterogeneous-state
-    COMMAND checkpoint-heterogeneous-state -n 8)
-  add_test(NAME checkpoint-heterogeneous-state-bounded
-    COMMAND checkpoint-heterogeneous-state -n 8 -m 9)
-
-  foreach(example forward-euler backward-euler)
-    foreach(storage memory-block file-block memory-snapshots file-snapshots)
-      add_test(NAME checkpoint-${example}-${storage}
-        COMMAND checkpoint-${example} -s 8 -r 2 --storage ${storage})
-      if(storage MATCHES "snapshots$")
-        add_test(NAME checkpoint-${example}-${storage}-bounded
-          COMMAND checkpoint-${example} -s 8 -r 2 --storage ${storage} -m 9)
+  foreach(execution direct controller controller-window)
+    set(execution_options "")
+    set(execution_suffix "")
+    if(NOT execution STREQUAL "direct")
+      set(execution_options --controller)
+      set(execution_suffix -${execution})
+      if(execution STREQUAL "controller-window")
+        list(APPEND execution_options --window-size 2)
       endif()
-    endforeach()
-  endforeach()
+    endif()
+    add_test(NAME checkpoint-heterogeneous-state${execution_suffix}
+      COMMAND checkpoint-heterogeneous-state -n 8 ${execution_options})
+    add_test(NAME checkpoint-heterogeneous-state-bounded${execution_suffix}
+      COMMAND checkpoint-heterogeneous-state -n 8 -m 9 ${execution_options})
 
-  foreach(storage memory-snapshots file-snapshots)
-    add_test(NAME checkpoint-mesh-state-${storage}
-      COMMAND checkpoint-mesh-state -r 4 -c 2 --storage ${storage} -no-pv)
-    add_test(NAME checkpoint-mesh-state-${storage}-bounded
-      COMMAND checkpoint-mesh-state -r 4 -c 2 --storage ${storage} -m 2 -no-pv)
+    foreach(example forward-euler backward-euler)
+      foreach(storage memory-block file-block memory-snapshots file-snapshots)
+        add_test(NAME checkpoint-${example}-${storage}${execution_suffix}
+          COMMAND checkpoint-${example} -s 8 -r 2 --storage ${storage}
+            ${execution_options})
+        if(storage MATCHES "snapshots$")
+          add_test(
+            NAME checkpoint-${example}-${storage}-bounded${execution_suffix}
+            COMMAND checkpoint-${example} -s 8 -r 2 --storage ${storage} -m 9
+              ${execution_options})
+        endif()
+      endforeach()
+    endforeach()
+
+    foreach(storage memory-snapshots file-snapshots)
+      add_test(NAME checkpoint-mesh-state-${storage}${execution_suffix}
+        COMMAND checkpoint-mesh-state -r 4 -c 2 --storage ${storage} -no-pv
+          ${execution_options})
+      add_test(NAME checkpoint-mesh-state-${storage}-bounded${execution_suffix}
+        COMMAND checkpoint-mesh-state -r 4 -c 2 --storage ${storage} -m 2 -no-pv
+          ${execution_options})
+    endforeach()
   endforeach()
 endif()

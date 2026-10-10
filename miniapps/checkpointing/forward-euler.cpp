@@ -17,6 +17,9 @@
     reference using exact equality. Select memory/file blocks or separate
     memory/file records with --storage. File modes also close and reopen
     against fresh application objects.
+    --controller selects optional library dispatch; --window-size adds a
+    bounded memory window for exact-state replay. Direct dispatch is the
+    default.
 
     Example: checkpoint-forward-euler --storage file-block -s 20 */
 

@@ -33,6 +33,9 @@
     The application dispatches Advance, Store, Restore, Erase, and Finished
     itself. Storage grows by default; --max-checkpoints sets an optional count
     limit. Runtime validation uses MFEM_VERIFY/MFEM_ABORT.
+    --controller selects optional library dispatch; --window-size adds a
+    bounded memory window for exact-state replay. Direct dispatch is the
+    default.
 
     Sample runs: checkpoint-heterogeneous-state -n 12
                  checkpoint-heterogeneous-state -n 12 -m 13 */
@@ -42,6 +45,7 @@
 #include <cstdint>
 #include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -402,11 +406,17 @@ int main(int argc, char *argv[])
    set_error_action(MFEM_ERROR_ABORT);
    int num_states = 12;
    int max_checkpoints = -1;
+   int window_size = 0;
+   bool controller = false;
    OptionsParser args(argc, argv);
    args.AddOption(&num_states, "-n", "--num-states",
                   "Number of sequence transitions (1-92).");
    args.AddOption(&max_checkpoints, "-m", "--max-checkpoints",
                   "Optional saved-checkpoint count limit (-1 allows growth).");
+   args.AddOption(&controller, "-ctrl", "--controller", "-no-ctrl",
+                  "--no-controller", "Use the optional checkpoint controller.");
+   args.AddOption(&window_size, "-w", "--window-size",
+                  "Controller's memory FIFO record limit (0 disables it).");
    args.Parse();
    if (!args.Good())
    {
@@ -417,6 +427,8 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(num_states >= 1 && num_states <= 92,
                "The number of transitions must be between 1 and 92.");
    MFEM_VERIFY(max_checkpoints >= -1, "Invalid checkpoint-count limit.");
+   MFEM_VERIFY(window_size >= 0 && (controller || window_size == 0),
+               "A positive window size requires controller mode.");
 
    DemoState reference;
    DemoPropagator reference_propagator(reference);
@@ -430,10 +442,28 @@ int main(int argc, char *argv[])
    }
    DemoCheckpointer checkpoints(state, limit);
    DemoPropagator propagator(state);
+   std::unique_ptr<DemoCheckpointer> window_store;
+   std::unique_ptr<ExactCheckpointWindow> window;
+   if (window_size > 0)
+   {
+      window_store = std::make_unique<DemoCheckpointer>(
+                        state, static_cast<std::size_t>(window_size));
+      window = std::make_unique<ExactCheckpointWindow>(
+                  *window_store, static_cast<std::size_t>(window_size));
+   }
+   const auto execute = [&](CheckpointSchedule &schedule)
+   {
+      if (controller)
+      {
+         CheckpointController service(checkpoints, propagator, window.get());
+         service.Run(schedule, num_states);
+      }
+      else { ExecuteSchedule(schedule, checkpoints, propagator, num_states); }
+   };
    StoreEverythingSchedule forward;
    // The offline trace needs N+1 records even though the store can grow.
    forward.Configure(num_states, static_cast<std::size_t>(num_states) + 1);
-   ExecuteSchedule(forward, checkpoints, propagator, num_states);
+   execute(forward);
    MFEM_VERIFY(SameState(state, reference), "Forward trajectory differs.");
    MFEM_VERIFY(checkpoints.Size() == static_cast<std::size_t>(num_states) + 1,
                "The forward run did not retain every checkpoint.");
@@ -441,8 +471,16 @@ int main(int argc, char *argv[])
    // Restore must repair all fields, including otherwise hidden continuation.
    state = DemoState{-1, 99, 100, -1.0, "discarded"};
    ReplaySchedule replay(num_states);
-   ExecuteSchedule(replay, checkpoints, propagator, num_states);
+   execute(replay);
    MFEM_VERIFY(SameState(state, reference), "Replayed trajectory differs.");
+   if (controller)
+   {
+      CheckpointController service(checkpoints, propagator, window.get());
+      service.RestoreState(num_states / 2 + 1);
+      service.RestoreState(num_states);
+      MFEM_VERIFY(SameState(state, reference),
+                  "Controller heterogeneous nearest-origin replay differs.");
+   }
 
    // Reuse an erased identity, then replace it without increasing count.
    const std::size_t count = checkpoints.Size();
@@ -457,7 +495,9 @@ int main(int argc, char *argv[])
                nearest.state == num_states && nearest.checkpoint == 1,
                "Nearest checkpoint selection is inconsistent.");
    checkpoints.Close();
-   out << "Direct checkpoint/replay: PASS\n"
+   if (window) { window->Clear(); }
+   out << (controller ? "Controller" : "Direct")
+       << " checkpoint/replay: PASS\n"
        << "State = " << state.iteration << ", Fibonacci = " << state.fibonacci
        << ", saved checkpoints = " << checkpoints.Size() << '\n';
    return 0;

@@ -18,6 +18,9 @@
     replay the remaining refinements. Compare mesh text, structural properties,
     continuation metadata, and H1 fields with an independent reference.
     File mode also reopens a clean store against fresh application objects.
+    --controller selects optional library dispatch; --window-size adds a
+    bounded memory window for exact-state replay. Direct dispatch is the
+    default.
 
     Examples: checkpoint-mesh-state -r 4 -c 2 -no-pv
               checkpoint-mesh-state --storage file-snapshots -no-pv */
@@ -461,10 +464,12 @@ int main(int argc, char *argv[])
 {
    set_error_action(MFEM_ERROR_ABORT);
    int steps = 4, interval = 2, order = 1, maximum = -1;
+   int window_size = 0;
    const char *storage = "memory-snapshots";
    const char *path = "";
    const char *prefix = "paraview";
    bool paraview = false;
+   bool controller = false;
    OptionsParser args(argc, argv);
    args.AddOption(&steps, "-r", "--refinement-steps",
                   "Number of refinement cycles.");
@@ -477,6 +482,10 @@ int main(int argc, char *argv[])
                   "New file-storage directory (empty uses a temporary store).");
    args.AddOption(&maximum, "-m", "--max-checkpoints",
                   "Optional count limit (-1 allows growth).");
+   args.AddOption(&controller, "-ctrl", "--controller", "-no-ctrl",
+                  "--no-controller", "Use the optional checkpoint controller.");
+   args.AddOption(&window_size, "-w", "--window-size",
+                  "Controller's memory FIFO record limit (0 disables it).");
    args.AddOption(&prefix, "-o", "--output-prefix",
                   "ParaView parent directory.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
@@ -485,6 +494,7 @@ int main(int argc, char *argv[])
    if (!args.Good()) { args.PrintUsage(out); return 1; }
    args.PrintOptions(out);
    MFEM_VERIFY(steps > 0 && interval > 0 && order > 0 && maximum >= -1 &&
+               window_size >= 0 && (controller || window_size == 0) &&
                (!paraview || !std::string(prefix).empty()),
                "Invalid mesh options.");
    const std::string mode(storage);
@@ -503,8 +513,18 @@ int main(int argc, char *argv[])
    auto state = InitialMeshState();
    MeshCheckpointer checkpoints(state, file, limit, path);
    MeshPropagator propagator(state);
+   std::unique_ptr<MeshCheckpointer> window_store;
+   std::unique_ptr<ExactCheckpointWindow> window;
+   if (window_size > 0)
+   {
+      window_store = std::make_unique<MeshCheckpointer>(
+                        state, false, static_cast<std::size_t>(window_size));
+      window = std::make_unique<ExactCheckpointWindow>(
+                  *window_store, static_cast<std::size_t>(window_size));
+   }
    mfem::IntervalSchedule forward(steps, interval);
-   ExecuteSchedule(forward, checkpoints, propagator, steps);
+   ExecuteExampleSchedule(forward, checkpoints, propagator, steps,
+                          controller, window.get());
    MFEM_VERIFY(SameMeshState(state, reference),
                "Mesh forward trajectory differs.");
    const auto expected_count =
@@ -532,8 +552,19 @@ int main(int argc, char *argv[])
    }
    Invalidate(state);
    ReplayFromSchedule replay(origin, steps);
-   ExecuteSchedule(replay, checkpoints, propagator, steps);
+   ExecuteExampleSchedule(replay, checkpoints, propagator, steps,
+                          controller, window.get());
    MFEM_VERIFY(SameMeshState(state, reference), "Mesh replay differs.");
+   if (controller)
+   {
+      CheckpointController service(checkpoints, propagator, window.get());
+      service.RestoreState(origin.state);
+      MFEM_VERIFY(state.cycle == origin.state,
+                  "Controller missed the mesh replay origin.");
+      service.RestoreState(steps);
+      MFEM_VERIFY(SameMeshState(state, reference),
+                  "Controller mesh nearest-origin replay differs.");
+   }
    if (file)
    {
       const auto directory = checkpoints.Path();
@@ -544,11 +575,31 @@ int main(int argc, char *argv[])
       Invalidate(fresh);
       MeshCheckpointer reopened(fresh, true, limit, directory.string(), true);
       MeshPropagator fresh_propagator(fresh);
+      std::unique_ptr<MeshCheckpointer> fresh_window_store;
+      std::unique_ptr<ExactCheckpointWindow> fresh_window;
+      if (window_size > 0)
+      {
+         fresh_window_store = std::make_unique<MeshCheckpointer>(
+                                 fresh, false,
+                                 static_cast<std::size_t>(window_size));
+         fresh_window = std::make_unique<ExactCheckpointWindow>(
+                           *fresh_window_store,
+                           static_cast<std::size_t>(window_size));
+      }
       MFEM_VERIFY(reopened.Size() == retained &&
                   reopened.GetInfo(origin.checkpoint).state == origin.state,
                   "Reopened mesh metadata differs.");
       ReplayFromSchedule fresh_replay(origin, steps);
-      ExecuteSchedule(fresh_replay, reopened, fresh_propagator, steps);
+      ExecuteExampleSchedule(fresh_replay, reopened, fresh_propagator, steps,
+                             controller, fresh_window.get());
+      if (controller)
+      {
+         Invalidate(fresh);
+         if (fresh_window) { fresh_window->Clear(); }
+         CheckpointController service(reopened, fresh_propagator,
+                                      fresh_window.get());
+         service.RestoreState(steps);
+      }
       MFEM_VERIFY(SameMeshState(fresh, reference),
                   "Reopened mesh replay differs.");
       if (!limit || reopened.Size() < *limit)
@@ -563,6 +614,7 @@ int main(int argc, char *argv[])
       }
       CompareFields(*reference.mesh, *fresh.mesh, order, paraview, prefix);
       reopened.Close();
+      if (fresh_window) { fresh_window->Clear(); }
       if (std::string(path).empty()) { RemoveTemporaryStore(directory); }
       else { out << "Clean checkpoint store: " << directory << '\n'; }
    }
@@ -570,6 +622,8 @@ int main(int argc, char *argv[])
    {
       CompareFields(*reference.mesh, *state.mesh, order, paraview, prefix);
    }
-   out << "Mesh checkpoint restore/replay (" << storage << "): PASS\n";
+   if (window) { window->Clear(); }
+   out << "Mesh checkpoint restore/replay (" << storage << ", "
+       << (controller ? "controller" : "direct") << "): PASS\n";
    return 0;
 }
