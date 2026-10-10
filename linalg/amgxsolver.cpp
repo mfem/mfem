@@ -34,6 +34,27 @@ int AmgXSolver::count = 0;
 
 AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
+AMGX_config_handle AmgXSolver::rsrc_cfg = nullptr;
+
+#ifdef MFEM_USE_MPI
+MPI_Comm AmgXSolver::rsrc_comm = MPI_COMM_NULL;
+#endif
+
+void AmgXSolver::CreateConfig(AMGX_config_handle &c) const
+{
+   MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
+               "AmgX configuration is not defined \n");
+
+   if (configSrc == CONFIG_SRC::EXTERNAL)
+   {
+      AMGX_SAFE_CALL(AMGX_config_create_from_file(&c, amgx_config.c_str()));
+   }
+   else
+   {
+      AMGX_SAFE_CALL(AMGX_config_create(&c, amgx_config.c_str()));
+   }
+}
+
 AmgXSolver::AmgXSolver()
    : ConvergenceCheck(false) {};
 
@@ -92,25 +113,21 @@ void AmgXSolver::InitSerial()
 
    mpi_gpu_mode = "serial";
 
-   AMGX_SAFE_CALL(AMGX_initialize());
-
-   AMGX_SAFE_CALL(AMGX_initialize_plugins());
-
-   AMGX_SAFE_CALL(AMGX_install_signal_handler());
-
-   MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
-               "AmgX configuration is not defined \n");
-
-   if (configSrc == CONFIG_SRC::EXTERNAL)
+   // Set up once
+   if (count == 1)
    {
-      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, amgx_config.c_str()));
-   }
-   else
-   {
-      AMGX_SAFE_CALL(AMGX_config_create(&cfg, amgx_config.c_str()));
+      AMGX_SAFE_CALL(AMGX_initialize());
+
+      AMGX_SAFE_CALL(AMGX_initialize_plugins());
+
+      AMGX_SAFE_CALL(AMGX_install_signal_handler());
+
+      CreateConfig(rsrc_cfg);
+      AMGX_SAFE_CALL(AMGX_resources_create_simple(&rsrc, rsrc_cfg));
    }
 
-   AMGX_SAFE_CALL(AMGX_resources_create_simple(&rsrc, cfg));
+   CreateConfig(cfg);
+
    AMGX_SAFE_CALL(AMGX_solver_create(&solver, rsrc, precision_mode, cfg));
    AMGX_SAFE_CALL(AMGX_matrix_create(&AmgXA, rsrc, precision_mode));
    AMGX_SAFE_CALL(AMGX_vector_create(&AmgXP, rsrc, precision_mode));
@@ -306,24 +323,23 @@ void AmgXSolver::InitAmgX()
          if (irank == 0) { mfem::out<<msg;} }));
    }
 
-   MFEM_VERIFY(configSrc != CONFIG_SRC::UNDEFINED,
-               "AmgX configuration is not defined \n");
-
-   if (configSrc == CONFIG_SRC::EXTERNAL)
-   {
-      AMGX_SAFE_CALL(AMGX_config_create_from_file(&cfg, amgx_config.c_str()));
-   }
-   else
-   {
-      AMGX_SAFE_CALL(AMGX_config_create(&cfg, amgx_config.c_str()));
-   }
+   CreateConfig(cfg);
 
    // Let AmgX handle returned error codes internally
    AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
 
    // Create an AmgX resource object, only the first instance needs to create
+   // the resource object. Its configuration and communicator live as long as
    // the resource object.
-   if (count == 1) { AMGX_SAFE_CALL(AMGX_resources_create(&rsrc, cfg, &gpuWorld, 1, &devID)); }
+   if (count == 1)
+   {
+      MPI_Comm_dup(gpuWorld, &rsrc_comm);
+      CreateConfig(rsrc_cfg);
+      AMGX_SAFE_CALL(AMGX_config_add_parameters(&rsrc_cfg,
+                                                "exception_handling=1"));
+      AMGX_SAFE_CALL(AMGX_resources_create(&rsrc, rsrc_cfg, &rsrc_comm, 1,
+                                           &devID));
+   }
 
    // Create AmgX vector object for unknowns and RHS
    AMGX_SAFE_CALL(AMGX_vector_create(&AmgXP, rsrc, precision_mode));
@@ -1020,7 +1036,11 @@ void AmgXSolver::Finalize()
       if (count == 1)
       {
          AMGX_SAFE_CALL(AMGX_resources_destroy(rsrc));
+         AMGX_SAFE_CALL(AMGX_config_destroy(rsrc_cfg));
          AMGX_SAFE_CALL(AMGX_config_destroy(cfg));
+#ifdef MFEM_USE_MPI
+         if (rsrc_comm != MPI_COMM_NULL) { MPI_Comm_free(&rsrc_comm); }
+#endif
 
          AMGX_SAFE_CALL(AMGX_finalize_plugins());
          AMGX_SAFE_CALL(AMGX_finalize());
