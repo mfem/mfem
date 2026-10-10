@@ -13,7 +13,9 @@
 #define MFEM_PARALLEL_DIRECT_SOLVER
 
 #include "mfem.hpp"
-
+#include <functional>
+#include <memory>
+#include <vector>
 
 namespace mfem
 {
@@ -126,6 +128,64 @@ public:
 
    virtual void SetPrintLevel(int print_lvl);
 
+};
+
+
+/**
+ * @class AMGFSchwarzSolver
+ * @brief AMGF whose filtered subspace solver is an AdditiveSchwarz smoother
+ *        with one patch per row of the gap Jacobian, instead of a direct
+ *        solver.
+ *
+ * The patch of row @a i of the gap Jacobian @a J consists of the dofs of the
+ * nonzeros of that row that lie in the filtered subspace defined by the
+ * transfer operator @a P. Each MPI rank owns the patches of its local rows of
+ * @a J.
+ *
+ * The solver is meant to precondition the reduced IP-Newton operator
+ * K + J^T D J with diagonal D, and the patch of row @a i is skipped when
+ * D_i is below a threshold. Since D changes in every IP-Newton iteration, the
+ * patches are rebuilt from the current D in every call to SetOperator().
+ */
+class AMGFSchwarzSolver : public AMGFSolver
+{
+public:
+   /**
+    * @param J Gap Jacobian (not owned); only used during construction, so it
+    *          need not outlive this object.
+    * @param P Filtered subspace transfer operator (not owned); it must outlive
+    *          this object.
+    * @param get_D_ Fills its argument with the current diagonal of D, whose
+    *               first J.Height() entries correspond to the local rows of
+    *               @a J. It is copied, but anything it captures by reference
+    *               must outlive this object.
+    * @param D_threshold_ The patch of row @a i is skipped if D_i is below
+    *                     this value.
+    */
+   AMGFSchwarzSolver(const HypreParMatrix &J, const HypreParMatrix &P,
+                     std::function<void(Vector &)> get_D_,
+                     real_t D_threshold_ = 0.0);
+
+   /// Set the operator, and rebuild the Schwarz patches from the current D.
+   void SetOperator(const Operator &op) override;
+
+   /// Global number of Schwarz patches used after each SetOperator() call.
+   /// The returned array is owned by this object.
+   const Array<HYPRE_BigInt> & GetNumPatches() const { return num_patches; }
+
+private:
+   /// Communicator of the gap Jacobian.
+   MPI_Comm comm;
+   /// Global subspace dofs of the nonzeros of each local row of J.
+   std::vector<Array<HYPRE_BigInt>> row_patches;
+   /// Returns the current diagonal of D; see the constructor.
+   std::function<void(Vector &)> get_D;
+   /// The patch of row i of J is skipped if D_i is below this value.
+   real_t D_threshold;
+   /// Subspace solver (owned), rebuilt in every SetOperator() call.
+   std::unique_ptr<AdditiveSchwarz> schwarz;
+   /// Global number of patches used after each SetOperator() call.
+   Array<HYPRE_BigInt> num_patches;
 };
 
 

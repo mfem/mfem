@@ -84,6 +84,11 @@ public:
    /// Get solver iteration counts
    Array<int> & GetLinearSolverIterations() {return lin_solver_iterations;};
 
+   /// Get the slack block W_(m,m) of the most recently formed IP-Newton
+   /// matrix (not owned). For contact problems it is the diagonal matrix D of
+   /// the reduced operator Huu + Ju^T D Ju passed to the linear solver.
+   HypreParMatrix * GetWmm() {return Wmm;}
+
    virtual ~IPSolver();
 protected:
    /// OptContactProblem (not owned).

@@ -206,4 +206,70 @@ void ParallelDirectSolver::SetPrintLevel(int print_lvl)
 #endif
 }
 
+AMGFSchwarzSolver::AMGFSchwarzSolver(const HypreParMatrix &J,
+                                     const HypreParMatrix &P,
+                                     std::function<void(Vector &)> get_D_,
+                                     real_t D_threshold_)
+   : AMGFSolver(), comm(J.GetComm()), get_D(std::move(get_D_)),
+     D_threshold(D_threshold_)
+{
+   SetFilteredSubspaceTransferOperator(P);
+
+   // Row i of J P holds the nonzeros of row i of J whose dofs are in the
+   // filtered subspace, with columns numbered by subspace dof.
+   std::unique_ptr<HypreParMatrix> JP(ParMult(&J, &P));
+   JP->HostRead();
+   SparseMatrix diag, offd;
+   HYPRE_BigInt *cmap;
+   JP->GetDiag(diag);
+   JP->GetOffd(offd, cmap);
+   const HYPRE_BigInt first_col =
+      hypre_ParCSRMatrixFirstColDiag(static_cast<hypre_ParCSRMatrix *>(*JP));
+   const int *diag_I = diag.HostReadI(), *diag_J = diag.HostReadJ();
+   const int *offd_I = offd.HostReadI(), *offd_J = offd.HostReadJ();
+   const real_t *diag_V = diag.HostReadData(), *offd_V = offd.HostReadData();
+
+   row_patches.resize(JP->Height());
+   for (int i = 0; i < JP->Height(); i++)
+   {
+      for (int k = diag_I[i]; k < diag_I[i+1]; k++)
+      {
+         if (diag_V[k] != 0.0) { row_patches[i].Append(first_col + diag_J[k]); }
+      }
+      for (int k = offd_I[i]; k < offd_I[i+1]; k++)
+      {
+         if (offd_V[k] != 0.0) { row_patches[i].Append(cmap[offd_J[k]]); }
+      }
+   }
+}
+
+void AMGFSchwarzSolver::SetOperator(const Operator &op)
+{
+   AMGFSolver::SetOperator(op);
+
+   Vector D;
+   get_D(D);
+   MFEM_VERIFY(D.Size() >= static_cast<int>(row_patches.size()),
+               "AMGFSchwarzSolver: D has fewer entries than the rows of J.");
+   const real_t *h_D = D.HostRead();
+
+   std::vector<Array<HYPRE_BigInt>> patches;
+   for (size_t i = 0; i < row_patches.size(); i++)
+   {
+      if (row_patches[i].Size() > 0 && h_D[i] >= D_threshold)
+      {
+         patches.push_back(row_patches[i]);
+      }
+   }
+   HYPRE_BigInt num_local = patches.size(), num_global;
+   MPI_Allreduce(&num_local, &num_global, 1, HYPRE_MPI_BIG_INT, MPI_SUM, comm);
+   num_patches.Append(num_global);
+
+   // Replace the subspace solver instead of updating it, so that it is only
+   // set up once, when FilteredSolver hands it the new subspace operator.
+   schwarz.reset(new AdditiveSchwarz);
+   schwarz->SetSubdomains(patches);
+   SetFilteredSubspaceSolver(*schwarz);
+}
+
 }
