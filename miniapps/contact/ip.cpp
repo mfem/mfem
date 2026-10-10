@@ -11,6 +11,7 @@
 
 #include "ip.hpp"
 #include "general/reducers.hpp"
+#include "solver_utils.hpp"
 
 namespace mfem
 {
@@ -405,49 +406,39 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    });
 
    delete Wmm;
-   DiagLogBar.HostRead();
    if (Hmm)
    {
-      SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
-      HypreParMatrix * D = new HypreParMatrix(comm,
-                                              problem->GetGlobalNumConstraints(), problem->GetConstraintsStarts(), Ds);
-      HypreStealOwnership(*D,*Ds);
-      delete Ds;
+      HypreParMatrix *D =
+         MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
+                                    problem->GetConstraintsStarts(),
+                                    DiagLogBar);
       Wmm = ParAdd(Hmm,D);
       delete D;
    }
    else
    {
-      SparseMatrix * Ds = new SparseMatrix(DiagLogBar);
-      Wmm = new HypreParMatrix(comm, problem->GetGlobalNumConstraints(),
-                               problem->GetConstraintsStarts(), Ds);
-      HypreStealOwnership(*Wmm,*Ds);
-      delete Ds;
+      Wmm = MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
+                                       problem->GetConstraintsStarts(),
+                                       DiagLogBar);
    }
 
    Vector deltaDiagVec(dimU); deltaDiagVec.UseDevice(true);
    deltaDiagVec = delta;
    deltaDiagVec *= Mvlump;
-   deltaDiagVec.HostRead();
 
    delete Wuu;
    if (Huu)
    {
-      SparseMatrix * Duus = new SparseMatrix(deltaDiagVec);
-      HypreParMatrix * Duu = new HypreParMatrix(comm, problem->GetGlobalNumDofs(),
-                                                problem->GetDofStarts(), Duus);
-      HypreStealOwnership(*Duu, *Duus);
-      delete Duus;
+      HypreParMatrix *Duu =
+         MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
+                                    problem->GetDofStarts(), deltaDiagVec);
       Wuu = ParAdd(Huu, Duu);
       delete Duu;
    }
    else
    {
-      SparseMatrix * DuuS = new SparseMatrix(deltaDiagVec);
-      Wuu = new HypreParMatrix(comm, problem->GetGlobalNumDofs(),
-                               problem->GetDofStarts(), DuuS);
-      HypreStealOwnership(*Wuu, *DuuS);
-      delete DuuS;
+      Wuu = MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
+                                       problem->GetDofStarts(), deltaDiagVec);
    }
 
    //         IP-Newton system matrix

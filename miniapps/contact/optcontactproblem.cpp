@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "optcontactproblem.hpp"
+#include "solver_utils.hpp"
 
 namespace mfem
 {
@@ -177,22 +178,13 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    block_offsetsg.PartialSum();
 
    Vector diagVec(dimU); diagVec.UseDevice(true); diagVec = 0.0;
-   SparseMatrix * tempSparse;
-
    diagVec = 1.0;
-   diagVec.HostRead();
-   tempSparse = new SparseMatrix(diagVec);
-   Iu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(), tempSparse);
-   HypreStealOwnership(*Iu, *tempSparse);
-   delete tempSparse;
+   Iu = MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                                   diagVec);
 
    diagVec = -1.0;
-   diagVec.HostRead();
-   tempSparse = new SparseMatrix(diagVec);
-   negIu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
-                              tempSparse);
-   HypreStealOwnership(*negIu, *tempSparse);
-   delete tempSparse;
+   negIu = MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                                      diagVec);
 
    dimM = dimG;
    dimC = dimM;
@@ -241,11 +233,8 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
    if (!NegId)
    {
       Vector negone(dimM); negone.UseDevice(true); negone = -1.0;
-      negone.HostRead();
-      SparseMatrix diag(negone);
-      NegId = new HypreParMatrix(comm, GetGlobalNumConstraints(),
-                                 GetConstraintsStarts(), &diag);
-      HypreStealOwnership(*NegId, diag);
+      NegId = MakeDiagonalHypreParMatrix(comm, GetGlobalNumConstraints(),
+                                         GetConstraintsStarts(), negone);
    }
    return NegId;
 }
