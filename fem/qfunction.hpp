@@ -79,6 +79,27 @@ public:
       Vector::operator=(orig);
    }
 
+   /** @brief Construct a QuadratureFunction on the given
+       VectorQuadratureSpace, @a vqspace.
+
+       After construction, the QuadratureFunction does not need the
+       VectorQuadratureSpace object. Instead, it uses directly its underlying
+       QuadratureSpaceBase object. */
+   QuadratureFunction(VectorQuadratureSpace &vqspace)
+      : QuadratureFunction(*vqspace.GetSpace(), vqspace.GetVDim())
+   { }
+
+   /** @brief Construct a QuadratureFunction on the given
+       VectorQuadratureSpace, @a vqspace, with the given MemoryType, @a mt, used
+       for the underlying Vector object.
+
+       After construction, the QuadratureFunction does not need the
+       VectorQuadratureSpace object. Instead, it uses directly its underlying
+       QuadratureSpaceBase object. */
+   QuadratureFunction(VectorQuadratureSpace &vqspace, MemoryType mt)
+      : QuadratureFunction(*vqspace.GetSpace(), mt, vqspace.GetVDim())
+   { }
+
    /// Read a QuadratureFunction from the stream @a in.
    /** The QuadratureFunction assumes ownership of the read QuadratureSpace. */
    QuadratureFunction(Mesh *mesh, std::istream &in);

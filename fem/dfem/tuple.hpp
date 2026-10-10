@@ -200,7 +200,6 @@ struct tuple<>
  * @tparam T the variadic template parameter for tuple types
  */
 template <typename... T>
-MFEM_HOST_DEVICE
 tuple(T...) -> tuple<T...>;
 
 /**
@@ -249,6 +248,10 @@ struct tuple_element<0, tuple<Head, Tail...>>
 {
    using type = Head;  ///< the type at the specified index
 };
+
+/// @brief Type alias mirroring std::tuple_element_t for mfem::future::tuple
+template <size_t I, class T>
+using tuple_element_t = typename tuple_element<I, T>::type;
 
 namespace detail
 {
@@ -856,4 +859,20 @@ struct tuple_element<I, mfem::future::tuple<T...>>
    using type = typename
                 mfem::future::tuple_element<I, mfem::future::tuple<T...>>::type;
 };
-} // namespace std
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(mfem::future::tuple<T...>& t) noexcept
+{ return mfem::future::get<I>(t); }
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(const mfem::future::tuple<T...>& t) noexcept
+{ return mfem::future::get<I>(t); }
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(mfem::future::tuple<T...>&& t) noexcept
+{ return mfem::future::get<I>(std::move(t)); }
+
+template <size_t I, typename... T>
+constexpr decltype(auto) get(const mfem::future::tuple<T...>&& t) noexcept
+{ return mfem::future::get<I>(std::move(t)); }
+}

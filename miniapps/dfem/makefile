@@ -21,7 +21,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES =
-PAR_EXAMPLES = dfem-minimal-surface
+PAR_EXAMPLES = dfem-minimal-surface dfem-hyperelasticity_energy
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else

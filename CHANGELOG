@@ -11,6 +11,9 @@
 Version 4.10.1 (development)
 ============================
 
+- Added class VectorQuadratureSpace that represents a vector (multi-component)
+  version of the scalar (single-component) class QuadratureSpaceBase.
+  
 
 Version 4.10, released on Sep 1, 2026
 =====================================
@@ -64,6 +67,7 @@ Discretization improvements
   boundaries so the result is partition invariant. This is useful for imposing
   boundary conditions on boundary edge DOFs.
 
+- Extend FindPointsGSLIB to support surface meshes.
 - Added support for coefficient-weighted transfer in L2ProjectionGridTransfer.
   The transfer conserves the weighted mass, for example when transferring
   velocity while conserving density-weighted momentum. This is illustrated in

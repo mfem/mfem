@@ -35,12 +35,13 @@ template <int DIM> struct QFunction
       MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
                                               const real_t &L, const real_t &M,
                                               const matd_t &J,
-                                              const real_t &w) const
+                                              const real_t &w,
+                                              matd_t &rtn) const
       {
          const matd_t JxW = transpose(inv(J)) * det(J) * w;
          constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
          const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
-         return tuple{(L * tr(eps) * I + 2.0 * M * eps) * JxW};
+         rtn = (L * tr(eps) * I + 2.0 * M * eps) * JxW;
       }
    };
 };
@@ -374,12 +375,16 @@ void IsoLinElasticSolver::Assemble()
 #ifdef MFEM_USE_DOUBLE
       // define the differentiable operator
       dop = std::make_unique<mfem::future::DifferentiableOperator>(
-      std::vector<mfem::future::FieldDescriptor> {{ U, vfes }},
-      std::vector<mfem::future::FieldDescriptor>
+               std::vector<mfem::future::FieldDescriptor>
       {
+         { U, vfes },
          { LCoeff, &Lambda_ps},
          { MuCoeff, &Mu_ps},
          { Coords, mfes }
+      },
+      std::vector<mfem::future::FieldDescriptor>
+      {
+         { U, vfes }
       },
       *pmesh);
 
@@ -389,25 +394,23 @@ void IsoLinElasticSolver::Assemble()
       // sample mu on the integration points
       Mu_cv = std::make_unique<CoefficientVector>(*mu, qs);
 
-      // set the parameters of the differentiable operator
-      dop->SetParameters({ Lambda_cv.get(), Mu_cv.get(), nodes });
-
       // define the q-function for dimensions 2 and 3
-      const auto inputs =
-         mfem::future::tuple{ Gradient<U>{},
-                              Identity<LCoeff>{}, Identity<MuCoeff>{},
-                              Gradient<Coords>{},
-                              Weight{} };
-      const auto output = mfem::future::tuple{ Gradient<U>{} };
+      auto inputs =
+         mfem::future::Inputs< Gradient<U>,
+         Identity<LCoeff>, Identity<MuCoeff>,
+         Gradient<Coords>,
+         Weight> {};
+      auto output = mfem::future::Outputs< Gradient<U>> {};
+      using Backend = mfem::future::LocalQFBackend;
       if (2 == spaceDim)
       {
          typename QFunction<2>::Elasticity e2qf;
-         dop->AddDomainIntegrator(e2qf, inputs, output, ir, domain_attributes);
+         dop->AddDomainIntegrator<Backend>(e2qf, inputs, output, ir, domain_attributes);
       }
       else if (3 == spaceDim)
       {
          typename QFunction<3>::Elasticity e3qf;
-         dop->AddDomainIntegrator(e3qf, inputs, output, ir, domain_attributes);
+         dop->AddDomainIntegrator<Backend>(e3qf, inputs, output, ir, domain_attributes);
       }
       else { MFEM_ABORT("Space dimension not supported"); }
 #else
