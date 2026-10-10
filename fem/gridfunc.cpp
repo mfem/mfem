@@ -30,6 +30,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <memory> // std::make_unique
 #include <queue>
 
 namespace mfem
@@ -1189,7 +1190,7 @@ void GridFunction::ReorderByNodes()
    int i, j, k;
    int vdim = fes->GetVDim();
    int ndofs = fes->GetNDofs();
-   real_t *temp = new real_t[size];
+   auto temp = std::make_unique<real_t[]>(size);
 
    k = 0;
    for (j = 0; j < ndofs; j++)
@@ -1202,8 +1203,6 @@ void GridFunction::ReorderByNodes()
    {
       data[i] = temp[i];
    }
-
-   delete [] temp;
 }
 
 void GridFunction::GetVectorFieldNodalValues(Vector &val, int comp) const
