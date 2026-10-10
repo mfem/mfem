@@ -263,14 +263,29 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
          }
       }
       int nrows_c = nonzerorows.Size();
-      SparseMatrix Pct(nrows_c,vfes->GlobalTrueVSize());
+      SparseMatrix Pct;
+      Pct.OverrideSize(nrows_c, vfes->GetTrueVSize());
+      Pct.GetMemoryI().New(nrows_c + 1, Device::GetDeviceMemoryType());
+      Pct.GetMemoryJ().New(nrows_c, Device::GetDeviceMemoryType());
+      Pct.GetMemoryData().New(nrows_c, Device::GetDeviceMemoryType());
 
-      for (int i = 0; i<nrows_c; i++)
       {
-         int col = nonzerorows[i]+vfes->GetMyTDofOffset();
-         Pct.Set(i,col,1.0);
+         const bool use_dev = Device::IsEnabled();
+         nonzerorows.UseDevice(use_dev);
+         int *I = Pct.WriteI();
+         int *J = Pct.WriteJ();
+         real_t *A = Pct.WriteData();
+         const int *rows = nonzerorows.Read(use_dev);
+         mfem::forall(nrows_c + 1, [=] MFEM_HOST_DEVICE (int i)
+         {
+            I[i] = i;
+         });
+         mfem::forall(nrows_c, [=] MFEM_HOST_DEVICE (int i)
+         {
+            J[i] = rows[i];
+            A[i] = 1.0;
+         });
       }
-      Pct.Finalize();
 
       HYPRE_BigInt rows_c[2];
 
@@ -289,24 +304,13 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
                     MPITypeMap<HYPRE_BigInt>::mpi_type,
                     MPI_SUM,comm);
 
-      HYPRE_BigInt * J;
-#ifndef HYPRE_BIGINT
-      J = Pct.GetJ();
-#else
-      J = new HYPRE_BigInt[Pct.NumNonZeroElems()];
-      for (int i = 0; i < Pct.NumNonZeroElems(); i++)
-      {
-         J[i] = Pct.GetJ()[i];
-      }
-#endif
-      HypreParMatrix * P_ct = new HypreParMatrix(comm, nrows_c, glob_nrows_c,
-                                                 glob_ncols_c, Pct.GetI(), J,
-                                                 Pct.GetData(), rows_c,vfes->GetTrueDofOffsets());
+      HypreParMatrix *P_ct = new HypreParMatrix(comm, glob_nrows_c,
+                                                glob_ncols_c, rows_c,
+                                                vfes->GetTrueDofOffsets(),
+                                                &Pct);
+      HypreStealOwnership(*P_ct, Pct);
       Pc = P_ct->Transpose();
       delete P_ct;
-#ifdef HYPRE_BIGINT
-      delete [] J;
-#endif
    }
    return Pc;
 }
