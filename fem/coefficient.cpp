@@ -147,12 +147,11 @@ void PWCoefficient::SetTime(real_t t)
 {
    Coefficient::SetTime(t);
 
-   std::map<int, Coefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }
@@ -376,12 +375,11 @@ void PWVectorCoefficient::SetTime(real_t t)
 {
    VectorCoefficient::SetTime(t);
 
-   std::map<int, VectorCoefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }
@@ -756,12 +754,11 @@ void PWMatrixCoefficient::SetTime(real_t t)
 {
    MatrixCoefficient::SetTime(t);
 
-   std::map<int, MatrixCoefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }

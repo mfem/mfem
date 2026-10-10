@@ -2221,21 +2221,18 @@ void GetCoarseToFineMap(const CoarseFineTransformations &cft,
 
    ref_type_to_matrix.MakeI((int)ref_type_map.size());
    ref_type_to_geom.SetSize((int)ref_type_map.size());
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
+   for (const auto &[rt, index] : ref_type_map)
    {
-      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
-      ref_type_to_geom[it->second] = it->first.geom;
+      ref_type_to_matrix.AddColumnsInRow(index, rt.num_children);
+      ref_type_to_geom[index] = rt.geom;
    }
 
    ref_type_to_matrix.MakeJ();
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
+   for (const auto &[rt, index] : ref_type_map)
    {
-      const RefType &rt = it->first;
       for (int j = 0; j < rt.num_children; j++)
       {
-         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+         ref_type_to_matrix.AddConnection(index, rt.children[j].one);
       }
    }
    ref_type_to_matrix.ShiftUpI();

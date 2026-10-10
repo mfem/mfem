@@ -787,9 +787,9 @@ struct VarMessage
    template<typename MapT>
    static void IsendAll(MapT& rank_msg, MPI_Comm comm)
    {
-      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      for (auto &[rank, msg] : rank_msg)
       {
-         it->second.Isend(it->first, comm);
+         msg.Isend(rank, comm);
       }
    }
 
@@ -797,10 +797,10 @@ struct VarMessage
    template<typename MapT>
    static void WaitAllSent(MapT& rank_msg)
    {
-      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      for (auto &[rank, msg] : rank_msg)
       {
-         MPI_Wait(&it->second.send_request, MPI_STATUS_IGNORE);
-         it->second.Clear();
+         MPI_Wait(&msg.send_request, MPI_STATUS_IGNORE);
+         msg.Clear();
       }
    }
 
@@ -809,9 +809,8 @@ struct VarMessage
    template<typename MapT>
    static bool TestAllSent(MapT& rank_msg)
    {
-      for (auto it = rank_msg.begin(); it != rank_msg.end(); ++it)
+      for (auto &[rank, msg] : rank_msg)
       {
-         VarMessage &msg = it->second;
          if (msg.send_request != MPI_REQUEST_NULL)
          {
             int sent;
