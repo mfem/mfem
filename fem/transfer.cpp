@@ -167,13 +167,15 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
    }
    else if (oper_type == Operator::MFEM_SPARSEMAT)
    {
-      Mesh::GeometryList elem_geoms(*ran_fes.GetMesh());
-
-      DenseTensor localP[Geometry::NumGeom];
-      for (int i = 0; i < elem_geoms.Size(); i++)
+      DenseMatrixStack localP[Geometry::NumGeom];
+      const CoarseFineTransformations &rtrans =
+         ran_fes.GetMesh()->GetRefinementTransforms();
+      Array<Geometry::Type> parent_geometries;
+      rtrans.GetParentGeometries(parent_geometries);
+      for (int i = 0; i < parent_geometries.Size(); i++)
       {
-         ran_fes.GetLocalRefinementMatrices(dom_fes, elem_geoms[i],
-                                            localP[elem_geoms[i]]);
+         const Geometry::Type geom = parent_geometries[i];
+         ran_fes.GetLocalRefinementMatrices(dom_fes, geom, localP[geom]);
       }
       F.Reset(ran_fes.RefinementMatrix_main(
                  dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(),
@@ -371,7 +373,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       Geometry::Type geom = mesh_ho.GetElementBaseGeometry(iho);
 
       emb_tr.SetIdentityTransformation(geom);
-      const DenseTensor &pmats = cf_tr.point_matrices[geom];
+      const DenseMatrixStack &pmats = cf_tr.point_matrices[geom];
 
       const FiniteElement &fe_ho = *fes_ho_ea.GetFE(iho);
       const FiniteElement &fe_lor = *fes_lor_ea.GetFE(lor_els[0]);
@@ -651,7 +653,7 @@ L2ProjectionGridTransfer::L2ProjectionL2Space::L2ProjectionL2Space
       ElementTransformation *tr_ho = fes_ho.GetElementTransformation(iho);
 
       emb_tr.SetIdentityTransformation(geom);
-      const DenseTensor &pmats = cf_tr.point_matrices[geom];
+      const DenseMatrixStack &pmats = cf_tr.point_matrices[geom];
 
       DenseMatrix R_iho(&R[offsets[iho]], ndof_lor*nref, ndof_ho);
 
@@ -1757,7 +1759,7 @@ std::unique_ptr<SparseMatrix>>
       ElementTransformation *tr_ho = fes_ho.GetElementTransformation(iho);
 
       emb_tr.SetIdentityTransformation(geom);
-      const DenseTensor& pmats = cf_tr.point_matrices[geom];
+      const DenseMatrixStack& pmats = cf_tr.point_matrices[geom];
 
       int nedof_ho = fe_ho.GetDof();
       int nedof_lor = fe_lor.GetDof();

@@ -1320,6 +1320,462 @@ public:
    }
 };
 
+/** @brief A contiguous stack of dense matrices with layer-specific dimensions.
+
+    Layer @a k has SizeI(k) rows and SizeJ(k) columns. Its entries are stored
+    in column-major order, and all layers occupy one contiguous data buffer.
+    The dimension arrays supplied to constructors and sizing methods are copied.
+    For an API accepting @a ik, @a jk, and @a k, both dimension arrays must
+    have exactly @a k entries.
+
+    Matrix views and raw data pointers obtained from this object do not own the
+    stack data. They remain valid only until this stack is resized, assigned,
+    reset to different external data, cleared, or destroyed. */
+class DenseMatrixStack
+{
+private:
+   mutable DenseMatrix Mk;
+   Memory<real_t> tdata;
+   int tsize;
+   Array<int> off, ni, nj;
+   int nk;
+
+   void InitOffset();
+
+public:
+   /// Construct an empty stack with no owned or referenced data.
+   DenseMatrixStack()
+      : Mk(NULL, 0, 0)
+   {
+      tsize = 0;
+      nk = 0;
+   }
+
+   /** @brief Construct an owning stack with @a k layers.
+
+       Layer @a l has @a ik[l] rows and @a jk[l] columns. The dimensions are
+       copied and storage for all entries is allocated by the stack. */
+   DenseMatrixStack(const Array<int>& ik, const Array<int>& jk, int k)
+      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize);
+   }
+
+   /** @brief Construct a non-owning stack that views external host data.
+
+       The caller retains ownership of @a d and must keep a buffer containing
+       TotalSize() entries alive until the stack is resized, reset, cleared, or
+       destroyed. The data are interpreted as contiguous column-major layers
+       with dimensions @a ik[l] by @a jk[l]. */
+   DenseMatrixStack(real_t *d, const Array<int>& ik, const Array<int>& jk,
+                    int k)
+      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.Wrap(d, tsize, false);
+   }
+
+   /** @brief Construct an owning stack with storage of memory type @a mt.
+
+       Layer @a l has @a ik[l] rows and @a jk[l] columns. */
+   DenseMatrixStack(const Array<int>& ik, const Array<int>& jk, int k,
+                    MemoryType mt)
+      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   /** @brief Construct an independent deep copy of @a other.
+
+       The new stack owns its data, including when @a other is a non-owning
+       view of external data. */
+   DenseMatrixStack(const DenseMatrixStack &other)
+      : Mk(NULL, 0, 0), off(other.off), ni(other.ni), nj(other.nj), nk(other.nk)
+   {
+      tsize = other.tsize;
+      if (tsize > 0)
+      {
+         tdata.New(tsize, other.tdata.GetMemoryType());
+         tdata.CopyFrom(other.tdata, tsize);
+      }
+   }
+
+   /// Return the number of rows in layer @a k.
+   int SizeI(int k) const { return ni[k]; }
+   /// Return the number of columns in layer @a k.
+   int SizeJ(int k) const { return nj[k]; }
+   /// Return the number of matrix layers.
+   int SizeK() const { return nk; }
+
+   /// Return the total number of entries in all layers.
+   int TotalSize() const { return tsize; }
+
+   /** @brief Resize to @a k owning matrices of size @a i by @a j.
+
+       Existing owned storage is released and any existing data views or
+       pointers are invalidated. When @a mt_ is MemoryType::PRESERVE, the
+       current memory type is retained. */
+   void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, i, j);
+      ni.SetSize(k);
+      nj.SetSize(k);
+      if (k > 0) { ni = i; }
+      if (k > 0) { nj = j; }
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   /** @brief Resize to @a k owning matrices with @a i rows each.
+
+       Layer @a l has @a jk[l] columns. Existing data views and pointers are
+       invalidated; see the uniform-size overload for memory-type behavior. */
+   void SetSize(int i, const Array<int>& jk, int k,
+                MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni.SetSize(k);
+      if (k > 0) { ni = i; }
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   /** @brief Resize to @a k owning matrices with @a j columns each.
+
+       Layer @a l has @a ik[l] rows. Existing data views and pointers are
+       invalidated; see the uniform-size overload for memory-type behavior. */
+   void SetSize(const Array<int>& ik, int j, int k,
+                MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj.SetSize(k);
+      if (k > 0) { nj = j; }
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   /** @brief Resize to @a k owning matrices with per-layer dimensions.
+
+       Layer @a l has @a ik[l] rows and @a jk[l] columns. Existing data views
+       and pointers are invalidated; see the uniform-size overload for
+       memory-type behavior. */
+   void SetSize(const Array<int>& ik, const Array<int>& jk, int k,
+                MemoryType mt_ = MemoryType::PRESERVE)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      const MemoryType mt = mt_ == MemoryType::PRESERVE ?
+                            tdata.GetMemoryType() : mt_;
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.New(tsize, mt);
+   }
+
+   /** @brief Reset to a non-owning view of @a k external matrices.
+
+       Each matrix has @a i rows and @a j columns. The caller retains ownership
+       of @a ext_data and must keep its buffer of at least `i*j*k` entries alive
+       until this stack is resized, reset, cleared, or destroyed. Existing owned
+       storage is released and existing data views and pointers are invalidated. */
+   void UseExternalData(real_t *ext_data, int i, int j, int k)
+   {
+      tdata.Delete();
+      Mk.UseExternalData(NULL, i, j);
+      ni.SetSize(k);
+      nj.SetSize(k);
+      ni = i;
+      nj = j;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.Wrap(ext_data, tsize, false);
+   }
+
+   /** @brief Reset to a non-owning view of external, variably sized matrices.
+
+       Layer @a l has @a ik[l] rows and @a jk[l] columns. The caller retains
+       ownership of @a ext_data and must keep its TotalSize()-entry buffer alive
+       until this stack is resized, reset, cleared, or destroyed. Existing owned
+       storage is released and existing data views and pointers are invalidated. */
+   void UseExternalData(real_t *ext_data,
+                        const Array<int>& ik, const Array<int>& jk, int k)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      tdata.Wrap(ext_data, tsize, false);
+   }
+
+   /** @brief Reset the stack to use the given Memory and layer dimensions.
+
+       Layer @a l has @a ik[l] rows and @a jk[l] columns; @a mem must contain
+       at least TotalSize() entries. Existing data views and pointers are
+       invalidated.
+
+       If @a own_mem is false, the stack is an alias and does not own any
+       pointer in @a mem. The caller must keep @a mem and its data valid until
+       the stack is resized, reset, cleared, or destroyed.
+
+       If @a own_mem is true, ownership of every pointer owned by @a mem is
+       transferred to this stack. The caller must not call `mem.Delete()` after
+       the transfer. The @a mem object itself may be destroyed because
+       Memory does not delete its allocation in its destructor. */
+   void NewMemoryAndSize(const Memory<real_t> &mem,
+                         const Array<int>& ik, const Array<int>& jk, int k,
+                         bool own_mem)
+   {
+      MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
+      MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
+      tdata.Delete();
+      Mk.UseExternalData(NULL, 0, 0);
+      ni = ik;
+      nj = jk;
+      nk = k;
+      InitOffset();
+      tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
+      if (own_mem)
+      {
+         tdata = mem;
+      }
+      else
+      {
+         tdata.MakeAlias(mem, 0, tsize);
+      }
+   }
+
+   /// Set every entry in every layer to @a c.
+   DenseMatrixStack &operator=(real_t c);
+
+   /** @brief Replace this stack with an independent deep copy of @a other.
+
+       Existing owned storage is released and all existing data views and
+       pointers are invalidated. */
+   DenseMatrixStack &operator=(const DenseMatrixStack &other);
+
+   /** @brief Return a non-owning view of layer @a k.
+
+       The returned view is reused by the next call to this overload. It is
+       also invalidated if this stack is resized, assigned, reset, cleared, or
+       destroyed. Use the overload accepting @a buff to retain a separate view. */
+   DenseMatrix &operator()(int k)
+   {
+      return operator()(k, Mk);
+   }
+   const DenseMatrix &operator()(int k) const
+   {
+      return operator()(k, Mk);
+   }
+   /** @brief Set @a buff to a non-owning view of layer @a k and return it.
+
+       Any data previously owned by @a buff are released. The view remains
+       valid only while this stack retains its current backing storage. */
+   DenseMatrix &operator()(int k, DenseMatrix& buff)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      buff.UseExternalData(GetData(k), SizeI(k), SizeJ(k));
+      return buff;
+   }
+   /// Const overload of operator()(int, DenseMatrix&).
+   const DenseMatrix &operator()(int k, DenseMatrix& buff) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      buff.UseExternalData(const_cast<real_t*>(GetData(k)), SizeI(k), SizeJ(k));
+      return buff;
+   }
+
+   /// Return entry (@a i, @a j) of layer @a k.
+   real_t &operator()(int i, int j, int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ(k));
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI(k));
+      return tdata[off[k] + i + SizeI(k) * j];
+   }
+
+   /// Const overload of operator()(int, int, int).
+   const real_t &operator()(int i, int j, int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      MFEM_ASSERT_INDEX_IN_RANGE(j, 0, SizeJ(k));
+      MFEM_ASSERT_INDEX_IN_RANGE(i, 0, SizeI(k));
+      return tdata[off[k] + i + SizeI(k) * j];
+   }
+
+   /** @brief Return a pointer to the first entry of layer @a k.
+
+       The pointer does not transfer ownership and remains valid only while
+       this stack retains its current backing storage. */
+   real_t *GetData(int k)
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata + off[k];
+   }
+
+   /// Const overload of GetData(int).
+   const real_t *GetData(int k) const
+   {
+      MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
+      return tdata + off[k];
+   }
+
+   /** @brief Return a pointer to the contiguous data of all layers.
+
+       The pointer does not transfer ownership and remains valid only while
+       this stack retains its current backing storage. */
+   real_t *Data() { return tdata; }
+
+   /// Const overload of Data().
+   const real_t *Data() const { return tdata; }
+
+   /** @brief Return the backing Memory object.
+
+       Modifying its ownership or size can invalidate this stack; use the
+       stack sizing and reset methods when changing its storage. */
+   Memory<real_t> &GetMemory() { return tdata; }
+   /// Const overload of GetMemory().
+   const Memory<real_t> &GetMemory() const { return tdata; }
+
+   /** @brief Accumulate the action of square element matrices in a global
+       vector.
+
+       For each layer @a k, this method adds `A_k x_k` to `y_k`, where @a A_k
+       is the matrix stored in layer @a k and @a x_k and @a y_k are gathered
+       from @a x and @a y using row @a k of @a elem_dof. Every matrix must be
+       square and its dimensions must equal `elem_dof.RowSize(k)`.
+
+       This is intended for locally assembled element operators, such as mass
+       or stiffness matrices in scalar finite element spaces. It assumes that
+       the table entries are direct vector indices; callers that require DOF
+       transformations must apply them separately.
+
+       See the rectangular overload for transfer operators with distinct
+       source and destination DOF tables. */
+   void AddMult(const Table &elem_dof, const Vector &x, Vector &y) const;
+
+   /** @brief Accumulate the action of rectangular local matrices in a global
+       vector.
+
+       For each layer @a k, this method adds `A_k x_k` to `y_k`. The entries
+       of @a x_k are gathered from row @a k of @a domain_dof, while the result
+       is scattered into row @a k of @a range_dof. The dimensions of @a A_k
+       must be `range_dof.RowSize(k)` by `domain_dof.RowSize(k)`.
+
+       This supports, for example, local coarse-to-fine transfer matrices. The
+       two tables must have one row for every stack layer; for a child matrix,
+       the corresponding row of @a domain_dof identifies its parent DOFs.
+       As above, table entries are assumed to be direct vector indices. */
+   void AddMult(const Table &domain_dof, const Vector &x,
+                const Table &range_dof, Vector &y) const;
+
+   /** @brief Release owned storage and reset the stack to an empty state.
+
+       External data are not deleted. All matrix views and raw pointers
+       obtained from this stack are invalidated. */
+   void Clear()
+   {
+      tdata.Delete();
+      tsize = 0;
+      Mk.UseExternalData(NULL, 0, 0);
+      off.DeleteAll();
+      ni.DeleteAll();
+      nj.DeleteAll();
+      nk = 0;
+   }
+
+   /// Return the capacity of the data and dimension arrays, in bytes.
+   std::size_t MemoryUsage() const
+   {
+      return tdata.Capacity() * sizeof(real_t)
+             + off.MemoryUsage() + ni.MemoryUsage() + nj.MemoryUsage();
+   }
+
+   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
+   const real_t *Read(bool on_dev = true) const
+   { return mfem::Read(tdata, tsize, on_dev); }
+
+   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
+   const real_t *HostRead() const
+   { return mfem::Read(tdata, tsize, false); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
+   real_t *Write(bool on_dev = true)
+   { return mfem::Write(tdata, tsize, on_dev); }
+
+   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
+   real_t *HostWrite()
+   { return mfem::Write(tdata, tsize, false); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
+   real_t *ReadWrite(bool on_dev = true)
+   { return mfem::ReadWrite(tdata, tsize, on_dev); }
+
+   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
+   real_t *HostReadWrite()
+   { return mfem::ReadWrite(tdata, tsize, false); }
+
+   /** @brief Exchange the data, dimensions, and reusable matrix views with @a t.
+
+       Data pointers and matrix views previously obtained from either stack
+       refer to the same allocation after the exchange, which is then owned or
+       referenced by the other stack. */
+   void Swap(DenseMatrixStack &t)
+   {
+      mfem::Swap(tdata, t.tdata);
+      mfem::Swap(tsize, t.tsize);
+      mfem::Swap(off, t.off);
+      mfem::Swap(ni, t.ni);
+      mfem::Swap(nj, t.nj);
+      mfem::Swap(nk, t.nk);
+      Mk.Swap(t.Mk);
+   }
+
+   ~DenseMatrixStack() { tdata.Delete(); }
+};
+
 /** @brief Compute the LU factorization of a batch of matrices. Calls
     BatchedLinAlg::LUFactor.
 

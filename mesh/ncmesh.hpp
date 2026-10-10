@@ -73,7 +73,7 @@ struct Embedding
    /** The (geom, matrix) pair determines the sub-element transformation for the
        fine element: CoarseFineTransformations::point_matrices[geom](matrix) is
        the point matrix of the region within the coarse element reference
-       domain.*/
+       domain. @a geom is the geometry of the coarse parent. */
    unsigned geom : 4;
    unsigned matrix : 27;
 
@@ -92,8 +92,14 @@ struct CoarseFineTransformations
    Array<Embedding> embeddings;
 
    /** A "dictionary" of matrices for IsoparametricTransformation. Use
-       Embedding::{geom,matrix} to access a fine element point matrix. */
-   DenseTensor point_matrices[Geometry::NumGeom];
+       Embedding::{geom,matrix} to access a fine element point matrix. Matrix
+       widths may differ when one parent produces multiple child geometries. */
+   DenseMatrixStack point_matrices[Geometry::NumGeom];
+
+   /** Return the distinct coarse-parent geometries referenced by embeddings.
+       If @a want_ghosts is false, parallel ghost fine elements are ignored. */
+   void GetParentGeometries(Array<Geometry::Type> &parent_geometries,
+                            bool want_ghosts = false) const;
 
    /** Invert the 'embeddings' array: create a Table with coarse elements as
        rows and fine elements as columns. If 'want_ghosts' is false, parallel

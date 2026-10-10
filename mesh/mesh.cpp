@@ -5708,10 +5708,8 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
             ip.Get(Pj.GetColumn(k), Dim);
          }
 
-         Embedding &emb = CoarseFineTr.embeddings[el_fine];
-         emb.geom = geom;
-         emb.parent = el_coarse;
-         emb.matrix = offset + j;
+         CoarseFineTr.embeddings[el_fine] =
+            Embedding(el_coarse, geom, offset + j);
          ++el_fine;
       }
    }
@@ -10342,9 +10340,8 @@ void Mesh::UniformRefinement2D_base(bool update_nodes)
 
    for (int i = 0; i < elements.Size(); i++)
    {
-      Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = i / 4;
-      emb.matrix = i % 4;
+      CoarseFineTr.embeddings[i] =
+         Embedding(i / 4, elements[i]->GetGeometryType(), i % 4);
    }
 
    NumOfVertices    = vertices.Size();
@@ -10427,15 +10424,21 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
       }
    }
 
-   int pyr_counter = 0;
-   if (HasGeometry(Geometry::PYRAMID))
+   int refined_ne = 0;
+   for (int i = 0; i < NumOfElements; i++)
    {
-      for (int i = 0; i < elements.Size(); i++)
+      switch (elements[i]->GetType())
       {
-         if (elements[i]->GetType() == Element::PYRAMID)
-         {
-            pyr_counter++;
-         }
+         case Element::TETRAHEDRON:
+         case Element::WEDGE:
+         case Element::HEXAHEDRON:
+            refined_ne += 8;
+            break;
+         case Element::PYRAMID:
+            refined_ne += 10;
+            break;
+         default:
+            MFEM_ABORT("Unknown 3D element type");
       }
    }
 
@@ -10498,7 +10501,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    Array<Element*> new_boundary;
 
    vertices.SetSize(oelem + hex_counter);
-   new_elements.SetSize(8 * NumOfElements + 2 * pyr_counter);
+   new_elements.SetSize(refined_ne);
    CoarseFineTr.embeddings.SetSize(new_elements.Size());
 
    hex_counter = 0;
@@ -10691,13 +10694,13 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 #endif
             for (int k = 0; k < 4; k++)
             {
-               CoarseFineTr.embeddings[j+k].parent = i;
-               CoarseFineTr.embeddings[j+k].matrix = k;
+               CoarseFineTr.embeddings[j+k] =
+                  Embedding(i, Geometry::TETRAHEDRON, k);
             }
             for (int k = 0; k < 4; k++)
             {
-               CoarseFineTr.embeddings[j+4+k].parent = i;
-               CoarseFineTr.embeddings[j+4+k].matrix = 4*(rt+1)+k;
+               CoarseFineTr.embeddings[j+4+k] =
+                  Embedding(i, Geometry::TETRAHEDRON, 4*(rt+1)+k);
             }
 
             j += 8;
@@ -10706,6 +10709,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
          case Element::WEDGE:
          {
+            const int child_begin = j;
             const int *f = el_to_face->GetRow(i);
 
             for (int fi = 2; fi < 5; fi++)
@@ -10761,13 +10765,19 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             new_elements[j++] =
                new Wedge(oface+qf4, oface+qf3, oedge+e[8],
                          oedge+e[5], oedge+e[4], v[5], attr);
+
+            for (int k = child_begin; k < j; k++)
+            {
+               CoarseFineTr.embeddings[k] =
+                  Embedding(i, Geometry::PRISM, k-child_begin);
+            }
          }
          break;
 
          case Element::PYRAMID:
          {
+            const int child_begin = j;
             const int *f = el_to_face->GetRow(i);
-            // pyr_counter++;
 
             for (int fi = 0; fi < 1; fi++)
             {
@@ -10851,11 +10861,18 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             // the relevant flags are switched on
             mesh_geoms |= (1 << Geometry::TETRAHEDRON);
             meshgen |= 1;
+
+            for (int k = child_begin; k < j; k++)
+            {
+               CoarseFineTr.embeddings[k] =
+                  Embedding(i, Geometry::PYRAMID, k-child_begin);
+            }
          }
          break;
 
          case Element::HEXAHEDRON:
          {
+            const int child_begin = j;
             const int *f = el_to_face->GetRow(i);
             const int he = hex_counter;
             hex_counter++;
@@ -10924,6 +10941,12 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                new Hexahedron(oface+qf[4], oelem+he, oface+qf[3],
                               oedge+e[11], oedge+e[7], oface+qf[5],
                               oedge+e[6], v[7], attr);
+
+            for (int k = child_begin; k < j; k++)
+            {
+               CoarseFineTr.embeddings[k] =
+                  Embedding(i, Geometry::CUBE, k-child_begin);
+            }
          }
          break;
 
@@ -10985,7 +11008,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    }
    mfem::Swap(boundary, new_boundary);
 
-   static const real_t A = 0.0, B = 0.5, C = 1.0, D = -1.0;
+   static const real_t A = 0.0, B = 0.5, C = 1.0;
    static real_t tet_children[3*4*16] =
    {
       A,A,A, B,A,A, A,B,A, A,A,B,
@@ -11011,7 +11034,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
       A,A,B, A,B,B, B,A,B, B,B,A,
       A,A,B, B,A,B, B,A,A, B,B,A
    };
-   static real_t pyr_children[3*5*10] =
+   static real_t pyr_children[3*(5*6 + 4*4)] =
    {
       A,A,A, B,A,A, B,B,A, A,B,A, A,A,B,
       B,A,A, C,A,A, C,B,A, B,B,A, B,A,B,
@@ -11019,10 +11042,10 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
       A,B,A, B,B,A, B,C,A, A,C,A, A,B,B,
       A,A,B, B,A,B, B,B,B, A,B,B, A,A,C,
       A,B,B, B,B,B, B,A,B, A,A,B, B,B,A,
-      B,A,A, A,A,B, B,A,B, B,B,A, D,D,D,
-      C,B,A, B,A,B, B,B,B, B,B,A, D,D,D,
-      B,C,A, B,B,B, A,B,B, B,B,A, D,D,D,
-      A,B,A, A,B,B, A,A,B, B,B,A, D,D,D
+      B,A,A, A,A,B, B,A,B, B,B,A,
+      C,B,A, B,A,B, B,B,B, B,B,A,
+      B,C,A, B,B,B, A,B,B, B,B,A,
+      A,B,A, A,B,B, A,A,B, B,B,A
    };
    static real_t pri_children[3*6*8] =
    {
@@ -11049,25 +11072,18 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
 
    CoarseFineTr.point_matrices[Geometry::TETRAHEDRON]
    .UseExternalData(tet_children, 3, 4, 16);
+   Array<int> pyr_rows(10), pyr_cols(10);
+   pyr_rows = 3;
+   for (int i = 0; i < 10; i++) { pyr_cols[i] = (i < 6) ? 5 : 4; }
    CoarseFineTr.point_matrices[Geometry::PYRAMID]
-   .UseExternalData(pyr_children, 3, 5, 10);
+   .UseExternalData(pyr_children, pyr_rows, pyr_cols, 10);
    CoarseFineTr.point_matrices[Geometry::PRISM]
    .UseExternalData(pri_children, 3, 6, 8);
    CoarseFineTr.point_matrices[Geometry::CUBE]
    .UseExternalData(hex_children, 3, 8, 8);
 
-   for (int i = 0; i < elements.Size(); i++)
-   {
-      // tetrahedron elements are handled above:
-      if (elements[i]->GetType() == Element::TETRAHEDRON) { continue; }
-
-      Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = i / 8;
-      emb.matrix = i % 8;
-   }
-
    NumOfVertices    = vertices.Size();
-   NumOfElements    = 8 * NumOfElements + 2 * pyr_counter;
+   NumOfElements    = elements.Size();
    NumOfBdrElements = 4 * NumOfBdrElements;
 
    GetElementToFaceTable();
@@ -12269,7 +12285,7 @@ const CoarseFineTransformations &Mesh::GetRefinementTransforms() const
             CoarseFineTr.embeddings[j].matrix = index;
          }
 
-         DenseTensor &pmats = CoarseFineTr.point_matrices[geom];
+         DenseMatrixStack &pmats = CoarseFineTr.point_matrices[geom];
          pmats.SetSize(Dim, Dim+1, static_cast<int>((mat_no.size())));
 
          // calculate the point matrices used

@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <memory>
+
 using namespace mfem;
 
 TEST_CASE("H1 Segment Finite Element",
@@ -261,6 +263,29 @@ TEST_CASE("H1 Pyramid Finite Element",
       }
    }
 }
+
+TEST_CASE("H1 collection name preserves pyramid type",
+          "[FiniteElementCollection][Pyramid]")
+{
+   const int pyr_type = GENERATE(0, 1);
+   CAPTURE(pyr_type);
+
+   H1_FECollection fec(2, 3, BasisType::ClosedUniform, pyr_type);
+   std::unique_ptr<FiniteElementCollection> clone(
+      FiniteElementCollection::New(fec.Name()));
+   const std::string expected_name = pyr_type == 0 ?
+                                     "H1@U_3D_P2_Pyr0" : "H1@U_3D_P2";
+   const int expected_dofs = pyr_type == 0 ? 14 : 15;
+
+   REQUIRE(clone != nullptr);
+   REQUIRE(std::string(fec.Name()) == expected_name);
+   REQUIRE(std::string(clone->Name()) == fec.Name());
+   REQUIRE(fec.FiniteElementForGeometry(Geometry::PYRAMID)->GetDof() ==
+           expected_dofs);
+   REQUIRE(clone->FiniteElementForGeometry(Geometry::PYRAMID)->GetDof() ==
+           expected_dofs);
+}
+
 
 TEST_CASE("Nedelec Segment Finite Element",
           "[ND_SegmentElement]"
