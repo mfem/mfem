@@ -152,6 +152,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_mass_ea_sum_factorized.cpp
   fem/test_pa_nlvc.cpp
   fem/test_pa_vecdiv.cpp
   fem/test_pa_simplices.cpp
