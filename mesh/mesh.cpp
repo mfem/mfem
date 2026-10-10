@@ -5708,10 +5708,8 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
             ip.Get(Pj.GetColumn(k), Dim);
          }
 
-         Embedding &emb = CoarseFineTr.embeddings[el_fine];
-         emb.geom = geom;
-         emb.parent = el_coarse;
-         emb.matrix = offset + j;
+         CoarseFineTr.embeddings[el_fine] =
+            Embedding(el_coarse, geom, offset + j);
          ++el_fine;
       }
    }
@@ -10342,10 +10340,8 @@ void Mesh::UniformRefinement2D_base(bool update_nodes)
 
    for (int i = 0; i < elements.Size(); i++)
    {
-      Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = i / 4;
-      emb.matrix = i % 4;
-      emb.geom = elements[i]->GetGeometryType();
+      CoarseFineTr.embeddings[i] =
+         Embedding(i / 4, elements[i]->GetGeometryType(), i % 4);
    }
 
    NumOfVertices    = vertices.Size();

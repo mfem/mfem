@@ -739,6 +739,47 @@ TEST_CASE("Uniform pyramid refinement transfer", "[Transfer][Pyramid]")
    REQUIRE(coarse_x.Normlinf() == Approx(0.0).margin(1e-12));
 }
 
+TEST_CASE("Uniform refinement uses active parent geometries", "[Transfer]")
+{
+   QuadraticFECollection fec;
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  1, 1, 1, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction x(&fes);
+   x = 1.0;
+
+   mesh.UniformRefinement();
+   const CoarseFineTransformations &trans = mesh.GetRefinementTransforms();
+   Array<Geometry::Type> parent_geometries;
+   trans.GetParentGeometries(parent_geometries);
+   REQUIRE(parent_geometries.Size() == 1);
+   REQUIRE(parent_geometries[0] == Geometry::CUBE);
+   REQUIRE(trans.point_matrices[Geometry::PYRAMID].SizeK() > 0);
+
+   fes.Update();
+   x.Update();
+
+   Mesh coarse_mesh = Mesh::MakeCartesian3D(
+                         1, 1, 1, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   Mesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   FiniteElementSpace coarse_fes(&coarse_mesh, &fec);
+   FiniteElementSpace fine_fes(&fine_mesh, &fec);
+   InterpolationGridTransfer transfer(coarse_fes, fine_fes);
+   const Operator &forward = transfer.ForwardOperator();
+   const Operator &backward = transfer.BackwardOperator();
+   REQUIRE(forward.Height() == fine_fes.GetVSize());
+   REQUIRE(forward.Width() == coarse_fes.GetVSize());
+   REQUIRE(backward.Height() == coarse_fes.GetVSize());
+   REQUIRE(backward.Width() == fine_fes.GetVSize());
+
+   InterpolationGridTransfer assembled_transfer(coarse_fes, fine_fes);
+   assembled_transfer.SetOperatorType(Operator::MFEM_SPARSEMAT);
+   const Operator &assembled_forward = assembled_transfer.ForwardOperator();
+   REQUIRE(assembled_forward.Height() == fine_fes.GetVSize());
+   REQUIRE(assembled_forward.Width() == coarse_fes.GetVSize());
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")

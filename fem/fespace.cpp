@@ -1834,12 +1834,12 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
    {
       DenseMatrixStack localP[Geometry::NumGeom];
       const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-      for (int geom = 0; geom < Geometry::NumGeom; geom++)
+      Array<Geometry::Type> parent_geometries;
+      rtrans.GetParentGeometries(parent_geometries);
+      for (int i = 0; i < parent_geometries.Size(); i++)
       {
-         if (rtrans.point_matrices[geom].SizeK())
-         {
-            GetLocalRefinementMatrices(Geometry::Type(geom), localP[geom]);
-         }
+         const Geometry::Type geom = parent_geometries[i];
+         GetLocalRefinementMatrices(geom, localP[geom]);
       }
       return RefinementMatrix_main(old_ndofs, *old_elem_dof, old_elem_fos,
                                    localP);
@@ -1867,13 +1867,12 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
    {
       const CoarseFineTransformations &rtrans =
          fespace->GetMesh()->GetRefinementTransforms();
-      for (int geom = 0; geom < Geometry::NumGeom; geom++)
+      Array<Geometry::Type> parent_geometries;
+      rtrans.GetParentGeometries(parent_geometries);
+      for (int i = 0; i < parent_geometries.Size(); i++)
       {
-         if (rtrans.point_matrices[geom].SizeK())
-         {
-            fespace->GetLocalRefinementMatrices(Geometry::Type(geom),
-                                                localP[geom]);
-         }
+         const Geometry::Type geom = parent_geometries[i];
+         fespace->GetLocalRefinementMatrices(geom, localP[geom]);
       }
    }
 
@@ -1889,14 +1888,13 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
    {
       const CoarseFineTransformations &rtrans =
          fespace->GetMesh()->GetRefinementTransforms();
-      for (int geom = 0; geom < Geometry::NumGeom; geom++)
+      Array<Geometry::Type> parent_geometries;
+      rtrans.GetParentGeometries(parent_geometries);
+      for (int i = 0; i < parent_geometries.Size(); i++)
       {
-         if (rtrans.point_matrices[geom].SizeK())
-         {
-            fespace->GetLocalRefinementMatrices(*coarse_fes,
-                                                Geometry::Type(geom),
-                                                localP[geom]);
-         }
+         const Geometry::Type geom = parent_geometries[i];
+         fespace->GetLocalRefinementMatrices(*coarse_fes, geom,
+                                             localP[geom]);
       }
    }
 
@@ -2272,10 +2270,12 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    const CoarseFineTransformations &rtrans = f_mesh->GetRefinementTransforms();
 
    DenseMatrixStack localP[Geometry::NumGeom], localM[Geometry::NumGeom];
-   for (int geom = 0; geom < Geometry::NumGeom; geom++)
+   Array<Geometry::Type> parent_geometries;
+   rtrans.GetParentGeometries(parent_geometries);
+   for (int g = 0; g < parent_geometries.Size(); g++)
    {
+      const Geometry::Type geom = parent_geometries[g];
       const DenseMatrixStack &pmats = rtrans.point_matrices[geom];
-      if (!pmats.SizeK()) { continue; }
 
       DenseMatrixStack &lP = localP[geom], &lM = localM[geom];
       const FiniteElement *coarse_fe =

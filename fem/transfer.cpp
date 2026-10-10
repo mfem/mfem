@@ -170,13 +170,12 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
       DenseMatrixStack localP[Geometry::NumGeom];
       const CoarseFineTransformations &rtrans =
          ran_fes.GetMesh()->GetRefinementTransforms();
-      for (int geom = 0; geom < Geometry::NumGeom; geom++)
+      Array<Geometry::Type> parent_geometries;
+      rtrans.GetParentGeometries(parent_geometries);
+      for (int i = 0; i < parent_geometries.Size(); i++)
       {
-         if (rtrans.point_matrices[geom].SizeK())
-         {
-            ran_fes.GetLocalRefinementMatrices(dom_fes, Geometry::Type(geom),
-                                               localP[geom]);
-         }
+         const Geometry::Type geom = parent_geometries[i];
+         ran_fes.GetLocalRefinementMatrices(dom_fes, geom, localP[geom]);
       }
       F.Reset(ran_fes.RefinementMatrix_main(
                  dom_fes.GetNDofs(), dom_fes.GetElementToDofTable(),

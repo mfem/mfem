@@ -96,6 +96,11 @@ struct CoarseFineTransformations
        widths may differ when one parent produces multiple child geometries. */
    DenseMatrixStack point_matrices[Geometry::NumGeom];
 
+   /** Return the distinct coarse-parent geometries referenced by embeddings.
+       If @a want_ghosts is false, parallel ghost fine elements are ignored. */
+   void GetParentGeometries(Array<Geometry::Type> &parent_geometries,
+                            bool want_ghosts = false) const;
+
    /** Invert the 'embeddings' array: create a Table with coarse elements as
        rows and fine elements as columns. If 'want_ghosts' is false, parallel
        ghost fine elements are not included in the table. */
