@@ -242,6 +242,8 @@ HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
       y.CreateCompatibleVector())
 {
    // Deep copy the local data
+   y.HypreRead();
+   HypreWrite();
    hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
                        hypre_ParVectorLocalVector(x));
 }
@@ -439,6 +441,7 @@ void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
 {
+   HypreWrite();
    return hypre_ParVectorSetRandomValues(x,seed);
 }
 
@@ -5519,6 +5522,8 @@ void HypreBoomerAMG::RecomputeRBMs()
    // Transfer the RBMs from the ParGridFunction to the HYPRE_ParVector objects
    for (int i = 0; i < nrbms; i++)
    {
+      // Prepare the current values in hypre's memory space before handoff.
+      gf_rbms[i]->HypreRead();
       rbms[i] = gf_rbms[i]->StealParVector();
       delete gf_rbms[i];
    }
