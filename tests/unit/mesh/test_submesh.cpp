@@ -913,3 +913,404 @@ TEST_CASE("ExteriorSurfaceNCSubMesh", "[SubMesh]")
    }
 }
 
+/**
+ * @brief Collect element ids from a mesh whose attribute equals @a attr.
+ */
+static Array<int> ElementsWithAttribute(const Mesh &mesh, int attr)
+{
+   Array<int> ids;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == attr) { ids.Append(i); }
+   }
+   return ids;
+}
+
+/**
+ * @brief Collect boundary element ids from a mesh whose attribute equals @a attr.
+ */
+static Array<int> BdrElementsWithAttribute(const Mesh &mesh, int attr)
+{
+   Array<int> ids;
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      if (mesh.GetBdrAttribute(i) == attr) { ids.Append(i); }
+   }
+   return ids;
+}
+
+/// Project the appropriate scalar or vector coefficient onto @a gf.
+static void ProjectSmoothCoeff(GridFunction &gf, int sdim)
+{
+   if (gf.VectorDim() == 1)
+   {
+      auto coeff = FunctionCoefficient([](const Vector &c)
+      {
+         return 1.0 + 0.3*sin(c(0)*M_PI) + 0.5*cos(c(1)*M_PI);
+      });
+      gf.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      auto vcoeff = VectorFunctionCoefficient(sdim,
+                                              [](const Vector &c, Vector &v)
+      {
+         v.SetSize(c.Size());
+         v(0) = 1.0 + 0.3*sin(c(0)*M_PI) + 0.5*cos(c(1)*M_PI);
+         v(1) = 0.7 + 0.4*cos(c(0)*M_PI) + 0.2*sin(c(1)*M_PI);
+         if (c.Size() > 2)
+         {
+            v(2) = 0.5 + 0.3*sin(c(2)*M_PI);
+         }
+      });
+      gf.ProjectCoefficient(vcoeff);
+   }
+}
+
+/**
+ * @brief Verify that SubMesh::CreateFromElements gives the same topology and
+ * field-transfer result as SubMesh::CreateFromDomain for the same set of
+ * elements (selected by attribute).
+ */
+static void CheckFromElementsMatchesDomain(Mesh &mesh, int attr,
+                                           FECType fec_type)
+{
+   Array<int> attrs{attr};
+   auto sm_attr = SubMesh::CreateFromDomain(mesh, attrs);
+   auto ids = ElementsWithAttribute(mesh, attr);
+   auto sm_ids  = SubMesh::CreateFromElements(mesh, ids);
+
+   // Same element count
+   REQUIRE(sm_ids.GetNE() == sm_attr.GetNE());
+   // Same vertex count
+   REQUIRE(sm_ids.GetNV() == sm_attr.GetNV());
+
+   int p = 2;
+   auto fec = std::unique_ptr<FiniteElementCollection>(
+                 create_fec(fec_type, p, mesh.Dimension()));
+   auto sub_fec = std::unique_ptr<FiniteElementCollection>(
+                     create_fec(fec_type, p, sm_attr.Dimension()));
+
+   FiniteElementSpace fes_parent(&mesh, fec.get());
+   GridFunction gf_parent(&fes_parent);
+   ProjectSmoothCoeff(gf_parent, mesh.SpaceDimension());
+
+   FiniteElementSpace sub_fes_attr(&sm_attr, sub_fec.get());
+   GridFunction gf_attr(&sub_fes_attr);
+   gf_attr = 0.0;
+   SubMesh::Transfer(gf_parent, gf_attr);
+
+   FiniteElementSpace sub_fes_ids(&sm_ids, sub_fec.get());
+   GridFunction gf_ids(&sub_fes_ids);
+   gf_ids = 0.0;
+   SubMesh::Transfer(gf_parent, gf_ids);
+
+   // Both submeshes should have the same L2 norm (up to round-off)
+   REQUIRE(gf_attr.Norml2() == Approx(gf_ids.Norml2()).epsilon(1e-10));
+}
+
+/**
+ * @brief Verify that SubMesh::CreateFromBdrElements gives the same topology
+ * and field-transfer result as SubMesh::CreateFromBoundary for elements
+ * selected by attribute.
+ */
+static void CheckFromBdrElementsMatchesBoundary(Mesh &mesh, int attr,
+                                                FECType fec_type)
+{
+   Array<int> attrs{attr};
+   auto sm_attr = SubMesh::CreateFromBoundary(mesh, attrs);
+   auto ids = BdrElementsWithAttribute(mesh, attr);
+   auto sm_ids  = SubMesh::CreateFromBdrElements(mesh, ids);
+
+   REQUIRE(sm_ids.GetNE() == sm_attr.GetNE());
+   REQUIRE(sm_ids.GetNV() == sm_attr.GetNV());
+
+   int p = 2;
+   auto fec = std::unique_ptr<FiniteElementCollection>(
+                 create_fec(fec_type, p, mesh.Dimension()));
+   auto sub_fec = std::unique_ptr<FiniteElementCollection>(
+                     create_fec(fec_type, p, sm_attr.Dimension()));
+
+   FiniteElementSpace fes_parent(&mesh, fec.get());
+   GridFunction gf_parent(&fes_parent);
+   ProjectSmoothCoeff(gf_parent, mesh.SpaceDimension());
+
+   FiniteElementSpace sub_fes_attr(&sm_attr, sub_fec.get());
+   GridFunction gf_attr(&sub_fes_attr);
+   gf_attr = 0.0;
+   SubMesh::Transfer(gf_parent, gf_attr);
+
+   FiniteElementSpace sub_fes_ids(&sm_ids, sub_fec.get());
+   GridFunction gf_ids(&sub_fes_ids);
+   gf_ids = 0.0;
+   SubMesh::Transfer(gf_parent, gf_ids);
+
+   REQUIRE(gf_attr.Norml2() == Approx(gf_ids.Norml2()).epsilon(1e-10));
+}
+
+TEST_CASE("SubMesh from elements matches domain", "[SubMesh]")
+{
+   // Build a 2-attribute 3D mesh (same as the DividingPlaneMesh helper)
+   auto mesh = DividingPlaneMesh(false, true);
+
+   SECTION("H1") { CheckFromElementsMatchesDomain(mesh, 1, FECType::H1); }
+   SECTION("L2") { CheckFromElementsMatchesDomain(mesh, 1, FECType::L2); }
+   SECTION("ND") { CheckFromElementsMatchesDomain(mesh, 2, FECType::ND); }
+   SECTION("RT") { CheckFromElementsMatchesDomain(mesh, 2, FECType::RT); }
+}
+
+TEST_CASE("SubMesh from bdr eleemnts matches boundary", "[SubMesh]")
+{
+   auto mesh = DividingPlaneMesh(false, true);
+   int max_battr = mesh.bdr_attributes.Max();
+   int battr = GENERATE_COPY(range(1, max_battr + 1));
+
+   SECTION("H1") { CheckFromBdrElementsMatchesBoundary(mesh, battr, FECType::H1); }
+   SECTION("L2") { CheckFromBdrElementsMatchesBoundary(mesh, battr, FECType::L2); }
+}
+
+/// Check that every vertex in @a sm sits at the same coordinates as its
+/// corresponding parent vertex.  Works for both domain and boundary submeshes.
+static void CheckVertexCoordinates(const SubMesh &sm, const Mesh &parent)
+{
+   const auto &vtx_map = sm.GetParentVertexIDMap();
+   const int sdim = parent.SpaceDimension();
+
+   bool ok = true;
+   for (int sv = 0; sv < sm.GetNV(); sv++)
+   {
+      const real_t *sub_coords    = sm.GetVertex(sv);
+      const real_t *parent_coords = parent.GetVertex(vtx_map[sv]);
+      for (int d = 0; d < sdim; d++)
+      {
+         if (sub_coords[d] != Approx(parent_coords[d]).epsilon(1e-14))
+         {
+            ok = false;
+            break;
+         }
+      }
+   }
+   REQUIRE(ok);
+}
+
+/**
+ * @brief Build a 4x4x4 hex mesh and extract two spatially separated
+ * horizontal slabs (z-centroid < 0.25 and z-centroid > 0.75) as a single
+ * element list — two disconnected regions.
+ */
+TEST_CASE("SubMesh from elements disconnected", "[SubMesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON,
+                                     1.0, 1.0, 1.0, false);
+
+   Array<int> bottom_ids, top_ids, combined_ids;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      Array<int> verts;
+      mesh.GetElementVertices(i, verts);
+      real_t z_avg = 0.0;
+      for (int v : verts)
+      {
+         z_avg += mesh.GetVertex(v)[2];
+      }
+      z_avg /= verts.Size();
+
+      if (z_avg < 0.25)
+      {
+         bottom_ids.Append(i);
+         combined_ids.Append(i);
+      }
+      else if (z_avg > 0.75)
+      {
+         top_ids.Append(i);
+         combined_ids.Append(i);
+      }
+   }
+
+   REQUIRE(bottom_ids.Size() > 0);
+   REQUIRE(top_ids.Size() > 0);
+
+   auto sm = SubMesh::CreateFromElements(mesh, combined_ids);
+
+   // Element count must match the requested list exactly
+   REQUIRE(sm.GetNE() == combined_ids.Size());
+
+   // Every parent element id in the map must come from the requested set
+   const auto &pids = sm.GetParentElementIDMap();
+   REQUIRE(pids.Size() == combined_ids.Size());
+   bool all_found = true;
+   for (int i = 0; i < pids.Size(); i++)
+   {
+      bool found = bottom_ids.Find(pids[i]) >= 0 || top_ids.Find(pids[i]) >= 0;
+      if (!found)
+      {
+         all_found = false;
+         break;
+      }
+   }
+   REQUIRE(all_found);
+
+   // Every submesh vertex must be geometrically coincident with its parent vertex
+   CheckVertexCoordinates(sm, mesh);
+
+   auto coeff = FunctionCoefficient([](const Vector &c)
+   {
+      return c(2) + 0.1*sin(c(0)*M_PI);
+   });
+
+   SECTION("H1 parent-to-sub transfer")
+   {
+      H1_FECollection fec(2, mesh.Dimension());
+      H1_FECollection sub_fec(2, sm.Dimension());
+      FiniteElementSpace fes(&mesh, &fec);
+      FiniteElementSpace sub_fes(&sm, &sub_fec);
+
+      GridFunction gf(&fes), sub_gf(&sub_fes), sub_ex(&sub_fes);
+      gf.ProjectCoefficient(coeff);
+      sub_ex.ProjectCoefficient(coeff);
+
+      sub_gf = 0.0;
+      SubMesh::Transfer(gf, sub_gf);
+
+      sub_gf -= sub_ex;
+      REQUIRE(sub_gf.Norml2() < 1e-10);
+   }
+
+   SECTION("H1 sub-to-parent transfer")
+   {
+      H1_FECollection fec(2, mesh.Dimension());
+      H1_FECollection sub_fec(2, sm.Dimension());
+      FiniteElementSpace fes(&mesh, &fec);
+      FiniteElementSpace sub_fes(&sm, &sub_fec);
+
+      // Initialize parent with the exact projection so that DOFs outside the
+      // submesh already hold the correct value.  Transfer overwrites only the
+      // submesh DOFs, so the full parent should still match the exact projection.
+      GridFunction gf(&fes), gf_ex(&fes), sub_gf(&sub_fes);
+      gf.ProjectCoefficient(coeff);
+      gf_ex = gf;
+      sub_gf.ProjectCoefficient(coeff);
+
+      SubMesh::Transfer(sub_gf, gf);
+
+      gf -= gf_ex;
+      REQUIRE(gf.Norml2() < 1e-10);
+   }
+}
+
+/**
+ * @brief Two disconnected patches of boundary elements (z=0 and z=1 faces)
+ * extracted via CreateFromBdrElements.
+ */
+TEST_CASE("SubMesh from bdr elements disconnected", "[SubMesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON,
+                                     1.0, 1.0, 1.0, false);
+
+   // Boundary elements on z=0 (bottom) and z=1 (top) — disconnected faces
+   Array<int> combined_bdr;
+   int n_bottom = 0, n_top = 0;
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      Array<int> verts;
+      mesh.GetBdrElementVertices(i, verts);
+      real_t z_avg = 0.0;
+      for (int v : verts) { z_avg += mesh.GetVertex(v)[2]; }
+      z_avg /= verts.Size();
+
+      if (z_avg < 1e-10)
+      {
+         combined_bdr.Append(i);
+         n_bottom++;
+      }
+      else if (z_avg > 1.0 - 1e-10)
+      {
+         combined_bdr.Append(i);
+         n_top++;
+      }
+   }
+
+   REQUIRE(n_bottom > 0);
+   REQUIRE(n_top > 0);
+
+   auto sm = SubMesh::CreateFromBdrElements(mesh, combined_bdr);
+
+   REQUIRE(sm.GetNE() == combined_bdr.Size());
+   REQUIRE(sm.Dimension() == mesh.Dimension() - 1);
+
+   // Parent element ID map must cover exactly the requested boundary elements
+   const auto &pids = sm.GetParentElementIDMap();
+   REQUIRE(pids.Size() == combined_bdr.Size());
+
+   // Every submesh vertex must be geometrically coincident with its parent vertex
+   CheckVertexCoordinates(sm, mesh);
+
+   auto coeff = FunctionCoefficient([](const Vector &c)
+   {
+      // Nontrivial on the z=0 and z=1 faces
+      return 1.0 + 0.5*c(0) + 0.3*c(1);
+   });
+
+   SECTION("H1 transfer to disconnected surface submesh")
+   {
+      H1_FECollection fec(2, mesh.Dimension());
+      H1_FECollection sub_fec(2, sm.Dimension());
+      FiniteElementSpace fes(&mesh, &fec);
+      FiniteElementSpace sub_fes(&sm, &sub_fec);
+
+      GridFunction gf(&fes), sub_gf(&sub_fes), sub_ex(&sub_fes);
+      gf.ProjectCoefficient(coeff);
+      sub_ex.ProjectCoefficient(coeff);
+
+      sub_gf = 0.0;
+      SubMesh::Transfer(gf, sub_gf);
+
+      sub_gf -= sub_ex;
+      REQUIRE(sub_gf.Norml2() < 1e-10);
+   }
+}
+
+TEST_CASE("SubMesh from elements, single element", "[SubMesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+                                     false, 1.0, 1.0, false);
+   int target = mesh.GetNE() / 2;
+   Array<int> ids{target};
+
+   auto sm = SubMesh::CreateFromElements(mesh, ids);
+
+   REQUIRE(sm.GetNE() == 1);
+   REQUIRE(sm.GetParentElementIDMap()[0] == target);
+
+   // Vertex count must match the parent element
+   Array<int> sub_verts, par_verts;
+   sm.GetElementVertices(0, sub_verts);
+   mesh.GetElementVertices(target, par_verts);
+   REQUIRE(sub_verts.Size() == par_verts.Size());
+
+   // Each submesh vertex must sit at the same coordinates as the parent vertex
+   // it was mapped from.
+   CheckVertexCoordinates(sm, mesh);
+}
+
+TEST_CASE("SubMesh from bdr elements, single element", "[SubMesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON,
+                                     1.0, 1.0, 1.0, false);
+   int target = 0;
+   Array<int> ids{target};
+
+   auto sm = SubMesh::CreateFromBdrElements(mesh, ids);
+
+   REQUIRE(sm.GetNE() == 1);
+   REQUIRE(sm.GetParentElementIDMap()[0] == target);
+   REQUIRE(sm.Dimension() == 2);
+
+   // Vertex count must match the parent boundary element
+   Array<int> sub_verts, par_verts;
+   sm.GetElementVertices(0, sub_verts);
+   mesh.GetBdrElementVertices(target, par_verts);
+   REQUIRE(sub_verts.Size() == par_verts.Size());
+
+   CheckVertexCoordinates(sm, mesh);
+}
