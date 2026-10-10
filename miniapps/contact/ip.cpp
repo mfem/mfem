@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "ip.hpp"
+#include "general/reducers.hpp"
 
 namespace mfem
 {
@@ -24,6 +25,12 @@ void EnableDevice(BlockVector &v)
    {
       v.GetBlock(i).UseDevice(true);
    }
+}
+
+Array<real_t> &IPReduceWorkspace()
+{
+   static Array<real_t> workspace;
+   return workspace;
 }
 
 }
@@ -177,12 +184,14 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    zlk = 0.0;
 
    xk.SyncFromBlocks();
-   const real_t *xk_h = xk.HostRead();
-   real_t *zlk_h = zlk.HostWrite();
-   for (int i = 0; i < dimM; i++)
+   const int dim_u = dimU;
+   const real_t mu = mu_k;
+   const real_t *xk_d = xk.Read();
+   real_t *zlk_d = zlk.Write();
+   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
    {
-      zlk_h[i] = 1.e1 * mu_k / xk_h[i+dimU];
-   }
+      zlk_d[i] = 1.e1 * mu / xk_d[i + dim_u];
+   });
 
    Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
    Xk.GetBlock(1).Set(1.0, xk.GetBlock(1));
@@ -384,15 +393,16 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Jm = problem->Dmc(x); JmT = Jm->Transpose();
 
    Vector DiagLogBar(dimM); DiagLogBar.UseDevice(true); DiagLogBar = 0.0;
-   const real_t *Mlump_h = Mlump.HostRead();
-   const real_t *zl_h = zl.HostRead();
-   const real_t *x_h = x.HostRead();
-   real_t *DiagLogBar_h = DiagLogBar.HostWrite();
-   for (int i = 0; i < dimM; i++)
+   const int dim_u = dimU;
+   const real_t *Mlump_d = Mlump.Read();
+   const real_t *zl_d = zl.Read();
+   const real_t *x_d = x.Read();
+   real_t *DiagLogBar_d = DiagLogBar.Write();
+   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
    {
-      DiagLogBar_h[i] = (Mlump_h[i] * zl_h[i]) / x_h[i + dimU]
-                        + delta * Mlump_h[i];
-   }
+      DiagLogBar_d[i] = (Mlump_d[i] * zl_d[i]) / x_d[i + dim_u]
+                        + delta * Mlump_d[i];
+   });
 
    delete Wmm;
    DiagLogBar.HostRead();
@@ -521,15 +531,16 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
 
    /* backsolve to determine zlhat */
    x.SyncFromBlocks();
-   const real_t *zl_h = zl.HostRead();
-   const real_t *Xhat_h = Xhat.HostRead();
-   const real_t *x_h = x.HostRead();
-   real_t *zlhat_h = zlhat.HostWrite();
-   for (int i = 0; i < dimM; i++)
+   const int dim_u = dimU;
+   const real_t *zl_d = zl.Read();
+   const real_t *Xhat_d = Xhat.Read();
+   const real_t *x_d = x.Read();
+   real_t *zlhat_d = zlhat.Write();
+   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
    {
-      zlhat_h[i] = zl_h[i]
-                   + (zl_h[i] * Xhat_h[i + dimU] - mu) / x_h[i + dimU];
-   }
+      zlhat_d[i] = zl_d[i]
+                   + (zl_d[i] * Xhat_d[i + dim_u] - mu) / x_d[i + dim_u];
+   });
    zlhat *= -1.;
 }
 
@@ -537,17 +548,18 @@ real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat,
                                 real_t tau)
 {
    real_t alphaMaxloc = 1.0;
-   real_t alphaTmp;
-   const real_t *x_h = x.HostRead();
-   const real_t *xhat_h = xhat.HostRead();
-   for (int i = 0; i < x.Size(); i++)
+   const bool use_dev = x.UseDevice() || xhat.UseDevice();
+   const real_t *x_d = x.Read(use_dev);
+   const real_t *xhat_d = xhat.Read(use_dev);
+   reduce(x.Size(), alphaMaxloc,
+          [=] MFEM_HOST_DEVICE (int i, real_t &alpha)
    {
-      if ( xhat_h[i] < 0. )
+      if (xhat_d[i] < 0.0)
       {
-         alphaTmp = -1. * tau * x_h[i] / xhat_h[i];
-         alphaMaxloc = std::min(alphaMaxloc, alphaTmp);
+         alpha = fmin(alpha, -tau * x_d[i] / xhat_d[i]);
       }
-   }
+   },
+   MinReducer<real_t> {}, use_dev, IPReduceWorkspace());
 
    real_t alphaMaxglb;
    MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
@@ -727,16 +739,16 @@ bool IPSolver::FilterCheck(real_t thetax, real_t phix)
 
 void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
 {
-   real_t zdual_i;
-   real_t zprimal_i;
-   const real_t *x_h = x.HostRead();
-   real_t *z_h = z.HostReadWrite();
-   for (int i = 0; i < dimM; i++)
+   const int dim_u = dimU;
+   const real_t k_sig = kSig;
+   const real_t *x_d = x.Read();
+   real_t *z_d = z.ReadWrite();
+   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
    {
-      zdual_i = z_h[i];
-      zprimal_i = mu / x_h[i + dimU];
-      z_h[i] = std::max(std::min(zdual_i, kSig * zprimal_i), zprimal_i / kSig);
-   }
+      const real_t zdual_i = z_d[i];
+      const real_t zprimal_i = mu / x_d[i + dim_u];
+      z_d[i] = fmax(fmin(zdual_i, k_sig * zprimal_i), zprimal_i / k_sig);
+   });
 }
 
 real_t IPSolver::GetTheta(const BlockVector &x)
@@ -757,12 +769,16 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
    x.SyncToBlocks();
    real_t fx = problem->CalcObjective(x, eval_err);
    real_t logBarrierLoc = 0.0;
-   const real_t *Mlump_h = Mlump.HostRead();
-   const real_t *x_h = x.HostRead();
-   for (int i = 0; i < dimM; i++)
+   const int dim_u = dimU;
+   const bool use_dev = x.UseDevice() || Mlump.UseDevice();
+   const real_t *Mlump_d = Mlump.Read(use_dev);
+   const real_t *x_d = x.Read(use_dev);
+   reduce(dimM, logBarrierLoc,
+          [=] MFEM_HOST_DEVICE (int i, real_t &sum)
    {
-      logBarrierLoc += Mlump_h[i] * log(x_h[dimU + i]);
-   }
+      sum += Mlump_d[i] * log(x_d[dim_u + i]);
+   },
+   SumReducer<real_t> {}, use_dev, IPReduceWorkspace());
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
@@ -881,13 +897,14 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    /* regularized complementarity
     * |z_i * m_i - mu| */
    Vector comp(dimM); comp.UseDevice(true); comp = 0.0;
-   const real_t *x_h = x.HostRead();
-   const real_t *zl_h = zl.HostRead();
-   real_t *comp_h = comp.HostWrite();
-   for (int i = 0; i < dimM; i++)
+   const int dim_u = dimU;
+   const real_t *x_d = x.Read();
+   const real_t *zl_d = zl.Read();
+   real_t *comp_d = comp.Write();
+   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
    {
-      comp_h[i] = abs(x_h[dimU + i] * zl_h[i] - mu);
-   }
+      comp_d[i] = fabs(x_d[dim_u + i] * zl_d[i] - mu);
+   });
 
    BlockVector MxinvgradL(block_offsetsx); EnableDevice(MxinvgradL);
    MxinvgradL = 0.0;
