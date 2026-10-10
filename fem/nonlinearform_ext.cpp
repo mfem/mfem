@@ -30,7 +30,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
 {
    if (!DeviceCanUseCeed())
    {
-      elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      elemR = fes.GetElementRestriction(GetEVectorOrdering(fes));
       // TODO: optimize for the case when 'elemR' is identity
       xe.SetSize(elemR->Height(), Device::GetMemoryType());
       ye.SetSize(elemR->Height(), Device::GetMemoryType());
@@ -88,7 +88,7 @@ Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 void PANonlinearFormExtension::Update()
 {
    height = width = fes.GetVSize();
-   elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   elemR = fes.GetElementRestriction(GetEVectorOrdering(fes));
    xe.SetSize(elemR->Height());
    ye.SetSize(elemR->Height());
    Grad.Update();
@@ -152,12 +152,12 @@ MFNonlinearFormExtension::MFNonlinearFormExtension(const NonlinearForm *form):
 {
    if (!DeviceCanUseCeed())
    {
-      const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-      elem_restrict_lex = fes.GetElementRestriction(ordering);
-      if (elem_restrict_lex) // replace with a check for not identity
+      const ElementDofOrdering ordering = GetEVectorOrdering(fes);
+      elem_restrict = fes.GetElementRestriction(ordering);
+      if (elem_restrict) // replace with a check for not identity
       {
-         localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-         localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+         localX.SetSize(elem_restrict->Height(), Device::GetMemoryType());
+         localY.SetSize(elem_restrict->Height(), Device::GetMemoryType());
          localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
       }
    }
@@ -177,16 +177,16 @@ void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    const Array<NonlinearFormIntegrator*> &integrators = *nlf->GetDNFI();
    const int iSz = integrators.Size();
-   // replace the check 'elem_restrict_lex' with a check for not identity
-   if (elem_restrict_lex && !DeviceCanUseCeed())
+   // replace the check 'elem_restrict' with a check for not identity
+   if (elem_restrict && !DeviceCanUseCeed())
    {
-      elem_restrict_lex->Mult(x, localX);
+      elem_restrict->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          integrators[i]->AddMultMF(localX, localY);
       }
-      elem_restrict_lex->MultTranspose(localY, y);
+      elem_restrict->MultTranspose(localY, y);
    }
    else
    {
@@ -202,12 +202,12 @@ void MFNonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 void MFNonlinearFormExtension::Update()
 {
    height = width = fes.GetVSize();
-   const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   elem_restrict_lex = fes.GetElementRestriction(ordering);
-   if (elem_restrict_lex) // replace with a check for not identity
+   const ElementDofOrdering ordering = GetEVectorOrdering(fes);
+   elem_restrict = fes.GetElementRestriction(ordering);
+   if (elem_restrict) // replace with a check for not identity
    {
-      localX.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
-      localY.SetSize(elem_restrict_lex->Height(), Device::GetMemoryType());
+      localX.SetSize(elem_restrict->Height(), Device::GetMemoryType());
+      localY.SetSize(elem_restrict->Height(), Device::GetMemoryType());
    }
 }
 

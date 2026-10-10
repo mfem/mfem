@@ -131,4 +131,98 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
    }
 }
 
+// y(a, e) += sum_q B(q, a) w_q det J(q, e) u(q, e): the element action of a mass
+// operator, from the values of u at the quadrature points.
+static void AddMassAction(const DofToQuad &maps, const IntegrationRule &ir,
+                          const GeometricFactors &geom, const Vector &u_q,
+                          Vector &y)
+{
+   const int nq = ir.GetNPoints(), nd = maps.ndof;
+   const int ne = u_q.Size() / nq;
+   const auto B = Reshape(maps.B.Read(), nq, nd);
+   const auto W = ir.GetWeights().Read();
+   const auto detJ = Reshape(geom.detJ.Read(), nq, ne);
+   const auto U = Reshape(u_q.Read(), nq, ne);
+   auto Y = Reshape(y.ReadWrite(), nd, ne);
+   mfem::forall(nd * ne, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int a = i % nd, e = i / nd;
+      real_t sum = 0.0;
+      for (int q = 0; q < nq; q++) { sum += B(q, a) * W[q] * detJ(q, e) * U(q, e); }
+      Y(a, e) += sum;
+   });
+}
+
+// A mass operator written the way a partial-assembly or matrix-free nonlinear-form
+// integrator is: basis data in the dof ordering GetEVectorOrdering() names, and
+// values at the points from the space's QuadratureInterpolator. It agrees with
+// MassIntegrator only if the form hands it E-vectors in that ordering.
+class EVectorMassIntegrator : public NonlinearFormIntegrator
+{
+   const FiniteElementSpace *fes = nullptr;
+   const DofToQuad *maps = nullptr;
+   const GeometricFactors *geom = nullptr;
+   mutable Vector u_q;
+
+   void Setup(const FiniteElementSpace &fespace)
+   {
+      fes = &fespace;
+      const bool native =
+         GetEVectorOrdering(fespace) == ElementDofOrdering::NATIVE;
+      maps = &fespace.GetTypicalFE()->GetDofToQuad(
+                *IntRule, native ? DofToQuad::FULL : DofToQuad::LEXICOGRAPHIC_FULL);
+      geom = fespace.GetMesh()->GetGeometricFactors(
+                *IntRule, GeometricFactors::DETERMINANTS);
+      u_q.SetSize(IntRule->GetNPoints() * fespace.GetNE());
+   }
+
+   void Apply(const Vector &x, Vector &y) const
+   {
+      fes->GetQuadratureInterpolator(*IntRule)->Values(x, u_q);
+      AddMassAction(*maps, *IntRule, *geom, u_q, y);
+   }
+
+public:
+   EVectorMassIntegrator(const IntegrationRule &ir)
+      : NonlinearFormIntegrator(&ir) { }
+
+   using NonlinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fespace) override { Setup(fespace); }
+   void AddMultPA(const Vector &x, Vector &y) const override { Apply(x, y); }
+   void AssembleMF(const FiniteElementSpace &fespace) override { Setup(fespace); }
+   void AddMultMF(const Vector &x, Vector &y) const override { Apply(x, y); }
+};
+
+TEST_CASE("PA NonlinearForm Simplices",
+          "[PartialAssembly][NonlinearPA][Simplices][GPU]")
+{
+   // From degree 2, the lexicographic ordering of a nodal tetrahedron's dofs
+   // differs from the native one.
+   const int p = GENERATE(2, 3);
+   const auto assembly = GENERATE(AssemblyLevel::PARTIAL, AssemblyLevel::NONE);
+   CAPTURE(p, int(assembly));
+
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+   H1_FECollection fec(p, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   const IntegrationRule &ir = IntRules.Get(Geometry::TETRAHEDRON, 2*p);
+
+   NonlinearForm nlf(&fes);
+   nlf.SetAssemblyLevel(assembly);
+   nlf.AddDomainIntegrator(new EVectorMassIntegrator(ir));
+   nlf.Setup();
+
+   BilinearForm mass(&fes);
+   mass.AddDomainIntegrator(new MassIntegrator(&ir));
+   mass.Assemble();
+   mass.Finalize();
+
+   Vector x(fes.GetVSize()), y_nlf(fes.GetVSize()), y_mass(fes.GetVSize());
+   x.Randomize(1);
+   nlf.Mult(x, y_nlf);
+   mass.Mult(x, y_mass);
+   y_nlf -= y_mass;
+   REQUIRE(y_nlf.Normlinf() == MFEM_Approx(0.0));
+}
+
 } // namespace pa_kernels
