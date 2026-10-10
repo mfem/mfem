@@ -544,10 +544,58 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    HypreParMatrix * Me = Mfull->EliminateCols(ess_tdofs);
    delete Me;
 
-   int h = Mfull->Height();
+   FilteredContactMatrix filtered =
+      FilterContactMatrixAndGap(*Mfull, *pressure.ParFESpace(),
+                                coupling_scheme_id, gap);
+   MPI_Comm matrix_comm = Mfull->GetComm();
+
+   A_blk.reset();
+   delete Mcs;
+   Mcs = nullptr;
+   tribol::finalize();
+   hypre_host_policy.Restore();
+
+   HYPRE_BigInt * J;
+#ifndef HYPRE_BIGINT
+   J = filtered.matrix->GetJ();
+#else
+   J = new HYPRE_BigInt[filtered.matrix->NumNonZeroElems()];
+   for (int i = 0; i < filtered.matrix->NumNonZeroElems(); i++)
+   {
+      J[i] = filtered.matrix->GetJ()[i];
+   }
+#endif
+
+   HypreParMatrix * M = new HypreParMatrix(matrix_comm,
+                                           filtered.matrix->Height(),
+                                           filtered.global_num_rows,
+                                           filtered.global_num_cols,
+                                           filtered.matrix->GetI(), J,
+                                           filtered.matrix->GetData(),
+                                           filtered.row_starts,
+                                           filtered.col_starts);
+   delete filtered.matrix;
+
+#ifdef HYPRE_BIGINT
+   delete [] J;
+#endif
+
+   return M;
+}
+
+OptContactProblem::FilteredContactMatrix
+OptContactProblem::FilterContactMatrixAndGap(
+   HypreParMatrix &contact_matrix,
+   ParFiniteElementSpace &pfes,
+   int coupling_scheme_id,
+   Vector &gap)
+{
+   const int h = contact_matrix.Height();
    SparseMatrix merged;
-   Mfull->MergeDiagAndOffd(merged);
-   // Row inspection and compaction below are deliberately a host boundary.
+   contact_matrix.MergeDiagAndOffd(merged);
+
+   // Row filtering and compaction are a deliberate host boundary: Tribol's
+   // mortar data are host-owned, and the sparse row structure is inspected here.
    merged.HostReadI();
    merged.HostReadJ();
    merged.HostReadData();
@@ -574,7 +622,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
       }
    }
 
-   int hnew = nonzero_rows.Size();
+   const int hnew = nonzero_rows.Size();
    SparseMatrix P(hnew,h);
 
    for (int i = 0; i<hnew; i++)
@@ -584,43 +632,32 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    }
    P.Finalize();
 
-   SparseMatrix * reduced_merged = Mult(P,merged);
+   FilteredContactMatrix filtered;
+   filtered.matrix = Mult(P,merged);
 
-   HYPRE_BigInt rows[2];
-   int nrows = reduced_merged->Height();
+   const int nrows = filtered.matrix->Height();
    HYPRE_BigInt nrows_bigint = nrows;
    HYPRE_BigInt row_offset;
    MPI_Scan(&nrows_bigint,&row_offset,1,MPITypeMap<HYPRE_BigInt>::mpi_type,
-            MPI_SUM,Mfull->GetComm());
+            MPI_SUM,contact_matrix.GetComm());
 
    row_offset-=nrows;
-   rows[0] = row_offset;
-   rows[1] = row_offset+nrows;
-   HYPRE_BigInt glob_nrows;
-   MPI_Allreduce(&nrows_bigint, &glob_nrows,1,MPITypeMap<HYPRE_BigInt>::mpi_type,
-                 MPI_SUM,Mfull->GetComm());
+   filtered.row_starts[0] = row_offset;
+   filtered.row_starts[1] = row_offset+nrows;
+   MPI_Allreduce(&nrows_bigint, &filtered.global_num_rows,1,
+                 MPITypeMap<HYPRE_BigInt>::mpi_type,
+                 MPI_SUM,contact_matrix.GetComm());
 
-   HYPRE_BigInt glob_ncols = reduced_merged->Width();
-   MPI_Comm matrix_comm = Mfull->GetComm();
-   HYPRE_BigInt cols[2] = { Mfull->ColPart()[0], Mfull->ColPart()[1] };
-
-   HYPRE_BigInt * J;
-#ifndef HYPRE_BIGINT
-   J = reduced_merged->GetJ();
-#else
-   J = new HYPRE_BigInt[reduced_merged->NumNonZeroElems()];
-   for (int i = 0; i < reduced_merged->NumNonZeroElems(); i++)
-   {
-      J[i] = reduced_merged->GetJ()[i];
-   }
-#endif
+   filtered.global_num_cols = filtered.matrix->Width();
+   filtered.col_starts[0] = contact_matrix.ColPart()[0];
+   filtered.col_starts[1] = contact_matrix.ColPart()[1];
 
    Vector gap_full;
    tribol::getMfemGap(coupling_scheme_id, gap_full);
    gap_full.HostRead();
    gap_full.UseDevice(true);
 
-   auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
+   auto& P_submesh = *pfes.GetProlongationMatrix();
    Vector gap_true(P_submesh.Width());
    gap_true.UseDevice(true);
 
@@ -642,22 +679,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    }
    gap /= Mcslump;
 
-   A_blk.reset();
-   delete Mcs;
-   Mcs = nullptr;
-   tribol::finalize();
-   hypre_host_policy.Restore();
-
-   HypreParMatrix * M = new HypreParMatrix(matrix_comm, nrows, glob_nrows,
-                                           glob_ncols, reduced_merged->GetI(), J,
-                                           reduced_merged->GetData(), rows, cols);
-   delete reduced_merged;
-
-#ifdef HYPRE_BIGINT
-   delete [] J;
-#endif
-
-   return M;
+   return filtered;
 }
 
 }
