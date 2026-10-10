@@ -121,6 +121,8 @@ struct DerivativeSetup
       if (ctx.attr.Size() == 0) { return; }
 
       interpolate(input_to_infd, input_bases, xe, xq);
+      shadow_xq = 0.0;
+      shadow_xq.SyncToBlocks();
 
       const int gnqp_local = gnqp;
       const int num_qp_local = num_qp;
@@ -169,6 +171,7 @@ struct DerivativeSetup
                      std::make_index_sequence<noutputs> {});
                }
 
+               shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
                real_t *cache_d = qp_cache.Write();
 
                // Write yq into the cache column
