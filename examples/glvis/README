@@ -1,0 +1,27 @@
+                    Finite Element Discretization Library
+                                   __
+                       _ __ ___   / _|  ___  _ __ ___
+                      | '_ ` _ \ | |_  / _ \| '_ ` _ \
+                      | | | | | ||  _||  __/| | | | | |
+                      |_| |_| |_||_|   \___||_| |_| |_|
+
+                               https://mfem.org
+
+This directory contains modifications of the example codes that illustrate the
+use of MFEM features based on GLVis in non-server mode.
+
+To build these examples, make sure that MFEM is configured with the option
+"MFEM_USE_GLVIS = YES", see the top-level INSTALL file for details.
+
+Unlike the main examples in examples/, which save files or send data to a
+GLVis server, the codes here use the mfem::glvis_stream class to stream mesh
+and solution data directly into GLVis.
+Currently this directory contains serial and parallel versions of example 0
+(ex0 and ex0p).
+
+We recommend comparing the original example codes with the corresponding files
+in the current directory.
+
+From this directory, the codes can be built with "make" and tested with
+"make test". With CMake, the executables are named glvis_ex0 and glvis_ex0p,
+and the tests can be run with "make test_glvis" or "ctest -R glvis".
