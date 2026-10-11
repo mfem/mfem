@@ -827,6 +827,11 @@ set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 # Enable testing and benchmarks if required
 if (MFEM_ENABLE_TESTING)
   enable_testing()
+  if (UNIX)
+    add_test(NAME install-prefix-relocation
+      COMMAND ${CMAKE_COMMAND} -DMFEM_BINARY_DIR=${PROJECT_BINARY_DIR}
+        -P ${PROJECT_SOURCE_DIR}/tests/scripts/test_install_prefix.cmake)
+  endif()
   set(MFEM_ALL_TESTS_TARGET_NAME tests)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
@@ -1018,7 +1023,7 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 
 # Install the data directory if present, i.e. if the copy_data target is built
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
-  DESTINATION ${MFEM_INSTALL_DIR} OPTIONAL)
+  DESTINATION . OPTIONAL)
 
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and

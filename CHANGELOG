@@ -11,6 +11,8 @@
 Version 4.10.1 (development)
 ============================
 
+- Made installed mesh data respect CMake install-time prefix overrides.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
