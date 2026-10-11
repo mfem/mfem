@@ -2838,14 +2838,15 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
    const FiniteElement &trial_fe, const FiniteElement &test_fe,
    ElementTransformation &Trans, DenseMatrix &elmat)
 {
-   int dim = trial_fe.GetDim();
-   int trial_dof = trial_fe.GetDof();
-   int test_dof = test_fe.GetDof();
-   int dimc = (dim == 3) ? 3 : 1;
+   const int dim = trial_fe.GetDim();
+   const int trial_dof = trial_fe.GetDof();
+   const int test_dof = test_fe.GetDof();
+   const int dimc = (dim == 3) ? 3 : 1;
+   int dim_tr, dim_te;
 
    MFEM_VERIFY(trial_fe.GetMapType() == mfem::FiniteElement::H_CURL ||
-               (dim == 2 && trial_fe.GetMapType() == mfem::FiniteElement::VALUE),
-               "Trial finite element must be either 2D/3D H(Curl) or 2D H1");
+               trial_fe.GetMapType() == mfem::FiniteElement::VALUE,
+               "Trial finite element must be either 2D/3D H(Curl) or H1");
    MFEM_VERIFY(test_fe.GetMapType() == mfem::FiniteElement::VALUE ||
                test_fe.GetMapType() == mfem::FiniteElement::INTEGRAL,
                "Test finite element must be in H1/L2");
@@ -2854,16 +2855,27 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
 
    if (spaceH1)
    {
-      dshape.SetSize(trial_dof,dim);
-      curlshape.SetSize(trial_dof,dim);
-      dimc = dim;
+      dshape.SetSize(trial_dof, dim);
+      if (mode == Mode::CrossGrad && dim == 2)
+      {
+         dim_tr = 1;
+         dim_te = dim;
+      }
+      else
+      {
+         dim_tr = dim;
+         dim_te = dimc;
+      }
+      curlshape.SetSize(trial_dof * dim_tr, dim_te);
    }
    else
    {
-      curlshape.SetSize(trial_dof,dimc);
+      curlshape.SetSize(trial_dof, dimc);
       elmat_comp.SetSize(test_dof, trial_dof);
+      dim_tr = 1;
+      dim_te = dimc;
    }
-   elmat.SetSize(dimc * test_dof, trial_dof);
+   elmat.SetSize(dim_te * test_dof, dim_tr * trial_dof);
    shape.SetSize(test_dof);
    elmat = 0.0;
 
@@ -2884,7 +2896,14 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
       if (spaceH1)
       {
          trial_fe.CalcPhysDShape(Trans, dshape);
-         dshape.GradToVectorCurl2D(curlshape);
+         if (mode == Mode::CrossGrad && dim == 2)
+         {
+            dshape.GradToVectorCurl2D(curlshape);
+         }
+         else
+         {
+            dshape.GradToCurl(curlshape);
+         }
       }
       else
       {
@@ -2898,10 +2917,10 @@ void MixedCurlIntegrator::AssembleElementMatrix2(
       }
       shape *= c;
 
-      for (int d = 0; d < dimc; ++d)
+      for (int d = 0; d < dim_te; ++d)
       {
-         real_t * curldata = &(curlshape.GetData())[d*trial_dof];
-         for (int jj = 0; jj < trial_dof; ++jj)
+         real_t * curldata = &(curlshape.GetData())[d*trial_dof*dim_tr];
+         for (int jj = 0; jj < trial_dof * dim_tr; ++jj)
          {
             for (int ii = 0; ii < test_dof; ++ii)
             {
