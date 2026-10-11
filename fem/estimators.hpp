@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -320,8 +320,8 @@ public:
     error estimation procedure where the flux averaging is replaced by a global
     L2 projection (requiring a mass matrix solve).
 
-    The required BilinearFormIntegrator must implement the methods
-    ComputeElementFlux() and ComputeFluxEnergy().
+    The required BilinearFormIntegrator must implement the method
+    ComputeElementFlux().
 
     Implemented for the parallel case only.
  */
@@ -357,8 +357,8 @@ protected:
 
 public:
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
-                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param integ    This BilinearFormIntegrator must implement the method
+                       ComputeElementFlux().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The L2ZienkiewiczZhuEstimator assumes ownership of this
                        FiniteElementSpace and will call its Update() method when
@@ -382,8 +382,8 @@ public:
    { }
 
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
-                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param integ    This BilinearFormIntegrator must implement the method
+                       ComputeElementFlux().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The L2ZienkiewiczZhuEstimator does NOT assume ownership
                        of this FiniteElementSpace; will call its Update() method

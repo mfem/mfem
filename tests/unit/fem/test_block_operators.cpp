@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,7 @@
 
 using namespace mfem;
 
-TEST_CASE("BlockOperators", "[BlockOperators], [CUDA]")
+TEST_CASE("BlockOperators", "[BlockOperators], [GPU]")
 {
    const int dim = 2, nx = 3, ny = 3, order = 2;
    Element::Type e_type = Element::QUADRILATERAL;

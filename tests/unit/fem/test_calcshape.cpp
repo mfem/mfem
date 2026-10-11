@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -83,7 +83,7 @@ void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
 
    Vector weights( fe->GetDof() );
 
-   // Get a uniform grid or integration points
+   // Get a uniform grid of integration points
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
    const IntegrationRule& intRule = ref->RefPts;
 

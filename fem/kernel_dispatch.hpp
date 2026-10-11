@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,8 +14,10 @@
 
 #include "../config/config.hpp"
 #include "kernel_reporter.hpp"
+#include "../general/hash_util.hpp"
 #include <unordered_map>
 #include <tuple>
+#include <type_traits>
 #include <cstddef>
 
 namespace mfem
@@ -59,7 +61,7 @@ namespace mfem
 #define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)                \
    MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, (), Params)
 
-// Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
+// Version of MFEM_REGISTER_KERNELS with optional (non-dispatch)
 // parameters (e.g. NBZ).
 #define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
    MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, OptParams,           \
@@ -77,42 +79,13 @@ namespace mfem
   public:                                                                      \
     const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                    \
     using KernelSignature = KernelType;                                        \
-    template <MFEM_PARAM_LIST P3> static MFEM_EXPORT KernelSignature Kernel(); \
+    template <MFEM_PARAM_LIST P3> static KernelSignature Kernel();             \
     static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);           \
     static MFEM_EXPORT KernelName &Get() {                                     \
       static KernelName table;                                                 \
       return table;                                                            \
     }                                                                          \
   }
-
-/// @brief Hashes variadic packs for which each type contained in the variadic
-/// pack has a specialization of `std::hash` available.
-///
-/// For example, packs containing int, bool, enum values, etc.
-template<typename ...KernelParameters>
-struct KernelDispatchKeyHash
-{
-private:
-   template<int N>
-   size_t operator()(std::tuple<KernelParameters...> value) const { return 0; }
-
-   // The hashing formula here is taken directly from the Boost library, with
-   // the magic number 0x9e3779b9 chosen to minimize hashing collisions.
-   template<std::size_t N, typename THead, typename... TTail>
-   size_t operator()(std::tuple<KernelParameters...> value) const
-   {
-      constexpr int Index = N - sizeof...(TTail) - 1;
-      auto lhs_hash = std::hash<THead>()(std::get<Index>(value));
-      auto rhs_hash = operator()<N, TTail...>(value);
-      return lhs_hash^(rhs_hash + 0x9e3779b9 + (lhs_hash<<6) + (lhs_hash>>2));
-   }
-public:
-   /// Returns the hash of the given @a value.
-   size_t operator()(std::tuple<KernelParameters...> value) const
-   {
-      return operator()<sizeof...(KernelParameters),KernelParameters...>(value);
-   }
-};
 
 namespace internal { template<typename... Types> struct KernelTypeList { }; }
 
@@ -127,9 +100,31 @@ class KernelDispatchTable<Kernels,
          internal::KernelTypeList<Params...>,
          internal::KernelTypeList<OptParams...>>
 {
-   using TableType = std::unordered_map<std::tuple<Params...>,
-         Signature, KernelDispatchKeyHash<Params...>>;
+   using TableType =
+      std::unordered_map<std::tuple<Params...>, Signature, TupleHasher>;
    TableType table;
+
+   /// @brief Call function @a f with arguments @a args (perfect forwarding).
+   ///
+   /// Only valid when the function @a f is not a member function.
+   template <typename F, typename... Args,
+             typename std::enable_if<std::is_pointer<F>::value,bool>::type=true>
+   static void Invoke(F f, Args&&... args)
+   {
+      f(std::forward<Args>(args)...);
+   }
+
+   /// @brief Calls member function @a f on object @a t with arguments @a args
+   /// (perfect forwarding).
+   ///
+   /// Only valid when @a f is a member function of class @a T.
+   template <typename F, typename T, typename... Args,
+             typename std::enable_if<
+                std::is_member_function_pointer<F>::value,bool>::type=true>
+   static void Invoke(F f, T&& t, Args&&... args)
+   {
+      (t.*f)(std::forward<Args>(args)...);
+   }
 
 public:
    /// @brief Run the kernel with the given dispatch parameters and arguments.
@@ -137,6 +132,9 @@ public:
    /// If a compile-time specialized version of the kernel with the given
    /// parameters has been registered, it will be called. Otherwise, the
    /// fallback kernel will be called.
+   ///
+   /// If the kernel is a member function, then the first argument after @a
+   /// params should be the object on which it is called.
    template<typename... Args>
    static void Run(Params... params, Args&&... args)
    {
@@ -145,12 +143,12 @@ public:
       const auto it = table.find(key);
       if (it != table.end())
       {
-         it->second(std::forward<Args>(args)...);
+         Invoke(it->second, std::forward<Args>(args)...);
       }
       else
       {
          KernelReporter::ReportFallback(Kernels::Get().kernel_name, params...);
-         Kernels::Fallback(params...)(std::forward<Args>(args)...);
+         Invoke(Kernels::Fallback(params...), std::forward<Args>(args)...);
       }
    }
 

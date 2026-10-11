@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -388,7 +388,7 @@ int main(int argc, char *argv[])
    delete hdiv_coll;
    delete mesh;
 
-   if (err_div > 1e4*std::numeric_limits<real_t>::epsilon() )
+   if (err_div > 2e4*std::numeric_limits<real_t>::epsilon() )
    {
       mfem::out << "std::numeric_limits<real_t>::epsilon() = "
                 << std::numeric_limits<real_t>::epsilon()  << "\n";

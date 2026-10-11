@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,6 +44,7 @@ inline void EvalHDiv2D(const int NE,
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int M1D = (Q1D > D1D) ? Q1D : D1D;
 
    const auto bo = Reshape(Bo_, Q1D, D1D-1);
    const auto bc = Reshape(Bc_, Q1D, D1D);
@@ -57,12 +58,13 @@ inline void EvalHDiv2D(const int NE,
              Reshape(y_, DIM, Q1D, Q1D, NE)) :
             Reshape(y_, Q1D, Q1D, 1, NE);
 
-   mfem::forall_3D(NE, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, M1D, M1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
 
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
+      const int M1D = (Q1D > D1D) ? Q1D : D1D;
 
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
@@ -85,13 +87,13 @@ inline void EvalHDiv2D(const int NE,
       {
          MFEM_FOREACH_THREAD(dy,y,D1D)
          {
-            MFEM_FOREACH_THREAD(qx,x,Q1D)
+            MFEM_FOREACH_THREAD(qx,x,M1D)
             {
                if (qx < D1D && dy < (D1D-1))
                {
                   X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,e);
                }
-               if (tidz == 0)
+               if (tidz == 0 && qx < Q1D)
                {
                   if (dy < (D1D-1)) { Bo(dy,qx) = bo(qx,dy); }
                   Bc(dy,qx) = bc(qx,dy);
@@ -451,8 +453,15 @@ QuadratureInterpolator::TensorEvalHDivKernels::Kernel()
 {
    using namespace internal::quadrature_interpolator;
    static_assert(DIM == 2 || DIM == 3, "only DIM=2 and DIM=3 are implemented!");
-   if (DIM == 2) { return EvalHDiv2D<Q_LAYOUT, FLAGS, D1D, Q1D>; }
-   return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>;
+   if constexpr (DIM == 2)
+   {
+      return EvalHDiv2D<Q_LAYOUT, FLAGS, D1D, Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>;
+   }
+   MFEM_ABORT("only DIM=2 and DIM=3 are implemented!");
 }
 
 /// @endcond

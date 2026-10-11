@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -515,6 +515,7 @@ struct InvTNewtonSolver<Geometry::SEGMENT, SDim, SType, max_team_x>
             phys_tol += pptr[idx + d * npts] * pptr[idx + d * npts];
          }
          phys_tol = fmax(phys_rtol * phys_rtol, phys_tol * phys_rtol * phys_rtol);
+         hit_bdr[0] = prev_hit_bdr[0] = false;
       }
       // for each iteration
       while (true)
