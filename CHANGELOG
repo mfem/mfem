@@ -11,6 +11,8 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed collection orders when gathering parallel RT and ND grid functions.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

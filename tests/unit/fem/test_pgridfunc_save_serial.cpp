@@ -83,4 +83,46 @@ TEST_CASE("ParGridFunction in Serial", "[ParGridFunction][Parallel]")
    }
 }
 
+
+TEST_CASE("Gather preserves the finite element collection",
+          "[ParGridFunction][Parallel][Issue5592]")
+{
+   const auto name = GENERATE("RT_2D_P0", "RT_2D_P1", "H1_2D_P1",
+                              "L2_2D_P1", "ND_2D_P1", "ND_1D_P1", "ND_1D_P2");
+   CAPTURE(name);
+   const int n = 2*Mpi::WorldSize();
+   Mesh mesh = std::string(name).find("1D") != std::string::npos ?
+               Mesh::MakeCartesian1D(n) :
+               Mesh::MakeCartesian2D(n, 1, Element::QUADRILATERAL);
+   Array<int> partition(mesh.GetNE());
+   for (int i = 0; i < partition.Size(); i++)
+   {
+      partition[i] = i % Mpi::WorldSize();
+   }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition);
+   std::unique_ptr<FiniteElementCollection> fec(FiniteElementCollection::New(
+                                                   name));
+   ParFiniteElementSpace fes(&pmesh, fec.get());
+   ParGridFunction field(&fes);
+   const bool vector_range = fes.GetTypicalFE()->GetRangeType() ==
+                             FiniteElement::VECTOR;
+   ConstantCoefficient one(1.0);
+   VectorFunctionCoefficient vector_coeff(mesh.SpaceDimension(),
+                                          [](const Vector &, Vector &v)
+   { for (int i = 0; i < v.Size(); i++) { v(i) = i+1.0; } });
+   if (vector_range) { field.ProjectCoefficient(vector_coeff); }
+   else { field.ProjectCoefficient(one); }
+   Mesh gathered_mesh = pmesh.GetSerialMesh(0);
+   GridFunction gathered = field.GetSerialGridFunction(0, gathered_mesh);
+   REQUIRE(fec->FiniteElementCollection::GetConstructorOrder() == fec->GetOrder());
+   if (Mpi::WorldRank() == 0)
+   {
+      REQUIRE(std::string(gathered.FESpace()->FEColl()->Name()) == name);
+      REQUIRE((vector_range ? gathered.ComputeL2Error(vector_coeff) :
+               gathered.ComputeL2Error(one)) < 1e-10);
+      REQUIRE(gathered.FESpace()->GetVSize() ==
+              FiniteElementSpace(&mesh, fec.get()).GetVSize());
+   }
+}
+
 #endif // MFEM_USE_MPI

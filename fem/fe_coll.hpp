@@ -248,18 +248,17 @@ public:
    int GetOrder() const { return base_p; }
 
    /// Instantiate a new collection of the same type with a different order.
-   /** Generally, the order parameter @a p is NOT the same as the parameter @a p
-       used by some of the constructors of derived classes. Instead, this @a p
-       represents the order of the new FE collection as it will be returned by
-       its GetOrder() method. */
+   /** The meaning of @a p depends on the derived collection. Standard H1,
+       L2, ND and RT collections use their constructor order. Use
+       GetConstructorOrder() to clone without changing the order. */
    virtual FiniteElementCollection *Clone(int p) const;
 
    /** @brief Return the order parameter used to construct this collection.
-    *  This differs from GetOrder() depending on the collection type. */
+    *  Defaults to GetOrder(); override when the constructor uses a
+    *  different order convention. */
    virtual int GetConstructorOrder() const
    {
-      MFEM_ABORT("Collection " << Name() << " does not support GetConstructorOrder");
-      return -1;
+      return GetOrder();
    }
 
 protected:
