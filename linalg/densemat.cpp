@@ -3238,16 +3238,57 @@ void AddMult_a_AtB(real_t a, const DenseMatrix &A, const DenseMatrix &B,
 #endif
 }
 
+namespace
+{
+
+// Starting the k-sum at the first product skips the 0.0 + x add, which strict
+// IEEE can't drop (it flips -0.0) and costs about a tenth of this loop.
+template <int W>
+void AddMult_a_AAt_Width(const real_t a, const real_t *A, real_t *AAt,
+                         const int h)
+{
+   for (int j = 0; j < h; j++)
+   {
+      real_t Aj[W];
+      for (int k = 0; k < W; k++) { Aj[k] = A[k*h + j]; }
+      real_t *C = AAt + j*h;
+      for (int i = 0; i < h; i++)
+      {
+         real_t d = A[i]*Aj[0];
+         for (int k = 1; k < W; k++) { d += A[k*h + i]*Aj[k]; }
+         C[i] += a*d;
+      }
+   }
+}
+
+} // namespace
+
 void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt)
 {
-   real_t d;
+   const int h = A.Height();
+   const int w = A.Width();
+   const real_t *Ad = A.Data();
+   real_t *Cd = AAt.Data();
+   MFEM_ASSERT(AAt.Height() == h && AAt.Width() == h,
+               "incompatible dimensions");
 
-   for (int i = 0; i < A.Height(); i++)
+   // Sweep AAt by column, one specialization per space dimension.
+   switch (w)
+   {
+      case 1: AddMult_a_AAt_Width<1>(a, Ad, Cd, h); return;
+      case 2: AddMult_a_AAt_Width<2>(a, Ad, Cd, h); return;
+      case 3: AddMult_a_AAt_Width<3>(a, Ad, Cd, h); return;
+   }
+
+   // Wider than the space dimension, which MFEM does not use: leave the
+   // triangle form alone rather than double its work for outside callers.
+   real_t d;
+   for (int i = 0; i < h; i++)
    {
       for (int j = 0; j < i; j++)
       {
          d = 0.;
-         for (int k = 0; k < A.Width(); k++)
+         for (int k = 0; k < w; k++)
          {
             d += A(i,k) * A(j,k);
          }
@@ -3255,7 +3296,7 @@ void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt)
          AAt(j, i) += d;
       }
       d = 0.;
-      for (int k = 0; k < A.Width(); k++)
+      for (int k = 0; k < w; k++)
       {
          d += A(i,k) * A(i,k);
       }
