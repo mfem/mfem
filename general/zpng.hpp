@@ -208,6 +208,17 @@ inline void ToRgb(const unsigned char *samples, unsigned char *rgb,
    }
 }
 
+/// Byte count of a file of length len, 0 when len does not fit SizeT or
+/// StreamSize
+template <typename SizeT = std::size_t, typename StreamSize = std::streamsize>
+constexpr SizeT FileBytes(std::uintmax_t len)
+{
+   return (len <= std::numeric_limits<SizeT>::max() &&
+           len <= static_cast<std::uintmax_t>(
+              std::numeric_limits<StreamSize>::max())) ?
+          static_cast<SizeT>(len) : 0;
+}
+
 inline std::vector<unsigned char> ReadFile(const std::string &path)
 {
    std::ifstream in(path.c_str(), std::ios::binary);
@@ -216,12 +227,14 @@ inline std::vector<unsigned char> ReadFile(const std::string &path)
    if (!in) { Fail("seek failed"); }
    const std::streamoff end = in.tellg();
    if (end < 8) { Fail("too small"); }
+   const std::size_t n = FileBytes(static_cast<std::uintmax_t>(end));
+   if (n == 0) { Fail("file too large"); }
    in.seekg(0, std::ios::beg);
    if (!in) { Fail("seek failed"); }
-   std::vector<unsigned char> buf(static_cast<std::size_t>(end));
-   in.read(reinterpret_cast<char *>(buf.data()),
-           static_cast<std::streamsize>(end));
-   if (in.gcount() != end) { Fail("short read"); }
+   std::vector<unsigned char> buf(n);
+   const auto count = static_cast<std::streamsize>(n);
+   in.read(reinterpret_cast<char *>(buf.data()), count);
+   if (in.gcount() != count) { Fail("short read"); }
    return buf;
 }
 
@@ -309,21 +322,32 @@ inline parsed Parse(const unsigned char *buf, std::size_t size)
    bool saw_ihdr = false;
    bool saw_iend = false;
    bool saw_idat = false;
+   bool saw_plte = false;
    bool idat_closed = false;
 
    std::size_t off = 8;
    while (off <= size && size - off >= 12)
    {
       const std::uint32_t len = GetBe32(buf + off);
+      if (len > 0x7fffffffu) { Fail("bad chunk length"); }
       if (size - off - 12 < len) { Fail("truncated chunk"); }
       const unsigned char *type = buf + off + 4;
       const unsigned char *data = buf + off + 8;
+      for (int k = 0; k < 4; ++k)
+      {
+         const unsigned char c = static_cast<unsigned char>(type[k] | 0x20u);
+         if (c < 'a' || c > 'z') { Fail("bad chunk type"); }
+      }
       const std::uint32_t crc_got = GetBe32(buf + off + 8 + len);
       const std::size_t crc_n = static_cast<std::size_t>(len) + 4u;
       const std::uint32_t crc_exp = Crc(type, crc_n);
       if (crc_got != crc_exp) { Fail("bad CRC"); }
 
       const bool ancillary = (type[0] & 0x20u) != 0;
+      if (!saw_ihdr && std::memcmp(type, "IHDR", 4) != 0)
+      {
+         Fail("IHDR not first");
+      }
       if (std::memcmp(type, "IHDR", 4) == 0)
       {
          if (saw_ihdr || off != 8) { Fail("IHDR not first"); }
@@ -354,8 +378,14 @@ inline parsed Parse(const unsigned char *buf, std::size_t size)
       else if (std::memcmp(type, "PLTE", 4) == 0)
       {
          if (!saw_ihdr) { Fail("PLTE before IHDR"); }
+         if (saw_plte) { Fail("duplicate PLTE"); }
+         if (saw_idat) { Fail("PLTE after IDAT"); }
+         if (out.color_type == 0 || out.color_type == 4)
+         {
+            Fail("PLTE not allowed for grayscale PNG");
+         }
          if (len == 0 || (len % 3u) != 0 || len > 768u) { Fail("bad PLTE"); }
-         if (saw_idat) { idat_closed = true; }
+         saw_plte = true;
          out.plte.assign(data, data + len);
       }
       else if (std::memcmp(type, "IDAT", 4) == 0)
@@ -367,6 +397,8 @@ inline parsed Parse(const unsigned char *buf, std::size_t size)
       }
       else if (std::memcmp(type, "IEND", 4) == 0)
       {
+         if (len != 0) { Fail("bad IEND length"); }
+         if (off + 12u != size) { Fail("data after IEND"); }
          saw_iend = true;
          break;
       }
@@ -384,7 +416,7 @@ inline parsed Parse(const unsigned char *buf, std::size_t size)
 
    if (!saw_ihdr) { Fail("missing IHDR"); }
    if (!saw_iend) { Fail("missing IEND"); }
-   if (out.idat.empty()) { Fail("missing IDAT"); }
+   if (!saw_idat || out.idat.empty()) { Fail("missing IDAT"); }
    if (out.color_type == 3 && out.plte.empty())
    {
       Fail("palette PNG missing PLTE");

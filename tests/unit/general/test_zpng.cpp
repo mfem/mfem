@@ -178,6 +178,36 @@ MakePng(unsigned width, unsigned height, int bit_depth, int color_type,
    return png;
 }
 
+struct RawChunk
+{
+   const char *type;
+   std::vector<unsigned char> data;
+};
+
+std::vector<unsigned char> Assemble(const std::vector<RawChunk> &chunks)
+{
+   std::vector<unsigned char> png = {137, 80, 78, 71, 13, 10, 26, 10};
+   for (const RawChunk &c : chunks)
+   {
+      Chunk(png, c.type, c.data.data(), c.data.size());
+   }
+   return png;
+}
+
+std::vector<unsigned char> Ihdr(unsigned width, unsigned height,
+                                int colorType)
+{
+   std::vector<unsigned char> ihdr;
+   PutBe32(ihdr, width);
+   PutBe32(ihdr, height);
+   ihdr.push_back(8);
+   ihdr.push_back(static_cast<unsigned char>(colorType));
+   ihdr.push_back(0);
+   ihdr.push_back(0);
+   ihdr.push_back(0);
+   return ihdr;
+}
+
 } // namespace
 
 TEST_CASE("PNG round trip", "[png]")
@@ -312,6 +342,108 @@ TEST_CASE("PNG rejects unsupported files", "[png]")
    }
 }
 
+TEST_CASE("PNG chunk structure", "[png]")
+{
+   const unsigned char index[2] = {0, 1};
+   const unsigned char gray[2] = {8, 16};
+   const std::vector<unsigned char> plte = {8, 8, 8, 16, 16, 16};
+   const std::vector<unsigned char> text = {'C', 0, 'x'};
+   const auto rawIndex = Filtered(2, 1, 1, index, 0);
+   const auto rawGray = Filtered(2, 1, 1, gray, 0);
+   const auto idatIndex = Deflate(rawIndex.data(), rawIndex.size());
+   const auto idatGray = Deflate(rawGray.data(), rawGray.size());
+   const std::vector<unsigned char> half1(idatGray.begin(),
+                                          idatGray.begin() + 2);
+   const std::vector<unsigned char> half2(idatGray.begin() + 2,
+                                          idatGray.end());
+   const auto ihdrPal = Ihdr(2, 1, 3);
+   const auto ihdrGray = Ihdr(2, 1, 0);
+   const std::vector<unsigned char> none;
+
+   auto rejects = [](const std::vector<unsigned char> &png, const char *msg)
+   {
+      REQUIRE_THROWS_WITH(png::read(png.data(), png.size()),
+                          Catch::Matchers::Contains(msg));
+   };
+
+   SECTION("valid palette")
+   {
+      const auto png = Assemble({{"IHDR", ihdrPal}, {"PLTE", plte},
+         {"tEXt", text}, {"IDAT", idatIndex}, {"IEND", none}
+      });
+      const unsigned char expect[6] = {8, 8, 8, 16, 16, 16};
+      ExpectRgb(png::read(png.data(), png.size()), 2, 1, expect, 6);
+   }
+   SECTION("ancillary chunk before IHDR")
+   {
+      rejects(Assemble({{"tEXt", text}, {"IHDR", ihdrGray},
+         {"IDAT", idatGray}, {"IEND", none}
+      }), "IHDR not first");
+   }
+   SECTION("duplicate PLTE")
+   {
+      rejects(Assemble({{"IHDR", ihdrPal}, {"PLTE", plte}, {"PLTE", plte},
+         {"IDAT", idatIndex}, {"IEND", none}
+      }), "duplicate PLTE");
+   }
+   SECTION("PLTE after IDAT")
+   {
+      rejects(Assemble({{"IHDR", ihdrPal}, {"IDAT", idatIndex},
+         {"PLTE", plte}, {"IEND", none}
+      }), "PLTE after IDAT");
+   }
+   SECTION("PLTE in grayscale")
+   {
+      rejects(Assemble({{"IHDR", ihdrGray}, {"PLTE", plte},
+         {"IDAT", idatGray}, {"IEND", none}
+      }), "PLTE not allowed");
+   }
+   SECTION("split IDAT")
+   {
+      rejects(Assemble({{"IHDR", ihdrGray}, {"IDAT", half1},
+         {"tEXt", text}, {"IDAT", half2}, {"IEND", none}
+      }), "IDAT chunks are not consecutive");
+   }
+   SECTION("missing IDAT")
+   {
+      const auto png = Assemble({{"IHDR", ihdrGray}, {"IEND", none}});
+      rejects(png, "missing IDAT");
+   }
+   SECTION("missing IEND")
+   {
+      const auto png = Assemble({{"IHDR", ihdrGray}, {"IDAT", idatGray}});
+      rejects(png, "missing IEND");
+   }
+   SECTION("nonzero IEND")
+   {
+      rejects(Assemble({{"IHDR", ihdrGray}, {"IDAT", idatGray},
+         {"IEND", text}
+      }), "bad IEND length");
+   }
+   SECTION("data after IEND")
+   {
+      auto png = Assemble({{"IHDR", ihdrGray}, {"IDAT", idatGray},
+         {"IEND", none}
+      });
+      png.push_back(0);
+      rejects(png, "data after IEND");
+   }
+   SECTION("bad chunk type")
+   {
+      rejects(Assemble({{"IHDR", ihdrGray}, {"ID4T", idatGray},
+         {"IEND", none}
+      }), "bad chunk type");
+   }
+   SECTION("bad chunk length")
+   {
+      auto png = Assemble({{"IHDR", ihdrGray}, {"IDAT", idatGray},
+         {"IEND", none}
+      });
+      png[33] = 0x80;
+      rejects(png, "bad chunk length");
+   }
+}
+
 #else
 
 TEST_CASE("PNG requires zlib", "[png]")
@@ -321,3 +453,17 @@ TEST_CASE("PNG requires zlib", "[png]")
 }
 
 #endif
+
+TEST_CASE("PNG file length fits the read buffer", "[png]")
+{
+   using png::detail::FileBytes;
+   const std::uintmax_t over32 = (std::uintmax_t(1) << 32) + 8;
+   const std::uintmax_t over31 = std::uintmax_t(1) << 31;
+   static_assert(FileBytes<std::uint32_t, std::int32_t>(over32) == 0);
+   static_assert(FileBytes<std::uint32_t, std::int64_t>(over32) == 0);
+   static_assert(FileBytes<std::uint32_t, std::int32_t>(over31) == 0);
+   static_assert(FileBytes<std::uint32_t, std::int32_t>(over31 - 1) ==
+                 over31 - 1);
+   static_assert(FileBytes<std::uint64_t, std::int64_t>(over32) == over32);
+   REQUIRE(FileBytes(100) == 100);
+}
