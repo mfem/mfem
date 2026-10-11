@@ -396,3 +396,39 @@ TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
       REQUIRE(AsConst(a)[res.max_loc] == res.max_val);
    }
 }
+
+
+#if defined(MFEM_USE_RAJA) && \
+    ((defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)) || \
+     (defined(RAJA_ENABLE_HIP) && defined(__HIP__)))
+TEST_CASE("RAJA fixed grid covers all elements", "[GPU][Issue5590]")
+{
+   if (!Device::Allows(Backend::RAJA_CUDA | Backend::RAJA_HIP)) { return; }
+   const int grid = GENERATE(0, 128, 256);
+   const bool bounded = GENERATE(false, true);
+   Vector result(200);
+   result.UseDevice(true);
+   result = -1.0;
+   auto values = result.ReadWrite();
+   auto body = [=] MFEM_HOST_DEVICE (int e) { values[e] = e; };
+#if defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
+   if (Device::Allows(Backend::RAJA_CUDA))
+   {
+      if (bounded) { RajaCuWrap3DLaunchBounds<128>(200, body, 1, 1, 1, grid); }
+      else { RajaCuWrap3D(200, body, 1, 1, 1, grid); }
+   }
+#endif
+#if defined(RAJA_ENABLE_HIP) && defined(__HIP__)
+   if (Device::Allows(Backend::RAJA_HIP))
+   {
+      if (bounded) { RajaHipWrap3DLaunchBounds<128>(200, body, 1, 1, 1, grid); }
+      else { RajaHipWrap3D(200, body, 1, 1, 1, grid); }
+   }
+#endif
+   const auto host = result.HostRead();
+   for (int i = 0; i < result.Size(); i++)
+   {
+      REQUIRE(host[i] == MFEM_Approx(i));
+   }
+}
+#endif

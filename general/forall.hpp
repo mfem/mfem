@@ -295,7 +295,7 @@ using cuda_launch_bounds_policy =
 using cuda_launch_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
 using cuda_teams_x =
-   RAJA::LoopPolicy<RAJA::cuda_block_x_direct>;
+   RAJA::LoopPolicy<RAJA::cuda_block_x_loop>;
 using cuda_threads_z =
    RAJA::LoopPolicy<RAJA::cuda_thread_z_direct>;
 #endif
@@ -307,7 +307,7 @@ template <int LB>
 using hip_launch_bounds_policy =
    RAJA::LaunchPolicy<RAJA::hip_launch_t<true, LB>>;
 using hip_teams_x =
-   RAJA::LoopPolicy<RAJA::hip_block_x_direct>;
+   RAJA::LoopPolicy<RAJA::hip_block_x_loop>;
 using hip_threads_z =
    RAJA::LoopPolicy<RAJA::hip_thread_z_direct>;
 #endif

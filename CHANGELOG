@@ -11,6 +11,8 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
