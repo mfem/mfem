@@ -13,6 +13,7 @@
 #include "../config/config.hpp"
 
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <type_traits>
 
@@ -157,8 +158,7 @@ MFEM_HOST_DEVICE inline real_t ComplexDivTerm(real_t x, real_t ratio,
 
 /// int when T is complex_t, no type otherwise
 template <typename T>
-using IfComplex =
-   typename std::enable_if<std::is_same<T, complex_t>::value, int>::type;
+using IfComplex = std::enable_if_t<std::is_same_v<T, complex_t>, int>;
 
 } // namespace internal
 
@@ -257,7 +257,26 @@ MFEM_HOST_DEVICE inline mfem::complex_t tan(const T &z) { return tan(z); }
 namespace mfem
 {
 
-// mfem::real, mfem::abs, ... of complex_t
-using namespace ::mfemComplex;
+// Qualified and unqualified lookup both see these names. The complex_t
+// templates alone would hide pow, sin, and the rest on MSVC, whose <cmath>
+// declares the real overloads only in namespace std. Keep both sets.
+using std::abs;
+using std::cos;
+using std::exp;
+using std::log;
+using std::pow;
+using std::sin;
+using std::tan;
+
+using mfemComplex::abs;
+using mfemComplex::conj;
+using mfemComplex::cos;
+using mfemComplex::exp;
+using mfemComplex::log;
+using mfemComplex::norm;
+using mfemComplex::pow;
+using mfemComplex::real;
+using mfemComplex::sin;
+using mfemComplex::tan;
 
 } // namespace mfem
