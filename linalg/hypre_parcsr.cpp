@@ -1041,7 +1041,13 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
 
    HYPRE_Int         m;
 
-   HYPRE_Real        xpar=0.7;
+#ifdef HYPRE_USING_GPU
+   // HostRead() migrates CSR i/j/data, but not hypre's rownnz cache.
+   // Its memory_location may now be HOST even when rownnz is on the device.
+   const bool use_rownnz = false;
+#else
+   const bool use_rownnz = num_rownnz < 0.7*num_rows;
+#endif
 
    /*-----------------------------------------------------------------------
     * Do (alpha == 0.0) computation - RDF: USE MACHINE EPS
@@ -1087,7 +1093,7 @@ void hypre_CSRMatrixAbsMatvec(hypre_CSRMatrix *A,
    /* use rownnz pointer to do the abs(A)*x multiplication
       when num_rownnz is smaller than num_rows */
 
-   if (num_rownnz < xpar*(num_rows))
+   if (use_rownnz)
    {
       for (i = 0; i < num_rownnz; i++)
       {
@@ -1231,7 +1237,13 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
 
    HYPRE_Int         m;
 
-   HYPRE_Real        xpar=0.7;
+#ifdef HYPRE_USING_GPU
+   // HostRead() migrates CSR i/j/data, but not hypre's rownnz cache.
+   // Its memory_location may now be HOST even when rownnz is on the device.
+   const bool use_rownnz = false;
+#else
+   const bool use_rownnz = num_rownnz < 0.7*num_rows;
+#endif
 
    /*-----------------------------------------------------------------------
     * Do (alpha == 0.0) computation - RDF: USE MACHINE EPS
@@ -1274,7 +1286,7 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
 
    /* use rownnz pointer to do the A*x multiplication  when num_rownnz is smaller than num_rows */
 
-   if (num_rownnz < xpar*(num_rows))
+   if (use_rownnz)
    {
 #ifdef HYPRE_USING_OPENMP
       #pragma omp parallel for private(i,jj,m,tempx) HYPRE_SMP_SCHEDULE
