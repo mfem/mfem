@@ -92,6 +92,56 @@ TEST_CASE("ComplexGridFunction Save", "[ComplexGridFunction]")
    REQUIRE(std::remove("cmplx_l2.gf") == 0);
 }
 
+TEST_CASE("ComplexGridFunction Copy", "[ComplexGridFunction]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+   H1_FECollection fec(2, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   const int vsize = fes.GetVSize();
+
+   ComplexGridFunction u(&fes);
+   u.Randomize(1);
+
+   const Vector u_real(u.real()), u_imag(u.imag());
+
+   ComplexGridFunction v(u);
+
+   // whether the parts of x still hold the snapshot
+   auto Holds = [&](const ComplexGridFunction &x)
+   {
+      Vector d_real(u_real); d_real -= x.real();
+      Vector d_imag(u_imag); d_imag -= x.imag();
+      return d_real.Norml2() == 0.0 && d_imag.Norml2() == 0.0;
+   };
+
+   // the copy shares the space, owns neither the space nor the collection, and
+   // starts out with the data of the original
+   REQUIRE( v.FESpace() == u.FESpace() );
+   REQUIRE( v.OwnFEC() == NULL );
+   REQUIRE( Holds(v) );
+
+   // a copy can be destroyed while the original is still in use
+   {
+      ComplexGridFunction w(u);
+      w.real() = 5.0;
+      w.imag() = -5.0;
+      REQUIRE( w.HostRead()[0] == 5.0 );
+      REQUIRE( w.HostRead()[vsize] == -5.0 );
+   }
+   REQUIRE( Holds(u) );
+
+   // writing to the original leaves the copy alone
+   u.real() *= 2.0;
+   u.imag() += 1.0;
+   REQUIRE( Holds(v) );
+
+   // the parts are refs into the copy's own data
+   v.real() = 3.0;
+   v.imag() = -1.0;
+   REQUIRE( v.HostRead()[0] == 3.0 );
+   REQUIRE( v.HostRead()[vsize] == -1.0 );
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("ParComplexGridFunction Save", "[ParComplexGridFunction][Parallel]")
@@ -197,6 +247,60 @@ TEST_CASE("ParComplexGridFunction Save", "[ParComplexGridFunction][Parallel]")
    REQUIRE(std::remove(name_nd.str().c_str()) == 0);
    REQUIRE(std::remove(name_rt.str().c_str()) == 0);
    REQUIRE(std::remove(name_l2.str().c_str()) == 0);
+}
+
+TEST_CASE("ParComplexGridFunction Copy",
+          "[ParComplexGridFunction][Parallel]")
+{
+   Mesh smesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+   ParMesh mesh(MPI_COMM_WORLD, smesh);
+   smesh.Clear();
+   H1_FECollection fec(2, mesh.Dimension());
+   ParFiniteElementSpace pfes(&mesh, &fec);
+   const int vsize = pfes.GetVSize();
+
+   ParComplexGridFunction u(&pfes);
+   u.Randomize(1);
+
+   const Vector u_real(u.real()), u_imag(u.imag());
+
+   ParComplexGridFunction v(u);
+
+   // whether the parts of x still hold the snapshot
+   auto Holds = [](const Vector &r, const Vector &i,
+                   const ParComplexGridFunction &x)
+   {
+      Vector d_real(r); d_real -= x.real();
+      Vector d_imag(i); d_imag -= x.imag();
+      return d_real.Norml2() == 0.0 && d_imag.Norml2() == 0.0;
+   };
+
+   // the copy shares the space, owns neither the space nor the collection, and
+   // starts out with the data of the original
+   REQUIRE( v.FESpace() == u.FESpace() );
+   REQUIRE( v.OwnFEC() == NULL );
+   REQUIRE( Holds(u_real, u_imag, v) );
+
+   // a copy can be destroyed while the original is still in use
+   {
+      ParComplexGridFunction w(u);
+      w.real() = 5.0;
+      w.imag() = -5.0;
+      REQUIRE( w.HostRead()[0] == 5.0 );
+      REQUIRE( w.HostRead()[vsize] == -5.0 );
+   }
+   REQUIRE( Holds(u_real, u_imag, u) );
+
+   // writing to the original leaves the copy alone
+   u.real() *= 2.0;
+   u.imag() += 1.0;
+   REQUIRE( Holds(u_real, u_imag, v) );
+
+   // the parts are refs into the copy's own data
+   v.real() = 3.0;
+   v.imag() = -1.0;
+   REQUIRE( v.HostRead()[0] == 3.0 );
+   REQUIRE( v.HostRead()[vsize] == -1.0 );
 }
 
 #endif // MFEM_USE_MPI

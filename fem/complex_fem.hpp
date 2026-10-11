@@ -54,6 +54,18 @@ public:
        FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
+   /// Copy constructor. Only the data of the base class Vector is copied.
+   /** The FiniteElementSpace is shared and the copy owns neither the space nor
+       the collection, the way GridFunction(const GridFunction &) behaves, and
+       the real and imaginary parts of the copy point into the copy's own data.
+       The true-dof vector of those parts is not copied either, as with that
+       constructor.
+
+       @note If @a rhs owns its space, because it was constructed from a stream,
+       the copy references a space that @a rhs frees, so it must not outlive
+       it. */
+   ComplexGridFunction(const ComplexGridFunction &rhs);
+
    /** @brief Construct a ComplexGridFunction on the given Mesh, using the data
        from @a input.
 
@@ -718,6 +730,15 @@ public:
    /** @brief Construct a ParComplexGridFunction associated with the
        ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
+
+   /// Copy constructor. Only the data of the base class Vector is copied.
+   /** The same as the ComplexGridFunction copy constructor: the
+       ParFiniteElementSpace is shared and not owned by the copy, the real and
+       imaginary parts point into the copy's own data, and a copy of an object
+       that owns its space must not outlive it. The true-dof vectors of the parts
+       are not copied, so call SetTrueVector() on them before use, as for a newly
+       constructed ParComplexGridFunction. */
+   ParComplexGridFunction(const ParComplexGridFunction &rhs);
 
    /** @brief Construct a ParComplexGridFunction on a given ParMesh,
        @a pmesh, reading from an std::istream.
