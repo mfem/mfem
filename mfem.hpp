@@ -35,6 +35,7 @@
 #include "general/socketstream.hpp"
 #include "general/optparser.hpp"
 #include "general/zstr.hpp"
+#include "general/zpng.hpp"
 #include "general/version.hpp"
 #include "general/globals.hpp"
 #include "general/kdtree.hpp"

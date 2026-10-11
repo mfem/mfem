@@ -13,11 +13,20 @@
 #include "../config/config.hpp"
 
 #include <cmath>
+#include <limits>
+#include <type_traits>
 
 namespace mfem
 {
 
-/// Complex type: two @a real_t fields, matching GPU FFT's complex type.
+struct complex_t;
+
+MFEM_HOST_DEVICE inline complex_t operator*(real_t s, const complex_t &z);
+
+MFEM_HOST_DEVICE inline complex_t operator/(const complex_t &a,
+                                            const complex_t &b);
+
+/// Complex type: two @a real_t fields, matching GPU complex type.
 struct complex_t
 {
    real_t x, y;
@@ -28,9 +37,59 @@ struct complex_t
 
    MFEM_HOST_DEVICE real_t real() const { return x; }
    MFEM_HOST_DEVICE real_t imag() const { return y; }
-};
 
-MFEM_HOST_DEVICE inline real_t real(const complex_t &z) { return z.real(); }
+   // Functions of complex_t below are only found by argument-dependent lookup
+
+   friend MFEM_HOST_DEVICE real_t real(const complex_t &z) { return z.x; }
+
+   friend MFEM_HOST_DEVICE real_t abs(const complex_t &z)
+   {
+      return std::hypot(z.x, z.y);
+   }
+
+   friend MFEM_HOST_DEVICE real_t norm(const complex_t &z)
+   {
+      return z.x * z.x + z.y * z.y;
+   }
+
+   friend MFEM_HOST_DEVICE complex_t conj(const complex_t &z)
+   {
+      return complex_t{z.x, -z.y};
+   }
+
+   friend MFEM_HOST_DEVICE complex_t exp(const complex_t &q)
+   {
+      const real_t e = std::exp(q.x);
+      return complex_t{std::cos(q.y) * e, std::sin(q.y) * e};
+   }
+
+   friend MFEM_HOST_DEVICE complex_t log(const complex_t &z)
+   {
+      return complex_t{std::log(abs(z)), std::atan2(z.y, z.x)};
+   }
+
+   friend MFEM_HOST_DEVICE complex_t pow(const complex_t &z, real_t s)
+   {
+      return exp(s * log(z));
+   }
+
+   friend MFEM_HOST_DEVICE complex_t sin(const complex_t &z)
+   {
+      return complex_t{std::sin(z.x) * std::cosh(z.y),
+                       std::cos(z.x) * std::sinh(z.y)};
+   }
+
+   friend MFEM_HOST_DEVICE complex_t cos(const complex_t &z)
+   {
+      return complex_t{std::cos(z.x) * std::cosh(z.y),
+                       -std::sin(z.x) * std::sinh(z.y)};
+   }
+
+   friend MFEM_HOST_DEVICE complex_t tan(const complex_t &z)
+   {
+      return sin(z) / cos(z);
+   }
+};
 
 MFEM_HOST_DEVICE inline complex_t operator-(const complex_t &z)
 {
@@ -86,18 +145,58 @@ MFEM_HOST_DEVICE inline complex_t operator/(const complex_t &z, real_t s)
    return complex_t{z.real() / s, z.imag() / s};
 }
 
-MFEM_HOST_DEVICE inline complex_t operator/(real_t s, const complex_t &z)
+namespace internal
 {
-   const real_t den = z.real() * z.real() + z.imag() * z.imag();
-   return complex_t{s * z.real() / den, -s * z.imag() / den};
+
+/// x * d / c for ratio = d / c, also when the ratio underflows to zero
+MFEM_HOST_DEVICE inline real_t ComplexDivTerm(real_t x, real_t ratio,
+                                              real_t d, real_t c)
+{
+   return (ratio != 0 || d == 0) ? x * ratio : d * (x / c);
 }
 
+/// int when T is complex_t, no type otherwise
+template <typename T>
+using IfComplex =
+   typename std::enable_if<std::is_same<T, complex_t>::value, int>::type;
+
+} // namespace internal
+
+/// Complex division: Smith's algorithm with the power-of-two scaling of
+/// Baudin and Smith for components near overflow or underflow
 MFEM_HOST_DEVICE inline complex_t operator/(const complex_t &a,
                                             const complex_t &b)
 {
-   const real_t den = b.real() * b.real() + b.imag() * b.imag();
-   return complex_t{(a.real() * b.real() + a.imag() * b.imag()) / den,
-                    (a.imag() * b.real() - a.real() * b.imag()) / den};
+   using limits = std::numeric_limits<real_t>;
+   constexpr real_t half = 0.5;
+   const real_t big = half * limits::max();
+   const real_t small = 2 * limits::min() / limits::epsilon();
+   const real_t up = 2 / (limits::epsilon() * limits::epsilon());
+   real_t ar = a.real(), ai = a.imag(), br = b.real(), bi = b.imag();
+   const real_t na = std::fmax(std::fabs(ar), std::fabs(ai));
+   const real_t nb = std::fmax(std::fabs(br), std::fabs(bi));
+   real_t scale = 1;
+   if (na >= big) { ar *= half, ai *= half, scale *= 2; }
+   if (nb >= big) { br *= half, bi *= half, scale *= half; }
+   if (na <= small) { ar *= up, ai *= up, scale /= up; }
+   if (nb <= small) { br *= up, bi *= up, scale *= up; }
+   if (std::fabs(br) >= std::fabs(bi))
+   {
+      const real_t ratio = bi / br, den = br + bi * ratio;
+      const real_t re = ar + internal::ComplexDivTerm(ai, ratio, bi, br);
+      const real_t im = ai - internal::ComplexDivTerm(ar, ratio, bi, br);
+      return complex_t{(re / den) * scale, (im / den) * scale};
+   }
+   const real_t ratio = br / bi, den = br * ratio + bi;
+   const real_t re = internal::ComplexDivTerm(ar, ratio, br, bi) + ai;
+   const real_t im = internal::ComplexDivTerm(ai, ratio, br, bi) - ar;
+   return complex_t{(re / den) * scale, (im / den) * scale};
+}
+
+/// Scalar over complex, as complex_t(s) / z
+MFEM_HOST_DEVICE inline complex_t operator/(real_t s, const complex_t &z)
+{
+   return complex_t(s) / z;
 }
 
 MFEM_HOST_DEVICE inline complex_t &operator*=(complex_t &a, const complex_t &b)
@@ -113,54 +212,52 @@ MFEM_HOST_DEVICE inline complex_t &operator+=(complex_t &a, const complex_t &b)
    return a;
 }
 
-MFEM_HOST_DEVICE inline real_t abs(const complex_t &z)
+} // namespace mfem
+
+/// real, abs, norm, conj, exp, log, pow, sin, cos and tan of complex_t only,
+/// calling the friend functions of complex_t
+namespace mfemComplex
 {
-   return std::hypot(z.real(), z.imag());
+
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::real_t real(const T &z) { return real(z); }
+
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::real_t abs(const T &z) { return abs(z); }
+
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::real_t norm(const T &z) { return norm(z); }
+
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::complex_t conj(const T &z) { return conj(z); }
+
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::complex_t exp(const T &z) { return exp(z); }
+
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::complex_t log(const T &z) { return log(z); }
+
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::complex_t pow(const T &z, mfem::real_t s)
+{
+   return pow(z, s);
 }
 
-/// Squared modulus, matching std::norm.
-MFEM_HOST_DEVICE inline real_t norm(const complex_t &z)
-{
-   return z.real() * z.real() + z.imag() * z.imag();
-}
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::complex_t sin(const T &z) { return sin(z); }
 
-MFEM_HOST_DEVICE inline complex_t conj(const complex_t &z)
-{
-   return complex_t{z.real(), -z.imag()};
-}
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::complex_t cos(const T &z) { return cos(z); }
 
-MFEM_HOST_DEVICE inline complex_t exp(const complex_t &q)
-{
-   const real_t e = std::exp(q.real());
-   return complex_t{std::cos(q.imag()) * e, std::sin(q.imag()) * e};
-}
+template <typename T, mfem::internal::IfComplex<T> = 0>
+MFEM_HOST_DEVICE inline mfem::complex_t tan(const T &z) { return tan(z); }
 
-/// Principal logarithm.
-MFEM_HOST_DEVICE inline complex_t log(const complex_t &z)
-{
-   return complex_t{std::log(abs(z)), std::atan2(z.imag(), z.real())};
-}
+} // namespace mfemComplex
 
-MFEM_HOST_DEVICE inline complex_t pow(const complex_t &z, real_t s)
+namespace mfem
 {
-   return exp(s * log(z));
-}
 
-MFEM_HOST_DEVICE inline complex_t sin(const complex_t &z)
-{
-   return complex_t{std::sin(z.real()) * std::cosh(z.imag()),
-                    std::cos(z.real()) * std::sinh(z.imag())};
-}
-
-MFEM_HOST_DEVICE inline complex_t cos(const complex_t &z)
-{
-   return complex_t{std::cos(z.real()) * std::cosh(z.imag()),
-                    -std::sin(z.real()) * std::sinh(z.imag())};
-}
-
-MFEM_HOST_DEVICE inline complex_t tan(const complex_t &z)
-{
-   return sin(z) / cos(z);
-}
+// mfem::real, mfem::abs, ... of complex_t
+using namespace ::mfemComplex;
 
 } // namespace mfem

@@ -23,7 +23,6 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "linalg/complex.hpp"
 
 using namespace mfem;
 
