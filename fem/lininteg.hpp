@@ -259,6 +259,10 @@ public:
                                ElementTransformation &Tr,
                                Vector &elvect) override;
 
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &FTr,
+                               Vector &elvect) override;
+
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
@@ -355,6 +359,29 @@ public:
    // For DG spaces
    void AssembleRHSElementVect(const FiniteElement &el,
                                FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/** Class for boundary integration $ L(v) = (g \cdot \tau, v \cdot \tau) $ in
+    2D, where $g=(g_1,\dots,g_n)$ and $v=(v_1,\dots,v_n)$. */
+class VectorBoundaryTangentialLFIntegrator : public LinearFormIntegrator
+{
+   Vector shape;
+   VectorCoefficient &Q;
+   int oa, ob;
+public:
+   /// Constructs a boundary integrator with a given Coefficient QG
+   VectorBoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
+      : Q(QG), oa(a), ob(b) { }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &FTr,
                                Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;

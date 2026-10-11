@@ -242,9 +242,9 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
 void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   int dim = el.GetDim()+1;
-   int dof = el.GetDof();
-   Vector tangent(dim), Qvec;
+   const int dim = el.GetDim()+1;
+   const int dof = el.GetDof();
+   Vector tangent(dim), Qvec(dim);
 
    shape.SetSize(dof);
    elvect.SetSize(dof);
@@ -268,12 +268,52 @@ void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
 
       Tr.SetIntPoint(&ip);
       const DenseMatrix &Jac = Tr.Jacobian();
-      tangent(0) =  Jac(0,0);
+      tangent(0) = Jac(0,0);
       tangent(1) = Jac(1,0);
 
       Q.Eval(Qvec, Tr, ip);
 
       el.CalcShape(ip, shape);
+
+      add(elvect, ip.weight*(Qvec*tangent), shape, elvect);
+   }
+}
+
+void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &FTr, Vector &elvect)
+{
+   const int dim = el.GetDim();
+   const int dof = el.GetDof();
+   Vector tangent(dim), Qvec(dim);
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof);
+   elvect = 0.0;
+
+   if (dim != 2)
+   {
+      MFEM_ABORT("These methods make sense only in 2D problems.");
+   }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(FTr.GetGeometryType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      FTr.SetIntPoint(&ip);
+      const DenseMatrix &Jac = FTr.Jacobian();
+      tangent(0) = Jac(0,0);
+      tangent(1) = Jac(1,0);
+
+      Q.Eval(Qvec, FTr, ip);
+
+      el.CalcShape(FTr.GetElement1IntPoint(), shape);
 
       add(elvect, ip.weight*(Qvec*tangent), shape, elvect);
    }
@@ -467,6 +507,100 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
          {
             elvect(dof*k+s) += vec(k) * shape(s);
          }
+      }
+   }
+}
+
+void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   const int dim = el.GetDim()+1;
+   const int dof = el.GetDof();
+   Vector tangent(dim), Qvec(dim);
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof * dim);
+   elvect = 0.0;
+
+   if (dim != 2)
+   {
+      MFEM_ABORT("These methods make sense only in 2D problems.");
+   }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint(&ip);
+      const DenseMatrix &Jac = Tr.Jacobian();
+      tangent(0) = Jac(0,0);
+      tangent(1) = Jac(1,0);
+      const real_t norm = tangent.Norml2();
+
+      Q.Eval(Qvec, Tr, ip);
+
+      el.CalcShape(ip, shape);
+
+      const real_t w = ip.weight * (Qvec*tangent);
+
+      for (int d = 0; d < dim; d++)
+      {
+         Vector elvect_d(elvect, d*dof, dof);
+         elvect_d.Add(w * (tangent(d)/norm), shape);
+      }
+   }
+}
+
+void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &FTr, Vector &elvect)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+   Vector tangent(dim), Qvec(dim);
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof * dim);
+   elvect = 0.0;
+
+   if (dim != 2)
+   {
+      MFEM_ABORT("These methods make sense only in 2D problems.");
+   }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;  // <----------
+      ir = &IntRules.Get(FTr.GetGeometryType(), intorder);
+   }
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      FTr.SetIntPoint(&ip);
+      const DenseMatrix &Jac = FTr.Jacobian();
+      tangent(0) = Jac(0,0);
+      tangent(1) = Jac(1,0);
+      const real_t norm = tangent.Norml2();
+
+      Q.Eval(Qvec, FTr, ip);
+
+      el.CalcShape(FTr.GetElement1IntPoint(), shape);
+
+      const real_t w = ip.weight * (Qvec*tangent);
+
+      for (int d = 0; d < dim; d++)
+      {
+         Vector elvect_d(elvect, d*dof, dof);
+         elvect_d.Add(w * (tangent(d)/norm), shape);
       }
    }
 }
