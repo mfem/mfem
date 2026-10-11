@@ -2491,7 +2491,11 @@ public:
        suitable refinement method is selected automatically (namely, conforming
        refinement for triangles). Use nonconforming = 0/1 to force the method.
        For nonconforming refinements, nc_limit optionally specifies the maximum
-       level of hanging nodes (unlimited by default). */
+       level of hanging nodes (unlimited by default).
+       @note On a ParMesh this is collective on its communicator. Every rank
+       must call, including ranks with an empty refinement list. Each list
+       contains local element indices for the calling rank. Do not skip the
+       call on ranks without locally marked elements. */
    void GeneralRefinement(const Array<Refinement> &refinements,
                           int nonconforming = -1, int nc_limit = 0);
 

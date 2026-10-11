@@ -1535,7 +1535,13 @@ public:
    /** @brief Reflect changes in the mesh: update number of DOFs, etc. Also,
        calculate GridFunction transformation operator (unless want_transform is
        false). Safe to call multiple times, does nothing if space already up to
-       date. */
+       date.
+       @note With want_transform=true, call after each mesh modification,
+       before modifying the mesh again. Then call Update() on every associated
+       GridFunction before another space update or UpdatesFinished(). The
+       transformation represents only the most recent mesh operation.
+       @note Update(false) does not construct a transfer operator; use it only
+       when the previous GridFunction data need not be preserved. */
    virtual void Update(bool want_transform = true);
 
    /** P-refine and update the space. If @a want_transfer, also maintain the old
