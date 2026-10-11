@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,21 +17,18 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
-/// \cond DO_NOT_DOCUMENT
-namespace mfem
-{
 
-namespace internal
+/// \cond DO_NOT_DOCUMENT
+namespace mfem::internal
 {
 
 // PA Diffusion Apply 2D kernel
 template <int T_D1D = 0, int T_Q1D = 0, int T_VDIM = 0>
-static void
-PAVectorDiffusionApply2D(const int NE, const Array<real_t> &b,
-                         const Array<real_t> &g, const Array<real_t> &bt,
-                         const Array<real_t> &gt, const Vector &d_,
-                         const Vector &x_, Vector &y_, const int d1d = 0,
-                         const int q1d = 0, const int vdim = 0)
+void PAVectorDiffusionApply2D(const int NE, const Array<real_t> &b,
+                              const Array<real_t> &g, const Array<real_t> &bt,
+                              const Array<real_t> &gt, const Vector &d_,
+                              const Vector &x_, Vector &y_, const int d1d = 0,
+                              const int q1d = 0, const int vdim = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -144,12 +141,11 @@ PAVectorDiffusionApply2D(const int NE, const Array<real_t> &b,
 
 // PA Diffusion Apply 3D kernel
 template <const int T_D1D = 0, const int T_Q1D = 0>
-static void
-PAVectorDiffusionApply3D(const int NE, const Array<real_t> &b,
-                         const Array<real_t> &g, const Array<real_t> &bt,
-                         const Array<real_t> &gt, const Vector &op_,
-                         const Vector &x_, Vector &y_, const int d1d = 0,
-                         const int q1d = 0, const int sdim = 0)
+void PAVectorDiffusionApply3D(const int NE, const Array<real_t> &b,
+                              const Array<real_t> &g, const Array<real_t> &bt,
+                              const Array<real_t> &gt, const Vector &op_,
+                              const Vector &x_, Vector &y_, const int d1d = 0,
+                              const int q1d = 0, const int sdim = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -333,23 +329,8 @@ PAVectorDiffusionApply3D(const int NE, const Array<real_t> &b,
       }
    });
 }
-} // namespace internal
+} // namespace mfem::internal
 
-template <int DIM, int VDIM, int T_D1D, int T_Q1D>
-VectorDiffusionIntegrator::ApplyKernelType
-VectorDiffusionIntegrator::ApplyPAKernels::Kernel()
-{
-   if constexpr (DIM == 2)
-   {
-      return internal::PAVectorDiffusionApply2D<T_D1D, T_Q1D, VDIM>;
-   }
-   else if constexpr (DIM == 3)
-   {
-      return internal::PAVectorDiffusionApply3D;
-   }
-   MFEM_ABORT("");
-}
-
-} // namespace mfem
 /// \endcond DO_NOT_DOCUMENT
-#endif
+
+#endif // MFEM_BILININTEG_VECDIFFUSION_KERNELS_HPP

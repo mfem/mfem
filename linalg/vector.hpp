@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ inline int CheckFinite(const real_t *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
-inline real_t infinity()
+inline constexpr real_t infinity()
 {
    return std::numeric_limits<real_t>::infinity();
 }
@@ -129,7 +129,8 @@ public:
    /// Create a vector using a braced initializer list
    template <typename CT, typename std::enable_if<
                 std::is_convertible<CT,real_t>::value,bool>::type = true>
-   explicit Vector(std::initializer_list<CT> values) : Vector(values.size())
+   explicit Vector(std::initializer_list<CT> values) :
+      Vector(static_cast<int> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
 
    /// Enable execution of Vector operations using the mfem::Device.
@@ -170,6 +171,13 @@ public:
 
    /// Resize the vector to size @a s using the MemoryType of @a v.
    void SetSize(int s, const Vector &v) { SetSize(s, v.GetMemory().GetMemoryType()); }
+
+   /// Update \ref Capacity() to @a res (if less than current), keeping existing entries.
+   void Reserve(int res);
+
+   /// Delete entries at @a indices and resize vector accordingly.
+   /// @warning Indices must be unique!
+   void DeleteAt(const Array<int> &indices);
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
@@ -367,6 +375,7 @@ public:
    void Pow(const real_t p);
 
    /// Swap the contents of two Vectors
+   /** Implemented without using move assignment, avoiding Destroy() calls. */
    inline void Swap(Vector &other);
 
    /// Set v = v1 + v2.
@@ -531,6 +540,55 @@ public:
    virtual real_t *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
+   /** @brief Create a mutable (non-const) view of the Vector as Array<real_t>
+       that can be used to pass Vector objects to functions that take Array
+       arguments.
+
+       The returned MemoryView object is implicitly and explicitly convertible
+       to `Array<real_t> &`, see class MemoryView.
+
+       The simplest way to use this method is:
+       @code
+       func(*v.GetArrayView());
+       @endcode
+       where `func` has an `Array<real_t>&` argument and `v` is a Vector. In
+       this example, the returned MemoryView object is temporary, created just
+       before the call to `func` and destroyed automatically right after that
+       call.
+
+       Note that when the MemoryView is destroyed, the state of the underlying
+       Array<real_t> object is copied back to this Vector to reflect any changes
+       made to the Array.
+
+       Creating multiple views, of the same Vector object, that have overlapping
+       life spans is not supported. */
+   MemoryView<Array<real_t>> GetArrayView()
+   { return MemoryView<Array<real_t>>(data, size); }
+
+   /** @brief Create a const view of the Vector as const Array<real_t> that can
+       be used to pass Vector objects to functions that take Array arguments.
+
+       The returned MemoryView object is implicitly and explicitly convertible
+       to `const Array<real_t> &`, see class MemoryView.
+
+       The simplest way to use this method is:
+       @code
+       func(*v.GetArrayView());
+       @endcode
+       where `func` has a `const Array<real_t>&` argument and `v` is a const
+       Vector. In this example, the returned MemoryView object is temporary,
+       created just before the call to `func` and destroyed automatically right
+       after that call.
+
+       Note that when the MemoryView is destroyed, the mutable part of the state
+       of the underlying const Array<real_t> object is copied back to this
+       Vector to reflect any changes made to the Array, e.g. if the data was
+       moved from host to device.
+
+       Creating multiple views, of the same Vector object, that have overlapping
+       life spans is not supported. */
+   MemoryView<const Array<real_t>> GetArrayView() const
+   { return MemoryView<const Array<real_t>>(data, size); }
 };
 
 // Inline methods
@@ -538,7 +596,7 @@ public:
 template <typename T>
 inline T ZeroSubnormal(T val)
 {
-   return (std::fpclassify(val) == FP_SUBNORMAL) ? 0.0 : val;
+   return (std::fpclassify(val) == FP_SUBNORMAL) ? T{} : val;
 }
 
 inline bool IsFinite(const real_t &val)
@@ -621,6 +679,18 @@ inline void Vector::SetSize(int s, MemoryType mt)
    data.UseDevice(use_dev);
 }
 
+inline void Vector::Reserve(int res)
+{
+   if (res > Capacity())
+   {
+      Memory<real_t> p(res, data.GetMemoryType());
+      p.CopyFrom(data, size);
+      p.UseDevice(data.UseDevice());
+      data.Delete();
+      data = p;
+   }
+}
+
 inline void Vector::NewMemoryAndSize(const Memory<real_t> &mem, int s,
                                      bool own_mem)
 {
@@ -652,9 +722,8 @@ inline void Vector::MakeRef(Vector &base, int offset)
 inline void Vector::Destroy()
 {
    const bool use_dev = data.UseDevice();
-   data.Delete();
+   data.Delete();  // calls data.Reset(h_mt) as well
    size = 0;
-   data.Reset();
    data.UseDevice(use_dev);
 }
 
@@ -680,8 +749,9 @@ inline void Vector::Swap(Vector &other)
    mfem::Swap(size, other.size);
 }
 
-/// Specialization of the template function Swap<> for class Vector
-template<> inline void Swap<Vector>(Vector &a, Vector &b)
+/** @brief Swap of Vector objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+inline void swap(Vector &a, Vector &b)
 {
    a.Swap(b);
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -558,7 +558,7 @@ public:
    static constexpr int MaxElemChildren =
       10;      ///< Number of children an element can have
    static constexpr int MaxFaceNodes =
-      4;      ///< Number of faces an element can have
+      4;      ///< Maximum number of nodes a face can have
 
    /**
     * @brief Given a node index, return the vertex index associated
@@ -1333,7 +1333,7 @@ protected:
     * @param vn2 The second vertex making up the quad
     * @param vn3 The third vertex making up the quad
     * @param vn4 The fourth vertex making up the quad
-    * @return int The depth of splits of this triangle that are present in the
+    * @return int The depth of splits of this quad that are present in the
     * mesh. NB: An isotropic refinement has a level of 2, one horizontal split,
     * followed by a vertical split.
     */

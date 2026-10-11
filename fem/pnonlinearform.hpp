@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,6 +28,8 @@ class ParNonlinearForm : public NonlinearForm
 protected:
    mutable ParGridFunction X, Y;
    mutable OperatorHandle pGrad;
+
+   void GradientSharedFaces(const Vector &x, int skip_zeros = 1) const;
 
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf);
@@ -80,6 +82,8 @@ protected:
    mutable BlockVector xs_true, ys_true;
    mutable Array2D<OperatorHandle *> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
+
+   void GradientSharedFaces(const BlockVector &xs, int skip_zeros) const;
 
 public:
    /// Computes the energy of the system
