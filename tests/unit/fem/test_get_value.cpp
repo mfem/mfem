@@ -4943,3 +4943,38 @@ TEST_CASE("3D GetDivergence",
 }
 
 } // namespace get_value
+
+
+#ifdef MFEM_USE_MPI
+TEST_CASE("Neighbor scalar component evaluation",
+          "[GetValue][Parallel][Issue3506]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const int vdim = GENERATE(1, 2);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   Array<int> partition({0, 1});
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition);
+   L2_FECollection fec(1, 2);
+   ParFiniteElementSpace fes(&pmesh, &fec, vdim, ordering);
+   ParGridFunction field(&fes);
+   VectorFunctionCoefficient coefficient(vdim, [](const Vector &x, Vector &v)
+   {
+      for (int i = 0; i < v.Size(); i++) { v(i) = x(0) + 2*x(1) + i; }
+   });
+   field.ProjectCoefficient(coefficient);
+   field.ExchangeFaceNbrData();
+   auto &T = *fes.GetFaceNbrElementTransformation(0);
+   const auto &ip = Geometries.GetCenter(Geometry::SQUARE);
+   Vector expected;
+   coefficient.Eval(expected, T, ip);
+   for (int c = 0; c < vdim; c++)
+   {
+      REQUIRE(field.GetValue(T, ip, c+1) == MFEM_Approx(expected(c)));
+   }
+   if (vdim == 1)
+   {
+      REQUIRE(field.GetValue(T, ip) == MFEM_Approx(expected(0)));
+   }
+}
+#endif
