@@ -219,6 +219,14 @@ constexpr SizeT FileBytes(std::uintmax_t len)
           static_cast<SizeT>(len) : 0;
 }
 
+/// PNG chunk length field for an n-byte payload, failing when n is over the
+/// 2^31-1 limit of the PNG specification
+inline std::uint32_t ChunkLength(std::size_t n)
+{
+   if (n > 0x7fffffffu) { Fail("chunk too large"); }
+   return static_cast<std::uint32_t>(n);
+}
+
 inline std::vector<unsigned char> ReadFile(const std::string &path)
 {
    std::ifstream in(path.c_str(), std::ios::binary);
@@ -258,7 +266,7 @@ inline std::uint32_t Crc(const unsigned char *data, std::size_t n)
 inline void Chunk(std::vector<unsigned char> &o, const char type[4],
                   const unsigned char *data, std::size_t n)
 {
-   PutBe32(o, static_cast<std::uint32_t>(n));
+   PutBe32(o, ChunkLength(n));
    const std::size_t type_off = o.size();
    o.insert(o.end(), type, type + 4);
    if (n && data) { o.insert(o.end(), data, data + n); }
@@ -291,7 +299,8 @@ inline void Inflate(const unsigned char *src, std::size_t nsrc,
       Fail("zlib inflate failed");
    }
    auto dest_len = static_cast<uLongf>(ndst);
-   const int rc = uncompress(dst, &dest_len, src, static_cast<uLong>(nsrc));
+   auto src_len = static_cast<uLong>(nsrc);
+   const int rc = uncompress2(dst, &dest_len, src, &src_len);
    if (rc == Z_MEM_ERROR) { Fail("zlib out of memory"); }
    if (rc == Z_BUF_ERROR) { Fail("zlib output buffer too small"); }
    if (rc == Z_DATA_ERROR) { Fail("zlib data error"); }
@@ -299,6 +308,10 @@ inline void Inflate(const unsigned char *src, std::size_t nsrc,
    if (static_cast<std::size_t>(dest_len) != ndst)
    {
       Fail("zlib inflate size mismatch");
+   }
+   if (static_cast<std::size_t>(src_len) != nsrc)
+   {
+      Fail("data after zlib stream");
    }
 }
 

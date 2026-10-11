@@ -428,6 +428,23 @@ TEST_CASE("PNG chunk structure", "[png]")
       png.push_back(0);
       rejects(png, "data after IEND");
    }
+   SECTION("data after zlib stream")
+   {
+      auto idat = idatGray;
+      idat.push_back('x');
+      idat.push_back('x');
+      const auto png = Assemble({{"IHDR", ihdrGray}, {"IDAT", idat},
+         {"IEND", none}
+      });
+      rejects(png, "data after zlib stream");
+   }
+   SECTION("data after zlib stream in a second IDAT")
+   {
+      const std::vector<unsigned char> extra = {0};
+      rejects(Assemble({{"IHDR", ihdrGray}, {"IDAT", idatGray},
+         {"IDAT", extra}, {"IEND", none}
+      }), "data after zlib stream");
+   }
    SECTION("bad chunk type")
    {
       rejects(Assemble({{"IHDR", ihdrGray}, {"ID4T", idatGray},
@@ -466,4 +483,16 @@ TEST_CASE("PNG file length fits the read buffer", "[png]")
                  over31 - 1);
    static_assert(FileBytes<std::uint64_t, std::int64_t>(over32) == over32);
    REQUIRE(FileBytes(100) == 100);
+}
+
+TEST_CASE("PNG chunk length fits the length field", "[png]")
+{
+   using png::detail::ChunkLength;
+   const std::size_t limit = 0x7fffffffu;
+   REQUIRE(ChunkLength(0) == 0u);
+   REQUIRE(ChunkLength(limit) == 0x7fffffffu);
+   REQUIRE_THROWS_WITH(ChunkLength(limit + 1),
+                       Catch::Matchers::Contains("chunk too large"));
+   REQUIRE_THROWS_WITH(ChunkLength(std::numeric_limits<std::size_t>::max()),
+                       Catch::Matchers::Contains("chunk too large"));
 }
