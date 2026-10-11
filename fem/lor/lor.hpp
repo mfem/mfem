@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,8 +56,6 @@ private:
    /// Resets the integration rules of the integrators of @a a to their original
    /// values (after temporarily changing them for LOR assembly).
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
-
-   static inline int absdof(int i) { return i < 0 ? -1-i : i; }
 
 protected:
    enum FESpaceType { H1, ND, RT, L2, INVALID };
@@ -176,7 +174,7 @@ public:
                         int ref_type=BasisType::GaussLobatto);
 
    /// @brief Construct a low-order refined version of the ParFiniteElementSpace
-   /// @a pfes_ho.
+   /// @a fes_ho.
    ///
    /// The mesh is refined using the refinement type specified by @a ref_type
    /// (see ParMesh::MakeRefined).
@@ -318,7 +316,7 @@ public:
    /// Calls HypreADS::SetOperator.
    void SetOperator(const Operator &op);
 
-   /// Apply the action of the AMS preconditioner.
+   /// Apply the action of the ADS preconditioner.
    void Mult(const Vector &x, Vector &y) const;
 
    /// Access the underlying solver.

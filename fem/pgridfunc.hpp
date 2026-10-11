@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,6 +63,12 @@ protected:
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               const Array<int> &attr);
 
+   /** @brief Project a discontinuous (vector) coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   virtual void ProjectDiscCoefficient(
+      std::variant<Coefficient*, VectorCoefficient*> coeff) override;
+
 public:
    ParGridFunction() { pfes = NULL; }
 
@@ -71,6 +77,10 @@ public:
       : GridFunction(orig), pfes(orig.pfes) { }
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
+
+   /// Same as above but specify the device memory type
+   ParGridFunction(ParFiniteElementSpace *pf, MemoryType mt) :
+      GridFunction(pf, mt), pfes(pf) { }
 
    /// Construct a ParGridFunction using previously allocated array @a data.
    /** The ParGridFunction does not assume ownership of @a data which is assumed
@@ -90,8 +100,12 @@ public:
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
        data from @a *gf is used as the local data of the ParGridFunction on each
-       processor. The ParGridFunction does not assume ownership of the data. */
-   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf);
+       processor. The ParGridFunction does not assume ownership of the data.
+       The boolean, @a preserve, indicates that the data stored in @a *gf should
+       remain unchanged. An error will occur if @a preserve is true and
+       construction of a valid ParGridFunction requires the data to change. */
+   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf,
+                   bool preserve = true);
 
    /** @brief Creates grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */
@@ -257,14 +271,13 @@ public:
    void GetElementDofValues(int el, Vector &dof_vals) const override;
 
    using GridFunction::ProjectCoefficient;
-   void ProjectCoefficient(Coefficient &coeff) override;
+   void ProjectCoefficient(Coefficient &coeff,
+                           ProjectType type = ProjectType::DEFAULT) override;
+
+   void ProjectCoefficient(VectorCoefficient &vcoeff,
+                           ProjectType type = ProjectType::DEFAULT) override;
 
    using GridFunction::ProjectDiscCoefficient;
-   /** @brief Project a discontinuous vector coefficient as a grid function on
-       a continuous finite element space. The values in shared dofs are
-       determined from the element with maximal attribute. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff) override;
-
    void ProjectDiscCoefficient(Coefficient &coeff, AvgType type) override;
 
    void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type) override;
@@ -272,8 +285,7 @@ public:
    using GridFunction::ProjectBdrCoefficient;
 
    void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                              const Array<int> &attr) override
-   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+                              const Array<int> &attr) override;
 
    void ProjectBdrCoefficient(Coefficient *coeff[],
                               const Array<int> &attr) override
@@ -281,6 +293,18 @@ public:
 
    void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                      const Array<int> &bdr_attr) override;
+
+   void ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                   real_t rtol = 1e-12,
+                                   int iter = 1000) override;
+
+   void ProjectCoefficientElementL2(Coefficient &coeff) override;
+
+   void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                   real_t rtol = 1e-12,
+                                   int iter = 1000) override;
+
+   void ProjectCoefficientElementL2(VectorCoefficient &vcoeff) override;
 
    /// @brief Returns ||u_ex - u_h||_L1 in parallel for H1 or L2 elements
    ///
@@ -589,6 +613,18 @@ public:
    PLBound GetBounds(Vector &lower, Vector &upper,
                      const int ref_factor=1, const int vdim=-1) const override;
 
+   /** @brief Estimate the GridFunction minimum across all elements. */
+   std::pair<real_t, real_t> EstimateFunctionMinimum(const int vdim,
+                                                     const PLBound &plb,
+                                                     const int max_depth,
+                                                     const real_t tol) const override;
+
+   /** @brief Estimate the GridFunction maximum across all elements. */
+   std::pair<real_t, real_t> EstimateFunctionMaximum(const int vdim,
+                                                     const PLBound &plb,
+                                                     const int max_depth,
+                                                     const real_t tol) const override;
+
    /** Save the local portion of the ParGridFunction. This differs from the
        serial GridFunction::Save in that it takes into account the signs of
        the local dofs. */
@@ -626,7 +662,7 @@ public:
    GridFunction GetSerialGridFunction(
       int save_rank, FiniteElementSpace &serial_fes) const;
 
-   /// Write the serial GridFunction a single file (written using MPI rank 0).
+   /// Write the serial GridFunction to a single file (written using MPI rank 0).
    /// The given @a precision will be used for ASCII output.
    void SaveAsSerial(const char *fname, int precision=16, int save_rank=0) const;
 

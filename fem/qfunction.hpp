@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -271,10 +271,7 @@ inline void QuadratureFunction::GetValues(
    const int s_offset = qspace->Offset(idx);
    const int sl_size = qspace->Offset(idx + 1) - s_offset;
    // Make the values matrix memory an alias of the quadrature function memory
-   Memory<real_t> &values_mem = values.GetMemory();
-   values_mem.Delete();
-   values_mem.MakeAlias(GetMemory(), vdim*s_offset, vdim*sl_size);
-   values.SetSize(vdim, sl_size);
+   values.MakeRef(GetMemory(), vdim*s_offset, vdim, sl_size);
 }
 
 inline void QuadratureFunction::GetValues(

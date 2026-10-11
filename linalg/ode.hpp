@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -120,6 +120,7 @@ public:
 class ODESolver
 {
 protected:
+   using ImplicitVariableType = TimeDependentOperator::ImplicitVariableType;
    /// Pointer to the associated TimeDependentOperator.
    TimeDependentOperator *f;  // f(.,t) : R^n --> R^n
    MemoryType mem_type;
@@ -191,6 +192,41 @@ public:
 
    /// Returns how many State vectors the ODE requires
    virtual int GetStateSize() { return 0; };
+
+   ///@brief Returns @a true if the ODESolver supports the given
+   /// #ImplicitVariableType, @a var, and returns @a false otherwise.
+   /// Default implementation returns @a true if @a var is
+   /// ImplicitVariableType::SLOPE and @a false otherwise.
+   ///@warning Should be overridden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
+   virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
+   { return (var == ImplicitVariableType::SLOPE); };
+
+   /** @brief Sets the #ImplicitVariableType for the TimeDependentOperator, if supported.
+       @note This should be called after Init().
+   */
+   void SetImplicitVariableType(const ImplicitVariableType variable_type)
+   {
+      if (!f)
+      {
+         MFEM_ABORT("TimeDependentOperator is not set. Call Init() first.");
+      }
+      if (!SupportsImplicitVariableType(variable_type))
+      {
+         MFEM_ABORT("The ODE solver does not support the implicit variable type.");
+      }
+      f->SetImplicitVariableType(variable_type);
+   }
+
+
+   /** @brief Compute the finite-difference slope, @a $\frac{du}{dt} \approx \frac{u(t+dt)-u(t)}{dt}$,
+    * and store it in @a k.
+    * @param [in] dt Finite difference step size.
+    * @param [in] u  state vector, @a u(t).
+    * @param [in,out] k   On input, @a k contains the state vector, @a u( @a t+ @a dt).
+    * On output, @a k contains the computed slope, @a du/dt.
+    * */
+   virtual void ComputeSlopeFromState(const real_t dt, const Vector &u,
+                                      Vector &k);
 
    // Help info for ODESolver options
    static MFEM_EXPORT std::string ExplicitTypes;
@@ -286,7 +322,7 @@ public:
 };
 
 
-/// The classical explicit forth-order Runge-Kutta method, RK4
+/// The classical explicit fourth-order Runge-Kutta method, RK4
 class RK4Solver : public ODESolver
 {
 private:
@@ -361,6 +397,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -374,6 +416,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -395,6 +443,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -409,6 +463,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -423,6 +483,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -437,6 +503,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -451,6 +523,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -465,6 +543,12 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -490,6 +574,12 @@ public:
 
    ODEStateData& GetState() override { return state; }
    const ODEStateData& GetState() const override { return state; }
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 
@@ -606,6 +696,11 @@ public:
 
    ODEStateData& GetState() override { return state; }
    const ODEStateData& GetState() const override { return state; }
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   {
+      return (var == ImplicitVariableType::STATE ||
+              var == ImplicitVariableType::SLOPE);
+   }
 };
 
 /** A 1-stage, 2nd order AM method. */
@@ -959,11 +1054,14 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 /// Second order, two-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
 /** L-stable IMEX RK2 method adopted from "On the Stability of IMEX Upwind gSBP
-    Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb. Same
+    Schemes for 1D Linear Advection‑Diffusion Equations" by Sigrun Ortleb. Same
     as (2,2,2) from "Implicit-explicit Runge-Kutta methods for time-dependent
     partial differential equations" by Ascher, Ruuth and Spiteri, Applied
     Numerical Mathematics (1997). */
@@ -977,6 +1075,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 /// Second order, 2/3-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -994,6 +1095,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 /// Third order, 3/4-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -1011,6 +1115,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 
