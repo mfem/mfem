@@ -352,6 +352,7 @@ miniapps/nurbs/velocity.*
 
 miniapps/optics/hologram
 miniapps/optics/phologram
+miniapps/optics/*.png
 
 miniapps/performance/ex1
 miniapps/performance/ex1p
@@ -497,6 +498,3 @@ TAGS
 
 # vs code
 .vscode
-
-# PNG files
-*.png
