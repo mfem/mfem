@@ -11,7 +11,11 @@ device is `cpu` (`-d`). The default propagator is the Toeplitz–FFT product
 (`-fft`) when the library for that device is linked: **FFTW** on a host
 device, **cuFFT** or **hipFFT** on CUDA or HIP. Otherwise the default is the
 dense product (`-gem`). `-fft` does not run FFTW on a CUDA or HIP device. It
-aborts when the library for the active device was not linked.
+aborts when the library for the active device was not linked. `-gem` stores
+the dense $x$ and $y$ Fresnel matrices and their adjoints, $2(n_x^2+n_y^2)$
+complex values for an $n_x \times n_y$ image. It stops with a message when
+they need more than `-gmem` GiB (default 16), the host memory, or the free
+device memory.
 
 The default target is MFEM’s logo (`doc/logo-small.png`). The physical
 defaults are a wavelength of 532 nm (`-w`), a mask width of 19 mm with the
@@ -23,6 +27,67 @@ The grid is a Cartesian quadrilateral mesh. The samples are the nodes of an
 L2 space of order `-p`, one element per block of $(p+1)^2$ pixels. The source
 amplitude is constant per element. The solve uses MFEM’s `Operator`,
 `NewtonSolver`, `CGSolver`, and device kernels.
+
+## PNG input and output
+
+The target is read by `mfem::png::read` in `general/zpng.hpp`, which accepts
+only part of the PNG format:
+
+- The bit depth must be 8. Files with 1, 2, 4 or 16 bits per sample are
+  rejected with an error.
+- The image must not be interlaced. Adam7 files are rejected with an error.
+- The color types are gray, gray with alpha, RGB, RGBA and palette. The alpha
+  channel is discarded. Gray samples are copied to the three RGB channels, and
+  palette indices are expanded to RGB through the `PLTE` chunk. An index past
+  the end of the palette is an error.
+- Ancillary chunks, such as `tRNS`, `gAMA` or `iCCP`, are ignored, so palette
+  transparency, gamma and color profiles have no effect.
+
+The RGB image is then reduced to the Rec. 601 luma described below. The mask
+and the hologram are written as 8-bit RGB PNG files without interlacing or
+alpha.
+
+## Parallel runs
+
+`phologram` splits the mesh into blocks of whole element rows, one block per
+rank. Each rank owns the phases of its rows, the propagated field on the same
+sample rows, and the Newton and CG vectors.
+
+- The full target image is broadcast from rank 0 and kept on every rank, with
+  global copies of the target samples. The full phase-mask image is also kept
+  on every rank: the mask field is gathered to all ranks before it is formed.
+  Rank 0 writes the mask PNG.
+- Fresnel propagation is distributed. Each rank applies the $x$ factor
+  $\omega^x$ to its own sample rows. An all-to-all exchange then gives each
+  rank a block of full columns, where it applies the $y$ factor $\omega^y$,
+  and a second exchange returns the rows. The adjoint uses the same steps.
+- With `-fft`, each rank plans the FFTs for its rows and its block of
+  columns. With `-gem`, each rank stores the full dense $\omega^x$ and
+  $\omega^y$ and their adjoints. `-gmem` applies to each rank, the host
+  memory check counts all ranks on the node, and the device memory check
+  counts the ranks that share the GPU.
+- Sums over the samples, such as $J$ and the scale factor $s$, add the row
+  sums of all ranks in global row order.
+- For the hologram replay, each rank propagates its own rows. The intensity
+  is gathered on rank 0, which writes the hologram PNG.
+
+Every rank must own at least one element row. A run with more ranks than
+element rows, that is with more than $n_y/(p+1)$ ranks for an image of height
+$n_y$ pixels and order `-p` $p$, is rejected with an error that gives the
+largest usable rank count.
+
+## Loss check
+
+With `-check`, `hologram` and `phologram` exit with an error after writing the
+output files unless at least one Newton step was accepted and the final loss
+is below the first loss. The first loss is the value printed at `Newton 1`,
+before any update, and the final loss is the loss of the returned phase. When
+the check fails, the message says that no step was accepted, or gives both
+losses and the number of accepted steps. In `phologram` rank 0 prints it and
+all ranks exit with an error. When the check passes, the number of accepted
+steps and both losses are printed. The CTest and
+`make test` runs use `-check`. With `-mi 0` no step is taken, so the check
+fails.
 
 ## Mathematical model
 

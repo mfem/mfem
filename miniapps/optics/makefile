@@ -27,6 +27,8 @@ else
 SEQ_MINIAPPS =
 PAR_MINIAPPS =
 endif
+SEQ_DEVICE_MINIAPPS = $(SEQ_MINIAPPS)
+PAR_DEVICE_MINIAPPS = $(PAR_MINIAPPS)
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -41,6 +43,8 @@ HOLO_COMMON = $(SRC)hologram.hpp $(SRC)sinc.hpp $(CONFIG_MK)
 HOLO_INCLUDES = -I$(if $(SRC),$(SRC),.)
 HOLO_FFT_FLAGS =
 HOLO_FFT_LIBS =
+HOLO_CPU_FFT =
+HOLO_GPU_FFT =
 
 ifeq ($(MFEM_USE_SINGLE),YES)
    HOLO_FFTW_PC = fftw3f
@@ -49,14 +53,17 @@ else
 endif
 
 ifneq ($(shell pkg-config --exists $(HOLO_FFTW_PC) && echo yes),)
+   HOLO_CPU_FFT = YES
    HOLO_FFT_FLAGS += -DHOLO_USE_CPU_FFT $(shell pkg-config --cflags $(HOLO_FFTW_PC))
    HOLO_FFT_LIBS += $(shell pkg-config --libs $(HOLO_FFTW_PC))
 endif
 ifeq ($(MFEM_USE_CUDA),YES)
+   HOLO_GPU_FFT = YES
    HOLO_FFT_FLAGS += -DHOLO_USE_GPU_FFT
    HOLO_FFT_LIBS += -lcufft
 else ifeq ($(MFEM_USE_HIP),YES)
    ifneq ($(shell pkg-config --exists hipfft && echo yes),)
+      HOLO_GPU_FFT = YES
       HOLO_FFT_FLAGS += -DHOLO_USE_GPU_FFT $(shell pkg-config --cflags hipfft)
       HOLO_FFT_LIBS += $(shell pkg-config --libs hipfft)
    endif
@@ -83,38 +90,45 @@ phologram: phologram.o $(MFEM_LIB_FILE) $(CONFIG_MK)
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
-# mfem-test prints the executable, and these cases share one binary.
-# $(1) summary name, $(2) MPI launcher, $(3) label, $(4) arguments, $(5) executable.
+# Testing: hologram has no -no-vis option
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-holo-test = \
-   printf "   $(3) [$(2) $(1) ... ]: "; \
-   $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(5) $(4) > $(1).stderr 2>&1); \
-   err="$$3"; \
-   if [ "$$3" = 0 ]; then $(PRINT_OK); \
-   else if [ "$$3" = 242 ]; then $(PRINT_SKIP); err=0; \
-   else $(PRINT_FAILED); cat $(1).stderr; fi; fi; \
-   rm -f $(1).stderr; exit $$err
-test-print: holo-test=printf "   $(3) [$(2) $(1) ... ]\n"
-
 hologram-test-seq: hologram
-	@$(call holo-test,hologram_gem,, Optics miniapp,-gem,hologram)
-	@$(call holo-test,hologram_gem_p1,, Optics miniapp,-gem -p 1 \
-	   -o hologram-o1.png -m mask-o1.png,hologram)
-	@$(call holo-test,hologram_gem_debug,, Optics miniapp,-gem -d debug -mi 2 \
-	   -o hologram-debug.png -m mask-debug.png,hologram)
-ifneq ($(shell pkg-config --exists $(HOLO_FFTW_PC) && echo yes),)
-	@$(call holo-test,hologram_fft,, Optics miniapp,-fft -mi 2 \
-	   -o hologram-fft.png -m mask-fft.png,hologram)
-	@$(call holo-test,hologram_fft_debug,, Optics miniapp,-d debug -fft -mi 2 \
-	   -o hologram-fft-debug.png -m mask-fft-debug.png,hologram)
+	@$(call mfem-test,$<,, Optics miniapp gem,-gem -mi 2 -check,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, Optics miniapp gem p1,-gem -p 1 -mi 2 -check,\
+	   SKIP-NO-VIS)
+	@$(call mfem-test,$<,, Optics miniapp gem debug,-gem -d debug -mi 2 -check,\
+	   SKIP-NO-VIS)
+ifneq ($(HOLO_CPU_FFT),)
+	@$(call mfem-test,$<,, Optics miniapp fft,-fft -mi 2 -check,SKIP-NO-VIS)
+	@$(call mfem-test,$<,, Optics miniapp fft debug,-fft -d debug -mi 2 -check,\
+	   SKIP-NO-VIS)
+endif
+phologram-test-par: phologram
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel optics miniapp gem,\
+	   -gem -mi 2 -check,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel optics miniapp gem p1,\
+	   -gem -p 1 -mi 2 -check,SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel optics miniapp gem debug,\
+	   -gem -d debug -mi 2 -check,SKIP-NO-VIS)
+ifneq ($(HOLO_CPU_FFT),)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel optics miniapp fft,\
+	   -fft -mi 2 -check,SKIP-NO-VIS)
 endif
 
-phologram-test-par: phologram
-	@$(call holo-test,phologram_gem_debug, $(RUN_MPI), Optics miniapp,\
-	   -gem -d debug -mi 2 -o hologram-gem-mpi.png -m mask-gem-mpi.png,phologram)
-ifneq ($(shell pkg-config --exists $(HOLO_FFTW_PC) && echo yes),)
-	@$(call holo-test,phologram_fft, $(RUN_MPI), Optics miniapp,-fft -mi 2 \
-	   -o hologram-fft-mpi.png -m mask-fft-mpi.png,phologram)
+# Testing: CUDA/HIP runs
+hologram-test-seq-%: hologram
+	@$(call mfem-test,$<,, Optics miniapp gem $*,-d $* -gem -mi 2 -check,\
+	   SKIP-NO-VIS)
+ifneq ($(HOLO_GPU_FFT),)
+	@$(call mfem-test,$<,, Optics miniapp fft $*,-d $* -fft -mi 2 -check,\
+	   SKIP-NO-VIS)
+endif
+phologram-test-par-%: phologram
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel optics miniapp gem $*,\
+	   -d $* -gem -mi 2 -check,SKIP-NO-VIS)
+ifneq ($(HOLO_GPU_FFT),)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel optics miniapp fft $*,\
+	   -d $* -fft -mi 2 -check,SKIP-NO-VIS)
 endif
 
 $(MFEM_LIB_FILE):

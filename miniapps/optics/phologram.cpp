@@ -19,6 +19,7 @@
 // Sample runs:  mpirun -np 4 phologram
 //               mpirun -np 4 phologram -p 5
 //               mpirun -np 4 phologram -p 5 -gem
+//               mpirun -np 4 phologram -gem -mi 2 -check
 
 #include "hologram.hpp"
 using namespace mfem;
@@ -27,9 +28,109 @@ using namespace mfem;
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 namespace holo
 {
+
+// True on all ranks when error is empty on rank 0, which prints it otherwise
+inline bool RootOk(const std::string &error)
+{
+   int ok = error.empty() ? 1 : 0;
+   MPI_Bcast(&ok, 1, MPI_INT, 0, MPI_COMM_WORLD);
+   if (!ok && Mpi::Root()) { mfem::err << error << "\n"; }
+   return ok == 1;
+}
+
+// True when error is empty on all ranks,
+// otherwise rank 0 prints the error of the lowest rank with one
+inline bool AllOk(const std::string &error)
+{
+   const int size = Mpi::WorldSize(), rank = Mpi::WorldRank();
+   int first = error.empty() ? size : rank;
+   MPI_Allreduce(MPI_IN_PLACE, &first, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+   if (first == size) { return true; }
+   std::string text = error;
+   if (first != 0 && (rank == first || rank == 0))
+   {
+      int length = static_cast<int>(error.size());
+      if (rank == first)
+      {
+         MPI_Send(&length, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+         MPI_Send(error.data(), length, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
+      }
+      else
+      {
+         MPI_Recv(&length, 1, MPI_INT, first, 0, MPI_COMM_WORLD,
+                  MPI_STATUS_IGNORE);
+         text.resize(static_cast<std::size_t>(length));
+         MPI_Recv(&text[0], length, MPI_CHAR, first, 1, MPI_COMM_WORLD,
+                  MPI_STATUS_IGNORE);
+      }
+   }
+   if (rank == 0) { mfem::err << text << "\n"; }
+   return false;
+}
+
+// Number of ranks sharing this rank's node, and of those using its GPU, by
+// PCI bus id
+inline void NodeRanks(int &nodeRanks, int &deviceRanks)
+{
+   constexpr int idSize = 32;
+   char busId[idSize] = "host";
+#if defined(MFEM_USE_CUDA)
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      int dev = 0;
+      MFEM_GPU_CHECK(cudaGetDevice(&dev));
+      MFEM_GPU_CHECK(cudaDeviceGetPCIBusId(busId, idSize, dev));
+   }
+#elif defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      int dev = 0;
+      MFEM_GPU_CHECK(hipGetDevice(&dev));
+      MFEM_GPU_CHECK(hipDeviceGetPCIBusId(busId, idSize, dev));
+   }
+#endif
+   MPI_Comm node;
+   MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
+                       &node);
+   MPI_Comm_size(node, &nodeRanks);
+   std::vector<char> ids(static_cast<std::size_t>(nodeRanks) * idSize);
+   MPI_Allgather(busId, idSize, MPI_CHAR, ids.data(), idSize, MPI_CHAR, node);
+   MPI_Comm_free(&node);
+   deviceRanks = 0;
+   for (int r = 0; r < nodeRanks; ++r)
+   {
+      const char *id = ids.data() + static_cast<std::size_t>(r) * idSize;
+      if (std::strncmp(busId, id, idSize) == 0) { ++deviceRanks; }
+   }
+}
+
+class ParRowSum : public RowSum
+{
+   const Array<int> &counts, &displs;
+   mutable Vector all;
+
+protected:
+   const real_t *AllRows(const Vector &local, int &rows) const override
+   {
+      if (Mpi::WorldSize() == 1) { return RowSum::AllRows(local, rows); }
+      rows = displs.Last() + counts.Last();
+      all.SetSize(rows);
+      MPI_Allgatherv(const_cast<real_t *>(local.HostRead()), local.Size(),
+                     MPITypeMap<real_t>::mpi_type, all.HostWrite(),
+                     counts.GetData(), displs.GetData(),
+                     MPITypeMap<real_t>::mpi_type, MPI_COMM_WORLD);
+      return all.HostRead();
+   }
+
+public:
+   ParRowSum(int length, const Array<int> &rowCounts,
+             const Array<int> &rowDispls)
+      : RowSum(length), counts(rowCounts), displs(rowDispls) {}
+};
 
 class PixelMesh
 {
@@ -39,7 +140,8 @@ class PixelMesh
 
    const int order, q1d, nx, ny;
    const int y0, y1, elem0;
-   Array<int> counts, displs;
+   Array<int> counts, displs, rowCounts, rowDispls;
+   mutable ParRowSum rowSum;
 
    static int VerifyOrder(int pixels_x, int pixels_y, int order)
    {
@@ -50,6 +152,11 @@ class PixelMesh
       MFEM_VERIFY(pixels_x % q1d == 0 && pixels_y % q1d == 0,
                   "Pixels: pixel count must be divisible by order+1");
       return order;
+   }
+
+   static int RowBegin(int rows, int r, int np)
+   {
+      return static_cast<int>((static_cast<long long>(rows) * r) / np);
    }
 
 public:
@@ -67,9 +174,10 @@ public:
         q1d(order_in + 1),
         nx(pixels_x / (order_in + 1)),
         ny(pixels_y / (order_in + 1)),
-        y0((ny * Mpi::WorldRank()) / Mpi::WorldSize()),
-        y1((ny * (Mpi::WorldRank() + 1)) / Mpi::WorldSize()),
-        elem0(y0 * nx)
+        y0(RowBegin(ny, Mpi::WorldRank(), Mpi::WorldSize())),
+        y1(RowBegin(ny, Mpi::WorldRank() + 1, Mpi::WorldSize())),
+        elem0(y0 * nx),
+        rowSum(nx * q1d * q1d, rowCounts, rowDispls)
    {
       Mesh serial =
          Mesh::MakeCartesian2D(
@@ -88,11 +196,13 @@ public:
       const int np = Mpi::WorldSize();
       counts.SetSize(np);
       displs.SetSize(np);
+      rowCounts.SetSize(np);
+      rowDispls.SetSize(np);
       int off = 0;
       for (int r = 0; r < np; ++r)
       {
-         const int ry0 = (ny * r) / np;
-         const int ry1 = (ny * (r + 1)) / np;
+         const int ry0 = RowBegin(ny, r, np);
+         const int ry1 = RowBegin(ny, r + 1, np);
          for (int ey = ry0; ey < ry1; ++ey)
             for (int ex = 0; ex < nx; ++ex)
             {
@@ -101,6 +211,8 @@ public:
          counts[r] = (ry1 - ry0) * nx * q2;
          displs[r] = off;
          off += counts[r];
+         rowCounts[r] = ry1 - ry0;
+         rowDispls[r] = ry0;
       }
       MFEM_VERIFY(off == NumSamples(), "gather counts");
 
@@ -139,8 +251,23 @@ public:
 
    int LocalNumSamples() const { return fes->GetVSize(); }
 
+   // First sample row of rank r
+   int SampleRowBegin(int r) const
+   {
+      return q1d * RowBegin(ny, r, Mpi::WorldSize());
+   }
+   int FirstSampleRow() const { return y0 * q1d; }
+   int LocalSampleRows() const { return (y1 - y0) * q1d; }
+
+   // Sample counts and offsets of all ranks
+   const Array<int> &SampleCounts() const { return counts; }
+   const Array<int> &SampleDispls() const { return displs; }
+
    ParFiniteElementSpace &Space() const { return *fes; }
    ParFiniteElementSpace &ElementSpace() const { return *fes0; }
+
+   // Sums over element rows, in global row order
+   RowSum &Reducer() const { return rowSum; }
 
    void GatherDofs(const Vector &local, Vector &global) const
    {
@@ -191,14 +318,14 @@ struct Fields
          v.SetSize(m);
          v.UseDevice(true);
       };
-      set_size(dot_v, n);
-      set_size(energy_v, n);
+      set_size(dot_v, nloc);
+      set_size(energy_v, nloc);
       set_size(loss_q, nloc);
       set_size(phase_v, n);
       set_size(glob_re, n);
       set_size(glob_im, n);
 
-      const int nx = grid.SampleNx(), ny = grid.SampleNy();
+      const int nx = grid.SampleNx(), ny = grid.LocalSampleRows();
       SetInterleavedSize(E, nx, ny);
       SetInterleavedSize(E_trial, nx, ny);
       SetInterleavedSize(gE, nx, ny);
@@ -247,39 +374,22 @@ struct RasterField
    }
 
    static void FromSamples(const PixelMesh &grid, const Vector &re_s,
-                           const Vector &im_s, Vector &E,
-                           Vector &glob_re, Vector &glob_im)
+                           const Vector &im_s, Vector &E)
    {
-      SetInterleavedSize(E, grid.SampleNx(), grid.SampleNy());
-      if (Mpi::WorldSize() == 1)
-      {
-         Pack(grid.Q1D(), grid.NumSamples(), grid.Nx(), re_s, im_s, E);
-         return;
-      }
-      grid.GatherDofs(re_s, glob_re);
-      grid.GatherDofs(im_s, glob_im);
-      Pack(grid.Q1D(), grid.NumSamples(), grid.Nx(), glob_re, glob_im, E);
+      SetInterleavedSize(E, grid.SampleNx(), grid.LocalSampleRows());
+      Pack(grid.Q1D(), grid.LocalNumSamples(), grid.Nx(), re_s, im_s, E);
    }
 
    static void ToSamples(const PixelMesh &grid, const Vector &E,
-                         Vector &re_s, Vector &im_s,
-                         Vector &glob_re, Vector &glob_im)
+                         Vector &re_s, Vector &im_s)
    {
-      if (Mpi::WorldSize() == 1)
-      {
-         Unpack(grid.Q1D(), grid.NumSamples(), grid.Nx(), E, re_s, im_s);
-         return;
-      }
-      Unpack(grid.Q1D(), grid.NumSamples(), grid.Nx(), E, glob_re, glob_im);
-      grid.ScatterDofs(glob_re, re_s);
-      grid.ScatterDofs(glob_im, im_s);
+      Unpack(grid.Q1D(), grid.LocalNumSamples(), grid.Nx(), E, re_s, im_s);
    }
 
    static void ToSamples(const PixelMesh &grid, const Vector &E,
-                         ParComplexGridFunction &field,
-                         Vector &glob_re, Vector &glob_im)
+                         ParComplexGridFunction &field)
    {
-      ToSamples(grid, E, field.real(), field.imag(), glob_re, glob_im);
+      ToSamples(grid, E, field.real(), field.imag());
       field.SyncAlias();
    }
 };
@@ -303,7 +413,7 @@ public:
       tgt = &a_tgt_in;
    }
 
-   // Fold the phase into (-π, π]
+   // Fold the phase into [-π, π)
    void Wrap(Vector &phi) const
    {
       const int n = phi.Size();
@@ -387,16 +497,143 @@ public:
          gi[i] = c * ei[i];
       });
       grad.SyncAlias();
-      real_t sum = data.loss_q.Sum();
-      if (Mpi::WorldSize() > 1)
-      {
-         real_t total = 0.0;
-         MPI_Allreduce(&sum, &total, 1,
-                       MPITypeMap<real_t>::mpi_type,
-                       MPI_SUM, MPI_COMM_WORLD);
-         sum = total;
-      }
+      real_t sum = grid.Reducer().Sum(data.loss_q);
       return sum * inv_n;
+   }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Copy between rows x nx local rows and the stage, which holds the local rows
+// split by the column block of each of the np ranks, rank by rank
+inline void StageTranspose(const Vector &src, Vector &dst, int rows, int nx,
+                           int np, bool toColumns)
+{
+   const int n = rows * nx;
+   const real_t *s = src.Read();
+   real_t *d = dst.Write();
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int i = idx / nx, c = idx - i * nx;
+      const int p = static_cast<int>(
+                       ((static_cast<long long>(c) + 1) * np - 1) / nx);
+      const int c0 = static_cast<int>((static_cast<long long>(nx) * p) / np);
+      const int c1 =
+         static_cast<int>((static_cast<long long>(nx) * (p + 1)) / np);
+      const int k = rows * c0 + i * (c1 - c0) + (c - c0);
+      const int from = toColumns ? idx : k, to = toColumns ? k : idx;
+      d[2 * to] = s[2 * from];
+      d[2 * to + 1] = s[2 * from + 1];
+   });
+}
+
+// Fresnel propagation of the local sample rows: the x factor on the local
+// rows, the y factor on a block of full columns after an all-to-all transpose
+class ParFresnel : public Operator
+{
+   std::unique_ptr<FresnelOp> op;
+   const int nx, ny, np, rows, cols;
+   Array<int> rowCounts, rowDispls, colCounts, colDispls;
+   mutable Vector stage, block;
+
+   static int ColBegin(int n, int p, int np)
+   {
+      return static_cast<int>((static_cast<long long>(n) * p) / np);
+   }
+
+   void Transpose(const Vector &src, Vector &dst, bool toColumns) const
+   {
+      StageTranspose(src, dst, rows, nx, np, toColumns);
+   }
+
+   void ToColumns(const Vector &y) const
+   {
+      Transpose(y, stage, true);
+      MPI_Alltoallv(const_cast<real_t *>(stage.HostRead()),
+                    rowCounts.GetData(), rowDispls.GetData(),
+                    MPITypeMap<real_t>::mpi_type,
+                    block.HostWrite(), colCounts.GetData(), colDispls.GetData(),
+                    MPITypeMap<real_t>::mpi_type, MPI_COMM_WORLD);
+   }
+
+   void ToRows(Vector &y) const
+   {
+      MPI_Alltoallv(const_cast<real_t *>(block.HostRead()),
+                    colCounts.GetData(), colDispls.GetData(),
+                    MPITypeMap<real_t>::mpi_type,
+                    stage.HostWrite(), rowCounts.GetData(), rowDispls.GetData(),
+                    MPITypeMap<real_t>::mpi_type, MPI_COMM_WORLD);
+      Transpose(stage, y, false);
+   }
+
+   void Mult(const Vector &x, Vector &y, bool adjoint) const
+   {
+      MFEM_VERIFY(x.Size() == Height(), "ParFresnel input size");
+      y.UseDevice(true);
+      if (y.Size() != Height()) { y.SetSize(Height()); }
+      if (&x != &y) { y = x; }
+      if (np == 1)
+      {
+         auto *E = reinterpret_cast<complex_t *>(y.ReadWrite());
+         op->ApplyY(E, adjoint);
+         op->ApplyX(E, adjoint);
+         return;
+      }
+      ToColumns(y);
+      if (cols > 0)
+      {
+         op->ApplyY(reinterpret_cast<complex_t *>(block.ReadWrite()), adjoint);
+      }
+      ToRows(y);
+      op->ApplyX(reinterpret_cast<complex_t *>(y.ReadWrite()), adjoint);
+   }
+
+public:
+   ParFresnel(const PixelMesh &grid, bool fft, real_t wavelength,
+              real_t extent_x, real_t extent_y, real_t z)
+      : Operator(2 * grid.LocalSampleRows() * grid.SampleNx()),
+        op(MakeFresnelOp(fft)),
+        nx(grid.SampleNx()), ny(grid.SampleNy()),
+        np(Mpi::WorldSize()),
+        rows(grid.LocalSampleRows()),
+        cols(ColBegin(nx, Mpi::WorldRank() + 1, np) -
+             ColBegin(nx, Mpi::WorldRank(), np))
+   {
+      rowCounts.SetSize(np);
+      rowDispls.SetSize(np);
+      colCounts.SetSize(np);
+      colDispls.SetSize(np);
+      for (int p = 0; p < np; ++p)
+      {
+         const int c0 = ColBegin(nx, p, np), c1 = ColBegin(nx, p + 1, np);
+         const int r0 = grid.SampleRowBegin(p), r1 = grid.SampleRowBegin(p + 1);
+         rowCounts[p] = 2 * rows * (c1 - c0);
+         rowDispls[p] = 2 * rows * c0;
+         colCounts[p] = 2 * (r1 - r0) * cols;
+         colDispls[p] = 2 * r0 * cols;
+      }
+      stage.UseDevice(true);
+      stage.SetSize(2 * rows * nx);
+      block.UseDevice(true);
+      block.SetSize(2 * ny * cols);
+      op->Assemble(wavelength, extent_x, extent_y, z, nx, ny, cols, rows);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override { Mult(x, y, false); }
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      Mult(x, y, true);
+   }
+
+   void Propagate(Vector &field) const
+   {
+      MFEM_VERIFY(field.Size() == Height(), "ParFresnel replay size");
+      const complex_t phase = op->Phase();
+      auto *Z = reinterpret_cast<complex_t *>(field.ReadWrite());
+      mfem::forall(Height() / 2, [=] MFEM_HOST_DEVICE (int i)
+      {
+         Z[i] *= phase;
+      });
+      Mult(field, field);
    }
 };
 
@@ -405,7 +642,7 @@ class GaussNewtonOp : public Operator
 {
    PhaseMask &mask;
    const PixelMesh &grid;
-   const FresnelOp &prop;
+   const ParFresnel &prop;
    const Lens &lens;
    const Vector &E_scaled;
    Fields &data;
@@ -416,7 +653,7 @@ class GaussNewtonOp : public Operator
 
 public:
    GaussNewtonOp(PhaseMask &mask, const PixelMesh &grid,
-                 const FresnelOp &prop, const Lens &lens,
+                 const ParFresnel &prop, const Lens &lens,
                  const Vector &E_scaled, Fields &data)
       : Operator(grid.Space().GetVSize()),
         mask(mask), grid(grid), prop(prop),
@@ -439,16 +676,14 @@ public:
       Assemble(out);
       if (lambda != 0.0)
       {
-         const real_t inv_n =
-            1.0 / static_cast<real_t>(InterleavedSize(data.dE));
+         const real_t inv_n = 1.0 / static_cast<real_t>(grid.NumSamples());
          out.Add(lambda * inv_n, dphi);
       }
    }
 
    void Assemble(Vector &out) const
    {
-      RasterField::FromSamples(grid, data.du.real(), data.du.imag(),
-                               data.dE, data.glob_re, data.glob_im);
+      RasterField::FromSamples(grid, data.du.real(), data.du.imag(), data.dE);
       lens.Apply(data.dE, false);
       prop.Mult(data.dE, data.dE);
 
@@ -477,9 +712,9 @@ public:
       });
       prop.MultTranspose(data.seed, data.seed);
       lens.Apply(data.seed, true);
-      RasterField::ToSamples(grid, data.seed, data.s, data.glob_re, data.glob_im);
+      RasterField::ToSamples(grid, data.seed, data.s);
       mask.Adjoint(data.s, out);
-      out *= 2.0 / static_cast<real_t>(n);
+      out *= 2.0 / static_cast<real_t>(grid.NumSamples());
    }
 };
 
@@ -488,7 +723,7 @@ class ObjectiveOp : public Operator
 {
    PhaseMask &mask;
    PixelMesh &grid;
-   FresnelOp &prop;
+   const ParFresnel &prop;
    Lens &lens;
    Vector &E;
    Vector &target;
@@ -497,7 +732,7 @@ class ObjectiveOp : public Operator
 
 public:
    ObjectiveOp(PhaseMask &mask, PixelMesh &grid,
-               FresnelOp &prop, Lens &lens,
+               const ParFresnel &prop, Lens &lens,
                Vector &E, Vector &target,
                GaussNewtonOp &op,
                Fields &data)
@@ -509,12 +744,12 @@ public:
    real_t ForwardLoss(const Vector &phi, Vector &E_out) const
    {
       mask.Modulate(phi, data.u);
-      RasterField::FromSamples(grid, data.u.real(), data.u.imag(), E_out,
-                               data.glob_re, data.glob_im);
+      RasterField::FromSamples(grid, data.u.real(), data.u.imag(), E_out);
       lens.Apply(E_out, false);
       prop.Mult(E_out, E_out);
-      last_scale = holo::MatchTarget(E_out, target, data.dot_v, data.energy_v);
-      RasterField::ToSamples(grid, E_out, data.s, data.glob_re, data.glob_im);
+      last_scale = holo::MatchTarget(E_out, target, data.dot_v, data.energy_v,
+                                     grid.Reducer());
+      RasterField::ToSamples(grid, E_out, data.s);
       last_J = mask.MeanAmplitudeError(data.s, data.g, data);
       return last_J;
    }
@@ -526,11 +761,10 @@ public:
       data.g.real() *= last_scale;
       data.g.imag() *= last_scale;
       data.g.SyncAlias();
-      RasterField::FromSamples(grid, data.g.real(), data.g.imag(), data.gE,
-                               data.glob_re, data.glob_im);
+      RasterField::FromSamples(grid, data.g.real(), data.g.imag(), data.gE);
       prop.MultTranspose(data.gE, data.gE);
       lens.Apply(data.gE, true);
-      RasterField::ToSamples(grid, data.gE, data.s, data.glob_re, data.glob_im);
+      RasterField::ToSamples(grid, data.gE, data.s);
       op.SetState(phi, last_scale);
       mask.Adjoint(data.s, F);
    }
@@ -591,6 +825,8 @@ public:
    mutable int gn_ran = 0;
    mutable bool started = false;
    mutable bool line_search_failed = false;
+   // Loss at the first Newton step and at the current iterate
+   mutable real_t firstLoss = -1.0, finalLoss = -1.0;
 
    real_t ComputeScalingFactor(const Vector &x, const Vector &) const override
    {
@@ -610,6 +846,8 @@ public:
              << " " << loss << " " << drop << "\n";
       }
       J_log_prev = J0;
+      if (firstLoss < 0.0) { firstLoss = J0; }
+      finalLoss = J0;
       const real_t scale_at_x = op->last_scale;
 
       auto try_decrease = [&]() -> real_t
@@ -624,6 +862,7 @@ public:
             const real_t J_new = op->ForwardLoss(*trial, *trial_field);
             if (J_new < J0)
             {
+               finalLoss = J_new;
                mask_op->SetLambda(std::max(mask_op->Lambda() * 0.5, 1e-8));
                return alpha;
             }
@@ -695,7 +934,9 @@ class PhaseRetrieval
    const real_t wavelength, extent_x, extent_y, z, focal;
    const bool fft;
    RealArray2D mask_image;
-   std::unique_ptr<FresnelOp> propagator;
+   int acceptedSteps = 0;
+   real_t firstLoss = 0.0, finalLoss = 0.0;
+   std::unique_ptr<ParFresnel> propagator;
 
 public:
    PhaseRetrieval(RealArray2D target, int order, real_t wavelength,
@@ -719,12 +960,21 @@ public:
       phi = 0.0;
       ParGridFunction a_src(&mesh.ElementSpace());
       a_src = 1.0;
-      Vector target_image(mesh.NumSamples());
-      target_image.UseDevice(true);
+      Vector target_global(mesh.NumSamples());
+      target_global.UseDevice(true);
       {
          const real_t *s = target(0);
-         real_t *d = target_image.HostWrite();
+         real_t *d = target_global.HostWrite();
          for (int i = 0; i < mesh.NumSamples(); ++i) { d[i] = s[i]; }
+      }
+      // Local sample rows of the target
+      const int localSamples = mesh.LocalSampleRows() * mesh.SampleNx();
+      Vector target_image(localSamples);
+      target_image.UseDevice(true);
+      {
+         const real_t *s = target(mesh.FirstSampleRow());
+         real_t *d = target_image.HostWrite();
+         for (int i = 0; i < localSamples; ++i) { d[i] = s[i]; }
       }
       Vector a_tgt_global(mesh.NumSamples());
       a_tgt_global.UseDevice(true);
@@ -732,7 +982,7 @@ public:
          const int n = mesh.NumSamples();
          const int nx = mesh.Nx();
          const int q1d = mesh.Q1D();
-         const real_t *s = target_image.Read();
+         const real_t *s = target_global.Read();
          real_t *d = a_tgt_global.Write();
          mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
          {
@@ -746,14 +996,14 @@ public:
       mask.SetAmplitudes(a_src, a_tgt);
 
       // Create the propagator
-      propagator = MakeFresnelOp(fft);
-      propagator->Assemble(wavelength, extent_x, extent_y, z,
-                           mesh.SampleNx(), mesh.SampleNy());
+      propagator = std::make_unique<ParFresnel>(mesh, fft, wavelength,
+                                                extent_x, extent_y, z);
 
       // Create the lens
       Lens lens;
       lens(mesh.SampleNx(), mesh.SampleNy(),
-           extent_x, extent_y, wavelength, focal);
+           extent_x, extent_y, wavelength, focal,
+           mesh.FirstSampleRow(), mesh.LocalSampleRows());
 
       Fields fields(mesh);
 
@@ -763,6 +1013,7 @@ public:
       op.ForwardLoss(phi, fields.E);
 
       CGSolver cg(MPI_COMM_WORLD);
+      cg.SetInnerProduct(&mesh.Reducer());
       cg.SetRelTol(1e-3);
       cg.SetAbsTol(1e-12);
       cg.SetMaxIter(std::max(1, cg_max_iter));
@@ -774,6 +1025,7 @@ public:
       newton.SetAbsTol(1e-8);
       newton.SetMaxIter(std::max(0, max_iter));
       newton.SetPrintLevel(-1);
+      newton.SetInnerProduct(&mesh.Reducer());
       GaussNewtonCg step(cg, mask_op);
       newton.SetOperator(op);
       newton.SetSolver(step);
@@ -817,6 +1069,10 @@ public:
       aperture(mesh, fields.u.real(), fields.u.imag(),
                mask_image, fields);
 
+      acceptedSteps = newton.gn_ran;
+      firstLoss = newton.firstLoss;
+      finalLoss = newton.finalLoss;
+
       const char *why = "max_iter";
       if (newton.line_search_failed) { why = "line_search"; }
       else if (stall.stop_reason) { why = stall.stop_reason; }
@@ -828,9 +1084,13 @@ public:
    }
 
    const RealArray2D &MaskImage() const { return mask_image; }
-   const FresnelOp &Propagator() const { return *propagator; }
+   int AcceptedSteps() const { return acceptedSteps; }
+   real_t FirstLoss() const { return firstLoss; }
+   real_t FinalLoss() const { return finalLoss; }
+   const ParFresnel &Propagator() const { return *propagator; }
    int SampleNx() const { return mesh.SampleNx(); }
    int SampleNy() const { return mesh.SampleNy(); }
+   const PixelMesh &Grid() const { return mesh; }
 };
 
 } // namespace holo
@@ -850,6 +1110,8 @@ int main(int argc, char *argv[]) try
    int cgs_max_iter = 20;
    int order = 0;
    real_t stall_pct = 1.0;
+   real_t gemMaxGib = 16.0;
+   bool checkLoss = false;
 #if defined(HOLO_USE_CPU_FFT)
    bool use_fft = true;
 #else
@@ -881,6 +1143,12 @@ int main(int argc, char *argv[]) try
                   "cpu, cuFFT or hipFFT on CUDA or HIP).");
    args.AddOption(&stall_pct, "-stall", "--loss-stall",
                   "Newton stall relative loss drop in percent (default 1).");
+   args.AddOption(&gemMaxGib, "-gmem", "--gem-max-gib",
+                  "Largest memory in GiB for the dense -gem Fresnel matrices "
+                  "(default 16).");
+   args.AddOption(&checkLoss, "-check", "--check", "-no-check", "--no-check",
+                  "Exit with an error unless a Newton step was accepted and "
+                  "the final loss is below the first loss (default off).");
 
    bool chose_propagator = false;
    for (int i = 1; i < argc; ++i)
@@ -900,10 +1168,12 @@ int main(int argc, char *argv[]) try
       std::exit(EXIT_FAILURE);
    }
 
-   if (!(wavelength_nm > 0.0) || !(z_prop > 0.0) || !(focal > 0.0) ||
-       order < 0 || nwt_max_iter < 0 || cgs_max_iter < 1)
+   const std::string optionsError =
+      holo::OptionsError(wavelength_nm, z_prop, focal, stall_pct, order,
+                         nwt_max_iter, cgs_max_iter, gemMaxGib);
+   if (!optionsError.empty())
    {
-      mfem::err << "Invalid wavelength, z, focal, order, or iteration count.\n";
+      if (Mpi::Root()) { mfem::err << optionsError << "\n"; }
       return EXIT_FAILURE;
    }
 
@@ -918,16 +1188,26 @@ int main(int argc, char *argv[]) try
       device.Print();
    }
 
-   // Load the target image
-   const auto gray = holo::LoadPngGray(in_file);
-   if (gray.width < 1 || gray.height < 1)
+   // Load the target image on rank 0
+   holo::GrayImage gray;
+   std::string loadError;
+   if (Mpi::Root())
    {
-      throw std::runtime_error("Empty target PNG");
+      try
+      {
+         gray = holo::LoadPngGray(in_file);
+         if (gray.width < 1 || gray.height < 1)
+         {
+            loadError = "Empty target PNG";
+         }
+      }
+      catch (const std::exception &exc) { loadError = exc.what(); }
    }
+   if (!holo::RootOk(loadError)) { return EXIT_FAILURE; }
+   int imgSize[2] = {gray.width, gray.height};
+   MPI_Bcast(imgSize, 2, MPI_INT, 0, MPI_COMM_WORLD);
 
-   // Convert the target image to a 2D array of real values
-   auto amplitude = holo::GrayToReal2D(gray);
-   const int img_w = gray.width, img_h = gray.height;
+   const int img_w = imgSize[0], img_h = imgSize[1];
    if (Mpi::Root())
    {
       out << "Loaded " << img_w << "x" << img_h
@@ -939,6 +1219,41 @@ int main(int argc, char *argv[]) try
    const real_t extent_y =
       extent_x * (static_cast<real_t>(img_h) /
                   static_cast<real_t>(img_w));
+
+   // Check the image size against the order, the propagator and the ranks,
+   // the optics terms and the -gem memory
+   int nodeRanks = 1, deviceRanks = 1;
+   holo::NodeRanks(nodeRanks, deviceRanks);
+   std::string imageError = holo::ImageError(img_w, img_h, order, use_fft);
+   if (imageError.empty() && Mpi::WorldSize() > img_h / (order + 1))
+   {
+      const int elemRows = img_h / (order + 1);
+      imageError = "Too many MPI ranks: " + std::to_string(Mpi::WorldSize()) +
+                   " ranks for " + std::to_string(elemRows) +
+                   " element rows (image height " + std::to_string(img_h) +
+                   ", order+1 = " + std::to_string(order + 1) +
+                   "), use at most " + std::to_string(elemRows) + " ranks";
+   }
+   if (imageError.empty())
+   {
+      imageError = holo::OpticsError(wavelength_nm, z_prop, focal, extent_x,
+                                     extent_y, img_w, img_h);
+   }
+   if (imageError.empty() && !use_fft)
+   {
+      imageError = holo::GemMemoryError(img_w, img_h, gemMaxGib, nodeRanks,
+                                        deviceRanks);
+   }
+   if (!holo::AllOk(imageError)) { return EXIT_FAILURE; }
+
+   // Broadcast the target image
+   gray.width = img_w, gray.height = img_h;
+   gray.pixels.resize(static_cast<std::size_t>(img_w) *
+                      static_cast<std::size_t>(img_h));
+   MPI_Bcast(gray.pixels.data(), img_w * img_h, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+   // Convert the target image to a 2D array of real values
+   auto amplitude = holo::GrayToReal2D(gray);
 
    // Create the solver
    holo::PhaseRetrieval solver(std::move(amplitude), order, wavelength,
@@ -955,25 +1270,36 @@ int main(int argc, char *argv[]) try
       throw std::runtime_error("Mask size does not match the sample grid");
    }
 
-   // Write the mask to a PNG file
+   // Write the mask to a PNG file on rank 0
+   std::string maskError;
    if (Mpi::Root())
    {
-      if (!holo::WritePhasePng(mask_file, phase))
+      try
       {
-         throw std::runtime_error(std::string("Failed to write ") + mask_file);
+         if (!holo::WritePhasePng(mask_file, phase))
+         {
+            maskError = std::string("Failed to write ") + mask_file;
+         }
       }
-      mfem::out << "Wrote mask " << phase.NumCols() << "x"
-                << phase.NumRows() << " " << mask_file << "\n";
+      catch (const std::exception &exc) { maskError = exc.what(); }
+      if (maskError.empty())
+      {
+         mfem::out << "Wrote mask " << phase.NumCols() << "x"
+                   << phase.NumRows() << " " << mask_file << "\n";
+      }
    }
+   if (!holo::RootOk(maskError)) { return EXIT_FAILURE; }
 
    const auto propagator = &solver.Propagator();
-   const int nx = phase.NumCols(), ny = phase.NumRows(), n = nx * ny;
+   const holo::PixelMesh &grid = solver.Grid();
+   const int firstRow = grid.FirstSampleRow(), rows = grid.LocalSampleRows();
+   const int nx = phase.NumCols(), ny = phase.NumRows(), n = nx * rows;
    Vector phase_v(n), field(2 * n), Iv(n);
    phase_v.UseDevice(true);
    field.UseDevice(true);
    Iv.UseDevice(true);
    {
-      const real_t *src = phase.GetRow(0);
+      const real_t *src = phase.GetRow(firstRow);
       real_t *h = phase_v.HostWrite();
       for (int k = 0; k < n; ++k) { h[k] = src[k]; }
    }
@@ -985,7 +1311,7 @@ int main(int argc, char *argv[]) try
       p[2 * idx + 1] = std::sin(ph[idx]);
    });
    holo::Lens lens;
-   lens(nx, ny, extent_x, extent_y, wavelength, focal);
+   lens(nx, ny, extent_x, extent_y, wavelength, focal, firstRow, rows);
    lens.Apply(field);
 
    // Propagate the field
@@ -999,22 +1325,50 @@ int main(int argc, char *argv[]) try
       const real_t re = f[2 * k], im = f[2 * k + 1];
       Id[k] = re * re + im * im;
    });
-   RealArray2D intensity(ny, nx);
-   const real_t *Ih = Iv.HostRead();
-   real_t *I = intensity(0);
-   for (int k = 0; k < n; ++k) { I[k] = Ih[k]; }
+   RealArray2D intensity;
+   if (Mpi::Root()) { intensity.SetSize(ny, nx); }
+   MPI_Gatherv(const_cast<real_t *>(Iv.HostRead()), n,
+               MPITypeMap<real_t>::mpi_type,
+               Mpi::Root() ? intensity(0) : nullptr,
+               grid.SampleCounts().GetData(), grid.SampleDispls().GetData(),
+               MPITypeMap<real_t>::mpi_type, 0, MPI_COMM_WORLD);
 
-   // Write the hologram to the output PNG file
+   // Write the hologram to the output PNG file on rank 0
+   std::string holoError;
    if (Mpi::Root())
    {
       std::vector<unsigned char> rgb;
       int w = 0, h = 0;
-      if (!holo::EncodeMonoWavelengthRgb(intensity, wavelength_nm, rgb, w, h) ||
-          !holo::WritePngRgb(holo_file, w, h, rgb))
+      try
       {
-         throw std::runtime_error(std::string("Failed to write ") + holo_file);
+         const bool encoded =
+            holo::EncodeMonoWavelengthRgb(intensity, wavelength_nm, rgb, w, h);
+         if (!encoded || !holo::WritePngRgb(holo_file, w, h, rgb))
+         {
+            holoError = std::string("Failed to write ") + holo_file;
+         }
       }
-      mfem::out << "Wrote " << w << "x" << h << " " << holo_file << "\n";
+      catch (const std::exception &exc) { holoError = exc.what(); }
+      if (holoError.empty())
+      {
+         mfem::out << "Wrote " << w << "x" << h << " " << holo_file << "\n";
+      }
+   }
+   if (!holo::RootOk(holoError)) { return EXIT_FAILURE; }
+
+   // Check the loss decrease
+   if (checkLoss)
+   {
+      const std::string checkError =
+         holo::LossCheckError(solver.AcceptedSteps(), solver.FirstLoss(),
+                              solver.FinalLoss());
+      if (!holo::AllOk(checkError)) { return EXIT_FAILURE; }
+      if (Mpi::Root())
+      {
+         mfem::out << "Loss check passed: " << solver.AcceptedSteps()
+                   << " accepted Newton steps, loss " << solver.FirstLoss()
+                   << " -> " << solver.FinalLoss() << "\n";
+      }
    }
    return EXIT_SUCCESS;
 }

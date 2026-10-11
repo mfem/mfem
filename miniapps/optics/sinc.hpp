@@ -12,13 +12,11 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "general/device.hpp"
-#include "general/forall.hpp"
-#include "linalg/complex.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <memory>
 
 #if defined(HOLO_USE_CPU_FFT)
@@ -54,6 +52,15 @@ using complex_t = mfem::complex_t;
 
 using ComplexArray1D = mfem::Array<complex_t>;
 
+// Product a * b when it fits in an int, otherwise -1
+inline int CheckedIntProduct(std::size_t a, std::size_t b)
+{
+   const auto intMax =
+      static_cast<std::size_t>(std::numeric_limits<int>::max());
+   if (a != 0 && b > intMax / a) { return -1; }
+   return static_cast<int>(a * b);
+}
+
 class ComplexArray2D
 {
    int rows = 0, cols = 0;
@@ -65,10 +72,17 @@ public:
 
    void SetSize(int num_rows, int num_cols)
    {
+      MFEM_VERIFY(num_rows >= 0 && num_cols >= 0,
+                  "ComplexArray2D: negative size "
+                  << num_rows << "x" << num_cols);
+      const int size = CheckedIntProduct(static_cast<std::size_t>(num_rows),
+                                         static_cast<std::size_t>(num_cols));
+      MFEM_VERIFY(size >= 0, "ComplexArray2D: " << num_rows << "x"
+                  << num_cols << " entries exceed the int size limit");
       rows = num_rows;
       cols = num_cols;
       data.UseDevice(true);
-      data.SetSize(rows * cols);
+      data.SetSize(size);
    }
 
    int NumRows() const { return rows; }
@@ -108,10 +122,10 @@ static_assert(sizeof(complex_t) == sizeof(fftw_cpx));
 class FresnelOp : public mfem::Operator
 {
 protected:
-   int nx = 0, ny = 0;
+   int nx = 0, ny = 0, colsY = 0, rowsX = 0;
    real_t w = 0, z = 0;
 
-   void SetImage(real_t w, real_t z, int nx, int ny);
+   void SetImage(real_t w, real_t z, int nx, int ny, int colsY, int rowsX);
    complex_t *Load(const Vector &x, Vector &y) const;
 
 public:
@@ -120,9 +134,19 @@ public:
    FresnelOp(const FresnelOp &) = delete;
    FresnelOp &operator=(const FresnelOp &) = delete;
 
-   virtual void Assemble(real_t w, real_t x,
-                         real_t y, real_t z,
-                         int nx, int ny) = 0;
+   virtual void Assemble(real_t w, real_t x, real_t y, real_t z,
+                         int nx, int ny, int colsY, int rowsX) = 0;
+
+   void Assemble(real_t W, real_t X, real_t Y, real_t Z, int NX, int NY)
+   {
+      Assemble(W, X, Y, Z, NX, NY, NX, NY);
+   }
+
+   virtual void ApplyY(complex_t *C, bool adjoint) const = 0;
+
+   virtual void ApplyX(complex_t *R, bool adjoint) const = 0;
+
+   complex_t Phase() const;
 
    void Propagate(Vector &field) const;
 };
@@ -350,18 +374,29 @@ inline void dense_right_multiply(const complex_t *b, const ComplexArray2D &H,
    });
 }
 
-inline std::size_t ToeplitzEmbedSize(std::size_t n)
+inline void copy_complex(const complex_t *src, complex_t *dst, int n)
 {
-   const auto NextPow2 = [](std::size_t x) -> std::size_t
-   {
-      if (x <= 1) { return 1; }
-      --x;
-      (x |= x >> 1, x |= x >> 2, x |= x >> 4);
-      (x |= x >> 8, x |= x >> 16, x |= x >> 32);
-      return x + 1;
-   };
-   return NextPow2(std::max(2 * n, static_cast<std::size_t>(2)));
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { dst[i] = src[i]; });
 }
+
+// Smallest power of two >= max(2n, 2), 0 when it exceeds std::size_t
+constexpr std::size_t ToeplitzEmbedSize(std::size_t n)
+{
+   const std::size_t top = std::numeric_limits<std::size_t>::max() / 2 + 1;
+   if (n > top / 2) { return 0; }
+   std::size_t m = 2;
+   while (m < 2 * n) { m *= 2; }
+   return m;
+}
+
+static_assert(ToeplitzEmbedSize(0) == 2 && ToeplitzEmbedSize(1) == 2 &&
+              ToeplitzEmbedSize(3) == 8 && ToeplitzEmbedSize(4) == 8 &&
+              ToeplitzEmbedSize(5) == 16, "ToeplitzEmbedSize rounding");
+static_assert(ToeplitzEmbedSize(std::numeric_limits<std::size_t>::max() / 4 +
+                                1) ==
+              std::numeric_limits<std::size_t>::max() / 2 + 1 &&
+              ToeplitzEmbedSize(std::numeric_limits<std::size_t>::max() / 4 +
+                                2) == 0, "ToeplitzEmbedSize overflow");
 
 inline void ToeplitzEmbed(const ComplexArray1D &first_row,
                           const ComplexArray1D &first_col,
@@ -369,7 +404,12 @@ inline void ToeplitzEmbed(const ComplexArray1D &first_row,
 {
    const int n = first_row.Size();
    MFEM_VERIFY(first_col.Size() == n, "ToeplitzEmbed row/col size");
-   const int m = static_cast<int>(ToeplitzEmbedSize(static_cast<std::size_t>(n)));
+   const std::size_t embed = ToeplitzEmbedSize(static_cast<std::size_t>(n));
+   MFEM_VERIFY(embed > 0 &&
+               embed <= static_cast<std::size_t>(std::numeric_limits<int>::max()),
+               "ToeplitzEmbed: the circulant embedding of " << n
+               << " exceeds the int size limit");
+   const int m = static_cast<int>(embed);
    circ.UseDevice(true);
    circ.SetSize(m);
    const complex_t *row = first_row.Read();
@@ -410,7 +450,7 @@ public:
    virtual ~ToeplitzFft() = default;
    virtual void Prepare(const ComplexArray1D &fr_x, const ComplexArray1D &fc_x,
                         const ComplexArray1D &fr_y, const ComplexArray1D &fc_y,
-                        int nx, int ny) = 0;
+                        int nx, int ny, int colsY, int rowsX) = 0;
    virtual void AxisY(complex_t *E, bool adjoint) const = 0;
    virtual void AxisX(complex_t *E, bool adjoint) const = 0;
 };
@@ -462,6 +502,7 @@ public:
       impl->m = m_in;
       impl->batch = batch_in;
       impl->along_rows = along_rows_in;
+      if (batch_in == 0) { return; }
       impl->buf = static_cast<complex_t *>(
                      holo_fftw_malloc(sizeof(complex_t) * static_cast<std::size_t>(m_in) *
                                       static_cast<std::size_t>(batch_in)));
@@ -482,7 +523,9 @@ public:
 
    inline void Mult(complex_t *E, const complex_t *freq) const
    {
-      MFEM_VERIFY(impl && impl->buf, "CpuFFT::Apply before Plan");
+      MFEM_VERIFY(impl, "CpuFFT::Apply before Plan");
+      if (impl->batch == 0) { return; }
+      MFEM_VERIFY(impl->buf, "CpuFFT::Apply before Plan");
       const int n = impl->n, m = impl->m;
       const int batch = impl->batch;
       const bool rows = impl->along_rows;
@@ -539,7 +582,7 @@ class CpuToeplitzFft : public ToeplitzFft
 public:
    void Prepare(const ComplexArray1D &fr_x, const ComplexArray1D &fc_x,
                 const ComplexArray1D &fr_y, const ComplexArray1D &fc_y,
-                int nx, int ny) override
+                int nx, int ny, int colsY, int rowsX) override
    {
       ComplexArray1D adj_fr_x, adj_fc_x, adj_fr_y, adj_fc_y;
       FillAdjointWeights(fr_x, fc_x, adj_fr_x, adj_fc_x);
@@ -548,8 +591,8 @@ public:
       Spectrum(adj_fr_y, adj_fc_y, y_adj);
       Spectrum(fc_x, fr_x, x_fwd);
       Spectrum(adj_fc_x, adj_fr_x, x_adj);
-      axis_y.Plan(ny, static_cast<int>(y_fwd.size()), nx, false);
-      axis_x.Plan(nx, static_cast<int>(x_fwd.size()), ny, true);
+      axis_y.Plan(ny, static_cast<int>(y_fwd.size()), colsY, false);
+      axis_x.Plan(nx, static_cast<int>(x_fwd.size()), rowsX, true);
    }
 
    void AxisY(complex_t *E, bool adjoint) const override
@@ -728,6 +771,7 @@ struct GpuFFT::Impl
       m = m_in;
       batch = batch_in;
       along_rows = along_rows_in;
+      if (batch == 0) { return; }
       int nfft = m;
       std::size_t bytes = 0;
 #if defined(MFEM_USE_CUDA)
@@ -808,6 +852,7 @@ inline void GpuFFT::Plan(int n, int m, int batch, bool along_rows)
 inline void GpuFFT::Mult(complex_t *E, const complex_t *spectrum) const
 {
    MFEM_VERIFY(impl, "GpuFFT::Apply before Plan");
+   if (impl->batch == 0) { return; }
    const int n = impl->n;
    const int m = impl->m;
    const int batch = impl->batch;
@@ -837,7 +882,7 @@ class GpuToeplitzFft : public ToeplitzFft
 public:
    void Prepare(const ComplexArray1D &fr_x, const ComplexArray1D &fc_x,
                 const ComplexArray1D &fr_y, const ComplexArray1D &fc_y,
-                int nx, int ny) override
+                int nx, int ny, int colsY, int rowsX) override
    {
       ComplexArray1D adj_fr_x, adj_fc_x, adj_fr_y, adj_fc_y;
       FillAdjointWeights(fr_x, fc_x, adj_fr_x, adj_fc_x);
@@ -846,8 +891,8 @@ public:
       Spectrum(adj_fr_y, adj_fc_y, spec_y_adj);
       Spectrum(fc_x, fr_x, spec_x_fwd);
       Spectrum(adj_fc_x, adj_fr_x, spec_x_adj);
-      axis_y.Plan(ny, spec_y_fwd.Size(), nx, false);
-      axis_x.Plan(nx, spec_x_fwd.Size(), ny, true);
+      axis_y.Plan(ny, spec_y_fwd.Size(), colsY, false);
+      axis_x.Plan(nx, spec_x_fwd.Size(), rowsX, true);
    }
 
    void AxisY(complex_t *E, bool adjoint) const override
@@ -913,12 +958,17 @@ inline std::unique_ptr<ToeplitzFft> MakeToeplitzFft()
 
 // ────────────────────────────────────────────────────────────────────────────
 inline void FresnelOp::SetImage(real_t wavelength_in, real_t z_in,
-                                int nx_in, int ny_in)
+                                int nx_in, int ny_in, int colsY_in,
+                                int rowsX_in)
 {
+   MFEM_VERIFY(colsY_in >= 0 && colsY_in <= nx_in && rowsX_in >= 0 &&
+               rowsX_in <= ny_in, "FresnelOp block sizes");
    w = wavelength_in;
    z = z_in;
    nx = nx_in;
    ny = ny_in;
+   colsY = colsY_in;
+   rowsX = rowsX_in;
    height = width = 2 * nx * ny;
 }
 
@@ -932,12 +982,17 @@ inline complex_t *FresnelOp::Load(const Vector &x, Vector &y) const
    return reinterpret_cast<complex_t *>(y.ReadWrite());
 }
 
+inline complex_t FresnelOp::Phase() const
+{
+   const real_t k = 2.0 * M_PI / w;
+   return exp(complex_t{0.0, k * z});
+}
+
 inline void FresnelOp::Propagate(Vector &field) const
 {
    const int N = nx * ny;
    MFEM_VERIFY(field.Size() == 2 * N, "FresnelOp replay size");
-   const real_t k = 2.0 * M_PI / w;
-   const complex_t phase = exp(complex_t{0.0, k * z});
+   const complex_t phase = Phase();
    auto *Z = reinterpret_cast<complex_t *>(field.ReadWrite());
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { Z[i] *= phase; });
    Mult(field, field);
@@ -951,6 +1006,7 @@ class GemFresnel : public FresnelOp
 
    void Mult(const Vector &x, Vector &y, bool adjoint) const
    {
+      MFEM_VERIFY(colsY == nx && rowsX == ny, "GemFresnel::Mult on blocks");
       complex_t *E = Load(x, y);
       auto *T = reinterpret_cast<complex_t *>(t.ReadWrite());
       dense_left_multiply(adjoint ? Hy_adj : Hy, E, T, nx);
@@ -958,20 +1014,39 @@ class GemFresnel : public FresnelOp
    }
 
 public:
+   using FresnelOp::Assemble;
+
    void Assemble(real_t wavelength_in, real_t extent_x, real_t extent_y,
-                 real_t z_in, int nx_in, int ny_in) override
+                 real_t z_in, int nx_in, int ny_in, int colsY_in,
+                 int rowsX_in) override
    {
-      SetImage(wavelength_in, z_in, nx_in, ny_in);
+      SetImage(wavelength_in, z_in, nx_in, ny_in, colsY_in, rowsX_in);
       const real_t k = 2.0 * M_PI / w;
       const ToeplitzGenerators g =
          FresnelWeights(extent_x, extent_y, nx, ny, z, k);
-      t.SetSize(2 * nx * ny);
+      t.SetSize(2 * std::max(ny * colsY, rowsX * nx));
       t.UseDevice(true);
       t.Write();
       Hx = toeplitz_to_dense(g.fr_x, g.fc_x);
       Hy = toeplitz_to_dense(g.fr_y, g.fc_y);
       Hx_adj = conj_transpose(Hx);
       Hy_adj = conj_transpose(Hy);
+   }
+
+   void ApplyY(complex_t *C, bool adjoint) const override
+   {
+      if (colsY == 0) { return; }
+      auto *T = reinterpret_cast<complex_t *>(t.Write());
+      dense_left_multiply(adjoint ? Hy_adj : Hy, C, T, colsY);
+      copy_complex(T, C, ny * colsY);
+   }
+
+   void ApplyX(complex_t *R, bool adjoint) const override
+   {
+      if (rowsX == 0) { return; }
+      auto *T = reinterpret_cast<complex_t *>(t.Write());
+      dense_right_multiply(R, adjoint ? Hx_adj : Hx, T, rowsX);
+      copy_complex(T, R, rowsX * nx);
    }
 
    void Mult(const Vector &x, Vector &y) const override { Mult(x, y, false); }
@@ -984,22 +1059,36 @@ class FftFresnel : public FresnelOp
 
    void Mult(const Vector &x, Vector &y, bool adjoint) const
    {
+      MFEM_VERIFY(colsY == nx && rowsX == ny, "FftFresnel::Mult on blocks");
       complex_t *E = Load(x, y);
       fft->AxisY(E, adjoint);
       fft->AxisX(E, adjoint);
    }
 
 public:
+   using FresnelOp::Assemble;
+
    void Assemble(real_t wavelength_in, real_t extent_x, real_t extent_y,
-                 real_t z_in, int nx_in, int ny_in) override
+                 real_t z_in, int nx_in, int ny_in, int colsY_in,
+                 int rowsX_in) override
    {
-      SetImage(wavelength_in, z_in, nx_in, ny_in);
+      SetImage(wavelength_in, z_in, nx_in, ny_in, colsY_in, rowsX_in);
       const real_t k = 2.0 * M_PI / w;
       const ToeplitzGenerators g =
          FresnelWeights(extent_x, extent_y, nx, ny, z, k);
       if (!fft) { fft = MakeToeplitzFft(); }
       if (!fft) { AbortMissingFft(); }
-      fft->Prepare(g.fr_x, g.fc_x, g.fr_y, g.fc_y, nx, ny);
+      fft->Prepare(g.fr_x, g.fc_x, g.fr_y, g.fc_y, nx, ny, colsY, rowsX);
+   }
+
+   void ApplyY(complex_t *C, bool adjoint) const override
+   {
+      fft->AxisY(C, adjoint);
+   }
+
+   void ApplyX(complex_t *R, bool adjoint) const override
+   {
+      fft->AxisX(R, adjoint);
    }
 
    void Mult(const Vector &x, Vector &y) const override { Mult(x, y, false); }

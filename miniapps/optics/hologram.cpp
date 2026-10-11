@@ -19,6 +19,7 @@
 // Sample runs:  hologram
 //               hologram -p 5
 //               hologram -p 5 -gem
+//               hologram -gem -mi 2 -check
 
 #include "hologram.hpp"
 using namespace mfem;
@@ -38,6 +39,7 @@ class PixelMesh
    std::unique_ptr<FiniteElementSpace> fes, fes0;
 
    const int order, q1d, nx, ny;
+   mutable RowSum rowSum;
 
    static int VerifyOrder(int pixels_x, int pixels_y, int order)
    {
@@ -64,7 +66,8 @@ public:
         order(order_in),
         q1d(order_in + 1),
         nx(pixels_x / (order_in + 1)),
-        ny(pixels_y / (order_in + 1))
+        ny(pixels_y / (order_in + 1)),
+        rowSum(nx * q1d * q1d)
    {
       Mesh serial =
          Mesh::MakeCartesian2D(
@@ -106,6 +109,8 @@ public:
 
    FiniteElementSpace &Space() const { return *fes; }
    FiniteElementSpace &ElementSpace() const { return *fes0; }
+
+   RowSum &Reducer() const { return rowSum; }
 };
 
 struct Fields
@@ -211,7 +216,7 @@ public:
       tgt = &a_tgt_in;
    }
 
-   // Fold the phase into (-π, π]
+   // Fold the phase into [-π, π)
    void Wrap(Vector &phi) const
    {
       const int n = phi.Size();
@@ -295,7 +300,7 @@ public:
          gi[i] = c * ei[i];
       });
       grad.SyncAlias();
-      real_t sum = data.loss_q.Sum();
+      real_t sum = grid.Reducer().Sum(data.loss_q);
       return sum * inv_n;
    }
 };
@@ -412,7 +417,8 @@ public:
       RasterField::FromSamples(grid, data.u.real(), data.u.imag(), E_out);
       lens.Apply(E_out, false);
       prop.Mult(E_out, E_out);
-      last_scale = holo::MatchTarget(E_out, target, data.dot_v, data.energy_v);
+      last_scale = holo::MatchTarget(E_out, target, data.dot_v, data.energy_v,
+                                     grid.Reducer());
       RasterField::ToSamples(grid, E_out, data.s);
       last_J = mask.MeanAmplitudeError(data.s, data.g, data);
       return last_J;
@@ -489,6 +495,8 @@ public:
    mutable int gn_ran = 0;
    mutable bool started = false;
    mutable bool line_search_failed = false;
+   // Loss at the first Newton step and at the current iterate
+   mutable real_t firstLoss = -1.0, finalLoss = -1.0;
 
    real_t ComputeScalingFactor(const Vector &x, const Vector &) const override
    {
@@ -505,6 +513,8 @@ public:
           << " (" << step->Iterations() << ")"
           << " " << loss << " " << drop << "\n";
       J_log_prev = J0;
+      if (firstLoss < 0.0) { firstLoss = J0; }
+      finalLoss = J0;
       const real_t scale_at_x = op->last_scale;
 
       auto try_decrease = [&]() -> real_t
@@ -519,6 +529,7 @@ public:
             const real_t J_new = op->ForwardLoss(*trial, *trial_field);
             if (J_new < J0)
             {
+               finalLoss = J_new;
                mask_op->SetLambda(std::max(mask_op->Lambda() * 0.5, 1e-8));
                return alpha;
             }
@@ -590,6 +601,8 @@ class PhaseRetrieval
    const real_t wavelength, extent_x, extent_y, z, focal;
    const bool fft;
    RealArray2D mask_image;
+   int acceptedSteps = 0;
+   real_t firstLoss = 0.0, finalLoss = 0.0;
    std::unique_ptr<FresnelOp> propagator;
 
 public:
@@ -657,6 +670,7 @@ public:
       op.ForwardLoss(phi, fields.E);
 
       CGSolver cg;
+      cg.SetInnerProduct(&mesh.Reducer());
       cg.SetRelTol(1e-3);
       cg.SetAbsTol(1e-12);
       cg.SetMaxIter(std::max(1, cg_max_iter));
@@ -668,6 +682,7 @@ public:
       newton.SetAbsTol(1e-8);
       newton.SetMaxIter(std::max(0, max_iter));
       newton.SetPrintLevel(-1);
+      newton.SetInnerProduct(&mesh.Reducer());
       GaussNewtonCg step(cg, mask_op);
       newton.SetOperator(op);
       newton.SetSolver(step);
@@ -708,6 +723,10 @@ public:
       aperture(mesh, fields.u.real(), fields.u.imag(),
                mask_image, fields);
 
+      acceptedSteps = newton.gn_ran;
+      firstLoss = newton.firstLoss;
+      finalLoss = newton.finalLoss;
+
       const char *why = "max_iter";
       if (newton.line_search_failed) { why = "line_search"; }
       else if (stall.stop_reason) { why = stall.stop_reason; }
@@ -716,6 +735,9 @@ public:
    }
 
    const RealArray2D &MaskImage() const { return mask_image; }
+   int AcceptedSteps() const { return acceptedSteps; }
+   real_t FirstLoss() const { return firstLoss; }
+   real_t FinalLoss() const { return finalLoss; }
    const FresnelOp &Propagator() const { return *propagator; }
    int SampleNx() const { return mesh.SampleNx(); }
    int SampleNy() const { return mesh.SampleNy(); }
@@ -736,6 +758,8 @@ int main(int argc, char *argv[]) try
    int cgs_max_iter = 20;
    int order = 0;
    real_t stall_pct = 1.0;
+   real_t gemMaxGib = 16.0;
+   bool checkLoss = false;
 #if defined(HOLO_USE_CPU_FFT)
    bool use_fft = true;
 #else
@@ -767,6 +791,12 @@ int main(int argc, char *argv[]) try
                   "cpu, cuFFT or hipFFT on CUDA or HIP).");
    args.AddOption(&stall_pct, "-stall", "--loss-stall",
                   "Newton stall relative loss drop in percent (default 1).");
+   args.AddOption(&gemMaxGib, "-gmem", "--gem-max-gib",
+                  "Largest memory in GiB for the dense -gem Fresnel matrices "
+                  "(default 16).");
+   args.AddOption(&checkLoss, "-check", "--check", "-no-check", "--no-check",
+                  "Exit with an error unless a Newton step was accepted and "
+                  "the final loss is below the first loss (default off).");
 
    bool chose_propagator = false;
    for (int i = 1; i < argc; ++i)
@@ -785,10 +815,12 @@ int main(int argc, char *argv[]) try
       std::exit(EXIT_FAILURE);
    }
 
-   if (!(wavelength_nm > 0.0) || !(z_prop > 0.0) || !(focal > 0.0) ||
-       order < 0 || nwt_max_iter < 0 || cgs_max_iter < 1)
+   const std::string optionsError =
+      holo::OptionsError(wavelength_nm, z_prop, focal, stall_pct, order,
+                         nwt_max_iter, cgs_max_iter, gemMaxGib);
+   if (!optionsError.empty())
    {
-      mfem::err << "Invalid wavelength, z, focal, order, or iteration count.\n";
+      mfem::err << optionsError << "\n";
       return EXIT_FAILURE;
    }
 
@@ -807,8 +839,6 @@ int main(int argc, char *argv[]) try
       throw std::runtime_error("Empty target PNG");
    }
 
-   // Convert the target image to a 2D array of real values
-   auto amplitude = holo::GrayToReal2D(gray);
    const int img_w = gray.width, img_h = gray.height;
    out << "Loaded " << img_w << "x" << img_h
        << " from " << in_file << "\n";
@@ -818,6 +848,27 @@ int main(int argc, char *argv[]) try
    const real_t extent_y =
       extent_x * (static_cast<real_t>(img_h) /
                   static_cast<real_t>(img_w));
+
+   // Check the image size against the order and the propagator, the optics
+   // terms and the -gem memory
+   std::string imageError = holo::ImageError(img_w, img_h, order, use_fft);
+   if (imageError.empty())
+   {
+      imageError = holo::OpticsError(wavelength_nm, z_prop, focal, extent_x,
+                                     extent_y, img_w, img_h);
+   }
+   if (imageError.empty() && !use_fft)
+   {
+      imageError = holo::GemMemoryError(img_w, img_h, gemMaxGib);
+   }
+   if (!imageError.empty())
+   {
+      mfem::err << imageError << "\n";
+      return EXIT_FAILURE;
+   }
+
+   // Convert the target image to a 2D array of real values
+   auto amplitude = holo::GrayToReal2D(gray);
 
    // Create the solver
    holo::PhaseRetrieval solver(std::move(amplitude), order, wavelength,
@@ -889,6 +940,22 @@ int main(int argc, char *argv[]) try
       throw std::runtime_error(std::string("Failed to write ") + holo_file);
    }
    mfem::out << "Wrote " << w << "x" << h << " " << holo_file << "\n";
+
+   // Check the loss decrease
+   if (checkLoss)
+   {
+      const std::string checkError =
+         holo::LossCheckError(solver.AcceptedSteps(), solver.FirstLoss(),
+                              solver.FinalLoss());
+      if (!checkError.empty())
+      {
+         mfem::err << checkError << "\n";
+         return EXIT_FAILURE;
+      }
+      mfem::out << "Loss check passed: " << solver.AcceptedSteps()
+                << " accepted Newton steps, loss " << solver.FirstLoss()
+                << " -> " << solver.FinalLoss() << "\n";
+   }
    return EXIT_SUCCESS;
 }
 catch (const std::exception &exc)

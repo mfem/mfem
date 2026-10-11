@@ -12,15 +12,308 @@
 
 #include "sinc.hpp"
 
-#include "general/zpng.hpp"
-
+#include <cmath>
+#include <cstdint>
 #include <limits>
+#include <sstream>
 #include <string>
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
 
 using RealArray2D = mfem::Array2D<mfem::real_t>;
 
 namespace holo
 {
+
+inline std::string OptionsError(real_t wavelengthNm, real_t zProp,
+                                real_t focal, real_t stallPct, int order,
+                                int maxIter, int cgIter, real_t gemMaxGib)
+{
+   const auto finitePositive = [](real_t v)
+   {
+      return std::isfinite(v) && v > 0.0;
+   };
+   std::ostringstream msg;
+   if (!finitePositive(wavelengthNm))
+   {
+      msg << "Invalid -w/--wavelength " << wavelengthNm
+          << ": must be finite and positive";
+   }
+   else if (!(wavelengthNm * 1e-9 > 0.0))
+   {
+      msg << "Invalid -w/--wavelength " << wavelengthNm
+          << ": too small to convert to metres";
+   }
+   else if (!finitePositive(zProp))
+   {
+      msg << "Invalid -z/--z " << zProp << ": must be finite and positive";
+   }
+   else if (!finitePositive(focal))
+   {
+      msg << "Invalid -f/--focal " << focal << ": must be finite and positive";
+   }
+   else if (!std::isfinite(stallPct))
+   {
+      msg << "Invalid -stall/--loss-stall " << stallPct << ": must be finite";
+   }
+   else if (order < 0)
+   {
+      msg << "Invalid -p/--order " << order << ": must be >= 0";
+   }
+   else if (maxIter < 0)
+   {
+      msg << "Invalid -mi/--max-iterations " << maxIter << ": must be >= 0";
+   }
+   else if (cgIter < 1)
+   {
+      msg << "Invalid -cg/--cg-iterations " << cgIter << ": must be >= 1";
+   }
+   else if (!finitePositive(gemMaxGib))
+   {
+      msg << "Invalid -gmem/--gem-max-gib " << gemMaxGib
+          << ": must be finite and positive";
+   }
+   return msg.str();
+}
+
+// Empty when at least one Newton step was accepted and the final loss is below
+// the first loss, otherwise the -check error message
+inline std::string LossCheckError(int steps, real_t firstLoss, real_t finalLoss)
+{
+   std::ostringstream msg;
+   if (steps < 1)
+   {
+      msg << "Loss check failed: no Newton step was accepted";
+   }
+   else if (!(finalLoss < firstLoss))
+   {
+      msg << "Loss check failed: final loss " << finalLoss
+          << " is not below the first loss " << firstLoss << " after "
+          << steps << " accepted Newton steps";
+   }
+   return msg.str();
+}
+
+inline bool FftFits(int width, int height)
+{
+   const auto w = static_cast<std::size_t>(width);
+   const auto h = static_cast<std::size_t>(height);
+   const std::size_t embedX = ToeplitzEmbedSize(w);
+   const std::size_t embedY = ToeplitzEmbedSize(h);
+   return embedX > 0 && embedY > 0 && CheckedIntProduct(embedX, h) >= 0 &&
+          CheckedIntProduct(embedY, w) >= 0;
+}
+
+inline std::string ImageError(int width, int height, int order, bool useFft)
+{
+   std::ostringstream msg;
+   if (order < 0)
+   {
+      msg << "Invalid -p/--order " << order << ": must be >= 0";
+      return msg.str();
+   }
+   const long long q1d = static_cast<long long>(order) + 1;
+   const bool badWidth = width % q1d != 0, badHeight = height % q1d != 0;
+   if (badWidth || badHeight)
+   {
+      msg << "Invalid -p/--order " << order << ": image";
+      if (badWidth) { msg << " width " << width; }
+      if (badWidth && badHeight) { msg << " and"; }
+      if (badHeight) { msg << " height " << height; }
+      msg << " not divisible by order+1 = " << q1d;
+      return msg.str();
+   }
+   const auto w = static_cast<std::size_t>(width);
+   const auto h = static_cast<std::size_t>(height);
+   const int pixels = CheckedIntProduct(w, h);
+   const bool fftFits = FftFits(width, height);
+   if (pixels < 0 ||
+       CheckedIntProduct(3, static_cast<std::size_t>(pixels)) < 0)
+   {
+      msg << "Image " << width << "x" << height
+          << " is too large: 3*width*height exceeds the int size limit";
+   }
+   else if (!useFft)
+   {
+      const std::size_t n = std::max(w, h);
+      if (CheckedIntProduct(n, n) < 0)
+      {
+         msg << "Image " << width << "x" << height << " is too large for -gem: "
+             << "the " << n << "x" << n << " dense Fresnel matrix exceeds "
+             << "the int size limit" << (fftFits ? ", use -fft" : "");
+      }
+   }
+   else if (!fftFits)
+   {
+      msg << "Image " << width << "x" << height << " is too large for -fft: "
+          << "the circulant embedding exceeds the int size limit";
+   }
+   return msg.str();
+}
+
+// Wavenumber, Fresnel weight and lens phase terms of Phase, fresnel_first and
+// Lens for the sample grid, rejected when not finite or zero
+inline std::string OpticsError(real_t wavelengthNm, real_t zProp, real_t focal,
+                               real_t extentX, real_t extentY,
+                               int sampleNx, int sampleNy)
+{
+   const auto good = [](real_t v) { return std::isfinite(v) && v > 0; };
+   std::ostringstream msg;
+   msg << "Invalid -w/--wavelength " << wavelengthNm;
+   const real_t wavelength = wavelengthNm * 1e-9;
+   const real_t k = 2.0 * M_PI / wavelength;
+   if (!good(k))
+   {
+      msg << ": the wavenumber 2*pi/wavelength is " << k;
+      return msg.str();
+   }
+   msg << " with -z/--z " << zProp;
+   if (!good(k * zProp))
+   {
+      msg << ": the phase k*z is " << k * zProp;
+      return msg.str();
+   }
+   const real_t extent[2] = {extentX, extentY};
+   const int samples[2] = {sampleNx, sampleNy};
+   for (int axis = 0; axis < 2; ++axis)
+   {
+      const real_t len = extent[axis];
+      const real_t d = len / static_cast<real_t>(samples[axis]);
+      const real_t s2zk = std::sqrt(2.0 * zProp / k);
+      const real_t sk2z = std::sqrt(k / (2.0 * zProp));
+      const real_t uHw = M_PI * s2zk / (2.0 * d);
+      const real_t amp = (d / M_PI) * sk2z * std::sqrt(M_PI / 2.0);
+      const real_t slidePhase = len * len * k / (2.0 * zProp);
+      const real_t fresnelArg = (uHw + sk2z * len) * std::sqrt(2.0 / M_PI);
+      const real_t fresnelPhase = 0.5 * M_PI * fresnelArg * fresnelArg;
+      const char *bad = nullptr;
+      if (!good(s2zk) || !good(sk2z)) { bad = "sqrt(2z/k)"; }
+      else if (!good(uHw)) { bad = "half bandwidth"; }
+      else if (!good(amp)) { bad = "amplitude"; }
+      else if (!good(slidePhase)) { bad = "slide phase"; }
+      else if (!good(fresnelPhase)) { bad = "Fresnel integral phase"; }
+      if (bad)
+      {
+         msg << ": the Fresnel weight " << bad << " for " << samples[axis]
+             << " samples is not finite and positive";
+         return msg.str();
+      }
+   }
+   msg.str("");
+   msg << "Invalid -w/--wavelength " << wavelengthNm << " with -f/--focal "
+       << focal;
+   const real_t lensScale = M_PI / (wavelength * focal);
+   const real_t lensPhase =
+      lensScale * 0.25 * (extentX * extentX + extentY * extentY);
+   if (!good(lensScale))
+   {
+      msg << ": the lens phase pi/(wavelength*f) is " << lensScale;
+      return msg.str();
+   }
+   if (!good(lensPhase))
+   {
+      msg << ": the lens phase at the image corner is " << lensPhase;
+      return msg.str();
+   }
+   return std::string();
+}
+
+// Bytes of the GemFresnel matrices Hx, Hy, their adjoints and its work vector
+inline std::size_t GemBytes(int width, int height)
+{
+   const auto w = static_cast<std::uint64_t>(std::max(width, 0));
+   const auto h = static_cast<std::uint64_t>(std::max(height, 0));
+   const std::uint64_t maxCount =
+      std::numeric_limits<std::size_t>::max() / sizeof(complex_t);
+   const std::uint64_t squares = w * w + h * h, area = w * h;
+   if (area > maxCount || squares > (maxCount - area) / 2)
+   {
+      return std::numeric_limits<std::size_t>::max();
+   }
+   return static_cast<std::size_t>(2 * squares + area) * sizeof(complex_t);
+}
+
+// Physical memory in bytes, 0 when unknown
+inline std::size_t HostMemoryBytes()
+{
+#if defined(_SC_PHYS_PAGES) && defined(_SC_PAGESIZE)
+   const long pages = sysconf(_SC_PHYS_PAGES), page = sysconf(_SC_PAGESIZE);
+   if (pages > 0 && page > 0)
+   {
+      const auto p = static_cast<std::uint64_t>(pages);
+      const auto s = static_cast<std::uint64_t>(page);
+      if (p <= std::numeric_limits<std::size_t>::max() / s)
+      {
+         return static_cast<std::size_t>(p * s);
+      }
+      return std::numeric_limits<std::size_t>::max();
+   }
+#endif
+   return 0;
+}
+
+// Free device memory in bytes, 0 when not on a CUDA or HIP device
+inline std::size_t DeviceFreeBytes()
+{
+   if (!mfem::Device::Allows(mfem::Backend::CUDA_MASK |
+                             mfem::Backend::HIP_MASK))
+   {
+      return 0;
+   }
+   std::size_t free = 0, total = 0;
+   mfem::Device::DeviceMem(&free, &total);
+   return free;
+}
+
+// -gem memory: the GemBytes of a width x height image against gemMaxGib, the
+// host memory shared by hostCopies processes and the free device memory shared
+// by deviceCopies processes
+inline std::string GemMemoryError(int width, int height, real_t gemMaxGib,
+                                  int hostCopies = 1, int deviceCopies = 1)
+{
+   constexpr real_t gib = 1024.0 * 1024.0 * 1024.0;
+   const std::size_t bytes = GemBytes(width, height);
+   const real_t need = static_cast<real_t>(bytes) / gib;
+   const real_t host = static_cast<real_t>(HostMemoryBytes()) / gib;
+   const std::size_t device = DeviceFreeBytes();
+   const real_t hostNeed = need * static_cast<real_t>(hostCopies);
+   const auto copies = static_cast<std::size_t>(std::max(deviceCopies, 1));
+   const std::size_t deviceBytes =
+      bytes > std::numeric_limits<std::size_t>::max() / copies ?
+      std::numeric_limits<std::size_t>::max() : bytes * copies;
+   std::ostringstream msg;
+   msg.precision(3);
+   msg << "Image " << width << "x" << height << " needs " << need
+       << " GiB of dense Fresnel matrices for -gem";
+   if (need > gemMaxGib)
+   {
+      msg << ", more than -gmem/--gem-max-gib " << gemMaxGib;
+   }
+   else if (host > 0 && hostNeed > host)
+   {
+      if (hostCopies > 1)
+      {
+         msg << " per process, " << hostNeed << " GiB for the " << hostCopies
+             << " processes on the node";
+      }
+      msg << ", more than the " << host << " GiB of host memory";
+   }
+   else if (device > 0 && deviceBytes > device)
+   {
+      if (copies > 1)
+      {
+         msg << " per process, " << need * static_cast<real_t>(copies)
+             << " GiB for the " << copies << " processes sharing the device";
+      }
+      msg << ", more than the " << static_cast<real_t>(device) / gib
+          << " GiB of free device memory";
+   }
+   else { return std::string(); }
+   if (FftFits(width, height)) { msg << ", use -fft"; }
+   return msg.str();
+}
 
 inline MFEM_HOST_DEVICE int RasterIndex(int ex, int ey, int ix, int iy,
                                         int nx, int q1d)
@@ -93,8 +386,58 @@ inline int InterleavedSize(const Vector &v)
    return v.Size() / 2;
 }
 
+class RowSum : public mfem::InnerProductOperator
+{
+   const int rowLength;
+   mutable Vector rowSums;
+
+protected:
+   // Row sums of all ranks in global row order
+   virtual const real_t *AllRows(const Vector &local, int &rows) const
+   {
+      rows = local.Size();
+      return local.HostRead();
+   }
+
+public:
+   explicit RowSum(int length) : rowLength(length)
+   {
+      MFEM_VERIFY(rowLength > 0, "RowSum: row length must be positive");
+   }
+
+   real_t Sum(const Vector &a, const Vector *b = nullptr) const
+   {
+      MFEM_VERIFY(a.Size() % rowLength == 0, "RowSum: size " << a.Size()
+                  << " is not a multiple of the row length " << rowLength);
+      MFEM_VERIFY(b == nullptr || b->Size() == a.Size(), "RowSum: size");
+      const int rows = a.Size() / rowLength, len = rowLength;
+      rowSums.UseDevice(true);
+      rowSums.SetSize(rows);
+      const real_t *pa = a.Read();
+      const real_t *pb = b ? b->Read() : nullptr;
+      real_t *rs = rowSums.Write();
+      mfem::forall(rows, [=] MFEM_HOST_DEVICE (int r)
+      {
+         real_t acc = 0.0;
+         for (int j = r * len; j < (r + 1) * len; ++j)
+         {
+            acc += pb ? pa[j] * pb[j] : pa[j];
+         }
+         rs[r] = acc;
+      });
+      int allRows = 0;
+      const real_t *all = AllRows(rowSums, allRows);
+      real_t sum = 0.0;
+      for (int r = 0; r < allRows; ++r) { sum += all[r]; }
+      return sum;
+   }
+
+   real_t Eval(const Vector &x, const Vector &y) override { return Sum(x, &y); }
+};
+
 inline real_t MatchTarget(Vector &E, const Vector &target,
-                          Vector &dot_v, Vector &energy_v)
+                          Vector &dot_v, Vector &energy_v,
+                          const RowSum &rowSum)
 {
    const int n = InterleavedSize(E);
    const real_t *e = E.Read();
@@ -107,8 +450,8 @@ inline real_t MatchTarget(Vector &E, const Vector &target,
       d[i] = t[i] * mag;
       en[i] = mag * mag;
    });
-   const real_t dot = dot_v.Sum();
-   const real_t energy = energy_v.Sum();
+   const real_t dot = rowSum.Sum(dot_v);
+   const real_t energy = rowSum.Sum(energy_v);
    const real_t scale = (energy > 1e-30) ? (dot / energy) : 0.0;
    E *= scale;
    return scale;
@@ -121,20 +464,23 @@ class Lens
 public:
    void operator()(int nx, int ny,
                    real_t extent_x, real_t extent_y,
-                   real_t wavelength, real_t focal)
+                   real_t wavelength, real_t focal,
+                   int firstRow = 0, int rows = -1)
    {
-      SetInterleavedSize(forward, nx, ny);
-      SetInterleavedSize(backward, nx, ny);
+      if (rows < 0) { rows = ny - firstRow; }
+      MFEM_VERIFY(firstRow >= 0 && firstRow + rows <= ny, "Lens rows");
+      SetInterleavedSize(forward, nx, rows);
+      SetInterleavedSize(backward, nx, rows);
       const real_t dx = extent_x / static_cast<real_t>(nx);
       const real_t dy = extent_y / static_cast<real_t>(ny);
       const real_t scale = -M_PI / (wavelength * focal);
-      const int n = nx * ny;
+      const int n = nx * rows, row0 = firstRow;
       real_t *f = forward.Write();
       real_t *b = backward.Write();
       mfem::forall(n, [=] MFEM_HOST_DEVICE (int idx)
       {
          const int col = idx % nx;
-         const int row = idx / nx;
+         const int row = row0 + idx / nx;
          const real_t x = (static_cast<real_t>(col) + 0.5) * dx - 0.5 * extent_x;
          const real_t y = (static_cast<real_t>(row) + 0.5) * dy - 0.5 * extent_y;
          const real_t ph = scale * (x * x + y * y);
@@ -150,6 +496,7 @@ public:
    void Apply(Vector &E, bool backward_pass = false) const
    {
       const int n = InterleavedSize(E);
+      MFEM_VERIFY(E.Size() == forward.Size(), "Lens size");
       const real_t *L = (backward_pass ? backward : forward).Read();
       real_t *e = E.ReadWrite();
       mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)

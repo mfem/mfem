@@ -59,12 +59,25 @@ else()
       message(STATUS "hologram: CUDA::cufft not found; -fft on gpu will fail")
    endif()
 
+   # Compilers accepting -ffp-contract=off, for C++ and as the nvcc host
+   set(HOLO_FP_IDS GNU Clang AppleClang IntelLLVM)
+   # -ffp-contract=off for C++, for CUDA with Clang, and through -Xcompiler for
+   # nvcc with one of HOLO_FP_IDS as host compiler
+   set(HOLO_FP_OPTIONS)
+   if(CMAKE_CXX_COMPILER_ID IN_LIST HOLO_FP_IDS)
+      list(APPEND HOLO_FP_OPTIONS $<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>)
+      if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
+         list(APPEND HOLO_FP_OPTIONS
+            $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-ffp-contract=off>)
+      endif()
+   endif()
+   if(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
+      list(APPEND HOLO_FP_OPTIONS $<$<COMPILE_LANGUAGE:CUDA>:-ffp-contract=off>)
+   endif()
+
    macro(holo_configure target)
       target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-      target_compile_options(${target} PRIVATE
-         $<$<COMPILE_LANGUAGE:CXX>:-ffp-contract=off>
-         $<$<COMPILE_LANG_AND_ID:CUDA,Clang>:-ffp-contract=off>
-         $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:-Xcompiler=-ffp-contract=off>)
+      target_compile_options(${target} PRIVATE ${HOLO_FP_OPTIONS})
       if(HOLO_HAVE_CPU_FFT)
          target_include_directories(${target} PRIVATE ${HOLO_FFTW_INCLUDE_DIR})
          target_link_libraries(${target} PRIVATE ${HOLO_FFTW_LIBRARY})
@@ -91,91 +104,64 @@ else()
    endif()
 
    if(MFEM_ENABLE_TESTING)
-      add_test(NAME hologram-logo
-         COMMAND sh -c
-         "\"$1\" -gem -o \"$2\" -m \"$3\" && test -s \"$2\" && test -s \"$3\""
-         _ $<TARGET_FILE:hologram>
-         ${CMAKE_CURRENT_BINARY_DIR}/hologram.png
-         ${CMAKE_CURRENT_BINARY_DIR}/mask.png)
-      add_test(NAME hologram-debug
-         COMMAND sh -c
-         "\"$1\" -gem -d debug -mi 2 -o \"$2\" -m \"$3\" && test -s \"$2\" && test -s \"$3\""
-         _ $<TARGET_FILE:hologram>
-         ${CMAKE_CURRENT_BINARY_DIR}/hologram-debug.png
-         ${CMAKE_CURRENT_BINARY_DIR}/mask-debug.png)
-      # Newton 1/2 losses measured for -gem -mi 2. HOLO_LOSS_PY is not used here.
-      set(HOLO_NEWTON_PY_HEAD
-         "import re,sys; t=open(sys.argv[1]).read(); m=re.search(r'Newton 1/[0-9]+ \\([0-9]+\\) ([0-9.eE+-]+)', t); v=float(m.group(1)); ref=")
-      set(HOLO_NEWTON_PY_TAIL
-         "; assert abs(v-ref)<=5e-4*ref, (v,ref)")
-      add_test(NAME hologram-gem-p0
-         COMMAND sh -c
-         "\"$1\" -gem -p 0 -mi 2 -o \"$2\" -m \"$3\" >\"$4\" && test -s \"$2\" && test -s \"$3\" && python3 -c \"${HOLO_NEWTON_PY_HEAD}7.4119133463282916e-02${HOLO_NEWTON_PY_TAIL}\" \"$4\""
-         _ $<TARGET_FILE:hologram>
-         ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p0.png
-         ${CMAKE_CURRENT_BINARY_DIR}/mask-gem-p0.png
-         ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p0.log)
-      add_test(NAME hologram-gem-p1
-         COMMAND sh -c
-         "\"$1\" -gem -p 1 -mi 2 -o \"$2\" -m \"$3\" >\"$4\" && test -s \"$2\" && test -s \"$3\" && python3 -c \"${HOLO_NEWTON_PY_HEAD}7.4119133463282874e-02${HOLO_NEWTON_PY_TAIL}\" \"$4\""
-         _ $<TARGET_FILE:hologram>
-         ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p1.png
-         ${CMAKE_CURRENT_BINARY_DIR}/mask-gem-p1.png
-         ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p1.log)
-      # Loss is printed as "%6.2e" ("Newton 1/2 (5) 7.41e-02")
-      set(HOLO_LOSS_PY
-         "import re,sys; t=open(sys.argv[1]).read(); m=re.search(r'Newton 1/[0-9]+ \\([0-9]+\\) ([0-9.eE+-]+)', t); v=float(m.group(1)); ref=0.0741191; assert abs(v-ref)<=5e-4*ref, (v,ref)")
-      if(HOLO_HAVE_CPU_FFT)
-         add_test(NAME hologram-fft
-            COMMAND sh -c
-            "\"$1\" -fft -mi 2 -o \"$2\" -m \"$3\" >\"$4\" && test -s \"$2\" && test -s \"$3\" && python3 -c \"${HOLO_LOSS_PY}\" \"$4\""
-            _ $<TARGET_FILE:hologram>
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-fft.png
-            ${CMAKE_CURRENT_BINARY_DIR}/mask-fft.png
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-fft.log)
-         add_test(NAME hologram-fft-debug
-            COMMAND sh -c
-            "\"$1\" -d debug -fft -mi 2 -o \"$2\" -m \"$3\" >\"$4\" && test -s \"$2\" && test -s \"$3\""
-            _ $<TARGET_FILE:hologram>
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-fft-debug.png
-            ${CMAKE_CURRENT_BINARY_DIR}/mask-fft-debug.png
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-fft-debug.log)
-      endif()
-      if(MFEM_USE_MPI)
-         add_test(NAME hologram-gem-np${MFEM_MPI_NP}
-            COMMAND sh -c
-            "\"$1\" \"$2\" \"$3\" \"$4\" -gem -d debug -mi 2 -o \"$5\" -m \"$6\" >\"$7\" && test -s \"$5\" && test -s \"$6\" && python3 -c \"${HOLO_LOSS_PY}\" \"$7\""
-            _ ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-            $<TARGET_FILE:phologram>
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-mpi.png
-            ${CMAKE_CURRENT_BINARY_DIR}/mask-gem-mpi.png
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-mpi.log)
-         if(HOLO_HAVE_CPU_FFT)
-            add_test(NAME hologram-fft-np${MFEM_MPI_NP}
-               COMMAND sh -c
-               "\"$1\" \"$2\" \"$3\" \"$4\" -fft -mi 2 -o \"$5\" -m \"$6\" >\"$7\" && test -s \"$5\" && test -s \"$6\" && python3 -c \"${HOLO_LOSS_PY}\" \"$7\""
-               _ ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-               $<TARGET_FILE:phologram>
-               ${CMAKE_CURRENT_BINARY_DIR}/hologram-fft-mpi.png
-               ${CMAKE_CURRENT_BINARY_DIR}/mask-fft-mpi.png
-               ${CMAKE_CURRENT_BINARY_DIR}/hologram-fft-mpi.log)
+      # Test running the remaining arguments with -check -o name.png
+      # -m name-mask.png, through MPIEXEC with MFEM_MPI_NP ranks when MPI is
+      # given
+      function(holo_add_test name)
+         cmake_parse_arguments(test "MPI" "" "" ${ARGN})
+         set(command ${test_UNPARSED_ARGUMENTS} -check
+            -o ${CMAKE_CURRENT_BINARY_DIR}/${name}.png
+            -m ${CMAKE_CURRENT_BINARY_DIR}/${name}-mask.png)
+         if(test_MPI)
+            set(command ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+               ${MPIEXEC_PREFLAGS} ${command} ${MPIEXEC_POSTFLAGS})
          endif()
-         add_test(NAME hologram-gem-p0-np${MFEM_MPI_NP}
-            COMMAND sh -c
-            "\"$1\" \"$2\" \"$3\" \"$4\" -gem -p 0 -mi 2 -o \"$5\" -m \"$6\" >\"$7\" && test -s \"$5\" && test -s \"$6\" && python3 -c \"${HOLO_NEWTON_PY_HEAD}7.4119133463282624e-02${HOLO_NEWTON_PY_TAIL}\" \"$7\""
-            _ ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-            $<TARGET_FILE:phologram>
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p0-mpi.png
-            ${CMAKE_CURRENT_BINARY_DIR}/mask-gem-p0-mpi.png
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p0-mpi.log)
-         add_test(NAME hologram-gem-p1-np${MFEM_MPI_NP}
-            COMMAND sh -c
-            "\"$1\" \"$2\" \"$3\" \"$4\" -gem -p 1 -mi 2 -o \"$5\" -m \"$6\" >\"$7\" && test -s \"$5\" && test -s \"$6\" && python3 -c \"${HOLO_NEWTON_PY_HEAD}7.4119133463282624e-02${HOLO_NEWTON_PY_TAIL}\" \"$7\""
-            _ ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-            $<TARGET_FILE:phologram>
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p1-mpi.png
-            ${CMAKE_CURRENT_BINARY_DIR}/mask-gem-p1-mpi.png
-            ${CMAKE_CURRENT_BINARY_DIR}/hologram-gem-p1-mpi.log)
+         add_test(NAME ${name} COMMAND ${command})
+      endfunction()
+
+      set(hologram $<TARGET_FILE:hologram>)
+      holo_add_test(hologram_ser ${hologram} -gem -mi 2)
+      holo_add_test(hologram_p1_ser ${hologram} -gem -p 1 -mi 2)
+      holo_add_test(hologram_debug_ser ${hologram} -gem -d debug -mi 2)
+      if(HOLO_HAVE_CPU_FFT)
+         holo_add_test(hologram_fft_ser ${hologram} -fft -mi 2)
+         holo_add_test(hologram_fft_debug_ser ${hologram} -fft -d debug -mi 2)
+      endif()
+
+      if(MFEM_USE_MPI)
+         set(phologram $<TARGET_FILE:phologram>)
+         set(np ${MFEM_MPI_NP})
+         holo_add_test(phologram_np=${np} MPI ${phologram} -gem -mi 2)
+         holo_add_test(phologram_p1_np=${np} MPI ${phologram} -gem -p 1 -mi 2)
+         holo_add_test(phologram_debug_np=${np} MPI
+            ${phologram} -gem -d debug -mi 2)
+         if(HOLO_HAVE_CPU_FFT)
+            holo_add_test(phologram_fft_np=${np} MPI ${phologram} -fft -mi 2)
+         endif()
+      endif()
+
+      # CUDA/HIP tests
+      set(device)
+      if(MFEM_USE_CUDA)
+         set(device cuda)
+      elseif(MFEM_USE_HIP)
+         set(device hip)
+      endif()
+      if(device)
+         holo_add_test(hologram_${device}_ser
+            ${hologram} -d ${device} -gem -mi 2)
+         if(HOLO_HAVE_GPU_FFT)
+            holo_add_test(hologram_fft_${device}_ser
+               ${hologram} -d ${device} -fft -mi 2)
+         endif()
+         if(MFEM_USE_MPI)
+            holo_add_test(phologram_${device}_np=${np} MPI
+               ${phologram} -d ${device} -gem -mi 2)
+            if(HOLO_HAVE_GPU_FFT)
+               holo_add_test(phologram_fft_${device}_np=${np} MPI
+                  ${phologram} -d ${device} -fft -mi 2)
+            endif()
+         endif()
       endif()
    endif()
 endif()
