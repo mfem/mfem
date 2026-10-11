@@ -587,49 +587,83 @@ OptContactProblem::FilterContactMatrixAndGap(
    Vector &gap)
 {
    const int h = contact_matrix.Height();
-   SparseMatrix merged;
-   contact_matrix.MergeDiagAndOffd(merged);
+   SparseMatrix diag, offd;
+   HYPRE_BigInt *offd_cmap = nullptr;
+   contact_matrix.GetDiag(diag);
+   contact_matrix.GetOffd(offd, offd_cmap);
 
    // Row filtering is a deliberate host boundary: Tribol's mortar data are
    // host-owned, and the sparse row structure is inspected here.
-   merged.HostReadI();
-   merged.HostReadJ();
-   merged.HostReadData();
+   const int *diag_i = diag.HostReadI();
+   const int *diag_j = diag.HostReadJ();
+   const real_t *diag_data = diag.HostReadData();
+   const int *offd_i = offd.HostReadI();
+   const int *offd_j = offd.HostReadJ();
+   const real_t *offd_data = offd.HostReadData();
    Array<int> nonzero_rows;
+   Array<real_t> row_l1_norms(h);
 
    real_t max_l1_row_norm = 0.0;
    real_t rel_row_norm_threshold = 1.e-5;
    for (int i = 0; i < h; i++)
    {
-      if (!merged.RowIsEmpty(i))
+      real_t row_l1_norm = 0.0;
+      for (int j = diag_i[i]; j < diag_i[i+1]; j++)
       {
-         max_l1_row_norm = std::max( max_l1_row_norm, merged.GetRowNorml1(i));
+         row_l1_norm += std::abs(diag_data[j]);
       }
+      for (int j = offd_i[i]; j < offd_i[i+1]; j++)
+      {
+         row_l1_norm += std::abs(offd_data[j]);
+      }
+      row_l1_norms[i] = row_l1_norm;
+      max_l1_row_norm = std::max(max_l1_row_norm, row_l1_norm);
    }
 
    for (int i = 0; i<h; i++)
    {
-      if (!merged.RowIsEmpty(i))
+      if (row_l1_norms[i] > rel_row_norm_threshold * max_l1_row_norm)
       {
-         if (merged.GetRowNorml1(i) > rel_row_norm_threshold * max_l1_row_norm)
-         {
-            nonzero_rows.Append(i);
-         }
+         nonzero_rows.Append(i);
       }
    }
 
    const int hnew = nonzero_rows.Size();
-   SparseMatrix P(hnew,h);
-
-   for (int i = 0; i<hnew; i++)
+   int nnz = 0;
+   for (int i = 0; i < hnew; i++)
    {
-      int col = nonzero_rows[i];
-      P.Set(i,col,1.0);
+      const int row = nonzero_rows[i];
+      nnz += diag_i[row+1] - diag_i[row];
+      nnz += offd_i[row+1] - offd_i[row];
    }
-   P.Finalize();
+
+   int *filtered_i = new int[hnew + 1];
+   int *filtered_j = new int[std::max(nnz, 1)];
+   real_t *filtered_data = new real_t[std::max(nnz, 1)];
+   const HYPRE_BigInt first_col = contact_matrix.ColPart()[0];
+   nnz = 0;
+   filtered_i[0] = 0;
+   for (int i = 0; i < hnew; i++)
+   {
+      const int row = nonzero_rows[i];
+      for (int j = diag_i[row]; j < diag_i[row+1]; j++)
+      {
+         filtered_j[nnz] = first_col + diag_j[j];
+         filtered_data[nnz] = diag_data[j];
+         nnz++;
+      }
+      for (int j = offd_i[row]; j < offd_i[row+1]; j++)
+      {
+         filtered_j[nnz] = offd_cmap[offd_j[j]];
+         filtered_data[nnz] = offd_data[j];
+         nnz++;
+      }
+      filtered_i[i+1] = nnz;
+   }
 
    FilteredContactMatrix filtered;
-   filtered.matrix = Mult(P,merged);
+   filtered.matrix = new SparseMatrix(filtered_i, filtered_j, filtered_data,
+                                      hnew, contact_matrix.GetGlobalNumCols());
 
    const int nrows = filtered.matrix->Height();
    HYPRE_BigInt nrows_bigint = nrows;
