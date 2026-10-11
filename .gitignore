@@ -69,6 +69,7 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
+examples/ex5-max-dg
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -86,6 +87,8 @@ examples/sol_p.*
 examples/sol_r.*
 examples/sol_i.*
 examples/sol_z.*
+examples/sol_E.*
+examples/sol_B.*
 examples/ex6p-checkpoint.*
 examples/order.*
 examples/ex9.mesh
