@@ -65,6 +65,7 @@
 #ifdef MFEM_USE_MPI
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
+#include "schwarz.hpp"
 
 #ifdef MFEM_USE_MUMPS
 #include "mumps.hpp"

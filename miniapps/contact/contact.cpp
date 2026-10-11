@@ -16,6 +16,11 @@
 // Sample runs
 // Problem 0: two-block (linear elasticity)
 // mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf -amgf-fsolver auto
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf -amgf-fsolver auto -amgf-mode reversed
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf -amgf-fsolver auto -amgf-mode additive
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf -amgf-fsolver auto -amgf-auto-subspace
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf -amgf-schwarz
+// mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -amgf -amgf-schwarz -amgf-schwarz-dmin 1e3
 // mpirun -np 4 ./contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 0 -no-amgf
 
 // Problem 1: ironing (linear elasticity)
@@ -43,7 +48,9 @@
 //     the mesh is constructed from the file ./meshes/beam-sphere.mesh.
 //  3. AMGF requires a parallel direct solver for the filtered subspace; build
 //     MFEM with MUMPS or MKL CPardiso. If unavailable, requesting -amgf aborts
-//     with an error.
+//     with an error. With -amgf-schwarz, the direct solver is replaced by an
+//     additive Schwarz smoother with one dense patch per row of the gap
+//     Jacobian, which needs no external solver.
 //  4. This miniapp requires MFEM build with Tribol, an open source contact mechanics library
 //     available at https://github.com/LLNL/Tribol.
 
@@ -105,6 +112,27 @@ int main(int argc, char *argv[])
    // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
    const char *amgf_fsolver = "auto";
 
+   // AMGF combination mode.
+   // Choices: "multiplicative" (default), "reversed", "additive"
+   const char *amgf_mode = "multiplicative";
+
+   // Use a filtered subspace automatically generated from the row norms of
+   // the reduced Jacobian (see AMGFSolver::GenerateFilteredSubspaceTransferOperator),
+   // instead of the geometric contact-interface subspace.
+   bool amgf_auto_subspace = false;
+   // Max GMM EM iterations, relative mean-convergence tolerance, and
+   // large/small cluster-mean jump threshold for the automatic subspace.
+   int amgf_gmm_max_iter = 20;
+   real_t amgf_gmm_tol = 1e-3;
+   real_t amgf_jump_threshold = 10.0;
+
+   // Replace the direct solver of the AMGF contact subspace with an additive
+   // Schwarz smoother with one patch per row of the gap Jacobian J.
+   bool amgf_schwarz = false;
+   // Skip the Schwarz patch of a row of J whose D value is below this value,
+   // where D is the diagonal of the reduced IP-Newton operator K + J^T D J.
+   real_t amgf_schwarz_dmin = 0.0;
+
 
    // 1. Parse command-line options.
    OptionsParser args(argc, argv);
@@ -128,6 +156,39 @@ int main(int argc, char *argv[])
    args.AddOption(&amgf_fsolver, "-amgf-fsolver", "--amgf-filtered-solver",
                   "Direct solver for AMGF filtered subspace.\n"
                   "Choices: auto, mumps, cpardiso, superlu, strumpack.");
+   args.AddOption(&amgf_mode, "-amgf-mode", "--amgf-mode",
+                  "AMGF combination mode.\n"
+                  "Choices: multiplicative (default, AMG-subspace-AMG),\n"
+                  "reversed (subspace-AMG-subspace),\n"
+                  "additive (AMG + subspace, single application each).");
+   args.AddOption(&amgf_auto_subspace, "-amgf-auto-subspace",
+                  "--amgf-auto-subspace", "-amgf-contact-subspace",
+                  "--amgf-contact-subspace",
+                  "Choose the AMGF filtered subspace automatically from the "
+                  "row norms of the reduced Jacobian (auto-subspace), or "
+                  "use the geometric contact-interface subspace "
+                  "(contact-subspace, default).");
+   args.AddOption(&amgf_gmm_max_iter, "-amgf-gmm-max-iter",
+                  "--amgf-gmm-max-iter",
+                  "Max EM iterations for the AMGF auto-subspace GMM fit.");
+   args.AddOption(&amgf_gmm_tol, "-amgf-gmm-tol", "--amgf-gmm-tol",
+                  "Relative mean-convergence tolerance for the AMGF "
+                  "auto-subspace GMM fit.");
+   args.AddOption(&amgf_jump_threshold, "-amgf-jump-threshold",
+                  "--amgf-jump-threshold",
+                  "AMGF auto-subspace is used only if the larger row-norm "
+                  "cluster's mean exceeds this many times the smaller "
+                  "cluster's mean.");
+   args.AddOption(&amgf_schwarz, "-amgf-schwarz", "--amgf-schwarz",
+                  "-no-amgf-schwarz", "--no-amgf-schwarz",
+                  "Replace the direct solver of the AMGF contact subspace "
+                  "with an additive Schwarz smoother with one dense patch "
+                  "per row of the gap Jacobian J (requires -amgf).");
+   args.AddOption(&amgf_schwarz_dmin, "-amgf-schwarz-dmin",
+                  "--amgf-schwarz-dmin",
+                  "Skip the Schwarz patch of a row of J whose D value is "
+                  "below this threshold, where the reduced IP-Newton "
+                  "operator is K + J^T D J.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -156,6 +217,33 @@ int main(int argc, char *argv[])
                prob_no <= 2, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
+
+   // Validate and convert the AMGF combination mode selection.
+   FilteredSolver::Mode amgf_mode_enum = FilteredSolver::Mode::MULTIPLICATIVE;
+   {
+      std::string amgf_mode_str(amgf_mode);
+      if (amgf_mode_str == "multiplicative")
+      {
+         amgf_mode_enum = FilteredSolver::Mode::MULTIPLICATIVE;
+      }
+      else if (amgf_mode_str == "reversed")
+      {
+         amgf_mode_enum = FilteredSolver::Mode::REVERSED;
+      }
+      else if (amgf_mode_str == "additive")
+      {
+         amgf_mode_enum = FilteredSolver::Mode::ADDITIVE;
+      }
+      else
+      {
+         MFEM_ABORT("Unknown AMGF mode: " << amgf_mode_str <<
+                    ". Choices are: multiplicative, reversed, additive.");
+      }
+   }
+   MFEM_VERIFY(!amgf_schwarz || amgf, "-amgf-schwarz requires -amgf.");
+   MFEM_VERIFY(!amgf_schwarz || !amgf_auto_subspace,
+               "-amgf-schwarz uses the contact subspace and cannot be "
+               "combined with -amgf-auto-subspace.");
 
    // Only the beam–sphere supports non-linear elasticity; fall back if needed.
    if (nonlinear && prob_name!=problem_name::beamsphere)
@@ -383,9 +471,17 @@ int main(int argc, char *argv[])
          contact.ActivateBoundConstraints();
       }
 
-      // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
+      // 9(e). Interior-Point optimizer driving contact resolution.
+      IPSolver optimizer(&contact);
+      optimizer.SetTol(1e-6);
+      optimizer.SetMaxIter(100);
+      optimizer.SetPrintLevel(0);
+
+      // 9(f). Choose preconditioner: AMGF (with direct solver or additive
+      // Schwarz for subspace) or AMG.
       Solver * prec = nullptr;
       ParallelDirectSolver * subspacesolver = nullptr;
+      AMGFSchwarzSolver * schwarzprec = nullptr;
 #if MFEM_HYPRE_VERSION >= 23000
       // new l1-hybrid symmetric Gauss-Seidel smoother
       int amg_relax_type = 88;
@@ -395,16 +491,56 @@ int main(int argc, char *argv[])
 
       if (amgf)
       {
-         prec = new AMGFSolver();
+         if (amgf_schwarz)
+         {
+            // The Schwarz patches are rebuilt from the optimizer's current D
+            // every time the CG solver installs a new operator.
+            schwarzprec = new AMGFSchwarzSolver(
+               *contact.GetGapJacobian(),
+               *contact.GetContactSubspaceTransferOperator(),
+            [&optimizer](Vector &D) { optimizer.GetWmm()->GetDiag(D); },
+            amgf_schwarz_dmin);
+            prec = schwarzprec;
+         }
+         else
+         {
+            prec = new AMGFSolver();
+         }
          auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
          amgfprec->GetAMG().SetSystemsOptions(3);
          amgfprec->GetAMG().SetPrintLevel(0);
          amgfprec->GetAMG().SetRelaxType(amg_relax_type);
-         subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
-         subspacesolver->SetPrintLevel(0);
-         amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
-         amgfprec->SetFilteredSubspaceTransferOperator(
-            *contact.GetContactSubspaceTransferOperator());
+         amgfprec->SetMode(amgf_mode_enum);
+         if (amgf_auto_subspace)
+         {
+            // The filtered subspace is (re)computed automatically from the
+            // row norms of the reduced Jacobian every time the CG solver
+            // installs a new operator on this preconditioner (i.e. every
+            // Newton iteration of the IP optimizer). Since the subspace
+            // size can therefore change from one iteration to the next, the
+            // subspace solver cannot be a single fixed instance (most
+            // direct solvers assume a fixed operator size for their
+            // lifetime); instead a factory builds a fresh one whenever the
+            // subspace size changes.
+            amgfprec->EnableAutoFilteredSubspace(
+               true,
+               [amgf_fsolver]() -> std::unique_ptr<Solver>
+            {
+               auto s = std::make_unique<ParallelDirectSolver>(
+                  MPI_COMM_WORLD, amgf_fsolver);
+               s->SetPrintLevel(0);
+               return s;
+            },
+            amgf_gmm_max_iter, amgf_gmm_tol, amgf_jump_threshold);
+         }
+         else if (!amgf_schwarz)
+         {
+            subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
+            subspacesolver->SetPrintLevel(0);
+            amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
+            amgfprec->SetFilteredSubspaceTransferOperator(
+               *contact.GetContactSubspaceTransferOperator());
+         }
       }
       else
       {
@@ -415,19 +551,13 @@ int main(int argc, char *argv[])
          amgprec->SetRelaxType(amg_relax_type);
       }
 
-      // 9(f). Linear solver used inside the IP optimizer.
+      // 9(g). Linear solver used inside the IP optimizer.
       CGSolver cgsolver(MPI_COMM_WORLD);
       cgsolver.SetPrintLevel(0);
       cgsolver.SetRelTol(1e-10);
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
-
-      // 9(g). Interior-Point optimizer driving contact resolution.
-      IPSolver optimizer(&contact);
-      optimizer.SetTol(1e-6);
-      optimizer.SetMaxIter(100);
       optimizer.SetLinearSolver(&cgsolver);
-      optimizer.SetPrintLevel(0);
 
       // Initial guess = previous reference configuration.
       x_gf.SetTrueVector();
@@ -439,6 +569,8 @@ int main(int argc, char *argv[])
       Vector xf(ndofs); xf = 0.0;
       optimizer.Mult(x0, xf);
 
+      Array<HYPRE_BigInt> schwarz_patches;
+      if (schwarzprec) { schwarz_patches = schwarzprec->GetNumPatches(); }
       delete prec;
       if (subspacesolver) { delete subspacesolver; }
 
@@ -467,6 +599,15 @@ int main(int argc, char *argv[])
             std::cout << PCGiterations[i] << " ";
          }
          mfem::out << "\n";
+         if (schwarz_patches.Size())
+         {
+            mfem::out << " Schwarz patches per PCG solve   = ";
+            for (int i = 0; i < schwarz_patches.Size(); ++i)
+            {
+               mfem::out << schwarz_patches[i] << " ";
+            }
+            mfem::out << "\n";
+         }
       }
 
       // 9(i). Visualization outputs.

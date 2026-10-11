@@ -587,7 +587,7 @@ endif()
 # Tribol
 if (MFEM_USE_TRIBOL)
   if (MFEM_USE_MPI)
-    find_package(Tribol REQUIRED tribol redecomp)
+    find_package(Tribol REQUIRED tribol redecomp tribol_shared)
   else()
     message(FATAL_ERROR " *** Tribol requires that MPI be enabled.")
   endif()
