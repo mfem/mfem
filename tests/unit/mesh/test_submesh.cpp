@@ -424,6 +424,15 @@ TEST_CASE("SubMesh", "[SubMesh]")
    }
 }
 
+TEST_CASE("SubMesh boundary elements order", "[SubMesh]")
+{
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+   auto attribute = GENERATE(1, 2);
+   Mesh mesh = RotatedBoundaryElementsMesh(type);
+   auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {attribute});
+   CheckSubMeshBoundaryElements(submesh);
+}
+
 TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
 {
    // Solve Poisson on a pair of cubes fully coupled, transfer to the interface

@@ -253,6 +253,43 @@ Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
    return pfids;
 }
 
+/**
+ * @brief Give a boundary element of a 3D submesh the vertex order of the
+ * matching boundary element of the parent, if this order is a rotation of the
+ * current one. The orientation of the boundary element is kept, and the
+ * integration points of both boundary elements are the same physical points.
+ * @param mesh The SubMesh.
+ * @param pbe The boundary element of the parent.
+ * @param be The boundary element of the SubMesh.
+ */
+template <typename SubMeshT>
+void UseParentBoundaryElementOrder(const SubMeshT &mesh, int pbe, Element &be)
+{
+   if (mesh.Dimension() != 3) { return; }
+   Array<int> pv;
+   mesh.GetParent()->GetBdrElementVertices(pbe, pv);
+   const int n = be.GetNVertices();
+   if (pv.Size() != n) { return; }
+   for (int j = 0; j < n; j++)
+   {
+      pv[j] = mesh.GetSubMeshVertexFromParent(pv[j]);
+   }
+   int *v = be.GetVertices();
+   for (int k = 0; k < n; k++)
+   {
+      bool rotation = true;
+      for (int j = 0; rotation && j < n; j++)
+      {
+         rotation = (pv[j] == v[(j + k) % n]);
+      }
+      if (rotation)
+      {
+         for (int j = 0; j < n; j++) { v[j] = pv[j]; }
+         return;
+      }
+   }
+}
+
 template <typename SubMeshT>
 void AddBoundaryElements(SubMeshT &mesh,
                          const std::unordered_map<int,int> &lface_to_boundary_attribute)
@@ -310,6 +347,7 @@ void AddBoundaryElements(SubMeshT &mesh,
             if (pbeid != -1)
             {
                be->SetAttribute(parent.GetBdrAttribute(pbeid));
+               UseParentBoundaryElementOrder(mesh, pbeid, *be);
             }
             else
             {
@@ -369,6 +407,7 @@ void AddBoundaryElements(SubMeshT &mesh,
 
             auto * be = mesh.GetFace(submeshFaceIdx)->Duplicate(&mesh);
             be->SetAttribute(parent.GetBdrAttribute(i));
+            UseParentBoundaryElementOrder(mesh, i, *be);
             boundary.Append(be);
             be_to_face.Append(submeshFaceIdx);
          }

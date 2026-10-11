@@ -15,7 +15,9 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <functional>
 #include <memory>
 
@@ -143,6 +145,88 @@ void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr,
  */
 void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
                                    bool backwards = true);
+
+/**
+ * @brief Create a 4 x 2 x 2 mesh of the unit cube, with attribute 1 for
+ * x < 0.5 and 2 otherwise. Boundary elements are added on the interior faces
+ * x = 0.25 (attribute 7) and x = 0.5 (attribute 8). All the boundary elements
+ * are rotated with respect to their faces.
+ *
+ * @param type The element type, HEXAHEDRON or TETRAHEDRON
+ * @return Mesh
+ */
+Mesh RotatedBoundaryElementsMesh(Element::Type type);
+
+/**
+ * @brief Check the boundary elements of a submesh extracted from a domain.
+ * When the vertex order of the matching boundary element of the parent is a
+ * rotation of the one of the submesh, both orders shall be equal. The boundary
+ * elements of the submesh shall keep the orientation of their faces. The
+ * boundary values of a quadratic function shall be exact with an order 2 space.
+ *
+ * @tparam SubMeshT SubMesh or ParSubMesh
+ * @param submesh The submesh
+ */
+template <typename SubMeshT>
+void CheckSubMeshBoundaryElements(SubMeshT &submesh)
+{
+   const auto &parent = *submesh.GetParent();
+   const auto parent_face_to_be = parent.GetFaceToBdrElMap();
+   const auto &parent_face_ids = submesh.GetParentFaceIDMap();
+   const auto &parent_vertex_ids = submesh.GetParentVertexIDMap();
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      int f, o;
+      submesh.GetBdrElementFace(i, &f, &o);
+      REQUIRE(o % 2 == 0);
+      const int pbe = parent_face_to_be[parent_face_ids[f]];
+      if (pbe == -1) { continue; }
+      Array<int> sv, pv;
+      submesh.GetBdrElementVertices(i, sv);
+      parent.GetBdrElementVertices(pbe, pv);
+      REQUIRE(sv.Size() == pv.Size());
+      const int n = sv.Size();
+      for (int j = 0; j < n; j++) { sv[j] = parent_vertex_ids[sv[j]]; }
+      bool rotation = false;
+      for (int k = 0; !rotation && k < n; k++)
+      {
+         rotation = true;
+         for (int j = 0; rotation && j < n; j++)
+         {
+            rotation = (pv[j] == sv[(j + k) % n]);
+         }
+      }
+      if (!rotation) { continue; }
+      for (int j = 0; j < n; j++) { REQUIRE(sv[j] == pv[j]); }
+   }
+   H1_FECollection fec(2, submesh.Dimension());
+   FiniteElementSpace fes(&submesh, &fec);
+   FunctionCoefficient q([](const Vector &x)
+   {
+      return 1 + x(0) * x(0) + 2 * x(1) * x(2) + 3 * x(2) * x(2);
+   });
+   GridFunction g(&fes);
+   g.ProjectCoefficient(q);
+   real_t error = 0;
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      Array<int> dofs;
+      fes.GetBdrElementDofs(i, dofs);
+      Vector values, shape(dofs.Size());
+      g.GetSubVector(dofs, values);
+      const auto &fe = *fes.GetBE(i);
+      auto &T = *submesh.GetBdrElementTransformation(i);
+      const auto &ir = IntRules.Get(fe.GetGeomType(), 4);
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         T.SetIntPoint(&ip);
+         fe.CalcShape(ip, shape);
+         error = std::max(error, std::abs(shape * values - q.Eval(T, ip)));
+      }
+   }
+   REQUIRE(error < 1e-12);
+}
 
 
 #ifdef MFEM_USE_MPI
