@@ -11,6 +11,8 @@
 Version 4.10.1 (development)
 ============================
 
+- Included H1 boundary matrices in FULL sparse assembly.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

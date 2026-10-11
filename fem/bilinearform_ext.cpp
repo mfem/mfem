@@ -1365,7 +1365,7 @@ void EABilinearFormExtension::GetElementMatrices(
             // Convert from lexicographic face DOF to volume DOF
             const int i_lex = d_face_maps(i_lex_face, lf_i);
 
-            const int ii_s = d_dof_map[i_lex];
+            const int ii_s = d_dof_map ? d_dof_map[i_lex] : i_lex;
             const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
 
             const int i = reorder ? ii : i_lex;
@@ -1376,7 +1376,7 @@ void EABilinearFormExtension::GetElementMatrices(
                // Convert from lexicographic face DOF to volume DOF
                const int j_lex = d_face_maps(j_lex_face, lf_i);
 
-               const int jj_s = d_dof_map[j_lex];
+               const int jj_s = d_dof_map ? d_dof_map[j_lex] : j_lex;
                const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
 
                const int j = reorder ? jj : j_lex;
@@ -1409,6 +1409,29 @@ void FABilinearFormExtension::Assemble()
 {
    EABilinearFormExtension::Assemble();
    FiniteElementSpace &fes = *a->FESpace();
+   // DG boundary matrices have already been folded into ea_data. For CG,
+   // include them in the element data exported to the global sparse matrix.
+   Vector full_ea_data;
+   DenseTensor full_element_matrices;
+   const Vector *matrix_data = &ea_data;
+   if (!fes.IsDGSpace() && ea_data_bdr.Size() > 0)
+   {
+      GetElementMatrices(full_element_matrices, ElementDofOrdering::LEXICOGRAPHIC,
+                         true);
+      full_ea_data.SetSize(ea_data.Size());
+      const auto matrices = Reshape(full_element_matrices.Read(), elemDofs,
+                                    elemDofs, ne);
+      auto data = Reshape(full_ea_data.Write(), elemDofs, elemDofs, ne);
+      const int ndofs = elemDofs;
+      mfem::forall(ea_data.Size(), [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / ndofs / ndofs;
+         const int i = idx % ndofs;
+         const int j = (idx / ndofs) % ndofs;
+         data(i, j, e) = matrices(j, i, e);
+      });
+      matrix_data = &full_ea_data;
+   }
    int width = fes.GetVSize();
    int height = fes.GetVSize();
    bool keep_nbr_block = false;
@@ -1457,7 +1480,7 @@ void FABilinearFormExtension::Assemble()
       {
          const ElementRestriction &rest =
             static_cast<const ElementRestriction&>(*elem_restrict);
-         rest.FillJAndData(ea_data, *mat);
+         rest.FillJAndData(*matrix_data, *mat);
       }
    }
    else // We create, compute the sparsity, and fill the sparse matrix
@@ -1506,7 +1529,7 @@ void FABilinearFormExtension::Assemble()
       {
          const ElementRestriction &rest =
             static_cast<const ElementRestriction&>(*elem_restrict);
-         rest.FillSparseMatrix(ea_data, *mat);
+         rest.FillSparseMatrix(*matrix_data, *mat);
       }
       a->mat = mat;
    }

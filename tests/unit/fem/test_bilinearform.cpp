@@ -184,3 +184,43 @@ TEST_CASE("BilinearForm print", "[SparseMatrix][BilinearForm]")
    a.Print(ss);
    REQUIRE(ss.str().length() > 0);
 }
+
+
+TEST_CASE("FULL H1 includes boundary mass", "[BilinearForm][Issue5558]")
+{
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(1, 2);
+   const int basis = GENERATE(BasisType::GaussLobatto, BasisType::Positive);
+   const bool convection = GENERATE(false, true);
+   Mesh mesh = dim == 2 ? Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL)
+               : Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   H1_FECollection fec(order, dim, basis);
+   FiniteElementSpace fes(&mesh, &fec);
+   ConstantCoefficient one(1.0);
+   Vector velocity(dim); velocity = 1.0;
+   VectorConstantCoefficient flow(velocity);
+   BilinearForm full(&fes), legacy(&fes);
+   full.SetAssemblyLevel(AssemblyLevel::FULL);
+   for (auto form : {&full, &legacy})
+   {
+      if (convection)
+      {
+         form->AddDomainIntegrator(new ConvectionIntegrator(flow));
+      }
+      else { form->AddDomainIntegrator(new MassIntegrator(one)); }
+      form->AddBoundaryIntegrator(new MassIntegrator(one));
+      form->Assemble();
+      form->Finalize();
+   }
+   Vector x(fes.GetVSize()), y(x.Size()), expected(x.Size());
+   x = 1.0;
+   full.Mult(x, y);
+   REQUIRE(x*y == MFEM_Approx((convection ? 0.0 : 1.0) + 2*dim));
+   x.Randomize(1);
+   full.Mult(x, y);
+   legacy.Mult(x, expected);
+   full.Assemble(); // Reuse the existing sparse matrix pattern.
+   full.Mult(x, y);
+   y -= expected;
+   REQUIRE(y.Norml2() < 1e-10*expected.Norml2());
+}
