@@ -1142,7 +1142,8 @@ int main(int argc, char *argv[]) try
                   "-fft when the library for the device is linked (FFTW on "
                   "cpu, cuFFT or hipFFT on CUDA or HIP).");
    args.AddOption(&stall_pct, "-stall", "--loss-stall",
-                  "Newton stall relative loss drop in percent (default 1).");
+                  "Newton stall relative loss drop in percent, 0 disables "
+                  "the stall stop (default 1).");
    args.AddOption(&gemMaxGib, "-gmem", "--gem-max-gib",
                   "Largest memory in GiB for the dense -gem Fresnel matrices "
                   "(default 16).");

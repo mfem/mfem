@@ -54,9 +54,10 @@ inline std::string OptionsError(real_t wavelengthNm, real_t zProp,
    {
       msg << "Invalid -f/--focal " << focal << ": must be finite and positive";
    }
-   else if (!std::isfinite(stallPct))
+   else if (!(std::isfinite(stallPct) && stallPct >= real_t{0}))
    {
-      msg << "Invalid -stall/--loss-stall " << stallPct << ": must be finite";
+      msg << "Invalid -stall/--loss-stall " << stallPct
+          << ": must be finite and >= 0 (0 disables the stall stop)";
    }
    else if (order < 0)
    {
@@ -616,14 +617,17 @@ inline MFEM_HOST_DEVICE real_t SrgbGamma(real_t value)
    return 1.055 * std::pow(value, 1.0 / 2.4) - 0.055;
 }
 
-// Unit-intensity linear sRGB for a monochromatic wavelength.
+// Unit-intensity linear sRGB for a monochromatic wavelength in [380, 780] nm,
+// black outside. The table stops at 768 nm, past which the CMFs are below its
+// 1e-4 resolution, so 769 to 780 nm use the last (deep red) sample.
 inline void MonoLinearRgb(real_t wavelength_nm, real_t &r, real_t &g, real_t &b)
 {
    constexpr real_t factor = (779.0 - 380.0) / 400.0 * 0.003975 * 683.002;
+   constexpr real_t lo{380}, hi{780};
    real_t x = 0.0, y = 0.0, z = 0.0;
-   if (wavelength_nm > 380.0 && wavelength_nm < 780.0)
+   if (wavelength_nm >= lo && wavelength_nm <= hi)
    {
-      const int i = static_cast<int>(wavelength_nm - 380.0);
+      const int i = std::min(static_cast<int>(wavelength_nm - lo), kCieN - 1);
       CieXyzAt(i, x, y, z);
       x *= factor;
       y *= factor;
