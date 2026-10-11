@@ -1238,7 +1238,7 @@ GridFunction ParGridFunction::GetSerialGridFunction(
 GridFunction ParGridFunction::GetSerialGridFunction(int save_rank,
                                                     Mesh &serial_mesh) const
 {
-   auto *serial_fec = pfes->FEColl()->Clone(pfes->FEColl()->GetOrder());
+   auto *serial_fec = pfes->FEColl()->Clone(pfes->FEColl()->GetConstructorOrder());
    auto *serial_fes = new FiniteElementSpace(&serial_mesh,
                                              serial_fec,
                                              pfes->GetVDim(),
