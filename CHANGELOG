@@ -11,6 +11,8 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed component evaluation of vector-valued fields on MPI neighbor elements.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

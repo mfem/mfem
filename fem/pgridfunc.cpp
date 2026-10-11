@@ -415,33 +415,14 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
       return GridFunction::GetValue(T, ip, comp, tr);
    }
 
-   // Evaluate using DoFs from a neighboring element
-   if (tr)
-   {
-      T.SetIntPoint(&ip);
-      T.Transform(ip, *tr);
-   }
-
-   Array<int> dofs;
-   const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   DofTransformation doftrans;
-   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
-
-   pfes->DofsToVDofs(comp-1, dofs);
-   Vector DofVal(dofs.Size()), LocVec;
-   if (fe->GetMapType() == FiniteElement::VALUE)
-   {
-      fe->CalcShape(ip, DofVal);
-   }
-   else
-   {
-      fe->CalcPhysShape(T, DofVal);
-   }
-   face_nbr_data.GetSubVector(dofs, LocVec);
-   doftrans.InvTransformPrimal(LocVec);
-
-
-   return (DofVal * LocVec);
+   // Reuse the neighbor evaluation path that handles vector DOFs and their
+   // transformations before selecting a component.
+   Vector values;
+   GetVectorValue(T, ip, values, tr);
+   const int component = comp == 0 ? 0 : comp - 1;
+   MFEM_ASSERT(component >= 0 && component < values.Size(),
+               "Invalid vector component");
+   return values(component);
 }
 
 void ParGridFunction::GetVectorValue(ElementTransformation &T,
