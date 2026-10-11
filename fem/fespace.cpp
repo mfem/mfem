@@ -1855,7 +1855,7 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
       }
    }
 
-   ConstructDoFTransArray();
+   ConstructDoFTransArray(fespace->FEColl());
 }
 
 FiniteElementSpace::RefinementOperator::RefinementOperator(
@@ -1883,7 +1883,7 @@ FiniteElementSpace::RefinementOperator::RefinementOperator(
       old_elem_fos = new Table(*coarse_fes->GetElementToFaceOrientationTable());
    }
 
-   ConstructDoFTransArray();
+   ConstructDoFTransArray(coarse_fes->FEColl());
 }
 
 FiniteElementSpace::RefinementOperator::~RefinementOperator()
@@ -1896,7 +1896,8 @@ FiniteElementSpace::RefinementOperator::~RefinementOperator()
    }
 }
 
-void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray()
+void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray(
+   const FiniteElementCollection *fec_ref)
 {
    old_DoFTransArray.SetSize(Geometry::NUM_GEOMETRIES);
    for (int i=0; i<old_DoFTransArray.Size(); i++)
@@ -1904,7 +1905,6 @@ void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray()
       old_DoFTransArray[i] = NULL;
    }
 
-   const FiniteElementCollection *fec_ref = fespace->FEColl();
    if (dynamic_cast<const ND_FECollection*>(fec_ref))
    {
       const FiniteElement *nd_tri =
@@ -1981,7 +1981,15 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
       fespace->GetElementDofs(k, dofs, doftrans);
       old_elem_dof->GetRow(emb.parent, old_dofs);
 
-      if (doftrans.IsIdentity())
+      old_DoFTrans.SetDofTransformation(
+         old_elem_fos ? old_DoFTransArray[geom] : nullptr);
+      if (!old_DoFTrans.IsIdentity())
+      {
+         old_elem_fos->GetRow(emb.parent, old_Fo);
+         old_DoFTrans.SetFaceOrientations(old_Fo);
+      }
+
+      if (doftrans.IsIdentity() && old_DoFTrans.IsIdentity())
       {
          for (int vd = 0; vd < rvdim; vd++)
          {
@@ -1997,10 +2005,6 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
       }
       else
       {
-         old_elem_fos->GetRow(emb.parent, old_Fo);
-         old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
-         old_DoFTrans.SetFaceOrientations(old_Fo);
-
          doftrans.SetVDim();
          for (int vd = 0; vd < rvdim; vd++)
          {
@@ -2066,7 +2070,15 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
       fespace->GetElementDofs(k, f_dofs, doftrans);
       old_elem_dof->GetRow(emb.parent, c_dofs);
 
-      if (doftrans.IsIdentity())
+      old_DoFTrans.SetDofTransformation(
+         old_elem_fos ? old_DoFTransArray[geom] : nullptr);
+      if (!old_DoFTrans.IsIdentity())
+      {
+         old_elem_fos->GetRow(emb.parent, old_Fo);
+         old_DoFTrans.SetFaceOrientations(old_Fo);
+      }
+
+      if (doftrans.IsIdentity() && old_DoFTrans.IsIdentity())
       {
          subY.SetSize(lP.Width());
 
@@ -2092,10 +2104,6 @@ void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
       else
       {
          subYt.SetSize(lP.Width());
-
-         old_elem_fos->GetRow(emb.parent, old_Fo);
-         old_DoFTrans.SetDofTransformation(*old_DoFTransArray[geom]);
-         old_DoFTrans.SetFaceOrientations(old_Fo);
 
          doftrans.SetVDim();
          for (int vd = 0; vd < rvdim; vd++)

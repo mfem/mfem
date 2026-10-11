@@ -856,3 +856,29 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
 
 
 #endif
+
+
+TEST_CASE("Unequal order ND geometric transfer", "[Transfer][Issue5561]")
+{
+   const int order = GENERATE(1, 2);
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::TETRAHEDRON);
+   Mesh fine_mesh(mesh);
+   fine_mesh.UniformRefinement();
+   ND_FECollection coarse_fec(order, 3), fine_fec(order+1, 3);
+   FiniteElementSpace coarse(&mesh, &coarse_fec), fine(&fine_mesh, &fine_fec);
+   VectorFunctionCoefficient coefficient(3, [](const Vector &, Vector &v)
+   { v(0) = 0.75; v(1) = -1.25; v(2) = 2.5; });
+   GridFunction x(&coarse), actual(&fine), expected(&fine);
+   x.ProjectCoefficient(coefficient);
+   expected.ProjectCoefficient(coefficient);
+   InterpolationGridTransfer transfer(coarse, fine);
+   const Operator &P = transfer.ForwardOperator();
+   P.Mult(x, actual);
+   actual -= expected;
+   REQUIRE(actual.Norml2() < 1e-10*expected.Norml2());
+   Vector y(fine.GetVSize()), Px(fine.GetVSize()), Pty(coarse.GetVSize());
+   y.Randomize(1);
+   P.Mult(x, Px);
+   P.MultTranspose(y, Pty);
+   REQUIRE(Px*y == MFEM_Approx(x*Pty));
+}
