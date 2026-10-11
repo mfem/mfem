@@ -3509,14 +3509,19 @@ public:
     the $L_2$ or $H^1$ space. This integrator handles 3 cases:
     1. u ∈ $H(curl)$ in 3D, $v$ is a 3D vector with components $v_i$ in $L^2$ or $H^1$
     2. u ∈ $H(curl)$ in 2D, $v$ is a scalar field in $L^2$ or $H^1$
-    3. u is a scalar field in $H^1$, i.e, $\mathrm{curl}(u) := \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}$, $\nabla u$ and $v$ is a
-        2D vector field with components $v_i$ in $L^2$ or $H^1$ space.
+    3. u is a scalar field in $L^2$ or $H^1$, i.e, $\mathrm{curl}(u) := \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}$, $\nabla u$ and $v$ is a
+        2D vector field with components $v_i$ in $L^2$ or $H^1$ space (mode == Mode::CrossGrad)
+    4. u is a vector field with components $u_i$ in in $L^2$ or $H^1$, $\nabla u$ and $v$ is a
+        2D scalar field in $L^2$ or $H^1$ space (mode == Mode::OutOfPlane)
 
     Note: Case 2 can also be handled by MixedScalarCurlIntegrator  */
 class MixedCurlIntegrator : public BilinearFormIntegrator
 {
+public:
+   enum class Mode { CrossGrad, OutOfPlane };
 protected:
    Coefficient *Q;
+   Mode mode = Mode::CrossGrad;
 
 private:
    Vector shape;
@@ -3524,9 +3529,9 @@ private:
    DenseMatrix curlshape;
    DenseMatrix elmat_comp;
 public:
-   MixedCurlIntegrator() : Q{NULL} { }
-   MixedCurlIntegrator(Coefficient *q_) :  Q{q_} { }
-   MixedCurlIntegrator(Coefficient &q) :  Q{&q} { }
+   MixedCurlIntegrator(Mode mode = Mode::CrossGrad) : Q{NULL}, mode(mode) { }
+   MixedCurlIntegrator(Coefficient *q_, Mode mode = Mode::CrossGrad) : Q{q_}, mode(mode) { }
+   MixedCurlIntegrator(Coefficient &q, Mode mode = Mode::CrossGrad) : Q{&q}, mode(mode) { }
 
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                const FiniteElement &test_fe,
