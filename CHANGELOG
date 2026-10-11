@@ -11,6 +11,8 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed coarse DOF transformations in unequal-order ND refinement transfer.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

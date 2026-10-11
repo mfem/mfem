@@ -498,7 +498,7 @@ protected:
       Array<StatelessDofTransformation*> old_DoFTransArray;
       mutable DofTransformation old_DoFTrans;
 
-      void ConstructDoFTransArray();
+      void ConstructDoFTransArray(const FiniteElementCollection *coarse_fec);
 
    public:
       /** Construct the operator based on the elem_dof table of the original
