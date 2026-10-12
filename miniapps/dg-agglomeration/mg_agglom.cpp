@@ -701,7 +701,7 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
          }
 
          // Perform SVD on the B submatrix. Grab the left singular vectors.
-         DenseMatrixSVD Bsvd(B_sub, 'A', 'N'); 
+         DenseMatrixSVD Bsvd(B_sub, 'S', 'N'); 
          Bsvd.Eval(B_sub);
          DenseMatrix U = Bsvd.LeftSingularvectors(); 
          Vector S = Bsvd.Singularvalues();

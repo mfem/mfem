@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
     a.AddDomainIntegrator(new ConvectionIntegrator(velocity, 1.0));
     a.AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 1.0));
     a.AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity, 1.0));
-    a.AddDomainIntegrator(new MassIntegrator);
+    // a.AddDomainIntegrator(new MassIntegrator);
     a.Assemble();
     a.Finalize();
 
