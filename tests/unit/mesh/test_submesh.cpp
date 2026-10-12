@@ -424,6 +424,18 @@ TEST_CASE("SubMesh", "[SubMesh]")
    }
 }
 
+TEST_CASE("SubMesh boundary elements order", "[SubMesh]")
+{
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+   auto attribute = GENERATE(1, 2);
+   auto nonconforming = GENERATE(false, true);
+   auto curved = GENERATE(false, true);
+   CAPTURE(type, attribute, nonconforming, curved);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, nonconforming, curved);
+   auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {attribute});
+   REQUIRE(CheckSubMeshBoundaryElements(submesh) > 0);
+}
+
 TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
 {
    // Solve Poisson on a pair of cubes fully coupled, transfer to the interface

@@ -11,6 +11,14 @@
 Version 4.10.1 (development)
 ============================
 
+- The boundary elements of a 3D SubMesh extracted from a domain now keep the
+  vertex order of the matching boundary elements of the parent mesh, when this
+  does not change their orientation on the boundary of the SubMesh (on its
+  local interior faces, they take the orientation of the parent). Their
+  integration points are then the same physical points. The interior boundary
+  elements of a SubMesh extracted from a nonconforming mesh are no longer
+  duplicated.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
