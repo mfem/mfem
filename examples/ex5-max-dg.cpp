@@ -629,6 +629,11 @@ int main(int argc, char *argv[])
    E.MakeRef(E_space, x.GetBlock(0), 0);
    B.MakeRef(B_space, x.GetBlock(1), 0);
 
+   GridFunction E_anal(E_space);
+   GridFunction B_anal(B_space);
+   E_anal.ProjectCoefficient(Ecoeff);
+   B_anal.ProjectCoefficient(Bcoeff);
+
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
    for (int i=0; i < Geometry::NumGeom; ++i)
@@ -690,6 +695,12 @@ int main(int argc, char *argv[])
       socketstream B_sock(vishost, visport);
       B_sock.precision(8);
       B_sock << "solution\n" << *mesh << B << "window_title 'Magnetic field'" << endl;
+      socketstream Ea_sock(vishost, visport);
+      Ea_sock.precision(8);
+      Ea_sock << "solution\n" << *mesh << E_anal << "window_title 'Electric field anal'" << endl;
+      socketstream Ba_sock(vishost, visport);
+      Ba_sock.precision(8);
+      Ba_sock << "solution\n" << *mesh << B_anal << "window_title 'Magnetic field anal'" << endl;
    }
 
    // 17. Free the used memory.
