@@ -336,7 +336,8 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
                               [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
-      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<RAJA::LoopPolicy<RAJA::cuda_block_x_direct>>(ctx, RangeSegment(0,
+                                                                          G), [&] (const int n)
       {
 
          loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
@@ -368,7 +369,8 @@ void RajaCuWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
       Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
       [=] RAJA_DEVICE(LaunchContext ctx)
    {
-      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<RAJA::LoopPolicy<RAJA::cuda_block_x_direct>>(ctx, RangeSegment(0,
+                                                                          G), [&] (const int n)
       {
          loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
          {
@@ -499,7 +501,8 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
                              [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
-      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<RAJA::LoopPolicy<RAJA::hip_block_x_direct>>(ctx, RangeSegment(0,
+                                                                         G), [&] (const int n)
       {
 
          loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
@@ -531,7 +534,8 @@ void RajaHipWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
       Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
       [=] RAJA_DEVICE(LaunchContext ctx)
    {
-      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<RAJA::LoopPolicy<RAJA::hip_block_x_direct>>(ctx, RangeSegment(0,
+                                                                         G), [&] (const int n)
       {
          loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
          {
@@ -1256,6 +1260,12 @@ template<typename lambda>
 inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, G);
+}
+
+template<int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
+{
+   ForallWrap<3, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, Z, G);
 }
 
 #ifdef MFEM_USE_MPI

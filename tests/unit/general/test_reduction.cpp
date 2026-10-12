@@ -398,10 +398,7 @@ TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
 }
 
 
-#if defined(MFEM_USE_RAJA) && \
-    ((defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)) || \
-     (defined(RAJA_ENABLE_HIP) && defined(__HIP__)))
-TEST_CASE("RAJA fixed grid covers all elements", "[GPU][Issue5590]")
+TEST_CASE("forall_3d_grid covers all elements", "[GPU]")
 {
    if (!Device::Allows(Backend::RAJA_CUDA | Backend::RAJA_HIP)) { return; }
    const int grid = GENERATE(0, 128, 256);
@@ -411,24 +408,18 @@ TEST_CASE("RAJA fixed grid covers all elements", "[GPU][Issue5590]")
    result = -1.0;
    auto values = result.ReadWrite();
    auto body = [=] MFEM_HOST_DEVICE (int e) { values[e] = e; };
-#if defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
-   if (Device::Allows(Backend::RAJA_CUDA))
+   if (bounded)
    {
-      if (bounded) { RajaCuWrap3DLaunchBounds<128>(200, body, 1, 1, 1, grid); }
-      else { RajaCuWrap3D(200, body, 1, 1, 1, grid); }
+      forall_3D_grid<128>(200, 1, 1, 1, grid, body);
    }
-#endif
-#if defined(RAJA_ENABLE_HIP) && defined(__HIP__)
-   if (Device::Allows(Backend::RAJA_HIP))
+   else
    {
-      if (bounded) { RajaHipWrap3DLaunchBounds<128>(200, body, 1, 1, 1, grid); }
-      else { RajaHipWrap3D(200, body, 1, 1, 1, grid); }
+      forall_3D_grid(200, 1, 1, 1, grid, body);
    }
-#endif
+
    const auto host = result.HostRead();
    for (int i = 0; i < result.Size(); i++)
    {
       REQUIRE(host[i] == MFEM_Approx(i));
    }
 }
-#endif
