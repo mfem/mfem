@@ -284,6 +284,60 @@ TEST_CASE("HypreADS", "[Parallel][HypreADS]")
    }
 }
 
+// The preconditioner is given a new operator after the destruction of the
+// previous one, as a NewtonSolver does with the gradient of a
+// ParNonlinearForm.
+TEST_CASE("HypreParaSails new operator", "[Parallel][HypreParaSails]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   H1_FECollection fec(1, pmesh.Dimension());
+   ParFiniteElementSpace fespace(&pmesh, &fec);
+   Array<int> ess_tdof_list;
+   fespace.GetBoundaryTrueDofs(ess_tdof_list);
+
+   ConstantCoefficient one(1.0);
+   ParLinearForm b(&fespace);
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.Assemble();
+   std::unique_ptr<HypreParVector> B(b.ParallelAssemble());
+   B->SetSubVector(ess_tdof_list, 0.0);
+   HypreParVector X(*B), R(*B);
+
+   auto assemble = [&](real_t k)
+   {
+      ConstantCoefficient coef(k);
+      ParBilinearForm a(&fespace);
+      a.AddDomainIntegrator(new DiffusionIntegrator(coef));
+      a.Assemble();
+      a.Finalize();
+      std::unique_ptr<HypreParMatrix> A(a.ParallelAssemble());
+      delete A->EliminateRowsCols(ess_tdof_list);
+      return A;
+   };
+
+   HypreParaSails parasails(MPI_COMM_WORLD);
+   HyprePCG pcg(MPI_COMM_WORLD);
+   pcg.SetTol(1e-10);
+   pcg.SetMaxIter(500);
+   pcg.SetPreconditioner(parasails);
+
+   std::unique_ptr<HypreParMatrix> A;
+   for (int i = 0; i < 2; i++)
+   {
+      // The new operator is assembled before the destruction of the previous
+      // one, which is then destroyed before being replaced.
+      std::unique_ptr<HypreParMatrix> next = assemble(1.0 + i);
+      A = std::move(next);
+      pcg.SetOperator(*A);
+      X = 0.0;
+      pcg.Mult(*B, X);
+      A->Mult(X, R);
+      R -= *B;
+      REQUIRE(InnerProduct(R, R) < 1e-16 * InnerProduct(*B, *B));
+   }
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
