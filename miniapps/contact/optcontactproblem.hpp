@@ -96,11 +96,14 @@ private:
 
    struct FilteredContactMatrix
    {
-      SparseMatrix *matrix = nullptr;
+      SparseMatrix *diag = nullptr;
+      SparseMatrix *offd = nullptr;
+      HYPRE_BigInt *offd_cmap = nullptr;
       HYPRE_BigInt row_starts[2];
       HYPRE_BigInt col_starts[2];
       HYPRE_BigInt global_num_rows = 0;
       HYPRE_BigInt global_num_cols = 0;
+      HYPRE_Int offd_num_cols = 0;
    };
 
    /// Filter inactive contact rows and compact the associated gap data.
