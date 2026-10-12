@@ -1103,14 +1103,16 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    for (int i = 0; i < nrhs; i++)
    {
       const real_t *xdata = X[i]->GetData();
+      real_t *recv_r = (myid == 0) ? rhs_glob_r + i * global_num_rows : nullptr;
+      real_t *recv_i = (myid == 0) ? rhs_glob_i + i * global_num_rows : nullptr;
 
       MPI_Gatherv(xdata, n_loc, MPITypeMap<real_t>::mpi_type,
-                  rhs_glob_r + i * global_num_rows,
+                  recv_r,
                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                   0, comm);
 
       MPI_Gatherv(xdata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
-                  rhs_glob_i + i * global_num_rows,
+                  recv_i,
                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                   0, comm);
    }
@@ -1163,13 +1165,17 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
       MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
 
       real_t *ydata = Y[i]->GetData();
+      const real_t *send_r = (myid == 0) ?
+                             rhs_glob_r + i * global_num_rows : nullptr;
+      const real_t *send_i = (myid == 0) ?
+                             rhs_glob_i + i * global_num_rows : nullptr;
 
-      MPI_Scatterv(rhs_glob_r + i * global_num_rows,
+      MPI_Scatterv(send_r,
                    recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                    ydata, n_loc, MPITypeMap<real_t>::mpi_type,
                    0, comm);
 
-      MPI_Scatterv(rhs_glob_i + i * global_num_rows,
+      MPI_Scatterv(send_i,
                    recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                    ydata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
                    0, comm);
@@ -1261,14 +1267,16 @@ void ComplexMUMPSSolver::ArrayMultTranspose(const Array<const Vector *> &X,
    for (int i = 0; i < nrhs; i++)
    {
       const real_t *xdata = X[i]->GetData();
+      real_t *recv_r = (myid == 0) ? rhs_glob_r + i * global_num_rows : nullptr;
+      real_t *recv_i = (myid == 0) ? rhs_glob_i + i * global_num_rows : nullptr;
 
       MPI_Gatherv(xdata, n_loc, MPITypeMap<real_t>::mpi_type,
-                  rhs_glob_r + i * global_num_rows,
+                  recv_r,
                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                   0, comm);
 
       MPI_Gatherv(xdata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
-                  rhs_glob_i + i * global_num_rows,
+                  recv_i,
                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                   0, comm);
    }
@@ -1317,13 +1325,17 @@ void ComplexMUMPSSolver::ArrayMultTranspose(const Array<const Vector *> &X,
       MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
 
       real_t *ydata = Y[i]->GetData();
+      const real_t *send_r = (myid == 0) ?
+                             rhs_glob_r + i * global_num_rows : nullptr;
+      const real_t *send_i = (myid == 0) ?
+                             rhs_glob_i + i * global_num_rows : nullptr;
 
-      MPI_Scatterv(rhs_glob_r + i * global_num_rows,
+      MPI_Scatterv(send_r,
                    recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                    ydata, n_loc, MPITypeMap<real_t>::mpi_type,
                    0, comm);
 
-      MPI_Scatterv(rhs_glob_i + i * global_num_rows,
+      MPI_Scatterv(send_i,
                    recv_counts, displs, MPITypeMap<real_t>::mpi_type,
                    ydata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
                    0, comm);
