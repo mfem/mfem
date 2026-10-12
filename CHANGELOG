@@ -11,6 +11,11 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed the AmgX resource shared by the AmgXSolver instances, which used the
+  configuration and the communicator of the first instance after its
+  destruction, and the creation of several serial AmgXSolver instances, which
+  initialized AmgX again.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
