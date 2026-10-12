@@ -428,9 +428,12 @@ TEST_CASE("SubMesh boundary elements order", "[SubMesh]")
 {
    auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
    auto attribute = GENERATE(1, 2);
-   Mesh mesh = RotatedBoundaryElementsMesh(type);
+   auto nonconforming = GENERATE(false, true);
+   auto curved = GENERATE(false, true);
+   CAPTURE(type, attribute, nonconforming, curved);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, nonconforming, curved);
    auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {attribute});
-   CheckSubMeshBoundaryElements(submesh);
+   REQUIRE(CheckSubMeshBoundaryElements(submesh) > 0);
 }
 
 TEST_CASE("InterfaceTransferSolve", "[SubMesh]")

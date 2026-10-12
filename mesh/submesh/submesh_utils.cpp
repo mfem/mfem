@@ -256,14 +256,21 @@ Array<int> BuildFaceMap(const Mesh& pm, const Mesh& sm,
 /**
  * @brief Give a boundary element of a 3D submesh the vertex order of the
  * matching boundary element of the parent, if this order is a rotation of the
- * current one. The orientation of the boundary element is kept, and the
- * integration points of both boundary elements are the same physical points.
+ * current one or, when the orientation may change, of the reversed one. The
+ * integration points of both boundary elements are then the same physical
+ * points.
  * @param mesh The SubMesh.
  * @param pbe The boundary element of the parent.
+ * @param keep_orientation Whether the orientation of the boundary element
+ * shall be kept. This is the case unless the face is a local interior face of
+ * the SubMesh, where a boundary element may have either orientation: on the
+ * boundary and on the shared faces, Mesh::Finalize fixes the orientation of
+ * the boundary elements.
  * @param be The boundary element of the SubMesh.
  */
 template <typename SubMeshT>
-void UseParentBoundaryElementOrder(const SubMeshT &mesh, int pbe, Element &be)
+void UseParentBoundaryElementOrder(const SubMeshT &mesh, int pbe,
+                                   bool keep_orientation, Element &be)
 {
    if (mesh.Dimension() != 3) { return; }
    Array<int> pv;
@@ -277,12 +284,13 @@ void UseParentBoundaryElementOrder(const SubMeshT &mesh, int pbe, Element &be)
    int *v = be.GetVertices();
    for (int k = 0; k < n; k++)
    {
-      bool rotation = true;
-      for (int j = 0; rotation && j < n; j++)
+      bool rotation = true, reflection = !keep_orientation;
+      for (int j = 0; j < n; j++)
       {
-         rotation = (pv[j] == v[(j + k) % n]);
+         rotation = rotation && (pv[j] == v[(k + j) % n]);
+         reflection = reflection && (pv[j] == v[(k + n - j) % n]);
       }
-      if (rotation)
+      if (rotation || reflection)
       {
          for (int j = 0; j < n; j++) { v[j] = pv[j]; }
          return;
@@ -323,6 +331,23 @@ void AddBoundaryElements(SubMeshT &mesh,
    const auto &parent_face_to_be = parent.GetFaceToBdrElMap();
    const auto &face_to_be = mesh.GetFaceToBdrElMap();
    int max_bdr_attr = parent.bdr_attributes.Max();
+   if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() == 3)
+   {
+      // The boundary elements already created from a nonconforming parent
+      // follow the vertex order of the faces of the elements.
+      for (int i = 0; i < mesh.GetNBE(); i++)
+      {
+         const int f = mesh.GetBdrElementFaceIndex(i);
+         const int pbeid = parent_face_ids[f] < 0 ? -1 :
+                           parent_face_to_be[parent_face_ids[f]];
+         if (pbeid != -1)
+         {
+            UseParentBoundaryElementOrder(
+               mesh, pbeid, !mesh.GetFaceInformation(f).IsLocal(),
+               *mesh.GetBdrElement(i));
+         }
+      }
+   }
    for (int i = 0; i < num_codim_1; i++)
    {
       auto pfid = [&](int i)
@@ -347,7 +372,7 @@ void AddBoundaryElements(SubMeshT &mesh,
             if (pbeid != -1)
             {
                be->SetAttribute(parent.GetBdrAttribute(pbeid));
-               UseParentBoundaryElementOrder(mesh, pbeid, *be);
+               UseParentBoundaryElementOrder(mesh, pbeid, true, *be);
             }
             else
             {
@@ -371,6 +396,13 @@ void AddBoundaryElements(SubMeshT &mesh,
 
    if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
    {
+      // The interior boundary elements already created from a nonconforming
+      // parent are kept.
+      auto has_bdr_element = [&face_to_be](int f)
+      {
+         return !face_to_be.IsEmpty() && face_to_be[f] != -1;
+      };
+
       // Search for and count interior boundary elements
       int InteriorBdrElems = 0;
       for (int i=0; i<parent.GetNBE(); i++)
@@ -383,6 +415,7 @@ void AddBoundaryElements(SubMeshT &mesh,
 
          if (submeshFaceIdx == -1) { continue; }
          if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
+         if (has_bdr_element(submeshFaceIdx)) { continue; }
          InteriorBdrElems++;
       }
 
@@ -404,10 +437,13 @@ void AddBoundaryElements(SubMeshT &mesh,
             if (submeshFaceIdx == -1) { continue; }
             if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary())
             { continue; }
+            if (has_bdr_element(submeshFaceIdx)) { continue; }
 
             auto * be = mesh.GetFace(submeshFaceIdx)->Duplicate(&mesh);
             be->SetAttribute(parent.GetBdrAttribute(i));
-            UseParentBoundaryElementOrder(mesh, i, *be);
+            const bool keep_orientation =
+               !mesh.GetFaceInformation(submeshFaceIdx).IsLocal();
+            UseParentBoundaryElementOrder(mesh, i, keep_orientation, *be);
             boundary.Append(be);
             be_to_face.Append(submeshFaceIdx);
          }

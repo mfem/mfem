@@ -591,10 +591,15 @@ TEST_CASE("ParSubMesh boundary elements order", "[Parallel],[SubMesh]")
 {
    auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
    auto attribute = GENERATE(1, 2);
-   Mesh mesh = RotatedBoundaryElementsMesh(type);
+   auto nonconforming = GENERATE(false, true);
+   auto curved = GENERATE(false, true);
+   CAPTURE(type, attribute, nonconforming, curved);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, nonconforming, curved);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    auto submesh = ParSubMesh::CreateFromDomain(pmesh, Array<int> {attribute});
-   CheckSubMeshBoundaryElements(submesh);
+   int ncompared = CheckSubMeshBoundaryElements(submesh);
+   MPI_Allreduce(MPI_IN_PLACE, &ncompared, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(ncompared > 0);
 }
 
 Array<int> count_be(ParMesh &mesh)

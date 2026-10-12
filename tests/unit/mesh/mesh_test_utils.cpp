@@ -492,7 +492,8 @@ void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
    }
 }
 
-Mesh RotatedBoundaryElementsMesh(Element::Type type)
+Mesh RotatedBoundaryElementsMesh(Element::Type type, bool nonconforming,
+                                 bool curved)
 {
    Mesh mesh = Mesh::MakeCartesian3D(4, 2, 2, type);
    Mesh rmesh(3, mesh.GetNV(), mesh.GetNE(), mesh.GetNBE());
@@ -509,10 +510,11 @@ Mesh RotatedBoundaryElementsMesh(Element::Type type)
       rmesh.AddElement(e);
    }
    int k = 0;
-   auto add_rotated = [&rmesh, &k](Element *be, int attr)
+   auto add_rotated = [&rmesh, &k](Element *be, int attr, bool reverse = false)
    {
       int *v = be->GetVertices();
       const int n = be->GetNVertices();
+      if (reverse) { std::reverse(v, v + n); }
       std::rotate(v, v + (k++ % n), v + n);
       be->SetAttribute(attr);
       rmesh.AddBdrElement(be);
@@ -530,10 +532,23 @@ Mesh RotatedBoundaryElementsMesh(Element::Type type)
       bool plane = true;
       for (int v : fv) { plane = plane && (mesh.GetVertex(v)[0] == x); }
       if (!plane || (x != 0.25 && x != 0.5)) { continue; }
-      add_rotated(mesh.GetFace(f)->Duplicate(&rmesh), x == 0.25 ? 7 : 8);
+      add_rotated(mesh.GetFace(f)->Duplicate(&rmesh), x == 0.25 ? 7 : 8, k % 2);
    }
    rmesh.FinalizeTopology();
    rmesh.Finalize(false, true);
+   if (nonconforming) { rmesh.EnsureNCMesh(true); }
+   if (curved)
+   {
+      rmesh.SetCurvature(3);
+      VectorFunctionCoefficient curve(3, [](const Vector &x, Vector &y)
+      {
+         y = x;
+         y(0) += 0.05 * std::sin(M_PI * x(1)) * std::sin(M_PI * x(2));
+         y(1) += 0.05 * std::sin(M_PI * x(0)) * std::sin(M_PI * x(2));
+         y(2) += 0.05 * std::sin(M_PI * x(0)) * std::sin(M_PI * x(1));
+      });
+      rmesh.Transform(curve);
+   }
    return rmesh;
 }
 
