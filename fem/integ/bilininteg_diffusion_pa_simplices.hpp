@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -31,7 +31,7 @@ namespace internal
 #define MFEM_cuda_or_hip(stub) hip##stub
 #endif
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
 // Triangle and tetrahedron use different first-dimension 1D quadrature
 // rules (Gauss-Jacobi(1,0) vs (2,0) in Stroud's construction), so the
 // Ga1 values differ and need distinct symbols.
@@ -335,7 +335,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       return;
    }
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM = D1D * (D1D+1) / 2;
@@ -863,7 +863,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       return;
    }
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;

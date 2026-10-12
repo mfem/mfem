@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,7 +30,7 @@ namespace internal
 #define MFEM_cuda_or_hip(stub) hip##stub
 #endif
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
 template<int T_D1D, int T_Q1D>
 MFEM_DEVICE_CONSTANT real_t SmemPAMassTriBa1[T_Q1D][T_D1D];
 template<int T_D1D, int T_Q1D>
@@ -282,7 +282,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
       return;
    }
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 
@@ -737,7 +737,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       return;
    }
 
-#if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 

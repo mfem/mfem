@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1065,6 +1065,240 @@ TEST_CASE("Exact Sequence Properties: d(df)=0",
          REQUIRE(DivCurl->MaxNorm() < tol);
 
          delete DivCurl;
+      }
+   }
+}
+
+template <class A, class B>
+static void TestCurl(FiniteElementSpace &dom_fes, FiniteElementSpace &ran_fes,
+                     A coeff, B dcoeff)
+{
+   real_t tol = 1e-10;
+   DiscreteLinearOperator CurlFA(&dom_fes, &ran_fes);
+   CurlFA.AddDomainInterpolator(new CurlInterpolator());
+   CurlFA.Assemble();
+   CurlFA.Finalize();
+
+   SparseMatrix &Curl = CurlFA.SpMat();
+   GridFunction x(&dom_fes), y_fa(&ran_fes), y(&ran_fes);
+   x.ProjectCoefficient(coeff);
+   y.ProjectCoefficient(dcoeff);
+   REQUIRE(x.Size() == Curl.Width());
+   REQUIRE(y_fa.Size() == Curl.Height());
+   Curl.Mult(x, y_fa);
+   y_fa -= y;
+   REQUIRE(y_fa.Normlinf() < tol);
+}
+
+template<class Coeff, class TCoeff>
+static void CompareCurlPA(FiniteElementSpace& dom_fes,
+                          FiniteElementSpace &ran_fes,
+                          Coeff coeff, TCoeff tcoeff)
+{
+   real_t tol = 1e-10;
+   DiscreteLinearOperator CurlFA(&dom_fes, &ran_fes);
+   CurlFA.AddDomainInterpolator(new CurlInterpolator());
+   CurlFA.Assemble();
+   CurlFA.Finalize();
+   DiscreteLinearOperator CurlPA(&dom_fes, &ran_fes);
+   CurlPA.AddDomainInterpolator(new CurlInterpolator());
+   CurlPA.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   CurlPA.Assemble();
+
+   SparseMatrix &Curl = CurlFA.SpMat();
+   GridFunction x(&dom_fes), y_fa(&ran_fes), y_pa(&ran_fes);
+   x.ProjectCoefficient(coeff);
+   REQUIRE(x.Size() == Curl.Width());
+   REQUIRE(y_fa.Size() == Curl.Height());
+   REQUIRE(x.Size() == CurlPA.Width());
+   REQUIRE(y_pa.Size() == CurlPA.Height());
+   Curl.Mult(x, y_fa);
+   CurlPA.Mult(x, y_pa);
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() < tol);
+   // transpose
+   y_fa.ProjectCoefficient(tcoeff);
+   GridFunction x_fa(&dom_fes), x_pa(&dom_fes);
+   Curl.MultTranspose(y_fa, x_fa);
+   CurlPA.MultTranspose(y_fa, x_pa);
+   x_pa -= x_fa;
+   REQUIRE(x_pa.Normlinf() < tol);
+}
+
+TEST_CASE("Partial Assemble Linear Interpolator",
+          "[CurlInterpolator]"
+          "[GPU]")
+{
+   constexpr int maxOrder = 3;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+   CAPTURE(order);
+
+   auto dim = GENERATE(2, 3);
+   CAPTURE(dim);
+
+   int n = 3;
+
+   Mesh mesh;
+
+   switch (dim)
+   {
+      case 2:
+         mesh =
+            Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, true, 2.0, 3.0);
+         break;
+      case 3:
+         mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 2.0, 3.0, 5.0);
+         break;
+   }
+
+   // domain spaces
+   H1_FECollection fec_h1(order, dim);
+   FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+   ND_FECollection fec_nd(order, dim);
+   FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+   // range spaces
+   RT_FECollection fec_rt(order - 1, dim);
+   FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+   L2_FECollection fec_l2(order - 1, dim, BasisType::GaussLegendre,
+                          FiniteElement::INTEGRAL);
+   FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+   switch (dim)
+   {
+      case 2:
+      {
+         FunctionCoefficient coeff([](const Vector &x)
+         { return sin(2 * M_PI * x[1] / 3) - cos(2 * M_PI * x[0] / 2); });
+         VectorFunctionCoefficient vcoeff(2, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(2);
+            y[0] = -cos(2 * M_PI * x[1] / 3);
+            y[1] = sin(2 * M_PI * x[0] / 2);
+         });
+         // out of plane H1 -> in-plane RT
+         SECTION("H1 to RT")
+         {
+            CompareCurlPA(fespace_h1, fespace_rt, coeff, vcoeff);
+         }
+         // in-plane ND -> out of plane L2
+         SECTION("ND to L2")
+         {
+            CompareCurlPA(fespace_nd, fespace_l2, vcoeff, coeff);
+         }
+         break;
+      }
+      case 3:
+      {
+         VectorFunctionCoefficient coeff(3, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(3);
+            y[0] = sin(2 * M_PI * x[2] / 5) - cos(2 * M_PI * x[1] / 3);
+            y[1] = sin(2 * M_PI * x[0] / 2) - cos(2 * M_PI * x[2] / 5);
+            y[2] = sin(2 * M_PI * x[1] / 3) - cos(2 * M_PI * x[0] / 2);
+         });
+         CompareCurlPA(fespace_nd, fespace_rt, coeff, coeff);
+         break;
+      }
+   }
+}
+
+TEST_CASE("Curl Linear Interpolator",
+          "[CurlInterpolator]"
+          "[GPU]")
+{
+   int order = 2;
+
+   auto type = (Element::Type)GENERATE(range((int)Element::TRIANGLE,
+                                             (int)Element::PYRAMID + 1));
+   CAPTURE(type);
+
+   int n = 3;
+
+   Mesh mesh;
+
+   int dim;
+
+   if (type < (int)Element::TETRAHEDRON)
+   {
+      dim = 2;
+      mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+   }
+   else
+   {
+      dim = 3;
+      mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                   2.0, 3.0, 5.0);
+   }
+
+   // domain spaces
+   H1_FECollection fec_h1(order, dim);
+   FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+   ND_FECollection fec_nd(order, dim);
+   FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+   // range spaces
+   RT_FECollection fec_rt(order - 1, dim);
+   FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+   L2_FECollection fec_l2(order - 1, dim, BasisType::GaussLegendre,
+                          FiniteElement::INTEGRAL);
+   FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+   switch (dim)
+   {
+      case 2:
+      {
+         // out of plane H1 -> in-plane RT
+         SECTION("H1 to RT")
+         {
+            FunctionCoefficient coeff([](const Vector &x)
+            {
+               return 1 - 2 * x[0] + 3 * x[1];
+            });
+            VectorFunctionCoefficient dcoeff(2, [](const Vector &x, Vector &y)
+            {
+               y.SetSize(2);
+               // d Ez/dy
+               y[0] = 3;
+               // -d Ez/dx
+               y[1] = 2;
+            });
+
+            TestCurl(fespace_h1, fespace_rt, coeff, dcoeff);
+         }
+         // in-plane ND -> out of plane L2
+         SECTION("ND to L2")
+         {
+            VectorFunctionCoefficient coeff(2, [](const Vector &x, Vector &y)
+            {
+               y.SetSize(2);
+               y[0] = 1 - 2 * x[0] + 3 * x[1];
+               y[1] = 2 * (1 - 2 * x[0] + 3 * x[1]);
+            });
+            FunctionCoefficient dcoeff([](const Vector &x)
+            { return 2 * (-2) - 3; });
+            TestCurl(fespace_nd, fespace_l2, coeff, dcoeff);
+         }
+         break;
+      }
+      case 3:
+      {
+         VectorFunctionCoefficient coeff(3, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(3);
+            y[0] = 1 + 2 * x[0] - 3 * x[1] + 4 * x[2];
+            y[1] = 4 + 3 * x[0] - 2 * x[1] + 1 * x[2];
+            y[2] = 2 - 1 * x[0] + 4 * x[1] - 3 * x[2];
+         });
+         VectorFunctionCoefficient dcoeff(3, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(3);
+            y[0] = 4 - 1;
+            y[1] = 4 + 1;
+            y[2] = 3 + 3;
+         });
+         TestCurl(fespace_nd, fespace_rt, coeff, dcoeff);
+         break;
       }
    }
 }
