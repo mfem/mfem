@@ -449,15 +449,6 @@ TEST_CASE("ComplexMUMPS Solver", "[Parallel], [GPU]")
    Vector Yc(Xc.Size()), Yr(Xr.Size()), Yi(Xi.Size());
    Ahc->Mult(Xc, Yc); Ahr->Mult(Xr, Yr); Ahi->Mult(Xi, Yi);
 
-   if (conv == ComplexOperator::BLOCK_SYMMETRIC)
-   {
-      int n = Bc.Size()/2;
-      real_t * dataBc = Bc.GetData(); Vector Bcimag(&dataBc[n],n);
-      real_t * dataBr = Br.GetData(); Vector Brimag(&dataBr[n],n);
-      real_t * dataBi = Bi.GetData(); Vector Biimag(&dataBi[n],n);
-      Bcimag *= -1; Brimag *= -1; Biimag *= -1;
-   }
-
    Yc -= Bc; REQUIRE(Yc.Norml2() < 1.e-12);
    Yr -= Br; REQUIRE(Yr.Norml2() < 1.e-12);
    Yi -= Bi; REQUIRE(Yi.Norml2() < 1.e-12);

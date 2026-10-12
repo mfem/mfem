@@ -746,6 +746,7 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
 
    height = op.Height();
    width  = op.Width();
+   conv = APtr->GetConvention();
 
    const HypreParMatrix *Ar = (APtr->hasRealPart()) ? &APtr->real() : nullptr;
    const HypreParMatrix *Ai = (APtr->hasImagPart()) ? &APtr->imag() : nullptr;
@@ -1117,6 +1118,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
    // Pack into MUMPS complex RHS on root: id->rhs is in-place
    if (myid == 0)
    {
+      int xisign = (conv == ComplexOperator::BLOCK_SYMMETRIC) ? -1 : 1;
       for (int i = 0; i < nrhs; i++)
       {
          mumps_complex_t *dst = rhs_glob + i * global_num_rows;
@@ -1126,7 +1128,7 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
          for (int j = 0; j < global_num_rows; j++)
          {
             dst[j].r = rr[j];
-            dst[j].i = ri[j];
+            dst[j].i = xisign * ri[j];
          }
       }
       id->rhs = rhs_glob;

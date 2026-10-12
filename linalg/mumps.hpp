@@ -463,6 +463,8 @@ private:
                       std::vector<int> &Jcoo,
                       std::vector<mumps_complex_t> &Zcoo) const;
 
+   ComplexOperator::Convention conv = ComplexOperator::Convention::HERMITIAN;
+
 #if MFEM_MUMPS_VERSION >= 530
    // Row offsets on all procs
    Array<int> row_starts;
@@ -489,8 +491,6 @@ private:
                         real_t *y_ri,
                         int n_loc,
                         int lsol_loc) const;
-
-   ComplexOperator::Convention conv = ComplexOperator::Convention::HERMITIAN;
 
 #else
    // Root-gather path
