@@ -16,11 +16,50 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include "fem/integ/bilininteg_pa_simplices_common.hpp"
 
 using namespace mfem;
 
 namespace pa_kernels
 {
+
+TEST_CASE("Simplex constant basis cache uploads", "[Simplices]")
+{
+   internal::ConstantBasisCache<3> cache;
+   Array<real_t> basis(3), symbol(3);
+   basis = 1.0;
+   int uploads = 0;
+   const auto upload = [&](const real_t *values, std::size_t bytes)
+   {
+      REQUIRE(bytes == 3 * sizeof(real_t));
+      std::copy(values, values + 3, symbol.HostWrite());
+      uploads++;
+   };
+
+   cache.Update(basis, upload);
+   REQUIRE(uploads == 1);
+
+   // Different allocations with identical contents must share the fast path.
+   Array<real_t> same_basis(basis);
+   cache.Update(same_basis, upload);
+   cache.Update(basis, upload);
+   REQUIRE(uploads == 1);
+
+   // The input address remains unchanged, but its contents now differ.
+   basis[1] = 2.0;
+   cache.Update(basis, upload);
+   REQUIRE(uploads == 2);
+   REQUIRE(symbol[1] == 2.0);
+
+   cache.Update(same_basis, upload);
+   REQUIRE(uploads == 3);
+   REQUIRE(symbol[1] == 1.0);
+
+   internal::ConstantBasisCache<0> empty_cache;
+   Array<real_t> empty_basis;
+   empty_cache.Update(empty_basis, upload);
+   REQUIRE(uploads == 3);
+}
 
 void test_pa_simplices(const char *filename, int p)
 {
@@ -128,6 +167,77 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/periodic-cube.mesh"
                    };
       test_pa_simplices(GenMesh(meshs, extra), p);
+   }
+}
+
+// Change only the first collapsed coordinate, preserving the tensor structure
+// required by the ragged basis while keeping the quadrature dimensions fixed.
+IntegrationRule shifted_simplex_rule(const IntegrationRule &original, int dim)
+{
+   IntegrationRule shifted(original);
+   for (int i = 0; i < shifted.GetNPoints(); i++)
+   {
+      auto &ip = shifted.IntPoint(i);
+      const real_t old_x = ip.x;
+      ip.x = 0.8 * old_x + 0.05;
+      const real_t scale = (1.0 - ip.x) / (1.0 - old_x);
+      ip.y *= scale;
+      if (dim == 3) { ip.z *= scale; }
+   }
+   return shifted;
+}
+
+TEST_CASE("PA Simplices with changing integration rules",
+          "[PartialAssembly][Simplices][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const int p = GENERATE(2, 3);
+   const bool diffusion = GENERATE(false, true);
+   CAPTURE(dim, p, diffusion);
+
+   Mesh mesh(dim == 2 ? "../../data/ref-triangle.mesh" :
+             "../../data/ref-tetrahedron.mesh");
+   H1_FECollection fec(p, dim, BasisType::Positive);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   const auto &rule_a = StroudIntRules.Get(mesh.GetTypicalElementGeometry(), 2*p);
+   const auto rule_b = shifted_simplex_rule(rule_a, dim);
+   REQUIRE(rule_a.GetNPoints() == rule_b.GetNPoints());
+
+   // Keep both operators alive: changing the active rule must refresh the
+   // constants even when the first operator is applied again later.
+   BilinearForm fa_a(&fes), fa_b(&fes), pa_a(&fes), pa_b(&fes);
+   BilinearForm *fa[] = { &fa_a, &fa_b };
+   BilinearForm *pa[] = { &pa_a, &pa_b };
+   const IntegrationRule *rules[] = { &rule_a, &rule_b };
+   for (int i = 0; i < 2; i++)
+   {
+      if (diffusion)
+      {
+         fa[i]->AddDomainIntegrator(new DiffusionIntegrator(rules[i]));
+         pa[i]->AddDomainIntegrator(new DiffusionIntegrator(rules[i]));
+      }
+      else
+      {
+         fa[i]->AddDomainIntegrator(new MassIntegrator(rules[i]));
+         pa[i]->AddDomainIntegrator(new MassIntegrator(rules[i]));
+      }
+      fa[i]->Assemble();
+      fa[i]->Finalize();
+      pa[i]->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pa[i]->Assemble();
+   }
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x100001b3);
+   // Repeated applications also exercise the unchanged-data cache path.
+   for (int i : {0, 0, 1, 1, 0})
+   {
+      CAPTURE(i);
+      fa[i]->Mult(x, y_fa);
+      pa[i]->Mult(x, y_pa);
+      y_fa -= y_pa;
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
    }
 }
 
