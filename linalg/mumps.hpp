@@ -339,8 +339,15 @@ public:
     */
    void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
    /**
-    * @brief Transpose Solve $ y = Op^{-T} x $
-    * @note This is not a Hermitian/conjugate-transpose solve.
+    * @brief Hermitian transpose solve $ y = Op^{-H} x $
+    *
+    * This solves with the Hermitian transpose of the underlying complex matrix,
+    * independent of the ComplexOperator convention.
+    *
+    * @note For ComplexOperator::HERMITIAN, the packed RHS [Re; Im] is used as
+    * the native complex RHS. For ComplexOperator::BLOCK_SYMMETRIC, the
+    * imaginary part is sign-adjusted to convert between MFEM's block-symmetric
+    * packed convention and the native complex RHS expected by MUMPS.
     *
     * @param x RHS vector
     * @param y Solution vector
@@ -348,8 +355,15 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const;
 
    /**
-    * @brief Transpose Solve $ Y_i = Op^{-T} X_i $
-    * @note This is not a Hermitian/conjugate-transpose solve.
+    * @brief Hermitian transpose solve $ Y_i = Op^{-H} X_i $
+    *
+    * This solves with the Hermitian transpose of the underlying complex matrix,
+    * independent of the ComplexOperator convention.
+    *
+    * @note For ComplexOperator::HERMITIAN, each packed RHS [Re; Im] is used as
+    * the native complex RHS. For ComplexOperator::BLOCK_SYMMETRIC, the
+    * imaginary part is sign-adjusted to convert between MFEM's block-symmetric
+    * packed convention and the native complex RHS expected by MUMPS.
     *
     * @param X Array of RHS vectors
     * @param Y Array of Solution vectors
@@ -490,7 +504,8 @@ private:
                         const mumps_complex_t *x,
                         real_t *y_ri,
                         int n_loc,
-                        int lsol_loc) const;
+                        int lsol_loc,
+                        int imag_sign = 1) const;
 
 #else
    // Root-gather path

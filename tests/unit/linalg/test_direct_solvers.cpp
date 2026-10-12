@@ -453,6 +453,12 @@ TEST_CASE("ComplexMUMPS Solver", "[Parallel], [GPU]")
    Yr -= Br; REQUIRE(Yr.Norml2() < 1.e-12);
    Yi -= Bi; REQUIRE(Yi.Norml2() < 1.e-12);
 
+   Vector Xt(Bc.Size()), Yt(Bc.Size());
+   cmumps.SetOperator(*Ahc);
+   cmumps.MultTranspose(Bc, Xt);
+   Ahc->MultTranspose(Xt, Yt);
+   Yt -= Bc; REQUIRE(Yt.Norml2() < 1.e-12);
+
 } // Test case "ComplexMUMPS Solver"
 
 #endif // MFEM_USE_COMPLEX_MUMPS

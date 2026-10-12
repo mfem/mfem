@@ -1180,12 +1180,11 @@ void ComplexMUMPSSolver::ArrayMult(const Array<const Vector *> &X,
 
 void ComplexMUMPSSolver::MultTranspose(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(id, "MultTranspose called before SetOperator");
-
-   // Transpose solve
-   id->MUMPS_ICNTL(9) = 0;
-   Mult(x, y);
-   id->MUMPS_ICNTL(9) = 1;
+   Array<const Vector *> X(1);
+   Array<Vector *> Y(1);
+   X[0] = &x;
+   Y[0] = &y;
+   ArrayMultTranspose(X, Y);
 }
 
 void ComplexMUMPSSolver::ArrayMultTranspose(const Array<const Vector *> &X,
@@ -1193,9 +1192,145 @@ void ComplexMUMPSSolver::ArrayMultTranspose(const Array<const Vector *> &X,
 {
    MFEM_VERIFY(id, "ArrayMultTranspose called before SetOperator");
 
-   // Transpose solve
+   InitRhsSol(X.Size());
+
+   // MUMPS' complex transpose solve is used to implement the transpose of
+   // MFEM's packed real block operator. This requires conjugating the RHS
+   // before the solve and applying the convention-specific output sign.
    id->MUMPS_ICNTL(9) = 0;
-   ArrayMult(X, Y);
+
+#if MFEM_MUMPS_VERSION >= 530
+   MFEM_VERIFY(irhs_loc && isol_loc, "RHS/SOL maps not initialized");
+   MFEM_VERIFY(rhs_loc && sol_loc, "RHS/SOL buffers not initialized");
+   const int n_loc = id->lrhs_loc;
+   const int nrhs  = id->nrhs;
+
+   for (int i = 0; i < nrhs; i++)
+   {
+      MFEM_ASSERT(X[i], "Missing Vector in MultTranspose!");
+      X[i]->HostRead();
+      MFEM_VERIFY(X[i]->Size() == 2*n_loc, "RHS size mismatch");
+
+      const real_t *xdata = X[i]->GetData();
+      const real_t *xr = xdata;
+      const real_t *xi = xdata + n_loc;
+
+      mumps_complex_t *dst = rhs_loc + i * n_loc;
+      for (int j = 0; j < n_loc; j++)
+      {
+         dst[j].r = xr[j];
+         dst[j].i = -xi[j];
+      }
+   }
+
+   id->rhs_loc  = rhs_loc;
+   id->sol_loc  = sol_loc;
+   id->irhs_loc = irhs_loc;
+   id->isol_loc = isol_loc;
+
+   id->job = 3;
+   mumps_call();
+
+   const int lsol = id->lsol_loc;
+   const int yisign = (conv == ComplexOperator::BLOCK_SYMMETRIC) ? 1 : -1;
+
+   for (int i = 0; i < nrhs; i++)
+   {
+      MFEM_ASSERT(Y[i], "Missing output Vector in MultTranspose!");
+      Y[i]->HostWrite();
+      MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
+
+      const mumps_complex_t *xcol = sol_loc + i * lsol;
+      RedistributeSol(isol_loc, xcol, Y[i]->GetData(), n_loc, lsol, yisign);
+   }
+
+#else // MFEM_MUMPS_VERSION < 530
+
+   const int nrhs = id->nrhs;
+
+   MFEM_VERIFY(X.Size() > 0 && X[0], "Missing RHS");
+   const int n_loc = X[0]->Size()/2;
+
+   for (int i = 0; i < nrhs; i++)
+   {
+      MFEM_ASSERT(X[i], "Missing Vector in MultTranspose!");
+      X[i]->HostRead();
+      MFEM_VERIFY(X[i]->Size() == 2*n_loc, "RHS size mismatch");
+   }
+
+   for (int i = 0; i < nrhs; i++)
+   {
+      const real_t *xdata = X[i]->GetData();
+
+      MPI_Gatherv(xdata, n_loc, MPITypeMap<real_t>::mpi_type,
+                  rhs_glob_r + i * global_num_rows,
+                  recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                  0, comm);
+
+      MPI_Gatherv(xdata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
+                  rhs_glob_i + i * global_num_rows,
+                  recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                  0, comm);
+   }
+
+   if (myid == 0)
+   {
+      for (int i = 0; i < nrhs; i++)
+      {
+         mumps_complex_t *dst = rhs_glob + i * global_num_rows;
+         const real_t *rr = rhs_glob_r + i * global_num_rows;
+         const real_t *ri = rhs_glob_i + i * global_num_rows;
+
+         for (int j = 0; j < global_num_rows; j++)
+         {
+            dst[j].r = rr[j];
+            dst[j].i = -ri[j];
+         }
+      }
+      id->rhs = rhs_glob;
+   }
+
+   id->job = 3;
+   mumps_call();
+
+   if (myid == 0)
+   {
+      const int yisign = (conv == ComplexOperator::BLOCK_SYMMETRIC) ? 1 : -1;
+      for (int i = 0; i < nrhs; i++)
+      {
+         const mumps_complex_t *src = rhs_glob + i * global_num_rows;
+         real_t *rr = rhs_glob_r + i * global_num_rows;
+         real_t *ri = rhs_glob_i + i * global_num_rows;
+
+         for (int j = 0; j < global_num_rows; j++)
+         {
+            rr[j] = src[j].r;
+            ri[j] = yisign * src[j].i;
+         }
+      }
+   }
+
+   for (int i = 0; i < nrhs; i++)
+   {
+      MFEM_ASSERT(Y[i], "Missing Vector in MultTranspose!");
+      Y[i]->HostWrite();
+      MFEM_VERIFY(Y[i]->Size() == 2*n_loc, "Output size mismatch");
+
+      real_t *ydata = Y[i]->GetData();
+
+      MPI_Scatterv(rhs_glob_r + i * global_num_rows,
+                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                   ydata, n_loc, MPITypeMap<real_t>::mpi_type,
+                   0, comm);
+
+      MPI_Scatterv(rhs_glob_i + i * global_num_rows,
+                   recv_counts, displs, MPITypeMap<real_t>::mpi_type,
+                   ydata + n_loc, n_loc, MPITypeMap<real_t>::mpi_type,
+                   0, comm);
+   }
+
+#endif
+
    id->MUMPS_ICNTL(9) = 1;
 }
 
@@ -1336,7 +1471,8 @@ void ComplexMUMPSSolver::RedistributeSol(const int *row_map,
                                          const mumps_complex_t *x,
                                          real_t *y_ri,
                                          int n_loc,
-                                         int lsol_loc) const
+                                         int lsol_loc,
+                                         int imag_sign) const
 {
    int *send_count = new int[numProcs]();
    for (int i = 0; i < lsol_loc; i++)
@@ -1380,7 +1516,7 @@ void ComplexMUMPSSolver::RedistributeSol(const int *row_map,
       {
          const int local_index = j - row_start;
          y_ri[local_index]        = xr;
-         y_ri[local_index+n_loc]  = xi;
+         y_ri[local_index+n_loc]  = imag_sign * xi;
       }
       else
       {
@@ -1409,7 +1545,7 @@ void ComplexMUMPSSolver::RedistributeSol(const int *row_map,
    {
       const int local_index = recvbuf_index[i] - row_start;
       y_ri[local_index]       = recvbuf_r[i];
-      y_ri[local_index+n_loc] = recvbuf_i[i];
+      y_ri[local_index+n_loc] = imag_sign * recvbuf_i[i];
    }
 
    delete [] recvbuf_i;
