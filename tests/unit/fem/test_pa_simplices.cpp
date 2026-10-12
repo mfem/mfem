@@ -16,11 +16,50 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include "fem/integ/bilininteg_pa_simplices_common.hpp"
 
 using namespace mfem;
 
 namespace pa_kernels
 {
+
+TEST_CASE("Simplex constant basis cache uploads", "[Simplices]")
+{
+   internal::ConstantBasisCache<3> cache;
+   Array<real_t> basis(3), symbol(3);
+   basis = 1.0;
+   int uploads = 0;
+   const auto upload = [&](const real_t *values, std::size_t bytes)
+   {
+      REQUIRE(bytes == 3 * sizeof(real_t));
+      std::copy(values, values + 3, symbol.HostWrite());
+      uploads++;
+   };
+
+   cache.Update(basis, upload);
+   REQUIRE(uploads == 1);
+
+   // Different allocations with identical contents must share the fast path.
+   Array<real_t> same_basis(basis);
+   cache.Update(same_basis, upload);
+   cache.Update(basis, upload);
+   REQUIRE(uploads == 1);
+
+   // The input address remains unchanged, but its contents now differ.
+   basis[1] = 2.0;
+   cache.Update(basis, upload);
+   REQUIRE(uploads == 2);
+   REQUIRE(symbol[1] == 2.0);
+
+   cache.Update(same_basis, upload);
+   REQUIRE(uploads == 3);
+   REQUIRE(symbol[1] == 1.0);
+
+   internal::ConstantBasisCache<0> empty_cache;
+   Array<real_t> empty_basis;
+   empty_cache.Update(empty_basis, upload);
+   REQUIRE(uploads == 3);
+}
 
 void test_pa_simplices(const char *filename, int p)
 {
