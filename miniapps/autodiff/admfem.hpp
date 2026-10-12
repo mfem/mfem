@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,7 +56,7 @@ public:
    /// parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
    /// The parameters vector should have size param_size. The state_vector
    /// should have size state_size, and the result vector should have size
-   /// vector_size. All size parameters are teplate parameters in
+   /// vector_size. All size parameters are template parameters in
    /// VectorFuncAutoDiff.
    VectorFuncAutoDiff(
       std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
@@ -456,10 +456,10 @@ class VectorFuncAutoDiff
 public:
    /// F_ is user implemented function to be differentiated by
    /// VectorFuncAutoDiff. The signature of the function is: F_(mfem::Vector&
-   /// parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
+   /// parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
    /// The parameters vector should have size param_size. The state_vector
    /// should have size state_size, and the result vector should have size
-   /// vector_size. All size parameters are teplate parameters in
+   /// vector_size. All size parameters are template parameters in
    /// VectorFuncAutoDiff.
    VectorFuncAutoDiff(
       std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)

@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
                   "Boundaries with Neumann BCs");
    args.AddOption(&homogenousBC, "-h", "--hom",
                   "-nh", "--no-hom",
-                  "Selection for using homogenous Dirichelet boundary conditions.");
+                  "Selection for using homogeneous Dirichelet boundary conditions.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");

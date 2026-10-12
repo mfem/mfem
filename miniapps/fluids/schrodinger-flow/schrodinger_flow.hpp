@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -105,7 +105,7 @@ struct Options: public OptionsParser
       AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                 "--no-visualization", "Enable or not GLVis visualization");
       AddOption(&paraview, "-pv", "--paraview", "-no-pv",
-                "--no-paraview", "Enable or not Paraview visualization");
+                "--no-paraview", "Enable or not ParaView visualization");
       AddOption(&vis_steps, "-vs", "--vis-steps", "Visualization steps");
       AddOption(&vis_width, "-vw", "--vis-width", "vis width");
       AddOption(&vis_height, "-vh", "--vis-height", "vis height");
@@ -869,12 +869,12 @@ struct VisualizerBase : private Options
          {
             const auto X = Reshape(solver.nodes.Read(), dim, ndofs);
             auto viz_h1_w = vis_gf.Write();
+            const auto VisX = vis_data == Options::VisData::X,
+                       VisY = vis_data == Options::VisData::Y,
+                       VisZ = vis_data == Options::VisData::Z && dim == 3;
             mfem::forall(ndofs, [=] MFEM_HOST_DEVICE(int i)
             {
-               viz_h1_w[i] = vis_data == Options::VisData::X ? X(0,i):
-                             vis_data == Options::VisData::Y ? X(1,i):
-                             vis_data == Options::VisData::Z ? dim == 3 ? X(2,i) : 0.0:
-                             0.0;
+               viz_h1_w[i] = VisX ? X(0,i): VisY ? X(1,i): VisZ ? X(2,i): 0.0;
             });
             vis_gf.HostRead();
          };

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -61,7 +61,7 @@ namespace mfem
 #define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)                \
    MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, (), Params)
 
-// Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
+// Version of MFEM_REGISTER_KERNELS with optional (non-dispatch)
 // parameters (e.g. NBZ).
 #define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
    MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, OptParams,           \
@@ -104,7 +104,7 @@ class KernelDispatchTable<Kernels,
       std::unordered_map<std::tuple<Params...>, Signature, TupleHasher>;
    TableType table;
 
-   /// @brief Call function @a f with arguments @a args (perfect forwaring).
+   /// @brief Call function @a f with arguments @a args (perfect forwarding).
    ///
    /// Only valid when the function @a f is not a member function.
    template <typename F, typename... Args,
