@@ -278,24 +278,24 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
       nonzerorows.SetSize(nrows_c);
       SparseMatrix Pct;
       Pct.OverrideSize(nrows_c, vfes->GetTrueVSize());
-      Pct.GetMemoryI().New(nrows_c + 1, MemoryType::HOST);
-      Pct.GetMemoryJ().New(nrows_c, MemoryType::HOST);
-      Pct.GetMemoryData().New(nrows_c, MemoryType::HOST);
+      Pct.GetMemoryI().New(nrows_c + 1, Device::GetDeviceMemoryType());
+      Pct.GetMemoryJ().New(nrows_c, Device::GetDeviceMemoryType());
+      Pct.GetMemoryData().New(nrows_c, Device::GetDeviceMemoryType());
 
       {
-         int *I = Pct.WriteI(false);
-         int *J = Pct.WriteJ(false);
-         real_t *A = Pct.WriteData(false);
-         const int *rows = nonzerorows.HostRead();
-         for (int i = 0; i <= nrows_c; i++)
+         int *I = Pct.WriteI(use_dev);
+         int *J = Pct.WriteJ(use_dev);
+         real_t *A = Pct.WriteData(use_dev);
+         const int *rows = nonzerorows.Read(use_dev);
+         mfem::forall(nrows_c + 1, [=] MFEM_HOST_DEVICE (int i)
          {
             I[i] = i;
-         }
-         for (int i = 0; i < nrows_c; i++)
+         });
+         mfem::forall(nrows_c, [=] MFEM_HOST_DEVICE (int i)
          {
             J[i] = rows[i];
             A[i] = 1.0;
-         }
+         });
       }
 
       HYPRE_BigInt rows_c[2];
