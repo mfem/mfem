@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -167,7 +167,15 @@ public:
       /** @brief Full multidimensional representation which does not use tensor
           product structure. The ordering of the degrees of freedom is the
           same as TENSOR, but the sizes of B and G are the same as FULL.*/
-      LEXICOGRAPHIC_FULL
+      LEXICOGRAPHIC_FULL,
+
+      /** @brief Ragged tensor product representation using 1D matrices/tensors
+          with dimensions using 1D number of quadrature points and ragged tensor degrees of
+          freedom. */
+      /** Used only for partial assembly of the H1 positive basis. The
+          size of B is d1d x qnpt x dim. Since different Gauss-Jacobi quadrature rules
+          are employed in each dimension, we need to store dim arrays. */
+      RAGGED_TENSOR
    };
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
@@ -228,6 +236,39 @@ public:
       const Array<DofToQuad*> &dof2quad_array,
       const IntegrationRule &ir,
       DofToQuad::Mode mode);
+
+   virtual ~DofToQuad() = default;
+};
+
+/** @brief Structure representing the matrices/tensors needed to evaluate (in
+    reference space) the values, gradients, divergences, or curls of a positive
+    FiniteElement on simplices at the quadrature points of Stroud conical quadrature. */
+class RaggedDofToQuad : public DofToQuad
+{
+public:
+   /** @brief Special basis function structures for positive (Bernstein) basis with
+      partial assembly. The storage layout of Ba1 is ndof x nqpt for scalar elements.
+      The storage layout of Ba2 is ndof x ndof x nqpt. In particular, we have
+            Ba2(iqpt, a1, a2) = B^{p-a1}_{a2}(x_{iqpt}). */
+   Array<real_t> Ba1, Ba2, Ba3;
+   Array<real_t> Ba1t, Ba2t, Ba3t;
+
+   /** @brief Special structures for gradients of positive basis with partial assembly.
+      The gradient arrays exploit properties of the Bernstein basis which allow grad(B^p_alpha)
+      to be expressed as the sum of products of B^{p-1}_alpha and the barycentric coordinates.
+      Thus, Ga1 and Ga2 simply contain the ragged tensor product components of B^{p-1}_alpha */
+   Array<real_t> Ga1, Ga2, Ga3;
+   Array<real_t> Ga1t, Ga2t, Ga3t;
+
+   /** @brief Mapping from the Bernstein multi-index (a_1, ..., a_d) to the lexicographic
+       dof index. */
+   Array<int> lex_map;
+
+   Array<int> forward_map2d_diff, forward_map3d_diff;
+   Array<int> inverse_map2d_diff, inverse_map3d_diff;
+
+   Array<int> forward_map2d_mass, forward_map3d_mass;
+   Array<int> inverse_map2d_mass, inverse_map3d_mass;
 };
 
 /// Describes the function space on each element
@@ -916,10 +957,11 @@ protected:
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
-   // rotated gradient in 2D
-   void ProjectGrad_RT(const real_t *nk, const Array<int> &d2n,
-                       const FiniteElement &fe, ElementTransformation &Trans,
-                       DenseMatrix &grad) const;
+   // Input is a scalar representing the Z (out of plane) component, Output is
+   // the X-Y (in-plane) RT curl
+   void ProjectCurl2D_RT(const real_t *nk, const Array<int> &d2n,
+                         const FiniteElement &fe, ElementTransformation &Trans,
+                         DenseMatrix &grad) const;
 
    // Compute the curl as a discrete operator from ND FE (fe) to ND FE (this).
    // The natural FE for the range is RT, so this is an approximation.
@@ -927,9 +969,9 @@ protected:
                        const FiniteElement &fe, ElementTransformation &Trans,
                        DenseMatrix &curl) const;
 
-   void ProjectCurl_RT(const real_t *nk, const Array<int> &d2n,
-                       const FiniteElement &fe, ElementTransformation &Trans,
-                       DenseMatrix &curl) const;
+   void ProjectCurl3D_RT(const real_t *nk, const Array<int> &d2n,
+                         const FiniteElement &fe, ElementTransformation &Trans,
+                         DenseMatrix &curl) const;
 
    /** @brief Project a vector coefficient onto the ND basis functions
        @param tk    Edge tangent vectors for this element type
@@ -1404,6 +1446,8 @@ public:
       return GetTensorDofToQuad(*this, ir, mode, obasis1d, false,
                                 dof2quad_array_open);
    }
+
+   const Poly_1D::Basis &GetOpenBasis1D() const { return obasis1d; }
 
    virtual ~VectorTensorFiniteElement();
 };

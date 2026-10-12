@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1804,11 +1804,11 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #if (MFEM_HYPRE_VERSION > 22300) || (MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
    HYPRE_BigInt cpts_global[2];
 
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, cpts_global);
 #else
    HYPRE_BigInt *cpts_global;
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
 #endif
 
@@ -2872,8 +2872,8 @@ void HypreParMatrix::Destroy()
    if (HypreUsingGPU() && ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
-      // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
-      // is called below.
+      // that they can be destroyed by mfem_hypre_TFree_host() or hypre when
+      // hypre_ParCSRMatrixDestroy(A) is called below, respectively.
 
       // Check that if both diagOwner and offdOwner are negative then they have
       // the same value.
@@ -2882,7 +2882,33 @@ void HypreParMatrix::Destroy()
 
       MemoryClass mc = (diagOwner == -1 || offdOwner == -1) ?
                        Device::GetHostMemoryClass() : GetHypreMemoryClass();
-      Write(mc, diagOwner < 0, offdOwner <0);
+      Write(mc, diagOwner < 0, offdOwner < 0);
+      if (diagOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->diag));
+         if (hypre_CSRMatrixOwnsData(A->diag))
+         {
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->diag));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->diag));
+         }
+#if MFEM_HYPRE_VERSION >= 21800
+         hypre_CSRMatrixMemoryLocation(A->diag) = GetHypreMemoryLocation();
+#endif
+      }
+      if (offdOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->offd));
+         if (hypre_CSRMatrixOwnsData(A->offd))
+         {
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->offd));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->offd));
+         }
+#if MFEM_HYPRE_VERSION >= 21800
+         hypre_CSRMatrixMemoryLocation(A->offd) = GetHypreMemoryLocation();
+#endif
+      }
    }
 #endif
 
@@ -4437,7 +4463,7 @@ HypreParVector HyprePCG::GetResiduals() const
 void HyprePCG::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4506,7 +4532,7 @@ HypreParVector HypreGMRES::GetResiduals() const
 void HypreGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4854,7 +4880,7 @@ void HypreFGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm,
                                           real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -5511,9 +5537,12 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
    // Save the finite element space to support multiple calls to SetOperator()
    this->fespace = fespace_;
 
+   MFEM_VERIFY(fespace->GetOrdering() == Ordering::byVDIM,
+               "The elasticity version of BoomerAMG requires Ordering::byVDIM");
+
    // Make sure the systems AMG options are set
    int dim = fespace_->GetParMesh()->Dimension();
-   SetSystemsOptions(dim, fespace->GetOrdering() == Ordering::byNODES);
+   SetSystemsOptions(dim); // elasticity solver only works for Ordering::byVDIM
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
    // See hypre's new_ij driver and the paper for descriptions.
@@ -5812,6 +5841,10 @@ void HypreAMS::MakeGradientAndInterpolation(
    if (trace_space)
    {
       grad->AddTraceFaceInterpolator(new GradientInterpolator);
+   }
+   else if (dynamic_cast<const RT_FECollection *>(edge_fec))
+   {
+      grad->AddDomainInterpolator(new CurlInterpolator);
    }
    else
    {

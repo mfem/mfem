@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,7 +57,7 @@ void DGMassApply(const int e,
       }
       else if (DIM == 3)
       {
-         SmemPAMassApply3D_Element<TD1D,TQ1D,ACCUM>(e, NE, B, pa_data, x, y);
+         SmemPAMassApply3D_Element<TD1D,TQ1D,NBZ,ACCUM>(e, NE, B, pa_data, x, y);
       }
       else
       {

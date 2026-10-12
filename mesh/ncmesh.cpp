@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2060,7 +2060,7 @@ void NCMesh::DerefineElement(int elem)
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
    {
-      // Sets corner nodes from childs
+      // Sets corner nodes from children
       constexpr int nb_cube_childs = 8;
       for (int i = 0; i < nb_cube_childs; i++)
       {
