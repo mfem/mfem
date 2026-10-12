@@ -11,6 +11,7 @@
 #pragma once
 
 #include "sinc.hpp"
+#include "../../general/zpng.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -528,7 +529,7 @@ inline float Luma(float r, float g, float b)
 // HSV→RGB with saturation and value fixed at 1. Hue is in [0, 1).
 inline MFEM_HOST_DEVICE void HsvToRgb(real_t h, real_t &r, real_t &g, real_t &b)
 {
-   const real_t x_val = 1.0 - fabs(fmod(h * 6.0, 2.0) - 1.0);
+   const real_t x_val = 1.0 - std::fabs(std::fmod(h * 6.0, 2.0) - 1.0);
    switch (static_cast<int>(h * 6.0) % 6)
    {
       case 0: r = 1.0; g = x_val; b = 0.0; break;
@@ -710,13 +711,13 @@ inline bool WritePhasePng(const std::string &path, const RealArray2D &phase)
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
    {
       real_t h = (ph[idx] + kPi) / twoPi;
-      h = h - floor(h);
+      h = h - std::floor(h);
       real_t r, g, b;
       detail::HsvToRgb(h, r, g, b);
       const int o = idx * 3;
-      out[o + 0] = static_cast<unsigned char>(round(255.0 * r));
-      out[o + 1] = static_cast<unsigned char>(round(255.0 * g));
-      out[o + 2] = static_cast<unsigned char>(round(255.0 * b));
+      out[o + 0] = static_cast<unsigned char>(std::round(255.0 * r));
+      out[o + 1] = static_cast<unsigned char>(std::round(255.0 * g));
+      out[o + 2] = static_cast<unsigned char>(std::round(255.0 * b));
    });
 
    const unsigned char *host_rgb = rgb.HostRead();
@@ -821,9 +822,9 @@ inline bool EncodeMonoWavelengthRgb(const RealArray2D &intensity,
       if (b < 0.0) { b = 0.0; }
       else if (b > 1.0) { b = 1.0; }
       const int o = idx * 3;
-      out[o]     = static_cast<unsigned char>(round(r * 255.0));
-      out[o + 1] = static_cast<unsigned char>(round(g * 255.0));
-      out[o + 2] = static_cast<unsigned char>(round(b * 255.0));
+      out[o]     = static_cast<unsigned char>(std::round(r * 255.0));
+      out[o + 1] = static_cast<unsigned char>(std::round(g * 255.0));
+      out[o + 2] = static_cast<unsigned char>(std::round(b * 255.0));
    });
 
    const unsigned char *host = rgb.HostRead();

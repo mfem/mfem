@@ -20,8 +20,8 @@ New and updated examples and miniapps
 Miscellaneous
 -------------
 - Added header-only PNG input and output as mfem::png in general/zpng.hpp,
-  included by mfem.hpp. Images are 8-bit RGB. Requires MFEM_USE_ZLIB to be
-  set.
+  which is not included by mfem.hpp and must be included explicitly. Images
+  are 8-bit RGB. Requires MFEM_USE_ZLIB to be set.
 
 - Added mfem::complex_t in linalg/complex.hpp, included by linalg.hpp and
   used by the optics, minimal-surface, and Schrödinger miniapps.
