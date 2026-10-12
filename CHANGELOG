@@ -11,6 +11,10 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed CUDA/HIP simplex partial-assembly mass and diffusion kernels to refresh
+  constant-memory basis values when integration rules change, including rules
+  with the same quadrature point count.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

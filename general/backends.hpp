@@ -63,7 +63,9 @@
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
       (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
+#ifndef MFEM_DEVICE_SYMBOL
 #define MFEM_DEVICE_SYMBOL(...) (__VA_ARGS__)
+#endif
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0

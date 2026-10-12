@@ -18,6 +18,8 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
+#include <algorithm>
+
 namespace mfem
 {
 
@@ -38,14 +40,16 @@ namespace internal
 template<int T_D1D, int T_Q1D>
 MFEM_DEVICE_CONSTANT real_t
 SmemPADiffTriGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
+// Host mirror of the last basis values uploaded to the device constant.
 template<int T_D1D, int T_Q1D>
-bool SmemPADiffTriGa1Init = false;
+Array<real_t> SmemPADiffTriGa1Host;
 
 template<int T_D1D, int T_Q1D>
 MFEM_DEVICE_CONSTANT real_t
 SmemPADiffTetGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
+// Host mirror of the last basis values uploaded to the device constant.
 template<int T_D1D, int T_Q1D>
-bool SmemPADiffTetGa1Init = false;
+Array<real_t> SmemPADiffTetGa1Host;
 #endif
 
 /* This function computes the action of the diffusion integrator for the Bernstein basis on triangles.
@@ -344,7 +348,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ga1_ptr = ga1_.Read();
+   const auto Ga1_ptr = ga1_.HostRead();
    const auto Ga2_ptr = ga2_.Read();
    const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
@@ -354,15 +358,20 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    constexpr int BZ_RAW = 128 / BLK;
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-   // Copy Ga1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
-   if (!SmemPADiffTriGa1Init<T_D1D, T_Q1D>)
+   // Rules with the same dimensions can have different basis values.
+   // Keep a host copy of the last upload and refresh constants when it changes.
+   auto &Ga1_host = SmemPADiffTriGa1Host<T_D1D, T_Q1D>;
+   const int Ga1_size = ga1_.Size();
+   if (Ga1_host.Size() != Ga1_size ||
+       !std::equal(Ga1_ptr, Ga1_ptr + Ga1_size, Ga1_host.HostRead()))
    {
       MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPADiffTriGa1<T_D1D, T_Q1D>),
                         Ga1_ptr,
                         sizeof(SmemPADiffTriGa1<T_D1D, T_Q1D>), 0,
-                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
-      SmemPADiffTriGa1Init<T_D1D, T_Q1D> = true;
+                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      Ga1_host.SetSize(Ga1_size);
+      std::copy(Ga1_ptr, Ga1_ptr + Ga1_size, Ga1_host.HostWrite());
    }
 
    mfem::forall_2D_batch(NE, Q1D, 1, BZ, [=] MFEM_HOST_DEVICE (int e)
@@ -874,7 +883,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ga1_ptr = ga1_.Read();
+   const auto Ga1_ptr = ga1_.HostRead();
    const auto Ga2_ptr = ga2_.Read();
    const auto Ga3_ptr = ga3_.Read();
    auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
@@ -885,15 +894,20 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-   // Copy Ga1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
-   if (!SmemPADiffTetGa1Init<T_D1D, T_Q1D>)
+   // Rules with the same dimensions can have different basis values.
+   // Keep a host copy of the last upload and refresh constants when it changes.
+   auto &Ga1_host = SmemPADiffTetGa1Host<T_D1D, T_Q1D>;
+   const int Ga1_size = ga1_.Size();
+   if (Ga1_host.Size() != Ga1_size ||
+       !std::equal(Ga1_ptr, Ga1_ptr + Ga1_size, Ga1_host.HostRead()))
    {
       MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPADiffTetGa1<T_D1D, T_Q1D>),
                         Ga1_ptr,
                         sizeof(SmemPADiffTetGa1<T_D1D, T_Q1D>), 0,
-                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
-      SmemPADiffTetGa1Init<T_D1D, T_Q1D> = true;
+                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      Ga1_host.SetSize(Ga1_size);
+      std::copy(Ga1_ptr, Ga1_ptr + Ga1_size, Ga1_host.HostWrite());
    }
 
    mfem::forall_2D_batch(NE, BLK, BLK, BZ, [=] MFEM_HOST_DEVICE (int e)

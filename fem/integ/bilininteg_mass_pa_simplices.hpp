@@ -17,6 +17,8 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
+#include <algorithm>
+
 namespace mfem
 {
 
@@ -33,13 +35,15 @@ namespace internal
 #if defined(MFEM_USE_CUDA_OR_HIP_LANG)
 template<int T_D1D, int T_Q1D>
 MFEM_DEVICE_CONSTANT real_t SmemPAMassTriBa1[T_Q1D][T_D1D];
+// Host mirror of the last basis values uploaded to the device constant.
 template<int T_D1D, int T_Q1D>
-bool SmemPAMassTriBa1Init = false;
+Array<real_t> SmemPAMassTriBa1Host;
 
 template<int T_D1D, int T_Q1D>
 MFEM_DEVICE_CONSTANT real_t SmemPAMassTetBa1[T_Q1D][T_D1D];
+// Host mirror of the last basis values uploaded to the device constant.
 template<int T_D1D, int T_Q1D>
-bool SmemPAMassTetBa1Init = false;
+Array<real_t> SmemPAMassTetBa1Host;
 #endif
 
 /* This function computes the action of the mass integrator for the Bernstein basis on triangles.
@@ -289,7 +293,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ba1_ptr = ba1_.Read();
+   const auto Ba1_ptr = ba1_.HostRead();
    const auto Ba2_ptr = ba2_.Read();
    const auto D_ptr = d_.Read();
    const auto X_ptr = x_.Read();
@@ -298,15 +302,20 @@ inline void SmemPAMassApplyTriangle(const int NE,
    constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
    constexpr int BZ = (128 / BLK < 64) ? 128 / BLK : 64;
 
-   // Copy Ba1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
-   if (!SmemPAMassTriBa1Init<T_D1D, T_Q1D>)
+   // Rules with the same dimensions can have different basis values.
+   // Keep a host copy of the last upload and refresh constants when it changes.
+   auto &Ba1_host = SmemPAMassTriBa1Host<T_D1D, T_Q1D>;
+   const int Ba1_size = ba1_.Size();
+   if (Ba1_host.Size() != Ba1_size ||
+       !std::equal(Ba1_ptr, Ba1_ptr + Ba1_size, Ba1_host.HostRead()))
    {
       MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPAMassTriBa1<T_D1D, T_Q1D>),
                         Ba1_ptr,
                         sizeof(SmemPAMassTriBa1<T_D1D, T_Q1D>), 0,
-                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
-      SmemPAMassTriBa1Init<T_D1D, T_Q1D> = true;
+                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      Ba1_host.SetSize(Ba1_size);
+      std::copy(Ba1_ptr, Ba1_ptr + Ba1_size, Ba1_host.HostWrite());
    }
 
    mfem::forall_2D_batch(NE, BLK, 1, BZ, [=] MFEM_HOST_DEVICE (int e)
@@ -744,7 +753,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ba1_ptr = ba1_.Read();
+   const auto Ba1_ptr = ba1_.HostRead();
    const auto Ba2_ptr = ba2_.Read();
    const auto Ba3_ptr = ba3_.Read();
    const auto D_ptr = d_.Read();
@@ -755,15 +764,20 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-   // Copy Ba1 into __constant__ memory once per (T_D1D, T_Q1D) instantiation.
-   if (!SmemPAMassTetBa1Init<T_D1D, T_Q1D>)
+   // Rules with the same dimensions can have different basis values.
+   // Keep a host copy of the last upload and refresh constants when it changes.
+   auto &Ba1_host = SmemPAMassTetBa1Host<T_D1D, T_Q1D>;
+   const int Ba1_size = ba1_.Size();
+   if (Ba1_host.Size() != Ba1_size ||
+       !std::equal(Ba1_ptr, Ba1_ptr + Ba1_size, Ba1_host.HostRead()))
    {
       MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
                         MFEM_DEVICE_SYMBOL(SmemPAMassTetBa1<T_D1D, T_Q1D>),
                         Ba1_ptr,
                         sizeof(SmemPAMassTetBa1<T_D1D, T_Q1D>), 0,
-                        MFEM_cuda_or_hip(MemcpyDeviceToDevice)));
-      SmemPAMassTetBa1Init<T_D1D, T_Q1D> = true;
+                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      Ba1_host.SetSize(Ba1_size);
+      std::copy(Ba1_ptr, Ba1_ptr + Ba1_size, Ba1_host.HostWrite());
    }
 
    mfem::forall_2D_batch(NE, BLK, BLK, BZ, [=] MFEM_HOST_DEVICE (int e)
