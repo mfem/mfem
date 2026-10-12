@@ -21,7 +21,9 @@ runs:
   using: 'composite'
   steps:
     - name: Install
-      run: sudo apt-get install openmpi-bin libopenmpi-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install openmpi-bin libopenmpi-dev
       shell: bash
 
     - name: Env
