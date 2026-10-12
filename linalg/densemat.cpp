@@ -2474,6 +2474,130 @@ bool LinearSolve(DenseMatrix& A, real_t* X, real_t TOL)
    return true;
 }
 
+#ifndef MFEM_USE_LAPACK
+namespace
+{
+
+// The three non-LAPACK products differ in how each term is formed, and the
+// association has to stay the same as the old loops for bitwise equal results:
+// Mult starts the sum at 0.0, AddMult and AddMult_a start it at the output.
+// The accumulate stays a single statement over the whole term. A term that is
+// returned from a helper instead keeps the multiply and the add apart, which
+// drops the contraction the plain loops get and moves the last bits of the
+// result.
+struct MultTerm
+{
+   static constexpr bool zero_start = true;
+   static void Acc(real_t &d, real_t, real_t b, real_t c) { d += b*c; }
+};
+
+struct AddMultTerm
+{
+   static constexpr bool zero_start = false;
+   static void Acc(real_t &d, real_t, real_t b, real_t c) { d += b*c; }
+};
+
+struct AddMultATerm
+{
+   static constexpr bool zero_start = false;
+   static void Acc(real_t &d, real_t alpha, real_t b, real_t c)
+   {
+      d += alpha*b*c;
+   }
+};
+
+// Small ah x aw result, long inner dimension bw (the geometry dofs in
+// EvalJacobian). The old loops read and write the result once per k with an
+// inner trip count of ah. Here the result lives in registers and is written
+// once; every entry still sums its terms in k order.
+template <typename T, int AH, int AW>
+void MultSmallResult(const int bw, const real_t alpha, const real_t *bd,
+                     const real_t *cd, real_t *ad)
+{
+   static_assert(AH >= 1 && AH <= 3 && AW >= 1 && AW <= 3,
+                 "MultSmallResult covers results of up to 3x3");
+   real_t d[AH*AW];
+   for (int j = 0; j < AW; j++)
+   {
+      for (int i = 0; i < AH; i++)
+      {
+         d[i+j*AH] = T::zero_start ? 0.0 : ad[i+j*AH];
+      }
+   }
+   for (int k = 0; k < bw; k++)
+   {
+      for (int j = 0; j < AW; j++)
+      {
+         const real_t c = cd[k+j*bw];
+         for (int i = 0; i < AH; i++)
+         {
+            T::Acc(d[i+j*AH], alpha, bd[i+k*AH], c);
+         }
+      }
+   }
+   for (int j = 0; j < AW; j++)
+   {
+      for (int i = 0; i < AH; i++) { ad[i+j*AH] = d[i+j*AH]; }
+   }
+}
+
+// Tall result, inner dimension BW <= 3 (the shape functions times the
+// adjugate Jacobian). The k loop is fused into the i loop so each entry is
+// written once.
+template <typename T, int BW>
+void MultSmallInner(const int ah, const int aw, const real_t alpha,
+                    const real_t *bd, const real_t *cd, real_t *ad)
+{
+   static_assert(BW >= 1 && BW <= 3,
+                 "MultSmallInner covers inner dimensions of up to 3");
+   for (int j = 0; j < aw; j++)
+   {
+      real_t c[BW];
+      for (int k = 0; k < BW; k++) { c[k] = cd[k+j*BW]; }
+      real_t *a = ad + j*ah;
+      for (int i = 0; i < ah; i++)
+      {
+         real_t d = T::zero_start ? 0.0 : a[i];
+         for (int k = 0; k < BW; k++)
+         {
+            T::Acc(d, alpha, bd[i+k*ah], c[k]);
+         }
+         a[i] = d;
+      }
+   }
+}
+
+// Returns false for the sizes without a specialization.
+template <typename T>
+bool MultSmall(const int ah, const int aw, const int bw, const real_t alpha,
+               const real_t *bd, const real_t *cd, real_t *ad)
+{
+   if (bw > 3 && ah <= 3 && aw <= 3)
+   {
+      // The cases are 3*(ah-1) + (aw-1): 0 is 1x1, 4 is 2x2, 8 is 3x3.
+      switch (3*(ah-1) + (aw-1))
+      {
+         case 0: MultSmallResult<T,1,1>(bw, alpha, bd, cd, ad); return true;
+         case 3: MultSmallResult<T,2,1>(bw, alpha, bd, cd, ad); return true;
+         case 4: MultSmallResult<T,2,2>(bw, alpha, bd, cd, ad); return true;
+         case 6: MultSmallResult<T,3,1>(bw, alpha, bd, cd, ad); return true;
+         case 7: MultSmallResult<T,3,2>(bw, alpha, bd, cd, ad); return true;
+         case 8: MultSmallResult<T,3,3>(bw, alpha, bd, cd, ad); return true;
+      }
+      return false;
+   }
+   switch (bw)
+   {
+      case 1: MultSmallInner<T,1>(ah, aw, alpha, bd, cd, ad); return true;
+      case 2: MultSmallInner<T,2>(ah, aw, alpha, bd, cd, ad); return true;
+      case 3: MultSmallInner<T,3>(ah, aw, alpha, bd, cd, ad); return true;
+   }
+   return false;
+}
+
+} // namespace
+#endif
+
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
@@ -2493,6 +2617,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    real_t *ad = a.Data();
    const real_t *bd = b.Data();
    const real_t *cd = c.Data();
+   if (MultSmall<MultTerm>(ah, aw, bw, 1.0, bd, cd, ad)) { return; }
    kernels::Mult(ah,aw,bw,bd,cd,ad);
 #endif
 }
@@ -2517,6 +2642,7 @@ void AddMult_a(real_t alpha, const DenseMatrix &b, const DenseMatrix &c,
    real_t *ad = a.Data();
    const real_t *bd = b.Data();
    const real_t *cd = c.Data();
+   if (MultSmall<AddMultATerm>(ah, aw, bw, alpha, bd, cd, ad)) { return; }
    for (int j = 0; j < aw; j++)
    {
       for (int k = 0; k < bw; k++)
@@ -2549,6 +2675,7 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    real_t *ad = a.Data();
    const real_t *bd = b.Data();
    const real_t *cd = c.Data();
+   if (MultSmall<AddMultTerm>(ah, aw, bw, 1.0, bd, cd, ad)) { return; }
    for (int j = 0; j < aw; j++)
    {
       for (int k = 0; k < bw; k++)

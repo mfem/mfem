@@ -12,6 +12,12 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include "linalg/dtensor.hpp"
+#include "linalg/kernels.hpp"
+#include <array>
+#include <cmath>
+#include <cstring>
+#include <limits>
+#include <vector>
 
 using namespace mfem;
 
@@ -369,6 +375,181 @@ TEST_CASE("AddMult_a_AAt", "[DenseMatrix]")
 
          AAt.Add(-1.0, AAt_ref);
          REQUIRE(AAt.MaxMaxNorm() < 1e-12);
+      }
+   }
+}
+
+namespace
+{
+
+// Reference triple loops, written as the product loops were before the small
+// shapes got specializations. The summation order of every entry is the same,
+// so the comparisons below are bitwise.
+void RefAddMult(int ah, int aw, int bw, real_t alpha, real_t beta,
+                const real_t *b, const real_t *c, real_t *a)
+{
+   for (int i = 0; i < ah*aw; i++)
+   {
+      if (beta == 0.0) { a[i] = 0.0; }
+      else if (beta != 1.0) { a[i] *= beta; }
+   }
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bw; k++)
+      {
+         const real_t val = alpha * c[k+j*bw];
+         for (int i = 0; i < ah; i++) { a[i+j*ah] += val * b[i+k*ah]; }
+      }
+   }
+}
+
+void RefAddMultA(int ah, int aw, int bw, real_t alpha, const real_t *b,
+                 const real_t *c, real_t *a)
+{
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bw; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            a[i+j*ah] += alpha * b[i+k*ah] * c[k+j*bw];
+         }
+      }
+   }
+}
+
+void Fill(DenseMatrix &m, int seed)
+{
+   for (int j = 0; j < m.Width(); j++)
+   {
+      for (int i = 0; i < m.Height(); i++)
+      {
+         const int h = (7*i + 13*j + 31*seed + (i*j) % 11) % 97;
+         m(i, j) = 0.1*(h - 48) + 1.0/(1 + i + 2*j + seed);
+      }
+   }
+}
+
+// True if the compiler fuses a*b + c here, in which case the library and the
+// reference loops above may round differently and only a tolerance is checked.
+bool FmaContractionOn()
+{
+   const real_t s = std::ldexp(real_t(1),
+                               -(std::numeric_limits<real_t>::digits/2 + 1));
+   volatile real_t a = 1 + s, b = 1 - s, c = -1;
+   const real_t r = a*b + c;
+   return r != 0;
+}
+
+bool Same(const DenseMatrix &x, const real_t *ref)
+{
+   const int n = x.Height()*x.Width();
+   if (!FmaContractionOn())
+   {
+      return std::memcmp(x.Data(), ref, sizeof(real_t)*n) == 0;
+   }
+   const real_t eps = std::numeric_limits<real_t>::epsilon();
+   for (int i = 0; i < n; i++)
+   {
+      if (std::abs(x.Data()[i] - ref[i]) > 1e3*eps*(1.0 + std::abs(ref[i])))
+      {
+         return false;
+      }
+   }
+   return true;
+}
+
+} // namespace
+
+TEST_CASE("DenseMatrix Mult AddMult AddMult_a small shapes",
+          "[DenseMatrix]")
+{
+   // Result sizes up to 3x3 with a long inner dimension, long results with an
+   // inner dimension up to 3, and sizes with no specialization.
+   std::vector<std::array<int,3>> shapes;
+   const int inner[] = { 1, 2, 3, 4, 5, 8, 27, 64, 125 };
+   for (int ah = 1; ah <= 4; ah++)
+   {
+      for (int aw = 1; aw <= 4; aw++)
+      {
+         for (const int bw : inner) { shapes.push_back({ah, aw, bw}); }
+      }
+   }
+   const int tall[] = { 4, 8, 27, 64, 125 };
+   for (const int ah : tall)
+   {
+      for (int aw = 1; aw <= 4; aw++)
+      {
+         for (int bw = 1; bw <= 4; bw++) { shapes.push_back({ah, aw, bw}); }
+      }
+   }
+   const real_t alpha = 0.37;
+
+   int seed = 0;
+   for (const auto &sh : shapes)
+   {
+      const int ah = sh[0], aw = sh[1], bw = sh[2];
+      DenseMatrix b(ah, bw), c(bw, aw), a0(ah, aw);
+      Fill(b, seed++); Fill(c, seed++); Fill(a0, seed++);
+      CAPTURE(ah, aw, bw);
+
+      // The LAPACK builds call gemm, which does not keep the loop order.
+      auto check = [&](const DenseMatrix &x, const std::vector<real_t> &ref)
+      {
+#ifdef MFEM_USE_LAPACK
+         for (int i = 0; i < ah*aw; i++)
+         {
+            REQUIRE(x.Data()[i] == Approx(ref[i]).margin(1e-12));
+         }
+#else
+         REQUIRE(Same(x, ref.data()));
+#endif
+      };
+
+      // Mult overwrites the result, whatever it held.
+      {
+         DenseMatrix a(a0);
+         Mult(b, c, a);
+         std::vector<real_t> ref(a0.Data(), a0.Data() + ah*aw);
+         RefAddMult(ah, aw, bw, 1.0, 0.0, b.Data(), c.Data(), ref.data());
+         check(a, ref);
+      }
+      // AddMult and AddMult_a accumulate into a non-zero result.
+      {
+         DenseMatrix a(a0);
+         AddMult(b, c, a);
+         std::vector<real_t> ref(a0.Data(), a0.Data() + ah*aw);
+         RefAddMultA(ah, aw, bw, 1.0, b.Data(), c.Data(), ref.data());
+         check(a, ref);
+      }
+      {
+         DenseMatrix a(a0);
+         AddMult_a(alpha, b, c, a);
+         std::vector<real_t> ref(a0.Data(), a0.Data() + ah*aw);
+         RefAddMultA(ah, aw, bw, alpha, b.Data(), c.Data(), ref.data());
+         check(a, ref);
+      }
+
+      // The generic kernels, which have no small-size paths of their own.
+      const real_t alphas[] = { 1.0, alpha };
+      const real_t betas[] = { 0.0, 1.0, 0.7 };
+      for (const real_t al : alphas)
+      {
+         for (const real_t be : betas)
+         {
+            DenseMatrix a(a0);
+            kernels::AddMult(ah, aw, bw, b.Data(), c.Data(), a.Data(), al, be);
+            std::vector<real_t> ref(a0.Data(), a0.Data() + ah*aw);
+            RefAddMult(ah, aw, bw, al, be, b.Data(), c.Data(), ref.data());
+            REQUIRE(Same(a, ref.data()));
+         }
+      }
+      {
+         DenseMatrix a(a0);
+         kernels::Mult(ah, aw, bw, b.Data(), c.Data(), a.Data());
+         std::vector<real_t> ref(a0.Data(), a0.Data() + ah*aw);
+         RefAddMult(ah, aw, bw, 1.0, 0.0, b.Data(), c.Data(), ref.data());
+         REQUIRE(Same(a, ref.data()));
       }
    }
 }
