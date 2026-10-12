@@ -553,5 +553,3 @@ TEST_CASE("ODE solvers integrate a time-dependent slope",
       }
    }
 }
-
-
