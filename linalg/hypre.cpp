@@ -321,8 +321,8 @@ Vector * HypreParVector::GlobalVector() const
                "GlobalVector method can only be called on vectors wherein each "
                "process owns one or more entries");
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
-   Vector *v = new Vector(internal::to_int(hv->size));
-   *v = hv->data;
+   Vector *v = new Vector(internal::to_int(hypre_VectorSize(hv)));
+   *v = hypre_VectorData(hv);
    hypre_SeqVectorDestroy(hv);
    return v;
 }
