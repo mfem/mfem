@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -251,7 +251,7 @@ private:
    void InitRhsSol(int nrhs) const;
 
 #if MFEM_MUMPS_VERSION >= 530
-   // Row offests array on all procs
+   // Row offsets array on all procs
    Array<int> row_starts;
 
    // Row maps and storage for distributed RHS and solution

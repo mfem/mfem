@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,8 +38,8 @@ public:
 /// Change of basis operator between RT spaces.
 ///
 /// This represents the change-of-basis operator from the given RT space to a
-/// space using Gauss-Lobatto as the "open" basis and IntegratedGLL as the
-/// "closed" basis.
+/// space using Gauss-Lobatto as the "closed" basis and IntegratedGLL as the
+/// "open" basis.
 class ChangeOfBasis_RT : public Operator
 {
 public:

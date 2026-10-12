@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,12 +13,14 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "multivector.hpp"
 
 namespace mfem
 {
 
 class ConstrainedOperator;
 class RectangularConstrainedOperator;
+class ODESolver;
 
 /// Abstract operator
 class Operator
@@ -129,6 +131,20 @@ public:
    virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
                                       Array<Vector *> &Y, const real_t a = 1.0) const;
 
+   /** @brief Operator application, y = A(x), where the input @a x and the
+       output @a y are MultiVector objects, i.e. they generally use
+       non-contiguous memory representation.
+
+       The base class implementation for the method is to generate an error. */
+   virtual void MultMV(const MultiVector &x, MultiVector &y) const;
+
+   /** @brief Action of the transpose operator, y = A^t(x), where the input @a x
+       and the output @a y are MultiVector objects, i.e. they generally use
+       non-contiguous memory representation.
+
+       The base class implementation for this method is to generate an error. */
+   virtual void MultTransposeMV(const MultiVector &x, MultiVector &y) const;
+
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
@@ -136,6 +152,13 @@ public:
       MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
+
+   /** @brief Evaluate the gradient operator at the point @a x. The input @a x
+       is provided as a MultiVector, i.e. it generally uses non-contiguous
+       memory representation.
+
+       The base class implementation for the method is to generate an error. */
+   virtual Operator &GetGradientMV(const MultiVector &x) const;
 
    /** @brief Computes the diagonal entries into @a diag. Typically, this
        operation only makes sense for linear Operator%s. In some cases, only an
@@ -395,10 +418,10 @@ protected:
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
+private:
+   /// Restrict direct access to this member; use SetImplicitVariableType() instead.
    ImplicitVariableType implicit_variable_type =
-      ImplicitVariableType::SLOPE; /**< @brief
-                                                        Return variable for
-                                                        ImplicitSolve()*/
+      ImplicitVariableType::SLOPE; /**< @brief Return variable for ImplicitSolve()*/
 
 public:
    /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
@@ -442,10 +465,16 @@ public:
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
 
-   /** @brief Sets the #ImplicitVariableType for ImplicitSolve()*/
+protected:
+   friend class ODESolver; // This is fine since friend is not inherited
+
+   /** @brief Sets the #ImplicitVariableType for ImplicitSolve(). This is
+    * called by the #ODESolver after confirming the #ODESolver supports the @a variable_type.
+   */
    virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
    { implicit_variable_type = variable_type; }
 
+public:
    /** @brief Returns the #ImplicitVariableType for ImplicitSolve(). */
    virtual ImplicitVariableType GetImplicitVariableType() const
    { return implicit_variable_type; }
