@@ -2406,23 +2406,23 @@ void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
    auto &seg = storage.GetSegment(segment);
    if (host_valid)
    {
-      MarkValid(segment, false, offset, nbytes, [](auto, auto) {});
+      MarkValid(segment, false, offset, offset + nbytes, [](auto, auto) {});
       Unprotect(seg.lowers[0], seg.mtypes[0], offset, nbytes);
    }
    else
    {
-      MarkInvalid(segment, false, offset, nbytes, [](auto, auto) {});
+      MarkInvalid(segment, false, offset, offset + nbytes, [](auto, auto) {});
       Protect(seg.lowers[0], seg.mtypes[0], offset, nbytes);
    }
 
    if (device_valid)
    {
-      MarkValid(segment, true, offset, nbytes, [](auto, auto) {});
+      MarkValid(segment, true, offset, offset + nbytes, [](auto, auto) {});
       Unprotect(seg.lowers[1], seg.mtypes[1], offset, nbytes);
    }
    else
    {
-      MarkInvalid(segment, true, offset, nbytes, [](auto, auto) {});
+      MarkInvalid(segment, true, offset, offset + nbytes, [](auto, auto) {});
       Protect(seg.lowers[1], seg.mtypes[1], offset, nbytes);
    }
 }
