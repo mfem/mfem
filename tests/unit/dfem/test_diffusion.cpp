@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -714,7 +714,7 @@ void diffusion_globalqf(const char *filename, int p)
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion GlobalQF cache 2D", "[Parallel][dFEM]")
 {
-   if constexpr (!mfem_use_gpu)
+#ifndef MFEM_USE_CUDA_OR_HIP
    {
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-quad.mesh" };
@@ -722,12 +722,13 @@ TEST_CASE("dFEM Diffusion GlobalQF cache 2D", "[Parallel][dFEM]")
       SECTION("Scalar") { diffusion_globalqf<2>(GenAll(meshs, extra), p); }
       SECTION("Vector") { diffusion_globalqf<2, 2>(GenAll(meshs, extra), p); }
    }
+#endif
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion GlobalQF cache 3D", "[Parallel][dFEM]")
 {
-   if constexpr (!mfem_use_gpu)
+#ifndef MFEM_USE_CUDA_OR_HIP
    {
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-hex.mesh" };
@@ -735,6 +736,7 @@ TEST_CASE("dFEM Diffusion GlobalQF cache 3D", "[Parallel][dFEM]")
       SECTION("Scalar") { diffusion_globalqf<3>(GenAll(meshs, extra), p); }
       SECTION("Vector") { diffusion_globalqf<3, 3>(GenAll(meshs, extra), p); }
    }
+#endif
 }
 
 // ────────────────────────────────────────────────────────────────────────────

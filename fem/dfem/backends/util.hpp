@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -855,7 +855,7 @@ inline void enzyme_fwddiff(
    auto derivs_out = std::make_tuple(
                         make_tensor_array<std::remove_cv_t<std::remove_reference_t<
                         typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                           yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
+                           yq.GetBlock(Os).Write(), &out_layouts[Os], gnqp)...);
 
    using wrapper_fn_t = qf_return_t (*)(
                            qfunc_t &,

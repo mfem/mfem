@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -156,12 +156,13 @@ void TestJvpVjp(const char *filename, int p)
       DerivativeKernels::Apply |
       DerivativeKernels::ApplyTranspose;
 
-   if constexpr (!mfem_use_gpu)
+#ifndef MFEM_USE_CUDA_OR_HIP
    {
       global_qf<DIM> q_gfn{};
       F.AddDomainIntegrator<GlobalQFBackend, kernels>(
          q_gfn, IT{}, OT{}, *ir, all_domain_attr, DT{});
    }
+#endif
 
    using LQT = local_qf<DIM>;
    local_qf<DIM> q_lfn{};

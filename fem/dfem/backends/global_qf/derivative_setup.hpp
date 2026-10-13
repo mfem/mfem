@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -130,6 +130,8 @@ struct DerivativeSetup
       InitBuffers();
 
       interpolate(input_to_infd, input_bases, xe, xq);
+      shadow_xq = 0.0;
+      shadow_xq.SyncToBlocks();
 
       const int gnqp_local = gnqp;
       const int num_qp_local = num_qp;
@@ -150,9 +152,6 @@ struct DerivativeSetup
 
             for (int m = 0; m < trial_op_dim_s; m++)
             {
-               shadow_xq = 0.0;
-               shadow_xq.SyncToBlocks();
-
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
                real_t *shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
@@ -160,9 +159,6 @@ struct DerivativeSetup
                {
                   shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
                });
-
-               yq = 0.0;
-               yq.SyncToBlocks();
 
                if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
                {
@@ -184,6 +180,7 @@ struct DerivativeSetup
                      std::make_index_sequence<noutputs> {});
                }
 
+               shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
                real_t *cache_d = qp_cache.Write();
 
                // Write yq into the cache column
@@ -213,6 +210,13 @@ struct DerivativeSetup
                      cache_d[q + num_qp_local *
                                (cache_idx + residual_size_local * entity)] =
                                 yq_d[c_out + yq_out_size * gq];
+                     if constexpr (o.value == 0)
+                     {
+                        if (c_out == 0)
+                        {
+                           shadow_ptr[c_shadow + input_size_s * gq] = 0.0;
+                        }
+                     }
                   });
                   out_offset += yq_out_size;
                });

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -320,7 +320,7 @@ public:
       // on the reference coordinates of the FIELD_ID field to be interpolated
       // and translated to the pointwise function as the first and second input.
       // Other choices are possible, e.g. Value<FIELD_ID> to interpolate the
-      // pointwise funciton. `Weight` is a special field that translates the
+      // pointwise function. `Weight` is a special field that translates the
       // integration rule weights to the input of the pointwise function.
       auto input_operators = tuple
       {

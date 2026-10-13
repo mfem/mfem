@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -223,9 +223,6 @@ public:
        to the state @a x with optional finalization and elimintaion. */
    /** @see GetGradient(const Vector &) */
    Operator &GetGradient(const Vector &x, bool finalize) const;
-
-   /// Suppress a warning about hiding overloaded virtual function.
-   using Operator::GetGradient;
 
    /// Update the NonlinearForm to propagate updates of the associated FE space.
    /** After calling this method, the essential boundary conditions need to be
