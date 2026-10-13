@@ -58,7 +58,7 @@ protected:
 
    inline void GrowSize(int minsize);
 
-   static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   static_assert(std::is_trivial_v<T>, "type T must be trivial");
 
    friend class MemoryView<Array<T>>;
    friend class MemoryView<const Array<T>>;
