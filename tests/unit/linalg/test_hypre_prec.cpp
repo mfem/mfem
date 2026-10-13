@@ -11,6 +11,8 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include <functional>
+#include <map>
 #include <memory>
 
 namespace mfem
@@ -287,8 +289,42 @@ TEST_CASE("HypreADS", "[Parallel][HypreADS]")
 // The preconditioner is given a new operator after the destruction of the
 // previous one, as a NewtonSolver does with the gradient of a
 // ParNonlinearForm.
-TEST_CASE("HypreParaSails new operator", "[Parallel][HypreParaSails]")
+TEST_CASE("Hypre preconditioners new operator",
+          "[Parallel][HypreParaSails][HypreEuclid]")
 {
+   using PrecFactory = std::function<std::unique_ptr<HypreSolver>()>;
+   std::map<std::string, PrecFactory> precs =
+   {
+      {"DiagScale", [] { return std::make_unique<HypreDiagScale>(); }},
+      {
+         "BoomerAMG", []
+         {
+            auto amg = std::make_unique<HypreBoomerAMG>();
+            amg->SetPrintLevel(0);
+            return amg;
+         }
+      },
+   };
+   // ILU, ParaSails and Euclid are tested on the host only, as in the
+   // HypreILU test. ParaSails and Euclid are not available in mixedint mode.
+   if (!HypreUsingGPU())
+   {
+#if MFEM_HYPRE_VERSION >= 21900
+      precs["ILU"] = [] { return std::make_unique<HypreILU>(); };
+#endif
+#ifndef HYPRE_MIXEDINT
+      precs["ParaSails"] = []
+      {
+         auto parasails = std::make_unique<HypreParaSails>(MPI_COMM_WORLD);
+         parasails->SetSymmetry(1);
+         parasails->SetLogging(0);
+         return parasails;
+      };
+      precs["Euclid"] = []
+      { return std::make_unique<HypreEuclid>(MPI_COMM_WORLD); };
+#endif
+   }
+
    Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    H1_FECollection fec(1, pmesh.Dimension());
@@ -316,25 +352,32 @@ TEST_CASE("HypreParaSails new operator", "[Parallel][HypreParaSails]")
       return A;
    };
 
-   HypreParaSails parasails(MPI_COMM_WORLD);
-   HyprePCG pcg(MPI_COMM_WORLD);
-   pcg.SetTol(1e-10);
-   pcg.SetMaxIter(500);
-   pcg.SetPreconditioner(parasails);
-
-   std::unique_ptr<HypreParMatrix> A;
-   for (int i = 0; i < 2; i++)
+   for (const auto &[name, make_prec] : precs)
    {
-      // The new operator is assembled before the destruction of the previous
-      // one, which is then destroyed before being replaced.
-      std::unique_ptr<HypreParMatrix> next = assemble(1.0 + i);
-      A = std::move(next);
-      pcg.SetOperator(*A);
-      X = 0.0;
-      pcg.Mult(*B, X);
-      A->Mult(X, R);
-      R -= *B;
-      REQUIRE(InnerProduct(R, R) < 1e-16 * InnerProduct(*B, *B));
+      DYNAMIC_SECTION(name)
+      {
+         std::unique_ptr<HypreSolver> prec = make_prec();
+         HyprePCG pcg(MPI_COMM_WORLD);
+         pcg.SetTol(1e-10);
+         pcg.SetMaxIter(500);
+         pcg.SetPreconditioner(*prec);
+
+         // Three operators, since a read of a destroyed operator does not
+         // always fail.
+         std::unique_ptr<HypreParMatrix> A;
+         for (int i = 0; i < 3; i++)
+         {
+            // The move assignment destroys the previous operator, still known
+            // to the preconditioner, before SetOperator is called.
+            A = assemble(1.0 + i);
+            pcg.SetOperator(*A);
+            X = 0.0;
+            pcg.Mult(*B, X);
+            A->Mult(X, R);
+            R -= *B;
+            REQUIRE(InnerProduct(R, R) < 1e-16 * InnerProduct(*B, *B));
+         }
+      }
    }
 }
 
