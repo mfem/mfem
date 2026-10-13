@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -47,14 +47,14 @@
 #endif // defined(MFEM_USE_CUDA)
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-#define MFEM_CHECK_SPARSE(call)                                    \
-do {                                                               \
-    auto status = (call);                                          \
-    if (status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))           \
-    {                                                              \
-      MFEM_VERIFY(status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS), \
-                  MFEM_cu_or_hip(sparseGetErrorString)(status));   \
-    }                                                              \
+#define MFEM_CHECK_SPARSE(call)                                          \
+do {                                                                     \
+    auto sparse_status = (call);                                         \
+    if (sparse_status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))          \
+    {                                                                    \
+      MFEM_VERIFY(sparse_status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS),\
+                  MFEM_cu_or_hip(sparseGetErrorString)(sparse_status));  \
+    }                                                                    \
 } while (0)
 #endif // MFEM_USE_CUDA_OR_HIP
 
@@ -507,8 +507,8 @@ void SparseMatrix::SortColumnIndices()
 
       // Create matrix descriptor, will have default values
       // CUSPARSE_INDEX_BASE_ZERO and CUSPARSE_MATRIX_TYPE_GENERAL.
-      MFEM_cu_or_hip(sparseMatDescr_t) matA_descr;
-      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateMatDescr)(&matA_descr));
+      MFEM_cu_or_hip(sparseMatDescr_t) sort_descr;
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateMatDescr)(&sort_descr));
 
       // Initialize permutation to identity
       Array<int> P(nnzA);
@@ -517,7 +517,7 @@ void SparseMatrix::SortColumnIndices()
 
       // Sort the column indices. The array d_ja will now be sorted. The
       // permutation required to sort the values will be returned in d_P.
-      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseXcsrsort)(handle, m, n, nnzA, matA_descr,
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseXcsrsort)(handle, m, n, nnzA, sort_descr,
                                                        d_ia, d_ja,
                                                        d_P, pBuffer));
 
@@ -550,7 +550,7 @@ void SparseMatrix::SortColumnIndices()
 
       MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroyDnVec)(d_a_dense));
       MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpVec)(d_a_sparse));
-      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroyMatDescr)(matA_descr));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroyMatDescr)(sort_descr));
 
       MFEM_Cu_or_Hip(MemFree)(d_a_unsorted);
       MFEM_Cu_or_Hip(MemFree)(pBuffer);
