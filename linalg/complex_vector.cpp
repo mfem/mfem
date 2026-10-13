@@ -416,6 +416,55 @@ ComplexVector &ComplexVector::Set(const Vector &Vr, const Vector &Vi)
    return *this;
 }
 
+namespace
+{
+
+template <typename X, typename Y>
+void complex_vector_linear_combination(const complex_t a, const X &x,
+                                       const complex_t b, const Y &y,
+                                       ComplexVector &z)
+{
+   MFEM_ASSERT(x.Size() == y.Size() && x.Size() == z.Size(),
+               "incompatible Vectors!");
+
+   const bool use_dev = x.UseDevice() || y.UseDevice() || z.UseDevice();
+   const int N = z.Size();
+   // Get read access first, in case z is the same as x and/or y.
+   const auto xd = x.Read(use_dev);
+   const auto yd = y.Read(use_dev);
+   auto zd = z.Write(use_dev);
+   mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
+   {
+      zd[i] = a * xd[i] + b * yd[i];
+   });
+}
+
+} // namespace
+
+#define MFEM_COMPLEX_VECTOR_ADD_OVERLOADS(X, Y) \
+   void add(const X &x, const Y &y, ComplexVector &z) \
+   { complex_vector_linear_combination(complex_t(1.0), x, \
+                                       complex_t(1.0), y, z); } \
+   void add(const X &x, complex_t b, const Y &y, ComplexVector &z) \
+   { complex_vector_linear_combination(complex_t(1.0), x, b, y, z); } \
+   void add(complex_t a, const X &x, const Y &y, ComplexVector &z) \
+   { complex_vector_linear_combination(a, x, a, y, z); } \
+   void add(complex_t a, const X &x, complex_t b, const Y &y, \
+            ComplexVector &z) \
+   { complex_vector_linear_combination(a, x, b, y, z); } \
+   void subtract(const X &x, const Y &y, ComplexVector &z) \
+   { complex_vector_linear_combination(complex_t(1.0), x, \
+                                       complex_t(-1.0), y, z); } \
+   void subtract(complex_t a, const X &x, const Y &y, ComplexVector &z) \
+   { complex_vector_linear_combination(a, x, -a, y, z); }
+
+MFEM_COMPLEX_VECTOR_ADD_OVERLOADS(ComplexVector, ComplexVector)
+MFEM_COMPLEX_VECTOR_ADD_OVERLOADS(ComplexVector, Vector)
+MFEM_COMPLEX_VECTOR_ADD_OVERLOADS(Vector, ComplexVector)
+MFEM_COMPLEX_VECTOR_ADD_OVERLOADS(Vector, Vector)
+
+#undef MFEM_COMPLEX_VECTOR_ADD_OVERLOADS
+
 const Vector &ComplexVector::real() const
 {
    re_part.SetSize(size);

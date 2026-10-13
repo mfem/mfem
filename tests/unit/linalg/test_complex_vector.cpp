@@ -15,6 +15,42 @@
 
 using namespace mfem;
 
+template <typename X, typename Y>
+void CheckComplexVectorLinearCombination(const X &x, const Y &y,
+                                         ComplexVector &z)
+{
+   const complex_t a(2.0, -3.0);
+   const complex_t b(-1.0, 4.0);
+   const auto check = [&](const complex_t x_scale, const complex_t y_scale)
+   {
+      for (int i = 0; i < z.Size(); i++)
+      {
+         const complex_t expected = x_scale * complex_t(x(i))
+                                    + y_scale * complex_t(y(i));
+         REQUIRE(z(i).real() == MFEM_Approx(expected.real()));
+         REQUIRE(z(i).imag() == MFEM_Approx(expected.imag()));
+      }
+   };
+
+   add(x, y, z);
+   check(complex_t(1.0), complex_t(1.0));
+
+   add(x, b, y, z);
+   check(complex_t(1.0), b);
+
+   add(a, x, y, z);
+   check(a, a);
+
+   add(a, x, b, y, z);
+   check(a, b);
+
+   subtract(x, y, z);
+   check(complex_t(1.0), complex_t(-1.0));
+
+   subtract(a, x, y, z);
+   check(a, -a);
+}
+
 TEST_CASE("Complex Vector init-list and C-style array constructors",
           "[ComplexVector]")
 {
@@ -197,5 +233,38 @@ TEST_CASE("Complex Vector arithmetic and component extraction",
    {
       REQUIRE(expected(i).real() == MFEM_Approx(real_part(i)));
       REQUIRE(expected(i).imag() == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("Complex Vector add and subtract", "[ComplexVector]")
+{
+   Vector xr({1.0, -2.0, 3.0});
+   Vector yr({-4.0, 5.0, -6.0});
+   ComplexVector xc({complex_t(1.0, 2.0), complex_t(-3.0, 4.0),
+                     complex_t(5.0, -6.0)});
+   ComplexVector yc({complex_t(-2.0, 1.0), complex_t(3.0, -5.0),
+                     complex_t(-4.0, 6.0)});
+   ComplexVector z(xr.Size());
+
+   xr.UseDevice(true);
+   yr.UseDevice(true);
+   xc.UseDevice(true);
+   yc.UseDevice(true);
+   z.UseDevice(true);
+
+   CheckComplexVectorLinearCombination(xc, yc, z);
+   CheckComplexVectorLinearCombination(xc, yr, z);
+   CheckComplexVectorLinearCombination(xr, yc, z);
+   CheckComplexVectorLinearCombination(xr, yr, z);
+
+   const complex_t a(2.0, -3.0);
+   const complex_t b(-1.0, 4.0);
+   const ComplexVector original_xc(xc);
+   add(a, xc, b, yc, xc);
+   for (int i = 0; i < xc.Size(); i++)
+   {
+      const complex_t expected = a * original_xc(i) + b * yc(i);
+      REQUIRE(xc(i).real() == MFEM_Approx(expected.real()));
+      REQUIRE(xc(i).imag() == MFEM_Approx(expected.imag()));
    }
 }

@@ -315,6 +315,62 @@ public:
    /// Swap the contents of two Vectors
    inline void Swap(ComplexVector &other);
 
+   /// Set z = x + y.
+   friend void add(const ComplexVector &x, const ComplexVector &y,
+                   ComplexVector &z);
+   friend void add(const ComplexVector &x, const Vector &y, ComplexVector &z);
+   friend void add(const Vector &x, const ComplexVector &y, ComplexVector &z);
+   friend void add(const Vector &x, const Vector &y, ComplexVector &z);
+
+   /// Set z = x + b * y.
+   friend void add(const ComplexVector &x, complex_t b,
+                   const ComplexVector &y, ComplexVector &z);
+   friend void add(const ComplexVector &x, complex_t b, const Vector &y,
+                   ComplexVector &z);
+   friend void add(const Vector &x, complex_t b, const ComplexVector &y,
+                   ComplexVector &z);
+   friend void add(const Vector &x, complex_t b, const Vector &y,
+                   ComplexVector &z);
+
+   /// Set z = a * (x + y).
+   friend void add(complex_t a, const ComplexVector &x,
+                   const ComplexVector &y, ComplexVector &z);
+   friend void add(complex_t a, const ComplexVector &x, const Vector &y,
+                   ComplexVector &z);
+   friend void add(complex_t a, const Vector &x, const ComplexVector &y,
+                   ComplexVector &z);
+   friend void add(complex_t a, const Vector &x, const Vector &y,
+                   ComplexVector &z);
+
+   /// Set z = a * x + b * y.
+   friend void add(complex_t a, const ComplexVector &x, complex_t b,
+                   const ComplexVector &y, ComplexVector &z);
+   friend void add(complex_t a, const ComplexVector &x, complex_t b,
+                   const Vector &y, ComplexVector &z);
+   friend void add(complex_t a, const Vector &x, complex_t b,
+                   const ComplexVector &y, ComplexVector &z);
+   friend void add(complex_t a, const Vector &x, complex_t b,
+                   const Vector &y, ComplexVector &z);
+
+   /// Set z = x - y.
+   friend void subtract(const ComplexVector &x, const ComplexVector &y,
+                        ComplexVector &z);
+   friend void subtract(const ComplexVector &x, const Vector &y,
+                        ComplexVector &z);
+   friend void subtract(const Vector &x, const ComplexVector &y,
+                        ComplexVector &z);
+   friend void subtract(const Vector &x, const Vector &y, ComplexVector &z);
+
+   /// Set z = a * (x - y).
+   friend void subtract(complex_t a, const ComplexVector &x,
+                        const ComplexVector &y, ComplexVector &z);
+   friend void subtract(complex_t a, const ComplexVector &x, const Vector &y,
+                        ComplexVector &z);
+   friend void subtract(complex_t a, const Vector &x, const ComplexVector &y,
+                        ComplexVector &z);
+   friend void subtract(complex_t a, const Vector &x, const Vector &y,
+                        ComplexVector &z);
+
    /// Return a cached copy of the real part of this vector.
    /** The returned Vector is refreshed on every call to real() and is not an
        alias of this ComplexVector's storage. */
