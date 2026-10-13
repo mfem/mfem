@@ -325,7 +325,7 @@ public:
 
    void AssembleElementGrad(const FiniteElement &el,
                             ElementTransformation &Tr,
-                            const Vector &elfun, DenseMatrix &grad)
+                            const Vector &elfun, DenseMatrix &grad) override
    {MFEM_ABORT("Not implemented.");}
 
    /**
@@ -342,7 +342,7 @@ public:
    void AssembleFaceVector(const FiniteElement &el1,
                            const FiniteElement &el2,
                            FaceElementTransformations &Tr,
-                           const Vector &elfun, Vector &elvect)
+                           const Vector &elfun, Vector &elvect) override
    {
       // current elements' the number of degrees of freedom does not consider the number of equations
       const int dof1 = el1.GetDof();
@@ -428,7 +428,7 @@ public:
    void AssembleFaceGrad(const FiniteElement &el1,
                          const FiniteElement &el2,
                          FaceElementTransformations &Tr,
-                         const Vector &elfun, DenseMatrix &elmat)
+                         const Vector &elfun, DenseMatrix &elmat) override
    {MFEM_ABORT("Not implemented.");}
 };
 
