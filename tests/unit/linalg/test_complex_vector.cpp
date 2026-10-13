@@ -54,22 +54,19 @@ void CheckComplexVectorLinearCombination(const X &x, const Y &y,
 TEST_CASE("Complex Vector init-list and C-style array constructors",
           "[ComplexVector]")
 {
-   std::complex<real_t> ContigData[6] = {std::complex<real_t>(6.0,1.0),
-                                         std::complex<real_t>(5.0,2.0),
-                                         std::complex<real_t>(4.0,3.0),
-                                         std::complex<real_t>(3.0,4.0),
-                                         std::complex<real_t>(2.0,5.0),
-                                         std::complex<real_t>(1.0,6.0)
-                                        };
+   complex_t ContigData[6] = {complex_t(6.0,1.0),
+                              complex_t(5.0,2.0),
+                              complex_t(4.0,3.0),
+                              complex_t(3.0,4.0),
+                              complex_t(2.0,5.0),
+                              complex_t(1.0,6.0)
+                             };
    // Point and size constructor
    ComplexVector a(ContigData, 6);
    // Braced-list constructor
-   ComplexVector b({std::complex<real_t>(6.0,1.0),
-                    std::complex<real_t>(5.0,2.0),
-                    std::complex<real_t>(4.0,3.0),
-                    std::complex<real_t>(3.0,4.0),
-                    std::complex<real_t>(2.0,5.0),
-                    std::complex<real_t>(1.0,6.0)});
+   ComplexVector b({complex_t(6.0,1.0), complex_t(5.0,2.0),
+                    complex_t(4.0,3.0), complex_t(3.0,4.0),
+                    complex_t(2.0,5.0), complex_t(1.0,6.0)});
    // Statically sized C-style array constructor
    ComplexVector c(ContigData);
 
@@ -83,22 +80,22 @@ TEST_CASE("Complex Vector init-list and C-style array constructors",
 TEST_CASE("Complex Vector Move Constructor", "[ComplexVector]")
 {
    constexpr int N = 6;
-   std::complex<real_t> ContigData[6] = {std::complex<real_t>(6.0,1.0),
-                                         std::complex<real_t>(5.0,2.0),
-                                         std::complex<real_t>(4.0,3.0),
-                                         std::complex<real_t>(3.0,4.0),
-                                         std::complex<real_t>(2.0,5.0),
-                                         std::complex<real_t>(1.0,6.0)
-                                        };
+   complex_t ContigData[6] = {complex_t(6.0,1.0),
+                              complex_t(5.0,2.0),
+                              complex_t(4.0,3.0),
+                              complex_t(3.0,4.0),
+                              complex_t(2.0,5.0),
+                              complex_t(1.0,6.0)
+                             };
    ComplexVector a(ContigData, N);
    ComplexVector b(N);
    for (int i = 0; i < N; i++)
    {
-      b(i) = std::complex<real_t>(N - i, i + 1);
+      b(i) = complex_t(N - i, i + 1);
    }
 
-   std::complex<real_t>* a_data = a.GetData();
-   std::complex<real_t>* b_data = b.GetData();
+   complex_t *a_data = a.GetData();
+   complex_t *b_data = b.GetData();
 
    ComplexVector move_non_owning(std::move(a));
    ComplexVector move_owning(std::move(b));
@@ -124,30 +121,30 @@ TEST_CASE("Complex Vector Move Constructor", "[ComplexVector]")
 
    for (int i = 0; i < N; i++)
    {
-      REQUIRE(move_non_owning(i) == std::complex<real_t>(N - i, i + 1));
-      REQUIRE(move_owning(i) == std::complex<real_t>(N - i, i + 1));
+      REQUIRE(move_non_owning(i) == complex_t(N - i, i + 1));
+      REQUIRE(move_owning(i) == complex_t(N - i, i + 1));
    }
 }
 
 TEST_CASE("Complex Vector Move Assignment", "[ComplexVector]")
 {
    constexpr int N = 6;
-   std::complex<real_t> ContigData[6] = {std::complex<real_t>(6.0,1.0),
-                                         std::complex<real_t>(5.0,2.0),
-                                         std::complex<real_t>(4.0,3.0),
-                                         std::complex<real_t>(3.0,4.0),
-                                         std::complex<real_t>(2.0,5.0),
-                                         std::complex<real_t>(1.0,6.0)
-                                        };
+   complex_t ContigData[6] = {complex_t(6.0,1.0),
+                              complex_t(5.0,2.0),
+                              complex_t(4.0,3.0),
+                              complex_t(3.0,4.0),
+                              complex_t(2.0,5.0),
+                              complex_t(1.0,6.0)
+                             };
    ComplexVector a(ContigData, N);
    ComplexVector b(N);
    for (int i = 0; i < N; i++)
    {
-      b(i) = std::complex<real_t>(N - i, i + 1);
+      b(i) = complex_t(N - i, i + 1);
    }
 
-   std::complex<real_t>* a_data = a.GetData();
-   std::complex<real_t>* b_data = b.GetData();
+   complex_t *a_data = a.GetData();
+   complex_t *b_data = b.GetData();
 
    ComplexVector move_non_owning;
    move_non_owning = std::move(a);
@@ -175,8 +172,8 @@ TEST_CASE("Complex Vector Move Assignment", "[ComplexVector]")
 
    for (int i = 0; i < N; i++)
    {
-      REQUIRE(move_non_owning(i) == std::complex<real_t>(N - i, i + 1));
-      REQUIRE(move_owning(i) == std::complex<real_t>(N - i, i + 1));
+      REQUIRE(move_non_owning(i) == complex_t(N - i, i + 1));
+      REQUIRE(move_owning(i) == complex_t(N - i, i + 1));
    }
 }
 

@@ -98,6 +98,23 @@ TEST_CASE("Complex coefficient views", "[ComplexCoefficient]")
       REQUIRE(matrix.GetTime() == MFEM_Approx(4.0));
       REQUIRE(matrix_value(0, 0) == MFEM_Approx(-8.0));
    }
+
+   SECTION("Vector output sizing")
+   {
+      Vector real_values({1.0, -2.0});
+      Vector imag_values({3.0, -4.0});
+      VectorConstantCoefficient real_coefficient(real_values);
+      VectorConstantCoefficient imag_coefficient(imag_values);
+      ComplexVectorCoefficient coefficient(real_coefficient,
+                                           imag_coefficient);
+      ComplexVector value;
+
+      coefficient.Eval(value, T, ip);
+
+      REQUIRE(value.Size() == 2);
+      REQUIRE(value(0) == complex_t(1.0, 3.0));
+      REQUIRE(value(1) == complex_t(-2.0, -4.0));
+   }
 }
 
 TEST_CASE("Complex matrix coefficient composition", "[ComplexCoefficient]")

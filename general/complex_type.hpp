@@ -84,6 +84,16 @@ struct Complex : public DoubleComplex_t
    }
 };
 
+MFEM_HOST_DEVICE inline bool operator==(const Complex &a, const Complex &b)
+{
+   return a.real() == b.real() && a.imag() == b.imag();
+}
+
+MFEM_HOST_DEVICE inline bool operator!=(const Complex &a, const Complex &b)
+{
+   return !(a == b);
+}
+
 MFEM_HOST_DEVICE inline Complex operator*(const Complex &x, const real_t &y)
 {
    return Complex(x.real() * y, x.imag() * y);

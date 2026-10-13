@@ -186,6 +186,7 @@ void ComplexVectorCoefficient::Eval(ComplexVector &V, ElementTransformation &T,
    real_vcoef_.Eval(V_r_, T, ip);
    imag_vcoef_.Eval(V_i_, T, ip);
 
+   V.SetSize(vdim);
    V.Set(V_r_, V_i_);
 }
 
