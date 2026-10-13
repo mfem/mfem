@@ -78,4 +78,3 @@ clean-exec:
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
-	

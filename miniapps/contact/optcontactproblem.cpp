@@ -22,13 +22,16 @@ namespace
 class ScopedHypreHostPolicy
 {
 private:
-   HYPRE_MemoryLocation old_memory = HYPRE_MEMORY_UNDEFINED;
-   HYPRE_ExecutionPolicy old_execution = HYPRE_EXEC_UNDEFINED;
+#if MFEM_HYPRE_VERSION >= 22600
+   HYPRE_MemoryLocation old_memory = HYPRE_MEMORY_HOST;
+   HYPRE_ExecutionPolicy old_execution = HYPRE_EXEC_HOST;
    bool restore = false;
+#endif
 
 public:
    ScopedHypreHostPolicy()
    {
+#if MFEM_HYPRE_VERSION >= 22600
       if (HYPRE_Initialized())
       {
          HYPRE_GetMemoryLocation(&old_memory);
@@ -37,16 +40,22 @@ public:
          HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
          restore = true;
       }
+#elif defined(HYPRE_USING_GPU)
+      MFEM_ABORT("The contact miniapp requires HYPRE 2.26 or newer when "
+                 "HYPRE is GPU-enabled.");
+#endif
    }
 
    void Restore()
    {
+#if MFEM_HYPRE_VERSION >= 22600
       if (restore)
       {
          HYPRE_SetMemoryLocation(old_memory);
          HYPRE_SetExecutionPolicy(old_execution);
          restore = false;
       }
+#endif
    }
 
    ~ScopedHypreHostPolicy() { Restore(); }
@@ -133,34 +142,10 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
 
    problem->Getxrefbc(xrefbc);
    const Array<int> & ess_tdof_list = problem->GetEssentialDofs();
-   const int num_ess_tdofs = ess_tdof_list.Size();
-   Vector ess_values(num_ess_tdofs); ess_values.UseDevice(true);
-   const bool use_dev = Device::IsEnabled();
-   const int *ess_tdofs = ess_tdof_list.Read(use_dev);
-   const real_t *xrefbc_in = xrefbc.Read(use_dev);
-   real_t *ess_values_data = ess_values.Write(use_dev);
-   mfem::forall(num_ess_tdofs, [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dof = ess_tdofs[i];
-      ess_values_data[i] = dof >= 0 ? xrefbc_in[dof] : -xrefbc_in[-dof-1];
-   });
-
+   Vector ess_values; ess_values.UseDevice(true);
+   xrefbc.GetSubVector(ess_tdof_list, ess_values);
    xrefbc = xref;
-   ess_tdofs = ess_tdof_list.Read(use_dev);
-   const real_t *ess_values_read = ess_values.Read(use_dev);
-   real_t *xrefbc_out = xrefbc.ReadWrite(use_dev);
-   mfem::forall(num_ess_tdofs, [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dof = ess_tdofs[i];
-      if (dof >= 0)
-      {
-         xrefbc_out[dof] = ess_values_read[i];
-      }
-      else
-      {
-         xrefbc_out[-dof-1] = -ess_values_read[i];
-      }
-   });
+   xrefbc.SetSubVector(ess_tdof_list, ess_values);
 
    if (problem->IsNonlinear())
    {
@@ -600,6 +585,10 @@ OptContactProblem::FilterContactMatrixAndGap(
       mfem::Read(contact_matrix.GetDiagMemoryData(), diag_nnz, use_dev);
    const HYPRE_Int *offd_i =
       mfem::Read(contact_matrix.GetOffdMemoryI(), h + 1, use_dev);
+   const HYPRE_Int *diag_j =
+      mfem::Read(contact_matrix.GetDiagMemoryJ(), diag_nnz, use_dev);
+   const HYPRE_Int *offd_j =
+      mfem::Read(contact_matrix.GetOffdMemoryJ(), offd_nnz, use_dev);
    const real_t *offd_data =
       mfem::Read(contact_matrix.GetOffdMemoryData(), offd_nnz, use_dev);
 
@@ -675,8 +664,60 @@ OptContactProblem::FilterContactMatrixAndGap(
                     offd_offsets_data + 1, hnew);
    }
 
-   const int diag_filtered_nnz = diag_offsets.HostRead()[hnew];
-   const int offd_filtered_nnz = offd_offsets.HostRead()[hnew];
+   Array<int> filtered_nnz(2);
+   filtered_nnz.UseDevice(use_dev);
+   int *filtered_nnz_data = filtered_nnz.Write(use_dev);
+   mfem::forall(1, [=] MFEM_HOST_DEVICE (int)
+   {
+      filtered_nnz_data[0] = diag_offsets_data[hnew];
+      filtered_nnz_data[1] = offd_offsets_data[hnew];
+   });
+   const int *filtered_nnz_host = filtered_nnz.HostRead();
+   const int diag_filtered_nnz = filtered_nnz_host[0];
+   const int offd_filtered_nnz = filtered_nnz_host[1];
+
+   Array<int> offd_col_ids(offd_num_cols), offd_col_flags(offd_num_cols),
+         offd_old_to_new(offd_num_cols), used_offd_cols(offd_num_cols),
+         num_used_offd_cols(1);
+   offd_col_ids.UseDevice(use_dev);
+   offd_col_flags.UseDevice(use_dev);
+   offd_old_to_new.UseDevice(use_dev);
+   used_offd_cols.UseDevice(use_dev);
+   num_used_offd_cols.UseDevice(use_dev);
+
+   int compact_offd_num_cols = 0;
+   if (offd_num_cols)
+   {
+      int *offd_col_ids_data = offd_col_ids.Write(use_dev);
+      int *offd_col_flags_data = offd_col_flags.Write(use_dev);
+      mfem::forall(offd_num_cols, [=] MFEM_HOST_DEVICE (int i)
+      {
+         offd_col_ids_data[i] = i;
+         offd_col_flags_data[i] = 0;
+      });
+
+      const int *filtered_rows_data = nonzero_rows.Read(use_dev);
+      mfem::forall(hnew, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int row = filtered_rows_data[i];
+         for (int j = offd_i[row]; j < offd_i[row+1]; j++)
+         {
+            AtomicAdd(offd_col_flags_data[offd_j[j]], 1);
+         }
+      });
+      mfem::forall(offd_num_cols, [=] MFEM_HOST_DEVICE (int i)
+      {
+         offd_col_flags_data[i] = offd_col_flags_data[i] != 0;
+      });
+
+      ExclusiveScan(use_dev, offd_col_flags.Read(use_dev),
+                    offd_old_to_new.Write(use_dev), offd_num_cols, 0);
+      CopyFlagged(use_dev, offd_col_ids.Read(use_dev),
+                  offd_col_flags.Read(use_dev), used_offd_cols.Write(use_dev),
+                  num_used_offd_cols.Write(use_dev), offd_num_cols);
+      compact_offd_num_cols = num_used_offd_cols.HostRead()[0];
+      used_offd_cols.SetSize(compact_offd_num_cols);
+   }
 
    SparseMatrix *diag = new SparseMatrix;
    diag->OverrideSize(hnew, contact_matrix.Width());
@@ -685,7 +726,7 @@ OptContactProblem::FilterContactMatrixAndGap(
    diag->GetMemoryData().New(diag_filtered_nnz, Device::GetDeviceMemoryType());
 
    SparseMatrix *offd = new SparseMatrix;
-   offd->OverrideSize(hnew, offd_num_cols);
+   offd->OverrideSize(hnew, compact_offd_num_cols);
    offd->GetMemoryI().New(hnew + 1, Device::GetDeviceMemoryType());
    offd->GetMemoryJ().New(offd_filtered_nnz, Device::GetDeviceMemoryType());
    offd->GetMemoryData().New(offd_filtered_nnz, Device::GetDeviceMemoryType());
@@ -700,15 +741,12 @@ OptContactProblem::FilterContactMatrixAndGap(
       offd_filtered_i[i] = offd_offsets_read[i];
    });
 
-   const HYPRE_Int *diag_j =
-      mfem::Read(contact_matrix.GetDiagMemoryJ(), diag_nnz, use_dev);
-   const HYPRE_Int *offd_j =
-      mfem::Read(contact_matrix.GetOffdMemoryJ(), offd_nnz, use_dev);
    int *diag_filtered_j = diag->WriteJ(use_dev);
    int *offd_filtered_j = offd->WriteJ(use_dev);
    real_t *diag_filtered_data = diag->WriteData(use_dev);
    real_t *offd_filtered_data = offd->WriteData(use_dev);
    const int *filtered_rows_data = nonzero_rows.Read(use_dev);
+   const int *offd_old_to_new_data = offd_old_to_new.Read(use_dev);
    mfem::forall(hnew, [=] MFEM_HOST_DEVICE (int i)
    {
       const int row = filtered_rows_data[i];
@@ -723,7 +761,7 @@ OptContactProblem::FilterContactMatrixAndGap(
       row_nnz_offset = offd_offsets_read[i];
       for (int j = offd_i[row]; j < offd_i[row+1]; j++)
       {
-         offd_filtered_j[row_nnz_offset] = offd_j[j];
+         offd_filtered_j[row_nnz_offset] = offd_old_to_new_data[offd_j[j]];
          offd_filtered_data[row_nnz_offset] = offd_data[j];
          row_nnz_offset++;
       }
@@ -746,14 +784,15 @@ OptContactProblem::FilterContactMatrixAndGap(
                  MPITypeMap<HYPRE_BigInt>::mpi_type,
                  MPI_SUM,contact_matrix.GetComm());
    filtered.global_num_cols = contact_matrix.GetGlobalNumCols();
-   filtered.offd_num_cols = offd_num_cols;
+   filtered.offd_num_cols = compact_offd_num_cols;
 
-   if (offd_num_cols)
+   if (compact_offd_num_cols)
    {
-      filtered.offd_cmap = new HYPRE_BigInt[offd_num_cols];
-      for (int i = 0; i < offd_num_cols; i++)
+      const int *used_offd_cols_host = used_offd_cols.HostRead();
+      filtered.offd_cmap = new HYPRE_BigInt[compact_offd_num_cols];
+      for (int i = 0; i < compact_offd_num_cols; i++)
       {
-         filtered.offd_cmap[i] = offd_cmap[i];
+         filtered.offd_cmap[i] = offd_cmap[used_offd_cols_host[i]];
       }
    }
 
