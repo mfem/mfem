@@ -1,50 +1,60 @@
-//                                MFEM Example 18-MHD version
+//                                MFEM Example 42 - MHD with Godunov-Powell source
 //
-// Compile with: make ex18
+// Compile with: make ex42
 //
 // Sample runs:
 //
-//       ./ex41 -r 3 -o 2 -tf 0.23 -gp
-//       ./ex41 -r 3 -o 2 -tf 0.23
+//       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -gp
+//       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -no-gp
 //
-// Description:  This example code solves the ideal MHD system of
-//               equations, a model nonlinear hyperbolic PDE, with a
-//               discontinuous Galerkin (DG) formulation.
+// Description:  This example solves the ideal magnetohydrodynamics (MHD)
+//               equations with the nonconservative Godunov-Powell source:
 //
-//                (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u,n), [[v]]>_F = 0
+//                   U_t + div(F(U)) = -S(U) div(B),
+//                   U = (rho, rho*v, B, E)^T,
+//                   S(U) = (0, B, v, v dot B)^T.
 //
-//               where (⋅,⋅)_T is volume integration, and <⋅,⋅>_F is face
-//               integration, F is the MHD flux function, and F̂ is the
-//               numerical flux.
+//               Here rho is density, v is velocity, B is the magnetic field,
+//               E is total energy density, and F is the ideal MHD flux.
+//               The DG formulation includes both an element source and a
+//               face correction for jumps in the normal magnetic field:
 //
-//               Specifically, it solves for an exact solution of the equations
-//               whereby a vortex is transported by a uniform flow. Since all
-//               boundaries are periodic here, the method's accuracy can be
-//               assessed by measuring the difference between the solution and
-//               the initial condition at a later time when the vortex returns
-//               to its initial location.
+//                 (U_t, w)_K - (F(U), grad(w))_K
+//                   + <Fhat(U-, U+, n_K), w>_dK
+//                 = -(S(U) div(B), w)_K
+//                   - <S(U-)(Bhat - B-) dot n_K, w>_dK.
 //
-//               Note that as the order of the spatial discretization increases,
-//               the timestep must become smaller. This example currently uses a
-//               simple estimate derived by Cockburn and Shu for the 1D RKDG
-//               method. An additional factor can be tuned by passing the --cfl
-//               (or -c shorter) flag.
+//               Parentheses denote volume integration and angle brackets
+//               denote face integration. Fhat is the Rusanov numerical flux;
+//               Bhat dot n_K is the arithmetic average of the two normal
+//               magnetic traces. Use -gp to enable the Godunov-Powell terms;
+//               they are disabled by default, and -no-gp omits them.
 //
-//               The example demonstrates usage of DG_MHD_GPsource
-//               that wraps NonlinearFormIntegrators containing element and face
-//               integration schemes. In this case the system also involves an
-//               external approximate Riemann solver for the DG interface flux.
-//               It also demonstrates how to use GLVis for in-situ visualization
-//               of vector grid function and how to set top-view.
+//               Problem 1 is the two-dimensional Orszag-Tang vortex on the
+//               periodic unit square. Its initial density and pressure are
+//               uniform, while velocity and magnetic field are sinusoidal.
+//               This nonlinear test evolves interacting MHD waves and shocks;
+//               it is not an exact vortex-advection solution, so comparison
+//               with the initial state is not an exact-solution error measure.
 //
-//               We recommend viewing examples 9, 14 and 17 before viewing this
-//               example.
+//               As the spatial approximation order increases, the timestep
+//               must decrease. The CFL estimate uses the maximum MHD wave
+//               speed and the factor 2*order + 1; --cfl-number (-c) controls
+//               the CFL number.
+//
+//               DG_MHD_GPsource combines HyperbolicFormIntegrator for the
+//               MHD flux with GPsourceFormIntegrator for the element and face
+//               source contributions, and applies the element-wise inverse
+//               mass matrix for explicit Runge-Kutta time integration.
+//               GLVis displays the density in a top view.
+//
+//               We recommend viewing examples 9, 14 and 17 first.
 
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include "ex41.hpp"
+#include "ex42.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -157,7 +167,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6. Set up the nonlinear form with MHD flux and numerical flux
+   // 6. Set up the MHD flux and optional Godunov-Powell volume/face sources.
    IdealMHDFlux mhdflux(dim, specific_heat_ratio);
    RusanovFlux numericalFlux(mhdflux);
    GPsource gpsource(dim);
@@ -167,7 +177,7 @@ int main(int argc, char *argv[])
         std::unique_ptr<GPsourceFormIntegrator>(new GPsourceFormIntegrator(numericalGPsource, IntOrderOffset)),
         use_GPsource);
 
-   // 7. Visualize momentum with its magnitude
+   // 7. Visualize the density.
    socketstream sout;
    if (visualization)
    {
@@ -185,7 +195,7 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         // Plot magnitude of vector-valued momentum
+         // Plot the scalar density.
          sout << "solution\n" << mesh << density_sol;
          sout << "window_title 'density, t = 0'\n";
          sout << "view 0 0\n";  // view from top

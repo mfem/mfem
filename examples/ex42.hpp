@@ -1,24 +1,34 @@
-//                  MFEM Example 18 - Serial/Parallel Shared Code for MHD equations
-//                      (Implementation of Time-dependent DG Operator)
+//               MFEM Example 42 - MHD with Godunov-Powell source
+//                      (Time-dependent DG operator and model problem)
 //
-// This code provide example problems for the MHD equations and implements
-// the time-dependent DG operator given by the equation:
+// This code defines the Orszag-Tang model problem and the DG operator for
+// ideal MHD with the nonconservative Godunov-Powell source:
 //
-//            (u_t, v)_T - (F(u), ∇ v)_T + <F̂(u, n), [[v]]>_F = 0.
+//                 U_t + div(F(U)) = -S(U) div(B),
+//                 U = (rho, rho*v, B, E)^T,
+//                 S(U) = (0, B, v, v dot B)^T.
 //
-// This operator is designed for explicit time stepping methods. Specifically,
-// the function DG_MHD_GPsource::Mult implements the following
-// transformation:
+// For each element K, the semidiscrete weak formulation is
 //
-//                             u ↦ M⁻¹(-DF(u) + NF(u))
+//   (U_t, w)_K - (F(U), grad(w))_K + <Fhat, w>_dK
+//     = -(S(U) div(B), w)_K
+//       - <S(U-)(Bhat - B-) dot n_K, w>_dK.
 //
-// where M is the mass matrix, DF is the weak divergence of flux, and NF is the
-// interface flux. The inverse of the mass matrix is computed element-wise by
-// leveraging the block-diagonal structure of the DG mass matrix. Additionally,
-// the flux-related terms are computed using the HyperbolicFormIntegrator.
+// Fhat is the numerical MHD flux, n_K is the outward normal, and the normal
+// trace Bhat dot n_K is the arithmetic average of the adjacent traces.
+// GPsourceFormIntegrator assembles both source contributions with their
+// negative signs. The face terms use each element's own state and normal.
 //
-// The maximum characteristic speed is determined for each time step. For more
-// details, refer to the documentation of DG_MHD_GPsource::Mult.
+// DG_MHD_GPsource::Mult evaluates the explicit time derivative
+//
+//                  U -> M^{-1}(R_flux(U) + R_GP(U)),
+//
+// where R_flux is the weak volume flux minus the numerical face flux, and
+// R_GP contains the negative volume and face Godunov-Powell source terms.
+// R_GP is included only when use_GPsource is true (-gp in ex42.cpp).
+// The block-diagonal DG mass matrix M is inverted element by element.
+// HyperbolicFormIntegrator assembles the flux residual and records the
+// maximum characteristic speed used in the CFL timestep estimate.
 //
 
 #include <functional>
@@ -45,13 +55,12 @@ public:
     * @brief Compute source -S(U)*divB in cell interiors.
     *
     * Used in GPsourceFormIntegrator::AssembleElementVector() for evaluation
-    * of (-S(U)*divB, v) and in the default implementation of ComputeSourceDotN()
-    * for evaluation of -S(U)*(Bhat-B).
+    * of (-S(U)*divB, w). Here S(U) = (0, B, v, v dot B)^T
+    * for the state ordering U = (rho, rho*v, B, E)^T.
     * @param[in] state state at the current integration point (num_equations)
     * @param[in] divB divergence of the magnetic field at the current integration point (scalar)
     * @param[in] Tr element transformation
     * @param[out] source source from the given element at the current integration point (num_equations)
-    * @return real_t maximum characteristic speed |dF(u,x)/du|
     *
     * @note One can put assertion in here to detect non-physical solution
     */
@@ -82,8 +91,8 @@ public:
     * @brief Evaluates normal numerical source for the given states and normal.
     * Must be implemented in a derived class.
     *
-    * Used in HyperbolicFormIntegrator::AssembleFaceVector() for evaluation of
-    * <S(U^-)*(\hat{B} - B^-)*n^-, v^-> term at the face.
+    * Used in GPsourceFormIntegrator::AssembleFaceVector() for evaluation of
+    * <-S(U^-)*((Bhat - B^-) dot n^-), w^-> term at the face.
     * @param[in] state1 state value at a point from the first element
     * (num_equations)
     * @param[in] state2 state value at a point from the second element
@@ -98,8 +107,8 @@ public:
     * @brief Evaluates Jacobian of the normal numerical source for the given
     * states and normal. OPTIONALLY overloaded in a derived class.
     *
-    * Used in HyperbolicFormIntegrator::AssembleFaceGrad() for Jacobian
-    * of the term <S(U^-)*(\hat{B} - B^-)*n^-, v^-> at the face.
+    * Intended for GPsourceFormIntegrator::AssembleFaceGrad() for the Jacobian
+    * of the term <-S(U^-)*((Bhat - B^-) dot n^-), w^-> at the face.
     * @param[in] side indicates gradient w.r.t. the first (side = 1)
     * or second (side = 2) state
     * @param[in] state1 state value of the beginning of the interval
@@ -108,7 +117,8 @@ public:
     * (num_equations)
     * @param[in] nor scaled normal vector, see mfem::CalcOrtho() (dim)
     * @param[in] Tr face transformation
-    * @param[out] grad Jacobian of normal numerical flux (num_equations, dim)
+    * @param[out] grad Jacobian of the numerical source with respect to a state
+    * (num_equations, num_equations); not implemented here
     */
     virtual void Grad(int side, const Vector &state1, const Vector &state2,
         const Vector &nor, FaceElementTransformations &Tr,
@@ -140,7 +150,7 @@ public:
         for (auto i=0;i<dim;i++) B1n += state1(i+1+dim) * nor(i);
         for (auto i=0;i<dim;i++) B2n += state2(i+1+dim) * nor(i);
 
-        // Rusanov flux for the magnetic field normal component
+        // Averaged normal magnetic trace for the Rusanov Godunov-Powell correction
         const real_t Bhatn = 0.5 * (B1n + B2n);
         const real_t Bjump1 = Bhatn - B1n;
         const real_t Bjump2 = B2n - Bhatn; // because of the negative sign of nor from el2
@@ -189,7 +199,7 @@ private:
     Vector nor;     // normal vector, see mfem::CalcOrtho()
     Vector source1; // source vector at the first element
     Vector source2; // source vector at the second element
-    DenseMatrix JDotN;   // Ĵ(u±,x) n
+    DenseMatrix JDotN;   // Reserved local Jacobian workspace
     #endif
 
 public:
@@ -199,7 +209,7 @@ public:
      *
      * @param[in] numGPsource numerical GP source
      * @param[in] IntOrderOffset integration order offset
-     * @param[in] sign sign of the convection term
+     * @param[in] sign multiplier for the volume and face source contributions
      */
     GPsourceFormIntegrator(
        const NumericalGPsource &numGPsource_,
@@ -227,7 +237,7 @@ public:
     const GPsource &GetGPsource() { return gpsource; }
  
     /**
-     * @brief Implements (-S(U)*divB, v) with left half computed by
+     * @brief Assemble (-S(U)*divB, w) using the source computed by
      * GPsource::ComputeSource()
      *
      * @param[in] el local finite element
@@ -306,8 +316,9 @@ public:
                              {MFEM_ABORT("Not implemented.");}
  
     /**
-     * @brief Implements <-F̂(u⁻,u⁺,x) n, [v]> with abstract F̂ computed by
-     * NumericalFlux::Eval() of the numerical flux object
+     * @brief Assemble the two element-side Godunov-Powell face corrections
+     * -<S(U_side)*((Bhat - B_side) dot n_side), w_side>.
+     * NumericalGPsource::Eval() supplies both signed source vectors.
      *
      * @param[in] el1 finite element of the first element
      * @param[in] el2 finite element of the second element
@@ -378,7 +389,7 @@ public:
             elfun1_mat.MultTranspose(shape1, state1);
             elfun2_mat.MultTranspose(shape2, state2);
 
-            // Get the normal vector and the flux on the face
+            // Get the scaled normal vector on the face
             if (nor.Size() == 1)  // if 1D, use 1 or -1.
             {
                 // This assume the 1D integration point is in (0,1). This may not work
@@ -393,7 +404,7 @@ public:
             numGPsource.Eval(state1, state2, nor, Tr, source1, source2);
             // We have adapted it so that only plus sign is needed below.
 
-            // pre-multiply integration weight to flux
+            // Weight the signed source contributions on both sides of the face
             AddMult_a_VWt(ip.weight*sign, shape1, source1, elvect1_mat);
             AddMult_a_VWt(ip.weight*sign, shape2, source2, elvect2_mat);
         }
@@ -443,8 +454,10 @@ public:
    /**
     * @brief Construct a new DG_MHD_GPsource object
     *
-    * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
-    * @param formIntegrator_ integrator (F(u,x), grad v)
+    * @param vfes_ DG vector finite element space with Ordering::byNODES
+    * @param hyperb_form_Int_ integrator for the volume and numerical face fluxes
+    * @param gpsource_form_Int_ integrator for the volume and face GP sources
+    * @param use_GPsource_ whether to include the Godunov-Powell sources
     */
    DG_MHD_GPsource(
       FiniteElementSpace &vfes_,
@@ -452,10 +465,11 @@ public:
       std::unique_ptr<GPsourceFormIntegrator> gpsource_form_Int_,
       const bool use_GPsource_);
    /**
-    * @brief Apply nonlinear form to obtain M⁻¹(DIVF + JUMP HAT(F))
+    * @brief Compute M^{-1}(R_flux(x) + R_GP(x)) for explicit time stepping.
+    * R_GP is included only when use_GPsource is true.
     *
     * @param x current solution vector
-    * @param y resulting dual vector to be used in an EXPLICIT solver
+    * @param y resulting time derivative vector for an explicit ODE solver
     */
    void Mult(const Vector &x, Vector &y) const override;
    // get global maximum characteristic speed to be used in CFL condition
@@ -484,7 +498,7 @@ DG_MHD_GPsource::DG_MHD_GPsource(
      use_GPsource(use_GPsource_),
      z(vfes_.GetTrueVSize())
 {
-   // Standard local assembly and inversion for energy mass matrices.
+   // Assemble and invert the scalar mass matrix on each element for all fields.
    ComputeInvMass();
 
 #ifndef MFEM_USE_MPI
@@ -576,19 +590,26 @@ void DG_MHD_GPsource::Update()
 }
 
 
-// triangular mesh for [0,1]^2 with periodic BC
+// Default model mesh: triangular periodic unit square [0,1]^2.
 Mesh MHDMesh(const int problem)
 {
     return Mesh("../data/periodic-square-tri.msh");
 }
 
-// Initial condition
+// Problem 1: two-dimensional Orszag-Tang vortex on the periodic unit square.
+// rho = 25/(36*pi), p = 5/(12*pi),
+// v = (-sin(2*pi*y), sin(2*pi*x)),
+// B = (-sin(2*pi*y), sin(4*pi*x))/sqrt(4*pi).
+// The initial magnetic field is divergence-free. E includes internal,
+// kinetic, and magnetic energy; the six-component state is
+// (rho, rho*v_x, rho*v_y, B_x, B_y, E).
+// These are initial data for nonlinear MHD evolution, not an exact solution.
 VectorFunctionCoefficient MHDInitialCondition(const int problem,
                                               real_t specific_heat_ratio)
 {
    switch (problem)
    {
-    case 1: // Orzag-Tang vortex (with 3 refines, negative density emerge at t=0.23)
+    case 1: // Orszag-Tang vortex
         return VectorFunctionCoefficient(6, [specific_heat_ratio](const Vector &x,Vector &y)
             {
             MFEM_ASSERT(x.Size() == 2, "");
