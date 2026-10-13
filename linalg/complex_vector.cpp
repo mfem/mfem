@@ -18,6 +18,12 @@ using namespace std;
 namespace mfem
 {
 
+static Array<real_t> &complex_vector_workspace()
+{
+   static Array<real_t> instance;
+   return instance;
+}
+
 ComplexVector::ComplexVector(const ComplexVector &v)
 {
    const int s = v.Size();
@@ -39,7 +45,11 @@ ComplexVector::ComplexVector(const Vector &v)
    {
       MFEM_ASSERT(!v.data.Empty(), "invalid source vector");
       data.New(s, v.data.GetMemoryType());
-      MFEM_FORALL(i, size, data[i] = v.data[i]; );
+      const bool use_dev = v.UseDevice();
+      const auto x = v.Read(use_dev);
+      auto y = Write(use_dev);
+      mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
+      { y[i] = x[i]; });
    }
    UseDevice(v.UseDevice());
 }
@@ -96,13 +106,18 @@ complex_t ComplexVector::operator*(const ComplexVector &v) const
    const bool use_dev = UseDevice() || v.UseDevice();
    const auto m_data = Read(use_dev), v_data = v.Read(use_dev);
 
-   // The standard way of computing the dot product is non-deterministic
-   complex_t prod = 0.0;
-   for (int i = 0; i < size; i++)
+   real_t real_part = 0.0, imag_part = 0.0;
+   reduce(size, real_part, [=] MFEM_HOST_DEVICE (int i, real_t &r)
    {
-      prod += m_data[i] * v_data[i];
-   }
-   return prod;
+      r += m_data[i].real() * v_data[i].real()
+           - m_data[i].imag() * v_data[i].imag();
+   }, SumReducer<real_t> {}, use_dev, complex_vector_workspace());
+   reduce(size, imag_part, [=] MFEM_HOST_DEVICE (int i, real_t &r)
+   {
+      r += m_data[i].real() * v_data[i].imag()
+           + m_data[i].imag() * v_data[i].real();
+   }, SumReducer<real_t> {}, use_dev, complex_vector_workspace());
+   return complex_t(real_part, imag_part);
 }
 
 complex_t ComplexVector::operator*(const Vector &v) const
@@ -115,26 +130,28 @@ complex_t ComplexVector::operator*(const Vector &v) const
    const auto m_data = Read(use_dev);
    const auto v_data = v.Read(use_dev);
 
-   // The standard way of computing the dot product is non-deterministic
-   complex_t prod = 0.0;
-   for (int i = 0; i < size; i++)
+   real_t real_part = 0.0, imag_part = 0.0;
+   reduce(size, real_part, [=] MFEM_HOST_DEVICE (int i, real_t &r)
    {
-      prod += m_data[i] * v_data[i];
-   }
-   return prod;
+      r += m_data[i].real() * v_data[i];
+   }, SumReducer<real_t> {}, use_dev, complex_vector_workspace());
+   reduce(size, imag_part, [=] MFEM_HOST_DEVICE (int i, real_t &r)
+   {
+      r += m_data[i].imag() * v_data[i];
+   }, SumReducer<real_t> {}, use_dev, complex_vector_workspace());
+   return complex_t(real_part, imag_part);
 }
 
 ComplexVector &ComplexVector::operator=(const complex_t *v)
 {
-   HostRead();
-   MFEM_FORALL(i, size, data[i] = v[i]; );
+   data.CopyFromHost(v, size);
    return *this;
 }
 
 ComplexVector &ComplexVector::operator=(const real_t *v)
 {
-   HostRead();
-   MFEM_FORALL(i, size, data[i] = v[i]; );
+   auto y = HostWrite();
+   for (int i = 0; i < size; i++) { y[i] = v[i]; }
    return *this;
 }
 
@@ -164,8 +181,10 @@ ComplexVector &ComplexVector::operator=(const Vector &v)
    const bool use_dev = UseDevice() || vuse;
    v.UseDevice(use_dev);
    // keep 'data' where it is, unless 'use_dev' is true
-   if (use_dev) { Write(); }
-   MFEM_FORALL(i, size, data[i] = v[i]; );
+   const auto x = v.Read(use_dev);
+   auto y = Write(use_dev);
+   mfem::forall_switch(use_dev, size, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] = x[i]; });
    v.UseDevice(vuse);
    return *this;
 }

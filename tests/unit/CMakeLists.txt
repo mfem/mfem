@@ -56,6 +56,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_chebyshev.cpp
   linalg/test_complex_dense_matrix.cpp
   linalg/test_complex_operator.cpp
+  linalg/test_complex_dense_matrix_data.cpp
   linalg/test_complex_vector.cpp
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
@@ -112,6 +113,7 @@ set(UNIT_TESTS_SRCS
   fem/test_calchessian.cpp
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
+  fem/test_complex_coefficient.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp

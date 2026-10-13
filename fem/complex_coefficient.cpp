@@ -17,12 +17,24 @@ using namespace std;
 namespace mfem
 {
 
+void RealPartCoefficient::SetTime(real_t t)
+{
+   Coefficient::SetTime(t);
+   complex_coef_.SetTime(t);
+}
+
 real_t
 RealPartCoefficient::Eval(ElementTransformation &T,
                           const IntegrationPoint &ip)
 {
    complex_t val = complex_coef_.Eval(T, ip);
    return val.real();
+}
+
+void ImagPartCoefficient::SetTime(real_t t)
+{
+   Coefficient::SetTime(t);
+   complex_coef_.SetTime(t);
 }
 
 real_t
@@ -40,6 +52,12 @@ RealPartVectorCoefficient::RealPartVectorCoefficient(ComplexVectorCoefficient &
      val_(vdim)
 {}
 
+void RealPartVectorCoefficient::SetTime(real_t t)
+{
+   VectorCoefficient::SetTime(t);
+   complex_vcoef_.SetTime(t);
+}
+
 void
 RealPartVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
                                 const IntegrationPoint &ip)
@@ -54,6 +72,12 @@ ImagPartVectorCoefficient::ImagPartVectorCoefficient(ComplexVectorCoefficient &
      complex_vcoef_(complex_vcoef),
      val_(vdim)
 {}
+
+void ImagPartVectorCoefficient::SetTime(real_t t)
+{
+   VectorCoefficient::SetTime(t);
+   complex_vcoef_.SetTime(t);
+}
 
 void
 ImagPartVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -70,6 +94,12 @@ RealPartMatrixCoefficient::RealPartMatrixCoefficient(ComplexMatrixCoefficient &
      val_(height, width)
 {}
 
+void RealPartMatrixCoefficient::SetTime(real_t t)
+{
+   MatrixCoefficient::SetTime(t);
+   complex_mcoef_.SetTime(t);
+}
+
 void
 RealPartMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                                 const IntegrationPoint &ip)
@@ -84,6 +114,12 @@ ImagPartMatrixCoefficient::ImagPartMatrixCoefficient(ComplexMatrixCoefficient &
      complex_mcoef_(complex_mcoef),
      val_(height, width)
 {}
+
+void ImagPartMatrixCoefficient::SetTime(real_t t)
+{
+   MatrixCoefficient::SetTime(t);
+   complex_mcoef_.SetTime(t);
+}
 
 void
 ImagPartMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
@@ -115,7 +151,7 @@ ComplexCoefficient::Eval(ElementTransformation &T,
    // Avoid circular dependency
    MFEM_VERIFY(std::addressof(real_coef_) != std::addressof(re_part_coef_) &&
                std::addressof(imag_coef_) != std::addressof(im_part_coef_),
-               "Classes dervied from ComplexCoefficient must either "
+               "Classes derived from ComplexCoefficient must either "
                "implement an Eval method or supply Coefficients "
                "for both the real and imaginary parts of the field.");
 
@@ -140,7 +176,7 @@ void ComplexVectorCoefficient::Eval(ComplexVector &V, ElementTransformation &T,
    // Avoid circular dependency
    MFEM_VERIFY(std::addressof(real_vcoef_) != std::addressof(re_part_vcoef_) &&
                std::addressof(imag_vcoef_) != std::addressof(im_part_vcoef_),
-               "Classes dervied from ComplexVectorCoefficient must either "
+               "Classes derived from ComplexVectorCoefficient must either "
                "implement an Eval method or supply VectorCoefficients "
                "for both the real and imaginary parts of the field.");
 
@@ -153,22 +189,50 @@ void ComplexVectorCoefficient::Eval(ComplexVector &V, ElementTransformation &T,
    V.Set(V_r_, V_i_);
 }
 
+ComplexMatrixCoefficient::ComplexMatrixCoefficient(MatrixCoefficient &m_r,
+                                                   MatrixCoefficient &m_i)
+   : height(m_r.GetHeight()), width(m_r.GetWidth()), time(m_r.GetTime()),
+     re_part_mcoef_(*this), im_part_mcoef_(*this),
+     real_mcoef_(m_r), imag_mcoef_(m_i)
+{
+   MFEM_ASSERT(m_r.GetHeight() == m_i.GetHeight() &&
+               m_r.GetWidth() == m_i.GetWidth(), "ComplexMatrixCoefficient"
+               " - incompatible matrix dimensions of real and imaginary parts.");
+
+   m_i.SetTime(time);
+}
+
+void ComplexMatrixCoefficient::Eval(ComplexDenseMatrixData &K,
+                                    ElementTransformation &T,
+                                    const IntegrationPoint &ip)
+{
+   // Avoid circular dependency.
+   MFEM_VERIFY(std::addressof(real_mcoef_) != std::addressof(re_part_mcoef_) &&
+               std::addressof(imag_mcoef_) != std::addressof(im_part_mcoef_),
+               "Classes derived from ComplexMatrixCoefficient must either "
+               "implement an Eval method or supply MatrixCoefficients "
+               "for both the real and imaginary parts of the field.");
+
+   M_r_.SetSize(height, width);
+   M_i_.SetSize(height, width);
+
+   real_mcoef_.Eval(M_r_, T, ip);
+   imag_mcoef_.Eval(M_i_, T, ip);
+
+   K.SetSize(height, width);
+   K.Set(M_r_, M_i_);
+}
+
 ComplexConstantCoefficient::ComplexConstantCoefficient(
    const complex_t z)
    : val(z), real_coef(z.real()), imag_coef(z.imag())
-{
-   real_coef_ = real_coef;
-   imag_coef_ = imag_coef;
-}
+{ }
 
 ComplexConstantCoefficient::ComplexConstantCoefficient(
    real_t z_r, real_t z_i)
    : real_coef(z_r), imag_coef(z_i)
 {
    val = complex_t(z_r, z_i);
-
-   real_coef_ = real_coef;
-   imag_coef_ = imag_coef;
 }
 
 complex_t ComplexFunctionCoefficient::Eval(ElementTransformation & T,
@@ -214,4 +278,3 @@ void ComplexVectorFunctionCoefficient::Eval(ComplexVector &V,
 }
 
 } // end namespace mfem
-

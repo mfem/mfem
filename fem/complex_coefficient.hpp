@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
+#include "../linalg/complex_vector.hpp"
 #include "coefficient.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
@@ -35,8 +36,10 @@ public:
    RealPartCoefficient(ComplexCoefficient & complex_coef)
       : complex_coef_(complex_coef) {}
 
+   void SetTime(real_t t) override;
+
    real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip);
+               const IntegrationPoint &ip) override;
 };
 
 /// Standard Coefficient which returns the imaginary part of a
@@ -50,8 +53,10 @@ public:
    ImagPartCoefficient(ComplexCoefficient & complex_coef)
       : complex_coef_(complex_coef) {}
 
+   void SetTime(real_t t) override;
+
    real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip);
+               const IntegrationPoint &ip) override;
 };
 
 typedef ImagPartCoefficient ImaginaryPartCoefficient;
@@ -65,8 +70,10 @@ private:
 public:
    RealPartVectorCoefficient(ComplexVectorCoefficient & complex_vcoef);
 
+   void SetTime(real_t t) override;
+
    void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip);
+             const IntegrationPoint &ip) override;
 };
 
 class ImagPartVectorCoefficient : public VectorCoefficient
@@ -78,8 +85,10 @@ private:
 public:
    ImagPartVectorCoefficient(ComplexVectorCoefficient & complex_vcoef);
 
+   void SetTime(real_t t) override;
+
    void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip);
+             const IntegrationPoint &ip) override;
 };
 
 typedef ImagPartVectorCoefficient ImaginaryPartVectorCoefficient;
@@ -88,26 +97,30 @@ class RealPartMatrixCoefficient : public MatrixCoefficient
 {
 private:
    ComplexMatrixCoefficient &complex_mcoef_;
-   mutable ComplexTypeDenseMatrix val_;
+   mutable ComplexDenseMatrixData val_;
 
 public:
    RealPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
 
+   void SetTime(real_t t) override;
+
    void Eval(DenseMatrix &M, ElementTransformation &T,
-             const IntegrationPoint &ip);
+             const IntegrationPoint &ip) override;
 };
 
 class ImagPartMatrixCoefficient : public MatrixCoefficient
 {
 private:
    ComplexMatrixCoefficient &complex_mcoef_;
-   mutable ComplexTypeDenseMatrix val_;
+   mutable ComplexDenseMatrixData val_;
 
 public:
    ImagPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
 
-   void Eval(DenseMatrix &V, ElementTransformation &T,
-             const IntegrationPoint &ip);
+   void SetTime(real_t t) override;
+
+   void Eval(DenseMatrix &M, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 typedef ImagPartMatrixCoefficient ImaginaryPartMatrixCoefficient;
@@ -135,14 +148,31 @@ protected:
 public:
 
    ComplexCoefficient();
+
+   /** @brief Construct a complex coefficient from real and imaginary parts.
+
+       The supplied coefficients are not owned and must outlive this object. */
    ComplexCoefficient(Coefficient &c_r, Coefficient &c_i);
+
+   /// @note This class is non-copyable and non-movable because its internal
+   /// real and imaginary views reference this object.
+   ComplexCoefficient(const ComplexCoefficient &) = delete;
+   ComplexCoefficient(ComplexCoefficient &&) = delete;
+   ComplexCoefficient &operator=(const ComplexCoefficient &) = delete;
+   ComplexCoefficient &operator=(ComplexCoefficient &&) = delete;
 
    /// Set the time for time dependent coefficients
    virtual void SetTime(real_t t)
-   { time = t; real_coef_.SetTime(t); imag_coef_.SetTime(t); }
+   {
+      time = t;
+      re_part_coef_.Coefficient::SetTime(t);
+      im_part_coef_.Coefficient::SetTime(t);
+      if (&real_coef_ != &re_part_coef_) { real_coef_.SetTime(t); }
+      if (&imag_coef_ != &im_part_coef_) { imag_coef_.SetTime(t); }
+   }
 
    /// Get the time for time dependent coefficients
-   real_t GetTime() { return time; }
+   real_t GetTime() const { return time; }
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip. */
@@ -192,8 +222,7 @@ public:
     discretized. This class can also be used in a more general way to
     represent functions that don't necessarily belong to a FE space,
     e.g., to project onto ComplexGridFunctions to use as initial
-    conditions, exact solutions, etc. See, e.g., ex22 for these
-    uses. */
+    conditions, exact solutions, etc. See, e.g., ex22 for these uses. */
 class ComplexVectorCoefficient
 {
 protected:
@@ -218,15 +247,31 @@ public:
         real_vcoef_(re_part_vcoef_), imag_vcoef_(im_part_vcoef_)
    { }
 
+   /** @brief Construct a complex vector coefficient from real and imaginary
+       parts.
+
+       The supplied coefficients are not owned and must outlive this object. */
    ComplexVectorCoefficient(VectorCoefficient &v_r, VectorCoefficient &v_i);
 
+   /// @note This class is non-copyable and non-movable because its internal
+   /// real and imaginary views reference this object.
+   ComplexVectorCoefficient(const ComplexVectorCoefficient &) = delete;
+   ComplexVectorCoefficient(ComplexVectorCoefficient &&) = delete;
+   ComplexVectorCoefficient &operator=(const ComplexVectorCoefficient &) = delete;
+   ComplexVectorCoefficient &operator=(ComplexVectorCoefficient &&) = delete;
 
    /// Set the time for time dependent coefficients
    virtual void SetTime(real_t t)
-   { time = t; real_vcoef_.SetTime(t); imag_vcoef_.SetTime(t); }
+   {
+      time = t;
+      re_part_vcoef_.VectorCoefficient::SetTime(t);
+      im_part_vcoef_.VectorCoefficient::SetTime(t);
+      if (&real_vcoef_ != &re_part_vcoef_) { real_vcoef_.SetTime(t); }
+      if (&imag_vcoef_ != &im_part_vcoef_) { imag_vcoef_.SetTime(t); }
+   }
 
    /// Get the time for time dependent coefficients
-   real_t GetTime() { return time; }
+   real_t GetTime() const { return time; }
 
    /// Returns dimension of the vector.
    int GetVDim() { return vdim; }
@@ -311,11 +356,31 @@ public:
       real_mcoef_(re_part_mcoef_), imag_mcoef_(im_part_mcoef_)
    { }
 
+   /** @brief Construct a complex matrix coefficient from real and imaginary
+       parts.
+
+       The supplied coefficients are not owned and must outlive this object. */
+   ComplexMatrixCoefficient(MatrixCoefficient &m_r, MatrixCoefficient &m_i);
+
+   /// @note This class is non-copyable and non-movable because its internal
+   /// real and imaginary views reference this object.
+   ComplexMatrixCoefficient(const ComplexMatrixCoefficient &) = delete;
+   ComplexMatrixCoefficient(ComplexMatrixCoefficient &&) = delete;
+   ComplexMatrixCoefficient &operator=(const ComplexMatrixCoefficient &) = delete;
+   ComplexMatrixCoefficient &operator=(ComplexMatrixCoefficient &&) = delete;
+
    /// Set the time for time dependent coefficients
-   virtual void SetTime(real_t t) { time = t; }
+   virtual void SetTime(real_t t)
+   {
+      time = t;
+      re_part_mcoef_.MatrixCoefficient::SetTime(t);
+      im_part_mcoef_.MatrixCoefficient::SetTime(t);
+      if (&real_mcoef_ != &re_part_mcoef_) { real_mcoef_.SetTime(t); }
+      if (&imag_mcoef_ != &im_part_mcoef_) { imag_mcoef_.SetTime(t); }
+   }
 
    /// Get the time for time dependent coefficients
-   real_t GetTime() { return time; }
+   real_t GetTime() const { return time; }
 
    /// Get the height of the matrix.
    int GetHeight() const { return height; }
@@ -331,8 +396,23 @@ public:
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
-   virtual void Eval(ComplexTypeDenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip) = 0;
+   /** @note The default implementation combines the real and imaginary
+       coefficients supplied to the corresponding constructor. Classes
+       constructed with only dimensions must override this method. */
+   virtual void Eval(ComplexDenseMatrixData &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   /** @brief Evaluate the matrix coefficient in the element described by @a T
+       at the point @a ip at time @a t, storing the result in @a K. */
+   /** @note When this method is called, the caller must make sure that the
+       IntegrationPoint associated with @a T is the same as @a ip. This can be
+       achieved by calling T.SetIntPoint(&ip). */
+   void Eval(ComplexDenseMatrixData &K, ElementTransformation &T,
+             const IntegrationPoint &ip, real_t t)
+   {
+      SetTime(t);
+      Eval(K, T, ip);
+   }
 
    /** @brief Access a standard Coefficient object reproducing the real part of
        the complex-valued field */
@@ -369,8 +449,11 @@ public:
 
    ComplexConstantCoefficient(real_t z_r, real_t z_i = 0.);
 
+   Coefficient & real() override { return real_coef; }
+   Coefficient & imag() override { return imag_coef; }
+
    complex_t Eval(ElementTransformation &T,
-                  const IntegrationPoint &ip) { return val; }
+                  const IntegrationPoint &ip) override { return val; }
 };
 
 /// Complex-valued vector coefficient that is constant in space and time.
@@ -398,29 +481,29 @@ public:
    const ComplexVector& GetVec() const { return vec; }
 };
 
-/// Complex-valued vector coefficient that is constant in space and time.
+/// Complex-valued matrix coefficient that is constant in space and time.
 class ComplexMatrixConstantCoefficient : public ComplexMatrixCoefficient
 {
 private:
-   ComplexTypeDenseMatrix mat;
+   ComplexDenseMatrixData mat;
 
 public:
-   /// Construct the coefficient with constant vector @a v.
-   ComplexMatrixConstantCoefficient(const ComplexTypeDenseMatrix &m)
+   /// Construct the coefficient with constant matrix @a m.
+   ComplexMatrixConstantCoefficient(const ComplexDenseMatrixData &m)
       : ComplexMatrixCoefficient(m.Height(), m.Width()), mat(m) { }
 
-   /// Construct the coefficient with constant vector @a v.
+   /// Construct the coefficient with constant matrix @a m.
    ComplexMatrixConstantCoefficient(const DenseMatrix &m)
       : ComplexMatrixCoefficient(m.Height(), m.Width()), mat(m) { }
 
    using ComplexMatrixCoefficient::Eval;
 
    ///  Evaluate the matrix coefficient at @a ip.
-   void Eval(ComplexTypeDenseMatrix &M, ElementTransformation &T,
+   void Eval(ComplexDenseMatrixData &M, ElementTransformation &T,
              const IntegrationPoint &ip) override { M = mat; }
 
    /// Return a reference to the constant matrix in this class.
-   const ComplexTypeDenseMatrix& GetMat() const { return mat; }
+   const ComplexDenseMatrixData& GetMat() const { return mat; }
 };
 
 /// A general complex-valued function coefficient

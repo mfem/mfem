@@ -143,3 +143,59 @@ TEST_CASE("Complex Vector Move Assignment", "[ComplexVector]")
       REQUIRE(move_owning(i) == std::complex<real_t>(N - i, i + 1));
    }
 }
+
+TEST_CASE("Complex Vector arithmetic and component extraction",
+          "[ComplexVector]")
+{
+   Vector real_part({1.0, -2.0, 3.0});
+   Vector imag_part({4.0, 5.0, -6.0});
+   ComplexVector v(3);
+   v.UseDevice(true);
+   v.Set(real_part, imag_part);
+
+   const Vector &real_values = v.real();
+   const Vector &imag_values = v.imag();
+   for (int i = 0; i < v.Size(); i++)
+   {
+      REQUIRE(real_values(i) == MFEM_Approx(real_part(i)));
+      REQUIRE(imag_values(i) == MFEM_Approx(imag_part(i)));
+   }
+
+   ComplexVector w({complex_t(2.0, -1.0), complex_t(-3.0, 2.0),
+                    complex_t(4.0, 5.0)});
+   w.UseDevice(true);
+   const complex_t dot = v * w;
+   REQUIRE(dot.real() == MFEM_Approx(44.0));
+   REQUIRE(dot.imag() == MFEM_Approx(-21.0));
+
+   Vector weights({2.0, -3.0, 4.0});
+   const complex_t mixed_dot = v * weights;
+   REQUIRE(mixed_dot.real() == MFEM_Approx(20.0));
+   REQUIRE(mixed_dot.imag() == MFEM_Approx(-31.0));
+
+   ComplexVector expected(v);
+   expected += w;
+   expected -= w;
+   for (int i = 0; i < v.Size(); i++)
+   {
+      REQUIRE(expected(i).real() == MFEM_Approx(v(i).real()));
+      REQUIRE(expected(i).imag() == MFEM_Approx(v(i).imag()));
+   }
+
+   expected *= complex_t(2.0, -1.0);
+   expected /= complex_t(2.0, -1.0);
+   expected *= weights;
+   expected /= weights;
+   for (int i = 0; i < v.Size(); i++)
+   {
+      REQUIRE(expected(i).real() == MFEM_Approx(v(i).real()));
+      REQUIRE(expected(i).imag() == MFEM_Approx(v(i).imag()));
+   }
+
+   expected = real_part;
+   for (int i = 0; i < expected.Size(); i++)
+   {
+      REQUIRE(expected(i).real() == MFEM_Approx(real_part(i)));
+      REQUIRE(expected(i).imag() == MFEM_Approx(0.0));
+   }
+}

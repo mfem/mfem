@@ -238,7 +238,17 @@ public:
 
 };
 
-class ComplexTypeDenseMatrix
+/** @brief A lightweight, device-aware dense matrix of mfem::complex_t values.
+
+    This class provides storage, ownership, element access, and component-wise
+    arithmetic for complex dense values. It is not a Matrix or Operator; use
+    ComplexDenseMatrix when a complex operator represented by real and
+    imaginary DenseMatrix blocks is needed.
+
+    The real() and imag() methods return cached copies of the corresponding
+    components. They are not aliases of this matrix's storage and are refreshed
+    by each call. */
+class ComplexDenseMatrixData
 {
 protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
@@ -251,34 +261,37 @@ private:
    mutable DenseMatrix im_part;
 
 public:
-   /** Default constructor for DenseMatrix.
+   /** Default constructor for ComplexDenseMatrixData.
        Sets data = NULL and height = width = 0. */
-   ComplexTypeDenseMatrix();
+   ComplexDenseMatrixData();
 
    /// Copy constructor
-   ComplexTypeDenseMatrix(const ComplexTypeDenseMatrix &);
-   ComplexTypeDenseMatrix(const DenseMatrix &);
+   ComplexDenseMatrixData(const ComplexDenseMatrixData &);
+   ComplexDenseMatrixData(const DenseMatrix &);
+
+   /// Move constructor.
+   ComplexDenseMatrixData(ComplexDenseMatrixData &&) = default;
 
    /// Creates square matrix of size s.
-   explicit ComplexTypeDenseMatrix(int s);
+   explicit ComplexDenseMatrixData(int s);
 
    /// Creates rectangular matrix of size m x n.
-   ComplexTypeDenseMatrix(int m, int n);
+   ComplexDenseMatrixData(int m, int n);
 
-   /// Construct a ComplexTypeDenseMatrix using an existing data array.
-   /** The ComplexTypeDenseMatrix does not assume ownership of the data array,
+   /// Construct a ComplexDenseMatrixData using an existing data array.
+   /** The ComplexDenseMatrixData does not assume ownership of the data array,
        i.e. it will not delete the array. */
-   ComplexTypeDenseMatrix(complex_t *d, int h, int w)
+   ComplexDenseMatrixData(complex_t *d, int h, int w)
       : height(h), width(w) { UseExternalData(d, h, w); }
 
    /// Create a dense matrix using a braced initializer list
    /// The inner lists correspond to rows of the matrix
    template <int M, int N, typename T = real_t>
-   explicit ComplexTypeDenseMatrix(const T (&values)[M][N]) :
-      ComplexTypeDenseMatrix(
+   explicit ComplexDenseMatrixData(const T (&values)[M][N]) :
+      ComplexDenseMatrixData(
          M, N)
    {
-      // DenseMatrix is column-major so copies have to be element-wise
+      // Storage is column-major so copies have to be element-wise.
       for (int i = 0; i < M; i++)
       {
          for (int j = 0; j < N; j++)
@@ -288,30 +301,31 @@ public:
       }
    }
 
-   /// Change the data array and the size of the DenseMatrix.
-   /** The DenseMatrix does not assume ownership of the data array, i.e. it will
-       not delete the data array @a d. This method should not be used with
-       DenseMatrix that owns its current data array. */
+   /// Change the data array and the size of the ComplexDenseMatrixData.
+   /** The ComplexDenseMatrixData does not assume ownership of the data array,
+       i.e. it will not delete the data array @a d. This method should not be used with
+       a ComplexDenseMatrixData that owns its current data array. */
    void UseExternalData(complex_t *d, int h, int w)
    {
       data.Wrap(d, h*w, false);
       height = h; width = w;
    }
 
-   /// Change the data array and the size of the DenseMatrix.
-   /** The DenseMatrix does not assume ownership of the data array, i.e. it will
-       not delete the new array @a d. This method will delete the current data
-       array, if owned. */
+   /// Change the data array and the size of the ComplexDenseMatrixData.
+   /** The ComplexDenseMatrixData does not assume ownership of the data array,
+       i.e. it will not delete the new array @a d. This method will delete the
+       current data array, if owned. */
    void Reset(complex_t *d, int h, int w)
-   { if (OwnsData()) { data.Delete(); } UseExternalData(d, h, w); }
+   { data.Delete(); UseExternalData(d, h, w); }
 
-   /** Clear the data array and the dimensions of the DenseMatrix. This method
-       should not be used with DenseMatrix that owns its current data array. */
+   /** Clear the data array and the dimensions of the ComplexDenseMatrixData.
+       This method should not be used with a ComplexDenseMatrixData that owns
+       its current data array. */
    void ClearExternalData() { data.Reset(); height = width = 0; }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
    void Clear()
-   { if (OwnsData()) { data.Delete(); } ClearExternalData(); }
+   { data.Delete(); height = width = 0; }
 
    /// Get the height (size of output) of the Operator. Synonym with NumRows().
    inline int Height() const { return height; }
@@ -331,26 +345,32 @@ public:
    // Total size = width*height
    int TotalSize() const { return width*height; }
 
-   /// Change the size of the DenseMatrix to s x s.
+   /// Change the size of the ComplexDenseMatrixData to s x s.
    void SetSize(int s) { SetSize(s, s); }
 
-   /// Change the size of the DenseMatrix to h x w.
+   /// Change the size of the ComplexDenseMatrixData to h x w.
    void SetSize(int h, int w);
 
-   /// Returns the matrix data array.
+   /// Returns the matrix data array, casting away constness.
    inline complex_t *Data() const
    {
       return const_cast<complex_t*>
              ((const complex_t*)data);
    }
 
-   /// Returns the matrix data array.
+   /// Returns the matrix data array, casting away constness.
    inline complex_t *GetData() const { return Data(); }
 
    Memory<complex_t > &GetMemory() { return data; }
    const Memory<complex_t > &GetMemory() const { return data; }
 
-   /// Return the DenseMatrix data (host pointer) ownership flag.
+   /// Enable execution of supported operations using mfem::Device.
+   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
+
+   /// Return the device flag of the underlying Memory object.
+   bool UseDevice() const { return data.UseDevice(); }
+
+   /// Return the ComplexDenseMatrixData data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
    /// Returns reference to a_{ij}.
@@ -366,31 +386,36 @@ public:
    const complex_t &Elem(int i, int j) const;
 
    /// Sets the matrix elements equal to constant c
-   ComplexTypeDenseMatrix &operator=(real_t c);
-   ComplexTypeDenseMatrix &operator=(complex_t c);
+   ComplexDenseMatrixData &operator=(real_t c);
+   ComplexDenseMatrixData &operator=(complex_t c);
 
    /// Copy the matrix entries from the given array
-   ComplexTypeDenseMatrix &operator=(const real_t *d);
-   ComplexTypeDenseMatrix &operator=(const complex_t *d);
+   ComplexDenseMatrixData &operator=(const real_t *d);
+   ComplexDenseMatrixData &operator=(const complex_t *d);
 
    /// Sets the matrix size and elements equal to those of m
-   ComplexTypeDenseMatrix &operator=(const DenseMatrix &m);
-   ComplexTypeDenseMatrix &operator=(const ComplexTypeDenseMatrix &m);
+   ComplexDenseMatrixData &operator=(const DenseMatrix &m);
+   ComplexDenseMatrixData &operator=(const ComplexDenseMatrixData &m);
 
-   ComplexTypeDenseMatrix &operator+=(const real_t *m);
-   ComplexTypeDenseMatrix &operator+=(const complex_t *m);
-   ComplexTypeDenseMatrix &operator+=(const DenseMatrix &m);
-   ComplexTypeDenseMatrix &operator+=(const ComplexTypeDenseMatrix &m);
+   /// Move assignment.
+   ComplexDenseMatrixData &operator=(ComplexDenseMatrixData &&) = default;
 
-   ComplexTypeDenseMatrix &operator-=(const DenseMatrix &m);
-   ComplexTypeDenseMatrix &operator-=(const ComplexTypeDenseMatrix &m);
+   ComplexDenseMatrixData &operator+=(const real_t *m);
+   ComplexDenseMatrixData &operator+=(const complex_t *m);
+   ComplexDenseMatrixData &operator+=(const DenseMatrix &m);
+   ComplexDenseMatrixData &operator+=(const ComplexDenseMatrixData &m);
 
-   ComplexTypeDenseMatrix &operator*=(real_t c);
-   ComplexTypeDenseMatrix &operator*=(complex_t c);
+   ComplexDenseMatrixData &operator-=(const DenseMatrix &m);
+   ComplexDenseMatrixData &operator-=(const ComplexDenseMatrixData &m);
 
-   /// (*this) = x + i * y
-   ComplexTypeDenseMatrix &Set(const DenseMatrix &x, const DenseMatrix &y);
+   ComplexDenseMatrixData &operator*=(real_t c);
+   ComplexDenseMatrixData &operator*=(complex_t c);
 
+   /// Set this matrix to x + i * y.
+   /** Both input matrices must have the same dimensions as this matrix. */
+   ComplexDenseMatrixData &Set(const DenseMatrix &x, const DenseMatrix &y);
+
+   /// Return the number of bytes allocated for the matrix data.
    std::size_t MemoryUsage() const
    { return data.Capacity() * sizeof(complex_t); }
 
@@ -418,34 +443,34 @@ public:
    complex_t *HostReadWrite()
    { return mfem::ReadWrite(data, Height()*Width(), false); }
 
-   void Swap(ComplexTypeDenseMatrix &other);
+   void Swap(ComplexDenseMatrixData &other);
 
-   /// Return a reference to the real part of this matrix
+   /// Return a cached copy of the real part of this matrix.
    const DenseMatrix &real() const;
 
-   /// Return a reference to the imaginary part of this matrix
+   /// Return a cached copy of the imaginary part of this matrix.
    const DenseMatrix &imag() const;
 
-   /// Destroys dense matrix.
-   virtual ~ComplexTypeDenseMatrix();
+   /// Destroys the matrix.
+   virtual ~ComplexDenseMatrixData();
 };
 
-/// Specialization of the template function Swap<> for class ComplexTypeDenseMatrix
-template<> inline void Swap<ComplexTypeDenseMatrix>(ComplexTypeDenseMatrix &a,
-                                                    ComplexTypeDenseMatrix &b)
+/// Specialization of the template function Swap<> for class ComplexDenseMatrixData
+template<> inline void Swap<ComplexDenseMatrixData>(ComplexDenseMatrixData &a,
+                                                    ComplexDenseMatrixData &b)
 {
    a.Swap(b);
 }
 
 // Inline methods
 
-inline complex_t &ComplexTypeDenseMatrix::operator()(int i, int j)
+inline complex_t &ComplexDenseMatrixData::operator()(int i, int j)
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    return data[i+j*height];
 }
 
-inline const complex_t &ComplexTypeDenseMatrix::operator()
+inline const complex_t &ComplexDenseMatrixData::operator()
 (int i, int j) const
 {
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");

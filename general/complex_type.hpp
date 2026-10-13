@@ -59,6 +59,18 @@ struct Complex : public DoubleComplex_t
    MFEM_HOST_DEVICE real_t imag() const { return y; }
    MFEM_HOST_DEVICE void imag(real_t i) { y = i; }
 
+   MFEM_HOST_DEVICE Complex &operator+=(const Complex &z)
+   { x += z.x; y += z.y; return *this; }
+
+   MFEM_HOST_DEVICE Complex &operator+=(real_t r)
+   { x += r; return *this; }
+
+   MFEM_HOST_DEVICE Complex &operator-=(const Complex &z)
+   { x -= z.x; y -= z.y; return *this; }
+
+   MFEM_HOST_DEVICE Complex &operator-=(real_t r)
+   { x -= r; return *this; }
+
    template <typename U>
    MFEM_HOST_DEVICE inline Complex &operator*=(const U &z)
    {
@@ -82,6 +94,36 @@ MFEM_HOST_DEVICE inline Complex operator+(const Complex &a, const Complex &b)
    return Complex(a.real() + b.real(), a.imag() + b.imag());
 }
 
+MFEM_HOST_DEVICE inline Complex operator+(const Complex &z, const real_t d)
+{
+   return Complex(z.real() + d, z.imag());
+}
+
+MFEM_HOST_DEVICE inline Complex operator+(const real_t d, const Complex &z)
+{
+   return z + d;
+}
+
+MFEM_HOST_DEVICE inline Complex operator-(const Complex &z)
+{
+   return Complex(-z.real(), -z.imag());
+}
+
+MFEM_HOST_DEVICE inline Complex operator-(const Complex &a, const Complex &b)
+{
+   return Complex(a.real() - b.real(), a.imag() - b.imag());
+}
+
+MFEM_HOST_DEVICE inline Complex operator-(const Complex &z, const real_t d)
+{
+   return Complex(z.real() - d, z.imag());
+}
+
+MFEM_HOST_DEVICE inline Complex operator-(const real_t d, const Complex &z)
+{
+   return Complex(d - z.real(), -z.imag());
+}
+
 MFEM_HOST_DEVICE inline Complex operator*(const real_t d, const Complex &z)
 {
    return Complex(z.real() * d, z.imag() * d);
@@ -96,6 +138,23 @@ MFEM_HOST_DEVICE inline Complex operator*(const Complex &a, const Complex &b)
 MFEM_HOST_DEVICE inline Complex operator/(const Complex &z, const real_t &d)
 {
    return Complex(z.real() / d, z.imag() / d);
+}
+
+MFEM_HOST_DEVICE inline Complex operator/(const Complex &a, const Complex &b)
+{
+   const real_t n = b.real() * b.real() + b.imag() * b.imag();
+   return Complex((a.real() * b.real() + a.imag() * b.imag()) / n,
+                  (a.imag() * b.real() - a.real() * b.imag()) / n);
+}
+
+MFEM_HOST_DEVICE inline Complex conj(const Complex &z)
+{
+   return Complex(z.real(), -z.imag());
+}
+
+MFEM_HOST_DEVICE inline real_t norm(const Complex &z)
+{
+   return z.real() * z.real() + z.imag() * z.imag();
 }
 
 MFEM_HOST_DEVICE inline real_t zAbs(const Complex &z)

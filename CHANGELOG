@@ -11,6 +11,20 @@
 Version 4.10.1 (development)
 ============================
 
+Discretization improvements
+---------------------------
+- ComplexCoefficient, ComplexVectorCoefficient, and ComplexMatrixCoefficient
+  provide scalar, vector, and matrix-valued complex coefficient support.
+  Complex-valued FEM classes now include support for these complex-valued
+  coefficient classes including templated methods for adding existing
+  real-valued integrators as if they accepted complex-valued coefficients.
+
+Linear Algebra Improvements
+---------------------------
+- Added ComplexVector and ComplexDenseMatrixData classes as return types for
+  the new complex-valued Coefficient classes. These can also be used in limited
+  linear algebra contexts. Notably matrix-vector products are _not_ supported by
+  ComplexDenseMatrixData.
 
 Version 4.10, released on Sep 1, 2026
 =====================================

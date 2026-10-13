@@ -1020,42 +1020,44 @@ void ComplexCholeskyFactors::GetInverseMatrix(int m, real_t * X_r,
    delete [] X;
 }
 
-ComplexTypeDenseMatrix::ComplexTypeDenseMatrix()
+ComplexDenseMatrixData::ComplexDenseMatrixData()
    : height(0), width(0)
 {}
 
-ComplexTypeDenseMatrix::ComplexTypeDenseMatrix(const ComplexTypeDenseMatrix &m)
+ComplexDenseMatrixData::ComplexDenseMatrixData(const ComplexDenseMatrixData &m)
    : height(m.Height()), width(m.Width())
 {
    const int hw = height * width;
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data.New(hw);
-      std::memcpy(data, m.data, sizeof(complex_t)*hw);
+      data.New(hw, m.data.GetMemoryType());
+      data.CopyFrom(m.data, hw);
    }
+   UseDevice(m.UseDevice());
 }
 
-ComplexTypeDenseMatrix::ComplexTypeDenseMatrix(const DenseMatrix &m)
+ComplexDenseMatrixData::ComplexDenseMatrixData(const DenseMatrix &m)
    : height(m.Height()), width(m.Width())
 {
    const int hw = height * width;
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data.New(hw);
-
+      data.New(hw, m.GetMemory().GetMemoryType());
+      const auto x = m.HostRead();
+      auto y = HostWrite();
       for (int i = 0; i < hw; i++)
       {
-         data[i] = m.data[i];
+         y[i] = x[i];
       }
    }
 }
 
-ComplexTypeDenseMatrix::ComplexTypeDenseMatrix(int s)
+ComplexDenseMatrixData::ComplexDenseMatrixData(int s)
    : height(s), width(s)
 {
-   MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
+   MFEM_ASSERT(s >= 0, "invalid ComplexDenseMatrixData size: " << s);
    if (s > 0)
    {
       data.New(s*s);
@@ -1063,11 +1065,11 @@ ComplexTypeDenseMatrix::ComplexTypeDenseMatrix(int s)
    }
 }
 
-ComplexTypeDenseMatrix::ComplexTypeDenseMatrix(int m, int n)
+ComplexDenseMatrixData::ComplexDenseMatrixData(int m, int n)
    : height(m), width(n)
 {
    MFEM_ASSERT(m >= 0 && n >= 0,
-               "invalid DenseMatrix size: " << m << " x " << n);
+               "invalid ComplexDenseMatrixData size: " << m << " x " << n);
    const int capacity = m*n;
    if (capacity > 0)
    {
@@ -1076,10 +1078,10 @@ ComplexTypeDenseMatrix::ComplexTypeDenseMatrix(int m, int n)
    }
 }
 
-void ComplexTypeDenseMatrix::SetSize(int h, int w)
+void ComplexDenseMatrixData::SetSize(int h, int w)
 {
    MFEM_ASSERT(h >= 0 && w >= 0,
-               "invalid ComplexTypeDenseMatrix size: " << h << " x " << w);
+               "invalid ComplexDenseMatrixData size: " << h << " x " << w);
    if (Height() == h && Width() == w)
    {
       return;
@@ -1089,185 +1091,201 @@ void ComplexTypeDenseMatrix::SetSize(int h, int w)
    const int hw = h*w;
    if (hw > data.Capacity())
    {
+      const MemoryType mt = data.GetMemoryType();
+      const bool use_dev = data.UseDevice();
       data.Delete();
-      data.New(hw);
-      *this = 0.0; // init with zeroes
+      data.New(hw, mt);
+      data.UseDevice(use_dev);
    }
+   *this = 0.0; // initialize all entries after a size change
 }
 
 /// Returns reference to a_{ij}.
-complex_t &ComplexTypeDenseMatrix::Elem(int i, int j)
+complex_t &ComplexDenseMatrixData::Elem(int i, int j)
 {
    return (*this)(i,j);
 }
 
 /// Returns constant reference to a_{ij}.
-const complex_t &ComplexTypeDenseMatrix::Elem(int i, int j) const
+const complex_t &ComplexDenseMatrixData::Elem(int i, int j) const
 {
    return (*this)(i,j);
 }
 
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator=(real_t c)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator=(real_t c)
 {
    const int s = Height()*Width();
-   for (int i = 0; i < s; i++)
-   {
-      data[i] = c;
-   }
+   const bool use_dev = UseDevice();
+   auto y = Write(use_dev);
+   mfem::forall_switch(use_dev, s, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] = c; });
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator=(complex_t c)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator=(complex_t c)
 {
    const int s = Height()*Width();
-   for (int i = 0; i < s; i++)
-   {
-      data[i] = c;
-   }
+   const bool use_dev = UseDevice();
+   auto y = Write(use_dev);
+   mfem::forall_switch(use_dev, s, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] = c; });
    return *this;
 }
 
 /// Copy the matrix entries from the given array
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator=(const real_t *d)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator=(const real_t *d)
 {
    const int s = Height()*Width();
+   auto y = HostWrite();
    for (int i = 0; i < s; i++)
    {
-      data[i] = d[i];
+      y[i] = d[i];
    }
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator=
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator=
 (const complex_t *d)
 {
    const int s = Height()*Width();
-   for (int i = 0; i < s; i++)
-   {
-      data[i] = d[i];
-   }
+   data.CopyFromHost(d, s);
    return *this;
 }
 
 /// Sets the matrix size and elements equal to those of m
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator=(const DenseMatrix &m)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator=(const DenseMatrix &m)
 {
    SetSize(m.height, m.width);
 
    const int hw = height * width;
+   const auto x = m.HostRead();
+   auto y = HostWrite();
    for (int i = 0; i < hw; i++)
    {
-      data[i] = m.data[i];
+      y[i] = x[i];
    }
 
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator=
-(const ComplexTypeDenseMatrix &m)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator=
+(const ComplexDenseMatrixData &m)
 {
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
+   data.CopyFrom(m.data, hw);
 
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator+=(const real_t *m)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator+=(const real_t *m)
 {
    const int s = Height()*Width();
+   auto y = HostReadWrite();
    for (int i = 0; i < s; i++)
    {
-      data[i] += m[i];
+      y[i] += m[i];
    }
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator+=
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator+=
 (const complex_t *m)
 {
    const int s = Height()*Width();
+   auto y = HostReadWrite();
    for (int i = 0; i < s; i++)
    {
-      data[i] += m[i];
+      y[i] += m[i];
    }
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator+=(const DenseMatrix &m)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator+=(const DenseMatrix &m)
 {
+   MFEM_ASSERT(height == m.Height() && width == m.Width(),
+               "incompatible matrix sizes.");
    const int hw = height * width;
+   const auto x = m.HostRead();
+   auto y = HostReadWrite();
    for (int i = 0; i < hw; i++)
    {
-      data[i] += m.data[i];
+      y[i] += x[i];
    }
 
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator+=
-(const ComplexTypeDenseMatrix &m)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator+=
+(const ComplexDenseMatrixData &m)
 {
+   MFEM_ASSERT(height == m.height && width == m.width,
+               "incompatible matrix sizes.");
    const int hw = height * width;
+   const bool use_dev = UseDevice() || m.UseDevice();
+   const auto x = m.Read(use_dev);
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, hw, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] += x[i]; });
+
+   return *this;
+}
+
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator-=(const DenseMatrix &m)
+{
+   MFEM_ASSERT(height == m.Height() && width == m.Width(),
+               "incompatible matrix sizes.");
+   const int hw = height * width;
+   const auto x = m.HostRead();
+   auto y = HostReadWrite();
    for (int i = 0; i < hw; i++)
    {
-      data[i] += m.data[i];
+      y[i] -= x[i];
    }
 
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator-=(const DenseMatrix &m)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator-=
+(const ComplexDenseMatrixData &m)
+{
+   MFEM_ASSERT(height == m.height && width == m.width,
+               "incompatible matrix sizes.");
+   const int hw = height * width;
+   const bool use_dev = UseDevice() || m.UseDevice();
+   const auto x = m.Read(use_dev);
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, hw, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] -= x[i]; });
+
+   return *this;
+}
+
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator*=(real_t c)
 {
    const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] -= m.data[i];
-   }
+   const bool use_dev = UseDevice();
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, hw, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] *= c; });
 
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator-=
-(const ComplexTypeDenseMatrix &m)
+ComplexDenseMatrixData &ComplexDenseMatrixData::operator*=(complex_t c)
 {
    const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] -= m.data[i];
-   }
+   const bool use_dev = UseDevice();
+   auto y = ReadWrite(use_dev);
+   mfem::forall_switch(use_dev, hw, [=] MFEM_HOST_DEVICE (int i)
+   { y[i] *= c; });
 
    return *this;
 }
 
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator*=(real_t c)
-{
-   const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] *= c;
-   }
-
-   return *this;
-}
-
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::operator*=(complex_t c)
-{
-   const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] *= c;
-   }
-
-   return *this;
-}
-
-ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::Set(const DenseMatrix &Mr,
+ComplexDenseMatrixData &ComplexDenseMatrixData::Set(const DenseMatrix &Mr,
                                                     const DenseMatrix &Mi)
 {
    MFEM_ASSERT(height == Mr.Height() && height == Mi.Height() &&
@@ -1275,45 +1293,54 @@ ComplexTypeDenseMatrix &ComplexTypeDenseMatrix::Set(const DenseMatrix &Mr,
                "incompatible Matrices!");
 
    const int hw = height * width;
+   const auto r = Mr.HostRead();
+   const auto im = Mi.HostRead();
+   auto z = HostWrite();
    for (int i = 0; i < hw; i++)
    {
-      data[i] = complex_t(Mr.data[i], Mi.data[i]);
+      z[i] = complex_t(r[i], im[i]);
    }
 
    return *this;
 }
 
-void ComplexTypeDenseMatrix::Swap(ComplexTypeDenseMatrix &other)
+void ComplexDenseMatrixData::Swap(ComplexDenseMatrixData &other)
 {
    mfem::Swap(width, other.width);
    mfem::Swap(height, other.height);
    mfem::Swap(data, other.data);
+   re_part.Swap(other.re_part);
+   im_part.Swap(other.im_part);
 }
 
-ComplexTypeDenseMatrix::~ComplexTypeDenseMatrix()
+ComplexDenseMatrixData::~ComplexDenseMatrixData()
 {
    data.Delete();
 }
 
-const DenseMatrix &ComplexTypeDenseMatrix::real() const
+const DenseMatrix &ComplexDenseMatrixData::real() const
 {
    re_part.SetSize(height, width);
    const int hw = height * width;
+   const auto z = HostRead();
+   auto r = re_part.HostWrite();
    for (int i = 0; i < hw; i++)
    {
-      re_part.data[i] = data[i].real();
+      r[i] = z[i].real();
    }
 
    return re_part;
 }
 
-const DenseMatrix &ComplexTypeDenseMatrix::imag() const
+const DenseMatrix &ComplexDenseMatrixData::imag() const
 {
    im_part.SetSize(height, width);
    const int hw = height * width;
+   const auto z = HostRead();
+   auto im = im_part.HostWrite();
    for (int i = 0; i < hw; i++)
    {
-      im_part.data[i] = data[i].imag();
+      im[i] = z[i].imag();
    }
 
    return im_part;

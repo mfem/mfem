@@ -23,6 +23,7 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #endif
+#include <cmath>
 #include <complex>
 
 namespace mfem
@@ -168,6 +169,11 @@ public:
 
    /// @brief Returns ||u_ex - u_h||_L2 for H1 or L2 elements
    ///
+   /// The complex error is computed by combining its real and imaginary parts:
+   /// $$\|u_{ex} - u_h\|_{L^2} =
+   /// \sqrt{\|\mathop{\rm Re}(u_{ex} - u_h)\|_{L^2}^2 +
+   ///        \|\mathop{\rm Im}(u_{ex} - u_h)\|_{L^2}^2}.$$
+   ///
    /// @param[in] re_exsol  Coefficient object reproducing the anticipated
    ///                   values of the real part of the scalar field, u_ex.
    /// @param[in] im_exsol  Coefficient object reproducing the anticipated
@@ -197,6 +203,8 @@ public:
                                  const Array<int> *elems = NULL) const;
 
    /// @brief Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   ///
+   /// The exact imaginary part is assumed to be zero.
    ///
    /// @param[in] re_exsol  Coefficient object reproducing the anticipated
    ///                   values of the real part of the scalar field, u_ex.
@@ -253,6 +261,9 @@ public:
 
    /// @brief Returns ||u_ex - u_h||_L2 for vector fields
    ///
+   /// The complex error is computed by combining the real and imaginary vector
+   /// errors with the same L2 norm used for each component.
+   ///
    /// @param[in] re_exsol  VectorCoefficient object reproducing the
    ///                   anticipated values of the real part of the vector
    ///                   field, u_ex.
@@ -284,6 +295,8 @@ public:
                                  const Array<int> *elems = NULL) const;
 
    /// @brief Returns ||u_ex - u_h||_L2 for vector fields
+   ///
+   /// The exact imaginary part is assumed to be zero.
    ///
    /// @param[in] re_exsol  VectorCoefficient object reproducing the
    ///                   anticipated values of the real part of the vector
@@ -326,36 +339,6 @@ public:
    /// Update the alias memory location of the real and imaginary GridFunction
    /// @a gfr and @a gfi to match the ComplexGridFunction.
    void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
-
-   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued scalar fields
-   ///
-   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
-   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL) const
-   {
-      real_t err_r = gfr->ComputeL2Error(exsolr, irs);
-      real_t err_i = gfi->ComputeL2Error(exsoli, irs);
-      return sqrt(err_r * err_r + err_i * err_i);
-   }
-
-   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued vector fields
-   ///
-   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
-   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
-                                 VectorCoefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
-   {
-      real_t err_r = gfr->ComputeL2Error(exsolr, irs, elems);
-      real_t err_i = gfi->ComputeL2Error(exsoli, irs, elems);
-      return sqrt(err_r * err_r + err_i * err_i);
-   }
 
    /// @brief Returns Max|u_ex - u_h| error for complex-valued H1 or L2 elements
    ///
@@ -407,7 +390,7 @@ public:
    ///                    equal to the number of local elements, indicating
    ///                    which elements to integrate over. Only those elements
    ///                    corresponding to non-zero entries in @a elems will
-   ///                    contribute to the computed L2 error.
+   ///                    contribute to the computed Lp error.
    ///
    /// @note If an array of integration rules is provided through @a irs, be
    ///       sure to include valid rules for each element type that may occur
@@ -1531,23 +1514,24 @@ public:
    /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
    ///        scalar fields
    ///
-   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
+   /// The globally reduced real and imaginary L2 errors are combined with
+   /// std::hypot. See ParGridFunction::ComputeL2Error for the integration-rule
+   /// and element-marker semantics.
    virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
    {
       real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
       real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
-      return hypot(err_r, err_i);
+      return std::hypot(err_r, err_i);
    }
 
+   /// @brief Returns the global L2 error with a zero exact imaginary part.
    virtual real_t ComputeL2Error(Coefficient &exsolr,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /// @brief Convenience overload using the real and imaginary parts of @a exsol.
    virtual real_t ComputeL2Error(ComplexCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
@@ -1558,10 +1542,9 @@ public:
    /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
    ///        vector fields
    ///
-   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
+   /// The globally reduced real and imaginary vector L2 errors are combined
+   /// with std::hypot. See ParGridFunction::ComputeL2Error for the
+   /// integration-rule and element-marker semantics.
    virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  VectorCoefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
@@ -1569,19 +1552,55 @@ public:
    {
       real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
       real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
-      return hypot(err_r, err_i);
+      return std::hypot(err_r, err_i);
    }
 
+   /// @brief Returns the global L2 error with a zero exact imaginary part.
    virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const;
 
+   /// @brief Convenience overload using the real and imaginary parts of @a exsol.
    virtual real_t ComputeL2Error(ComplexVectorCoefficient &exsol,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
    {
       return this->ComputeL2Error(exsol.real(), exsol.imag(), irs, elems);
    }
+
+   /// @brief Returns the global Max|u_ex - u_h| error for complex-valued
+   ///        scalar fields.
+   ///
+   /// The maximum complex magnitude is reduced across all MPI ranks.
+   virtual real_t ComputeMaxError(Coefficient &exsolr,
+                                  Coefficient &exsoli,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return ComputeLpError(infinity(), exsolr, exsoli, NULL, irs);
+   }
+
+   /// @brief Returns the global ||u_ex - u_h||_Lp error for complex-valued
+   ///        scalar fields.
+   ///
+   /// Computes the Lp norm of the complex magnitude over elements on all MPI
+   /// ranks. Each rank integrates its local contribution, which is then reduced
+   /// globally. For @a p equal to infinity, this returns the global maximum.
+   ///
+   /// @param[in] p        Positive finite exponent, or infinity.
+   /// @param[in] exsolr   Exact real-part coefficient.
+   /// @param[in] exsoli   Exact imaginary-part coefficient.
+   /// @param[in] weight   Optional scalar weighting coefficient.
+   /// @param[in] irs      Optional integration rules indexed by Geometry::Type.
+   /// @param[in] elems    Optional local-element marker.
+   ///
+   /// @see ParGridFunction::ComputeLpError for the corresponding real-valued
+   ///      reduction semantics.
+   virtual real_t ComputeLpError(const real_t p,
+                                 Coefficient &exsolr,
+                                 Coefficient &exsoli,
+                                 Coefficient *weight = NULL,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
 
    /// Save the local portion of the ParComplexGridFunction
    /** This differs from the serial ComplexGridFunction::Save in that it

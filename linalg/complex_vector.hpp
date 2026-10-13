@@ -18,6 +18,12 @@
 namespace mfem
 {
 
+/** @brief A device-aware vector of complex values.
+
+    ComplexVector provides the storage, ownership, and element-wise arithmetic
+    facilities of Vector for mfem::complex_t values. Its real() and imag()
+    methods return cached copies of the corresponding components; they are not
+    aliases of this vector's storage and are refreshed by each call. */
 class ComplexVector
 {
 private:
@@ -81,18 +87,18 @@ public:
          values.size())
    { std::copy(values.begin(), values.end(), begin()); }
 
-   /// Enable execution of Vector operations using the mfem::Device.
+   /// Enable execution of ComplexVector operations using the mfem::Device.
    /// The default is to use Backend::CPU (serial execution on each MPI rank),
    /// regardless of the mfem::Device configuration.
    ///
    /// When appropriate, MFEM functions and class methods will enable the use
-   /// of the mfem::Device for their Vector parameters.
+   /// of the mfem::Device for their ComplexVector parameters.
    ///
    /// Some derived classes, e.g. GridFunction, enable the use of the
    /// mfem::Device by default.
    virtual void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
-   /// Return the device flag of the Memory object used by the Vector
+   /// Return the device flag of the Memory object used by the ComplexVector.
    virtual bool UseDevice() const { return data.UseDevice(); }
 
    /// @brief Resize the vector to size @a s.
@@ -116,21 +122,21 @@ public:
    void SetSize(int s, const Vector &v)
    { SetSize(s, v.GetMemory().GetMemoryType()); }
 
-   /// Set the Vector data.
+   /// Set the ComplexVector data.
    /// @warning This method should be called only when OwnsData() is false.
    void SetData(complex_t *d)
    { data.Wrap(d, data.Capacity(), false); }
 
-   /// Set the Vector data and size.
-   /// The Vector does not assume ownership of the new data. The new size is
+   /// Set the ComplexVector data and size.
+   /// The ComplexVector does not assume ownership of the new data. The new size is
    /// also used as the new Capacity().
    /// @warning This method should be called only when OwnsData() is false.
    /// @sa NewDataAndSize().
    void SetDataAndSize(complex_t *d, int s)
    { data.Wrap(d, s, false); size = s; }
 
-   /// Set the Vector data and size, deleting the old data, if owned.
-   /// The Vector does not assume ownership of the new data. The new size is
+   /// Set the ComplexVector data and size, deleting the old data, if owned.
+   /// The ComplexVector does not assume ownership of the new data. The new size is
    /// also used as the new Capacity().
    /// @sa SetDataAndSize().
    void NewDataAndSize(complex_t *d, int s)
@@ -139,26 +145,26 @@ public:
       SetDataAndSize(d, s);
    }
 
-   /// Reset the Vector to use the given external Memory @a mem and size @a s.
-   /// If @a own_mem is false, the Vector will not own any of the pointers of
+   /// Reset the ComplexVector to use the given external Memory @a mem and size @a s.
+   /// If @a own_mem is false, the ComplexVector will not own any of the pointers of
    /// @a mem.
    ///
    /// Note that when @a own_mem is true, the @a mem object can be destroyed
    /// immediately by the caller but `mem.Delete()` should NOT be called since
-   /// the Vector object takes ownership of all pointers owned by @a mem.
+   /// the ComplexVector object takes ownership of all pointers owned by @a mem.
    ///
    /// @sa NewDataAndSize().
    inline void NewMemoryAndSize(const Memory<complex_t > &mem,
                                 int s, bool own_mem);
 
-   /// Reset the Vector to be a reference to a sub-vector of @a base.
+   /// Reset the ComplexVector to be a reference to a sub-vector of @a base.
    inline void MakeRef(ComplexVector &base, int offset, int size);
 
-   /// @brief Reset the Vector to be a reference to a sub-vector of @a base
+   /// @brief Reset the ComplexVector to be a reference to a sub-vector of @a base
    /// without changing its current size.
    inline void MakeRef(ComplexVector &base, int offset);
 
-   /// Set the Vector data (host pointer) ownership flag.
+   /// Set the ComplexVector data (host pointer) ownership flag.
    void MakeDataOwner() const { data.SetHostPtrOwner(true); }
 
    /// Destroy a vector
@@ -195,7 +201,7 @@ public:
    /// STL-like end (const version).
    inline const complex_t *end() const { return data + size; }
 
-   /// Return a reference to the Memory object used by the Vector.
+   /// Return a reference to the Memory object used by the ComplexVector.
    Memory<complex_t > &GetMemory() { return data; }
 
    /// @brief Return a reference to the Memory object used by the
@@ -210,36 +216,36 @@ public:
    void SyncAliasMemory(const ComplexVector &v) const
    { GetMemory().SyncAlias(v.GetMemory(),Size()); }
 
-   /// Read the Vector data (host pointer) ownership flag.
+   /// Read the ComplexVector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }
 
-   /// Changes the ownership of the data; after the call the Vector is empty
+   /// Changes the ownership of the data; after the call the ComplexVector is empty
    inline void StealData(complex_t **p)
    { *p = data; data.Reset(); size = 0; }
 
-   /// Changes the ownership of the data; after the call the Vector is empty
+   /// Changes the ownership of the data; after the call the ComplexVector is empty
    inline complex_t *StealData()
    { complex_t *p; StealData(&p); return p; }
 
-   /// Access Vector entries. Index i = 0 .. size-1.
+   /// Access ComplexVector entries. Index i = 0 .. size-1.
    complex_t &Elem(int i);
 
-   /// Read only access to Vector entries. Index i = 0 .. size-1.
+   /// Read only access to ComplexVector entries. Index i = 0 .. size-1.
    const complex_t &Elem(int i) const;
 
-   /// Access Vector entries using () for 0-based indexing.
+   /// Access ComplexVector entries using () for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
    inline complex_t &operator()(int i);
 
-   /// Read only access to Vector entries using () for 0-based indexing.
+   /// Read only access to ComplexVector entries using () for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
    inline const complex_t &operator()(int i) const;
 
-   /// Access Vector entries using [] for 0-based indexing.
+   /// Access ComplexVector entries using [] for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
    inline complex_t &operator[](int i) { return (*this)(i); }
 
-   /// Read only access to Vector entries using [] for 0-based indexing.
+   /// Read only access to ComplexVector entries using [] for 0-based indexing.
    /// @note If MFEM_DEBUG is enabled, bounds checking is performed.
    inline const complex_t &operator[](int i) const
    { return (*this)(i); }
@@ -279,7 +285,7 @@ public:
    ComplexVector &operator*=(const ComplexVector &v);
    ComplexVector &operator*=(const Vector &v);
 
-   /// Divide vector by a consant
+   /// Divide vector by a constant.
    ComplexVector &operator/=(complex_t c);
    ComplexVector &operator/=(real_t c);
 
@@ -309,10 +315,14 @@ public:
    /// Swap the contents of two Vectors
    inline void Swap(ComplexVector &other);
 
-   /// Return a reference to the real part of this vector
+   /// Return a cached copy of the real part of this vector.
+   /** The returned Vector is refreshed on every call to real() and is not an
+       alias of this ComplexVector's storage. */
    const Vector &real() const;
 
-   /// Return a reference to the imaginary part of this vector
+   /// Return a cached copy of the imaginary part of this vector.
+   /** The returned Vector is refreshed on every call to imag() and is not an
+       alias of this ComplexVector's storage. */
    const Vector &imag() const;
 
    /// Destroys vector.
@@ -461,6 +471,8 @@ inline void ComplexVector::Swap(ComplexVector &other)
 {
    mfem::Swap(data, other.data);
    mfem::Swap(size, other.size);
+   re_part.Swap(other.re_part);
+   im_part.Swap(other.im_part);
 }
 
 /// Specialization of the template function Swap<> for class ComplexVector

@@ -345,7 +345,7 @@ ComplexGridFunction::ComputeL2Error(Coefficient &re_exsol,
    real_t err_r = gfr->ComputeL2Error(re_exsol, irs, elems);
    real_t err_i = gfi->ComputeL2Error(im_exsol, irs, elems);
 
-   return hypot(err_r, err_i);
+   return std::hypot(err_r, err_i);
 }
 
 real_t
@@ -358,7 +358,7 @@ ComplexGridFunction::ComputeL2Error(Coefficient &re_exsol,
    real_t err_r = gfr->ComputeL2Error(re_exsol, irs, elems);
    real_t err_i = gfi->ComputeL2Error(zero_coef, irs, elems);
 
-   return hypot(err_r, err_i);
+   return std::hypot(err_r, err_i);
 }
 
 real_t
@@ -370,7 +370,7 @@ ComplexGridFunction::ComputeL2Error(VectorCoefficient &re_exsol,
    real_t err_r = gfr->ComputeL2Error(re_exsol, irs, elems);
    real_t err_i = gfi->ComputeL2Error(im_exsol, irs, elems);
 
-   return hypot(err_r, err_i);
+   return std::hypot(err_r, err_i);
 }
 
 real_t
@@ -384,7 +384,7 @@ ComplexGridFunction::ComputeL2Error(VectorCoefficient &re_exsol,
    real_t err_r = gfr->ComputeL2Error(re_exsol, irs, elems);
    real_t err_i = gfi->ComputeL2Error(zero_coef, irs, elems);
 
-   return hypot(err_r, err_i);
+   return std::hypot(err_r, err_i);
 }
 
 real_t
@@ -428,7 +428,7 @@ ComplexGridFunction::ComputeLpError(const real_t p,
          T->SetIntPoint(&ip);
          real_t diffr = valsr(j) - exsolr.Eval(*T, ip);
          real_t diffi = valsi(j) - exsoli.Eval(*T, ip);
-         real_t diff = hypot(diffr, diffi);
+         real_t diff = std::hypot(diffr, diffi);
          if (p < infinity())
          {
             diff = pow(diff, p);
@@ -1741,7 +1741,7 @@ ParComplexGridFunction::ComputeL2Error(Coefficient &exsolr,
 
    real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
    real_t err_i = pgfi->ComputeL2Error(zeroCoef, irs, elems);
-   return hypot(err_r, err_i);
+   return std::hypot(err_r, err_i);
 }
 
 real_t
@@ -1754,7 +1754,71 @@ ParComplexGridFunction::ComputeL2Error(VectorCoefficient &exsolr,
 
    real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
    real_t err_i = pgfi->ComputeL2Error(zeroCoef, irs, elems);
-   return hypot(err_r, err_i);
+   return std::hypot(err_r, err_i);
+}
+
+real_t
+ParComplexGridFunction::ComputeLpError(const real_t p,
+                                       Coefficient &exsolr,
+                                       Coefficient &exsoli,
+                                       Coefficient *weight,
+                                       const IntegrationRule *irs[],
+                                       const Array<int> *elems) const
+{
+   real_t error = 0.0;
+   Vector valsr;
+   Vector valsi;
+
+   for (int i = 0; i < pfes->GetNE(); i++)
+   {
+      if (elems != NULL && (*elems)[i] == 0) { continue; }
+
+      const FiniteElement *fe = pfes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         const int intorder = 2*fe->GetOrder() + 3;
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+
+      real_t elem_error = 0.0;
+      pgfr->GetValues(i, *ir, valsr);
+      pgfi->GetValues(i, *ir, valsi);
+      ElementTransformation *T = pfes->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         real_t diff = std::hypot(valsr(j) - exsolr.Eval(*T, ip),
+                                  valsi(j) - exsoli.Eval(*T, ip));
+         if (p < infinity())
+         {
+            diff = pow(diff, p);
+            if (weight) { diff *= weight->Eval(*T, ip); }
+            elem_error += ip.weight * T->Weight() * diff;
+         }
+         else
+         {
+            if (weight) { diff *= weight->Eval(*T, ip); }
+            error = std::max(error, diff);
+         }
+      }
+      if (p < infinity())
+      {
+         // Negative quadrature weights may cause the error to be negative.
+         error += fabs(elem_error);
+      }
+   }
+
+   if (p < infinity())
+   {
+      error = pow(error, 1.0/p);
+   }
+   return GlobalLpNorm(p, error, pfes->GetComm());
 }
 
 void ParComplexGridFunction::Save(std::ostream &os) const
