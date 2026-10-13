@@ -115,7 +115,7 @@ Array<int> AttributeSets::AttrToMarker(int max_attr, const Array<int> &attrs)
 {
    Array<int> marker(max_attr);
    marker = 0;
-   if (attrs.Size() == 0) { return marker; }
+   if (attrs.IsEmpty()) { return marker; }
 
    MFEM_VERIFY(attrs.Min() >= 1, "Found attribute less than one")
    MFEM_ASSERT(attrs.Max() <= max_attr, "Found attribute greater than max_attr")
