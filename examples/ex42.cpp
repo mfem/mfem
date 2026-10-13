@@ -1,6 +1,6 @@
 //                                MFEM Example 42
 //
-// Compile with: make ex42p
+// Compile with: make ex42
 //
 // Sample runs: ex42 -r 3
 //              ex42 -m ../data/hexagon.mesh -r 3 -o 3
