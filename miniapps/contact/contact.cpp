@@ -138,6 +138,11 @@ void PrintAMGOptions(const HypreBoomerAMG &amg,
    PrintAMGRealOption("max-row-sum", solver, HYPRE_BoomerAMGGetMaxRowSum);
    PrintAMGIntOption("coarsen-type", solver, HYPRE_BoomerAMGGetCoarsenType);
    PrintAMGOption("aggressive-levels", amg_agg_levels);
+   HYPRE_Int interp_type = 0;
+   const HYPRE_Int interp_ierr =
+      hypre_BoomerAMGGetInterpType((void *)solver, &interp_type);
+   PrintAMGOption("interpolation-type",
+                  interp_ierr ? "unavailable" : to_string(interp_type));
    PrintAMGIntOption("measure-type", solver, HYPRE_BoomerAMGGetMeasureType);
    PrintAMGRealOption("trunc-factor", solver, HYPRE_BoomerAMGGetTruncFactor);
    PrintAMGIntOption("p-max-elmts", solver, HYPRE_BoomerAMGGetPMaxElmts);
@@ -225,6 +230,7 @@ int main(int argc, char *argv[])
    // BoomerAMG options. Defaults match MFEM/HYPRE's GPU-oriented defaults.
    int amg_coarsen_type = 8;
    int amg_agg_levels = 0;
+   int amg_interp_type = 6;
    int amg_relax_type = 18;
    bool amg_print_options = false;
    // Device configuration string.
@@ -261,6 +267,9 @@ int main(int argc, char *argv[])
    args.AddOption(&amg_agg_levels, "-amg-agg-levels",
                   "--amg-agg-levels",
                   "BoomerAMG number of aggressive coarsening levels.");
+   args.AddOption(&amg_interp_type, "-amg-interp-type",
+                  "--amg-interpolation-type",
+                  "BoomerAMG interpolation type.");
    args.AddOption(&amg_relax_type, "-amg-relax-type",
                   "--amg-relax-type",
                   "BoomerAMG relaxation/smoother type.");
@@ -539,6 +548,7 @@ int main(int argc, char *argv[])
          amgfprec->GetAMG().SetSystemsOptions(3);
          amgfprec->GetAMG().SetCoarsening(amg_coarsen_type);
          amgfprec->GetAMG().SetAggressiveCoarsening(amg_agg_levels);
+         amgfprec->GetAMG().SetInterpolation(amg_interp_type);
          amgfprec->GetAMG().SetPrintLevel(0);
          amgfprec->GetAMG().SetRelaxType(amg_relax_type);
          if (amg_print_options && myid == 0)
@@ -559,6 +569,7 @@ int main(int argc, char *argv[])
          amgprec->SetSystemsOptions(3);
          amgprec->SetCoarsening(amg_coarsen_type);
          amgprec->SetAggressiveCoarsening(amg_agg_levels);
+         amgprec->SetInterpolation(amg_interp_type);
          amgprec->SetPrintLevel(0);
          amgprec->SetRelaxType(amg_relax_type);
          if (amg_print_options && myid == 0)
