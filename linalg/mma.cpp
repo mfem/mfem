@@ -20,7 +20,6 @@
 
 namespace
 {
-// check if C++ 14 or beyond
 inline ::std::unique_ptr<::mfem::real_t[]> allocArray(int size) { return (size != 0) ? ::std::make_unique<::mfem::real_t[]>(size) : nullptr; }
 }
 
@@ -989,9 +988,6 @@ MMA::MMA(const int nVar, int nCon, Vector &xval, int iter) : MMA(nVar, nCon,
 #ifdef MFEM_USE_MPI
 MMA::MMA(MPI_Comm comm_, int nVar, int nCon, real_t *xval, int iter)
 {
-   int rank = 0;
-   MPI_Comm_rank(comm_, &rank);
-
    // cache the communicator
    comm = comm_;
 
