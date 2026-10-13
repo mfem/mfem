@@ -399,7 +399,9 @@ TEST_CASE("Vector diffusion assembly levels",
    const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
    const auto assembly = GENERATE(AssemblyLevel::ELEMENT, AssemblyLevel::FULL);
    const bool matrix_coefficient = GENERATE(false, true);
-   CAPTURE(dim, dg, ordering, assembly, matrix_coefficient);
+   // Cover vector dimensions equal to and different from the mesh dimension
+   const int vdim = dim + GENERATE(0, 1);
+   CAPTURE(dim, dg, ordering, assembly, matrix_coefficient, vdim);
 
    Mesh mesh = dim == 2
                ? Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL)
@@ -413,14 +415,14 @@ TEST_CASE("Vector diffusion assembly levels",
    {
       fec.reset(new H1_FECollection(2, dim));
    }
-   FiniteElementSpace fes(&mesh, fec.get(), dim, ordering);
+   FiniteElementSpace fes(&mesh, fec.get(), vdim, ordering);
    ConstantCoefficient one(1.0);
-   DenseMatrix matrix(dim);
-   for (int i = 0; i < dim; ++i)
+   DenseMatrix matrix(vdim);
+   for (int i = 0; i < vdim; ++i)
    {
-      for (int j = 0; j < dim; ++j)
+      for (int j = 0; j < vdim; ++j)
       {
-         matrix(i, j) = 1 + i*dim + j;
+         matrix(i, j) = 1 + i*vdim + j;
       }
    }
    MatrixConstantCoefficient matrix_coeff(matrix);
@@ -433,7 +435,7 @@ TEST_CASE("Vector diffusion assembly levels",
       }
       else
       {
-         form.AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+         form.AddDomainIntegrator(new VectorDiffusionIntegrator(one, vdim));
       }
    };
 

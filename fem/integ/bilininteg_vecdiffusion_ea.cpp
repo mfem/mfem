@@ -74,71 +74,51 @@ static void EAVectorDiffusionAssemble2D(const int NE, const Array<real_t> &b,
             {
                for (int j2 = 0; j2 < D1D; ++j2)
                {
-                  real_t val_ch[4]; // Only used fully for matrix coefficients
                   for (int ch = 0; ch < num_channels; ++ch)
                   {
-                     val_ch[ch] = 0.;
-                  }
-
-                  for (int k1 = 0; k1 < Q1D; ++k1)
-                  {
-                     for (int k2 = 0; k2 < Q1D; ++k2)
+                     real_t val = 0.0;
+                     for (int k1 = 0; k1 < Q1D; ++k1)
                      {
-                        real_t g0i = r_G[k1][i1] * r_B[k2][i2];
-                        real_t g1i = r_B[k1][i1] * r_G[k2][i2];
-                        real_t g0j = r_G[k1][j1] * r_B[k2][j2];
-                        real_t g1j = r_B[k1][j1] * r_G[k2][j2];
-
-                        for (int ch = 0; ch < num_channels; ++ch)
+                        for (int k2 = 0; k2 < Q1D; ++k2)
                         {
-                           real_t D00 = D(k1, k2, 0, ch, e);
-                           real_t D01 = D(k1, k2, 1, ch, e);
-                           real_t D10 = D(k1, k2, 2, ch, e);
-                           real_t D11 = D(k1, k2, 3, ch, e);
+                           const real_t g0i = r_G[k1][i1] * r_B[k2][i2];
+                           const real_t g1i = r_B[k1][i1] * r_G[k2][i2];
+                           const real_t g0j = r_G[k1][j1] * r_B[k2][j2];
+                           const real_t g1j = r_B[k1][j1] * r_G[k2][j2];
+                           const real_t D00 = D(k1, k2, 0, ch, e);
+                           const real_t D01 = D(k1, k2, 1, ch, e);
+                           const real_t D10 = D(k1, k2, 2, ch, e);
+                           const real_t D11 = D(k1, k2, 3, ch, e);
 
-                           val_ch[ch] += g0i * D00 * g0j +
-                                         g0i * D01 * g1j +
-                                         g1i * D10 * g0j +
-                                         g1i * D11 * g1j;
+                           val += g0i * D00 * g0j +
+                                  g0i * D01 * g1j +
+                                  g1i * D10 * g0j +
+                                  g1i * D11 * g1j;
                         }
+                     }
+
+                     // Channel ch maps to the diagonal block (ch, ch) for
+                     // scalar and vector coefficients, and to the block
+                     // (ch / VDIM, ch % VDIM) for matrix coefficients.
+                     const int ci = diag_blocks ? ch : ch / VDIM;
+                     const int cj = diag_blocks ? ch : ch % VDIM;
+                     if (add)
+                     {
+                        A(i1, i2, ci, j1, j2, cj, e) += val;
+                     }
+                     else
+                     {
+                        A(i1, i2, ci, j1, j2, cj, e) = val;
                      }
                   }
 
-                  if (diag_blocks)
+                  if (diag_blocks && !add)
                   {
                      for (int ci = 0; ci < VDIM; ++ci)
                      {
                         for (int cj = 0; cj < VDIM; ++cj)
                         {
-                           const real_t val = ci == cj ? val_ch[ci]
-                                              : 0.;
-                           if (add)
-                           {
-                              A(i1, i2, ci, j1, j2, cj, e) += val;
-                           }
-                           else
-                           {
-                              A(i1, i2, ci, j1, j2, cj, e) = val;
-                           }
-                        }
-                     }
-                  }
-                  else
-                  {
-                     for (int ci = 0; ci < VDIM; ++ci)
-                     {
-                        for (int cj = 0; cj < VDIM; ++cj)
-                        {
-                           const int ch = ci * VDIM + cj;
-                           const real_t val = val_ch[ch];
-                           if (add)
-                           {
-                              A(i1, i2, ci, j1, j2, cj, e) += val;
-                           }
-                           else
-                           {
-                              A(i1, i2, ci, j1, j2, cj, e) = val;
-                           }
+                           if (ci != cj) { A(i1, i2, ci, j1, j2, cj, e) = 0.0; }
                         }
                      }
                   }
@@ -173,8 +153,6 @@ static void EAVectorDiffusionAssemble3D(const int NE, const Array<real_t> &b,
    const bool full_blocks = num_channels == VDIM * VDIM;
    MFEM_VERIFY(diag_blocks || full_blocks,
                "PA data channels are incompatible with the vector dimension");
-   MFEM_VERIFY(num_channels <= 9,
-               "3D vector diffusion EA supports at most nine channels");
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, pa_size, num_channels, NE);
 
    auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, VDIM, D1D, D1D, D1D,
@@ -212,38 +190,33 @@ static void EAVectorDiffusionAssemble3D(const int NE, const Array<real_t> &b,
                   {
                      for (int j3 = 0; j3 < D1D; ++j3)
                      {
-                        real_t val_ch[9];
                         for (int ch = 0; ch < num_channels; ++ch)
                         {
-                           val_ch[ch] = 0.0;
-                        }
-                        for (int k1 = 0; k1 < Q1D; ++k1)
-                        {
-                           for (int k2 = 0; k2 < Q1D; ++k2)
+                           real_t val = 0.0;
+                           for (int k1 = 0; k1 < Q1D; ++k1)
                            {
-                              for (int k3 = 0; k3 < Q1D; ++k3)
+                              for (int k2 = 0; k2 < Q1D; ++k2)
                               {
-                                 real_t g0i = r_G[k1][i1] *
-                                              r_B[k2][i2] *
-                                              r_B[k3][i3];
-                                 real_t g1i = r_B[k1][i1] *
-                                              r_G[k2][i2] *
-                                              r_B[k3][i3];
-                                 real_t g2i = r_B[k1][i1] *
-                                              r_B[k2][i2] *
-                                              r_G[k3][i3];
-                                 real_t g0j = r_G[k1][j1] *
-                                              r_B[k2][j2] *
-                                              r_B[k3][j3];
-                                 real_t g1j = r_B[k1][j1] *
-                                              r_G[k2][j2] *
-                                              r_B[k3][j3];
-                                 real_t g2j = r_B[k1][j1] *
-                                              r_B[k2][j2] *
-                                              r_G[k3][j3];
-
-                                 for (int ch = 0; ch < num_channels; ++ch)
+                                 for (int k3 = 0; k3 < Q1D; ++k3)
                                  {
+                                    const real_t g0i = r_G[k1][i1] *
+                                                       r_B[k2][i2] *
+                                                       r_B[k3][i3];
+                                    const real_t g1i = r_B[k1][i1] *
+                                                       r_G[k2][i2] *
+                                                       r_B[k3][i3];
+                                    const real_t g2i = r_B[k1][i1] *
+                                                       r_B[k2][i2] *
+                                                       r_G[k3][i3];
+                                    const real_t g0j = r_G[k1][j1] *
+                                                       r_B[k2][j2] *
+                                                       r_B[k3][j3];
+                                    const real_t g1j = r_B[k1][j1] *
+                                                       r_G[k2][j2] *
+                                                       r_B[k3][j3];
+                                    const real_t g2j = r_B[k1][j1] *
+                                                       r_B[k2][j2] *
+                                                       r_G[k3][j3];
                                     const real_t D00 = D(k1, k2, k3, 0, ch, e);
                                     const real_t D10 = D(k1, k2, k3, 1, ch, e);
                                     const real_t D20 = D(k1, k2, k3, 2, ch, e);
@@ -251,57 +224,44 @@ static void EAVectorDiffusionAssemble3D(const int NE, const Array<real_t> &b,
                                     const real_t D21 = D(k1, k2, k3, 4, ch, e);
                                     const real_t D22 = D(k1, k2, k3, 5, ch, e);
 
-                                    val_ch[ch] += g0i * D00 * g0j +
-                                                  g1i * D10 * g0j +
-                                                  g2i * D20 * g0j +
-                                                  g0i * D10 * g1j +
-                                                  g1i * D11 * g1j +
-                                                  g2i * D21 * g1j +
-                                                  g0i * D20 * g2j +
-                                                  g1i * D21 * g2j +
-                                                  g2i * D22 * g2j;
+                                    val += g0i * D00 * g0j +
+                                           g1i * D10 * g0j +
+                                           g2i * D20 * g0j +
+                                           g0i * D10 * g1j +
+                                           g1i * D11 * g1j +
+                                           g2i * D21 * g1j +
+                                           g0i * D20 * g2j +
+                                           g1i * D21 * g2j +
+                                           g2i * D22 * g2j;
                                  }
                               }
+                           }
+
+                           // Channel ch maps to the diagonal block (ch, ch)
+                           // for scalar and vector coefficients, and to the
+                           // block (ch / VDIM, ch % VDIM) for matrix
+                           // coefficients.
+                           const int ci = diag_blocks ? ch : ch / VDIM;
+                           const int cj = diag_blocks ? ch : ch % VDIM;
+                           if (add)
+                           {
+                              A(i1, i2, i3, ci, j1, j2, j3, cj, e) += val;
+                           }
+                           else
+                           {
+                              A(i1, i2, i3, ci, j1, j2, j3, cj, e) = val;
                            }
                         }
 
-                        if (diag_blocks)
+                        if (diag_blocks && !add)
                         {
                            for (int ci = 0; ci < VDIM; ++ci)
                            {
                               for (int cj = 0; cj < VDIM; ++cj)
                               {
-                                 const real_t val = ci == cj ? val_ch[ci] : 0.0;
-                                 if (add)
+                                 if (ci != cj)
                                  {
-                                    A(i1, i2, i3, ci, j1, j2, j3, cj,
-                                      e) += val;
-                                 }
-                                 else
-                                 {
-                                    A(i1, i2, i3, ci, j1, j2, j3, cj,
-                                      e) = val;
-                                 }
-                              }
-                           }
-                        }
-                        else
-                        {
-                           for (int ci = 0; ci < VDIM; ++ci)
-                           {
-                              for (int cj = 0; cj < VDIM; ++cj)
-                              {
-                                 const int ch = ci * VDIM + cj;
-                                 const real_t val = val_ch[ch];
-                                 if (add)
-                                 {
-                                    A(i1, i2, i3, ci, j1, j2, j3, cj,
-                                      e) += val;
-                                 }
-                                 else
-                                 {
-                                    A(i1, i2, i3, ci, j1, j2, j3, cj,
-                                      e) = val;
+                                    A(i1, i2, i3, ci, j1, j2, j3, cj, e) = 0.0;
                                  }
                               }
                            }
