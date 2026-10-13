@@ -898,7 +898,7 @@ void ComplexCholeskyFactors::Solve(int m, int n, real_t * X_r,
    MFEM_LAPACK_COMPLEX(potrs_)(&uplo, &m, &n, data, &m, x, &m, &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:Solve:: info");
    ComplexFactors::ComplexToReal(m*n,x,X_r,X_i);
-   delete x;
+   delete[] x;
 #else
    LSolve(m, n, X_r,X_i);
    USolve(m, n, X_r,X_i);
