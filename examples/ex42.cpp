@@ -102,8 +102,9 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
-    args.AddOption(&use_GPsource, "-gp", "--use-gp-source", "-no-gp", "--no-use-gp-source",
-                   "Enable or disable the use of GP source term.");
+   args.AddOption(&use_GPsource, "-gp", "--use-gp-source", "-no-gp",
+                  "--no-use-gp-source",
+                  "Enable or disable the use of GP source term.");
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file. When the user does not provide
@@ -144,7 +145,8 @@ int main(int argc, char *argv[])
    //    "glvis -m mhd-mesh.mesh -g mhd-1-init.gf" (for x-momentum).
 
    // Initialize the state.
-   VectorFunctionCoefficient u0 = MHDInitialCondition(problem, specific_heat_ratio);
+   VectorFunctionCoefficient u0 = MHDInitialCondition(problem,
+                                                      specific_heat_ratio);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
    GridFunction density_sol(&fes, sol.GetData() + 0 * fes.GetNDofs());
@@ -172,10 +174,12 @@ int main(int argc, char *argv[])
    RusanovFlux numericalFlux(mhdflux);
    GPsource gpsource(dim);
    RusanovGPsource numericalGPsource(gpsource);
-   DG_MHD_GPsource mhd(vfes, 
-        std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(numericalFlux, IntOrderOffset)), 
-        std::unique_ptr<GPsourceFormIntegrator>(new GPsourceFormIntegrator(numericalGPsource, IntOrderOffset)),
-        use_GPsource);
+   DG_MHD_GPsource mhd(vfes,
+                       std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(
+                                                                    numericalFlux, IntOrderOffset)),
+                       std::unique_ptr<GPsourceFormIntegrator>(new GPsourceFormIntegrator(
+                                                                  numericalGPsource, IntOrderOffset)),
+                       use_GPsource);
 
    // 7. Visualize the density.
    socketstream sout;
