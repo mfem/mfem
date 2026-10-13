@@ -528,13 +528,13 @@ DG_MHD_GPsource::DG_MHD_GPsource(
    std::unique_ptr<GPsourceFormIntegrator> gpsource_form_Int_,
    const bool use_GPsource_, const bool use_LDF_)
    : TimeDependentOperator(vfes_.GetTrueVSize()),
+     use_GPsource(use_GPsource_),
+     use_LDF(use_LDF_),
      num_equations(hyperb_form_Int_->num_equations),
      dim(vfes_.GetMesh()->SpaceDimension()),
      vfes(vfes_),
      hyperb_form_Int(std::move(hyperb_form_Int_)),
      gpsource_form_Int(std::move(gpsource_form_Int_)),
-     use_GPsource(use_GPsource_),
-     use_LDF(use_LDF_),
      z(vfes_.GetTrueVSize())
 {
    // Assemble and invert the scalar mass matrix on each element for all fields.
