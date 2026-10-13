@@ -19,7 +19,7 @@ using namespace mfem;
 namespace
 {
 
-void CheckMassEA(const char *mesh_file, const int order)
+void CheckMassEA(const char *mesh_file, const int order, MassIntegrator &mass)
 {
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
@@ -40,8 +40,6 @@ void CheckMassEA(const char *mesh_file, const int order)
    MFEM_VERIFY(tbe, "");
    const Array<int> &dof_map = tbe->GetDofMap();
    const bool has_dof_map = (dof_map.Size() == ndof);
-
-   MassIntegrator mass;
 
    Vector ea(ne*ndof*ndof);
    ea.UseDevice(true);
@@ -102,5 +100,22 @@ TEST_CASE("MassIntegrator full EA matches element assembly (tensor quads/hexes)"
 
    CAPTURE(mesh_file, order);
 
-   CheckMassEA(mesh_file, order);
+   MassIntegrator mass;
+   CheckMassEA(mesh_file, order, mass);
+}
+
+TEST_CASE("MassIntegrator full EA matches element assembly with a coefficient "
+          "(high-order hex)",
+          "[AssembleEA][Mass][GPU]")
+{
+   constexpr int order = 7;
+   FunctionCoefficient coeff([](const Vector &x)
+   {
+      return 1.0 + x[0] + 2.0*x[1] + 3.0*x[2];
+   });
+   MassIntegrator mass(coeff);
+
+   CAPTURE(order);
+
+   CheckMassEA("../../data/inline-hex.mesh", order, mass);
 }
