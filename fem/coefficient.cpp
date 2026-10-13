@@ -147,7 +147,7 @@ void PWCoefficient::SetTime(real_t t)
 {
    Coefficient::SetTime(t);
 
-   for (auto &[attr, piece] : pieces)
+   for (const auto &[attr, piece] : pieces)
    {
       if (piece != NULL)
       {
@@ -375,7 +375,7 @@ void PWVectorCoefficient::SetTime(real_t t)
 {
    VectorCoefficient::SetTime(t);
 
-   for (auto &[attr, piece] : pieces)
+   for (const auto &[attr, piece] : pieces)
    {
       if (piece != NULL)
       {
@@ -754,7 +754,7 @@ void PWMatrixCoefficient::SetTime(real_t t)
 {
    MatrixCoefficient::SetTime(t);
 
-   for (auto &[attr, piece] : pieces)
+   for (const auto &[attr, piece] : pieces)
    {
       if (piece != NULL)
       {

@@ -784,7 +784,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
       for (auto &[col, index] : cinvmap)
       {
          index = i;
-         cmap[i++] = col;
+         cmap[i] = col;
+         i++;
       }
    }
 
