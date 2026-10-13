@@ -32,12 +32,12 @@ DivDivIntegrator::DivDivIntegrator(Coefficient &q, const IntegrationRule *ir)
 
 DivDivIntegrator::Kernels::Kernels()
 {
-   // Q = P (2D)
-   DivDivIntegrator::AddSpecialization<2, 2, 2>();
+   // 2D: Q1D = D1D
+   // RT0 (D1D = Q1D = 2) is not specialized because the fallback is faster
    DivDivIntegrator::AddSpecialization<2, 3, 3>();
    DivDivIntegrator::AddSpecialization<2, 4, 4>();
    DivDivIntegrator::AddSpecialization<2, 5, 5>();
-   // Q = P + 1 (3D)
+   // 3D: Q1D = D1D + 1
    DivDivIntegrator::AddSpecialization<3, 2, 3>();
    DivDivIntegrator::AddSpecialization<3, 3, 4>();
    DivDivIntegrator::AddSpecialization<3, 4, 5>();
