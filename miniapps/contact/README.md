@@ -19,7 +19,7 @@ condition. Linear systems arising in the IP iterations are solved with
 ### AMG with Filtering (AMGF)
 
 The **AMGF** preconditioner extends classical AMG with a targeted small-subspace 
-correction restricted to degrees of freedom involed in active contact constraints. 
+correction restricted to degrees of freedom involved in active contact constraints. 
 This correction significantly improves solver convergence in late-stage IP iterations 
 where contact constraints dominate and classical AMG performance typically degrades.
 
@@ -98,7 +98,7 @@ point Tribol to them. The steps are as follows:
    AXOM_DIR = @MFEM_DIR@/../axom-repo/axom
    TRIBOL_DIR = @MFEM_DIR@/../tribol-repo/tribol
    TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
-   TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib \
+   TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -ltribol_shared -lredecomp -L$(AXOM_DIR)/lib \
    -laxom_mint -laxom_slam -laxom_slic -laxom_core
    ```
 3. [**Axom:**](https://github.com/LLNL/axom.git) Starting from the MFEM root

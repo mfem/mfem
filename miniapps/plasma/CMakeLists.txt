@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -23,3 +23,5 @@ if (MFEM_USE_MPI)
       EXTRA_HEADERS ${PLASMA_COMMON_HEADERS})
 
 endif()
+
+add_subdirectory(pic)

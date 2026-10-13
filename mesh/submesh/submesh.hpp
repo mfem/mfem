@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -161,7 +161,7 @@ public:
       return pe == -1 ? pe : parent_to_submesh_element_ids_[pe];
    }
    /**
-    * @brief Get the submesh vertex corresponding to a parent element. -1 == not
+    * @brief Get the submesh vertex corresponding to a parent vertex. -1 == not
     * present.
     * @param pv The parent vertex id.
     * @return int
@@ -171,7 +171,7 @@ public:
       return pv == -1 ? pv : parent_to_submesh_vertex_ids_[pv];
    }
    /**
-    * @brief Get the submesh edge corresponding to a parent element. -1 == not
+    * @brief Get the submesh edge corresponding to a parent edge. -1 == not
     * present.
     * @param pe The parent edge id.
     * @return int
@@ -181,7 +181,7 @@ public:
       return pe == -1 ? pe : parent_to_submesh_edge_ids_[pe];
    }
    /**
-    * @brief Get the submesh face corresponding to a parent element. -1 == not
+    * @brief Get the submesh face corresponding to a parent face. -1 == not
     * present.
     * @param pf The parent face id.
     * @return int
@@ -225,6 +225,20 @@ public:
       return dynamic_cast<const SubMesh *>(m) != nullptr;
    }
 
+   /**
+   * @brief Check if Mesh @a sub is a SubMesh of Mesh @a parent.
+   *
+   * @param sub The potential submesh Mesh
+   * @param parent The potential parent Mesh
+   */
+   static bool IsSubMesh(const Mesh* sub, const Mesh* parent)
+   {
+      while (IsSubMesh(sub) &&
+             (sub = static_cast<const SubMesh *>(sub)->GetParent()) &&
+             sub != parent);
+      return sub == parent;
+   }
+
 private:
    /// Private constructor
    SubMesh(const Mesh &parent, From from, const Array<int> &attributes);
@@ -252,7 +266,7 @@ private:
    Array<int> parent_vertex_ids_;
 
    /// Mapping from SubMesh edge ids (index of the array), to the parent Mesh
-   /// face ids.
+   /// edge ids.
    Array<int> parent_edge_ids_;
 
    /// Mapping from SubMesh face ids (index of the array), to the parent Mesh
@@ -263,8 +277,8 @@ private:
    /// the face relative to the parent face.
    Array<int> parent_face_ori_;
 
-   /// Mapping from parent Mesh vertex ids (index of the array), to the SubMesh
-   /// vertex ids. Inverse map of parent_element_ids_.
+   /// Mapping from parent Mesh element ids (index of the array), to the
+   /// SubMesh element ids. Inverse map of parent_element_ids_.
    Array<int> parent_to_submesh_element_ids_;
 
    /// Mapping from parent Mesh vertex ids (index of the array), to the SubMesh

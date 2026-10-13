@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -63,7 +63,6 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
 
    threshold = 0.0;
    num_marked_elements = 0LL;
-   current_sequence = -1;
 
    non_conforming = -1;
    nc_limit = 0;
@@ -87,7 +86,6 @@ int ThresholdRefiner::MarkWithoutRefining(Mesh & mesh,
    threshold = 0.0;
    num_marked_elements = 0LL;
    refinements.SetSize(0);
-   current_sequence = mesh.GetSequence();
 
    const long long num_elements = mesh.GetGlobalNE();
    if (num_elements >= max_elements) { return STOP; }
@@ -149,7 +147,6 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
 void ThresholdRefiner::Reset()
 {
    estimator.Reset();
-   current_sequence = -1;
    num_marked_elements = 0LL;
    // marked_elements.SetSize(0); // not necessary
 }
