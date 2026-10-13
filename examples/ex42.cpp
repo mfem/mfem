@@ -98,8 +98,9 @@ int main(int argc, char *argv[])
    // Read the mesh file
    Mesh mesh(mesh_file);
    int dim = mesh.Dimension();
-   MFEM_ASSERT(dim == 2, "This example only supports 2D meshes.");
-
+   MFEM_VERIFY(dim == 2, "This example only supports 2D meshes.");
+   MFEM_VERIFY(order >= 0, "Order must be >= 2.");
+   
    // Refine the mesh
    for (int i = 0; i < ref_levels; i++)
    {
@@ -111,7 +112,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace fespace(&mesh, &fe_coll, 1);
 
    // Get the degrees-of-freedom (DOFs) associated with the sides of the panel
-   Array<int> all_bdr_marker(mesh.bdr_attributes.Size());
+   Array<int> all_bdr_marker(mesh.bdr_attributes.Max());
    all_bdr_marker = 1; // Mark all sides
    Array<int> ess_tdof_list;
    fespace.GetEssentialTrueDofs(all_bdr_marker, ess_tdof_list);
