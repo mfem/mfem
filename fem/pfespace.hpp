@@ -116,6 +116,9 @@ private:
    /// Ghost element order data, set by CommunicateGhostOrder().
    Array<ParNCMesh::VarOrderElemInfo> ghost_orders;
 
+   /// Variable-order H1: edge/face variant orders common to all sharing ranks.
+   Array<VarOrderBits> group_edge_orders, group_face_orders;
+
    /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
 
@@ -154,6 +157,15 @@ private:
    // ldof_type = 0 : DOFs communicator, otherwise VDOFs communicator
    void GetGroupComm(GroupCommunicator &gcomm, int ldof_type,
                      Array<int> *ldof_sign = NULL);
+
+   /// Variable-order H1 version of GetGroupComm().
+   void GetVarOrderGroupComm(GroupCommunicator &gcomm, int ldof_type) const;
+
+   /// Set group_edge_orders and group_face_orders.
+   void SetGroupVarOrders();
+
+   /// Construct gcomm and ldof_group in a variable-order H1 space.
+   void ConstructVarOrderGroupComm();
 
    /// Construct dof_offsets and tdof_offsets using global communication.
    void GenerateGlobalOffsets() const;
