@@ -2244,12 +2244,11 @@ void GetCoarseToFineMap(const CoarseFineTransformations &cft,
 } // namespace internal
 
 
-/// TODO: Implement DofTransformation support
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
    BilinearFormIntegrator *mass_integ)
    : Operator(c_fes->GetVSize(), f_fes->GetVSize()),
-     fine_fes(f_fes)
+     fine_fes(f_fes), coarse_fes(c_fes)
 {
    MFEM_VERIFY(c_fes->GetOrdering() == f_fes->GetOrdering() &&
                c_fes->GetVDim() == f_fes->GetVDim(),
@@ -2336,14 +2335,6 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          lPtMP_inv.Mult(lR); // lR <- (P^T M P)^{-1} P^T M
       }
    }
-
-   // Make a copy of the coarse element-to-dof Table.
-   coarse_elem_dof = new Table(c_fes->GetElementToDofTable());
-}
-
-FiniteElementSpace::DerefinementOperator::~DerefinementOperator()
-{
-   delete coarse_elem_dof;
 }
 
 void FiniteElementSpace::DerefinementOperator::Mult(const Vector &x,
@@ -2352,12 +2343,15 @@ void FiniteElementSpace::DerefinementOperator::Mult(const Vector &x,
    Array<int> c_vdofs, f_vdofs;
    Vector loc_x, loc_y;
    DenseMatrix loc_x_mat, loc_y_mat;
+   DofTransformation c_doftrans, f_doftrans;
    const int fine_vdim = fine_fes->GetVDim();
    const int coarse_ndofs = height/fine_vdim;
    for (int coarse_el = 0; coarse_el < coarse_to_fine.Size(); coarse_el++)
    {
-      coarse_elem_dof->GetRow(coarse_el, c_vdofs);
+      coarse_fes->GetElementDofs(coarse_el, c_vdofs, c_doftrans);
       fine_fes->DofsToVDofs(c_vdofs, coarse_ndofs);
+      // Local vdofs are grouped by vector component, regardless of ordering.
+      c_doftrans.SetVDim(fine_vdim, Ordering::byNODES);
       loc_y.SetSize(c_vdofs.Size());
       loc_y = 0.0;
       loc_y_mat.UseExternalData(loc_y.GetData(), c_vdofs.Size()/fine_vdim,
@@ -2370,12 +2364,16 @@ void FiniteElementSpace::DerefinementOperator::Mult(const Vector &x,
       for (int s = 0; s < num_fine_elems; s++)
       {
          const DenseMatrix &lR = localR[geom](lR_offset+s);
-         fine_fes->GetElementVDofs(fine_elems[s], f_vdofs);
+         fine_fes->GetElementVDofs(fine_elems[s], f_vdofs, f_doftrans);
+         f_doftrans.SetVDim(fine_vdim, Ordering::byNODES);
          x.GetSubVector(f_vdofs, loc_x);
+         // The local restriction acts on reference-element dofs.
+         f_doftrans.InvTransformPrimal(loc_x);
          loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/fine_vdim,
                                    fine_vdim);
          mfem::AddMult(lR, loc_x_mat, loc_y_mat);
       }
+      c_doftrans.TransformPrimal(loc_y);
       y.SetSubVector(c_vdofs, loc_y);
    }
 }
