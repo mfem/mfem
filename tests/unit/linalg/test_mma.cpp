@@ -299,4 +299,88 @@ TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
       REQUIRE( std::fabs(o - expectedResult) < 1e-11 );
    }
 }
+
+namespace
+{
+struct Constraint
+{
+   Constraint(MPI_Comm comm_, int numVar_) : comm(comm_), numVar(numVar_) {}
+
+   void operator()(const Vector &x, Vector &gx, Vector &dgdx)
+   {
+      REQUIRE( x.Size() == numVar );
+      double localConstraint(0), globalConstraint;
+      for (const double v : x)
+      {
+         localConstraint += v;
+      }
+      MPI_Allreduce(&localConstraint, &globalConstraint, 1, MPI_DOUBLE, MPI_SUM,
+                    comm);
+      gx(0) = globalConstraint - 0.5*numVar;
+      dgdx = 1;
+   }
+
+   MPI_Comm comm;
+   const int numVar;
+};
+}
+
+/** \brief Constrained Unit test with fewer variables than MPI ranks
+ *
+ *    minimize   F(x) = \sum[ (1 / x) + 10x ],
+ *    s.t.
+ *    \sum[ x ] - 0.5 * num_var <= 0
+ *
+ *  Constraint should be nonbinding.
+ * */
+TEST_CASE("Smaller MMA constrained Test", "[Parallel], [MMA_1CONSTR_SMALL]")
+{
+   int world_size = 1, my_rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+   const int global_num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+   for (int offset = 0; offset < world_size;
+        ++offset)  // rotate which rank has no decision variables
+   {
+      const int adjustedRank = ((my_rank+offset) % world_size);
+      const int num_var = (global_num_var/world_size) + static_cast<int>
+                          (adjustedRank <
+                           (global_num_var % world_size));
+      int global_var_check = 1;
+      MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE( global_num_var == global_var_check );
+
+      Vector x(num_var);
+      Vector dx(num_var);
+      Vector gx(1);
+      Vector dgdx(num_var);
+      Vector xmin(num_var);
+      xmin=0.0;
+      Vector xmax(num_var);
+      xmax=2.0;
+      x=xmin;
+      x+=1.5;
+
+      ::std::unique_ptr<MMA> mma =
+         ::std::make_unique<MMA>(MPI_COMM_WORLD,num_var,1,x);
+      Constraint constraint(MPI_COMM_WORLD, global_num_var);
+
+      real_t o;
+      for (int it=0; it<30; it++)
+      {
+         o=dobj0_c(x,dx);
+         constraint(x, gx, dgdx);
+
+         mma->Update(dx,gx,dgdx,xmin,xmax,x);
+      }
+      o=obj0_c(x);
+      constraint(x, gx, dgdx);
+
+      constexpr double amountPerVar = (75.977534018859/12);
+      const double expectedResult = (amountPerVar*global_num_var);
+      REQUIRE( std::fabs(o - expectedResult) < 1e-11 );
+      REQUIRE(gx(0) <= 0);
+   }
+}
 #endif
