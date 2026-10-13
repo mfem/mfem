@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -92,7 +92,7 @@ public:
 
    virtual bool Factor(int m, real_t TOL = 0.0)
    {
-      mfem_error("ComplexFactors::ComplexFactors(...)");
+      mfem_error("ComplexFactors::Factor(...)");
       return false;
    }
 
@@ -124,11 +124,7 @@ class ComplexLUFactors : public ComplexFactors
 {
 public:
    int *ipiv;
-#ifdef MFEM_USE_LAPACK
-   static const int ipiv_base = 1;
-#else
-   static const int ipiv_base = 0;
-#endif
+   static constexpr int ipiv_base = 1;
 
    /** With this constructor, the (public) data and ipiv members should be set
        explicitly before calling class methods. */
@@ -216,7 +212,7 @@ public:
        for a matrix X of size (m x n). */
    void LMult(int m, int n, real_t *X_r, real_t * X_i) const;
 
-   /** Assuming L.L^H = A factored data of size (m x m), compute X <- L^t X,
+   /** Assuming L.L^H = A factored data of size (m x m), compute X <- L^H X,
        for a matrix X of size (m x n). */
    void UMult(int m, int n, real_t *X_r, real_t *X_i) const;
 
@@ -225,7 +221,7 @@ public:
    void LSolve(int m, int n, real_t *X_r, real_t * X_i) const;
 
    /** Assuming L L^H = A factored data of size (m x m), compute
-       X <- L^{-t} X, for a matrix X of size (m x n). */
+       X <- L^{-H} X, for a matrix X of size (m x n). */
    void USolve(int m, int n, real_t *X_r, real_t *X_i) const;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- A^{-1} X,

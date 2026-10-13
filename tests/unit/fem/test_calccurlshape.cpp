@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -231,7 +231,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
       IntegrationPoint pt = ir->IntPoint(i);
       fe->CalcCurlShape(pt, dshape);
 
-      CAPTURE(pt.x, pt.y, pt.z);
+      CAPTURE(pt.x, pt.y, dim == 3 ? pt.z : 0_r);
 
       fdshape = 0.0;
       for (int d=0; d<dim; d++)

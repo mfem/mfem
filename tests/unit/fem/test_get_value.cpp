@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -398,7 +398,7 @@ TEST_CASE("1D GetValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("1D GetValue in Parallel",
           "[ParGridFunction]"
           "[GridFunctionCoefficient]"
@@ -869,7 +869,7 @@ TEST_CASE("2D GetValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("2D GetValue in Parallel",
           "[ParGridFunction]"
           "[GridFunctionCoefficient]"
@@ -1375,7 +1375,7 @@ TEST_CASE("3D GetValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("3D GetValue in Parallel",
           "[ParGridFunction]"
           "[GridFunctionCoefficient]"
@@ -2074,7 +2074,7 @@ TEST_CASE("2D GetVectorValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("2D GetVectorValue in Parallel",
           "[ParGridFunction]"
           "[VectorGridFunctionCoefficient]"
@@ -3033,7 +3033,7 @@ TEST_CASE("3D GetVectorValue",
 }
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("3D GetVectorValue in Parallel",
           "[ParGridFunction]"
           "[VectorGridFunctionCoefficient]"

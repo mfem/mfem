@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,7 +94,7 @@ void TestCalcDivShape(FiniteElement* fe, ElementTransformation * T, int res)
          if (fe->GetGeomType() == Geometry::PYRAMID &&
              (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
 
-         CAPTURE(ip.x, ip.y, ip.z);
+         CAPTURE(ip.x, ip.y, dim == 3 ? ip.z : 0_r);
 
          fe->CalcDivShape(ip, weights);
 
@@ -215,7 +215,7 @@ void TestFDCalcDivShape(FiniteElement* fe, ElementTransformation * T, int order)
       IntegrationPoint pt = ir->IntPoint(i);
       fe->CalcDivShape(pt, dshape);
 
-      CAPTURE(pt.x, pt.y, pt.z);
+      CAPTURE(pt.x, pt.y, dim == 3 ? pt.z : 0_r);
 
       fdshape = 0.0;
       for (int d=0; d<dim; d++)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -232,24 +232,20 @@ MergeMeshNodes(Mesh * mesh, int logging)
    }
 }
 
-void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
+void AffineTransformation::Eval(Vector &V, ElementTransformation &T,
+                                const IntegrationPoint &ip)
 {
-   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
+   V = 0.0;
+   T.Transform(ip, x);
 
-   marker.SetSize(max_attr);
-   if (attrs.Size() == 1 && attrs[0] == -1)
+   if (A.Height() == vdim)
    {
-      marker = 1;
+      A.Mult(x, V);
    }
-   else
+
+   if (b.Size() == vdim)
    {
-      marker = 0;
-      for (int j=0; j<attrs.Size(); j++)
-      {
-         int attr = attrs[j];
-         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
-         marker[attr-1] = 1;
-      }
+      V.Add(1.0, b);
    }
 }
 
