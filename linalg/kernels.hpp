@@ -219,6 +219,65 @@ void AbsMult(const int height, const int width, const TA *data,
    }
 }
 
+namespace internal
+{
+
+/** @brief MultTranspose for a small fixed width @a W. The @a W sums run
+    together instead of one after another, each still starting at 0.0 and
+    adding the rows in order. */
+template<int W, typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE static inline
+void MultTranspose_Width(const int height, const TA *data, const TX *x, TY *y)
+{
+   TY val[W];
+   for (int i = 0; i < W; i++) { val[i] = 0.0; }
+   for (int j = 0; j < height; ++j)
+   {
+      const TX xj = x[j];
+      for (int i = 0; i < W; ++i) { val[i] += xj * data[i * height + j]; }
+   }
+   for (int i = 0; i < W; ++i) { y[i] = val[i]; }
+}
+
+/** @brief AbsMultTranspose for a small fixed width @a W, see
+    MultTranspose_Width. */
+template<int W, typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE static inline
+void AbsMultTranspose_Width(const int height, const TA *data, const TX *x,
+                            TY *y)
+{
+   TY val[W];
+   for (int i = 0; i < W; i++) { val[i] = 0.0; }
+   for (int j = 0; j < height; ++j)
+   {
+      const TX xj = x[j];
+      for (int i = 0; i < W; ++i)
+      {
+         val[i] += xj * std::fabs(data[i * height + j]);
+      }
+   }
+   for (int i = 0; i < W; ++i) { y[i] = val[i]; }
+}
+
+/** @brief AddMultTranspose for a small fixed width @a W, y += @a alpha At x,
+    see MultTranspose_Width. */
+template<int W, typename TA, typename TX, typename TY>
+MFEM_HOST_DEVICE static inline
+void AddMultTranspose_Width(const int height, const TA *data, const TX *x,
+                            const real_t alpha, TY *y)
+{
+   TY val[W];
+   for (int i = 0; i < W; i++) { val[i] = 0.0; }
+   for (int j = 0; j < height; ++j)
+   {
+      const TX xj = x[j];
+      for (int i = 0; i < W; ++i) { val[i] += xj * data[i * height + j]; }
+   }
+   for (int i = 0; i < W; ++i) { y[i] += alpha * val[i]; }
+}
+
+} // namespace internal
+
 /** @brief Matrix transpose vector multiplication: y = At x, where the matrix A
     is of size @a height x @a width with given @a data, while @a x and @a y
     specify the data of the input and output vectors. */
@@ -234,6 +293,11 @@ void MultTranspose(const int height, const int width, const TA *data,
          y[row] = 0.0;
       }
       return;
+   }
+   switch (width)
+   {
+      case 2: internal::MultTranspose_Width<2>(height, data, x, y); return;
+      case 3: internal::MultTranspose_Width<3>(height, data, x, y); return;
    }
    TY *y_off = y;
    for (int i = 0; i < width; ++i)
@@ -263,6 +327,11 @@ void AbsMultTranspose(const int height, const int width, const TA *data,
          y[row] = 0.0;
       }
       return;
+   }
+   switch (width)
+   {
+      case 2: internal::AbsMultTranspose_Width<2>(height, data, x, y); return;
+      case 3: internal::AbsMultTranspose_Width<3>(height, data, x, y); return;
    }
    TY *y_off = y;
    for (int i = 0; i < width; ++i)

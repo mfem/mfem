@@ -17,6 +17,12 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+Miscellaneous
+-------------
+- Sped up the transpose mat-vec products (MultTranspose, AbsMultTranspose,
+  AddMultTranspose) of DenseMatrix for matrices of width 2 or 3 by computing
+  all outputs in one pass over the matrix.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
