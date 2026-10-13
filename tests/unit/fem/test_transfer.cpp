@@ -221,7 +221,7 @@ TEST_CASE("Transfer", "[Transfer]")
    delete c_fec;
 }
 
-enum class PTransferCase { H1_1D, L2, H1Positive, H1HighOrder };
+enum class PTransferCase { H1_1D, L2, H1Positive, H1HighOrder, H1Mixed };
 
 std::string PTransferCaseName(PTransferCase c)
 {
@@ -231,6 +231,7 @@ std::string PTransferCaseName(PTransferCase c)
       case PTransferCase::L2: return "L2";
       case PTransferCase::H1Positive: return "H1 Positive";
       case PTransferCase::H1HighOrder: return "H1 high order";
+      case PTransferCase::H1Mixed: return "H1 mixed mesh";
    }
    return "";
 }
@@ -240,7 +241,8 @@ std::string PTransferCaseName(PTransferCase c)
 TEST_CASE("Transfer Fallback", "[Transfer]")
 {
    auto tcase = GENERATE(PTransferCase::H1_1D, PTransferCase::L2,
-                         PTransferCase::H1Positive, PTransferCase::H1HighOrder);
+                         PTransferCase::H1Positive, PTransferCase::H1HighOrder,
+                         PTransferCase::H1Mixed);
    auto vdim = GENERATE(1, 2);
    auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
 
@@ -250,14 +252,26 @@ TEST_CASE("Transfer Fallback", "[Transfer]")
                        ? DeviceDofQuadLimits::Get().MAX_Q1D : 2*c_order;
    CAPTURE(PTransferCaseName(tcase), vdim, ordering, c_order, f_order);
 
-   Mesh mesh = (dim == 1) ? Mesh::MakeCartesian1D(3)
-               : Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   Mesh mesh;
+   if (tcase == PTransferCase::H1Mixed)
+   {
+      mesh = Mesh::LoadFromFile("../../data/square-mixed.mesh");
+   }
+   else if (dim == 1)
+   {
+      mesh = Mesh::MakeCartesian1D(3);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   }
 
    std::unique_ptr<FiniteElementCollection> c_fec, f_fec;
    switch (tcase)
    {
       case PTransferCase::H1_1D:
       case PTransferCase::H1HighOrder:
+      case PTransferCase::H1Mixed:
          c_fec.reset(new H1_FECollection(c_order, dim));
          f_fec.reset(new H1_FECollection(f_order, dim));
          break;

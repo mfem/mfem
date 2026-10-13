@@ -2187,14 +2187,22 @@ namespace
 {
 /// Return true if TensorProductPRefinementTransferOperator can be used to
 /// transfer between @a lFESpace and @a hFESpace: both spaces are continuous
-/// and use tensor-product elements on a 2D or 3D mesh, the high-order element
-/// is nodal (its DOFs are point values at its nodes), and the 1D DOF counts fit
-/// within the kernel limits of the active backend.
+/// and use tensor-product elements on a 2D or 3D mesh with a single element
+/// geometry, the high-order element is nodal (its DOFs are point values at its
+/// nodes), and the 1D DOF counts fit within the kernel limits of the active
+/// backend.
 bool SupportsTensorProductPTransfer(const FiniteElementSpace& lFESpace,
                                     const FiniteElementSpace& hFESpace)
 {
    const int dim = lFESpace.GetMesh()->Dimension();
    if (dim != 2 && dim != 3) { return false; }
+
+   // The typical FE describes every element only when the mesh has a single
+   // element geometry.
+   if (lFESpace.GetMesh()->IsMixedMesh() || hFESpace.GetMesh()->IsMixedMesh())
+   {
+      return false;
+   }
 
    constexpr int continuous = FiniteElementCollection::CONTINUOUS;
    if (lFESpace.FEColl()->GetContType() != continuous ||
