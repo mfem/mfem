@@ -11,10 +11,15 @@
 Version 4.10.1 (development)
 ============================
 
+Discretization improvements
+---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
+
 - Added class VectorQuadratureSpace that represents a vector (multi-component)
   version of the scalar (single-component) class QuadratureSpaceBase.
   
-
 Version 4.10, released on Sep 1, 2026
 =====================================
 
