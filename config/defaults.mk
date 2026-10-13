@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -220,6 +220,14 @@ else ifeq ($(MAKECMDGOALS),config)
      MFEM_PRECISION = $(MFEM_PRECISION))
 endif
 
+ifeq ($(MFEM_USE_RAJA),YES)
+  BASE_FLAGS = -std=c++20
+endif
+
+ifeq ($(MFEM_USE_UMPIRE),YES)
+  BASE_FLAGS = -std=c++20
+endif
+
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
 ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
@@ -436,7 +444,13 @@ GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
-AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
+AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas
+CUDA_VERSION_NUM = $(strip $(shell \
+  awk '$$2 == "CUDA_VERSION" { print $$3; exit }' \
+  "$(CUDA_DIR)/include/cuda.h" 2>/dev/null))
+AMGX_LIB += $(if $(filter YES,$(MFEM_USE_AMGX)),$(if $(CUDA_VERSION_NUM),\
+  $(if $(shell test $(CUDA_VERSION_NUM) -lt 12090 && echo YES),-lnvToolsExt),\
+  -lnvToolsExt))
 
 # MAGMA library configuration
 MAGMA_DIR = @MFEM_DIR@/../magma
@@ -663,10 +677,10 @@ ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
    @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
 ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
    ifeq ($(ENZYME_PLUGIN),)
-      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+      $(error Unable to find the Enzyme plugin! Please set ENZYME_DIR)
    endif
    ifneq ($(words $(ENZYME_PLUGIN)),1)
-      $(error Multiple versions of the Enzyme pluging found! \
+      $(error Multiple versions of the Enzyme plugin found! \
               Please set ENZYME_PLUGIN directly)
    endif
 endif

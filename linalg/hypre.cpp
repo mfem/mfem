@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1804,11 +1804,11 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #if (MFEM_HYPRE_VERSION > 22300) || (MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
    HYPRE_BigInt cpts_global[2];
 
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, cpts_global);
 #else
    HYPRE_BigInt *cpts_global;
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
 #endif
 
@@ -4463,7 +4463,7 @@ HypreParVector HyprePCG::GetResiduals() const
 void HyprePCG::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4532,7 +4532,7 @@ HypreParVector HypreGMRES::GetResiduals() const
 void HypreGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4880,7 +4880,7 @@ void HypreFGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm,
                                           real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 

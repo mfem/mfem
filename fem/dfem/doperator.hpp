@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1302,8 +1302,8 @@ void DifferentiableOperator::AddIntegrator(
                   else
                   {
                      MFEM_ASSERT(trial_dofmap.Size() == num_trial_dof,
-                                 "internal error: dof map of the test space does not "
-                                 "match previously determined number of test space dofs");
+                                 "internal error: dof map of the trial space does not "
+                                 "match previously determined number of trial space dofs");
 
                      for (int vd = 0; vd < trial_vdim; vd++)
                      {
