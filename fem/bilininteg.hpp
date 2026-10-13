@@ -3530,8 +3530,10 @@ private:
    DenseMatrix elmat_comp;
 public:
    MixedCurlIntegrator(Mode mode = Mode::CrossGrad) : Q{NULL}, mode(mode) { }
-   MixedCurlIntegrator(Coefficient *q_, Mode mode = Mode::CrossGrad) : Q{q_}, mode(mode) { }
-   MixedCurlIntegrator(Coefficient &q, Mode mode = Mode::CrossGrad) : Q{&q}, mode(mode) { }
+   MixedCurlIntegrator(Coefficient *q_, Mode mode = Mode::CrossGrad)
+      : Q{q_}, mode(mode) { }
+   MixedCurlIntegrator(Coefficient &q, Mode mode = Mode::CrossGrad)
+      : Q{&q}, mode(mode) { }
 
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                const FiniteElement &test_fe,

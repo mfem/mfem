@@ -92,7 +92,7 @@ public:
       : u(&u_), alpha(a), beta(b) { }
 
    DGTangentialTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
-                           real_t a, real_t b)
+                               real_t a, real_t b)
       : rho(&rho_), u(&u_), alpha(a), beta(b) { }
 
    void AssembleFaceMatrix(const FiniteElement &trial_fe1,
@@ -103,12 +103,13 @@ public:
                            DenseMatrix &elmat) override;
 };
 
-void DGTangentialTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
-                                                 const FiniteElement &test_fe1,
-                                                 const FiniteElement &trial_fe2,
-                                                 const FiniteElement &test_fe2,
-                                                 FaceElementTransformations &Trans,
-                                                 DenseMatrix &elmat)
+void DGTangentialTraceIntegrator::AssembleFaceMatrix(const FiniteElement
+                                                     &trial_fe1,
+                                                     const FiniteElement &test_fe1,
+                                                     const FiniteElement &trial_fe2,
+                                                     const FiniteElement &test_fe2,
+                                                     FaceElementTransformations &Trans,
+                                                     DenseMatrix &elmat)
 {
    int tr_ndof1, te_ndof1, tr_ndof2, te_ndof2;
 
@@ -241,13 +242,13 @@ void DGTangentialTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_
       }
 
       auto kernel = [&elmat, &dim, &nor, &l2](const real_t w, const Vector &te_shape,
-                           const Vector &tr_shape, int ioff, int joff)
+                                              const Vector &tr_shape, int ioff, int joff)
       {
          const int tr_ndof = tr_shape.Size();
          const int te_ndof = te_shape.Size();
 
          MFEM_VERIFY(l2, "Not implemtented");
-         
+
          if (dim < 3)
          {
             for (int i = 0; i < te_ndof; i++)
@@ -262,12 +263,18 @@ void DGTangentialTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_
             for (int i = 0; i < te_ndof; i++)
                for (int j = 0; j < tr_ndof; j++)
                {
-                  elmat(ioff + i + 1*te_ndof, joff + j + 0*tr_ndof) += w * te_shape(i) * tr_shape(j) * nor(2);
-                  elmat(ioff + i + 2*te_ndof, joff + j + 0*tr_ndof) -= w * te_shape(i) * tr_shape(j) * nor(1);
-                  elmat(ioff + i + 2*te_ndof, joff + j + 1*tr_ndof) += w * te_shape(i) * tr_shape(j) * nor(0);
-                  elmat(ioff + i + 0*te_ndof, joff + j + 1*tr_ndof) -= w * te_shape(i) * tr_shape(j) * nor(2);
-                  elmat(ioff + i + 0*te_ndof, joff + j + 2*tr_ndof) += w * te_shape(i) * tr_shape(j) * nor(1);
-                  elmat(ioff + i + 1*te_ndof, joff + j + 2*tr_ndof) -= w * te_shape(i) * tr_shape(j) * nor(0);
+                  elmat(ioff + i + 1*te_ndof,
+                        joff + j + 0*tr_ndof) += w * te_shape(i) * tr_shape(j) * nor(2);
+                  elmat(ioff + i + 2*te_ndof,
+                        joff + j + 0*tr_ndof) -= w * te_shape(i) * tr_shape(j) * nor(1);
+                  elmat(ioff + i + 2*te_ndof,
+                        joff + j + 1*tr_ndof) += w * te_shape(i) * tr_shape(j) * nor(0);
+                  elmat(ioff + i + 0*te_ndof,
+                        joff + j + 1*tr_ndof) -= w * te_shape(i) * tr_shape(j) * nor(2);
+                  elmat(ioff + i + 0*te_ndof,
+                        joff + j + 2*tr_ndof) += w * te_shape(i) * tr_shape(j) * nor(1);
+                  elmat(ioff + i + 1*te_ndof,
+                        joff + j + 2*tr_ndof) -= w * te_shape(i) * tr_shape(j) * nor(0);
                }
          }
       };
@@ -378,7 +385,8 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *E_coll(new L2_FECollection(order, dim, BasisType::GaussLobatto));
+   FiniteElementCollection *E_coll(new L2_FECollection(order, dim,
+                                                       BasisType::GaussLobatto));
    FiniteElementCollection *B_coll(new L2_FECollection(order, dim));
 
    FiniteElementSpace *E_space = new FiniteElementSpace(mesh, E_coll, dim);
@@ -405,7 +413,7 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient Ecoeff(dim, EFun_ex); // Electric field
    VectorFunctionCoefficient Bcoeff(dim_curl, BFun_ex); // Magnetic field
-   ScalarVectorProductCoefficient fnatcoeff(-1., Ecoeff); 
+   ScalarVectorProductCoefficient fnatcoeff(-1., Ecoeff);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction E,B for the finite element solution and
@@ -422,7 +430,10 @@ int main(int argc, char *argv[])
       MFEM_ABORT("Not implemented");
    }
    else
-      fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(fnatcoeff));
+   {
+      fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
+                                     fnatcoeff));
+   }
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -438,15 +449,20 @@ int main(int argc, char *argv[])
 
    mVarf->AddDomainIntegrator(new VectorMassIntegrator(sigmacoeff));
 
-   cVarf->AddDomainIntegrator(new MixedCurlIntegrator(MixedCurlIntegrator::Mode::OutOfPlane));
+   cVarf->AddDomainIntegrator(new MixedCurlIntegrator(
+                                 MixedCurlIntegrator::Mode::OutOfPlane));
    cVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
-      new DGTangentialTraceIntegrator(-1.)));
+                                       new DGTangentialTraceIntegrator(-1.)));
    //mbVarf->AddInteriorFaceIntegrator()
-   
+
    if (dim_curl > 1)
+   {
       mbVarf->AddDomainIntegrator(new VectorMassIntegrator(mucoeff));
+   }
    else
+   {
       mbVarf->AddDomainIntegrator(new MassIntegrator(mucoeff));
+   }
 
    // Set hybridization / assembly level
 
@@ -697,10 +713,12 @@ int main(int argc, char *argv[])
       B_sock << "solution\n" << *mesh << B << "window_title 'Magnetic field'" << endl;
       socketstream Ea_sock(vishost, visport);
       Ea_sock.precision(8);
-      Ea_sock << "solution\n" << *mesh << E_anal << "window_title 'Electric field anal'" << endl;
+      Ea_sock << "solution\n" << *mesh << E_anal <<
+              "window_title 'Electric field anal'" << endl;
       socketstream Ba_sock(vishost, visport);
       Ba_sock.precision(8);
-      Ba_sock << "solution\n" << *mesh << B_anal << "window_title 'Magnetic field anal'" << endl;
+      Ba_sock << "solution\n" << *mesh << B_anal <<
+              "window_title 'Magnetic field anal'" << endl;
    }
 
    // 17. Free the used memory.

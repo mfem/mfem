@@ -373,7 +373,8 @@ class VectorBoundaryTangentialLFIntegrator : public LinearFormIntegrator
    int oa, ob;
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
-   VectorBoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
+   VectorBoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1,
+                                        int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
    void AssembleRHSElementVect(const FiniteElement &el,
