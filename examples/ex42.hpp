@@ -29,6 +29,8 @@
 // The block-diagonal DG mass matrix M is inverted element by element.
 // HyperbolicFormIntegrator assembles the flux residual and records the
 // maximum characteristic speed used in the CFL timestep estimate.
+// With use_LDF enabled, the magnetic time derivative is L2-projected onto
+// the local divergence-free subspace after application of the mass inverse.
 //
 
 #include <functional>
@@ -437,6 +439,7 @@ class DG_MHD_GPsource : public TimeDependentOperator
 {
 private:
    const bool use_GPsource;
+   const bool use_LDF;
 
    const int num_equations; // the number of equations
    const int dim;
@@ -453,6 +456,8 @@ private:
 
    // element-wise inverse mass matrix
    std::vector<DenseMatrix> invmass; // local scalar inverse mass
+   std::vector<DenseMatrix>
+   ldf_projectors; // local magnetic L2 projectors to locally divergence-free subspace
 
    // global maximum characteristic speed. Updated by form integrators
    mutable real_t max_char_speed;
@@ -462,6 +467,7 @@ private:
 
    // Compute element-wise inverse mass matrix
    void ComputeInvMass();
+   void ComputeLDFProjectors();
 
 public:
    /**
@@ -471,15 +477,34 @@ public:
     * @param hyperb_form_Int_ integrator for the volume and numerical face fluxes
     * @param gpsource_form_Int_ integrator for the volume and face GP sources
     * @param use_GPsource_ whether to include the Godunov-Powell sources
+    * @param use_LDF_ whether to project magnetic updates to the LDF space
     */
    DG_MHD_GPsource(
       FiniteElementSpace &vfes_,
       std::unique_ptr<HyperbolicFormIntegrator> hyperb_form_Int_,
       std::unique_ptr<GPsourceFormIntegrator> gpsource_form_Int_,
-      const bool use_GPsource_);
+      const bool use_GPsource_, const bool use_LDF_ = false);
+   /** @brief Project the magnetic coefficients of a state or time derivative
+       onto the element-wise LDF space, leaving the other fields unchanged.
+       Requires use_LDF_ = true and scalar VALUE-mapped DG elements on affine
+       2D triangles or bilinear quadrilaterals (no high-order curved geometry).
+       This preserves magnetic cell averages but allows normal face jumps.
+       @param state full DG state or time derivative, modified in place */
+   void ApplyLDF(Vector &state) const;
+   /** @brief Return the local magnetic L2 projector for inspection.
+       @param element local element index */
+   const DenseMatrix &GetLDFProjector(int element) const
+   {
+      MFEM_VERIFY(use_LDF && element >= 0 &&
+                  element < static_cast<int>(ldf_projectors.size()),
+                  "An enabled LDF projector and a valid element are required.");
+      return ldf_projectors[element];
+   }
    /**
     * @brief Compute M^{-1}(R_flux(x) + R_GP(x)) for explicit time stepping.
     * R_GP is included only when use_GPsource is true.
+    * When use_LDF is true, the magnetic time derivative is L2-projected
+    * onto the local divergence-free space.
     *
     * @param x current solution vector
     * @param y resulting time derivative vector for an explicit ODE solver
@@ -501,7 +526,7 @@ DG_MHD_GPsource::DG_MHD_GPsource(
    FiniteElementSpace &vfes_,
    std::unique_ptr<HyperbolicFormIntegrator> hyperb_form_Int_,
    std::unique_ptr<GPsourceFormIntegrator> gpsource_form_Int_,
-   const bool use_GPsource_)
+   const bool use_GPsource_, const bool use_LDF_)
    : TimeDependentOperator(vfes_.GetTrueVSize()),
      num_equations(hyperb_form_Int_->num_equations),
      dim(vfes_.GetMesh()->SpaceDimension()),
@@ -509,10 +534,12 @@ DG_MHD_GPsource::DG_MHD_GPsource(
      hyperb_form_Int(std::move(hyperb_form_Int_)),
      gpsource_form_Int(std::move(gpsource_form_Int_)),
      use_GPsource(use_GPsource_),
+     use_LDF(use_LDF_),
      z(vfes_.GetTrueVSize())
 {
    // Assemble and invert the scalar mass matrix on each element for all fields.
    ComputeInvMass();
+   if (use_LDF) { ComputeLDFProjectors(); }
 
 #ifndef MFEM_USE_MPI
    nonlinearForm.reset(new NonlinearForm(&vfes));
@@ -563,6 +590,129 @@ void DG_MHD_GPsource::ComputeInvMass()
 }
 
 
+void DG_MHD_GPsource::ComputeLDFProjectors()
+{
+   MFEM_VERIFY(dim == 2 && vfes.GetMesh()->Dimension() == 2,
+               "LDF projection requires a two-dimensional mesh.");
+   MFEM_VERIFY(vfes.GetOrdering() == Ordering::byNODES &&
+               vfes.GetVDim() == num_equations &&
+               vfes.FEColl()->GetContType() == FiniteElementCollection::DISCONTINUOUS,
+               "LDF projection requires the component-wise DG state space.");
+   ldf_projectors.resize(vfes.GetNE());
+   for (int k = 0; k < vfes.GetNE(); k++)
+   {
+      const FiniteElement &fe = *vfes.GetFE(k);
+      ElementTransformation &Tr = *vfes.GetElementTransformation(k);
+      const bool triangle = fe.GetGeomType() == Geometry::TRIANGLE;
+      MFEM_VERIFY((triangle || fe.GetGeomType() == Geometry::SQUARE) &&
+                  Tr.Order() == 1 &&
+                  fe.GetRangeType() == FiniteElement::SCALAR &&
+                  fe.GetMapType() == FiniteElement::VALUE &&
+                  fe.Space() == (triangle ? FunctionSpace::Pk : FunctionSpace::Qk),
+                  "LDF projection requires affine triangles or bilinear quads"
+                  " with scalar VALUE-mapped DG elements.");
+      const int dof = fe.GetDof();
+      const int p = fe.GetOrder();
+      DenseMatrix &P = ldf_projectors[k];
+      P.SetSize(2*dof);
+      P = 0.0;
+      for (int j = 0; j < 2*dof; j++) { P(j,j) = 1.0; }
+      if (p == 0) { continue; } // Cell-wise constants are already LDF.
+
+      // On triangles div(B) is in P^(p-1). On bilinear quads det(J)*div(B)
+      // is in Q^p with the highest tensor monomial absent. Test against a
+      // complete basis of that numerator space; det(J) cancels in the integral.
+      // In particular, Q^(p-1) alone would miss some quadrilateral constraints.
+      L2_FECollection constraint_fec(triangle ? p-1 : p, dim);
+      const FiniteElement &qfe =
+         *constraint_fec.FiniteElementForGeometry(fe.GetGeomType());
+      const int constraints = triangle ? qfe.GetDof() : (p+1)*(p+1)-1;
+      DenseMatrix D(constraints, 2*dof);
+      D = 0.0;
+      Vector qshape(constraints);
+      Vector legendre_x(p+1), legendre_y(p+1);
+      DenseMatrix dshape(dof, dim);
+      const IntegrationRule &ir =
+         IntRules.Get(fe.GetGeomType(), 2*p + Tr.OrderW());
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         if (triangle) { qfe.CalcShape(ip, qshape); }
+         else
+         {
+            Poly_1D::CalcLegendre(p, ip.x, legendre_x.GetData());
+            Poly_1D::CalcLegendre(p, ip.y, legendre_y.GetData());
+            int a = 0;
+            for (int j = 0; j <= p; j++)
+            {
+               for (int i = 0; i <= p; i++)
+               {
+                  if (i == p && j == p) { continue; }
+                  qshape(a++) = legendre_x(i) * legendre_y(j);
+               }
+            }
+         }
+         fe.CalcPhysDShape(Tr, dshape);
+         const real_t weight = ip.weight * Tr.Weight();
+         for (int a = 0; a < constraints; a++)
+         {
+            for (int j = 0; j < dof; j++)
+            {
+               D(a,j) += weight * qshape(a) * dshape(j,0);
+               D(a,dof+j) += weight * qshape(a) * dshape(j,1);
+            }
+         }
+      }
+
+      // H = diag(M,M), A = H^{-1} D^T, S = D A.
+      // P = I - A S^{-1} D is the H-orthogonal projector onto ker(D).
+      DenseMatrix A(2*dof, constraints);
+      A = 0.0;
+      for (int c = 0; c < dim; c++)
+      {
+         for (int j = 0; j < dof; j++)
+         {
+            for (int a = 0; a < constraints; a++)
+            {
+               for (int l = 0; l < dof; l++)
+               {
+                  A(c*dof+j,a) += invmass[k](j,l) * D(a,c*dof+l);
+               }
+            }
+         }
+      }
+      DenseMatrix S(constraints), SinvD(constraints, 2*dof);
+      mfem::Mult(D, A, S);
+      DenseMatrixInverse schur_inverse(S, true);
+      schur_inverse.Mult(D, SinvD);
+      DenseMatrix correction(2*dof);
+      mfem::Mult(A, SinvD, correction);
+      P -= correction;
+   }
+}
+
+void DG_MHD_GPsource::ApplyLDF(Vector &state) const
+{
+   MFEM_VERIFY(use_LDF && state.Size() == vfes.GetVSize(),
+               "ApplyLDF requires enabled LDF projection and a full DG vector.");
+   Vector local_state, magnetic, projected;
+   Array<int> vdofs;
+   for (int k = 0; k < vfes.GetNE(); k++)
+   {
+      const int dof = vfes.GetFE(k)->GetDof();
+      vfes.GetElementVDofs(k, vdofs);
+      state.GetSubVector(vdofs, local_state);
+      // Local fields are contiguous: (rho, momentum, magnetic field, E).
+      magnetic.MakeRef(local_state, (1+dim)*dof, dim*dof);
+      projected.SetSize(dim*dof);
+      ldf_projectors[k].Mult(magnetic, projected);
+      magnetic = projected;
+      state.SetSubVector(vdofs, local_state);
+   }
+}
+
+
 void DG_MHD_GPsource::Mult(const Vector &x, Vector &y) const
 {
    // 0. Reset wavespeed computation before operator application.
@@ -592,6 +742,9 @@ void DG_MHD_GPsource::Mult(const Vector &x, Vector &y) const
       // return the result to the global vector
       y.SetSubVector(vdofs, current_ymat.GetData());
    }
+   // Project the time derivative after applying the mass inverse. With an
+   // LDF initial state on a fixed mesh, explicit RK stages remain LDF.
+   if (use_LDF) { ApplyLDF(y); }
    max_char_speed = hyperb_form_Int->GetMaxCharSpeed();
 }
 
@@ -603,6 +756,7 @@ void DG_MHD_GPsource::Update()
    z.SetSize(height);
 
    ComputeInvMass();
+   if (use_LDF) { ComputeLDFProjectors(); }
 }
 
 

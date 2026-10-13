@@ -5,6 +5,7 @@
 // Sample runs:
 //
 //       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -gp
+//       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -gp -ldf
 //       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -no-gp
 //
 // Description:  This example solves the ideal magnetohydrodynamics (MHD)
@@ -29,6 +30,10 @@
 //               Bhat dot n_K is the arithmetic average of the two normal
 //               magnetic traces. Use -gp to enable the Godunov-Powell terms;
 //               they are disabled by default, and -no-gp omits them.
+//               On affine triangles or bilinear quads, -ldf projects the initial
+//               magnetic coefficients and each magnetic time derivative onto the
+//               locally divergence-free space using an element-wise L2
+//               projection. The GP face corrections are still needed.
 //
 //               Problem 1 is the two-dimensional Orszag-Tang vortex on the
 //               periodic unit square. Its initial density and pressure are
@@ -75,6 +80,7 @@ int main(int argc, char *argv[])
    real_t cfl = 0.5;
    bool visualization = true;
    bool use_GPsource = false;
+   bool use_LDF = false;
    int vis_steps = 20;
 
    int precision = 8;
@@ -105,6 +111,9 @@ int main(int argc, char *argv[])
    args.AddOption(&use_GPsource, "-gp", "--use-gp-source", "-no-gp",
                   "--no-use-gp-source",
                   "Enable or disable the use of GP source term.");
+   args.AddOption(&use_LDF, "-ldf", "--use-ldf", "-no-ldf", "--no-use-ldf",
+                  "Enable or disable local L2 divergence-free magnetic projection"
+                  " on affine 2D triangles or bilinear quadrilaterals.");
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file. When the user does not provide
@@ -150,6 +159,20 @@ int main(int argc, char *argv[])
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
    GridFunction density_sol(&fes, sol.GetData() + 0 * fes.GetNDofs());
+
+   // Set up the operator before writing the projected initial condition.
+   IdealMHDFlux mhdflux(dim, specific_heat_ratio);
+   RusanovFlux numericalFlux(mhdflux);
+   GPsource gpsource(dim);
+   RusanovGPsource numericalGPsource(gpsource);
+   DG_MHD_GPsource mhd(vfes,
+                       std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(
+                                                                    numericalFlux, IntOrderOffset)),
+                       std::unique_ptr<GPsourceFormIntegrator>(new GPsourceFormIntegrator(
+                                                                  numericalGPsource, IntOrderOffset)),
+                       use_GPsource, use_LDF);
+   if (use_LDF) { mhd.ApplyLDF(sol); }
+
    // Output the initial density profile
    {
       ostringstream mesh_name;
@@ -169,19 +192,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 6. Set up the MHD flux and optional Godunov-Powell volume/face sources.
-   IdealMHDFlux mhdflux(dim, specific_heat_ratio);
-   RusanovFlux numericalFlux(mhdflux);
-   GPsource gpsource(dim);
-   RusanovGPsource numericalGPsource(gpsource);
-   DG_MHD_GPsource mhd(vfes,
-                       std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(
-                                                                    numericalFlux, IntOrderOffset)),
-                       std::unique_ptr<GPsourceFormIntegrator>(new GPsourceFormIntegrator(
-                                                                  numericalGPsource, IntOrderOffset)),
-                       use_GPsource);
-
-   // 7. Visualize the density.
+   // 6. Visualize the density.
    socketstream sout;
    if (visualization)
    {
@@ -211,7 +222,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 8. Time integration
+   // 7. Time integration
 
    // When dt is not specified, use CFL condition.
    // Compute h_min and initial maximum characteristic speed
