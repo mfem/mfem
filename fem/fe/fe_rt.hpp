@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -73,16 +73,11 @@ public:
    void Project(const FiniteElement &fe, ElementTransformation &Trans,
                 DenseMatrix &I) const override
    { Project_RT(nk, dof2nk, fe, Trans, I); }
-   // Gradient + rotation = Curl: H1 -> H(div)
-   void ProjectGrad(const FiniteElement &fe,
-                    ElementTransformation &Trans,
-                    DenseMatrix &grad) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
    // Curl = Gradient + rotation: H1 -> H(div)
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl2D_RT(nk, dof2nk, fe, Trans, curl); }
 
    void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 
@@ -148,7 +143,7 @@ public:
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 
    /// @brief Return the mapping from lexicographically ordered face DOFs to
    /// lexicographically ordered element DOFs corresponding to local face
@@ -210,16 +205,11 @@ public:
    void Project(const FiniteElement &fe, ElementTransformation &Trans,
                 DenseMatrix &I) const override
    { Project_RT(nk, dof2nk, fe, Trans, I); }
-   // Gradient + rotation = Curl: H1 -> H(div)
-   void ProjectGrad(const FiniteElement &fe,
-                    ElementTransformation &Trans,
-                    DenseMatrix &grad) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
    // Curl = Gradient + rotation: H1 -> H(div)
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl2D_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 
@@ -274,7 +264,7 @@ public:
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 class RT_WedgeElement : public VectorFiniteElement
@@ -332,7 +322,7 @@ public:
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 /** Arbitrary order H(Div) basis functions defined on pyramid-shaped elements
@@ -428,7 +418,7 @@ public:
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 
    void CalcRawVShape(const IntegrationPoint &ip,
                       DenseMatrix &shape) const;
@@ -510,6 +500,9 @@ public:
    RT_R2D_SegmentElement(const int p,
                          const int ob_type = BasisType::GaussLegendre);
 
+   int GetPhysRangeDim(int space_dim) const override { return 2; }
+   int GetPhysCurlDim(int space_dim) const override { return 0; }
+
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
 
@@ -547,6 +540,9 @@ private:
                            DenseMatrix &I) const;
 
 public:
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
+   int GetPhysCurlDim(int space_dim) const override { return 0; }
+
    using FiniteElement::CalcVShape;
 
    void CalcVShape(ElementTransformation &Trans,
@@ -619,8 +615,8 @@ private:
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
-       open BasisType @a cb_type and @a ob_type */
+   /** @brief Construct the RT_R2D_QuadrilateralElement of order @a p and
+       closed and open BasisType @a cb_type and @a ob_type */
    RT_R2D_QuadrilateralElement(const int p,
                                const int cb_type = BasisType::GaussLobatto,
                                const int ob_type = BasisType::GaussLegendre);

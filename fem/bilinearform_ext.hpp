@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,7 +69,8 @@ class PABilinearFormExtension : public BilinearFormExtension
 protected:
    const FiniteElementSpace *trial_fes, *test_fes; // Not owned
    /// Attributes of all mesh elements.
-   Array<int> elem_attributes, bdr_attributes;
+   const Array<int> *elem_attributes; // Not owned
+   const Array<int> *bdr_face_attributes; // Not owned
    mutable Vector tmp_evec; // Work array
    mutable Vector localX, localY;
    mutable Vector int_face_X, int_face_Y;

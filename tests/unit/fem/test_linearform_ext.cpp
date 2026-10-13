@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -328,7 +328,7 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [GPU]")
    }
 }
 
-TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
+TEST_CASE("Vector FE Linear Form Extension", "[LinearFormExtension], [GPU]")
 {
    const bool all = launch_all_non_regression_tests;
 
@@ -341,24 +341,77 @@ TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
 
-   CAPTURE(mesh_file, dim, p);
+   {
+      const auto space_type =
+         dim == 3 ? GENERATE(FiniteElement::DIV, FiniteElement::CURL)
+         : FiniteElement::DIV;
 
-   RT_FECollection fec(p, dim);
-   FiniteElementSpace fes(&mesh, &fec);
+      CAPTURE(mesh_file, dim, p, space_type);
 
-   VectorFunctionCoefficient coeff(dim, fvec_dim);
+      std::unique_ptr<FiniteElementCollection> fec;
 
-   LinearForm d1(&fes);
-   d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d1.UseFastAssembly(true);
-   d1.Assemble();
+      switch (space_type)
+      {
+         case FiniteElement::DIV:
+            fec.reset(new RT_FECollection(p, dim));
+            break;
+         case FiniteElement::CURL:
+            fec.reset(new ND_FECollection(p, dim));
+            break;
+         default:
+            MFEM_ABORT("unsupported space type");
+      }
+      FiniteElementSpace fes(&mesh, fec.get());
 
-   LinearForm d2(&fes);
-   d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d2.UseFastAssembly(false);
-   d2.Assemble();
+      VectorFunctionCoefficient coeff(dim, fvec_dim);
 
-   CAPTURE(d1.Norml2(), d2.Norml2());
-   d1 -= d2;
-   REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+      LinearForm d1(&fes);
+      d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+      d1.UseFastAssembly(true);
+      d1.Assemble();
+
+      LinearForm d2(&fes);
+      d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+      d2.UseFastAssembly(false);
+      d2.Assemble();
+
+      CAPTURE(d1.Norml2(), d2.Norml2());
+      d1 -= d2;
+      REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+   }
 }
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel Fast LinearForm Assembly",
+          "[AssemblyLevel], [Parallel], [GPU]")
+{
+   auto order = GENERATE(1, 2);
+   auto mesh_fname = GENERATE(
+                        "../../data/amr-quad.mesh",
+                        "../../data/fichera-amr.mesh"
+                     );
+
+   Mesh serial_mesh(mesh_fname);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 0;
+   mesh.MarkExternalBoundaries(ess_bdr);
+
+   H1_FECollection fec(order, mesh.Dimension());
+   ParFiniteElementSpace fespace(&mesh, &fec);
+
+   Array<int> ess_tdof_list;
+   fespace.GetBoundaryTrueDofs(ess_tdof_list);
+
+   ParLinearForm b(&fespace);
+   ConstantCoefficient one(1.0);
+   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   b.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), ess_bdr);
+   b.UseFastAssembly(true);
+   b.Assemble();
+}
+
+#endif
