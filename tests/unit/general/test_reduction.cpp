@@ -400,7 +400,6 @@ TEST_CASE("Reduce ArgMinMax", "[Reduction],[GPU]")
 
 TEST_CASE("forall_3d_grid covers all elements", "[GPU]")
 {
-   if (!Device::Allows(Backend::RAJA_CUDA | Backend::RAJA_HIP)) { return; }
    const int grid = GENERATE(0, 128, 256);
    const bool bounded = GENERATE(false, true);
    Vector result(200);
