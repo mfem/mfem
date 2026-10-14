@@ -5131,6 +5131,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    int mfem_nc_version = 0;
    if (mesh_type == "MFEM NC mesh v1.0") { mfem_nc_version = 10; }
    else if (mesh_type == "MFEM NC mesh v1.1") { mfem_nc_version = 11; }
+   else if (mesh_type == "MFEM NC mesh v1.2") { mfem_nc_version = 12; }
    else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
 
    if (mfem_version)
@@ -5324,7 +5325,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       string ident;
       skip_comment_lines(input, '#');
-      if (input.peek() == 'a')
+      if (mfem_nc_version >= 12)
       {
          input >> ident;
          MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
@@ -5338,6 +5339,9 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          bdr_attribute_sets.attr_sets.Load(input);
          bdr_attribute_sets.attr_sets.SortAll();
          bdr_attribute_sets.attr_sets.UniqueAll();
+
+         skip_comment_lines(input, '#');
+         input >> ident;
       }
       else
       {
@@ -12539,8 +12543,11 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       Array<real_t> coords_save;
       if (Nodes) { mfem::Swap(coords_save, ncmesh->coordinates); }
 
+      const bool set_names = attribute_sets.SetsExist() ||
+                             bdr_attribute_sets.SetsExist();
+
       // nonconforming mesh format
-      ncmesh->Print(os, comments);
+      ncmesh->Print(os, comments, false, set_names);
 
       if (Nodes)
       {
@@ -12551,7 +12558,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
          Nodes->Save(os);
       }
 
-      if (attribute_sets.SetsExist() || bdr_attribute_sets.SetsExist())
+      if (set_names)
       {
          os << "\nattribute_sets\n";
          attribute_sets.Print(os);
@@ -15589,7 +15596,9 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
          part_ncmesh.DropCoordinates();
       }
 
-      part_ncmesh.Print(os);
+      const bool set_names = mesh.attribute_sets.SetsExist() ||
+                             mesh.bdr_attribute_sets.SetsExist();
+      part_ncmesh.Print(os, "", false, set_names);
 
       if (mesh.GetNodes())
       {
@@ -15607,7 +15616,7 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
          local_nodes->Save(os);
       }
 
-      if (mesh.attribute_sets.SetsExist() || mesh.bdr_attribute_sets.SetsExist())
+      if (set_names)
       {
          os << "\nattribute_sets\n";
          mesh.attribute_sets.Print(os);

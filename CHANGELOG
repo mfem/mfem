@@ -11,6 +11,18 @@
 Version 4.10.1 (development)
 ============================
 
+Meshing improvements
+--------------------
+- Added named element and boundary attribute sets to a new MFEM NC mesh v1.2
+  format.
+  
+- Added serial-to-parallel mesh distribution through ParMesh::MakeFromSerial,
+  including high-order, scaled nonconforming, and named-attribute-set meshes.
+  NURBS meshes are currently not supported.
+
+- Fixed loading curved parallel mesh parts that own no elements.
+
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

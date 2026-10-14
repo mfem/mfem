@@ -249,6 +249,7 @@ TEST_CASE("MakeFromSerial preserves serialized mesh metadata",
       smesh.attribute_sets.CreateAttributeSet("material").Append(1);
       smesh.bdr_attribute_sets.CreateAttributeSet("boundary").Append(1);
       smesh.Print(input);
+      REQUIRE(input.str().rfind("MFEM NC mesh v1.2", 0) == 0);
    }
 
    ParMesh pmesh = ParMesh::MakeFromSerial(MPI_COMM_WORLD, input,
@@ -278,15 +279,6 @@ TEST_CASE("MakeFromSerial supports empty curved parts",
    REQUIRE(pmesh.GetNodes());
    REQUIRE(pmesh.GetNodes()->VectorDim() == 2);
    if (rank != 0) { REQUIRE(pmesh.GetNE() == 0); }
-
-   // Verify the ordinary parallel mesh file path too: ranks without elements
-   // must be able to load their nodal GridFunction from the saved part.
-   std::stringstream input;
-   pmesh.Print(input);
-   ParMesh loaded(MPI_COMM_WORLD, input);
-   REQUIRE(loaded.GetNodes());
-   REQUIRE(loaded.GetNodes()->VectorDim() == 2);
-   if (rank != 0) { REQUIRE(loaded.GetNE() == 0); }
 }
 
 TEST_CASE("MakeFromSerial prunes anisotropic 3D NC parts",

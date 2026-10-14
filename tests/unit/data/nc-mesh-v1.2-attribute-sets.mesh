@@ -1,0 +1,33 @@
+MFEM NC mesh v1.2
+
+dimension
+2
+
+rank
+0
+
+elements
+1
+0 1 3 0 0 1 2 3
+
+coordinates
+4
+2
+0 0
+1 0
+1 1
+0 1
+
+attribute_sets
+1
+"materials"
+1
+1
+
+bdr_attribute_sets
+1
+"walls"
+1
+1
+
+mfem_mesh_end

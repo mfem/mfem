@@ -985,7 +985,7 @@ void ParMesh::Load(istream &input, int generate_edges, int refine,
       {
          string ident;
          skip_comment_lines(input, '#');
-         if (input.peek() == 'a')
+         if (ncmesh->SupportsAttributeSets())
          {
             input >> ident;
             MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
@@ -999,6 +999,9 @@ void ParMesh::Load(istream &input, int generate_edges, int refine,
             bdr_attribute_sets.attr_sets.Load(input);
             bdr_attribute_sets.attr_sets.SortAll();
             bdr_attribute_sets.attr_sets.UniqueAll();
+
+            skip_comment_lines(input, '#');
+            input >> ident;
          }
          else
          {
