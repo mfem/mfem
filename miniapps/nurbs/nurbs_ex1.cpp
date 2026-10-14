@@ -20,6 +20,8 @@
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
 //               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2
 //               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m meshes/square-nurbs-distorted.mesh -o 2 -mo 3
+//               nurbs_ex1 -m meshes/square-nurbs-distorted.mesh -o 2 -mo 3 -no-ibp
 //               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2
 //               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2 -no-ibp
 //
@@ -161,6 +163,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
+   int mOrder = -1;
    const char *per_file  = "none";
    const char *ref_file  = "";
    int ref_levels = -1;
@@ -181,6 +184,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&mOrder, "-mo", "--mesh-order",
+                  "Order for the isoparametric  mesh");
    args.AddOption(&ref_levels, "-r", "--refine",
                   "Number of times to refine the mesh uniformly, -1 for auto.");
    args.AddOption(&per_file, "-p", "--per",
@@ -239,6 +244,16 @@ int main(int argc, char *argv[])
    //    in a refinement file. We choose 'ref_levels' to be the largest number
    //    that gives a final mesh with no more than 50,000 elements.
    {
+      if (mesh->NURBSext)
+      {
+         int mOrder_cur = mesh->NURBSext->GetOrder();
+         if ((mOrder_cur != NURBSFECollection::VariableOrder) &&
+             (mOrder > 0))
+         {
+            mesh->DegreeElevate(mOrder - mOrder_cur);
+         }
+      }
+
       // Mesh refinement as defined in refinement file
       if (mesh->NURBSext && (strlen(ref_file) != 0))
       {
