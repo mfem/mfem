@@ -35,7 +35,9 @@ concurrency:
 jobs:
   benchmarks:
     name: benchmarks
-    runs-on: ubuntu-latest
+    # Pinned so runner OS updates are adopted deliberately (by bumping this)
+    # rather than appearing as perf shifts in every open PR.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: checkout mfem
