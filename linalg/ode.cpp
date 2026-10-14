@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -181,6 +181,12 @@ void ODEStateDataVector::Print(std::ostream &os) const
 
 void ODESolver::Init(TimeDependentOperator &f_)
 {
+   auto implicit_type = f_.GetImplicitVariableType();
+   if (!SupportsImplicitVariableType(implicit_type))
+   {
+      MFEM_ABORT("The ODE solver does not support the implicit variable type.");
+   }
+
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
 }

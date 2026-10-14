@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -205,6 +205,7 @@ set(HDRS
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
   integ/bilininteg_mass_pa_simplices.hpp
+  integ/bilininteg_vectorfemass_kernels.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecdiv_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
@@ -310,7 +311,7 @@ set(HDRS
   tmop.hpp
   tmop/pa.hpp
   tmop/assemble/grad2.hpp
-  tmop/assemble/grad2.hpp
+  tmop/assemble/grad3.hpp
   tmop/mult/mult2.hpp
   tmop/mult/mult3.hpp
   tmop/tools/energy2.hpp
