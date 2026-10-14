@@ -3267,10 +3267,10 @@ void AddMult_a_AAt(real_t a, const DenseMatrix &A, DenseMatrix &AAt)
 {
    const int h = A.Height();
    const int w = A.Width();
-   const real_t *Ad = A.Data();
-   real_t *Cd = AAt.Data();
    MFEM_ASSERT(AAt.Height() == h && AAt.Width() == h,
                "incompatible dimensions");
+   const real_t *Ad = A.HostRead();
+   real_t *Cd = AAt.HostReadWrite();
 
    // Sweep AAt by column, one specialization per space dimension.
    switch (w)
