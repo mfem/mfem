@@ -11,6 +11,12 @@
 Version 4.10.1 (development)
 ============================
 
+Discretization improvements
+---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added the optics hologram miniapps (miniapps/optics). Serial hologram and
