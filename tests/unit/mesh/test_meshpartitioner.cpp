@@ -253,7 +253,7 @@ TEST_CASE("MakeFromSerial preserves serialized mesh metadata",
    }
 
    ParMesh pmesh = ParMesh::MakeFromSerial(MPI_COMM_WORLD, input,
-                                            1, 0, false);
+                                           1, 0, false);
    REQUIRE(pmesh.Nonconforming());
    REQUIRE(pmesh.attribute_sets.AttributeSetExists("material"));
    REQUIRE(pmesh.bdr_attribute_sets.AttributeSetExists("boundary"));
@@ -275,7 +275,7 @@ TEST_CASE("MakeFromSerial supports empty curved parts",
    }
 
    ParMesh pmesh = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
-                                            partition.data());
+                                           partition.data());
    REQUIRE(pmesh.GetNodes());
    REQUIRE(pmesh.GetNodes()->VectorDim() == 2);
    if (rank != 0) { REQUIRE(pmesh.GetNE() == 0); }
@@ -308,7 +308,7 @@ TEST_CASE("MakeFromSerial prunes anisotropic 3D NC parts",
    MPI_Bcast(&global_ne, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
    ParMesh pmesh = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
-                                            partition.data());
+                                           partition.data());
    REQUIRE(pmesh.Nonconforming());
 
    int local_ne = pmesh.GetNE();

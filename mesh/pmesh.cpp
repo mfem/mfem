@@ -7212,7 +7212,8 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, const int* partitioning,
          auto ptr = data.data();
          while (nbytes)
          {
-            int packet = std::min<int>(std::numeric_limits<int>::max(), nbytes);
+            int packet = static_cast<int>(std::min<uint64_t>
+                                          (std::numeric_limits<int>::max(), nbytes));
             MPI_Send(ptr, packet, MPI_CHAR, i, 0, comm);
             nbytes -= packet;
             ptr += packet;
@@ -7266,7 +7267,8 @@ static ParMesh ReceiveMesh(MPI_Comm comm, int generate_edges = 1,
       auto ptr = data.data();
       while (nbytes)
       {
-         int packet = std::min<int>(std::numeric_limits<int>::max(), nbytes);
+         int packet = static_cast<int>(std::min<uint64_t>
+                                       (std::numeric_limits<int>::max(), nbytes));
          MPI_Recv(ptr, packet, MPI_CHAR, 0, 0, comm, MPI_STATUS_IGNORE);
          nbytes -= packet;
          ptr += packet;
