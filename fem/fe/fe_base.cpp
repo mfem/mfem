@@ -210,6 +210,27 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
    Mult(vshape, Trans.InverseJacobian(), dshape);
 }
 
+void RuleShapes::CalcPhysShape(int q, ElementTransformation &T,
+                               Vector &shape) const
+{
+   if (!d2q) { fe.CalcPhysShape(T, shape); return; }
+   CalcShape(q, shape);
+   if (fe.GetMapType() == FiniteElement::INTEGRAL)
+   {
+      shape /= T.Weight();
+   }
+}
+
+void RuleShapes::CalcPhysDShape(int q, ElementTransformation &T,
+                                DenseMatrix &dshape) const
+{
+   if (!d2q) { fe.CalcPhysDShape(T, dshape); return; }
+   MFEM_ASSERT(fe.GetMapType() == FiniteElement::VALUE, "");
+   vshape.SetSize(fe.GetDof(), fe.GetDim());
+   CalcDShape(q, vshape);
+   Mult(vshape, T.InverseJacobian(), dshape);
+}
+
 void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
                                       Vector &Laplacian) const
 {

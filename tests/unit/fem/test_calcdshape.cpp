@@ -14,6 +14,8 @@
 
 #include <iostream>
 #include <cmath>
+#include <memory>
+#include <vector>
 
 using namespace mfem;
 
@@ -475,4 +477,50 @@ TEST_CASE("CalcDShape vs FD L2",
       TestFDCalcDShape(&fe, &T, order);
    }
 
+}
+
+TEST_CASE("RuleShapes matches CalcShape and CalcDShape", "[RuleShapes]")
+{
+   const int p = GENERATE(1, 2, 3, 4);
+   CAPTURE(p);
+
+   std::vector<std::unique_ptr<FiniteElement>> fes;
+   fes.emplace_back(new H1_TriangleElement(p));
+   fes.emplace_back(new H1_TetrahedronElement(p));
+   fes.emplace_back(new H1_WedgeElement(p));
+   fes.emplace_back(new H1_FuentesPyramidElement(p));
+   fes.emplace_back(new H1_BergotPyramidElement(p));
+   fes.emplace_back(new H1Pos_TriangleElement(p));
+   fes.emplace_back(new H1Pos_TetrahedronElement(p));
+   fes.emplace_back(new H1Pos_WedgeElement(p));
+   fes.emplace_back(new L2_TriangleElement(p));
+   fes.emplace_back(new L2_TetrahedronElement(p));
+   fes.emplace_back(new L2_WedgeElement(p));
+   fes.emplace_back(new L2_FuentesPyramidElement(p));
+   fes.emplace_back(new L2_BergotPyramidElement(p));
+   fes.emplace_back(new H1_HexahedronElement(p));
+
+   for (const auto &fe : fes)
+   {
+      CAPTURE(Geometry::Name[fe->GetGeomType()], fe->GetDof());
+      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), 2*p + 1);
+      const RuleShapes shapes(*fe, ir);
+      const int nd = fe->GetDof(), dim = fe->GetDim();
+      Vector s(nd), rs(nd);
+      DenseMatrix ds(nd, dim), rds(nd, dim);
+      bool same = true;
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         fe->CalcShape(ir.IntPoint(q), s);
+         shapes.CalcShape(q, rs);
+         fe->CalcDShape(ir.IntPoint(q), ds);
+         shapes.CalcDShape(q, rds);
+         for (int j = 0; j < nd; j++) { same = same && s(j) == rs(j); }
+         for (int j = 0; j < nd*dim; j++)
+         {
+            same = same && ds.GetData()[j] == rds.GetData()[j];
+         }
+      }
+      REQUIRE(same);
+   }
 }
