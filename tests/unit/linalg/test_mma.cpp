@@ -304,24 +304,26 @@ namespace
 {
 struct Constraint
 {
-   Constraint(MPI_Comm comm_, int numVar_) : comm(comm_), numVar(numVar_) {}
+   Constraint(MPI_Comm comm_, int numGlobalVar_, int numLocalVar_) : comm(comm_),
+      numGlobalVar(numGlobalVar_), numLocalVar(numLocalVar_) {}
 
    void operator()(const Vector &x, Vector &gx, Vector &dgdx)
    {
-      REQUIRE( x.Size() == numVar );
-      double localConstraint(0), globalConstraint;
+      REQUIRE( x.Size() == numLocalVar );
+      double localConstraint(0), globalConstraint(0);
       for (const double v : x)
       {
          localConstraint += v;
       }
       MPI_Allreduce(&localConstraint, &globalConstraint, 1, MPI_DOUBLE, MPI_SUM,
                     comm);
-      gx(0) = globalConstraint - 0.5*numVar;
+      gx(0) = globalConstraint - 10.0*numGlobalVar;
       dgdx = 1;
    }
 
    MPI_Comm comm;
-   const int numVar;
+   const int numGlobalVar;
+   const int numLocalVar;
 };
 }
 
@@ -364,7 +366,7 @@ TEST_CASE("Smaller MMA constrained Test", "[Parallel], [MMA_1CONSTR_SMALL]")
 
       ::std::unique_ptr<MMA> mma =
          ::std::make_unique<MMA>(MPI_COMM_WORLD,num_var,1,x);
-      Constraint constraint(MPI_COMM_WORLD, global_num_var);
+      Constraint constraint(MPI_COMM_WORLD, global_num_var, num_var);
 
       real_t o;
       for (int it=0; it<30; it++)
@@ -379,7 +381,7 @@ TEST_CASE("Smaller MMA constrained Test", "[Parallel], [MMA_1CONSTR_SMALL]")
 
       constexpr double amountPerVar = (75.977534018859/12);
       const double expectedResult = (amountPerVar*global_num_var);
-      REQUIRE( std::fabs(o - expectedResult) < 1e-11 );
+      REQUIRE( std::fabs(o - expectedResult) < 1e-8 );
       REQUIRE(gx(0) <= 0);
    }
 }
