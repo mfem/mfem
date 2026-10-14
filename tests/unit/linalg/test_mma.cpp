@@ -341,7 +341,7 @@ TEST_CASE("Smaller MMA constrained Test", "[Parallel], [MMA_1CONSTR_SMALL]")
    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   const int global_num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+   const int global_num_var=(world_size > 2) ? ::std::min(12, world_size-1) : 12;
    for (int offset = 0; offset < world_size;
         ++offset)  // rotate which rank has no decision variables
    {
