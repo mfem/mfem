@@ -138,7 +138,14 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
    {
       ext.dnfi[i]->AssembleGradDiagonalPA(ext.ye);
    }
-   ext.elemR->MultTranspose(ext.ye, diag);
+   if (dynamic_cast<const ElementRestriction *>(ext.elemR))
+   {
+      ext.elemR->AbsMultTranspose(ext.ye, diag);
+   }
+   else
+   {
+      ext.elemR->MultTranspose(ext.ye, diag);
+   }
 }
 
 void PANonlinearFormExtension::Gradient::Update()
