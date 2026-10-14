@@ -13,6 +13,10 @@ Version 4.10.1 (development)
 
 Discretization improvements
 ---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
+
 - ComplexCoefficient, ComplexVectorCoefficient, and ComplexMatrixCoefficient
   provide scalar, vector, and matrix-valued complex coefficient support.
   Complex-valued FEM classes now include support for these complex-valued
