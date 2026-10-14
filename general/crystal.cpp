@@ -33,6 +33,7 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
                   << rank_list.Size());
    }
 
+<<<<<<< HEAD
    // Routing runs entirely on the host, so pull down any device-resident field.
    // Nothing is done on the way back up: ToHost() leaves the host copy valid and
    // the device copy stale, and the caller's next device access transfers lazily.
@@ -40,9 +41,57 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
 
    Array<unsigned int> ranks(rank_list);
    RouteInternal(ranks, fields);
+=======
+   if (Device::IsEnabled()) {
+      RouteDevice(rank_list, fields);
+   }
+   else {
+      Array<unsigned int> ranks(rank_list);
+      RouteInternal(ranks, fields);
+   }
+>>>>>>> 28b72adb13 (particle-specific host/device transfer + copy latest particlevector from master)
 }
 
 // PRIVATE METHODS
+
+// device path: only leaving particles cross to host, only arrivals cross back
+void CrystalRouter::RouteDevice(const Array<unsigned int> &rank_list,
+                                const std::vector<CR::Field*> &fields)
+{
+   // split into leaving/staying
+   const int n = rank_list.Size();
+   const unsigned int *h_ranks = rank_list.HostRead();
+   Array<int> leaving_idx, staying_idx;
+   Array<unsigned int> ranks;
+   for (int i = 0; i < n; i++) {
+      if (h_ranks[i] != (unsigned int)rank) {
+         leaving_idx.Append(i);
+         ranks.Append(h_ranks[i]);
+      }
+      else {
+         staying_idx.Append(i);
+      }
+   }
+
+   // pull only the leaving particles into host buffers
+   std::vector<std::unique_ptr<CR::Field>> host_fields;
+   std::vector<CR::Field*> host_field_ptrs;
+   host_fields.reserve(fields.size());
+   host_field_ptrs.reserve(fields.size());
+   for (auto *f : fields) {
+      host_fields.push_back(f->ToHost(leaving_idx));
+      host_field_ptrs.push_back(host_fields.back().get());
+   }
+
+   // route
+   RouteInternal(ranks, host_field_ptrs);
+
+   // return to device
+   for (std::size_t k = 0; k < fields.size(); k++) {
+      fields[k]->ToDevice(staying_idx, *host_fields[k]);
+   }
+}
+
 void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
                                   const std::vector<CR::Field*> &fields)
 {
