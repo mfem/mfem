@@ -551,6 +551,7 @@ SparseMatrix AdaptiveSmoother(Operator &op, SparseMatrix &A, Array<int> block_si
    }
    real_t rho = PinvAx.Norml2();
    real_t w = 4.0/3.0/rho;
+   std::cout << "level: " << level << " rho: " << rho << " w: " << w << std::endl;
    smoother *= w;
 
    // Smooth the columns of B.
