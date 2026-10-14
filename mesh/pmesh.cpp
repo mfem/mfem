@@ -7154,7 +7154,14 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, const int* partitioning)
          std::string data = ser.str();
          uint64_t nbytes = data.size();
          MPI_Send(&nbytes, 1, MPI_UINT64_T, i, 0, comm);
-         MPI_Send(data.data(), nbytes, MPI_CHAR, i, 0, comm);
+         auto ptr = data.data();
+         while (nbytes)
+         {
+            int packet = std::min<int>(std::numeric_limits<int>::max(), nbytes);
+            MPI_Send(ptr, packet, MPI_CHAR, i, 0, comm);
+            nbytes -= packet;
+            ptr += packet;
+         }
       }
       local_ser << std::setprecision(std::numeric_limits<real_t>::max_digits10);
       partitioner.PrintPart(0, local_ser);
@@ -7197,7 +7204,16 @@ static ParMesh ReceiveMesh(MPI_Comm comm)
    uint64_t nbytes;
    MPI_Recv(&nbytes, 1, MPI_UINT64_T, 0, 0, comm, MPI_STATUS_IGNORE);
    data.resize(nbytes);
-   MPI_Recv(data.data(), nbytes, MPI_CHAR, 0, 0, comm, MPI_STATUS_IGNORE);
+   {
+      auto ptr = data.data();
+      while (nbytes)
+      {
+         int packet = std::min<int>(std::numeric_limits<int>::max(), nbytes);
+         MPI_Recv(ptr, packet, MPI_CHAR, 0, 0, comm, MPI_STATUS_IGNORE);
+         nbytes -= packet;
+         ptr += packet;
+      }
+   }
    // wait to be signalled it's ok to start constructing the mesh
    MPI_Barrier(comm);
    std::stringstream local_ser(data);
