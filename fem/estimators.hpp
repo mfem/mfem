@@ -88,7 +88,8 @@ public:
 class ZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
 {
 protected:
-   long current_sequence;
+   long current_solution_sequence;
+   long current_flux_sequence;
    Vector error_estimates;
    real_t total_error;
    bool anisotropic;
@@ -103,12 +104,15 @@ protected:
    bool with_coeff;
    bool own_flux_fes; ///< Ownership flag for flux_space.
 
-   /// Check if the mesh of the solution was modified.
+   /// Check if the solution or flux finite element space was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long solution_sequence = solution.FESpace()->GetSequence();
+      long flux_sequence = flux_space->GetSequence();
+      MFEM_ASSERT(solution_sequence >= current_solution_sequence, "");
+      MFEM_ASSERT(flux_sequence >= current_flux_sequence, "");
+      return (solution_sequence > current_solution_sequence ||
+              flux_sequence > current_flux_sequence);
    }
 
    /// Compute the element error estimates.
@@ -124,7 +128,8 @@ public:
                        needed.*/
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace *flux_fes)
-      : current_sequence(-1),
+      : current_solution_sequence(-1),
+        current_flux_sequence(-1),
         total_error(),
         anisotropic(false),
         flux_averaging(0),
@@ -144,7 +149,8 @@ public:
                        when needed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace &flux_fes)
-      : current_sequence(-1),
+      : current_solution_sequence(-1),
+        current_flux_sequence(-1),
         total_error(),
         anisotropic(false),
         flux_averaging(0),
@@ -191,7 +197,11 @@ public:
    }
 
    /// Reset the error estimator.
-   void Reset() override { current_sequence = -1; }
+   void Reset() override
+   {
+      current_solution_sequence = -1;
+      current_flux_sequence = -1;
+   }
 
    /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
        FiniteElementSpace, flux_space. */
@@ -251,12 +261,12 @@ protected:
    GridFunction &solution;
    bool with_coeff;
 
-   /// Check if the mesh of the solution was modified.
+   /// Check if the solution finite element space was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long solution_sequence = solution.FESpace()->GetSequence();
+      MFEM_ASSERT(solution_sequence >= current_sequence, "");
+      return (solution_sequence > current_sequence);
    }
 
    /// Compute the element error estimates.
@@ -329,6 +339,8 @@ class L2ZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
    long current_sequence;
+   long current_flux_sequence;
+   long current_smooth_flux_sequence;
    int local_norm_p; ///< Local L_p norm to use, default is 1.
    Vector error_estimates;
    real_t total_error;
@@ -344,12 +356,18 @@ protected:
       class when needed.*/
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
-   /// Check if the mesh of the solution was modified.
+   /// Check if the solution or flux finite element space was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long solution_sequence = solution.FESpace()->GetSequence();
+      long flux_sequence = flux_space->GetSequence();
+      long smooth_flux_sequence = smooth_flux_space->GetSequence();
+      MFEM_ASSERT(solution_sequence >= current_sequence, "");
+      MFEM_ASSERT(flux_sequence >= current_flux_sequence, "");
+      MFEM_ASSERT(smooth_flux_sequence >= current_smooth_flux_sequence, "");
+      return (solution_sequence > current_sequence ||
+              flux_sequence > current_flux_sequence ||
+              smooth_flux_sequence > current_smooth_flux_sequence);
    }
 
    /// Compute the element error estimates.
@@ -372,6 +390,8 @@ public:
                              ParFiniteElementSpace *flux_fes,
                              ParFiniteElementSpace *smooth_flux_fes)
       :  current_sequence(-1),
+         current_flux_sequence(-1),
+         current_smooth_flux_sequence(-1),
          local_norm_p(1),
          total_error(0.0),
          integ(integ),
@@ -397,6 +417,8 @@ public:
                              ParFiniteElementSpace &flux_fes,
                              ParFiniteElementSpace &smooth_flux_fes)
       :  current_sequence(-1),
+         current_flux_sequence(-1),
+         current_smooth_flux_sequence(-1),
          local_norm_p(1),
          total_error(0.0),
          integ(integ),
@@ -421,7 +443,12 @@ public:
    }
 
    /// Reset the error estimator.
-   void Reset() override { current_sequence = -1; }
+   void Reset() override
+   {
+      current_sequence = -1;
+      current_flux_sequence = -1;
+      current_smooth_flux_sequence = -1;
+   }
 
    /** @brief Destroy a L2ZienkiewiczZhuEstimator object. Destroys, if owned,
        the FiniteElementSpace, flux_space. */

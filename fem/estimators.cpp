@@ -27,7 +27,8 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
                                   flux_averaging,
                                   with_coeff);
 
-   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+   current_solution_sequence = solution.FESpace()->GetSequence();
+   current_flux_sequence = flux_space->GetSequence();
 }
 
 void LSZienkiewiczZhuEstimator::ComputeEstimates()
@@ -39,7 +40,7 @@ void LSZienkiewiczZhuEstimator::ComputeEstimates()
                                     with_coeff,
                                     tichonov_coeff);
 
-   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetSequence();
 }
 
 #ifdef MFEM_USE_MPI
@@ -56,7 +57,9 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
                                     *flux_space, error_estimates,
                                     local_norm_p, solver_tol, solver_max_it);
 
-   current_sequence = solution.FESpace()->GetMesh()->GetSequence();
+   current_sequence = solution.FESpace()->GetSequence();
+   current_flux_sequence = flux_space->GetSequence();
+   current_smooth_flux_sequence = smooth_flux_space->GetSequence();
 }
 
 #endif // MFEM_USE_MPI
