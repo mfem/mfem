@@ -407,13 +407,14 @@ real_t HyperelasticNLFIntegrator::GetElementEnergy(const FiniteElement &el,
 
    energy = 0.0;
    model->SetTransformation(Ttr);
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Ttr.SetIntPoint(&ip);
       CalcInverse(Ttr.Jacobian(), Jrt);
 
-      el.CalcDShape(ip, DSh);
+      shapes.CalcDShape(i, DSh);
       MultAtB(PMatI, DSh, Jpr);
       Mult(Jpr, Jrt, Jpt);
 
@@ -446,13 +447,14 @@ void HyperelasticNLFIntegrator::AssembleElementVector(
 
    elvect = 0.0;
    model->SetTransformation(Ttr);
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Ttr.SetIntPoint(&ip);
       CalcInverse(Ttr.Jacobian(), Jrt);
 
-      el.CalcDShape(ip, DSh);
+      shapes.CalcDShape(i, DSh);
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
@@ -485,13 +487,14 @@ void HyperelasticNLFIntegrator::AssembleElementGrad(const FiniteElement &el,
 
    elmat = 0.0;
    model->SetTransformation(Ttr);
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Ttr.SetIntPoint(&ip);
       CalcInverse(Ttr.Jacobian(), Jrt);
 
-      el.CalcDShape(ip, DSh);
+      shapes.CalcDShape(i, DSh);
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
@@ -761,12 +764,13 @@ void VectorConvectionNLFIntegrator::AssembleElementVector(
    Vector vec1(dim), vec2(dim);
    const IntegrationRule *ir = GetIntegrationRule(el, T);
    ELV = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       T.SetIntPoint(&ip);
-      el.CalcShape(ip, shape);
-      el.CalcPhysDShape(T, dshape);
+      shapes.CalcShape(i, shape);
+      shapes.CalcPhysDShape(i, T, dshape);
       real_t w = ip.weight * T.Weight();
       if (Q) { w *= Q->Eval(T, ip); }
 
@@ -802,13 +806,14 @@ void VectorConvectionNLFIntegrator::AssembleElementGrad(
    const IntegrationRule *ir = GetIntegrationRule(el, trans);
 
    elmat = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
 
-      el.CalcShape(ip, shape);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcShape(i, shape);
+      shapes.CalcDShape(i, dshape);
 
       Mult(dshape, trans.InverseJacobian(), dshapex);
 
@@ -873,13 +878,14 @@ void ConvectiveVectorConvectionNLFIntegrator::AssembleElementGrad(
    const IntegrationRule *ir = GetIntegrationRule(el, trans);
 
    elmat = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
 
-      el.CalcShape(ip, shape);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcShape(i, shape);
+      shapes.CalcDShape(i, dshape);
 
       const real_t w = Q ? Q->Eval(trans, ip) * ip.weight : ip.weight;
 
@@ -925,13 +931,14 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
 
    elmat = 0.0;
    elmat_comp_T = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       trans.SetIntPoint(&ip);
 
-      el.CalcShape(ip, shape);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcShape(i, shape);
+      shapes.CalcDShape(i, dshape);
 
       Mult(dshape, trans.InverseJacobian(), dshapex);
 
