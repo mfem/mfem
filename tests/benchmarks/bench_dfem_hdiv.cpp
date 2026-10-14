@@ -13,19 +13,20 @@
 //
 // Notation:
 //
-//   HDIV_MASS/<impl>/<p>/<n>:
+//   HDIV_MASS/<impl>/<p>/<n>/<k>:
 //   - <impl> is the variant (local/global, cahced/mf, etc...)
 //   - p the order given to RT_FECollection
-//   - n the elements per side of the unit cube mesh (n^3 affine hexes).
+//   - n, k the unit cube mesh: n^3 affine hexes, with n + 1 elements along
+//     the first k axes (k in [0, 2]), to fill the gaps between cubes.
 //
 // Sample runs:
 //
 //   CPU:
-//     ./bench_dfem_hdiv --benchmark_filter='HDIV_MASS/.*/4/5$'
-//     ./bench_dfem_hdiv --benchmark_filter='HDIV_MASS/.*/0/24$'
+//     ./bench_dfem_hdiv --benchmark_filter='HDIV_MASS/.*/4/5/0$'
+//     ./bench_dfem_hdiv --benchmark_filter='HDIV_MASS/.*/0/24/0$'
 //
 //   GPU (CUDA; use device=hip on AMD):
-//     ./bench_dfem_hdiv --benchmark_context=device=cuda --benchmark_filter='HDIV_MASS/.*/3/32$'
+//     ./bench_dfem_hdiv --benchmark_context=device=cuda --benchmark_filter='HDIV_MASS/.*/3/32/0$'
 //     ./bench_dfem_hdiv --benchmark_context=device=cuda --benchmark_filter='HDIV_MASS/(mfem_std|PA_dfem_local_primal)/3/'
 //
 
@@ -75,7 +76,8 @@ using future::Identity;
 void info()
 {
    mfem::out << "\x1b[33m";
-   mfem::out << "name: HDIV_MASS/<impl>/<order>/<elements per side>" << std::endl;
+   mfem::out << "name: HDIV_MASS/<impl>/<order>/<n>/<k>,"
+             << " mesh (n + (k > 0)) x (n + (k > 1)) x n" << std::endl;
    mfem::out << "expression: braces mark kernel launch boundaries" << std::endl;
    mfem::out << "            B: RT values" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
@@ -370,10 +372,12 @@ public:
 };
 
 
-// RT_p on an n^3 hex mesh, counting every face dof once
-static constexpr int HdivDofs(int p, int n) noexcept
+// RT_p on an nx x ny x nz hex mesh, counting every face dof once
+static constexpr int HdivDofs(int p, int nx, int ny, int nz) noexcept
 {
-   return 3 * n * n * (p + 1) * (p + 1) * (n * (p + 1) + 1);
+   const int p1 = p + 1;
+   return p1 * p1 * ((nx * p1 + 1) * ny * nz + nx * (ny * p1 + 1) * nz +
+                     nx * ny * (nz * p1 + 1));
 }
 
 static void CustomArguments(bm::Benchmark *b) noexcept
@@ -383,16 +387,22 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    // p <= 6: the registered MFEM, QuadratureInterpolator and dFEM kernels
    const auto orders = std::vector<int> { 6, 5, 4, 3, 2, 1, 0 };
 
-   constexpr auto inc = [](int n) constexpr noexcept -> int
-   {
-      return n < 16 ? 1 : n < 64 ? 4 : 16;
-   };
+   // Meshes n^3, (n+1) n^2 and (n+1)^2 n, kept when their dofs grow by at
+   // least this ratio over the last kept one: about 32 sizes per decade
+   const double ratio = std::pow(10.0, 1.0 / 32);
 
    for (auto p : orders)
    {
-      for (int n = 2; HdivDofs(p, n) <= MAX_NDOFS; n += inc(n))
+      double last = 0.0;
+      for (int n = 2; HdivDofs(p, n, n, n) <= MAX_NDOFS; n++)
       {
-         b->Args({p, n});
+         for (int k = 0; k < 3; k++)
+         {
+            const int ndofs = HdivDofs(p, n + (k > 0), n + (k > 1), n);
+            if (ndofs > MAX_NDOFS || ndofs < last * ratio) { continue; }
+            b->Args({p, n, k});
+            last = ndofs;
+         }
       }
    }
 }
@@ -546,7 +556,7 @@ struct HdivBakeOff
 {
    static constexpr Version version = VER;
    static constexpr int DIM = 3;
-   const int p, n, q;
+   const int p, n, k, q, nx, ny, nz;
    Mesh smesh;
    ParMesh pmesh;
    RT_FECollection fec;
@@ -636,9 +646,10 @@ struct HdivBakeOff
                   << y.Normlinf() << " vs " << y_ref.Normlinf());
    }
 
-   HdivBakeOff(int p, int n):
-      p(p), n(n), q(2 * p + 3),
-      smesh(Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON)),
+   HdivBakeOff(int p, int n, int k):
+      p(p), n(n), k(k), q(2 * p + 3),
+      nx(n + (k > 0 ? 1 : 0)), ny(n + (k > 1 ? 1 : 0)), nz(n),
+      smesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
       pmesh(MPI_COMM_WORLD, (smesh.EnsureNodes(), smesh)),
       fec(p, DIM),
       pfes(&pmesh, &fec),
@@ -876,7 +887,7 @@ struct HDIV : public HdivBakeOff<VER>
    using base::X;
    using base::mdofs;
 
-   HDIV(int p, int n) noexcept: base(p, n), cg(MPI_COMM_WORLD)
+   HDIV(int p, int n, int k) noexcept: base(p, n, k), cg(MPI_COMM_WORLD)
    {
       cg.SetOperator(*A);
       cg.SetAbsTol(1e-12);
@@ -907,7 +918,8 @@ static void Benchmark(bm::State& state) noexcept
       if (!run)
       {
          state.PauseTiming();
-         run = std::make_unique<T>(state.range(0), state.range(1));
+         run = std::make_unique<T>(state.range(0), state.range(1),
+                                   state.range(2));
          state.ResumeTiming();
       }
       run->benchmark();
