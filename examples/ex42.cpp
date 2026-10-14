@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    MFEM_VERIFY(dim == 2, "This example only supports 2D meshes.");
    MFEM_VERIFY(order >= 2, "Order must be >= 2.");
-   
+
    // Refine the mesh
    for (int i = 0; i < ref_levels; i++)
    {
