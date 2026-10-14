@@ -17,150 +17,152 @@
 
 #pragma once
 
-#include "../general/backends.hpp"
 #include "dual.hpp"
+#include "../fem/dfem/tuple.hpp"
 #include <limits>
+#include <cmath>
 #include <type_traits> // for std::false_type
+#ifdef _MSC_VER
+// <cmath> only provides M_PI _USE_MATH_DEFINES is defined before
+// the first inclusion of <math.h> in the translation unit, which we cannot
+// guarantee here. This header defines them unconditionally.
+#include <corecrt_math_defines.h>
+#endif
+
+// Force-inline every tensor operation under clang
+#if defined(__clang__)
+#pragma clang attribute push (__attribute__((always_inline)), apply_to = function)
+#endif
 
 namespace mfem
 {
 namespace future
 {
 
-template <typename T, int... n>
+template <typename T, int... Dims>
 struct tensor;
 
-/// The implementation can be drastically generalized by using concepts of the
-/// c++17 standard.
-
-template < typename T >
+template <typename T>
 struct tensor<T>
 {
    using type = T;
-   static constexpr int ndim      = 1;
+   static constexpr int ndim = 1;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+
+   MFEM_HOST_DEVICE tensor() = default;
+   MFEM_HOST_DEVICE tensor(T val) : values(val) {}
+
+   MFEM_HOST_DEVICE T& operator[](int) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int) const { return values; }
+   MFEM_HOST_DEVICE T& operator()() { return values; }
+   MFEM_HOST_DEVICE const T& operator()() const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int) const { return values; }
    MFEM_HOST_DEVICE operator T() const { return values; }
+   MFEM_HOST_DEVICE tensor& operator=(T val) { values = val; return *this; }
+
    T values;
 };
 
-template < typename T, int n0 >
-struct tensor<T, n0>
+template <typename T, int N0>
+struct tensor<T, N0>
 {
    using type = T;
-   static constexpr int ndim      = 1;
-   static constexpr int first_dim = n0;
+   static constexpr int ndim = 1;
+   static constexpr int first_dim = N0;
+
    MFEM_HOST_DEVICE T& operator[](int i) { return values[i]; }
    MFEM_HOST_DEVICE const T& operator[](int i) const { return values[i]; }
    MFEM_HOST_DEVICE T& operator()(int i) { return values[i]; }
    MFEM_HOST_DEVICE const T& operator()(int i) const { return values[i]; }
-   T values[n0];
+
+   T values[N0];
 };
 
-template < typename T >
+template <typename T>
 struct tensor<T, 0>
 {
    using type = T;
-   static constexpr int ndim      = 1;
+   static constexpr int ndim = 1;
    static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+
+   MFEM_HOST_DEVICE T& operator[](int) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int) const { return values; }
+
    T values;
 };
 
-template < typename T, int n0, int n1 >
-struct tensor<T, n0, n1>
+template <typename T, int N0, int N1, int... Rest>
+struct tensor<T, N0, N1, Rest...>
 {
    using type = T;
-   static constexpr int ndim      = 2;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
-   tensor < T, n1 > values[n0];
-};
+   using sub_tensor = tensor<T, N1, Rest...>;
+   static constexpr int ndim = 2 + sizeof...(Rest);
+   static constexpr int first_dim = N0;
 
-template < typename T, int n1 >
-struct tensor<T, 0, n1>
-{
-   using type = T;
-   static constexpr int ndim      = 2;
-   static constexpr int first_dim = 0;
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /*unused*/) { return values; }
-   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /*unused*/) const { return values; }
-   MFEM_HOST_DEVICE T& operator()(int /*unused*/, int j) { return values[j]; }
-   MFEM_HOST_DEVICE const T& operator()(int /*unused*/, int j) const { return values[j]; }
-   tensor < T, n1 > values;
-};
+   static constexpr bool is_zero_dim = (N0 == 0);
+   static constexpr int storage_size = is_zero_dim ? 1 : N0;
+   using storage_type =
+      std::conditional_t<is_zero_dim, sub_tensor, sub_tensor[storage_size]>;
+   storage_type values;
 
-template < typename T, int n0, int n1, int n2 >
-struct tensor<T, n0, n1, n2>
-{
-   using type = T;
-   static constexpr int ndim      = 3;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2 >& operator()(int i, int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k) const { return values[i][j][k]; }
-   tensor < T, n1, n2 > values[n0];
-};
+   MFEM_HOST_DEVICE sub_tensor& operator[](int i)
+   {
+      if constexpr (is_zero_dim)
+      {
+         static_cast<void>(i);
+         return values;
+      }
+      else { return values[i]; }
+   }
 
-template < typename T, int n0, int n1, int n2, int n3 >
-struct tensor<T, n0, n1, n2, n3>
-{
-   using type = T;
-   static constexpr int ndim      = 4;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3 >& operator()(int i, int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n3 >& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3 >& operator()(int i, int j, int k) const { return values[i][j][k]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE const T&  operator()(int i, int j, int k, int l) const { return values[i][j][k][l]; }
-   tensor < T, n1, n2, n3 > values[n0];
-};
+   MFEM_HOST_DEVICE const sub_tensor& operator[](int i) const
+   {
+      if constexpr (is_zero_dim)
+      {
+         static_cast<void>(i);
+         return values;
+      }
+      else { return values[i]; }
+   }
 
-template < typename T, int n0, int n1, int n2, int n3, int n4 >
-struct tensor<T, n0, n1, n2, n3, n4>
-{
-   using type = T;
-   static constexpr int ndim      = 5;
-   static constexpr int first_dim = n0;
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator[](int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator[](int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n1, n2, n3, n4 >& operator()(int i) { return values[i]; }
-   MFEM_HOST_DEVICE const tensor< T, n1, n2, n3, n4 >& operator()(int i) const { return values[i]; }
-   MFEM_HOST_DEVICE tensor< T, n2, n3, n4 >& operator()(int i, int j) { return values[i][j]; }
-   MFEM_HOST_DEVICE const tensor< T, n2, n3, n4 >& operator()(int i,
-                                                              int j) const { return values[i][j]; }
-   MFEM_HOST_DEVICE tensor< T, n3, n4>& operator()(int i, int j, int k) { return values[i][j][k]; }
-   MFEM_HOST_DEVICE const tensor< T, n3, n4>& operator()(int i, int j,
-                                                         int k) const { return values[i][j][k]; }
-   MFEM_HOST_DEVICE tensor< T, n4 >& operator()(int i, int j, int k, int l) { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE const tensor< T, n4 >& operator()(int i, int j, int k,
-                                                      int l) const { return values[i][j][k][l]; }
-   MFEM_HOST_DEVICE T& operator()(int i, int j, int k, int l, int m) { return values[i][j][k][l][m]; }
-   MFEM_HOST_DEVICE const T& operator()(int i, int j, int k, int l, int m) const { return values[i][j][k][l][m]; }
-   tensor < T, n1, n2, n3, n4 > values[n0];
+   MFEM_HOST_DEVICE sub_tensor& operator()(int i)
+   {
+      return (*this)[i];
+   }
+
+   MFEM_HOST_DEVICE const sub_tensor& operator()(int i) const
+   {
+      return (*this)[i];
+   }
+
+   template <typename... Is>
+   MFEM_HOST_DEVICE auto& operator()(int i, int j, Is... rest)
+   {
+      if constexpr (sizeof...(rest) == 0)
+      {
+         return (*this)[i][j];
+      }
+      else
+      {
+         return (*this)[i](j, rest...);
+      }
+   }
+
+   template <typename... Is>
+   MFEM_HOST_DEVICE const auto& operator()(int i, int j, Is... rest) const
+   {
+      if constexpr (sizeof...(rest) == 0)
+      {
+         return (*this)[i][j];
+      }
+      else
+      {
+         return (*this)[i](j, rest...);
+      }
+   }
 };
 
 /**
@@ -270,10 +272,10 @@ MFEM_HOST_DEVICE constexpr zero operator/(zero, T /*other*/)
    return zero{};
 }
 
-/** @brief `zero` plus `zero` is `zero */
+/** @brief `zero` plus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator+=(zero, zero) { return zero{}; }
 
-/** @brief `zero` minus `zero` is `zero */
+/** @brief `zero` minus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator-=(zero, zero) { return zero{}; }
 
 /** @brief let `zero` be accessed like a tuple */
@@ -305,13 +307,10 @@ MFEM_HOST_DEVICE zero dot(zero, const T&)
  * @tparam n2 The second dimension
  */
 template <typename T, int n1, int n2 = 1>
-using reduced_tensor = typename std::conditional<
-                       (n1 == 1 && n2 == 1), T,
-                       typename std::conditional<n1 == 1, tensor<T, n2>,
-                       typename std::conditional<n2 == 1, tensor<T, n1>, tensor<T, n1, n2>
-                       >::type
-                       >::type
-                       >::type;
+using reduced_tensor =
+   std::conditional_t<(n1 == 1 && n2 == 1), T,
+   std::conditional_t<(n1 == 1), tensor<T, n2>,
+   std::conditional_t<(n2 == 1), tensor<T, n1>, tensor<T, n1, n2>>>>;
 
 /**
  * @brief Creates a tensor of requested dimension by subsequent calls to a functor
@@ -462,7 +461,7 @@ tensor<T, n> get_col(tensor<T, m, n> A, int j)
 
 /// @overload
 template <typename T> MFEM_HOST_DEVICE
-tensor<T, 1> get_col(tensor<T, 1, 1> A, int j)
+tensor<T, 1> get_col(tensor<T, 1, 1> A, [[maybe_unused]] int j)
 {
    return tensor<T, 1> {A[0][0]};
 }
@@ -481,9 +480,16 @@ MFEM_HOST_DEVICE auto operator+(const tensor<S, n...>& A,
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] + B[i];
+      C.values = A.values + B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] + B[i];
+      }
    }
    return C;
 }
@@ -498,9 +504,16 @@ template <typename T, int... n>
 MFEM_HOST_DEVICE tensor<T, n...> operator-(const tensor<T, n...>& A)
 {
    tensor<T, n...> B{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      B[i] = -A[i];
+      B.values = -A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         B[i] = -A[i];
+      }
    }
    return B;
 }
@@ -519,9 +532,16 @@ MFEM_HOST_DEVICE auto operator-(const tensor<S, n...>& A,
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] - B[i];
+      C.values = A.values - B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] - B[i];
+      }
    }
    return C;
 }
@@ -541,9 +561,16 @@ MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
    tensor<decltype(S{} * T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = scale * A[i];
+      C.values = scale * A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = scale * A[i];
+      }
    }
    return C;
 }
@@ -563,9 +590,16 @@ MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
    tensor<decltype(T{} * S{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] * scale;
+      C.values = A.values * scale;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] * scale;
+      }
    }
    return C;
 }
@@ -585,9 +619,16 @@ MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
    tensor<decltype(S{} * T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = scale / A[i];
+      C.values = scale / A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = scale / A[i];
+      }
    }
    return C;
 }
@@ -607,9 +648,16 @@ MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
    tensor<decltype(T{} * S{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] / scale;
+      C.values = A.values / scale;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] / scale;
+      }
    }
    return C;
 }
@@ -626,9 +674,16 @@ template <typename S, typename T, int... n> MFEM_HOST_DEVICE
 tensor<S, n...>& operator+=(tensor<S, n...>& A,
                             const tensor<T, n...>& B)
 {
-   for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      A[i] += B[i];
+      A.values += B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+      {
+         A[i] += B[i];
+      }
    }
    return A;
 }
@@ -692,9 +747,16 @@ tensor<T, n...>& operator+=(tensor<T, n...>& A, zero)
 template <typename S, typename T, int... n> MFEM_HOST_DEVICE
 tensor<S, n...>& operator-=(tensor<S, n...>& A, const tensor<T, n...>& B)
 {
-   for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      A[i] -= B[i];
+      A.values -= B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+      {
+         A[i] -= B[i];
+      }
    }
    return A;
 }
@@ -729,9 +791,9 @@ auto outer(S A, T B) -> decltype(A * B)
 }
 
 template <typename T, int n, int m> MFEM_HOST_DEVICE
-tensor<T, n + m> flatten(tensor<T, n, m> A)
+tensor<T, n * m> flatten(tensor<T, n, m> A)
 {
-   tensor<T, n + m> B{};
+   tensor<T, n * m> B{};
    for (int i = 0; i < n; i++)
    {
       for (int j = 0; j < m; j++)
@@ -980,6 +1042,41 @@ tensor<decltype(S {} * T{}), m, p>
    return AB;
 }
 
+template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
+auto dot_transpose(const tensor<S, m, n>& A,
+                   const tensor<T, p, n>& B) ->
+tensor<decltype(S {} * T{}), m, p>
+{
+   tensor<decltype(S{} * T{}), m, p> AB{};
+   for (int i = 0; i < m; i++)
+   {
+      for (int j = 0; j < p; j++)
+      {
+         for (int k = 0; k < n; k++)
+         {
+            AB[i][j] = AB[i][j] + A[i][k] * B[j][k];
+         }
+      }
+   }
+   return AB;
+}
+
+template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+auto scaled_transpose(const S scale,
+                      const tensor<T, m, n>& A) ->
+tensor<decltype(S {} * T{}), n, m>
+{
+   tensor<decltype(S{} * T{}), n, m> AT{};
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         AT[i][j] = scale * A[j][i];
+      }
+   }
+   return AT;
+}
+
 /**
  * @overload
  * @note vector . matrix
@@ -1144,6 +1241,15 @@ decltype(S {} * T{} * U{})
    return uAv;
 }
 
+/// compute the (right handed) cross product of two 3-vectors
+template <typename S, typename T> MFEM_HOST_DEVICE
+auto cross(const tensor<S, 3>& u, const tensor<T, 3>& v)
+{
+   return tensor<decltype(S{} * T{}), 3> {u(1) * v(2) - u(2) * v(1), u(2) * v(0) - u(0) * v(2),
+                                          u(0) * v(1) - u(1) * v(0)
+                                         };
+}
+
 /**
  * @brief real_t dot product, contracting over the two "middle" indices
  * @tparam S the underlying type of the tensor (lefthand) argument
@@ -1216,6 +1322,32 @@ decltype(S {} * T{})
       }
    }
    return AB;
+}
+
+// tensor<T> (rank-0 scalar wrapper) acts as a scalar in multiplication
+template <typename S, typename T, int... m,
+          typename = typename std::enable_if<(sizeof...(m) > 0)>::type>
+MFEM_HOST_DEVICE
+auto operator*(const tensor<S, m...>& A, const tensor<T>& scale) ->
+tensor<decltype(S {} * T{}), m...>
+{
+   return A * static_cast<T>(scale);
+}
+
+template <typename S, typename T, int... m,
+          typename = typename std::enable_if<(sizeof...(m) > 0)>::type>
+MFEM_HOST_DEVICE
+auto operator*(const tensor<T>& scale, const tensor<S, m...>& A) ->
+tensor<decltype(T {} * S{}), m...>
+{
+   return static_cast<T>(scale) * A;
+}
+
+template <typename S, typename T> MFEM_HOST_DEVICE
+auto operator*(const tensor<S>& A, const tensor<T>& B) ->
+tensor<decltype(S {} * T{})>
+{
+   return tensor<decltype(S{} * T{})>{A.values * B.values};
 }
 
 /**
@@ -1423,17 +1555,58 @@ T det(const tensor<T, 3, 3>& A)
           A[2][0];
 }
 
+/**
+ * @brief Find indices that would sort a 3-vector
+ *
+ * @param v 3-vector to sort.
+ * @return 3-vector of indices that would sort \p v in ascending order.
+ */
 template <typename T> MFEM_HOST_DEVICE
-std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig(tensor<T, 1, 1> &A)
+tensor<int, 3> argsort(const tensor<T, 3>& v)
+{
+   auto swap = [](int& first, int& second)
+   {
+      int tmp = first;
+      first = second;
+      second = tmp;
+   };
+   tensor<int, 3> order{0, 1, 2};
+   if (v[0] > v[1]) { swap(order[0], order[1]); }
+   if (v[order[1]] > v[order[2]]) { swap(order[1], order[2]); }
+   if (v[order[0]] > v[order[1]]) { swap(order[0], order[1]); }
+   return order;
+}
+
+/** Eigendecomposition for a 1x1 matrix
+ *
+ * Specialization for the degenerate case of a singleton.
+ *
+ * @param A Matrix for which the eigendecomposition will be computed.
+ * @return tuple with the eigenvalue in the first element, and the
+ * eigenvector in the second element.
+ */
+template <typename T> MFEM_HOST_DEVICE
+tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
 {
    return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{{1.0}}}};
 }
 
-template <typename T> MFEM_HOST_DEVICE
-std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
+/** Eigendecomposition for a symmetric 2x2 matrix
+ *
+ * @param A Matrix for which the eigendecomposition will be computed. Must be
+ * symmetric, this is not checked.
+ * @return tuple with the eigenvalues in the first element, and the matrix of
+ * corresponding eigenvectors (columnwise) in the second element.
+ * The eigenvalues are sorted in ascending order, each repeated according to
+ * its multiplicity.
+ *
+ */
+MFEM_HOST_DEVICE
+inline tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
+                                                      const tensor<real_t, 2, 2> &A)
 {
-   tensor<T, 2> e;
-   tensor<T, 2, 2> v;
+   tensor<real_t, 2> e;
+   tensor<real_t, 2, 2> v;
 
    real_t d0 = A(0, 0);
    real_t d2 = A(0, 1);
@@ -1450,7 +1623,7 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
       real_t t;
       const real_t zeta = (d3 - d0) / (2.0 * d2);
       const real_t azeta = fabs(zeta);
-      if (azeta < std::sqrt(1.0/std::numeric_limits<T>::epsilon()))
+      if (azeta < std::sqrt(1.0/std::numeric_limits<real_t>::epsilon()))
       {
          t = copysign(1./(azeta + std::sqrt(1. + zeta*zeta)), zeta);
       }
@@ -1484,7 +1657,144 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
       v(1, 1) = -s;
    }
 
-   return {e, v};
+   return tuple{e, v};
+}
+
+/** Eigendecomposition for a symmetric 3x3 matrix
+ *
+ * @param A Matrix for which the eigendecomposition will be computed. Must be
+ * symmetric, this is not checked.
+ * @return tuple with the eigenvalues in the first element, and the matrix of
+ * corresponding eigenvectors (columnwise) in the second element.
+ * The eigenvalues are sorted in ascending order, each repeated according to
+ * its multiplicity.
+ *
+ * @note based on "A robust algorithm for finding the eigenvalues and
+ * eigenvectors of 3x3 symmetric matrices", by Scherzinger & Dohrmann
+ */
+MFEM_HOST_DEVICE
+inline tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(
+                                                      const tensor<real_t, 3, 3>& A)
+{
+   tensor<real_t, 3> eta{};
+   tensor<real_t, 3, 3> Q = IdentityMatrix<3>();
+   using std::acos, std::cos, std::fabs, std::fmax,  std::fmin, std::pow,
+         std::sqrt;
+
+   auto A_dev = dev(A);
+   real_t J2 = 0.5 * inner(A_dev, A_dev);
+   real_t J3 = det(A_dev);
+
+   if (J2 > 0.0)
+   {
+      // angle used to find eigenvalues
+      real_t tmp = (0.5 * J3) * pow(3.0 / J2, 1.5);
+      real_t alpha = acos(fmin(fmax(tmp, -1.0), 1.0)) / 3.0;
+
+      // consider the most distinct eigenvalue first
+      if (6.0 * alpha < M_PI)
+      {
+         eta[0] = 2 * sqrt(J2 / 3.0) * cos(alpha);
+      }
+      else
+      {
+         eta[0] = 2 * sqrt(J2 / 3.0) * cos(alpha + 2.0 * M_PI / 3.0);
+      }
+
+      // find the eigenvector for that eigenvalue
+      tensor<real_t, 3, 3> r;
+
+      int imax = -1;
+      real_t norm_max = -1.0;
+
+      for (int i = 0; i < 3; i++)
+      {
+         for (int j = 0; j < 3; j++)
+         {
+            r[i][j] = A_dev(j, i) - (i == j) * eta(0);
+         }
+
+         real_t norm_r = norm(r[i]);
+         if (norm_max < norm_r)
+         {
+            imax = i;
+            norm_max = norm_r;
+         }
+      }
+
+      tensor<real_t, 3> s0, s1, t1, t2, v0, v1, v2, w;
+
+      s0 = normalize(r[imax]);
+      t1 = r[(imax + 1) % 3] - dot(r[(imax + 1) % 3], s0) * s0;
+      t2 = r[(imax + 2) % 3] - dot(r[(imax + 2) % 3], s0) * s0;
+      s1 = normalize((norm(t1) > norm(t2)) ? t1 : t2);
+
+      // record the first eigenvector
+      v0 = cross(s0, s1);
+      for (int i = 0; i < 3; i++)
+      {
+         Q[i][0] = v0[i];
+      }
+
+      // get the other two eigenvalues by solving the
+      // remaining quadratic characteristic polynomial
+      auto A_dev_s0 = dot(A_dev, s0);
+      auto A_dev_s1 = dot(A_dev, s1);
+
+      real_t A11 = dot(s0, A_dev_s0);
+      real_t A12 = dot(s0, A_dev_s1);
+      real_t A21 = A12;
+      real_t A22 = dot(s1, A_dev_s1);
+
+      real_t delta = 0.5 * sqrt((A11 - A22) * (A11 - A22) + 4 * A12 * A21);
+
+      eta(1) = 0.5 * (A11 + A22) - delta;
+      eta(2) = 0.5 * (A11 + A22) + delta;
+
+      // if the remaining eigenvalues are exactly the same
+      // then just use the basis for the orthogonal complement
+      // found earlier
+      if (fabs(delta) <= 1.0e-15)
+      {
+         for (int i = 0; i < 3; i++)
+         {
+            Q[i][1] = s0(i);
+            Q[i][2] = s1(i);
+         }
+
+         // otherwise compute the remaining eigenvectors
+      }
+      else
+      {
+         t1 = A_dev_s0 - eta(1) * s0;
+         t2 = A_dev_s1 - eta(1) * s1;
+
+         w = normalize((norm(t1) > norm(t2)) ? t1 : t2);
+
+         v1 = normalize(cross(w, v0));
+         for (int i = 0; i < 3; i++) { Q[i][1] = v1(i); }
+
+         // define the last eigenvector as
+         // the direction perpendicular to the
+         // first two directions
+         v2 = normalize(cross(v0, v1));
+         for (int i = 0; i < 3; i++) { Q[i][2] = v2(i); }
+      }
+   }
+   // eta are actually eigenvalues of A_dev, so
+   // shift them to get eigenvalues of A
+   for (int i = 0; i < 3; i++) { eta[i] += tr(A) / 3.0; }
+
+   // sort eigenvalues into ascending order
+   auto order = argsort(eta);
+   tensor<real_t, 3> eigvals{{eta[order[0]], eta[order[1]], eta[order[2]]}};
+   // *INDENT-OFF*
+   tensor<real_t, 3, 3> eigvecs{{{Q[0][order[0]], Q[0][order[1]], Q[0][order[2]]},
+                                 {Q[1][order[0]], Q[1][order[1]], Q[1][order[2]]},
+                                 {Q[2][order[0]], Q[2][order[1]], Q[2][order[2]]}}};
+   // *INDENT-ON*
+
+   return tuple{eigvals, eigvecs};
 }
 
 template <typename T> MFEM_HOST_DEVICE
@@ -1507,7 +1817,7 @@ void GetScalingFactor(const T &d_max, T &mult)
 }
 
 template <typename T> MFEM_HOST_DEVICE
-T calcsv(const tensor<T, 1, 1> A, const int i)
+T calcsv(const tensor<T, 1, 1> A, [[maybe_unused]] const int i)
 {
    return A[0][0];
 }
@@ -1703,13 +2013,15 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
  * @param[in] A The matrix to invert
  * @note Uses a shortcut for inverting a 1x1, 2x2 and 3x3 matrix
  */
-template <typename T>
+template <typename T,
+          typename std::enable_if<!is_dual_number<T>::value, int>::type = 0>
 inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 {
    return tensor<T, 1, 1> {{{T{1.0} / A[0][0]}}};
 }
 
-template <typename T>
+template <typename T,
+          typename std::enable_if<!is_dual_number<T>::value, int>::type = 0>
 inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
 {
    T inv_detA(1.0_r / det(A));
@@ -1728,7 +2040,8 @@ inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
  * @overload
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
-template <typename T>
+template <typename T,
+          typename std::enable_if<!is_dual_number<T>::value, int>::type = 0>
 inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
 {
    T inv_detA(1.0_r / det(A));
@@ -1754,8 +2067,9 @@ inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
  */
 template <typename T, int n>
 MFEM_HOST_DEVICE
-typename std::enable_if<(n > 3), tensor<T, n, n>>::type
-                                               inv(const tensor<T, n, n>& A)
+typename std::enable_if<(n > 3) && !is_dual_number<T>::value,
+         tensor<T, n, n>>::type
+         inv(const tensor<T, n, n>& A)
 {
    auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)
@@ -1824,10 +2138,13 @@ typename std::enable_if<(n > 3), tensor<T, n, n>>::type
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */
 template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> inv(
-   tensor<dual<value_type, gradient_type>, n, n> A)
+tensor<dual<value_type, gradient_type>, n, n> inv(
+   const tensor<dual<value_type, gradient_type>, n, n> &A)
 {
-   auto invA = inv(get_value(A));
+   const auto invA = inv(make_tensor<n, n>([&](int i, int j)
+   {
+      return A[i][j].value;
+   }));
    return make_tensor<n, n>([&](int i, int j)
    {
       auto          value = invA[i][j];
@@ -1841,6 +2158,36 @@ dual<value_type, gradient_type> inv(
       }
       return dual<value_type, gradient_type> {value, gradient};
    });
+}
+
+/**
+ * @brief Returns a square diagonal matrix by specifying the diagonal entries
+ * @param[in] d a list of diagonal entries
+ */
+template <typename T, int n> MFEM_HOST_DEVICE
+constexpr tensor<T, n, n> diag(const tensor<T, n>& d)
+{
+   tensor<T, n, n> D{};
+   for (int i = 0; i < n; i++)
+   {
+      D[i][i] = d[i];
+   }
+   return D;
+}
+
+/**
+ * @brief Returns an array containing the diagonal entries of a square matrix
+ * @param[in] D the matrix to extract the diagonal entries from
+ */
+template <typename T, int n> MFEM_HOST_DEVICE
+constexpr tensor<T, n> diag(const tensor<T, n, n>& D)
+{
+   tensor<T, n> d{};
+   for (int i = 0; i < n; i++)
+   {
+      d[i] = D[i][i];
+   }
+   return d;
 }
 
 /**
@@ -2288,3 +2635,7 @@ auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
 
 } // namespace future
 } // namespace mfem
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
