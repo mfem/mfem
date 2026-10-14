@@ -4707,34 +4707,6 @@ HypreParMatrix* ParFiniteElementSpace
                              static_cast<HYPRE_Int>(col_map.size()), cmap);
 }
 
-template <typename int_type>
-static int_type* make_i_array(int nrows)
-{
-   int_type *I = Memory<int_type>(nrows+1);
-   for (int i = 0; i <= nrows; i++) { I[i] = -1; }
-   return I;
-}
-
-template <typename int_type>
-static int_type* make_j_array(int_type* I, int nrows)
-{
-   int nnz = 0;
-   for (int i = 0; i < nrows; i++)
-   {
-      if (I[i] >= 0) { nnz++; }
-   }
-   int_type *J = Memory<int_type>(nnz);
-
-   I[nrows] = -1;
-   for (int i = 0, k = 0; i <= nrows; i++)
-   {
-      int_type col = I[i];
-      I[i] = k;
-      if (col >= 0) { J[k++] = col; }
-   }
-   return J;
-}
-
 HypreParMatrix*
 ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
                                        const Table* old_elem_dof,
@@ -4747,106 +4719,133 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
                              ? old_dof_offsets[0] : old_dof_offsets[MyRank];
 
+   // Face orientations are only needed by spaces with DOF transformations.
+   bool doftrans = false;
+   for (const auto *t : DoFTransArray) { doftrans = doftrans || t; }
+   const Table *fos = doftrans ? old_elem_fos : nullptr;
+
    // send old DOFs of elements we used to own
    ParNCMesh* old_pncmesh = pmesh->pncmesh;
-   old_pncmesh->SendRebalanceDofs(old_ndofs, *old_elem_dof, old_offset, this);
+   old_pncmesh->SendRebalanceDofs(old_ndofs, *old_elem_dof, old_offset, this,
+                                  fos);
 
-   Array<int> dofs;
-   int vsize = GetVSize();
-
+   const int vsize = GetVSize();
    const Array<int> &old_index = old_pncmesh->GetRebalanceOldIndex();
    MFEM_VERIFY(old_index.Size() == pmesh->GetNE(),
                "Mesh::Rebalance was not called before "
                "ParFiniteElementSpace::RebalanceMatrix");
 
-   // prepare the local (diagonal) part of the matrix
-   HYPRE_Int* i_diag = make_i_array<HYPRE_Int>(vsize);
-   for (int i = 0; i < pmesh->GetNE(); i++)
+   // Each row is set by the first element containing its DOF. In terms of the
+   // DOF signs S and transformations T of an element, its new DOF values are
+   // S_new T_new T_old^{-1} S_old times its old DOF values.
+   Array<bool> row_set(vsize);
+   row_set = false;
+   Array<int> rows;
+   Array<HYPRE_BigInt> cols;
+   Array<real_t> vals;
+   Array<int> dofs;
+   DofTransformation new_doftrans, old_doftrans;
+   DenseMatrix T;
+   auto add_element_rows = [&](int elem, const long *old_vdofs,
+                               const Array<int> &old_fo)
    {
-      if (old_index[i] >= 0) // we had this element before
-      {
-         const int* old_dofs = old_elem_dof->GetRow(old_index[i]);
-         GetElementDofs(i, dofs);
+      GetElementDofs(elem, dofs, new_doftrans);
+      const int n = dofs.Size();
+      const auto *dt = DoFTransArray[mesh->GetElementBaseGeometry(elem)];
+      old_doftrans.SetDofTransformation(old_fo.Size() ? dt : nullptr);
+      old_doftrans.SetFaceOrientations(old_fo);
 
-         for (int vd = 0; vd < vdim; vd++)
+      const bool identity = new_doftrans.IsIdentity() &&
+                            old_doftrans.IsIdentity();
+      if (!identity)
+      {
+         T.Diag(1.0, n);
+         for (int j = 0; j < n; j++)
          {
-            for (int j = 0; j < dofs.Size(); j++)
-            {
-               const int row = UnsignIndex(DofToVDof(dofs[j], vd));
-               const int col = UnsignIndex(DofToVDof(old_dofs[j], vd,
-                                                     old_ndofs));
-               i_diag[row] = col;
-            }
+            old_doftrans.InvTransformPrimal(T.GetColumn(j));
+            new_doftrans.TransformPrimal(T.GetColumn(j));
          }
       }
-   }
-   HYPRE_Int* j_diag = make_j_array(i_diag, vsize);
-
-   // receive old DOFs for elements we obtained from others in Rebalance
-   Array<int> new_elements;
-   Array<long> old_remote_dofs;
-   old_pncmesh->RecvRebalanceDofs(new_elements, old_remote_dofs);
-
-   // create the off-diagonal part of the matrix
-   HYPRE_BigInt* i_offd = make_i_array<HYPRE_BigInt>(vsize);
-   for (int i = 0, pos = 0; i < new_elements.Size(); i++)
-   {
-      GetElementDofs(new_elements[i], dofs);
-      const long* old_dofs = &old_remote_dofs[pos];
-      pos += dofs.Size() * vdim;
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         for (int j = 0; j < dofs.Size(); j++)
+         for (int i = 0; i < n; i++)
          {
-            const int row = UnsignIndex(DofToVDof(dofs[j], vd));
-            if (i_diag[row] == i_diag[row+1]) // diag row empty?
+            const int vdof = DofToVDof(dofs[i], vd);
+            const int row = UnsignIndex(vdof);
+            if (row_set[row]) { continue; }
+            row_set[row] = true;
+            const int j0 = identity ? i : 0, j1 = identity ? i + 1 : n;
+            for (int j = j0; j < j1; j++)
             {
-               i_offd[row] = old_dofs[j + vd * dofs.Size()];
+               const real_t t = identity ? 1.0 : T(i, j);
+               if (t == 0.0) { continue; }
+               const long old_vdof = old_vdofs[j + vd*n];
+               rows.Append(row);
+               cols.Append(old_vdof >= 0 ? old_vdof : -1 - old_vdof);
+               vals.Append((vdof < 0) != (old_vdof < 0) ? -t : t);
             }
          }
       }
-   }
-   HYPRE_BigInt* j_offd = make_j_array(i_offd, vsize);
+      return n;
+   };
 
-#ifndef HYPRE_MIXEDINT
-   HYPRE_Int *i_offd_hi = i_offd;
-#else
-   // Copy of i_offd array as array of HYPRE_Int
-   HYPRE_Int *i_offd_hi = Memory<HYPRE_Int>(vsize + 1);
-   std::copy(i_offd, i_offd + vsize + 1, i_offd_hi);
-   Memory<HYPRE_BigInt>(i_offd, vsize + 1, true).Delete();
-#endif
-
-   // create the offd column map
-   int offd_cols = i_offd_hi[vsize];
-   Array<Pair<HYPRE_BigInt, int> > cmap_offd(offd_cols);
-   for (int i = 0; i < offd_cols; i++)
+   // elements we had before
+   Array<long> old_vdofs;
+   Array<int> old_fo;
+   for (int i = 0; i < pmesh->GetNE(); i++)
    {
-      cmap_offd[i].one = j_offd[i];
-      cmap_offd[i].two = i;
+      if (old_index[i] < 0) { continue; }
+      const int *old_dofs = old_elem_dof->GetRow(old_index[i]);
+      const int n = old_elem_dof->RowSize(old_index[i]);
+      old_vdofs.SetSize(n*vdim);
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         for (int j = 0; j < n; j++)
+         {
+            const int vdof = DofToVDof(old_dofs[j], vd, old_ndofs);
+            const long dof = old_offset + UnsignIndex(vdof);
+            old_vdofs[j + vd*n] = (vdof >= 0) ? dof : -1 - dof;
+         }
+      }
+      old_fo.SetSize(0);
+      if (fos) { fos->GetRow(old_index[i], old_fo); }
+      add_element_rows(i, old_vdofs, old_fo);
    }
 
-#ifndef HYPRE_MIXEDINT
-   HYPRE_Int *j_offd_hi = j_offd;
-#else
-   HYPRE_Int *j_offd_hi = Memory<HYPRE_Int>(offd_cols);
-   Memory<HYPRE_BigInt>(j_offd, offd_cols, true).Delete();
-#endif
-
-   SortPairs<HYPRE_BigInt, int>(cmap_offd, offd_cols);
-
-   HYPRE_BigInt* cmap = Memory<HYPRE_BigInt>(offd_cols);
-   for (int i = 0; i < offd_cols; i++)
+   // elements we obtained from others in Rebalance
+   Array<int> new_elements;
+   Array<long> old_remote_dofs;
+   Table old_remote_fos;
+   old_pncmesh->RecvRebalanceDofs(new_elements, old_remote_dofs,
+                                  &old_remote_fos);
+   for (int i = 0, pos = 0; i < new_elements.Size(); i++)
    {
-      cmap[i] = cmap_offd[i].one;
-      j_offd_hi[cmap_offd[i].two] = i;
+      old_remote_fos.GetRow(i, old_fo);
+      pos += vdim * add_element_rows(new_elements[i], &old_remote_dofs[pos],
+                                     old_fo);
    }
 
-   HypreParMatrix *M;
-   M = new HypreParMatrix(MyComm, MyRank, NRanks, dof_offsets, old_dof_offsets,
-                          i_diag, j_diag, i_offd_hi, j_offd_hi, cmap, offd_cols);
-   return M;
+   // sort the entries into CSR format
+   Array<int> I(vsize + 1);
+   I = 0;
+   for (int row : rows) { I[row+1]++; }
+   I.PartialSum();
+   Array<int> next;
+   I.Copy(next);
+   Array<HYPRE_BigInt> J(cols.Size());
+   Array<real_t> data(vals.Size());
+   for (int k = 0; k < rows.Size(); k++)
+   {
+      const int p = next[rows[k]]++;
+      J[p] = cols[k];
+      data[p] = vals[k];
+   }
+
+   const int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
+   return new HypreParMatrix(MyComm, vsize, dof_offsets[nrk],
+                             old_dof_offsets[nrk], I, J, data, dof_offsets,
+                             old_dof_offsets);
 }
 
 HypreParMatrix*
