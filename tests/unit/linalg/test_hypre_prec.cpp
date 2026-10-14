@@ -289,7 +289,7 @@ TEST_CASE("HypreADS", "[Parallel][HypreADS]")
 // The preconditioner is given a new operator after the destruction of the
 // previous one, as a NewtonSolver does with the gradient of a
 // ParNonlinearForm.
-TEST_CASE("Hypre preconditioners new operator",
+TEST_CASE("Hypre preconditioners SetOperator",
           "[Parallel][HypreParaSails][HypreEuclid]")
 {
    using PrecFactory = std::function<std::unique_ptr<HypreSolver>()>;
