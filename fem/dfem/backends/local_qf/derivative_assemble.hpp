@@ -1181,7 +1181,7 @@ public:
          static constexpr int MQ1 = max_q1d_v<backend_t, T_Q1D>;
 
          static constexpr int fhat_slab_size =
-            detail::fhat_slab_capacity<DIM, MQ1>();
+         detail::fhat_slab_capacity<DIM, MQ1>();
 
          MFEM_SHARED typename backend_t::Shared s;
          // One slab shared by every output. Declaring it inside the templated

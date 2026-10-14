@@ -700,7 +700,7 @@ struct lo_ker_backend
    }
 
    /// Integrate quadrature-point data against a vector element under field
-   /// operator @a FOP and add the result into the element vector. 
+   /// operator @a FOP and add the result into the element vector.
    template<typename FOP, typename YE_T, typename ArgRegT>
    static MFEM_HOST_DEVICE void write_vector(
       Shared &s, const int e, const DofToQuadMap &m,
@@ -789,7 +789,7 @@ struct lo_ker_backend
 private:
 
    /// Stage the 1D factors of a vector element in shared memory as
-   /// [dof][qp]: s.B along a component's own direction, s.G across it. 
+   /// [dof][qp]: s.B along a component's own direction, s.G across it.
    // Value and Div fop need only these two. Same extents for component blocks
    /// up to a permutation.
    template<typename FOP>

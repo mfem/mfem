@@ -688,7 +688,7 @@ TEST_CASE("dFEM H(div) 3D", "[Parallel][dFEM][VectorFE][GPU]")
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Check for LocalQF with HO kernels (tile size > 8; order 16 gives q1d = 9). 
+// Check for LocalQF with HO kernels (tile size > 8; order 16 gives q1d = 9).
 TEST_CASE("dFEM H(div) 3D HO", "[Parallel][dFEM][VectorFE][GPU]")
 {
    const int p = GENERATE(0, 1);

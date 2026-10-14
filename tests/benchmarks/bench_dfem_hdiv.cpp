@@ -13,7 +13,7 @@
 //
 // Notation:
 //
-//   HDIV_MASS/<impl>/<p>/<n>: 
+//   HDIV_MASS/<impl>/<p>/<n>:
 //   - <impl> is the variant (local/global, cahced/mf, etc...)
 //   - p the order given to RT_FECollection
 //   - n the elements per side of the unit cube mesh (n^3 affine hexes).
