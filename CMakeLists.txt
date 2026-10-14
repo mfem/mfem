@@ -557,6 +557,11 @@ if (MFEM_USE_BENCHMARK)
    # Otherwise, an existing Google Benchmark installation is required.
    if (MFEM_USE_CODSPEED)
       message(STATUS "Google Benchmark: using CodSpeed's fork")
+      # Drop BENCHMARK_* values cached by a previous configure with standard
+      # Google Benchmark, which would otherwise mix with CodSpeed's fork.
+      unset(BENCHMARK_FOUND CACHE)
+      unset(BENCHMARK_INCLUDE_DIRS CACHE)
+      unset(BENCHMARK_LIBRARIES CACHE)
    else()
       find_package(Benchmark REQUIRED)
    endif()
