@@ -25,8 +25,9 @@ include_directories(BEFORE ${BENCHMARK_INCLUDE_DIRS})
 # takes care of the include directories and the compile definitions.
 set(MFEM_BENCHMARK_EXTRA_LIBS "")
 if (MFEM_USE_CODSPEED)
-   if (CMAKE_VERSION VERSION_LESS 3.18.0)
-      message(FATAL_ERROR "Benchmarking with CodSpeed requires CMake >= 3.18")
+   # 3.28 is needed for FetchContent EXCLUDE_FROM_ALL below.
+   if (CMAKE_VERSION VERSION_LESS 3.28.0)
+      message(FATAL_ERROR "Benchmarking with CodSpeed requires CMake >= 3.28")
    endif()
    include(FetchContent)
    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
@@ -36,10 +37,14 @@ if (MFEM_USE_CODSPEED)
    # Build the fork in 'simulation' mode: this compiles in CodSpeed's CPU
    # simulation (valgrind) instrument.
    set(CODSPEED_MODE "simulation" CACHE STRING "" FORCE)
+   # EXCLUDE_FROM_ALL keeps CodSpeed core's install rules, which are
+   # hard-coded to /usr/local and not disabled by BENCHMARK_ENABLE_INSTALL=OFF,
+   # out of MFEM's installation.
    FetchContent_Declare(google_benchmark
       GIT_REPOSITORY https://github.com/CodSpeedHQ/codspeed-cpp
       GIT_TAG v2.4.0
-      SOURCE_SUBDIR google_benchmark)
+      SOURCE_SUBDIR google_benchmark
+      EXCLUDE_FROM_ALL)
    FetchContent_MakeAvailable(google_benchmark)
    set(MFEM_BENCHMARK_EXTRA_LIBS benchmark::benchmark)
 endif()
