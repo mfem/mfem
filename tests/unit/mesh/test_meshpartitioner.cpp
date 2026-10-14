@@ -12,6 +12,9 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <algorithm>
+#include <sstream>
+
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
@@ -146,8 +149,8 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    CAPTURE(geom, rank);
    auto mesh = CreateMesh(geom);
    auto ndims = mesh.Dimension();
-   auto ref_type =
-      ndims == 1 ? Refinement::X : (2 ? Refinement::XY : Refinement::XYZ);
+   auto ref_type = ndims == 1 ? Refinement::X :
+                   (ndims == 2 ? Refinement::XY : Refinement::XYZ);
 
    mesh.EnsureNCMesh(true);
    REQUIRE(mesh.Nonconforming());
@@ -224,6 +227,103 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
       REQUIRE(smesh.GetNE() == 0);
       ComparePMeshes(pmesh1, pmesh2);
    }
+}
+
+TEST_CASE("MakeFromSerial preserves serialized mesh metadata",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nprocs = Mpi::WorldSize();
+
+   Mesh smesh;
+   std::stringstream input;
+   if (rank == 0)
+   {
+      smesh = Mesh::MakeCartesian2D(std::max(2, nprocs), 1,
+                                    Element::QUADRILATERAL);
+      smesh.EnsureNCMesh();
+      Array<Refinement> ref(1);
+      ref[0] = Refinement(0, Refinement::XY, 0.3);
+      smesh.GeneralRefinement(ref);
+      smesh.SetScaledNCMesh();
+      smesh.attribute_sets.CreateAttributeSet("material").Append(1);
+      smesh.bdr_attribute_sets.CreateAttributeSet("boundary").Append(1);
+      smesh.Print(input);
+   }
+
+   ParMesh pmesh = ParMesh::MakeFromSerial(MPI_COMM_WORLD, input,
+                                            1, 0, false);
+   REQUIRE(pmesh.Nonconforming());
+   REQUIRE(pmesh.attribute_sets.AttributeSetExists("material"));
+   REQUIRE(pmesh.bdr_attribute_sets.AttributeSetExists("boundary"));
+}
+
+TEST_CASE("MakeFromSerial supports empty curved parts",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   if (Mpi::WorldSize() < 2) { return; }
+
+   const int rank = Mpi::WorldRank();
+   Mesh smesh;
+   std::vector<int> partition;
+   if (rank == 0)
+   {
+      smesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+      smesh.SetCurvature(2);
+      partition.assign(smesh.GetNE(), 0);
+   }
+
+   ParMesh pmesh = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
+                                            partition.data());
+   REQUIRE(pmesh.GetNodes());
+   REQUIRE(pmesh.GetNodes()->VectorDim() == 2);
+   if (rank != 0) { REQUIRE(pmesh.GetNE() == 0); }
+
+   // Verify the ordinary parallel mesh file path too: ranks without elements
+   // must be able to load their nodal GridFunction from the saved part.
+   std::stringstream input;
+   pmesh.Print(input);
+   ParMesh loaded(MPI_COMM_WORLD, input);
+   REQUIRE(loaded.GetNodes());
+   REQUIRE(loaded.GetNodes()->VectorDim() == 2);
+   if (rank != 0) { REQUIRE(loaded.GetNE() == 0); }
+}
+
+TEST_CASE("MakeFromSerial prunes anisotropic 3D NC parts",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nprocs = Mpi::WorldSize();
+   if (nprocs < 2) { return; }
+
+   Mesh smesh;
+   std::vector<int> partition;
+   int global_ne = 0;
+   if (rank == 0)
+   {
+      smesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+      smesh.EnsureNCMesh();
+      Array<Refinement> refs(1);
+      refs[0] = Refinement(0, Refinement::X);
+      smesh.GeneralRefinement(refs);
+      refs[0] = Refinement(0, Refinement::Y);
+      smesh.GeneralRefinement(refs);
+
+      global_ne = smesh.GetNE();
+      partition.resize(global_ne);
+      for (int i = 0; i < global_ne; i++) { partition[i] = i % nprocs; }
+   }
+   MPI_Bcast(&global_ne, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+   ParMesh pmesh = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
+                                            partition.data());
+   REQUIRE(pmesh.Nonconforming());
+
+   int local_ne = pmesh.GetNE();
+   int distributed_ne;
+   MPI_Allreduce(&local_ne, &distributed_ne, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(distributed_ne == global_ne);
 }
 
 #endif

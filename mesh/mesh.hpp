@@ -633,7 +633,11 @@ protected:
    void FinalizeCheck();
 
    void Loader(std::istream &input, int generate_edges = 0,
-               std::string parse_tag = "");
+               std::string parse_tag = "", bool defer_nodes = false,
+               bool *nodes_deferred = nullptr);
+
+   /// Read the nodal GridFunction following a curved mesh topology.
+   void LoadNodes(std::istream &input);
 
    /** @brief If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1
        format. If section_delimiter is empty, write mfem v1.0 format. Otherwise,
@@ -2896,6 +2900,9 @@ public:
       'num_bdr_elements'.
    */
    Array<int> bdr_attributes;
+
+   /// Named element and boundary attribute sets from the source mesh.
+   ArraysByName<int> attribute_sets, bdr_attribute_sets;
 
    /**
       Optional vertex coordinates. The size of the array is either

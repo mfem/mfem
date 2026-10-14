@@ -5101,10 +5101,12 @@ void Mesh::SetMeshGen()
 }
 
 void Mesh::Loader(std::istream &input, int generate_edges,
-                  std::string parse_tag)
+                  std::string parse_tag, bool defer_nodes,
+                  bool *nodes_deferred)
 {
    int curved = 0, read_gf = 1;
    bool finalize_topo = true;
+   if (nodes_deferred) { *nodes_deferred = false; }
 
    if (!input)
    {
@@ -5288,16 +5290,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       FinalizeTopology(generate_bdr);
    }
 
+   if (defer_nodes && curved && read_gf)
+   {
+      if (nodes_deferred) { *nodes_deferred = true; }
+      return;
+   }
+
    if (curved && read_gf)
    {
-      Nodes = new GridFunction(this, input);
-
-      own_nodes = 1;
-      spaceDim = Nodes->VectorDim();
-      if (ncmesh) { ncmesh->spaceDim = spaceDim; }
-
-      // Set vertex coordinates from the 'Nodes'
-      SetVerticesFromNodes(Nodes);
+      LoadNodes(input);
    }
 
    // If a parse tag was supplied, keep reading the stream until the tag is
@@ -5323,7 +5324,25 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       string ident;
       skip_comment_lines(input, '#');
-      input >> ident;
+      if (input.peek() == 'a')
+      {
+         input >> ident;
+         MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
+         attribute_sets.attr_sets.Load(input);
+         attribute_sets.attr_sets.SortAll();
+         attribute_sets.attr_sets.UniqueAll();
+
+         skip_comment_lines(input, '#');
+         input >> ident;
+         MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
+         bdr_attribute_sets.attr_sets.Load(input);
+         bdr_attribute_sets.attr_sets.SortAll();
+         bdr_attribute_sets.attr_sets.UniqueAll();
+      }
+      else
+      {
+         input >> ident;
+      }
       MFEM_VERIFY(ident == "mfem_mesh_end",
                   "invalid mesh: end of file tag not found");
    }
@@ -5342,6 +5361,16 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
 
    // Finalize(...) should be called after this, if needed.
+}
+
+void Mesh::LoadNodes(std::istream &input)
+{
+   MFEM_ASSERT(Nodes == nullptr, "nodes are already initialized");
+   Nodes = new GridFunction(this, input);
+   own_nodes = 1;
+   spaceDim = Nodes->VectorDim();
+   if (ncmesh) { ncmesh->spaceDim = spaceDim; }
+   SetVerticesFromNodes(Nodes);
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
@@ -12522,6 +12551,14 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
          Nodes->Save(os);
       }
 
+      if (attribute_sets.SetsExist() || bdr_attribute_sets.SetsExist())
+      {
+         os << "\nattribute_sets\n";
+         attribute_sets.Print(os);
+         os << "\nbdr_attribute_sets\n";
+         bdr_attribute_sets.Print(os);
+      }
+
       os << "\nmfem_mesh_end" << endl;
       return;
    }
@@ -14592,7 +14629,8 @@ MeshPart::Entity MeshPart::EntityHelper::FindEntity(int bytype_entity_id)
 
 void MeshPart::Print(std::ostream &os) const
 {
-   os << "MFEM mesh v1.2\n";
+   const bool set_names = attribute_sets.Size() || bdr_attribute_sets.Size();
+   os << (set_names ? "MFEM mesh v1.3\n" : "MFEM mesh v1.2\n");
 
    // optional
    os <<
@@ -14633,6 +14671,12 @@ void MeshPart::Print(std::ostream &os) const
       }
    }
 
+   if (set_names)
+   {
+      os << "\nattribute_sets\n";
+      attribute_sets.Print(os);
+   }
+
    os << "\nboundary\n" << num_bdr_elements << '\n';
    {
       const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
@@ -14654,6 +14698,12 @@ void MeshPart::Print(std::ostream &os) const
          }
          os << '\n';
       }
+   }
+
+   if (set_names)
+   {
+      os << "\nbdr_attribute_sets\n";
+      bdr_attribute_sets.Print(os);
    }
 
    os << "\nvertices\n" << num_vertices << '\n';
@@ -14920,6 +14970,15 @@ public:
          }
       }
 
+      // Remove branches which contain neither owned nor ghost elements. Just
+      // hiding their leaves leaves their nodes and faces in the hierarchy.
+      // This is a serialization-only operation: unlike ParNCMesh::Prune(), it
+      // does not construct derefinement transforms, so it is also valid for
+      // anisotropic 3D refinement trees.
+      for (int i = 0; i < root_state.Size(); i++)
+      {
+         if (PruneTree(i)) { DerefineElement(i); }
+      }
       Update();
 
       owned_global_elem_ids.SetSize(NElements);
@@ -14930,6 +14989,26 @@ public:
                      "internal error: missing global element mapping");
          owned_global_elem_ids[i] = global_id;
       }
+   }
+
+   bool PruneTree(int elem)
+   {
+      Element &el = elements[elem];
+      if (el.IsLeaf()) { return el.rank < 0; }
+
+      bool remove_all = true;
+      bool remove[MaxElemChildren];
+      for (int i = 0; i < MaxElemChildren; i++)
+      {
+         remove[i] = el.child[i] >= 0 && PruneTree(el.child[i]);
+         if (el.child[i] >= 0 && !remove[i]) { remove_all = false; }
+      }
+      if (remove_all) { return true; }
+      for (int i = 0; i < MaxElemChildren; i++)
+      {
+         if (remove[i]) { DerefineElement(el.child[i]); }
+      }
+      return false;
    }
 
    void DropCoordinates()
@@ -15051,6 +15130,8 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    mesh_part.boundary_map.SetSize(0); // 0 or 'num_bdr_elements', if needed
    mesh_part.attributes.SetSize(num_elems);
    mesh_part.bdr_attributes.SetSize(num_bdr_elems);
+   mesh_part.attribute_sets = mesh.attribute_sets.attr_sets;
+   mesh_part.bdr_attribute_sets = mesh.bdr_attribute_sets.attr_sets;
    mesh_part.vertex_coordinates.SetSize(0);
 
    mesh_part.num_parts = num_parts;
@@ -15524,6 +15605,14 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
          os << "\n# mesh curvature GridFunction";
          os << "\nnodes\n";
          local_nodes->Save(os);
+      }
+
+      if (mesh.attribute_sets.SetsExist() || mesh.bdr_attribute_sets.SetsExist())
+      {
+         os << "\nattribute_sets\n";
+         mesh.attribute_sets.Print(os);
+         os << "\nbdr_attribute_sets\n";
+         mesh.bdr_attribute_sets.Print(os);
       }
 
       os << "\nmfem_mesh_end" << endl;

@@ -956,9 +956,58 @@ void ParMesh::Load(istream &input, int generate_edges, int refine,
    // Tell Loader() to read up to 'mfem_serial_mesh_end' instead of
    // 'mfem_mesh_end', as we have additional parallel mesh data to load in from
    // the stream.
-   Loader(input, generate_edges, "mfem_serial_mesh_end");
+   bool nodes_deferred;
+   Loader(input, generate_edges, "mfem_serial_mesh_end", true,
+          &nodes_deferred);
 
    ReduceMeshGen(); // determine the global 'meshgen'
+
+   if (nodes_deferred)
+   {
+      // The local topology may be empty, so load the nodal GridFunction only
+      // after meshgen has been determined collectively.
+      LoadNodes(input);
+
+      if (Conforming())
+      {
+         string line;
+         do
+         {
+            skip_comment_lines(input, '#');
+            MFEM_VERIFY(input.good(), "Required mesh-end tag not found");
+            getline(input, line);
+            filter_dos(line);
+            if (line == "mfem_mesh_end") { break; }
+         }
+         while (line != "mfem_serial_mesh_end");
+      }
+      else
+      {
+         string ident;
+         skip_comment_lines(input, '#');
+         if (input.peek() == 'a')
+         {
+            input >> ident;
+            MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
+            attribute_sets.attr_sets.Load(input);
+            attribute_sets.attr_sets.SortAll();
+            attribute_sets.attr_sets.UniqueAll();
+
+            skip_comment_lines(input, '#');
+            input >> ident;
+            MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
+            bdr_attribute_sets.attr_sets.Load(input);
+            bdr_attribute_sets.attr_sets.SortAll();
+            bdr_attribute_sets.attr_sets.UniqueAll();
+         }
+         else
+         {
+            input >> ident;
+         }
+         MFEM_VERIFY(ident == "mfem_mesh_end",
+                     "invalid mesh: end of file tag not found");
+      }
+   }
 
    if (Conforming())
    {
@@ -7131,7 +7180,9 @@ ParMesh::~ParMesh()
    // The Mesh destructor is called automatically
 }
 
-static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, const int* partitioning)
+static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, const int* partitioning,
+                              int generate_edges = 1, int refine = true,
+                              bool fix_orientation = true)
 {
    int nprocs;
    MPI_Comm_size(comm, &nprocs);
@@ -7169,11 +7220,12 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, const int* partitioning)
    }
    // signal to other ranks it's ok to start constructing the mesh
    MPI_Barrier(comm);
-   return ParMesh(comm, local_ser);
+   return ParMesh(comm, local_ser, refine, generate_edges, fix_orientation);
 }
 
 static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, int part_method,
-                              int *nxyz)
+                              int *nxyz, int generate_edges = 1,
+                              int refine = true, bool fix_orientation = true)
 {
    int nprocs;
    MPI_Comm_size(comm, &nprocs);
@@ -7193,12 +7245,14 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, int part_method,
    {
       partitioning = m.GeneratePartitioning(nprocs, part_method);
    }
-   auto res = DistributeMesh(comm, m, partitioning);
+   auto res = DistributeMesh(comm, m, partitioning, generate_edges, refine,
+                             fix_orientation);
    delete[] partitioning;
    return res;
 }
 
-static ParMesh ReceiveMesh(MPI_Comm comm)
+static ParMesh ReceiveMesh(MPI_Comm comm, int generate_edges = 1,
+                           int refine = true, bool fix_orientation = true)
 {
    std::string data;
    uint64_t nbytes;
@@ -7217,7 +7271,7 @@ static ParMesh ReceiveMesh(MPI_Comm comm)
    // wait to be signalled it's ok to start constructing the mesh
    MPI_Barrier(comm);
    std::stringstream local_ser(data);
-   return ParMesh(comm, local_ser);
+   return ParMesh(comm, local_ser, refine, generate_edges, fix_orientation);
 }
 
 ParMesh ParMesh::MakeParCartesian1D(MPI_Comm comm, int n, real_t sx,
@@ -7283,11 +7337,12 @@ ParMesh ParMesh::MakeFromSerial(MPI_Comm comm, std::istream &input,
    if (rank == 0)
    {
       Mesh m(input, generate_edges, refine, fix_orientation);
-      return DistributeMesh(comm, m, part_method, nxyz);
+      return DistributeMesh(comm, m, part_method, nxyz, generate_edges, refine,
+                            fix_orientation);
    }
    else
    {
-      return ReceiveMesh(comm);
+      return ReceiveMesh(comm, generate_edges, refine, fix_orientation);
    }
 }
 
