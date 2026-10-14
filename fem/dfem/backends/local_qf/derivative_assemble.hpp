@@ -1213,8 +1213,8 @@ public:
                // The outputs share fhat_storage, so one has to be done with it
                // before the next zeroes it.
                MFEM_SYNC_THREAD;
-               detail::assemble_element_mat_sumfact<backend_t::DIM,
-                      max_q1d_v<backend_t, T_Q1D>>(Ae,
+                detail::assemble_element_mat_sumfact<backend_t::DIM,
+                   max_q1d_v<backend_t, T_Q1D>, backend_t>(Ae,
                                                    qpdc,
                                                    e,
                                                    itod,
