@@ -1411,12 +1411,13 @@ void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
    f->SetTime(t);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1);
-   x.Add(dt, k1);
 
    f->SetTime(t+dt);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
    f->ImplicitSolve(dt, x, k2);
 
+   f->SetTime(t);
+   x.Add(dt, k1);
    x.Add(dt, k2);
    t += dt;
 }
