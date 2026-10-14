@@ -66,15 +66,6 @@ complex<real_t> u0_exact(const Vector &x);
 void u1_exact(const Vector &, ComplexVector &);
 void u2_exact(const Vector &, ComplexVector &);
 
-real_t u0_real_exact(const Vector &);
-real_t u0_imag_exact(const Vector &);
-
-void u1_real_exact(const Vector &, Vector &);
-void u1_imag_exact(const Vector &, Vector &);
-
-void u2_real_exact(const Vector &, Vector &);
-void u2_imag_exact(const Vector &, Vector &);
-
 bool check_for_inline_mesh(const char * mesh_file);
 
 int main(int argc, char *argv[])
@@ -257,21 +248,6 @@ int main(int argc, char *argv[])
    Vector  oneVec(dim);  oneVec = 0.0; oneVec[(prob==2)?(dim-1):0] = 1.0;
    ComplexVectorConstantCoefficient oneVecCoef(oneVec);
 
-   FunctionCoefficient u0_r(u0_real_exact);
-   FunctionCoefficient u0_i(u0_imag_exact);
-   VectorFunctionCoefficient u1_r(dim, u1_real_exact);
-   VectorFunctionCoefficient u1_i(dim, u1_imag_exact);
-   VectorFunctionCoefficient u2_r(dim, u2_real_exact);
-   VectorFunctionCoefficient u2_i(dim, u2_imag_exact);
-   /*
-   ConstantCoefficient zeroCoef(0.0);
-   ConstantCoefficient oneCoef(1.0);
-
-   Vector zeroVec(dim); zeroVec = 0.0;
-   Vector  oneVec(dim);  oneVec = 0.0; oneVec[(prob==2)?(dim-1):0] = 1.0;
-   VectorConstantCoefficient zeroVecCoef(zeroVec);
-   VectorConstantCoefficient oneVecCoef(oneVec);
-   */
    switch (prob)
    {
       case 0:
@@ -644,48 +620,14 @@ complex<real_t> u0_exact(const Vector &x)
    return std::exp(-i * kappa * x[dim - 1]);
 }
 
-real_t u0_real_exact(const Vector &x)
-{
-   return u0_exact(x).real();
-}
-
-real_t u0_imag_exact(const Vector &x)
-{
-   return u0_exact(x).imag();
-}
-
 void u1_exact(const Vector &x, ComplexVector &v)
 {
    int dim = x.Size();
    v.SetSize(dim); v = 0.0; v[0] = u0_exact(x);
 }
 
-void u1_real_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[0] = u0_real_exact(x);
-}
-
-void u1_imag_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[0] = u0_imag_exact(x);
-}
-
 void u2_exact(const Vector &x, ComplexVector &v)
 {
    int dim = x.Size();
    v.SetSize(dim); v = 0.0; v[dim-1] = u0_exact(x);
-}
-
-void u2_real_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[dim-1] = u0_real_exact(x);
-}
-
-void u2_imag_exact(const Vector &x, Vector &v)
-{
-   int dim = x.Size();
-   v.SetSize(dim); v = 0.0; v[dim-1] = u0_imag_exact(x);
 }

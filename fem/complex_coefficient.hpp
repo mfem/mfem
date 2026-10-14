@@ -445,6 +445,8 @@ private:
    ConstantCoefficient imag_coef;
 
 public:
+   using ComplexCoefficient::Eval;
+
    ComplexConstantCoefficient(const complex_t z);
 
    ComplexConstantCoefficient(real_t z_r, real_t z_i = 0.);
@@ -514,6 +516,8 @@ protected:
    std::function<complex_t(const Vector &, real_t)> TDFunction;
 
 public:
+   using ComplexCoefficient::Eval;
+
    /// Define a time-independent coefficient from a std function
    /** \param F time-independent std::function */
    ComplexFunctionCoefficient(std::function<complex_t
