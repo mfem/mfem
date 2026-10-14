@@ -1455,23 +1455,22 @@ int FiniteElementSpace::GetNConformingDofs() const
 
 int FiniteElementSpace::GetVectorDim() const
 {
-   const int dim = GetMesh()->Dimension();
-   if (fec->GetRangeType(dim) == FiniteElement::SCALAR)
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return GetVDim();
    }
-   return GetVDim()*std::max(GetMesh()->SpaceDimension(),
-                             fec->GetRangeDim(dim));
+   return GetVDim()*std::max(GetMesh()->SpaceDimension(), fe->GetRangeDim());
 }
 
 int FiniteElementSpace::GetCurlDim() const
 {
-   const int dim = GetMesh()->Dimension();
-   if (fec->GetRangeType(dim) == FiniteElement::SCALAR)
+   const FiniteElement *fe = GetTypicalFE();
+   if (fe->GetRangeType() == FiniteElement::SCALAR)
    {
       return 2 * GetMesh()->SpaceDimension() - 3;
    }
-   return GetVDim()*fec->GetCurlDim(dim);
+   return GetVDim()*fe->GetCurlDim();
 }
 
 const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
