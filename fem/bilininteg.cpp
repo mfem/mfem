@@ -1688,11 +1688,12 @@ void VectorMassIntegrator::AssembleElementMatrix
    }
 
    elmat = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int s = 0; s < ir->GetNPoints(); s++)
    {
       const IntegrationPoint &ip = ir->IntPoint(s);
       Trans.SetIntPoint (&ip);
-      el.CalcPhysShape(Trans, shape);
+      shapes.CalcPhysShape(s, Trans, shape);
 
       norm = ip.weight * Trans.Weight();
 
@@ -1773,12 +1774,14 @@ void VectorMassIntegrator::AssembleElementMatrix2(
    }
 
    elmat = 0.0;
+   const RuleShapes trial_shapes(trial_fe, *ir);
+   const RuleShapes test_shapes(test_fe, *ir);
    for (int s = 0; s < ir->GetNPoints(); s++)
    {
       const IntegrationPoint &ip = ir->IntPoint(s);
       Trans.SetIntPoint(&ip);
-      trial_fe.CalcPhysShape(Trans, shape);
-      test_fe.CalcPhysShape(Trans, te_shape);
+      trial_shapes.CalcPhysShape(s, Trans, shape);
+      test_shapes.CalcPhysShape(s, Trans, te_shape);
 
       norm = ip.weight * Trans.Weight();
 
@@ -3089,10 +3092,11 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    elmat = 0.0;
 
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcDShape(i, dshape);
 
       Trans.SetIntPoint(&ip);
       real_t w = Trans.Weight();
@@ -3175,10 +3179,11 @@ void VectorDiffusionIntegrator::AssembleElementVector(
    }
 
    elvect = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcDShape(i, dshape);
 
       Tr.SetIntPoint(&ip);
       real_t w = Tr.Weight();
@@ -3260,11 +3265,12 @@ void ElasticityIntegrator::AssembleElementMatrix(
 
    elmat = 0.0;
 
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      el.CalcDShape(ip, dshape);
+      shapes.CalcDShape(i, dshape);
 
       Trans.SetIntPoint(&ip);
       w = ip.weight * Trans.Weight();
