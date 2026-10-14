@@ -200,7 +200,9 @@ struct tuple<>
  * @tparam T the variadic template parameter for tuple types
  */
 template <typename... T>
+#if !defined(__clang__) || defined(__NVCC__) || __clang_major__ < 22
 MFEM_HOST_DEVICE
+#endif
 tuple(T...) -> tuple<T...>;
 
 /**
