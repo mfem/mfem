@@ -38,17 +38,8 @@ public:
    virtual void Copy(int src, int dst) = 0;
    virtual void Resize(int n) = 0;
 
-<<<<<<< HEAD
-   /// Sync this field's data to the host for the duration of routing.
-   /** Marks the host copy valid and the device copy stale, so a caller's next
-       device access transfers back lazily. The UseDevice flag is deliberately
-       left untouched: it is caller-owned dispatch policy, not a record of where
-       the data currently lives. */
-   virtual void ToHost() = 0;
-=======
    virtual std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) = 0;
    virtual void ToDevice(const mfem::Array<int> &staying_idx, Field &arrivals) = 0;
->>>>>>> 28b72adb13 (particle-specific host/device transfer + copy latest particlevector from master)
 };
 
 namespace internal
@@ -105,13 +96,6 @@ public:
               Ordering::Type ordering_ = Ordering::byNODES)
       : arr(&a), vdim(vdim_), ordering(ordering_) { }
 
-<<<<<<< HEAD
-   int GetVDim() const override { return vdim; }
-   Ordering::Type GetOrdering() const override { return ordering; }
-   int Size() const override { return arr->Size() / vdim; }
-   std::size_t RowBytes() const override { return (std::size_t)vdim * sizeof(T); }
-   void ToHost() override { arr->HostReadWrite(); }
-=======
    int              GetVDim() const override        { return vdim; }
    Ordering::Type   GetOrdering() const override    { return ordering; }
    int              Size() const override           { return arr->Size() / vdim; }
@@ -189,7 +173,6 @@ public:
       }
       arr->Swap(new_col);
    }
->>>>>>> 28b72adb13 (particle-specific host/device transfer + copy latest particlevector from master)
 
    void Pack(int i, char *dst) const override {
       const int n = Size();
@@ -246,13 +229,6 @@ public:
                Ordering::Type ordering_ = Ordering::byNODES)
       : vec(&v), vdim(vdim_), ordering(ordering_) { }
 
-<<<<<<< HEAD
-   int GetVDim() const override { return vdim; }
-   Ordering::Type GetOrdering() const override { return ordering; }
-   int Size() const override { return vec->Size() / vdim; }
-   std::size_t RowBytes() const override{ return (std::size_t)vdim * sizeof(real_t); }
-   void ToHost() override   { vec->HostReadWrite(); }
-=======
    int              GetVDim() const override        { return vdim; }
    Ordering::Type   GetOrdering() const override    { return ordering; }
    int              Size() const override           { return vec->Size() / vdim; }
@@ -328,7 +304,6 @@ public:
       }
       vec->Swap(new_col);
    }
->>>>>>> 28b72adb13 (particle-specific host/device transfer + copy latest particlevector from master)
 
    void Pack(int i, char *dst) const override {
       const int n = Size();
@@ -397,13 +372,6 @@ class ParticleVectorField : public Field {
 public:
    ParticleVectorField(mfem::ParticleVector &pv_) : pv(&pv_) { }
 
-<<<<<<< HEAD
-   int GetVDim() const override { return pv->GetVDim(); }
-   Ordering::Type GetOrdering() const override { return pv->GetOrdering(); }
-   int Size() const override { return pv->GetNumParticles(); }
-   std::size_t RowBytes() const override{ return (std::size_t)pv->GetVDim() * sizeof(real_t); }
-   void ToHost() override   { pv->HostReadWrite(); }
-=======
    int              GetVDim() const override        { return pv->GetVDim(); }
    Ordering::Type   GetOrdering() const override    { return pv->GetOrdering(); }
    int              Size() const override           { return pv->GetNumParticles(); }
@@ -480,7 +448,6 @@ public:
       // swaps data + size only; vdim/ordering stay on pv
       pv->Swap(new_col);
    }
->>>>>>> 28b72adb13 (particle-specific host/device transfer + copy latest particlevector from master)
 
    void Pack(int i, char *dst) const override {
       const int vd = pv->GetVDim();

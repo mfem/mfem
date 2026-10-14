@@ -33,15 +33,6 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
                   << rank_list.Size());
    }
 
-<<<<<<< HEAD
-   // Routing runs entirely on the host, so pull down any device-resident field.
-   // Nothing is done on the way back up: ToHost() leaves the host copy valid and
-   // the device copy stale, and the caller's next device access transfers lazily.
-   for (auto *f : fields) { f->ToHost(); }
-
-   Array<unsigned int> ranks(rank_list);
-   RouteInternal(ranks, fields);
-=======
    if (Device::IsEnabled()) {
       RouteDevice(rank_list, fields);
    }
@@ -49,7 +40,6 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
       Array<unsigned int> ranks(rank_list);
       RouteInternal(ranks, fields);
    }
->>>>>>> 28b72adb13 (particle-specific host/device transfer + copy latest particlevector from master)
 }
 
 // PRIVATE METHODS
