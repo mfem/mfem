@@ -17,6 +17,14 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+Meshing improvements
+--------------------
+- Fixed inconsistent parallel finite element spaces on a ParSubMesh of a
+  ParMesh whose communication groups are not numbered in the same order on all
+  ranks, for example a ParMesh constructed from the parts of a MeshPartitioner.
+  The shared vertices, edges and faces of the ParSubMesh groups are now listed
+  in the same order on all ranks.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
