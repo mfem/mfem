@@ -56,6 +56,8 @@ baselinecheck_mfem_intel_dane:
     - echo ${TPLS_DIR}
     # Used by the tests in MFEM/tests, dane has 224 threads/node:
     - export MFEM_TEST_NP=192
+    - ml reset
+    - ml intel/2025.3.1-magic
     # The next script uses the following environment variables:
     # * BASELINE_TEST, SYS_TYPE, CI_PROJECT_DIR, ARTIFACTS_DIR,
     # * BUILD_ROOT, TPLS_DIR, MACHINE_NAME
@@ -159,5 +161,5 @@ baselinepublish_mfem_dane:
     - .gitlab/scripts/rebaseline
 
 include:
-  - local: .gitlab/custom-jobs-and-variables.yml
+  - local: .gitlab/custom-variables.yml
   - local: .gitlab/configs/setup-baseline.yml
