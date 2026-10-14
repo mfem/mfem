@@ -5308,6 +5308,8 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_Int Pmax;
    HYPRE_Int print_level;
    HYPRE_Int max_levels;
+   HYPRE_Real tol;
+   HYPRE_Int max_iter;
    HYPRE_Int dim;
    HYPRE_Int nrbms = rbms.Size();
    HYPRE_Int nodal;
@@ -5330,6 +5332,8 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGGetPMaxElmts(amg_precond, &Pmax);
    HYPRE_BoomerAMGGetPrintLevel(amg_precond, &print_level);
    HYPRE_BoomerAMGGetMaxLevels(amg_precond, &max_levels);
+   HYPRE_BoomerAMGGetTol(amg_precond, &tol);
+   HYPRE_BoomerAMGGetMaxIter(amg_precond, &max_iter);
    HYPRE_BoomerAMGGetNumFunctions(amg_precond, &dim);
    if (nrbms) // elasticity solver options
    {
@@ -5349,13 +5353,13 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
-   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
-   HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
-   HYPRE_BoomerAMGSetMaxIter(amg_precond, 1); // one V-cycle
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
    HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    HYPRE_BoomerAMGSetPMaxElmts(amg_precond, Pmax);
    HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level);
+   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
+   HYPRE_BoomerAMGSetTol(amg_precond, tol);
+   HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter);
    HYPRE_BoomerAMGSetNumFunctions(amg_precond, dim);
    if (nrbms)
    {
