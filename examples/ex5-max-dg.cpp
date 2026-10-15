@@ -25,7 +25,7 @@
 //               corresponding to the saddle point system
 //
 //                                 sigma*E - curl B = f
-//                                 curl E  + mu*B   = 0
+//                                 curl E  + mu*B   = g
 //
 //               with natural boundary condition -B = <given pressure>.
 //               Here, we use a given exact solution (E,B) and compute the
@@ -164,8 +164,19 @@ int main(int argc, char *argv[])
 
    LinearForm *fform = darcy->GetFluxRHS();
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
-   fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
-                                  Bcoeff));
+   //fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
+   //                               Bcoeff));
+
+   LinearForm *gform = darcy->GetPotentialRHS();
+   if (dim_curl > 1)
+   {
+      gform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(Ecoeff));
+   }
+   else
+   {
+      gform->AddBdrFaceIntegrator(new BoundaryTangentialLFIntegrator(Ecoeff));
+   }
+
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -185,6 +196,8 @@ int main(int argc, char *argv[])
                                  MixedCurlIntegrator::Mode::OutOfPlane));
    cVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                        new DGTangentialTraceIntegrator(+1.)));
+   cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                  new DGTangentialTraceIntegrator(+2.)));
    //mbVarf->AddInteriorFaceIntegrator()
 
    if (dim_curl > 1)
