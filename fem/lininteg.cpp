@@ -516,7 +516,7 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
 {
    const int dim = el.GetDim()+1;
    const int dof = el.GetDof();
-   Vector tangent(dim), Qvec(dim);
+   Vector tangent(dim);
 
    shape.SetSize(dof);
    elvect.SetSize(dof * dim);
@@ -542,18 +542,15 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
       const DenseMatrix &Jac = Tr.Jacobian();
       tangent(0) = Jac(0,0);
       tangent(1) = Jac(1,0);
-      const real_t norm = tangent.Norml2();
-
-      Q.Eval(Qvec, Tr, ip);
 
       el.CalcShape(ip, shape);
 
-      const real_t w = ip.weight * (Qvec*tangent);
+      const real_t w = ip.weight * Q.Eval(Tr, ip);
 
       for (int d = 0; d < dim; d++)
       {
          Vector elvect_d(elvect, d*dof, dof);
-         elvect_d.Add(w * (tangent(d)/norm), shape);
+         elvect_d.Add(w * tangent(d), shape);
       }
    }
 }
@@ -591,16 +588,14 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
       tangent(1) = Jac(1,0);
       const real_t norm = tangent.Norml2();
 
-      Q.Eval(Qvec, FTr, ip);
-
       el.CalcShape(FTr.GetElement1IntPoint(), shape);
 
-      const real_t w = ip.weight * (Qvec*tangent);
+      const real_t w = ip.weight * Q.Eval(FTr, ip);
 
       for (int d = 0; d < dim; d++)
       {
          Vector elvect_d(elvect, d*dof, dof);
-         elvect_d.Add(w * (tangent(d)/norm), shape);
+         elvect_d.Add(w * tangent(d), shape);
       }
    }
 }
