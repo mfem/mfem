@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
+   real_t td = 0.5;
    bool reduction = false;
    bool hybridization = false;
    bool pa = false;
@@ -72,6 +73,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&td, "-td", "--stab_diff",
+                  "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
@@ -203,8 +206,8 @@ int main(int argc, char *argv[])
                                        new DGTangentialTraceIntegrator(+1.)));
    cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
                                   new DGTangentialTraceIntegrator(+2.)));
-   mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff));
-   mbVarf->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff));
+   mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
+   mbVarf->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
 
    if (dim_curl > 1)
    {
