@@ -315,12 +315,11 @@ int main(int argc, char *argv[])
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
       unique_ptr<SparseMatrix> MinvBt, S;
-      Vector Md(mVarf->Height());
-
       unique_ptr<Solver> invM, invS;
 
       if (pa)
       {
+         Vector Md(mVarf->Height());
          mVarf->AssembleDiagonal(Md);
          auto Md_host = Md.HostRead();
          Vector invMd(mVarf->Height());
@@ -334,9 +333,9 @@ int main(int argc, char *argv[])
 
          if (mbVarf)
          {
-            Vector Mbd(mbVarf->Height());
-            mbVarf->AssembleDiagonal(Mbd);
-            BMBt_diag += Mbd;
+            Vector MBd(mbVarf->Height());
+            mbVarf->AssembleDiagonal(MBd);
+            BMBt_diag += MBd;
          }
 
          Array<int> ess_tdof_list;  // empty
@@ -347,26 +346,27 @@ int main(int argc, char *argv[])
       }
       else
       {
-         SparseMatrix &M(mVarf->SpMat());
-         M.GetDiag(Md);
+         SparseMatrix &MEm(mVarf->SpMat());
+         Vector Md;
+         MEm.GetDiag(Md);
          Md.HostReadWrite();
 
-         SparseMatrix &Bm(cVarf->SpMat());
-         MinvBt.reset(Transpose(Bm));
+         SparseMatrix &Cm(cVarf->SpMat());
+         MinvBt.reset(Transpose(Cm));
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S.reset(Mult(Bm, *MinvBt));
+         S.reset(Mult(Cm, *MinvBt));
          if (mbVarf)
          {
-            SparseMatrix &Mpm(mbVarf->SpMat());
-            S.reset(Add(Mpm, *S));
+            SparseMatrix &MBm(mbVarf->SpMat());
+            S.reset(Add(MBm, *S));
          }
 
-         invM = make_unique<DSmoother>(M);
+         invM = make_unique<DSmoother>(MEm);
 
 #ifndef MFEM_USE_SUITESPARSE
          invS = make_unique<GSSmoother>(*S);
