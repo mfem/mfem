@@ -296,6 +296,13 @@ int main(int argc, char *argv[])
          Vector BMBt_diag(cVarf->Height());
          cVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
 
+         if (mbVarf)
+         {
+            Vector Mbd(mbVarf->Height());
+            mbVarf->AssembleDiagonal(Mbd);
+            BMBt_diag += Mbd;
+         }
+
          Array<int> ess_tdof_list;  // empty
 
          invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
@@ -316,6 +323,13 @@ int main(int argc, char *argv[])
          }
 
          S = Mult(Bm, *MinvBt);
+         if (mbVarf)
+         {
+            SparseMatrix &Mpm(mbVarf->SpMat());
+            SparseMatrix *Snew = Add(Mpm, *S);
+            delete S;
+            S = Snew;
+         }
 
          invM = new DSmoother(M);
 
