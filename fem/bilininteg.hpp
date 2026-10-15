@@ -4633,15 +4633,18 @@ public:
 
 /** Integrator for the form:$ \langle v, [w \times n] \rangle $ over all faces (the interface) where
     the trial variable $v$ is defined on the interface and the test variable $w$ is
-    in an $H(curl)$-conforming space. */
+    in an $H(curl)$-conforming space or in a DG space. */
 class TangentTraceJumpIntegrator : public BilinearFormIntegrator
 {
+protected:
+   real_t sign;
+
 private:
    Vector face_shape, hat_tau, shape1_n, shape2_n;
    DenseMatrix shape1, shape2;
 
 public:
-   TangentTraceJumpIntegrator() { }
+   TangentTraceJumpIntegrator(real_t sign_ = 1.) : sign(sign_) { }
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
                                    const FiniteElement &test_fe1,
