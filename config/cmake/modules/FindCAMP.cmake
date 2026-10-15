@@ -30,7 +30,6 @@ if (CAMP_FOUND AND NOT TARGET camp)
    set_target_properties(camp PROPERTIES
       IMPORTED_LOCATION "${_camp_lib0}"
       INTERFACE_INCLUDE_DIRECTORIES "${CAMP_INCLUDE_DIRS}")
-   set(CAMP_LIBRARIES "camp" CACHE STRING "CAMP imported target." FORCE)
+   set(CAMP_LIBRARIES "camp")
    unset(_camp_lib0)
 endif()
-

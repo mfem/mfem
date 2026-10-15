@@ -31,16 +31,15 @@ if (CALIPER_FOUND AND NOT TARGET caliper)
    set_target_properties(caliper PROPERTIES
       IMPORTED_LOCATION "${_caliper_lib0}"
       INTERFACE_INCLUDE_DIRECTORIES "${CALIPER_INCLUDE_DIRS}")
-   # Prefer linking via the target.
-   set(CALIPER_LIBRARIES "caliper" CACHE STRING "Caliper imported target." FORCE)
+   set(CALIPER_LIBRARIES "caliper")
    unset(_caliper_lib0)
 endif()
 
 # Append adiak path/lib if the user provided ADIAK_DIR
 if(ADIAK_DIR AND EXISTS ${ADIAK_DIR})
-    find_package(adiak NO_DEFAULT_PATH REQUIRED PATHS ${ADIAK_DIR}/lib/cmake/adiak ${ADIAK_DIR})
-    list(APPEND CALIPER_INCLUDE_DIRS ${adiak_INCLUDE_DIRS})
-    list(APPEND CALIPER_LIBRARIES ${adiak_LIBRARIES})
+    find_package(Adiak REQUIRED)
+    list(APPEND CALIPER_INCLUDE_DIRS ${ADIAK_INCLUDE_DIRS})
+    list(APPEND CALIPER_LIBRARIES ${ADIAK_LIBRARIES})
 endif()
 
 # Append gotcha path/lib if the user provided GOTCHA_DIR
@@ -49,4 +48,3 @@ if(GOTCHA_DIR AND EXISTS ${GOTCHA_DIR})
     list(APPEND CALIPER_INCLUDE_DIRS ${gotcha_INCLUDE_DIRS})
     list(APPEND CALIPER_LIBRARIES ${gotcha_LIBRARIES})
 endif()
-

@@ -580,6 +580,11 @@ endif()
 # Tribol
 if (MFEM_USE_TRIBOL)
   if (MFEM_USE_MPI)
+    # Tribol's optional dependencies can contain imported CMake targets.
+    # Set up Tribol on each configure step to avoid stale target names.
+    unset(TRIBOL_FOUND CACHE)
+    unset(TRIBOL_LIBRARIES CACHE)
+    unset(TRIBOL_INCLUDE_DIRS CACHE)
     find_package(Tribol REQUIRED tribol redecomp tribol_shared)
   else()
     message(FATAL_ERROR " *** Tribol requires that MPI be enabled.")
