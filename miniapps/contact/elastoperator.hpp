@@ -77,8 +77,11 @@ private:
    /// Right-hand side (B) and solution vector (X).
    Vector B, X;
 
-   /// Neumann pressure coefficient (for traction BCs).
-   ConstantCoefficient pressure_cf;
+   /// Neumann pressure coefficients and boundary markers (for traction BCs),
+   /// one per call to SetNeumannPressureData. The linear form keeps pointers
+   /// to both, so they are owned here and released with the linear form.
+   Array<ConstantCoefficient *> pressure_cf;
+   Array<Array<int> *> pressure_bdr_marker;
 
    /// Material parameters:
    /// - Linear: c1 = λ (1ˢᵗ Lame parameter), c2 = μ (2ⁿᵈ Lame parameter or shear modulus)

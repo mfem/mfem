@@ -111,9 +111,43 @@ void OptContactProblem::ReleaseMemory()
 void OptContactProblem::ComputeGapJacobian()
 {
    if (J) { delete J; }
-   J = const_cast<HypreParMatrix *>(SetupTribol(problem->GetMesh(),coords,
-                                                problem->GetEssentialDofs(),
-                                                mortar_attrs, nonmortar_attrs,gapv, tribol_ratio));
+   // One Tribol coupling scheme per contact interface. The gap Jacobians are
+   // stacked row-wise, and the gaps and lumped masses are concatenated in the
+   // same order (HypreParMatrixFromBlocks stacks the local rows block by block).
+   const int npairs = contact_pairs.size();
+   Array<HypreParMatrix *> Js(npairs);
+   std::vector<Vector> gaps(npairs), mcslumps(npairs);
+   int ngap = 0;
+   for (int i = 0; i < npairs; i++)
+   {
+      gaps[i].UseDevice(true);
+      mcslumps[i].UseDevice(true);
+      Js[i] = SetupTribol(problem->GetMesh(), coords,
+                          problem->GetEssentialDofs(),
+                          contact_pairs[i].first, contact_pairs[i].second,
+                          gaps[i], mcslumps[i], tribol_ratio);
+      ngap += gaps[i].Size();
+   }
+
+   gapv.SetSize(ngap);
+   Mcslump.SetSize(ngap);
+   for (int i = 0, offset = 0; i < npairs; offset += gaps[i].Size(), i++)
+   {
+      gapv.SetVector(gaps[i], offset);
+      Mcslump.SetVector(mcslumps[i], offset);
+   }
+
+   if (npairs == 1)
+   {
+      J = Js[0];
+   }
+   else
+   {
+      Array2D<const HypreParMatrix *> J_blocks(npairs, 1);
+      for (int i = 0; i < npairs; i++) { J_blocks(i, 0) = Js[i]; }
+      J = HypreParMatrixFromBlocks(J_blocks);
+      for (int i = 0; i < npairs; i++) { delete Js[i]; }
+   }
 
    dof_starts.SetSize(2);
    dof_starts[0] = J->ColPart()[0];
@@ -137,8 +171,16 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & nonmortar_attrs_,
                                      real_t tribol_ratio_,
                                      bool bound_constraints_)
-   : problem(problem_), mortar_attrs(mortar_attrs_),
-     nonmortar_attrs(nonmortar_attrs_),
+   : OptContactProblem(problem_, {{mortar_attrs_, nonmortar_attrs_}},
+                       tribol_ratio_, bound_constraints_)
+{ }
+
+OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
+                                     const std::vector<std::pair<std::set<int>, std::set<int>>> &
+                                     contact_pairs_,
+                                     real_t tribol_ratio_,
+                                     bool bound_constraints_)
+   : problem(problem_), contact_pairs(contact_pairs_),
      tribol_ratio(tribol_ratio_),
      bound_constraints(bound_constraints_)
 {
@@ -490,7 +532,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
                                                 ParGridFunction * coords,
                                                 const Array<int> & ess_tdofs, const std::set<int> & mortar_attrs,
                                                 const std::set<int> & non_mortar_attrs,
-                                                Vector &gap, real_t ratio)
+                                                Vector &gap, Vector &mcslump,
+                                                real_t ratio)
 {
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
@@ -558,7 +601,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    FilteredContactMatrix filtered =
       FilterContactMatrixAndGap(*Mfull, *pressure.ParFESpace(),
-                                coupling_scheme_id, gap);
+                                coupling_scheme_id, gap, mcslump);
    MPI_Comm matrix_comm = Mfull->GetComm();
 
    A_blk.reset();
@@ -587,7 +630,7 @@ OptContactProblem::FilterContactMatrixAndGap(
    HypreParMatrix &contact_matrix,
    ParFiniteElementSpace &pfes,
    int coupling_scheme_id,
-   Vector &gap)
+   Vector &gap, Vector &mcslump)
 {
    const int h = contact_matrix.Height();
    HYPRE_BigInt *offd_cmap = nullptr;
@@ -829,21 +872,21 @@ OptContactProblem::FilterContactMatrixAndGap(
    P_submesh.MultTranspose(gap_full,gap_true);
    gap.SetSize(nrows);
    gap.UseDevice(true);
-   Mcslump.SetSize(nrows);
-   Mcslump.UseDevice(true);
+   mcslump.SetSize(nrows);
+   mcslump.UseDevice(true);
 
    const real_t *gap_true_data = gap_true.Read(use_dev);
    const real_t *Mcslumpfull_data = Mcslumpfull.Read(use_dev);
    real_t *gap_data = gap.Write(use_dev);
-   real_t *Mcslump_data = Mcslump.Write(use_dev);
+   real_t *mcslump_data = mcslump.Write(use_dev);
    const int *nonzero_rows_data = nonzero_rows.Read(use_dev);
    mfem::forall(nrows, [=] MFEM_HOST_DEVICE (int i)
    {
       const int row = nonzero_rows_data[i];
       gap_data[i] = gap_true_data[row];
-      Mcslump_data[i] = Mcslumpfull_data[row];
+      mcslump_data[i] = Mcslumpfull_data[row];
    });
-   gap /= Mcslump;
+   gap /= mcslump;
 
    return filtered;
 }

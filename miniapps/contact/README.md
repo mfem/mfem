@@ -12,7 +12,7 @@ inequality-constrained minimization problem enforcing the non-penetration
 condition. Linear systems arising in the IP iterations are solved with 
 **Conjugate Gradient (CG)** preconditioned by the recently introduced
  **AMG with Filtering (AMGF)** solver. Benchmark examples include the two-block 
- compression, ironing, and beam-sphere contact tests. 
+ compression, ironing, beam-sphere, and onion (nested spheres) contact tests. 
 
 ---
 
@@ -47,7 +47,10 @@ elasticity and **AMG with Filtering (AMGF)** preconditioning.
 
 ### Notes
 
-- `-prob` selects the problem: `0` two-block, `1` ironing, `2` beam–sphere.  
+- `-prob` selects the problem: `0` two-block, `1` ironing, `2` beam–sphere,
+`3` onion (9 nested spherical shells under equal inner and outer pressure).  
+- The onion mesh is generated at startup; only the beam–sphere problem reads a
+  mesh file from `meshes/`.
 - `-nonlin`: enables nonlinear elasticity. This option is available only for the 
 beam–sphere case (`-prob 2`). 
 - `-amgf` selects the AMGF  preconditioner and requires MFEM to be built with 
@@ -121,4 +124,3 @@ point Tribol to them. The steps are as follows:
      ```bash
       make contact
       ```  
-
