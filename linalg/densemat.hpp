@@ -24,6 +24,7 @@ class DenseMatrix : public Matrix
 {
    friend class DenseTensor;
    friend class DenseMatrixInverse;
+   friend class ComplexDenseMatrixData;
 
 private:
    Array<real_t> data;

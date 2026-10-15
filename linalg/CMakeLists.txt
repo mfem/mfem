@@ -21,6 +21,7 @@ list(APPEND SRCS
   blockvector.cpp
   complex_densemat.cpp
   complex_operator.cpp
+  complex_vector.cpp
   constraints.cpp
   densemat.cpp
   filteredsolver.cpp
@@ -51,6 +52,7 @@ list(APPEND HDRS
   blockvector.hpp
   complex_densemat.hpp
   complex_operator.hpp
+  complex_vector.hpp
   constraints.hpp
   densemat.hpp
   dinvariants.hpp
