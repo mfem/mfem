@@ -120,7 +120,8 @@ static void ComplexContainers()
    REQUIRE(from_real_data[1] == complex_t(3.0));
 
    const complex_t values[2] = {complex_t(1.0, 2.0),
-                                complex_t(3.0, -4.0)};
+                                complex_t(3.0, -4.0)
+                               };
    ComplexVector vector(2);
    vector.UseDevice(true);
    vector = values;

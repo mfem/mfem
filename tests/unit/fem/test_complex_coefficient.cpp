@@ -73,14 +73,14 @@ void CheckTemplatedLinearIntegratorRegistration(
 {
    form.template AddDomainIntegrator<DomainLFIntegrator>(complex_coefficient);
    form.template AddDomainIntegrator<DomainLFIntegrator>(complex_coefficient,
-                                                          element_marker);
+                                                         element_marker);
    form.template AddDomainIntegrator<DomainLFIntegrator>(real_coefficient);
    form.template AddBoundaryIntegrator<DomainLFIntegrator>(complex_coefficient);
    form.template AddBoundaryIntegrator<DomainLFIntegrator>(complex_coefficient,
-                                                            boundary_marker);
+                                                           boundary_marker);
    form.template AddBdrFaceIntegrator<DomainLFIntegrator>(complex_coefficient);
    form.template AddBdrFaceIntegrator<DomainLFIntegrator>(complex_coefficient,
-                                                           boundary_marker);
+                                                          boundary_marker);
 
    REQUIRE(form.real().GetDLFI()->Size() == 3);
    REQUIRE(form.imag().GetDLFI()->Size() == 2);
@@ -102,15 +102,15 @@ void CheckTemplatedBilinearIntegratorRegistration(
 {
    form.template AddDomainIntegrator<MassIntegrator>(complex_coefficient);
    form.template AddDomainIntegrator<MassIntegrator>(complex_coefficient,
-                                                      element_marker);
+                                                     element_marker);
    form.template AddDomainIntegrator<MassIntegrator>(real_coefficient);
    form.template AddBoundaryIntegrator<MassIntegrator>(complex_coefficient);
    form.template AddBoundaryIntegrator<MassIntegrator>(complex_coefficient,
-                                                        boundary_marker);
+                                                       boundary_marker);
    form.template AddInteriorFaceIntegrator<MassIntegrator>(complex_coefficient);
    form.template AddBdrFaceIntegrator<MassIntegrator>(complex_coefficient);
    form.template AddBdrFaceIntegrator<MassIntegrator>(complex_coefficient,
-                                                       boundary_marker);
+                                                      boundary_marker);
 
    REQUIRE(form.real().GetDBFI()->Size() == 3);
    REQUIRE(form.imag().GetDBFI()->Size() == 2);
