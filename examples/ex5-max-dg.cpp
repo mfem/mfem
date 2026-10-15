@@ -227,9 +227,9 @@ int main(int argc, char *argv[])
    if (hybridization)
    {
       trace_coll = new DG_Interface_FECollection(order, dim);
-      trace_space = new FiniteElementSpace(mesh, trace_coll);
+      trace_space = new FiniteElementSpace(mesh, trace_coll, dim_curl);
       darcy->EnableHybridization(trace_space,
-                                 new TangentTraceJumpIntegrator(),
+                                 new TangentTraceJumpIntegrator(-1.),
                                  ess_flux_tdofs_list);
    }
    else if (reduction)
