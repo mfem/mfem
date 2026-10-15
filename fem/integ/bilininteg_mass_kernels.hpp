@@ -1205,6 +1205,161 @@ inline void EAMassAssemble1D(const int NE,
    });
 }
 
+// Assemble element-matrix block columns by successively applying B in each
+// tensor direction. DIM is compile-time so all buffer extents and loop bounds
+// remain constants in device code.
+template<int DIM, int D1D, int Q1D>
+inline void EAMassAssembleTensorSumFactorized(const int NE,
+                                              const Array<real_t> &basis,
+                                              const Vector &padata,
+                                              Vector &eadata,
+                                              const bool add)
+{
+   static_assert(DIM == 2 || DIM == 3, "only tensor 2D and 3D are supported");
+   static constexpr int ND = DIM == 2 ? D1D * D1D : D1D * D1D * D1D;
+   static constexpr int NQ = DIM == 2 ? Q1D * Q1D : Q1D * Q1D * Q1D;
+   static constexpr int T1Size = DIM == 2 ? D1D * Q1D : D1D * Q1D * Q1D;
+   static constexpr int T2Size = DIM == 2 ? 0 : D1D * D1D * Q1D;
+   static constexpr int TSize = T1Size + T2Size;
+   static constexpr int SharedBytesPerColumn = sizeof(real_t) * (NQ + TSize);
+   static constexpr int SharedBytesBase = sizeof(real_t) * Q1D * D1D;
+   static constexpr int MaxSharedBytes = 48 * 1024;
+   static constexpr int COLB =
+      (SharedBytesBase + 4 * SharedBytesPerColumn <= MaxSharedBytes) ? 4 :
+      (SharedBytesBase + 2 * SharedBytesPerColumn <= MaxSharedBytes) ? 2 : 1;
+
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const auto B = basis.Read();
+   const auto D = padata.Read();
+   auto M = add ? eadata.ReadWrite() : eadata.Write();
+
+   mfem::forall_3D_grid(NE, 32, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
+   {
+      MFEM_SHARED real_t s_B[Q1D][D1D];
+      MFEM_SHARED real_t uW[NQ * COLB];
+      MFEM_SHARED real_t transformed[TSize * COLB];
+
+      MFEM_FOREACH_THREAD(qb, x, Q1D * D1D)
+      {
+         s_B[qb % Q1D][qb / Q1D] = B[qb];
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int j0 = 0; j0 < ND; j0 += COLB)
+      {
+         const int count = (j0 + COLB <= ND) ? COLB : ND - j0;
+         int j[COLB][DIM];
+         for (int c = 0; c < count; ++c)
+         {
+            int column = j0 + c;
+            for (int d = 0; d < DIM; ++d)
+            {
+               j[c][d] = column % D1D;
+               column /= D1D;
+            }
+         }
+
+         MFEM_FOREACH_THREAD(q, x, NQ)
+         {
+            int qcoord[DIM];
+            int quadrature = q;
+            for (int d = 0; d < DIM; ++d)
+            {
+               qcoord[d] = quadrature % Q1D;
+               quadrature /= Q1D;
+            }
+            for (int c = 0; c < count; ++c)
+            {
+               real_t value = D[q + NQ * e];
+               for (int d = 0; d < DIM; ++d)
+               {
+                  value *= s_B[qcoord[d]][j[c][d]];
+               }
+               uW[q + NQ * c] = value;
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         int previous_offset = 0;
+         int current_offset = 0;
+         for (int stage = 1; stage < DIM; ++stage)
+         {
+            const int stage_size = stage == 1 ? T1Size : T2Size;
+            MFEM_FOREACH_THREAD(a, x, stage_size)
+            {
+               int coord[DIM];
+               int index = a;
+               for (int d = 0; d < DIM; ++d)
+               {
+                  const int extent = d < stage ? D1D : Q1D;
+                  coord[d] = index % extent;
+                  index /= extent;
+               }
+               for (int c = 0; c < count; ++c)
+               {
+                  real_t sum = 0.0;
+                  for (int q = 0; q < Q1D; ++q)
+                  {
+                     int source = 0;
+                     int stride = 1;
+                     for (int d = 0; d < DIM; ++d)
+                     {
+                        const int entry = d == stage - 1 ? q : coord[d];
+                        const int extent = d < stage - 1 ? D1D : Q1D;
+                        source += entry * stride;
+                        stride *= extent;
+                     }
+                     const real_t input = stage == 1 ? uW[source + NQ * c] :
+                                          transformed[c * TSize + previous_offset + source];
+                     sum += s_B[q][coord[stage - 1]] * input;
+                  }
+                  transformed[c * TSize + current_offset + a] = sum;
+               }
+            }
+            MFEM_SYNC_THREAD;
+            previous_offset = current_offset;
+            current_offset += stage_size;
+         }
+
+         constexpr int LastStageSize = DIM == 2 ? T1Size : T2Size;
+         const int final_offset = TSize - LastStageSize;
+         for (int c = 0; c < count; ++c)
+         {
+            MFEM_FOREACH_THREAD(row, x, ND)
+            {
+               int icoord[DIM];
+               int index = row;
+               for (int d = 0; d < DIM; ++d)
+               {
+                  icoord[d] = index % D1D;
+                  index /= D1D;
+               }
+               real_t sum = 0.0;
+               for (int q = 0; q < Q1D; ++q)
+               {
+                  int prior;
+                  if constexpr (DIM == 2)
+                  {
+                     prior = icoord[0] + D1D * q;
+                  }
+                  else
+                  {
+                     prior = icoord[0] + D1D * (icoord[1] + D1D * q);
+                  }
+                  sum += s_B[q][icoord[DIM - 1]] *
+                         transformed[c * TSize + final_offset + prior];
+               }
+               const int column = j0 + c;
+               if (add) { M[row + ND * (column + ND * e)] += sum; }
+               else { M[row + ND * (column + ND * e)] = sum; }
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+   });
+}
+
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void EAMassAssemble2D(const int NE,
                              const Array<real_t> &basis,
@@ -1216,107 +1371,8 @@ inline void EAMassAssemble2D(const int NE,
 {
    if constexpr (T_D1D > 0 && T_Q1D > 0)
    {
-      // For compile-time tensor dimensions, use sum-factorized block-column
-      // assembly which reduces FLOPs and improves memory locality.
-      // NOTE: Use static constexpr to avoid MSVC treating these as captured
-      // lambda state (which breaks use in array bounds / constant eval).
-      static constexpr int D1D = T_D1D;
-      static constexpr int Q1D = T_Q1D;
-      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-      static constexpr int NQ = Q1D*Q1D;
-      static constexpr int SharedBytesPerCol =
-         sizeof(real_t)*(NQ + D1D*Q1D);
-      static constexpr int SharedBytesBase = sizeof(real_t)*(Q1D*D1D);
-      static constexpr int MaxSharedBytes = 48*1024;
-      static constexpr int COLB =
-         (SharedBytesBase + 4*SharedBytesPerCol <= MaxSharedBytes) ? 4 :
-         (SharedBytesBase + 2*SharedBytesPerCol <= MaxSharedBytes) ? 2 : 1;
-
-      auto B = Reshape(basis.Read(), Q1D, D1D);
-      auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
-      auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                       D1D, D1D, D1D, D1D, NE);
-
-      mfem::forall_3D_grid(NE, 32, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_SHARED real_t s_B[Q1D][D1D];
-         MFEM_SHARED real_t uW[NQ*COLB];
-         MFEM_SHARED real_t t1[D1D*Q1D*COLB];
-
-         MFEM_FOREACH_THREAD(qb,x,Q1D*D1D)
-         {
-            const int q = qb % Q1D;
-            const int d = qb / Q1D;
-            s_B[q][d] = B(q, d);
-         }
-         MFEM_SYNC_THREAD;
-
-         constexpr int ND = D1D*D1D;
-         constexpr int T1S = D1D*Q1D;
-
-         for (int j0 = 0; j0 < ND; j0 += COLB)
-         {
-            const int b = (j0 + COLB <= ND) ? COLB : (ND - j0);
-            int j1[COLB], j2[COLB];
-            for (int c = 0; c < COLB; ++c)
-            {
-               if (c < b)
-               {
-                  const int jj = j0 + c;
-                  j1[c] = jj % D1D;
-                  j2[c] = jj / D1D;
-               }
-            }
-
-            MFEM_FOREACH_THREAD(q,x,NQ)
-            {
-               const int q1 = q % Q1D;
-               const int q2 = q / Q1D;
-               const real_t Dq = D(q1, q2, e);
-               for (int c = 0; c < b; ++c)
-               {
-                  uW[q + NQ*c] = s_B[q1][j1[c]] * s_B[q2][j2[c]] * Dq;
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(a,x,T1S)
-            {
-               const int i1 = a % D1D;
-               const int q2 = a / D1D;
-               for (int c = 0; c < b; ++c)
-               {
-                  real_t sum = 0.0;
-                  for (int q1 = 0; q1 < Q1D; ++q1)
-                  {
-                     sum += s_B[q1][i1] * uW[q1 + Q1D*q2 + NQ*c];
-                  }
-                  t1[a + T1S*c] = sum;
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            for (int c = 0; c < b; ++c)
-            {
-               const int jj1 = j1[c];
-               const int jj2 = j2[c];
-               MFEM_FOREACH_THREAD(row,x,ND)
-               {
-                  const int i1 = row % D1D;
-                  const int i2 = row / D1D;
-                  real_t sum = 0.0;
-                  for (int q2 = 0; q2 < Q1D; ++q2)
-                  {
-                     sum += s_B[q2][i2] * t1[i1 + D1D*q2 + T1S*c];
-                  }
-                  if (add) { M(i1, i2, jj1, jj2, e) += sum; }
-                  else { M(i1, i2, jj1, jj2, e) = sum; }
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      });
+      EAMassAssembleTensorSumFactorized<2, T_D1D, T_Q1D>(
+         NE, basis, padata, eadata, add);
       return;
    }
 
@@ -1395,147 +1451,8 @@ inline void EAMassAssemble3D(const int NE,
 {
    if constexpr (T_D1D > 0 && T_Q1D > 0)
    {
-      // For compile-time tensor dimensions, use sum-factorized block-column
-      // assembly which reduces FLOPs and improves memory locality.
-      // NOTE: Use static constexpr to avoid MSVC treating these as captured
-      // lambda state (which breaks use in array bounds / constant eval).
-      static constexpr int D1D = T_D1D;
-      static constexpr int Q1D = T_Q1D;
-      MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-      MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-
-      static constexpr int NT = 32;
-      static constexpr int ND = D1D*D1D*D1D;
-      static constexpr int NQ = Q1D*Q1D*Q1D;
-      static constexpr int T1S = D1D*Q1D*Q1D;
-      static constexpr int T2S = D1D*D1D*Q1D;
-
-      static constexpr int SharedBytesPerCol =
-         sizeof(real_t)*(NQ + T1S + T2S);
-      static constexpr int SharedBytesBase = sizeof(real_t)*(Q1D*D1D);
-      static constexpr int MaxSharedBytes = 48*1024;
-      static constexpr int COLB =
-         (SharedBytesBase + 4*SharedBytesPerCol <= MaxSharedBytes) ? 4 :
-         (SharedBytesBase + 2*SharedBytesPerCol <= MaxSharedBytes) ? 2 : 1;
-
-      auto B = Reshape(basis.Read(), Q1D, D1D);
-      auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-      auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                       D1D, D1D, D1D, D1D, D1D, D1D, NE);
-
-      mfem::forall_3D_grid(NE, NT, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
-      {
-         MFEM_SHARED real_t s_B[Q1D][D1D];
-         MFEM_SHARED real_t uW[NQ*COLB];
-         MFEM_SHARED real_t t1[T1S*COLB];
-         MFEM_SHARED real_t t2[T2S*COLB];
-
-         MFEM_FOREACH_THREAD(qb,x,Q1D*D1D)
-         {
-            const int q = qb % Q1D;
-            const int d = qb / Q1D;
-            s_B[q][d] = B(q, d);
-         }
-         MFEM_SYNC_THREAD;
-
-         for (int j0 = 0; j0 < ND; j0 += COLB)
-         {
-            const int b = (j0 + COLB <= ND) ? COLB : (ND - j0);
-            int j1[COLB], j2[COLB], j3[COLB];
-            for (int c = 0; c < COLB; ++c)
-            {
-               if (c < b)
-               {
-                  const int jj = j0 + c;
-                  j1[c] = jj % D1D;
-                  const int tmp = jj / D1D;
-                  j2[c] = tmp % D1D;
-                  j3[c] = tmp / D1D;
-               }
-            }
-
-            MFEM_FOREACH_THREAD(q,x,NQ)
-            {
-               const int q1 = q % Q1D;
-               const int tmp = q / Q1D;
-               const int q2 = tmp % Q1D;
-               const int q3 = tmp / Q1D;
-               const real_t Dq = D(q1, q2, q3, e);
-
-               for (int c = 0; c < b; ++c)
-               {
-                  uW[q + NQ*c] = s_B[q1][j1[c]] * s_B[q2][j2[c]]
-                                 * s_B[q3][j3[c]] * Dq;
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(a,x,T1S)
-            {
-               const int i1 = a % D1D;
-               const int tmp = a / D1D;
-               const int q2 = tmp % Q1D;
-               const int q3 = tmp / Q1D;
-
-               for (int c = 0; c < b; ++c)
-               {
-                  real_t sum = 0.0;
-                  for (int q1 = 0; q1 < Q1D; ++q1)
-                  {
-                     const int q = q1 + Q1D*(q2 + Q1D*q3);
-                     sum += s_B[q1][i1] * uW[q + NQ*c];
-                  }
-                  t1[a + T1S*c] = sum;
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(a,x,T2S)
-            {
-               const int i1 = a % D1D;
-               const int tmp = a / D1D;
-               const int i2 = tmp % D1D;
-               const int q3 = tmp / D1D;
-
-               for (int c = 0; c < b; ++c)
-               {
-                  real_t sum = 0.0;
-                  for (int q2 = 0; q2 < Q1D; ++q2)
-                  {
-                     const int a1 = i1 + D1D*(q2 + Q1D*q3);
-                     sum += s_B[q2][i2] * t1[a1 + T1S*c];
-                  }
-                  t2[a + T2S*c] = sum;
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            for (int c = 0; c < b; ++c)
-            {
-               const int jj1 = j1[c];
-               const int jj2 = j2[c];
-               const int jj3 = j3[c];
-
-               MFEM_FOREACH_THREAD(row,x,ND)
-               {
-                  const int i1 = row % D1D;
-                  const int tmp = row / D1D;
-                  const int i2 = tmp % D1D;
-                  const int i3 = tmp / D1D;
-
-                  real_t sum = 0.0;
-                  for (int q3 = 0; q3 < Q1D; ++q3)
-                  {
-                     const int a2 = i1 + D1D*(i2 + D1D*q3);
-                     sum += s_B[q3][i3] * t2[a2 + T2S*c];
-                  }
-                  if (add) { M(i1, i2, i3, jj1, jj2, jj3, e) += sum; }
-                  else { M(i1, i2, i3, jj1, jj2, jj3, e) = sum; }
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      });
+      EAMassAssembleTensorSumFactorized<3, T_D1D, T_Q1D>(
+         NE, basis, padata, eadata, add);
       return;
    }
 

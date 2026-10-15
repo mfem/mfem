@@ -116,6 +116,7 @@ set(UNIT_TESTS_SRCS
   fem/test_dgmassinv.cpp
   fem/test_doftrans.cpp
   fem/test_domain_int.cpp
+  fem/test_ea_mass.cpp
   fem/test_eigs.cpp
   fem/test_estimator.cpp
   fem/test_fa_determinism.cpp
@@ -152,7 +153,6 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
-  fem/test_mass_ea_sum_factorized.cpp
   fem/test_pa_nlvc.cpp
   fem/test_pa_vecdiv.cpp
   fem/test_pa_simplices.cpp
