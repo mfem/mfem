@@ -22,7 +22,7 @@
  *        Weak form :     lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
  *
  *        DATA LAYOUT ASSUMPTIONS :
- *        Finite element space - Ordering::byNODES
+ *        Finite element space - any Ordering (the kernels act on E-vectors)
  *        Finite element basis - ElementDofOrdering::NATIVE
  *        Quadrature functions - QVectorLayout::byNODES
  *        All elements in "fespace" are the same.
@@ -49,8 +49,8 @@ namespace internal
 
 /// @brief Elasticity kernel for AddMultPA.
 ///
-/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
-/// tensor basis, so it should work for any H1 element.
+/// Performs y += Ax. Does not use tensor basis, so it should work for any H1
+/// element.
 ///
 /// @param[in] dim 2 or 3
 /// @param[in] nDofs Number of scalar dofs per element.
@@ -69,10 +69,9 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
 
 /// @brief Elasticity component kernel for AddMultPA.
 ///
-/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
-/// tensor basis, so it should work for any H1 element. i_block and j_block are
-/// the dimensional component that is integrated. They must both be
-/// non-negative.
+/// Performs y += Ax. Does not use tensor basis, so it should work for any H1
+/// element. i_block and j_block are the dimensional component that is
+/// integrated. They must both be non-negative.
 ///
 /// Example: In 2D, A = [A_00  A_01],  x = [x_0],  y = [y_0]
 ///                     [A_10  A_11]       [x_1]       [y_1].

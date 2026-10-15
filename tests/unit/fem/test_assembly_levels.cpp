@@ -660,8 +660,7 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
                                     "../../data/beam-wedge.mesh");
    const int order = GENERATE(1, 2);
    // The coefficient setup does not depend on the ordering, so the
-   // (m, q_lambda, q_mu) constructor is only tested with byNODES ordering,
-   // which is also supported by partial assembly.
+   // (m, q_lambda, q_mu) constructor is only tested with byNODES ordering.
    const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
    const bool lame = GENERATE(true, false);
    if (ordering == Ordering::byVDIM && !lame) { return; }
@@ -713,8 +712,7 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
       REQUIRE(max_diff / max_ref == MFEM_Approx(0.0));
    }
 
-   // Partial assembly
-   if (ordering == Ordering::byNODES)
+   // Partial assembly: compare the action and the diagonal
    {
       BilinearForm a_pa(&fes);
       a_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -722,6 +720,13 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
       a_pa.Assemble();
 
       REQUIRE(RelativeMultError(a_pa, a_legacy) == MFEM_Approx(0.0));
+
+      Vector diag_pa(fes.GetVSize()), diag_legacy(fes.GetVSize());
+      a_pa.AssembleDiagonal(diag_pa);
+      a_legacy.AssembleDiagonal(diag_legacy);
+      diag_pa -= diag_legacy;
+      REQUIRE(diag_pa.Normlinf() / diag_legacy.Normlinf() ==
+              MFEM_Approx(0.0));
    }
 
    // Full assembly: compare the matrices without and with essential BCs. This
