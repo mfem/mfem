@@ -320,18 +320,11 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
    return min_el;
 }
 
-/** Returns the index where a non-zero entry should be added and increment the
-    number of non-zeros for the row i_L. */
-static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
-{
-   int ind = AtomicAdd(I[i_L],1);
-   return ind;
-}
-
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
    const int all_dofs = ndofs;
    const int vd = vdim;
+   const bool t = byvdim;
    const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto d_offsets = offsets.Read();
@@ -369,11 +362,8 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          const int j_offset = d_offsets[j_L];
          const int j_next_offset = d_offsets[j_L+1];
          const int j_nbElts = j_next_offset - j_offset;
-         if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
-         {
-            GetAndIncrementNnzIndex(i_L, I);
-         }
-         else // assembly required
+         bool add_nnz = true;
+         if (i_nbElts > 1 && j_nbElts > 1) // assembly required
          {
             int *j_elts = &d_ij_elts(j_offset, 1);
             for (int e_j = 0; e_j < j_nbElts; ++e_j)
@@ -383,9 +373,16 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
                j_elts[e_j] = elt;
             }
             int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
-            if (e == min_e) // add the nnz only once
+            add_nnz = (e == min_e); // add the nnz only once
+         }
+         if (add_nnz)
+         {
+            // Each pair of scalar dofs (i_L, j_L) couples all the vector
+            // components: add vd nonzeros to each of the vd rows of i_L.
+            for (int ci = 0; ci < vd; ++ci)
             {
-               GetAndIncrementNnzIndex(i_L, I);
+               const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+               AtomicAdd(I[i_vL], vd);
             }
          }
       }
@@ -410,6 +407,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
 {
    const int all_dofs = ndofs;
    const int vd = vdim;
+   const bool t = byvdim;
    const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
@@ -417,7 +415,9 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    auto d_offsets = offsets.Read();
    auto d_indices = indices.Read();
    auto d_gather_map = gather_map.Read();
-   auto mat_ea = Reshape(ea_data.Read(), elt_dofs, elt_dofs, ne);
+   // The element matrices couple all the vector components; the local index of
+   // the scalar dof i of component c is i + c*elt_dofs (as in the E-vector).
+   auto mat_ea = Reshape(ea_data.Read(), vd*elt_dofs, vd*elt_dofs, ne);
 
    Array<int> ij_B_el(indices.Size() * 4);
    auto d_ij_B_el = Reshape(ij_B_el.Write(), indices.Size(), 4);
@@ -450,9 +450,18 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          const int j_nbElts = j_next_offset - j_offset;
          if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
-            const int nnz = GetAndIncrementNnzIndex(i_L, I);
-            J[nnz] = j_L;
-            Data[nnz] = mat_ea(j,i,e);
+            for (int ci = 0; ci < vd; ++ci)
+            {
+               const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+               // Reserve the vd consecutive nonzeros of the row i_vL coupling
+               // to the vector components of j_L.
+               const int nnz = AtomicAdd(I[i_vL], vd);
+               for (int cj = 0; cj < vd; ++cj)
+               {
+                  J[nnz + cj] = t ? j_L*vd + cj : j_L + cj*all_dofs;
+                  Data[nnz + cj] = mat_ea(j + cj*elt_dofs, i + ci*elt_dofs, e);
+               }
+            }
          }
          else // assembly required
          {
@@ -468,24 +477,38 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
             if (e == min_e) // add the nnz only once
             {
-               real_t val = 0.0;
-               for (int k = 0; k < i_nbElts; k++)
+               for (int ci = 0; ci < vd; ++ci)
                {
-                  const int e_i = i_elts[k];
-                  const int i_Bloc = i_B[k];
-                  for (int l = 0; l < j_nbElts; l++)
+                  const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+                  // Reserve the vd consecutive nonzeros of the row i_vL
+                  // coupling to the vector components of j_L.
+                  const int nnz = AtomicAdd(I[i_vL], vd);
+                  for (int cj = 0; cj < vd; ++cj)
                   {
-                     const int e_j = j_elts[l];
-                     const int j_Bloc = j_B[l];
-                     if (e_i == e_j)
+                     J[nnz + cj] = t ? j_L*vd + cj : j_L + cj*all_dofs;
+                     Data[nnz + cj] = 0.0;
+                  }
+                  // Sum the contributions of the elements sharing i_L and j_L
+                  for (int k = 0; k < i_nbElts; k++)
+                  {
+                     const int e_i = i_elts[k];
+                     const int i_Bloc = i_B[k];
+                     for (int l = 0; l < j_nbElts; l++)
                      {
-                        val += mat_ea(j_Bloc, i_Bloc, e_i);
+                        const int e_j = j_elts[l];
+                        const int j_Bloc = j_B[l];
+                        if (e_i == e_j)
+                        {
+                           for (int cj = 0; cj < vd; ++cj)
+                           {
+                              Data[nnz + cj] += mat_ea(j_Bloc + cj*elt_dofs,
+                                                       i_Bloc + ci*elt_dofs,
+                                                       e_i);
+                           }
+                        }
                      }
                   }
                }
-               const int nnz = GetAndIncrementNnzIndex(i_L, I);
-               J[nnz] = j_L;
-               Data[nnz] = val;
             }
          }
       }
