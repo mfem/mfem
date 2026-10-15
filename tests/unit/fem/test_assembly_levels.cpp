@@ -907,6 +907,56 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
    }
 }
 
+TEST_CASE("Parallel Full Assembly Typed System Matrix",
+          "[AssemblyLevel][Parallel][GPU]")
+{
+   // With full assembly, the parallel system matrix is owned by the
+   // OperatorHandle returned by ParallelRAP(). The templated versions of
+   // FormLinearSystem() and FormSystemMatrix() must keep it alive.
+   Mesh serial_mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   H1_FECollection fec(2, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   Array<int> ess_tdof_list;
+   fes.GetBoundaryTrueDofs(ess_tdof_list);
+
+   ParBilinearForm a_fa(&fes), a_legacy(&fes);
+   a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
+   a_fa.AddDomainIntegrator(new DiffusionIntegrator);
+   a_legacy.AddDomainIntegrator(new DiffusionIntegrator);
+   a_fa.Assemble();
+   a_legacy.Assemble();
+   a_legacy.Finalize();
+
+   OperatorHandle A_legacy;
+   a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
+
+   SECTION("FormSystemMatrix")
+   {
+      HypreParMatrix A_fa;
+      a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+      OperatorHandle A_fa_h(&A_fa, false);
+      TestSameHypreMatrices(A_fa_h, A_legacy);
+   }
+
+   SECTION("FormLinearSystem")
+   {
+      ParGridFunction x(&fes);
+      ParLinearForm b(&fes);
+      x = 0.0;
+      b = 1.0;
+      HypreParMatrix A_fa;
+      Vector X, B;
+      a_fa.FormLinearSystem(ess_tdof_list, x, b, A_fa, X, B);
+      OperatorHandle A_fa_h(&A_fa, false);
+      TestSameHypreMatrices(A_fa_h, A_legacy);
+   }
+}
+
 TEST_CASE("Parallel Elasticity Full Assembly",
           "[AssemblyLevel][Parallel][GPU]")
 {
