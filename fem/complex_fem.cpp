@@ -610,14 +610,14 @@ ComplexLinearForm::Assemble()
    lfi->SyncAliasMemory(*this);
 }
 
-complex<real_t>
+complex_t
 ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
 {
    real_t s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
    lfr->SyncMemory(*this);
    lfi->SyncMemory(*this);
-   return complex<real_t>((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
-                          (*lfr)(gf.imag()) + s * (*lfi)(gf.real()));
+   return complex_t((*lfr)(gf.real()) - s * (*lfi)(gf.imag()),
+                    (*lfr)(gf.imag()) + s * (*lfi)(gf.real()));
 }
 
 
@@ -2054,14 +2054,14 @@ ParComplexLinearForm::ParallelAssemble()
    return tv;
 }
 
-complex<real_t>
+complex_t
 ParComplexLinearForm::operator()(const ParComplexGridFunction &gf) const
 {
    plfr->SyncMemory(*this);
    plfi->SyncMemory(*this);
    real_t s = (conv == ComplexOperator::HERMITIAN) ? 1.0 : -1.0;
-   return complex<real_t>((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
-                          (*plfr)(gf.imag()) + s * (*plfi)(gf.real()));
+   return complex_t((*plfr)(gf.real()) - s * (*plfi)(gf.imag()),
+                    (*plfr)(gf.imag()) + s * (*plfi)(gf.real()));
 }
 
 

@@ -40,12 +40,15 @@ TEST_CASE("ComplexDenseMatrixData storage and arithmetic",
    copy -= real_part;
    copy *= complex_t(2.0, -1.0);
    copy *= complex_t(2.0, 1.0) / 5.0;
+   const complex_t *copy_data = copy.HostRead();
+   const complex_t *matrix_data = matrix.HostRead();
    for (int j = 0; j < matrix.Width(); j++)
    {
       for (int i = 0; i < matrix.Height(); i++)
       {
-         REQUIRE(copy(i, j).real() == MFEM_Approx(matrix(i, j).real()));
-         REQUIRE(copy(i, j).imag() == MFEM_Approx(matrix(i, j).imag()));
+         const int k = i + j * matrix.Height();
+         REQUIRE(copy_data[k].real() == MFEM_Approx(matrix_data[k].real()));
+         REQUIRE(copy_data[k].imag() == MFEM_Approx(matrix_data[k].imag()));
       }
    }
 
@@ -53,27 +56,32 @@ TEST_CASE("ComplexDenseMatrixData storage and arithmetic",
    assigned = matrix;
    assigned += matrix;
    assigned -= matrix;
+   const complex_t *assigned_data = assigned.HostRead();
+   matrix_data = matrix.HostRead();
    for (int j = 0; j < matrix.Width(); j++)
    {
       for (int i = 0; i < matrix.Height(); i++)
       {
-         REQUIRE(assigned(i, j).real() == MFEM_Approx(matrix(i, j).real()));
-         REQUIRE(assigned(i, j).imag() == MFEM_Approx(matrix(i, j).imag()));
+         const int k = i + j * matrix.Height();
+         REQUIRE(assigned_data[k].real() == MFEM_Approx(matrix_data[k].real()));
+         REQUIRE(assigned_data[k].imag() == MFEM_Approx(matrix_data[k].imag()));
       }
    }
 
    ComplexDenseMatrixData moved(std::move(assigned));
+   const complex_t *moved_data = moved.HostRead();
    REQUIRE(moved.Height() == 2);
    REQUIRE(moved.Width() == 2);
-   REQUIRE(moved(1, 0).real() == MFEM_Approx(3.0));
-   REQUIRE(moved(1, 0).imag() == MFEM_Approx(7.0));
+   REQUIRE(moved_data[1].real() == MFEM_Approx(3.0));
+   REQUIRE(moved_data[1].imag() == MFEM_Approx(7.0));
 
    ComplexDenseMatrixData move_assigned;
    move_assigned = std::move(moved);
+   const complex_t *move_assigned_data = move_assigned.HostRead();
    REQUIRE(move_assigned.Height() == 2);
    REQUIRE(move_assigned.Width() == 2);
-   REQUIRE(move_assigned(0, 1).real() == MFEM_Approx(2.0));
-   REQUIRE(move_assigned(0, 1).imag() == MFEM_Approx(6.0));
+   REQUIRE(move_assigned_data[2].real() == MFEM_Approx(2.0));
+   REQUIRE(move_assigned_data[2].imag() == MFEM_Approx(6.0));
 
    complex_t external_data[2] = {complex_t(1.0, 2.0), complex_t(3.0, 4.0)};
    ComplexDenseMatrixData external(external_data, 2, 1);

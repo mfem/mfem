@@ -18,6 +18,141 @@ using namespace std;
 namespace mfem
 {
 
+ComplexVector::ComplexVector(complex_t *data_, int size_)
+   : size(size_)
+{
+   data.Wrap(data_, size_, false);
+}
+
+ComplexVector::ComplexVector(ComplexVector &base, int base_offset, int size_)
+   : data(base.data, base_offset, size_), size(size_)
+{ }
+
+ComplexVector::ComplexVector(int s)
+{
+   MFEM_ASSERT(s >= 0, "Unexpected negative size.");
+   size = s;
+   if (s > 0)
+   {
+      data.New(s);
+   }
+}
+
+void ComplexVector::SetSize(int s)
+{
+   if (s == size)
+   {
+      return;
+   }
+   if (s <= data.Capacity())
+   {
+      size = s;
+      return;
+   }
+   const MemoryType mt = data.GetMemoryType();
+   const bool use_dev = data.UseDevice();
+   data.Delete();
+   size = s;
+   data.New(s, mt);
+   data.UseDevice(use_dev);
+}
+
+void ComplexVector::SetSize(int s, MemoryType mt)
+{
+   if (mt == data.GetMemoryType())
+   {
+      if (s == size)
+      {
+         return;
+      }
+      if (s <= data.Capacity())
+      {
+         size = s;
+         return;
+      }
+   }
+   const bool use_dev = data.UseDevice();
+   data.Delete();
+   if (s > 0)
+   {
+      data.New(s, mt);
+      size = s;
+   }
+   else
+   {
+      data.Reset();
+      size = 0;
+   }
+   data.UseDevice(use_dev);
+}
+
+void ComplexVector::SetData(complex_t *d)
+{
+   data.Wrap(d, data.Capacity(), false);
+}
+
+void ComplexVector::SetDataAndSize(complex_t *d, int s)
+{
+   data.Wrap(d, s, false);
+   size = s;
+}
+
+void ComplexVector::NewDataAndSize(complex_t *d, int s)
+{
+   data.Delete();
+   SetDataAndSize(d, s);
+}
+
+void ComplexVector::NewMemoryAndSize(const Memory<complex_t > &mem,
+                                     int s, bool own_mem)
+{
+   data.Delete();
+   size = s;
+   if (own_mem)
+   {
+      data = mem;
+   }
+   else
+   {
+      data.MakeAlias(mem, 0, s);
+   }
+}
+
+void ComplexVector::MakeRef(ComplexVector &base, int offset, int s)
+{
+   data.Delete();
+   size = s;
+   data.MakeAlias(base.GetMemory(), offset, s);
+}
+
+void ComplexVector::MakeRef(ComplexVector &base, int offset)
+{
+   data.Delete();
+   data.MakeAlias(base.GetMemory(), offset, size);
+}
+
+void ComplexVector::Destroy()
+{
+   const bool use_dev = data.UseDevice();
+   data.Delete();
+   size = 0;
+   data.Reset();
+   data.UseDevice(use_dev);
+}
+
+void ComplexVector::Swap(ComplexVector &other)
+{
+   mfem::Swap(data, other.data);
+   mfem::Swap(size, other.size);
+   re_part.Swap(other.re_part);
+   im_part.Swap(other.im_part);
+}
+
+ComplexVector::~ComplexVector()
+{
+   data.Delete();
+}
+
 static Array<real_t> &complex_vector_workspace()
 {
    static Array<real_t> instance;
@@ -55,8 +190,10 @@ ComplexVector::ComplexVector(const Vector &v)
 }
 
 ComplexVector::ComplexVector(ComplexVector &&v)
+   : data(std::move(v.data)), size(v.size),
+     re_part(std::move(v.re_part)), im_part(std::move(v.im_part))
 {
-   *this = std::move(v);
+   v.size = 0;
 }
 
 complex_t &ComplexVector::Elem(int i)
@@ -266,7 +403,7 @@ ComplexVector &ComplexVector::operator/=(complex_t c)
 {
    const bool use_dev = UseDevice();
    const int N = size;
-   const complex_t m = conj(c) / norm(c);
+   const complex_t m = complex_t(1.0) / c;
    auto y = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    { y[i] *= m; });
@@ -468,7 +605,7 @@ MFEM_COMPLEX_VECTOR_ADD_OVERLOADS(Vector, Vector)
 const Vector &ComplexVector::real() const
 {
    re_part.SetSize(size);
-   const bool use_dev = UseDevice();
+   const bool use_dev = UseDevice() || re_part.UseDevice();
    const int N = size;
    const auto z = Read(use_dev);
    auto x = re_part.Write(use_dev);
@@ -480,7 +617,7 @@ const Vector &ComplexVector::real() const
 const Vector &ComplexVector::imag() const
 {
    im_part.SetSize(size);
-   const bool use_dev = UseDevice();
+   const bool use_dev = UseDevice() || im_part.UseDevice();
    const int N = size;
    const auto z = Read(use_dev);
    auto y = im_part.Write(use_dev);

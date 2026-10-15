@@ -24,7 +24,6 @@
 #include "pbilinearform.hpp"
 #endif
 #include <cmath>
-#include <complex>
 #include <type_traits>
 
 namespace mfem
@@ -510,6 +509,13 @@ std::ostream &operator<<(std::ostream &out, const ComplexGridFunction &sol);
     When supplying integrators to the ComplexLinearForm either the real or
     imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued field is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<DomainLFIntegrator>(coef)`. They allocate the
+    real and imaginary integrators, which are then owned by this form. The
+    supplied coefficient and its component views are not owned and must remain
+    valid for as long as the generated integrators can be used.
  */
 class ComplexLinearForm : public Vector
 {
@@ -707,6 +713,13 @@ public:
     When supplying integrators to the SesquilinearForm either the real or
     imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued material coefficient is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<MassIntegrator>(coef)`. They allocate the real
+    and imaginary integrators, which are then owned by this form. The supplied
+    coefficient and its component views are not owned and must remain valid
+    for as long as the generated integrators can be used.
 */
 class SesquilinearForm
 {
@@ -1363,6 +1376,13 @@ std::ostream &operator<<(std::ostream &out, const ParComplexGridFunction &sol);
     When supplying integrators to the ParComplexLinearForm either the real or
     imaginary integrator can be NULL.  This indicates that the corresponding
     portion of the complex-valued field is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<DomainLFIntegrator>(coef)`. They allocate the
+    real and imaginary integrators, which are then owned by this form. The
+    supplied coefficient and its component views are not owned and must remain
+    valid for as long as the generated integrators can be used.
  */
 class ParComplexLinearForm : public Vector
 {
@@ -1385,7 +1405,7 @@ public:
        using the same integrators as the LinearForms @a plf_r (real) and
        @a plf_i (imag).
 
-      The pointer @a fes is not owned by the newly constructed object.
+      The pointer @a pf is not owned by the newly constructed object.
 
       The integrators are copied as pointers and they are not owned by the newly
       constructed ParComplexLinearForm. */
@@ -1570,6 +1590,13 @@ public:
     When supplying integrators to the ParSesquilinearForm either the real or
     imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued material coefficient is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<MassIntegrator>(coef)`. They allocate the real
+    and imaginary integrators, which are then owned by this form. The supplied
+    coefficient and its component views are not owned and must remain valid
+    for as long as the generated integrators can be used.
 */
 class ParSesquilinearForm
 {

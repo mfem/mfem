@@ -245,9 +245,11 @@ public:
     ComplexDenseMatrix when a complex operator represented by real and
     imaginary DenseMatrix blocks is needed.
 
-    The real() and imag() methods return cached copies of the corresponding
-    components. They are not aliases of this matrix's storage and are refreshed
-    by each call. */
+    The real() and imag() methods return host-ready cached copies of the
+    corresponding components, consistent with DenseMatrix's host-oriented
+    interface. They are not aliases of this matrix's storage and are refreshed
+    by each call. The component caches are not safe for concurrent access to
+    the same ComplexDenseMatrixData. */
 class ComplexDenseMatrixData
 {
 protected:
@@ -281,8 +283,7 @@ public:
    /// Construct a ComplexDenseMatrixData using an existing data array.
    /** The ComplexDenseMatrixData does not assume ownership of the data array,
        i.e. it will not delete the array. */
-   ComplexDenseMatrixData(complex_t *d, int h, int w)
-      : height(h), width(w) { UseExternalData(d, h, w); }
+   ComplexDenseMatrixData(complex_t *d, int h, int w);
 
    /// Create a dense matrix using a braced initializer list
    /// The inner lists correspond to rows of the matrix
@@ -305,27 +306,21 @@ public:
    /** The ComplexDenseMatrixData does not assume ownership of the data array,
        i.e. it will not delete the data array @a d. This method should not be used with
        a ComplexDenseMatrixData that owns its current data array. */
-   void UseExternalData(complex_t *d, int h, int w)
-   {
-      data.Wrap(d, h*w, false);
-      height = h; width = w;
-   }
+   void UseExternalData(complex_t *d, int h, int w);
 
    /// Change the data array and the size of the ComplexDenseMatrixData.
    /** The ComplexDenseMatrixData does not assume ownership of the data array,
        i.e. it will not delete the new array @a d. This method will delete the
        current data array, if owned. */
-   void Reset(complex_t *d, int h, int w)
-   { data.Delete(); UseExternalData(d, h, w); }
+   void Reset(complex_t *d, int h, int w);
 
    /** Clear the data array and the dimensions of the ComplexDenseMatrixData.
        This method should not be used with a ComplexDenseMatrixData that owns
        its current data array. */
-   void ClearExternalData() { data.Reset(); height = width = 0; }
+   void ClearExternalData();
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
-   void Clear()
-   { data.Delete(); height = width = 0; }
+   void Clear();
 
    /// Get the height (size of output) of the Operator. Synonym with NumRows().
    inline int Height() const { return height; }
@@ -445,10 +440,10 @@ public:
 
    void Swap(ComplexDenseMatrixData &other);
 
-   /// Return a cached copy of the real part of this matrix.
+   /// Return a host-ready cached copy of the real part of this matrix.
    const DenseMatrix &real() const;
 
-   /// Return a cached copy of the imaginary part of this matrix.
+   /// Return a host-ready cached copy of the imaginary part of this matrix.
    const DenseMatrix &imag() const;
 
    /// Destroys the matrix.

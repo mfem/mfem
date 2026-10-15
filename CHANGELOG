@@ -29,6 +29,9 @@ Linear Algebra Improvements
   the new complex-valued Coefficient classes. These can also be used in limited
   linear algebra contexts. Notably matrix-vector products are _not_ supported by
   ComplexDenseMatrixData.
+- Added the device-compatible mfem::complex_t scalar type. Existing
+  complex-valued FEM interfaces that previously used std::complex<real_t> now
+  use this type and are not implicitly convertible to or from std::complex.
 
 Version 4.10, released on Sep 1, 2026
 =====================================

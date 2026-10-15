@@ -13,7 +13,7 @@
 #define MFEM_COMPLEX_COEFFICIENT
 
 #include "../config/config.hpp"
-#include "../linalg/linalg.hpp"
+#include "../linalg/complex_densemat.hpp"
 #include "../linalg/complex_vector.hpp"
 #include "coefficient.hpp"
 #include "intrules.hpp"
@@ -26,106 +26,7 @@ class ComplexCoefficient;
 class ComplexVectorCoefficient;
 class ComplexMatrixCoefficient;
 
-/// Standard Coefficient which returns the real part of a ComplexCoefficient
-class RealPartCoefficient : public Coefficient
-{
-private:
-   ComplexCoefficient &complex_coef_;
-
-public:
-   RealPartCoefficient(ComplexCoefficient & complex_coef)
-      : complex_coef_(complex_coef) {}
-
-   void SetTime(real_t t) override;
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip) override;
-};
-
-/// Standard Coefficient which returns the imaginary part of a
-/// ComplexCoefficient
-class ImagPartCoefficient : public Coefficient
-{
-private:
-   ComplexCoefficient &complex_coef_;
-
-public:
-   ImagPartCoefficient(ComplexCoefficient & complex_coef)
-      : complex_coef_(complex_coef) {}
-
-   void SetTime(real_t t) override;
-
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip) override;
-};
-
-typedef ImagPartCoefficient ImaginaryPartCoefficient;
-
-class RealPartVectorCoefficient : public VectorCoefficient
-{
-private:
-   ComplexVectorCoefficient &complex_vcoef_;
-   mutable ComplexVector val_;
-
-public:
-   RealPartVectorCoefficient(ComplexVectorCoefficient & complex_vcoef);
-
-   void SetTime(real_t t) override;
-
-   void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip) override;
-};
-
-class ImagPartVectorCoefficient : public VectorCoefficient
-{
-private:
-   ComplexVectorCoefficient &complex_vcoef_;
-   mutable ComplexVector val_;
-
-public:
-   ImagPartVectorCoefficient(ComplexVectorCoefficient & complex_vcoef);
-
-   void SetTime(real_t t) override;
-
-   void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip) override;
-};
-
-typedef ImagPartVectorCoefficient ImaginaryPartVectorCoefficient;
-
-class RealPartMatrixCoefficient : public MatrixCoefficient
-{
-private:
-   ComplexMatrixCoefficient &complex_mcoef_;
-   mutable ComplexDenseMatrixData val_;
-
-public:
-   RealPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
-
-   void SetTime(real_t t) override;
-
-   void Eval(DenseMatrix &M, ElementTransformation &T,
-             const IntegrationPoint &ip) override;
-};
-
-class ImagPartMatrixCoefficient : public MatrixCoefficient
-{
-private:
-   ComplexMatrixCoefficient &complex_mcoef_;
-   mutable ComplexDenseMatrixData val_;
-
-public:
-   ImagPartMatrixCoefficient(ComplexMatrixCoefficient & complex_mcoef);
-
-   void SetTime(real_t t) override;
-
-   void Eval(DenseMatrix &M, ElementTransformation &T,
-             const IntegrationPoint &ip) override;
-};
-
-typedef ImagPartMatrixCoefficient ImaginaryPartMatrixCoefficient;
-
-/** @brief Base class ComplexCoefficients that optionally depend on space and
+/** @brief Abstract base class for complex coefficients that optionally depend on space and
     time. These are used by the SesquilinearForm, ComplexLinearForm, and
     ComplexGridFunction classes to represent the physical coefficients in
     the PDEs that are being discretized. This class can also be used in a more
@@ -138,21 +39,31 @@ protected:
    real_t time;
 
 private:
-   RealPartCoefficient re_part_coef_;
-   ImagPartCoefficient im_part_coef_;
+   template <bool real_part>
+   class PartCoefficient : public Coefficient
+   {
+   private:
+      ComplexCoefficient &complex_coef_;
 
-protected:
-   Coefficient &real_coef_;
-   Coefficient &imag_coef_;
+      void SetLocalTime(real_t t);
+
+      friend class ComplexCoefficient;
+
+   public:
+      PartCoefficient(ComplexCoefficient &complex_coef);
+
+      void SetTime(real_t t) override;
+
+      real_t Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip) override;
+   };
+
+   PartCoefficient<true> re_part_coef_;
+   PartCoefficient<false> im_part_coef_;
 
 public:
 
    ComplexCoefficient();
-
-   /** @brief Construct a complex coefficient from real and imaginary parts.
-
-       The supplied coefficients are not owned and must outlive this object. */
-   ComplexCoefficient(Coefficient &c_r, Coefficient &c_i);
 
    /// @note This class is non-copyable and non-movable because its internal
    /// real and imaginary views reference this object.
@@ -162,14 +73,7 @@ public:
    ComplexCoefficient &operator=(ComplexCoefficient &&) = delete;
 
    /// Set the time for time dependent coefficients
-   virtual void SetTime(real_t t)
-   {
-      time = t;
-      re_part_coef_.Coefficient::SetTime(t);
-      im_part_coef_.Coefficient::SetTime(t);
-      if (&real_coef_ != &re_part_coef_) { real_coef_.SetTime(t); }
-      if (&imag_coef_ != &im_part_coef_) { imag_coef_.SetTime(t); }
-   }
+   virtual void SetTime(real_t t);
 
    /// Get the time for time dependent coefficients
    real_t GetTime() const { return time; }
@@ -180,7 +84,7 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual complex_t Eval(ElementTransformation &T,
-                          const IntegrationPoint &ip);
+                          const IntegrationPoint &ip) = 0;
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip at time @a t. */
@@ -188,11 +92,7 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    complex_t Eval(ElementTransformation &T,
-                  const IntegrationPoint &ip, real_t t)
-   {
-      SetTime(t);
-      return Eval(T, ip);
-   }
+                  const IntegrationPoint &ip, real_t t);
 
    /** @brief Access a standard Coefficient object reproducing the real part of
        the complex-valued field */
@@ -201,7 +101,7 @@ public:
        returns its real part. Custom implementations may choose to
        override this method with a more efficient real-valued
        coefficient. */
-   virtual Coefficient & real() { return real_coef_; }
+   virtual Coefficient & real() { return re_part_coef_; }
 
    /** @brief Access a standard Coefficient object reproducing the imaginary
        part of the complex-valued field */
@@ -210,12 +110,36 @@ public:
        returns its imaginary part. Custom implementations may choose to
        override this method with a more efficient real-valued
        coefficient. */
-   virtual Coefficient & imag() { return imag_coef_; }
+   virtual Coefficient & imag() { return im_part_coef_; }
 
    virtual ~ComplexCoefficient() { }
 };
 
-/** @brief Base class ComplexVectorCoefficients that optionally depend
+/** @brief A complex coefficient assembled from real and imaginary
+    Coefficient objects.
+
+    The supplied coefficients are not owned and must outlive this object. */
+class ComplexCoefficientFromRealImag : public ComplexCoefficient
+{
+private:
+   Coefficient &real_coef_;
+   Coefficient &imag_coef_;
+
+public:
+   ComplexCoefficientFromRealImag(Coefficient &c_r, Coefficient &c_i);
+
+   void SetTime(real_t t) override;
+
+   using ComplexCoefficient::Eval;
+
+   complex_t Eval(ElementTransformation &T,
+                  const IntegrationPoint &ip) override;
+
+   Coefficient & real() override { return real_coef_; }
+   Coefficient & imag() override { return imag_coef_; }
+};
+
+/** @brief Abstract base class for complex vector coefficients that optionally depend
     on space and time. These are used by the SesquilinearForm,
     ComplexLinearForm, and ComplexGridFunction classes to represent
     the physical vector-valued coefficients in the PDEs that are being
@@ -230,28 +154,33 @@ protected:
    real_t time;
 
 private:
-   RealPartVectorCoefficient re_part_vcoef_;
-   ImagPartVectorCoefficient im_part_vcoef_;
+   template <bool real_part>
+   class PartCoefficient : public VectorCoefficient
+   {
+   private:
+      ComplexVectorCoefficient &complex_vcoef_;
+#ifndef MFEM_THREAD_SAFE
+      ComplexVector value_;
+#endif
 
-protected:
-   VectorCoefficient &real_vcoef_;
-   VectorCoefficient &imag_vcoef_;
+      void SetLocalTime(real_t t);
 
-   mutable Vector V_r_;
-   mutable Vector V_i_;
+      friend class ComplexVectorCoefficient;
+
+   public:
+      PartCoefficient(ComplexVectorCoefficient &complex_vcoef);
+
+      void SetTime(real_t t) override;
+
+      void Eval(Vector &V, ElementTransformation &T,
+                const IntegrationPoint &ip) override;
+   };
+
+   PartCoefficient<true> re_part_vcoef_;
+   PartCoefficient<false> im_part_vcoef_;
 
 public:
-   ComplexVectorCoefficient(int vd)
-      : vdim(vd), time(0.),
-        re_part_vcoef_(*this), im_part_vcoef_(*this),
-        real_vcoef_(re_part_vcoef_), imag_vcoef_(im_part_vcoef_)
-   { }
-
-   /** @brief Construct a complex vector coefficient from real and imaginary
-       parts.
-
-       The supplied coefficients are not owned and must outlive this object. */
-   ComplexVectorCoefficient(VectorCoefficient &v_r, VectorCoefficient &v_i);
+   ComplexVectorCoefficient(int vd);
 
    /// @note This class is non-copyable and non-movable because its internal
    /// real and imaginary views reference this object.
@@ -261,14 +190,7 @@ public:
    ComplexVectorCoefficient &operator=(ComplexVectorCoefficient &&) = delete;
 
    /// Set the time for time dependent coefficients
-   virtual void SetTime(real_t t)
-   {
-      time = t;
-      re_part_vcoef_.VectorCoefficient::SetTime(t);
-      im_part_vcoef_.VectorCoefficient::SetTime(t);
-      if (&real_vcoef_ != &re_part_vcoef_) { real_vcoef_.SetTime(t); }
-      if (&imag_vcoef_ != &im_part_vcoef_) { imag_vcoef_.SetTime(t); }
-   }
+   virtual void SetTime(real_t t);
 
    /// Get the time for time dependent coefficients
    real_t GetTime() const { return time; }
@@ -282,7 +204,7 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    virtual void Eval(ComplexVector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) = 0;
 
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at the point @a ip at time @a t, storing the result in @a V. */
@@ -290,11 +212,7 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    void Eval(ComplexVector &V, ElementTransformation &T,
-             const IntegrationPoint &ip, real_t t)
-   {
-      SetTime(t);
-      Eval(V, T, ip);
-   }
+             const IntegrationPoint &ip, real_t t);
 
    /** @brief Access a standard Coefficient object reproducing the real part of
        the complex-valued field */
@@ -303,7 +221,7 @@ public:
        returns its real part. Custom implementations may choose to
        override this method with a more efficient real-valued
        coefficient. */
-   virtual VectorCoefficient & real() { return real_vcoef_; }
+   virtual VectorCoefficient & real() { return re_part_vcoef_; }
 
    /** @brief Access a standard Coefficient object reproducing the imaginary
        part of the complex-valued field */
@@ -312,12 +230,40 @@ public:
        returns its imaginary part. Custom implementations may choose to
        override this method with a more efficient real-valued
        coefficient. */
-   virtual VectorCoefficient & imag() { return imag_vcoef_; }
+   virtual VectorCoefficient & imag() { return im_part_vcoef_; }
 
    virtual ~ComplexVectorCoefficient() { }
 };
 
-/** @brief Base class ComplexMatrixCoefficients that optionally depend
+/** @brief A complex vector coefficient assembled from real and imaginary
+    VectorCoefficient objects.
+
+    The supplied coefficients are not owned and must outlive this object. */
+class ComplexVectorCoefficientFromRealImag : public ComplexVectorCoefficient
+{
+private:
+   VectorCoefficient &real_vcoef_;
+   VectorCoefficient &imag_vcoef_;
+#ifndef MFEM_THREAD_SAFE
+   Vector V_r_, V_i_;
+#endif
+
+public:
+   ComplexVectorCoefficientFromRealImag(VectorCoefficient &v_r,
+                                        VectorCoefficient &v_i);
+
+   void SetTime(real_t t) override;
+
+   using ComplexVectorCoefficient::Eval;
+
+   void Eval(ComplexVector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+
+   VectorCoefficient & real() override { return real_vcoef_; }
+   VectorCoefficient & imag() override { return imag_vcoef_; }
+};
+
+/** @brief Abstract base class for complex matrix coefficients that optionally depend
     on space and time. These are used by the SesquilinearForm,
     ComplexLinearForm, and ComplexGridFunction classes to represent
     the physical matrix-valued coefficients in the PDEs that are being
@@ -331,36 +277,37 @@ protected:
    real_t time;
 
 private:
-   RealPartMatrixCoefficient re_part_mcoef_;
-   ImagPartMatrixCoefficient im_part_mcoef_;
+   template <bool real_part>
+   class PartCoefficient : public MatrixCoefficient
+   {
+   private:
+      ComplexMatrixCoefficient &complex_mcoef_;
+#ifndef MFEM_THREAD_SAFE
+      ComplexDenseMatrixData value_;
+#endif
 
-protected:
-   MatrixCoefficient &real_mcoef_;
-   MatrixCoefficient &imag_mcoef_;
+      void SetLocalTime(real_t t);
 
-   mutable DenseMatrix M_r_;
-   mutable DenseMatrix M_i_;
+      friend class ComplexMatrixCoefficient;
+
+   public:
+      PartCoefficient(ComplexMatrixCoefficient &complex_mcoef);
+
+      void SetTime(real_t t) override;
+
+      void Eval(DenseMatrix &M, ElementTransformation &T,
+                const IntegrationPoint &ip) override;
+   };
+
+   PartCoefficient<true> re_part_mcoef_;
+   PartCoefficient<false> im_part_mcoef_;
 
 public:
    /// Construct a dim x dim matrix coefficient.
-   explicit ComplexMatrixCoefficient(int dim)
-      : height(dim), width(dim), time(0.),
-        re_part_mcoef_(*this), im_part_mcoef_(*this),
-        real_mcoef_(re_part_mcoef_), imag_mcoef_(im_part_mcoef_)
-   { }
+   explicit ComplexMatrixCoefficient(int dim);
 
    /// Construct a h x w matrix coefficient.
-   ComplexMatrixCoefficient(int h, int w) :
-      height(h), width(w), time(0.),
-      re_part_mcoef_(*this), im_part_mcoef_(*this),
-      real_mcoef_(re_part_mcoef_), imag_mcoef_(im_part_mcoef_)
-   { }
-
-   /** @brief Construct a complex matrix coefficient from real and imaginary
-       parts.
-
-       The supplied coefficients are not owned and must outlive this object. */
-   ComplexMatrixCoefficient(MatrixCoefficient &m_r, MatrixCoefficient &m_i);
+   ComplexMatrixCoefficient(int h, int w);
 
    /// @note This class is non-copyable and non-movable because its internal
    /// real and imaginary views reference this object.
@@ -370,14 +317,7 @@ public:
    ComplexMatrixCoefficient &operator=(ComplexMatrixCoefficient &&) = delete;
 
    /// Set the time for time dependent coefficients
-   virtual void SetTime(real_t t)
-   {
-      time = t;
-      re_part_mcoef_.MatrixCoefficient::SetTime(t);
-      im_part_mcoef_.MatrixCoefficient::SetTime(t);
-      if (&real_mcoef_ != &re_part_mcoef_) { real_mcoef_.SetTime(t); }
-      if (&imag_mcoef_ != &im_part_mcoef_) { imag_mcoef_.SetTime(t); }
-   }
+   virtual void SetTime(real_t t);
 
    /// Get the time for time dependent coefficients
    real_t GetTime() const { return time; }
@@ -396,11 +336,8 @@ public:
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
-   /** @note The default implementation combines the real and imaginary
-       coefficients supplied to the corresponding constructor. Classes
-       constructed with only dimensions must override this method. */
    virtual void Eval(ComplexDenseMatrixData &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+                     const IntegrationPoint &ip) = 0;
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip at time @a t, storing the result in @a K. */
@@ -408,11 +345,7 @@ public:
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
    void Eval(ComplexDenseMatrixData &K, ElementTransformation &T,
-             const IntegrationPoint &ip, real_t t)
-   {
-      SetTime(t);
-      Eval(K, T, ip);
-   }
+             const IntegrationPoint &ip, real_t t);
 
    /** @brief Access a standard Coefficient object reproducing the real part of
        the complex-valued field */
@@ -421,7 +354,7 @@ public:
        returns its real part. Custom implementations may choose to
        override this method with a more efficient real-valued
        coefficient. */
-   virtual MatrixCoefficient & real() { return real_mcoef_; }
+   virtual MatrixCoefficient & real() { return re_part_mcoef_; }
 
    /** @brief Access a standard Coefficient object reproducing the imaginary
        part of the complex-valued field */
@@ -430,9 +363,37 @@ public:
        returns its imaginary part. Custom implementations may choose to
        override this method with a more efficient real-valued
        coefficient. */
-   virtual MatrixCoefficient & imag() { return imag_mcoef_; }
+   virtual MatrixCoefficient & imag() { return im_part_mcoef_; }
 
    virtual ~ComplexMatrixCoefficient() { }
+};
+
+/** @brief A complex matrix coefficient assembled from real and imaginary
+    MatrixCoefficient objects.
+
+    The supplied coefficients are not owned and must outlive this object. */
+class ComplexMatrixCoefficientFromRealImag : public ComplexMatrixCoefficient
+{
+private:
+   MatrixCoefficient &real_mcoef_;
+   MatrixCoefficient &imag_mcoef_;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix M_r_, M_i_;
+#endif
+
+public:
+   ComplexMatrixCoefficientFromRealImag(MatrixCoefficient &m_r,
+                                        MatrixCoefficient &m_i);
+
+   void SetTime(real_t t) override;
+
+   using ComplexMatrixCoefficient::Eval;
+
+   void Eval(ComplexDenseMatrixData &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+
+   MatrixCoefficient & real() override { return real_mcoef_; }
+   MatrixCoefficient & imag() override { return imag_mcoef_; }
 };
 
 /// A complex-valued coefficient that is constant across space and time

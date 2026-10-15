@@ -1024,6 +1024,37 @@ ComplexDenseMatrixData::ComplexDenseMatrixData()
    : height(0), width(0)
 {}
 
+ComplexDenseMatrixData::ComplexDenseMatrixData(complex_t *d, int h, int w)
+   : height(h), width(w)
+{
+   UseExternalData(d, h, w);
+}
+
+void ComplexDenseMatrixData::UseExternalData(complex_t *d, int h, int w)
+{
+   data.Wrap(d, h*w, false);
+   height = h;
+   width = w;
+}
+
+void ComplexDenseMatrixData::Reset(complex_t *d, int h, int w)
+{
+   data.Delete();
+   UseExternalData(d, h, w);
+}
+
+void ComplexDenseMatrixData::ClearExternalData()
+{
+   data.Reset();
+   height = width = 0;
+}
+
+void ComplexDenseMatrixData::Clear()
+{
+   data.Delete();
+   height = width = 0;
+}
+
 ComplexDenseMatrixData::ComplexDenseMatrixData(const ComplexDenseMatrixData &m)
    : height(m.Height()), width(m.Width())
 {

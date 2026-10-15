@@ -62,7 +62,7 @@ static real_t epsilon_ = 1.0;
 static real_t sigma_ = 20.0;
 static real_t omega_ = 10.0;
 
-complex<real_t> u0_exact(const Vector &x);
+complex_t u0_exact(const Vector &x);
 void u1_exact(const Vector &, ComplexVector &);
 void u2_exact(const Vector &, ComplexVector &);
 
@@ -611,13 +611,13 @@ bool check_for_inline_mesh(const char * mesh_file)
    return s0 == "inline-";
 }
 
-complex<real_t> u0_exact(const Vector &x)
+complex_t u0_exact(const Vector &x)
 {
    int dim = x.Size();
-   complex<real_t> i(0.0, 1.0);
-   complex<real_t> alpha = (epsilon_ * omega_ - i * sigma_);
-   complex<real_t> kappa = std::sqrt(mu_ * omega_* alpha);
-   return std::exp(-i * kappa * x[dim - 1]);
+   complex_t i(0.0, 1.0);
+   complex_t alpha = (epsilon_ * omega_ - i * sigma_);
+   complex_t kappa = sqrt(mu_ * omega_* alpha);
+   return exp(-i * kappa * x[dim - 1]);
 }
 
 void u1_exact(const Vector &x, ComplexVector &v)
