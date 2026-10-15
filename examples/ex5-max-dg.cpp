@@ -147,6 +147,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    ConstantCoefficient sigmacoeff(1.0); // Diffusivity
+   ConstantCoefficient invsigmacoeff(1.0); // Inverse diffusivity
    ConstantCoefficient mucoeff(1.0); // Permeability
 
    VectorFunctionCoefficient fcoeff(dim, fFun); // Electric rhs
@@ -198,7 +199,8 @@ int main(int argc, char *argv[])
                                        new DGTangentialTraceIntegrator(+1.)));
    cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
                                   new DGTangentialTraceIntegrator(+2.)));
-   //mbVarf->AddInteriorFaceIntegrator()
+   mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff));
+   mbVarf->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff));
 
    if (dim_curl > 1)
    {
