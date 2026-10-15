@@ -517,7 +517,7 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    const int dim = el.GetDim()+1;
    const int dim_curl = dim == 3 ? 3 : 1;
    const int dof = el.GetDof();
-   Vector nor(dim), vec(dim_curl);
+   Vector nor(dim), vec(dim_curl), nxv(dim);
 
    shape.SetSize(dof);
    elvect.SetSize(dof * dim);
@@ -549,22 +549,18 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
 
       if (dim == 2)
       {
-         Vector elvect_x(elvect, 0*dof, dof);
-         elvect_x.Add(+w * vec(0) * nor(1), shape);
-         Vector elvect_y(elvect, 1*dof, dof);
-         elvect_y.Add(-w * vec(0) * nor(0), shape);
+         nxv(0) = +vec(0) * nor(1);
+         nxv(1) = -vec(0) * nor(0);
       }
       else
       {
-         Vector elvect_x(elvect, 0*dof, dof);
-         elvect_x.Add(+w * vec(2) * nor(1), shape);
-         elvect_x.Add(-w * vec(1) * nor(2), shape);
-         Vector elvect_y(elvect, 1*dof, dof);
-         elvect_y.Add(-w * vec(2) * nor(0), shape);
-         elvect_y.Add(+w * vec(0) * nor(2), shape);
-         Vector elvect_z(elvect, 2*dof, dof);
-         elvect_z.Add(+w * vec(1) * nor(0), shape);
-         elvect_z.Add(-w * vec(0) * nor(1), shape);
+         nor.cross3D(vec, nxv);
+      }
+
+      for (int d = 0; d < dim; d++)
+      {
+         Vector elvect_d(elvect, d*dof, dof);
+         elvect_d.Add(w * nxv(d), shape);
       }
    }
 }
@@ -575,7 +571,7 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    int dim = el.GetDim();
    const int dim_curl = dim == 3 ? 3 : 1;
    const int dof = el.GetDof();
-   Vector nor(dim), vec(dim_curl);
+   Vector nor(dim), vec(dim_curl), nxv(dim);
 
    shape.SetSize(dof);
    elvect.SetSize(dof * dim);
@@ -607,22 +603,18 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
 
       if (dim == 2)
       {
-         Vector elvect_x(elvect, 0*dof, dof);
-         elvect_x.Add(+w * vec(0) * nor(1), shape);
-         Vector elvect_y(elvect, 1*dof, dof);
-         elvect_y.Add(-w * vec(0) * nor(0), shape);
+         nxv(0) = +vec(0) * nor(1);
+         nxv(1) = -vec(0) * nor(0);
       }
       else
       {
-         Vector elvect_x(elvect, 0*dof, dof);
-         elvect_x.Add(+w * vec(2) * nor(1), shape);
-         elvect_x.Add(-w * vec(1) * nor(2), shape);
-         Vector elvect_y(elvect, 1*dof, dof);
-         elvect_y.Add(-w * vec(2) * nor(0), shape);
-         elvect_y.Add(+w * vec(0) * nor(2), shape);
-         Vector elvect_z(elvect, 2*dof, dof);
-         elvect_z.Add(+w * vec(1) * nor(0), shape);
-         elvect_z.Add(-w * vec(0) * nor(1), shape);
+         nor.cross3D(vec, nxv);
+      }
+
+      for (int d = 0; d < dim; d++)
+      {
+         Vector elvect_d(elvect, d*dof, dof);
+         elvect_d.Add(w * nxv(d), shape);
       }
    }
 }
