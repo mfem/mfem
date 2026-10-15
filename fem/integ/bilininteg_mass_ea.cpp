@@ -81,6 +81,9 @@ void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                 Vector &ea_data,
                                 const bool add)
 {
+   MFEM_VERIFY(fes.GetVDim() == 1,
+               "MassIntegrator::AssembleEA does not support "
+               "vector spaces (vdim > 1).");
    AssemblePA(fes);
    if (ne > 0) { AssembleEA_(ea_data, add); }
 }
