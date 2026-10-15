@@ -28,6 +28,32 @@ namespace mfem
 namespace future
 {
 
+// Force inlining even in debug builds, unlike MFEM_ALWAYS_INLINE
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_TENSOR_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define MFEM_TENSOR_ALWAYS_INLINE
+#endif
+
+/**
+   @brief Fixed-size array used as the storage of tensor.
+
+   N = 0 is supported by allocating a single (unused) entry.
+*/
+template <typename T, int N>
+struct carray
+{
+   T data[N ? N : 1];
+
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+   constexpr T& operator[](int i) { return data[i]; }
+
+   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
+   constexpr const T& operator[](int i) const { return data[i]; }
+};
+
+#undef MFEM_TENSOR_ALWAYS_INLINE
+
 template <typename T, int... Dims>
 struct tensor;
 
@@ -115,25 +141,20 @@ struct tensor<T, N0, Ns...>
    }
 
 private:
-#ifndef _MSC_VER
-   // Use std::array to support N0 = 0.
-   std::array<sub_tensor_type, N0> values;
-#else
-   // In MSVC, std::array<T,0> is not trivial even if T is trivial, so we don't
-   // use std::array.
-   sub_tensor_type values[N0 ? N0 : 1];
-#endif
+   carray<sub_tensor_type, N0> values;
 
    // Helper constructor from c_array_type
    template <std::size_t... Is> MFEM_HOST_DEVICE
    constexpr tensor(const c_array_type &a, std::index_sequence<Is...>)
       : values{a[Is]...} { }
 
-   // Helper constructor from std::initializer_list<sub_tensor_type>
+   // Helper constructor from std::initializer_list<sub_tensor_type>. Entries
+   // missing from a shorter list are value-initialized, as in aggregate
+   // initialization.
    template <std::size_t... Is> MFEM_HOST_DEVICE
    constexpr tensor(std::initializer_list<sub_tensor_type> a,
                     std::index_sequence<Is...>)
-      : values{a.begin()[Is]...} { }
+      : values{(Is < a.size() ? a.begin()[Is] : sub_tensor_type{})...} { }
 };
 
 
@@ -1810,7 +1831,7 @@ template <typename T, int... n>
 std::ostream& operator<<(std::ostream& os, const tensor<T, n...>& A)
 {
    os << '{' << A[0];
-   for (int i = 1; i < tensor<T, n...>::first_dim; i++)
+   for (int i = 1; i < A.size(0); i++)
    {
       os << ", " << A[i];
    }

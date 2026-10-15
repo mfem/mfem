@@ -61,9 +61,8 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
       static_assert(std::is_same_v<tensor<real_t,0>::c_array_type,real_t[1]>);
       static_assert(sizeof(tensor<real_t,3>) ==
                     sizeof(tensor<real_t,3>::c_array_type));
-      // the following is true only for some implementations of std::array<T,0>
-      // static_assert(sizeof(tensor<real_t,0>) ==
-      //               sizeof(tensor<real_t,0>::c_array_type));
+      static_assert(sizeof(tensor<real_t,0>) ==
+                    sizeof(tensor<real_t,0>::c_array_type));
       static_assert(std::is_trivial_v<tensor<real_t,5>>);
       static_assert(std::is_trivial_v<tensor<real_t,0>>);
       tensor<real_t,3> t1d{1_r, 2_r, 3_r};
@@ -152,4 +151,21 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
    });
    errors.HostRead();
    CHECK(errors.Sum() == 0);
+}
+
+TEST_CASE("Tensor initialization from a short list", "[Tensor]")
+{
+   // Entries missing from the list are zero, as in aggregate initialization
+   tensor<real_t, 3> u{{-2.2, 4.0}};
+   CHECK(u[0] == -2.2_r);
+   CHECK(u[1] == 4.0_r);
+   CHECK(u[2] == 0.0_r);
+
+   tensor<real_t, 3, 2> A{{{1.0, 2.0}, {3.0}}};
+   CHECK(A(0, 0) == 1.0_r);
+   CHECK(A(0, 1) == 2.0_r);
+   CHECK(A(1, 0) == 3.0_r);
+   CHECK(A(1, 1) == 0.0_r);
+   CHECK(A(2, 0) == 0.0_r);
+   CHECK(A(2, 1) == 0.0_r);
 }
