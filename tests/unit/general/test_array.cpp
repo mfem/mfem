@@ -198,3 +198,34 @@ TEST_CASE("Array delete at indices", "[Array],[GPU]")
       }
    }
 }
+
+TEST_CASE("BlockArray iterator equality", "[Array]")
+{
+   // Small blocks so the iteration crosses block boundaries.
+   BlockArray<int> a(4);
+   for (int i = 0; i < 10; i++) { a.Append(i); }
+
+   int count = 0;
+   for (BlockArray<int>::iterator it = a.begin(); it != a.end(); ++it)
+   {
+      count++;
+   }
+   REQUIRE(count == a.Size());
+
+   // Live iterators compare by position.
+   BlockArray<int>::iterator b1 = a.begin(), b2 = a.begin();
+   REQUIRE(b1 == b2);
+   ++b2;
+   REQUIRE(b1 != b2);
+   ++b1;
+   REQUIRE(b1 == b2);
+
+   // The same offset in a different array is a different position.
+   BlockArray<int> c(4);
+   c.Append(0);
+   REQUIRE(a.begin() != c.begin());
+
+   // All end iterators are equal, and no live iterator equals an end.
+   REQUIRE(a.end() == c.end());
+   REQUIRE(a.begin() != a.end());
+}
