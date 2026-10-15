@@ -748,6 +748,10 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
       TestSameSparseMatrices(A_fa, A_legacy);
 
       a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+      // The legacy elimination of the essential BCs is done on host
+      a_legacy.SpMat().HostReadWriteI();
+      a_legacy.SpMat().HostReadWriteJ();
+      a_legacy.SpMat().HostReadWriteData();
       a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
       TestSameSparseMatrices(A_fa, A_legacy);
    }
@@ -762,7 +766,9 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
 
       BilinearForm a_fa(&fes), a_ref(&fes);
       a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
-      for (BilinearForm *a : {&a_fa, &a_ref})
+      // The legacy form is assembled first, since it accesses the marker on
+      // host after the device access of full assembly otherwise
+      for (BilinearForm *a : {&a_ref, &a_fa})
       {
          a->AddDomainIntegrator(new_integ(), attr_marker);
          a->AddDomainIntegrator(new_integ());
