@@ -61,6 +61,36 @@ public:
    ~ScopedHypreHostPolicy() { Restore(); }
 };
 
+void AssembleScalarLumpedMass(ParFiniteElementSpace &fes, Vector &lump)
+{
+   ParGridFunction one_gf(&fes);
+   one_gf = 1.0;
+   GridFunctionCoefficient one(&one_gf);
+   ParLinearForm mass_lump(&fes);
+   mass_lump.AddDomainIntegrator(new DomainLFIntegrator(one));
+   mass_lump.UseFastAssembly(Device::IsEnabled());
+   mass_lump.Assemble();
+
+   lump.SetSize(fes.GetTrueVSize());
+   lump.UseDevice(true);
+   mass_lump.ParallelAssemble(lump);
+}
+
+void AssembleVectorLumpedMass(ParFiniteElementSpace &fes, Vector &lump)
+{
+   ParGridFunction one_gf(&fes);
+   one_gf = 1.0;
+   VectorGridFunctionCoefficient one_v(&one_gf);
+   ParLinearForm mass_lump(&fes);
+   mass_lump.AddDomainIntegrator(new VectorDomainLFIntegrator(one_v));
+   mass_lump.UseFastAssembly(Device::IsEnabled());
+   mass_lump.Assemble();
+
+   lump.SetSize(fes.GetTrueVSize());
+   lump.UseDevice(true);
+   mass_lump.ParallelAssemble(lump);
+}
+
 }
 
 void OptContactProblem::ReleaseMemory()
@@ -71,8 +101,6 @@ void OptContactProblem::ReleaseMemory()
    delete NegId; NegId = nullptr;
    delete Iu; Iu = nullptr;
    delete negIu; negIu = nullptr;
-   delete Mv; Mv = nullptr;
-   delete Mcs; Mcs = nullptr;
    if (dcdu)
    {
       delete dcdu;
@@ -175,16 +203,7 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    dimM = dimG;
    dimC = dimM;
 
-   ParBilinearForm MassForm(vfes);
-   MassForm.AddDomainIntegrator(new VectorMassIntegrator);
-   MassForm.Assemble();
-
-   MassForm.Finalize(0);
-   Mv = MassForm.ParallelAssemble();
-
-   Vector onev(Mv->Width()); onev.UseDevice(true); onev = 1.0;
-   Mvlump.SetSize(Mv->Height());
-   Mv->Mult(onev, Mvlump);
+   AssembleVectorLumpedMass(*vfes, Mvlump);
 
    if (!dl.Size())
    {
@@ -512,15 +531,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
 
-   ParBilinearForm acs_form(pressure.ParFESpace());
-   acs_form.AddDomainIntegrator(new MassIntegrator);
-   acs_form.Assemble();
-   acs_form.Finalize(0);
-   Mcs = acs_form.ParallelAssemble();
-
-   Vector onecs(Mcs->Width()); onecs.UseDevice(true); onecs = 1.0;
-   Mcslumpfull.SetSize(Mcs->Height()); //Vector
-   Mcs->Mult(onecs, Mcslumpfull);
+   AssembleScalarLumpedMass(*pressure.ParFESpace(), Mcslumpfull);
 
    // Set Tribol options for Lagrange multiplier enforcement
    tribol::setLagrangeMultiplierOptions(
@@ -551,8 +562,6 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    MPI_Comm matrix_comm = Mfull->GetComm();
 
    A_blk.reset();
-   delete Mcs;
-   Mcs = nullptr;
    tribol::finalize();
    hypre_host_policy.Restore();
    coords_prolongation->HypreRead();

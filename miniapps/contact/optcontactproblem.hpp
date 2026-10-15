@@ -135,12 +135,6 @@ private:
    /// Cached constraint Jacobian with bounds.
    HypreParMatrix * dcdu = nullptr;
 
-   /// Mass matrix in the volume.
-   HypreParMatrix * Mv = nullptr;
-
-   /// Mass matrix on the contact surface.
-   HypreParMatrix * Mcs = nullptr;
-
    /// Lumped volume mass vector.
    Vector Mvlump;
 
