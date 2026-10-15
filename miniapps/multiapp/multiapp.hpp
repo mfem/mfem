@@ -182,7 +182,11 @@ public:
 
     /// Make a copy of the state
     void MakeCopy(const Vector* original, Vector* copy) const override
-    { *copy = *original; }
+    {
+        MFEM_ASSERT((original != nullptr) && (copy != nullptr),
+                    "Original and copy must not be null.");
+        *copy = *original;
+    }
 
     /// Allocate a new state with the same type as this state and transfer ownership.
     Vector* MakeNew() const override { return new Vector(size, mt); }
@@ -196,7 +200,6 @@ struct GraphOperation
     using OutputType = InputType;
     using ExecuteFunc = std::function<void(const MultiVector&, MultiVector&)>;
     using GradFunc = std::function<void(const MultiVector&, const MultiVector&, MultiVector&)>;
-    using IndexMap = GenericFieldMap<int, int>;
 
 protected:
     Operator *op; // Optional forward operator (not owned)
@@ -235,7 +238,7 @@ public:
         execute(x, y);
     }
 
-    GraphOperation *GetGradient() const;
+    virtual GraphOperation *GetGradient() const;
 
     Operator &GetOperator() const { return *op; }
 
@@ -260,7 +263,7 @@ struct AbstractGraphOperation : GraphOperation
     // Only use if OpType extended from mfem::Operator
     template<typename = std::enable_if_t<std::is_base_of<Operator, OpType>::value>>
     AbstractGraphOperation(OpType &oper, InputType in, OutputType out, AuxType &aux_data,
-                           ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
+                           ExecuteFunc exec, GradFunc grad = nullptr,
                            GradFunc grad_transpose = nullptr) :
                            GraphOperation(oper, in, out, nullptr, nullptr, nullptr),
                            aux_data(&aux_data), execute(exec), grad(grad), grad_transpose(grad_transpose)
@@ -271,6 +274,12 @@ struct AbstractGraphOperation : GraphOperation
                            GraphOperation(nullptr, in, out, nullptr, nullptr),
                            aux_data(&aux_data), execute(exec), grad(grad), grad_transpose(grad_transpose)
                            { }
+
+    void Execute(const MultiVector &x, MultiVector &y, bool reverse = false) const override
+    {
+        MFEM_ASSERT(!reverse, "Reverse execution is not supported for this operation.");
+        if(execute) { execute(*aux_data, x, y); }
+    }
 };
 
 /// @brief A GraphOperation that represents the gradient of another GraphOperation.
@@ -481,7 +490,10 @@ public:
 
 protected:
     // This changes intermediate state; restrict user call
-    virtual void UpdateState(const MultiVector &x);
+    virtual void UpdateState(const MultiVector &x)
+    {
+        MFEM_ABORT("Function not overridden for this class.")
+    }
 
     // Get state memory to copy and store primal in dual graph
     // Get up to the @a igrad-th gradient of the state for a given field
@@ -536,7 +548,7 @@ public:
     void Watch(std::initializer_list<Field*> fields_list) override;
     void StopRecording(std::initializer_list<Field*> outputs_list) override;
     void ClearTape() override;
-protected: // This should be protected
+protected: // This should be protected; TODO: can be made public to manually add operations
     void RegisterOperation(GraphOperation *op) override;
 public:
 

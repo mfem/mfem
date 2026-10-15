@@ -35,7 +35,7 @@ GraphOperation *GraphOperation::GetGradient() const
 }
 
 GraphOperationGradient::GraphOperationGradient(GraphOperation &oper):
-                        GraphOperation(nullptr, {}, {},oper.grad, oper.grad_transpose),
+                        GraphOperation(nullptr, {}, {}, oper.grad, oper.grad_transpose),
                         primal_op(&oper)
 {
     inputs = oper.inputs;
@@ -350,11 +350,6 @@ void DAGraph::ComputeDepth(bool reverse)
         op_depth[idx] = maxdepth;
         max_depth = std::max(max_depth, maxdepth);
     }
-}
-
-void DAGraph::UpdateState(const MultiVector &x)
-{
-    MFEM_ABORT("Function not overridden for this class.")
 }
 
 void DAGraph::Watch(std::initializer_list<Field*> fields_list)
