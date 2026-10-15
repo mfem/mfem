@@ -140,9 +140,9 @@ int main(int argc, char *argv[])
    const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
    std::cout << "***********************************************************\n";
-   std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
-   std::cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-   std::cout << "dim(R+W) = " << block_offsets.Last() << "\n";
+   std::cout << "dim(E) = " << block_offsets[1] - block_offsets[0] << "\n";
+   std::cout << "dim(B) = " << block_offsets[2] - block_offsets[1] << "\n";
+   std::cout << "dim(E+B) = " << block_offsets.Last() << "\n";
    std::cout << "***********************************************************\n";
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
    cVarf->AddDomainIntegrator(new MixedCurlIntegrator(
                                  MixedCurlIntegrator::Mode::OutOfPlane));
    cVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
-                                       new DGTangentialTraceIntegrator(-1.)));
+                                       new DGTangentialTraceIntegrator(+1.)));
    //mbVarf->AddInteriorFaceIntegrator()
 
    if (dim_curl > 1)
@@ -503,7 +503,7 @@ void BFun_ex(const Vector & x, Vector &B)
    }
    else
    {
-      B(0) = kappa * (-cos(kappa * x(0)) + cos(kappa * x(2)));
+      B(0) = kappa * (cos(kappa * x(2)));
       B(1) = kappa * (cos(kappa * x(0)));
       B(2) = kappa * (cos(kappa * x(1)));
    }
