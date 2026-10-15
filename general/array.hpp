@@ -671,7 +671,8 @@ protected:
       int b_end_idx;
       bool stop;
 
-      // The end iterator is default constructed, so start out stopped.
+      // The default constructor creates an end iterator,
+      // so initialize it as already stopped.
       iterator_base() : stop(true) { }
       iterator_base(bool stop) : stop(stop) { }
       iterator_base(cA *a)
