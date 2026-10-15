@@ -235,6 +235,8 @@ int main(int argc, char *argv[])
    bool amg_print_options = false;
    // Device configuration string.
    const char *device_config = "cpu";
+   // Use full assembly for the linear elasticity stiffness matrix.
+   bool elasticity_fa = false;
 
 
    // 1. Parse command-line options.
@@ -277,6 +279,9 @@ int main(int argc, char *argv[])
                   "--amg-print-options", "-no-amg-print-options",
                   "--no-amg-print-options",
                   "Print BoomerAMG options configured by this miniapp.");
+   args.AddOption(&elasticity_fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly",
+                  "Use full assembly for the linear elasticity stiffness matrix.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -321,6 +326,12 @@ int main(int argc, char *argv[])
          cout << "Switching to the linear model ..." << endl;
       }
       nonlinear = false;
+   }
+   if (nonlinear && elasticity_fa && myid == 0)
+   {
+      cout << "Full assembly is only used by the linear elasticity model; "
+           << "the nonlinear operator will use its existing assembly path."
+           << endl;
    }
 
    // Bound constraints are used only for the non-linear case
@@ -381,7 +392,7 @@ int main(int argc, char *argv[])
    // 6. Build the elasticity problem object (linear or non-linear).
    // It owns the FE space and will assemble the stiffness and RHS.
    ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E, nu,
-                           nonlinear);
+                           nonlinear, elasticity_fa);
 
    ParFiniteElementSpace * fes = prob.GetFESpace();
    HYPRE_BigInt gndofs = fes->GlobalTrueVSize();
@@ -389,6 +400,8 @@ int main(int argc, char *argv[])
    {
       mfem::out << "\n --------------------------------------" << endl;
       mfem::out << "  Global number of dofs = " << gndofs << endl;
+      mfem::out << "  Elasticity assembly   = "
+                << (elasticity_fa && !nonlinear ? "full" : "legacy") << endl;
       mfem::out << " --------------------------------------" << endl;
    }
 

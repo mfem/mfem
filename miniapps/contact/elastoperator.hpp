@@ -33,6 +33,9 @@ private:
    /// Toggle for nonlinear formulation (true = Neo-Hookean, false = linear elasticity).
    bool nonlinear = false;
 
+   /// Use full assembly for the linear elasticity stiffness matrix.
+   bool use_fa = false;
+
    /// Tracks whether the linear system has been formed.
    bool formsystem = false;
 
@@ -102,7 +105,8 @@ public:
     */
    ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_,
                       Array<int> & ess_bdr_attr_comp_,
-                      const Vector & E, const Vector & nu, bool nonlinear_ = false);
+                      const Vector & E, const Vector & nu,
+                      bool nonlinear_ = false, bool use_fa_ = false);
 
    /// Set material parameters from vectors of Young’s modulus (E) and Poisson’s ratio (ν).
    void SetParameters(const Vector & E, const Vector & nu);

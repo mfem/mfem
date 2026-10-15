@@ -67,18 +67,28 @@ void ElasticityOperator::SetUpOperator()
    else
    {
       op = new ParBilinearForm(fes);
-      dynamic_cast<ParBilinearForm*>(op)->AddDomainIntegrator(
-         new ElasticityIntegrator(c1_cf,c2_cf));
-      K = new HypreParMatrix();
-      dynamic_cast<ParBilinearForm*>(op)->Assemble();
-      dynamic_cast<ParBilinearForm*>(op)->FormSystemMatrix(ess_tdof_list,*K);
+      auto *a = dynamic_cast<ParBilinearForm*>(op);
+      if (use_fa)
+      {
+         a->SetAssemblyLevel(AssemblyLevel::FULL);
+         a->EnableSparseMatrixSorting(Device::IsEnabled());
+      }
+      a->AddDomainIntegrator(new ElasticityIntegrator(c1_cf,c2_cf));
+      a->Assemble();
+      if (!use_fa)
+      {
+         K = new HypreParMatrix();
+         a->FormSystemMatrix(ess_tdof_list,*K);
+      }
    }
 }
 
 ElasticityOperator::ElasticityOperator(ParMesh * pmesh_,
                                        Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,
-                                       const Vector & E, const Vector & nu, bool nonlinear_)
-   : nonlinear(nonlinear_), pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_),
+                                       const Vector & E, const Vector & nu,
+                                       bool nonlinear_, bool use_fa_)
+   : nonlinear(nonlinear_), use_fa(use_fa_), pmesh(pmesh_),
+     ess_bdr_attr(ess_bdr_attr_),
      ess_bdr_attr_comp(ess_bdr_attr_comp_)
 {
    comm = pmesh->GetComm();
@@ -134,14 +144,30 @@ void ElasticityOperator::FormLinearSystem()
    {
       formsystem = true;
       b->Assemble();
-      B.SetSize(fes->GetTrueVSize());
-      b->ParallelAssemble(B);
-      B.SetSubVector(ess_tdof_list, 0.0);
       if (!nonlinear)
       {
-         x.GetTrueDofs(X);
-         dynamic_cast<ParBilinearForm*>(op)->ParallelEliminateTDofsInRHS(ess_tdof_list,
-                                                                         X, B);
+         auto *a = dynamic_cast<ParBilinearForm*>(op);
+         if (use_fa)
+         {
+            OperatorHandle A(Operator::Hypre_ParCSR);
+            a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+            if (K) { delete K; }
+            K = new HypreParMatrix(*A.As<HypreParMatrix>());
+         }
+         else
+         {
+            B.SetSize(fes->GetTrueVSize());
+            b->ParallelAssemble(B);
+            B.SetSubVector(ess_tdof_list, 0.0);
+            x.GetTrueDofs(X);
+            a->ParallelEliminateTDofsInRHS(ess_tdof_list, X, B);
+         }
+      }
+      else
+      {
+         B.SetSize(fes->GetTrueVSize());
+         b->ParallelAssemble(B);
+         B.SetSubVector(ess_tdof_list, 0.0);
       }
    }
 }
