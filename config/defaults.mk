@@ -276,15 +276,6 @@ endif
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
-   # MFEM_USE_METIS_5: when the user supplies METIS_DIR, try to auto-detect
-   # METIS 5 installs that follow the common <prefix>/{include,lib,lib64} layout.
-   ifeq ($(MFEM_USE_METIS_5),NO)
-      ifneq ($(wildcard $(METIS_DIR)/include/metis.h),)
-         ifneq ($(wildcard $(METIS_DIR)/lib/libmetis.* $(METIS_DIR)/lib64/libmetis.*),)
-            MFEM_USE_METIS_5 = YES
-         endif
-      endif
-   endif
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =

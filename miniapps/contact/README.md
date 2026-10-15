@@ -93,18 +93,20 @@ If you already have compatible installs of Tribol and Axom, point MFEM to the in
 
 **MFEM make build (configure):**
 ```bash
-make config MFEM_USE_MPI=YES MFEM_USE_METIS=YES MFEM_USE_TRIBOL=YES \
+make config MFEM_USE_MPI=YES MFEM_USE_METIS=YES MFEM_USE_METIS_5=YES MFEM_USE_TRIBOL=YES \
+  CXXFLAGS="-std=c++20" \
   HYPRE_DIR=<path/to/hypre> METIS_DIR=<path/to/metis> \
-  AXOM_DIR=<path/to/axom> TRIBOL_DIR=<path/to/tribol> ADIAK_DIR=<path/to/adiak> CAMP_DIR=<path/to/camp> RAJA_DIR=<path/to/raja> \
-  UMPIRE_DIR=<path/to/umpire> FMT_DIR=<path/to/fmt> CALIPER_DIR=<path/to/caliper>
+  AXOM_DIR=<path/to/axom> TRIBOL_DIR=<path/to/tribol> ADIAK_DIR=<path/to/adiak> CAMP_DIR=<path/to/camp> \
+  RAJA_DIR=<path/to/raja> UMPIRE_DIR=<path/to/umpire> FMT_DIR=<path/to/fmt> CALIPER_DIR=<path/to/caliper>
 ```
 
 **MFEM CMake build (configure):**
 ```bash
-cmake -S . -B <mfem-build-dir> -DMFEM_USE_MPI=YES -DMFEM_USE_METIS=YES -DMFEM_USE_TRIBOL=YES \
-  HYPRE_DIR=<path/to/hypre> METIS_DIR=<path/to/metis> \
-  AXOM_DIR=<path/to/axom> TRIBOL_DIR=<path/to/tribol> ADIAK_DIR=<path/to/adiak> CAMP_DIR=<path/to/camp> RAJA_DIR=<path/to/raja> \
-  UMPIRE_DIR=<path/to/umpire> FMT_DIR=<path/to/fmt> CALIPER_DIR=<path/to/caliper>
+cmake -S . -B <mfem-build-dir> -DCMAKE_CXX_STANDARD=20 \
+  -DMFEM_USE_MPI=YES -DMFEM_USE_METIS=YES -DMFEM_USE_TRIBOL=YES \
+  -DHYPRE_DIR=<path/to/hypre> -DMETIS_DIR=<path/to/metis> \
+  -DAXOM_DIR=<path/to/axom> -DTRIBOL_DIR=<path/to/tribol> -DADIAK_DIR=<path/to/adiak> -DCAMP_DIR=<path/to/camp> \
+  -DRAJA_DIR=<path/to/raja> -DUMPIRE_DIR=<path/to/umpire> -DCALIPER_DIR=<path/to/caliper>
 ```
 
 Note: RAJA/UMPIRE/CALIPER are optional for MFEM itself, but many Tribol builds
@@ -127,8 +129,8 @@ compiler/MPI wrapper (same C++ standard library ABI).
    git clone --recursive https://github.com/LLNL/axom.git axom-repo
    git clone --recursive https://github.com/LLNL/Tribol.git tribol-repo
    ```
-2. **MFEM:** Build with `MFEM_USE_MPI`, `MFEM_USE_METIS`, and `MFEM_USE_TRIBOL`  
-   enabled, plus MUMPS or CPardiso if AMGF is desired.
+2. **MFEM:** Build with `MFEM_USE_MPI`, `MFEM_USE_METIS`, `MFEM_USE_METIS_5`, 
+   and `MFEM_USE_TRIBOL` enabled, plus MUMPS or CPardiso if AMGF is desired.
    Note: it's important to do `make install`.
    ```
    MFEM_USE_TRIBOL = YES
@@ -158,4 +160,3 @@ compiler/MPI wrapper (same C++ standard library ABI).
      ```bash
       make contact
       ```  
-

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -27,6 +27,7 @@ mfem_find_package(Axom AXOM AXOM_DIR "include" "" "lib" ""
   ADD_COMPONENT lumberjack "include" axom/lumberjack.hpp "lib" axom_lumberjack
   ADD_COMPONENT mint "include" axom/mint.hpp "lib" axom_mint
   ADD_COMPONENT multimat "include" axom/multimat.hpp "lib" axom_multimat
+  ADD_COMPONENT primal "include" axom/primal.hpp "lib" ""
   ADD_COMPONENT quest "include" axom/quest.hpp "lib" axom_quest
   ADD_COMPONENT sidre "include" axom/sidre.hpp "lib" axom_sidre
   ADD_COMPONENT slam "include" axom/slam.hpp "lib" axom_slam
