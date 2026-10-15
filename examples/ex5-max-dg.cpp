@@ -153,8 +153,6 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient Ecoeff(dim, EFun_ex); // Electric field
    VectorFunctionCoefficient Bcoeff(dim_curl, BFun_ex); // Magnetic field
-   ScalarVectorProductCoefficient fnatcoeff(-1., Bcoeff);
-   VectorComponentCoefficient fnatcoeff_z(fnatcoeff);
 
    // 8. Allocate memory (x, rhs) for the analytical solution and the right hand
    //    side.  Define the GridFunction E,B for the finite element solution and
@@ -166,15 +164,8 @@ int main(int argc, char *argv[])
 
    LinearForm *fform = darcy->GetFluxRHS();
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
-   if (dim_curl > 1)
-   {
-      MFEM_ABORT("Not implemented");
-   }
-   else
-   {
-      fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
-                                     fnatcoeff_z));
-   }
+   fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
+                                  Bcoeff));
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //

@@ -515,17 +515,17 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    const int dim = el.GetDim()+1;
+   const int dim_curl = dim == 3 ? 3 : 1;
    const int dof = el.GetDof();
-   Vector tangent(dim);
+   Vector nor(dim), vec(dim_curl);
 
    shape.SetSize(dof);
    elvect.SetSize(dof * dim);
    elvect = 0.0;
 
-   if (dim != 2)
-   {
-      MFEM_ABORT("These methods make sense only in 2D problems.");
-   }
+   MFEM_ASSERT(dim > 1, "This method makes sense in 2D or 3D only.");
+   MFEM_ASSERT(Q.GetVDim() == dim_curl,
+               "The coefficient does not have the right dimension");
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -539,18 +539,32 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint(&ip);
-      const DenseMatrix &Jac = Tr.Jacobian();
-      tangent(0) = Jac(0,0);
-      tangent(1) = Jac(1,0);
+      CalcOrtho(Tr.Jacobian(), nor);
 
       el.CalcShape(ip, shape);
 
-      const real_t w = ip.weight * Q.Eval(Tr, ip);
+      const real_t w = ip.weight;
 
-      for (int d = 0; d < dim; d++)
+      Q.Eval(vec, Tr, ip);
+
+      if (dim == 2)
       {
-         Vector elvect_d(elvect, d*dof, dof);
-         elvect_d.Add(w * tangent(d), shape);
+         Vector elvect_x(elvect, 0*dof, dof);
+         elvect_x.Add(+w * vec(0) * nor(1), shape);
+         Vector elvect_y(elvect, 1*dof, dof);
+         elvect_y.Add(-w * vec(0) * nor(0), shape);
+      }
+      else
+      {
+         Vector elvect_x(elvect, 0*dof, dof);
+         elvect_x.Add(+w * vec(2) * nor(1), shape);
+         elvect_x.Add(-w * vec(1) * nor(2), shape);
+         Vector elvect_y(elvect, 1*dof, dof);
+         elvect_y.Add(-w * vec(2) * nor(0), shape);
+         elvect_y.Add(+w * vec(0) * nor(2), shape);
+         Vector elvect_z(elvect, 2*dof, dof);
+         elvect_z.Add(+w * vec(1) * nor(0), shape);
+         elvect_z.Add(-w * vec(0) * nor(1), shape);
       }
    }
 }
@@ -559,17 +573,17 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, FaceElementTransformations &FTr, Vector &elvect)
 {
    int dim = el.GetDim();
-   int dof = el.GetDof();
-   Vector tangent(dim), Qvec(dim);
+   const int dim_curl = dim == 3 ? 3 : 1;
+   const int dof = el.GetDof();
+   Vector nor(dim), vec(dim_curl);
 
    shape.SetSize(dof);
    elvect.SetSize(dof * dim);
    elvect = 0.0;
 
-   if (dim != 2)
-   {
-      MFEM_ABORT("These methods make sense only in 2D problems.");
-   }
+   MFEM_ASSERT(dim > 1, "This method makes sense in 2D or 3D only.");
+   MFEM_ASSERT(Q.GetVDim() == dim_curl,
+               "The coefficient does not have the right dimension");
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -583,19 +597,32 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       FTr.SetIntPoint(&ip);
-      const DenseMatrix &Jac = FTr.Jacobian();
-      tangent(0) = Jac(0,0);
-      tangent(1) = Jac(1,0);
-      const real_t norm = tangent.Norml2();
+      CalcOrtho(FTr.Jacobian(), nor);
 
       el.CalcShape(FTr.GetElement1IntPoint(), shape);
 
-      const real_t w = ip.weight * Q.Eval(FTr, ip);
+      const real_t w = ip.weight;
 
-      for (int d = 0; d < dim; d++)
+      Q.Eval(vec, FTr, ip);
+
+      if (dim == 2)
       {
-         Vector elvect_d(elvect, d*dof, dof);
-         elvect_d.Add(w * tangent(d), shape);
+         Vector elvect_x(elvect, 0*dof, dof);
+         elvect_x.Add(+w * vec(0) * nor(1), shape);
+         Vector elvect_y(elvect, 1*dof, dof);
+         elvect_y.Add(-w * vec(0) * nor(0), shape);
+      }
+      else
+      {
+         Vector elvect_x(elvect, 0*dof, dof);
+         elvect_x.Add(+w * vec(2) * nor(1), shape);
+         elvect_x.Add(-w * vec(1) * nor(2), shape);
+         Vector elvect_y(elvect, 1*dof, dof);
+         elvect_y.Add(-w * vec(2) * nor(0), shape);
+         elvect_y.Add(+w * vec(0) * nor(2), shape);
+         Vector elvect_z(elvect, 2*dof, dof);
+         elvect_z.Add(+w * vec(1) * nor(0), shape);
+         elvect_z.Add(-w * vec(0) * nor(1), shape);
       }
    }
 }

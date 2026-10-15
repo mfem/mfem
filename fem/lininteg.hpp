@@ -364,16 +364,16 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration $ L(v) = (g, v \cdot \tau) $ in
-    2D, where g is a scalar coefficient and $v=(v_1,\dots,v_n)$. */
+/** Class for boundary integration $ L(v) = (g, v \times n) $, where $g$ is a
+    scalar in 2D or vector in 3D and $v=(v_1,\dots,v_d)$. */
 class VectorBoundaryTangentialLFIntegrator : public LinearFormIntegrator
 {
    Vector shape;
-   Coefficient &Q;
+   VectorCoefficient &Q;
    int oa, ob;
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
-   VectorBoundaryTangentialLFIntegrator(Coefficient &QG, int a = 1,
+   VectorBoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1,
                                         int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
