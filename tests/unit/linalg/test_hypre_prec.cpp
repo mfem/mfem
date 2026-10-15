@@ -11,8 +11,6 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include <functional>
-#include <map>
 #include <memory>
 
 namespace mfem
@@ -292,93 +290,66 @@ TEST_CASE("HypreADS", "[Parallel][HypreADS]")
 TEST_CASE("Hypre preconditioners SetOperator",
           "[Parallel][HypreParaSails][HypreEuclid]")
 {
-   using PrecFactory = std::function<std::unique_ptr<HypreSolver>()>;
-   std::map<std::string, PrecFactory> precs =
-   {
-      {"DiagScale", [] { return std::make_unique<HypreDiagScale>(); }},
-      {
-         "BoomerAMG", []
-         {
-            auto amg = std::make_unique<HypreBoomerAMG>();
-            amg->SetPrintLevel(0);
-            return amg;
-         }
-      },
-   };
-   // ILU, ParaSails and Euclid are tested on the host only, as in the
-   // HypreILU test. ParaSails and Euclid are not available in mixedint mode.
-   if (!HypreUsingGPU())
-   {
-#if MFEM_HYPRE_VERSION >= 21900
-      precs["ILU"] = [] { return std::make_unique<HypreILU>(); };
-#endif
-#ifndef HYPRE_MIXEDINT
-      precs["ParaSails"] = []
-      {
-         auto parasails = std::make_unique<HypreParaSails>(MPI_COMM_WORLD);
-         parasails->SetSymmetry(1);
-         parasails->SetLogging(0);
-         return parasails;
-      };
-      precs["Euclid"] = []
-      { return std::make_unique<HypreEuclid>(MPI_COMM_WORLD); };
-#endif
-   }
-
    Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    H1_FECollection fec(1, pmesh.Dimension());
    ParFiniteElementSpace fespace(&pmesh, &fec);
-   Array<int> ess_tdof_list;
-   fespace.GetBoundaryTrueDofs(ess_tdof_list);
+   ParBilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.AddDomainIntegrator(new MassIntegrator);
+   a.Assemble();
+   a.Finalize();
+   std::unique_ptr<HypreParMatrix> A0(a.ParallelAssemble());
+   HypreParVector B(*A0), X(*A0), R(*A0);
+   B = 1.0;
 
-   ConstantCoefficient one(1.0);
-   ParLinearForm b(&fespace);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
-   b.Assemble();
-   std::unique_ptr<HypreParVector> B(b.ParallelAssemble());
-   B->SetSubVector(ess_tdof_list, 0.0);
-   HypreParVector X(*B), R(*B);
-
-   auto assemble = [&](real_t k)
+   auto test = [&](HypreSolver &prec)
    {
-      ConstantCoefficient coef(k);
-      ParBilinearForm a(&fespace);
-      a.AddDomainIntegrator(new DiffusionIntegrator(coef));
-      a.Assemble();
-      a.Finalize();
-      std::unique_ptr<HypreParMatrix> A(a.ParallelAssemble());
-      delete A->EliminateRowsCols(ess_tdof_list);
-      return A;
+      HyprePCG pcg(MPI_COMM_WORLD);
+      pcg.SetTol(1e-10);
+      pcg.SetMaxIter(500);
+      pcg.SetPreconditioner(prec);
+      // Three operators, since a read of a destroyed operator does not
+      // always fail.
+      std::unique_ptr<HypreParMatrix> A;
+      for (int i = 0; i < 3; i++)
+      {
+         // The assignment destroys the previous operator, still known to the
+         // preconditioner, before SetOperator is called.
+         A = std::make_unique<HypreParMatrix>(*A0);
+         *A *= 1.0 + i;
+         pcg.SetOperator(*A);
+         X = 0.0;
+         pcg.Mult(B, X);
+         A->Mult(X, R);
+         R -= B;
+         REQUIRE(InnerProduct(R, R) < 1e-16 * InnerProduct(B, B));
+      }
    };
 
-   for (const auto &[name, make_prec] : precs)
+   SECTION("DiagScale") { HypreDiagScale prec; test(prec); }
+   SECTION("BoomerAMG")
    {
-      DYNAMIC_SECTION(name)
-      {
-         std::unique_ptr<HypreSolver> prec = make_prec();
-         HyprePCG pcg(MPI_COMM_WORLD);
-         pcg.SetTol(1e-10);
-         pcg.SetMaxIter(500);
-         pcg.SetPreconditioner(*prec);
-
-         // Three operators, since a read of a destroyed operator does not
-         // always fail.
-         std::unique_ptr<HypreParMatrix> A;
-         for (int i = 0; i < 3; i++)
-         {
-            // The move assignment destroys the previous operator, still known
-            // to the preconditioner, before SetOperator is called.
-            A = assemble(1.0 + i);
-            pcg.SetOperator(*A);
-            X = 0.0;
-            pcg.Mult(*B, X);
-            A->Mult(X, R);
-            R -= *B;
-            REQUIRE(InnerProduct(R, R) < 1e-16 * InnerProduct(*B, *B));
-         }
-      }
+      HypreBoomerAMG prec;
+      prec.SetPrintLevel(0);
+      test(prec);
    }
+   // ILU, ParaSails and Euclid are tested on the host only, as in the
+   // HypreILU test. ParaSails and Euclid are not available in mixedint mode.
+   if (HypreUsingGPU()) { return; }
+#if MFEM_HYPRE_VERSION >= 21900
+   SECTION("ILU") { HypreILU prec; test(prec); }
+#endif
+#ifndef HYPRE_MIXEDINT
+   SECTION("ParaSails")
+   {
+      HypreParaSails prec(MPI_COMM_WORLD);
+      prec.SetSymmetry(1);
+      prec.SetLogging(0);
+      test(prec);
+   }
+   SECTION("Euclid") { HypreEuclid prec(MPI_COMM_WORLD); test(prec); }
+#endif
 }
 
 #endif // MFEM_USE_MPI
