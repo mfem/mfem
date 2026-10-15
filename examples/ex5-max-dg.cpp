@@ -43,6 +43,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -109,8 +110,8 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   const int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   const int dim = mesh.Dimension();
    const int dim_curl = dim == 3 ? 3 : 1;
 
    // 4. Refine the mesh to increase the resolution. In this example we do
@@ -119,26 +120,26 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
-   FiniteElementCollection *E_coll(new L2_FECollection(order, dim,
-                                                       BasisType::GaussLobatto));
-   FiniteElementCollection *B_coll(new L2_FECollection(order, dim));
+   auto E_coll = make_unique<L2_FECollection>(order, dim,
+                                              BasisType::GaussLobatto);
+   auto B_coll = make_unique<L2_FECollection>(order, dim);
 
-   FiniteElementSpace *E_space = new FiniteElementSpace(mesh, E_coll, dim);
-   FiniteElementSpace *B_space = new FiniteElementSpace(mesh, B_coll, dim_curl);
+   auto E_space = make_unique<FiniteElementSpace>(&mesh, E_coll.get(), dim);
+   auto B_space = make_unique<FiniteElementSpace>(&mesh, B_coll.get(), dim_curl);
 
    // 6. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   DarcyForm *darcy = new DarcyForm(E_space, B_space);
+   auto darcy = make_unique<DarcyForm>(E_space.get(), B_space.get());
    const Array<int> &block_offsets = darcy->GetOffsets();
    const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
@@ -218,17 +219,18 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
 
    chrono.Clear();
    chrono.Start();
 
    if (hybridization)
    {
-      trace_coll = new DG_Interface_FECollection(order, dim);
-      trace_space = new FiniteElementSpace(mesh, trace_coll, dim_curl);
-      darcy->EnableHybridization(trace_space,
+      trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
+      trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get(),
+                                                    dim_curl);
+      darcy->EnableHybridization(trace_space.get(),
                                  new TangentTraceJumpIntegrator(-1.),
                                  ess_flux_tdofs_list);
    }
@@ -299,11 +301,10 @@ int main(int argc, char *argv[])
       //
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
-      SparseMatrix *MinvBt = NULL;
+      unique_ptr<SparseMatrix> MinvBt, S;
       Vector Md(mVarf->Height());
 
-      Solver *invM, *invS;
-      SparseMatrix *S = NULL;
+      unique_ptr<Solver> invM, invS;
 
       if (pa)
       {
@@ -327,8 +328,9 @@ int main(int argc, char *argv[])
 
          Array<int> ess_tdof_list;  // empty
 
-         invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-         invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+         invM = make_unique<OperatorJacobiSmoother>(Md, ess_tdof_list);
+         invS = make_unique<OperatorJacobiSmoother>(BMBt_diag,
+                                                    ess_tdof_list);
       }
       else
       {
@@ -337,28 +339,26 @@ int main(int argc, char *argv[])
          Md.HostReadWrite();
 
          SparseMatrix &Bm(cVarf->SpMat());
-         MinvBt = Transpose(Bm);
+         MinvBt.reset(Transpose(Bm));
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S = Mult(Bm, *MinvBt);
+         S.reset(Mult(Bm, *MinvBt));
          if (mbVarf)
          {
             SparseMatrix &Mpm(mbVarf->SpMat());
-            SparseMatrix *Snew = Add(Mpm, *S);
-            delete S;
-            S = Snew;
+            S.reset(Add(Mpm, *S));
          }
 
-         invM = new DSmoother(M);
+         invM = make_unique<DSmoother>(M);
 
 #ifndef MFEM_USE_SUITESPARSE
-         invS = new GSSmoother(*S);
+         invS = make_unique<GSSmoother>(*S);
 #else
-         invS = new UMFPackSolver(*S);
+         invS = make_unique<UMFPackSolver>(*S);
 #endif
       }
 
@@ -366,8 +366,8 @@ int main(int argc, char *argv[])
       invS->iterative_mode = false;
 
       BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      darcyPrec.SetDiagonalBlock(0, invM);
-      darcyPrec.SetDiagonalBlock(1, invS);
+      darcyPrec.SetDiagonalBlock(0, invM.get());
+      darcyPrec.SetDiagonalBlock(1, invS.get());
 
       // 11. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
@@ -402,19 +402,15 @@ int main(int argc, char *argv[])
       }
       std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
 
-      delete invM;
-      delete invS;
-      delete S;
-      delete MinvBt;
    }
 
    // 12. Create the grid functions E and B. Compute the L2 error norms.
    GridFunction E, B;
-   E.MakeRef(E_space, x.GetBlock(0), 0);
-   B.MakeRef(B_space, x.GetBlock(1), 0);
+   E.MakeRef(E_space.get(), x.GetBlock(0), 0);
+   B.MakeRef(B_space.get(), x.GetBlock(1), 0);
 
-   GridFunction E_anal(E_space);
-   GridFunction B_anal(B_space);
+   GridFunction E_anal(E_space.get());
+   GridFunction B_anal(B_space.get());
    E_anal.ProjectCoefficient(Ecoeff);
    B_anal.ProjectCoefficient(Bcoeff);
 
@@ -426,9 +422,9 @@ int main(int argc, char *argv[])
    }
 
    real_t err_u  = E.ComputeL2Error(Ecoeff, irs);
-   real_t norm_u = ComputeLpNorm(2., Ecoeff, *mesh, irs);
+   real_t norm_u = ComputeLpNorm(2., Ecoeff, mesh, irs);
    real_t err_p  = B.ComputeL2Error(Bcoeff, irs);
-   real_t norm_p = ComputeLpNorm(2., Bcoeff, *mesh, irs);
+   real_t norm_p = ComputeLpNorm(2., Bcoeff, mesh, irs);
 
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
    std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
@@ -439,7 +435,7 @@ int main(int argc, char *argv[])
    {
       ofstream mesh_ofs("ex5.mesh");
       mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
 
       ofstream E_ofs("sol_E.gf");
       E_ofs.precision(8);
@@ -451,13 +447,13 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5", mesh);
+   VisItDataCollection visit_dc("Example5", &mesh);
    visit_dc.RegisterField("electric field", &E);
    visit_dc.RegisterField("magnetic field", &B);
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("Example5", mesh);
+   ParaViewDataCollection paraview_dc("Example5", &mesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
@@ -475,29 +471,19 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream E_sock(vishost, visport);
       E_sock.precision(8);
-      E_sock << "solution\n" << *mesh << E << "window_title 'Electric field'" << endl;
+      E_sock << "solution\n" << mesh << E << "window_title 'Electric field'" << endl;
       socketstream B_sock(vishost, visport);
       B_sock.precision(8);
-      B_sock << "solution\n" << *mesh << B << "window_title 'Magnetic field'" << endl;
+      B_sock << "solution\n" << mesh << B << "window_title 'Magnetic field'" << endl;
       socketstream Ea_sock(vishost, visport);
       Ea_sock.precision(8);
-      Ea_sock << "solution\n" << *mesh << E_anal <<
+      Ea_sock << "solution\n" << mesh << E_anal <<
               "window_title 'Electric field anal'" << endl;
       socketstream Ba_sock(vishost, visport);
       Ba_sock.precision(8);
-      Ba_sock << "solution\n" << *mesh << B_anal <<
+      Ba_sock << "solution\n" << mesh << B_anal <<
               "window_title 'Magnetic field anal'" << endl;
    }
-
-   // 17. Free the used memory.
-   delete darcy;
-   delete B_space;
-   delete E_space;
-   delete trace_space;
-   delete B_coll;
-   delete E_coll;
-   delete trace_coll;
-   delete mesh;
 
    return 0;
 }
