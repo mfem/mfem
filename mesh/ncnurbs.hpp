@@ -27,6 +27,11 @@ public:
 
    NCNURBSExtension(std::istream &input, bool spacing=false);
 
+   /** @brief Construct an NCNURBSExtension with the given nonconforming patch
+       topology and patches, which are deep-copied. */
+   NCNURBSExtension(const Mesh *patch_topology,
+                    const Array<const NURBSPatch*> &patches_);
+
    void UniformRefinement(const Array<int> &rf) override;
 
 protected:

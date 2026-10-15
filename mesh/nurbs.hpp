@@ -854,6 +854,10 @@ protected:
    /// To be used by ParNURBSExtension constructor(s)
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
+   /// Initialize from a patch topology and NURBS patches.
+   void InitFromPatches(const Mesh *patch_topology,
+                        const Array<const NURBSPatch*> &patches_);
+
 private:
    /// Get the degrees of freedom for patch topology vertex @a vertex in @a dofs.
    void GetVertexDofs(int vertex, Array<int> &dofs) const;

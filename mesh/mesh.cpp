@@ -12,6 +12,7 @@
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
+#include "ncnurbs.hpp"
 #include "vtkhdf.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
@@ -4703,7 +4704,17 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    else
 #endif
    {
-      NURBSext = mesh.NURBSext ? new NURBSExtension(*mesh.NURBSext) : NULL;
+      const NCNURBSExtension *nc_ext =
+         dynamic_cast<const NCNURBSExtension *>(mesh.NURBSext);
+      if (nc_ext)
+      {
+         NURBSext = new NCNURBSExtension(*nc_ext);
+      }
+      else
+      {
+         NURBSext = mesh.NURBSext ?
+                    new NURBSExtension(*mesh.NURBSext) : NULL;
+      }
    }
 
    // Deep copy the NCMesh.
@@ -4936,7 +4947,16 @@ Mesh::Mesh(const NURBSExtension& ext)
 {
    SetEmpty();
    /// make an internal copy of the NURBSExtension
-   NURBSext = new NURBSExtension(ext);
+   const NCNURBSExtension *nc_ext =
+      dynamic_cast<const NCNURBSExtension *>(&ext);
+   if (nc_ext)
+   {
+      NURBSext = new NCNURBSExtension(*nc_ext);
+   }
+   else
+   {
+      NURBSext = new NURBSExtension(ext);
+   }
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();

@@ -41,6 +41,13 @@ NCNURBSExtension::NCNURBSExtension(std::istream &input, bool spacing)
    Load(input, spacing);
 }
 
+NCNURBSExtension::NCNURBSExtension(
+   const Mesh *patch_topology, const Array<const NURBSPatch*> &patches_)
+{
+   nonconformingPT = true;
+   InitFromPatches(patch_topology, patches_);
+}
+
 NCNURBSExtension::NCNURBSExtension(const NCNURBSExtension &orig)
    : NURBSExtension(orig),
      aux_e_meshOffsets(orig.aux_e_meshOffsets),
@@ -3986,7 +3993,7 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
       patches[p] = nullptr;
    }
 
-   NURBSExtension nex(ptop3D, patches3D);
+   NCNURBSExtension nex(ptop3D, patches3D);
    delete ptop3D;
    for (int p=0; p<np; ++p)
    {

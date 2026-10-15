@@ -2731,6 +2731,7 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      el_to_IJK(orig.el_to_IJK),
      bel_to_IJK(orig.bel_to_IJK),
      patches(orig.patches.Size()), // patches are copied in the body
+     nonconformingPT(orig.nonconformingPT),
      num_structured_patches(orig.num_structured_patches),
      patchCP(orig.patchCP),
      kvf(orig.kvf),
@@ -3124,6 +3125,12 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 
 NURBSExtension::NURBSExtension(const Mesh *patch_topology,
                                const Array<const NURBSPatch*> &patches_)
+{
+   InitFromPatches(patch_topology, patches_);
+}
+
+void NURBSExtension::InitFromPatches(
+   const Mesh *patch_topology, const Array<const NURBSPatch*> &patches_)
 {
    // Basic topology checks
    MFEM_VERIFY(patches_.Size() > 0, "Must have at least one patch");
