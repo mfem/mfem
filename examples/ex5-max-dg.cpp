@@ -390,17 +390,17 @@ int main(int argc, char *argv[])
 
       if (solver.GetConverged())
       {
-         std::cout << "MINRES converged in " << solver.GetNumIterations()
+         std::cout << "GMRES converged in " << solver.GetNumIterations()
                    << " iterations with a residual norm of "
                    << solver.GetFinalNorm() << ".\n";
       }
       else
       {
-         std::cout << "MINRES did not converge in " << solver.GetNumIterations()
+         std::cout << "GMRES did not converge in " << solver.GetNumIterations()
                    << " iterations. Residual norm is " << solver.GetFinalNorm()
                    << ".\n";
       }
-      std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
+      std::cout << "GMRES solver took " << chrono.RealTime() << "s.\n";
 
       delete invM;
       delete invS;
