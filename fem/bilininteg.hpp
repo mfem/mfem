@@ -3414,6 +3414,10 @@ private:
    /// Set up the quadrature space and project lambda and mu coefficients
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
+   /// @brief Set up the data shared by the PA and EA kernels: quadrature
+   /// space, projected coefficients, DofToQuad maps and geometric factors.
+   void SetUpAssemblyData(const FiniteElementSpace &fes);
+
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
    { lambda = &l; mu = &m; }
@@ -3434,6 +3438,14 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
 
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   /** @brief Assemble the element matrices of the vector operator, coupling
+       all dimensional components, on device. The element dofs of each matrix
+       are ordered as in the E-vector, i.e. the local index of scalar dof i of
+       component c is i + c*ndofs, where ndofs is the number of scalar dofs per
+       element. Supports both Ordering::byNODES and Ordering::byVDIM. */
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add = true) override;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric

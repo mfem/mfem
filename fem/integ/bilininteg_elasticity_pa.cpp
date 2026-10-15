@@ -30,20 +30,36 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
    Mesh &mesh = *fespace->GetMesh();
 
    q_space.reset(new QuadratureSpace(mesh, *IntRule));
-   lambda_quad.reset(new CoefficientVector(lambda, *q_space,
-                                           CoefficientStorage::FULL));
    mu_quad.reset(new CoefficientVector(mu, *q_space, CoefficientStorage::FULL));
+   if (lambda)
+   {
+      lambda_quad.reset(new CoefficientVector(lambda, *q_space,
+                                              CoefficientStorage::FULL));
+   }
+   else
+   {
+      // lambda = q_lambda*m and mu = q_mu*m, see the constructor. New vectors
+      // are used since mu_quad may reference the data of the coefficient.
+      lambda_quad.reset(new CoefficientVector(nullptr, *q_space,
+                                              CoefficientStorage::FULL));
+      lambda_quad->Set(q_lambda, *mu_quad);
+      auto m_quad = std::move(mu_quad);
+      mu_quad.reset(new CoefficientVector(nullptr, *q_space,
+                                          CoefficientStorage::FULL));
+      mu_quad->Set(q_mu, *m_quad);
+   }
    q_vec.reset(new QuadratureFunction(*q_space, vdim*vdim));
 }
 
-void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
+void ElasticityIntegrator::SetUpAssemblyData(const FiniteElementSpace &fes)
 {
-   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
-               "Elasticity PA only implemented for byNODES ordering.");
-
    fespace = &fes;
    Mesh &mesh = *fespace->GetMesh();
-   MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(), "");
+   MFEM_VERIFY(fespace->GetVDim() == mesh.Dimension(),
+               "The vector dimension of the space must equal the mesh "
+               "dimension.");
+   MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) <= 1,
+               "Mixed meshes are not supported.");
    vdim = fespace->GetVDim();
    ndofs = fespace->GetTypicalFE()->GetDof();
 
@@ -54,6 +70,13 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
                DofToQuad::LEXICOGRAPHIC_FULL;
    maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
    geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
+}
+
+void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
+{
+   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
+               "Elasticity PA only implemented for byNODES ordering.");
+   SetUpAssemblyData(fes);
 }
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)

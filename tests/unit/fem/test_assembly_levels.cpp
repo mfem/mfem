@@ -621,6 +621,157 @@ TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [GPU]")
    TestH1FullAssembly(mesh, order);
 }
 
+// Curve and distort the beam meshes so that the Jacobians vary inside the
+// elements.
+void DistortBeamMesh(Mesh &mesh)
+{
+   mesh.EnsureNodes();
+   mesh.SetCurvature(2);
+   mesh.Transform([](const Vector &x, Vector &y)
+   {
+      y = x;
+      y(0) += 0.05*sin(M_PI*x(1));
+      y(1) += 0.05*sin(M_PI*x(0));
+   });
+}
+
+real_t ElasticityLambda(const Vector &x) { return 2.0 + x(0) + x(1)*x(1); }
+real_t ElasticityMu(const Vector &x) { return 1.0 + 0.5*x(0)*x(1); }
+
+// Return the max norm of the difference between the actions of A1 and A2,
+// relative to the max norm of the action of A2.
+real_t RelativeMultError(const Operator &A1, const Operator &A2)
+{
+   Vector x(A2.Width()), y1(A1.Height()), y2(A2.Height());
+   x.Randomize(1);
+   A1.Mult(x, y1);
+   A2.Mult(x, y2);
+   const real_t y2_norm = y2.Normlinf();
+   y1 -= y2;
+   return y1.Normlinf() / y2_norm;
+}
+
+TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
+{
+   const auto mesh_fname = GENERATE("../../data/beam-tri.mesh",
+                                    "../../data/beam-quad.mesh",
+                                    "../../data/beam-tet.mesh",
+                                    "../../data/beam-hex.mesh",
+                                    "../../data/beam-wedge.mesh");
+   const int order = GENERATE(1, 2);
+   // The coefficient setup does not depend on the ordering, so the
+   // (m, q_lambda, q_mu) constructor is only tested with byNODES ordering,
+   // which is also supported by partial assembly.
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const bool lame = GENERATE(true, false);
+   if (ordering == Ordering::byVDIM && !lame) { return; }
+   CAPTURE(mesh_fname, order, ordering, lame);
+
+   Mesh mesh(mesh_fname);
+   DistortBeamMesh(mesh);
+   const int dim = mesh.Dimension();
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim, ordering);
+
+   FunctionCoefficient lambda(ElasticityLambda), mu(ElasticityMu);
+   auto new_integ = [&]()
+   {
+      return lame ? new ElasticityIntegrator(lambda, mu)
+             : new ElasticityIntegrator(mu, 2.0, 0.5);
+   };
+
+   // Full assembly only supports DIAG_ONE
+   BilinearForm a_legacy(&fes);
+   a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
+   a_legacy.AddDomainIntegrator(new_integ());
+   a_legacy.Assemble();
+   a_legacy.Finalize();
+
+   // Element assembly: compare the action and the element matrices
+   {
+      BilinearForm a_ea(&fes);
+      a_ea.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      a_ea.AddDomainIntegrator(new_integ());
+      a_ea.Assemble();
+
+      REQUIRE(RelativeMultError(a_ea, a_legacy) == MFEM_Approx(0.0));
+
+      const DenseTensor &ea_mats = a_ea.GetElementMatrices();
+      const DenseTensor &legacy_mats = a_legacy.GetElementMatrices();
+      REQUIRE(ea_mats.SizeI() == legacy_mats.SizeI());
+      REQUIRE(ea_mats.SizeJ() == legacy_mats.SizeJ());
+      REQUIRE(ea_mats.SizeK() == legacy_mats.SizeK());
+      const real_t *d_ea = ea_mats.HostRead();
+      const real_t *d_legacy = legacy_mats.HostRead();
+      real_t max_diff = 0.0, max_ref = 0.0;
+      for (int i = 0; i < legacy_mats.TotalSize(); i++)
+      {
+         max_diff = std::max(max_diff, std::fabs(d_ea[i] - d_legacy[i]));
+         max_ref = std::max(max_ref, std::fabs(d_legacy[i]));
+      }
+      REQUIRE(max_diff / max_ref == MFEM_Approx(0.0));
+   }
+
+   // Partial assembly
+   if (ordering == Ordering::byNODES)
+   {
+      BilinearForm a_pa(&fes);
+      a_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      a_pa.AddDomainIntegrator(new_integ());
+      a_pa.Assemble();
+
+      REQUIRE(RelativeMultError(a_pa, a_legacy) == MFEM_Approx(0.0));
+   }
+
+   // Full assembly: compare the matrices without and with essential BCs. This
+   // eliminates the essential BCs from a_legacy, so it must come after the
+   // other comparisons with a_legacy.
+   {
+      Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 0;
+      ess_bdr[0] = 1;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+      BilinearForm a_fa(&fes);
+      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      a_fa.AddDomainIntegrator(new_integ());
+      a_fa.Assemble();
+
+      OperatorHandle A_fa(&a_fa.SpMat(), false);
+      OperatorHandle A_legacy(&a_legacy.SpMat(), false);
+      TestSameSparseMatrices(A_fa, A_legacy);
+
+      a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+      a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
+      TestSameSparseMatrices(A_fa, A_legacy);
+   }
+
+   // Multiple integrators (accumulation of the element matrices) and
+   // attribute markers. This does not depend on the order.
+   if (order == 1)
+   {
+      Array<int> attr_marker(mesh.attributes.Max());
+      attr_marker = 0;
+      attr_marker[0] = 1;
+
+      BilinearForm a_fa(&fes), a_ref(&fes);
+      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      for (BilinearForm *a : {&a_fa, &a_ref})
+      {
+         a->AddDomainIntegrator(new_integ(), attr_marker);
+         a->AddDomainIntegrator(new_integ());
+         a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+         a->Assemble();
+      }
+      a_ref.Finalize();
+
+      OperatorHandle A_fa(&a_fa.SpMat(), false);
+      OperatorHandle A_ref(&a_ref.SpMat(), false);
+      TestSameSparseMatrices(A_fa, A_ref);
+   }
+}
+
 #ifdef MFEM_USE_MPI
 
 void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
@@ -749,6 +900,52 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
                                         MPI_COMM_WORLD);
       REQUIRE(B_err == MFEM_Approx(0.0));
    }
+}
+
+TEST_CASE("Parallel Elasticity Full Assembly",
+          "[AssemblyLevel][Parallel][GPU]")
+{
+   const auto mesh_fname = GENERATE("../../data/beam-tri.mesh",
+                                    "../../data/beam-hex.mesh");
+   const int order = GENERATE(1, 2);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   CAPTURE(mesh_fname, order, ordering);
+
+   Mesh serial_mesh(mesh_fname);
+   DistortBeamMesh(serial_mesh);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+   const int dim = mesh.Dimension();
+
+   H1_FECollection fec(order, dim);
+   ParFiniteElementSpace fes(&mesh, &fec, dim, ordering);
+
+   Array<int> ess_tdof_list, ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 0;
+   ess_bdr[0] = 1;
+   fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+   FunctionCoefficient lambda(ElasticityLambda), mu(ElasticityMu);
+
+   ParBilinearForm a_fa(&fes), a_legacy(&fes);
+   a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   // Full assembly only supports DIAG_ONE
+   a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
+   a_fa.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   a_legacy.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   a_fa.Assemble();
+   a_legacy.Assemble();
+   a_legacy.Finalize();
+
+   OperatorHandle A_fa, A_legacy;
+
+   A_fa.Reset(a_fa.ParallelAssemble());
+   A_legacy.Reset(a_legacy.ParallelAssemble());
+   TestSameHypreMatrices(A_fa, A_legacy);
+
+   a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+   a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
+   TestSameHypreMatrices(A_fa, A_legacy);
 }
 
 #endif
