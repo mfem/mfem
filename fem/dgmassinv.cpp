@@ -11,6 +11,7 @@
 
 #include "dgmassinv.hpp"
 #include "bilinearform.hpp"
+#include "ceed/interface/util.hpp"
 #include "dgmassinv_kernels.hpp"
 
 namespace mfem
@@ -21,7 +22,8 @@ struct DGMassInvKernels { DGMassInvKernels(); };
 DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
                              Coefficient *coeff,
                              const IntegrationRule *ir,
-                             int btype)
+                             int btype,
+                             MassStorage storage)
    : Solver(fes_orig.GetTrueVSize()),
      fec(fes_orig.GetMaxElementOrder(),
          fes_orig.GetMesh()->Dimension(),
@@ -29,6 +31,7 @@ DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
          fes_orig.GetTypicalFE()->GetMapType()),
      fes(fes_orig.GetMesh(), &fec)
 {
+   mass_storage = storage;
    static DGMassInvKernels kernels;
 
    MFEM_VERIFY(fes.IsDGSpace(), "Space must be DG.");
@@ -67,6 +70,27 @@ DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_orig,
    if (coeff) { m = new MassIntegrator(*coeff, ir); }
    else { m = new MassIntegrator(ir); }
 
+   // Direct element solves operate on the input vector without a basis change.
+   // They also require the tensor-product EA kernels, which are unavailable
+   // with libCEED.
+   const bool can_use_direct_inverse =
+      d2q == nullptr && UsesTensorBasis(fes) && !DeviceCanUseCeed();
+   MFEM_VERIFY(storage != MassStorage::Full || can_use_direct_inverse,
+               "Full local mass storage requires a tensor-product DG space "
+               "with matching basis and without libCEED.");
+   use_packed_inverse = can_use_direct_inverse &&
+                        mass_storage == MassStorage::Packed;
+   use_full_inverse = can_use_direct_inverse &&
+                      mass_storage == MassStorage::Full;
+
+#ifdef MFEM_USE_MAGMA
+   if (use_packed_inverse &&
+       Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      magma_chol.reset(new MagmaPackedLowerCholesky);
+   }
+#endif
+
    diag_inv.SetSize(height);
    // Workspace vectors used for CG
    r_.SetSize(height);
@@ -96,7 +120,11 @@ DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_,
    : DGMassInverse(fes_, nullptr, &ir, btype) { }
 
 DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, int btype)
-   : DGMassInverse(fes_, nullptr, nullptr, btype) { }
+   : DGMassInverse(fes_, nullptr, nullptr, btype, MassStorage::Packed) { }
+
+DGMassInverse::DGMassInverse(const FiniteElementSpace &fes_, int btype,
+                             MassStorage storage)
+   : DGMassInverse(fes_, nullptr, nullptr, btype, storage) { }
 
 void DGMassInverse::SetOperator(const Operator &op)
 {
@@ -111,15 +139,75 @@ void DGMassInverse::SetMaxIter(const int max_iter_) { max_iter = max_iter_; }
 
 void DGMassInverse::Update()
 {
-   M->Assemble();
-   M->AssembleDiagonal(diag_inv);
-   diag_inv.Reciprocal();
+   if (use_packed_inverse)
+   {
+      TriPackLowerMatrix mass_ea;
+      m->AssembleEATriangular(fes, mass_ea, false);
+#ifdef MFEM_USE_MAGMA
+      if (magma_chol)
+      {
+         magma_chol->Factor(mass_ea, mass_chol);
+      }
+      else
+#endif
+         tripack::ComputeCholeskyLower(mass_ea, mass_chol);
+   }
+   else if (use_full_inverse)
+   {
+      const int ndof = fes.GetTypicalFE()->GetDof();
+      const MemoryType mt = Device::Allows(Backend::DEVICE_MASK) ?
+                            Device::GetDeviceMemoryType() : MemoryType::HOST;
+      mass_lu.SetSize(ndof, ndof, fes.GetNE(), mt);
+      Vector mass_data;
+      mass_data.NewMemoryAndSize(mass_lu.GetMemory(), mass_lu.TotalSize(),
+                                 false);
+      mass_data.UseDevice(Device::Allows(Backend::DEVICE_MASK));
+      m->AssembleEA(fes, mass_data, false);
+      BatchedLinAlg::LUFactor(mass_lu, mass_lu_pivots);
+   }
+   else
+   {
+      M->Assemble();
+      M->AssembleDiagonal(diag_inv);
+      diag_inv.Reciprocal();
+   }
 }
 
 DGMassInverse::~DGMassInverse() = default;
 
 void DGMassInverse::Mult(const Vector &Mu, Vector &u) const
 {
+   if (use_packed_inverse)
+   {
+#ifdef MFEM_USE_MAGMA
+      if (magma_chol)
+      {
+         Vector rhs(Mu.Size(), Device::GetDeviceMemoryType());
+         rhs = Mu;
+         magma_chol->SolveInPlace(mass_chol, rhs);
+         u = rhs;
+      }
+      else
+#endif
+         tripack::SolveCholesky(mass_chol, Mu, u);
+      return;
+   }
+
+   if (use_full_inverse)
+   {
+      const int ndof = mass_lu.SizeI();
+      const int ne = mass_lu.SizeK();
+      const int n = ndof*ne;
+      const bool device = Device::Allows(Backend::DEVICE_MASK);
+      const MemoryType mt = device ? Device::GetDeviceMemoryType() :
+                            MemoryType::HOST;
+      Vector rhs(n, mt);
+      rhs = Mu;
+      BatchedLinAlg::LUSolve(mass_lu, mass_lu_pivots, rhs);
+      u = rhs;
+      return;
+   }
+
    // Dispatch to templated version based on dim, d1d, and q1d.
    const int dim = fes.GetMesh()->Dimension();
    const int d1d = m->dofs1D;
