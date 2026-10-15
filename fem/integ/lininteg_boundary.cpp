@@ -19,7 +19,8 @@ namespace mfem
 template<int T_D1D = 0, int T_Q1D = 0>
 static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
                               const int q,
-                              const bool normals, const int *markers, const real_t *b,
+                              const bool normals, const bool flux,
+                              const int *markers, const real_t *b,
                               const real_t *detj, const real_t *n, const real_t *weights,
                               const Vector &coeff, real_t *y)
 {
@@ -58,6 +59,7 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
             {
                coeff_val = cst ? C(0,0,0) : C(0,qx,e);
             }
+            if (flux) { coeff_val *= N(qx, c, e); }
             QQ[qx] = W(qx) * coeff_val * detJ(qx,e);
          }
          for (int dx = 0; dx < d; ++dx)
@@ -73,7 +75,8 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
 template<int T_D1D = 0, int T_Q1D = 0>
 static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
                               const int q,
-                              const bool normals, const int *markers, const real_t *b,
+                              const bool normals, const bool flux,
+                              const int *markers, const real_t *b,
                               const real_t *detj, const real_t *n, const real_t *weights,
                               const Vector &coeff, real_t *y)
 {
@@ -124,6 +127,7 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
                {
                   coeff_val = cst ? C(0,0,0,0) : C(0,x,y,e);
                }
+               if (flux) { coeff_val *= N(x,y,c,e); }
                QQ(y,x) = W(x,y) * coeff_val * detJ(x,y,e);
             }
          }
@@ -152,13 +156,20 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
    });
 }
 
+/// Assemble the boundary linear form with integrand:
+///  - (f, v) if @a normals and @a flux are false,
+///  - (f.n, v) if @a normals is true (vector coefficient f),
+///  - (f, v.n) if @a flux is true (scalar coefficient f, the vector dimension
+///    of @a fes must equal the mesh dimension).
 static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             const IntegrationRule &ir,
                             const Array<int> &markers,
                             const Vector &coeff,
                             const bool normals,
+                            const bool flux,
                             Vector &y)
 {
+   MFEM_ASSERT(!(normals && flux), "Invalid arguments.");
    if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
@@ -167,7 +178,7 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
    int flags = FaceGeometricFactors::DETERMINANTS;
-   if (normals) { flags |= FaceGeometricFactors::NORMALS; }
+   if (normals || flux) { flags |= FaceGeometricFactors::NORMALS; }
    const FaceGeometricFactors *geom = mesh.GetFaceGeometricFactors(
                                          ir, flags, FaceType::Boundary, mt);
    auto ker = (dim == 2) ? BLFEvalAssemble2D<> : BLFEvalAssemble3D<>;
@@ -208,7 +219,7 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const real_t *n = geom->normal.Read();
    const real_t *W = ir.GetWeights().Read();
    real_t *Y = y.ReadWrite();
-   ker(vdim, nbe, d, q, normals, M, B, detJ, n, W, coeff, Y);
+   ker(vdim, nbe, d, q, normals, flux, M, B, detJ, n, W, coeff, Y);
 }
 
 void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
@@ -224,7 +235,7 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
 
    FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   BLFEvalAssemble(fes, ir, markers, coeff, false, b);
+   BLFEvalAssemble(fes, ir, markers, coeff, false, false, b);
 }
 
 void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
@@ -240,7 +251,32 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
 
    FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   BLFEvalAssemble(fes, ir, markers, coeff, true, b);
+   BLFEvalAssemble(fes, ir, markers, coeff, true, false, b);
+}
+
+void VectorBoundaryFluxLFIntegrator::AssembleDevice(
+   const FiniteElementSpace &fes,
+   const Array<int> &markers,
+   Vector &b)
+{
+   if (fes.GetNBE() == 0) { return; }
+   Mesh &mesh = *fes.GetMesh();
+   MFEM_VERIFY(fes.GetVDim() == mesh.Dimension(),
+               "The vector dimension of the space must equal the mesh "
+               "dimension.");
+   const FiniteElement &fe = *fes.GetBE(0);
+   const Geometry::Type gtype = fe.GetGeomType();
+   // Same default integration rule as AssembleRHSElementVect
+   const IntegrationRule &ir =
+      IntRule ? *IntRule : IntRules.Get(gtype, fe.GetOrder() + 1);
+
+   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   CoefficientVector coeff(*F, qs, CoefficientStorage::COMPRESSED);
+   // Scale a copy, since coeff may reference the data of the coefficient
+   Vector scaled_coeff(coeff.Size());
+   scaled_coeff.UseDevice(true);
+   scaled_coeff.Set(Sign, coeff);
+   BLFEvalAssemble(fes, ir, markers, scaled_coeff, false, true, b);
 }
 
 } // namespace mfem
