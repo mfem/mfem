@@ -13,6 +13,22 @@ Version 4.10.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added element (EA) and full (FA) assembly for ElasticityIntegrator, running
+  on device for any H1 element type and both vector orderings. Element and
+  full assembly now support vector-valued spaces through ElementRestriction,
+  and elasticity partial assembly now also supports Ordering::byVDIM. Examples
+  2 and 2p have a new -fa option to use full assembly.
+
+- Added device assembly for VectorBoundaryFluxLFIntegrator.
+
+- Fixed the coefficients of elasticity partial assembly with the
+  ElasticityIntegrator(m, q_l, q_m) constructor, and the accumulation of
+  multiple integrators in ElasticityComponentIntegrator::AssembleEA.
+
+- The templated versions of BilinearForm::FormLinearSystem and
+  FormSystemMatrix now keep the system matrix alive when it is not owned by
+  the form, e.g. with full assembly in parallel.
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
