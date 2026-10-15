@@ -364,7 +364,7 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
-/** Class for boundary integration $ L(v) = (g, v \times n) $, where $g$ is a
+/** Class for boundary integration $ L(v) = -(g, v \times n) $, where $g$ is a
     scalar in 2D or vector in 3D and $v=(v_1,\dots,v_d)$. */
 class VectorBoundaryTangentialLFIntegrator : public LinearFormIntegrator
 {
