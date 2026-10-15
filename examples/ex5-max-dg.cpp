@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
+   bool reduction = false;
    bool hybridization = false;
    bool pa = false;
    const char *device_config = "cpu";
@@ -72,6 +73,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
+   args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
+                  "--no-reduction", "Enable reduction of DG electric field.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -91,9 +94,9 @@ int main(int argc, char *argv[])
    kappa = freq * M_PI;
 
 
-   if (pa && hybridization)
+   if (pa && (hybridization || reduction))
    {
-      cerr << "Partial assembly is not supported for hybridization."
+      cerr << "Partial assembly is not supported for hybridization or reduction."
            << endl;
       return 1;
    }
@@ -229,6 +232,10 @@ int main(int argc, char *argv[])
                                  new TangentTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
    }
+   else if (reduction)
+   {
+      darcy->EnableFluxReduction();
+   }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
@@ -247,7 +254,7 @@ int main(int argc, char *argv[])
    constexpr real_t rtol(1.e-6);
    constexpr real_t atol(1.e-10);
 
-   if (hybridization)
+   if (hybridization || reduction)
    {
       // 10. Construct the preconditioner
       GSSmoother prec;
