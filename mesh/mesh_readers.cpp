@@ -948,8 +948,8 @@ struct XMLDataReader
       type_map["UInt16"] = new BufferReader<int, uint16_t>(compressed, htype);
       type_map["UInt32"] = new BufferReader<int, uint32_t>(compressed, htype);
       type_map["UInt64"] = new BufferReader<int, uint64_t>(compressed, htype);
-      type_map["Float32"] = new BufferReader<double, float>(compressed, htype);
-      type_map["Float64"] = new BufferReader<double, double>(compressed, htype);
+      type_map["Float32"] = new BufferReader<real_t, float>(compressed, htype);
+      type_map["Float64"] = new BufferReader<real_t, double>(compressed, htype);
    }
 
    /// Read the @a DataArray XML element given by @a xml_elem into
