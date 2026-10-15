@@ -28,6 +28,10 @@
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
+// Problem 3: onion, 9 nested spherical shells (linear elasticity)
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 1 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 1 -nsteps 1 -msteps 0 -no-amgf
+
 // Description:
 // This miniapp solves benchmark frictionless contact problems using a
 // self-contained Interior Point (IP) optimizer. Contact constraints
@@ -38,9 +42,10 @@
 
 // Notes:
 //  1. Non-linear elasticity is supported only for -prob 2. If -nonlin is
-//     requested for -prob 0/1, the app falls back to the linear model.
-//  2. The required meshes for -prob 0,1 are generated on the fly. For -prob 2,
-//     the mesh is constructed from the file ./meshes/beam-sphere.mesh.
+//     requested for -prob 0/1/3, the app falls back to the linear model.
+//  2. The required meshes for -prob 0,1 are generated on the fly. For -prob 2
+//     and 3, the meshes are read from ./meshes/beam-sphere.mesh and
+//     ./meshes/onion.mesh.
 //  3. AMGF requires a parallel direct solver for the filtered subspace; build
 //     MFEM with MUMPS or MKL CPardiso. If unavailable, requesting -amgf aborts
 //     with an error.
@@ -62,7 +67,8 @@ enum problem_name
 {
    twoblock,
    ironing,
-   beamsphere
+   beamsphere,
+   onion
 };
 
 Mesh * GetProblemMesh(problem_name prob_name);
@@ -245,7 +251,8 @@ int main(int argc, char *argv[])
                   "Choice of problem:"
                   "0: two-block problem"
                   "1: ironing problem"
-                  "2: beam-sphere problem");
+                  "2: beam-sphere problem"
+                  "3: onion problem");
    args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
                   "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
@@ -312,7 +319,7 @@ int main(int argc, char *argv[])
 
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
-               prob_no <= 2, "Unknown test problem number: " << prob_no);
+               prob_no <= 3, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
 
@@ -321,7 +328,7 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-         cout << "Non-linear elasticity not supported for the two-block and ironing problems"
+         cout << "Non-linear elasticity is only supported for the beam-sphere problem"
               << endl;
          cout << "Switching to the linear model ..." << endl;
       }
@@ -384,6 +391,14 @@ int main(int argc, char *argv[])
          E = 1.e3;
          nu = 0.4;
          break;
+      case onion:
+         // symmetry planes x = 0, y = 0, z = 0
+         ess_bdr_attr.Append(21); ess_bdr_attr_comp.Append(0);
+         ess_bdr_attr.Append(22); ess_bdr_attr_comp.Append(1);
+         ess_bdr_attr.Append(23); ess_bdr_attr_comp.Append(2);
+         E = 1.e3;
+         nu = 0.33;
+         break;
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -407,21 +422,26 @@ int main(int argc, char *argv[])
       mfem::out << " --------------------------------------" << endl;
    }
 
-   // 7. Set up the contact interface for Tribol.
-   std::set<int> mortar_attr;
-   std::set<int> nonmortar_attr;
+   // 7. Set up the contact interfaces for Tribol. Each (mortar, non-mortar)
+   // pair is handled by its own Tribol coupling scheme.
+   std::vector<std::pair<std::set<int>, std::set<int>>> contact_pairs;
    switch (prob_name)
    {
       case twoblock:
       case  ironing:
-         mortar_attr.insert(3);
-         nonmortar_attr.insert(4);
+         contact_pairs.push_back({{3}, {4}});
          break;
       case beamsphere:
-         mortar_attr.insert(6);
-         mortar_attr.insert(9);
-         nonmortar_attr.insert(7);
-         nonmortar_attr.insert(8);
+         contact_pairs.push_back({{6, 9}, {7, 8}});
+         break;
+      case onion:
+         // interfaces between consecutive shells: outer surface of shell k
+         // (mortar, attr 2k) and inner surface of shell k+1 (non-mortar,
+         // attr 2k+1)
+         for (int a = 2; a <= 16; a += 2)
+         {
+            contact_pairs.push_back({{a}, {a+1}});
+         }
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -470,16 +490,16 @@ int main(int argc, char *argv[])
    pmesh.GetNodes(new_coords);
    pmesh.GetNodes(ref_coords);
 
-   // Load magnitude for problem 2 (beam-sphere).
-   real_t p = 40.0;
+   // Load magnitude for problems 2 (beam-sphere) and 3 (onion).
+   real_t p = (prob_name == problem_name::onion) ? 30.0 : 40.0;
    ConstantCoefficient f(p);
 
    // 8. Construct the contact optimization problem wrapper. It sets up the
    // contact system using Tribol and provides operators for objective evaluation,
    // gradients, Hessians, and constraints. It also provides the filtered subspace
    // transfer operator used by AMGF
-   OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
-                             tribol_ratio, bound_constraints);
+   OptContactProblem contact(&prob, contact_pairs, tribol_ratio,
+                             bound_constraints);
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim); ess_values = 0.0;
@@ -527,6 +547,21 @@ int main(int argc, char *argv[])
                ess_bdr = 0; ess_bdr[2] = 1;
             }
             f.constant = -p*(i+1)/nsteps;
+            prob.SetNeumannPressureData(f,ess_bdr);
+            break;
+         case onion:
+            // equal pressure on the innermost (attr 1) and outermost
+            // (attr 18) surfaces
+            f.constant = -p*(i+1)/nsteps;
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[0] = 1;
+            }
+            prob.SetNeumannPressureData(f,ess_bdr);
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[17] = 1;
+            }
             prob.SetNeumannPressureData(f,ess_bdr);
             break;
          default:
@@ -693,6 +728,10 @@ Mesh * GetProblemMesh(problem_name prob_name)
    if (prob_name == problem_name::beamsphere)
    {
       return new Mesh("meshes/beam-sphere.mesh",1);
+   }
+   else if (prob_name == problem_name::onion)
+   {
+      return new Mesh("meshes/onion.mesh",1);
    }
    else // construct the two-block or ironing mesh
    {
