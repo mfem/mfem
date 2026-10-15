@@ -28,6 +28,10 @@
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
+// Problem 3: onion, 9 nested spherical shells (linear elasticity)
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 1 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 1 -nsteps 1 -msteps 0 -no-amgf
+
 // Description:
 // This miniapp solves benchmark frictionless contact problems using a
 // self-contained Interior Point (IP) optimizer. Contact constraints
@@ -38,9 +42,9 @@
 
 // Notes:
 //  1. Non-linear elasticity is supported only for -prob 2. If -nonlin is
-//     requested for -prob 0/1, the app falls back to the linear model.
-//  2. The required meshes for -prob 0,1 are generated on the fly. For -prob 2,
-//     the mesh is constructed from the file ./meshes/beam-sphere.mesh.
+//     requested for -prob 0/1/3, the app falls back to the linear model.
+//  2. The meshes for -prob 0,1,3 are generated on the fly. For -prob 2,
+//     the mesh is read from ./meshes/beam-sphere.mesh.
 //  3. AMGF requires a parallel direct solver for the filtered subspace; build
 //     MFEM with MUMPS or MKL CPardiso. If unavailable, requesting -amgf aborts
 //     with an error.
@@ -48,10 +52,14 @@
 //     available at https://github.com/LLNL/Tribol.
 
 #include "mfem.hpp"
+#include <array>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <utility>
+#include <vector>
 #include "ip.hpp"
 #include "solver_utils.hpp"
 
@@ -62,10 +70,12 @@ enum problem_name
 {
    twoblock,
    ironing,
-   beamsphere
+   beamsphere,
+   onion
 };
 
 Mesh * GetProblemMesh(problem_name prob_name);
+Mesh * MakeOnionMesh();
 
 template <typename T>
 void PrintAMGOption(const char *option, const T &value)
@@ -245,7 +255,8 @@ int main(int argc, char *argv[])
                   "Choice of problem:"
                   "0: two-block problem"
                   "1: ironing problem"
-                  "2: beam-sphere problem");
+                  "2: beam-sphere problem"
+                  "3: onion problem");
    args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
                   "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
@@ -312,7 +323,7 @@ int main(int argc, char *argv[])
 
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
-               prob_no <= 2, "Unknown test problem number: " << prob_no);
+               prob_no <= 3, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
 
@@ -321,7 +332,7 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-         cout << "Non-linear elasticity not supported for the two-block and ironing problems"
+         cout << "Non-linear elasticity is only supported for the beam-sphere problem"
               << endl;
          cout << "Switching to the linear model ..." << endl;
       }
@@ -384,6 +395,14 @@ int main(int argc, char *argv[])
          E = 1.e3;
          nu = 0.4;
          break;
+      case onion:
+         // symmetry planes x = 0, y = 0, z = 0
+         ess_bdr_attr.Append(21); ess_bdr_attr_comp.Append(0);
+         ess_bdr_attr.Append(22); ess_bdr_attr_comp.Append(1);
+         ess_bdr_attr.Append(23); ess_bdr_attr_comp.Append(2);
+         E = 1.e3;
+         nu = 0.33;
+         break;
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -407,21 +426,26 @@ int main(int argc, char *argv[])
       mfem::out << " --------------------------------------" << endl;
    }
 
-   // 7. Set up the contact interface for Tribol.
-   std::set<int> mortar_attr;
-   std::set<int> nonmortar_attr;
+   // 7. Set up the contact interfaces for Tribol. Each (mortar, non-mortar)
+   // pair is handled by its own Tribol coupling scheme.
+   std::vector<std::pair<std::set<int>, std::set<int>>> contact_pairs;
    switch (prob_name)
    {
       case twoblock:
       case  ironing:
-         mortar_attr.insert(3);
-         nonmortar_attr.insert(4);
+         contact_pairs.push_back({{3}, {4}});
          break;
       case beamsphere:
-         mortar_attr.insert(6);
-         mortar_attr.insert(9);
-         nonmortar_attr.insert(7);
-         nonmortar_attr.insert(8);
+         contact_pairs.push_back({{6, 9}, {7, 8}});
+         break;
+      case onion:
+         // interfaces between consecutive shells: outer surface of shell k
+         // (mortar, attr 2k) and inner surface of shell k+1 (non-mortar,
+         // attr 2k+1)
+         for (int a = 2; a <= 16; a += 2)
+         {
+            contact_pairs.push_back({{a}, {a+1}});
+         }
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -470,16 +494,16 @@ int main(int argc, char *argv[])
    pmesh.GetNodes(new_coords);
    pmesh.GetNodes(ref_coords);
 
-   // Load magnitude for problem 2 (beam-sphere).
-   real_t p = 40.0;
+   // Load magnitude for problems 2 (beam-sphere) and 3 (onion).
+   real_t p = (prob_name == problem_name::onion) ? 30.0 : 40.0;
    ConstantCoefficient f(p);
 
    // 8. Construct the contact optimization problem wrapper. It sets up the
    // contact system using Tribol and provides operators for objective evaluation,
    // gradients, Hessians, and constraints. It also provides the filtered subspace
    // transfer operator used by AMGF
-   OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
-                             tribol_ratio, bound_constraints);
+   OptContactProblem contact(&prob, contact_pairs, tribol_ratio,
+                             bound_constraints);
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim); ess_values = 0.0;
@@ -527,6 +551,21 @@ int main(int argc, char *argv[])
                ess_bdr = 0; ess_bdr[2] = 1;
             }
             f.constant = -p*(i+1)/nsteps;
+            prob.SetNeumannPressureData(f,ess_bdr);
+            break;
+         case onion:
+            // equal pressure on the innermost (attr 1) and outermost
+            // (attr 18) surfaces
+            f.constant = -p*(i+1)/nsteps;
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[0] = 1;
+            }
+            prob.SetNeumannPressureData(f,ess_bdr);
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[17] = 1;
+            }
             prob.SetNeumannPressureData(f,ess_bdr);
             break;
          default:
@@ -694,6 +733,10 @@ Mesh * GetProblemMesh(problem_name prob_name)
    {
       return new Mesh("meshes/beam-sphere.mesh",1);
    }
+   else if (prob_name == problem_name::onion)
+   {
+      return MakeOnionMesh();
+   }
    else // construct the two-block or ironing mesh
    {
       Mesh * combined_mesh = nullptr;
@@ -811,4 +854,120 @@ Mesh * GetProblemMesh(problem_name prob_name)
 
       return combined_mesh;
    }
+}
+
+// Generate nine disconnected spherical octant shells. Distinct surface meshes
+// at each shared radius are intentional: Tribol owns the eight interfaces.
+Mesh * MakeOnionMesh()
+{
+   // Keep the element count close to the former mesh while giving neighboring
+   // shells different surface resolutions for nonmatching mortar interfaces.
+   constexpr int angular_cells[9] = {16, 17, 17, 17, 18, 18, 19, 19, 19};
+   Mesh *mesh = new Mesh(3, 0, 0);
+
+   for (int shell = 0; shell < 9; ++shell)
+   {
+      const int n = angular_cells[shell];
+      const int radial_cells = shell < 4 ? 2 : 1;
+      const int side = n + 1;
+      const auto flat = [side](int i, int j, int k)
+      {
+         return (i * side + j) * side + k;
+      };
+
+      // Three square faces of the positive octant of a cube map to a sphere.
+      // The shared edges use one vertex, while different shells do not share
+      // vertices, including where their radii coincide.
+      std::vector<int> surface_index(side * side * side, -1);
+      std::vector<std::array<int, 3>> directions;
+      for (int i = 0; i <= n; ++i)
+      {
+         for (int j = 0; j <= n; ++j)
+         {
+            for (int k = 0; k <= n; ++k)
+            {
+               if (i != n && j != n && k != n) { continue; }
+               surface_index[flat(i, j, k)] = directions.size();
+               directions.push_back({i, j, k});
+            }
+         }
+      }
+
+      std::vector<std::vector<int>> vertex(radial_cells + 1,
+                                           std::vector<int>(directions.size()));
+      for (int layer = 0; layer <= radial_cells; ++layer)
+      {
+         const real_t radius = 5.5 + 0.5 * shell +
+                               0.5 * layer / radial_cells;
+         for (int d = 0; d < static_cast<int>(directions.size()); ++d)
+         {
+            const auto &p = directions[d];
+            const real_t scale = radius / std::sqrt(real_t(p[0] * p[0] +
+                                                           p[1] * p[1] +
+                                                           p[2] * p[2]));
+            vertex[layer][d] = mesh->AddVertex(scale * p[0], scale * p[1],
+                                               scale * p[2]);
+         }
+      }
+
+      const auto face_point = [n](int face, int u, int v)
+      {
+         if (face == 0) { return std::array<int, 3> {n, u, v}; }
+         if (face == 1) { return std::array<int, 3> {u, n, v}; }
+         return std::array<int, 3> {u, v, n};
+      };
+      for (int face = 0; face < 3; ++face)
+      {
+         for (int u = 0; u < n; ++u)
+         {
+            for (int v = 0; v < n; ++v)
+            {
+               std::array<std::array<int, 3>, 4> p = {{
+                     face_point(face, u, v), face_point(face, u + 1, v),
+                     face_point(face, u + 1, v + 1), face_point(face, u, v + 1)
+                  }
+               };
+               if (face == 1) { std::swap(p[1], p[3]); }
+
+               for (int layer = 0; layer < radial_cells; ++layer)
+               {
+                  int inner[4], outer[4];
+                  for (int c = 0; c < 4; ++c)
+                  {
+                     const int id = surface_index[flat(p[c][0], p[c][1], p[c][2])];
+                     inner[c] = vertex[layer][id];
+                     outer[c] = vertex[layer + 1][id];
+                  }
+                  mesh->AddHex(inner[0], inner[1], inner[2], inner[3],
+                               outer[0], outer[1], outer[2], outer[3], shell + 1);
+                  if (layer == 0)
+                  {
+                     mesh->AddBdrQuad(inner[3], inner[2], inner[1], inner[0],
+                                      2 * shell + 1);
+                  }
+                  if (layer == radial_cells - 1)
+                  {
+                     mesh->AddBdrQuad(outer[0], outer[1], outer[2], outer[3],
+                                      2 * shell + 2);
+                  }
+                  for (int edge = 0; edge < 4; ++edge)
+                  {
+                     const int next = (edge + 1) % 4;
+                     for (int axis = 0; axis < 3; ++axis)
+                     {
+                        if (p[edge][axis] == 0 && p[next][axis] == 0)
+                        {
+                           mesh->AddBdrQuad(inner[edge], inner[next],
+                                            outer[next], outer[edge], 21 + axis);
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   mesh->FinalizeHexMesh(1, 1);
+   return mesh;
 }

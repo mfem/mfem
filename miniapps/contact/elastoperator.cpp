@@ -88,6 +88,10 @@ void ElasticityOperator::ResetLinearForm()
 {
    delete b;
    b = new ParLinearForm(fes);
+   for (int i = 0; i < pressure_cf.Size(); i++) { delete pressure_cf[i]; }
+   for (int i = 0; i < pressure_bdr_marker.Size(); i++) { delete pressure_bdr_marker[i]; }
+   pressure_cf.SetSize(0);
+   pressure_bdr_marker.SetSize(0);
 }
 
 ElasticityOperator::ElasticityOperator(ParMesh * pmesh_,
@@ -133,9 +137,10 @@ void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
 void ElasticityOperator::SetNeumannPressureData(ConstantCoefficient &f,
                                                 Array<int> & bdr_marker)
 {
-   pressure_cf.constant = f.constant;
-   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),
-                            bdr_marker);
+   pressure_cf.Append(new ConstantCoefficient(f.constant));
+   pressure_bdr_marker.Append(new Array<int>(bdr_marker));
+   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(*pressure_cf.Last()),
+                            *pressure_bdr_marker.Last());
 }
 
 void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
@@ -241,6 +246,8 @@ ElasticityOperator::~ElasticityOperator()
 {
    delete op;
    delete b;
+   for (int i = 0; i < pressure_cf.Size(); i++) { delete pressure_cf[i]; }
+   for (int i = 0; i < pressure_bdr_marker.Size(); i++) { delete pressure_bdr_marker[i]; }
    delete fes;
    delete fec;
    if (K) { delete K; }
