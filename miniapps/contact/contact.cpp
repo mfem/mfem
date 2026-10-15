@@ -402,6 +402,8 @@ int main(int argc, char *argv[])
       mfem::out << "  Global number of dofs = " << gndofs << endl;
       mfem::out << "  Elasticity assembly   = "
                 << (elasticity_fa && !nonlinear ? "full" : "legacy") << endl;
+      mfem::out << "  RHS assembly          = "
+                << (prob.UsesFastRHSAssembly() ? "fast" : "legacy") << endl;
       mfem::out << " --------------------------------------" << endl;
    }
 

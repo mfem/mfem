@@ -55,7 +55,8 @@ void ElasticityOperator::SetEssentialBC()
 void ElasticityOperator::SetUpOperator()
 {
    x.SetSpace(fes);  x = 0.0;
-   b = new ParLinearForm(fes);
+   use_rhs_fa = Device::IsEnabled();
+   ResetLinearForm();
    if (nonlinear)
    {
       material_model = new NeoHookeanModel(c1_cf, c2_cf);
@@ -81,6 +82,12 @@ void ElasticityOperator::SetUpOperator()
          a->FormSystemMatrix(ess_tdof_list,*K);
       }
    }
+}
+
+void ElasticityOperator::ResetLinearForm()
+{
+   delete b;
+   b = new ParLinearForm(fes);
 }
 
 ElasticityOperator::ElasticityOperator(ParMesh * pmesh_,
@@ -143,6 +150,7 @@ void ElasticityOperator::FormLinearSystem()
    if (!formsystem)
    {
       formsystem = true;
+      b->UseFastAssembly(use_rhs_fa);
       b->Assemble();
       if (!nonlinear)
       {
@@ -175,8 +183,7 @@ void ElasticityOperator::FormLinearSystem()
 void ElasticityOperator::UpdateRHS()
 {
    formsystem = false;
-   delete b;
-   b = new ParLinearForm(fes);
+   ResetLinearForm();
    x = 0.0;
 }
 

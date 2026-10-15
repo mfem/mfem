@@ -36,6 +36,9 @@ private:
    /// Use full assembly for the linear elasticity stiffness matrix.
    bool use_fa = false;
 
+   /// Use fast/device assembly for linear-form RHS terms.
+   bool use_rhs_fa = false;
+
    /// Tracks whether the linear system has been formed.
    bool formsystem = false;
 
@@ -93,6 +96,7 @@ private:
    void Init();
    void SetEssentialBC();
    void SetUpOperator();
+   void ResetLinearForm();
 
 public:
    /**  @brief Construct an ElasticityOperator.
@@ -146,6 +150,9 @@ public:
 
    /// Check if the operator is nonlinear.
    bool IsNonlinear() { return nonlinear; }
+
+   /// Check if the RHS linear form uses fast/device assembly.
+   bool UsesFastRHSAssembly() const { return use_rhs_fa; }
 
    /// Destructor (cleans up FE space, operator, and material model).
    ~ElasticityOperator();
