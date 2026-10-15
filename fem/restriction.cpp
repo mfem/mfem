@@ -320,14 +320,6 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
    return min_el;
 }
 
-/** Returns the index where a non-zero entry should be added and increment the
-    number of non-zeros for the row i_L. */
-static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
-{
-   int ind = AtomicAdd(I[i_L],1);
-   return ind;
-}
-
 int ElementRestriction::FillI(SparseMatrix &mat) const
 {
    const int all_dofs = ndofs;
@@ -461,12 +453,13 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             for (int ci = 0; ci < vd; ++ci)
             {
                const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+               // Reserve the vd consecutive nonzeros of the row i_vL coupling
+               // to the vector components of j_L.
+               const int nnz = AtomicAdd(I[i_vL], vd);
                for (int cj = 0; cj < vd; ++cj)
                {
-                  const int j_vL = t ? j_L*vd + cj : j_L + cj*all_dofs;
-                  const int nnz = GetAndIncrementNnzIndex(i_vL, I);
-                  J[nnz] = j_vL;
-                  Data[nnz] = mat_ea(j + cj*elt_dofs, i + ci*elt_dofs, e);
+                  J[nnz + cj] = t ? j_L*vd + cj : j_L + cj*all_dofs;
+                  Data[nnz + cj] = mat_ea(j + cj*elt_dofs, i + ci*elt_dofs, e);
                }
             }
          }
@@ -487,28 +480,33 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                for (int ci = 0; ci < vd; ++ci)
                {
                   const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+                  // Reserve the vd consecutive nonzeros of the row i_vL
+                  // coupling to the vector components of j_L.
+                  const int nnz = AtomicAdd(I[i_vL], vd);
                   for (int cj = 0; cj < vd; ++cj)
                   {
-                     const int j_vL = t ? j_L*vd + cj : j_L + cj*all_dofs;
-                     real_t val = 0.0;
-                     for (int k = 0; k < i_nbElts; k++)
+                     J[nnz + cj] = t ? j_L*vd + cj : j_L + cj*all_dofs;
+                     Data[nnz + cj] = 0.0;
+                  }
+                  // Sum the contributions of the elements sharing i_L and j_L
+                  for (int k = 0; k < i_nbElts; k++)
+                  {
+                     const int e_i = i_elts[k];
+                     const int i_Bloc = i_B[k];
+                     for (int l = 0; l < j_nbElts; l++)
                      {
-                        const int e_i = i_elts[k];
-                        const int i_Bloc = i_B[k];
-                        for (int l = 0; l < j_nbElts; l++)
+                        const int e_j = j_elts[l];
+                        const int j_Bloc = j_B[l];
+                        if (e_i == e_j)
                         {
-                           const int e_j = j_elts[l];
-                           const int j_Bloc = j_B[l];
-                           if (e_i == e_j)
+                           for (int cj = 0; cj < vd; ++cj)
                            {
-                              val += mat_ea(j_Bloc + cj*elt_dofs,
-                                            i_Bloc + ci*elt_dofs, e_i);
+                              Data[nnz + cj] += mat_ea(j_Bloc + cj*elt_dofs,
+                                                       i_Bloc + ci*elt_dofs,
+                                                       e_i);
                            }
                         }
                      }
-                     const int nnz = GetAndIncrementNnzIndex(i_vL, I);
-                     J[nnz] = j_vL;
-                     Data[nnz] = val;
                   }
                }
             }

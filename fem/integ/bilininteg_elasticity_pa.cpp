@@ -74,8 +74,6 @@ void ElasticityIntegrator::SetUpAssemblyData(const FiniteElementSpace &fes)
 
 void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
-               "Elasticity PA only implemented for byNODES ordering.");
    SetUpAssemblyData(fes);
 }
 

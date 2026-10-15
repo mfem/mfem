@@ -2747,6 +2747,13 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+   /** @brief Assemble the element matrices, coupling all the vector
+       components, for tensor product elements. The element dofs of each
+       matrix are ordered as in the E-vector, i.e. the local index of scalar
+       dof i of component c is i + c*ndofs, where ndofs is the number of scalar
+       dofs per element. */
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add = true) override;
    void AssembleMF(const FiniteElementSpace &fes) override;
    void AssembleDiagonalPA(Vector &diag) override;
    void AssembleDiagonalMF(Vector &diag) override;

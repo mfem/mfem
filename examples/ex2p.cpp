@@ -281,11 +281,9 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   // With full assembly, the system matrix is owned by the OperatorPtr.
-   OperatorPtr A_ptr;
+   HypreParMatrix A;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A_ptr, X, B);
-   HypreParMatrix &A = *A_ptr.As<HypreParMatrix>();
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    if (myid == 0)
    {
       cout << "done." << endl;

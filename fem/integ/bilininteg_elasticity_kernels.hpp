@@ -22,7 +22,7 @@
  *        Weak form :     lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
  *
  *        DATA LAYOUT ASSUMPTIONS :
- *        Finite element space - Ordering::byNODES
+ *        Finite element space - any Ordering (the kernels act on E-vectors)
  *        Finite element basis - ElementDofOrdering::NATIVE
  *        Quadrature functions - QVectorLayout::byNODES
  *        All elements in "fespace" are the same.
@@ -49,8 +49,8 @@ namespace internal
 
 /// @brief Elasticity kernel for AddMultPA.
 ///
-/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
-/// tensor basis, so it should work for any H1 element.
+/// Performs y += Ax. Does not use tensor basis, so it should work for any H1
+/// element.
 ///
 /// @param[in] dim 2 or 3
 /// @param[in] nDofs Number of scalar dofs per element.
@@ -69,10 +69,9 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
 
 /// @brief Elasticity component kernel for AddMultPA.
 ///
-/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
-/// tensor basis, so it should work for any H1 element. i_block and j_block are
-/// the dimensional component that is integrated. They must both be
-/// non-negative.
+/// Performs y += Ax. Does not use tensor basis, so it should work for any H1
+/// element. i_block and j_block are the dimensional component that is
+/// integrated. They must both be non-negative.
 ///
 /// Example: In 2D, A = [A_00  A_01],  x = [x_0],  y = [y_0]
 ///                     [A_10  A_11]       [x_1]       [y_1].
@@ -504,14 +503,37 @@ void ElasticityAssembleEAVector_(const int nDofs,
       });
    }
 
-   // 2. Assemble the element matrices. With u = phi_J e_b and v = phi_I e_a,
+   // 2. Compute the physical gradients of the basis functions at the
+   //    quadrature points, grad(phi_i) = invJ^T G_i.
+   Vector pgrad(nDofs*d*numPoints*numEls);
+   {
+      const auto D = Reshape(qdata.Read(), numPoints, nQData, numEls);
+      const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
+      auto PG = Reshape(pgrad.Write(), nDofs, d, numPoints, numEls);
+      mfem::forall(nDofs*numPoints*numEls, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int i = idx % nDofs;
+         const int p = (idx / nDofs) % numPoints;
+         const int e = idx / nDofs / numPoints;
+         for (int c = 0; c < d; c++)
+         {
+            real_t g = 0.0;
+            for (int m = 0; m < d; m++) { g += G(p, m, i)*D(p, m + c*d, e); }
+            PG(i, c, p, e) = g;
+         }
+      });
+   }
+
+   // 3. Assemble the element matrices. With u = phi_J e_b and v = phi_I e_a,
    //    the entry of the element matrix in row (I,a) and column (J,b) is
    //    lambda*(dphi_I/dx_a)*(dphi_J/dx_b)
    //    + mu*(delta_ab*grad(phi_I).grad(phi_J) + (dphi_I/dx_b)*(dphi_J/dx_a)).
    //    It is stored at emat(J + b*nDofs, I + a*nDofs, e), following the
-   //    convention of the EA operator (see EABilinearFormExtension).
+   //    convention of the EA operator (see EABilinearFormExtension). The
+   //    matrix is symmetric, so only the blocks with I <= J are computed, and
+   //    the blocks with I > J are obtained by transposition.
    const auto D = Reshape(qdata.Read(), numPoints, nQData, numEls);
-   const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
+   const auto PG = Reshape(pgrad.Read(), nDofs, d, numPoints, numEls);
    auto ematDev = Reshape(add ? emat.ReadWrite() : emat.Write(),
                           vDofs, vDofs, numEls);
    // Limit the thread block size; the thread loops below are strided.
@@ -522,6 +544,7 @@ void ElasticityAssembleEAVector_(const int nDofs,
       {
          MFEM_FOREACH_THREAD(IDof, x, nDofs)
          {
+            if (IDof > JDof) { continue; }
             real_t A[d][d];
             for (int a = 0; a < d; a++)
             {
@@ -529,21 +552,14 @@ void ElasticityAssembleEAVector_(const int nDofs,
             }
             for (int p = 0; p < numPoints; p++)
             {
-               // physical gradients of phi_I and phi_J
                real_t gI[d], gJ[d];
+               real_t gIgJ = 0.0;
                for (int c = 0; c < d; c++)
                {
-                  gI[c] = 0.0;
-                  gJ[c] = 0.0;
-                  for (int m = 0; m < d; m++)
-                  {
-                     const real_t invJ_mc = D(p, m + c*d, e);
-                     gI[c] += G(p, m, IDof)*invJ_mc;
-                     gJ[c] += G(p, m, JDof)*invJ_mc;
-                  }
+                  gI[c] = PG(IDof, c, p, e);
+                  gJ[c] = PG(JDof, c, p, e);
+                  gIgJ += gI[c]*gJ[c];
                }
-               real_t gIgJ = 0.0;
-               for (int c = 0; c < d; c++) { gIgJ += gI[c]*gJ[c]; }
                const real_t wl = D(p, d*d, e);
                const real_t wm = D(p, d*d + 1, e);
                for (int a = 0; a < d; a++)
@@ -559,10 +575,13 @@ void ElasticityAssembleEAVector_(const int nDofs,
             {
                for (int b = 0; b < d; b++)
                {
-                  const int row = JDof + b*nDofs;
-                  const int col = IDof + a*nDofs;
-                  if (add) { ematDev(row, col, e) += A[a][b]; }
-                  else { ematDev(row, col, e) = A[a][b]; }
+                  const int iI = IDof + a*nDofs, iJ = JDof + b*nDofs;
+                  if (add) { ematDev(iJ, iI, e) += A[a][b]; }
+                  else { ematDev(iJ, iI, e) = A[a][b]; }
+                  // The (J,I) block is the transpose of the (I,J) block
+                  if (IDof == JDof) { continue; }
+                  if (add) { ematDev(iI, iJ, e) += A[a][b]; }
+                  else { ematDev(iI, iJ, e) = A[a][b]; }
                }
             }
          }
