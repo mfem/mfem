@@ -295,6 +295,8 @@ using cuda_launch_bounds_policy =
 using cuda_launch_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
 using cuda_teams_x =
+   RAJA::LoopPolicy<RAJA::cuda_block_x_loop>;
+using cuda_teams_x_direct =
    RAJA::LoopPolicy<RAJA::cuda_block_x_direct>;
 using cuda_threads_z =
    RAJA::LoopPolicy<RAJA::cuda_thread_z_direct>;
@@ -307,6 +309,8 @@ template <int LB>
 using hip_launch_bounds_policy =
    RAJA::LaunchPolicy<RAJA::hip_launch_t<true, LB>>;
 using hip_teams_x =
+   RAJA::LoopPolicy<RAJA::hip_block_x_loop>;
+using hip_teams_x_direct =
    RAJA::LoopPolicy<RAJA::hip_block_x_direct>;
 using hip_threads_z =
    RAJA::LoopPolicy<RAJA::hip_thread_z_direct>;
@@ -335,8 +339,7 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
                               LaunchParams(Teams(G), Threads(X, Y, BZ)),
                               [=] RAJA_DEVICE(LaunchContext ctx)
    {
-
-      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<cuda_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
 
          loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
@@ -347,7 +350,6 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
             d_body(k);
 
          });
-
       });
    });
 
@@ -368,7 +370,7 @@ void RajaCuWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
       Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
       [=] RAJA_DEVICE(LaunchContext ctx)
    {
-      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<cuda_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
          loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
          {
@@ -498,8 +500,7 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
                              LaunchParams(Teams(G), Threads(X, Y, BZ)),
                              [=] RAJA_DEVICE(LaunchContext ctx)
    {
-
-      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<hip_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
 
          loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
@@ -510,7 +511,6 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
             d_body(k);
 
          });
-
       });
    });
 
@@ -531,7 +531,7 @@ void RajaHipWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
       Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
       [=] RAJA_DEVICE(LaunchContext ctx)
    {
-      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<hip_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
          loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
          {
@@ -1256,6 +1256,12 @@ template<typename lambda>
 inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, G);
+}
+
+template<int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
+{
+   ForallWrap<3, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, Z, G);
 }
 
 #ifdef MFEM_USE_MPI
