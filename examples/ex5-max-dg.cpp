@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
    real_t td = 0.5;
    bool reduction = false;
    bool hybridization = false;
+   bool trace_h1 = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -81,6 +82,8 @@ int main(int argc, char *argv[])
                   "--no-reduction", "Enable reduction of DG electric field.");
    args.AddOption(&hybridization, "-hb", "--hybridization", "-no-hb",
                   "--no-hybridization", "Enable hybridization.");
+   args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
+                  "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -230,7 +233,14 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
-      trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
+      if (trace_h1)
+      {
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
+      }
+      else
+      {
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
+      }
       trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get(),
                                                     dim_curl);
       darcy->EnableHybridization(trace_space.get(),
