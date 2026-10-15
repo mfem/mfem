@@ -783,6 +783,111 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
    }
 }
 
+TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
+{
+   const auto mesh_fname = GENERATE("../../data/beam-quad.mesh",
+                                    "../../data/beam-hex.mesh");
+   const int order = GENERATE(1, 2);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   // No coefficient, scalar, vector (diagonal) and matrix coefficients
+   const int coeff_type = GENERATE(0, 1, 2, 3);
+   CAPTURE(mesh_fname, order, ordering, coeff_type);
+
+   Mesh mesh(mesh_fname);
+   DistortBeamMesh(mesh);
+   const int dim = mesh.Dimension();
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim, ordering);
+
+   FunctionCoefficient q(ElasticityMu);
+   VectorFunctionCoefficient vq(dim, [](const Vector &x, Vector &v)
+   {
+      for (int c = 0; c < v.Size(); c++) { v(c) = 1.0 + c + x(0)*x(1); }
+   });
+   // Non-symmetric matrix coefficient
+   MatrixFunctionCoefficient mq(dim, [](const Vector &x, DenseMatrix &m)
+   {
+      for (int i = 0; i < m.Height(); i++)
+      {
+         for (int j = 0; j < m.Width(); j++)
+         {
+            m(i, j) = ((i == j) ? 2.0 : 0.0) + 0.1*(i + 2*j + 1)
+                      + 0.2*(i + 1)*x(0);
+         }
+      }
+   });
+   auto new_integ = [&]() -> BilinearFormIntegrator*
+   {
+      switch (coeff_type)
+      {
+         case 0: return new VectorMassIntegrator;
+         case 1: return new VectorMassIntegrator(q);
+         case 2: return new VectorMassIntegrator(vq);
+         default: return new VectorMassIntegrator(mq);
+      }
+   };
+
+   BilinearForm a_legacy(&fes);
+   a_legacy.AddDomainIntegrator(new_integ());
+   a_legacy.Assemble();
+   a_legacy.Finalize();
+
+   // Element assembly: compare the action and the element matrices
+   {
+      BilinearForm a_ea(&fes);
+      a_ea.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      a_ea.AddDomainIntegrator(new_integ());
+      a_ea.Assemble();
+
+      REQUIRE(RelativeMultError(a_ea, a_legacy) == MFEM_Approx(0.0));
+
+      const DenseTensor &ea_mats = a_ea.GetElementMatrices();
+      const DenseTensor &legacy_mats = a_legacy.GetElementMatrices();
+      REQUIRE(ea_mats.TotalSize() == legacy_mats.TotalSize());
+      const real_t *d_ea = ea_mats.HostRead();
+      const real_t *d_legacy = legacy_mats.HostRead();
+      real_t max_diff = 0.0, max_ref = 0.0;
+      for (int i = 0; i < legacy_mats.TotalSize(); i++)
+      {
+         max_diff = std::max(max_diff, std::fabs(d_ea[i] - d_legacy[i]));
+         max_ref = std::max(max_ref, std::fabs(d_legacy[i]));
+      }
+      REQUIRE(max_diff / max_ref == MFEM_Approx(0.0));
+   }
+
+   // Full assembly
+   {
+      BilinearForm a_fa(&fes);
+      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      a_fa.AddDomainIntegrator(new_integ());
+      a_fa.Assemble();
+
+      OperatorHandle A_fa(&a_fa.SpMat(), false);
+      OperatorHandle A_legacy(&a_legacy.SpMat(), false);
+      TestSameSparseMatrices(A_fa, A_legacy);
+   }
+
+   // Mass and elasticity in the same form, as in elastodynamics
+   if (coeff_type == 1)
+   {
+      FunctionCoefficient lambda(ElasticityLambda);
+      BilinearForm a_fa(&fes), a_ref(&fes);
+      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      for (BilinearForm *a : {&a_ref, &a_fa})
+      {
+         a->AddDomainIntegrator(new VectorMassIntegrator(q));
+         a->AddDomainIntegrator(new ElasticityIntegrator(lambda, q));
+         a->Assemble();
+      }
+      a_ref.Finalize();
+
+      OperatorHandle A_fa(&a_fa.SpMat(), false);
+      OperatorHandle A_ref(&a_ref.SpMat(), false);
+      TestSameSparseMatrices(A_fa, A_ref);
+   }
+}
+
 #ifdef MFEM_USE_MPI
 
 void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
