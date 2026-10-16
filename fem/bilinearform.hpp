@@ -507,14 +507,20 @@ public:
 
        This method can be called multiple times (with the same @a ess_tdof_list
        array) to initialize different right-hand sides and boundary condition
-       values.
+       values. Supply an assembled, uneliminated right-hand side @a b on every
+       call. In particular, this method can modify @a b in place; restore it
+       from the original load or reassemble it before another call, even if
+       only the boundary values change. Reusing an already eliminated load
+       applies the boundary lifting a second time.
 
        After solving the linear system, the finite element solution @a x can be
        recovered by calling RecoverFEMSolution() (with the same vectors @a X,
        @a b, and @a x).
 
-       NOTE: If there are no transformations, @a X simply reuses the data of
-             @a x. */
+       NOTE: In the serial conforming LEGACY path without static condensation
+             or hybridization, @a X reuses the data of @a x and @a B reuses the
+             data of @a b. Do not assume the output vectors are independent
+             copies of the input vectors. */
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                  Vector &b, OperatorHandle &A, Vector &X,
                                  Vector &B, int copy_interior = 0);
