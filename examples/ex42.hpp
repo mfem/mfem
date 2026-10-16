@@ -808,7 +808,7 @@ Mesh MHDMesh(const int problem)
       const real_t ly = 1.0/std::sin(M_PI/6.0);
       Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
                                         true, lx, ly);
-      std::vector<Vector> translations = {Vector({lx, 0.0}), Vector({0.0, ly})};
+      std::vector<Vector> translations = {Vector({lx, 0_r}), Vector({0_r, ly})};
       return Mesh::MakePeriodic(mesh,
                                 mesh.CreatePeriodicVertexMapping(translations));
    }
