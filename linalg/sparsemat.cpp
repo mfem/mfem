@@ -847,14 +847,9 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
          MFEM_Cu_or_Hip(MemAlloc)(&dBuffer, bufferSize);
       }
 
-      // With ROCm 7, rocsparse (used by hipsparse) requires an explicit analysis call before the spmv otherwise you get errors like:
+      // With ROCm 7.0 to 7.2, rocsparse (used by hipsparse) requires an explicit analysis call before the spmv otherwise you get errors like:
       // invalid stage, the stage rocsparse_v2_spmv_stage_analysis must be executed before the stage rocsparse_v2_spmv_stage_compute
-      //
-      // It's not clear if this is supposed to be necessary or not but as of ROCm 7.2.1 it is still required to run without issues
-      //
-      // "This step is optional but if used may results in better performance."
-      // https://rocm.docs.amd.com/projects/hipSPARSE/en/docs-7.2.1/reference/generic.html#hipsparsespmv-preprocess
-#if HIP_VERSION_MAJOR >= 7
+#if HIP_VERSION_MAJOR >= 7 && HIP_VERSION_MINOR <= 2
       MFEM_CHECK_SPARSE(hipsparseSpMV_preprocess(
                            handle,
                            MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
