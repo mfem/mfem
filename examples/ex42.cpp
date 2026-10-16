@@ -4,9 +4,10 @@
 //
 // Sample runs:
 //
-//       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -gp
-//       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -gp -ldf
-//       ./ex42 -p 1 -r 3 -o 2 -tf 0.23 -no-gp
+//       ./ex42 -p 1 -r 1 -o 2 -tf 0.05 -c 0.2 -gp
+//       ./ex42 -p 1 -r 1 -o 2 -tf 0.05 -c 0.2 -gp -ldf
+//       ./ex42 -p 1 -r 1 -o 2 -tf 0.05 -c 0.2 -no-gp
+//       ./ex42 -p 2 -r 1 -o 2 -s 3 -tf 1 -c 0.2 -gp -ldf -no-vis
 //
 // Description:  This example solves the ideal magnetohydrodynamics (MHD)
 //               equations with the nonconservative Godunov-Powell source:
@@ -41,6 +42,15 @@
 //               This nonlinear test evolves interacting MHD waves and shocks;
 //               it is not an exact vortex-advection solution, so comparison
 //               with the initial state is not an exact-solution error measure.
+//               Problem 2 is the smooth Alfven wave from Wu and Shu,
+//               arXiv:2604.23885v2, Section 4.1, at angle pi/6 on the periodic
+//               rectangle [0, 2/sqrt(3)] x [0, 2]. Its period is one; the
+//               default final time for this problem is one period, T=1.
+//               It has a time-dependent exact solution for convergence tests.
+//               It uses all three velocity and magnetic components (2.5D).
+//               LDF projects the in-plane magnetic field. For degree p,
+//               expect spatial order p+1; choose a sufficiently accurate RK
+//               method and small timestep to control time integration error.
 //
 //               As the spatial approximation order increases, the timestep
 //               must decrease. The CFL estimate uses the maximum MHD wave
@@ -58,6 +68,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include "ex42.hpp"
 
@@ -72,24 +83,24 @@ int main(int argc, char *argv[])
 
    string mesh_file = "";
    int IntOrderOffset = 0; // should be >=0
-   int ref_levels = 0;
+   int ref_levels = 1;
    int order = 2;
    int ode_solver_type = 3; // SSPRK3
-   real_t t_final = 0.5;
+   real_t t_final = -1.0;
    real_t dt = -0.01;
-   real_t cfl = 0.5;
+   real_t cfl = 0.2;
    bool visualization = true;
    bool use_GPsource = false;
    bool use_LDF = false;
    int vis_steps = 20;
 
-   int precision = 8;
+   int precision = std::numeric_limits<real_t>::max_digits10;
    cout.precision(precision);
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Mesh file to use. If not provided, then a periodic square"
-                  " mesh will be used.");
+                  "Mesh file to use. If omitted, use the problem's periodic"
+                  " square or rectangle.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup to use. See MHDInitialCondition().");
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -98,7 +109,9 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   ODESolver::ExplicitTypes.c_str());
-   args.AddOption(&t_final, "-tf", "--t-final", "Final time; start time is 0.");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; -1 selects 0.05 for Orszag-Tang or one period"
+                  " (1.0) for the Alfven wave. Start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step. Positive number skips CFL timestep calculation.");
    args.AddOption(&cfl, "-c", "--cfl-number",
@@ -115,12 +128,22 @@ int main(int argc, char *argv[])
                   "Enable or disable local L2 divergence-free magnetic projection"
                   " on affine 2D triangles or bilinear quadrilaterals.");
    args.ParseCheck();
+   if (t_final == -1.0) { t_final = problem == 2 ? 1.0 : 0.05; }
+   const bool use_cfl = dt <= 0.0;
+   MFEM_VERIFY(!use_cfl || cfl > 0.0,
+               "Specify a positive time step or a positive CFL number.");
+   MFEM_VERIFY(t_final >= 0.0 && vis_steps > 0,
+               "Final time must be nonnegative and visualization steps positive.");
 
    // 2. Read the mesh from the given mesh file. When the user does not provide
    //    mesh file, use the default mesh file for the problem.
    Mesh mesh = mesh_file.empty() ? MHDMesh(problem) : Mesh(mesh_file);
    const int dim = mesh.Dimension();
-   const int num_equations = 2*dim + 2;
+   MFEM_VERIFY(dim == 2, "Both model problems require a 2D mesh.");
+   MFEM_VERIFY(!use_LDF || dim == 2,
+               "LDF projection currently supports only 2D meshes.");
+   const int MHDdim = problem == 2 ? 3 : dim;
+   const int num_equations = 2*MHDdim + 2;
 
    // Refine the mesh to increase the resolution. In this example we do
    // 'ref_levels' of uniform refinement, where 'ref_levels' is a command-line
@@ -161,9 +184,9 @@ int main(int argc, char *argv[])
    GridFunction density_sol(&fes, sol.GetData() + 0 * fes.GetNDofs());
 
    // Set up the operator before writing the projected initial condition.
-   IdealMHDFlux mhdflux(dim, specific_heat_ratio);
+   IdealMHDFlux mhdflux(dim, specific_heat_ratio, MHDdim);
    RusanovFlux numericalFlux(mhdflux);
-   GPsource gpsource(dim);
+   GPsource gpsource(dim, MHDdim);
    RusanovGPsource numericalGPsource(gpsource);
    DG_MHD_GPsource mhd(vfes,
                        std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(
@@ -227,7 +250,7 @@ int main(int argc, char *argv[])
    // When dt is not specified, use CFL condition.
    // Compute h_min and initial maximum characteristic speed
    real_t hmin = infinity();
-   if (cfl > 0)
+   if (use_cfl)
    {
       for (int i = 0; i < mesh.GetNE(); i++)
       {
@@ -253,13 +276,13 @@ int main(int argc, char *argv[])
    ode_solver->Init(mhd);
 
    // Integrate in time.
-   bool done = false;
+   bool done = (t >= t_final);
    for (int ti = 0; !done;)
    {
       real_t dt_real = min(dt, t_final - t);
 
       ode_solver->Step(sol, t, dt_real);
-      if (cfl > 0) // update time step size with CFL
+      if (use_cfl) // update time step size with CFL
       {
          real_t max_char_speed = mhd.GetMaxCharSpeed();
          dt = cfl * hmin / max_char_speed / (2 * order + 1);
@@ -301,10 +324,30 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Compute the L2 solution error summed for all components.
+   // 10. Only problem 2 supplies an exact solution at final time.
+   if (problem == 2) { u0.SetTime(t); }
    const real_t error = sol.ComputeLpError(2, u0);
    cout << scientific;
-   cout << "Solution error: " << error << endl;
+   cout << (problem == 2 ? "L2 error against exact solution: " :
+            "L2 difference from initial condition: ") << error << endl;
+   if (problem == 2)
+   {
+      // Section 4.1 reports errors in B_perp = -B_x*sin(alpha)+B_y*cos(alpha).
+      const real_t ca = std::cos(M_PI/6.0);
+      const real_t sa = std::sin(M_PI/6.0);
+      GridFunction perpendicular(&fes);
+      for (int j = 0; j < fes.GetNDofs(); j++)
+      {
+         perpendicular(j) = -sa*sol(4*fes.GetNDofs()+j) +
+                            ca*sol(5*fes.GetNDofs()+j);
+      }
+      FunctionCoefficient exact_perpendicular([ca, sa, t](const Vector &x)
+      {
+         return 0.1*std::sin(2*M_PI*(x(0)*ca+x(1)*sa+t));
+      });
+      cout << "B_perp L2 error: "
+           << perpendicular.ComputeL2Error(exact_perpendicular) << endl;
+   }
 
    return 0;
 }

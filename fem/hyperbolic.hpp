@@ -1088,6 +1088,10 @@ public:
 /// Ideal MHD flux
 class IdealMHDFlux : public FluxFunction
 {
+public:
+   /// Number of velocity and magnetic components (at least the mesh dimension).
+   const int MHDdim;
+
 private:
    const real_t specific_heat_ratio;  // specific heat ratio, γ
 
@@ -1098,10 +1102,17 @@ public:
     *
     * @param dim spatial dimension
     * @param specific_heat_ratio specific heat ratio, γ
+    * @param mhd_dim velocity/magnetic components; -1 uses the mesh dimension
     */
-   IdealMHDFlux(const int dim, const real_t specific_heat_ratio)
-      : FluxFunction(2*dim + 2, dim),
-        specific_heat_ratio(specific_heat_ratio) {}
+   IdealMHDFlux(const int dim, const real_t specific_heat_ratio,
+                const int mhd_dim = -1)
+      : FluxFunction(2*(mhd_dim < 0 ? dim : mhd_dim) + 2, dim),
+        MHDdim(mhd_dim < 0 ? dim : mhd_dim),
+        specific_heat_ratio(specific_heat_ratio)
+   {
+      MFEM_VERIFY(dim >= 1 && dim <= MHDdim && MHDdim <= 3,
+                  "Require 1 <= mesh dimension <= MHDdim <= 3.");
+   }
 
    /**
     * @brief Compute F(ρ, ρu, B, E)
@@ -1115,13 +1126,16 @@ public:
                       DenseMatrix &flux) const override;
 
    /**
-    * @brief Compute normal flux, F(ρ, ρu, E)n
+    * @brief Compute the normal ideal MHD flux, F(ρ, ρu, B, E)n
     *
-    * @param x x (ρ, ρu, E) at current integration point
+    * @param x state (ρ, ρu, B, E) at current integration point
     * @param normal normal vector, usually not a unit vector
     * @param Tr current element transformation with the integration point
-    * @param fluxN F(ρ, ρu, E)n = [ρu⋅n; ρu(u⋅n) + pn; (u⋅n)(E + p)]
-    * @return real_t maximum characteristic speed, |u| + √(γp/ρ)
+    * @param fluxN F(U)n = [ρu⋅n; ρu(u⋅n) + (p + |B|²/2)n - B(B⋅n);
+    * B(u⋅n) - u(B⋅n); (E + p + |B|²/2)(u⋅n) - (u⋅B)(B⋅n)]
+    * @return real_t directional maximum speed |u⋅n_hat| + c_f(n_hat),
+    * where n_hat = n/|n| and c_f is the fast magnetosonic speed.
+    * The returned speed is unscaled; the normal flux includes |n|.
     */
    real_t ComputeFluxDotN(const Vector &x, const Vector &normal,
                           FaceElementTransformations &Tr,

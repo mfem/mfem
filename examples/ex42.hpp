@@ -1,7 +1,7 @@
 //               MFEM Example 42 - MHD with Godunov-Powell source
 //                      (Time-dependent DG operator and model problem)
 //
-// This code defines the Orszag-Tang model problem and the DG operator for
+// This code defines the Orszag-Tang and Alfven wave problems and DG operator for
 // ideal MHD with the nonconservative Godunov-Powell source:
 //
 //                 U_t + div(F(U)) = -S(U) div(B),
@@ -45,10 +45,16 @@ class GPsource
 public:
    const int num_equations;
    const int dim;
+   const int MHDdim;
 
    /// @brief Constructor for the Godunov-Powell source term
-   GPsource(const int dim)
-      : num_equations(2*dim+2), dim(dim) { }
+   GPsource(const int dim, const int mhd_dim = -1)
+      : num_equations(2*(mhd_dim < 0 ? dim : mhd_dim)+2), dim(dim),
+        MHDdim(mhd_dim < 0 ? dim : mhd_dim)
+   {
+      MFEM_VERIFY(dim >= 1 && dim <= MHDdim && MHDdim <= 3,
+                  "Require 1 <= mesh dimension <= MHDdim <= 3.");
+   }
 
    /// @brief Destructor for the Godunov-Powell source term
    ~GPsource() {}
@@ -71,11 +77,11 @@ public:
    {
       source.SetSize(num_equations);
       source(0) = 0.0;
-      for (auto i=0; i<dim; i++) { source(i+1) = -state(i+1+dim) * divB; }
-      for (auto i=0; i<dim; i++) { source(i+1+dim) = -state(i+1) / state(0) * divB; }
-      source(1+2*dim) = 0.0;
-      for (auto i=0; i<dim; i++) { source(1+2*dim) -= (state(i+1) / state(0)) * state(i+1+dim); }
-      source(1+2*dim) *= divB;
+      for (auto i=0; i<MHDdim; i++) { source(i+1) = -state(i+1+MHDdim) * divB; }
+      for (auto i=0; i<MHDdim; i++) { source(i+1+MHDdim) = -state(i+1) / state(0) * divB; }
+      source(1+2*MHDdim) = 0.0;
+      for (auto i=0; i<MHDdim; i++) { source(1+2*MHDdim) -= (state(i+1) / state(0)) * state(i+1+MHDdim); }
+      source(1+2*MHDdim) *= divB;
       return;
    }
 };
@@ -148,13 +154,13 @@ public:
    void Eval(const Vector &state1, const Vector &state2, const Vector &nor,
              FaceElementTransformations &Tr, Vector &source1, Vector &source2) const override
    {
-      const auto dim = gpSource.dim;
+      const auto MHDdim = gpSource.MHDdim;
       // nor points from el1 to el2, when they are obtained through "GetFaceElementTransformations"
       // inner product with "nor" (nor is not a unit vector, just use a form consistent with "S(U) B dot n")
       real_t B1n = 0.0;
       real_t B2n = 0.0;
-      for (auto i=0; i<dim; i++) { B1n += state1(i+1+dim) * nor(i); }
-      for (auto i=0; i<dim; i++) { B2n += state2(i+1+dim) * nor(i); }
+      for (auto i=0; i<gpSource.dim; i++) { B1n += state1(i+1+MHDdim) * nor(i); }
+      for (auto i=0; i<gpSource.dim; i++) { B2n += state2(i+1+MHDdim) * nor(i); }
 
       // Averaged normal magnetic trace for the Rusanov Godunov-Powell correction
       const real_t Bhatn = 0.5 * (B1n + B2n);
@@ -166,16 +172,16 @@ public:
       source2.SetSize(gpSource.num_equations);
       source1(0) = 0.0;
       source2(0) = 0.0;
-      for (auto i=0; i<dim; i++) { source1(i+1) = -state1(i+1+dim) * Bjump1; }
-      for (auto i=0; i<dim; i++) { source2(i+1) = -state2(i+1+dim) * Bjump2; }
-      for (auto i=0; i<dim; i++) { source1(i+1+dim) = -state1(i+1) / state1(0) * Bjump1; }
-      for (auto i=0; i<dim; i++) { source2(i+1+dim) = -state2(i+1) / state2(0) * Bjump2; }
-      source1(1+2*dim) = 0.0;
-      source2(1+2*dim) = 0.0;
-      for (auto i=0; i<dim; i++) { source1(1+2*dim) -= (state1(i+1) / state1(0)) * state1(i+1+dim); }
-      for (auto i=0; i<dim; i++) { source2(1+2*dim) -= (state2(i+1) / state2(0)) * state2(i+1+dim); }
-      source1(1+2*dim) *= Bjump1;
-      source2(1+2*dim) *= Bjump2;
+      for (auto i=0; i<MHDdim; i++) { source1(i+1) = -state1(i+1+MHDdim) * Bjump1; }
+      for (auto i=0; i<MHDdim; i++) { source2(i+1) = -state2(i+1+MHDdim) * Bjump2; }
+      for (auto i=0; i<MHDdim; i++) { source1(i+1+MHDdim) = -state1(i+1) / state1(0) * Bjump1; }
+      for (auto i=0; i<MHDdim; i++) { source2(i+1+MHDdim) = -state2(i+1) / state2(0) * Bjump2; }
+      source1(1+2*MHDdim) = 0.0;
+      source2(1+2*MHDdim) = 0.0;
+      for (auto i=0; i<MHDdim; i++) { source1(1+2*MHDdim) -= (state1(i+1) / state1(0)) * state1(i+1+MHDdim); }
+      for (auto i=0; i<MHDdim; i++) { source2(1+2*MHDdim) -= (state2(i+1) / state2(0)) * state2(i+1+MHDdim); }
+      source1(1+2*MHDdim) *= Bjump1;
+      source2(1+2*MHDdim) *= Bjump2;
    }
 
    void Grad(int side, const Vector &state1, const Vector &state2,
@@ -313,7 +319,7 @@ public:
 
          // compute current divB value with given shape function gradient values
          const real_t divB = Vector(dshape.GetData(),
-                                    dof*Tr.GetSpaceDim()) * Vector(elfun.GetData() + (1+Tr.GetSpaceDim())*dof,
+                                    dof*Tr.GetSpaceDim()) * Vector(elfun.GetData() + (1+gpsource.MHDdim)*dof,
                                                                    dof*Tr.GetSpaceDim());
 
          // compute source term value
@@ -443,6 +449,7 @@ private:
 
    const int num_equations; // the number of equations
    const int dim;
+   const int MHDdim;
    FiniteElementSpace &vfes; // vector finite element space (ByNode)
 
    // Element integration form. Should contain ComputeFlux
@@ -532,11 +539,16 @@ DG_MHD_GPsource::DG_MHD_GPsource(
      use_LDF(use_LDF_),
      num_equations(hyperb_form_Int_->num_equations),
      dim(vfes_.GetMesh()->SpaceDimension()),
+     MHDdim((num_equations-2)/2),
      vfes(vfes_),
      hyperb_form_Int(std::move(hyperb_form_Int_)),
      gpsource_form_Int(std::move(gpsource_form_Int_)),
      z(vfes_.GetTrueVSize())
 {
+   MFEM_VERIFY(vfes.FEColl()->GetContType() ==
+               FiniteElementCollection::DISCONTINUOUS &&
+               vfes.GetOrdering() == Ordering::byNODES,
+               "The DG operator requires a component-wise discontinuous space.");
    // Assemble and invert the scalar mass matrix on each element for all fields.
    ComputeInvMass();
    if (use_LDF) { ComputeLDFProjectors(); }
@@ -696,19 +708,32 @@ void DG_MHD_GPsource::ApplyLDF(Vector &state) const
 {
    MFEM_VERIFY(use_LDF && state.Size() == vfes.GetVSize(),
                "ApplyLDF requires enabled LDF projection and a full DG vector.");
-   Vector local_state, magnetic, projected;
+   Vector magnetic, projected;
    Array<int> vdofs;
+   DofTransformation doftrans;
+   real_t *state_data = state.HostReadWrite();
+   // DG element DOFs are disjoint. Keep all scratch storage thread-local,
+   // including the DOF transformation, and access shared vectors on the host.
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+   #pragma omp parallel for schedule(static) \
+      private(magnetic, projected, vdofs, doftrans) if(vfes.GetNE() >= 64)
+#endif
    for (int k = 0; k < vfes.GetNE(); k++)
    {
       const int dof = vfes.GetFE(k)->GetDof();
-      vfes.GetElementVDofs(k, vdofs);
-      state.GetSubVector(vdofs, local_state);
+      vfes.GetElementVDofs(k, vdofs, doftrans);
       // Local fields are contiguous: (rho, momentum, magnetic field, E).
-      magnetic.MakeRef(local_state, (1+dim)*dof, dim*dof);
+      magnetic.SetSize(dim*dof);
+      for (int j = 0; j < dim*dof; j++)
+      {
+         magnetic(j) = state_data[vdofs[(1+MHDdim)*dof+j]];
+      }
       projected.SetSize(dim*dof);
       ldf_projectors[k].Mult(magnetic, projected);
-      magnetic = projected;
-      state.SetSubVector(vdofs, local_state);
+      for (int j = 0; j < dim*dof; j++)
+      {
+         state_data[vdofs[(1+MHDdim)*dof+j]] = projected(j);
+      }
    }
 }
 
@@ -727,20 +752,32 @@ void DG_MHD_GPsource::Mult(const Vector &x, Vector &y) const
    DenseMatrix current_zmat; // view of element auxiliary result, dof x num_eq
    DenseMatrix current_ymat; // view of element result, dof x num_eq
    Array<int> vdofs;
+   DofTransformation doftrans;
+   const real_t *z_data = z.HostRead();
+   real_t *y_data = y.HostWrite();
+#if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
+   #pragma omp parallel for schedule(static) \
+      private(zval, current_zmat, current_ymat, vdofs, doftrans) \
+      if(vfes.GetNE() >= 64)
+#endif
    for (auto i=0; i<vfes.GetNE(); i++)
    {
       const auto dof = vfes.GetFE(i)->GetDof();
       // ALWAYS returns ByNodes ordering (like separate fields)
-      vfes.GetElementVDofs(i, vdofs);
+      vfes.GetElementVDofs(i, vdofs, doftrans);
       // copy from the global vector to the local vector
-      z.GetSubVector(vdofs, zval);
+      zval.SetSize(vdofs.Size());
+      for (int j = 0; j < vdofs.Size(); j++) { zval(j) = z_data[vdofs[j]]; }
       // each column is a field and each row is a DOF
       current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
       current_ymat.SetSize(dof, num_equations);
       // invmass left multiplies the auxiliary result
       mfem::Mult(invmass[i], current_zmat, current_ymat);
       // return the result to the global vector
-      y.SetSubVector(vdofs, current_ymat.GetData());
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         y_data[vdofs[j]] = current_ymat.GetData()[j];
+      }
    }
    // Project the time derivative after applying the mass inverse. With an
    // LDF initial state on a fixed mesh, explicit RK stages remain LDF.
@@ -760,9 +797,21 @@ void DG_MHD_GPsource::Update()
 }
 
 
-// Default model mesh: triangular periodic unit square [0,1]^2.
+// Problem 2 uses the periodic rectangle in Wu and Shu, arXiv:2604.23885v2,
+// Section 4.1, with uniform quadrilateral cells.
 Mesh MHDMesh(const int problem)
 {
+   MFEM_VERIFY(problem == 1 || problem == 2, "Unknown MHD problem.");
+   if (problem == 2)
+   {
+      const real_t lx = 1.0/std::cos(M_PI/6.0);
+      const real_t ly = 1.0/std::sin(M_PI/6.0);
+      Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+                                        true, lx, ly);
+      std::vector<Vector> translations = {Vector({lx, 0.0}), Vector({0.0, ly})};
+      return Mesh::MakePeriodic(mesh,
+                               mesh.CreatePeriodicVertexMapping(translations));
+   }
    return Mesh("../data/periodic-square-tri.msh");
 }
 
@@ -779,6 +828,30 @@ VectorFunctionCoefficient MHDInitialCondition(const int problem,
 {
    switch (problem)
    {
+      case 2: // Wu and Shu, arXiv:2604.23885v2, Section 4.1.
+         // alpha = pi/6, rho = B_parallel = 1, p = 0.1.
+         // v_perp = B_perp = 0.1*sin(phi), v_z = B_z = 0.1*cos(phi),
+         // phi = 2*pi*(x*cos(alpha)+y*sin(alpha)+t).
+         // The wave travels in the negative parallel direction with speed
+         // one and period one. Use T=1 here (the paper uses five periods).
+         return VectorFunctionCoefficient(8, [specific_heat_ratio](
+            const Vector &x, real_t t, Vector &y)
+         {
+            MFEM_VERIFY(x.Size() == 2, "Alfven wave requires a 2D mesh.");
+            const real_t ca = std::cos(M_PI/6.0);
+            const real_t sa = std::sin(M_PI/6.0);
+            const real_t phase = 2*M_PI*(x(0)*ca+x(1)*sa+t);
+            const real_t perpendicular = 0.1*std::sin(phase);
+            const real_t transverse = 0.1*std::cos(phase);
+            y(0) = 1.0;
+            y(1) = -perpendicular*sa;
+            y(2) = perpendicular*ca;
+            y(3) = transverse;
+            y(4) = ca-perpendicular*sa;
+            y(5) = sa+perpendicular*ca;
+            y(6) = transverse;
+            y(7) = 0.1/(specific_heat_ratio-1.0) + 0.5 + 0.01;
+         });
       case 1: // Orszag-Tang vortex
          return VectorFunctionCoefficient(6, [specific_heat_ratio](const Vector &x,
                                                                    Vector &y)
