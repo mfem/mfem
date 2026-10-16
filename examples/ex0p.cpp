@@ -8,7 +8,7 @@
 //
 // Description: This example code demonstrates the most basic parallel usage of
 //              MFEM to define a simple finite element discretization of the
-//              Laplace problem -Delta u = 1 with zero Dirichlet boundary
+//              Poisson problem -Delta u = 1 with zero Dirichlet boundary
 //              conditions. General 2D/3D serial mesh files and finite element
 //              polynomial degrees can be specified by command line options.
 
@@ -21,11 +21,12 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI
-   MPI_Session mpi(argc, argv);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   Hypre::Init();
 
-   // 2. Parse command line options
-   const char *mesh_file = "../data/star.mesh";
+   // 2. Parse command line options.
+   string mesh_file = "../data/star.mesh";
    int order = 1;
 
    OptionsParser args(argc, argv);
@@ -47,7 +48,10 @@ int main(int argc, char *argv[])
    H1_FECollection fec(order, mesh.Dimension());
    ParFiniteElementSpace fespace(&mesh, &fec);
    HYPRE_BigInt total_num_dofs = fespace.GlobalTrueVSize();
-   if (mpi.Root()) { cout << "Number of unknowns: " << total_num_dofs << endl; }
+   if (Mpi::Root())
+   {
+      cout << "Number of unknowns: " << total_num_dofs << endl;
+   }
 
    // 6. Extract the list of all the boundary DOFs. These will be marked as
    //    Dirichlet in order to enforce zero boundary conditions.

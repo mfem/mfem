@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,9 @@ namespace mfem
 {
 
 #ifdef MFEM_USE_MPI
+
+// TODO: modify the tests here to support HYPRE_USING_GPU?
+#ifndef HYPRE_USING_GPU
 
 namespace internal
 {
@@ -100,7 +103,7 @@ TEST_CASE("HypreParVector Move Constructor", "[Parallel], [HypreParVector]")
    HypreParVector v1_copy(v1);
 
    // Also save off the data pointer
-   double* v1_data = v1.GetData();
+   real_t* v1_data = v1.GetData();
 
    // Now move from the original and compare
    HypreParVector v1_move(std::move(v1));
@@ -141,7 +144,7 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    HypreParVector v1_copy(v1);
 
    // Also save off the data pointer
-   double* v1_data = v1.GetData();
+   real_t* v1_data = v1.GetData();
 
    // Now move from the original and compare
    HypreParVector v1_move;
@@ -160,6 +163,8 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
    v1_copy -= v1_move;
    REQUIRE(InnerProduct(v1_copy, v1_copy) == MFEM_Approx(0.0));
 }
+
+#endif // HYPRE_USING_GPU
 
 #endif // MFEM_USE_MPI
 

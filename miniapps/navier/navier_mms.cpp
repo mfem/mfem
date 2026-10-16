@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,36 +32,36 @@ struct s_NavierContext
 {
    int ser_ref_levels = 1;
    int order = 5;
-   double kinvis = 1.0;
-   double t_final = 10 * 0.25e-4;
-   double dt = 0.25e-4;
+   real_t kinvis = 1.0;
+   real_t t_final = 10 * 0.25e-4;
+   real_t dt = 0.25e-4;
    bool pa = true;
    bool ni = false;
    bool visualization = false;
    bool checkres = false;
 } ctx;
 
-void vel(const Vector &x, double t, Vector &u)
+void vel(const Vector &x, real_t t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   real_t xi = x(0);
+   real_t yi = x(1);
 
    u(0) = M_PI * sin(t) * pow(sin(M_PI * xi), 2.0) * sin(2.0 * M_PI * yi);
    u(1) = -(M_PI * sin(t) * sin(2.0 * M_PI * xi) * pow(sin(M_PI * yi), 2.0));
 }
 
-double p(const Vector &x, double t)
+real_t p(const Vector &x, real_t t)
 {
-   double xi = x(0);
-   double yi = x(1);
+   real_t xi = x(0);
+   real_t yi = x(1);
 
    return cos(M_PI * xi) * sin(t) * sin(M_PI * yi);
 }
 
-void accel(const Vector &x, double t, Vector &u)
+void accel(const Vector &x, real_t t, Vector &u)
 {
-   double xi = x(0);
-   double yi = x(1);
+   real_t xi = x(0);
+   real_t yi = x(1);
 
    u(0) = M_PI * sin(t) * sin(M_PI * xi) * sin(M_PI * yi)
           * (-1.0
@@ -85,7 +85,9 @@ void accel(const Vector &x, double t, Vector &u)
 
 int main(int argc, char *argv[])
 {
-   MPI_Session mpi(argc, argv);
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+   int visport = 19916;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.ser_ref_levels,
@@ -123,16 +125,17 @@ int main(int argc, char *argv[])
       "-no-cr",
       "--no-checkresult",
       "Enable or disable checking of the result. Returns -1 on failure.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          args.PrintUsage(mfem::out);
       }
       return 1;
    }
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
    }
@@ -148,7 +151,7 @@ int main(int argc, char *argv[])
       mesh->UniformRefinement();
    }
 
-   if (mpi.Root())
+   if (Mpi::Root())
    {
       std::cout << "Number of elements: " << mesh->GetNE() << std::endl;
    }
@@ -178,15 +181,15 @@ int main(int argc, char *argv[])
    domain_attr = 1;
    naviersolver.AddAccelTerm(accel, domain_attr);
 
-   double t = 0.0;
-   double dt = ctx.dt;
-   double t_final = ctx.t_final;
+   real_t t = 0.0;
+   real_t dt = ctx.dt;
+   real_t t_final = ctx.t_final;
    bool last_step = false;
 
    naviersolver.Setup(dt);
 
-   double err_u = 0.0;
-   double err_p = 0.0;
+   real_t err_u = 0.0;
+   real_t err_p = 0.0;
    ParGridFunction *u_gf = nullptr;
    ParGridFunction *p_gf = nullptr;
    u_gf = naviersolver.GetCurrentVelocity();
@@ -207,7 +210,7 @@ int main(int argc, char *argv[])
       err_u = u_gf->ComputeL2Error(u_excoeff);
       err_p = p_gf->ComputeL2Error(p_excoeff);
 
-      if (mpi.Root())
+      if (Mpi::Root())
       {
          printf("%11s %11s %11s %11s\n", "Time", "dt", "err_u", "err_p");
          printf("%.5E %.5E %.5E %.5E err\n", t, dt, err_u, err_p);
@@ -218,10 +221,9 @@ int main(int argc, char *argv[])
    if (ctx.visualization)
    {
       char vishost[] = "localhost";
-      int visport = 19916;
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank()
-               << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " "
+               << Mpi::WorldRank() << "\n";
       sol_sock << "solution\n" << *pmesh << *u_ic << std::flush;
    }
 
@@ -230,10 +232,10 @@ int main(int argc, char *argv[])
    // Test if the result for the test run is as expected.
    if (ctx.checkres)
    {
-      double tol = 1e-3;
+      real_t tol = 1e-3;
       if (err_u > tol || err_p > tol)
       {
-         if (mpi.Root())
+         if (Mpi::Root())
          {
             mfem::out << "Result has a larger error than expected."
                       << std::endl;

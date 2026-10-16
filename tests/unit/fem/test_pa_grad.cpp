@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,7 +15,30 @@
 
 using namespace mfem;
 
-double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
+Mesh MakeCartesianNonaligned(const int dim, const int ne)
+{
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL, 1, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   }
+
+   // Remap vertices so that the mesh is not aligned with axes.
+   for (int i=0; i<mesh.GetNV(); ++i)
+   {
+      real_t *vcrd = mesh.GetVertex(i);
+      vcrd[1] += 0.2 * vcrd[0];
+      if (dim == 3) { vcrd[2] += 0.3 * vcrd[0]; }
+   }
+
+   return mesh;
+}
+
+real_t compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
 {
    Mesh mesh;
    if (num_elements == 0)
@@ -31,17 +54,9 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    }
    else
    {
-      if (dim == 2)
-      {
-         mesh = Mesh::MakeCartesian2D(num_elements, num_elements, Element::QUADRILATERAL,
-                                      true);
-      }
-      else
-      {
-         mesh = Mesh::MakeCartesian3D(num_elements, num_elements, num_elements,
-                                      Element::HEXAHEDRON);
-      }
+      mesh = MakeCartesianNonaligned(dim, num_elements);
    }
+
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
    FiniteElementCollection *nd_fec = new ND_FECollection(order, dim);
    FiniteElementSpace h1_fespace(&mesh, h1_fec);
@@ -78,7 +93,6 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    xv.Randomize();
    if (transpose)
    {
-      assembled_grad_mat.BuildTranspose();
       assembled_grad_mat.MultTranspose(xv, assembled_y);
       pa_grad.MultTranspose(xv, pa_y);
    }
@@ -89,7 +103,7 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    }
 
    pa_y -= assembled_y;
-   double error = pa_y.Norml2() / assembled_y.Norml2();
+   real_t error = pa_y.Norml2() / assembled_y.Norml2();
    INFO("dim " << dim << " ne " << num_elements << " order " << order
         << (transpose ? " T:" : ":") << " error in PA gradient: " << error);
 
@@ -99,20 +113,20 @@ double compare_pa_assembly(int dim, int num_elements, int order, bool transpose)
    return error;
 }
 
-TEST_CASE("PAGradient", "[CUDA]")
+TEST_CASE("PAGradient", "[GPU]")
 {
    auto transpose = GENERATE(true, false);
    auto order = GENERATE(1, 2, 3, 4);
    auto dim = GENERATE(2, 3);
    auto num_elements = GENERATE(0, 1, 2, 3, 4);
 
-   double error = compare_pa_assembly(dim, num_elements, order, transpose);
+   real_t error = compare_pa_assembly(dim, num_elements, order, transpose);
    REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }
 
 #ifdef MFEM_USE_MPI
 
-double par_compare_pa_assembly(int dim, int num_elements, int order,
+real_t par_compare_pa_assembly(int dim, int num_elements, int order,
                                bool transpose)
 {
    int rank;
@@ -120,17 +134,7 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    int size;
    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-   Mesh smesh;
-   if (dim == 2)
-   {
-      smesh = Mesh::MakeCartesian2D(
-                 num_elements, num_elements, Element::QUADRILATERAL, true);
-   }
-   else
-   {
-      smesh = Mesh::MakeCartesian3D(
-                 num_elements, num_elements, num_elements, Element::HEXAHEDRON);
-   }
+   Mesh smesh = MakeCartesianNonaligned(dim, num_elements);
    ParMesh * mesh = new ParMesh(MPI_COMM_WORLD, smesh);
    smesh.Clear();
    FiniteElementCollection *h1_fec = new H1_FECollection(order, dim);
@@ -185,7 +189,7 @@ double par_compare_pa_assembly(int dim, int num_elements, int order,
    error_vec -= assembled_y;
    // serial norms and serial error; we are enforcing equality on each processor
    // in the test
-   double error = error_vec.Norml2() / assembled_y.Norml2();
+   real_t error = error_vec.Norml2() / assembled_y.Norml2();
 
    for (int p = 0; p < size; ++p)
    {
@@ -213,7 +217,7 @@ TEST_CASE("ParallelPAGradient", "[Parallel], [ParallelPAGradient]")
    auto dim = GENERATE(2, 3);
    auto num_elements = GENERATE(4, 5);
 
-   double error = par_compare_pa_assembly(dim, num_elements, order, transpose);
+   real_t error = par_compare_pa_assembly(dim, num_elements, order, transpose);
    REQUIRE(error == MFEM_Approx(0.0, 1.0e-14));
 }
 

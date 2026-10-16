@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -74,9 +74,9 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
    HCurlFESpace_ = new ND_ParFESpace(pmesh_,order,pmesh_->Dimension());
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
 
-   int irOrder = H1FESpace_->GetElementTransformation(0)->OrderW()
+   int irOrder = pmesh.GetTypicalElementTransformation()->OrderW()
                  + 2 * order;
-   int geom = H1FESpace_->GetFE(0)->GetGeomType();
+   Geometry::Type geom = pmesh.GetTypicalElementGeometry();
    const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
 
    // Select surface attributes for Dirichlet BCs
@@ -414,7 +414,7 @@ TeslaSolver::GetErrorEstimates(Vector & errors)
    ParFiniteElementSpace flux_fes(pmesh_, &flux_fec);
 
    // Space for the smoothed (conforming) flux
-   double norm_p = 1;
+   int norm_p = 1;
    ND_FECollection smooth_flux_fec(order_, pmesh_->Dimension());
    ParFiniteElementSpace smooth_flux_fes(pmesh_, &smooth_flux_fec);
 
@@ -490,12 +490,11 @@ TeslaSolver::InitializeGLVis()
 }
 
 void
-TeslaSolver::DisplayToGLVis()
+TeslaSolver::DisplayToGLVis(int visport)
 {
    if (myid_ == 0) { cout << "Sending data to GLVis ..." << flush; }
 
    char vishost[] = "localhost";
-   int  visport   = 19916;
 
    int Wx = 0, Wy = 0; // window position
    int Ww = 350, Wh = 350; // window size

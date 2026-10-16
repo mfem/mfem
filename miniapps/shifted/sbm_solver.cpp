@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,7 @@
 namespace mfem
 {
 
-double ShiftedFunctionCoefficient::Eval(ElementTransformation & T,
+real_t ShiftedFunctionCoefficient::Eval(ElementTransformation & T,
                                         const IntegrationPoint & ip,
                                         const Vector &D)
 {
@@ -50,7 +50,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    int dim, ndof1, ndof2, ndof, ndoftotal;
-   double w;
+   real_t w;
    DenseMatrix temp_elmat;
 
    dim = el1.GetDim();
@@ -181,7 +181,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
 
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          int tot_col_per_dof = loc_col_per_dof*dim;
@@ -233,7 +233,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
    Vector D(vD->GetVDim());
    // Assemble: -< \nabla u.n, w >
    //           -< u + \nabla u.d + h.o.t, \nabla w.n>
-   //           -<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
+   //           +<alpha h^{-1} (u + \nabla u.d + h.o.t), w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -290,7 +290,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       q_hess_dot_d = 0.;
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
@@ -299,7 +299,7 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
          Vector T2_wrk;
          for (int j = 0; j < i+1; j++)
          {
-            int sz2 = pow(dim, i-j);
+            int sz2 = static_cast<int>(pow(dim, i-j));
             T2.SetSize(dim, ndof*sz2);
             T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
             T1.MultTranspose(D, T2_wrk);
@@ -317,17 +317,16 @@ void SBM2DirichletIntegrator::AssembleFaceMatrix(
       // <u + grad u.d + h.o.t, grad w.n>  - Term 3
       AddMult_a_VWt(-1., dshapedn, wrk, temp_elmat);
 
-      double hinvdx;
+      real_t hinvdx;
       if (elem1f) { hinvdx = nor*nor/Trans.Elem1->Weight(); }
       else { hinvdx = nor*nor/Trans.Elem2->Weight(); }
 
       w = ip.weight*alpha*hinvdx;
       // + <alpha * hinv * u + grad u.d + h.o.t, w + grad w.d + h.o.t> - Term 4
       AddMult_a_VVt(w, wrk, temp_elmat);
-
-      int offset = elem1f ? 0 : ndof1;
-      elmat.CopyMN(temp_elmat, offset, offset);
    } // p < ir->GetNPoints()
+   int offset = elem1f ? 0 : ndof1;
+   elmat.CopyMN(temp_elmat, offset, offset);
 
    for (int i = 0; i < dkphi_dxk.Size(); i++)
    {
@@ -353,7 +352,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    FaceElementTransformations &Tr, Vector &elvect)
 {
    int dim, ndof1, ndof2, ndof, ndoftotal;
-   double w;
+   real_t w;
    Vector temp_elvect;
 
    dim = el1.GetDim();
@@ -436,8 +435,8 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       }
    }
 
-   temp_elvect.SetSize(ndof);
-   temp_elvect = 0.0;
+   int offset = elem1f ? 0 : ndof1;
+   temp_elvect.SetDataAndSize(elvect.GetData()+offset, ndof);
 
    nor.SetSize(dim);
    nh.SetSize(dim);
@@ -489,7 +488,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
 
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          for (int k = 0; k < dim; k++)
@@ -541,10 +540,9 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
    Vector D(vD->GetVDim());
    Vector wrk = shape;
    // Assemble: -< u_D, \nabla w.n >
-   //           -<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
+   //           +<alpha h^{-1} u_D, w + \nabla w.d + h.o.t>
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
-
       const IntegrationPoint &ip = ir->IntPoint(p);
 
       // Set the integration point in the face and the neighboring element
@@ -568,7 +566,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       // Make sure the normal vector is pointing outside the domain.
       if (!elem1f) { nor *= -1; }
 
-      double hinvdx;
+      real_t hinvdx;
 
       if (elem1f)
       {
@@ -593,7 +591,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       dshape.Mult(nh, dshape_dn);
       temp_elvect.Add(-1., dshape_dn); // T2
 
-      double jinv;
+      real_t jinv;
       if (elem1f)
       {
          w = ip.weight * uD->Eval(Tr, ip, D) * alpha * hinvdx;
@@ -611,7 +609,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       q_hess_dot_d = 0.;
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
@@ -620,7 +618,7 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
          Vector T2_wrk;
          for (int j = 0; j < i+1; j++)
          {
-            int sz2 = pow(dim, i-j);
+            int sz2 = static_cast<int>(pow(dim, i-j));
             T2.SetSize(dim, ndof*sz2);
             T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
             T1.MultTranspose(D, T2_wrk);
@@ -636,12 +634,6 @@ void SBM2DirichletLFIntegrator::AssembleRHSElementVect(
       wrk += dshape_dd; // \grad w .d
       wrk += q_hess_dot_d;
       temp_elvect.Add(w, wrk); // <u, gradw.d>
-
-      int offset = elem1f ? 0 : ndof1;
-      for (int i = 0; i < temp_elvect.Size(); i++)
-      {
-         elvect(i+offset) = temp_elvect(i);
-      }
    }
 
    for (int i = 0; i < dkphi_dxk.Size(); i++)
@@ -656,7 +648,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    int dim, ndof1, ndof2, ndof, ndoftotal;
-   double w;
+   real_t w;
    DenseMatrix temp_elmat;
 
    dim = el1.GetDim();
@@ -786,7 +778,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
 
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          dkphi_dxk[i] = new DenseMatrix(ndof, ndof*sz1*dim);
          int loc_col_per_dof = sz1;
          int tot_col_per_dof = loc_col_per_dof*dim;
@@ -892,7 +884,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       // <w, (grad u.nhat)nhat.n
       // Here nhat is the normal vector at true boundary and n is the normal
       // vector at shifted boundary
-      double n_dot_ntilde = nor*Nhat;
+      real_t n_dot_ntilde = nor*Nhat;
       ni.Set(w, Nhat);
       adjJ.Mult(ni, nh);
       dshape.Mult(nh, dshapedn);
@@ -902,7 +894,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       q_hess_dot_d_nhat = 0.;
       for (int i = 0; i < nterms; i++)
       {
-         int sz1 = pow(dim, i+1);
+         int sz1 = static_cast<int>(pow(dim, i+1));
          DenseMatrix T1(dim, ndof*sz1);
          Vector T1_wrk(T1.GetData(), dim*ndof*sz1);
          dkphi_dxk[i]->MultTranspose(shape, T1_wrk);
@@ -911,7 +903,7 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
          Vector T2_wrk;
          for (int j = 0; j < i+1; j++)
          {
-            int sz2 = pow(dim, i-j);
+            int sz2 = static_cast<int>(pow(dim, i-j));
             T2.SetSize(dim, ndof*sz2);
             T2_wrk.SetDataAndSize(T2.GetData(), dim*ndof*sz2);
             T1.MultTranspose(D, T2_wrk);
@@ -927,9 +919,9 @@ void SBM2NeumannIntegrator::AssembleFaceMatrix(
       wrk *= ip.weight * n_dot_ntilde;
 
       AddMult_a_VWt(1., shape, wrk, temp_elmat);
-      int offset = elem1f ? 0 : ndof1;
-      elmat.CopyMN(temp_elmat, offset, offset);
    } //p < ir->GetNPoints()
+   int offset = elem1f ? 0 : ndof1;
+   elmat.CopyMN(temp_elmat, offset, offset);
 
    for (int i = 0; i < dkphi_dxk.Size(); i++)
    {
@@ -954,7 +946,7 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
    FaceElementTransformations &Tr, Vector &elvect)
 {
    int dim, ndof1, ndof2, ndof, ndoftotal;
-   double w;
+   real_t w;
    Vector temp_elvect;
 
    dim = el1.GetDim();
@@ -1036,8 +1028,8 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
       }
    }
 
-   temp_elvect.SetSize(ndof);
-   temp_elvect = 0.0;
+   int offset = elem1f ? 0 : ndof1;
+   temp_elvect.SetDataAndSize(elvect.GetData()+offset, ndof);
 
    nor.SetSize(dim);
    shape.SetSize(ndof);
@@ -1090,16 +1082,10 @@ void SBM2NeumannLFIntegrator::AssembleRHSElementVect(
          w = ip.weight * uN->Eval(Tr, ip, D);
       }
 
-      double n_dot_ntilde = nor*Nhat;
+      real_t n_dot_ntilde = nor*Nhat;
       wrk.Set(n_dot_ntilde*w, shape);
       //<w, (nhat.n)t_n)
       temp_elvect.Add(1., wrk);
-
-      int offset = elem1f ? 0 : ndof1;
-      for (int i = 0; i < temp_elvect.Size(); i++)
-      {
-         elvect(i+offset) = temp_elvect(i);
-      }
    }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,7 @@
 #include "general/error.hpp"
 #include "general/device.hpp"
 #include "general/array.hpp"
+#include "general/arrays_by_name.hpp"
 #include "general/sets.hpp"
 #include "general/hash.hpp"
 #include "general/mem_alloc.hpp"
@@ -27,7 +28,7 @@
 #include "general/annotation.hpp"
 #ifdef MFEM_USE_ADIOS2
 #include "general/adios2stream.hpp"
-#endif
+#endif // MFEM_USE_ADIOS2
 #include "general/isockstream.hpp"
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"
@@ -35,12 +36,19 @@
 #include "general/zstr.hpp"
 #include "general/version.hpp"
 #include "general/globals.hpp"
+#include "general/kdtree.hpp"
+#include "general/enzyme.hpp"
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"
-#endif
+#endif // MFEM_USE_MPI
 
 #include "linalg/linalg.hpp"
+
 #include "mesh/mesh_headers.hpp"
+
 #include "fem/fem.hpp"
+#ifdef MFEM_USE_MOONOLITH
+#include "fem/moonolith/transfer.hpp"
+#endif // MFEM_USE_MOONOLITH
 
 #endif

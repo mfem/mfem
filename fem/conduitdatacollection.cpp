@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -330,7 +330,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          }
          else
          {
-            Node &(n_bndry_conn_conv) =
+            Node &n_bndry_conn_conv =
                n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
             n_bndry_conn.to_int_array(n_bndry_conn_conv);
             bndry_indices = (n_bndry_conn_conv).value();
@@ -719,7 +719,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    // copy out. Some other cases (sidre) may actually have contig
    // allocation but I am  not sure how to detect this case from mfem
    int num_ele = mesh->GetNE();
-   int geom = mesh->GetElementBaseGeometry(0);
+   int geom = mesh->GetTypicalElementGeometry();
    int idxs_per_ele = Geometry::NumVerts[geom];
    int num_conn_idxs =  num_ele * idxs_per_ele;
 
@@ -765,7 +765,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    ////////////////////////////////////////////
 
    // guard vs if we have boundary elements
-   if (mesh->GetNBE() > 0)
+   if (mesh->HasBoundaryElements())
    {
       n_topo["boundary_topology"] = boundary_topology_name;
 
@@ -774,17 +774,20 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       n_bndry_topo["type"]     = "unstructured";
       n_bndry_topo["coordset"] = coordset_name;
 
-      Element::Type bndry_ele_type = mesh->GetBdrElementType(0);
+      int num_bndry_ele = mesh->GetNBE();
 
-      std::string bndry_ele_shape = ElementTypeToShapeName(bndry_ele_type);
+      Element *BE0 = NULL; // representative boundary element
+      if (num_bndry_ele > 0) { BE0 = mesh->GetBdrElement(0); }
 
+      // must initialize this to something, pick POINT if no boundary elements
+      Element::Type bndry_ele_type   = (BE0) ? BE0->GetType() : Element::POINT;
+      std::string bndry_ele_shape    = ElementTypeToShapeName(bndry_ele_type);
       n_bndry_topo["elements/shape"] = bndry_ele_shape;
 
-
-      int num_bndry_ele = mesh->GetNBE();
-      int bndry_geom    = mesh->GetBdrElementBaseGeometry(0);
+      // must initialize this to something, pick POINT if no boundary elements
+      int bndry_geom          = (BE0) ? BE0->GetGeometryType() : Geometry::POINT;
       int bndry_idxs_per_ele  = Geometry::NumVerts[bndry_geom];
-      int num_bndry_conn_idxs =  num_bndry_ele * bndry_idxs_per_ele;
+      int num_bndry_conn_idxs = num_bndry_ele * bndry_idxs_per_ele;
 
       n_bndry_topo["elements/connectivity"].set(DataType::c_int(num_bndry_conn_idxs));
 
@@ -909,7 +912,7 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
 
    if (vdim == 1) // scalar case
    {
-      n_field["values"].set_external(gf->GetData(),
+      n_field["values"].set_external(const_cast<real_t *>(gf->HostRead()),
                                      ndofs);
    }
    else // vector case
@@ -922,18 +925,18 @@ ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
       int vdim_stride  = (ordering == Ordering::byNODES ? ndofs : 1);
 
       index_t offset = 0;
-      index_t stride = sizeof(double) * entry_stride;
+      index_t stride = sizeof(real_t) * entry_stride;
 
       for (int d = 0;  d < vdim; d++)
       {
          std::ostringstream oss;
          oss << "v" << d;
          std::string comp_name = oss.str();
-         n_field["values"][comp_name].set_external(gf->GetData(),
+         n_field["values"][comp_name].set_external(const_cast<real_t *>(gf->HostRead()),
                                                    ndofs,
                                                    offset,
                                                    stride);
-         offset +=  sizeof(double) * vdim_stride;
+         offset +=  sizeof(real_t) * vdim_stride;
       }
    }
 
@@ -994,8 +997,7 @@ std::string
 ConduitDataCollection::MeshFilePattern(const std::string &relay_protocol)
 {
    std::ostringstream oss;
-   oss << prefix_path
-       << name
+   oss << name
        << "_"
        << to_padded_string(cycle, pad_digits_cycle)
        << "/domain_%0"

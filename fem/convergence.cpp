@@ -1,7 +1,17 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "convergence.hpp"
 
 using namespace std;
-
 
 namespace mfem
 {
@@ -24,11 +34,11 @@ void ConvergenceStudy::Reset()
    ndofs.SetSize(0);
 }
 
-double ConvergenceStudy::GetNorm(GridFunction *gf, Coefficient *scalar_u,
+real_t ConvergenceStudy::GetNorm(GridFunction *gf, Coefficient *scalar_u,
                                  VectorCoefficient *vector_u)
 {
    bool norm_set = false;
-   double norm=0.0;
+   real_t norm=0.0;
    int order = gf->FESpace()->GetMaxElementOrder();
    int order_quad = std::max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -71,6 +81,8 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
                                   Coefficient *scalar_u, VectorCoefficient *vector_u)
 {
    int tdofs=0;
+   int dim = gf->FESpace()->GetMesh()->Dimension();
+
 #ifdef MFEM_USE_MPI
    ParGridFunction *pgf = dynamic_cast<ParGridFunction *>(gf);
    if (pgf)
@@ -85,7 +97,7 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
 #endif
    if (!tdofs) { tdofs = gf->FESpace()->GetTrueVSize(); }
    ndofs.Append(tdofs);
-   double L2Err = 1.;
+   real_t L2Err = 1.;
    if (scalar_u)
    {
       L2Err = gf->ComputeL2Error(*scalar_u);
@@ -102,8 +114,14 @@ void ConvergenceStudy::AddL2Error(GridFunction *gf,
    }
    L2Errors.Append(L2Err);
    // Compute the rate of convergence by:
-   // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-   double val = (counter) ? log(L2Errors[counter-1]/L2Err)/log(2.0) : 0.0;
+   // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+   real_t val=0.;
+   if (counter)
+   {
+      real_t num =  log(L2Errors[counter-1]/L2Err);
+      real_t den = log((real_t)ndofs[counter]/ndofs[counter-1]);
+      val = dim * num/den;
+   }
    L2Rates.Append(val);
    counter++;
 }
@@ -120,17 +138,27 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
                "This constructor is intended for H1 or L2 Elements")
 
    AddL2Error(gf,scalar_u, nullptr);
+   int dim = gf->FESpace()->GetMesh()->Dimension();
 
    if (grad)
    {
-      double GradErr = gf->ComputeGradError(grad);
+      real_t GradErr = gf->ComputeGradError(grad);
       DErrors.Append(GradErr);
-      double err = sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
-      EnErrors.Append(err);
+      real_t error =
+         sqrt(L2Errors[counter-1]*L2Errors[counter-1]+GradErr*GradErr);
+      EnErrors.Append(error);
       // Compute the rate of convergence by:
-      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-      double val = (dcounter) ? log(DErrors[dcounter-1]/GradErr)/log(2.0) : 0.0;
-      double eval = (dcounter) ? log(EnErrors[dcounter-1]/err)/log(2.0) : 0.0;
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+      real_t val = 0.;
+      real_t eval = 0.;
+      if (dcounter)
+      {
+         real_t num = log(DErrors[dcounter-1]/GradErr);
+         real_t den = log((real_t)ndofs[dcounter]/ndofs[dcounter-1]);
+         val = dim * num/den;
+         num = log(EnErrors[dcounter-1]/error);
+         eval = dim * num/den;
+      }
       DRates.Append(val);
       EnRates.Append(eval);
       CoeffDNorm = GetNorm(gf,nullptr,grad);
@@ -141,11 +169,17 @@ void ConvergenceStudy::AddGf(GridFunction *gf, Coefficient *scalar_u,
 
    if (cont_type == mfem::FiniteElementCollection::DISCONTINUOUS && ell_coeff)
    {
-      double DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,jump_scaling);
+      real_t DGErr = gf->ComputeDGFaceJumpError(scalar_u,ell_coeff,jump_scaling);
       DGFaceErrors.Append(DGErr);
       // Compute the rate of convergence by:
-      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-      double val=(fcounter) ? log(DGFaceErrors[fcounter-1]/DGErr)/log(2.0):0.;
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+      real_t val = 0.;
+      if (fcounter)
+      {
+         real_t num = log(DGFaceErrors[fcounter-1]/DGErr);
+         real_t den = log((real_t)ndofs[fcounter]/ndofs[fcounter-1]);
+         val = dim * num/den;
+      }
       DGFaceRates.Append(val);
       fcounter++;
       MFEM_VERIFY(fcounter == counter, "Number of added solutions mismatch");
@@ -158,7 +192,8 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    cont_type = gf->FESpace()->FEColl()->GetContType();
 
    AddL2Error(gf,nullptr,vector_u);
-   double DErr = 0.0;
+   int dim = gf->FESpace()->GetMesh()->Dimension();
+   real_t DErr = 0.0;
    bool derivative = false;
    if (curl)
    {
@@ -175,13 +210,21 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    }
    if (derivative)
    {
-      double err = sqrt(L2Errors[counter-1]*L2Errors[counter-1] + DErr*DErr);
+      real_t error = sqrt(L2Errors[counter-1]*L2Errors[counter-1] + DErr*DErr);
       DErrors.Append(DErr);
-      EnErrors.Append(err);
+      EnErrors.Append(error);
       // Compute the rate of convergence by:
-      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/log(2)
-      double val = (dcounter) ? log(DErrors[dcounter-1]/DErr)/log(2.0) : 0.0;
-      double eval = (dcounter) ? log(EnErrors[dcounter-1]/err)/log(2.0) : 0.0;
+      // rate = log (||u - u_h|| / ||u - u_{h/2}||)/(1/dim * log(N_{h/2}/N_{h}))
+      real_t val = 0.;
+      real_t eval = 0.;
+      if (dcounter)
+      {
+         real_t num = log(DErrors[dcounter-1]/DErr);
+         real_t den = log((real_t)ndofs[dcounter]/ndofs[dcounter-1]);
+         val = dim * num/den;
+         num = log(EnErrors[dcounter-1]/error);
+         eval = dim * num/den;
+      }
       DRates.Append(val);
       EnRates.Append(eval);
       dcounter++;
@@ -190,29 +233,29 @@ void ConvergenceStudy::AddGf(GridFunction *gf, VectorCoefficient *vector_u,
    }
 }
 
-void ConvergenceStudy::Print(bool relative, std::ostream &out)
+void ConvergenceStudy::Print(bool relative, std::ostream &os)
 {
    if (print_flag)
    {
       std::string title = (relative) ? "Relative " : "Absolute ";
-      out << "\n";
-      out << " -------------------------------------------" << "\n";
-      out <<  std::setw(21) << title << "L2 Error " << "\n";
-      out << " -------------------------------------------"
-          << "\n";
-      out << std::right<< std::setw(11)<< "DOFs "<< std::setw(13) << "Error ";
-      out <<  std::setw(15) << "Rate " << "\n";
-      out << " -------------------------------------------"
-          << "\n";
-      out << std::setprecision(4);
-      double d = (relative) ? CoeffNorm : 1.0;
+      os << "\n";
+      os << " -------------------------------------------" << "\n";
+      os <<  std::setw(21) << title << "L2 Error " << "\n";
+      os << " -------------------------------------------"
+         << "\n";
+      os << std::right<< std::setw(11)<< "DOFs "<< std::setw(13) << "Error ";
+      os <<  std::setw(15) << "Rate " << "\n";
+      os << " -------------------------------------------"
+         << "\n";
+      os << std::setprecision(4);
+      real_t d = (relative) ? CoeffNorm : 1.0;
       for (int i =0; i<counter; i++)
       {
-         out << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-             << std::scientific << L2Errors[i]/d << std::setw(13)
-             << std::fixed << L2Rates[i] << "\n";
+         os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+            << std::scientific << L2Errors[i]/d << std::setw(13)
+            << std::fixed << L2Rates[i] << "\n";
       }
-      out << "\n";
+      os << "\n";
       if (dcounter == counter)
       {
          std::string dname;
@@ -224,22 +267,22 @@ void ConvergenceStudy::Print(bool relative, std::ostream &out)
             case 3: dname = "DG Grad";  break;
             default: break;
          }
-         out << " -------------------------------------------" << "\n";
-         out <<  std::setw(21) << title << dname << " Error  " << "\n";
-         out << " -------------------------------------------" << "\n";
-         out << std::right<<std::setw(11)<< "DOFs "<< std::setw(13) << "Error";
-         out << std::setw(15) << "Rate " << "\n";
-         out << " -------------------------------------------"
-             << "\n";
-         out << std::setprecision(4);
+         os << " -------------------------------------------" << "\n";
+         os <<  std::setw(21) << title << dname << " Error  " << "\n";
+         os << " -------------------------------------------" << "\n";
+         os << std::right<<std::setw(11)<< "DOFs "<< std::setw(13) << "Error";
+         os << std::setw(15) << "Rate " << "\n";
+         os << " -------------------------------------------"
+            << "\n";
+         os << std::setprecision(4);
          d = (relative) ? CoeffDNorm : 1.0;
          for (int i =0; i<dcounter; i++)
          {
-            out << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-                << std::scientific << DErrors[i]/d << std::setw(13)
-                << std::fixed << DRates[i] << "\n";
+            os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+               << std::scientific << DErrors[i]/d << std::setw(13)
+               << std::fixed << DRates[i] << "\n";
          }
-         out << "\n";
+         os << "\n";
          switch (cont_type)
          {
             case 0: dname = "H1"; break;
@@ -254,43 +297,43 @@ void ConvergenceStudy::Print(bool relative, std::ostream &out)
             d = (relative) ?
                 sqrt(CoeffNorm*CoeffNorm + CoeffDNorm*CoeffDNorm):1.0;
 
-            out << " -------------------------------------------" << "\n";
-            out << std::setw(21) << title << dname << " Error   " << "\n";
-            out << " -------------------------------------------" << "\n";
-            out << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
-            out << "Error ";
-            out << std::setw(15) << "Rate " << "\n";
-            out << " -------------------------------------------"
-                << "\n";
-            out << std::setprecision(4);
+            os << " -------------------------------------------" << "\n";
+            os << std::setw(21) << title << dname << " Error   " << "\n";
+            os << " -------------------------------------------" << "\n";
+            os << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
+            os << "Error ";
+            os << std::setw(15) << "Rate " << "\n";
+            os << " -------------------------------------------"
+               << "\n";
+            os << std::setprecision(4);
             for (int i =0; i<dcounter; i++)
             {
-               out << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-                   << std::scientific << EnErrors[i]/d << std::setw(13)
-                   << std::fixed << EnRates[i] << "\n";
+               os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+                  << std::scientific << EnErrors[i]/d << std::setw(13)
+                  << std::fixed << EnRates[i] << "\n";
             }
-            out << "\n";
+            os << "\n";
          }
       }
       if (cont_type == 3 && fcounter)
       {
-         out << " -------------------------------------------" << "\n";
-         out << "            DG Face Jump Error          " << "\n";
-         out << " -------------------------------------------"
-             << "\n";
-         out << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
-         out << "Error ";
-         out << std::setw(15) << "Rate " << "\n";
-         out << " -------------------------------------------"
-             << "\n";
-         out << std::setprecision(4);
+         os << " -------------------------------------------" << "\n";
+         os << "            DG Face Jump Error          " << "\n";
+         os << " -------------------------------------------"
+            << "\n";
+         os << std::right<< std::setw(11)<< "DOFs "<< std::setw(13);
+         os << "Error ";
+         os << std::setw(15) << "Rate " << "\n";
+         os << " -------------------------------------------"
+            << "\n";
+         os << std::setprecision(4);
          for (int i =0; i<fcounter; i++)
          {
-            out << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
-                << std::scientific << DGFaceErrors[i] << std::setw(13)
-                << std::fixed << DGFaceRates[i] << "\n";
+            os << std::right << std::setw(10)<< ndofs[i] << std::setw(16)
+               << std::scientific << DGFaceErrors[i] << std::setw(13)
+               << std::fixed << DGFaceRates[i] << "\n";
          }
-         out << "\n";
+         os << "\n";
       }
    }
 }

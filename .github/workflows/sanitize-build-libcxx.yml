@@ -1,0 +1,76 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: build-libcxx
+on:
+  workflow_call:
+jobs:
+  build-llvm-libcxx:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        sanitizer: [asan, msan, ubsan]
+        include:
+          - sanitizer: asan
+            llvm_use_sanitizer: "Address"
+          - sanitizer: msan
+            llvm_use_sanitizer: "MemoryWithOrigins"
+          - sanitizer: ubsan
+            llvm_use_sanitizer: "Undefined"
+    name: ${{matrix.sanitizer}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/sanitize/config
+        with:
+          NO_FLAGS: true
+      - name: Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{env.LLVM_DIR}}
+          key: build-libcxx-${{env.LLVM_VER}}-${{matrix.sanitizer}}
+      - name: Clone
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        run: >
+          git clone --filter=blob:none --depth=1
+          --branch llvmorg-${{env.LLVM_VER}}
+          --no-checkout https://github.com/llvm/llvm-project.git llvm-project
+      - name: Checkout
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        working-directory: llvm-project
+        run: |
+          git sparse-checkout set --cone
+          git checkout llvmorg-${{env.LLVM_VER}}
+          git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
+      - name: Mkdir
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        run: mkdir ${{env.LLVM_DIR}}
+      - name: CMake
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        working-directory: ${{env.LLVM_DIR}}
+        run: >
+          VERBOSE=1
+          cmake -GNinja ../llvm-project/runtimes/
+          -DCMAKE_C_COMPILER=${{env.CC}}
+          -DCMAKE_CXX_COMPILER=${{env.CXX}}
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_INSTALL_PREFIX=/usr
+          -DLLVM_USE_SANITIZER=${{matrix.llvm_use_sanitizer}}
+          -DLLVM_BUILD_32_BITS=OFF
+          -DLIBCXXABI_USE_LLVM_UNWINDER=OFF
+          -DLLVM_INCLUDE_TESTS=OFF
+          -DLIBCXX_INCLUDE_TESTS=OFF
+          -DLIBCXX_INCLUDE_BENCHMARKS=OFF
+          -DLLVM_ENABLE_RUNTIMES='libcxx;libcxxabi'
+      - name: Build
+        if: ${{ steps.cache.outputs.cache-hit != 'true' }}
+        working-directory: ${{env.LLVM_DIR}}
+        run: cmake --build . -- cxx cxxabi

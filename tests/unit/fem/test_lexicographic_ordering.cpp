@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,8 +20,7 @@ void VerifyOrdering(NodalFiniteElement &el)
    Geometry::Type geom = el.GetGeomType();
    const Array<int> &p = el.GetLexicographicOrdering();
 
-   GeometryRefiner refiner;
-   refiner.SetType(BasisType::GaussLobatto);
+   GeometryRefiner refiner(BasisType::GaussLobatto);
    RefinedGeometry *ref_geom = refiner.Refine(geom, order);
 
    double error = 0.0;
@@ -45,7 +44,7 @@ template <typename T> void VerifyOrdering(int order)
    VerifyOrdering(el);
 }
 
-TEST_CASE("Lexicographic Ordering", "[FiniteElement,Geometry]")
+TEST_CASE("Lexicographic Ordering", "[FiniteElement][Geometry]")
 {
    auto order = GENERATE(1, 2, 3, 4, 5, 6);
    VerifyOrdering<H1_SegmentElement>(order);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,26 +36,26 @@ using namespace std;
 //
 // In this particular miniapp, the material value is based on the number of
 // iterations for the point from the definition of the Mandelbrot set.
-int material(Vector &x, Vector &xmin, Vector &xmax)
+int material(Vector &p, Vector &pmin, Vector &pmax)
 {
    // Rescaling to [0,1]^sdim
-   for (int i = 0; i < x.Size(); i++)
+   for (int i = 0; i < p.Size(); i++)
    {
-      x(i) = (x(i)-xmin(i))/(xmax(i)-xmin(i));
+      p(i) = (p(i)-pmin(i))/(pmax(i)-pmin(i));
    }
-   x(0) -= 0.1;
-   double col = x(0), row = x(1);
+   p(0) -= 0.1;
+   real_t col = p(0), row = p(1);
    {
       int width = 1080, height = 1080;
       col *= width;
       row *= height;
-      double c_re = (col - width/2)*4.0/width;
-      double c_im = (row - height/2)*4.0/width;
-      double x = 0, y = 0;
+      real_t c_re = (col - width/2)*4.0/width;
+      real_t c_im = (row - height/2)*4.0/width;
+      real_t x = 0, y = 0;
       int iteration = 0, maxit = 10000;
       while (x*x+y*y <= 4 && iteration < maxit)
       {
-         double x_new = x*x - y*y + c_re;
+         real_t x_new = x*x - y*y + c_re;
          y = 2*x*y + c_im;
          x = x_new;
          iteration++;
@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    bool aniso = false;
    bool visualization = 1;
+   int visport = 19916;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -92,6 +93,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -122,7 +124,6 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
    }
@@ -131,14 +132,14 @@ int main(int argc, char *argv[])
    for (int iter = 0; 1; iter++)
    {
       Array<Refinement> refs;
-      for (int i = 0; i < mesh.GetNE(); i++)
+      for (int e = 0; e < mesh.GetNE(); e++)
       {
          bool refine = false;
 
          // Sample materials in each element using "sd" sub-divisions
          Vector pt;
-         Geometry::Type geom = mesh.GetElementBaseGeometry(i);
-         ElementTransformation *T = mesh.GetElementTransformation(i);
+         Geometry::Type geom = mesh.GetElementBaseGeometry(e);
+         ElementTransformation *T = mesh.GetElementTransformation(e);
          RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
          IntegrationRule &ir = RefG->RefPts;
 
@@ -146,7 +147,7 @@ int main(int argc, char *argv[])
          // sophisticated logic can be implemented here -- e.g. don't refine
          // the interfaces between certain materials.
          Array<int> mat(ir.GetNPoints());
-         double matsum = 0.0;
+         real_t matsum = 0.0;
          for (int j = 0; j < ir.GetNPoints(); j++)
          {
             T->Transform(ir.IntPoint(j), pt);
@@ -160,8 +161,8 @@ int main(int argc, char *argv[])
          }
 
          // Set the element attribute as the "average". Other choices are
-         // possible here too, e.g. attr(i) = mat;
-         attr(i) = round(matsum/ir.GetNPoints());
+         // possible here too, e.g. attr(e) = mat;
+         attr(e) = round(matsum/ir.GetNPoints());
 
          // Mark the element for refinement
          if (refine)
@@ -200,7 +201,7 @@ int main(int argc, char *argv[])
                if (!type) { type = 7; } // because of tol
             }
 
-            refs.Append(Refinement(i, type));
+            refs.Append(Refinement(e, type));
          }
       }
 
@@ -242,7 +243,7 @@ int main(int argc, char *argv[])
    // Set element attributes in the mesh object before saving
    for (int i = 0; i < mesh.GetNE(); i++)
    {
-      mesh.SetAttribute(i, attr(i));
+      mesh.SetAttribute(i, static_cast<int>(attr(i)));
    }
    mesh.SetAttributes();
 

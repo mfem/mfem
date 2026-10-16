@@ -1,0 +1,154 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+---
+name: Sanitizer Config
+description: Sets up environment variables for MFEM sanitizer workflow
+
+inputs:
+  DEBUG:
+    description: If true, use intermediate caches to speed up the workflow
+                 by reusing previous builds.
+    default: false
+
+  REPOSITORY:
+    description: Repository to checkout
+    default: mfem/mfem
+
+  BRANCH:
+    description: Branch to checkout
+    default: ubsan
+
+  CLANG_VER:
+    description: CLANG version to use
+    default: 18
+
+  # https://github.com/llvm/llvm-project/releases
+  LLVM_VER:
+    description: LLVM version to use
+    default: 19.1.7
+
+  # https://github.com/hypre-space/hypre/releases
+  HYPRE_VER:
+    description: HYPRE version to use
+    default: 2.19.0
+
+  METIS_VER:
+    description: METIS version to use
+    default: 4.0.3
+
+  CTEST:
+    description: CTest command to use
+    default: ctest -j --test-load $(nproc)
+                      --schedule-random
+                      --stop-on-failure --output-on-failure
+                      --test-dir
+
+  # https://clang.llvm.org/docs/AddressSanitizer.html
+  ASAN_OPTIONS:
+    default: detect_leaks=1,
+             strict_init_order=1,
+             strict_string_checks=1,
+             check_initialization_order=1,
+             detect_stack_use_after_return=1
+  ASAN_CXXFLAGS:
+    default: -fsanitize=address
+             -fsanitize-address-use-after-scope
+  ASAN_LDFLAGS:
+    default: -fsanitize=address
+
+  # https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
+  UBSAN_OPTIONS:
+    default: halt_on_error=1, print_stacktrace=1
+  UBSAN_CXXFLAGS:
+    default: -fsanitize=undefined
+  UBSAN_LDFLAGS:
+    default: -fsanitize=undefined
+
+  # https://clang.llvm.org/docs/MemorySanitizer.html
+  MSAN_OPTIONS:
+    default: "poison_in_dtor=1"
+  MSAN_CXXFLAGS:
+    default: -fsanitize=memory
+             -fsanitize-memory-track-origins
+             -fsanitize-memory-use-after-dtor
+  MSAN_LDFLAGS:
+    default: -fsanitize=memory
+
+  LSAN_DIR:
+    description: LSAN suppression directory
+    default: lsan
+
+  LSAN_FILE:
+    description: LSAN suppression file
+    default: lsan.supp
+
+  NO_FLAGS:
+    description: If true, do not set any CXXFLAGS or LDFLAGS.
+    default: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Env (Inputs)
+      run: |
+        echo DEBUG=${{inputs.DEBUG}} >> $GITHUB_ENV
+        echo REPOSITORY=${{inputs.REPOSITORY}} >> $GITHUB_ENV
+        echo BRANCH=${{inputs.BRANCH}} >> $GITHUB_ENV
+        echo CLANG_VER=${{inputs.CLANG_VER}} >> $GITHUB_ENV
+        echo LLVM_VER=${{inputs.LLVM_VER}} >> $GITHUB_ENV
+        echo HYPRE_VER=${{inputs.HYPRE_VER}} >> $GITHUB_ENV
+        echo METIS_VER=${{inputs.METIS_VER}} >> $GITHUB_ENV
+        echo CTEST=${{inputs.CTEST}} >> $GITHUB_ENV
+        echo ASAN_OPTIONS=${{inputs.ASAN_OPTIONS}} >> $GITHUB_ENV
+        echo UBSAN_OPTIONS=${{inputs.UBSAN_OPTIONS}} >> $GITHUB_ENV
+        echo MSAN_OPTIONS=${{inputs.MSAN_OPTIONS}} >> $GITHUB_ENV
+        echo LSAN_DIR=${{inputs.LSAN_DIR}} >> $GITHUB_ENV
+        echo LSAN_FILE=${{inputs.LSAN_FILE}} >> $GITHUB_ENV
+        echo ASAN_CXXFLAGS=${{inputs.ASAN_CXXFLAGS}} >> $GITHUB_ENV
+        echo ASAN_LDFLAGS=${{inputs.ASAN_LDFLAGS}} >> $GITHUB_ENV
+        echo UBSAN_CXXFLAGS=${{inputs.UBSAN_CXXFLAGS}} >> $GITHUB_ENV
+        echo UBSAN_LDFLAGS=${{inputs.UBSAN_LDFLAGS}} >> $GITHUB_ENV
+        echo MSAN_CXXFLAGS=${{inputs.MSAN_CXXFLAGS}} >> $GITHUB_ENV
+        echo MSAN_LDFLAGS=${{inputs.MSAN_LDFLAGS}} >> $GITHUB_ENV
+      shell: bash
+
+    - name: Env (dir)
+      run: |
+        echo LLVM_DIR=${{github.workspace}}/llvm >> $GITHUB_ENV
+        echo HYPRE_DIR=hypre-${{inputs.HYPRE_VER}} >> $GITHUB_ENV
+        echo METIS_DIR=metis-${{inputs.METIS_VER}} >> $GITHUB_ENV
+      shell: bash
+
+    - name: Env (bis)
+      run: |
+        echo CC=clang-${{inputs.CLANG_VER}} >> $GITHUB_ENV
+        echo CXX=clang++-${{inputs.CLANG_VER}} >> $GITHUB_ENV
+        echo LLVM_INC=${{env.LLVM_DIR}}/include/c++/v1 >> $GITHUB_ENV
+        echo LLVM_LIB=${{env.LLVM_DIR}}/lib >> $GITHUB_ENV
+        echo HYPRE_TGZ=v${{inputs.HYPRE_VER}}.tar.gz >> $GITHUB_ENV
+        echo METIS_TGZ=metis-${{inputs.METIS_VER}}.tar.gz >> $GITHUB_ENV
+        LSAN_SUPPRESSIONS="${{github.workspace}}/${{inputs.LSAN_DIR}}/${{inputs.LSAN_FILE}}"
+        echo "LSAN_OPTIONS=suppressions=$LSAN_SUPPRESSIONS" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Env (ter)
+      if: ${{ inputs.NO_FLAGS != 'true' }}
+      run: |
+        echo LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}} >> $GITHUB_ENV
+        echo LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}} >> $GITHUB_ENV
+      shell: bash
+
+    - name: Env (quater)
+      if: ${{ inputs.NO_FLAGS != 'true' }}
+      run: |
+        echo CXXFLAGS=${{env.LLVM_CXXFLAGS}} >> $GITHUB_ENV
+        echo LDFLAGS=${{env.LLVM_LDFLAGS}} >> $GITHUB_ENV
+      shell: bash

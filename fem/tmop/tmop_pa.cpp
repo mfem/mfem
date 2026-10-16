@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,7 +20,7 @@
 namespace mfem
 {
 
-void TMOP_Integrator::AssembleGradPA(const Vector &xe,
+void TMOP_Integrator::AssembleGradPA(const Vector &de,
                                      const FiniteElementSpace &fes)
 {
    MFEM_VERIFY(PA.enabled, "PA extension setup has not been done!");
@@ -28,6 +28,15 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    // TODO: we need a more robust way to check that the 'fes' used when
    // AssemblePA() was called has not been modified or completely destroyed and
    // a new object created at the same address.
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
@@ -38,13 +47,13 @@ void TMOP_Integrator::AssembleGradPA(const Vector &xe,
    if (PA.dim == 2)
    {
       AssembleGradPA_2D(xe);
-      if (coeff0) { AssembleGradPA_C0_2D(xe); }
+      if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
       AssembleGradPA_3D(xe);
-      if (coeff0) { AssembleGradPA_C0_3D(xe); }
+      if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
    }
 }
 
@@ -53,13 +62,14 @@ void TMOP_Integrator::AssemblePA_Limiting()
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
    // Return immediately if limiting is not enabled
-   if (coeff0 == nullptr) { return; }
-   MFEM_VERIFY(nodes0, "internal error");
+   if (lim_coeff == nullptr) { return; }
+   MFEM_VERIFY(lim_nodes0, "internal error");
 
    MFEM_VERIFY(PA.enabled, "AssemblePA_Limiting but PA is not enabled!");
    MFEM_VERIFY(lim_func, "No TMOP_LimiterFunction specification!")
-   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func),
-               "Only TMOP_QuadraticLimiter is supported");
+   MFEM_VERIFY(dynamic_cast<TMOP_QuadraticLimiter*>(lim_func) ||
+               dynamic_cast<TMOP_ExponentialLimiter*>(lim_func),
+               "Only TMOP_QuadraticLimiter and TMOP_ExponentialLimiter are supported");
 
    const FiniteElementSpace *fes = PA.fes;
    const int NE = PA.ne;
@@ -68,14 +78,14 @@ void TMOP_Integrator::AssemblePA_Limiting()
 
    const ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-   // H0 for coeff0, (dim x dim) Q-vector
+   // H0 for lim_coeff, (dim x dim) Q-vector
    PA.H0.UseDevice(true);
    PA.H0.SetSize(PA.dim * PA.dim * PA.nq * NE, mt);
 
-   // coeff0 -> PA.C0 (Q-vector)
+   // lim_coeff -> PA.C0 (Q-vector)
    PA.C0.UseDevice(true);
    if (ConstantCoefficient* cQ =
-          dynamic_cast<ConstantCoefficient*>(coeff0))
+          dynamic_cast<ConstantCoefficient*>(lim_coeff))
    {
       PA.C0.SetSize(1, Device::GetMemoryType());
       PA.C0.HostWrite();
@@ -90,22 +100,22 @@ void TMOP_Integrator::AssemblePA_Limiting()
          ElementTransformation& T = *fes->GetElementTransformation(e);
          for (int q = 0; q < ir.GetNPoints(); ++q)
          {
-            C0(q,e) = coeff0->Eval(T, ir.IntPoint(q));
+            C0(q,e) = lim_coeff->Eval(T, ir.IntPoint(q));
          }
       }
    }
 
-   // nodes0 -> PA.X0 (E-vector)
-   MFEM_VERIFY(nodes0->FESpace() == fes, "");
+   // lim_nodes0 -> PA.XL (E-vector)
+   MFEM_VERIFY(lim_nodes0->FESpace() == fes, "");
    const Operator *n0_R = fes->GetElementRestriction(ordering);
-   PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
-   PA.X0.UseDevice(true);
-   n0_R->Mult(*nodes0, PA.X0);
+   PA.XL.SetSize(n0_R->Height(), Device::GetMemoryType());
+   PA.XL.UseDevice(true);
+   n0_R->Mult(*lim_nodes0, PA.XL);
 
    // Limiting distances: lim_dist -> PA.LD (E-vector)
    // TODO: remove the hack for the case lim_dist == NULL.
    const FiniteElementSpace *limfes = (lim_dist) ? lim_dist->FESpace() : fes;
-   const FiniteElement &lim_fe = *limfes->GetFE(0);
+   const FiniteElement &lim_fe = *limfes->GetTypicalFE();
    PA.maps_lim = &lim_fe.GetDofToQuad(ir, DofToQuad::TENSOR);
    PA.LD.SetSize(NE*lim_fe.GetDof(), Device::GetMemoryType());
    PA.LD.UseDevice(true);
@@ -114,10 +124,7 @@ void TMOP_Integrator::AssemblePA_Limiting()
       const Operator *ld_R = limfes->GetElementRestriction(ordering);
       ld_R->Mult(*lim_dist, PA.LD);
    }
-   else
-   {
-      PA.LD = 1.0;
-   }
+   else { PA.LD = 1.0; }
 }
 
 void TargetConstructor::ComputeAllElementTargets(const FiniteElementSpace &fes,
@@ -175,6 +182,53 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
+{
+   Vector x_loc;
+   if (periodic)
+   {
+      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
+   }
+   else
+   {
+      x_loc.SetSize(x_0->Size());
+      add(*x_0, d_loc, x_loc);
+   }
+
+   // Both are constant or not specified.
+   if (PA.MC.Size() == 1 && PA.C0.Size() == 1) { return; }
+
+   // Coefficients are always evaluated on the CPU for now.
+   PA.MC.HostWrite();
+   PA.C0.HostWrite();
+
+   const IntegrationRule &ir = *PA.ir;
+   auto T = new IsoparametricTransformation;
+   for (int e = 0; e < PA.ne; ++e)
+   {
+      // Uses the node positions in x_loc.
+      PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+
+      if (PA.MC.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.MC(q + e * PA.nq) = metric_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
+
+      if (PA.C0.Size() > 1)
+      {
+         for (int q = 0; q < PA.nq; ++q)
+         {
+            PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
+         }
+      }
+   }
+
+   delete T;
+}
+
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
@@ -183,22 +237,37 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
    const int ne = PA.ne = mesh->GetNE();
-   if (ne == 0) { return; }  // Quick return for empty processors
    const int dim = PA.dim = mesh->Dimension();
+
    MFEM_VERIFY(PA.dim == 2 || PA.dim == 3, "Not yet implemented!");
    MFEM_VERIFY(mesh->GetNumGeometries(dim) <= 1,
-               "mixed meshes are not supported");
+               "TMOP+PA does not support mixed meshes.");
+   MFEM_VERIFY(mesh->HasGeometry(Geometry::SQUARE) ||
+               mesh->HasGeometry(Geometry::CUBE),
+               "TMOP+PA only supports squares and cubes.");
    MFEM_VERIFY(!fes.IsVariableOrder(), "variable orders are not supported");
-   const FiniteElement &fe = *fes.GetFE(0);
+   MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
+               "TMOP+PAP only supports Ordering::byNODES!");
+
+   const FiniteElement &fe = *fes.GetTypicalFE();
    PA.ir = &EnergyIntegrationRule(fe);
    const IntegrationRule &ir = *PA.ir;
-   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES,
-               "PA Only supports Ordering::byNODES!");
-
    const int nq = PA.nq = ir.GetNPoints();
    const DofToQuad::Mode mode = DofToQuad::TENSOR;
    PA.maps = &fe.GetDofToQuad(ir, mode);
+   // Note - initial mesh. TODO delete this?
    PA.geom = mesh->GetGeometricFactors(ir, GeometricFactors::JACOBIANS);
+
+   // Initial node positions.
+   // PA.X0 is also updated in TMOP_Integrator::SetInitialMeshPos.
+   if (x_0 != nullptr)
+   {
+      const ElementDofOrdering ord = ElementDofOrdering::LEXICOGRAPHIC;
+      auto n0_R = x_0->FESpace()->GetElementRestriction(ord);
+      PA.X0.UseDevice(true);
+      PA.X0.SetSize(n0_R->Height(), Device::GetMemoryType());
+      n0_R->Mult(*x_0, PA.X0);
+   }
 
    // Energy vector, scalar Q-vector
    PA.E.UseDevice(true);
@@ -212,13 +281,43 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    PA.O.SetSize(ne*nq, Device::GetDeviceMemoryType());
    PA.O = 1.0;
 
+   if (metric_coeff)
+   {
+      if (auto cc = dynamic_cast<ConstantCoefficient *>(metric_coeff))
+      {
+         PA.MC.SetSize(1, Device::GetMemoryType());
+         PA.MC.HostWrite();
+         PA.MC(0) = cc->constant;
+      }
+      else
+      {
+         PA.MC.SetSize(PA.nq * PA.ne, Device::GetMemoryType());
+         auto M0 = Reshape(PA.MC.HostWrite(), PA.nq, PA.ne);
+         for (int e = 0; e < PA.ne; ++e)
+         {
+            ElementTransformation& T = *PA.fes->GetElementTransformation(e);
+            for (int q = 0; q < ir.GetNPoints(); ++q)
+            {
+               // Note that this is always on the initial mesh.
+               M0(q,e) = metric_coeff->Eval(T, ir.IntPoint(q));
+            }
+         }
+      }
+   }
+   else
+   {
+      PA.MC.SetSize(1, Device::GetMemoryType());
+      PA.MC.HostWrite();
+      PA.MC(0) = 1.0;
+   }
+
    // Setup ref->target Jacobians, PA.Jtr, (dim x dim) Q-vector, DenseTensor
    PA.Jtr.SetSize(dim, dim, PA.ne*PA.nq, mt);
    PA.Jtr_needs_update = true;
    PA.Jtr_debug_grad = false;
 
-   // Limiting: coeff0 -> PA.C0, nodes0 -> PA.X0, lim_dist -> PA.LD, PA.H0
-   if (coeff0) { AssemblePA_Limiting(); }
+   // Limiting: lim_coeff -> PA.C0, lim_nodes0 -> PA.XL, lim_dist -> PA.LD, PA.H0
+   if (lim_coeff) { AssemblePA_Limiting(); }
 }
 
 void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
@@ -236,19 +335,28 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
    if (PA.dim == 2)
    {
       AssembleDiagonalPA_2D(de);
-      if (coeff0) { AssembleDiagonalPA_C0_2D(de); }
+      if (lim_coeff) { AssembleDiagonalPA_C0_2D(de); }
    }
 
    if (PA.dim == 3)
    {
       AssembleDiagonalPA_3D(de);
-      if (coeff0) { AssembleDiagonalPA_C0_3D(de); }
+      if (lim_coeff) { AssembleDiagonalPA_C0_3D(de); }
    }
 }
 
-void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
+void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
 {
    // This method must be called after AssemblePA().
+
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
@@ -258,13 +366,13 @@ void TMOP_Integrator::AddMultPA(const Vector &xe, Vector &ye) const
    if (PA.dim == 2)
    {
       AddMultPA_2D(xe,ye);
-      if (coeff0) { AddMultPA_C0_2D(xe,ye); }
+      if (lim_coeff) { AddMultPA_C0_2D(xe,ye); }
    }
 
    if (PA.dim == 3)
    {
       AddMultPA_3D(xe,ye);
-      if (coeff0) { AddMultPA_C0_3D(xe,ye); }
+      if (lim_coeff) { AddMultPA_C0_3D(xe,ye); }
    }
 }
 
@@ -283,21 +391,30 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
    if (PA.dim == 2)
    {
       AddMultGradPA_2D(re,ce);
-      if (coeff0) { AddMultGradPA_C0_2D(re,ce); }
+      if (lim_coeff) { AddMultGradPA_C0_2D(re,ce); }
    }
 
    if (PA.dim == 3)
    {
       AddMultGradPA_3D(re,ce);
-      if (coeff0) { AddMultGradPA_C0_3D(re,ce); }
+      if (lim_coeff) { AddMultGradPA_C0_3D(re,ce); }
    }
 }
 
-double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
+real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
 {
    // This method must be called after AssemblePA().
 
-   double energy = 0.0;
+   // Form the Vector of node positions, depending on what's the input.
+   Vector xe(de.Size());
+   if (x_0)
+   {
+      // The input is the displacement.
+      add(PA.X0, de, xe);
+   }
+   else { xe = de; }
+
+   real_t energy = 0.0;
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
@@ -306,14 +423,14 @@ double TMOP_Integrator::GetLocalStateEnergyPA(const Vector &xe) const
 
    if (PA.dim == 2)
    {
-      energy = GetLocalStateEnergyPA_2D(xe);
-      if (coeff0) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
+      GetLocalStateEnergyPA_2D(xe, energy);
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
    }
 
    if (PA.dim == 3)
    {
-      energy = GetLocalStateEnergyPA_3D(xe);
-      if (coeff0) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
+      GetLocalStateEnergyPA_3D(xe, energy);
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
    }
 
    return energy;

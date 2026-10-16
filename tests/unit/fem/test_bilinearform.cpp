@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2021, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,7 +69,7 @@ TEST_CASE("Test order of boundary integrators",
 
 TEST_CASE("FormLinearSystem/SolutionScope",
           "[BilinearForm]"
-          "[CUDA]")
+          "[GPU]")
 {
    // Create a simple mesh and FE space
    int dim = 2, nx = 2, ny = 2, order = 2;
@@ -128,7 +128,7 @@ TEST_CASE("FormLinearSystem/SolutionScope",
    {
       GridFunction sol(&fes);
       SolvePDE(AssemblyLevel::LEGACYFULL, sol);
-      // Make sure the solution is still accessible after 'X' is destoyed
+      // Make sure the solution is still accessible after 'X' is destroyed
       sol.HostRead();
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
@@ -137,8 +137,50 @@ TEST_CASE("FormLinearSystem/SolutionScope",
    {
       GridFunction sol(&fes);
       SolvePDE(AssemblyLevel::PARTIAL, sol);
-      // Make sure the solution is still accessible after 'X' is destoyed
+      // Make sure the solution is still accessible after 'X' is destroyed
       sol.HostRead();
       REQUIRE(AsConst(sol)(bdr_dof) == 0.0);
    }
+}
+
+TEST_CASE("GetElementMatrices", "[BilinearForm]")
+{
+   const int order = 3;
+   Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+   H1_FECollection fec(order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+
+   BilinearForm a(&fes);
+   a.AddDomainIntegrator(new MassIntegrator);
+   const DenseTensor &el_mat = a.GetElementMatrices();
+
+   BilinearForm a_ea(&fes);
+   a_ea.AddDomainIntegrator(new MassIntegrator);
+   a_ea.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   const DenseTensor &el_mat_ea = a_ea.GetElementMatrices();
+
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      DenseMatrix m = el_mat(e);
+      const DenseMatrix &m_ea = el_mat_ea(e);
+      m -= m_ea;
+      REQUIRE(m.MaxMaxNorm() == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("BilinearForm print", "[SparseMatrix][BilinearForm]")
+{
+
+   Mesh mesh(Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL));
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fec);
+   BilinearForm a(&fespace);
+   a.AddDomainIntegrator(new DiffusionIntegrator);
+   a.SetAssemblyLevel(AssemblyLevel::FULL);
+   a.Assemble();
+   a.Finalize(0);
+
+   std::stringstream ss;
+   a.Print(ss);
+   REQUIRE(ss.str().length() > 0);
 }

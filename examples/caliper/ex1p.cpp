@@ -58,11 +58,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initialize MPI.
-   int num_procs, myid;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   // 1. Initialize MPI and HYPRE.
+   Mpi::Init(argc, argv);
+   int num_procs = Mpi::WorldSize();
+   int myid = Mpi::WorldRank();
+   Hypre::Init();
    // Define Caliper ConfigManager
    cali::ConfigManager mgr;
    // Caliper instrumentation
@@ -101,7 +101,6 @@ int main(int argc, char *argv[])
       {
          args.PrintUsage(cout);
       }
-      MPI_Finalize();
       return 1;
    }
    if (myid == 0)
@@ -293,7 +292,6 @@ int main(int argc, char *argv[])
    }
    // Flush output before MPI_finalize
    mgr.flush();
-   MPI_Finalize();
 
    return 0;
 }
