@@ -253,6 +253,7 @@ namespace mfem {
  * - <a class="el" href="reflector_8cpp_source.html">Reflector Miniapp</a>: reflect a mesh about a plane
  * - <a class="el" href="ref321_8cpp_source.html">3:1 Refinement Miniapp</a>: perform 3:1 anisotropic mesh refinements
  * - <a class="el" href="pref321_8cpp_source.html">3:1 Refinement Miniapp</a>: parallel 3:1 anisotropic mesh refinements
+ * - <a class="el" href="hologram_8cpp_source.html">Hologram</a>: retrieve a phase mask for a PNG target with Whittaker-sinc Fresnel propagation, <a class="el" href="hologram_8cpp_source.html">serial</a> and <a class="el" href="phologram_8cpp_source.html">parallel</a> versions
  *
  * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */

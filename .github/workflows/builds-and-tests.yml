@@ -112,6 +112,7 @@ jobs:
             hypre-target: int64
             precision: fp64
             gitignore-check: YES
+            config-opts: "MFEM_USE_ZLIB=YES"
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -126,6 +127,7 @@ jobs:
             build-system: make
             hypre-target: int32
             precision: fp32
+            config-opts: "MFEM_USE_ZLIB=YES"
           - os: macos-latest
             target: opt
             codecov: NO
