@@ -22,6 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = display-basis load-dc convert-dc get-values lor-transfer \
 	tmop-check-metric tmop-metric-magnitude compare-dc
+SEQ_MINIAPPS += $(if $(MFEM_USE_ALGOIM:NO=),cut-quadrature)
 
 PAR_MINIAPPS = nodal-transfer plor-transfer gridfunction-bounds
 
