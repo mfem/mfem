@@ -1315,11 +1315,7 @@ constexpr conduit::index_t mfem_precision_conduit_id =
 mfem::Mesh *
 ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
                                            const std::string &main_topology_name,
-                                           bool zero_copy
-#ifdef MFEM_USE_MPI
-                                           , MPI_Comm comm
-#endif
-                                          )
+                                           bool zero_copy)
 {
    // n_conv holds converted data (when necessary for mfem api)
    // if n_conv is used ( !n_conv.dtype().empty() ) we
@@ -1331,16 +1327,8 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    // we need to find the topology and its coordset.
    //
 
-   std::string topo_name = main_topology_name;
-   // if topo name is not set, look for first topology
-   if (topo_name == "")
-   {
-      topo_name = n_mesh["topologies"].schema().child_name(0);
-   }
-
-   MFEM_ASSERT(n_mesh.has_path("topologies/" + topo_name),
-               "Expected topology named \"" + topo_name + "\" "
-               "(node is missing path \"topologies/" + topo_name + "\")");
+   const std::string topo_name =
+      ResolveTopologyName(n_mesh, main_topology_name);
 
    // find the coord set
    std::string coords_name =
@@ -1598,7 +1586,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       if ( bnd_att_name != "" )
       {
          // Info: "Getting Boundary Attribute Data"
-         const Node &n_bndry_atts_vals =n_fields[bnd_att_name]["values"];
+         const Node &n_bndry_atts_vals = n_fields[bnd_att_name]["values"];
 
          // mfem requires ints, we could have int64s, etc convert if necessary
          if ( n_bndry_atts_vals.dtype().is_int() &&
@@ -1612,9 +1600,6 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
             n_bndry_atts_vals.to_int_array(n_bndry_atts_vals_conv);
             bndry_atts = n_bndry_atts_vals_conv.value();
          }
-
-         // num_bndry_atts_entires = n_bndry_atts_vals.dtype().number_of_elements();
-
       }
       else
       {
@@ -1687,7 +1672,21 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       delete mesh;
    }
 
+   return res;
+}
+
+//---------------------------------------------------------------------------//
 #ifdef MFEM_USE_MPI
+mfem::Mesh *
+ConduitDataCollection::BlueprintMeshToMesh(MPI_Comm comm,
+                                           const Node &n_mesh,
+                                           const std::string &main_topology_name,
+                                           bool zero_copy)
+{
+   const std::string topo_name =
+      ResolveTopologyName(n_mesh, main_topology_name);
+   mfem::Mesh *res = BlueprintMeshToMesh(n_mesh, topo_name, zero_copy);
+
    // If an adjset is found for the topology then we will try to make a ParMesh
    // from the Mesh.
    if (n_mesh.has_path("adjsets"))
@@ -1695,7 +1694,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       const conduit::Node &n_adjsets = n_mesh["adjsets"];
       for (conduit::index_t i = 0; i < n_adjsets.number_of_children(); i++)
       {
-         if (n_adjsets[i]["topology"].as_string() == main_topology_name)
+         if (n_adjsets[i]["topology"].as_string() == topo_name)
          {
             auto *pmesh = ConduitParMeshBuilder::Build(comm, *res, n_adjsets[i]);
             if (pmesh != nullptr)
@@ -1707,10 +1706,10 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          }
       }
    }
-#endif
 
    return res;
 }
+#endif
 
 //---------------------------------------------------------------------------//
 mfem::GridFunction *
@@ -2624,7 +2623,11 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
                  << verify_info.to_json());
    }
 
+#ifdef MFEM_USE_MPI
+   mesh = BlueprintMeshToMesh(m_comm, n_mesh);
+#else
    mesh = BlueprintMeshToMesh(n_mesh);
+#endif
 
    field_map.clear();
 
@@ -2662,6 +2665,24 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
 //------------------------------
 // begin static private methods
 //------------------------------
+
+//---------------------------------------------------------------------------//
+std::string
+ConduitDataCollection::ResolveTopologyName(const Node &n_mesh,
+                                           const std::string &main_topology_name)
+{
+   std::string topo_name = main_topology_name;
+   if (topo_name == "")
+   {
+      topo_name = n_mesh["topologies"].schema().child_name(0);
+   }
+
+   MFEM_ASSERT(n_mesh.has_path("topologies/" + topo_name),
+               "Expected topology named \"" + topo_name + "\" "
+               "(node is missing path \"topologies/" + topo_name + "\")");
+
+   return topo_name;
+}
 
 //---------------------------------------------------------------------------//
 std::string

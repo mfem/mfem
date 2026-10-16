@@ -445,8 +445,8 @@ TEST_CASE("ConduitDataCollectionParMeshRoundTrip",
    ConduitDataCollection::MeshToBlueprintMesh(&original, n_mesh);
 
    std::unique_ptr<Mesh> roundtrip_base(
-      ConduitDataCollection::BlueprintMeshToMesh(n_mesh, "main", false,
-                                                 MPI_COMM_WORLD));
+      ConduitDataCollection::BlueprintMeshToMesh(MPI_COMM_WORLD,
+                                                 n_mesh, "main", false));
    ParMesh *roundtrip = dynamic_cast<ParMesh *>(roundtrip_base.get());
    REQUIRE(roundtrip != nullptr);
    roundtrip->SetPrintShared(false);
