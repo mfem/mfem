@@ -559,7 +559,8 @@ static MFEM_HOST_DEVICE void seed_j(const double *elx[sDIM],
 // global memory access of element coordinates.
 // Are the structs being stored in "local memory" or registers?
 template<int T_D1D = 0>
-static void FindPointsSurfLocal3DKernel(const int npt,
+static void FindPointsSurfLocal3DKernel(const bool use_dev,
+                                        const int npt,
                                         const double tol,
                                         const double dist2tol,
                                         const double *x,
@@ -586,12 +587,11 @@ static void FindPointsSurfLocal3DKernel(const int npt,
    const int p_NE  = D1D*D1D;  // total nos. points in an element
    MFEM_VERIFY(MD1<=DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(pN<=DofQuadLimits::MAX_D1D,
-               "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D!=0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    const int nThreads = D1D*sDIM > 9 ? D1D*sDIM : 9;
 
-   mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
+   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
    {
       constexpr int size1 = 18*MD1 + 12;
       constexpr int size2 = 9*MD1;
@@ -793,23 +793,16 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                            const int qp = j % D1D;
                            const int d = j / D1D;
                            const double *u  = elx[d];
-                           double sums_k[3] = {0.0, 0.0, 0.0};
+                           double sums_k[2] = {0.0, 0.0};
                            for (int k=0; k<D1D; ++k)
                            {
                               sums_k[0] += u[qp + k*D1D] * J2[k];
                               sums_k[1] += u[qp + k*D1D] * D2[k];
-                              sums_k[2] += u[qp + k*D1D] * DD2[k];
                            }
 
                            resid_temp[sDIM*qp+d] = sums_k[0] * J1[qp];
                            jac_temp[sDIM*rDIM*qp+rDIM*d+0] = sums_k[0]*D1[qp];
                            jac_temp[sDIM*rDIM*qp+rDIM*d+1] = sums_k[1]*J1[qp];
-                           if (d==0)
-                           {
-                              hes_temp[3*qp + 0] = sums_k[0] * DD1[qp];
-                              hes_temp[3*qp + 1] = sums_k[1] * D1[qp];
-                              hes_temp[3*qp + 2] = sums_k[2] * J1[qp];
-                           }
                         }
                         MFEM_SYNC_THREAD;
 
@@ -828,14 +821,38 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                            {
                               jac[l] += jac_temp[l + j*sDIM*rDIM];
                            }
-                           if (l<sDIM)   // d2f/dr2, d2f/ds2, and d2f/drds
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        // Hessian entries are ordered as rr, rs, and ss.
+                        MFEM_FOREACH_THREAD(j,x,sDIM*D1D)
+                        {
+                           const int qp = j % D1D;
+                           const int row = j / D1D;
+                           const double *wt_j = row == 0 ? J2 :
+                                                row == 1 ? D2 : DD2;
+                           const double wt_qp = row == 0 ? DD1[qp] :
+                                                row == 1 ? D1[qp] : J1[qp];
+                           hes_temp[j] = 0.0;
+                           for (int d=0; d<sDIM; ++d)
                            {
-                              hes[l] = 0;
-                              for (int j=0; j<D1D; ++j)
+                              const double *u = elx[d];
+                              double sum = 0.0;
+                              for (int k=0; k<D1D; ++k)
                               {
-                                 hes[l] += hes_temp[l + sDIM*j];
+                                 sum += u[qp + k*D1D] * wt_j[k];
                               }
-                              hes[l] *= resid[l];
+                              hes_temp[j] += resid[d] * sum * wt_qp;
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,sDIM)
+                        {
+                           hes[j] = 0.0;
+                           for (int k=0; k<D1D; ++k)
+                           {
+                              hes[j] += hes_temp[j*D1D + k];
                            }
                         }
                         MFEM_SYNC_THREAD;
@@ -1021,7 +1038,8 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                                                     resid[1] * hes[3+ 0] +
                                                     resid[2] * hes[6 + 0];
                                     newton_edge(fpt,jac,rh,resid,de,dn,
-                                                (tmp->flags & ~(3u<<2*de)),tmp,tol);
+                                                (tmp->flags & FLAG_MASK) &
+                                                ~(3u << (2*de)), tmp, tol);
                                  }
                               }
                               else
@@ -1034,7 +1052,8 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                                                       resid[1] * hes[5] +
                                                       resid[2] * hes[8];
                                     newton_edge(fpt,jac,rh,resid,de,dn,
-                                                (tmp->flags & ~(3u<<2*de)),tmp,tol);
+                                                (tmp->flags & FLAG_MASK) &
+                                                ~(3u << (2*de)), tmp, tol);
                                  }
                                  else
                                  {
@@ -1092,7 +1111,7 @@ static void FindPointsSurfLocal3DKernel(const int npt,
             }
          } // findpts_local
       } // elp
-   });
+   }, nThreads, 1, 1);
 }
 
 void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
@@ -1128,7 +1147,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
    switch (DEV.dof1d)
    {
       case 2:
-         FindPointsSurfLocal3DKernel<2>(npt, DEV.newt_tol, dist2tol,
+         FindPointsSurfLocal3DKernel<2>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -1136,7 +1155,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                         pgll1d, plc);
          break;
       case 3:
-         FindPointsSurfLocal3DKernel<3>(npt, DEV.newt_tol, dist2tol,
+         FindPointsSurfLocal3DKernel<3>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -1144,7 +1163,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                         pgll1d, plc);
          break;
       case 4:
-         FindPointsSurfLocal3DKernel<4>(npt, DEV.newt_tol, dist2tol,
+         FindPointsSurfLocal3DKernel<4>(use_dev, npt, DEV.newt_tol, dist2tol,
                                         pp, point_pos_ordering, pgslm,
                                         NE_split_total, pwt, pbb, obb_chk,
                                         DEV.lh_nx, plhm, plhf, plho,
@@ -1152,7 +1171,7 @@ void FindPointsGSLIB::FindPointsSurfLocal3(const Vector &point_pos,
                                         pgll1d, plc);
          break;
       default:
-         FindPointsSurfLocal3DKernel(npt, DEV.newt_tol, dist2tol, pp,
+         FindPointsSurfLocal3DKernel(use_dev, npt, DEV.newt_tol, dist2tol, pp,
                                      point_pos_ordering, pgslm,
                                      NE_split_total, pwt, pbb, obb_chk,
                                      DEV.lh_nx, plhm, plhf, plho,
