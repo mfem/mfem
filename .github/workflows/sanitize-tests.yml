@@ -19,9 +19,8 @@ on:
         default: false
         type: boolean
       sanitizer:
-        description: 'Sanitizer to use (asan, msan, ubsan)'
+        description: 'Sanitizer set to use (asan-ubsan, msan)'
         required: true
-        default: asan
         type: string
 
 jobs:
