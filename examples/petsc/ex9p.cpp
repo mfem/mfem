@@ -368,16 +368,18 @@ int main(int argc, char *argv[])
    }
 
    // Create data collection for solution output: either VisItDataCollection for
-   // ascii data files, or SidreDataCollection for binary data files.
+   // ascii data files, or ConduitDataCollection for binary data files.
    DataCollection *dc = NULL;
    if (visit)
    {
       if (binary)
       {
-#ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9-Parallel", pmesh);
+#ifdef MFEM_USE_CONDUIT
+         auto conduit_dc = new ConduitDataCollection("Example9-Parallel", pmesh);
+         conduit_dc->SetProtocol("hdf5");
+         dc = conduit_dc;
 #else
-         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+         MFEM_ABORT("Must build with MFEM_USE_CONDUIT=YES for binary output.");
 #endif
       }
       else
