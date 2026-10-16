@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
       for (int i=0; i<nev; i++)
       {
          // convert eigenvector from HypreParVector to ParGridFunction
-         x = ame->GetEigenvector(i);
+         x.Distribute(ame->GetEigenvector(i));
          curl.Mult(x, dx);
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
             }
 
             // convert eigenvector from HypreParVector to ParGridFunction
-            x = ame->GetEigenvector(i);
+            x.Distribute(ame->GetEigenvector(i));
             curl.Mult(x, dx);
 
             {
@@ -469,7 +469,7 @@ int main(int argc, char *argv[])
             }
 
             // convert eigenvector from HypreParVector to ParGridFunction
-            x = ame->GetEigenvector(i);
+            x.Distribute(ame->GetEigenvector(i));
             curl.Mult(x, dx);
 
             {
@@ -599,7 +599,7 @@ int main(int argc, char *argv[])
             }
 
             // convert eigenvector from HypreParVector to ParGridFunction
-            x = ame->GetEigenvector(i);
+            x.Distribute(ame->GetEigenvector(i));
             curl.Mult(x, dx);
 
             mode_sock << "parallel " << num_procs << " " << myid << "\n"
