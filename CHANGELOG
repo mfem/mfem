@@ -28,6 +28,10 @@ Miscellaneous
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
 
+- Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
+  failure if an MPI rank had no design parameters (aka decision variables).
+  Also plugged a MPI communicator leak that would cause memory leaks.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
