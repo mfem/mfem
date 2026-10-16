@@ -1470,6 +1470,74 @@ inline DofToQuad *DofToQuad::SearchArray(
    return nullptr;
 }
 
+/** @brief Reference shape values and gradients of an element at the points of
+    an integration rule.
+
+    On simplex, prism and pyramid elements CalcShape and CalcDShape end in a
+    dense solve that depends only on the point, so the values are read from
+    the element's cached DofToQuad table instead. Other elements call
+    CalcShape and CalcDShape. Either way the values are the same. As with
+    FiniteElement::GetDofToQuad, the rule must outlive the element. */
+class RuleShapes
+{
+   const FiniteElement &fe;
+   const IntegrationRule &ir;
+   const DofToQuad *d2q = nullptr;
+   mutable DenseMatrix vshape;
+
+public:
+   RuleShapes(const FiniteElement &fe_, const IntegrationRule &ir_)
+      : fe(fe_), ir(ir_)
+   {
+      // Tensor-product elements gain nothing, and NURBS ones depend on the
+      // element.
+      if (!Geometry::IsTensorProduct(fe.GetGeomType()))
+      {
+         d2q = &fe.GetDofToQuad(ir, DofToQuad::FULL);
+      }
+   }
+
+   /// Same as FiniteElement::CalcShape at point @a q of the rule.
+   void CalcShape(int q, Vector &shape) const
+   {
+      if (!d2q || fe.GetRangeType() != FiniteElement::SCALAR)
+      {
+         fe.CalcShape(ir.IntPoint(q), shape);
+         return;
+      }
+      const int ndof = d2q->ndof, nqpt = d2q->nqpt;
+      const real_t *B = d2q->B.HostRead();
+      for (int j = 0; j < ndof; j++) { shape(j) = B[q + nqpt*j]; }
+   }
+
+   /// Same as FiniteElement::CalcDShape at point @a q of the rule.
+   void CalcDShape(int q, DenseMatrix &dshape) const
+   {
+      if (!d2q || fe.GetDerivType() != FiniteElement::GRAD)
+      {
+         fe.CalcDShape(ir.IntPoint(q), dshape);
+         return;
+      }
+      // G is ordered (nqpt, dim, ndof) with nqpt fastest
+      const int ndof = d2q->ndof, nqpt = d2q->nqpt, dim = dshape.Width();
+      const real_t *G = d2q->G.HostRead();
+      for (int d = 0; d < dim; d++)
+      {
+         for (int j = 0; j < ndof; j++)
+         {
+            dshape(j, d) = G[q + nqpt*(d + dim*j)];
+         }
+      }
+   }
+
+   /// Same as FiniteElement::CalcPhysShape, with @a T set to point @a q.
+   void CalcPhysShape(int q, ElementTransformation &T, Vector &shape) const;
+
+   /// Same as FiniteElement::CalcPhysDShape, with @a T set to point @a q.
+   void CalcPhysDShape(int q, ElementTransformation &T,
+                       DenseMatrix &dshape) const;
+};
+
 } // namespace mfem
 
 #endif
