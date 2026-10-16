@@ -225,15 +225,25 @@ void DenseMatrix::AddMultTranspose(const Vector &x, Vector &y,
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   const real_t *d_col = data;
+   const real_t *d_col = data, *xp = x.GetData();
+   real_t *yp = y.GetData();
+   switch (width)
+   {
+      case 2:
+         kernels::internal::AddMultTranspose_Width<2>(height, d_col, xp, 1.0, yp);
+         return;
+      case 3:
+         kernels::internal::AddMultTranspose_Width<3>(height, d_col, xp, 1.0, yp);
+         return;
+   }
    for (int col = 0; col < width; col++)
    {
       real_t y_col = 0.0;
       for (int row = 0; row < height; row++)
       {
-         y_col += x[row]*d_col[row];
+         y_col += xp[row]*d_col[row];
       }
-      y[col] += y_col;
+      yp[col] += y_col;
       d_col += height;
    }
 }
@@ -265,15 +275,25 @@ void DenseMatrix::AddMultTranspose_a(real_t a, const Vector &x,
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
-   const real_t *d_col = data;
+   const real_t *d_col = data, *xp = x.GetData();
+   real_t *yp = y.GetData();
+   switch (width)
+   {
+      case 2:
+         kernels::internal::AddMultTranspose_Width<2>(height, d_col, xp, a, yp);
+         return;
+      case 3:
+         kernels::internal::AddMultTranspose_Width<3>(height, d_col, xp, a, yp);
+         return;
+   }
    for (int col = 0; col < width; col++)
    {
       real_t y_col = 0.0;
       for (int row = 0; row < height; row++)
       {
-         y_col += x[row]*d_col[row];
+         y_col += xp[row]*d_col[row];
       }
-      y[col] += a * y_col;
+      yp[col] += a * y_col;
       d_col += height;
    }
 }
