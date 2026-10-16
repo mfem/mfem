@@ -133,6 +133,13 @@ NCMesh::NCMesh(const Mesh *mesh)
    Iso = true;
    Legacy = false;
 
+   // Store pointers to named attribute sets
+   attribute_sets = &mesh->attribute_sets;
+   bdr_attribute_sets = &mesh->bdr_attribute_sets;
+
+   temp_attr_sets = NULL;
+   temp_bdr_attr_sets = NULL;
+
    // create the NCMesh::Element struct for each Mesh element
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -237,6 +244,10 @@ NCMesh::NCMesh(const NCMesh &other)
    , Iso(other.Iso)
    , Geoms(other.Geoms)
    , Legacy(other.Legacy)
+   , attribute_sets(other.attribute_sets)
+   , bdr_attribute_sets(other.bdr_attribute_sets)
+   , temp_attr_sets(NULL)
+   , temp_bdr_attr_sets(NULL)
    , nodes(other.nodes)
    , faces(other.faces)
    , using_scaling(other.using_scaling)
@@ -253,6 +264,17 @@ NCMesh::NCMesh(const NCMesh &other)
    , element_vertex(other.element_vertex)
    , shadow(1024, 2048)
 {
+   if (other.temp_attr_sets)
+   {
+      temp_attr_sets = new ArraysByName<int>;
+      *temp_attr_sets = *other.temp_attr_sets;
+   }
+   if (other.temp_bdr_attr_sets)
+   {
+      temp_bdr_attr_sets = new ArraysByName<int>;
+      *temp_bdr_attr_sets = *other.temp_bdr_attr_sets;
+   }
+
    Update();
 }
 
@@ -279,6 +301,9 @@ void NCMesh::Update()
 
 NCMesh::~NCMesh()
 {
+   delete temp_attr_sets;
+   delete temp_bdr_attr_sets;
+
 #ifdef MFEM_DEBUG
    // sign off of all faces and nodes
    Array<int> elemFaces;
@@ -6349,17 +6374,21 @@ bool NCMesh::ZeroRootStates() const
 void NCMesh::Print(std::ostream &os, const std::string &comments,
                    bool nurbs) const
 {
+   const bool set_names =
+      (attribute_sets ? attribute_sets->SetsExist() : false) ||
+      (bdr_attribute_sets ? bdr_attribute_sets->SetsExist() : false);
+
    if (nurbs)
    {
       os << "MFEM NURBS NC-patch mesh v1.0\n\n";
    }
    else if (using_scaling)
    {
-      os << "MFEM NC mesh v1.1\n\n";
+      os << (!set_names ? "MFEM NC mesh v1.1\n\n" : "MFEM NC mesh v1.3\n\n");
    }
    else
    {
-      os << "MFEM NC mesh v1.0\n\n";
+      os << (!set_names ? "MFEM NC mesh v1.0\n\n" : "MFEM NC mesh v1.2\n\n");
    }
 
    if (!comments.empty()) { os << comments << "\n\n"; }
@@ -6400,6 +6429,19 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       os << "\n";
    }
 
+   if (set_names)
+   {
+      os << "\nattribute_sets\n";
+      if (attribute_sets)
+      {
+         attribute_sets->Print(os);
+      }
+      else
+      {
+         os << 0 << '\n';
+      }
+   }
+
    int nb = PrintBoundary(NULL);
    if (nb)
    {
@@ -6407,6 +6449,19 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       os << "\nboundary\n" << nb << "\n";
 
       PrintBoundary(&os);
+   }
+
+   if (set_names && bdr_attribute_sets)
+   {
+      os << "\nbdr_attribute_sets\n";
+      if (bdr_attribute_sets)
+      {
+         bdr_attribute_sets->Print(os);
+      }
+      else
+      {
+         os << 0 << '\n';
+      }
    }
 
    int nvp = PrintVertexParents(NULL);
@@ -6503,7 +6558,9 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
-     using_scaling(version == 11)
+     attribute_sets(NULL), bdr_attribute_sets(NULL),
+     temp_attr_sets(NULL), temp_bdr_attr_sets(NULL),
+     using_scaling(version == 11 || version == 13)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
@@ -6513,7 +6570,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       return;
    }
 
-   MFEM_ASSERT(version == 10 || version == 11, "");
+   MFEM_ASSERT(version >= 10 || version <= 13, "");
    std::string ident;
    int count;
 
@@ -6606,6 +6663,20 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    InitRootElements();
    InitGeomFlags();
 
+   if (version == 12 || version == 13)
+   {
+      // load named attribute sets
+      skip_comment_lines(input, '#');
+      input >> ident; // 'attribute_sets'
+
+      MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
+
+      temp_attr_sets = new ArraysByName<int>;
+      temp_attr_sets->Load(input);
+      temp_attr_sets->SortAll();
+      temp_attr_sets->UniqueAll();
+   }
+
    skip_comment_lines(input, '#');
    input >> ident;
 
@@ -6613,6 +6684,20 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    if (ident == "boundary")
    {
       LoadBoundary(input);
+
+      skip_comment_lines(input, '#');
+      input >> ident;
+   }
+
+   if (version == 12 || version == 13)
+   {
+      // load named boundary attribute sets
+      MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
+
+      temp_bdr_attr_sets = new ArraysByName<int>;
+      temp_bdr_attr_sets->Load(input);
+      temp_bdr_attr_sets->SortAll();
+      temp_bdr_attr_sets->UniqueAll();
 
       skip_comment_lines(input, '#');
       input >> ident;
