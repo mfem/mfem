@@ -380,9 +380,8 @@ int main(int argc, char *argv[])
       //
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
-      SparseMatrix *MinvBt = NULL;
-      SparseMatrix *S = NULL;
-      Solver *invM, *invS;
+      unique_ptr<SparseMatrix> MinvBt, S;
+      unique_ptr<Solver> invM, invS;
 
       if (pa)
       {
@@ -395,13 +394,13 @@ int main(int argc, char *argv[])
             invMd(i) = 1.0 / Md_host[i];
          }
 
-         Vector BMBt_diag(bVarf->Height());
-         bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+         Vector Sd(bVarf->Height());
+         bVarf->AssembleDiagonal_ADAt(invMd, Sd);
 
          Array<int> ess_tdof_list;  // empty
 
-         invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-         invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+         invM = make_unique<OperatorJacobiSmoother>(Md, ess_tdof_list);
+         invS = make_unique<OperatorJacobiSmoother>(Sd, ess_tdof_list);
       }
       else
       {
@@ -411,28 +410,26 @@ int main(int argc, char *argv[])
          Md.HostReadWrite();
 
          SparseMatrix &Bm(bVarf->SpMat());
-         MinvBt = Transpose(Bm);
+         MinvBt.reset(Transpose(Bm));
 
          for (int i = 0; i < Md.Size(); i++)
          {
             MinvBt->ScaleRow(i, 1./Md(i));
          }
 
-         S = Mult(Bm, *MinvBt);
+         S.reset(Mult(Bm, *MinvBt));
          if (mpVarf)
          {
             SparseMatrix &Mpm(mpVarf->SpMat());
-            SparseMatrix *Snew = Add(Mpm, *S);
-            delete S;
-            S = Snew;
+            S.reset(Add(Mpm, *S));
          }
 
-         invM = new DSmoother(Mum);
+         invM = make_unique<DSmoother>(Mum);
 
 #ifndef MFEM_USE_SUITESPARSE
-         invS = new GSSmoother(*S);
+         invS = make_unique<GSSmoother>(*S);
 #else
-         invS = new UMFPackSolver(*S);
+         invS = make_unique<UMFPackSolver>(*S);
 #endif
       }
 
@@ -440,8 +437,8 @@ int main(int argc, char *argv[])
       invS->iterative_mode = false;
 
       BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      darcyPrec.SetDiagonalBlock(0, invM);
-      darcyPrec.SetDiagonalBlock(1, invS);
+      darcyPrec.SetDiagonalBlock(0, invM.get());
+      darcyPrec.SetDiagonalBlock(1, invS.get());
 
       // 11. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
@@ -475,11 +472,6 @@ int main(int argc, char *argv[])
                    << ".\n";
       }
       std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
-
-      delete invM;
-      delete invS;
-      delete S;
-      delete MinvBt;
    }
 
    // 12. Create the grid functions u and p. Compute the L2 error norms.

@@ -433,9 +433,8 @@ int main(int argc, char *argv[])
       //
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
-      HypreParMatrix *MinvBt = NULL;
-      HypreParMatrix *S = NULL;
-      Solver *invM, *invS;
+      unique_ptr<HypreParMatrix> MinvBt, S;
+      unique_ptr<Solver> invM, invS;
 
       if (pa)
       {
@@ -448,13 +447,12 @@ int main(int argc, char *argv[])
             invMd(i) = 1.0 / Md_host[i];
          }
 
-         Vector BMBt_diag(W_space->GetTrueVSize());
-         bVarf->AssembleDiagonal_ADAt(invMd, BMBt_diag);
+         Vector Sd(W_space->GetTrueVSize());
 
          Array<int> ess_tdof_list;  // empty
 
-         invM = new OperatorJacobiSmoother(Md, ess_tdof_list);
-         invS = new OperatorJacobiSmoother(BMBt_diag, ess_tdof_list);
+         invM = make_unique<OperatorJacobiSmoother>(Md, ess_tdof_list);
+         invS = make_unique<OperatorJacobiSmoother>(Sd, ess_tdof_list);
       }
       else
       {
@@ -463,28 +461,26 @@ int main(int argc, char *argv[])
          Mum.GetDiag(Md);
 
          HypreParMatrix &Bm = *bVarf->ParallelAssembleInternalMatrix();
-         MinvBt = Bm.Transpose();
+         MinvBt.reset(Bm.Transpose());
          MinvBt->InvScaleRows(Md);
-         S = ParMult(&Bm, MinvBt);
+         S.reset(ParMult(&Bm, MinvBt.get()));
 
          if (mpVarf)
          {
             HypreParMatrix &Mpm = *mpVarf->ParallelAssembleInternalMatrix();
-            HypreParMatrix *Snew = ParAdd(&Mpm, S);
-            delete S;
-            S = Snew;
+            S.reset(ParAdd(&Mpm, S.get()));
          }
 
-         invM = new HypreDiagScale(Mum);
-         invS = new HypreBoomerAMG(*S);
+         invM = make_unique<HypreDiagScale>(Mum);
+         invS = make_unique<HypreBoomerAMG>(*S);
       }
 
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
       BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      darcyPrec.SetDiagonalBlock(0, invM);
-      darcyPrec.SetDiagonalBlock(1, invS);
+      darcyPrec.SetDiagonalBlock(0, invM.get());
+      darcyPrec.SetDiagonalBlock(1, invS.get());
 
       // 13. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
@@ -521,11 +517,6 @@ int main(int argc, char *argv[])
          }
          std::cout << "MINRES solver took " << chrono.RealTime() << "s.\n";
       }
-
-      delete invM;
-      delete invS;
-      delete S;
-      delete MinvBt;
    }
 
    // 14. Extract the parallel grid function corresponding to the finite element
