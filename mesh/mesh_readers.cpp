@@ -1166,7 +1166,7 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
          }
       }
    }
-   if (attributes_xml != NULL)
+   if (attributes_xml != nullptr)
    {
       cell_attributes.SetSize(ncells);
       data_reader.Read(attributes_xml, cell_attributes.GetData(), ncells);
