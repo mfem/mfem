@@ -291,10 +291,6 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x23: return EADiffusionAssemble3D<2,3>(ne,B,G,pa_data,ea_data,add);
          case 0x34: return EADiffusionAssemble3D<3,4>(ne,B,G,pa_data,ea_data,add);
          case 0x45: return EADiffusionAssemble3D<4,5>(ne,B,G,pa_data,ea_data,add);
-         case 0x56: return EADiffusionAssemble3D<5,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x67: return EADiffusionAssemble3D<6,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x78: return EADiffusionAssemble3D<7,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x89: return EADiffusionAssemble3D<8,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EADiffusionAssemble3D(ne,B,G,pa_data,ea_data,add,
                                                     dofs1D,quad1D);
       }
