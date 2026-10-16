@@ -1444,11 +1444,32 @@ int main (int argc, char *argv[])
 
       if (mk == 'S')
       {
-         const char omesh_file[] = "mesh-explorer.mesh";
-         ofstream omesh(omesh_file);
-         omesh.precision(14);
-         mesh->Print(omesh);
-         cout << "New mesh file: " << omesh_file << endl;
+#ifdef MFEM_USE_HDF5
+         char nurbs_format = 'a';
+         if (mesh->NURBSext)
+         {
+            cout << "Choose NURBS mesh format:\n"
+                 << "a) MFEM ASCII\n"
+                 << "h) MFEM HDF5\n"
+                 << "--> " << flush;
+            cin >> nurbs_format;
+         }
+         if (mesh->NURBSext &&
+             (nurbs_format == 'h' || nurbs_format == 'H'))
+         {
+            const char omesh_file[] = "mesh-explorer.h5";
+            mesh->SaveNURBSHDF5(omesh_file);
+            cout << "New NURBS HDF5 mesh file: " << omesh_file << endl;
+         }
+         else
+#endif
+         {
+            const char omesh_file[] = "mesh-explorer.mesh";
+            ofstream omesh(omesh_file);
+            omesh.precision(14);
+            mesh->Print(omesh);
+            cout << "New mesh file: " << omesh_file << endl;
+         }
       }
 
       if (mk == 'T')
