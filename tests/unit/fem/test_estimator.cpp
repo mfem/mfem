@@ -334,6 +334,40 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
 
 }
 
+TEST_CASE("ZZ estimator refreshes after p-refinement", "[NCMesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace solution_fes(&mesh, &fec);
+   FiniteElementSpace flux_fes(&mesh, &fec, mesh.SpaceDimension());
+   GridFunction solution(&solution_fes);
+   FunctionCoefficient exact(testhelper::SinXSinY);
+   solution.ProjectCoefficient(exact);
+
+   DiffusionIntegrator integrator;
+   ZienkiewiczZhuEstimator estimator(integrator, solution, flux_fes);
+   estimator.GetLocalErrors();
+   const real_t before = estimator.GetTotalError();
+
+   Array<pRefinement> refinements(1);
+   refinements[0].index = 0;
+   refinements[0].delta = 1;
+   solution_fes.PRefineAndUpdate(refinements);
+   solution.Update();
+   flux_fes.PRefineAndUpdate(refinements);
+
+   estimator.GetLocalErrors();
+   const real_t cached = estimator.GetTotalError();
+   ZienkiewiczZhuEstimator fresh_estimator(integrator, solution, flux_fes);
+   fresh_estimator.GetLocalErrors();
+   const real_t fresh = fresh_estimator.GetTotalError();
+
+   REQUIRE(std::abs(cached - before) > 1e-12);
+   REQUIRE(std::abs(fresh - cached) < 1e-12);
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Kelly Error Estimator on 2D NCMesh",
