@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
    cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
                                   new DGTangentialTraceIntegrator(+2.)));
    mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
-   mbVarf->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
+   //mbVarf->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
 
    if (dim_curl > 1)
    {
