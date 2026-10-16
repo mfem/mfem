@@ -716,25 +716,25 @@ void DG_MHD_GPsource::ApplyLDF(Vector &state) const
    // including the DOF transformation, and access shared vectors on the host.
 #if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
    #pragma omp parallel for schedule(static) \
-      private(magnetic, projected, vdofs, doftrans) if(vfes.GetNE() >= 64)
+   private(magnetic, projected, vdofs, doftrans) if(vfes.GetNE() >= 64)
 #endif
-   for (int k = 0; k < vfes.GetNE(); k++)
-   {
-      const int dof = vfes.GetFE(k)->GetDof();
-      vfes.GetElementVDofs(k, vdofs, doftrans);
-      // Local fields are contiguous: (rho, momentum, magnetic field, E).
-      magnetic.SetSize(dim*dof);
-      for (int j = 0; j < dim*dof; j++)
+      for (int k = 0; k < vfes.GetNE(); k++)
       {
-         magnetic(j) = state_data[vdofs[(1+MHDdim)*dof+j]];
+         const int dof = vfes.GetFE(k)->GetDof();
+         vfes.GetElementVDofs(k, vdofs, doftrans);
+         // Local fields are contiguous: (rho, momentum, magnetic field, E).
+         magnetic.SetSize(dim*dof);
+         for (int j = 0; j < dim*dof; j++)
+         {
+            magnetic(j) = state_data[vdofs[(1+MHDdim)*dof+j]];
+         }
+         projected.SetSize(dim*dof);
+         ldf_projectors[k].Mult(magnetic, projected);
+         for (int j = 0; j < dim*dof; j++)
+         {
+            state_data[vdofs[(1+MHDdim)*dof+j]] = projected(j);
+         }
       }
-      projected.SetSize(dim*dof);
-      ldf_projectors[k].Mult(magnetic, projected);
-      for (int j = 0; j < dim*dof; j++)
-      {
-         state_data[vdofs[(1+MHDdim)*dof+j]] = projected(j);
-      }
-   }
 }
 
 
@@ -757,28 +757,28 @@ void DG_MHD_GPsource::Mult(const Vector &x, Vector &y) const
    real_t *y_data = y.HostWrite();
 #if defined(MFEM_USE_OPENMP) && defined(MFEM_THREAD_SAFE)
    #pragma omp parallel for schedule(static) \
-      private(zval, current_zmat, current_ymat, vdofs, doftrans) \
-      if(vfes.GetNE() >= 64)
+   private(zval, current_zmat, current_ymat, vdofs, doftrans) \
+   if(vfes.GetNE() >= 64)
 #endif
-   for (auto i=0; i<vfes.GetNE(); i++)
-   {
-      const auto dof = vfes.GetFE(i)->GetDof();
-      // ALWAYS returns ByNodes ordering (like separate fields)
-      vfes.GetElementVDofs(i, vdofs, doftrans);
-      // copy from the global vector to the local vector
-      zval.SetSize(vdofs.Size());
-      for (int j = 0; j < vdofs.Size(); j++) { zval(j) = z_data[vdofs[j]]; }
-      // each column is a field and each row is a DOF
-      current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
-      current_ymat.SetSize(dof, num_equations);
-      // invmass left multiplies the auxiliary result
-      mfem::Mult(invmass[i], current_zmat, current_ymat);
-      // return the result to the global vector
-      for (int j = 0; j < vdofs.Size(); j++)
+      for (auto i=0; i<vfes.GetNE(); i++)
       {
-         y_data[vdofs[j]] = current_ymat.GetData()[j];
+         const auto dof = vfes.GetFE(i)->GetDof();
+         // ALWAYS returns ByNodes ordering (like separate fields)
+         vfes.GetElementVDofs(i, vdofs, doftrans);
+         // copy from the global vector to the local vector
+         zval.SetSize(vdofs.Size());
+         for (int j = 0; j < vdofs.Size(); j++) { zval(j) = z_data[vdofs[j]]; }
+         // each column is a field and each row is a DOF
+         current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
+         current_ymat.SetSize(dof, num_equations);
+         // invmass left multiplies the auxiliary result
+         mfem::Mult(invmass[i], current_zmat, current_ymat);
+         // return the result to the global vector
+         for (int j = 0; j < vdofs.Size(); j++)
+         {
+            y_data[vdofs[j]] = current_ymat.GetData()[j];
+         }
       }
-   }
    // Project the time derivative after applying the mass inverse. With an
    // LDF initial state on a fixed mesh, explicit RK stages remain LDF.
    if (use_LDF) { ApplyLDF(y); }
@@ -810,7 +810,7 @@ Mesh MHDMesh(const int problem)
                                         true, lx, ly);
       std::vector<Vector> translations = {Vector({lx, 0.0}), Vector({0.0, ly})};
       return Mesh::MakePeriodic(mesh,
-                               mesh.CreatePeriodicVertexMapping(translations));
+                                mesh.CreatePeriodicVertexMapping(translations));
    }
    return Mesh("../data/periodic-square-tri.msh");
 }
@@ -835,7 +835,7 @@ VectorFunctionCoefficient MHDInitialCondition(const int problem,
          // The wave travels in the negative parallel direction with speed
          // one and period one. Use T=1 here (the paper uses five periods).
          return VectorFunctionCoefficient(8, [specific_heat_ratio](
-            const Vector &x, real_t t, Vector &y)
+                                             const Vector &x, real_t t, Vector &y)
          {
             MFEM_VERIFY(x.Size() == 2, "Alfven wave requires a 2D mesh.");
             const real_t ca = std::cos(M_PI/6.0);

@@ -1406,7 +1406,7 @@ real_t IdealMHDFlux::ComputeFlux(const Vector &U,
       for (int i = 0; i < MHDdim; i++)
       {
          FU(1 + MHDdim + i, d) = (magnetic(i) * momentum(d) - momentum(i) * magnetic(
-                                  d)) / density;
+                                     d)) / density;
       }
 
       // uᵀ(E + p + 0.5*|B|^2) - (u⋅B)Bᵀ
@@ -1468,7 +1468,7 @@ real_t IdealMHDFlux::ComputeFluxDotN(const Vector &x,
    for (int i = 0; i < MHDdim; i++)
    {
       FUdotN(1 + MHDdim + i) = magnetic(i) * normal_velocity - momentum(i) *
-                            (normal_mangnetic / density);
+                               (normal_mangnetic / density);
    }
 
    // (E + p + 0.5*|B|^2) uᵀ dot n - (u⋅B) Bᵀ dot n

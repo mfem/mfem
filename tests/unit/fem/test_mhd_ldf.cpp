@@ -62,72 +62,72 @@ TEST_CASE("Magnetic LDF projectors have zero physical divergence",
           "[LDF][MHD]")
 {
    for (int components : {2, 3})
-   for (auto geometry : {Element::TRIANGLE, Element::QUADRILATERAL})
-   {
-      for (int order = 0; order <= 4; order++)
+      for (auto geometry : {Element::TRIANGLE, Element::QUADRILATERAL})
       {
-         Mesh mesh = Mesh::MakeCartesian2D(2, 2, geometry, true);
-         DG_FECollection fec(order, 2, BasisType::GaussLobatto);
-         FiniteElementSpace fes(&mesh, &fec, 2*components+2, Ordering::byNODES);
-         IdealMHDFlux flux(2, 5.0/3.0, components);
-         RusanovFlux numerical_flux(flux);
-         GPsource source(2, components);
-         RusanovGPsource numerical_source(source);
-         DG_MHD_GPsource op(fes,
-                            std::unique_ptr<HyperbolicFormIntegrator>(
-                               new HyperbolicFormIntegrator(numerical_flux)),
-                            std::unique_ptr<GPsourceFormIntegrator>(
-                               new GPsourceFormIntegrator(numerical_source)),
-                            true, true);
-         for (int deformed = 0; deformed < 2; deformed++)
+         for (int order = 0; order <= 4; order++)
          {
-            if (deformed)
+            Mesh mesh = Mesh::MakeCartesian2D(2, 2, geometry, true);
+            DG_FECollection fec(order, 2, BasisType::GaussLobatto);
+            FiniteElementSpace fes(&mesh, &fec, 2*components+2, Ordering::byNODES);
+            IdealMHDFlux flux(2, 5.0/3.0, components);
+            RusanovFlux numerical_flux(flux);
+            GPsource source(2, components);
+            RusanovGPsource numerical_source(source);
+            DG_MHD_GPsource op(fes,
+                               std::unique_ptr<HyperbolicFormIntegrator>(
+                                  new HyperbolicFormIntegrator(numerical_flux)),
+                               std::unique_ptr<GPsourceFormIntegrator>(
+                                  new GPsourceFormIntegrator(numerical_source)),
+                               true, true);
+            for (int deformed = 0; deformed < 2; deformed++)
             {
-               // Triangles remain affine; quads become non-affine bilinear
-               // cells, so the updated physical divergence operator changes.
-               mesh.Transform([](const Vector &x, Vector &y)
+               if (deformed)
                {
-                  y.SetSize(2);
-                  y(0) = x(0) + 0.25*x(0)*x(1) + 0.1*x(1);
-                  y(1) = x(1) + 0.12*x(0)*x(1);
-               });
-               op.Update();
-            }
-            for (int element = 0; element < fes.GetNE(); element++)
-            {
-               const FiniteElement &fe = *fes.GetFE(element);
-               const DenseMatrix D = AssembleMagneticDivergence(
-                                        fe, *fes.GetElementTransformation(element));
-               const DenseMatrix &P = op.GetLDFProjector(element);
-               DenseMatrix DP(D.Height(), P.Width());
-               mfem::Mult(D, P, DP);
-               const real_t scale = std::max(real_t(1.0), D.MaxMaxNorm());
-               const real_t tolerance = 256 *
-                                        std::numeric_limits<real_t>::epsilon() * P.Height() * scale;
-               CAPTURE(geometry, order, deformed, element, DP.MaxMaxNorm(), tolerance);
-               REQUIRE(DP.MaxMaxNorm() <= tolerance);
-               DenseMatrix PP(P.Height());
-               mfem::Mult(P, P, PP);
-               PP -= P;
-               REQUIRE(PP.MaxMaxNorm() <= tolerance);
-               // A zero matrix also satisfies D*P=0 and P*P=P. Preserve
-               // each constant magnetic component independently as well.
-               for (int component = 0; component < 2; component++)
-               {
-                  Vector constant(P.Width()), projected(P.Height());
-                  constant = 0.0;
-                  for (int j = 0; j < fe.GetDof(); j++)
+                  // Triangles remain affine; quads become non-affine bilinear
+                  // cells, so the updated physical divergence operator changes.
+                  mesh.Transform([](const Vector &x, Vector &y)
                   {
-                     constant(component*fe.GetDof()+j) = 1.0;
+                     y.SetSize(2);
+                     y(0) = x(0) + 0.25*x(0)*x(1) + 0.1*x(1);
+                     y(1) = x(1) + 0.12*x(0)*x(1);
+                  });
+                  op.Update();
+               }
+               for (int element = 0; element < fes.GetNE(); element++)
+               {
+                  const FiniteElement &fe = *fes.GetFE(element);
+                  const DenseMatrix D = AssembleMagneticDivergence(
+                                           fe, *fes.GetElementTransformation(element));
+                  const DenseMatrix &P = op.GetLDFProjector(element);
+                  DenseMatrix DP(D.Height(), P.Width());
+                  mfem::Mult(D, P, DP);
+                  const real_t scale = std::max(real_t(1.0), D.MaxMaxNorm());
+                  const real_t tolerance = 256 *
+                                           std::numeric_limits<real_t>::epsilon() * P.Height() * scale;
+                  CAPTURE(geometry, order, deformed, element, DP.MaxMaxNorm(), tolerance);
+                  REQUIRE(DP.MaxMaxNorm() <= tolerance);
+                  DenseMatrix PP(P.Height());
+                  mfem::Mult(P, P, PP);
+                  PP -= P;
+                  REQUIRE(PP.MaxMaxNorm() <= tolerance);
+                  // A zero matrix also satisfies D*P=0 and P*P=P. Preserve
+                  // each constant magnetic component independently as well.
+                  for (int component = 0; component < 2; component++)
+                  {
+                     Vector constant(P.Width()), projected(P.Height());
+                     constant = 0.0;
+                     for (int j = 0; j < fe.GetDof(); j++)
+                     {
+                        constant(component*fe.GetDof()+j) = 1.0;
+                     }
+                     P.Mult(constant, projected);
+                     projected -= constant;
+                     REQUIRE(projected.Normlinf() <= tolerance);
                   }
-                  P.Mult(constant, projected);
-                  projected -= constant;
-                  REQUIRE(projected.Normlinf() <= tolerance);
                }
             }
          }
       }
-   }
 }
 
 TEST_CASE("Ideal MHD normal flux includes magnetic stresses", "[MHD]")
@@ -151,8 +151,8 @@ TEST_CASE("Ideal MHD normal flux includes magnetic stresses", "[MHD]")
       REQUIRE(std::abs(Fn(i)-2*F(i,0)) <= tol);
    }
    const real_t cf = std::sqrt((gamma+0.25 +
-                               std::sqrt((gamma-0.25)*(gamma-0.25)+
-                                         4*gamma*0.16))/4);
+                                std::sqrt((gamma-0.25)*(gamma-0.25)+
+                                          4*gamma*0.16))/4);
    REQUIRE(std::abs(speed-(1+cf)) <= tol);
 }
 
@@ -201,7 +201,8 @@ TEST_CASE("2.5D MHD retains transverse fluxes and GP terms", "[MHD]")
    REQUIRE(value.Normlinf() <= tol);
 }
 
-TEST_CASE("2.5D LDF changes only the in-plane magnetic components", "[MHD][LDF]")
+TEST_CASE("2.5D LDF changes only the in-plane magnetic components",
+          "[MHD][LDF]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
    DG_FECollection fec(2, 2, BasisType::GaussLobatto);
@@ -235,7 +236,7 @@ TEST_CASE("2.5D LDF changes only the in-plane magnetic components", "[MHD][LDF]"
    }
    Vector magnetic(state.GetData()+4*dof, 2*dof);
    const DenseMatrix D = AssembleMagneticDivergence(
-                           *fes.GetFE(0), *fes.GetElementTransformation(0));
+                            *fes.GetFE(0), *fes.GetElementTransformation(0));
    Vector divergence(D.Height());
    D.Mult(magnetic, divergence);
    REQUIRE(divergence.Normlinf() <= tol*D.MaxMaxNorm()*magnetic.Normlinf());
@@ -243,7 +244,8 @@ TEST_CASE("2.5D LDF changes only the in-plane magnetic components", "[MHD][LDF]"
    REQUIRE(state.Normlinf() > 0.1);
 }
 
-TEST_CASE("Smooth Alfven data satisfy the time-dependent MHD equations", "[MHD]")
+TEST_CASE("Smooth Alfven data satisfy the time-dependent MHD equations",
+          "[MHD]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
    ElementTransformation &Tr = *mesh.GetElementTransformation(0);
