@@ -12,6 +12,7 @@
 #include "optcontactproblem.hpp"
 #include "solver_utils.hpp"
 #include "general/scan.hpp"
+#include <algorithm>
 
 namespace mfem
 {
@@ -91,6 +92,157 @@ void AssembleVectorLumpedMass(ParFiniteElementSpace &fes, Vector &lump)
    mass_lump.ParallelAssemble(lump);
 }
 
+HypreParMatrix *StackContactJacobians(
+   const Array<HypreParMatrix *> &blocks)
+{
+   MFEM_VERIFY(blocks.Size() > 0, "No contact Jacobians to stack.");
+
+   const bool use_dev = Device::IsEnabled();
+   MPI_Comm comm = blocks[0]->GetComm();
+   const HYPRE_BigInt global_num_cols = blocks[0]->GetGlobalNumCols();
+   const int local_num_cols = blocks[0]->Width();
+   const HYPRE_BigInt col_start = blocks[0]->ColPart()[0];
+   const HYPRE_BigInt col_end = blocks[0]->ColPart()[1];
+
+   int num_rows = 0;
+   int diag_nnz = 0;
+   int offd_nnz = 0;
+   std::vector<int> row_offsets(blocks.Size() + 1, 0);
+   std::vector<int> diag_offsets(blocks.Size() + 1, 0);
+   std::vector<int> offd_offsets(blocks.Size() + 1, 0);
+   std::vector<HYPRE_BigInt> offd_col_map;
+
+   for (int b = 0; b < blocks.Size(); b++)
+   {
+      const HypreParMatrix &block = *blocks[b];
+      MFEM_VERIFY(block.GetComm() == comm &&
+                  block.GetGlobalNumCols() == global_num_cols &&
+                  block.Width() == local_num_cols &&
+                  block.ColPart()[0] == col_start &&
+                  block.ColPart()[1] == col_end,
+                  "Incompatible contact Jacobian column partitions.");
+
+      num_rows += block.Height();
+      diag_nnz += block.GetDiagMemoryData().Capacity();
+      offd_nnz += block.GetOffdMemoryData().Capacity();
+      row_offsets[b + 1] = num_rows;
+      diag_offsets[b + 1] = diag_nnz;
+      offd_offsets[b + 1] = offd_nnz;
+
+      HYPRE_BigInt *block_col_map = nullptr;
+      HYPRE_Int block_num_offd_cols = 0;
+      block.GetOffdColMap(block_col_map, block_num_offd_cols);
+      if (block_num_offd_cols)
+      {
+         offd_col_map.insert(offd_col_map.end(), block_col_map,
+                             block_col_map + block_num_offd_cols);
+      }
+   }
+
+   std::sort(offd_col_map.begin(), offd_col_map.end());
+   offd_col_map.erase(std::unique(offd_col_map.begin(), offd_col_map.end()),
+                      offd_col_map.end());
+   std::vector<Array<int>> old_to_new(blocks.Size());
+
+   SparseMatrix *diag = new SparseMatrix;
+   diag->OverrideSize(num_rows, local_num_cols);
+   diag->GetMemoryI().New(num_rows + 1, Device::GetDeviceMemoryType());
+   diag->GetMemoryJ().New(diag_nnz, Device::GetDeviceMemoryType());
+   diag->GetMemoryData().New(diag_nnz, Device::GetDeviceMemoryType());
+
+   SparseMatrix *offd = new SparseMatrix;
+   offd->OverrideSize(num_rows, static_cast<int>(offd_col_map.size()));
+   offd->GetMemoryI().New(num_rows + 1, Device::GetDeviceMemoryType());
+   offd->GetMemoryJ().New(offd_nnz, Device::GetDeviceMemoryType());
+   offd->GetMemoryData().New(offd_nnz, Device::GetDeviceMemoryType());
+
+   HYPRE_Int *diag_i = diag->WriteI(use_dev);
+   HYPRE_Int *diag_j = diag->WriteJ(use_dev);
+   real_t *diag_data = diag->WriteData(use_dev);
+   HYPRE_Int *offd_i = offd->WriteI(use_dev);
+   HYPRE_Int *offd_j = offd->WriteJ(use_dev);
+   real_t *offd_data = offd->WriteData(use_dev);
+
+   for (int b = 0; b < blocks.Size(); b++)
+   {
+      const HypreParMatrix &block = *blocks[b];
+      const int block_rows = block.Height();
+      const int block_diag_nnz = diag_offsets[b + 1] - diag_offsets[b];
+      const int block_offd_nnz = offd_offsets[b + 1] - offd_offsets[b];
+      const HYPRE_Int *block_diag_i =
+         mfem::Read(block.GetDiagMemoryI(), block_rows + 1, use_dev);
+      const HYPRE_Int *block_diag_j =
+         mfem::Read(block.GetDiagMemoryJ(), block_diag_nnz, use_dev);
+      const real_t *block_diag_data =
+         mfem::Read(block.GetDiagMemoryData(), block_diag_nnz, use_dev);
+      const HYPRE_Int *block_offd_i =
+         mfem::Read(block.GetOffdMemoryI(), block_rows + 1, use_dev);
+      const HYPRE_Int *block_offd_j =
+         mfem::Read(block.GetOffdMemoryJ(), block_offd_nnz, use_dev);
+      const real_t *block_offd_data =
+         mfem::Read(block.GetOffdMemoryData(), block_offd_nnz, use_dev);
+
+      const int row_offset = row_offsets[b];
+      const int diag_offset = diag_offsets[b];
+      const int offd_offset = offd_offsets[b];
+      mfem::forall(block_rows + 1, [=] MFEM_HOST_DEVICE (int i)
+      {
+         diag_i[row_offset + i] = diag_offset + block_diag_i[i];
+         offd_i[row_offset + i] = offd_offset + block_offd_i[i];
+      });
+      mfem::forall(block_diag_nnz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         diag_j[diag_offset + i] = block_diag_j[i];
+         diag_data[diag_offset + i] = block_diag_data[i];
+      });
+
+      HYPRE_BigInt *block_col_map = nullptr;
+      HYPRE_Int block_num_offd_cols = 0;
+      block.GetOffdColMap(block_col_map, block_num_offd_cols);
+      old_to_new[b].SetSize(block_num_offd_cols);
+      for (int i = 0; i < block_num_offd_cols; i++)
+      {
+         old_to_new[b][i] = std::lower_bound(offd_col_map.begin(),
+                                             offd_col_map.end(),
+                                             block_col_map[i]) -
+                            offd_col_map.begin();
+      }
+      old_to_new[b].UseDevice(use_dev);
+      const int *old_to_new_data = old_to_new[b].Read(use_dev);
+      mfem::forall(block_offd_nnz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         offd_j[offd_offset + i] = old_to_new_data[block_offd_j[i]];
+         offd_data[offd_offset + i] = block_offd_data[i];
+      });
+   }
+
+   HYPRE_BigInt local_num_rows = num_rows;
+   HYPRE_BigInt row_end = 0;
+   MPI_Scan(&local_num_rows, &row_end, 1,
+            MPITypeMap<HYPRE_BigInt>::mpi_type, MPI_SUM, comm);
+   HYPRE_BigInt row_starts[2] = {row_end - local_num_rows, row_end};
+   HYPRE_BigInt global_num_rows = 0;
+   MPI_Allreduce(&local_num_rows, &global_num_rows, 1,
+                 MPITypeMap<HYPRE_BigInt>::mpi_type, MPI_SUM, comm);
+   HYPRE_BigInt col_starts[2] = {col_start, col_end};
+
+   HYPRE_BigInt *offd_col_map_data = nullptr;
+   if (!offd_col_map.empty())
+   {
+      offd_col_map_data = new HYPRE_BigInt[offd_col_map.size()];
+      std::copy(offd_col_map.begin(), offd_col_map.end(), offd_col_map_data);
+   }
+
+   HypreParMatrix *stacked = new HypreParMatrix(
+      comm, global_num_rows, global_num_cols, row_starts, col_starts,
+      diag, offd, offd_col_map_data, true);
+   stacked->CopyRowStarts();
+   stacked->CopyColStarts();
+   stacked->SetOwnerFlags(stacked->OwnsDiag(), stacked->OwnsOffd(),
+                          offd_col_map_data ? 1 : 0);
+   return stacked;
+}
+
 }
 
 void OptContactProblem::ReleaseMemory()
@@ -113,7 +265,7 @@ void OptContactProblem::ComputeGapJacobian()
    if (J) { delete J; }
    // One Tribol coupling scheme per contact interface. The gap Jacobians are
    // stacked row-wise, and the gaps and lumped masses are concatenated in the
-   // same order (HypreParMatrixFromBlocks stacks the local rows block by block).
+   // same order (StackContactJacobians stacks local rows block by block).
    const int npairs = contact_pairs.size();
    Array<HypreParMatrix *> Js(npairs);
    std::vector<Vector> gaps(npairs), mcslumps(npairs);
@@ -143,9 +295,7 @@ void OptContactProblem::ComputeGapJacobian()
    }
    else
    {
-      Array2D<const HypreParMatrix *> J_blocks(npairs, 1);
-      for (int i = 0; i < npairs; i++) { J_blocks(i, 0) = Js[i]; }
-      J = HypreParMatrixFromBlocks(J_blocks);
+      J = StackContactJacobians(Js);
       for (int i = 0; i < npairs; i++) { delete Js[i]; }
    }
 
