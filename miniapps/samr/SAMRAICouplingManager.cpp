@@ -649,6 +649,8 @@ void SAMRAICouplingManager::CreateTransferMaps()
    // Build the mapping for elements and cells owned by this rank.
    SetLocalCellInfo(rank, local_element_info[rank]);
 
+   // Before returning, ensure all ranks have received remote information (which
+   // should ensure all non-blocking sends have completed)
    MPI_Barrier(mesh->GetComm());
 }
 
