@@ -41,6 +41,9 @@ TEST_CASE("ComplexGridFunction Save", "[ComplexGridFunction]")
    gf_rt.Randomize(1);
    gf_l2.Randomize(1);
 
+   ComplexGridFunction gf_h1_copy(gf_h1);
+   REQUIRE(gf_h1_copy.FESpace() != gf_h1.FESpace());
+
    Vector zeroVec(3); zeroVec = 0.0;
    ConstantCoefficient zeroCoef(0.0);
    VectorConstantCoefficient zeroVecCoef(zeroVec);
@@ -49,6 +52,10 @@ TEST_CASE("ComplexGridFunction Save", "[ComplexGridFunction]")
    const double norm_nd = gf_nd.ComputeL2Error(zeroVecCoef, zeroVecCoef);
    const double norm_rt = gf_rt.ComputeL2Error(zeroVecCoef, zeroVecCoef);
    const double norm_l2 = gf_l2.ComputeL2Error(zeroCoef, zeroCoef);
+
+   gf_h1_copy -= gf_h1;
+   REQUIRE(gf_h1_copy.ComputeL2Error(zeroCoef, zeroCoef) ==
+           MFEM_Approx(0.0).margin(1e-12));
 
    std::ofstream ofs_h1("cmplx_h1.gf"); ofs_h1.precision(8);
    std::ofstream ofs_nd("cmplx_nd.gf"); ofs_nd.precision(8);
@@ -129,6 +136,20 @@ TEST_CASE("ParComplexGridFunction Save", "[ParComplexGridFunction][Parallel]")
    pgf_rt.Randomize(1);
    pgf_l2.Randomize(1);
 
+   ParComplexGridFunction pgf_h1_copy(pgf_h1);
+   REQUIRE(pgf_h1_copy.ParFESpace() != pgf_h1.ParFESpace());
+   pgf_h1_copy -= pgf_h1;
+   REQUIRE(pgf_h1_copy.Normlinf() == MFEM_Approx(0.0).margin(1e-12));
+
+   // The parallel object must remain fully usable through its serial complex
+   // grid-function interface.
+   ComplexGridFunction &base_h1 = pgf_h1;
+   REQUIRE(base_h1.FESpace() == &pfes_h1);
+   REQUIRE(&base_h1.real() == &pgf_h1.real());
+   base_h1 = std::complex<real_t>(1.0, -2.0);
+   REQUIRE(pgf_h1.real().Normlinf() == MFEM_Approx(1.0));
+   REQUIRE(pgf_h1.imag().Normlinf() == MFEM_Approx(2.0));
+
    // Ensure that the L-DOFs are set consistently on all ranks
    pgf_h1.real().SetTrueVector(); pgf_h1.real().SetFromTrueVector();
    pgf_h1.imag().SetTrueVector(); pgf_h1.imag().SetFromTrueVector();
@@ -147,6 +168,10 @@ TEST_CASE("ParComplexGridFunction Save", "[ParComplexGridFunction][Parallel]")
    const double norm_nd = pgf_nd.ComputeL2Error(zeroVecCoef, zeroVecCoef);
    const double norm_rt = pgf_rt.ComputeL2Error(zeroVecCoef, zeroVecCoef);
    const double norm_l2 = pgf_l2.ComputeL2Error(zeroCoef, zeroCoef);
+   REQUIRE(pgf_h1.ComputeLpError(2.0, zeroCoef, zeroCoef) ==
+           MFEM_Approx(norm_h1));
+   REQUIRE(pgf_h1.ComputeMaxError(zeroCoef, zeroCoef) ==
+           MFEM_Approx(sqrt(5.0)));
 
    std::ostringstream name_h1, name_nd, name_rt, name_l2;
    name_h1 << "cmplx_gf_h1." << std::setfill('0') << std::setw(6) << my_rank;
