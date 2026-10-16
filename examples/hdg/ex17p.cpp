@@ -371,38 +371,35 @@ int main(int argc, char *argv[])
       //
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
       //     pressure Schur Complement
-      HypreParMatrix *MinvBt = NULL;
-      HypreParMatrix *S = NULL;
-      Solver *invM;
-      HypreBoomerAMG *invS;
+      unique_ptr<HypreParMatrix> MinvBt, S;
+      unique_ptr<Solver> invM;
+      unique_ptr<HypreBoomerAMG> invS;
 
       HypreParMatrix &Msm = *Ms->ParallelAssembleInternalMatrix();
       Vector Md;
       Msm.GetDiag(Md);
 
       HypreParMatrix &Bm = *Bs->ParallelAssembleInternalMatrix();
-      MinvBt = Bm.Transpose();
+      MinvBt.reset(Bm.Transpose());
       MinvBt->InvScaleRows(Md);
-      S = ParMult(&Bm, MinvBt);
+      S.reset(ParMult(&Bm, MinvBt.get()));
 
       if (Mu)
       {
          HypreParMatrix &Mum = *Mu->ParallelAssembleInternalMatrix();
-         HypreParMatrix *Snew = ParAdd(&Mum, S);
-         delete S;
-         S = Snew;
+         S.reset(ParAdd(&Mum, S.get()));
       }
 
-      invM = new HypreDiagScale(Msm);
-      invS = new HypreBoomerAMG(*S);
+      invM = make_unique<HypreDiagScale>(Msm);
+      invS = make_unique<HypreBoomerAMG>(*S);
       invS->SetSystemsOptions(dim, true);
 
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
       BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      darcyPrec.SetDiagonalBlock(0, invM);
-      darcyPrec.SetDiagonalBlock(1, invS);
+      darcyPrec.SetDiagonalBlock(0, invM.get());
+      darcyPrec.SetDiagonalBlock(1, invS.get());
 
       // 13. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
@@ -416,11 +413,6 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-
-      delete invM;
-      delete invS;
-      delete S;
-      delete MinvBt;
    }
 
    // 12. Recover the solution as a finite element grid function 'x'.
