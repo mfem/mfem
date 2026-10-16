@@ -17,6 +17,11 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+Miscellaneous
+-------------
+- Added continuous benchmarking of selected tests/benchmarks in GitHub CI
+  using CodSpeed (https://codspeed.io), enabled by the new CMake option
+  MFEM_USE_CODSPEED.
 
 Version 4.10, released on Sep 1, 2026
 =====================================
