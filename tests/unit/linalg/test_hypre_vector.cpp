@@ -166,6 +166,31 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
 
 #endif // HYPRE_USING_GPU
 
+TEST_CASE("ParNormlp", "[Parallel], [HypreParVector], [GPU]")
+{
+   int world_size, rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   int size_per_rank = 2;
+
+   // global vector contains negative integers -[0, 1, ..., world_size*size_per_rank-1]
+   // our rank only holds a portion
+   Vector v(size_per_rank);
+   for (int i=0; i<size_per_rank; ++i)
+   {
+      v(i) = -(rank * size_per_rank + i);
+   }
+   v.UseDevice(true);
+   int N = world_size*size_per_rank;
+   REQUIRE(ParNormlp(v, 1, MPI_COMM_WORLD) == MFEM_Approx((N * (N - 1)) / 2.));
+   REQUIRE(ParNormlp(v, 2, MPI_COMM_WORLD) ==
+           MFEM_Approx(sqrt((N * (N - 1) * (2 * N - 1)) / 6.)));
+   REQUIRE(ParNormlp(v, 3, MPI_COMM_WORLD) ==
+           MFEM_Approx(cbrt((N * N * (N - 1) * (N - 1)) / 4.)));
+   REQUIRE(ParNormlp(v, std::numeric_limits<real_t>::infinity(),
+                     MPI_COMM_WORLD) == N - 1);
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
