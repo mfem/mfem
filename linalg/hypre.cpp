@@ -1374,9 +1374,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
       }
    }
    // count the number of columns in the off-diagonal and set the local indices
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (auto &[col, index] : offd_map)
    {
-      it->second = offd_num_cols++;
+      index = offd_num_cols++;
    }
 
    // construct the global ParCSR matrix
@@ -1424,9 +1424,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
    diag_i[nrows] = diag_nnz;
    offd_i[nrows] = offd_nnz;
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (const auto &[col, index] : offd_map)
    {
-      offd_col_map[it->second] = it->first;
+      offd_col_map[index] = col;
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
