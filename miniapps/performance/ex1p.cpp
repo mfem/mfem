@@ -261,7 +261,7 @@ int ex1_t<dim>::run(Mesh *mesh, int ser_ref_levels, int par_ref_levels,
          mesh->UniformRefinement();
       }
    }
-   if (!perf && mesh->NURBSext)
+   if (!perf && mesh->IsNURBS())
    {
       const int new_mesh_p = std::min(sol_p, mesh_p);
       if (myid == 0)

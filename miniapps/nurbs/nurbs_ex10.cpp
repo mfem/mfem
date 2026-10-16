@@ -231,9 +231,9 @@ int main(int argc, char *argv[])
    //    fe_offset array.
    FiniteElementCollection *fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
-      NURBSext = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext = new NURBSExtension(mesh->NURBSExt(), order);
       fec = new NURBSFECollection(order);
       cout << "Using NURBS FEs: " << fec->Name() << endl;
    }
