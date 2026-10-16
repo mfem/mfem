@@ -4347,10 +4347,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
       {
          int *v = element_vertex.GetRow(el.index);
          int nv = element_vertex.RowSize(el.index);
-         for (int i = 0; i < nv; i++)
-         {
-            vert.Append(v[i]);
-         }
+         vert.Append(v, nv);
 
          nv = GI[el.Geom()].nv;
          for (int i = 0; i < nv; i++)
@@ -5894,16 +5891,6 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          }
       }
    }
-
-   // Filter, sort and unique an array, so it contains only local unique values.
-   auto FilterSortUnique = [](Array<int> &v, int N)
-   {
-      // Perform the O(N) filter before the O(NlogN) sort. begin -> it is only
-      // entries < N.
-      auto it = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
-      std::sort(v.begin(), it);
-      v.SetSize(std::distance(v.begin(), std::unique(v.begin(), it)));
-   };
 
    FilterSortUnique(bdr_vertices, NVertices);
    FilterSortUnique(bdr_edges, NEdges);
