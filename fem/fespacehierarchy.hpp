@@ -28,7 +28,7 @@ class FiniteElementSpaceHierarchy
 protected:
    Array<Mesh*> meshes;
    Array<FiniteElementSpace*> fespaces;
-   Array<Operator*> prolongations;
+   Array<const Operator*> prolongations;
    Array<bool> ownedMeshes;
    Array<bool> ownedFES;
    Array<bool> ownedProlongations;
@@ -84,7 +84,7 @@ public:
 
    /// @brief Returns the prolongation operator from the finite element space at
    /// level to the finite element space at level + 1
-   Operator* GetProlongationAtLevel(int level) const;
+   const Operator* GetProlongationAtLevel(int level) const;
 };
 
 #ifdef MFEM_USE_MPI
