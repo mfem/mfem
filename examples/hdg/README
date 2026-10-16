@@ -1,0 +1,14 @@
+                    Finite Element Discretization Library
+                                   __
+                       _ __ ___   / _|  ___  _ __ ___
+                      | '_ ` _ \ | |_  / _ \| '_ ` _ \
+                      | | | | | ||  _||  __/| | | | | |
+                      |_| |_| |_||_|   \___||_| |_| |_|
+
+                               https://mfem.org
+
+This directory contains modifications of the example codes that illustrate the
+use of the framework for mixed system (Par)DarcyForm and the related classes for
+algebraic reduction of the system DarcyReduction or hybridization
+DarcyHybridization. Operation with adaptive mesh refinement driven by
+HDGErrorEstimator is also demonstrated.
