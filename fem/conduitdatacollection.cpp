@@ -1313,7 +1313,7 @@ constexpr conduit::index_t mfem_precision_conduit_id =
 
 //---------------------------------------------------------------------------//
 mfem::Mesh *
-ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
+ConduitDataCollection::BlueprintMeshToMesh(const conduit::Node &n_mesh,
                                            const std::string &main_topology_name,
                                            bool zero_copy)
 {
@@ -1679,7 +1679,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
 #ifdef MFEM_USE_MPI
 mfem::Mesh *
 ConduitDataCollection::BlueprintMeshToMesh(MPI_Comm comm,
-                                           const Node &n_mesh,
+                                           const conduit::Node &n_mesh,
                                            const std::string &main_topology_name,
                                            bool zero_copy)
 {
@@ -2668,7 +2668,7 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
 
 //---------------------------------------------------------------------------//
 std::string
-ConduitDataCollection::ResolveTopologyName(const Node &n_mesh,
+ConduitDataCollection::ResolveTopologyName(const conduit::Node &n_mesh,
                                            const std::string &main_topology_name)
 {
    std::string topo_name = main_topology_name;
