@@ -9,7 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-// Build with CMake using the samrai-advection-diffusion target.
+// Build with CMake using the samrai-advection-diffusion target with
+// MFEM_USE_SAMRAI=ON (and MFEM_FETCH_TPLS=ON if SAMRAI is not already
+// installed).
 //
 // Sample runs:
 //
