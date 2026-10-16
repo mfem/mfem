@@ -27,8 +27,6 @@ ParEntitySets::ParEntitySets(const ParEntitySets & ent_sets)
 {
    MPI_Comm_size(pmesh_->GetComm(), &NRanks_);
    MPI_Comm_rank(pmesh_->GetComm(), &MyRank_);
-   cout << MyRank_ << ": Entering ParEntitySets copy c'tor" << endl;
-   cout << MyRank_ << ": Leaving ParEntitySets copy c'tor" << endl;
 }
 
 ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
@@ -51,8 +49,6 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
 
    MPI_Comm_size(MyComm, &NRanks_);
    MPI_Comm_rank(MyComm, &MyRank_);
-   cout << MyRank_ << ": Entering ParEntitySets(ParMesh, EntitySets, ...) c'tor" <<
-        endl;
 
    int nelem = mesh_->GetNE();
 
@@ -191,8 +187,6 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, const EntitySets & ent_sets,
    this->mesh_ = (Mesh*)this->pmesh_;
 
    this->CopyMeshTables();
-   cout << MyRank_ << ": Leaving ParEntitySets(ParMesh, EntitySets, ...) c'tor" <<
-        endl;
 }
 
 ParEntitySets::ParEntitySets(ParMesh & pmesh, ParNCMesh &pncmesh)
@@ -203,19 +197,15 @@ ParEntitySets::ParEntitySets(ParMesh & pmesh, ParNCMesh &pncmesh)
 
    MPI_Comm_size(MyComm, &NRanks_);
    MPI_Comm_rank(MyComm, &MyRank_);
-   cout << MyRank_ << ": Entering ParEntitySets(ParMesh, ParNCMesh) c'tor" << endl;
 
    this->BuildEntitySets(pncmesh, VERTEX);
    this->BuildEntitySets(pncmesh, EDGE);
    this->BuildEntitySets(pncmesh, FACE);
    this->BuildEntitySets(pncmesh, ELEMENT);
-   cout << MyRank_ << ": Leaving ParEntitySets(ParMesh, ParNCMesh) c'tor" << endl;
 }
 
 ParEntitySets::~ParEntitySets()
 {
-   cout << MyRank_ << ": Entering ParEntitySets d'tor" << endl;
-   cout << MyRank_ << ": Leaving ParEntitySets d'tor" << endl;
 }
 
 void
@@ -268,12 +258,14 @@ ParEntitySets::PrintEntitySetInfo(std::ostream & output, EntityType t,
 void
 ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
 {
-   cout << MyRank_ << ": BuildEntitySets for type " << GetTypeName(t) << endl;
    int es = pncmesh.pncent_sets->GetEntitySize(t);
    unsigned int ns = pncmesh.pncent_sets->GetNumSets(t);
-   cout << MyRank_ << ": num sets " << ns << endl;
 
    Array<int> inds(es);
+   auto root_node = [&pncmesh](int vertex)
+   {
+      return pncmesh.nodes.FindId(vertex, vertex);
+   };
 
    sets_[t].resize(ns);
    set_names_[t].resize(ns);
@@ -288,9 +280,11 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
          case VERTEX:
             for (int i=0; i<ni; i++)
             {
-               int node = (*pncmesh.pncent_sets)(t, s, i);
+               int node = root_node((*pncmesh.pncent_sets)(t, s, i));
+               if (node < 0) { continue; }
                int index = pncmesh.nodes[node].vert_index;
-               if (!pncmesh.IsGhost(0,index))
+               if (index >= 0 && !pncmesh.IsGhost(0, index) &&
+                   pncmesh.GetGroup(pncmesh.GetEntityOwnerId(0, index))[0] == MyRank_)
                {
                   sets_[t][s].insert(index);
                }
@@ -300,6 +294,9 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
             for (int i=0; i<ni; i++)
             {
                pncmesh.pncent_sets->GetEntityIndex(t, s, i, inds);
+               inds[0] = root_node(inds[0]);
+               inds[1] = root_node(inds[1]);
+               if (inds[0] < 0 || inds[1] < 0) { continue; }
                BlockArray<int> ind_coll;
                pncmesh.GetRefinedEdges(inds[0], inds[1],
                                        ind_coll);
@@ -308,7 +305,8 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
                {
                   int edge = ind_coll[j];
                   int index = pncmesh.nodes[edge].edge_index;
-                  if (index >= 0 && !pncmesh.IsGhost(1, index))
+                  if (index >= 0 && !pncmesh.IsGhost(1, index) &&
+                      pncmesh.GetGroup(pncmesh.GetEntityOwnerId(1, index))[0] == MyRank_)
                   {
                      sets_[t][s].insert(index);
                   }
@@ -319,6 +317,18 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
             for (int i=0; i<ni; i++)
             {
                pncmesh.pncent_sets->GetEntityIndex(t, s, i, inds);
+               bool missing_root = false;
+               for (int j = 0; j < 3; j++)
+               {
+                  inds[j] = root_node(inds[j]);
+                  missing_root |= inds[j] < 0;
+               }
+               if (inds[3] >= 0)
+               {
+                  inds[3] = root_node(inds[3]);
+                  missing_root |= inds[3] < 0;
+               }
+               if (missing_root) { continue; }
                BlockArray<int> ind_coll;
                pncmesh.GetRefinedFaces(inds[0], inds[1], inds[2], inds[3],
                                        ind_coll);
@@ -327,7 +337,8 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
                {
                   int face = ind_coll[j];
                   int index = pncmesh.faces[face].index;
-                  if (index >= 0 && !pncmesh.IsGhost(2, index))
+                  if (index >= 0 && !pncmesh.IsGhost(2, index) &&
+                      pncmesh.GetGroup(pncmesh.GetEntityOwnerId(2, index))[0] == MyRank_)
                   {
                      sets_[t][s].insert(index);
                   }
@@ -344,29 +355,17 @@ ParEntitySets::BuildEntitySets(ParNCMesh &pncmesh, EntityType t)
 
                for (int j=0; j<ind_coll.Size(); j++)
                {
-                  sets_[t][s].insert(pncmesh.elements[ind_coll[j]].index);
+                  if (pncmesh.elements[ind_coll[j]].rank == MyRank_)
+                  {
+                     sets_[t][s].insert(pncmesh.elements[ind_coll[j]].index);
+                  }
                }
             }
             break;
          default:
             MFEM_ABORT("Unknown entity set type: \"" << GetTypeName(t) << "\"");
       }
-      cout << MyRank_ << ": " << set_names_[t][s] << " " << s << " set size " <<
-           sets_[t][s].size() << "{";
-      for (set<int>::iterator it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
-      {
-         cout << " " << *it;
-      }
-      cout << "}" << endl;
    }
-   map<string,int>::iterator it;
-   cout << MyRank_ << ": set index by name ";
-   for (it=set_index_by_name_[t].begin(); it != set_index_by_name_[t].end(); it++)
-   {
-      cout << " " << it->first << "->" << it->second;
-   }
-   cout << endl;
-   cout << MyRank_ << ": done BuildEntitySets for type " << GetTypeName(t) << endl;
 }
 
 ParNCEntitySets::ParNCEntitySets(MPI_Comm comm, const NCMesh &ncmesh)
@@ -376,15 +375,6 @@ ParNCEntitySets::ParNCEntitySets(MPI_Comm comm, const NCMesh &ncmesh)
    MPI_Comm_size(MyComm_, &NRanks_);
    MPI_Comm_rank(MyComm_, &MyRank_);
 
-   if ( MyRank_ == 0 )
-   {
-      cout << "Entering ParNCEntitySets(NCMesh) c'tor" << endl;
-   }
-
-   if ( MyRank_ == 0 )
-   {
-      cout << "Leaving ParNCEntitySets(NCMesh) c'tor" << endl;
-   }
 }
 
 } // namespace mfem

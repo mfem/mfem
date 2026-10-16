@@ -31,6 +31,7 @@ class ParEntitySets : public EntitySets
 
 public:
    ParEntitySets(const ParEntitySets & ent_sets);
+   ParEntitySets & operator=(const ParEntitySets & ent_sets) = delete;
    ParEntitySets(ParMesh & _mesh, const EntitySets & ent_sets, int * part,
                  const Array<int> & vert_global_local);
    ParEntitySets(ParMesh & mesh, ParNCMesh &ncmesh);
@@ -56,10 +57,8 @@ private:
 class ParNCEntitySets : public NCEntitySets
 {
 public:
-   // ParNCEntitySets(MPI_Comm comm, EntitySets &ent_sets, NCMesh &ncmesh);
    ParNCEntitySets(MPI_Comm comm, const NCMesh &ncmesh);
-   // ParNCEntitySets(const ParMesh & pmesh, const ParNCMesh &pncmesh);
-   // ParNCEntitySets(const ParNCEntitySets & pncent_sets);
+   ParNCEntitySets & operator=(const ParNCEntitySets & pncent_sets) = delete;
 
 private:
    MPI_Comm MyComm_;

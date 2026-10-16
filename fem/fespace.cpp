@@ -648,7 +648,6 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
         it!=(*mesh->ent_sets)(type, set_index).end(); it++)
    {
       int ent_index = *it;
-      cout << "collecting vdofs for entity " << ent_index << "->";
       if (component < 0)
       {
          switch (type)
@@ -668,8 +667,7 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
             default:
                mfem_error("GetEssentialVDofs: Invalid entity type");
          }
-         vdofs.Print(cout);
-         mark_dofs(vdofs, ess_vdofs);
+         MarkDofs(vdofs, ess_vdofs);
       }
       else
       {
@@ -692,7 +690,7 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
          }
          for (int d = 0; d < dofs.Size(); d++)
          { dofs[d] = DofToVDof(dofs[d], component); }
-         mark_dofs(dofs, ess_vdofs);
+         MarkDofs(dofs, ess_vdofs);
       }
    }
 
@@ -701,7 +699,6 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
       Array<int> es_verts, es_edges, es_faces;
       mesh->ncmesh->GetEntitySetClosure(type, set_index,
                                         es_verts, es_edges, es_faces);
-      cout << "returned from get closure" << endl;
       for (int i = 0; i < es_verts.Size(); i++)
       {
          if (es_verts[i] < GetNV())
@@ -709,14 +706,14 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
             if (component < 0)
             {
                GetVertexVDofs(es_verts[i], vdofs);
-               mark_dofs(vdofs, ess_vdofs);
+               MarkDofs(vdofs, ess_vdofs);
             }
             else
             {
                GetVertexDofs(es_verts[i], dofs);
                for (int d = 0; d < dofs.Size(); d++)
                { dofs[d] = DofToVDof(dofs[d], component); }
-               mark_dofs(dofs, ess_vdofs);
+               MarkDofs(dofs, ess_vdofs);
             }
          }
       }
@@ -727,14 +724,14 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
             if (component < 0)
             {
                GetEdgeVDofs(es_edges[i], vdofs);
-               mark_dofs(vdofs, ess_vdofs);
+               MarkDofs(vdofs, ess_vdofs);
             }
             else
             {
                GetEdgeDofs(es_edges[i], dofs);
                for (int d = 0; d < dofs.Size(); d++)
                { dofs[d] = DofToVDof(dofs[d], component); }
-               mark_dofs(dofs, ess_vdofs);
+               MarkDofs(dofs, ess_vdofs);
             }
          }
       }
@@ -745,14 +742,14 @@ void FiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
             if (component < 0)
             {
                GetFaceVDofs(es_faces[i], vdofs);
-               mark_dofs(vdofs, ess_vdofs);
+               MarkDofs(vdofs, ess_vdofs);
             }
             else
             {
                GetFaceDofs(es_faces[i], dofs);
                for (int d = 0; d < dofs.Size(); d++)
                { dofs[d] = DofToVDof(dofs[d], component); }
-               mark_dofs(dofs, ess_vdofs);
+               MarkDofs(dofs, ess_vdofs);
             }
          }
       }

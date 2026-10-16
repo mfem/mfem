@@ -327,6 +327,13 @@ public:
 
    EntitySets *ent_sets;
 
+   /** @brief Return this mesh's entity sets, creating an empty collection when
+       necessary.
+
+       Entity sets must be defined before converting a mesh to a nonconforming
+       mesh or distributing it as a ParMesh. */
+   EntitySets &GetOrCreateEntitySets();
+
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
    // (true) is set in mesh_readers.cpp.

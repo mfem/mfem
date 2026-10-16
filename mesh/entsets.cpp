@@ -46,8 +46,6 @@ EntitySets::EntitySets(Mesh & mesh)
      set_names_(4),
      set_index_by_name_(4)
 {
-   cout << "Entering EntitySets(Mesh) c'tor" << endl;
-   cout << "Leaving EntitySets(Mesh) c'tor" << endl;
 }
 
 EntitySets::EntitySets(const EntitySets & ent_sets)
@@ -62,7 +60,6 @@ EntitySets::EntitySets(const EntitySets & ent_sets)
      set_names_(4),
      set_index_by_name_(4)
 {
-   cout << "Entering EntitySets copy c'tor" << endl;
    this->CopyEntitySets(ent_sets, VERTEX);
    this->CopyEntitySets(ent_sets, EDGE);
    this->CopyEntitySets(ent_sets, FACE);
@@ -80,7 +77,6 @@ EntitySets::EntitySets(const EntitySets & ent_sets)
    {
       face_edge_ = new Table(*ent_sets.GetFaceEdgeTable());
    }
-   cout << "Leaving EntitySets copy c'tor" << endl;
 }
 
 EntitySets::EntitySets(Mesh & mesh, NCMesh &ncmesh)
@@ -95,21 +91,17 @@ EntitySets::EntitySets(Mesh & mesh, NCMesh &ncmesh)
      set_names_(4),
      set_index_by_name_(4)
 {
-   cout << "Entering EntitySets(Mesh, NCMesh) c'tor" << endl;
    this->BuildEntitySets(ncmesh, VERTEX);
    this->BuildEntitySets(ncmesh, EDGE);
    this->BuildEntitySets(ncmesh, FACE);
    this->BuildEntitySets(ncmesh, ELEMENT);
-   cout << "Leaving EntitySets(Mesh, NCMesh) c'tor" << endl;
 }
 
 EntitySets::~EntitySets()
 {
-   cout << "Entering EntitySets d'tor" << endl;
    delete edge_vertex_;
    delete face_edge_;
    delete face_vertex_;
-   cout << "Leaving EntitySets d'tor" << endl;
 }
 
 const string &
@@ -121,12 +113,14 @@ EntitySets::GetTypeName(EntityType t)
 bool
 EntitySets::SetExists(EntityType t, unsigned int s) const
 {
+   VerifyEntityType(t);
    return s < sets_[t].size();
 }
 
 bool
 EntitySets::SetExists(EntityType t, const string & s) const
 {
+   VerifyEntityType(t);
    map<string,int>::const_iterator it = set_index_by_name_[t].find(s);
 
    return it != set_index_by_name_[t].end();
@@ -135,10 +129,17 @@ EntitySets::SetExists(EntityType t, const string & s) const
 void
 EntitySets::Load(istream &input)
 {
-   cout << "Entering EntitySets::Load" << endl;
+   VerifyCanModify();
    if (!input)
    {
       MFEM_ABORT("Input stream is not open");
+   }
+
+   for (int t = VERTEX; t <= ELEMENT; t++)
+   {
+      sets_[t].clear();
+      set_names_[t].clear();
+      set_index_by_name_[t].clear();
    }
 
    string file_type;
@@ -149,17 +150,6 @@ EntitySets::Load(istream &input)
    bool mfem_sets_v10 = (file_type == "MFEM sets v1.0");
    if ( mfem_sets_v10 )
    {
-      // string ident;
-      //int Dim = -1;
-
-      // read lines beginning with '#' (comments)
-      // skip_comment_lines(input, '#');
-      /*
-      input >> ident >> ws; // 'dimension'
-
-      MFEM_VERIFY(ident == "dimension", "invalid entity set file");
-      input >> Dim >> ws;
-      */
       int Dim = mesh_->Dimension();
 
       LoadEntitySets(input, VERTEX, "vertex_sets");
@@ -182,14 +172,11 @@ EntitySets::Load(istream &input)
    }
 
    CopyMeshTables();
-   cout << "Leaving EntitySets::Load" << endl;
 }
 
 void
 EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
 {
-   cout << "Entering EntitySets::LoadEntitySets(" << GetTypeName(t) << ")"
-        << endl;
    string ident;
    int NumSets = -1;
    int NumEntities = -1;
@@ -201,16 +188,15 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
    skip_comment_lines(input, '#');
    input >> ident >> ws;
 
-   cout << "ident: " << ident << endl;
-
    MFEM_VERIFY(ident == header, "invalid entity set file");
    input >> NumSets >> ws;
-   cout << "NumSets: " << NumSets << endl;
+   MFEM_VERIFY(NumSets >= 0, "invalid number of entity sets");
 
+   sets_[t].clear();
+   set_names_[t].clear();
+   set_index_by_name_[t].clear();
    sets_[t].resize(NumSets);
    set_names_[t].resize(NumSets);
-   cout << "resized" << endl;
-   cout << "NumOfVertices: " << NumOfVertices_ << endl;
    if ( NumSets > 0 )
    {
       if ( t == EDGE )
@@ -223,17 +209,18 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
          face_tbl = mesh_->GetFacesTable();
       }
    }
-   cout << "reading sets" << endl;
    for (int i=0; i<NumSets; i++)
    {
       getline(input, ident);
       filter_dos(ident);
-      cout << "set " << i << ", name: " << ident << flush;
+      MFEM_VERIFY(!ident.empty(), "EntitySets set names cannot be empty.");
+      MFEM_VERIFY(set_index_by_name_[t].count(ident) == 0,
+                  "EntitySets set name already exists.");
       set_names_[t][i] = ident;
       set_index_by_name_[t][ident] = i;
 
       input >> NumEntities;
-      cout << ", NumEntities: " << NumEntities << endl;
+      MFEM_VERIFY(input && NumEntities >= 0, "invalid number of set entities");
       for (int j=0; j<NumEntities; j++)
       {
          switch (t)
@@ -242,27 +229,53 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
             case ELEMENT:
                // Read vertex or element index
                input >> v0;
+               MFEM_VERIFY(input, "invalid entity set entry");
+               VerifyEntityIndex(t, v0);
                sets_[t][i].insert(v0);
                break;
             case EDGE:
+            {
                // Read two segment vertices
                input >> v0 >> v1;
-               sets_[t][i].insert((*v_to_v)(v0,v1));
+               MFEM_VERIFY(input, "invalid entity set entry");
+               VerifyVertexIndex(v0);
+               VerifyVertexIndex(v1);
+               const int edge = (*v_to_v)(v0, v1);
+               MFEM_VERIFY(edge >= 0,
+                           "The specified vertices do not define a mesh edge.");
+               sets_[t][i].insert(edge);
                break;
+            }
             case FACE:
+            {
                // Read geometry type
                input >> g;
                if ( g == 2 )
                {
                   // Read triangle vertices
                   input >> v0 >> v1 >> v2;
-                  sets_[t][i].insert((*face_tbl)(v0, v1, v2));
+                  MFEM_VERIFY(input, "invalid entity set entry");
+                  VerifyVertexIndex(v0);
+                  VerifyVertexIndex(v1);
+                  VerifyVertexIndex(v2);
+                  const int face = face_tbl->Index(v0, v1, v2);
+                  MFEM_VERIFY(face >= 0,
+                              "The specified vertices do not define a mesh face.");
+                  sets_[t][i].insert(face);
                }
                else if ( g == 3)
                {
                   // Read quadrilateral vertices
                   input >> v0 >> v1 >> v2 >> v3;
-                  sets_[t][i].insert((*face_tbl)(v0, v1, v2, v3));
+                  MFEM_VERIFY(input, "invalid entity set entry");
+                  VerifyVertexIndex(v0);
+                  VerifyVertexIndex(v1);
+                  VerifyVertexIndex(v2);
+                  VerifyVertexIndex(v3);
+                  const int face = (*face_tbl)(v0, v1, v2, v3);
+                  MFEM_VERIFY(face >= 0,
+                              "The specified vertices do not define a mesh face.");
+                  sets_[t][i].insert(face);
                }
                else
                {
@@ -270,6 +283,7 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
                              << g << "\"");
                }
                break;
+            }
             default:
                MFEM_ABORT("Unknown entity set type: \""
                           << GetTypeName(t) << "\"");
@@ -279,8 +293,6 @@ EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
    }
    delete v_to_v;
    delete face_tbl;
-   cout << "Leaving EntitySets::LoadEntitySets(" << GetTypeName(t) << ")"
-        << endl;
 }
 
 void
@@ -492,11 +504,14 @@ EntitySets::CopyEntitySets(const EntitySets & ent_sets, EntityType t)
 void
 EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
 {
-   cout << "BuildEntitySets for type " << GetTypeName(t) << endl;
    int es = ncmesh.ncent_sets->GetEntitySize(t);
    unsigned int ns = ncmesh.ncent_sets->GetNumSets(t);
 
    Array<int> inds(es);
+   auto root_node = [&ncmesh](int vertex)
+   {
+      return ncmesh.nodes.FindId(vertex, vertex);
+   };
 
    sets_[t].resize(ns);
    set_names_[t].resize(ns);
@@ -505,19 +520,24 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
       int ni = ncmesh.ncent_sets->GetNumEntities(t, s);
       set_names_[t][s] = ncmesh.ncent_sets->GetSetName(t, s);
       set_index_by_name_[t][set_names_[t][s]] = s;
-      std::cout << "processing set " << set_names_[t][s] << endl;
       switch (t)
       {
          case VERTEX:
             for (int i=0; i<ni; i++)
             {
-               sets_[t][s].insert((*ncmesh.ncent_sets)(t, s, i));
+               const int node = root_node((*ncmesh.ncent_sets)(t, s, i));
+               if (node < 0) { continue; }
+               const int index = ncmesh.nodes[node].vert_index;
+               if (index >= 0) { sets_[t][s].insert(index); }
             }
             break;
          case EDGE:
             for (int i=0; i<ni; i++)
             {
                ncmesh.ncent_sets->GetEntityIndex(t, s, i, inds);
+               inds[0] = root_node(inds[0]);
+               inds[1] = root_node(inds[1]);
+               if (inds[0] < 0 || inds[1] < 0) { continue; }
                BlockArray<int> ind_coll;
                ncmesh.GetRefinedEdges(inds[0], inds[1],
                                       ind_coll);
@@ -533,6 +553,18 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
             for (int i=0; i<ni; i++)
             {
                ncmesh.ncent_sets->GetEntityIndex(t, s, i, inds);
+               bool missing_root = false;
+               for (int j = 0; j < 3; j++)
+               {
+                  inds[j] = root_node(inds[j]);
+                  missing_root |= inds[j] < 0;
+               }
+               if (inds[3] >= 0)
+               {
+                  inds[3] = root_node(inds[3]);
+                  missing_root |= inds[3] < 0;
+               }
+               if (missing_root) { continue; }
                BlockArray<int> ind_coll;
                ncmesh.GetRefinedFaces(inds[0], inds[1], inds[2], inds[3],
                                       ind_coll);
@@ -561,7 +593,6 @@ EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
             MFEM_ABORT("Unknown entity set type: \"" << GetTypeName(t) << "\"");
       }
    }
-   cout << "done BuildEntitySets for type " << GetTypeName(t) << endl;
 }
 
 unsigned int
@@ -594,6 +625,150 @@ EntitySets::GetSetIndex(EntityType t, const string & s) const
                 << "\" for entity type \"" << GetTypeName(t) << "\"" );
 
    return mit->second;
+}
+
+void EntitySets::VerifyEntityType(EntityType t) const
+{
+   MFEM_VERIFY(t >= VERTEX && t <= ELEMENT,
+               "EntitySets invalid entity type \"" << GetTypeName(t) << "\"");
+}
+
+void EntitySets::VerifySetIndex(EntityType t, int set_index) const
+{
+   VerifyEntityType(t);
+   MFEM_VERIFY(set_index >= 0 && set_index < (int)sets_[t].size(),
+               "EntitySets set index out of range.");
+}
+
+void EntitySets::VerifyVertexIndex(int vertex_index) const
+{
+   MFEM_VERIFY(vertex_index >= 0 && vertex_index < mesh_->GetNV(),
+               "EntitySets vertex index out of range.");
+}
+
+void EntitySets::VerifyEntityIndex(EntityType t, int entity_index) const
+{
+   VerifyEntityType(t);
+
+   int num_entities = 0;
+   switch (t)
+   {
+      case VERTEX:  num_entities = mesh_->GetNV(); break;
+      case EDGE:
+         MFEM_VERIFY(mesh_->Dimension() > 1,
+                     "Edge sets require a mesh of dimension at least two.");
+         num_entities = mesh_->GetNEdges();
+         break;
+      case FACE:
+         MFEM_VERIFY(mesh_->Dimension() > 2,
+                     "Face sets require a three-dimensional mesh.");
+         num_entities = mesh_->GetNumFaces();
+         break;
+      case ELEMENT: num_entities = mesh_->GetNE(); break;
+      default: MFEM_ABORT("invalid entity type");
+   }
+
+   MFEM_VERIFY(entity_index >= 0 && entity_index < num_entities,
+               "EntitySets entity index out of range.");
+}
+
+void EntitySets::VerifyCanModify() const
+{
+   MFEM_VERIFY(!mesh_->ncmesh,
+               "Entity sets must be defined before converting a mesh to a "
+               "nonconforming mesh.");
+}
+
+int EntitySets::AddSet(EntityType t, const string &name)
+{
+   VerifyCanModify();
+   VerifyEntityType(t);
+   MFEM_VERIFY(!name.empty(), "EntitySets set names cannot be empty.");
+   MFEM_VERIFY(name.find('\n') == string::npos && name.find('\r') == string::npos,
+               "EntitySets set names cannot contain line breaks.");
+   MFEM_VERIFY(!SetExists(t, name), "EntitySets set name already exists.");
+
+   const int set_index = sets_[t].size();
+   sets_[t].emplace_back();
+   set_names_[t].push_back(name);
+   set_index_by_name_[t][name] = set_index;
+   return set_index;
+}
+
+void EntitySets::AddEntity(EntityType t, int set_index, int entity_index)
+{
+   VerifyCanModify();
+   VerifySetIndex(t, set_index);
+   VerifyEntityIndex(t, entity_index);
+   sets_[t][set_index].insert(entity_index);
+
+   if (t == EDGE || t == FACE) { CopyMeshTables(); }
+}
+
+void EntitySets::AddEntity(EntityType t, const string &set_name,
+                           int entity_index)
+{
+   AddEntity(t, GetSetIndex(t, set_name), entity_index);
+}
+
+void EntitySets::AddEdge(int set_index, int v0, int v1)
+{
+   VerifyVertexIndex(v0);
+   VerifyVertexIndex(v1);
+   MFEM_VERIFY(v0 != v1, "An edge requires two distinct vertices.");
+
+   DSTable v_to_v(mesh_->GetNV());
+   mesh_->GetVertexToVertexTable(v_to_v);
+   const int edge = v_to_v(v0, v1);
+   MFEM_VERIFY(edge >= 0, "The specified vertices do not define a mesh edge.");
+   AddEntity(EDGE, set_index, edge);
+}
+
+void EntitySets::AddEdge(const string &set_name, int v0, int v1)
+{
+   AddEdge(GetSetIndex(EDGE, set_name), v0, v1);
+}
+
+void EntitySets::AddTriFace(int set_index, int v0, int v1, int v2)
+{
+   VerifyVertexIndex(v0);
+   VerifyVertexIndex(v1);
+   VerifyVertexIndex(v2);
+   MFEM_VERIFY(v0 != v1 && v0 != v2 && v1 != v2,
+               "A triangular face requires three distinct vertices.");
+
+   STable3D *faces = mesh_->GetFacesTable();
+   const int face = faces->Index(v0, v1, v2);
+   delete faces;
+   MFEM_VERIFY(face >= 0, "The specified vertices do not define a mesh face.");
+   AddEntity(FACE, set_index, face);
+}
+
+void EntitySets::AddTriFace(const string &set_name, int v0, int v1, int v2)
+{
+   AddTriFace(GetSetIndex(FACE, set_name), v0, v1, v2);
+}
+
+void EntitySets::AddQuadFace(int set_index, int v0, int v1, int v2, int v3)
+{
+   VerifyVertexIndex(v0);
+   VerifyVertexIndex(v1);
+   VerifyVertexIndex(v2);
+   VerifyVertexIndex(v3);
+   MFEM_VERIFY(v0 != v1 && v0 != v2 && v0 != v3 && v1 != v2 && v1 != v3 &&
+               v2 != v3, "A quadrilateral face requires four distinct vertices.");
+
+   STable3D *faces = mesh_->GetFacesTable();
+   const int face = (*faces)(v0, v1, v2, v3);
+   delete faces;
+   MFEM_VERIFY(face >= 0, "The specified vertices do not define a mesh face.");
+   AddEntity(FACE, set_index, face);
+}
+
+void EntitySets::AddQuadFace(const string &set_name, int v0, int v1, int v2,
+                             int v3)
+{
+   AddQuadFace(GetSetIndex(FACE, set_name), v0, v1, v2, v3);
 }
 
 unsigned int
@@ -699,20 +874,13 @@ EntitySets::QuadUniformRefinement()
    EntityType t = ELEMENT;
    for (unsigned int s=0; s<this->GetNumSets(t); s++)
    {
-      set<int>::iterator it;
       set<int> new_elems;
-      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
       {
-         int e = *it;
-         int j = NumOfElements_ + 3 * e;
-         new_elems.insert(j + 0);
-         new_elems.insert(j + 1);
-         new_elems.insert(j + 2);
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
       }
-      for (it=new_elems.begin(); it!=new_elems.end(); it++)
-      {
-         sets_[t][s].insert(*it);
-      }
+      sets_[t][s].swap(new_elems);
    }
 
    this->CopyMeshTables();
@@ -773,30 +941,47 @@ EntitySets::HexUniformRefinement()
             int old_face = *it;
             int * v = face_vertex_->GetRow(old_face);
             int * e = face_edge_->GetRow(old_face);
+            const int nv = face_vertex_->RowSize(old_face);
+            MFEM_VERIFY(nv == 3 || nv == 4, "invalid face geometry");
 
-            for (int j=0; j<4; j++)
+            int mid[4];
+            for (int j = 0; j < nv; j++)
             {
-               int v0 = v[j];
-               int v3 = oface + old_face;
-               for (int k=0; k<4; k++)
+               mid[j] = oedge + e[j];
+            }
+
+            // A face table does not preserve vertex orientation. Identify the
+            // two incident old edges for each vertex instead of relying on an
+            // ordering in face_vertex_.
+            for (int j = 0; j < nv; j++)
+            {
+               int adjacent_mid[2];
+               int nadjacent = 0;
+               for (int k = 0; k < nv; k++)
                {
-                  int v1 = oedge + e[k];
-                  int new_face = -1;
-                  for (int l=1; l<4; l++)
+                  const int *ev = edge_vertex_->GetRow(e[k]);
+                  if (ev[0] == v[j] || ev[1] == v[j])
                   {
-                     int v2 = oedge + e[(k+l)%4];
-                     new_face = (*faces_tbl)(v0,v1,v2,v3);
-                     if ( new_face >= 0 )
-                     {
-                        new_set.insert(new_face);
-                        break;
-                     }
-                  }
-                  if ( new_face >= 0 )
-                  {
-                     break;
+                     adjacent_mid[nadjacent++] = mid[k];
                   }
                }
+               MFEM_VERIFY(nadjacent == 2, "invalid face-edge connectivity");
+
+               const int child = (nv == 3)
+                                 ? faces_tbl->Index(v[j], adjacent_mid[0],
+                                                    adjacent_mid[1])
+                                 : (*faces_tbl)(v[j], adjacent_mid[0],
+                                                oface + old_face,
+                                                adjacent_mid[1]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
+            }
+
+            if (nv == 3)
+            {
+               const int child = faces_tbl->Index(mid[0], mid[1], mid[2]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
             }
          }
          sets_[t][s].clear();
@@ -812,20 +997,13 @@ EntitySets::HexUniformRefinement()
    EntityType t = ELEMENT;
    for (unsigned int s=0; s<this->GetNumSets(t); s++)
    {
-      set<int>::iterator it;
       set<int> new_elems;
-      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
       {
-         int e = *it;
-         for (int j=NumOfElements_ + 7 * e; j<NumOfElements_ + 7 * e + 7; j++)
-         {
-            new_elems.insert(j);
-         }
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
       }
-      for (it=new_elems.begin(); it!=new_elems.end(); it++)
-      {
-         sets_[t][s].insert(*it);
-      }
+      sets_[t][s].swap(new_elems);
    }
 
    this->CopyMeshTables();
@@ -865,24 +1043,19 @@ EntitySets::UniformRefinement2D()
 
    // FACE Sets do not exist in 2D
 
-   // ELEMENT Sets will need to be augmented
+   // ELEMENT sets contain only current entities, so replace each selected
+   // parent with all of its children. The embedding table handles every 2D
+   // geometry and the numbering used by Mesh::UniformRefinement2D_base().
    EntityType t = ELEMENT;
    for (unsigned int s=0; s<this->GetNumSets(t); s++)
    {
-      set<int>::iterator it;
       set<int> new_elems;
-      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
       {
-         int e = *it;
-         int j = NumOfElements_ + 3 * e;
-         new_elems.insert(j + 0);
-         new_elems.insert(j + 1);
-         new_elems.insert(j + 2);
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
       }
-      for (it=new_elems.begin(); it!=new_elems.end(); it++)
-      {
-         sets_[t][s].insert(*it);
-      }
+      sets_[t][s].swap(new_elems);
    }
 
    this->CopyMeshTables();
@@ -941,32 +1114,45 @@ EntitySets::UniformRefinement3D()
          for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
          {
             int old_face = *it;
-            int * v = face_vertex_->GetRow(old_face);
-            int * e = face_edge_->GetRow(old_face);
+            int *v = face_vertex_->GetRow(old_face);
+            int *e = face_edge_->GetRow(old_face);
+            const int nv = face_vertex_->RowSize(old_face);
+            MFEM_VERIFY(nv == 3 || nv == 4, "invalid face geometry");
 
-            for (int j=0; j<4; j++)
+            int mid[4];
+            for (int j = 0; j < nv; j++) { mid[j] = oedge + e[j]; }
+
+            // The face tables are unordered. Determine a corner's two child
+            // edges by incidence, which works for triangular and quad faces.
+            for (int j = 0; j < nv; j++)
             {
-               int v0 = v[j];
-               int v3 = oface + old_face;
-               for (int k=0; k<4; k++)
+               int adjacent_mid[2];
+               int nadjacent = 0;
+               for (int k = 0; k < nv; k++)
                {
-                  int v1 = oedge + e[k];
-                  int new_face = -1;
-                  for (int l=1; l<4; l++)
+                  const int *ev = edge_vertex_->GetRow(e[k]);
+                  if (ev[0] == v[j] || ev[1] == v[j])
                   {
-                     int v2 = oedge + e[(k+l)%4];
-                     new_face = (*faces_tbl)(v0,v1,v2,v3);
-                     if ( new_face >= 0 )
-                     {
-                        new_set.insert(new_face);
-                        break;
-                     }
-                  }
-                  if ( new_face >= 0 )
-                  {
-                     break;
+                     adjacent_mid[nadjacent++] = mid[k];
                   }
                }
+               MFEM_VERIFY(nadjacent == 2, "invalid face-edge connectivity");
+
+               const int child = (nv == 3)
+                                 ? faces_tbl->Index(v[j], adjacent_mid[0],
+                                                    adjacent_mid[1])
+                                 : (*faces_tbl)(v[j], adjacent_mid[0],
+                                                oface + old_face,
+                                                adjacent_mid[1]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
+            }
+
+            if (nv == 3)
+            {
+               const int child = faces_tbl->Index(mid[0], mid[1], mid[2]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
             }
          }
          sets_[t][s].clear();
@@ -978,47 +1164,22 @@ EntitySets::UniformRefinement3D()
       delete faces_tbl;
    }
 
-   // ELEMENT Sets will need to be augmented
+   // See UniformRefinement2D(): the embedding table gives the exact children
+   // for tetrahedra, pyramids, wedges, and hexahedra, including mixed meshes.
    EntityType t = ELEMENT;
    for (unsigned int s=0; s<this->GetNumSets(t); s++)
    {
-      set<int>::iterator it;
       set<int> new_elems;
-      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
       {
-         int e = *it;
-         for (int j=NumOfElements_ + 7 * e; j<NumOfElements_ + 7 * e + 7; j++)
-         {
-            new_elems.insert(j);
-         }
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
       }
-      for (it=new_elems.begin(); it!=new_elems.end(); it++)
-      {
-         sets_[t][s].insert(*it);
-      }
+      sets_[t][s].swap(new_elems);
    }
 
    this->CopyMeshTables();
 }
-/*
-void
-EntitySets::Prune(int nelems)
-{
- EntityType t = ELEMENT;
-
- for (unsigned int s=0; s<sets_[t].size(); s++)
- {
-    set<int>::const_iterator it;
-    for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
-    {
-       if ( *it >= nelems )
-       {
-          sets_[t][s].erase(it);
-       }
-    }
- }
-}
-*/
 const int NCEntitySets::entity_size_[] = {1,2,4,1};
 
 NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
@@ -1027,12 +1188,8 @@ NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
      set_names_(4),
      set_index_by_name_(4)
 {
-   cout << "Entering NCEntitySets(Mesh) c'tor" << endl;
-
    EntitySets::EntityType t = EntitySets::INVALID;
    unsigned int ns = -1;
-
-   std::cout << "Processing node sets" << std::endl;
 
    t = EntitySets::VERTEX;
    ns = ent_sets.GetNumSets(t);
@@ -1053,13 +1210,12 @@ NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
       for (it=ent_sets(t,s).begin();
            it!=ent_sets(t,s).end(); it++, i++)
       {
+         // NCMesh root nodes retain the original Mesh vertex indices across
+         // parallel rebalancing; HashTable node indices do not.
          sets_[t][s][i] = *it;
       }
    }
 
-   std::cout << "Processing edge sets" << std::endl;
-   if (ent_sets.edge_vertex_ == NULL)
-   { std::cout << "edge_vertex table is NULL" << std::endl;}
    t = EntitySets::EDGE;
    ns = ent_sets.GetNumSets(t);
 
@@ -1085,8 +1241,6 @@ NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
          sets_[t][s][2 * i + 1] = v[1];
       }
    }
-
-   std::cout << "Processing face sets" << std::endl;
 
    t = EntitySets::FACE;
    ns = ent_sets.GetNumSets(t);
@@ -1123,8 +1277,10 @@ NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
             // information we verify that edges connect vertex 0 to
             // vertices 1 and 3.  If not then we swap either 1 or 3
             // with vertex 2.
-            int e01 = ncmesh.nodes.FindId(v[0], v[1]);
-            int e03 = ncmesh.nodes.FindId(v[0], v[3]);
+            int e01 = ncmesh.nodes.FindId(ncmesh.vertex_nodeId[v[0]],
+                                          ncmesh.vertex_nodeId[v[1]]);
+            int e03 = ncmesh.nodes.FindId(ncmesh.vertex_nodeId[v[0]],
+                                          ncmesh.vertex_nodeId[v[3]]);
 
             if ( e01 < 0 )
             {
@@ -1141,8 +1297,6 @@ NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
          }
       }
    }
-
-   std::cout << "Processing element sets" << std::endl;
 
    t = EntitySets::ELEMENT;
    ns = ent_sets.GetNumSets(t);
@@ -1166,7 +1320,6 @@ NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
          sets_[t][s][i] = *it;
       }
    }
-   cout << "Leaving NCEntitySets(Mesh) c'tor" << endl;
 }
 
 NCEntitySets::NCEntitySets(const NCEntitySets & ncent_sets)
@@ -1175,12 +1328,10 @@ NCEntitySets::NCEntitySets(const NCEntitySets & ncent_sets)
      set_names_(4),
      set_index_by_name_(4)
 {
-   cout << "Entering NCEntitySets copy c'tor" << endl;
    this->CopyNCEntitySets(ncent_sets, EntitySets::VERTEX);
    this->CopyNCEntitySets(ncent_sets, EntitySets::EDGE);
    this->CopyNCEntitySets(ncent_sets, EntitySets::FACE);
    this->CopyNCEntitySets(ncent_sets, EntitySets::ELEMENT);
-   cout << "Leaving NCEntitySets copy c'tor" << endl;
 }
 
 bool

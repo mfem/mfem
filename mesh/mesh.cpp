@@ -1898,6 +1898,14 @@ void Mesh::Init()
    last_operation = Mesh::NONE;
 }
 
+EntitySets &Mesh::GetOrCreateEntitySets()
+{
+   MFEM_VERIFY(!ncmesh, "Entity sets must be defined before converting a mesh "
+               "to a nonconforming mesh.");
+   if (!ent_sets) { ent_sets = new EntitySets(*this); }
+   return *ent_sets;
+}
+
 void Mesh::InitTables()
 {
    el_to_edge = el_to_face = el_to_el = bel_to_edge = NULL;

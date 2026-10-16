@@ -41,6 +41,7 @@ public:
 
    EntitySets(Mesh & mesh);
    EntitySets(const EntitySets & ent_sets);
+   EntitySets & operator=(const EntitySets & ent_sets) = delete;
    EntitySets(Mesh & mesh, NCMesh &ncmesh);
 
    virtual ~EntitySets();
@@ -64,6 +65,26 @@ public:
    int          GetSetIndex(EntityType t, const std::string & s) const;
    unsigned int GetNumEntities(EntityType t, const std::string & s) const;
 
+   /// Create a named set and return its index within the specified entity type.
+   int AddSet(EntityType t, const std::string & name);
+
+   /// Add an entity identified by its local mesh index to a set.
+   void AddEntity(EntityType t, int set_index, int entity_index);
+   void AddEntity(EntityType t, const std::string & set_name, int entity_index);
+
+   /// Add an edge set member using its two endpoint vertex indices.
+   void AddEdge(int set_index, int v0, int v1);
+   void AddEdge(const std::string & set_name, int v0, int v1);
+
+   /// Add a triangular face set member using its vertex indices.
+   void AddTriFace(int set_index, int v0, int v1, int v2);
+   void AddTriFace(const std::string & set_name, int v0, int v1, int v2);
+
+   /// Add a quadrilateral face set member using its vertex indices.
+   void AddQuadFace(int set_index, int v0, int v1, int v2, int v3);
+   void AddQuadFace(const std::string & set_name, int v0, int v1, int v2,
+                    int v3);
+
    inline std::set<int> & operator()(EntityType t, unsigned int s)
    { return sets_[t][s]; }
    inline const std::set<int> & operator()(EntityType t, unsigned int s) const
@@ -72,8 +93,6 @@ public:
    const Table * GetEdgeVertexTable() const { return edge_vertex_; }
    const Table * GetFaceVertexTable() const { return face_vertex_; }
    const Table * GetFaceEdgeTable()   const { return face_edge_; }
-
-   // void Prune(int nelems);
 
 protected:
 
@@ -132,6 +151,11 @@ private:
 
    void CopyEntitySets(const EntitySets & ent_sets, EntityType t);
    void BuildEntitySets(NCMesh &ncmesh, EntityType t);
+   void VerifyEntityType(EntityType t) const;
+   void VerifySetIndex(EntityType t, int set_index) const;
+   void VerifyEntityIndex(EntityType t, int entity_index) const;
+   void VerifyVertexIndex(int vertex_index) const;
+   void VerifyCanModify() const;
 
 protected:
 
@@ -162,6 +186,7 @@ class NCEntitySets
 public:
    NCEntitySets(const EntitySets & ent_sets, NCMesh &ncmesh);
    NCEntitySets(const NCEntitySets & ncent_sets);
+   NCEntitySets & operator=(const NCEntitySets & ncent_sets) = delete;
 
    bool SetExists(EntitySets::EntityType t, unsigned int s) const;
    bool SetExists(EntitySets::EntityType t, const std::string & s) const;

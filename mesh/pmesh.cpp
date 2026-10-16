@@ -36,7 +36,8 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
      group_squad(pmesh.group_squad),
      glob_elem_offset(-1),
      glob_offset_sequence(-1),
-     gtopo(pmesh.gtopo)
+     gtopo(pmesh.gtopo),
+     pent_sets(NULL)
 {
    MyComm = pmesh.MyComm;
    NRanks = pmesh.NRanks;
@@ -91,9 +92,15 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       own_nodes = 1;
    }
 
-   // Copy entity sets if present in the input mesh
-   ent_sets = pent_sets =
-                 (pmesh.pent_sets) ? new ParEntitySets(*pmesh.pent_sets) : NULL;
+   // ParNCMesh::OnMeshUpdated() has already reconstructed the current
+   // parallel view for nonconforming meshes. Conforming meshes still need a
+   // copy of their parallel entity sets.
+   if (!pncmesh)
+   {
+      delete ent_sets;
+      ent_sets = pent_sets =
+                    (pmesh.pent_sets) ? new ParEntitySets(*pmesh.pent_sets) : NULL;
+   }
 }
 
 ParMesh::ParMesh(ParMesh &&mesh) : ParMesh()
@@ -1165,7 +1172,7 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
    have_face_nbr_data = false;
    pncmesh = NULL;
    pent_sets = NULL;
-   
+
    Array<int> ref_factors(orig_mesh.GetNE());
    ref_factors = ref_factor;
    Mesh::MakeRefined_(orig_mesh, ref_factors, ref_type);
@@ -4064,6 +4071,12 @@ bool ParMesh::NonconformingDerefinement(Array<real_t> &elem_error,
    bdr_attribute_sets.Copy(mesh2->bdr_attribute_sets);
 
    Mesh::Swap(*mesh2, false);
+
+   mfem::Swap(mesh2->pent_sets, this->pent_sets);
+   if (this->pent_sets)
+   {
+      this->pent_sets->pmesh_ = this;
+   }
    delete mesh2;
 
    pncmesh->GetConformingSharedStructures(*this);
@@ -4119,6 +4132,12 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
    bdr_attribute_sets.Copy(pmesh2->bdr_attribute_sets);
 
    Mesh::Swap(*pmesh2, false);
+
+   mfem::Swap(pmesh2->pent_sets, this->pent_sets);
+   if (this->pent_sets)
+   {
+      this->pent_sets->pmesh_ = this;
+   }
    delete pmesh2;
 
    pncmesh->GetConformingSharedStructures(*this);
@@ -7137,8 +7156,17 @@ void ParMesh::Destroy()
    delete pncmesh;
    ncmesh = pncmesh = NULL;
 
-   delete pent_sets;
-   ent_sets = pent_sets = NULL;
+   if (pent_sets)
+   {
+      MFEM_ASSERT(ent_sets == pent_sets, "inconsistent entity sets");
+      delete pent_sets;
+      ent_sets = pent_sets = NULL;
+   }
+   else
+   {
+      delete ent_sets;
+      ent_sets = NULL;
+   }
 
    DeleteFaceNbrData();
 

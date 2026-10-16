@@ -335,7 +335,7 @@ public:
    /// Default constructor. Create an empty @a ParMesh.
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       glob_elem_offset(-1), glob_offset_sequence(-1),
-      have_face_nbr_data(false), pncmesh(NULL) { }
+      have_face_nbr_data(false), pncmesh(NULL), pent_sets(NULL) { }
 
    /// Create a parallel mesh by partitioning a serial Mesh.
    /** The mesh is partitioned automatically or using external partitioning data

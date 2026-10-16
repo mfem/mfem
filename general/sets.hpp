@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-/// A set of integers
+/// A sorted, unique set of integers.
 class IntegerSet : public Array<int>
 {
 public:
@@ -40,8 +40,6 @@ public:
 
    /// Return the value of a random element of the set.
    int PickRandomElement() const;
-
-   inline const int & operator[](int i) const { return me[i]; }
 
    /** @brief Create an integer set from C-array 'p' of 'n' integers.
        Overwrites any existing set data. */

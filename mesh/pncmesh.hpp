@@ -81,6 +81,10 @@ public:
 
    virtual ~ParNCMesh();
 
+   /** Rebuild the local, ownership-filtered entity sets after the Mesh has
+       been regenerated from this nonconforming hierarchy. */
+   void OnMeshUpdated(Mesh *mesh);
+
    /** An override of NCMesh::Refine, which is called eventually, after making
        sure that refinements that occur on the processor boundary are sent to
        the neighbor processors so they can keep their ghost layers up to
