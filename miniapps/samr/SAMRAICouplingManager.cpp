@@ -921,7 +921,7 @@ void SAMRAICouplingManager::TransferToSAMRAI(
          for (int i=0; i < node_fields.size(); i++)
          {
             const GridFunction& node_field = std::get<GridFunction&>(node_fields[i]);
-            Array<double> dof_values;
+            Array<real_t> dof_values;
             const int element_values_node_field_ind =
                element_values_ind + node_field_offsets[i];
             for (int d=0; d < node_field_vector_dimensions[i]; d++)
