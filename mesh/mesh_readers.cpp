@@ -1149,7 +1149,7 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    Array<int> cell_attributes;
    const XMLElement *attributes_xml = nullptr;
    for (const XMLElement *cell_data_xml = piece->FirstChildElement("CellData");
-        cell_data_xml != NULL;
+        cell_data_xml != nullptr;
         cell_data_xml = cell_data_xml->NextSiblingElement("CellData"))
    {
       for (const XMLElement *data_xml =
