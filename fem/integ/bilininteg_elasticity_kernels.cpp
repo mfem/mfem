@@ -110,17 +110,40 @@ void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
                           const int nDofs, const IntegrationRule &ir,
                           const CoefficientVector &lambda,
                           const CoefficientVector &mu, const GeometricFactors &geom,
-                          const DofToQuad &maps, Vector &emat)
+                          const DofToQuad &maps, Vector &emat, const bool add)
 {
    switch (dim)
    {
       case 2:
          ElasticityAssembleEA_<2>(i_block, j_block, nDofs, ir, lambda, mu, geom, maps,
-                                  emat);
+                                  emat, add);
          break;
       case 3:
          ElasticityAssembleEA_<3>(i_block, j_block, nDofs, ir, lambda, mu, geom, maps,
-                                  emat);
+                                  emat, add);
+         break;
+      default:
+         MFEM_ABORT("Only dimensions 2 and 3 supported.");
+   }
+}
+
+void ElasticityAssembleEAVector(const int dim, const int nDofs,
+                                const IntegrationRule &ir,
+                                const CoefficientVector &lambda,
+                                const CoefficientVector &mu,
+                                const GeometricFactors &geom,
+                                const DofToQuad &maps, Vector &emat,
+                                const bool add)
+{
+   switch (dim)
+   {
+      case 2:
+         ElasticityAssembleEAVector_<2>(nDofs, ir, lambda, mu, geom, maps, emat,
+                                        add);
+         break;
+      case 3:
+         ElasticityAssembleEAVector_<3>(nDofs, ir, lambda, mu, geom, maps, emat,
+                                        add);
          break;
       default:
          MFEM_ABORT("Only dimensions 2 and 3 supported.");

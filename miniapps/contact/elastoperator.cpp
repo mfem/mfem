@@ -16,6 +16,10 @@ namespace mfem
 
 void ElasticityOperator::Init()
 {
+   B.UseDevice(true);
+   X.UseDevice(true);
+   xref.UseDevice(true);
+
    int dim = pmesh->Dimension();
    fec = new H1_FECollection(order,dim);
    fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
@@ -51,7 +55,8 @@ void ElasticityOperator::SetEssentialBC()
 void ElasticityOperator::SetUpOperator()
 {
    x.SetSpace(fes);  x = 0.0;
-   b = new ParLinearForm(fes);
+   use_rhs_fa = Device::IsEnabled();
+   ResetLinearForm();
    if (nonlinear)
    {
       material_model = new NeoHookeanModel(c1_cf, c2_cf);
@@ -63,18 +68,38 @@ void ElasticityOperator::SetUpOperator()
    else
    {
       op = new ParBilinearForm(fes);
-      dynamic_cast<ParBilinearForm*>(op)->AddDomainIntegrator(
-         new ElasticityIntegrator(c1_cf,c2_cf));
-      K = new HypreParMatrix();
-      dynamic_cast<ParBilinearForm*>(op)->Assemble();
-      dynamic_cast<ParBilinearForm*>(op)->FormSystemMatrix(ess_tdof_list,*K);
+      auto *a = dynamic_cast<ParBilinearForm*>(op);
+      if (use_fa)
+      {
+         a->SetAssemblyLevel(AssemblyLevel::FULL);
+         a->EnableSparseMatrixSorting(Device::IsEnabled());
+      }
+      a->AddDomainIntegrator(new ElasticityIntegrator(c1_cf,c2_cf));
+      a->Assemble();
+      if (!use_fa)
+      {
+         K = new HypreParMatrix();
+         a->FormSystemMatrix(ess_tdof_list,*K);
+      }
    }
+}
+
+void ElasticityOperator::ResetLinearForm()
+{
+   delete b;
+   b = new ParLinearForm(fes);
+   for (int i = 0; i < pressure_cf.Size(); i++) { delete pressure_cf[i]; }
+   for (int i = 0; i < pressure_bdr_marker.Size(); i++) { delete pressure_bdr_marker[i]; }
+   pressure_cf.SetSize(0);
+   pressure_bdr_marker.SetSize(0);
 }
 
 ElasticityOperator::ElasticityOperator(ParMesh * pmesh_,
                                        Array<int> & ess_bdr_attr_, Array<int> & ess_bdr_attr_comp_,
-                                       const Vector & E, const Vector & nu, bool nonlinear_)
-   : nonlinear(nonlinear_), pmesh(pmesh_), ess_bdr_attr(ess_bdr_attr_),
+                                       const Vector & E, const Vector & nu,
+                                       bool nonlinear_, bool use_fa_)
+   : nonlinear(nonlinear_), use_fa(use_fa_), pmesh(pmesh_),
+     ess_bdr_attr(ess_bdr_attr_),
      ess_bdr_attr_comp(ess_bdr_attr_comp_)
 {
    comm = pmesh->GetComm();
@@ -112,9 +137,10 @@ void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
 void ElasticityOperator::SetNeumannPressureData(ConstantCoefficient &f,
                                                 Array<int> & bdr_marker)
 {
-   pressure_cf.constant = f.constant;
-   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),
-                            bdr_marker);
+   pressure_cf.Append(new ConstantCoefficient(f.constant));
+   pressure_bdr_marker.Append(new Array<int>(bdr_marker));
+   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(*pressure_cf.Last()),
+                            *pressure_bdr_marker.Last());
 }
 
 void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
@@ -129,15 +155,32 @@ void ElasticityOperator::FormLinearSystem()
    if (!formsystem)
    {
       formsystem = true;
+      b->UseFastAssembly(use_rhs_fa);
       b->Assemble();
-      B.SetSize(fes->GetTrueVSize());
-      b->ParallelAssemble(B);
-      B.SetSubVector(ess_tdof_list, 0.0);
       if (!nonlinear)
       {
-         x.GetTrueDofs(X);
-         dynamic_cast<ParBilinearForm*>(op)->ParallelEliminateTDofsInRHS(ess_tdof_list,
-                                                                         X, B);
+         auto *a = dynamic_cast<ParBilinearForm*>(op);
+         if (use_fa)
+         {
+            OperatorHandle A(Operator::Hypre_ParCSR);
+            a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+            if (K) { delete K; }
+            K = new HypreParMatrix(*A.As<HypreParMatrix>());
+         }
+         else
+         {
+            B.SetSize(fes->GetTrueVSize());
+            b->ParallelAssemble(B);
+            B.SetSubVector(ess_tdof_list, 0.0);
+            x.GetTrueDofs(X);
+            a->ParallelEliminateTDofsInRHS(ess_tdof_list, X, B);
+         }
+      }
+      else
+      {
+         B.SetSize(fes->GetTrueVSize());
+         b->ParallelAssemble(B);
+         B.SetSubVector(ess_tdof_list, 0.0);
       }
    }
 }
@@ -145,8 +188,7 @@ void ElasticityOperator::FormLinearSystem()
 void ElasticityOperator::UpdateRHS()
 {
    formsystem = false;
-   delete b;
-   b = new ParLinearForm(fes);
+   ResetLinearForm();
    x = 0.0;
 }
 
@@ -155,7 +197,7 @@ real_t ElasticityOperator::GetEnergy(const Vector & u) const
    if (nonlinear)
    {
       real_t energy = 0.0;
-      Vector tu(xref); tu += u;
+      Vector tu(xref); tu.UseDevice(true); tu += u;
       ParGridFunction u_gf(fes);
       u_gf.SetFromTrueDofs(tu);
       energy += dynamic_cast<ParNonlinearForm*>(op)->GetEnergy(u_gf);
@@ -164,7 +206,7 @@ real_t ElasticityOperator::GetEnergy(const Vector & u) const
    }
    else
    {
-      Vector ku(K->Height());
+      Vector ku(K->Height()); ku.UseDevice(true);
       K->Mult(u,ku);
       return 0.5 * InnerProduct(comm,u, ku) - InnerProduct(comm,u, B);
    }
@@ -174,7 +216,7 @@ void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) const
 {
    if (nonlinear)
    {
-      Vector tu(xref); tu += u;
+      Vector tu(xref); tu.UseDevice(true); tu += u;
       gradE.SetSize(op->Height());
       dynamic_cast<ParNonlinearForm*>(op)->Mult(tu, gradE);
    }
@@ -190,7 +232,7 @@ HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
 {
    if (nonlinear)
    {
-      Vector tu(xref); tu += u;
+      Vector tu(xref); tu.UseDevice(true); tu += u;
       return dynamic_cast<HypreParMatrix *>(&dynamic_cast<ParNonlinearForm*>
                                             (op)->GetGradient(tu));
    }
@@ -204,6 +246,8 @@ ElasticityOperator::~ElasticityOperator()
 {
    delete op;
    delete b;
+   for (int i = 0; i < pressure_cf.Size(); i++) { delete pressure_cf[i]; }
+   for (int i = 0; i < pressure_bdr_marker.Size(); i++) { delete pressure_bdr_marker[i]; }
    delete fes;
    delete fec;
    if (K) { delete K; }

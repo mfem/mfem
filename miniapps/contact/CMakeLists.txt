@@ -40,4 +40,3 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
   target_link_libraries(contact PUBLIC ${TPL_LIBRARIES} mfem)
 
 endif ()
-

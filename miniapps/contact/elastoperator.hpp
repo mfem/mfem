@@ -33,6 +33,12 @@ private:
    /// Toggle for nonlinear formulation (true = Neo-Hookean, false = linear elasticity).
    bool nonlinear = false;
 
+   /// Use full assembly for the linear elasticity stiffness matrix.
+   bool use_fa = false;
+
+   /// Use fast/device assembly for linear-form RHS terms.
+   bool use_rhs_fa = false;
+
    /// Tracks whether the linear system has been formed.
    bool formsystem = false;
 
@@ -71,8 +77,11 @@ private:
    /// Right-hand side (B) and solution vector (X).
    Vector B, X;
 
-   /// Neumann pressure coefficient (for traction BCs).
-   ConstantCoefficient pressure_cf;
+   /// Neumann pressure coefficients and boundary markers (for traction BCs),
+   /// one per call to SetNeumannPressureData. The linear form keeps pointers
+   /// to both, so they are owned here and released with the linear form.
+   Array<ConstantCoefficient *> pressure_cf;
+   Array<Array<int> *> pressure_bdr_marker;
 
    /// Material parameters:
    /// - Linear: c1 = λ (1ˢᵗ Lame parameter), c2 = μ (2ⁿᵈ Lame parameter or shear modulus)
@@ -90,6 +99,7 @@ private:
    void Init();
    void SetEssentialBC();
    void SetUpOperator();
+   void ResetLinearForm();
 
 public:
    /**  @brief Construct an ElasticityOperator.
@@ -102,7 +112,8 @@ public:
     */
    ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_,
                       Array<int> & ess_bdr_attr_comp_,
-                      const Vector & E, const Vector & nu, bool nonlinear_ = false);
+                      const Vector & E, const Vector & nu,
+                      bool nonlinear_ = false, bool use_fa_ = false);
 
    /// Set material parameters from vectors of Young’s modulus (E) and Poisson’s ratio (ν).
    void SetParameters(const Vector & E, const Vector & nu);
@@ -142,6 +153,9 @@ public:
 
    /// Check if the operator is nonlinear.
    bool IsNonlinear() { return nonlinear; }
+
+   /// Check if the RHS linear form uses fast/device assembly.
+   bool UsesFastRHSAssembly() const { return use_rhs_fa; }
 
    /// Destructor (cleans up FE space, operator, and material model).
    ~ElasticityOperator();

@@ -13,6 +13,10 @@
 //               mpirun -np 4 ex2p -m ../data/beam-quad-nurbs.mesh
 //               mpirun -np 4 ex2p -m ../data/beam-hex-nurbs.mesh
 //
+// Device sample runs:
+//               mpirun -np 4 ex2p -fa -d cuda
+//               mpirun -np 4 ex2p -fa -d cuda -m ../data/beam-hex.mesh -elast
+//
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
 //
@@ -35,7 +39,8 @@
 //               finite element spaces with the linear elasticity bilinear form,
 //               meshes with curved elements, and the definition of piece-wise
 //               constant and vector coefficient objects. Static condensation is
-//               also illustrated.
+//               also illustrated, as well as full assembly of the elasticity
+//               matrix on device.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -61,6 +66,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool amg_elast = 0;
    bool reorder_space = false;
+   bool fa = false;
    const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
@@ -79,6 +85,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&reorder_space, "-nodes", "--by-nodes", "-vdim", "--by-vdim",
                   "Use byNODES ordering of vector space instead of byVDIM");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.Parse();
@@ -122,6 +130,15 @@ int main(int argc, char *argv[])
               << "two boundary attributes! (See schematic in ex2.cpp)\n"
               << endl;
       return 3;
+   }
+
+   if (fa && mesh->NURBSext)
+   {
+      if (myid == 0)
+      {
+         cerr << "\nFull assembly is not supported for NURBS meshes!\n" << endl;
+      }
+      return 4;
    }
 
    // 5. Select the order of the finite element discretization space. For NURBS
@@ -246,6 +263,14 @@ int main(int argc, char *argv[])
    PWConstCoefficient mu_func(mu);
 
    ParBilinearForm *a = new ParBilinearForm(fespace);
+   if (fa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a->EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func, mu_func));
 
    // 13. Assemble the parallel bilinear form and the corresponding linear
