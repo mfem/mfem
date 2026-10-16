@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -132,7 +132,7 @@ void NativeBatchedLinAlg::Invert(DenseTensor &A) const
       // X <- X P
       for (int k = m - 1; k >= 0; k--)
       {
-         const int piv_k = ipiv[k];
+         const int piv_k = ipiv[k] - 1;
          if (k != piv_k)
          {
             for (int i = 0; i < m; i++)

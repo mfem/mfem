@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,8 @@ void Coefficient::Project(QuadratureFunction &qf)
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
    Vector values;
+   // GetValues makes a reference, but we need it to be valid on Host
+   qf.HostWrite();
    for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
@@ -145,12 +147,11 @@ void PWCoefficient::SetTime(real_t t)
 {
    Coefficient::SetTime(t);
 
-   std::map<int, Coefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (const auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }
@@ -327,6 +328,8 @@ void VectorCoefficient::Project(QuadratureFunction &qf)
    const int ne = qspace.GetNE();
    DenseMatrix values;
    Vector col;
+   // GetValues makes a reference, but we need it to be valid on Host
+   qf.HostWrite();
    for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
@@ -372,12 +375,11 @@ void PWVectorCoefficient::SetTime(real_t t)
 {
    VectorCoefficient::SetTime(t);
 
-   std::map<int, VectorCoefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (const auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }
@@ -695,6 +697,8 @@ void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
    DenseMatrix values, matrix;
+   // GetValues makes a reference, but we need it to be valid on Host
+   qf.HostWrite();
    for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
@@ -750,12 +754,11 @@ void PWMatrixCoefficient::SetTime(real_t t)
 {
    MatrixCoefficient::SetTime(t);
 
-   std::map<int, MatrixCoefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (const auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }
@@ -1085,6 +1088,29 @@ void SumCoefficient::SetTime(real_t t)
    this->Coefficient::SetTime(t);
 }
 
+void SumCoefficient::Project(QuadratureFunction &qf)
+{
+   if (a == nullptr)
+   {
+      // qf = alpha*aConst + beta * b
+      const real_t d_alpha_a = aConst*alpha;
+      const real_t d_beta = beta;
+      b->Project(qf);
+      auto d_qf = qf.ReadWrite();
+      mfem::forall(qf.Size(), [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_qf[i] = d_alpha_a + d_beta*d_qf[i];
+      });
+   }
+   else
+   {
+      a->Project(qf);
+      QuadratureFunction qf_b(*qf.GetSpace());
+      b->Project(qf_b);
+      add(alpha, qf, beta, qf_b, qf);
+   }
+}
+
 void ProductCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
@@ -1092,11 +1118,60 @@ void ProductCoefficient::SetTime(real_t t)
    this->Coefficient::SetTime(t);
 }
 
+void ProductCoefficient::Project(QuadratureFunction &qf)
+{
+   if (a == nullptr)
+   {
+      // qf = aConst * b
+      b->Project(qf);
+      qf *= aConst;
+   }
+   else
+   {
+      a->Project(qf);
+      QuadratureFunction qf_b(qf.GetSpace());
+      b->Project(qf_b);
+      qf *= qf_b;
+   }
+}
+
 void RatioCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }
    if (b) { b->SetTime(t); }
    this->Coefficient::SetTime(t);
+}
+
+void RatioCoefficient::Project(QuadratureFunction &qf)
+{
+   if (b == nullptr)
+   {
+      if (a == nullptr)
+      {
+         qf = aConst / bConst;
+      }
+      else
+      {
+         a->Project(qf);
+         qf *= 1.0/bConst;
+      }
+   }
+   else
+   {
+      if (a == nullptr)
+      {
+         b->Project(qf);
+         qf.Reciprocal();
+         qf *= aConst;
+      }
+      else
+      {
+         a->Project(qf);
+         QuadratureFunction qf_b(qf.GetSpace());
+         b->Project(qf_b);
+         qf /= qf_b;
+      }
+   }
 }
 
 void PowerCoefficient::SetTime(real_t t)
@@ -1228,6 +1303,73 @@ real_t TraceCoefficient::Eval(ElementTransformation &T,
 {
    a->Eval(ma, T, ip);
    return ma.Trace();
+}
+
+VectorComponentCoefficient::VectorComponentCoefficient(VectorCoefficient &A,
+                                                       int c)
+   : a(&A), va(A.GetVDim())
+{
+   SetComponent(c);
+}
+
+void VectorComponentCoefficient::SetComponent(int c)
+{
+   MFEM_ASSERT(c < a->GetVDim() && c >= 0,
+               "VectorComponentCoefficient:  "
+               "Index not in range.");
+
+   component = c;
+}
+
+void VectorComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t VectorComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(va, T, ip);
+   return va[component];
+}
+
+MatrixComponentCoefficient::MatrixComponentCoefficient(MatrixCoefficient &A,
+                                                       int ri, int ci)
+   : a(&A), ma(A.GetHeight(), A.GetWidth())
+{
+   SetRowIndex(ri);
+   SetColumnIndex(ci);
+}
+
+void MatrixComponentCoefficient::SetRowIndex(int ri)
+{
+   MFEM_ASSERT(ri < a->GetHeight() && ri >= 0,
+               "MatrixComponentCoefficient:  "
+               "Row index not in range.");
+
+   row_idx = ri;
+}
+
+void MatrixComponentCoefficient::SetColumnIndex(int ci)
+{
+   MFEM_ASSERT(ci < a->GetWidth() && ci >= 0,
+               "MatrixComponentCoefficient:  "
+               "Column index not in range.");
+   col_idx = ci;
+}
+
+void MatrixComponentCoefficient::SetTime(real_t t)
+{
+   if (a) { a->SetTime(t); }
+   this->Coefficient::SetTime(t);
+}
+
+real_t MatrixComponentCoefficient::Eval(ElementTransformation &T,
+                                        const IntegrationPoint &ip)
+{
+   a->Eval(ma, T, ip);
+   return ma(row_idx,col_idx);
 }
 
 VectorSumCoefficient::VectorSumCoefficient(int dim)
@@ -1955,7 +2097,7 @@ void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
    if (auto *const_coeff = dynamic_cast<MatrixConstantCoefficient*>(&coeff))
    {
-      SetConstant(const_coeff->GetMatrix());
+      SetConstant(const_coeff->GetMatrix(), transpose);
    }
    else if (auto *const_sym_coeff =
                dynamic_cast<SymmetricMatrixConstantCoefficient*>(&coeff))
@@ -2016,7 +2158,7 @@ void CoefficientVector::SetConstant(const Vector &constant)
    }
 }
 
-void CoefficientVector::SetConstant(const DenseMatrix &constant)
+void CoefficientVector::SetConstant(const DenseMatrix &constant, bool transpose)
 {
    const int nq = (storage & CoefficientStorage::CONSTANTS) ? 1 : qs.GetSize();
    const int width = constant.Width();
@@ -2029,7 +2171,8 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant)
       {
          for (int i = 0; i < height; ++i)
          {
-            (*this)[i + j*height + iq*vdim] = constant(i, j);
+            const real_t val = transpose ? constant(j,i) : constant(i,j);
+            (*this)[i + j*height + iq*vdim] = val;
          }
       }
    }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 //         Metric Magnitude Miniapp: track changes in TMOP metrics
 //         -------------------------------------------------------
 //
-// This miniapp can be used to track how TMPOP metrics change under geometric
+// This miniapp can be used to track how TMOP metrics change under geometric
 // perturbations.
 //
 // Compile with: make tmop-metric-magnitude

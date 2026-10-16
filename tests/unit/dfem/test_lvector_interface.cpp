@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,7 +11,6 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
-#include <utility>
 
 #ifdef MFEM_USE_MPI
 
@@ -35,7 +34,7 @@ struct MFApply
 };
 }
 
-TEST_CASE("DFEM L-Vector interface", "[Parallel][DFEM]")
+TEST_CASE("DFEM L-Vector interface", "[Parallel][dFEM][GPU]")
 {
    constexpr int p = 2; // Polynomial order
    constexpr int r = 1;

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2006,7 +2006,7 @@ RT_R1D_SegmentElement::RT_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, 3 * p + 4, p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV_R1D, FunctionSpace::Pk),
      dof2nk(dof),
      cbasis1d(poly1d.GetBasis(p + 1, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
@@ -2281,7 +2281,7 @@ const real_t RT_R2D_SegmentElement::nk[2] = { 0.,1.};
 RT_R2D_SegmentElement::RT_R2D_SegmentElement(const int p,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, p + 1, p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV_R2D, FunctionSpace::Pk),
      dof2nk(dof),
      obasis1d(poly1d.GetBasis(p, VerifyOpen(ob_type)))
 {
@@ -2392,7 +2392,7 @@ void RT_R2D_SegmentElement::LocalInterpolation(const VectorFiniteElement &cfe,
 RT_R2D_FiniteElement::RT_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const real_t *nk_fe)
    : VectorFiniteElement(2, G, Do, p + 1,
-                         H_DIV, FunctionSpace::Pk),
+                         H_DIV_R2D, FunctionSpace::Pk),
      nk(nk_fe),
      dof_map(dof),
      dof2nk(dof)
@@ -2469,6 +2469,9 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, vdim);
+#else
+   // 'vshape' is initialized with 'dim' (2) instead of 'vdim' (3) columns.
+   vshape.SetSize(dof, vdim);
 #endif
 
    real_t * nk_ptr = const_cast<real_t*>(nk);
@@ -2483,7 +2486,8 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          J.MultTranspose(n2, pt_data);

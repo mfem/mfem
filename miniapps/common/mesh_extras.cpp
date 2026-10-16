@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -229,27 +229,6 @@ MergeMeshNodes(Mesh * mesh, int logging)
                ((dim==2) ? mesh->EulerNumber2D() :
                 mesh->GetNV() - mesh->GetNE()))
            << endl;
-   }
-}
-
-void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
-{
-   MFEM_ASSERT(attrs.Max() <= max_attr, "Invalid attribute number present.");
-
-   marker.SetSize(max_attr);
-   if (attrs.Size() == 1 && attrs[0] == -1)
-   {
-      marker = 1;
-   }
-   else
-   {
-      marker = 0;
-      for (int j=0; j<attrs.Size(); j++)
-      {
-         int attr = attrs[j];
-         MFEM_VERIFY(attr > 0, "Attribute number less than one!");
-         marker[attr-1] = 1;
-      }
    }
 }
 

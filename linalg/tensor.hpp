@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,6 +60,19 @@ struct tensor<T, n0>
    T values[n0];
 };
 
+template < typename T >
+struct tensor<T, 0>
+{
+   using type = T;
+   static constexpr int ndim      = 1;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE T& operator[](int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+   T values;
+};
+
 template < typename T, int n0, int n1 >
 struct tensor<T, n0, n1>
 {
@@ -73,6 +86,21 @@ struct tensor<T, n0, n1>
    MFEM_HOST_DEVICE T& operator()(int i, int j) { return values[i][j]; }
    MFEM_HOST_DEVICE const T& operator()(int i, int j) const { return values[i][j]; }
    tensor < T, n1 > values[n0];
+};
+
+template < typename T, int n1 >
+struct tensor<T, 0, n1>
+{
+   using type = T;
+   static constexpr int ndim      = 2;
+   static constexpr int first_dim = 0;
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator[](int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator[](int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE tensor< T, n1 >& operator()(int /*unused*/) { return values; }
+   MFEM_HOST_DEVICE const tensor< T, n1 >& operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()(int /*unused*/, int j) { return values[j]; }
+   MFEM_HOST_DEVICE const T& operator()(int /*unused*/, int j) const { return values[j]; }
+   tensor < T, n1 > values;
 };
 
 template < typename T, int n0, int n1, int n2 >
@@ -507,8 +535,8 @@ tensor<decltype(S {} + T{}), n...>
  * @param[in] A The tensor to be scaled
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -529,8 +557,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The scaling factor
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -551,8 +579,8 @@ tensor<decltype(T {} * S{}), n...>
  * @param[in] A The tensor of denominators
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -573,8 +601,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The denominator
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -695,7 +723,7 @@ constexpr tensor<T, n...>& operator-=(tensor<T, n...>& A, zero)
 template <typename S, typename T> MFEM_HOST_DEVICE
 auto outer(S A, T B) -> decltype(A * B)
 {
-   static_assert(std::is_arithmetic<S>::value && std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<S> && std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    return A * B;
 }
@@ -721,7 +749,7 @@ tensor<T, n + m> flatten(tensor<T, n, m> A)
 template <typename S, typename T, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
 {
-   static_assert(std::is_arithmetic<S>::value,
+   static_assert(std::is_arithmetic_v<S>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), n> AB{};
    for (int i = 0; i < n; i++)
@@ -738,7 +766,7 @@ tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
 template <typename S, typename T, int m> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m> outer(const tensor<S, m>& A, T B)
 {
-   static_assert(std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m> AB{};
    for (int i = 0; i < m; i++)
@@ -776,7 +804,7 @@ zero outer(const tensor<T, n>&, zero)
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)
 {
-   static_assert(std::is_arithmetic<S>::value,
+   static_assert(std::is_arithmetic_v<S>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m, n> AB{};
    for (int i = 0; i < m; i++)
@@ -816,7 +844,7 @@ tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m>& A,
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m, n>& A, T B)
 {
-   static_assert(std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m, n> AB{};
    for (int i = 0; i < m; i++)
@@ -1243,6 +1271,31 @@ T norm(const tensor<T, n...>& A)
    return std::sqrt(sqnorm(A));
 }
 
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+T weight(const tensor<T, n, m>& A)
+{
+   static_assert((n == m) || ((n == 2) && (m == 1)) || ((n == 3) && (m == 1)) ||
+                 ((n == 3) && (m == 2)), "unsupported combination of n and m");
+   if constexpr (n == m)
+   {
+      return det(A);
+   }
+   if constexpr (((n == 2) && (m == 1)) ||
+                 ((n == 3) && (m == 1)))
+   {
+      return norm(A);
+   }
+   else if constexpr ((n == 3) && (m == 2))
+   {
+      T E = A[0][0] * A[0][0] + A[1][0] * A[1][0] + A[2][0] * A[2][0];
+      T G = A[0][1] * A[0][1] + A[1][1] * A[1][1] + A[2][1] * A[2][1];
+      T F = A[0][0] * A[0][1] + A[1][0] * A[1][1] + A[2][0] * A[2][1];
+      return std::sqrt(E * G - F * F);
+   }
+   // Never reached because of the static_assert, but avoids compiler warning.
+   return T{};
+}
+
 /**
  * @brief Normalizes the tensor
  * Each element is divided by the Frobenius norm of the tensor, @see norm
@@ -1518,7 +1571,7 @@ T calcsv(const tensor<T, 2, 2> A, const int i)
  * @return Whether the square rank 2 tensor (matrix) is symmetric
  */
 template <int n> MFEM_HOST_DEVICE
-bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8)
+bool is_symmetric(tensor<real_t, n, n> A, real_t abs_tolerance = 1.0e-8_r)
 {
    for (int i = 0; i < n; ++i)
    {
@@ -1659,7 +1712,7 @@ inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 template <typename T>
 inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
 {
-   T inv_detA(1.0 / det(A));
+   T inv_detA(1.0_r / det(A));
 
    tensor<T, 2, 2> invA{};
 
@@ -1678,7 +1731,7 @@ inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
 template <typename T>
 inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
 {
-   T inv_detA(1.0 / det(A));
+   T inv_detA(1.0_r / det(A));
 
    tensor<T, 3, 3> invA{};
 
@@ -1701,8 +1754,7 @@ inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
  */
 template <typename T, int n>
 MFEM_HOST_DEVICE
-typename std::enable_if<(n > 3), tensor<T, n, n>>::type
-                                               inv(const tensor<T, n, n>& A)
+std::enable_if_t<(n > 3), tensor<T, n, n>> inv(const tensor<T, n, n>& A)
 {
    auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)

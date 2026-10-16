@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -229,7 +229,7 @@ public:
                           const ParGridFunction &y) const;
 
    /// Compute $ y^T M x $ on true dofs (grid function version)
-   /** @note The ParGridFunction%s are restricted to the true-vectors for
+   /** @note The ParGridFunction%s are restricted to the true-vectors
        for calculation.
        @note It is assumed that the parallel system matrix is assembled,
        see FormSystemMatrix().
@@ -385,7 +385,8 @@ public:
    void ParallelAssemble(OperatorHandle &A) { ParallelAssemble(A, mat); }
 
    /** Returns the eliminated matrix assembled on the true dofs, i.e.
-       @a A_elim = P^t A_elim_local P in the format (type id) specified by @a A.
+       @a A_elim = P_test^t A_elim_local P_trial in the format (type id)
+       specified by @a A.
     */
    void ParallelAssembleElim(OperatorHandle &A_elim)
    { ParallelAssemble(A_elim, mat_e); }
