@@ -102,11 +102,14 @@ private:
    template<typename PODType>
    class BlockArray
    {
-      const unsigned block_size, num_blocks;
       Array<PODType> data;
 
    public:
 
+      const unsigned block_size, num_blocks;
+
+      /// Construct a block array with allocated memory for @a num_blocks
+      /// blocks, each with @a block_size number of @a PODType entries.
       BlockArray(const unsigned block_size, const unsigned num_blocks);
 
       void SetBlock(const unsigned index, const Array<PODType> &values);
@@ -118,10 +121,6 @@ private:
       void* GetData();
 
       int Size() const;
-
-      void GetElementCounts(const Array<PODType> &block_counts,
-                            Array<int> &element_counts) const;
-
    };
 
    /// Describes a SAMRAI patch used to mirror the hierarchy in the MFEM mesh.

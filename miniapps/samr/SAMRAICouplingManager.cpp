@@ -92,8 +92,11 @@ void SAMRAICouplingManager::GatherGlobalPatchInfo(const std::vector<PatchInfo>&
    BlockArray<int> gathered_patch_info_buffer(patch_info_size,
                                               global_patch_counts.Sum());
    {
-      Array<int> gather_counts;
-      gathered_patch_info_buffer.GetElementCounts(global_patch_counts, gather_counts);
+      Array<int> gather_counts(global_patch_counts.Size());
+      for (int i=0; i < global_patch_counts.Size(); i++)
+      {
+         gather_counts[i] = global_patch_counts[i] * patch_info_size;
+      }
       Array<int> gather_offsets = gather_counts;
       gather_offsets.Prepend(0);
       gather_offsets.PartialSum();
@@ -872,12 +875,6 @@ void SAMRAICouplingManager::TransferToSAMRAI(
    std::vector<std::pair<int, GridFunction&>> node_fields,
    std::vector<std::pair<int, ParGridFunction&>> cell_fields) const
 {
-   int num_variables;
-   Array<int> node_field_vector_dimensions;
-   Array<int> node_field_offsets;
-   std::tie(num_variables, node_field_vector_dimensions, node_field_offsets)
-      = ExtractBufferInfo(node_fields, cell_fields);
-
    // Project each cell field to a discontinuous constant space of element averages.
    L2_FECollection fe_collection(0, mesh->Dimension());
    // This temporary space only reads the managed mesh.
@@ -890,10 +887,14 @@ void SAMRAICouplingManager::TransferToSAMRAI(
       cell_field.GetElementAverages(cell_field_averages.back());
    }
 
+   // Pack and send local MFEM values to ranks that own matching SAMRAI cells.
    const int rank = mesh->GetMyRank();
    const int ranks = mesh->GetNRanks();
-
-   // Pack and send local MFEM values to ranks that own matching SAMRAI cells.
+   int num_variables;
+   Array<int> node_field_vector_dimensions;
+   Array<int> node_field_offsets;
+   std::tie(num_variables, node_field_vector_dimensions, node_field_offsets)
+      = ExtractBufferInfo(node_fields, cell_fields);
    std::vector<std::vector<double>> element_value_buffers(ranks-1);
    std::vector<MPI_Request> requests(ranks-1);
    for (int remote_rank=0; remote_rank < ranks; remote_rank++)
@@ -1168,18 +1169,6 @@ template<typename PODType>
 int SAMRAICouplingManager::BlockArray<PODType>::Size() const
 {
    return data.Size();
-}
-
-template<typename PODType>
-void SAMRAICouplingManager::BlockArray<PODType>::GetElementCounts(
-   const Array<PODType> &block_counts,
-   Array<int> &element_counts) const
-{
-   element_counts.SetSize(block_counts.Size());
-   for (int i=0; i < block_counts.Size(); i++)
-   {
-      element_counts[i] = block_counts[i] * block_size;
-   }
 }
 
 SAMRAICouplingManager::PatchInfo SAMRAICouplingManager::PatchInfo::FromArray(
