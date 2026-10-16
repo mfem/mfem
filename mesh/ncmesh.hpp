@@ -60,6 +60,8 @@ struct Refinement
                 real_t scale = 0.5);  /// Uses @a scale in all dimensions
    /// Set the scale in the directions for the currently set type.
    void SetScaleForType(const real_t *scale);
+
+   static int GetNumChildren(Geometry::Type geom_type, char ref_type);
 private :
    void SetScale(const ScaledType &ref);
 };
@@ -222,6 +224,11 @@ public:
    /// Return the number of (2D) faces in the NCMesh.
    int GetNFaces() const { return NFaces; }
    virtual int GetNGhostElements() const { return 0; }
+
+   /** NCMesh can change the vertex ordering after refinement, coarsening, or on creation
+    *  of the NCMesh object.  After update operation the Vertex ID Map contains the remapping
+    *  information. */
+   const Array<int> &GetVertexIDMap() {return vertex_nodeId;}
 
    /** Perform the given batch of refinements. Please note that in the presence
        of anisotropic splits additional refinements may be necessary to keep the
@@ -1004,6 +1011,9 @@ protected:
 
    void CheckAnisoPrism(int vn1, int vn2, int vn3, int vn4,
                         const Refinement *refs, int nref);
+
+   void CheckAnisoPyramid(int vn1, int vn2, int vn3, int vn4,
+                          const Refinement *refs, int nref);
 
    void CheckAnisoFace(int vn1, int vn2, int vn3, int vn4,
                        int mid12, int mid34, int level = 0);
