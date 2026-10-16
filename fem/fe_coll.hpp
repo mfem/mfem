@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -184,7 +184,7 @@ public:
    FEC.  It is selected from one of (BiCubic2DFiniteElement, Quad_Q3, Nedelec1HexFiniteElement,
       Hex_ND1, H1_[DIM]_[ORDER],H1Pos_[DIM]_[ORDER], L2_[DIM]_[ORDER] )
    */
-   static FiniteElementCollection *New(const char *name);
+   [[nodiscard]] static FiniteElementCollection *New(const char *name);
 
    /** @brief Get the local dofs for a given sub-manifold.
 

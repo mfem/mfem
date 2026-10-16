@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ inline int CheckFinite(const real_t *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
-inline real_t infinity()
+inline constexpr real_t infinity()
 {
    return std::numeric_limits<real_t>::infinity();
 }
@@ -127,8 +127,8 @@ public:
    { std::copy(values, values + N, begin()); }
 
    /// Create a vector using a braced initializer list
-   template <typename CT, typename std::enable_if<
-                std::is_convertible<CT,real_t>::value,bool>::type = true>
+   template <typename CT, std::enable_if_t<
+                std::is_convertible_v<CT,real_t>,bool> = true>
    explicit Vector(std::initializer_list<CT> values) :
       Vector(static_cast<int> (values.size()))
    { std::copy(values.begin(), values.end(), begin()); }
@@ -540,6 +540,55 @@ public:
    virtual real_t *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
+   /** @brief Create a mutable (non-const) view of the Vector as Array<real_t>
+       that can be used to pass Vector objects to functions that take Array
+       arguments.
+
+       The returned MemoryView object is implicitly and explicitly convertible
+       to `Array<real_t> &`, see class MemoryView.
+
+       The simplest way to use this method is:
+       @code
+       func(*v.GetArrayView());
+       @endcode
+       where `func` has an `Array<real_t>&` argument and `v` is a Vector. In
+       this example, the returned MemoryView object is temporary, created just
+       before the call to `func` and destroyed automatically right after that
+       call.
+
+       Note that when the MemoryView is destroyed, the state of the underlying
+       Array<real_t> object is copied back to this Vector to reflect any changes
+       made to the Array.
+
+       Creating multiple views, of the same Vector object, that have overlapping
+       life spans is not supported. */
+   MemoryView<Array<real_t>> GetArrayView()
+   { return MemoryView<Array<real_t>>(data, size); }
+
+   /** @brief Create a const view of the Vector as const Array<real_t> that can
+       be used to pass Vector objects to functions that take Array arguments.
+
+       The returned MemoryView object is implicitly and explicitly convertible
+       to `const Array<real_t> &`, see class MemoryView.
+
+       The simplest way to use this method is:
+       @code
+       func(*v.GetArrayView());
+       @endcode
+       where `func` has a `const Array<real_t>&` argument and `v` is a const
+       Vector. In this example, the returned MemoryView object is temporary,
+       created just before the call to `func` and destroyed automatically right
+       after that call.
+
+       Note that when the MemoryView is destroyed, the mutable part of the state
+       of the underlying const Array<real_t> object is copied back to this
+       Vector to reflect any changes made to the Array, e.g. if the data was
+       moved from host to device.
+
+       Creating multiple views, of the same Vector object, that have overlapping
+       life spans is not supported. */
+   MemoryView<const Array<real_t>> GetArrayView() const
+   { return MemoryView<const Array<real_t>>(data, size); }
 };
 
 // Inline methods

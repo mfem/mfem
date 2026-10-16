@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -102,7 +102,7 @@ inputs:
   # - all "uses:" fields that refer to mfem/github-actions.
   MFEM_ACTIONS_VERSION:
     description: Version (branch or tag) of the mfem/github-actions to use.
-    default: v2.7
+    default: v2.8
 
 runs:
   using: 'composite'

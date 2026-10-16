@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -799,7 +799,8 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
    for (int j = 0; j < dof; j++)
    {
       InvertLinearTrans(Trans, Nodes[j], pt);
-      if (Geometries.CheckPoint(geom_type, ipt)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ipt, eps))
       {
          CalcShape(ipt, shape);
          R.SetRow(j, shape);
@@ -1316,13 +1317,14 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
-void VectorFiniteElement::ProjectGrad_RT(
+void VectorFiniteElement::ProjectCurl2D_RT(
    const real_t *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &grad) const
 {
+   // 2D "ProjectCurl_RT"
    if (dim != 2)
    {
-      mfem_error("VectorFiniteElement::ProjectGrad_RT works only in 2D!");
+      mfem_error("VectorFiniteElement::ProjectCurl2D_RT works only in 2D!");
    }
 
    DenseMatrix dshape(fe.GetDof(), fe.GetDim());
@@ -1333,8 +1335,8 @@ void VectorFiniteElement::ProjectGrad_RT(
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      tk[0] = nk[d2n[k]*dim+1];
-      tk[1] = -nk[d2n[k]*dim];
+      tk[0] = -nk[d2n[k]*dim+1];
+      tk[1] = nk[d2n[k]*dim];
       dshape.Mult(tk, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
@@ -1381,7 +1383,7 @@ void VectorFiniteElement::ProjectCurl_ND(
    }
 }
 
-void VectorFiniteElement::ProjectCurl_RT(
+void VectorFiniteElement::ProjectCurl3D_RT(
    const real_t *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &curl) const
 {
@@ -1741,7 +1743,8 @@ void VectorFiniteElement::LocalRestriction_RT(
    {
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          J.MultTranspose(nk+dim*d2n[j], pt_data);
@@ -1783,7 +1786,8 @@ void VectorFiniteElement::LocalRestriction_ND(
    {
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          Jinv.Mult(tk+dim*d2t[j], pt_data);

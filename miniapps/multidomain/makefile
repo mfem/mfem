@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -68,7 +68,7 @@ multidomain-test-par: multidomain
 multidomain_nd-test-par: multidomain_nd
 	@$(call mfem-test,$<, $(RUN_MPI), Multidomain ND miniapp,-tf 0.001)
 multidomain_rt-test-par: multidomain_rt
-	@$(call mfem-test,$<, $(RUN_MPI), Multidomain RT iniapp,-tf 0.001)
+	@$(call mfem-test,$<, $(RUN_MPI), Multidomain RT miniapp,-tf 0.001)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

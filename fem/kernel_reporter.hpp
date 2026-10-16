@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -29,20 +29,20 @@ namespace internal
 {
 
 template <typename Last>
-static void Stringify_(std::ostream &o, Last &&arg)
+void Stringify_(std::ostream &o, Last &&arg)
 {
    o << arg;
 }
 
 template <typename T1, typename T2, typename... Rest>
-static void Stringify_(std::ostream &o, T1 &&a1, T2 &&a2, Rest&&... rest)
+void Stringify_(std::ostream &o, T1 &&a1, T2 &&a2, Rest&&... rest)
 {
    o << int(a1) << ",";
    Stringify_(o, a2, rest...);
 }
 
 template <typename... Args>
-static std::string Stringify(Args&&... args)
+std::string Stringify(Args&&... args)
 {
    std::stringstream o;
    Stringify_(o, args...);
