@@ -8,6 +8,9 @@
 //       ./ex42 -p 1 -r 1 -o 2 -tf 0.05 -c 0.2 -gp -ldf
 //       ./ex42 -p 1 -r 1 -o 2 -tf 0.05 -c 0.2 -no-gp
 //       ./ex42 -p 2 -r 1 -o 2 -s 3 -tf 1 -c 0.2 -gp -ldf -no-vis
+//       ./ex42 -p 2 -dim 1 -r 2 -o 2 -tf 1 -gp -ldf -no-vis
+//       ./ex42 -p 2 -dim 3 -r 0 -o 2 -tf 1 -gp -ldf -no-vis
+//       ./ex42 -p 2 -dim 3 -simp -r 0 -o 2 -tf 1 -gp -ldf -no-vis
 //
 // Description:  This example solves the ideal magnetohydrodynamics (MHD)
 //               equations with the nonconservative Godunov-Powell source:
@@ -30,11 +33,14 @@
 //               denote face integration. Fhat is the Rusanov numerical flux;
 //               Bhat dot n_K is the arithmetic average of the two normal
 //               magnetic traces. Use -gp to enable the Godunov-Powell terms;
-//               they are disabled by default, and -no-gp omits them.
-//               On affine triangles or bilinear quads, -ldf projects the initial
-//               magnetic coefficients and each magnetic time derivative onto the
+//               they are enabled by default, and -no-gp omits them.
+//               On affine simplex or tensor-product cells (also bilinear 2D
+//               quads) and affine prisms, -ldf projects the initial magnetic
+//               coefficients and each magnetic time derivative onto the
 //               locally divergence-free space using an element-wise L2
-//               projection. The GP face corrections are still needed.
+//               projection. LDF is enabled by default. It removes interior
+//               divergence, while GP face terms account for normal-field jumps.
+//               Neither option supplies a positivity or shock limiter.
 //
 //               Problem 1 is the two-dimensional Orszag-Tang vortex on the
 //               periodic unit square. Its initial density and pressure are
@@ -48,7 +54,12 @@
 //               default final time for this problem is one period, T=1.
 //               It has a time-dependent exact solution for convergence tests.
 //               It uses all three velocity and magnetic components (2.5D).
-//               LDF projects the in-plane magnetic field. For degree p,
+//               With -dim 1 it becomes an x-directed wave on [0,1]. With
+//               -dim 3 it propagates along (1,1,1)/sqrt(3) in the periodic
+//               cube [0,sqrt(3)]^3. All variants have period one, eight state
+//               variables, and no forcing. Use -simp for generated simplices;
+//               use -prism for affine 3D prisms. The default is tensor-product cells.
+//               For degree p,
 //               expect spatial order p+1; choose a sufficiently accurate RK
 //               method and small timestep to control time integration error.
 //
@@ -57,11 +68,15 @@
 //               speed and the factor 2*order + 1; --cfl-number (-c) controls
 //               the CFL number.
 //
-//               DG_MHD_GPsource combines HyperbolicFormIntegrator for the
+//               LDF_DG_GP_MHD combines HyperbolicFormIntegrator for the
 //               MHD flux with GPsourceFormIntegrator for the element and face
 //               source contributions, and applies the element-wise inverse
 //               mass matrix for explicit Runge-Kutta time integration.
-//               GLVis displays the density in a top view.
+//               Default PDE quadrature precision is 2*order in elements and
+//               2*order+1 on faces, for both fluxes and GP sources.
+//               Only interior faces are assembled, so custom meshes must be
+//               fully periodic, with equal mesh and physical dimensions.
+//               GLVis displays density (constant for the exact Alfven wave).
 //
 //               We recommend viewing examples 9, 14 and 17 first.
 
@@ -79,20 +94,23 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    int problem = 1;
+   int mesh_dim = 2; // Dimension of the generated Alfven-wave mesh.
+   bool simplex_mesh = false; // Triangles/tetrahedra instead of quads/hexes.
+   bool prism_mesh = false; // Affine triangular prisms for the generated 3D mesh.
    const real_t specific_heat_ratio = 5.0/3.0;
 
    string mesh_file = "";
-   int IntOrderOffset = 0; // should be >=0
+   int IntOrderOffset = 0; // Add to cell precision 2*k and face precision 2*k+1.
    int ref_levels = 1;
-   int order = 2;
+   int order = 2; // Polynomial degree: P^order on simplices, Q^order on tensors.
    int ode_solver_type = 3; // SSPRK3
    real_t t_final = -1.0;
-   real_t dt = -0.01;
-   real_t cfl = 0.2;
-   bool visualization = true;
-   bool use_GPsource = false;
-   bool use_LDF = false;
-   int vis_steps = 20;
+   real_t dt = -0.01; // Positive: fixed step; nonpositive: select CFL stepping.
+   real_t cfl = 0.2; // Heuristic CFL factor, not a positivity/stability theorem.
+   bool visualization = true; // Enable the optional GLVis density display.
+   bool use_GPsource = true; // use Godunov--Powell source terms
+   bool use_LDF = true; // use local divergence-free (LDF) projection
+   int vis_steps = 20; // Report/visualize every this many completed steps.
 
    int precision = std::numeric_limits<real_t>::max_digits10;
    cout.precision(precision);
@@ -100,7 +118,16 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use. If omitted, use the problem's periodic"
-                  " square or rectangle.");
+                  " domain. A supplied mesh determines the spatial dimension.");
+   args.AddOption(&mesh_dim, "-dim", "--dimension",
+                  "Dimension of the generated Alfven-wave mesh (1, 2, or 3)."
+                  " Orszag-Tang requires 2. Ignored when --mesh is supplied.");
+   args.AddOption(&simplex_mesh, "-simp", "--simplex", "-tensor", "--tensor",
+                  "Use simplex or tensor-product cells for the generated"
+                  " Alfven mesh. Ignored for Orszag-Tang or a supplied mesh.");
+   args.AddOption(&prism_mesh, "-prism", "--prism", "-no-prism", "--no-prism",
+                  "Generate triangular prisms for the 3D Alfven wave."
+                  " Requires -p 2 -dim 3 and no -simp; ignored with --mesh.");
    args.AddOption(&problem, "-p", "--problem",
                   "Problem setup to use. See MHDInitialCondition().");
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -126,7 +153,8 @@ int main(int argc, char *argv[])
                   "Enable or disable the use of GP source term.");
    args.AddOption(&use_LDF, "-ldf", "--use-ldf", "-no-ldf", "--no-use-ldf",
                   "Enable or disable local L2 divergence-free magnetic projection"
-                  " on affine 2D triangles or bilinear quadrilaterals.");
+                  " on affine segments, triangles, tetrahedra, hexahedra or prisms,"
+                  " and bilinear quadrilaterals.");
    args.ParseCheck();
    if (t_final == -1.0) { t_final = problem == 2 ? 1.0 : 0.05; }
    const bool use_cfl = dt <= 0.0;
@@ -137,11 +165,13 @@ int main(int argc, char *argv[])
 
    // 2. Read the mesh from the given mesh file. When the user does not provide
    //    mesh file, use the default mesh file for the problem.
-   Mesh mesh = mesh_file.empty() ? MHDMesh(problem) : Mesh(mesh_file);
+   Mesh mesh = mesh_file.empty() ? MHDMesh(problem, mesh_dim,
+                                           simplex_mesh, prism_mesh) : Mesh(mesh_file);
    const int dim = mesh.Dimension();
-   MFEM_VERIFY(dim == 2, "Both model problems require a 2D mesh.");
-   MFEM_VERIFY(!use_LDF || dim == 2,
-               "LDF projection currently supports only 2D meshes.");
+   MFEM_VERIFY(dim >= 1 && dim <= 3 && mesh.SpaceDimension() == dim,
+               "The example requires a full-dimensional 1D, 2D, or 3D mesh.");
+   MFEM_VERIFY(problem == 2 || (problem == 1 && dim == 2),
+               "Select problem 1 in 2D or problem 2 in 1D, 2D, or 3D.");
    const int MHDdim = problem == 2 ? 3 : dim;
    const int num_equations = 2*MHDdim + 2;
 
@@ -152,17 +182,27 @@ int main(int argc, char *argv[])
    {
       mesh.UniformRefinement();
    }
+   // No physical boundary conditions are supplied by these periodic problems.
+   // Check face adjacency rather than boundary-element count: periodic 3D
+   // meshes may retain boundary elements for visualization on interior faces.
+   for (int f = 0; f < mesh.GetNumFaces(); f++)
+   {
+      int first, second;
+      mesh.GetFaceElements(f, &first, &second);
+      MFEM_VERIFY(second >= 0, "The model problems require a periodic mesh.");
+   }
 
    // 3. Define the ODE solver used for time integration. Several explicit
    //    Runge-Kutta methods are available.
    unique_ptr<ODESolver> ode_solver = ODESolver::SelectExplicit(ode_solver_type);
 
-   // 4. Define the discontinuous DG finite element space of the given polynomial order on the refined mesh.
-   // use nodal elements, map type must be FiniteElement::VALUE (default) (FiniteElement::INTEGRAL is seldomly used)
+   // 4. Use scalar nodal, VALUE-mapped DG elements for each state component.
+   // Spatial dimension controls derivatives; MHDdim controls vector components.
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    // Finite element space for a scalar (thermodynamic quantity)
    FiniteElementSpace fes(&mesh, &fec);
-   // Finite element space for a mesh-dim vector quantity (momentum)
+   // An auxiliary spatial vector space; the full state below stores momentum
+   // with MHDdim components, which can exceed dim in reduced-dimensional MHD.
    FiniteElementSpace dfes(&mesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (total thermodynamic state)
    FiniteElementSpace vfes(&mesh, &fec, num_equations, Ordering::byNODES);
@@ -178,7 +218,7 @@ int main(int argc, char *argv[])
 
    // Initialize the state.
    VectorFunctionCoefficient u0 = MHDInitialCondition(problem,
-                                                      specific_heat_ratio);
+                                                      specific_heat_ratio, dim);
    GridFunction sol(&vfes);
    sol.ProjectCoefficient(u0);
    GridFunction density_sol(&fes, sol.GetData() + 0 * fes.GetNDofs());
@@ -188,15 +228,15 @@ int main(int argc, char *argv[])
    RusanovFlux numericalFlux(mhdflux);
    GPsource gpsource(dim, MHDdim);
    RusanovGPsource numericalGPsource(gpsource);
-   DG_MHD_GPsource mhd(vfes,
-                       std::unique_ptr<HyperbolicFormIntegrator>(new HyperbolicFormIntegrator(
-                                                                    numericalFlux, IntOrderOffset)),
-                       std::unique_ptr<GPsourceFormIntegrator>(new GPsourceFormIntegrator(
-                                                                  numericalGPsource, IntOrderOffset)),
-                       use_GPsource, use_LDF);
+   LDF_DG_GP_MHD mhd(vfes,
+                     std::unique_ptr<HyperbolicFormIntegrator>(new MHDFormIntegrator(
+                                                                  numericalFlux, IntOrderOffset)),
+                     std::unique_ptr<GPsourceFormIntegrator>(new GPsourceFormIntegrator(
+                                                                numericalGPsource, IntOrderOffset)),
+                     use_GPsource, use_LDF);
    if (use_LDF) { mhd.ApplyLDF(sol); }
 
-   // Output the initial density profile
+   // Save the mesh and all conserved components after any initial LDF projection.
    {
       ostringstream mesh_name;
       mesh_name << "mhd-mesh.mesh";
@@ -236,7 +276,7 @@ int main(int argc, char *argv[])
          // Plot the scalar density.
          sout << "solution\n" << mesh << density_sol;
          sout << "window_title 'density, t = 0'\n";
-         sout << "view 0 0\n";  // view from top
+         if (dim == 2) { sout << "view 0 0\n"; } // top view for planar meshes
          sout << "keys jlm\n";  // turn off perspective and light, show mesh
          sout << "pause\n";
          sout << flush;
@@ -256,9 +296,9 @@ int main(int argc, char *argv[])
       {
          hmin = min(mesh.GetElementSize(i, 1), hmin);
       }
-      // Find a safe dt, using a temporary vector. Calling Mult() computes the
-      // maximum char speed at all quadrature points on all faces (and all
-      // elements with -mf).
+      // Mult() evaluates the residual as well as wave speeds at the volume
+      // and interior-face quadrature points. The first residual is discarded;
+      // later CFL updates reuse the maximum collected during the RK stages.
       Vector z(sol.Size());
       mhd.Mult(sol, z);
 
@@ -304,7 +344,7 @@ int main(int argc, char *argv[])
    tic_toc.Stop();
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
-   // 9. Save the final solution. This output can be viewed later using GLVis:
+   // 8. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m mhd-mesh-final.mesh -g mhd-1-final.gf" (for x-momentum).
    {
       ostringstream mesh_name;
@@ -324,7 +364,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 10. Only problem 2 supplies an exact solution at final time.
+   // 9. The full-state L2 norm sums squared errors of every conserved component.
+   // Only problem 2 supplies an exact solution at final time.
    if (problem == 2) { u0.SetTime(t); }
    const real_t error = sol.ComputeLpError(2, u0);
    cout << scientific;
@@ -333,17 +374,22 @@ int main(int argc, char *argv[])
    if (problem == 2)
    {
       // Section 4.1 reports errors in B_perp = -B_x*sin(alpha)+B_y*cos(alpha).
-      const real_t ca = std::cos(M_PI/6.0);
-      const real_t sa = std::sin(M_PI/6.0);
+      // In 3D, the first transverse direction is (-1,1,0)/sqrt(2).
+      const real_t ca = dim == 1 ? 1_r :
+                        dim == 3 ? 1.0/std::sqrt(2.0) : std::cos(M_PI/6.0);
+      const real_t sa = dim == 1 ? 0_r :
+                        dim == 3 ? 1.0/std::sqrt(2.0) : std::sin(M_PI/6.0);
       GridFunction perpendicular(&fes);
       for (int j = 0; j < fes.GetNDofs(); j++)
       {
          perpendicular(j) = -sa*sol(4*fes.GetNDofs()+j) +
                             ca*sol(5*fes.GetNDofs()+j);
       }
-      FunctionCoefficient exact_perpendicular([ca, sa, t](const Vector &x)
+      FunctionCoefficient exact_perpendicular([ca, sa, t, dim](const Vector &x)
       {
-         return 0.1*std::sin(2*M_PI*(x(0)*ca+x(1)*sa+t));
+         const real_t parallel = dim == 3 ? (x(0)+x(1)+x(2))/std::sqrt(3.0) :
+                                 x(0)*ca + (dim > 1 ? x(1)*sa : 0_r);
+         return 0.1*std::sin(2*M_PI*(parallel+t));
       });
       cout << "B_perp L2 error: "
            << perpendicular.ComputeL2Error(exact_perpendicular) << endl;

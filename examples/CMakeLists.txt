@@ -92,6 +92,7 @@ if (MFEM_USE_MPI)
     ex39p.cpp
     ex40p.cpp
     ex41p.cpp
+    ex42p.cpp
   )
 endif()
 
@@ -136,7 +137,7 @@ if (MFEM_ENABLE_TESTING)
       list(APPEND THIS_TEST_OPTIONS "-mi" "3")
     elseif(${TEST_NAME} MATCHES "ex41p*")
       list(APPEND THIS_TEST_OPTIONS "-tf" "1.0")
-    elseif("${TEST_NAME}" STREQUAL "ex42")
+    elseif(${TEST_NAME} MATCHES "^ex42p?$")
       list(APPEND THIS_TEST_OPTIONS "-r" "1" "-tf" "0.05" "-c" "0.2" "-gp" "-ldf")
     endif()
 
