@@ -1207,6 +1207,9 @@ TEST_CASE("ParSubMesh Rotated Shared Face Orientation", "[Parallel],[SubMesh]")
    MPI_Allreduce(&local_rotated, &global_rotated, 1, MPI_INT, MPI_SUM,
                  MPI_COMM_WORLD);
    CHECK(global_missing_or_wrong == 0);
+   // This lower bound is specific to the Cartesian tetrahedral split used by
+   // this test. Another mesh generator may produce no rotated shared faces,
+   // so this is not a general invariant of ParSubMesh.
    CHECK(global_rotated > 0);
 }
 
