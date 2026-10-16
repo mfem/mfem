@@ -1434,40 +1434,31 @@ void IMEXRK2::Init(TimeDependentOperator &f_)
 
 void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
 {
-   double gamma = 1 - sqrt(2)/2;
-   double delta = 1 - 1/(2*gamma);
+   const real_t gamma = 1 - sqrt(2)/2;
+   const real_t delta = 1 - 1/(2*gamma);
 
    f->SetTime(t);
 
-   //K1 exp is just f_1(t, x)
+   // Both terms are evaluated at the same additive stage state.
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1_exp);
 
    //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, y, k_imp);
+   y.Add(dt*gamma, k_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(y, k2_exp);
 
-   //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
-   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   f->ImplicitSolve(dt*gamma, x, k_imp);
-   //reuse k_imp to avoid extra vector
-
-   //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
-   f -> SetTime(t + dt);
-   //add(x, dt*(1-gamma), k2_imp, z);
-   //optimization to avoid extra vector
-   x.Add(dt*(1-gamma), k_imp);
-   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   //f->ImplicitSolve(dt*gamma, z, k3_imp);
-   //reuse k_imp to avoid extra vector
-   f->ImplicitSolve(dt*gamma, x, k_imp);
-
-   //add it all up
+   f->SetTime(t + dt);
    x.Add(dt*delta, k1_exp);
    x.Add(dt*(1-delta), k2_exp);
-   //x.Add(dt*(1-gamma), k2_imp); it is already added to x above
+   x.Add(dt*(1-gamma), k_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+
    x.Add(dt*gamma, k_imp);
    t += dt;
 }
@@ -1485,45 +1476,37 @@ void IMEXRK2_3StageExplicit::Init(TimeDependentOperator &f_)
 
 void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
 {
-   double gamma = 1 - sqrt(2)/2;
-   double delta = -2*sqrt(2)/3;
+   const real_t gamma = 1 - sqrt(2)/2;
+   const real_t delta = -2*sqrt(2)/3;
 
    f->SetTime(t);
 
-   //K1 exp is just f_1(t, x)
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1_exp);
 
-   //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, y, k_imp);
+   y.Add(dt*gamma, k_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(y, k2_exp);
 
-   //K3 Exp is f_1(t + dt, x + dt delta K1_exp + dt (1-delta) K2_exp)
    f->SetTime(t + dt);
    add(x, dt*delta, k1_exp, y);
-   //add(y, dt*(1-delta), k2_exp, w);
-   //optimization to avoid extra vector
    y.Add(dt*(1-delta), k2_exp);
+   y.Add(dt*(1-gamma), k_imp);
+
+   x.Add(dt*(1-gamma), k_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, y, k_imp);
+   y.Add(dt*gamma, k_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(y, k3_exp);
 
-   //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
-   f->SetTime(t + gamma*dt);
-   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   f->ImplicitSolve(dt*gamma, x, k_imp);
-
-   //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
-   f -> SetTime(t + dt);
-   //add(x, dt*(1-gamma), k2_imp, z);
-   x.Add(dt*(1-gamma), k_imp);
-   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   f->ImplicitSolve(dt*gamma, x, k_imp);
-
    //add it all up
-   x.Add(dt*delta, k2_exp);
-   x.Add(dt*(1-delta), k3_exp);
+   x.Add(dt*(1-gamma), k2_exp);
+   x.Add(dt*gamma, k3_exp);
    //x.Add(dt*(1-gamma), k2_imp); // it is already added to x above
    x.Add(dt*gamma, k_imp);
    t += dt;
@@ -1544,66 +1527,56 @@ void IMEX_DIRK_RK3::Init(TimeDependentOperator &f_)
 
 void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
 {
-   double gamma = 0.4358665215;
-   double b1 = 1.208496649;
-   double b2 = -0.644363171;
-   double a_31 = 0.3212788860;
-   double a_32 = 0.3966543747;
-   double a_41 = -0.105858296;
-   double a_42 = 0.5529291479;
-   double a_43 = 0.5529291479;
+   const real_t gamma = 0.4358665215;
+   const real_t b1 = 1.208496649;
+   const real_t b2 = -0.644363171;
+   const real_t a_31 = 0.3212788860;
+   const real_t a_32 = 0.3966543747;
+   const real_t a_41 = -0.105858296;
+   const real_t a_42 = 0.5529291479;
+   const real_t a_43 = 0.5529291479;
 
-   //K1_exp
    f->SetTime(t);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1_exp);
 
-   //K2_imp, K2_exp
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, y, k2_imp);
+   y.Add(dt*gamma, k2_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(y, k2_exp);
-   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   f->ImplicitSolve(dt*gamma, x, k2_imp);
 
-   //K3_imp, K3_exp
    f->SetTime(t + (1+gamma)/2*dt);
    add(x, dt*a_31, k1_exp, y);
-   //add(y, dt*a_32, k2_exp, w);
-   //optimization to avoid extra vector
    y.Add(dt*a_32, k2_exp);
-   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
-   f->Mult(y, k3_exp);
-   add(x, dt*(1-gamma)/2, k2_imp, y);
+   y.Add(dt*(1-gamma)/2, k2_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
    f->ImplicitSolve(dt*gamma, y, k3_imp);
+   y.Add(dt*gamma, k3_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k3_exp);
 
-   //K4_imp, K4_exp
    f->SetTime(t+dt);
    add(x, dt*a_41, k1_exp, y);
-   //add(y, dt*a_42, k2_exp, v);
    y.Add(dt*a_42, k2_exp);
-   //add(w, dt*a_43, k3_exp, v);
    y.Add(dt*a_43, k3_exp);
-   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
-   f->Mult(y, k4_exp);
-   //add(x, dt*b1, k2_imp, z);
-   //add(z, dt*b2, k3_imp, u);
-   //optimization to avoid extra vector
+   y.Add(dt*b1, k2_imp);
+   y.Add(dt*b2, k3_imp);
    x.Add(dt*b1, k2_imp);
    x.Add(dt*b2, k3_imp);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-   f->ImplicitSolve(dt*gamma, x, k3_imp);
+   f->ImplicitSolve(dt*gamma, y, k3_imp);
+   y.Add(dt*gamma, k3_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k4_exp);
 
-   //add it all together
    x.Add(dt*b1, k2_exp);
    x.Add(dt*b2, k3_exp);
    x.Add(dt*gamma, k4_exp);
-   //x.Add(dt*b1, k2_imp); //already added above
-   //x.Add(dt*b2, k3_imp); //already added above
    x.Add(dt*gamma, k3_imp);
    t += dt;
-
 }
 
 }
