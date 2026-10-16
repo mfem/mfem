@@ -107,6 +107,49 @@ Mesh MakeMesh(const int dim)
    return Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 1.2, 0.9, 1.1);
 }
 
+Mesh MakeCurvedMesh(const int dim)
+{
+   Mesh mesh = MakeMesh(dim);
+   mesh.SetCurvature(1);
+   return mesh;
+}
+
+// Scale and shift the nodal x coordinate, then drop cached geometric factors
+void MoveNodes(Mesh &mesh, const real_t x_scale, const real_t x_shift)
+{
+   GridFunction &nodes = *mesh.GetNodes();
+   const FiniteElementSpace &fes = *mesh.GetNodalFESpace();
+   const int dim = mesh.SpaceDimension();
+   const int n = fes.GetNDofs();
+   const bool bynodes = fes.GetOrdering() == Ordering::byNODES;
+   real_t *coords = nodes.HostReadWrite();
+   for (int i = 0; i < n; ++i)
+   {
+      const int ix = bynodes ? i : dim * i;
+      coords[ix] = x_scale * coords[ix] + x_shift;
+   }
+   mesh.NodesUpdated();
+}
+
+void RequireBlockAction(BilinearForm &block, BilinearForm &full,
+                        const Vector &x_scalar, FiniteElementSpace &vector_fes,
+                        const int i, const int j)
+{
+   Vector x_vector(vector_fes.GetVSize());
+   Vector y_vector(vector_fes.GetVSize());
+   Vector y_block(x_scalar.Size());
+   Vector y_reference(x_scalar.Size());
+
+   ScatterScalarComponent(x_scalar, x_vector, vector_fes, j);
+   y_vector = 0.0;
+   full.Mult(x_vector, y_vector);
+
+   y_block = 0.0;
+   block.Mult(x_scalar, y_block);
+   GatherScalarComponent(y_vector, y_reference, vector_fes, i);
+   RequireClose(y_block, y_reference);
+}
+
 void AddElasticityAndMass(BilinearForm &form,
                           Coefficient &material,
                           Coefficient &mass,
@@ -411,6 +454,127 @@ TEST_CASE("Elasticity PA empty mesh",
    y = 0.0;
    pa_form.Mult(x, y);
    REQUIRE(y.Norml2() == MFEM_Approx(0.0));
+}
+
+// Reassembly must observe node motion and in-place material edits
+TEST_CASE("Elasticity component PA reassembly",
+          "[PartialAssembly][ElasticityPA][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(1, 2);
+   CAPTURE(dim, order);
+
+   const auto compare_block = [](BilinearForm &block, BilinearForm &full,
+                                 FiniteElementSpace &scalar_fes,
+                                 FiniteElementSpace &vector_fes,
+                                 const int i, const int j)
+   {
+      Vector x_scalar(scalar_fes.GetVSize());
+      FillVector(x_scalar, 7);
+      RequireBlockAction(block, full, x_scalar, vector_fes, i, j);
+   };
+
+   // Stretch. Constants, so only the Jacobians change
+   {
+      Mesh mesh = MakeCurvedMesh(dim);
+      H1_FECollection fec(order, dim);
+      FiniteElementSpace scalar_fes(&mesh, &fec);
+      FiniteElementSpace vector_fes(&mesh, &fec, dim, Ordering::byNODES);
+      ConstantCoefficient lambda(1.0);
+      ConstantCoefficient mu(1.0);
+      ElasticityIntegrator parent(lambda, mu);
+
+      BilinearForm block_00(&scalar_fes);
+      block_00.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      block_00.AddDomainIntegrator(
+         new ElasticityComponentIntegrator(parent, 0, 0));
+      block_00.Assemble();
+
+      MoveNodes(mesh, 2.0, 0.0);
+      block_00.Assemble();
+
+      BilinearForm block_10(&scalar_fes);
+      block_10.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      block_10.AddDomainIntegrator(
+         new ElasticityComponentIntegrator(parent, 1, 0));
+      block_10.Assemble();
+
+      BilinearForm full(&vector_fes);
+      full.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+      full.Assemble();
+      full.Finalize();
+      compare_block(block_00, full, scalar_fes, vector_fes, 0, 0);
+      compare_block(block_10, full, scalar_fes, vector_fes, 1, 0);
+
+      ElasticityIntegrator ea_parent(lambda, mu);
+      BilinearForm ea_form(&scalar_fes);
+      ea_form.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+      ea_form.AddDomainIntegrator(
+         new ElasticityComponentIntegrator(ea_parent, 0, 0));
+      ea_form.Assemble();
+      MoveNodes(mesh, 2.0, 0.0);
+      ea_form.Assemble();
+
+      BilinearForm ea_full(&vector_fes);
+      ea_full.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+      ea_full.Assemble();
+      ea_full.Finalize();
+      compare_block(ea_form, ea_full, scalar_fes, vector_fes, 0, 0);
+   }
+
+   // Translation leaves the Jacobians unchanged and moves the sample points
+   {
+      Mesh mesh = MakeCurvedMesh(dim);
+      H1_FECollection fec(order, dim);
+      FiniteElementSpace scalar_fes(&mesh, &fec);
+      FiniteElementSpace vector_fes(&mesh, &fec, dim, Ordering::byNODES);
+      FunctionCoefficient material(MaterialFunction);
+      ElasticityIntegrator parent(material, q_lambda, q_mu);
+
+      BilinearForm block(&scalar_fes);
+      block.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      block.AddDomainIntegrator(
+         new ElasticityComponentIntegrator(parent, 0, 0));
+      block.Assemble();
+
+      MoveNodes(mesh, 1.0, 0.4);
+      block.Assemble();
+
+      BilinearForm full(&vector_fes);
+      full.AddDomainIntegrator(
+         new ElasticityIntegrator(material, q_lambda, q_mu));
+      full.Assemble();
+      full.Finalize();
+      compare_block(block, full, scalar_fes, vector_fes, 0, 0);
+   }
+
+   // Material edit with the mesh fixed, node sequence does not change
+   {
+      Mesh mesh = MakeCurvedMesh(dim);
+      H1_FECollection fec(order, dim);
+      FiniteElementSpace scalar_fes(&mesh, &fec);
+      FiniteElementSpace vector_fes(&mesh, &fec, dim, Ordering::byNODES);
+      real_t factor = 1.0;
+      FunctionCoefficient material(
+      [&factor](const Vector &x) { return factor * MaterialFunction(x); });
+      ElasticityIntegrator parent(material, q_lambda, q_mu);
+
+      BilinearForm block(&scalar_fes);
+      block.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      block.AddDomainIntegrator(
+         new ElasticityComponentIntegrator(parent, 0, 0));
+      block.Assemble();
+
+      factor = 2.5;
+      block.Assemble();
+
+      BilinearForm full(&vector_fes);
+      full.AddDomainIntegrator(
+         new ElasticityIntegrator(material, q_lambda, q_mu));
+      full.Assemble();
+      full.Finalize();
+      compare_block(block, full, scalar_fes, vector_fes, 0, 0);
+   }
 }
 
 } // namespace elasticity_pa

@@ -50,8 +50,43 @@ void VerifyElasticityPASpace(const FiniteElementSpace &fes,
                "Elasticity PA requires scalar, VALUE-mapped finite elements.");
 }
 
+bool SameQuadrature(const QuadratureSpace &qs, const Mesh &mesh,
+                    const IntegrationRule &ir)
+{
+   if (qs.GetMesh() != &mesh) { return false; }
+   // An empty partition has no element whose rule can be queried.
+   if (mesh.GetNE() == 0) { return true; }
+   return &qs.GetIntRule(0) == &ir;
+}
+
+bool SameValues(const Vector &a, const Vector &b)
+{
+   if (a.Size() != b.Size()) { return false; }
+   Vector difference(a);
+   difference -= b;
+   return difference.Norml2() == 0.0;
+}
+
 } // namespace
 
+
+void ElasticityIntegrator::ProjectCoefficients(
+   CoefficientVector &lambda_out, CoefficientVector &mu_out) const
+{
+   MFEM_VERIFY(mu != nullptr, "The shear modulus coefficient is not set.");
+   if (lambda != nullptr)
+   {
+      lambda_out.Project(*lambda);
+      mu_out.Project(*mu);
+   }
+   else
+   {
+      ProductCoefficient lambda_coefficient(q_lambda, *mu);
+      ProductCoefficient mu_coefficient(q_mu, *mu);
+      lambda_out.Project(lambda_coefficient);
+      mu_out.Project(mu_coefficient);
+   }
+}
 
 void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
    const FiniteElementSpace &fes)
@@ -64,32 +99,61 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
    }
 
    Mesh &mesh = *fes.GetMesh();
-   q_space = std::make_unique<QuadratureSpace>(mesh, *IntRule);
-
-   MFEM_VERIFY(mu != nullptr, "The shear modulus coefficient is not set.");
-   if (lambda != nullptr)
+   // Component QuadratureFunctions keep a raw pointer to this space, so a
+   // refresh replaces it only when the mesh or the rule actually changes.
+   q_vec.reset();
+   const bool reuse = q_space && SameQuadrature(*q_space, mesh, *IntRule);
+   if (!reuse)
    {
-      lambda_quad =
-         std::make_unique<CoefficientVector>(*lambda, *q_space,
-                                             CoefficientStorage::FULL);
-      mu_quad =
-         std::make_unique<CoefficientVector>(*mu, *q_space,
-                                             CoefficientStorage::FULL);
+      lambda_quad.reset();
+      mu_quad.reset();
+      q_space = std::make_unique<QuadratureSpace>(mesh, *IntRule);
+      lambda_quad = std::make_unique<CoefficientVector>(
+                       *q_space, CoefficientStorage::FULL);
+      mu_quad = std::make_unique<CoefficientVector>(
+                   *q_space, CoefficientStorage::FULL);
+   }
+
+   ProjectCoefficients(*lambda_quad, *mu_quad);
+   pa_data.SetSize(0);
+}
+
+void ElasticityIntegrator::EnsureSharedPAData(const FiniteElementSpace &fes)
+{
+   Mesh &mesh = *fes.GetMesh();
+   const long seq = mesh.GetNodesSequence();
+   const bool same_space = q_space && IntRule != nullptr &&
+                           SameQuadrature(*q_space, mesh, *IntRule);
+   const int expected =
+      same_space ? (vdim * vdim + 2) * lambda_quad->Size() : -1;
+   const bool geom_ok =
+      same_space && pa_geom_sequence == seq && pa_data.Size() == expected;
+
+   if (geom_ok)
+   {
+      CoefficientVector lambda_next(*q_space, CoefficientStorage::FULL);
+      CoefficientVector mu_next(*q_space, CoefficientStorage::FULL);
+      ProjectCoefficients(lambda_next, mu_next);
+      // Same nodes and the same material: the other blocks share pa_data.
+      if (SameValues(*lambda_quad, lambda_next) &&
+          SameValues(*mu_quad, mu_next))
+      {
+         return;
+      }
+      ProjectCoefficients(*lambda_quad, *mu_quad);
    }
    else
    {
-      ProductCoefficient lambda_coefficient(q_lambda, *mu);
-      ProductCoefficient mu_coefficient(q_mu, *mu);
-      lambda_quad =
-         std::make_unique<CoefficientVector>(lambda_coefficient, *q_space,
-                                             CoefficientStorage::FULL);
-      mu_quad =
-         std::make_unique<CoefficientVector>(mu_coefficient, *q_space,
-                                             CoefficientStorage::FULL);
+      SetUpQuadratureSpaceAndCoefficients(fes);
    }
 
-   pa_data.SetSize(0);
-   q_vec.reset();
+   const GeometricFactors *geom = mesh.GetGeometricFactors(
+                                     *IntRule,
+                                     GeometricFactors::JACOBIANS |
+                                     GeometricFactors::DETERMINANTS);
+   internal::ElasticitySetupPAData(vdim, *IntRule, *lambda_quad, *mu_quad,
+                                   *geom, pa_data);
+   pa_geom_sequence = seq;
 }
 
 void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
@@ -100,19 +164,13 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    vdim = mesh.Dimension();
    ndofs = fespace->GetTypicalFE()->GetDof();
+   EnsureSharedPAData(fes);
 
-   SetUpQuadratureSpaceAndCoefficients(fes);
    const auto ordering = GetEVectorOrdering(*fespace);
    const auto mode =
       ordering == ElementDofOrdering::NATIVE ?
       DofToQuad::FULL : DofToQuad::LEXICOGRAPHIC_FULL;
    maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
-   const GeometricFactors *geom = mesh.GetGeometricFactors(
-                                     *IntRule,
-                                     GeometricFactors::JACOBIANS |
-                                     GeometricFactors::DETERMINANTS);
-   internal::ElasticitySetupPAData(vdim, *IntRule, *lambda_quad, *mu_quad,
-                                   *geom, pa_data);
 
    use_tensor_pa = false;
    tensor_maps = nullptr;
@@ -175,22 +233,7 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
                "Elasticity component block index is out of range.");
 
    fespace = &fes;
-   if (!parent.q_space)
-   {
-      if (parent.IntRule == nullptr)
-      {
-         parent.IntRule = IntRule;
-      }
-      else if (IntRule != nullptr)
-      {
-         MFEM_VERIFY(parent.IntRule == IntRule,
-                     "Elasticity component and parent integration rules differ.");
-      }
-      parent.vdim = dim;
-      parent.ndofs = fes.GetTypicalFE()->GetDof();
-      parent.SetUpQuadratureSpaceAndCoefficients(fes);
-   }
-   else
+   if (parent.q_space)
    {
       MFEM_VERIFY(parent.q_space->GetMesh() == &mesh,
                   "Elasticity component and parent use different meshes.");
@@ -201,6 +244,19 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_VERIFY(IntRule == nullptr || IntRule == parent.IntRule,
                   "Elasticity component and parent integration rules differ.");
    }
+   else if (parent.IntRule == nullptr)
+   {
+      parent.IntRule = IntRule;
+   }
+   else if (IntRule != nullptr)
+   {
+      MFEM_VERIFY(parent.IntRule == IntRule,
+                  "Elasticity component and parent integration rules differ.");
+   }
+
+   parent.vdim = dim;
+   parent.ndofs = fes.GetTypicalFE()->GetDof();
+   parent.EnsureSharedPAData(fes);
 
    IntRule = parent.IntRule;
    MFEM_VERIFY(IntRule != nullptr,
@@ -210,20 +266,8 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const auto mode =
       ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
       DofToQuad::LEXICOGRAPHIC_FULL;
-   const GeometricFactors *geom =
-      mesh.GetGeometricFactors(*IntRule,
-                               GeometricFactors::JACOBIANS |
-                               GeometricFactors::DETERMINANTS);
    maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
    q_vec = std::make_unique<QuadratureFunction>(*parent.q_space, 2*dim);
-
-   const int expected_size =
-      (dim*dim + 2) * parent.lambda_quad->Size();
-   if (parent.pa_data.Size() != expected_size)
-   {
-      internal::ElasticitySetupPAData(dim, *IntRule, *parent.lambda_quad,
-                                      *parent.mu_quad, *geom, parent.pa_data);
-   }
 }
 
 void ElasticityComponentIntegrator::AddMultPA(const Vector &x,

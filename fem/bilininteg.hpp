@@ -3411,12 +3411,23 @@ private:
    std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
    /// Compact PA data: inv(J), lambda*det(J)*w, mu*det(J)*w.
    Vector pa_data;
+   /// Node sequence of the snapshot in @a pa_data. Negative before setup.
+   long pa_geom_sequence = -1;
    /// Workspace used only by the generic (non-tensor) apply path.
    /// Layout: reference derivatives, then flux (each vdim*vdim).
    std::unique_ptr<QuadratureFunction> q_vec;
 
-   /// Set up the quadrature space and project lambda and mu coefficients
+   /// Set up the quadrature space and project lambda and mu.
+   /// Reuse the QuadratureSpace when the mesh and rule are unchanged.
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
+
+   /// Project lambda and mu onto vectors bound to @a q_space.
+   void ProjectCoefficients(CoefficientVector &lambda_out,
+                            CoefficientVector &mu_out) const;
+
+   /** Rebuild @a pa_data when the mesh nodes or the projected coefficients
+       differ from the shared snapshot. Later component assemblies reuse it. */
+   void EnsureSharedPAData(const FiniteElementSpace &fes);
 
 public:
    /// Tensor PA apply arguments: ne, maps, pa_data, x, y
