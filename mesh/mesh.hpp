@@ -65,6 +65,7 @@ namespace gmsh { class GmshReader; }
 /// Mesh data type
 class Mesh
 {
+   friend class MeshPartitioner;
    friend class NCMesh;
    friend class NURBSExtension;
    friend class NCNURBSExtension;
@@ -632,7 +633,11 @@ protected:
    void FinalizeCheck();
 
    void Loader(std::istream &input, int generate_edges = 0,
-               std::string parse_tag = "");
+               std::string parse_tag = "", bool defer_nodes = false,
+               bool *nodes_deferred = nullptr);
+
+   /// Read the nodal GridFunction following a curved mesh topology.
+   void LoadNodes(std::istream &input);
 
    /** @brief If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1
        format. If section_delimiter is empty, write mfem v1.0 format. Otherwise,
@@ -2901,6 +2906,9 @@ public:
    */
    Array<int> bdr_attributes;
 
+   /// Named element and boundary attribute sets from the source mesh.
+   ArraysByName<int> attribute_sets, bdr_attribute_sets;
+
    /**
       Optional vertex coordinates. The size of the array is either
 
@@ -3047,6 +3055,8 @@ protected:
    Table edge_to_element;
    Table vertex_to_element;
 
+   int num_parts;
+
 public:
    /** @brief Construct a MeshPartitioner.
 
@@ -3072,6 +3082,17 @@ public:
                               dynamic memory allocations.
    */
    void ExtractPart(int part_id, MeshPart &mesh_part) const;
+
+   /** @brief Write the given partition directly to @a os.
+
+       The output matches the corresponding per-part MFEM mesh file format for
+       both conforming and nonconforming serial meshes.
+
+       @param[in]  part_id  Partition index to write; valid values are in the
+                            range [0, num_parts).
+       @param[out] os       Output stream receiving the serialized part.
+   */
+   void PrintPart(int part_id, std::ostream &os) const;
 
    /** @brief Construct a local version of the given FiniteElementSpace
        @a global_fespace corresponding to the given @a mesh_part.

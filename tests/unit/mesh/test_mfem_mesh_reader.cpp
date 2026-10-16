@@ -13,6 +13,7 @@
 #include "unit_tests.hpp"
 
 #include <algorithm>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -105,4 +106,28 @@ TEST_CASE("MFEM Mesh Named Attributes", "[Mesh]")
 
       REQUIRE(elements_equal);
    }
+}
+
+TEST_CASE("MFEM NC mesh v1.2 named attributes", "[Mesh]")
+{
+   Mesh file_mesh("data/nc-mesh-v1.2-attribute-sets.mesh");
+   REQUIRE(file_mesh.Nonconforming());
+   REQUIRE(file_mesh.attribute_sets.AttributeSetExists("materials"));
+   REQUIRE(file_mesh.bdr_attribute_sets.AttributeSetExists("walls"));
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+   mesh.attribute_sets.CreateAttributeSet("materials").Append(1);
+   mesh.bdr_attribute_sets.CreateAttributeSet("walls").Append(1);
+
+   std::stringstream output;
+   mesh.Print(output);
+   REQUIRE(output.str().rfind("MFEM NC mesh v1.2", 0) == 0);
+
+   Mesh loaded(output);
+   REQUIRE(loaded.Nonconforming());
+   REQUIRE(loaded.attribute_sets.AttributeSetExists("materials"));
+   REQUIRE(loaded.bdr_attribute_sets.AttributeSetExists("walls"));
+   REQUIRE(loaded.attribute_sets.GetAttributeSet("materials").Size() == 1);
+   REQUIRE(loaded.bdr_attribute_sets.GetAttributeSet("walls").Size() == 1);
 }
