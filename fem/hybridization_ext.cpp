@@ -1118,7 +1118,8 @@ void HybridizationExtension::MultR(const Vector &x_hat, Vector &x) const
 
    // If R is null, then L-vector and T-vector are the same, and we don't need
    // an intermediate temporary variable.
-   //
+   MFEM_ASSERT(R || x.Size() == h.fes.GetVSize(), "");
+
    // If R is not null, we first convert to intermediate L-vector (with the
    // correct BCs), and then from L-vector to T-vector.
    if (R)
