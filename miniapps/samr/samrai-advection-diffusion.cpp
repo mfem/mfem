@@ -123,11 +123,12 @@ std::tuple<std::unique_ptr<ConductionOperator>,
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
                                   : ImplicitVariableType::SLOPE;
-   conduction->SetImplicitVariableType(imp_var);
 
    // Select and initialize the MFEM time integrator.
    std::unique_ptr<ODESolver> solver = ODESolver::Select(ode_solver_type);
    solver->Init(*conduction);
+   solver->SetImplicitVariableType(imp_var); // must come after ODESolver::Init
+
    return std::make_tuple(std::move(conduction), std::move(solver));
 }
 
