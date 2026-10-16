@@ -13,6 +13,9 @@ Version 4.10.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added Example 42 for DG ideal MHD with optional Godunov-Powell sources and
+  local divergence-free magnetic projection in 2D, with Orszag-Tang and smooth
+  circularly polarized Alfven wave benchmarks.
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
