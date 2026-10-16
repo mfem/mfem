@@ -318,8 +318,9 @@ private:
        coarse structured patches with a single element. */
    void ReadCoarsePatchCP(std::istream &input) override;
 
-   /// Print control points for coarse patches @a patchCP.
-   void PrintCoarsePatches(std::ostream &os) override;
+   /** @brief Read the weights for coarse patches, corresponding to control
+       points read by ReadCoarsePatchCP. */
+   void ReadCoarsePatchWeights(std::istream &input) override;
 
    std::vector<Array<int>> auxef; /// Auxiliary edge refinement factors
 };
