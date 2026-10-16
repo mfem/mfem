@@ -61,6 +61,57 @@ TEST_CASE("VTU Attributes", "[VTU][XML]")
    }
 }
 
+TEST_CASE("VTU Attribute Arrays", "[VTU][XML]")
+{
+   // The attributes are read from the cell data array named "material" or
+   // "attribute" (with "material" taking precedence), independent of the order
+   // of the arrays and of the active "Scalars" array.
+   std::vector<std::string> cell_data_blocks =
+   {
+      R"(<CellData Scalars="attribute">
+        <DataArray type="Int32" Name="quality" format="ascii">7</DataArray>
+        <DataArray type="Int32" Name="attribute" format="ascii">9</DataArray>
+      </CellData>)",
+      R"(<CellData>
+        <DataArray type="Int32" Name="attribute" format="ascii">9</DataArray>
+      </CellData>)",
+      R"(<CellData Scalars="attribute">
+        <DataArray type="Int32" Name="attribute" format="ascii">7</DataArray>
+        <DataArray type="Int32" Name="material" format="ascii">9</DataArray>
+      </CellData>)",
+      R"(<CellData Scalars="material">
+        <DataArray type="Int32" Name="material" format="ascii">9</DataArray>
+        <DataArray type="Int32" Name="attribute" format="ascii">7</DataArray>
+      </CellData>)"
+   };
+
+   const auto cell_data = GENERATE_COPY(from_range(cell_data_blocks));
+
+   std::istringstream vtu(R"(<VTKFile type="UnstructuredGrid" version="0.1">
+  <UnstructuredGrid>
+    <Piece NumberOfPoints="3" NumberOfCells="1">
+      )" + cell_data + R"(
+      <Points>
+        <DataArray type="Float64" NumberOfComponents="3" format="ascii">
+          0 0 0  1 0 0  0 1 0
+        </DataArray>
+      </Points>
+      <Cells>
+        <DataArray type="Int32" Name="connectivity" format="ascii">
+          0 1 2
+        </DataArray>
+        <DataArray type="Int32" Name="offsets" format="ascii">3</DataArray>
+        <DataArray type="UInt8" Name="types" format="ascii">5</DataArray>
+      </Cells>
+    </Piece>
+  </UnstructuredGrid>
+</VTKFile>)");
+
+   Mesh mesh(vtu);
+   REQUIRE(mesh.GetNE() == 1);
+   REQUIRE(mesh.GetAttribute(0) == 9);
+}
+
 TEST_CASE("VTU XML Compressed Blocks", "[VTU][XML][MFEMData]")
 {
 #ifdef MFEM_USE_ZLIB
