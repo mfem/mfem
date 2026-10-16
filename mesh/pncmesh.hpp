@@ -223,12 +223,16 @@ public:
    /// Return true if using more than one MPI process.
    bool IsParallel() const override { return NRanks > 1; }
 
-   /// Use the communication pattern from last Rebalance() to send element DOFs.
+   /** Use the communication pattern from last Rebalance() to send element DOFs
+       and, if given, element face orientations. */
    void SendRebalanceDofs(int old_ndofs, const Table &old_element_dofs,
-                          long old_global_offset, FiniteElementSpace* space);
+                          long old_global_offset, FiniteElementSpace* space,
+                          const Table *old_element_fos = NULL);
 
-   /// Receive element DOFs sent by SendRebalanceDofs().
-   void RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs);
+   /** Receive element DOFs sent by SendRebalanceDofs(), as signed global
+       VDOFs, and, if @a fos is given, the element face orientations. */
+   void RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs,
+                          Table *fos = NULL);
 
    /** Get previous indices (pre-Rebalance) of current elements. Index of -1
        indicates that an element didn't exist in the mesh before. */
@@ -571,6 +575,8 @@ protected: // implementation
    {
    public:
       std::vector<int> elem_ids, dofs;
+      /// Per element: the number of face orientations, then the orientations.
+      std::vector<int> fos;
       long dof_offset;
 
       void SetElements(const Array<int> &elems, NCMesh *ncmesh);
