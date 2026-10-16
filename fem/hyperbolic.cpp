@@ -1372,9 +1372,9 @@ real_t IdealMHDFlux::ComputeFlux(const Vector &U,
 {
    // 1. Get states
    const real_t density = U(0);                       // ρ
-   const Vector momentum(U.GetData() + 1, dim);       // ρu
-   const Vector magnetic(U.GetData() + 1 + dim, dim); // B
-   const real_t energy = U(1 + 2*dim);                // E, total energy
+   const Vector momentum(U.GetData() + 1, MHDdim);       // ρu
+   const Vector magnetic(U.GetData() + 1 + MHDdim, MHDdim); // B
+   const real_t energy = U(1 + 2*MHDdim);                // E, total energy
    const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
    const real_t magnetic_norm = magnetic*magnetic; // |B|^2
    const real_t magnetic_energy = 0.5 * magnetic_norm; // 0.5*|B|^2
@@ -1395,7 +1395,7 @@ real_t IdealMHDFlux::ComputeFlux(const Vector &U,
       FU(0, d) = momentum(d);
 
       // ρuuᵀ - BBᵀ
-      for (int i = 0; i < dim; i++)
+      for (int i = 0; i < MHDdim; i++)
       {
          FU(1 + i, d) = momentum(i) * momentum(d) / density - magnetic(i) * magnetic(d);
       }
@@ -1403,14 +1403,14 @@ real_t IdealMHDFlux::ComputeFlux(const Vector &U,
       FU(1 + d, d) += auxiliary_energy;
 
       // Buᵀ - uBᵀ
-      for (int i = 0; i < dim; i++)
+      for (int i = 0; i < MHDdim; i++)
       {
-         FU(1 + dim + i, d) = (magnetic(i) * momentum(d) - momentum(i) * magnetic(
-                                  d)) / density;
+         FU(1 + MHDdim + i, d) = (magnetic(i) * momentum(d) - momentum(i) * magnetic(
+                                     d)) / density;
       }
 
       // uᵀ(E + p + 0.5*|B|^2) - (u⋅B)Bᵀ
-      FU(1 + 2*dim, d) = momentum(d) * H - vB_inner * magnetic(d);
+      FU(1 + 2*MHDdim, d) = momentum(d) * H - vB_inner * magnetic(d);
    }
 
    // 3. Compute maximum characteristic speed
@@ -1432,9 +1432,9 @@ real_t IdealMHDFlux::ComputeFluxDotN(const Vector &x,
 {
    // 1. Get states
    const real_t density = x(0);                       // ρ
-   const Vector momentum(x.GetData() + 1, dim);       // ρu
-   const Vector magnetic(x.GetData() + 1 + dim, dim); // B
-   const real_t energy = x(1 + 2*dim);                // E, total energy
+   const Vector momentum(x.GetData() + 1, MHDdim);       // ρu
+   const Vector magnetic(x.GetData() + 1 + MHDdim, MHDdim); // B
+   const real_t energy = x(1 + 2*MHDdim);                // E, total energy
    const real_t kinetic_energy = 0.5 * (momentum*momentum) / density;
    const real_t magnetic_norm = magnetic*magnetic; // |B|^2
    const real_t magnetic_energy = 0.5 * magnetic_norm; // 0.5*|B|^2
@@ -1450,34 +1450,38 @@ real_t IdealMHDFlux::ComputeFluxDotN(const Vector &x,
 
    // 2. Compute normal flux
    // ρuᵀ dot n
-   FUdotN(0) = momentum*normal; // normal momentum
+   FUdotN(0) = 0.0;
+   for (int d = 0; d < dim; d++) { FUdotN(0) += momentum(d)*normal(d); } // normal momentum
 
    const real_t normal_velocity = FUdotN(0) / density;
-   const real_t normal_mangnetic = magnetic*normal;
+   real_t normal_mangnetic = 0.0;
+   for (int d = 0; d < dim; d++) { normal_mangnetic += magnetic(d)*normal(d); }
 
    // (ρuuᵀ - BBᵀ) dot n + (p + 0.5*|B|^2)n
-   for (int i = 0; i < dim; i++)
+   for (int i = 0; i < MHDdim; i++)
    {
       FUdotN(1 + i) = momentum(i) * normal_velocity - magnetic(
-                         i) * normal_mangnetic + auxiliary_energy * normal(i);
+                         i) * normal_mangnetic + auxiliary_energy * (i < dim ? normal(i) : 0.0);
    }
 
    // (Buᵀ - uBᵀ) dot n
-   for (int i = 0; i < dim; i++)
+   for (int i = 0; i < MHDdim; i++)
    {
-      FUdotN(1 + dim + i) = magnetic(i) * normal_velocity - momentum(i) *
-                            (normal_mangnetic / density);
+      FUdotN(1 + MHDdim + i) = magnetic(i) * normal_velocity - momentum(i) *
+                               (normal_mangnetic / density);
    }
 
    // (E + p + 0.5*|B|^2) uᵀ dot n - (u⋅B) Bᵀ dot n
-   FUdotN(1 + 2*dim) = FUdotN(0) * H - vB_inner * normal_mangnetic;
+   FUdotN(1 + 2*MHDdim) = FUdotN(0) * H - vB_inner * normal_mangnetic;
 
    // 3. Compute maximum characteristic speed
 
    // directional fast alfven speed
    const real_t gp = specific_heat_ratio * pressure;
    const real_t normal_norm = normal*normal;
-   Vector temp_vec(normal);
+   Vector temp_vec(MHDdim);
+   temp_vec = 0.0;
+   for (int d = 0; d < dim; d++) { temp_vec(d) = normal(d); }
    temp_vec *= normal_mangnetic / normal_norm;
    Vector tangential_mangetic(magnetic);
    tangential_mangetic -= temp_vec;
