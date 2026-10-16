@@ -140,7 +140,7 @@ private:
 
       /// Construct a block array with allocated memory for @a num_blocks
       /// blocks, each with @a block_size number of @a PODType entries.
-      BlockArray(const unsigned block_size, const unsigned num_blocks);
+      BlockArray(const unsigned block_size_, const unsigned num_blocks_);
 
       /// Set the @a index block with @a values , where @a index 2 would specify
       /// the 3rd block.

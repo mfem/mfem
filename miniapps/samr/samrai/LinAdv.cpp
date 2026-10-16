@@ -2781,10 +2781,12 @@ void LinAdv::getFromInput(
 
    const hier::IntVector& one_vec = hier::IntVector::getOne(d_dim);
    hier::IntVector periodic(d_grid_geometry->getPeriodicShift(one_vec));
+   /* Unused in MFEM example
    int num_per_dirs = 0;
    for (int id = 0; id < d_dim.getValue(); ++id) {
       if (periodic(id)) ++num_per_dirs;
    }
+   */
 
    if (input_db->keyExists("Boundary_data")) {
 
@@ -3176,7 +3178,7 @@ void LinAdv::checkBoundaryData(
                bscalarcase,
                d_bdry_face_uval[refbdryloc]);
       }
-#if (TESTING == 1)
+//#if (TESTING == 1)
       if (num_bad_values > 0) {
          tbox::perr << "\nLinAdv Boundary Test FAILED: \n"
                     << "     " << num_bad_values
@@ -3184,7 +3186,7 @@ void LinAdv::checkBoundaryData(
                     << "     boundary type " << btype << " at location "
                     << bloc << std::endl;
       }
-#endif
+//#endif
 
    }
 
