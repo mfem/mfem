@@ -5607,6 +5607,7 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
    const int ndof1 = test_fe1.GetDof();
    const int ndof2 = (Trans.Elem2No >= 0)?(test_fe1.GetDof()):(0);
    const int dim = test_fe1.GetDim();
+   const int dim_curl = dim == 3 ? 3 : 1;
 
    Vector nor(dim);
 
@@ -5623,7 +5624,7 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
 
    if (test_fe1.GetRangeType() == FiniteElement::SCALAR)
    {
-      elmat.SetSize((ndof1 + ndof2) * dim, face_ndof);
+      elmat.SetSize((ndof1 + ndof2) * dim, face_ndof * dim_curl);
       elmat = 0.0;
 
       const IntegrationRule *ir = IntRule;
@@ -5642,6 +5643,44 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
          ir = &IntRules.Get(Trans.GetGeometryType(), order);
       }
 
+      auto kernel = [&elmat, &dim, &nor](const real_t w, const Vector &el_shape,
+                                         const Vector &face_shape, int ioff, int joff)
+      {
+         const int face_ndof = face_shape.Size();
+         const int el_ndof = el_shape.Size();
+
+         if (dim < 3)
+         {
+            for (int i = 0; i < el_ndof; i++)
+               for (int j = 0; j < face_ndof; j++)
+               {
+                  elmat(ioff + i + 0*el_ndof,
+                        joff + j) += w * el_shape(i) * face_shape(j) * nor(1);
+                  elmat(ioff + i + 1*el_ndof,
+                        joff + j) -= w * el_shape(i) * face_shape(j) * nor(0);
+               }
+         }
+         else
+         {
+            for (int i = 0; i < el_ndof; i++)
+               for (int j = 0; j < face_ndof; j++)
+               {
+                  elmat(ioff + i + 1*el_ndof,
+                        joff + j + 0*face_ndof) += w * el_shape(i) * face_shape(j) * nor(2);
+                  elmat(ioff + i + 2*el_ndof,
+                        joff + j + 0*face_ndof) -= w * el_shape(i) * face_shape(j) * nor(1);
+                  elmat(ioff + i + 2*el_ndof,
+                        joff + j + 1*face_ndof) += w * el_shape(i) * face_shape(j) * nor(0);
+                  elmat(ioff + i + 0*el_ndof,
+                        joff + j + 1*face_ndof) -= w * el_shape(i) * face_shape(j) * nor(2);
+                  elmat(ioff + i + 0*el_ndof,
+                        joff + j + 2*face_ndof) += w * el_shape(i) * face_shape(j) * nor(1);
+                  elmat(ioff + i + 1*el_ndof,
+                        joff + j + 2*face_ndof) -= w * el_shape(i) * face_shape(j) * nor(0);
+               }
+         }
+      };
+
       for (int p = 0; p < ir->GetNPoints(); p++)
       {
          const IntegrationPoint &ip = ir->IntPoint(p);
@@ -5653,25 +5692,15 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
          // Side 1 finite element shape function
          test_fe1.CalcPhysShape(*Trans.Elem1, shape1_n);
          CalcOrtho(Trans.Face->Jacobian(), nor);
-         face_shape *= ip.weight * sign;
-         for (int i = 0; i < ndof1; i++)
-            for (int j = 0; j < face_ndof; j++)
-            {
-               elmat(i+0*ndof1, j) += shape1_n(i) * face_shape(j) * nor(1);
-               elmat(i+1*ndof1, j) -= shape1_n(i) * face_shape(j) * nor(0);
-            }
+         const real_t w = ip.weight * sign;
+         kernel(+w, shape1_n, face_shape, 0, 0);
 
          if (ndof2)
          {
             // Side 2 finite element shape function
             test_fe2.CalcPhysShape(*Trans.Elem2, shape2_n);
             // Subtract contribution from side 2
-            for (int i = 0; i < ndof2; i++)
-               for (int j = 0; j < face_ndof; j++)
-               {
-                  elmat(ndof1*dim+i+0*ndof2, j) -= shape2_n(i) * face_shape(j) * nor(1);
-                  elmat(ndof1*dim+i+1*ndof2, j) += shape2_n(i) * face_shape(j) * nor(0);
-               }
+            kernel(-w, shape2_n, face_shape, ndof1*dim, 0);
          }
       }
    }
