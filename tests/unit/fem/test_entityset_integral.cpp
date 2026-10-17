@@ -70,7 +70,8 @@ TEST_CASE("L2 element-set integral selects only set members",
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("Parallel L2 element-set integral", "[EntitySets][L2_FECollection][Parallel]")
+TEST_CASE("Parallel L2 element-set integral",
+          "[EntitySets][L2_FECollection][Parallel]")
 {
    Mesh serial_mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
                                             false, 2.0, 2.0);

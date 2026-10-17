@@ -42,7 +42,8 @@ void EntitySetFunctional::VerifyCompatibleField() const
 real_t EntitySetFunctional::GlobalSum(real_t local_value) const
 {
 #ifdef MFEM_USE_MPI
-   const ParMesh *pmesh = dynamic_cast<const ParMesh *>(Field().FESpace()->GetMesh());
+   const ParMesh *pmesh = dynamic_cast<const ParMesh *>
+                          (Field().FESpace()->GetMesh());
    if (pmesh)
    {
       real_t global_value;

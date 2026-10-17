@@ -1,13 +1,13 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
-// reserved. See file COPYRIGHT for details.
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
 //
 // MFEM is free software; you can redistribute it and/or modify it under the
-// terms of the GNU Lesser General Public License (as published by the Free
-// Software Foundation) version 2.1 dated February 1999.
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 
 #include "entsets.hpp"
@@ -795,7 +795,7 @@ int EntitySets::AddElementSetByAttribute(const string &name, int attribute)
 }
 
 int EntitySets::AddElementSetByMarker(const string &name,
-                                       const Array<int> &marker)
+                                      const Array<int> &marker)
 {
    MFEM_VERIFY(marker.Size() == mesh_->GetNE(),
                "Element marker size must equal the number of local elements.");
@@ -860,8 +860,8 @@ int EntitySets::AddEdgeSetByBoundaryAttribute(const string &name, int attribute)
 }
 
 int EntitySets::AddEdgeSetByPredicate(const string &name,
-                                       const PointPredicate &predicate,
-                                       EdgeSetPointRule rule)
+                                      const PointPredicate &predicate,
+                                      EdgeSetPointRule rule)
 {
    MFEM_VERIFY(mesh_->Dimension() > 1,
                "Edge sets require a mesh of dimension at least two.");
@@ -908,8 +908,8 @@ int EntitySets::AddEdgeSetByPredicate(const string &name,
 }
 
 int EntitySets::AddElementSetByPredicate(const string &name,
-                                          const PointPredicate &predicate,
-                                          ElementSetPointRule rule)
+                                         const PointPredicate &predicate,
+                                         ElementSetPointRule rule)
 {
    MFEM_VERIFY(predicate, "EntitySets point predicate is empty.");
    const int set_index = AddSet(ELEMENT, name);
@@ -955,9 +955,9 @@ int EntitySets::AddElementSetByPredicate(const string &name,
 }
 
 int EntitySets::AddElementSetByLevelSet(const string &name,
-                                         Coefficient &level_set,
-                                         real_t tolerance,
-                                         ElementSetPointRule rule)
+                                        Coefficient &level_set,
+                                        real_t tolerance,
+                                        ElementSetPointRule rule)
 {
    const int set_index = AddSet(ELEMENT, name);
 

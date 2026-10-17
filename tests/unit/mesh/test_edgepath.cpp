@@ -3,7 +3,11 @@
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
 // This file is part of the MFEM library. For more information and source code
-// availability see http://mfem.org.
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
@@ -87,7 +91,7 @@ TEST_CASE("Edge paths follow directed mesh edges", "[Mesh]")
    RequirePathConnectivity(mesh, closed_path);
 
    Mesh quad_mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL,
-                                           false, 2.0, 1.0);
+                                          false, 2.0, 1.0);
    int start_vertex = -1;
    int end_vertex = -1;
    for (int vertex = 0; vertex < quad_mesh.GetNV(); vertex++)
