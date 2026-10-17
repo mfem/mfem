@@ -63,13 +63,15 @@ void GetPathEdgeVertices(const Mesh &mesh, int edge, Array<int> &vertices)
 
 } // namespace
 
-OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, int start_vertex, int end_vertex)
+OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, int start_vertex,
+                                 int end_vertex)
 {
    SetEndpoints(mesh, start_vertex, end_vertex);
 }
 
-OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, int start_vertex, int end_vertex,
-                                  const EdgeScorer &scorer)
+OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, int start_vertex,
+                                 int end_vertex,
+                                 const EdgeScorer &scorer)
 {
    SetEndpoints(mesh, start_vertex, end_vertex, scorer);
 }
@@ -80,18 +82,19 @@ OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, const Array<int> &vertices)
 }
 
 OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, const Array<int> &vertices,
-                                  const EdgeScorer &scorer)
+                                 const EdgeScorer &scorer)
 {
    SetWaypoints(mesh, vertices, scorer);
 }
 
 OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, const Array<int> &edges,
-                                  const Array<int> &edge_orientations)
+                                 const Array<int> &edge_orientations)
 {
    SetEdges(mesh, edges, edge_orientations);
 }
 
-void OrientedEdgeSet::SetEndpoints(const Mesh &mesh, int start_vertex, int end_vertex)
+void OrientedEdgeSet::SetEndpoints(const Mesh &mesh, int start_vertex,
+                                   int end_vertex)
 {
    SetEndpointsImpl(mesh, start_vertex, end_vertex, nullptr, EdgeScorer());
 }
@@ -246,7 +249,8 @@ void OrientedEdgeSet::SetEndpointsImpl(const Mesh &mesh, int start_vertex,
    }
 }
 
-void OrientedEdgeSet::SetEndpointsInElementSet(const Mesh &mesh, int start_vertex,
+void OrientedEdgeSet::SetEndpointsInElementSet(const Mesh &mesh,
+                                               int start_vertex,
                                                int end_vertex, const EntitySets &sets,
                                                int element_set,
                                                const EdgeScorer &scorer)

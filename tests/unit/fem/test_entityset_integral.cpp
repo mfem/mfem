@@ -141,8 +141,10 @@ TEST_CASE("HCurl oriented-edge-set integral", "[EntitySets][ND_FECollection]")
    OrientedEdgeSet forward(mesh, left, right);
    OrientedEdgeSet reverse(mesh, right, left);
 
-   REQUIRE(HCurlOrientedEdgeSetIntegral(field, forward).Eval() == MFEM_Approx(2.0));
-   REQUIRE(HCurlOrientedEdgeSetIntegral(field, reverse).Eval() == MFEM_Approx(-2.0));
+   REQUIRE(HCurlOrientedEdgeSetIntegral(field,
+                                        forward).Eval() == MFEM_Approx(2.0));
+   REQUIRE(HCurlOrientedEdgeSetIntegral(field,
+                                        reverse).Eval() == MFEM_Approx(-2.0));
 }
 
 TEST_CASE("HDiv oriented-face-set integral", "[EntitySets][RT_FECollection]")
@@ -167,7 +169,8 @@ TEST_CASE("HDiv oriented-face-set integral", "[EntitySets][RT_FECollection]")
    field.ProjectCoefficient(value);
 
    REQUIRE(interface.Size() == 1);
-   REQUIRE(HDivOrientedFaceSetIntegral(field, interface).Eval() == MFEM_Approx(1.0));
+   REQUIRE(HDivOrientedFaceSetIntegral(field,
+                                       interface).Eval() == MFEM_Approx(1.0));
 }
 
 #ifdef MFEM_USE_MPI
@@ -240,7 +243,8 @@ TEST_CASE("Parallel HCurl oriented-edge-set integral",
       edge_set.SetWaypoints(mesh, Array<int>({0}));
    }
 
-   REQUIRE(HCurlOrientedEdgeSetIntegral(field, edge_set).Eval() == MFEM_Approx(expected));
+   REQUIRE(HCurlOrientedEdgeSetIntegral(field,
+                                        edge_set).Eval() == MFEM_Approx(expected));
 }
 
 TEST_CASE("Parallel H1 vertex-set measurement",
@@ -334,7 +338,8 @@ TEST_CASE("Parallel HDiv oriented-face-set integral",
    }
    OrientedFaceSet face_set(mesh, faces, signs);
 
-   REQUIRE(HDivOrientedFaceSetIntegral(field, face_set).Eval() == MFEM_Approx(1.0));
+   REQUIRE(HDivOrientedFaceSetIntegral(field,
+                                       face_set).Eval() == MFEM_Approx(1.0));
 }
 
 #endif

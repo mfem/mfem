@@ -110,7 +110,8 @@ TEST_CASE("Oriented edge sets provide path construction", "[Mesh]")
    OrientedEdgeSet explicit_set(quad_mesh, quad_path.GetEdges(),
                                 quad_path.GetEdgeOrientations());
    RequireEqual(explicit_set.GetEdges(), quad_path.GetEdges());
-   RequireEqual(explicit_set.GetEdgeOrientations(), quad_path.GetEdgeOrientations());
+   RequireEqual(explicit_set.GetEdgeOrientations(),
+                quad_path.GetEdgeOrientations());
    REQUIRE(explicit_set.GetVertices().Size() == 0);
 
    OrientedEdgeSet disconnected_set(quad_mesh, Array<int>({0, 1}),
