@@ -2378,6 +2378,55 @@ TEST_CASE("2D GetVectorValue in Parallel",
 
 #endif // MFEM_USE_MPI
 
+TEST_CASE("ND element-local L2 projection",
+          "[GridFunction][DofTransformation]")
+{
+   const auto type = GENERATE(Element::TETRAHEDRON, Element::WEDGE);
+   const int order = GENERATE(1, 2);
+   CAPTURE(type, order);
+
+   Mesh mesh(3, type == Element::TETRAHEDRON ? 5 : 9, 2);
+   if (type == Element::TETRAHEDRON)
+   {
+      mesh.AddVertex(0.0, 0.0, 0.0);
+      mesh.AddVertex(1.0, 0.0, 0.0);
+      mesh.AddVertex(0.0, 1.0, 0.0);
+      mesh.AddVertex(0.0, 0.0, 1.0);
+      mesh.AddVertex(0.0, 0.0, -1.0);
+      mesh.AddTet(0, 1, 2, 3);
+      mesh.AddTet(0, 2, 1, 4);
+      mesh.FinalizeTetMesh(1, 0, true);
+   }
+   else
+   {
+      for (int z = 0; z < 3; z++)
+      {
+         mesh.AddVertex(0.0, 0.0, z);
+         mesh.AddVertex(1.0, 0.0, z);
+         mesh.AddVertex(0.0, 1.0, z);
+      }
+      mesh.AddWedge(0, 1, 2, 3, 4, 5);
+      mesh.AddWedge(3, 4, 5, 6, 7, 8);
+      mesh.FinalizeWedgeMesh(1, 0, true);
+   }
+
+   ND_FECollection fec(order, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction u(&fes);
+   Vector exact({1.0, 0.0, 0.0});
+   VectorConstantCoefficient coefficient(exact);
+   u.ProjectCoefficient(coefficient, ProjectType::ELEMENT_L2);
+
+   CHECK(u.ComputeL2Error(coefficient) < 1e-10);
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      Vector value;
+      u.GetVectorValue(e, Geometries.GetCenter(mesh.GetElementGeometry(e)), value);
+      value -= exact;
+      CHECK(value.Norml2() < 1e-10);
+   }
+}
+
 TEST_CASE("3D GetVectorValue",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
