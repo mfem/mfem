@@ -1805,8 +1805,10 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
 
    const int ndof1 = el1.GetDof();
    const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):0;
+   const int vdof1 = ndof1 * dim_curl;
+   const int vdof2 = ndof2 * dim_curl;
 
-   nor.SetSize(dim);
+   Vector nor(dim);
 
    shape1.SetSize(ndof1);
    shape2.SetSize(ndof2);
@@ -1887,28 +1889,39 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
 
       wn *= 0.5 * beta;
 
+      auto kernel = [&elmat,&dim_curl,&dim,&nor](const real_t w, const real_t wq,
+                                                 const Vector &shape_te, const Vector &shape_tr,
+                                                 int i, int j, int ioff, int joff)
+      {
+         const int ndof_tr = shape_tr.Size();
+         const int ndof_te = shape_te.Size();
+
+         // shape_i,d * shape_j,d * (n*n)
+         const real_t wss = wq * shape_te(i) * shape_tr(j);
+         for (int d = 0; d < dim_curl; d++)
+         {
+            elmat(ioff + i + d*ndof_te, joff + j + d*ndof_tr) += wss;
+         }
+
+         // -shape_i,di * n_di * shape_j,dj * n_dj
+         if (dim_curl == dim)
+         {
+            const real_t wssij = w * shape_te(i) * shape_tr(j);
+            for (int di = 0; di < dim_curl; di++)
+               for (int dj = 0; dj < dim_curl; dj++)
+               {
+                  elmat(ioff + i + di*ndof_te,
+                        joff + j + dj*ndof_tr) -= wssij * nor(di) * nor(dj);
+               }
+         }
+      };
+
       // only assemble the lower triangular part
       const real_t wq = wn * (nor * nor);
       for (int i = 0; i < ndof1; i++)
          for (int j = 0; j <= i; j++)
          {
-            // shape_i,d * shape_j,d * (n*n)
-            const real_t wss = wq * shape1(i) * shape1(j);
-            for (int d = 0; d < dim_curl; d++)
-            {
-               elmat(i + d*ndof1, j + d*ndof1) += wss;
-            }
-
-            // -shape_i,di * n_di * shape_j,dj * n_dj
-            if (dim_curl == dim)
-            {
-               const real_t wssij = wn * shape1(i) * shape1(j);
-               for (int di = 0; di < dim_curl; di++)
-                  for (int dj = 0; dj < dim_curl; dj++)
-                  {
-                     elmat(i + di*ndof1, j + dj*ndof1) -= wssij * nor(di) * nor(dj);
-                  }
-            }
+            kernel(+wn, +wq, shape1, shape1, i, j, 0, 0);
          }
 
 
@@ -1917,49 +1930,14 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
 
          for (int i = 0; i < ndof2; i++)
          {
-            const int i2 = ndof1*dim_curl + i;
             for (int j = 0; j < ndof1; j++)
             {
-               // shape_i,d * shape_j,d * (n*n)
-               const real_t wss = wq * shape2(i) * shape1(j);
-               for (int d = 0; d < dim_curl; d++)
-               {
-                  elmat(i2 + d*ndof2, j + d*ndof1) -= wss;
-               }
-
-               // -shape_i,di * n_di * shape_j,dj * n_dj
-               if (dim_curl == dim)
-               {
-                  const real_t wssij = wn * shape2(i) * shape1(j);
-                  for (int di = 0; di < dim_curl; di++)
-                     for (int dj = 0; dj < dim_curl; dj++)
-                     {
-                        elmat(i2 + di*ndof2, j + dj*ndof1) += wssij * nor(di) * nor(dj);
-                     }
-               }
+               kernel(-wn, -wq, shape2, shape1, i, j, vdof1, 0);
             }
 
             for (int j = 0; j <= i; j++)
             {
-               const int j2 = ndof1*dim_curl + j;
-
-               // shape_i,d * shape_j,d * (n*n)
-               const real_t wss = wq * shape2(i) * shape2(j);
-               for (int d = 0; d < dim_curl; d++)
-               {
-                  elmat(i2 + d*ndof2, j2 + d*ndof2) += wss;
-               }
-
-               // -shape_i,di * n_di * shape_j,dj * n_dj
-               if (dim_curl == dim)
-               {
-                  const real_t wssij = wn * shape2(i) * shape2(j);
-                  for (int di = 0; di < dim_curl; di++)
-                     for (int dj = 0; dj < dim_curl; dj++)
-                     {
-                        elmat(i2 + di*ndof2, j2 + dj*ndof2) -= wssij * nor(di) * nor(dj);
-                     }
-               }
+               kernel(+wn, +wq, shape2, shape2, i, j, vdof1, vdof1);
             }
 
          }

@@ -223,7 +223,7 @@ protected:
    real_t alpha, beta;
 
    // these are not thread-safe!
-   Vector tr_shape, shape1, shape2, vu, nor;
+   Vector tr_shape, shape1, shape2;
    Vector nor_Jt, nor_Ji, ni_Jt, ni_Ji;
 
 public:
