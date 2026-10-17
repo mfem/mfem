@@ -85,12 +85,12 @@ private:
 /** @brief Integrate an H(curl) GridFunction along an OrientedEdgeSet.
 
     Eval() directly evaluates the field using a local element incident to each
-    edge and integrates @f$\mathbf{u}\cdot d\mathbf{x}@f$. In parallel, each
+    edge and integrates $\mathbf{u}\cdot d\mathbf{x}$. In parallel, each
     rank supplies the oriented edges it owns and Eval() sums the local
     contributions over the mesh communicator. The path and GridFunction are
     not owned and must remain valid for the lifetime of this object.
 
-    The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
+    The default quadrature order is $2p+3$, where $p$ is the order of
     the incident element finite element. An explicit non-negative order
     overrides that default. */
 class HCurlOrientedEdgeSetIntegral
@@ -118,13 +118,13 @@ private:
     OrientedFaceSet.
 
     Eval() directly evaluates the field in a local element adjacent to every
-    face and integrates @f$\mathbf{u}\cdot\mathbf{n}@f$, including each face's
+    face and integrates $\mathbf{u}\cdot\mathbf{n}$, including each face's
     stored normal sign. In parallel, each rank supplies its owned faces and
     Eval() sums the local contributions over the mesh communicator. The face
     set and GridFunction are not owned and must remain valid for the lifetime
     of this object.
 
-    The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
+    The default quadrature order is $2p+3$, where $p$ is the order of
     the adjacent element finite element. An explicit non-negative order
     overrides that default. */
 class HDivOrientedFaceSetIntegral
@@ -155,7 +155,7 @@ private:
     returned on every rank. The entity set and GridFunction are not owned and
     must remain valid for the lifetime of this object.
 
-    The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
+    The default quadrature order is $2p+3$, where $p$ is the order of
     each element's finite element. An explicit non-negative order overrides
     that default. */
 class L2ElementSetIntegral : public EntitySetFunctional
