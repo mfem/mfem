@@ -115,6 +115,7 @@ set(UNIT_TESTS_SRCS
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp
+  fem/test_entityset_integral.cpp
   fem/test_doftrans.cpp
   fem/test_domain_int.cpp
   fem/test_eigs.cpp

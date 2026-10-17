@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "../general/table.hpp"
 #include "../general/stable3d.hpp"
+#include <functional>
 #include <limits>
 #include <map>
 #include <set>
@@ -27,6 +28,8 @@ namespace mfem
 class Mesh;
 class NCMesh;
 class NCEntitySets;
+class Coefficient;
+class Vector;
 
 class EntitySets
 {
@@ -36,6 +39,12 @@ class EntitySets
 
 public:
    enum EntityType {INVALID = -1, VERTEX = 0, EDGE = 1, FACE = 2, ELEMENT = 3};
+
+   /// Rules for selecting elements using a physical-space point predicate.
+   enum class ElementSetPointRule { CENTER, ALL_VERTICES };
+
+   /// A function that determines whether a physical-space point is selected.
+   using PointPredicate = std::function<bool(const Vector &)>;
 
    static std::map<EntityType,std::string> EntityTypeNames;
 
@@ -84,6 +93,45 @@ public:
    void AddQuadFace(int set_index, int v0, int v1, int v2, int v3);
    void AddQuadFace(const std::string & set_name, int v0, int v1, int v2,
                     int v3);
+
+   /** @brief Create an element set from local element indices.
+
+       Repeated indices are ignored. */
+   int AddElementSet(const std::string & name, const Array<int> & elements);
+
+   /** @brief Create an element set containing elements with @a attribute. */
+   int AddElementSetByAttribute(const std::string & name, int attribute);
+
+   /** @brief Create an element set from a local element marker array.
+
+       The marker must have one entry per local element; nonzero entries select
+       their corresponding elements. */
+   int AddElementSetByMarker(const std::string & name,
+                             const Array<int> & marker);
+
+   /** @brief Create an element set by applying a predicate to physical points.
+
+       With ElementSetPointRule::CENTER, the predicate is evaluated at the
+       image of each reference-element center. With
+       ElementSetPointRule::ALL_VERTICES, every physical element vertex must
+       satisfy the predicate. The selected elements are captured when this
+       method is called; subsequent refinement follows the usual entity-set
+       descendant rules. */
+   int AddElementSetByPredicate(const std::string & name,
+                                const PointPredicate & predicate,
+                                ElementSetPointRule rule =
+                                   ElementSetPointRule::CENTER);
+
+   /** @brief Create an element set from the sublevel set @a level_set <=
+       @a tolerance.
+
+       The coefficient is evaluated at the same physical points as in
+       AddElementSetByPredicate(). */
+   int AddElementSetByLevelSet(const std::string & name,
+                               Coefficient & level_set,
+                               real_t tolerance = 0.0,
+                               ElementSetPointRule rule =
+                                  ElementSetPointRule::CENTER);
 
    inline std::set<int> & operator()(EntityType t, unsigned int s)
    { return sets_[t][s]; }

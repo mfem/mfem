@@ -771,6 +771,139 @@ void EntitySets::AddQuadFace(const string &set_name, int v0, int v1, int v2,
    AddQuadFace(GetSetIndex(FACE, set_name), v0, v1, v2, v3);
 }
 
+int EntitySets::AddElementSet(const string &name, const Array<int> &elements)
+{
+   const int set_index = AddSet(ELEMENT, name);
+   for (const int element : elements)
+   {
+      AddEntity(ELEMENT, set_index, element);
+   }
+   return set_index;
+}
+
+int EntitySets::AddElementSetByAttribute(const string &name, int attribute)
+{
+   const int set_index = AddSet(ELEMENT, name);
+   for (int element = 0; element < mesh_->GetNE(); element++)
+   {
+      if (mesh_->GetElement(element)->GetAttribute() == attribute)
+      {
+         sets_[ELEMENT][set_index].insert(element);
+      }
+   }
+   return set_index;
+}
+
+int EntitySets::AddElementSetByMarker(const string &name,
+                                       const Array<int> &marker)
+{
+   MFEM_VERIFY(marker.Size() == mesh_->GetNE(),
+               "Element marker size must equal the number of local elements.");
+   const int set_index = AddSet(ELEMENT, name);
+   for (int element = 0; element < marker.Size(); element++)
+   {
+      if (marker[element]) { sets_[ELEMENT][set_index].insert(element); }
+   }
+   return set_index;
+}
+
+int EntitySets::AddElementSetByPredicate(const string &name,
+                                          const PointPredicate &predicate,
+                                          ElementSetPointRule rule)
+{
+   MFEM_VERIFY(predicate, "EntitySets point predicate is empty.");
+   const int set_index = AddSet(ELEMENT, name);
+   Vector point(mesh_->SpaceDimension());
+
+   for (int element = 0; element < mesh_->GetNE(); element++)
+   {
+      ElementTransformation *trans = mesh_->GetElementTransformation(element);
+      const Geometry::Type geometry = mesh_->GetElementBaseGeometry(element);
+      bool selected = false;
+
+      switch (rule)
+      {
+         case ElementSetPointRule::CENTER:
+            trans->Transform(Geometries.GetCenter(geometry), point);
+            selected = predicate(point);
+            break;
+
+         case ElementSetPointRule::ALL_VERTICES:
+         {
+            const IntegrationRule *vertices = Geometries.GetVertices(geometry);
+            selected = true;
+            for (int vertex = 0; vertex < vertices->GetNPoints(); vertex++)
+            {
+               trans->Transform(vertices->IntPoint(vertex), point);
+               if (!predicate(point))
+               {
+                  selected = false;
+                  break;
+               }
+            }
+            break;
+         }
+
+         default:
+            MFEM_ABORT("Unknown element-set point selection rule.");
+      }
+
+      if (selected) { sets_[ELEMENT][set_index].insert(element); }
+   }
+
+   return set_index;
+}
+
+int EntitySets::AddElementSetByLevelSet(const string &name,
+                                         Coefficient &level_set,
+                                         real_t tolerance,
+                                         ElementSetPointRule rule)
+{
+   const int set_index = AddSet(ELEMENT, name);
+
+   for (int element = 0; element < mesh_->GetNE(); element++)
+   {
+      ElementTransformation *trans = mesh_->GetElementTransformation(element);
+      const Geometry::Type geometry = mesh_->GetElementBaseGeometry(element);
+      bool selected = false;
+
+      switch (rule)
+      {
+         case ElementSetPointRule::CENTER:
+         {
+            const IntegrationPoint &center = Geometries.GetCenter(geometry);
+            trans->SetIntPoint(&center);
+            selected = level_set.Eval(*trans, center) <= tolerance;
+            break;
+         }
+
+         case ElementSetPointRule::ALL_VERTICES:
+         {
+            const IntegrationRule *vertices = Geometries.GetVertices(geometry);
+            selected = true;
+            for (int vertex = 0; vertex < vertices->GetNPoints(); vertex++)
+            {
+               const IntegrationPoint &ip = vertices->IntPoint(vertex);
+               trans->SetIntPoint(&ip);
+               if (level_set.Eval(*trans, ip) > tolerance)
+               {
+                  selected = false;
+                  break;
+               }
+            }
+            break;
+         }
+
+         default:
+            MFEM_ABORT("Unknown element-set point selection rule.");
+      }
+
+      if (selected) { sets_[ELEMENT][set_index].insert(element); }
+   }
+
+   return set_index;
+}
+
 unsigned int
 EntitySets::GetNumEntities(EntityType t, unsigned int s) const
 {
