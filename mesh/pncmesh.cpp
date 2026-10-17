@@ -23,6 +23,8 @@
 #include <climits> // INT_MIN, INT_MAX
 #include <array>
 
+#include <fstream> // MLS Debugging
+
 namespace mfem
 {
 
@@ -73,6 +75,7 @@ static real_t DirectedHexEdgeScale(const int* nodes, const Refinement &ref,
 ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh,
                      const int *partitioning)
    : NCMesh(ncmesh)
+   , pncent_sets(NULL)
 {
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -87,6 +90,9 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh,
    }
 
    Update();
+
+   ncent_sets = pncent_sets =
+                   (ncmesh.ncent_sets) ? new ParNCEntitySets(comm, ncmesh) : NULL;
 
    // note that at this point all processors still have all the leaf elements;
    // we however may now start pruning the refinement tree to get rid of
@@ -135,6 +141,9 @@ ParNCMesh::ParNCMesh(const ParNCMesh &other)
 ParNCMesh::~ParNCMesh()
 {
    ClearAuxPM();
+
+   delete pncent_sets;
+   ncent_sets = pncent_sets = NULL;
 }
 
 void ParNCMesh::Update()
@@ -165,6 +174,40 @@ void ParNCMesh::Update()
    element_type.SetSize(0);
    ghost_layer.SetSize(0);
    boundary_layer.SetSize(0);
+}
+
+
+void ParNCMesh::OnMeshUpdated(Mesh *mesh)
+{
+   ParMesh *pmesh = dynamic_cast<ParMesh *>(mesh);
+   MFEM_VERIFY(pmesh != NULL, "ParNCMesh requires a ParMesh");
+
+   // NCMesh rebuilds the current entity-set view. Remove the old parallel
+   // view first so the base class can safely create its temporary serial view.
+   if (pmesh->pent_sets)
+   {
+      MFEM_ASSERT(pmesh->ent_sets == pmesh->pent_sets, "inconsistent entity sets");
+      delete pmesh->pent_sets;
+      pmesh->ent_sets = pmesh->pent_sets = NULL;
+   }
+   else
+   {
+      delete pmesh->ent_sets;
+      pmesh->ent_sets = NULL;
+   }
+
+   // First establish the current local and ghost entity numbering. The base
+   // implementation may create a serial EntitySets object, which is replaced
+   // below by the ownership-filtered parallel view.
+   NCMesh::OnMeshUpdated(mesh);
+
+   delete pmesh->ent_sets;
+   pmesh->ent_sets = NULL;
+
+   if (pncent_sets)
+   {
+      pmesh->ent_sets = pmesh->pent_sets = new ParEntitySets(*pmesh, *this);
+   }
 }
 
 void ParNCMesh::ElementSharesFace(int elem, int local, int face)
@@ -2419,13 +2462,11 @@ void ParNCMesh::SynchronizeDerefinementData(Array<Type> &elem_data,
          neigh.Sort();
          neigh.Unique();
 
-         for (int j = 0; j < size; j++/*pass*/)
+         for (int j = 0; j < size; j++)
          {
             Type *data = &elem_data[fine[j]];
 
-            int rnk = ranks[j], len = 1; /*j;
-            do { j++; } while (j < size && ranks[j] == rnk);
-            len = j - len;*/
+            int rnk = ranks[j], len = 1;
 
             if (rnk == MyRank)
             {
@@ -3579,6 +3620,42 @@ void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
    debug_mesh.InitFromNCMesh(*copy);
    debug_mesh.SetAttributes();
    debug_mesh.ncmesh = copy;
+}
+
+void ParNCMesh::GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edges)
+{
+   NCMesh::GetRefinedEdges(vn0, vn1, edges);
+}
+
+void ParNCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+                                BlockArray<int> & face_ids)
+{
+   NCMesh::GetRefinedFaces(vn0, vn1, vn2, vn3, face_ids);
+}
+
+void ParNCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
+{
+   Element &el = elements[elem_id];
+
+   if (el.ref_type != 0)
+   {
+      // This element has been refined so recurse into its children
+      for (int i = 0; i < 8; i++)
+      {
+         if (el.child[i] >= 0 && el.child[i] < elements.Size() )
+         {
+            GetRefinedElements(el.child[i], elem_ids);
+         }
+      }
+   }
+   else
+   {
+      // This element has not been refined so add it if it's a local element
+      if (el.rank == MyRank)
+      {
+         elem_ids.Append(elem_id);
+      }
+   }
 }
 
 void ParNCMesh::Trim()

@@ -81,6 +81,8 @@ set(UNIT_TESTS_SRCS
   mesh/test_mfem_mesh_reader.cpp
   mesh/test_bb_grid_map.cpp
   mesh/test_exodus_writer.cpp
+  mesh/test_edgepath.cpp
+  mesh/test_entity_sets.cpp
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
   mesh/test_geometric_factors.cpp
@@ -114,6 +116,7 @@ set(UNIT_TESTS_SRCS
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp
+  fem/test_entityset_integral.cpp
   fem/test_doftrans.cpp
   fem/test_domain_int.cpp
   fem/test_eigs.cpp
