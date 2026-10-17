@@ -807,6 +807,106 @@ int EntitySets::AddElementSetByMarker(const string &name,
    return set_index;
 }
 
+int EntitySets::AddEdgeSetFromElementSet(const string &name, int element_set,
+                                         ElementSetEdgeRule rule)
+{
+   MFEM_VERIFY(mesh_->Dimension() > 1,
+               "Edge sets require a mesh of dimension at least two.");
+   VerifySetIndex(ELEMENT, element_set);
+   const int set_index = AddSet(EDGE, name);
+   Array<int> selected_incidence(mesh_->GetNEdges());
+   Array<int> unselected_incidence(mesh_->GetNEdges());
+   selected_incidence = 0;
+   unselected_incidence = 0;
+
+   for (int element = 0; element < mesh_->GetNE(); element++)
+   {
+      Array<int> edges, orientations;
+      mesh_->GetElementEdges(element, edges, orientations);
+      Array<int> &incidence = sets_[ELEMENT][element_set].count(element) ?
+                              selected_incidence : unselected_incidence;
+      for (const int edge : edges) { incidence[edge]++; }
+   }
+
+   for (int edge = 0; edge < mesh_->GetNEdges(); edge++)
+   {
+      const bool is_selected =
+         (rule == ElementSetEdgeRule::ALL && selected_incidence[edge] > 0) ||
+         (rule == ElementSetEdgeRule::INTERIOR &&
+          selected_incidence[edge] > 0 && unselected_incidence[edge] == 0) ||
+         (rule == ElementSetEdgeRule::FRONTIER &&
+          selected_incidence[edge] > 0 && unselected_incidence[edge] > 0);
+      if (is_selected) { sets_[EDGE][set_index].insert(edge); }
+   }
+   CopyMeshTables();
+   return set_index;
+}
+
+int EntitySets::AddEdgeSetByBoundaryAttribute(const string &name, int attribute)
+{
+   MFEM_VERIFY(mesh_->Dimension() > 1,
+               "Edge sets require a mesh of dimension at least two.");
+   const int set_index = AddSet(EDGE, name);
+   for (int boundary_element = 0; boundary_element < mesh_->GetNBE();
+        boundary_element++)
+   {
+      if (mesh_->GetBdrAttribute(boundary_element) != attribute) { continue; }
+      Array<int> edges, orientations;
+      mesh_->GetBdrElementEdges(boundary_element, edges, orientations);
+      for (const int edge : edges) { sets_[EDGE][set_index].insert(edge); }
+   }
+   CopyMeshTables();
+   return set_index;
+}
+
+int EntitySets::AddEdgeSetByPredicate(const string &name,
+                                       const PointPredicate &predicate,
+                                       EdgeSetPointRule rule)
+{
+   MFEM_VERIFY(mesh_->Dimension() > 1,
+               "Edge sets require a mesh of dimension at least two.");
+   MFEM_VERIFY(predicate, "EntitySets point predicate is empty.");
+   const int set_index = AddSet(EDGE, name);
+   Vector point(mesh_->SpaceDimension());
+
+   for (int edge = 0; edge < mesh_->GetNEdges(); edge++)
+   {
+      Array<int> vertices;
+      mesh_->GetEdgeVertices(edge, vertices);
+      const real_t *v0 = mesh_->GetVertex(vertices[0]);
+      const real_t *v1 = mesh_->GetVertex(vertices[1]);
+      bool selected = false;
+
+      switch (rule)
+      {
+         case EdgeSetPointRule::CENTER:
+            for (int d = 0; d < point.Size(); d++)
+            {
+               point[d] = 0.5 * (v0[d] + v1[d]);
+            }
+            selected = predicate(point);
+            break;
+
+         case EdgeSetPointRule::ALL_VERTICES:
+            for (int d = 0; d < point.Size(); d++) { point[d] = v0[d]; }
+            selected = predicate(point);
+            if (selected)
+            {
+               for (int d = 0; d < point.Size(); d++) { point[d] = v1[d]; }
+               selected = predicate(point);
+            }
+            break;
+
+         default:
+            MFEM_ABORT("Unknown edge-set point selection rule.");
+      }
+
+      if (selected) { sets_[EDGE][set_index].insert(edge); }
+   }
+   CopyMeshTables();
+   return set_index;
+}
+
 int EntitySets::AddElementSetByPredicate(const string &name,
                                           const PointPredicate &predicate,
                                           ElementSetPointRule rule)

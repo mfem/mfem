@@ -43,6 +43,12 @@ public:
    /// Rules for selecting elements using a physical-space point predicate.
    enum class ElementSetPointRule { CENTER, ALL_VERTICES };
 
+   /// Rules for selecting edges using a physical-space point predicate.
+   enum class EdgeSetPointRule { CENTER, ALL_VERTICES };
+
+   /// Rules for selecting edges incident to an element set.
+   enum class ElementSetEdgeRule { ALL, INTERIOR, FRONTIER };
+
    /// A function that determines whether a physical-space point is selected.
    using PointPredicate = std::function<bool(const Vector &)>;
 
@@ -108,6 +114,28 @@ public:
        their corresponding elements. */
    int AddElementSetByMarker(const std::string & name,
                              const Array<int> & marker);
+
+   /** @brief Create an edge set from edges incident to an element set.
+
+       ALL selects every edge of a selected element. INTERIOR selects edges
+       whose incident elements are all selected. FRONTIER selects edges with
+       both selected and unselected incident elements. */
+   int AddEdgeSetFromElementSet(const std::string & name, int element_set,
+                                ElementSetEdgeRule rule =
+                                   ElementSetEdgeRule::ALL);
+
+   /** @brief Create an edge set from boundary elements with @a attribute. */
+   int AddEdgeSetByBoundaryAttribute(const std::string & name, int attribute);
+
+   /** @brief Create an edge set by applying a predicate to physical points.
+
+       With EdgeSetPointRule::CENTER, the predicate is evaluated at each edge
+       midpoint. With EdgeSetPointRule::ALL_VERTICES, both edge endpoints must
+       satisfy the predicate. */
+   int AddEdgeSetByPredicate(const std::string & name,
+                             const PointPredicate & predicate,
+                             EdgeSetPointRule rule =
+                                EdgeSetPointRule::CENTER);
 
    /** @brief Create an element set by applying a predicate to physical points.
 

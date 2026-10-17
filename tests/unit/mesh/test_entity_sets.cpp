@@ -270,6 +270,47 @@ TEST_CASE("Entity sets can be created from element lists and markers", "[Mesh]")
    REQUIRE(sets(EntitySets::ELEMENT, attribute).count(2) == 1);
 }
 
+TEST_CASE("Edge sets can be created from mesh incidence and geometry", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
+                                     2.0, 1.0);
+   EntitySets &sets = mesh.GetOrCreateEntitySets();
+   const int elements = sets.AddElementSet("Left element", Array<int>({0}));
+   const int all_edges = sets.AddEdgeSetFromElementSet(
+                            "Element skeleton", elements,
+                            EntitySets::ElementSetEdgeRule::ALL);
+   const int interior_edges = sets.AddEdgeSetFromElementSet(
+                                 "Element interior", elements,
+                                 EntitySets::ElementSetEdgeRule::INTERIOR);
+   const int frontier_edges = sets.AddEdgeSetFromElementSet(
+                                 "Element frontier", elements,
+                                 EntitySets::ElementSetEdgeRule::FRONTIER);
+
+   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, all_edges) == 4);
+   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, interior_edges) == 3);
+   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, frontier_edges) == 1);
+
+   mesh.SetBdrAttribute(0, 7);
+   const int boundary_edges =
+      sets.AddEdgeSetByBoundaryAttribute("Boundary attribute", 7);
+   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, boundary_edges) == 1);
+   REQUIRE(sets(EntitySets::EDGE, boundary_edges).count(
+              mesh.GetBdrElementFaceIndex(0)) == 1);
+
+   const int center_edges = sets.AddEdgeSetByPredicate(
+                               "Centers", [](const Vector &x)
+   {
+      return x[0] < 0.75;
+   });
+   const int vertex_edges = sets.AddEdgeSetByPredicate(
+                               "Vertices", [](const Vector &x)
+   {
+      return x[0] < 1.e-12;
+   }, EntitySets::EdgeSetPointRule::ALL_VERTICES);
+   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, center_edges) == 3);
+   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, vertex_edges) == 1);
+}
+
 TEST_CASE("Entity sets follow uniform refinement descendants", "[Mesh]")
 {
    Mesh mesh = MakeEntitySetQuadMesh();
