@@ -28,9 +28,71 @@ namespace mfem
 class Mesh;
 class NCMesh;
 class NCEntitySets;
+class EntitySets;
 class Coefficient;
 class Vector;
 class DenseMatrix;
+
+/** @brief A collection of mesh faces with a signed physical normal.
+
+    A normal sign is stored for each face. It multiplies the normal obtained
+    from CalcOrtho() applied to the Jacobian of the face transformation. This
+    makes the sign directly usable by face-based flux calculations without
+    imposing an additional face ordering.
+
+    The region constructors currently support conforming serial 3D meshes.
+    They capture the mesh topology at construction time and do not update
+    after mesh refinement. Recreate an OrientedFaceSet after the mesh changes.
+*/
+class OrientedFaceSet
+{
+public:
+   /** @brief Construct the exterior of an element set.
+
+       The resulting normals point outward from the selected elements. Faces
+       on the physical boundary are included. */
+   OrientedFaceSet(Mesh & mesh, const EntitySets & element_sets,
+                   int element_set);
+
+   /** @brief Construct the exterior of elements with @a attribute.
+
+       The resulting normals point outward from elements with the attribute.
+       Faces on the physical boundary are included. */
+   OrientedFaceSet(Mesh & mesh, int attribute);
+
+   /** @brief Construct the interface from @a from_set to @a to_set.
+
+       The two sets must be disjoint. Only faces with an element in each set
+       are selected; normals point from @a from_set toward @a to_set. */
+   OrientedFaceSet(Mesh & mesh, const EntitySets & element_sets,
+                   int from_set, int to_set);
+
+   /** @brief Construct the interface from @a from_attribute to
+       @a to_attribute.
+
+       Only faces separating the two attributes are selected; normals point
+       from @a from_attribute toward @a to_attribute. */
+   OrientedFaceSet(Mesh & mesh, int from_attribute, int to_attribute);
+
+   int Size() const { return faces_.Size(); }
+   int GetFace(int i) const { return faces_[i]; }
+
+   /** @brief Return +1 or -1 multiplying the canonical face normal. */
+   int GetNormalSign(int i) const { return normal_signs_[i]; }
+
+   const Array<int> & GetFaces() const { return faces_; }
+   const Array<int> & GetNormalSigns() const { return normal_signs_; }
+
+private:
+   void BuildExterior(const Array<int> & element_marker);
+   void BuildInterface(const Array<int> & from_marker,
+                       const Array<int> & to_marker);
+   int GetOutwardNormalSign(int face, int element) const;
+
+   Mesh * mesh_;
+   Array<int> faces_;
+   Array<int> normal_signs_;
+};
 
 class EntitySets
 {
@@ -46,6 +108,9 @@ public:
 
    /// Rules for selecting edges using a physical-space point predicate.
    enum class EdgeSetPointRule { CENTER, ALL_VERTICES };
+
+   /// Rules for selecting faces using a physical-space point predicate.
+   enum class FaceSetPointRule { CENTER, ALL_VERTICES };
 
    /// A function that determines whether a physical-space point is selected.
    using PointPredicate = std::function<bool(const Vector &)>;
@@ -191,6 +256,39 @@ public:
                              const PointPredicate & predicate,
                              EdgeSetPointRule rule =
                                 EdgeSetPointRule::CENTER);
+
+   /** @brief Create a face set from local face indices.
+
+       Repeated indices are ignored. Face-set construction is supported on
+       three-dimensional meshes only. */
+   int AddFaceSet(const std::string & name, const Array<int> & faces);
+
+   /** @brief Create a face set from a local face marker array.
+
+       The marker must have one entry per local face; nonzero entries select
+       their corresponding faces. */
+   int AddFaceSetByMarker(const std::string & name,
+                          const Array<int> & marker);
+
+   /** @brief Create a face set from the internal interface of an element set.
+
+       A face is selected when it has both selected and unselected incident
+       elements. Physical-boundary faces are excluded; select those directly
+       with AddFaceSetByBoundaryAttribute(). */
+   int AddFaceSetFromElementSet(const std::string & name, int element_set);
+
+   /** @brief Create a face set from boundary elements with @a attribute. */
+   int AddFaceSetByBoundaryAttribute(const std::string & name, int attribute);
+
+   /** @brief Create a face set by applying a predicate to physical points.
+
+       With FaceSetPointRule::CENTER, the predicate is evaluated at each face
+       center. With FaceSetPointRule::ALL_VERTICES, every physical face vertex
+       must satisfy the predicate. */
+   int AddFaceSetByPredicate(const std::string & name,
+                             const PointPredicate & predicate,
+                             FaceSetPointRule rule =
+                                FaceSetPointRule::CENTER);
 
    /** @brief Create an element set by applying a predicate to physical points.
 

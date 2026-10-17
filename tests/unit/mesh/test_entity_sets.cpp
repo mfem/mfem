@@ -364,6 +364,121 @@ TEST_CASE("Edge sets can be created from 2D frontiers and geometry", "[Mesh]")
    REQUIRE(sets.GetNumEntities(EntitySets::EDGE, vertex_edges) == 1);
 }
 
+TEST_CASE("Face sets can be created from mesh incidence and geometry", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON,
+                                     2.0, 1.0, 1.0);
+   EntitySets &sets = mesh.GetOrCreateEntitySets();
+
+   Array<int> faces({0, mesh.GetNumFaces() - 1, 0});
+   const int listed = sets.AddFaceSet("Listed faces", faces);
+   Array<int> marker(mesh.GetNumFaces());
+   marker = 0;
+   marker[1] = 1;
+   marker[mesh.GetNumFaces() - 1] = -1;
+   const int marked = sets.AddFaceSetByMarker("Marked faces", marker);
+   const int elements = sets.AddElementSet("Left element", Array<int>({0}));
+   const int interface = sets.AddFaceSetFromElementSet("Interface", elements);
+
+   mesh.SetBdrAttribute(0, 7);
+   const int boundary =
+      sets.AddFaceSetByBoundaryAttribute("Boundary attribute", 7);
+   const int left = sets.AddFaceSetByPredicate(
+                       "Left boundary", [](const Vector &x)
+   {
+      return x[0] < 1.e-12;
+   }, EntitySets::FaceSetPointRule::ALL_VERTICES);
+
+   REQUIRE(sets.GetNumEntities(EntitySets::FACE, listed) == 2);
+   REQUIRE(sets(EntitySets::FACE, listed).count(0) == 1);
+   REQUIRE(sets(EntitySets::FACE, listed).count(mesh.GetNumFaces() - 1) == 1);
+   REQUIRE(sets.GetNumEntities(EntitySets::FACE, marked) == 2);
+   REQUIRE(sets(EntitySets::FACE, marked).count(1) == 1);
+   REQUIRE(sets(EntitySets::FACE, marked).count(mesh.GetNumFaces() - 1) == 1);
+   REQUIRE(sets.GetNumEntities(EntitySets::FACE, interface) == 1);
+   REQUIRE(sets.GetNumEntities(EntitySets::FACE, boundary) == 1);
+   REQUIRE(sets(EntitySets::FACE, boundary).count(
+              mesh.GetBdrElementFaceIndex(0)) == 1);
+   REQUIRE(sets.GetNumEntities(EntitySets::FACE, left) == 1);
+}
+
+TEST_CASE("Oriented face sets describe region exteriors and interfaces", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON,
+                                     2.0, 1.0, 1.0);
+   EntitySets &sets = mesh.GetOrCreateEntitySets();
+   const int left = sets.AddElementSet("Left", Array<int>({0}));
+   const int right = sets.AddElementSet("Right", Array<int>({1}));
+
+   OrientedFaceSet exterior(mesh, sets, left);
+   OrientedFaceSet interface(mesh, sets, left, right);
+   REQUIRE(exterior.Size() == 6);
+   REQUIRE(interface.Size() == 1);
+
+   auto signed_x_normal = [&mesh](const OrientedFaceSet &oriented, int i)
+   {
+      const int face = oriented.GetFace(i);
+      ElementTransformation *trans = mesh.GetFaceTransformation(face);
+      const IntegrationPoint &center = Geometries.GetCenter(
+                                        mesh.GetFaceGeometry(face));
+      trans->SetIntPoint(&center);
+      Vector normal(mesh.SpaceDimension());
+      CalcOrtho(trans->Jacobian(), normal);
+      return oriented.GetNormalSign(i) * normal[0];
+   };
+
+   bool found_left_boundary = false;
+   bool found_interface = false;
+   int checked_normals = 0;
+   for (int i = 0; i < exterior.Size(); i++)
+   {
+      ElementTransformation *trans =
+         mesh.GetFaceTransformation(exterior.GetFace(i));
+      const IntegrationPoint &center = Geometries.GetCenter(
+                                        mesh.GetFaceGeometry(exterior.GetFace(i)));
+      Vector point(mesh.SpaceDimension());
+      trans->Transform(center, point);
+      if (point[0] == 0.0)
+      {
+         found_left_boundary = true;
+         REQUIRE(signed_x_normal(exterior, i) < 0.0);
+      }
+      if (point[0] == 1.0)
+      {
+         found_interface = true;
+         REQUIRE(signed_x_normal(exterior, i) > 0.0);
+      }
+      trans->SetIntPoint(&center);
+      Vector normal(mesh.SpaceDimension());
+      CalcOrtho(trans->Jacobian(), normal);
+      for (int d = 0; d < mesh.Dimension(); d++)
+      {
+         if (point[d] == 0.0)
+         {
+            REQUIRE(exterior.GetNormalSign(i) * normal[d] < 0.0);
+            checked_normals++;
+         }
+         else if (point[d] == 1.0)
+         {
+            REQUIRE(exterior.GetNormalSign(i) * normal[d] > 0.0);
+            checked_normals++;
+         }
+      }
+   }
+   REQUIRE(found_left_boundary);
+   REQUIRE(found_interface);
+   REQUIRE(checked_normals == exterior.Size());
+   REQUIRE(signed_x_normal(interface, 0) > 0.0);
+
+   mesh.SetAttribute(0, 7);
+   mesh.SetAttribute(1, 8);
+   OrientedFaceSet attribute_exterior(mesh, 7);
+   OrientedFaceSet attribute_interface(mesh, 7, 8);
+   REQUIRE(attribute_exterior.Size() == exterior.Size());
+   REQUIRE(attribute_interface.Size() == interface.Size());
+   REQUIRE(signed_x_normal(attribute_interface, 0) > 0.0);
+}
+
 TEST_CASE("Entity sets follow uniform refinement descendants", "[Mesh]")
 {
    Mesh mesh = MakeEntitySetQuadMesh();

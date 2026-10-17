@@ -115,7 +115,165 @@ void FindNearestVertices(const DenseMatrix &coordinates,
    }
 }
 
+void VerifyOrientedFaceSetMesh(const Mesh &mesh)
+{
+   MFEM_VERIFY(mesh.Dimension() == 3,
+               "Oriented face sets require a three-dimensional mesh.");
+   MFEM_VERIFY(mesh.Conforming(),
+               "Oriented face sets do not yet support nonconforming meshes.");
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(dynamic_cast<const ParMesh *>(&mesh) == nullptr,
+               "Oriented face sets do not yet support parallel meshes.");
+#endif
+}
+
 } // namespace
+
+OrientedFaceSet::OrientedFaceSet(Mesh &mesh, const EntitySets &element_sets,
+                                 int element_set)
+   : mesh_(&mesh)
+{
+   VerifyOrientedFaceSetMesh(mesh);
+   MFEM_VERIFY(element_sets.GetMesh() == &mesh,
+               "The element set belongs to a different mesh.");
+   MFEM_VERIFY(element_set >= 0 &&
+               element_sets.SetExists(EntitySets::ELEMENT, element_set),
+               "Invalid element-set index.");
+
+   Array<int> marker(mesh.GetNE());
+   marker = 0;
+   for (const int element : element_sets(EntitySets::ELEMENT, element_set))
+   {
+      marker[element] = 1;
+   }
+   BuildExterior(marker);
+}
+
+OrientedFaceSet::OrientedFaceSet(Mesh &mesh, int attribute)
+   : mesh_(&mesh)
+{
+   VerifyOrientedFaceSetMesh(mesh);
+   Array<int> marker(mesh.GetNE());
+   for (int element = 0; element < mesh.GetNE(); element++)
+   {
+      marker[element] = (mesh.GetAttribute(element) == attribute);
+   }
+   BuildExterior(marker);
+}
+
+OrientedFaceSet::OrientedFaceSet(Mesh &mesh, const EntitySets &element_sets,
+                                 int from_set, int to_set)
+   : mesh_(&mesh)
+{
+   VerifyOrientedFaceSetMesh(mesh);
+   MFEM_VERIFY(element_sets.GetMesh() == &mesh,
+               "The element sets belong to a different mesh.");
+   MFEM_VERIFY(from_set >= 0 &&
+               element_sets.SetExists(EntitySets::ELEMENT, from_set),
+               "Invalid source element-set index.");
+   MFEM_VERIFY(to_set >= 0 &&
+               element_sets.SetExists(EntitySets::ELEMENT, to_set),
+               "Invalid target element-set index.");
+
+   Array<int> from_marker(mesh.GetNE());
+   Array<int> to_marker(mesh.GetNE());
+   from_marker = 0;
+   to_marker = 0;
+   for (const int element : element_sets(EntitySets::ELEMENT, from_set))
+   {
+      from_marker[element] = 1;
+   }
+   for (const int element : element_sets(EntitySets::ELEMENT, to_set))
+   {
+      to_marker[element] = 1;
+   }
+   BuildInterface(from_marker, to_marker);
+}
+
+OrientedFaceSet::OrientedFaceSet(Mesh &mesh, int from_attribute,
+                                 int to_attribute)
+   : mesh_(&mesh)
+{
+   VerifyOrientedFaceSetMesh(mesh);
+   MFEM_VERIFY(from_attribute != to_attribute,
+               "The two interface attributes must be different.");
+   Array<int> from_marker(mesh.GetNE());
+   Array<int> to_marker(mesh.GetNE());
+   for (int element = 0; element < mesh.GetNE(); element++)
+   {
+      const int attribute = mesh.GetAttribute(element);
+      from_marker[element] = (attribute == from_attribute);
+      to_marker[element] = (attribute == to_attribute);
+   }
+   BuildInterface(from_marker, to_marker);
+}
+
+void OrientedFaceSet::BuildExterior(const Array<int> &element_marker)
+{
+   MFEM_VERIFY(element_marker.Size() == mesh_->GetNE(),
+               "Invalid element marker.");
+   for (int face = 0; face < mesh_->GetNumFaces(); face++)
+   {
+      int element1, element2;
+      mesh_->GetFaceElements(face, &element1, &element2);
+      const bool selected1 = element_marker[element1] != 0;
+      const bool selected2 = element2 >= 0 && element_marker[element2] != 0;
+      if (selected1 == selected2) { continue; }
+
+      const int selected_element = selected1 ? element1 : element2;
+      faces_.Append(face);
+      normal_signs_.Append(GetOutwardNormalSign(face, selected_element));
+   }
+}
+
+void OrientedFaceSet::BuildInterface(const Array<int> &from_marker,
+                                     const Array<int> &to_marker)
+{
+   MFEM_VERIFY(from_marker.Size() == mesh_->GetNE() &&
+               to_marker.Size() == mesh_->GetNE(), "Invalid element marker.");
+   for (int element = 0; element < mesh_->GetNE(); element++)
+   {
+      MFEM_VERIFY(!(from_marker[element] && to_marker[element]),
+                  "The two element regions must be disjoint.");
+   }
+
+   for (int face = 0; face < mesh_->GetNumFaces(); face++)
+   {
+      int element1, element2;
+      mesh_->GetFaceElements(face, &element1, &element2);
+      if (element2 < 0) { continue; }
+
+      const bool from1 = from_marker[element1] != 0;
+      const bool from2 = from_marker[element2] != 0;
+      const bool to1 = to_marker[element1] != 0;
+      const bool to2 = to_marker[element2] != 0;
+      if (!((from1 && to2) || (from2 && to1))) { continue; }
+
+      const int from_element = from1 ? element1 : element2;
+      faces_.Append(face);
+      normal_signs_.Append(GetOutwardNormalSign(face, from_element));
+   }
+}
+
+int OrientedFaceSet::GetOutwardNormalSign(int face, int element) const
+{
+   ElementTransformation *face_trans = mesh_->GetFaceTransformation(face);
+   const Geometry::Type geometry = mesh_->GetFaceGeometry(face);
+   const IntegrationPoint &center = Geometries.GetCenter(geometry);
+   Vector face_center(mesh_->SpaceDimension());
+   Vector element_center(mesh_->SpaceDimension());
+   face_trans->Transform(center, face_center);
+   mesh_->GetElementCenter(element, element_center);
+   face_center -= element_center;
+
+   face_trans->SetIntPoint(&center);
+   Vector normal(mesh_->SpaceDimension());
+   CalcOrtho(face_trans->Jacobian(), normal);
+   const real_t normal_direction = normal * face_center;
+   MFEM_VERIFY(normal_direction != 0.0,
+               "Unable to determine an oriented face normal.");
+   return normal_direction > 0.0 ? 1 : -1;
+}
 
 map<EntitySets::EntityType,string> EntitySets::EntityTypeNames =
    EntitySets::init_type_names();
@@ -1154,6 +1312,130 @@ int EntitySets::AddEdgeSetByPredicate(const string &name,
       }
 
       if (selected) { sets_[EDGE][set_index].insert(edge); }
+   }
+   CopyMeshTables();
+   return set_index;
+}
+
+int EntitySets::AddFaceSet(const string &name, const Array<int> &faces)
+{
+   MFEM_VERIFY(mesh_->Dimension() == 3,
+               "Face sets require a three-dimensional mesh.");
+   const int set_index = AddSet(FACE, name);
+   for (const int face : faces)
+   {
+      AddEntity(FACE, set_index, face);
+   }
+   return set_index;
+}
+
+int EntitySets::AddFaceSetByMarker(const string &name,
+                                   const Array<int> &marker)
+{
+   MFEM_VERIFY(mesh_->Dimension() == 3,
+               "Face sets require a three-dimensional mesh.");
+   MFEM_VERIFY(marker.Size() == mesh_->GetNumFaces(),
+               "Face marker size must equal the number of local faces.");
+   const int set_index = AddSet(FACE, name);
+   for (int face = 0; face < marker.Size(); face++)
+   {
+      if (marker[face]) { sets_[FACE][set_index].insert(face); }
+   }
+   CopyMeshTables();
+   return set_index;
+}
+
+int EntitySets::AddFaceSetFromElementSet(const string &name, int element_set)
+{
+   MFEM_VERIFY(mesh_->Dimension() == 3,
+               "Face sets require a three-dimensional mesh.");
+   VerifySetIndex(ELEMENT, element_set);
+   const int set_index = AddSet(FACE, name);
+   Array<int> selected_incidence(mesh_->GetNumFaces());
+   Array<int> unselected_incidence(mesh_->GetNumFaces());
+   selected_incidence = 0;
+   unselected_incidence = 0;
+
+   for (int element = 0; element < mesh_->GetNE(); element++)
+   {
+      Array<int> faces, orientations;
+      mesh_->GetElementFaces(element, faces, orientations);
+      Array<int> &incidence = sets_[ELEMENT][element_set].count(element) ?
+                              selected_incidence : unselected_incidence;
+      for (const int face : faces) { incidence[face]++; }
+   }
+
+   for (int face = 0; face < mesh_->GetNumFaces(); face++)
+   {
+      if (selected_incidence[face] > 0 && unselected_incidence[face] > 0)
+      {
+         sets_[FACE][set_index].insert(face);
+      }
+   }
+   CopyMeshTables();
+   return set_index;
+}
+
+int EntitySets::AddFaceSetByBoundaryAttribute(const string &name, int attribute)
+{
+   MFEM_VERIFY(mesh_->Dimension() == 3,
+               "Face sets require a three-dimensional mesh.");
+   const int set_index = AddSet(FACE, name);
+   for (int boundary_element = 0; boundary_element < mesh_->GetNBE();
+        boundary_element++)
+   {
+      if (mesh_->GetBdrAttribute(boundary_element) != attribute) { continue; }
+      sets_[FACE][set_index].insert(
+         mesh_->GetBdrElementFaceIndex(boundary_element));
+   }
+   CopyMeshTables();
+   return set_index;
+}
+
+int EntitySets::AddFaceSetByPredicate(const string &name,
+                                      const PointPredicate &predicate,
+                                      FaceSetPointRule rule)
+{
+   MFEM_VERIFY(mesh_->Dimension() == 3,
+               "Face sets require a three-dimensional mesh.");
+   MFEM_VERIFY(predicate, "EntitySets point predicate is empty.");
+   const int set_index = AddSet(FACE, name);
+   Vector point(mesh_->SpaceDimension());
+
+   for (int face = 0; face < mesh_->GetNumFaces(); face++)
+   {
+      ElementTransformation *trans = mesh_->GetFaceTransformation(face);
+      const Geometry::Type geometry = mesh_->GetFaceGeometry(face);
+      bool selected = false;
+
+      switch (rule)
+      {
+         case FaceSetPointRule::CENTER:
+            trans->Transform(Geometries.GetCenter(geometry), point);
+            selected = predicate(point);
+            break;
+
+         case FaceSetPointRule::ALL_VERTICES:
+         {
+            const IntegrationRule *vertices = Geometries.GetVertices(geometry);
+            selected = true;
+            for (int vertex = 0; vertex < vertices->GetNPoints(); vertex++)
+            {
+               trans->Transform(vertices->IntPoint(vertex), point);
+               if (!predicate(point))
+               {
+                  selected = false;
+                  break;
+               }
+            }
+            break;
+         }
+
+         default:
+            MFEM_ABORT("Unknown face-set point selection rule.");
+      }
+
+      if (selected) { sets_[FACE][set_index].insert(face); }
    }
    CopyMeshTables();
    return set_index;
