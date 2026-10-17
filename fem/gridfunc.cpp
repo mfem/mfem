@@ -2617,8 +2617,12 @@ void GridFunction::ProjectCoefficientElementL2_(Coefficient &coeff,
             el.CalcPhysShape(tr, shape);
 
             elvect.Add(wght * val, shape);
-            elwght.Add(wght, shape);
             AddMult_a_VVt(wght, shape, elmat);
+
+            // Weight with |shape|, since the integral of a basis function that
+            // changes sign can vanish, e.g. for cubic H1 edge dofs on tets
+            shape.Abs();
+            elwght.Add(wght, shape);
          }
 
          // Solve
