@@ -1063,8 +1063,7 @@ int EntitySets::AddElementSetByMarker(const string &name,
    return set_index;
 }
 
-int EntitySets::AddEdgeSetFromElementSet(const string &name, int element_set,
-                                         ElementSetEdgeRule rule)
+int EntitySets::AddEdgeSetFromElementSet(const string &name, int element_set)
 {
    MFEM_VERIFY(mesh_->Dimension() > 1,
                "Edge sets require a mesh of dimension at least two.");
@@ -1086,13 +1085,10 @@ int EntitySets::AddEdgeSetFromElementSet(const string &name, int element_set,
 
    for (int edge = 0; edge < mesh_->GetNEdges(); edge++)
    {
-      const bool is_selected =
-         (rule == ElementSetEdgeRule::ALL && selected_incidence[edge] > 0) ||
-         (rule == ElementSetEdgeRule::INTERIOR &&
-          selected_incidence[edge] > 0 && unselected_incidence[edge] == 0) ||
-         (rule == ElementSetEdgeRule::FRONTIER &&
-          selected_incidence[edge] > 0 && unselected_incidence[edge] > 0);
-      if (is_selected) { sets_[EDGE][set_index].insert(edge); }
+      if (selected_incidence[edge] > 0 && unselected_incidence[edge] > 0)
+      {
+         sets_[EDGE][set_index].insert(edge);
+      }
    }
    CopyMeshTables();
    return set_index;

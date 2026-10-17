@@ -332,24 +332,15 @@ TEST_CASE("Vertex sets can be created from nearest physical points", "[Mesh]")
    REQUIRE(sets(EntitySets::VERTEX, selected).count(mesh.GetNV() - 1) == 1);
 }
 
-TEST_CASE("Edge sets can be created from mesh incidence and geometry", "[Mesh]")
+TEST_CASE("Edge sets can be created from 2D frontiers and geometry", "[Mesh]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
                                      2.0, 1.0);
    EntitySets &sets = mesh.GetOrCreateEntitySets();
    const int elements = sets.AddElementSet("Left element", Array<int>({0}));
-   const int all_edges = sets.AddEdgeSetFromElementSet(
-                            "Element skeleton", elements,
-                            EntitySets::ElementSetEdgeRule::ALL);
-   const int interior_edges = sets.AddEdgeSetFromElementSet(
-                                 "Element interior", elements,
-                                 EntitySets::ElementSetEdgeRule::INTERIOR);
    const int frontier_edges = sets.AddEdgeSetFromElementSet(
-                                 "Element frontier", elements,
-                                 EntitySets::ElementSetEdgeRule::FRONTIER);
+                                 "Element frontier", elements);
 
-   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, all_edges) == 4);
-   REQUIRE(sets.GetNumEntities(EntitySets::EDGE, interior_edges) == 3);
    REQUIRE(sets.GetNumEntities(EntitySets::EDGE, frontier_edges) == 1);
 
    mesh.SetBdrAttribute(0, 7);

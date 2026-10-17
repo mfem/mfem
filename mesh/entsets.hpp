@@ -47,9 +47,6 @@ public:
    /// Rules for selecting edges using a physical-space point predicate.
    enum class EdgeSetPointRule { CENTER, ALL_VERTICES };
 
-   /// Rules for selecting edges incident to an element set.
-   enum class ElementSetEdgeRule { ALL, INTERIOR, FRONTIER };
-
    /// A function that determines whether a physical-space point is selected.
    using PointPredicate = std::function<bool(const Vector &)>;
 
@@ -169,16 +166,20 @@ public:
    int AddElementSetByMarker(const std::string & name,
                              const Array<int> & marker);
 
-   /** @brief Create an edge set from edges incident to an element set.
+   /** @brief Create an edge set from the interelement frontier of an element
+       set.
 
-       ALL selects every edge of a selected element. INTERIOR selects edges
-       whose incident elements are all selected. FRONTIER selects edges with
-       both selected and unselected incident elements. */
-   int AddEdgeSetFromElementSet(const std::string & name, int element_set,
-                                ElementSetEdgeRule rule =
-                                   ElementSetEdgeRule::ALL);
+       An edge is selected when it has both selected and unselected incident
+       elements. This is a natural codimension-one selection in 2D. In 3D it
+       represents only the wireframe of an interface, not the interface faces;
+       use a face set when the latter is needed. */
+   int AddEdgeSetFromElementSet(const std::string & name, int element_set);
 
-   /** @brief Create an edge set from boundary elements with @a attribute. */
+   /** @brief Create an edge set from boundary elements with @a attribute.
+
+       In 2D, boundary elements are edges, so this selects the specified
+       boundary portions directly. In 3D, it selects the edges of the
+       specified boundary faces—their wireframe, not the faces themselves. */
    int AddEdgeSetByBoundaryAttribute(const std::string & name, int attribute);
 
    /** @brief Create an edge set by applying a predicate to physical points.
