@@ -12,6 +12,8 @@
 #include "entityset_integral.hpp"
 #include "../mesh/mesh.hpp"
 
+#include <map>
+
 #ifdef MFEM_USE_MPI
 #include "../mesh/pmesh.hpp"
 #endif
@@ -78,6 +80,34 @@ int GetEdgeIncidentElement(const Mesh &mesh, int edge)
    }
    MFEM_ABORT("Unable to find a local element incident to an edge.");
    return -1;
+}
+
+real_t GetVertexValue(const GridFunction &field, const Mesh &mesh, int vertex,
+                      const Table &vertex_to_element)
+{
+   MFEM_VERIFY(vertex >= 0 && vertex < mesh.GetNV(),
+               "Entity set contains an invalid vertex index.");
+   MFEM_VERIFY(vertex_to_element.RowSize(vertex) > 0,
+               "A mesh vertex must belong to a local element.");
+
+   const int element = vertex_to_element.GetRow(vertex)[0];
+   Array<int> element_vertices;
+   mesh.GetElementVertices(element, element_vertices);
+   int local_vertex = -1;
+   for (int i = 0; i < element_vertices.Size(); i++)
+   {
+      if (element_vertices[i] == vertex)
+      {
+         local_vertex = i;
+         break;
+      }
+   }
+   MFEM_VERIFY(local_vertex >= 0,
+               "Vertex-to-element connectivity is inconsistent.");
+
+   const Geometry::Type geometry = mesh.GetElementBaseGeometry(element);
+   const IntegrationRule *vertices = Geometries.GetVertices(geometry);
+   return field.GetValue(element, vertices->IntPoint(local_vertex));
 }
 
 } // namespace
@@ -175,6 +205,116 @@ real_t L2ElementSetIntegral::Eval() const
    }
 
    return GlobalSum(local_value);
+}
+
+H1VertexSetMeasurement::H1VertexSetMeasurement(const GridFunction &field,
+                                               const EntitySets &sets,
+                                               int set_index)
+   : EntitySetFunctional(field, sets, EntitySets::VERTEX, set_index)
+{
+   VerifyCompatibleField();
+}
+
+H1VertexSetMeasurement::H1VertexSetMeasurement(const GridFunction &field,
+                                               const EntitySets &sets,
+                                               const std::string &set_name)
+   : H1VertexSetMeasurement(field, sets,
+                            sets.GetSetIndex(EntitySets::VERTEX, set_name))
+{
+}
+
+void H1VertexSetMeasurement::VerifyCompatibleField() const
+{
+   EntitySetFunctional::VerifyCompatibleField();
+   const FiniteElementSpace *fes = Field().FESpace();
+   MFEM_VERIFY(!fes->IsDGSpace(),
+               "H1VertexSetMeasurement requires an H1 finite element space.");
+   MFEM_VERIFY(fes->GetVDim() == 1,
+               "H1VertexSetMeasurement currently requires a scalar field.");
+   MFEM_VERIFY(fes->GetTypicalFE()->GetMapType() == FiniteElement::VALUE &&
+               fes->GetTypicalFE()->GetRangeType() == FiniteElement::SCALAR,
+               "H1VertexSetMeasurement requires scalar H1 finite elements.");
+}
+
+void H1VertexSetMeasurement::Eval(Array<long long> &vertex_ids,
+                                  Vector &values) const
+{
+   VerifyCompatibleField();
+   const FiniteElementSpace *fes = Field().FESpace();
+   Mesh &mesh = *fes->GetMesh();
+   const std::set<int> &vertices = Entities();
+
+   vertex_ids.SetSize(vertices.size());
+   values.SetSize(vertices.size());
+   Table *vertex_to_element = mesh.GetVertexToElementTable();
+   int i = 0;
+   for (const int vertex : vertices)
+   {
+      vertex_ids[i] = vertex;
+      values[i] = GetVertexValue(Field(), mesh, vertex, *vertex_to_element);
+      i++;
+   }
+   delete vertex_to_element;
+
+#ifdef MFEM_USE_MPI
+   const ParMesh *pmesh = dynamic_cast<const ParMesh *>(&mesh);
+   if (pmesh)
+   {
+      Array<HYPRE_BigInt> global_vertex_ids;
+      pmesh->GetGlobalVertexIndices(global_vertex_ids);
+      for (int j = 0; j < vertex_ids.Size(); j++)
+      {
+         const int vertex = static_cast<int>(vertex_ids[j]);
+         vertex_ids[j] = static_cast<long long>(global_vertex_ids[vertex]);
+      }
+
+      int nranks;
+      MPI_Comm_size(pmesh->GetComm(), &nranks);
+      Array<int> counts(nranks), displacements(nranks);
+      int local_count = vertex_ids.Size();
+      MPI_Allgather(&local_count, 1, MPI_INT, counts.GetData(), 1, MPI_INT,
+                    pmesh->GetComm());
+      int total_count = 0;
+      for (int rank = 0; rank < nranks; rank++)
+      {
+         displacements[rank] = total_count;
+         total_count += counts[rank];
+      }
+
+      Array<long long> gathered_ids(total_count);
+      Vector gathered_values(total_count);
+      MPI_Allgatherv(vertex_ids.GetData(), local_count, MPI_LONG_LONG,
+                     gathered_ids.GetData(), counts.GetData(),
+                     displacements.GetData(), MPI_LONG_LONG, pmesh->GetComm());
+      MPI_Allgatherv(values.GetData(), local_count,
+                     MPITypeMap<real_t>::mpi_type, gathered_values.GetData(),
+                     counts.GetData(), displacements.GetData(),
+                     MPITypeMap<real_t>::mpi_type, pmesh->GetComm());
+
+      std::map<long long, real_t> unique_values;
+      for (int j = 0; j < total_count; j++)
+      {
+         unique_values.emplace(gathered_ids[j], gathered_values[j]);
+      }
+      vertex_ids.SetSize(unique_values.size());
+      values.SetSize(unique_values.size());
+      i = 0;
+      for (const auto &entry : unique_values)
+      {
+         vertex_ids[i] = entry.first;
+         values[i] = entry.second;
+         i++;
+      }
+   }
+#endif
+}
+
+Vector H1VertexSetMeasurement::Eval() const
+{
+   Array<long long> vertex_ids;
+   Vector values;
+   Eval(vertex_ids, values);
+   return values;
 }
 
 HCurlEdgePathIntegral::HCurlEdgePathIntegral(const GridFunction &field,

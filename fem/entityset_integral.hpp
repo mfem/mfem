@@ -79,6 +79,40 @@ private:
    int integration_order_;
 };
 
+/** @brief Evaluate a scalar H1 GridFunction at the vertices in an entity set.
+
+    Eval() evaluates the field directly on every call. The selected entities
+    are topological mesh vertices, not all high-order nodal points or degrees
+    of freedom. The entity set and GridFunction are not owned and must remain
+    valid for the lifetime of this object.
+
+    In serial, vertex_ids are local mesh vertex indices. In parallel, they are
+    global vertex IDs and the results contain each selected physical vertex
+    once on every rank, sorted by vertex_ids. This makes the result independent
+    of which local element is used to evaluate a shared vertex. Parallel calls
+    to Eval() are collective over the mesh communicator. */
+class H1VertexSetMeasurement : public EntitySetFunctional
+{
+public:
+   H1VertexSetMeasurement(const GridFunction &field, const EntitySets &sets,
+                          int set_index);
+
+   H1VertexSetMeasurement(const GridFunction &field, const EntitySets &sets,
+                          const std::string &set_name);
+
+   /** @brief Evaluate the field and return the corresponding vertex IDs.
+
+       The output arrays have matching sizes. See the class description for
+       the serial and parallel meanings of @a vertex_ids. */
+   void Eval(Array<long long> &vertex_ids, Vector &values) const;
+
+   /** @brief Return the values from Eval(), ordered by their vertex IDs. */
+   Vector Eval() const;
+
+private:
+   void VerifyCompatibleField() const;
+};
+
 /** @brief Integrate an H(curl) GridFunction along an oriented EdgePath.
 
     Eval() directly evaluates the field using a local element incident to each

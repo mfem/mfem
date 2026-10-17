@@ -82,6 +82,43 @@ TEST_CASE("L2 element-set integral selects only set members",
    REQUIRE(integral.Eval() == MFEM_Approx(3.0));
 }
 
+TEST_CASE("H1 vertex-set measurement", "[EntitySets][H1_FECollection]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
+                                     2.0, 1.0);
+   EntitySets &sets = mesh.GetOrCreateEntitySets();
+   Array<int> vertices({FindVertex(mesh, 2.0, 1.0), FindVertex(mesh, 0.0, 0.0),
+                        FindVertex(mesh, 1.0, 0.0)});
+   const int set = sets.AddVertexSet("Samples", vertices);
+
+   H1_FECollection fec(2, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient value([](const Vector &x)
+   {
+      return 1.0 + 2.0 * x[0] - x[1];
+   });
+   field.ProjectCoefficient(value);
+
+   H1VertexSetMeasurement measurement(field, sets, set);
+   Array<long long> vertex_ids;
+   Vector values;
+   measurement.Eval(vertex_ids, values);
+   REQUIRE(vertex_ids.Size() == 3);
+   REQUIRE(values.Size() == 3);
+   for (int i = 0; i < values.Size(); i++)
+   {
+      const real_t *point = mesh.GetVertex(static_cast<int>(vertex_ids[i]));
+      REQUIRE(values[i] == MFEM_Approx(1.0 + 2.0 * point[0] - point[1]));
+   }
+   const Vector values_only = measurement.Eval();
+   REQUIRE(values_only.Size() == values.Size());
+   for (int i = 0; i < values.Size(); i++)
+   {
+      REQUIRE(values_only[i] == MFEM_Approx(values[i]));
+   }
+}
+
 TEST_CASE("HCurl edge-path integral", "[EntitySets][ND_FECollection]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
@@ -204,6 +241,47 @@ TEST_CASE("Parallel HCurl edge-path integral",
    }
 
    REQUIRE(HCurlEdgePathIntegral(field, path).Eval() == MFEM_Approx(expected));
+}
+
+TEST_CASE("Parallel H1 vertex-set measurement",
+          "[EntitySets][H1_FECollection][Parallel]")
+{
+   int nranks;
+   MPI_Comm_size(MPI_COMM_WORLD, &nranks);
+   Mesh serial_mesh = Mesh::MakeCartesian2D(nranks, 1, Element::QUADRILATERAL,
+                                            false, real_t(nranks), 1.0);
+   Array<int> vertices;
+   for (int vertex = 0; vertex < serial_mesh.GetNV(); vertex++)
+   {
+      if (serial_mesh.GetVertex(vertex)[1] == 0.0) { vertices.Append(vertex); }
+   }
+   serial_mesh.GetOrCreateEntitySets().AddVertexSet("Bottom", vertices);
+   Array<int> partitioning(serial_mesh.GetNE());
+   for (int element = 0; element < partitioning.Size(); element++)
+   {
+      partitioning[element] = element;
+   }
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+
+   H1_FECollection fec(2, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction field(&fes);
+   FunctionCoefficient value([](const Vector &x) { return x[0]; });
+   field.ProjectCoefficient(value);
+
+   H1VertexSetMeasurement measurement(field, *mesh.ent_sets, "Bottom");
+   Array<long long> vertex_ids;
+   Vector values;
+   measurement.Eval(vertex_ids, values);
+   REQUIRE(vertex_ids.Size() == nranks + 1);
+   REQUIRE(values.Size() == nranks + 1);
+   real_t sum = 0.0;
+   for (int i = 0; i < values.Size(); i++)
+   {
+      if (i > 0) { REQUIRE(vertex_ids[i - 1] < vertex_ids[i]); }
+      sum += values[i];
+   }
+   REQUIRE(sum == MFEM_Approx(0.5 * nranks * (nranks + 1)));
 }
 
 TEST_CASE("Parallel HDiv oriented-face-set integral",
