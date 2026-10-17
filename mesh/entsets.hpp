@@ -30,6 +30,7 @@ class NCMesh;
 class NCEntitySets;
 class Coefficient;
 class Vector;
+class DenseMatrix;
 
 class EntitySets
 {
@@ -104,6 +105,59 @@ public:
 
        Repeated indices are ignored. */
    int AddElementSet(const std::string & name, const Array<int> & elements);
+
+   /** @brief Create a vertex set from local mesh vertex indices.
+
+       Repeated indices are ignored. A vertex set is a selection of topological
+       mesh vertices only: it does not select incident entities or finite
+       element degrees of freedom. In particular, it is not a representation
+       of a geometric region or all high-order degrees of freedom on one. */
+   int AddVertexSet(const std::string & name, const Array<int> & vertices);
+
+   /** @brief Create a vertex set from a local mesh-vertex marker array.
+
+       The marker must have one entry per local mesh vertex; nonzero entries
+       select their corresponding vertices. See AddVertexSet() for the scope
+       of a vertex set. */
+   int AddVertexSetByMarker(const std::string & name,
+                            const Array<int> & marker);
+
+   /** @brief Create a vertex set by applying a predicate to vertex positions.
+
+       The predicate is evaluated at the physical position of every mesh
+       vertex. For high-order meshes, the physical position is evaluated with
+       an element transformation. The resulting set remains a selection of
+       topological vertices only; it does not select incident entities or
+       finite element degrees of freedom. */
+   int AddVertexSetByPredicate(const std::string & name,
+                               const PointPredicate & predicate);
+
+   /** @brief Find the nearest mesh vertex to each physical point.
+
+       The columns of @a points are physical points and its height must equal
+       the mesh space dimension. The returned @a vertices has one local mesh
+       vertex index per point; @a distances contains the corresponding physical
+       distances. For a parallel mesh, the search is global and @a vertices is
+       -1 on ranks where the selected vertex is not locally present.
+       The parallel search is collective over the mesh communicator.
+
+       This query concerns topological mesh vertices, not high-order finite
+       element nodes or degrees of freedom. */
+   void FindNearestVertices(const DenseMatrix & points, Array<int> & vertices,
+                            Array<real_t> & distances) const;
+
+   /** @brief Create a vertex set from the nearest vertices to physical points.
+
+       The columns of @a points are physical points. Each point selects its
+       nearest topological mesh vertex; repeated selections are ignored. If
+       @a max_distance is finite, each point must have a selected vertex no
+       farther away than that distance. Optional outputs preserve the
+       point-to-vertex correspondence; see FindNearestVertices() for their
+       parallel semantics. This method is collective for parallel meshes. */
+   int AddVertexSetByNearestPoints(
+      const std::string & name, const DenseMatrix & points,
+      real_t max_distance = std::numeric_limits<real_t>::infinity(),
+      Array<int> * vertices = nullptr, Array<real_t> * distances = nullptr);
 
    /** @brief Create an element set containing elements with @a attribute. */
    int AddElementSetByAttribute(const std::string & name, int attribute);

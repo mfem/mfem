@@ -12,11 +12,110 @@
 
 #include "entsets.hpp"
 #include "mesh.hpp"
+#include "../general/kdtree.hpp"
+
+#ifdef MFEM_USE_MPI
+#include "pmesh.hpp"
+#endif
 
 using namespace std;
 
 namespace mfem
 {
+
+namespace
+{
+
+void GetPhysicalVertexCoordinates(Mesh &mesh, DenseMatrix &coordinates)
+{
+   coordinates.SetSize(mesh.SpaceDimension(), mesh.GetNV());
+   if (!mesh.GetNodes())
+   {
+      for (int vertex = 0; vertex < mesh.GetNV(); vertex++)
+      {
+         coordinates.SetCol(vertex, mesh.GetVertex(vertex));
+      }
+      return;
+   }
+
+   Table *vertex_to_element = mesh.GetVertexToElementTable();
+   Array<int> element_vertices;
+   Vector point(mesh.SpaceDimension());
+   for (int vertex = 0; vertex < mesh.GetNV(); vertex++)
+   {
+      MFEM_VERIFY(vertex_to_element->RowSize(vertex) > 0,
+                  "A mesh vertex must belong to an element.");
+      const int element = vertex_to_element->GetRow(vertex)[0];
+      mesh.GetElementVertices(element, element_vertices);
+      int local_vertex = -1;
+      for (int i = 0; i < element_vertices.Size(); i++)
+      {
+         if (element_vertices[i] == vertex)
+         {
+            local_vertex = i;
+            break;
+         }
+      }
+      MFEM_VERIFY(local_vertex >= 0,
+                  "Vertex-to-element connectivity is inconsistent.");
+
+      const Geometry::Type geometry = mesh.GetElementBaseGeometry(element);
+      const IntegrationRule *vertices = Geometries.GetVertices(geometry);
+      mesh.GetElementTransformation(element)->Transform(
+         vertices->IntPoint(local_vertex), point);
+      coordinates.SetCol(vertex, point);
+   }
+   delete vertex_to_element;
+}
+
+template <int dimension>
+void FindNearestVerticesKDTree(const DenseMatrix &coordinates,
+                               const DenseMatrix &points,
+                               Array<int> &vertices,
+                               Array<real_t> &distances)
+{
+   KDTree<int,real_t,dimension> tree;
+   for (int vertex = 0; vertex < coordinates.Width(); vertex++)
+   {
+      tree.AddPoint(coordinates.GetColumn(vertex), vertex);
+   }
+   tree.Sort();
+
+   vertices.SetSize(points.Width());
+   distances.SetSize(points.Width());
+   for (int point = 0; point < points.Width(); point++)
+   {
+      typename KDTree<int,real_t,dimension>::PointND query(
+         points.GetColumn(point));
+      int nearest;
+      real_t distance;
+      tree.FindClosestPoint(query, nearest, distance);
+      vertices[point] = nearest;
+      distances[point] = distance;
+   }
+}
+
+void FindNearestVertices(const DenseMatrix &coordinates,
+                         const DenseMatrix &points,
+                         Array<int> &vertices, Array<real_t> &distances)
+{
+   switch (coordinates.Height())
+   {
+      case 1:
+         FindNearestVerticesKDTree<1>(coordinates, points, vertices, distances);
+         break;
+      case 2:
+         FindNearestVerticesKDTree<2>(coordinates, points, vertices, distances);
+         break;
+      case 3:
+         FindNearestVerticesKDTree<3>(coordinates, points, vertices, distances);
+         break;
+      default:
+         MFEM_ABORT("Nearest-vertex search requires space dimension 1, 2, or 3.");
+   }
+}
+
+} // namespace
 
 map<EntitySets::EntityType,string> EntitySets::EntityTypeNames =
    EntitySets::init_type_names();
@@ -778,6 +877,163 @@ int EntitySets::AddElementSet(const string &name, const Array<int> &elements)
    {
       AddEntity(ELEMENT, set_index, element);
    }
+   return set_index;
+}
+
+int EntitySets::AddVertexSet(const string &name, const Array<int> &vertices)
+{
+   const int set_index = AddSet(VERTEX, name);
+   for (const int vertex : vertices)
+   {
+      AddEntity(VERTEX, set_index, vertex);
+   }
+   return set_index;
+}
+
+int EntitySets::AddVertexSetByMarker(const string &name,
+                                     const Array<int> &marker)
+{
+   MFEM_VERIFY(marker.Size() == mesh_->GetNV(),
+               "Vertex marker size must equal the number of local vertices.");
+   const int set_index = AddSet(VERTEX, name);
+   for (int vertex = 0; vertex < marker.Size(); vertex++)
+   {
+      if (marker[vertex]) { sets_[VERTEX][set_index].insert(vertex); }
+   }
+   return set_index;
+}
+
+int EntitySets::AddVertexSetByPredicate(const string &name,
+                                        const PointPredicate &predicate)
+{
+   MFEM_VERIFY(predicate, "EntitySets point predicate is empty.");
+   const int set_index = AddSet(VERTEX, name);
+   Vector point(mesh_->SpaceDimension());
+
+   if (mesh_->GetNodes())
+   {
+      Table *vertex_to_element = mesh_->GetVertexToElementTable();
+      Array<int> element_vertices;
+      for (int vertex = 0; vertex < mesh_->GetNV(); vertex++)
+      {
+         const int *elements = vertex_to_element->GetRow(vertex);
+         MFEM_VERIFY(vertex_to_element->RowSize(vertex) > 0,
+                     "A mesh vertex must belong to an element.");
+         const int element = elements[0];
+         mesh_->GetElementVertices(element, element_vertices);
+         int local_vertex = -1;
+         for (int i = 0; i < element_vertices.Size(); i++)
+         {
+            if (element_vertices[i] == vertex)
+            {
+               local_vertex = i;
+               break;
+            }
+         }
+         MFEM_VERIFY(local_vertex >= 0,
+                     "Vertex-to-element connectivity is inconsistent.");
+
+         const Geometry::Type geometry = mesh_->GetElementBaseGeometry(element);
+         const IntegrationRule *vertices = Geometries.GetVertices(geometry);
+         mesh_->GetElementTransformation(element)->Transform(
+            vertices->IntPoint(local_vertex), point);
+         if (predicate(point)) { sets_[VERTEX][set_index].insert(vertex); }
+      }
+      delete vertex_to_element;
+   }
+   else
+   {
+      for (int vertex = 0; vertex < mesh_->GetNV(); vertex++)
+      {
+         const real_t *coordinates = mesh_->GetVertex(vertex);
+         for (int d = 0; d < point.Size(); d++) { point[d] = coordinates[d]; }
+         if (predicate(point)) { sets_[VERTEX][set_index].insert(vertex); }
+      }
+   }
+
+   return set_index;
+}
+
+void EntitySets::FindNearestVertices(const DenseMatrix &points,
+                                     Array<int> &vertices,
+                                     Array<real_t> &distances) const
+{
+   MFEM_VERIFY(points.Height() == mesh_->SpaceDimension(),
+               "Point matrix height must equal the mesh space dimension.");
+   MFEM_VERIFY(mesh_->GetNV() > 0 || points.Width() == 0,
+               "Cannot find a nearest vertex in an empty mesh.");
+
+   DenseMatrix coordinates;
+   GetPhysicalVertexCoordinates(*mesh_, coordinates);
+
+#ifdef MFEM_USE_MPI
+   const ParMesh *pmesh = dynamic_cast<const ParMesh *>(mesh_);
+   Array<long long> vertex_ids(mesh_->GetNV());
+   if (pmesh)
+   {
+      Array<HYPRE_BigInt> global_ids;
+      pmesh->GetGlobalVertexIndices(global_ids);
+      for (int vertex = 0; vertex < vertex_ids.Size(); vertex++)
+      {
+         vertex_ids[vertex] = static_cast<long long>(global_ids[vertex]);
+      }
+   }
+#endif
+
+   ::mfem::FindNearestVertices(coordinates, points, vertices, distances);
+
+#ifdef MFEM_USE_MPI
+   if (pmesh)
+   {
+      for (int point = 0; point < points.Width(); point++)
+      {
+         real_t global_distance;
+         MPI_Allreduce(&distances[point], &global_distance, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN, pmesh->GetComm());
+         long long local_id = distances[point] == global_distance ?
+                              vertex_ids[vertices[point]] :
+                              std::numeric_limits<long long>::max();
+         long long global_id;
+         MPI_Allreduce(&local_id, &global_id, 1, MPI_LONG_LONG, MPI_MIN,
+                       pmesh->GetComm());
+
+         vertices[point] = -1;
+         for (int vertex = 0; vertex < vertex_ids.Size(); vertex++)
+         {
+            if (vertex_ids[vertex] == global_id)
+            {
+               vertices[point] = vertex;
+               break;
+            }
+         }
+         distances[point] = global_distance;
+      }
+   }
+#endif
+}
+
+int EntitySets::AddVertexSetByNearestPoints(
+   const string &name, const DenseMatrix &points, real_t max_distance,
+   Array<int> *vertices, Array<real_t> *distances)
+{
+   MFEM_VERIFY(max_distance >= 0.0,
+               "Maximum nearest-vertex distance must be nonnegative.");
+   Array<int> local_vertices;
+   Array<real_t> local_distances;
+   FindNearestVertices(points, local_vertices, local_distances);
+   for (int point = 0; point < local_distances.Size(); point++)
+   {
+      MFEM_VERIFY(local_distances[point] <= max_distance,
+                  "No mesh vertex is within the requested maximum distance.");
+   }
+
+   const int set_index = AddSet(VERTEX, name);
+   for (const int vertex : local_vertices)
+   {
+      if (vertex >= 0) { AddEntity(VERTEX, set_index, vertex); }
+   }
+   if (vertices) { *vertices = local_vertices; }
+   if (distances) { *distances = local_distances; }
    return set_index;
 }
 

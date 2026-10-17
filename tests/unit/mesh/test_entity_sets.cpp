@@ -274,6 +274,64 @@ TEST_CASE("Entity sets can be created from element lists and markers", "[Mesh]")
    REQUIRE(sets(EntitySets::ELEMENT, attribute).count(2) == 1);
 }
 
+TEST_CASE("Vertex sets are pointwise topological selections", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
+                                     2.0, 1.0);
+   EntitySets &sets = mesh.GetOrCreateEntitySets();
+
+   Array<int> vertices({0, mesh.GetNV() - 1, 0});
+   const int listed = sets.AddVertexSet("Listed vertices", vertices);
+   Array<int> marker(mesh.GetNV());
+   marker = 0;
+   marker[1] = 1;
+   marker[mesh.GetNV() - 1] = -1;
+   const int marked = sets.AddVertexSetByMarker("Marked vertices", marker);
+   const int left_boundary = sets.AddVertexSetByPredicate(
+                                 "Left boundary", [](const Vector &x)
+   {
+      return x[0] < 1.e-12;
+   });
+
+   REQUIRE(sets.GetNumEntities(EntitySets::VERTEX, listed) == 2);
+   REQUIRE(sets(EntitySets::VERTEX, listed).count(0) == 1);
+   REQUIRE(sets(EntitySets::VERTEX, listed).count(mesh.GetNV() - 1) == 1);
+   REQUIRE(sets.GetNumEntities(EntitySets::VERTEX, marked) == 2);
+   REQUIRE(sets(EntitySets::VERTEX, marked).count(1) == 1);
+   REQUIRE(sets(EntitySets::VERTEX, marked).count(mesh.GetNV() - 1) == 1);
+   REQUIRE(sets.GetNumEntities(EntitySets::VERTEX, left_boundary) == 2);
+}
+
+TEST_CASE("Vertex sets can be created from nearest physical points", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
+                                     2.0, 1.0);
+   EntitySets &sets = mesh.GetOrCreateEntitySets();
+   DenseMatrix points(mesh.SpaceDimension(), 3);
+   points.SetCol(0, mesh.GetVertex(0));
+   points.SetCol(1, mesh.GetVertex(mesh.GetNV() - 1));
+   points.SetCol(2, mesh.GetVertex(0));
+
+   Array<int> nearest;
+   Array<real_t> distances;
+   sets.FindNearestVertices(points, nearest, distances);
+   REQUIRE(nearest.Size() == 3);
+   REQUIRE(nearest[0] == 0);
+   REQUIRE(nearest[1] == mesh.GetNV() - 1);
+   REQUIRE(nearest[2] == 0);
+   for (const real_t distance : distances)
+   {
+      REQUIRE(distance == MFEM_Approx(0.0));
+   }
+
+   const int selected = sets.AddVertexSetByNearestPoints(
+                            "Measurement points", points, 1.e-12,
+                            &nearest, &distances);
+   REQUIRE(sets.GetNumEntities(EntitySets::VERTEX, selected) == 2);
+   REQUIRE(sets(EntitySets::VERTEX, selected).count(0) == 1);
+   REQUIRE(sets(EntitySets::VERTEX, selected).count(mesh.GetNV() - 1) == 1);
+}
+
 TEST_CASE("Edge sets can be created from mesh incidence and geometry", "[Mesh]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
@@ -505,6 +563,46 @@ int GlobalEntitySetSize(const ParMesh &mesh, EntitySets::EntityType type)
 }
 
 } // namespace
+
+TEST_CASE("Parallel nearest-vertex sets use a global search", "[Parallel][Mesh]")
+{
+   Mesh serial_mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
+                                             false, 2.0, 2.0);
+   Array<int> partitioning(serial_mesh.GetNE());
+   for (int element = 0; element < partitioning.Size(); element++)
+   {
+      partitioning[element] = element % Mpi::WorldSize();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+   EntitySets &sets = mesh.GetOrCreateEntitySets();
+   DenseMatrix points(mesh.SpaceDimension(), 1);
+   points = 0.0;
+
+   Array<int> nearest;
+   Array<real_t> distances;
+   sets.FindNearestVertices(points, nearest, distances);
+   REQUIRE(distances[0] == MFEM_Approx(0.0));
+
+   int locally_present = nearest[0] >= 0 ? 1 : 0;
+   int globally_present = 0;
+   MPI_Allreduce(&locally_present, &globally_present, 1, MPI_INT, MPI_SUM,
+                 mesh.GetComm());
+   REQUIRE(globally_present > 0);
+   if (nearest[0] >= 0)
+   {
+      const real_t *vertex = mesh.GetVertex(nearest[0]);
+      REQUIRE(vertex[0] == MFEM_Approx(0.0));
+      REQUIRE(vertex[1] == MFEM_Approx(0.0));
+   }
+
+   const int selected = sets.AddVertexSetByNearestPoints(
+                            "Global measurement point", points, 1.e-12);
+   int local_size = sets.GetNumEntities(EntitySets::VERTEX, selected);
+   int global_size = 0;
+   MPI_Allreduce(&local_size, &global_size, 1, MPI_INT, MPI_SUM,
+                 mesh.GetComm());
+   REQUIRE(global_size == globally_present);
+}
 
 TEST_CASE("Parallel entity sets follow nonconforming refinement descendants",
           "[Parallel][Mesh][NCMesh]")
