@@ -11,6 +11,14 @@
 Version 4.10.1 (development)
 ============================
 
+Discretization improvements
+---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
+
+Linear and nonlinear solvers
+----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the
   configuration and the communicator of the first instance after its
   destruction, and the creation of several serial AmgXSolver instances, which
