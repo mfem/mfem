@@ -11,7 +11,7 @@
 
 set(SRCS
   attribute_sets.cpp
-  edgepath.cpp
+  orientededgeset.cpp
   entsets.cpp
   element.cpp
   exodus_writer.cpp
@@ -44,7 +44,7 @@ set(SRCS
 
 set(HDRS
   attribute_sets.hpp
-  edgepath.hpp
+  orientededgeset.hpp
   entsets.hpp
   element.hpp
   face_nbr_geom.hpp

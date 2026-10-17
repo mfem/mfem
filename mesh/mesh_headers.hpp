@@ -24,7 +24,7 @@
 #include "tetrahedron.hpp"
 #include "ncmesh.hpp"
 #include "mesh.hpp"
-#include "edgepath.hpp"
+#include "orientededgeset.hpp"
 #include "mesh_operators.hpp"
 #include "submesh/ncsubmesh.hpp"
 #include "submesh/submesh.hpp"

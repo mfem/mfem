@@ -14,7 +14,7 @@
 
 #include "gridfunc.hpp"
 #include "../mesh/entsets.hpp"
-#include "../mesh/edgepath.hpp"
+#include "../mesh/orientededgeset.hpp"
 
 namespace mfem
 {
@@ -48,37 +48,6 @@ private:
    EntitySets::EntityType type_;
    int set_index_;
 };
-
-/** @brief Integrate a scalar L2 field over the elements in an entity set.
-
-    The result is evaluated directly on every call to Eval(). In parallel, the
-    locally owned element contributions are summed and the global result is
-    returned on every rank. The entity set and GridFunction are not owned and
-    must remain valid for the lifetime of this object.
-
-    The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
-    each element's finite element. An explicit non-negative order overrides
-    that default. */
-class L2ElementSetIntegral : public EntitySetFunctional
-{
-public:
-   L2ElementSetIntegral(const GridFunction &field, const EntitySets &sets,
-                        int set_index, int integration_order = -1);
-
-   L2ElementSetIntegral(const GridFunction &field, const EntitySets &sets,
-                        const std::string &set_name,
-                        int integration_order = -1);
-
-   /// Return the integral of the field over the selected elements.
-   real_t Eval() const;
-
-   /// Return -1 when the default, element-dependent quadrature order is used.
-   int GetIntegrationOrder() const { return integration_order_; }
-
-private:
-   int integration_order_;
-};
-
 /** @brief Evaluate a scalar H1 GridFunction at the vertices in an entity set.
 
     Eval() evaluates the field directly on every call. The selected entities
@@ -113,22 +82,23 @@ private:
    void VerifyCompatibleField() const;
 };
 
-/** @brief Integrate an H(curl) GridFunction along an oriented EdgePath.
+/** @brief Integrate an H(curl) GridFunction along an OrientedEdgeSet.
 
     Eval() directly evaluates the field using a local element incident to each
     edge and integrates @f$\mathbf{u}\cdot d\mathbf{x}@f$. In parallel, each
-    rank supplies the path edges it owns and Eval() sums the local
+    rank supplies the oriented edges it owns and Eval() sums the local
     contributions over the mesh communicator. The path and GridFunction are
     not owned and must remain valid for the lifetime of this object.
 
     The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
     the incident element finite element. An explicit non-negative order
     overrides that default. */
-class HCurlEdgePathIntegral
+class HCurlOrientedEdgeSetIntegral
 {
 public:
-   HCurlEdgePathIntegral(const GridFunction &field, const EdgePath &path,
-                         int integration_order = -1);
+   HCurlOrientedEdgeSetIntegral(const GridFunction &field,
+                                const OrientedEdgeSet &edges,
+                                int integration_order = -1);
 
    /// Return the oriented line integral over the path.
    real_t Eval() const;
@@ -140,7 +110,7 @@ private:
    real_t GlobalSum(real_t local_value) const;
 
    const GridFunction &field_;
-   const EdgePath &path_;
+   const OrientedEdgeSet &edges_;
    int integration_order_;
 };
 
@@ -157,11 +127,12 @@ private:
     The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
     the adjacent element finite element. An explicit non-negative order
     overrides that default. */
-class HDivFaceSetIntegral
+class HDivOrientedFaceSetIntegral
 {
 public:
-   HDivFaceSetIntegral(const GridFunction &field, const OrientedFaceSet &faces,
-                       int integration_order = -1);
+   HDivOrientedFaceSetIntegral(const GridFunction &field,
+                               const OrientedFaceSet &faces,
+                               int integration_order = -1);
 
    /// Return the oriented normal-flux integral over the face set.
    real_t Eval() const;
@@ -174,6 +145,36 @@ private:
 
    const GridFunction &field_;
    const OrientedFaceSet &faces_;
+   int integration_order_;
+};
+
+/** @brief Integrate a scalar L2 field over the elements in an entity set.
+
+    The result is evaluated directly on every call to Eval(). In parallel, the
+    locally owned element contributions are summed and the global result is
+    returned on every rank. The entity set and GridFunction are not owned and
+    must remain valid for the lifetime of this object.
+
+    The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
+    each element's finite element. An explicit non-negative order overrides
+    that default. */
+class L2ElementSetIntegral : public EntitySetFunctional
+{
+public:
+   L2ElementSetIntegral(const GridFunction &field, const EntitySets &sets,
+                        int set_index, int integration_order = -1);
+
+   L2ElementSetIntegral(const GridFunction &field, const EntitySets &sets,
+                        const std::string &set_name,
+                        int integration_order = -1);
+
+   /// Return the integral of the field over the selected elements.
+   real_t Eval() const;
+
+   /// Return -1 when the default, element-dependent quadrature order is used.
+   int GetIntegrationOrder() const { return integration_order_; }
+
+private:
    int integration_order_;
 };
 

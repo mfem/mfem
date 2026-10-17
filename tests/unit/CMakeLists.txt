@@ -81,7 +81,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_mfem_mesh_reader.cpp
   mesh/test_bb_grid_map.cpp
   mesh/test_exodus_writer.cpp
-  mesh/test_edgepath.cpp
+  mesh/test_oriented_edge_set.cpp
   mesh/test_entity_sets.cpp
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp

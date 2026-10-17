@@ -992,9 +992,9 @@ public:
        @warning Although periodic meshes are supported, some periodic
        configurations (such as periodic-hexagon.mesh) do not work because MFEM
        requires edges to be uniquely identified by their endpoint vertices, and
-       so edge paths connecting periodic boundaries must have at least three
-       segments. MakeSimplicial inserts new diagonal edges that may violate this
-       condition. */
+       so sequences of edges connecting periodic boundaries must have at least
+       three segments. MakeSimplicial inserts new diagonal edges that may
+       violate this condition. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.

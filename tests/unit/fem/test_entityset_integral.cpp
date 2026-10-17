@@ -119,7 +119,7 @@ TEST_CASE("H1 vertex-set measurement", "[EntitySets][H1_FECollection]")
    }
 }
 
-TEST_CASE("HCurl edge-path integral", "[EntitySets][ND_FECollection]")
+TEST_CASE("HCurl oriented-edge-set integral", "[EntitySets][ND_FECollection]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, false,
                                      2.0, 1.0);
@@ -138,11 +138,11 @@ TEST_CASE("HCurl edge-path integral", "[EntitySets][ND_FECollection]")
    const int right = FindVertex(mesh, 2.0, 0.0);
    REQUIRE(left >= 0);
    REQUIRE(right >= 0);
-   EdgePath forward(mesh, left, right);
-   EdgePath reverse(mesh, right, left);
+   OrientedEdgeSet forward(mesh, left, right);
+   OrientedEdgeSet reverse(mesh, right, left);
 
-   REQUIRE(HCurlEdgePathIntegral(field, forward).Eval() == MFEM_Approx(2.0));
-   REQUIRE(HCurlEdgePathIntegral(field, reverse).Eval() == MFEM_Approx(-2.0));
+   REQUIRE(HCurlOrientedEdgeSetIntegral(field, forward).Eval() == MFEM_Approx(2.0));
+   REQUIRE(HCurlOrientedEdgeSetIntegral(field, reverse).Eval() == MFEM_Approx(-2.0));
 }
 
 TEST_CASE("HDiv oriented-face-set integral", "[EntitySets][RT_FECollection]")
@@ -167,7 +167,7 @@ TEST_CASE("HDiv oriented-face-set integral", "[EntitySets][RT_FECollection]")
    field.ProjectCoefficient(value);
 
    REQUIRE(interface.Size() == 1);
-   REQUIRE(HDivFaceSetIntegral(field, interface).Eval() == MFEM_Approx(1.0));
+   REQUIRE(HDivOrientedFaceSetIntegral(field, interface).Eval() == MFEM_Approx(1.0));
 }
 
 #ifdef MFEM_USE_MPI
@@ -199,7 +199,7 @@ TEST_CASE("Parallel L2 element-set integral",
    REQUIRE(integral.Eval() == MFEM_Approx(8.0));
 }
 
-TEST_CASE("Parallel HCurl edge-path integral",
+TEST_CASE("Parallel HCurl oriented-edge-set integral",
           "[EntitySets][ND_FECollection][Parallel]")
 {
    int nranks, rank;
@@ -224,23 +224,23 @@ TEST_CASE("Parallel HCurl edge-path integral",
    });
    field.ProjectCoefficient(value);
 
-   EdgePath path;
+   OrientedEdgeSet edge_set;
    real_t expected = 0.0;
    if (rank == 0)
    {
-      Array<int> edges({0}), orientations({1}), vertices;
-      mesh.GetEdgeVertices(edges[0], vertices);
+      Array<int> set_edges({0}), orientations({1}), vertices;
+      mesh.GetEdgeVertices(set_edges[0], vertices);
       const real_t *start = mesh.GetVertex(vertices[0]);
       const real_t *end = mesh.GetVertex(vertices[1]);
       expected = end[0] - start[0] + end[1] - start[1];
-      path.SetEdges(mesh, edges, orientations);
+      edge_set.SetEdges(mesh, set_edges, orientations);
    }
    else
    {
-      path.SetWaypoints(mesh, Array<int>({0}));
+      edge_set.SetWaypoints(mesh, Array<int>({0}));
    }
 
-   REQUIRE(HCurlEdgePathIntegral(field, path).Eval() == MFEM_Approx(expected));
+   REQUIRE(HCurlOrientedEdgeSetIntegral(field, edge_set).Eval() == MFEM_Approx(expected));
 }
 
 TEST_CASE("Parallel H1 vertex-set measurement",
@@ -334,7 +334,7 @@ TEST_CASE("Parallel HDiv oriented-face-set integral",
    }
    OrientedFaceSet face_set(mesh, faces, signs);
 
-   REQUIRE(HDivFaceSetIntegral(field, face_set).Eval() == MFEM_Approx(1.0));
+   REQUIRE(HDivOrientedFaceSetIntegral(field, face_set).Eval() == MFEM_Approx(1.0));
 }
 
 #endif

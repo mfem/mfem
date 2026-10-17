@@ -149,64 +149,6 @@ real_t EntitySetFunctional::GlobalSum(real_t local_value) const
    return local_value;
 }
 
-L2ElementSetIntegral::L2ElementSetIntegral(const GridFunction &field,
-                                           const EntitySets &sets,
-                                           int set_index,
-                                           int integration_order)
-   : EntitySetFunctional(field, sets, EntitySets::ELEMENT, set_index),
-     integration_order_(integration_order)
-{
-   MFEM_VERIFY(integration_order_ >= -1, "Invalid integration order.");
-
-   const FiniteElementSpace *fes = Field().FESpace();
-   MFEM_VERIFY(fes->IsDGSpace(),
-               "L2ElementSetIntegral requires a discontinuous L2 finite "
-               "element space.");
-   MFEM_VERIFY(fes->GetVDim() == 1,
-               "L2ElementSetIntegral currently requires a scalar field.");
-   MFEM_VERIFY(fes->GetTypicalFE()->GetRangeType() == FiniteElement::SCALAR,
-               "L2ElementSetIntegral requires scalar finite elements.");
-}
-
-L2ElementSetIntegral::L2ElementSetIntegral(const GridFunction &field,
-                                           const EntitySets &sets,
-                                           const std::string &set_name,
-                                           int integration_order)
-   : L2ElementSetIntegral(field, sets,
-                          sets.GetSetIndex(EntitySets::ELEMENT, set_name),
-                          integration_order)
-{
-}
-
-real_t L2ElementSetIntegral::Eval() const
-{
-   VerifyCompatibleField();
-
-   const FiniteElementSpace *fes = Field().FESpace();
-   real_t local_value = 0.0;
-
-   for (const int element : Entities())
-   {
-      MFEM_VERIFY(element >= 0 && element < fes->GetNE(),
-                  "Entity set contains an invalid element index.");
-
-      const FiniteElement *fe = fes->GetFE(element);
-      const int order = (integration_order_ >= 0) ? integration_order_
-                        : 2 * fe->GetOrder() + 3;
-      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), order);
-      ElementTransformation *trans = fes->GetElementTransformation(element);
-
-      for (int i = 0; i < ir.GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(i);
-         trans->SetIntPoint(&ip);
-         local_value += ip.weight * trans->Weight() * Field().GetValue(element, ip);
-      }
-   }
-
-   return GlobalSum(local_value);
-}
-
 H1VertexSetMeasurement::H1VertexSetMeasurement(const GridFunction &field,
                                                const EntitySets &sets,
                                                int set_index)
@@ -317,37 +259,37 @@ Vector H1VertexSetMeasurement::Eval() const
    return values;
 }
 
-HCurlEdgePathIntegral::HCurlEdgePathIntegral(const GridFunction &field,
-                                             const EdgePath &path,
-                                             int integration_order)
-   : field_(field), path_(path), integration_order_(integration_order)
+HCurlOrientedEdgeSetIntegral::HCurlOrientedEdgeSetIntegral(
+   const GridFunction &field, const OrientedEdgeSet &edges,
+   int integration_order)
+   : field_(field), edges_(edges), integration_order_(integration_order)
 {
-   MFEM_VERIFY(path_.GetMesh() != NULL,
-               "The edge path has not been constructed on a mesh.");
+   MFEM_VERIFY(edges_.GetMesh() != NULL,
+               "The oriented edge set has not been constructed on a mesh.");
    MFEM_VERIFY(integration_order_ >= -1, "Invalid integration order.");
    VerifyCompatibleField();
 }
 
-void HCurlEdgePathIntegral::VerifyCompatibleField() const
+void HCurlOrientedEdgeSetIntegral::VerifyCompatibleField() const
 {
-   VerifyVectorField(field_, *path_.GetMesh(), FiniteElement::H_CURL,
-                     "HCurlEdgePathIntegral");
+   VerifyVectorField(field_, *edges_.GetMesh(), FiniteElement::H_CURL,
+                     "HCurlOrientedEdgeSetIntegral");
 }
 
-real_t HCurlEdgePathIntegral::GlobalSum(real_t local_value) const
+real_t HCurlOrientedEdgeSetIntegral::GlobalSum(real_t local_value) const
 {
    return GlobalSumImpl(field_, local_value);
 }
 
-real_t HCurlEdgePathIntegral::Eval() const
+real_t HCurlOrientedEdgeSetIntegral::Eval() const
 {
    VerifyCompatibleField();
    const FiniteElementSpace *fes = field_.FESpace();
    Mesh &mesh = *fes->GetMesh();
-   const Array<int> &edges = path_.GetEdges();
-   const Array<int> &orientations = path_.GetEdgeOrientations();
+   const Array<int> &edges = edges_.GetEdges();
+   const Array<int> &orientations = edges_.GetEdgeOrientations();
    MFEM_VERIFY(edges.Size() == orientations.Size(),
-               "The edge path has inconsistent orientations.");
+               "The oriented edge set has inconsistent orientations.");
 
    const int num_edges = (mesh.Dimension() == 1) ? mesh.GetNE()
                          : mesh.GetNEdges();
@@ -358,9 +300,9 @@ real_t HCurlEdgePathIntegral::Eval() const
    {
       const int edge = edges[i];
       MFEM_VERIFY(edge >= 0 && edge < num_edges,
-                  "The edge path contains an invalid edge index.");
+                  "The oriented edge set contains an invalid edge index.");
       MFEM_VERIFY(orientations[i] == 1 || orientations[i] == -1,
-                  "The edge path contains an invalid edge orientation.");
+                  "The oriented edge set contains an invalid edge orientation.");
 
       const int element = GetEdgeIncidentElement(mesh, edge);
       const FiniteElement *fe = fes->GetFE(element);
@@ -392,7 +334,7 @@ real_t HCurlEdgePathIntegral::Eval() const
 
          field_.GetVectorValue(element, element_ip, value);
          MFEM_VERIFY(value.Size() == space_dim,
-                     "HCurlEdgePathIntegral requires a physical vector field.");
+                     "HCurlOrientedEdgeSetIntegral requires a physical vector field.");
          edge_trans->SetIntPoint(&edge_ip);
          const DenseMatrix &jacobian = edge_trans->Jacobian();
          for (int d = 0; d < space_dim; d++) { tangent[d] = jacobian(d, 0); }
@@ -403,29 +345,29 @@ real_t HCurlEdgePathIntegral::Eval() const
    return GlobalSum(local_value);
 }
 
-HDivFaceSetIntegral::HDivFaceSetIntegral(const GridFunction &field,
-                                         const OrientedFaceSet &faces,
-                                         int integration_order)
+HDivOrientedFaceSetIntegral::HDivOrientedFaceSetIntegral(
+   const GridFunction &field, const OrientedFaceSet &faces,
+   int integration_order)
    : field_(field), faces_(faces), integration_order_(integration_order)
 {
    MFEM_VERIFY(integration_order_ >= -1, "Invalid integration order.");
    VerifyCompatibleField();
 }
 
-void HDivFaceSetIntegral::VerifyCompatibleField() const
+void HDivOrientedFaceSetIntegral::VerifyCompatibleField() const
 {
    MFEM_VERIFY(faces_.GetMesh() != NULL,
                "The oriented face set has no mesh.");
    VerifyVectorField(field_, *faces_.GetMesh(), FiniteElement::H_DIV,
-                     "HDivFaceSetIntegral");
+                     "HDivOrientedFaceSetIntegral");
 }
 
-real_t HDivFaceSetIntegral::GlobalSum(real_t local_value) const
+real_t HDivOrientedFaceSetIntegral::GlobalSum(real_t local_value) const
 {
    return GlobalSumImpl(field_, local_value);
 }
 
-real_t HDivFaceSetIntegral::Eval() const
+real_t HDivOrientedFaceSetIntegral::Eval() const
 {
    VerifyCompatibleField();
    const FiniteElementSpace *fes = field_.FESpace();
@@ -459,9 +401,67 @@ real_t HDivFaceSetIntegral::Eval() const
             face_trans->GetElement1Transformation();
          field_.GetVectorValue(element_trans, element_trans.GetIntPoint(), value);
          MFEM_VERIFY(value.Size() == space_dim,
-                     "HDivFaceSetIntegral requires a physical vector field.");
+                     "HDivOrientedFaceSetIntegral requires a physical vector field.");
          CalcOrtho(face_trans->Face->Jacobian(), normal);
          local_value += sign * face_ip.weight * (value * normal);
+      }
+   }
+
+   return GlobalSum(local_value);
+}
+
+L2ElementSetIntegral::L2ElementSetIntegral(const GridFunction &field,
+                                           const EntitySets &sets,
+                                           int set_index,
+                                           int integration_order)
+   : EntitySetFunctional(field, sets, EntitySets::ELEMENT, set_index),
+     integration_order_(integration_order)
+{
+   MFEM_VERIFY(integration_order_ >= -1, "Invalid integration order.");
+
+   const FiniteElementSpace *fes = Field().FESpace();
+   MFEM_VERIFY(fes->IsDGSpace(),
+               "L2ElementSetIntegral requires a discontinuous L2 finite "
+               "element space.");
+   MFEM_VERIFY(fes->GetVDim() == 1,
+               "L2ElementSetIntegral currently requires a scalar field.");
+   MFEM_VERIFY(fes->GetTypicalFE()->GetRangeType() == FiniteElement::SCALAR,
+               "L2ElementSetIntegral requires scalar finite elements.");
+}
+
+L2ElementSetIntegral::L2ElementSetIntegral(const GridFunction &field,
+                                           const EntitySets &sets,
+                                           const std::string &set_name,
+                                           int integration_order)
+   : L2ElementSetIntegral(field, sets,
+                          sets.GetSetIndex(EntitySets::ELEMENT, set_name),
+                          integration_order)
+{
+}
+
+real_t L2ElementSetIntegral::Eval() const
+{
+   VerifyCompatibleField();
+
+   const FiniteElementSpace *fes = Field().FESpace();
+   real_t local_value = 0.0;
+
+   for (const int element : Entities())
+   {
+      MFEM_VERIFY(element >= 0 && element < fes->GetNE(),
+                  "Entity set contains an invalid element index.");
+
+      const FiniteElement *fe = fes->GetFE(element);
+      const int order = (integration_order_ >= 0) ? integration_order_
+                        : 2 * fe->GetOrder() + 3;
+      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), order);
+      ElementTransformation *trans = fes->GetElementTransformation(element);
+
+      for (int i = 0; i < ir.GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(i);
+         trans->SetIntPoint(&ip);
+         local_value += ip.weight * trans->Weight() * Field().GetValue(element, ip);
       }
    }
 

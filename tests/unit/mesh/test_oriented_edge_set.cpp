@@ -39,7 +39,7 @@ void RequireEqual(const Array<int> &actual, const Array<int> &expected)
    for (int i = 0; i < actual.Size(); i++) { REQUIRE(actual[i] == expected[i]); }
 }
 
-void RequirePathConnectivity(const Mesh &mesh, const EdgePath &path)
+void RequirePathConnectivity(const Mesh &mesh, const OrientedEdgeSet &path)
 {
    REQUIRE(path.GetVertices().Size() == path.GetEdges().Size() + 1);
    int current_vertex = path.GetVertices()[0];
@@ -65,11 +65,11 @@ void RequirePathConnectivity(const Mesh &mesh, const EdgePath &path)
 
 } // namespace
 
-TEST_CASE("Edge paths follow directed mesh edges", "[Mesh]")
+TEST_CASE("Oriented edge sets provide path construction", "[Mesh]")
 {
    Mesh mesh = MakeBranchedPathMesh();
-   EdgePath path(mesh, 0, 4);
-   EdgePath repeat_path(mesh, 0, 4);
+   OrientedEdgeSet path(mesh, 0, 4);
+   OrientedEdgeSet repeat_path(mesh, 0, 4);
 
    // The edge toward vertex 1 is more aligned with the target but is a dead
    // end. The path search therefore backtracks and takes the upper branch.
@@ -80,12 +80,12 @@ TEST_CASE("Edge paths follow directed mesh edges", "[Mesh]")
 
    RequirePathConnectivity(mesh, path);
 
-   EdgePath zero_length_path(mesh, 2, 2);
+   OrientedEdgeSet zero_length_path(mesh, 2, 2);
    RequireEqual(zero_length_path.GetVertices(), Array<int>({2}));
    REQUIRE(zero_length_path.GetEdges().Size() == 0);
    REQUIRE(zero_length_path.GetEdgeOrientations().Size() == 0);
 
-   EdgePath closed_path(mesh, Array<int>({0, 3, 0}));
+   OrientedEdgeSet closed_path(mesh, Array<int>({0, 3, 0}));
    RequireEqual(closed_path.GetVertices(), Array<int>({0, 2, 3, 2, 0}));
    REQUIRE(closed_path.GetVertices()[0] == closed_path.GetVertices().Last());
    RequirePathConnectivity(mesh, closed_path);
@@ -102,16 +102,23 @@ TEST_CASE("Edge paths follow directed mesh edges", "[Mesh]")
    }
    REQUIRE(start_vertex >= 0);
    REQUIRE(end_vertex >= 0);
-   EdgePath quad_path(quad_mesh, start_vertex, end_vertex);
+   OrientedEdgeSet quad_path(quad_mesh, start_vertex, end_vertex);
    REQUIRE(quad_path.GetVertices()[0] == start_vertex);
    REQUIRE(quad_path.GetVertices().Last() == end_vertex);
    RequirePathConnectivity(quad_mesh, quad_path);
 
-   EdgePath explicit_path(quad_mesh, quad_path.GetEdges(),
-                          quad_path.GetEdgeOrientations());
-   RequireEqual(explicit_path.GetVertices(), quad_path.GetVertices());
+   OrientedEdgeSet explicit_set(quad_mesh, quad_path.GetEdges(),
+                                quad_path.GetEdgeOrientations());
+   RequireEqual(explicit_set.GetEdges(), quad_path.GetEdges());
+   RequireEqual(explicit_set.GetEdgeOrientations(), quad_path.GetEdgeOrientations());
+   REQUIRE(explicit_set.GetVertices().Size() == 0);
 
-   EdgePath constrained_path;
+   OrientedEdgeSet disconnected_set(quad_mesh, Array<int>({0, 1}),
+                                    Array<int>({1, -1}));
+   REQUIRE(disconnected_set.Size() == 2);
+   REQUIRE(disconnected_set.GetVertices().Size() == 0);
+
+   OrientedEdgeSet constrained_path;
    constrained_path.SetEndpoints(quad_mesh, start_vertex, end_vertex,
                                  quad_path.GetEdges());
    RequireEqual(constrained_path.GetEdges(), quad_path.GetEdges());
@@ -123,14 +130,14 @@ TEST_CASE("Edge paths follow directed mesh edges", "[Mesh]")
    {
       sets.AddEntity(EntitySets::EDGE, edge_set, edge);
    }
-   EdgePath entity_set_path;
+   OrientedEdgeSet entity_set_path;
    entity_set_path.SetFromEdgeSet(sets, edge_set, start_vertex);
    RequireEqual(entity_set_path.GetEdges(), quad_path.GetEdges());
    RequirePathConnectivity(quad_mesh, entity_set_path);
 
    const int element_set = sets.AddElementSet("All elements",
                                               Array<int>({0, 1}));
-   EdgePath element_set_path;
+   OrientedEdgeSet element_set_path;
    element_set_path.SetEndpointsInElementSet(quad_mesh, start_vertex,
                                              end_vertex, sets, element_set);
    RequirePathConnectivity(quad_mesh, element_set_path);
@@ -140,7 +147,7 @@ TEST_CASE("Edge paths follow directed mesh edges", "[Mesh]")
    {
       boundary_elements[i] = i;
    }
-   EdgePath boundary_path;
+   OrientedEdgeSet boundary_path;
    boundary_path.SetEndpointsOnBoundary(quad_mesh, start_vertex, end_vertex,
                                         boundary_elements);
    RequirePathConnectivity(quad_mesh, boundary_path);
@@ -151,15 +158,15 @@ TEST_CASE("Edge paths follow directed mesh edges", "[Mesh]")
       sets.AddEntity(EntitySets::EDGE, boundary_edge_set,
                      quad_mesh.GetBdrElementFaceIndex(boundary_element));
    }
-   EdgePath boundary_loop;
+   OrientedEdgeSet boundary_loop;
    boundary_loop.SetFromEdgeSet(sets, boundary_edge_set, start_vertex);
    REQUIRE(boundary_loop.GetVertices()[0] == start_vertex);
    REQUIRE(boundary_loop.GetVertices().Last() == start_vertex);
    RequirePathConnectivity(quad_mesh, boundary_loop);
 
    int score_calls = 0;
-   EdgePath scored_path(quad_mesh, start_vertex, end_vertex,
-                        [&score_calls](const Mesh &, int edge, int, int, int)
+   OrientedEdgeSet scored_path(quad_mesh, start_vertex, end_vertex,
+                               [&score_calls](const Mesh &, int edge, int, int, int)
    {
       score_calls++;
       return -edge;

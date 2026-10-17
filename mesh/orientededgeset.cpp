@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "edgepath.hpp"
+#include "orientededgeset.hpp"
 #include "entsets.hpp"
 #include "mesh.hpp"
 
@@ -63,48 +63,48 @@ void GetPathEdgeVertices(const Mesh &mesh, int edge, Array<int> &vertices)
 
 } // namespace
 
-EdgePath::EdgePath(const Mesh &mesh, int start_vertex, int end_vertex)
+OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, int start_vertex, int end_vertex)
 {
    SetEndpoints(mesh, start_vertex, end_vertex);
 }
 
-EdgePath::EdgePath(const Mesh &mesh, int start_vertex, int end_vertex,
-                   const EdgeScorer &scorer)
+OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, int start_vertex, int end_vertex,
+                                  const EdgeScorer &scorer)
 {
    SetEndpoints(mesh, start_vertex, end_vertex, scorer);
 }
 
-EdgePath::EdgePath(const Mesh &mesh, const Array<int> &vertices)
+OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, const Array<int> &vertices)
 {
    SetWaypoints(mesh, vertices);
 }
 
-EdgePath::EdgePath(const Mesh &mesh, const Array<int> &vertices,
-                   const EdgeScorer &scorer)
+OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, const Array<int> &vertices,
+                                  const EdgeScorer &scorer)
 {
    SetWaypoints(mesh, vertices, scorer);
 }
 
-EdgePath::EdgePath(const Mesh &mesh, const Array<int> &edges,
-                   const Array<int> &edge_orientations)
+OrientedEdgeSet::OrientedEdgeSet(const Mesh &mesh, const Array<int> &edges,
+                                  const Array<int> &edge_orientations)
 {
    SetEdges(mesh, edges, edge_orientations);
 }
 
-void EdgePath::SetEndpoints(const Mesh &mesh, int start_vertex, int end_vertex)
+void OrientedEdgeSet::SetEndpoints(const Mesh &mesh, int start_vertex, int end_vertex)
 {
    SetEndpointsImpl(mesh, start_vertex, end_vertex, nullptr, EdgeScorer());
 }
 
-void EdgePath::SetEndpoints(const Mesh &mesh, int start_vertex, int end_vertex,
-                            const EdgeScorer &scorer)
+void OrientedEdgeSet::SetEndpoints(const Mesh &mesh, int start_vertex,
+                                   int end_vertex, const EdgeScorer &scorer)
 {
    SetEndpointsImpl(mesh, start_vertex, end_vertex, nullptr, scorer);
 }
 
-void EdgePath::SetEndpoints(const Mesh &mesh, int start_vertex, int end_vertex,
-                            const Array<int> &allowed_edges,
-                            const EdgeScorer &scorer)
+void OrientedEdgeSet::SetEndpoints(const Mesh &mesh, int start_vertex,
+                                   int end_vertex, const Array<int> &allowed_edges,
+                                   const EdgeScorer &scorer)
 {
    std::set<int> allowed(allowed_edges.begin(), allowed_edges.end());
    const int num_edges = GetPathEdgeCount(mesh);
@@ -116,10 +116,10 @@ void EdgePath::SetEndpoints(const Mesh &mesh, int start_vertex, int end_vertex,
    SetEndpointsImpl(mesh, start_vertex, end_vertex, &allowed, scorer);
 }
 
-void EdgePath::SetEndpointsImpl(const Mesh &mesh, int start_vertex,
-                                int end_vertex,
-                                const std::set<int> *allowed_edges,
-                                const EdgeScorer &scorer)
+void OrientedEdgeSet::SetEndpointsImpl(const Mesh &mesh, int start_vertex,
+                                       int end_vertex,
+                                       const std::set<int> *allowed_edges,
+                                       const EdgeScorer &scorer)
 {
    mesh_ = &mesh;
    const int num_vertices = mesh.GetNV();
@@ -246,10 +246,10 @@ void EdgePath::SetEndpointsImpl(const Mesh &mesh, int start_vertex,
    }
 }
 
-void EdgePath::SetEndpointsInElementSet(const Mesh &mesh, int start_vertex,
-                                        int end_vertex, const EntitySets &sets,
-                                        int element_set,
-                                        const EdgeScorer &scorer)
+void OrientedEdgeSet::SetEndpointsInElementSet(const Mesh &mesh, int start_vertex,
+                                               int end_vertex, const EntitySets &sets,
+                                               int element_set,
+                                               const EdgeScorer &scorer)
 {
    MFEM_VERIFY(sets.GetMesh() == &mesh,
                "The entity set belongs to a different mesh.");
@@ -263,10 +263,10 @@ void EdgePath::SetEndpointsInElementSet(const Mesh &mesh, int start_vertex,
    SetEndpointsImpl(mesh, start_vertex, end_vertex, &allowed_edges, scorer);
 }
 
-void EdgePath::SetEndpointsOnBoundary(const Mesh &mesh, int start_vertex,
-                                      int end_vertex,
-                                      const Array<int> &boundary_elements,
-                                      const EdgeScorer &scorer)
+void OrientedEdgeSet::SetEndpointsOnBoundary(const Mesh &mesh, int start_vertex,
+                                             int end_vertex,
+                                             const Array<int> &boundary_elements,
+                                             const EdgeScorer &scorer)
 {
    MFEM_VERIFY(mesh.Dimension() > 1,
                "Boundary edge paths require a mesh of dimension at least two.");
@@ -282,13 +282,13 @@ void EdgePath::SetEndpointsOnBoundary(const Mesh &mesh, int start_vertex,
    SetEndpointsImpl(mesh, start_vertex, end_vertex, &allowed_edges, scorer);
 }
 
-void EdgePath::SetWaypoints(const Mesh &mesh, const Array<int> &vertices)
+void OrientedEdgeSet::SetWaypoints(const Mesh &mesh, const Array<int> &vertices)
 {
    SetWaypoints(mesh, vertices, EdgeScorer());
 }
 
-void EdgePath::SetWaypoints(const Mesh &mesh, const Array<int> &vertices,
-                            const EdgeScorer &scorer)
+void OrientedEdgeSet::SetWaypoints(const Mesh &mesh, const Array<int> &vertices,
+                                   const EdgeScorer &scorer)
 {
    mesh_ = &mesh;
    MFEM_VERIFY(vertices.Size() > 0, "An edge path requires at least one vertex.");
@@ -300,8 +300,8 @@ void EdgePath::SetWaypoints(const Mesh &mesh, const Array<int> &vertices,
 
    for (int waypoint = 0; waypoint + 1 < waypoints.Size(); waypoint++)
    {
-      EdgePath segment(mesh, waypoints[waypoint], waypoints[waypoint + 1],
-                       scorer);
+      OrientedEdgeSet segment(mesh, waypoints[waypoint],
+                              waypoints[waypoint + 1], scorer);
       const int first_vertex = (waypoint == 0) ? 0 : 1;
       for (int i = first_vertex; i < segment.vertices_.Size(); i++)
       {
@@ -314,8 +314,8 @@ void EdgePath::SetWaypoints(const Mesh &mesh, const Array<int> &vertices,
    if (waypoints.Size() == 1) { vertices_.Append(waypoints[0]); }
 }
 
-void EdgePath::SetEdges(const Mesh &mesh, const Array<int> &edges,
-                        const Array<int> &edge_orientations)
+void OrientedEdgeSet::SetEdges(const Mesh &mesh, const Array<int> &edges,
+                               const Array<int> &edge_orientations)
 {
    mesh_ = &mesh;
    MFEM_VERIFY(edges.Size() == edge_orientations.Size(),
@@ -335,27 +335,13 @@ void EdgePath::SetEdges(const Mesh &mesh, const Array<int> &edges,
       MFEM_VERIFY(orientation == 1 || orientation == -1,
                   "Edge orientations must be +1 or -1.");
 
-      Array<int> edge_vertices;
-      GetPathEdgeVertices(mesh, edge, edge_vertices);
-      const int first = edge_vertices[(orientation > 0) ? 0 : 1];
-      const int second = edge_vertices[(orientation > 0) ? 1 : 0];
-      if (i == 0)
-      {
-         vertices_.Append(first);
-      }
-      else
-      {
-         MFEM_VERIFY(vertices_.Last() == first,
-                     "The ordered edges do not form a continuous path.");
-      }
-      vertices_.Append(second);
       edges_.Append(edge);
       edge_orientations_.Append(orientation);
    }
 }
 
-void EdgePath::SetFromEdgeSet(const EntitySets &sets, int edge_set,
-                              int start_vertex, int next_vertex)
+void OrientedEdgeSet::SetFromEdgeSet(const EntitySets &sets, int edge_set,
+                                     int start_vertex, int next_vertex)
 {
    const Mesh &mesh = *sets.GetMesh();
    mesh_ = &mesh;
