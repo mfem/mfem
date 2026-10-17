@@ -118,8 +118,6 @@ void AmgXSolver::InitSerial()
    {
       AMGX_SAFE_CALL(AMGX_initialize());
 
-      AMGX_SAFE_CALL(AMGX_initialize_plugins());
-
       AMGX_SAFE_CALL(AMGX_install_signal_handler());
 
       CreateConfig(rsrc_cfg);
@@ -311,8 +309,6 @@ void AmgXSolver::InitAmgX()
    if (count == 1)
    {
       AMGX_SAFE_CALL(AMGX_initialize());
-
-      AMGX_SAFE_CALL(AMGX_initialize_plugins());
 
       AMGX_SAFE_CALL(AMGX_install_signal_handler());
 
@@ -1042,7 +1038,6 @@ void AmgXSolver::Finalize()
          if (rsrc_comm != MPI_COMM_NULL) { MPI_Comm_free(&rsrc_comm); }
 #endif
 
-         AMGX_SAFE_CALL(AMGX_finalize_plugins());
          AMGX_SAFE_CALL(AMGX_finalize());
       }
       else
