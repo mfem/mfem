@@ -121,6 +121,7 @@ void EdgePath::SetEndpointsImpl(const Mesh &mesh, int start_vertex,
                                 const std::set<int> *allowed_edges,
                                 const EdgeScorer &scorer)
 {
+   mesh_ = &mesh;
    const int num_vertices = mesh.GetNV();
    MFEM_VERIFY(start_vertex >= 0 && start_vertex < num_vertices,
                "The start vertex index is out of range.");
@@ -289,6 +290,7 @@ void EdgePath::SetWaypoints(const Mesh &mesh, const Array<int> &vertices)
 void EdgePath::SetWaypoints(const Mesh &mesh, const Array<int> &vertices,
                             const EdgeScorer &scorer)
 {
+   mesh_ = &mesh;
    MFEM_VERIFY(vertices.Size() > 0, "An edge path requires at least one vertex.");
    const Array<int> waypoints(vertices);
 
@@ -315,6 +317,7 @@ void EdgePath::SetWaypoints(const Mesh &mesh, const Array<int> &vertices,
 void EdgePath::SetEdges(const Mesh &mesh, const Array<int> &edges,
                         const Array<int> &edge_orientations)
 {
+   mesh_ = &mesh;
    MFEM_VERIFY(edges.Size() == edge_orientations.Size(),
                "The number of edges and orientations must match.");
 
@@ -355,6 +358,7 @@ void EdgePath::SetFromEdgeSet(const EntitySets &sets, int edge_set,
                               int start_vertex, int next_vertex)
 {
    const Mesh &mesh = *sets.GetMesh();
+   mesh_ = &mesh;
    const std::set<int> &selected_edges = sets(EntitySets::EDGE, edge_set);
    MFEM_VERIFY(!selected_edges.empty(), "The edge set is empty.");
 

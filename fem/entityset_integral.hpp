@@ -14,6 +14,7 @@
 
 #include "gridfunc.hpp"
 #include "../mesh/entsets.hpp"
+#include "../mesh/edgepath.hpp"
 
 namespace mfem
 {
@@ -75,6 +76,70 @@ public:
    int GetIntegrationOrder() const { return integration_order_; }
 
 private:
+   int integration_order_;
+};
+
+/** @brief Integrate an H(curl) GridFunction along an oriented EdgePath.
+
+    Eval() directly evaluates the field using a local element incident to each
+    edge and integrates @f$\mathbf{u}\cdot d\mathbf{x}@f$. In parallel, each
+    rank supplies the path edges it owns and Eval() sums the local
+    contributions over the mesh communicator. The path and GridFunction are
+    not owned and must remain valid for the lifetime of this object.
+
+    The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
+    the incident element finite element. An explicit non-negative order
+    overrides that default. */
+class HCurlEdgePathIntegral
+{
+public:
+   HCurlEdgePathIntegral(const GridFunction &field, const EdgePath &path,
+                         int integration_order = -1);
+
+   /// Return the oriented line integral over the path.
+   real_t Eval() const;
+
+   int GetIntegrationOrder() const { return integration_order_; }
+
+private:
+   void VerifyCompatibleField() const;
+   real_t GlobalSum(real_t local_value) const;
+
+   const GridFunction &field_;
+   const EdgePath &path_;
+   int integration_order_;
+};
+
+/** @brief Integrate the normal flux of an H(div) GridFunction over an
+    OrientedFaceSet.
+
+    Eval() directly evaluates the field in a local element adjacent to every
+    face and integrates @f$\mathbf{u}\cdot\mathbf{n}@f$, including each face's
+    stored normal sign. In parallel, each rank supplies its owned faces and
+    Eval() sums the local contributions over the mesh communicator. The face
+    set and GridFunction are not owned and must remain valid for the lifetime
+    of this object.
+
+    The default quadrature order is @f$2p+3@f$, where @f$p@f$ is the order of
+    the adjacent element finite element. An explicit non-negative order
+    overrides that default. */
+class HDivFaceSetIntegral
+{
+public:
+   HDivFaceSetIntegral(const GridFunction &field, const OrientedFaceSet &faces,
+                       int integration_order = -1);
+
+   /// Return the oriented normal-flux integral over the face set.
+   real_t Eval() const;
+
+   int GetIntegrationOrder() const { return integration_order_; }
+
+private:
+   void VerifyCompatibleField() const;
+   real_t GlobalSum(real_t local_value) const;
+
+   const GridFunction &field_;
+   const OrientedFaceSet &faces_;
    int integration_order_;
 };
 

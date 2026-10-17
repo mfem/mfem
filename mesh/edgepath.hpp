@@ -122,6 +122,9 @@ public:
    /// Orientations of GetEdges() relative to the global mesh-edge orientation.
    const Array<int> &GetEdgeOrientations() const { return edge_orientations_; }
 
+   /// Mesh on which this path was constructed, or NULL for a default path.
+   const Mesh *GetMesh() const { return mesh_; }
+
 private:
    void SetEndpointsImpl(const Mesh &mesh, int start_vertex, int end_vertex,
                          const std::set<int> *allowed_edges,
@@ -130,6 +133,7 @@ private:
    Array<int> vertices_;
    Array<int> edges_;
    Array<int> edge_orientations_;
+   const Mesh *mesh_ = nullptr;
 };
 
 } // namespace mfem

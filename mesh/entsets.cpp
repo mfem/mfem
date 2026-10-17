@@ -129,6 +129,23 @@ void VerifyOrientedFaceSetMesh(const Mesh &mesh)
 
 } // namespace
 
+OrientedFaceSet::OrientedFaceSet(Mesh &mesh, const Array<int> &faces,
+                                 const Array<int> &normal_signs)
+   : mesh_(&mesh), faces_(faces), normal_signs_(normal_signs)
+{
+   MFEM_VERIFY(mesh.Dimension() == 3,
+               "Oriented face sets require a three-dimensional mesh.");
+   MFEM_VERIFY(faces_.Size() == normal_signs_.Size(),
+               "Each oriented face must have a normal sign.");
+   for (int i = 0; i < faces_.Size(); i++)
+   {
+      MFEM_VERIFY(faces_[i] >= 0 && faces_[i] < mesh.GetNumFaces(),
+                  "Oriented face index is out of range.");
+      MFEM_VERIFY(normal_signs_[i] == 1 || normal_signs_[i] == -1,
+                  "Oriented face normal signs must be +1 or -1.");
+   }
+}
+
 OrientedFaceSet::OrientedFaceSet(Mesh &mesh, const EntitySets &element_sets,
                                  int element_set)
    : mesh_(&mesh)

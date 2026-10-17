@@ -47,6 +47,14 @@ class DenseMatrix;
 class OrientedFaceSet
 {
 public:
+   /** @brief Construct an oriented set from local face indices and normal signs.
+
+       Every sign must be +1 or -1. For a parallel mesh, @a faces must contain
+       only the locally owned portion of the surface, so that each physical
+       face contributes on exactly one rank. */
+   OrientedFaceSet(Mesh & mesh, const Array<int> & faces,
+                   const Array<int> & normal_signs);
+
    /** @brief Construct the exterior of an element set.
 
        The resulting normals point outward from the selected elements. Faces
@@ -80,6 +88,7 @@ public:
    /** @brief Return +1 or -1 multiplying the canonical face normal. */
    int GetNormalSign(int i) const { return normal_signs_[i]; }
 
+   const Mesh * GetMesh() const { return mesh_; }
    const Array<int> & GetFaces() const { return faces_; }
    const Array<int> & GetNormalSigns() const { return normal_signs_; }
 
@@ -94,6 +103,56 @@ private:
    Array<int> normal_signs_;
 };
 
+/** @brief Named selections of mesh entities.
+
+    Entity sets supplement mesh attributes when a problem needs to identify
+    arbitrary groups of mesh vertices, edges, faces, or elements. A set has a
+    name and contains local mesh indices of one EntityType. Unlike attributes,
+    sets can describe overlapping, sparse, or geometry-based selections and
+    are not limited to elements and boundary elements.
+
+    Obtain the collection associated with a Mesh with
+    Mesh::GetOrCreateEntitySets(). For example, a two-dimensional boundary
+    portion can be selected by its boundary attribute and used to define
+    essential degrees of freedom:
+    @code{.cpp}
+    EntitySets &sets = mesh.GetOrCreateEntitySets();
+    sets.AddEdgeSetByBoundaryAttribute("left boundary", 1);
+
+    Array<int> ess_tdofs;
+    fespace.GetEssentialTrueDofs(EntitySets::EDGE, "left boundary",
+                                 ess_tdofs);
+    @endcode
+
+    Sets can be created explicitly from local indices or marker arrays, from
+    mesh or boundary attributes, and from physical-space predicates. Element
+    sets can also be selected from a level set; vertex sets can be selected by
+    their nearest mesh vertices to given physical points. Edge and face sets
+    can be constructed from an element-set interface. Face sets are available
+    on three-dimensional meshes; in 3D, edge sets describe edges rather than
+    faces.
+
+    EntitySets::Load() and EntitySets::Print() read and write the optional
+    @c "MFEM sets v1.0" section at the end of an MFEM mesh file. To preserve
+    sets in a mesh file, append @c sets.Print(output) after @c mesh.Print(output).
+    Set names are unique within each entity type, so the same name may be used
+    once for each type. Repeated entity indices are ignored.
+
+    Define sets before calling Mesh::EnsureNCMesh() or constructing a ParMesh.
+    Refinement keeps the association: selected edges, faces, and elements are
+    replaced by their active descendants, while selected vertices remain
+    topological mesh vertices. In parallel, each rank stores its local members;
+    the FiniteElementSpace entity-set overloads synchronize the resulting DoF
+    markers when needed.
+
+    @note A vertex set selects only topological mesh vertices. It does not by
+    itself select incident entities, high-order mesh nodes, or all finite
+    element degrees of freedom in a geometric region.
+
+    @see FiniteElementSpace::GetEssentialVDofs(),
+         FiniteElementSpace::GetEssentialTrueDofs(), and
+         L2ElementSetIntegral.
+*/
 class EntitySets
 {
    friend class Mesh;
