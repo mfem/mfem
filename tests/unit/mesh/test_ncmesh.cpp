@@ -48,7 +48,7 @@ Mesh OneSidedRefinedDividingLineMesh(bool tri_mesh)
 // returns the true DOF of a local DOF, or -1 for a constrained (slave) or
 // non-owned DOF. Returns the number of checked true DOFs.
 template <typename TDofOf>
-int CheckInteriorBoundaryEssentialDofs(Mesh &mesh,
+int CheckInteriorBoundaryEssentialDofs(const Mesh &mesh,
                                        const FiniteElementSpace &fes,
                                        const Array<int> &ess_tdof_list,
                                        bool ess_interior, TDofOf &&tdof_of)
@@ -61,11 +61,11 @@ int CheckInteriorBoundaryEssentialDofs(Mesh &mesh,
       return std::abs(x[0] - 0.5) < EPS && x[1] > EPS && x[1] < 1.0 - EPS;
    };
    int checked = 0;
-   auto check = [&](const Array<int> &dofs)
+   auto check_essential_dofs = [&](const Array<int> &dofs)
    {
       for (int d : dofs)
       {
-         const int t = tdof_of(d >= 0 ? d : -1 - d);
+         const int t = tdof_of(UnsignIndex(d));
          if (t < 0) { continue; }
          CHECK(is_ess[t] == ess_interior);
          checked++;
@@ -81,13 +81,13 @@ int CheckInteriorBoundaryEssentialDofs(Mesh &mesh,
          continue;
       }
       fes.GetEdgeInteriorDofs(e, dofs);
-      check(dofs);
+      check_essential_dofs(dofs);
    }
    for (int v = 0; v < mesh.GetNV(); v++)
    {
       if (!on_interior(v)) { continue; }
       fes.GetVertexDofs(v, dofs);
-      check(dofs);
+      check_essential_dofs(dofs);
    }
    return checked;
 }
