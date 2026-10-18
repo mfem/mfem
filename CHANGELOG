@@ -11,6 +11,14 @@
 Version 4.10.1 (development)
 ============================
 
+Discretization improvements
+---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
+
+Meshing improvements
+--------------------
 - Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of
