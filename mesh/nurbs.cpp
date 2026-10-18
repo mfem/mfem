@@ -6495,6 +6495,22 @@ void NURBSPatchMap::SetPatchVertexMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() >= 2)
    {
       J = kv[1]->GetNE() - 1;
+      const bool using_v2k =
+         Ext->NonconformingPatches() && Ext->patchTopo->ncmesh
+         && Ext->patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0;
+      if (using_v2k)
+      {
+         for (int i = 0; i < edges.Size(); i++)
+         {
+            // Find the patchTopo->ncmesh edge corresponding to edges[i].
+            Array<int> vert;
+            Ext->patchTopo->GetEdgeVertices(edges[i], vert);
+            const std::pair<int, int> vpair(vert[0], vert[1]);
+            const int ncedge = Ext->VertexPairToEdge(vpair);
+            edges[i] = ncedge;
+         }
+      }
+
       SetMasterEdges(false, kv);
       for (int i = 0; i < edges.Size(); i++)
       {
@@ -6527,10 +6543,10 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
    if (Ext->Dimension() >= 2)
    {
       J = kv[1]->GetNCP() - 2;
-      SetMasterEdges(true);
-
-      if (Ext->NonconformingPatches() && Ext->patchTopo->ncmesh
-          && Ext->patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0)
+      const bool using_v2k =
+         Ext->NonconformingPatches() && Ext->patchTopo->ncmesh
+         && Ext->patchTopo->ncmesh->GetVertexToKnotSpan().Size() > 0;
+      if (using_v2k)
       {
          for (int i = 0; i < edges.Size(); i++)
          {
@@ -6539,15 +6555,14 @@ void NURBSPatchMap::SetPatchDofMap(int p, const KnotVector *kv[])
             Ext->patchTopo->GetEdgeVertices(edges[i], vert);
             const std::pair<int, int> vpair(vert[0], vert[1]);
             const int ncedge = Ext->VertexPairToEdge(vpair);
-            edges[i] = Ext->e_spaceOffsets[ncedge];
+            edges[i] = ncedge;
          }
       }
-      else
+
+      SetMasterEdges(true);
+      for (int i = 0; i < edges.Size(); i++)
       {
-         for (int i = 0; i < edges.Size(); i++)
-         {
-            edges[i] = Ext->e_spaceOffsets[edges[i]];
-         }
+         edges[i] = Ext->e_spaceOffsets[edges[i]];
       }
    }
    if (Ext->Dimension() == 3)

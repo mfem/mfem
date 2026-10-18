@@ -11,6 +11,12 @@
 Version 4.10.1 (development)
 ============================
 
+Meshing improvements
+--------------------
+- Added the new nurbs miniapp nurbs_spacing to reparameterize NURBS patches so
+that arc lengths of edges in physical space approximately match the relative
+spacing defined in reference space by knot vectors.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

@@ -56,6 +56,23 @@ NCNURBSExtension::NCNURBSExtension(const NCNURBSExtension &orig)
      aux_f_spaceOffsets(orig.aux_f_spaceOffsets),
      auxEdges(orig.auxEdges),
      auxFaces(orig.auxFaces),
+     auxv2e(orig.auxv2e),
+     auxv2f(orig.auxv2f),
+     v2e(orig.v2e),
+     masterEdges(orig.masterEdges),
+     masterFaces(orig.masterFaces),
+     masterEdgeIndex(orig.masterEdgeIndex),
+     slaveEdges(orig.slaveEdges),
+     slaveFaces(orig.slaveFaces),
+     slaveEdgesUnique(orig.slaveEdgesUnique),
+     slaveFacesUnique(orig.slaveFacesUnique),
+     slaveEdgesToUnique(orig.slaveEdgesToUnique),
+     slaveFacesToUnique(orig.slaveFacesToUnique),
+     masterEdgeToId(orig.masterEdgeToId),
+     masterFaceToId(orig.masterFaceToId),
+     masterEdgeInfo(orig.masterEdgeInfo),
+     masterFaceInfo(orig.masterFaceInfo),
+     parentToKV(orig.parentToKV),
      auxef(orig.auxef)
 { }
 

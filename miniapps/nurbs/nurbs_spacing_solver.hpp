@@ -18,7 +18,8 @@ namespace mfem
 {
 
 /** @brief Recompute control points so that relative physical element spacing
-    approximately matches the reference spacing of the knot vectors. */
+    approximately matches the reference spacing of the knot vectors. Boundary
+    geometry is preserved only approximately. */
 void PhysicalSpacing(NURBSExtension &nurbs, const GridFunction &nodes,
                      bool sweep_1d = true,
                      real_t tol = 100 *

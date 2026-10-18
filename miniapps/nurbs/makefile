@@ -43,11 +43,11 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
+all: $(MINIAPPS)
+
 nurbs_spacing: $(SRC)nurbs_spacing.cpp $(SRC)nurbs_spacing_solver.cpp \
    $(SRC)nurbs_spacing_solver.hpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $(word 1,$^) $(word 2,$^) -o $@ $(MFEM_LIBS)
-
-all: $(MINIAPPS)
 
 # For out-of-source builds, link the meshes directory from the source tree to
 # the build tree. This is needed for running the tests and the sample runs when
