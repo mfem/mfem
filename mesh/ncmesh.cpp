@@ -5824,7 +5824,7 @@ std::array<int, 4> NCMesh::FindFaceNodes(const Face &fa) const
    return node;
 }
 
-void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                 Array<int> &bdr_vertices, Array<int> &bdr_edges,
                                 Array<int> &bdr_faces)
 {
@@ -5837,7 +5837,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       GetFaceList(); // make sure 'boundary_faces' is up to date
       for (int f : boundary_faces)
       {
-         if (bdr_attr_is_ess[faces[f].attribute - 1])
+         if (bdr_attr_marked[faces[f].attribute - 1])
          {
             auto node = FindFaceNodes(f);
             int nfv = (node[3] < 0) ? 3 : 4;
@@ -5886,7 +5886,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          {
             continue;
          }
-         if (bdr_attr_is_ess[face.attribute - 1])
+         if (bdr_attr_marked[face.attribute - 1])
          {
             bdr_vertices.Append(nodes[face.p1].vert_index);
             bdr_vertices.Append(nodes[face.p3].vert_index);
