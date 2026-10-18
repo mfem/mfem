@@ -17,6 +17,21 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+- ComplexCoefficient, ComplexVectorCoefficient, and ComplexMatrixCoefficient
+  provide scalar, vector, and matrix-valued complex coefficient support.
+  Complex-valued FEM classes now include support for these complex-valued
+  coefficient classes including templated methods for adding existing
+  real-valued integrators as if they accepted complex-valued coefficients.
+
+Linear Algebra Improvements
+---------------------------
+- Added ComplexVector and ComplexDenseMatrixData classes as return types for
+  the new complex-valued Coefficient classes. These can also be used in limited
+  linear algebra contexts. Notably matrix-vector products are _not_ supported by
+  ComplexDenseMatrixData.
+- Added the device-compatible mfem::complex_t scalar type. Existing
+  complex-valued FEM interfaces that previously used std::complex<real_t> now
+  use this type and are not implicitly convertible to or from std::complex.
 
 Version 4.10, released on Sep 1, 2026
 =====================================

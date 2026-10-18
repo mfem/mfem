@@ -13,6 +13,8 @@
 #define MFEM_COMPLEX_FEM
 
 #include "../linalg/complex_operator.hpp"
+#include "../linalg/complex_vector.hpp"
+#include "complex_coefficient.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilinearform.hpp"
@@ -21,10 +23,87 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #endif
-#include <complex>
+#include <cmath>
+#include <type_traits>
 
 namespace mfem
 {
+
+namespace complex_fem_detail
+{
+
+template <typename C>
+struct is_complex_coefficient
+   : std::integral_constant<bool,
+     std::is_base_of<ComplexCoefficient, C>::value ||
+     std::is_base_of<ComplexVectorCoefficient, C>::value ||
+     std::is_base_of<ComplexMatrixCoefficient, C>::value> { };
+
+template <typename C>
+struct is_linear_form_coefficient
+   : std::integral_constant<bool,
+     std::is_base_of<Coefficient, C>::value ||
+     std::is_base_of<VectorCoefficient, C>::value ||
+     std::is_base_of<ComplexCoefficient, C>::value ||
+     std::is_base_of<ComplexVectorCoefficient, C>::value> { };
+
+template <typename C>
+struct is_bilinear_form_coefficient
+   : std::integral_constant<bool,
+     std::is_base_of<Coefficient, C>::value ||
+     std::is_base_of<VectorCoefficient, C>::value ||
+     std::is_base_of<MatrixCoefficient, C>::value ||
+     std::is_base_of<ComplexCoefficient, C>::value ||
+     std::is_base_of<ComplexVectorCoefficient, C>::value ||
+     std::is_base_of<ComplexMatrixCoefficient, C>::value> { };
+
+template <typename T, typename C>
+using enable_linear_integrator_t = typename std::enable_if<
+                                   std::is_base_of<LinearFormIntegrator, T>::value &&
+                                   !std::is_same<LinearFormIntegrator, T>::value &&
+                                   is_linear_form_coefficient<C>::value>::type;
+
+template <typename T, typename C>
+using enable_bilinear_integrator_t = typename std::enable_if<
+                                     std::is_base_of<BilinearFormIntegrator, T>::value &&
+                                     !std::is_same<BilinearFormIntegrator, T>::value &&
+                                     is_bilinear_form_coefficient<C>::value>::type;
+
+template <typename...>
+struct dependent_false : std::false_type { };
+
+template <typename T, typename C, typename Add>
+void add_integrator(C &coef, Add &&add)
+{
+   if constexpr (is_complex_coefficient<C>::value)
+   {
+      using real_type = decltype(coef.real());
+      using imag_type = decltype(coef.imag());
+      if constexpr (std::is_constructible<T, real_type>::value &&
+                    std::is_constructible<T, imag_type>::value)
+      {
+         add(new T(coef.real()), new T(coef.imag()));
+      }
+      else
+      {
+         static_assert(dependent_false<T, C>::value,
+                       "The integrator must be constructible from the real "
+                       "and imaginary coefficient component types.");
+      }
+   }
+   else if constexpr (std::is_constructible<T, C &>::value)
+   {
+      add(new T(coef), nullptr);
+   }
+   else
+   {
+      static_assert(dependent_false<T, C>::value,
+                    "The integrator must be constructible from the supplied "
+                    "coefficient type.");
+   }
+}
+
+} // namespace complex_fem_detail
 
 /// Class for complex-valued grid function - real + imaginary part Vector with
 /// associated FE space.
@@ -102,23 +181,224 @@ public:
    }
 
    /// Assign constant values to the ComplexGridFunction data.
-   ComplexGridFunction &operator=(const std::complex<real_t> & value)
+   ComplexGridFunction &operator=(const complex_t & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
                                    Coefficient &imag_coeff);
+   virtual void ProjectCoefficient(Coefficient &real_coeff);
+   virtual void ProjectCoefficient(ComplexCoefficient &coeff);
    virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                    VectorCoefficient &imag_vcoeff);
+   virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff);
+   virtual void ProjectCoefficient(ComplexVectorCoefficient &vcoeff);
 
    virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
                                       Coefficient &imag_coeff,
                                       Array<int> &attr);
+   virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
+                                      Array<int> &attr);
+   virtual void ProjectBdrCoefficient(ComplexCoefficient &coeff,
+                                      Array<int> &attr);
    virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
                                             VectorCoefficient &imag_coeff,
+                                            Array<int> &attr);
+   virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
+                                            Array<int> &attr);
+   virtual void ProjectBdrCoefficientNormal(ComplexVectorCoefficient &coeff,
                                             Array<int> &attr);
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+                                             Array<int> &attr);
+   virtual void ProjectBdrCoefficientTangent(ComplexVectorCoefficient &coeff,
+                                             Array<int> &attr);
+
+   /// @brief Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   ///
+   /// @param[in] exsol  ComplexCoefficient object reproducing the anticipated
+   ///                   values of the scalar field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(ComplexCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const
+   { return this->ComputeL2Error(exsol.real(), exsol.imag(), irs, elems); }
+
+   /// @brief Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   ///
+   /// The complex error is computed by combining its real and imaginary parts:
+   /// $$\|u_{ex} - u_h\|_{L^2} =
+   /// \sqrt{\|\mathop{\rm Re}(u_{ex} - u_h)\|_{L^2}^2 +
+   ///        \|\mathop{\rm Im}(u_{ex} - u_h)\|_{L^2}^2}.$$
+   ///
+   /// @param[in] re_exsol  Coefficient object reproducing the anticipated
+   ///                   values of the real part of the scalar field, u_ex.
+   /// @param[in] im_exsol  Coefficient object reproducing the anticipated
+   ///                   values of the imaginary part of the scalar field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(Coefficient &re_exsol,
+                                 Coefficient &im_exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
+
+   /// @brief Returns ||u_ex - u_h||_L2 for H1 or L2 elements
+   ///
+   /// The exact imaginary part is assumed to be zero.
+   ///
+   /// @param[in] re_exsol  Coefficient object reproducing the anticipated
+   ///                   values of the real part of the scalar field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(Coefficient &re_exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
+
+   /// @brief Returns ||u_ex - u_h||_L2 for vector fields
+   ///
+   /// @param[in] exsol  ComplexVectorCoefficient object reproducing the
+   ///                   anticipated values of the vector field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(ComplexVectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const
+   { return this->ComputeL2Error(exsol.real(), exsol.imag(), irs, elems); }
+
+   /// @brief Returns ||u_ex - u_h||_L2 for vector fields
+   ///
+   /// The complex error is computed by combining the real and imaginary vector
+   /// errors with the same L2 norm used for each component.
+   ///
+   /// @param[in] re_exsol  VectorCoefficient object reproducing the
+   ///                   anticipated values of the real part of the vector
+   ///                   field, u_ex.
+   /// @param[in] im_exsol  VectorCoefficient object reproducing the
+   ///                   anticipated values of the imaginary part of the vector
+   ///                   field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(VectorCoefficient &re_exsol,
+                                 VectorCoefficient &im_exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
+
+   /// @brief Returns ||u_ex - u_h||_L2 for vector fields
+   ///
+   /// The exact imaginary part is assumed to be zero.
+   ///
+   /// @param[in] re_exsol  VectorCoefficient object reproducing the
+   ///                   anticipated values of the real part of the vector
+   ///                   field, u_ex.
+   /// @param[in] irs    Optional pointer to an array of custom integration
+   ///                   rules e.g. higher order than the default rules. If
+   ///                   present the array will be indexed by Geometry::Type.
+   /// @param[in] elems  Optional pointer to a marker array, with a length
+   ///                   equal to the number of local elements, indicating
+   ///                   which elements to integrate over. Only those elements
+   ///                   corresponding to non-zero entries in @a elems will
+   ///                   contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeL2Error(VectorCoefficient &re_exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
 
    FiniteElementSpace *FESpace() { return fes; }
    const FiniteElementSpace *FESpace() const { return fes; }
@@ -135,36 +415,6 @@ public:
    /// Update the alias memory location of the real and imaginary GridFunction
    /// @a gfr and @a gfi to match the ComplexGridFunction.
    void SyncAlias() { gfr->SyncAliasMemory(*this); gfi->SyncAliasMemory(*this); }
-
-   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued scalar fields
-   ///
-   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
-   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL) const
-   {
-      real_t err_r = gfr->ComputeL2Error(exsolr, irs);
-      real_t err_i = gfi->ComputeL2Error(exsoli, irs);
-      return sqrt(err_r * err_r + err_i * err_i);
-   }
-
-   /// @brief Returns ||u_ex - u_h||_L2 for complex-valued vector fields
-   ///
-   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
-   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
-                                 VectorCoefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
-   {
-      real_t err_r = gfr->ComputeL2Error(exsolr, irs, elems);
-      real_t err_i = gfi->ComputeL2Error(exsoli, irs, elems);
-      return sqrt(err_r * err_r + err_i * err_i);
-   }
 
    /// @brief Returns Max|u_ex - u_h| error for complex-valued H1 or L2 elements
    ///
@@ -216,7 +466,7 @@ public:
    ///                    equal to the number of local elements, indicating
    ///                    which elements to integrate over. Only those elements
    ///                    corresponding to non-zero entries in @a elems will
-   ///                    contribute to the computed L2 error.
+   ///                    contribute to the computed Lp error.
    ///
    /// @note If an array of integration rules is provided through @a irs, be
    ///       sure to include valid rules for each element type that may occur
@@ -259,6 +509,13 @@ std::ostream &operator<<(std::ostream &out, const ComplexGridFunction &sol);
     When supplying integrators to the ComplexLinearForm either the real or
     imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued field is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<DomainLFIntegrator>(coef)`. They allocate the
+    real and imaginary integrators, which are then owned by this form. The
+    supplied coefficient and its component views are not owned and must remain
+    valid for as long as the generated integrators can be used.
  */
 class ComplexLinearForm : public Vector
 {
@@ -288,12 +545,15 @@ public:
    virtual ~ComplexLinearForm();
 
    /// Assign constant values to the ComplexLinearForm data.
-   ComplexLinearForm &operator=(const std::complex<real_t> & value)
+   ComplexLinearForm &operator=(const complex_t & value)
    { *lfr = value.real(); *lfi = value.imag(); return *this; }
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
+
+   /// @name Adding Domain Integrators
+   /// @{
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
@@ -303,6 +563,33 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag,
                             Array<int> &elem_attr_marker);
+
+   /// Adds new domain integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag); });
+   }
+
+   /// Adds new domain integrator with a real or complex-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef, Array<int> &elem_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &elem_marker]
+                                            (T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag, elem_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Integrators
+   /// @{
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -319,6 +606,33 @@ public:
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
 
+   /// Adds new boundary integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary integrator with a real or complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Face Integrators
+   /// @{
+
    /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag);
@@ -334,6 +648,31 @@ public:
                              LinearFormIntegrator *lfi_imag,
                              Array<int> &bdr_attr_marker);
 
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient, restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
+
    FiniteElementSpace *FESpace() const { return lfr->FESpace(); }
 
    LinearForm & real() { return *lfr; }
@@ -347,7 +686,8 @@ public:
 
    /// Update the alias memory location of the real and imaginary LinearForm @a
    /// lfr and @a lfi to match the ComplexLinearForm.
-   void SyncAlias() { lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
+   void SyncAlias()
+   { lfr->SyncAliasMemory(*this); lfi->SyncAliasMemory(*this); }
 
    void Update();
    void Update(FiniteElementSpace *f);
@@ -355,7 +695,7 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   std::complex<real_t> operator()(const ComplexGridFunction &gf) const;
+   complex_t operator()(const ComplexGridFunction &gf) const;
 };
 
 
@@ -373,6 +713,13 @@ public:
     When supplying integrators to the SesquilinearForm either the real or
     imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued material coefficient is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<MassIntegrator>(coef)`. They allocate the real
+    and imaginary integrators, which are then owned by this form. The supplied
+    coefficient and its component views are not owned and must remain valid
+    for as long as the generated integrators can be used.
 */
 class SesquilinearForm
 {
@@ -406,7 +753,8 @@ public:
 
        The integrators are copied as pointers and they are not owned by the
        newly constructed SesquilinearForm. */
-   SesquilinearForm(FiniteElementSpace *fes, BilinearForm *bfr, BilinearForm *bfi,
+   SesquilinearForm(FiniteElementSpace *fes,
+                    BilinearForm *bfr, BilinearForm *bfi,
                     ComplexOperator::Convention
                     convention = ComplexOperator::HERMITIAN);
 
@@ -435,6 +783,9 @@ public:
    const BilinearForm & real() const { return *blfr; }
    const BilinearForm & imag() const { return *blfi; }
 
+   /// @name Adding Domain Integrators
+   /// @{
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
@@ -443,6 +794,33 @@ public:
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag,
                             Array<int> &elem_marker);
+
+   /// Adds new domain integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag); });
+   }
+
+   /// Adds new domain integrator with a real or complex-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef, Array<int> &elem_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &elem_marker]
+                                            (T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag, elem_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Integrators
+   /// @{
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
@@ -453,24 +831,92 @@ public:
                               BilinearFormIntegrator *bfi_imag,
                               Array<int> &bdr_marker);
 
+   /// Adds new boundary integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary integrator with a real or complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Interior Face Integrators
+   /// @{
+
    /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
                                   BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new interior face integrator with a real or complex-valued
+   /// coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddInteriorFaceIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddInteriorFaceIntegrator(real, imag); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Face Integrators
+   /// @{
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
                              BilinearFormIntegrator *bfi_imag);
 
-   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
-       attributes.
-
-       Assumes ownership of @a bfi.
-
-       The array @a bdr_marker is stored internally as a pointer to the given
-       Array<int> object. */
+   /// @brief Adds new boundary Face Integrator, restricted to specific boundary
+   /// attributes.
+   ///
+   /// Assumes ownership of @a bfi.
+   ///
+   /// The array @a bdr_marker is stored internally as a pointer to the given
+   /// Array<int> object.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
                              BilinearFormIntegrator *bfi_imag,
                              Array<int> &bdr_marker);
+
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient, restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
@@ -747,23 +1193,44 @@ public:
    int VectorDim() const;
 
    /// Assign constant values to the ParComplexGridFunction data.
-   ParComplexGridFunction &operator=(const std::complex<real_t> & value)
+   ParComplexGridFunction &operator=(const complex_t & value)
    { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
 
    virtual void ProjectCoefficient(Coefficient &real_coeff,
                                    Coefficient &imag_coeff);
+   virtual void ProjectCoefficient(Coefficient &real_coeff);
+   virtual void ProjectCoefficient(ComplexCoefficient &coeff)
+   { this->ProjectCoefficient(coeff.real(), coeff.imag()); }
    virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                    VectorCoefficient &imag_vcoeff);
+   virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff);
+   virtual void ProjectCoefficient(ComplexVectorCoefficient &vcoeff)
+   { this->ProjectCoefficient(vcoeff.real(), vcoeff.imag()); }
 
    virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
                                       Coefficient &imag_coeff,
                                       Array<int> &attr);
+   virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
+                                      Array<int> &attr);
+   virtual void ProjectBdrCoefficient(ComplexCoefficient &coeff,
+                                      Array<int> &attr)
+   { this->ProjectBdrCoefficient(coeff.real(), coeff.imag(), attr); }
    virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
                                             VectorCoefficient &imag_coeff,
                                             Array<int> &attr);
+   virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
+                                            Array<int> &attr);
+   virtual void ProjectBdrCoefficientNormal(ComplexVectorCoefficient &coeff,
+                                            Array<int> &attr)
+   { this->ProjectBdrCoefficientNormal(coeff.real(), coeff.imag(), attr); }
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+                                             Array<int> &attr);
+   virtual void ProjectBdrCoefficientTangent(ComplexVectorCoefficient &coeff,
+                                             Array<int> &attr)
+   { this->ProjectBdrCoefficientTangent(coeff.real(), coeff.imag(), attr); }
 
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
@@ -794,26 +1261,37 @@ public:
    /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
    ///        scalar fields
    ///
-   /// @see GridFunction::ComputeL2Error(Coefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
+   /// The globally reduced real and imaginary L2 errors are combined with
+   /// std::hypot. See ParGridFunction::ComputeL2Error for the integration-rule
+   /// and element-marker semantics.
    virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
                                  Array<int> *elems = NULL) const
    {
       real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
       real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
-      return hypot(err_r, err_i);
+      return std::hypot(err_r, err_i);
+   }
+
+   /// @brief Returns the global L2 error with a zero exact imaginary part.
+   virtual real_t ComputeL2Error(Coefficient &exsolr,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const;
+
+   /// @brief Convenience overload using the real and imaginary parts of @a exsol.
+   virtual real_t ComputeL2Error(ComplexCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
+   {
+      return this->ComputeL2Error(exsol.real(), exsol.imag(), irs, elems);
    }
 
    /// @brief Returns ||u_ex - u_h||_L2 in parallel for complex-valued
    ///        vector fields
    ///
-   /// @see GridFunction::ComputeL2Error(VectorCoefficient &exsol,
-   ///                                   const IntegrationRule *irs[],
-   ///                                   const Array<int> *elems) const
-   ///      for more detailed documentation.
+   /// The globally reduced real and imaginary vector L2 errors are combined
+   /// with std::hypot. See ParGridFunction::ComputeL2Error for the
+   /// integration-rule and element-marker semantics.
    virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
                                  VectorCoefficient &exsoli,
                                  const IntegrationRule *irs[] = NULL,
@@ -821,8 +1299,55 @@ public:
    {
       real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
       real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
-      return hypot(err_r, err_i);
+      return std::hypot(err_r, err_i);
    }
+
+   /// @brief Returns the global L2 error with a zero exact imaginary part.
+   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const;
+
+   /// @brief Convenience overload using the real and imaginary parts of @a exsol.
+   virtual real_t ComputeL2Error(ComplexVectorCoefficient &exsol,
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
+   {
+      return this->ComputeL2Error(exsol.real(), exsol.imag(), irs, elems);
+   }
+
+   /// @brief Returns the global Max|u_ex - u_h| error for complex-valued
+   ///        scalar fields.
+   ///
+   /// The maximum complex magnitude is reduced across all MPI ranks.
+   virtual real_t ComputeMaxError(Coefficient &exsolr,
+                                  Coefficient &exsoli,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return ComputeLpError(infinity(), exsolr, exsoli, NULL, irs);
+   }
+
+   /// @brief Returns the global ||u_ex - u_h||_Lp error for complex-valued
+   ///        scalar fields.
+   ///
+   /// Computes the Lp norm of the complex magnitude over elements on all MPI
+   /// ranks. Each rank integrates its local contribution, which is then reduced
+   /// globally. For @a p equal to infinity, this returns the global maximum.
+   ///
+   /// @param[in] p        Positive finite exponent, or infinity.
+   /// @param[in] exsolr   Exact real-part coefficient.
+   /// @param[in] exsoli   Exact imaginary-part coefficient.
+   /// @param[in] weight   Optional scalar weighting coefficient.
+   /// @param[in] irs      Optional integration rules indexed by Geometry::Type.
+   /// @param[in] elems    Optional local-element marker.
+   ///
+   /// @see ParGridFunction::ComputeLpError for the corresponding real-valued
+   ///      reduction semantics.
+   virtual real_t ComputeLpError(const real_t p,
+                                 Coefficient &exsolr,
+                                 Coefficient &exsoli,
+                                 Coefficient *weight = NULL,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
 
    /// Save the local portion of the ParComplexGridFunction
    /** This differs from the serial ComplexGridFunction::Save in that it
@@ -851,6 +1376,13 @@ std::ostream &operator<<(std::ostream &out, const ParComplexGridFunction &sol);
     When supplying integrators to the ParComplexLinearForm either the real or
     imaginary integrator can be NULL.  This indicates that the corresponding
     portion of the complex-valued field is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<DomainLFIntegrator>(coef)`. They allocate the
+    real and imaginary integrators, which are then owned by this form. The
+    supplied coefficient and its component views are not owned and must remain
+    valid for as long as the generated integrators can be used.
  */
 class ParComplexLinearForm : public Vector
 {
@@ -873,7 +1405,7 @@ public:
        using the same integrators as the LinearForms @a plf_r (real) and
        @a plf_i (imag).
 
-      The pointer @a fes is not owned by the newly constructed object.
+      The pointer @a pf is not owned by the newly constructed object.
 
       The integrators are copied as pointers and they are not owned by the newly
       constructed ParComplexLinearForm. */
@@ -885,12 +1417,15 @@ public:
    virtual ~ParComplexLinearForm();
 
    /// Assign constant values to the ParComplexLinearForm data.
-   ParComplexLinearForm &operator=(const std::complex<real_t> & value)
+   ParComplexLinearForm &operator=(const complex_t & value)
    { *plfr = value.real(); *plfi = value.imag(); return *this; }
 
    ComplexOperator::Convention GetConvention() const { return conv; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv = convention; }
+
+   /// @name Adding Domain Integrators
+   /// @{
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
@@ -900,6 +1435,33 @@ public:
    void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
                             LinearFormIntegrator *lfi_imag,
                             Array<int> &elem_attr_marker);
+
+   /// Adds new domain integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag); });
+   }
+
+   /// Adds new domain integrator with a real or complex-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef, Array<int> &elem_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &elem_marker]
+                                            (T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag, elem_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Integrators
+   /// @{
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(LinearFormIntegrator *lfi_real,
@@ -916,6 +1478,33 @@ public:
                               LinearFormIntegrator *lfi_imag,
                               Array<int> &bdr_attr_marker);
 
+   /// Adds new boundary integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary integrator with a real or complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Face Integrators
+   /// @{
+
    /// Adds new Boundary Face Integrator. Assumes ownership of @a lfi.
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi_real,
                              LinearFormIntegrator *lfi_imag);
@@ -931,6 +1520,31 @@ public:
                              LinearFormIntegrator *lfi_imag,
                              Array<int> &bdr_attr_marker);
 
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient, restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_linear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
+
    ParFiniteElementSpace *ParFESpace() const { return plfr->ParFESpace(); }
 
    ParLinearForm & real() { return *plfr; }
@@ -944,7 +1558,8 @@ public:
 
    /// Update the alias memory location of the real and imaginary ParLinearForm
    /// @a plfr and @a plfi to match the ParComplexLinearForm.
-   void SyncAlias() { plfr->SyncAliasMemory(*this); plfi->SyncAliasMemory(*this); }
+   void SyncAlias()
+   { plfr->SyncAliasMemory(*this); plfi->SyncAliasMemory(*this); }
 
    void Update(ParFiniteElementSpace *pf = NULL);
 
@@ -957,7 +1572,7 @@ public:
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
    HypreParVector *ParallelAssemble();
 
-   std::complex<real_t> operator()(const ParComplexGridFunction &gf) const;
+   complex_t operator()(const ParComplexGridFunction &gf) const;
 
 };
 
@@ -975,6 +1590,13 @@ public:
     When supplying integrators to the ParSesquilinearForm either the real or
     imaginary integrator can be NULL. This indicates that the corresponding
     portion of the complex-valued material coefficient is equal to zero.
+
+    The templated Add*Integrator methods require the concrete integrator type
+    as an explicit template argument, for example
+    `form.AddDomainIntegrator<MassIntegrator>(coef)`. They allocate the real
+    and imaginary integrators, which are then owned by this form. The supplied
+    coefficient and its component views are not owned and must remain valid
+    for as long as the generated integrators can be used.
 */
 class ParSesquilinearForm
 {
@@ -1037,6 +1659,9 @@ public:
    const ParBilinearForm & real() const { return *pblfr; }
    const ParBilinearForm & imag() const { return *pblfi; }
 
+   /// @name Adding Domain Integrators
+   /// @{
+
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag);
@@ -1045,6 +1670,33 @@ public:
    void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
                             BilinearFormIntegrator *bfi_imag,
                             Array<int> &elem_marker);
+
+   /// Adds new domain integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag); });
+   }
+
+   /// Adds new domain integrator with a real or complex-valued coefficient,
+   /// restricted to the given attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddDomainIntegrator(C &coef, Array<int> &elem_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &elem_marker]
+                                            (T *real, T *imag)
+      { this->AddDomainIntegrator(real, imag, elem_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Integrators
+   /// @{
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
@@ -1061,9 +1713,52 @@ public:
                               BilinearFormIntegrator *bfi_imag,
                               Array<int> &bdr_marker);
 
+   /// Adds new boundary integrator with a real or complex-valued coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary integrator with a real or complex-valued coefficient,
+   /// restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBoundaryIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBoundaryIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
+
+   /// @name Adding Interior Face Integrators
+   /// @{
+
    /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi_real,
                                   BilinearFormIntegrator *bfi_imag);
+
+   /// Adds new interior face integrator with a real or complex-valued
+   /// coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddInteriorFaceIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddInteriorFaceIntegrator(real, imag); });
+   }
+
+   /// @}
+
+   /// @name Adding Boundary Face Integrators
+   /// @{
 
    /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
@@ -1079,6 +1774,31 @@ public:
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi_real,
                              BilinearFormIntegrator *bfi_imag,
                              Array<int> &bdr_marker);
+
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this](T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag); });
+   }
+
+   /// Adds new boundary face integrator with a real or complex-valued
+   /// coefficient, restricted to specific boundary attributes.
+   template <typename T, typename C,
+             typename complex_fem_detail::enable_bilinear_integrator_t<T, C> * =
+             nullptr>
+   void AddBdrFaceIntegrator(C &coef, Array<int> &bdr_marker)
+   {
+      complex_fem_detail::add_integrator<T>(coef, [this, &bdr_marker]
+                                            (T *real, T *imag)
+      { this->AddBdrFaceIntegrator(real, imag, bdr_marker); });
+   }
+
+   /// @}
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);

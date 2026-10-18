@@ -109,6 +109,59 @@ static void Aliases(const int N = 0x1234)
    REQUIRE(S*S == MFEM_Approx(24.0*N));
 }
 
+static void ComplexContainers()
+{
+   Vector real_values(2);
+   real_values.UseDevice(true);
+   real_values = 3.0;
+   ComplexVector from_real(real_values);
+   const complex_t *from_real_data = from_real.HostRead();
+   REQUIRE(from_real_data[0] == complex_t(3.0));
+   REQUIRE(from_real_data[1] == complex_t(3.0));
+
+   const complex_t values[2] = {complex_t(1.0, 2.0),
+                                complex_t(3.0, -4.0)
+                               };
+   ComplexVector vector(2);
+   vector.UseDevice(true);
+   vector = values;
+
+   ComplexVector weights(2);
+   weights.UseDevice(true);
+   weights = values;
+   const complex_t dot = vector * weights;
+   REQUIRE(dot.real() == MFEM_Approx(-10.0));
+   REQUIRE(dot.imag() == MFEM_Approx(-20.0));
+
+   const Vector &real_part = vector.real();
+   const Vector &imag_part = vector.imag();
+   real_part.HostRead();
+   imag_part.HostRead();
+   REQUIRE(real_part(0) == MFEM_Approx(1.0));
+   REQUIRE(real_part(1) == MFEM_Approx(3.0));
+   REQUIRE(imag_part(0) == MFEM_Approx(2.0));
+   REQUIRE(imag_part(1) == MFEM_Approx(-4.0));
+
+   ComplexDenseMatrixData matrix(2);
+   matrix.UseDevice(true);
+   matrix = values[0];
+   matrix.Read();
+   matrix *= complex_t(2.0, -1.0);
+   const complex_t *matrix_data = matrix.HostRead();
+   REQUIRE(matrix_data[0] == complex_t(4.0, 3.0));
+
+   const complex_t matrix_values[4] =
+   {
+      complex_t(1.0, -1.0), complex_t(2.0, -2.0),
+      complex_t(3.0, -3.0), complex_t(4.0, -4.0)
+   };
+   matrix = matrix_values;
+   const DenseMatrix &matrix_real = matrix.real();
+   const DenseMatrix &matrix_imag = matrix.imag();
+   REQUIRE(matrix_real(1, 1) == MFEM_Approx(4.0));
+   REQUIRE(matrix_imag(1, 1) == MFEM_Approx(-4.0));
+}
+
 TEST_CASE("Array::MakeRef", "[DebugDevice]")
 {
    Array<int> x(1), y;
@@ -143,6 +196,11 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 
    REQUIRE(mm.PrintPtrs(dev_null) == n_ptr);
    REQUIRE(mm.PrintAliases(dev_null) == n_alias);
+}
+
+TEST_CASE("Complex containers/DebugDevice", "[DebugDevice]")
+{
+   ComplexContainers();
 }
 
 #endif // _WIN32
