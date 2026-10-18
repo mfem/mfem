@@ -261,10 +261,7 @@ void MomentFittingIntRules::InitVolume(int order, Coefficient& levelset,
       }
       else if (Tr.GetDimension() == 3)
       {
-         for (int p = 0; p <= Order; p++)
-         {
-            nBasisVolume +=(int)((p + 1) * (p + 2) / 2);
-         }
+         nBasisVolume = (int)((Order + 1) * (Order + 2) * (Order + 3) / 6);
       }
 
       // assemble the matrix
