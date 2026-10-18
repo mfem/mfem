@@ -11,11 +11,18 @@
 Version 4.10.1 (development)
 ============================
 
+
 Meshing improvements
 --------------------
 - Added the new nurbs miniapp nurbs_spacing to reparameterize NURBS patches so
 that arc lengths of edges in physical space approximately match the relative
 spacing defined in reference space by knot vectors.
+
+Discretization improvements
+---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
 
 
 Version 4.10, released on Sep 1, 2026
