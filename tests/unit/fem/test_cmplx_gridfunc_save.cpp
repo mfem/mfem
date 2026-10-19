@@ -301,6 +301,19 @@ TEST_CASE("ParComplexGridFunction Copy",
    v.imag() = -1.0;
    REQUIRE( v.HostRead()[0] == 3.0 );
    REQUIRE( v.HostRead()[vsize] == -1.0 );
+
+   // the copy assignment copies the data and leaves the parts of both objects
+   // pointing into their own data
+   ParComplexGridFunction w(u);
+   w = u;
+   REQUIRE( Holds(u.real(), u.imag(), w) );
+
+   const Vector u2_real(u.real()), u2_imag(u.imag());
+   w.real() = 7.0;
+   w.imag() = -7.0;
+   REQUIRE( w.HostRead()[0] == 7.0 );
+   REQUIRE( w.HostRead()[vsize] == -7.0 );
+   REQUIRE( Holds(u2_real, u2_imag, u) );
 }
 
 #endif // MFEM_USE_MPI

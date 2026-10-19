@@ -26,7 +26,9 @@ Miscellaneous
 - Fixed the copy constructor of ComplexGridFunction and ParComplexGridFunction.
   The implicitly generated one shared the real and imaginary part objects with
   the original, so writing to either object changed both and the destructors
-  deleted the same two GridFunction objects.
+  deleted the same two GridFunction objects. ParComplexGridFunction also gained
+  the copy assignment operator and the Vector assignment operator that
+  ComplexGridFunction already has.
 
 
 Version 4.10, released on Sep 1, 2026
