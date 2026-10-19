@@ -45,9 +45,44 @@ BlockOperator::BlockOperator(const Array<int> &row_offsets_,
    op = nullptr;
 }
 
+BlockOperator::BlockOperator(int nrow, int ncol, int ht, int wt):
+               Operator(ht, wt), owns_blocks(0),
+               nRowBlocks(nrow), nColBlocks(ncol),
+               op(nrow,ncol), coef(nrow,ncol)
+{
+   op = nullptr;
+   row_offsets.SetSize(0);
+   col_offsets.SetSize(0);
+}
+
 void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
 {
    SetBlock(iblock, iblock, opt, c);
+}
+
+void BlockOperator::SetOffsets(const Array<int> &row_offsets_,
+                               const Array<int> &col_offsets_)
+{
+   MFEM_VERIFY(row_offsets_.Size() == nRowBlocks+1 &&
+               col_offsets_.Size() == nColBlocks+1,
+               "incompatible offsets");
+   MFEM_VERIFY(height == row_offsets_.Last() && width == col_offsets_.Last(),
+               "incompatible operator dimensions");
+   for (int i = 0; i < nRowBlocks; ++i)
+   {
+      for (int j = 0; j < nColBlocks; ++j)
+      {
+         if (op(i, j))
+         {
+            MFEM_VERIFY(row_offsets_[i+1] - row_offsets_[i] == op(i, j)->NumRows() &&
+                        col_offsets_[j+1] - col_offsets_[j] == op(i, j)->NumCols(),
+                        "offsets incompatible with block (" << i << "," << j
+                        << ") dimensions");
+         }
+      }
+   }
+   row_offsets = row_offsets_;
+   col_offsets = col_offsets_;
 }
 
 void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
@@ -59,14 +94,21 @@ void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
    op(iRow, iCol) = opt;
    coef(iRow, iCol) = c;
 
-   MFEM_VERIFY(row_offsets[iRow+1] - row_offsets[iRow] == opt->NumRows() &&
-               col_offsets[iCol+1] - col_offsets[iCol] == opt->NumCols(),
-               "incompatible Operator dimensions");
+   // Check consistency if offset-based constructor was used
+   if(row_offsets.Size() > 0 || col_offsets.Size() > 0)
+   {
+      MFEM_VERIFY(row_offsets[iRow+1] - row_offsets[iRow] == opt->NumRows() &&
+                  col_offsets[iCol+1] - col_offsets[iCol] == opt->NumCols(),
+                  "incompatible Operator dimensions");
+   }
 }
 
 // Operator application
 void BlockOperator::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_ASSERT(row_offsets.Size() == nRowBlocks+1 &&
+               col_offsets.Size() == nColBlocks+1,
+               "incompatible offsets; see SetOffsets()");
    MFEM_ASSERT(x.Size() == width, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == height, "incorrect output Vector size");
 
@@ -97,9 +139,35 @@ void BlockOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void BlockOperator::MultMV(const MultiVector &x, MultiVector &y) const
+{
+   MFEM_ASSERT(x.NumBlocks() == nColBlocks, "incorrect input MultiVector size");
+   MFEM_ASSERT(y.NumBlocks() == nRowBlocks, "incorrect output MultiVector size");
+
+   for (int iRow=0; iRow < nRowBlocks; ++iRow)
+   {
+      Vector &yi = y[iRow];
+      yi.UseDevice(true);
+      yi = 0.0;
+      tmp.SetSize(yi.Size());
+      tmp.UseDevice(true);
+      for (int jCol=0; jCol < nColBlocks; ++jCol)
+      {
+         if (op(iRow,jCol) && coef(iRow,jCol) != 0.)
+         {
+            op(iRow,jCol)->Mult(x[jCol], tmp);
+            yi.Add(coef(iRow,jCol), tmp);
+         }
+      }
+   }
+}
+
 // Action of the transpose operator
 void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
 {
+   MFEM_ASSERT(row_offsets.Size() == nRowBlocks+1 &&
+               col_offsets.Size() == nColBlocks+1,
+               "BlockOperator offsets have not been set, see SetOffsets()");
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
@@ -127,6 +195,30 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
    for (int iRow=0; iRow < nColBlocks; ++iRow)
    {
       yblock.GetBlock(iRow).SyncAliasMemory(y);
+   }
+}
+
+void BlockOperator::MultTransposeMV(const MultiVector &x,
+                                    MultiVector &y) const
+{
+   MFEM_VERIFY(x.NumBlocks() == nRowBlocks, "incorrect input MultiVector size");
+   MFEM_VERIFY(y.NumBlocks() == nColBlocks, "incorrect output MultiVector size");
+
+   for (int iCol=0; iCol < nColBlocks; ++iCol)
+   {
+      Vector &yi = y[iCol];
+      yi.UseDevice(true);
+      yi = 0.0;
+      tmp.SetSize(yi.Size());
+      tmp.UseDevice(true);
+      for (int jRow=0; jRow < nRowBlocks; ++jRow)
+      {
+         if (op(jRow,iCol) && coef(jRow,iCol) != 0.)
+         {
+            op(jRow,iCol)->MultTranspose(x[jRow], tmp);
+            yi.Add(coef(jRow,iCol), tmp);
+         }
+      }
    }
 }
 

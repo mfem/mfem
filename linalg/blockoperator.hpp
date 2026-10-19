@@ -52,6 +52,11 @@ public:
     */
    BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
 
+   //! Constructor for BlockOperators with a specified number of row
+   //! and column blocks and overall dimensions. Offsets must be explicitly set
+   //! using SetOffsets (if operating on a Vector).
+   BlockOperator(int nrow, int ncol, int ht, int wt);
+
    /// Copy assignment is not supported
    BlockOperator &operator=(const BlockOperator &) = delete;
 
@@ -72,6 +77,9 @@ public:
     * c: optional scalar multiple for this block.
     */
    void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
+
+   //! Set the row and column offsets.
+   void SetOffsets(const Array<int> &row_offsets_, const Array<int> &col_offsets_);
 
    //! Return the number of row blocks
    int NumRowBlocks() const { return nRowBlocks; }
@@ -107,6 +115,12 @@ public:
 
    /// Action of the transpose operator
    void MultTranspose (const Vector & x, Vector & y) const override;
+
+   /// Apply the block operator; block i of @a x/@a y is the i-th column/row block.
+   void MultMV(const MultiVector & x, MultiVector & y) const override;
+
+   /// Apply the transpose of the block operator to a MultiVector.
+   void MultTransposeMV(const MultiVector & x, MultiVector & y) const override;
 
 #ifdef MFEM_USE_MPI
    /** @brief Returns a monolithic HypreParMatrix formed by merging the blocks of
