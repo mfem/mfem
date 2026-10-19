@@ -55,7 +55,7 @@ static void InterpolateLocal1DKernel(const bool use_dev,
    MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
    MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    // for each point of the npt points, create a thread block of size dof1Dsol
-   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D_switch(use_dev, npt, D1D, 1, [=] MFEM_HOST_DEVICE (int i)
    {
       MFEM_SHARED double wtr[MD1];
       MFEM_SHARED double sums[MD1];
@@ -91,7 +91,7 @@ static void InterpolateLocal1DKernel(const bool use_dev,
          }
          MFEM_SYNC_THREAD;
       }
-   }, D1D, 1, 1);
+   });
 }
 
 void FindPointsGSLIB::InterpolateLocal1( const Vector &field_in,

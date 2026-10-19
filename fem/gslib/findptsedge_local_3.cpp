@@ -272,7 +272,8 @@ static void FindPointsEdgeLocal3DKernel(const bool use_dev,
    MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    const int nThreads = D1D*sDIM;
 
-   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D_switch(use_dev, npt, nThreads, 1,
+                          [=] MFEM_HOST_DEVICE (int i)
    {
       constexpr int size1 = 3*MD1 + 10;
       constexpr int size2 = 3*MD1;
@@ -572,7 +573,7 @@ static void FindPointsEdgeLocal3DKernel(const bool use_dev,
             } // findpts_local
          } // obbox_test
       } // elp
-   }, nThreads, 1, 1);
+   });
 }
 
 void FindPointsGSLIB::FindPointsEdgeLocal3(const Vector &point_pos,

@@ -55,7 +55,7 @@ static void InterpolateLocal2DKernel(const bool use_dev,
                "Increase Max allowable polynomial order.");
    MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
    MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
-   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D_switch(use_dev, npt, D1D, D1D, [=] MFEM_HOST_DEVICE (int i)
    {
       MFEM_SHARED double wtr[2*MD1];
       MFEM_SHARED double sums[MD1*MD1];
@@ -102,7 +102,7 @@ static void InterpolateLocal2DKernel(const bool use_dev,
          }
          MFEM_SYNC_THREAD;
       }
-   }, D1D, D1D, 1);
+   });
 }
 
 void FindPointsGSLIB::InterpolateLocal2(const Vector &field_in,

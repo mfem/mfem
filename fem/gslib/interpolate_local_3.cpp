@@ -57,7 +57,8 @@ static void InterpolateLocal3DKernel(const bool use_dev,
    MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
 #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
    const int nThreadsy = MAXC(D1D, 3);
-   mfem::ForallWrap<2>(use_dev, npt, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D_switch(use_dev, npt, D1D, nThreadsy,
+                          [=] MFEM_HOST_DEVICE (int i)
    {
       MFEM_SHARED double wtr[3*MD1];
       MFEM_SHARED double sums[MD1*MD1];
@@ -107,7 +108,7 @@ static void InterpolateLocal3DKernel(const bool use_dev,
          }
          MFEM_SYNC_THREAD;
       }
-   }, D1D, nThreadsy, 1);
+   });
 }
 
 void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,

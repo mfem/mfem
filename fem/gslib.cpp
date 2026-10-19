@@ -506,17 +506,19 @@ static void VerifyAABBPadLayout(const Vector *aabb_sz_inc, const uint nel,
                "expected 1, NE, SpaceDim, or NE*SpaceDim.");
 }
 
-static double GetAABBPad(const Vector *aabb_sz_inc, const int aabb_sz_inc_size,
+// @a h_aabb_sz_inc is the host pointer of the user-provided expansion vector,
+// or nullptr if no absolute AABB expansion was requested.
+static double GetAABBPad(const double *h_aabb_sz_inc,
+                         const int aabb_sz_inc_size,
                          const uint nel, const int sd, const uint e,
                          const int d)
 {
-   if (!aabb_sz_inc) { return 0.0; }
+   if (!h_aabb_sz_inc) { return 0.0; }
 
    MFEM_ASSERT(aabb_sz_inc_size == 1 || aabb_sz_inc_size == (int)nel ||
                aabb_sz_inc_size == sd || aabb_sz_inc_size == (int)nel*sd,
                "Invalid aabb_sz_inc layout.");
 
-   const auto h_aabb_sz_inc = aabb_sz_inc->HostRead();
    double s = 0.0;
    if (aabb_sz_inc_size == 1) { s = h_aabb_sz_inc[0]; }
    else if (aabb_sz_inc_size == (int)nel) { s = h_aabb_sz_inc[e]; }
@@ -1059,6 +1061,8 @@ void FindPointsGSLIB::FindPointsSurfSetup3(DevStruct &devs,
 
    auto h_bb = devs.bb.HostReadWrite();
    const int aabb_sz_inc_size = aabb_sz_inc ? aabb_sz_inc->Size() : 0;
+   const double *h_aabb_sz_inc =
+      aabb_sz_inc ? aabb_sz_inc->HostRead() : nullptr;
    const uint nel_orig = mesh->GetNE();
    MFEM_ASSERT(split_element_map.Size() == (int)nel_split,
                "Invalid split-element map.");
@@ -1072,7 +1076,7 @@ void FindPointsGSLIB::FindPointsSurfSetup3(DevStruct &devs,
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 3; d++)
       {
-         const double pad = GetAABBPad(aabb_sz_inc, aabb_sz_inc_size,
+         const double pad = GetAABBPad(h_aabb_sz_inc, aabb_sz_inc_size,
                                        nel_orig, sd, e, d);
          if (pad > 0.0)
          {
@@ -1143,6 +1147,8 @@ void FindPointsGSLIB::FindPointsEdgeSetup2(DevStruct &devs,
 
    auto h_bb = devs.bb.HostReadWrite();
    const int aabb_sz_inc_size = aabb_sz_inc ? aabb_sz_inc->Size() : 0;
+   const double *h_aabb_sz_inc =
+      aabb_sz_inc ? aabb_sz_inc->HostRead() : nullptr;
    const uint nel_orig = mesh->GetNE();
    MFEM_ASSERT(split_element_map.Size() == (int)nel_split,
                "Invalid split-element map.");
@@ -1156,7 +1162,7 @@ void FindPointsGSLIB::FindPointsEdgeSetup2(DevStruct &devs,
       const int max_off = (store_obb ? 2*sd : sd) + n_box_ents*i;
       for (int d = 0; d < 2 && aabb_sz_inc; d++)
       {
-         const double pad = GetAABBPad(aabb_sz_inc, aabb_sz_inc_size,
+         const double pad = GetAABBPad(h_aabb_sz_inc, aabb_sz_inc_size,
                                        nel_orig, sd, e, d);
          if (pad > 0.0)
          {
@@ -1713,6 +1719,10 @@ void FindPointsGSLIB::FindPointsOnDevice(const Vector &point_pos,
    gsl_mfem_elem.SetSize(points_cnt);
    gsl_ref.UseDevice(true);
    gsl_dist.UseDevice(true);
+   gsl_code.UseDevice(true);
+   gsl_elem.UseDevice(true);
+   gsl_mfem_ref.UseDevice(true);
+   gsl_mfem_elem.UseDevice(true);
 
    // Initialize proc to id for all points. Code and dist will be done
    // inside kernels.
@@ -2346,6 +2356,10 @@ void FindPointsGSLIB::FindPointsSurf(const Vector &point_pos,
 
    gsl_ref.UseDevice(use_dev);
    gsl_dist.UseDevice(use_dev);
+   gsl_code.UseDevice(use_dev);
+   gsl_elem.UseDevice(use_dev);
+   gsl_mfem_ref.UseDevice(use_dev);
+   gsl_mfem_elem.UseDevice(use_dev);
 
    if (spacedim==2)
    {
@@ -3403,14 +3417,11 @@ void FindPointsGSLIB::SetupSplitMeshesAndIntegrationRules(const int order)
    SetupSplitMeshes();
    SetupIntegrationRules(order, ir_split);
 
-   // Setup map for non tensor-product elements
+   // Setup map for non tensor-product elements.
    NE_split_total = 0;
-   split_element_map.HostWrite();
-   split_element_index.HostWrite();
-   split_element_geom.HostWrite();
-   split_element_map.SetSize(0);
-   split_element_index.SetSize(0);
-   split_element_geom.SetSize(0);
+   split_element_map.DeleteAll();
+   split_element_index.DeleteAll();
+   split_element_geom.DeleteAll();
    int NEsplit = 0;
    for (int e = 0; e < mesh->GetNE(); e++)
    {
@@ -5018,6 +5029,7 @@ void OversetFindPointsGSLIB::FindPoints(const Vector &point_pos,
          h_gsl_elem[i] = 0;
          for (int d = 0; d < dim; d++) { h_gsl_ref[i*dim + d] = -1.; }
          h_gsl_code[i] = 2;
+         h_gsl_proc[i] = gsl_comm->id;
       }
    }
 

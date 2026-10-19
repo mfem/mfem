@@ -1228,6 +1228,15 @@ inline void forall_2D(int N, int X, int Y, lambda &&body)
    ForallWrap<2, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, 1);
 }
 
+/// Like mfem::forall_2D, but the device is used only if @a use_dev is true;
+/// otherwise the body runs on the host. Useful for kernels that must support
+/// both host and device execution, e.g. selected via Vector::UseDevice().
+template<typename lambda>
+inline void forall_2D_switch(bool use_dev, int N, int X, int Y, lambda &&body)
+{
+   ForallWrap<2>(use_dev, N, body, X, Y, 1);
+}
+
 template<typename lambda>
 inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
 {
