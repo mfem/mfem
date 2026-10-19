@@ -847,9 +847,12 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
          MFEM_Cu_or_Hip(MemAlloc)(&dBuffer, bufferSize);
       }
 
-      // With ROCm 7.0 to 7.2, rocsparse (used by hipsparse) requires an explicit analysis call before the spmv otherwise you get errors like:
-      // invalid stage, the stage rocsparse_v2_spmv_stage_analysis must be executed before the stage rocsparse_v2_spmv_stage_compute
-#if HIP_VERSION_MAJOR >= 7 && HIP_VERSION_MINOR <= 2
+      // With ROCm 7.0, until 7.14, rocsparse (used by hipsparse) requires an
+      // explicit analysis call before the spmv in some cases, otherwise you get
+      // errors like: invalid stage, the stage rocsparse_v2_spmv_stage_analysis
+      // must be executed before the stage rocsparse_v2_spmv_stage_compute
+      // https://github.com/ROCm/rocm-libraries/blob/develop/projects/hipsparse/CHANGELOG.md#resolved-issues-1
+#if HIP_VERSION_MAJOR == 7 && HIP_VERSION_MINOR < 14
       MFEM_CHECK_SPARSE(hipsparseSpMV_preprocess(
                            handle,
                            MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE),
