@@ -955,7 +955,7 @@ std::streamsize GnuTLS_socketbuf::xsputn(const char_type *s__,
 }
 
 
-int socketstream::num_glvis_sockets = 0;
+MFEM_CONSTINIT int socketstream::num_glvis_sockets = 0;
 GnuTLS_global_state *socketstream::state = NULL;
 GnuTLS_session_params *socketstream::params = NULL;
 
