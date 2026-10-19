@@ -17,6 +17,13 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+Linear and nonlinear solvers
+----------------------------
+- Fixed the PETSc wrappers on GPUs when the device memory type is an Umpire
+  one (the default when MFEM is built with Umpire): the vectors given to PETSc
+  were host vectors while the PETSc matrices and preconditioners computed on
+  the device, so that the PETSc solvers returned wrong solutions.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

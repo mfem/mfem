@@ -140,6 +140,16 @@ static PetscErrorCode MakeShellPCWithFactory(PC,
 #endif
 #endif
 
+#if defined(_USE_DEVICE)
+// Return true if the data in memory of type mt can be used by the device
+// vectors and matrices of PETSc: all the memory types of MemoryClass::DEVICE
+// (including the Umpire ones), except DEVICE_DEBUG, which is host memory.
+static bool __mfem_IsPetscDeviceMemory(mfem::MemoryType mt)
+{
+   return mfem::IsDeviceMemory(mt) && mt != mfem::MemoryType::DEVICE_DEBUG;
+}
+#endif
+
 #if defined(PETSC_HAVE_DEVICE)
 static PetscErrorCode __mfem_VecSetOffloadMask(Vec,PetscOffloadMask);
 #endif
@@ -396,15 +406,13 @@ void PetscParVector::SetVecType_()
    MFEM_VERIFY(x,"Missing Vec");
    ierr = VecGetType(x,&vectype); PCHKERRQ(x,ierr);
 #if defined(_USE_DEVICE)
-   switch (Device::GetDeviceMemoryType())
+   if (__mfem_IsPetscDeviceMemory(Device::GetDeviceMemoryType()))
    {
-      case MemoryType::DEVICE:
-      case MemoryType::MANAGED:
-         ierr = VecSetType(x,PETSC_VECDEVICE); PCHKERRQ(x,ierr);
-         break;
-      default:
-         ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
-         break;
+      ierr = VecSetType(x,PETSC_VECDEVICE); PCHKERRQ(x,ierr);
+   }
+   else
+   {
+      ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
    }
 #else
    if (!vectype)
@@ -1379,7 +1387,7 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
 #endif
 #if defined(_USE_DEVICE)
    MemoryType mt = GetMemoryType(op->GetMemoryClass());
-   if (mt == MemoryType::DEVICE || mt == MemoryType::MANAGED)
+   if (__mfem_IsPetscDeviceMemory(mt))
    {
       ierr = MatShellSetVecType(*A,PETSC_VECDEVICE); PCHKERRQ(A,ierr);
       ierr = MatBindToCPU(*A,PETSC_FALSE); PCHKERRQ(A,ierr);
