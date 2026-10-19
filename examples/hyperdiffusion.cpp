@@ -64,8 +64,10 @@ class HyperDiffusionOperator : public TimeDependentOperator
 protected:
    CGSolver M_solver;
    CGSolver A_solver;
-   HypreBoomerAMG M_prec;
-   HypreBoomerAMG A_prec;
+   HypreSmoother M_prec;
+   HypreSmoother A_prec;
+   //HypreBoomerAMG M_prec;
+   //HypreBoomerAMG A_prec;
 
    ParBilinearForm M;
    std::unique_ptr<HypreParMatrix> M_mat;
@@ -366,7 +368,7 @@ HyperDiffusionOperator::HyperDiffusionOperator(ParFiniteElementSpace &f,
    M_solver.SetMaxIter(max_iter);
    M_solver.SetPrintLevel(IterativeSolver::PrintLevel().Warnings().Errors());
    M_prec.SetOperator(*M_mat);
-   M_prec.SetPrintLevel(0);
+   //M_prec.SetPrintLevel(0);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(*M_mat);
 
@@ -375,7 +377,7 @@ HyperDiffusionOperator::HyperDiffusionOperator(ParFiniteElementSpace &f,
    A_solver.SetAbsTol(0.0);
    A_solver.SetMaxIter(max_iter);
    A_solver.SetPrintLevel(IterativeSolver::PrintLevel().Warnings().Errors());
-   A_prec.SetPrintLevel(0);
+   //A_prec.SetPrintLevel(0);
 }
 
 void HyperDiffusionOperator::EvalRHS(const Vector &u, Vector &out) const
