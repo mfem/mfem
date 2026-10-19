@@ -17,6 +17,11 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+Miscellaneous
+-------------
+- Removes the SidreDataCollection class from MFEM in favor of the
+  MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
