@@ -5879,19 +5879,17 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
       for (int f : boundary_faces)
       {
          Face &face = faces[f];
-         // Boundary faces of ghost elements are handled by their owners, see
-         // ParNCMesh::GetBoundaryClosure.
-         if ((face.elem[0] < 0 || IsGhost(elements[face.elem[0]])) &&
-             (face.elem[1] < 0 || IsGhost(elements[face.elem[1]])))
-         {
-            continue;
-         }
          if (bdr_attr_marked[face.attribute - 1])
          {
             bdr_vertices.Append(nodes[face.p1].vert_index);
             bdr_vertices.Append(nodes[face.p3].vert_index);
 
-            const auto id_and_type = GetEdgeList().GetMeshIdAndType(face.index);
+            // The face and edge indices are the same in 2D only for non-ghost
+            // faces, so look up the edge of the face by its nodes.
+            const int enode = nodes.FindId(face.p1, face.p3);
+            MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
+            const auto id_and_type =
+               GetEdgeList().GetMeshIdAndType(nodes[enode].edge_index);
             if (id_and_type.type == NCList::MeshIdType::SLAVE)
             {
                // A slave face must mark its masters
