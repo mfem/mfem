@@ -613,10 +613,10 @@ inline void SmemPADivDivApply2D(const int d1d,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
-               "D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
-               "Q1D > HDIV_MAX_Q1D");
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().HDIV_MAX_D1D;
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().HDIV_MAX_Q1D;
+   MFEM_VERIFY(D1D <= max_d1d, "D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= max_q1d, "Q1D > HDIV_MAX_Q1D");
 
    const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    const auto gc = Reshape(Gc_.Read(), Q1D, D1D);
@@ -788,10 +788,10 @@ inline void SmemPADivDivApply3D(const int d1d,
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
-               "Error: D1D > HDIV_MAX_D1D");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
-               "Error: Q1D > HDIV_MAX_Q1D");
+   const int max_d1d = T_D1D ? T_D1D : DeviceDofQuadLimits::Get().HDIV_MAX_D1D;
+   const int max_q1d = T_Q1D ? T_Q1D : DeviceDofQuadLimits::Get().HDIV_MAX_Q1D;
+   MFEM_VERIFY(D1D <= max_d1d, "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= max_q1d, "Error: Q1D > HDIV_MAX_Q1D");
 
    const auto bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    const auto gc = Reshape(Gc_.Read(), Q1D, D1D);
