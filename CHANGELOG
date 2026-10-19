@@ -11,6 +11,18 @@
 Version 4.10.1 (development)
 ============================
 
+Discretization improvements
+---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
+
+Miscellaneous
+-------------
+- Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
+  column so the inner loop vectorizes. This roughly doubles the speed of full
+  assembly for DiffusionIntegrator at higher orders.
+
 - Fixed CUDA/HIP simplex partial-assembly mass and diffusion kernels to refresh
   constant-memory basis values when integration rules change, including rules
   with the same quadrature point count.
