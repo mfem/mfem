@@ -756,15 +756,6 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       }
    }
 
-   // Filter, sort and unique an array, so it contains only local unique values.
-   auto FilterSortUnique = [](Array<int> &v, int N)
-   {
-      // Perform the O(N) filter before the O(NlogN) sort.
-      auto local = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
-      std::sort(v.begin(), local);
-      v.SetSize(std::distance(v.begin(), std::unique(v.begin(), local)));
-   };
-
    FilterSortUnique(bdr_vertices, NVertices);
    FilterSortUnique(bdr_edges, NEdges);
    FilterSortUnique(bdr_faces, NFaces);
