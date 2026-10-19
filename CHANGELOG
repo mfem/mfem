@@ -23,6 +23,11 @@ Miscellaneous
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
 
+- Sped up the non-LAPACK DenseMatrix products Mult, AddMult and AddMult_a for
+  the small shapes of element assembly: a result of up to 3x3 with a long inner
+  dimension (the element Jacobian) and an inner dimension of up to 3 (the shape
+  function gradients times the adjugate Jacobian). The summation order of every
+  entry is unchanged.
 
 Version 4.10, released on Sep 1, 2026
 =====================================
