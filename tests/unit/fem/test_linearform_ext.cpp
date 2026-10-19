@@ -414,7 +414,7 @@ TEST_CASE("Parallel Fast LinearForm Assembly",
    b.Assemble();
 }
 
-TEST_CASE("Fast Boundary LinearForm Empty Rank", "[Parallel]")
+TEST_CASE("Fast Boundary LinearForm Empty Rank", "[Parallel][GPU]")
 {
    // All elements are on rank 0, other ranks are empty.
    Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
@@ -436,7 +436,7 @@ TEST_CASE("Fast Boundary LinearForm Empty Rank", "[Parallel]")
    REQUIRE(b(x) == MFEM_Approx(4.0));
 }
 
-TEST_CASE("Fast VectorFE Boundary LinearForm Empty Rank", "[Parallel]")
+TEST_CASE("Fast VectorFE Boundary LinearForm Empty Rank", "[Parallel][GPU]")
 {
    // All elements are on rank 0, other ranks are empty.
    Mesh serial_mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
