@@ -1140,6 +1140,95 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
 }
 
 
+TEST_CASE("ParSubMesh From MeshPartitioner", "[Parallel],[SubMesh]")
+{
+   // A ParMesh constructed from the parts of a MeshPartitioner does not number
+   // its communication groups in the same order on all ranks. A ParSubMesh
+   // group can collect shared entities from several groups of the parent, for
+   // example a vertex shared by three ranks of the parent but only present in
+   // the SubMesh on two of them. The shared entities of each ParSubMesh group
+   // must nonetheless be listed in the same order on all of its ranks, or the
+   // parallel finite element spaces on the ParSubMesh are inconsistent: a
+   // continuous field does not survive a round trip through the true DOFs.
+   const int num_procs = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   auto type = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
+   CAPTURE(type);
+   Mesh serial_mesh = Mesh::MakeCartesian3D(6, 6, 6, type);
+   for (int i = 0; i < serial_mesh.GetNE(); i++)
+   {
+      Vector c;
+      serial_mesh.GetElementCenter(i, c);
+      serial_mesh.SetAttribute(i, c(0) < 0.5 ? 1 : 2);
+   }
+   serial_mesh.SetAttributes();
+
+   // Fragmented partitioning, in blocks of consecutive elements.
+   Array<int> partitioning(serial_mesh.GetNE());
+   for (int i = 0; i < serial_mesh.GetNE(); i++)
+   {
+      partitioning[i] = (i / 7) % num_procs;
+   }
+   MeshPartitioner partitioner(serial_mesh, num_procs, partitioning);
+   MeshPart mesh_part;
+   partitioner.ExtractPart(rank, mesh_part);
+   std::stringstream part_stream;
+   part_stream.precision(16);
+   mesh_part.Print(part_stream);
+   ParMesh parent_mesh(MPI_COMM_WORLD, part_stream);
+
+   FunctionCoefficient coeff([](const Vector &x)
+   {
+      return sin(3.0 * x(0)) + cos(5.0 * x(1)) + x(2);
+   });
+   VectorFunctionCoefficient vcoeff(3, [](const Vector &x, Vector &v)
+   {
+      v(0) = 1.0 + x(1);
+      v(1) = sin(3.0 * x(2));
+      v(2) = cos(2.0 * x(0)) + x(2);
+   });
+   auto CheckRoundTrip = [&](ParSubMesh &submesh,
+                             std::initializer_list<FECType> fec_types)
+   {
+      for (auto fec_type : fec_types)
+      {
+         CAPTURE(fec_type);
+         auto fec = std::unique_ptr<FiniteElementCollection>(
+                       create_fec(fec_type, 2, submesh.Dimension()));
+         ParFiniteElementSpace fes(&submesh, fec.get());
+         ParGridFunction gf(&fes), gf_tdof(&fes);
+         if (fec_type == FECType::H1)
+         {
+            gf.ProjectCoefficient(coeff);
+         }
+         else
+         {
+            gf.ProjectCoefficient(vcoeff);
+         }
+         Vector tdofs(fes.GetTrueVSize());
+         gf.GetTrueDofs(tdofs);
+         gf_tdof.SetFromTrueDofs(tdofs);
+         gf_tdof -= gf;
+         CHECK_GLOBAL_NORM(gf_tdof);
+      }
+   };
+
+   for (int attr = 1; attr <= parent_mesh.bdr_attributes.Max(); attr++)
+   {
+      CAPTURE(attr);
+      Array<int> attributes({attr});
+      auto submesh = ParSubMesh::CreateFromBoundary(parent_mesh, attributes);
+      CheckRoundTrip(submesh, {FECType::H1, FECType::ND});
+   }
+   for (int attr = 1; attr <= 2; attr++)
+   {
+      CAPTURE(attr);
+      Array<int> attributes({attr});
+      auto submesh = ParSubMesh::CreateFromDomain(parent_mesh, attributes);
+      CheckRoundTrip(submesh, {FECType::H1});
+   }
+}
+
 } // namespace ParSubMeshTests
 
 #endif // MFEM_USE_MPI

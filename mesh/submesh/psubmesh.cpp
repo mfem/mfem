@@ -16,6 +16,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <algorithm>
+#include <vector>
 #include "psubmesh.hpp"
 #include "pncsubmesh.hpp"
 #include "submesh_utils.hpp"
@@ -654,10 +655,80 @@ void ParSubMesh::AppendSharedFacesGroups(ListOfIntegerSets &groups,
    }
 }
 
-void BuildGroup(Table &group, int ngroups, const Array<int>& rh, int &ns)
+namespace
+{
+
+// The shared entities of a ParSubMesh group are collected from the shared
+// entities of the parent ParMesh, which are enumerated group by group. A
+// ParSubMesh group can collect entities from several parent groups: for
+// example, a vertex shared by ranks {0,1,2} in the parent which is only in the
+// SubMesh on ranks 0 and 1 joins the vertices of the parent group {0,1}. The
+// entities of a group must be listed in the same order on all of its ranks, but
+// the local numbering of the parent groups is not the same on all ranks (it
+// depends on how the parent ParMesh was constructed). Therefore, visit the
+// parent groups in the order of their sets of ranks, which is the same on all
+// ranks.
+Array<int> GloballyOrderedParentGroups(const ParMesh &parent)
+{
+   const int ngroups = parent.GetNGroups();
+   std::vector<std::vector<int>> group_ranks(ngroups);
+   Array<int> groups(ngroups > 0 ? ngroups - 1 : 0);
+   for (int g = 1; g < ngroups; g++)
+   {
+      const int group_sz = parent.gtopo.GetGroupSize(g);
+      const int *group_lproc = parent.gtopo.GetGroup(g);
+      for (int i = 0; i < group_sz; i++)
+      {
+         group_ranks[g].push_back(parent.gtopo.GetNeighborRank(group_lproc[i]));
+      }
+      std::sort(group_ranks[g].begin(), group_ranks[g].end());
+      groups[g - 1] = g;
+   }
+   std::sort(groups.begin(), groups.end(), [&group_ranks](int a, int b)
+   { return group_ranks[a] < group_ranks[b]; });
+   return groups;
+}
+
+// Offsets of the shared entities of each parent group in their group-by-group
+// enumeration, for a function returning the number of entities in a parent
+// group.
+template <typename CountFunc>
+Array<int> ParentGroupOffsets(const ParMesh &parent, CountFunc count)
+{
+   const int ngroups = parent.GetNGroups();
+   Array<int> offsets(ngroups + 1);
+   offsets = 0;
+   for (int g = 1; g < ngroups; g++)
+   {
+      offsets[g + 1] = offsets[g] + count(g);
+   }
+   return offsets;
+}
+
+// Order of the shared entities in their group-by-group enumeration when
+// visiting the parent groups in the given order.
+Array<int> SharedEntityOrder(const Array<int> &groups,
+                             const Array<int> &offsets)
+{
+   Array<int> order;
+   order.Reserve(offsets.Last());
+   for (int g : groups)
+   {
+      for (int i = offsets[g]; i < offsets[g + 1]; i++)
+      {
+         order.Append(i);
+      }
+   }
+   return order;
+}
+
+} // namespace
+
+void BuildGroup(Table &group, int ngroups, const Array<int>& rh,
+                const Array<int> &order, int &ns)
 {
    group.MakeI(ngroups);
-   for (int i = 0; i < rh.Size(); i++)
+   for (int i : order)
    {
       if (rh[i] >= 0)
       {
@@ -667,7 +738,7 @@ void BuildGroup(Table &group, int ngroups, const Array<int>& rh, int &ns)
 
    group.MakeJ();
    ns = 0;
-   for (int i = 0; i < rh.Size(); i++)
+   for (int i : order)
    {
       if (rh[i] >= 0)
       {
@@ -680,20 +751,35 @@ void BuildGroup(Table &group, int ngroups, const Array<int>& rh, int &ns)
 void ParSubMesh::BuildVertexGroup(int ngroups, const Array<int>& rhvtx,
                                   int& nsverts)
 {
-   BuildGroup(group_svert, ngroups, rhvtx, nsverts);
+   const Array<int> groups = GloballyOrderedParentGroups(parent_);
+   const Array<int> offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNVertices(g); });
+   BuildGroup(group_svert, ngroups, rhvtx, SharedEntityOrder(groups, offsets),
+              nsverts);
 }
 
 void ParSubMesh::BuildEdgeGroup(int ngroups, const Array<int>& rhe,
                                 int& nsedges)
 {
-   BuildGroup(group_sedge, ngroups, rhe, nsedges);
+   const Array<int> groups = GloballyOrderedParentGroups(parent_);
+   const Array<int> offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNEdges(g); });
+   BuildGroup(group_sedge, ngroups, rhe, SharedEntityOrder(groups, offsets),
+              nsedges);
 }
 
 void ParSubMesh::BuildFaceGroup(int ngroups, const Array<int>& rht,
                                 int& nstrias, const Array<int>& rhq, int& nsquads)
 {
-   BuildGroup(group_squad, ngroups, rhq, nsquads);
-   BuildGroup(group_stria, ngroups, rht, nstrias);
+   const Array<int> groups = GloballyOrderedParentGroups(parent_);
+   const Array<int> quad_offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNQuadrilaterals(g); });
+   const Array<int> tria_offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNTriangles(g); });
+   BuildGroup(group_squad, ngroups, rhq,
+              SharedEntityOrder(groups, quad_offsets), nsquads);
+   BuildGroup(group_stria, ngroups, rht,
+              SharedEntityOrder(groups, tria_offsets), nstrias);
 }
 
 void ParSubMesh::BuildSharedVerticesMapping(const int nsverts,
@@ -701,9 +787,14 @@ void ParSubMesh::BuildSharedVerticesMapping(const int nsverts,
 {
    svert_lvert.Reserve(nsverts);
 
-   for (int g = 1, sv = 0; g < parent_.GetNGroups(); g++)
+   // Same order as in BuildVertexGroup.
+   const Array<int> groups = GloballyOrderedParentGroups(parent_);
+   const Array<int> offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNVertices(g); });
+   for (int g : groups)
    {
-      for (int gv = 0; gv < parent_.GroupNVertices(g); gv++, sv++)
+      for (int gv = 0, sv = offsets[g]; gv < parent_.GroupNVertices(g);
+           gv++, sv++)
       {
          // Returns the parents local vertex id
          int plvtx = parent_.GroupVertex(g, gv);
@@ -726,9 +817,13 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
    shared_edges.Reserve(sedges_ct);
    sedge_ledge.Reserve(sedges_ct);
 
-   for (int g = 1, se = 0; g < parent_.GetNGroups(); g++)
+   // Same order as in BuildEdgeGroup.
+   const Array<int> groups = GloballyOrderedParentGroups(parent_);
+   const Array<int> offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNEdges(g); });
+   for (int g : groups)
    {
-      for (int ge = 0; ge < parent_.GroupNEdges(g); ge++, se++)
+      for (int ge = 0, se = offsets[g]; ge < parent_.GroupNEdges(g); ge++, se++)
       {
          int ple, o;
          parent_.GroupEdge(g, ge, ple, o);
@@ -763,10 +858,16 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
    sface_lface.Reserve(nstrias + nsquads);
 
    // sface_lface should list the triangular shared faces first followed by the
-   // quadrilateral shared faces.
-   for (int g = 1, st = 0; g < parent_.GetNGroups(); g++)
+   // quadrilateral shared faces, in the same order as in BuildFaceGroup.
+   const Array<int> groups = GloballyOrderedParentGroups(parent_);
+   const Array<int> tria_offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNTriangles(g); });
+   const Array<int> quad_offsets = ParentGroupOffsets(parent_, [this](int g)
+   { return parent_.GroupNQuadrilaterals(g); });
+   for (int g : groups)
    {
-      for (int gt = 0; gt < parent_.GroupNTriangles(g); gt++, st++)
+      for (int gt = 0, st = tria_offsets[g]; gt < parent_.GroupNTriangles(g);
+           gt++, st++)
       {
          int plt, o;
          parent_.GroupTriangle(g, gt, plt, o);
@@ -808,9 +909,10 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
       }
    }
 
-   for (int g = 1, sq = 0; g < parent_.GetNGroups(); g++)
+   for (int g : groups)
    {
-      for (int gq = 0; gq < parent_.GroupNQuadrilaterals(g); gq++, sq++)
+      for (int gq = 0, sq = quad_offsets[g];
+           gq < parent_.GroupNQuadrilaterals(g); gq++, sq++)
       {
          int plq, o;
          parent_.GroupQuadrilateral(g, gq, plq, o);
