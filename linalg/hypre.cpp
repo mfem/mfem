@@ -321,9 +321,8 @@ Vector * HypreParVector::GlobalVector() const
                "GlobalVector method can only be called on vectors wherein each "
                "process owns one or more entries");
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
-   Vector *v = new Vector(hv->data, internal::to_int(hv->size));
-   v->MakeDataOwner();
-   hypre_SeqVectorSetDataOwner(hv,0);
+   Vector *v = new Vector(internal::to_int(hypre_VectorSize(hv)));
+   *v = hypre_VectorData(hv);
    hypre_SeqVectorDestroy(hv);
    return v;
 }
@@ -1375,9 +1374,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
       }
    }
    // count the number of columns in the off-diagonal and set the local indices
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (auto &[col, index] : offd_map)
    {
-      it->second = offd_num_cols++;
+      index = offd_num_cols++;
    }
 
    // construct the global ParCSR matrix
@@ -1425,9 +1424,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
    diag_i[nrows] = diag_nnz;
    offd_i[nrows] = offd_nnz;
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (const auto &[col, index] : offd_map)
    {
-      offd_col_map[it->second] = it->first;
+      offd_col_map[index] = col;
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
@@ -1804,11 +1803,11 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #if (MFEM_HYPRE_VERSION > 22300) || (MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
    HYPRE_BigInt cpts_global[2];
 
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, cpts_global);
 #else
    HYPRE_BigInt *cpts_global;
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
 #endif
 
