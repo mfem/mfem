@@ -52,7 +52,7 @@ T max(T arg, Ts... args)
 namespace mfem
 {
 
-NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
+MFEM_CONSTINIT NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
 void NCMesh::GeomInfo::InitGeom(Geometry::Type geom)
 {
@@ -4580,27 +4580,27 @@ void NCMesh::PointMatrix::GetMatrix(DenseMatrix& point_matrix) const
    }
 }
 
-NCMesh::PointMatrix NCMesh::pm_seg_identity(
+MFEM_CONSTINIT NCMesh::PointMatrix NCMesh::pm_seg_identity(
    Point(0), Point(1)
 );
-NCMesh::PointMatrix NCMesh::pm_tri_identity(
+MFEM_CONSTINIT NCMesh::PointMatrix NCMesh::pm_tri_identity(
    Point(0, 0), Point(1, 0), Point(0, 1)
 );
-NCMesh::PointMatrix NCMesh::pm_quad_identity(
+MFEM_CONSTINIT NCMesh::PointMatrix NCMesh::pm_quad_identity(
    Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)
 );
-NCMesh::PointMatrix NCMesh::pm_tet_identity(
+MFEM_CONSTINIT NCMesh::PointMatrix NCMesh::pm_tet_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0), Point(0, 0, 1)
 );
-NCMesh::PointMatrix NCMesh::pm_prism_identity(
+MFEM_CONSTINIT NCMesh::PointMatrix NCMesh::pm_prism_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(0, 1, 1)
 );
-NCMesh::PointMatrix NCMesh::pm_pyramid_identity(
+MFEM_CONSTINIT NCMesh::PointMatrix NCMesh::pm_pyramid_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0),
    Point(0, 1, 0), Point(0, 0, 1)
 );
-NCMesh::PointMatrix NCMesh::pm_hex_identity(
+MFEM_CONSTINIT NCMesh::PointMatrix NCMesh::pm_hex_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(1, 1, 1), Point(0, 1, 1)
 );
