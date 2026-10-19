@@ -266,9 +266,11 @@ TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
         ++offset)  // rotate which rank has no decision variables
    {
       const int adjustedRank = ((my_rank+offset) % world_size);
-      const int num_var = (global_num_var/world_size) + static_cast<int>
-                          (adjustedRank <
-                           (global_num_var % world_size));
+      // num_var is logically const but must remain non-const due
+      // to erroneous compiler errors about MPI_Allreduce.
+      int num_var = (global_num_var/world_size) + static_cast<int>
+                    (adjustedRank <
+                     (global_num_var % world_size));
       int global_var_check = 1;
       MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
       REQUIRE( global_num_var == global_var_check );
@@ -346,9 +348,11 @@ TEST_CASE("Smaller MMA constrained Test", "[Parallel], [MMA_1CONSTR_SMALL]")
         ++offset)  // rotate which rank has no decision variables
    {
       const int adjustedRank = ((my_rank+offset) % world_size);
-      const int num_var = (global_num_var/world_size) + static_cast<int>
-                          (adjustedRank <
-                           (global_num_var % world_size));
+      // num_var is logically const but must remain non-const due
+      // to erroneous compiler errors about MPI_Allreduce.
+      int num_var = (global_num_var/world_size) + static_cast<int>
+                    (adjustedRank <
+                     (global_num_var % world_size));
       int global_var_check = 1;
       MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
       REQUIRE( global_num_var == global_var_check );
