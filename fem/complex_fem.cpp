@@ -90,6 +90,19 @@ ComplexGridFunction::ComplexGridFunction(Mesh *m, std::istream &input)
    fes_sequence = fes->GetSequence();
 }
 
+ComplexGridFunction::ComplexGridFunction(const ComplexGridFunction &rhs)
+   : Vector(rhs), fes(rhs.fes), fec_owned(NULL), fes_sequence(rhs.fes_sequence)
+{
+   UseDevice(true);
+
+   // the real and imaginary parts have to alias the copy's own data
+   gfr = new GridFunction();
+   gfr->MakeRef(fes, *this, 0);
+
+   gfi = new GridFunction();
+   gfi->MakeRef(fes, *this, fes->GetVSize());
+}
+
 void ComplexGridFunction::Destroy()
 {
    delete gfr; delete gfi;
@@ -1331,6 +1344,20 @@ ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
    pgfi->MakeRef(pfes, *this, pfes->GetVSize());
 
    fes_sequence = pfes->GetSequence();
+}
+
+ParComplexGridFunction::ParComplexGridFunction(
+   const ParComplexGridFunction &rhs)
+   : Vector(rhs), pfes(rhs.pfes), fec_owned(NULL), fes_sequence(rhs.fes_sequence)
+{
+   UseDevice(true);
+
+   // the real and imaginary parts have to alias the copy's own data
+   pgfr = new ParGridFunction();
+   pgfr->MakeRef(pfes, *this, 0);
+
+   pgfi = new ParGridFunction();
+   pgfi->MakeRef(pfes, *this, pfes->GetVSize());
 }
 
 void ParComplexGridFunction::Destroy()
