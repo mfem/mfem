@@ -350,6 +350,10 @@ miniapps/nurbs/deformed.*
 miniapps/nurbs/elastic_energy.*
 miniapps/nurbs/velocity.*
 
+miniapps/optics/hologram
+miniapps/optics/phologram
+miniapps/optics/*.png
+
 miniapps/performance/ex1
 miniapps/performance/ex1p
 miniapps/performance/refined.mesh
