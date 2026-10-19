@@ -767,6 +767,25 @@ public:
    /// underlying #pfes
    int VectorDim() const;
 
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
+       that have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   ParComplexGridFunction &operator=(const ParComplexGridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to double of the size of the associated
+       ParFiniteElementSpace #pfes. */
+   ParComplexGridFunction &operator=(const Vector &v)
+   {
+      MFEM_ASSERT(pfes && v.Size() == 2*pfes->GetVSize(), "");
+      Vector::operator=(v);
+      return *this;
+   }
+
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
