@@ -12,6 +12,9 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include "linalg/dtensor.hpp"
+#include <cmath>
+#include <cstring>
+#include <limits>
 
 using namespace mfem;
 
@@ -328,6 +331,127 @@ TEST_CASE("DenseMatrix A^T*B methods",
       AddMult_a_AtB(-1.0, A, B, C);
 
       REQUIRE(C.MaxMaxNorm() < tol);
+   }
+}
+
+namespace
+{
+
+// References written as the transpose products were before the outputs were
+// swept together. The order of the j sum and the 0.0 start are the same in
+// both, so without FMA contraction the comparisons below are bitwise.
+void RefMultTranspose(int h, int w, const real_t *d, const real_t *x, real_t *y)
+{
+   for (int i = 0; i < w; i++)
+   {
+      real_t val = 0.0;
+      for (int j = 0; j < h; j++) { val += x[j]*d[i*h + j]; }
+      y[i] = val;
+   }
+}
+
+void RefAbsMultTranspose(int h, int w, const real_t *d, const real_t *x,
+                         real_t *y)
+{
+   for (int i = 0; i < w; i++)
+   {
+      real_t val = 0.0;
+      for (int j = 0; j < h; j++) { val += x[j]*std::fabs(d[i*h + j]); }
+      y[i] = val;
+   }
+}
+
+void RefAddMultTranspose(int h, int w, real_t alpha, const real_t *d,
+                         const real_t *x, real_t *y)
+{
+   for (int i = 0; i < w; i++)
+   {
+      real_t val = 0.0;
+      for (int j = 0; j < h; j++) { val += x[j]*d[i*h + j]; }
+      y[i] += alpha*val;
+   }
+}
+
+// True when the compiler fuses a*b + c here, in which case the library and the
+// reference loops above may round differently and only a tolerance is checked.
+bool FmaOn()
+{
+   const real_t s = std::ldexp(real_t(1),
+                               -(std::numeric_limits<real_t>::digits/2 + 1));
+   volatile real_t a = 1 + s, b = 1 - s, c = -1;
+   const real_t r = a*b + c;
+   return r != 0;
+}
+
+bool SameVec(const Vector &x, const Vector &ref)
+{
+   if (!FmaOn())
+   {
+      return std::memcmp(x.GetData(), ref.GetData(),
+                         sizeof(real_t)*x.Size()) == 0;
+   }
+   const real_t eps = std::numeric_limits<real_t>::epsilon();
+   for (int i = 0; i < x.Size(); i++)
+   {
+      if (std::abs(x[i] - ref[i]) > 1e3*eps*(1.0 + std::abs(ref[i])))
+      {
+         return false;
+      }
+   }
+   return true;
+}
+
+} // namespace
+
+TEST_CASE("DenseMatrix transpose matvec", "[DenseMatrix]")
+{
+   // Widths 2 and 3 take the specialized branches, the rest the general loop.
+   const int heights[] = { 1, 2, 3, 4, 8, 27, 64 };
+   const int widths[] = { 1, 2, 3, 4, 5 };
+   const real_t alpha = 0.37;
+
+   int seed = 0;
+   for (const int h : heights)
+   {
+      for (const int w : widths)
+      {
+         DenseMatrix A(h, w);
+         Vector x(h), y(w), y0(w), ref(w);
+         for (int j = 0; j < w; j++)
+         {
+            for (int i = 0; i < h; i++)
+            {
+               const int k = (7*i + 13*j + 31*seed + (i*j) % 11) % 97;
+               A(i, j) = 0.1*(k - 48) + 1.0/(1 + i + 2*j + seed);
+            }
+         }
+         for (int i = 0; i < h; i++) { x[i] = 0.1*((5*i + seed) % 29 - 14); }
+         for (int i = 0; i < w; i++) { y0[i] = 0.5 + 0.125*i; }
+         seed += 3;
+         CAPTURE(h, w);
+
+         y = y0;
+         A.MultTranspose(x, y);
+         RefMultTranspose(h, w, A.Data(), x.GetData(), ref.GetData());
+         REQUIRE(SameVec(y, ref));
+
+         y = y0;
+         A.AbsMultTranspose(x, y);
+         RefAbsMultTranspose(h, w, A.Data(), x.GetData(), ref.GetData());
+         REQUIRE(SameVec(y, ref));
+
+         y = y0;
+         ref = y0;
+         A.AddMultTranspose(x, y);
+         RefAddMultTranspose(h, w, 1.0, A.Data(), x.GetData(), ref.GetData());
+         REQUIRE(SameVec(y, ref));
+
+         y = y0;
+         ref = y0;
+         A.AddMultTranspose(x, y, alpha);
+         RefAddMultTranspose(h, w, alpha, A.Data(), x.GetData(), ref.GetData());
+         REQUIRE(SameVec(y, ref));
+      }
    }
 }
 
