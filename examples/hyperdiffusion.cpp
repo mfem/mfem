@@ -13,6 +13,10 @@
  *   mpirun -np 4 ./hyperdiffusion -dt 1e-4 -nt 1000 -no-vis -o 3 -eta 10 -r 1
  *   mpirun -np 8 ./hyperdiffusion -dt 1e-4 -nt 1000 -no-vis -o 3 -eta 10 -r 2
  */
+
+#define USE_HYPREBOOMERAMG 1
+
+
 #include <mfem.hpp>
 
 using namespace mfem;
@@ -64,10 +68,13 @@ class HyperDiffusionOperator : public TimeDependentOperator
 protected:
    CGSolver M_solver;
    CGSolver A_solver;
+#if USE_HYPREBOOMERAMG
+   HypreBoomerAMG M_prec;
+   HypreBoomerAMG A_prec;
+#else
    HypreSmoother M_prec;
    HypreSmoother A_prec;
-   //HypreBoomerAMG M_prec;
-   //HypreBoomerAMG A_prec;
+#endif
 
    ParBilinearForm M;
    std::unique_ptr<HypreParMatrix> M_mat;
@@ -366,9 +373,8 @@ HyperDiffusionOperator::HyperDiffusionOperator(ParFiniteElementSpace &f,
    M_solver.SetRelTol(rel_tol);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(max_iter);
-   M_solver.SetPrintLevel(IterativeSolver::PrintLevel().Warnings().Errors());
+   M_solver.SetPrintLevel(IterativeSolver::PrintLevel().Warnings().Errors().FirstAndLast());
    M_prec.SetOperator(*M_mat);
-   //M_prec.SetPrintLevel(0);
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(*M_mat);
 
@@ -376,8 +382,12 @@ HyperDiffusionOperator::HyperDiffusionOperator(ParFiniteElementSpace &f,
    A_solver.SetRelTol(rel_tol);
    A_solver.SetAbsTol(0.0);
    A_solver.SetMaxIter(max_iter);
-   A_solver.SetPrintLevel(IterativeSolver::PrintLevel().Warnings().Errors());
-   //A_prec.SetPrintLevel(0);
+   A_solver.SetPrintLevel(IterativeSolver::PrintLevel().Warnings().Errors().FirstAndLast());
+
+#if USE_HYPREBOOMERAMG
+   M_prec.SetPrintLevel(0);
+   A_prec.SetPrintLevel(0);
+#endif
 }
 
 void HyperDiffusionOperator::EvalRHS(const Vector &u, Vector &out) const
