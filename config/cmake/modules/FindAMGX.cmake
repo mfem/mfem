@@ -15,13 +15,13 @@
 #   - AMGX_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-set(AMGX_REQUIRED_LIBRARIES cusparse cusolver cublas cublasLt)
-if (NOT DEFINED CUDAToolkit_VERSION OR CUDAToolkit_VERSION VERSION_LESS 12.9)
-  list(APPEND AMGX_REQUIRED_LIBRARIES nvToolsExt)
+if (CMAKE_VERSION VERSION_LESS 3.17)
+  message(FATAL_ERROR "AmgX support requires CMake >= 3.17")
 endif()
+list(APPEND AMGX_REQUIRED_PACKAGES CUDAToolkit)
+list(APPEND AMGX_REQUIRED_LIBRARIES CUDA::cublas CUDA::cusparse CUDA::cusolver)
 mfem_find_package(AMGX AMGX AMGX_DIR "include" "amgx_c.h" "lib" "amgx"
   "Paths to headers required by AMGX." "Libraries required by AMGX.")
-# Make sure the library location is locked down
-foreach(lib ${AMGX_REQUIRED_LIBRARIES})
-  list(APPEND AMGX_LIBRARIES ${CUDA_TOOLKIT_ROOT_DIR}/lib64/lib${lib}${CMAKE_SHARED_LIBRARY_SUFFIX})
-endforeach()
+if (TARGET CUDA::nvToolsExt)
+  list(APPEND AMGX_LIBRARIES CUDA::nvToolsExt)
+endif()
