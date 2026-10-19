@@ -48,11 +48,6 @@ runs:
       run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.MSAN_CXXFLAGS}} >> $GITHUB_ENV
       shell: bash
 
-    - name: Build with UBSAN
-      if: inputs.sanitizer == 'ubsan'
-      run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.UBSAN_CXXFLAGS}} >> $GITHUB_ENV
-      shell: bash
-
     - uses: mfem/github-actions/build-mfem@v2.8
       if: ${{steps.debug.outputs.cache-hit != 'true'}}
       env:
