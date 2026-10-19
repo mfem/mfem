@@ -476,11 +476,13 @@ public:
     * coincide with boundary elements with the specified attributes (marked in
     * 'bdr_attr_marked').
     *
-    * @details In 2D, the edges are the "hidden" master edges of slave boundary
-    * edges, e.g. on an internal boundary refined on one side only. In 3D this
-    * function also reveals "hidden" boundary edges. In parallel it helps
-    * identifying boundary vertices/edges/faces affected by non-local boundary
-    * elements. Hidden faces can occur for an internal boundary coincident to a
+    * @details The lists also include "hidden" boundary entities, which are not
+    * boundary elements or their edges/vertices: the master edges (2D) or faces
+    * (3D) of slave boundary elements, e.g. on an internal boundary refined on
+    * one side only, and in 3D, the master edges of the edges of boundary
+    * elements, e.g. in re-entrant corners. In parallel it helps identifying
+    * boundary vertices/edges/faces affected by non-local boundary elements.
+    * Hidden faces can also occur for an internal boundary coincident to a
     * processor boundary.
     *
     * @param bdr_attr_marked Indicator if a given boundary attribute is marked.
