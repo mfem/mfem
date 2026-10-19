@@ -223,6 +223,43 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
    REQUIRE(x.Normlinf() == MFEM_Approx(0.0));
 }
 
+TEST_CASE("ParMeshMakeSimplicial interior boundary", "[Parallel], [ParMesh]")
+{
+   if (Mpi::WorldSize() < 2) { return; }
+
+   const int order = GENERATE(1, 2);
+   const int rank = Mpi::WorldRank();
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL,
+                                     true, 2.0, 1.0, false);
+   // Add an interior boundary that points downwards, opposite to the
+   // orientation of the left quad's edge. This is valid for an interior
+   // boundary, even when its adjacent elements belong to different ranks.
+   mesh.AddBdrSegment(4, 1, 5);
+   mesh.FinalizeTopology();
+
+   if (order > 1) { mesh.SetCurvature(order); }
+
+   // Extra ranks have empty partitions.
+   int partitioning[] = {0, 1};
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+   REQUIRE(pmesh.GetNSharedFaces() == (rank < 2 ? 1 : 0));
+
+   ParMesh simplex_mesh = ParMesh::MakeSimplicial(pmesh);
+   REQUIRE(simplex_mesh.GetNE() == (rank < 2 ? 2 : 0));
+   REQUIRE(simplex_mesh.GetNBE() == pmesh.GetNBE());
+   REQUIRE(simplex_mesh.GetNSharedFaces() == (rank < 2 ? 1 : 0));
+   REQUIRE(simplex_mesh.CheckElementOrientation(false) == 0);
+   for (int i = 0; i < simplex_mesh.GetNE(); i++)
+   {
+      REQUIRE(simplex_mesh.GetElementGeometry(i) == Geometry::TRIANGLE);
+   }
+   for (int i = 0; i < simplex_mesh.GetNBE(); i++)
+   {
+      REQUIRE(simplex_mesh.GetBdrAttribute(i) == pmesh.GetBdrAttribute(i));
+   }
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem

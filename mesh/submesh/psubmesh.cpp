@@ -781,28 +781,16 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 
             GetFaceVertices(submesh_face_id, vert);
 
-            int v0 = vert[0];
-            int v1 = vert[1];
-            int v2 = vert[2];
-
-            // See Mesh::GetTriOrientation for info on interpreting "o"
-            switch (o)
+            // Reorder all six possible orientations, including rotations.
+            const int *orientation =
+               Geometry::Constants<Geometry::TRIANGLE>::Orient[o];
+            int shared[3];
+            for (int i = 0; i < 3; i++)
             {
-               case 1:
-                  std::swap(v0,v1);
-                  break;
-               case 3:
-                  std::swap(v2,v0);
-                  break;
-               case 5:
-                  std::swap(v1,v2);
-                  break;
-               default:
-                  // Do nothing
-                  break;
+               shared[orientation[i]] = vert[i];
             }
 
-            shared_trias.Append(Vert3(v0, v1, v2));
+            shared_trias.Append(Vert3(shared[0], shared[1], shared[2]));
             sface_lface.Append(submesh_face_id);
          }
       }
@@ -824,34 +812,17 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
             Array<int> vert;
             GetFaceVertices(submesh_face_id, vert);
 
-            int v0 = vert[0];
-            int v1 = vert[1];
-            int v2 = vert[2];
-            int v3 = vert[3];
-
-            // See Mesh::GetQuadOrientation for info on interpreting "o"
-            switch (o)
+            // Reorder all eight possible orientations, including rotations.
+            const int *orientation =
+               Geometry::Constants<Geometry::SQUARE>::Orient[o];
+            int shared[4];
+            for (int i = 0; i < 4; i++)
             {
-               case 1:
-                  std::swap(v1,v3);
-                  break;
-               case 3:
-                  std::swap(v0,v1);
-                  std::swap(v2,v3);
-                  break;
-               case 5:
-                  std::swap(v0,v2);
-                  break;
-               case 7:
-                  std::swap(v0,v3);
-                  std::swap(v1,v2);
-                  break;
-               default:
-                  // Do nothing
-                  break;
+               shared[orientation[i]] = vert[i];
             }
 
-            shared_quads.Append(Vert4(v0, v1, v2, v3));
+            shared_quads.Append(Vert4(shared[0], shared[1],
+                                      shared[2], shared[3]));
             sface_lface.Append(submesh_face_id);
          }
       }
