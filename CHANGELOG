@@ -24,6 +24,12 @@ Meshing improvements
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
 
+Miscellaneous
+-------------
+- Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
+  column so the inner loop vectorizes. This roughly doubles the speed of full
+  assembly for DiffusionIntegrator at higher orders.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
