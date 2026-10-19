@@ -44,7 +44,7 @@ void TestAtomicAddCapture()
       }
    }
 
-   CAPTURE(actual_threads);
+   CAPTURE(actual_threads, requested_threads);
    REQUIRE(actual_threads > 1);
    REQUIRE(value == T {num_values});
 
