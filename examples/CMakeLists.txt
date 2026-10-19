@@ -91,6 +91,7 @@ if (MFEM_USE_MPI)
     ex39p.cpp
     ex40p.cpp
     ex41p.cpp
+    hyperdiffusion.cpp
   )
 endif()
 
