@@ -43,17 +43,23 @@ using namespace mfem::common;
 FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                          ParFiniteElementSpace* E_fes,
                          FindPointsGSLIB& E_finder_, real_t diffusivity,
+                         int diffusion_steps_,
                          bool precompute_neutralizing_const_,
                          int efield_output_interval_, int phi_output_interval_,
                          int rho_output_interval_, int field_sample_resolution_)
     : precompute_neutralizing_const(precompute_neutralizing_const_),
-      c(diffusivity),
+      c(0.0),
+      diffusion_steps(diffusion_steps_),
       E_finder(E_finder_),
       b(phi_fes),
       efield_output_interval(efield_output_interval_),
       phi_output_interval(phi_output_interval_),
       rho_output_interval(rho_output_interval_)
 {
+   MFEM_VERIFY(diffusion_steps > 0,
+               "number of diffusion steps must be positive.");
+   // Keep the N=10 product: N * c_step = 10 * c_cli.
+   c = diffusivity * 10.0 / static_cast<real_t>(diffusion_steps);
    MFEM_VERIFY(field_sample_resolution_ > 0,
                "field sample resolution must be positive.");
    efield_sample_nx = field_sample_resolution_;
@@ -473,7 +479,7 @@ void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
    BlockVector sol(offsets);
    BlockVector rhs(offsets);
 
-   for (int i = 0; i < 10; i++)
+   for (int i = 0; i < diffusion_steps; i++)
    {
       HypreParVector* B = b.ParallelAssemble();
 

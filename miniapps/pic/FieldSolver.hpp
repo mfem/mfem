@@ -48,6 +48,8 @@ private:
    // Unknowns [V, U]. A = [ M, -K; c K, M ].
    HypreParMatrix* A_matrix;
    real_t c;
+   // Implicit steps per DiffuseRHS call. Each uses c_cli * 10 / diffusion_steps.
+   int diffusion_steps;
    // Gradient operator for computing E = -∇phi
    ParDiscreteLinearOperator* grad_interpolator;
    FindPointsGSLIB& E_finder;
@@ -88,6 +90,7 @@ protected:
 public:
    FieldSolver(ParFiniteElementSpace* phi_fes, ParFiniteElementSpace* E_fes,
                FindPointsGSLIB& E_finder_, real_t diffusivity,
+               int diffusion_steps_ = 10,
                bool precompute_neutralizing_const_ = false,
                int efield_output_interval_ = -1,
                int phi_output_interval_ = -1,

@@ -101,6 +101,8 @@ struct PICContext
    real_t dt = 1e-2;  ///< Time step size.
    real_t diffusivity =
       0.0;  ///< Diffusivity coefficient c for diffusion matrix.
+   int diffusion_steps =
+      10;  ///< Implicit steps per diffusion call. Each uses c*10/N.
    int efield_output_interval =
       1000;  ///< E-field sampling CSV interval. Disabled if < 0.
    int phi_output_interval =
@@ -149,6 +151,9 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.diffusivity, "-diff", "--diffusivity",
                   "Diffusivity coefficient c for diffusion matrix.");
+   args.AddOption(&ctx.diffusion_steps, "-ndiff", "--num-diffusion-steps",
+                  "Implicit biharmonic steps per diffusion call. "
+                  "Each step uses c*10/N.");
    args.AddOption(&ctx.efield_output_interval, "-eoi",
                   "--efield-output-interval",
                   "E-field sample CSV output interval. Disabled if < 0. "
@@ -294,7 +299,7 @@ int main(int argc, char* argv[])
 
    // 6. Construct the field solver
    FieldSolver field_solver(&phi_fespace, &E_fespace, E_finder, ctx.diffusivity,
-                            true, ctx.efield_output_interval,
+                            ctx.diffusion_steps, true, ctx.efield_output_interval,
                             ctx.phi_output_interval, ctx.rho_output_interval,
                             ctx.field_sample_resolution);
 
