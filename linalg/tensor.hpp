@@ -55,14 +55,14 @@ struct carray
 
 #undef MFEM_TENSOR_ALWAYS_INLINE
 
-namespace internal
+namespace detail
 {
 /// Not constexpr, so reaching it during constant evaluation is a compile error.
 MFEM_HOST_DEVICE inline void tensor_ilist_too_long()
 {
    MFEM_ABORT_KERNEL("tensor: too many initializers");
 }
-} // namespace internal
+} // namespace detail
 
 template <typename T, int... Dims>
 struct tensor;
@@ -125,7 +125,7 @@ struct tensor<T, N0, Ns...>
    tensor(std::initializer_list<sub_tensor_type> ilist)
       : tensor(ilist, std::make_index_sequence<N0> {})
    {
-      if (ilist.size() > std::size_t(N0)) { internal::tensor_ilist_too_long(); }
+      if (ilist.size() > std::size_t(N0)) { detail::tensor_ilist_too_long(); }
    }
 
    MFEM_HOST_DEVICE constexpr auto& operator[](int i) { return values[i]; }
@@ -327,6 +327,29 @@ using reduced_tensor =
    >::type
    >::type;
 
+namespace detail
+{
+/// Assigns A(is..., i, ...) = f(is..., i, ...) by recursing over the
+/// remaining indices of @a A.
+template <typename T, int... n, typename lambda_type, typename... index_types>
+MFEM_HOST_DEVICE constexpr void make_tensor_fill(tensor<T, n...>& A,
+                                                 lambda_type& f,
+                                                 index_types... is)
+{
+   if constexpr (sizeof...(is) == sizeof...(n))
+   {
+      A(is...) = f(is...);
+   }
+   else
+   {
+      for (int i = 0; i < A.size(sizeof...(is)); i++)
+      {
+         make_tensor_fill(A, f, is..., i);
+      }
+   }
+}
+} // namespace detail
+
 /**
    @brief Creates a tensor of requested dimension by subsequent calls to a
    functor.
@@ -335,145 +358,17 @@ using reduced_tensor =
    possible indices for dimensions @p n are transformed into the values of the
    tensor by @a f.
 
+   @tparam n The dimensions of the tensor
    @tparam lambda_type The type of the functor
    @param[in] f The functor to generate the tensor values from
-
-   @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented
-   separately to work around a limitation in nvcc involving __host__ __device__
-   lambdas with `auto` parameters.
+   @pre @a f must accept sizeof...(n) arguments of type @p int
 */
-template <typename lambda_type>
+template <int... n, typename lambda_type>
 MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
-tensor<decltype(f())>
+tensor<decltype(f(n...)), n...>
 {
-   return {f()};
-}
-
-/**
-   @brief Creates a tensor of requested dimension by subsequent calls to a
-   functor.
-
-   @tparam n1 The dimension of the tensor
-   @tparam lambda_type The type of the functor
-   @param[in] f The functor to generate the tensor values from
-   @pre @a f must accept @p n1 arguments of type @p int
-
-   @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented
-   separately to work around a limitation in nvcc involving __host__ __device__
-   lambdas with `auto` parameters.
-*/
-template <int n1, typename lambda_type>
-MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
-tensor<decltype(f(n1)), n1>
-{
-   using T = decltype(f(n1));
-   tensor<T, n1> A{};
-   for (int i = 0; i < n1; i++)
-   {
-      A(i) = f(i);
-   }
-   return A;
-}
-
-/**
-   @brief Creates a tensor of requested dimension by subsequent calls to a
-   functor
-
-   @tparam n1 The first dimension of the tensor
-   @tparam n2 The second dimension of the tensor
-   @tparam lambda_type The type of the functor
-   @param[in] f The functor to generate the tensor values from
-   @pre @a f must accept @p n1 x @p n2 arguments of type @p int
-
-  @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented separately
-  to work around a limitation in nvcc involving __host__ __device__ lambdas with
-  `auto` parameters.
-*/
-template <int n1, int n2, typename lambda_type>
-MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
-tensor<decltype(f(n1, n2)), n1, n2>
-{
-   using T = decltype(f(n1, n2));
-   tensor<T, n1, n2> A{};
-   for (int i = 0; i < n1; i++)
-   {
-      for (int j = 0; j < n2; j++)
-      {
-         A(i, j) = f(i, j);
-      }
-   }
-   return A;
-}
-
-/**
-   @brief Creates a tensor of requested dimension by subsequent calls to a
-   functor.
-
-   @tparam n1 The first dimension of the tensor
-   @tparam n2 The second dimension of the tensor
-   @tparam n3 The third dimension of the tensor
-   @tparam lambda_type The type of the functor
-   @param[in] f The functor to generate the tensor values from
-   @pre @a f must accept @p n1 x @p n2 x @p n3 arguments of type @p int
-
-   @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented
-   separately to work around a limitation in nvcc involving __host__ __device__
-   lambdas with `auto` parameters.
-*/
-template <int n1, int n2, int n3, typename lambda_type>
-MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
-tensor<decltype(f(n1, n2, n3)), n1, n2, n3>
-{
-   using T = decltype(f(n1, n2, n3));
-   tensor<T, n1, n2, n3> A{};
-   for (int i = 0; i < n1; i++)
-   {
-      for (int j = 0; j < n2; j++)
-      {
-         for (int k = 0; k < n3; k++)
-         {
-            A(i, j, k) = f(i, j, k);
-         }
-      }
-   }
-   return A;
-}
-
-/**
-  @brief Creates a tensor of requested dimension by subsequent calls to a
-  functor.
-
-   @tparam n1 The first dimension of the tensor
-   @tparam n2 The second dimension of the tensor
-   @tparam n3 The third dimension of the tensor
-   @tparam n4 The fourth dimension of the tensor
-   @tparam lambda_type The type of the functor
-   @param[in] f The functor to generate the tensor values from
-   @pre @a f must accept @p n1 x @p n2 x @p n3 x @p n4 arguments of type @p int
-
-   @note the different cases of 0D, 1D, 2D, 3D, and 4D are implemented
-   separately to work around a limitation in nvcc involving __host__ __device__
-   lambdas with `auto` parameters.
-*/
-template <int n1, int n2, int n3, int n4, typename lambda_type>
-MFEM_HOST_DEVICE constexpr auto make_tensor(lambda_type f) ->
-tensor<decltype(f(n1, n2, n3, n4)), n1, n2, n3, n4>
-{
-   using T = decltype(f(n1, n2, n3, n4));
-   tensor<T, n1, n2, n3, n4> A{};
-   for (int i = 0; i < n1; i++)
-   {
-      for (int j = 0; j < n2; j++)
-      {
-         for (int k = 0; k < n3; k++)
-         {
-            for (int l = 0; l < n4; l++)
-            {
-               A(i, j, k, l) = f(i, j, k, l);
-            }
-         }
-      }
-   }
+   tensor<decltype(f(n...)), n...> A{};
+   detail::make_tensor_fill(A, f);
    return A;
 }
 
@@ -781,13 +676,13 @@ constexpr tensor<T, n * m> flatten(tensor<T, n, m> A)
  * @note this overload implements the case where the left argument is a scalar,
  * and the right argument is a tensor
  */
-template <typename S, typename T, int n> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
+template <typename S, typename T, int... n> MFEM_HOST_DEVICE
+constexpr tensor<decltype(S{} * T{}), n...> outer(S A, const tensor<T, n...>& B)
 {
    static_assert(std::is_arithmetic<S>::value,
                  "outer product types must be tensor or arithmetic_type");
-   tensor<decltype(S{} * T{}), n> AB{};
-   for (int i = 0; i < n; i++)
+   tensor<decltype(S{} * T{}), n...> AB{};
+   for (int i = 0; i < B.size(0); i++)
    {
       AB[i] = A * B[i];
    }
@@ -799,13 +694,13 @@ constexpr tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
  * @note this overload implements the case where the left argument is a tensor,
  * and the right argument is a scalar
  */
-template <typename S, typename T, int m> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), m> outer(const tensor<S, m>& A, T B)
+template <typename S, typename T, int... m> MFEM_HOST_DEVICE
+constexpr tensor<decltype(S{} * T{}), m...> outer(const tensor<S, m...>& A, T B)
 {
    static_assert(std::is_arithmetic<T>::value,
                  "outer product types must be tensor or arithmetic_type");
-   tensor<decltype(S{} * T{}), m> AB{};
-   for (int i = 0; i < m; i++)
+   tensor<decltype(S{} * T{}), m...> AB{};
+   for (int i = 0; i < A.size(0); i++)
    {
       AB[i] = A[i] * B;
    }
@@ -817,8 +712,8 @@ constexpr tensor<decltype(S{} * T{}), m> outer(const tensor<S, m>& A, T B)
  * @note this overload implements the case where the left argument is `zero`,
  * and the right argument is a tensor
  */
-template <typename T, int n> MFEM_HOST_DEVICE
-constexpr zero outer(zero, const tensor<T, n>&)
+template <typename T, int... n> MFEM_HOST_DEVICE
+constexpr zero outer(zero, const tensor<T, n...>&)
 {
    return zero{};
 }
@@ -828,140 +723,31 @@ constexpr zero outer(zero, const tensor<T, n>&)
  * @note this overload implements the case where the left argument is a tensor,
  * and the right argument is `zero`
  */
-template <typename T, int n> MFEM_HOST_DEVICE
-constexpr zero outer(const tensor<T, n>&, zero)
+template <typename T, int... n> MFEM_HOST_DEVICE
+constexpr zero outer(const tensor<T, n...>&, zero)
 {
    return zero{};
 }
 
 /**
  * @overload
- * @note this overload implements the case where the left argument is a scalar,
- * and the right argument is a tensor
+ * @note this overload implements the case where both arguments are tensors.
+ * The result has shape (m..., n...), with AB(i..., j...) = A(i...) * B(j...).
  */
-template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)
+template <typename S, typename T, int... m, int... n> MFEM_HOST_DEVICE
+constexpr tensor<decltype(S{} * T{}), m..., n...>
+outer(const tensor<S, m...>& A, const tensor<T, n...>& B)
 {
-   static_assert(std::is_arithmetic<S>::value,
-                 "outer product types must be tensor or arithmetic_type");
-   tensor<decltype(S{} * T{}), m, n> AB{};
-   for (int i = 0; i < m; i++)
+   tensor<decltype(S{} * T{}), m..., n...> AB{};
+   if constexpr (sizeof...(m) == 0)
    {
-      for (int j = 0; j < n; j++)
-      {
-         AB[i][j] = A * B[i][j];
-      }
+      AB = outer(A(), B);
    }
-   return AB;
-}
-
-/**
- * @overload
- * @note this overload implements the case where both arguments are vectors
- */
-template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m>& A,
-                                                  const tensor<T, n>& B)
-{
-   tensor<decltype(S{} * T{}), m, n> AB{};
-   for (int i = 0; i < m; i++)
+   else
    {
-      for (int j = 0; j < n; j++)
+      for (int i = 0; i < A.size(0); i++)
       {
-         AB[i][j] = A[i] * B[j];
-      }
-   }
-   return AB;
-}
-
-/**
- * @overload
- * @note this overload implements the case where the left argument is a 2nd
- * order tensor, and the right argument is a scalar
- */
-template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m, n>& A, T B)
-{
-   static_assert(std::is_arithmetic<T>::value,
-                 "outer product types must be tensor or arithmetic_type");
-   tensor<decltype(S{} * T{}), m, n> AB{};
-   for (int i = 0; i < m; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         AB[i][j] = A[i][j] * B;
-      }
-   }
-   return AB;
-}
-
-/**
- * @overload
- * @note this overload implements the case where the left argument is a 2nd
- * order tensor, and the right argument is a first order tensor
- */
-template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), m, n, p> outer(const tensor<S, m, n>& A,
-                                                     const tensor<T, p>& B)
-{
-   tensor<decltype(S{} * T{}), m, n, p> AB{};
-   for (int i = 0; i < m; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         for (int k = 0; k < p; k++)
-         {
-            AB[i][j][k] = A[i][j] * B[k];
-         }
-      }
-   }
-   return AB;
-}
-
-/**
- * @overload
- * @note this overload implements the case where the left argument is a 1st
- * order tensor, and the right argument is a 2nd order tensor
- */
-template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), m, n, p> outer(const tensor<S, m>& A,
-                                                     const tensor<T, n, p>& B)
-{
-   tensor<decltype(S{} * T{}), m, n, p> AB{};
-   for (int i = 0; i < m; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         for (int k = 0; k < p; k++)
-         {
-            AB[i][j][k] = A[i] * B[j][k];
-         }
-      }
-   }
-   return AB;
-}
-
-/**
- * @overload
- * @note this overload implements the case where both arguments are second order
- * tensors
- */
-template <typename S, typename T, int m, int n, int p, int q> MFEM_HOST_DEVICE
-constexpr tensor<decltype(S{} * T{}), m, n, p, q>
-outer(const tensor<S, m, n>& A, const tensor<T, p, q>& B)
-{
-   tensor<decltype(S{} * T{}), m, n, p, q> AB{};
-   for (int i = 0; i < m; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         for (int k = 0; k < p; k++)
-         {
-            for (int l = 0; l < q; l++)
-            {
-               AB[i][j][k][l] = A[i][j] * B[k][l];
-            }
-         }
+         AB[i] = outer(A[i], B);
       }
    }
    return AB;

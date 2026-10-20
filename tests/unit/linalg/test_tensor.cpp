@@ -169,3 +169,63 @@ TEST_CASE("Tensor initialization from a short list", "[Tensor]")
    CHECK(A(2, 0) == 0.0_r);
    CHECK(A(2, 1) == 0.0_r);
 }
+
+TEST_CASE("Tensor make_tensor and outer of arbitrary rank", "[Tensor]")
+{
+   // rank 0
+   constexpr auto t0 = make_tensor([]() { return 2_r; });
+   static_assert(std::is_same_v<decltype(t0), const tensor<real_t>>);
+   static_assert(t0() == 2_r);
+
+   // rank 5, with mixed sizes
+   constexpr auto t5 = make_tensor<2, 3, 1, 2, 2>(
+                          [](int i, int j, int k, int l, int m)
+   { return real_t(i + 10*j + 100*k + 1000*l + 10000*m); });
+   static_assert(t5(1, 2, 0, 1, 1) == 11021_r);
+   static_assert(t5(0, 1, 0, 0, 1) == 10010_r);
+
+   constexpr auto a = make_tensor<2>([](int i) { return i + 1_r; });
+   constexpr auto B = make_tensor<2, 3>([](int i, int j)
+   { return real_t(1 + i + 2*j); });
+   constexpr auto C = make_tensor<3, 2, 2>([](int i, int j, int k)
+   { return real_t(i - j + 3*k); });
+
+   // scalar x tensor and tensor x scalar
+   constexpr auto sC = outer(2_r, C);
+   constexpr auto Cs = outer(C, 2_r);
+   static_assert(std::is_same_v<decltype(sC), const tensor<real_t, 3, 2, 2>>);
+   static_assert(sC(2, 1, 1) == 2_r * C(2, 1, 1));
+   static_assert(Cs(1, 0, 1) == 2_r * C(1, 0, 1));
+
+   // tensor x tensor, including ranks the fixed-rank overloads did not cover
+   constexpr auto aB = outer(a, B);
+   static_assert(std::is_same_v<decltype(aB), const tensor<real_t, 2, 2, 3>>);
+   static_assert(aB(1, 0, 2) == a(1) * B(0, 2));
+
+   constexpr auto BC = outer(B, C);
+   static_assert(std::is_same_v<decltype(BC),
+                 const tensor<real_t, 2, 3, 3, 2, 2>>);
+   static_assert(BC(1, 2, 2, 1, 0) == B(1, 2) * C(2, 1, 0));
+   static_assert(BC(0, 1, 1, 0, 1) == B(0, 1) * C(1, 0, 1));
+
+   constexpr auto t0a = outer(t0, a);
+   static_assert(std::is_same_v<decltype(t0a), const tensor<real_t, 2>>);
+   static_assert(t0a(1) == 4_r);
+
+   // zero is absorbing for any rank
+   static_assert(std::is_same_v<decltype(outer(zero{}, C)), zero>);
+   static_assert(std::is_same_v<decltype(outer(B, zero{})), zero>);
+
+   // non-constexpr check of the full outer product
+   const auto CB = outer(C, B);
+   real_t err = 0_r;
+   for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 2; j++)
+         for (int k = 0; k < 2; k++)
+            for (int l = 0; l < 2; l++)
+               for (int m = 0; m < 3; m++)
+               {
+                  err += std::abs(CB(i, j, k, l, m) - C(i, j, k) * B(l, m));
+               }
+   REQUIRE(err == 0_r);
+}
