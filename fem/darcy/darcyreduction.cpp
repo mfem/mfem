@@ -792,7 +792,7 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
                            const_cast<int*>(&Af_ipiv[Af_f_offsets[el]]));
 
       LU_A.Solve(a_dofs_size, 1, bu_l.GetData());
-      if (bsym) { bu_l.Neg(); }
+      bu_l.Neg();
 
       if (Aibu.Size() > 0)
       {
