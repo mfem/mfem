@@ -860,9 +860,9 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
    else
    {
 #ifdef MFEM_USE_MPI
-      MFEM_ASSERT(hB, "Parallel B matrix is not assembled");
-      if (hB)
+      if (Bf_face_data.Size())
       {
+         MFEM_ASSERT(hB, "Parallel B matrix is not assembled");
          hB->AddMult(Aibu, b_r);
       }
 #endif
