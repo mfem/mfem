@@ -599,8 +599,9 @@ if (MFEM_USE_ENZYME)
     set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
-# GLVis
-if (MFEM_USE_GLVIS AND NOT MFEM_FETCH_GLVIS)
+# GLVis. A fetch (MFEM_FETCH_GLVIS or MFEM_FETCH_TPLS) is an external project
+# that DEPENDS mfem, so that lookup happens after mfem_add_library.
+if (MFEM_USE_GLVIS AND NOT MFEM_FETCH_GLVIS AND NOT MFEM_FETCH_TPLS)
   find_package(GLVis REQUIRED)
 endif()
 
@@ -825,9 +826,10 @@ endif()
 
 set(MFEM_CUSTOM_TARGET_PREFIX CACHE STRING "")
 
-if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
-    # needs to be after mfem_add_library(mfem) to be able to depend on it
+if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
+    # After mfem_add_library. The external project DEPENDS mfem.
     find_package(GLVis REQUIRED)
+    list(APPEND TPL_LIBRARIES ${GLVIS_LIBRARIES})
 endif()
 
 #-------------------------------------------------------------------------------
@@ -859,8 +861,11 @@ set(MFEM_EXEC_PREREQUISITES_TARGET_NAME exec_prerequisites)
 add_custom_target(${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
 # glvis's external project already DEPENDS mfem.
 # Executables are the targets that link libglvis.a.
-if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS AND TARGET glvis)
+if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS) AND TARGET glvis)
   add_dependencies(${MFEM_EXEC_PREREQUISITES_TARGET_NAME} glvis)
+  if (TARGET test_exec_prerequisites)
+    add_dependencies(test_exec_prerequisites glvis)
+  endif()
 endif()
 
 # Create a target for all examples and, optionally, enable it.
@@ -935,12 +940,24 @@ target_include_directories(mfem BEFORE
   PUBLIC
     $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
 
-if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
-    target_link_libraries(mfem PUBLIC GLVIS)
+if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
+    # INTERFACE keeps libglvis.a off libmfem's own link. The external project
+    # DEPENDS mfem, so a PUBLIC link of the shared library waits for an archive
+    # that waits for mfem.
+    target_link_libraries(mfem INTERFACE GLVIS)
+    if (BUILD_SHARED_LIBS AND APPLE)
+        # libmfem calls GLVisStreamSession, which libglvis defines. Apple ld
+        # rejects that undefined symbol. Consumers link libglvis.
+        target_link_libraries(mfem PRIVATE "-Wl,-undefined,dynamic_lookup")
+    endif()
     install(FILES
       ${FETCH_GLVIS}/build/lib/libglvis.a
       ${FETCH_GLVIS}/build/share/libglvis_logo.a
       DESTINATION ${INSTALL_LIB_DIR})
+endif()
+if (MFEM_USE_GLVIS AND NOT BUILD_SHARED_LIBS)
+    # libglvis calls back into MFEM. Repeat the archive after it.
+    target_link_libraries(mfem INTERFACE "$<TARGET_FILE:mfem>")
 endif()
 
 # The 'install' target will not depend on 'all'.
@@ -1007,12 +1024,14 @@ export(TARGETS ${PROJECT_NAME}
 # TODO: How do we register the install-tree? Replacing the build-tree?
 export(PACKAGE ${PROJECT_NAME})
 
-if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
   set(MFEM_GLVIS_LIBRARY "${FETCH_GLVIS}/build/lib/libglvis.a")
   set(MFEM_GLVIS_LOGO_LIBRARY "${FETCH_GLVIS}/build/share/libglvis_logo.a")
 else()
-  set(MFEM_GLVIS_LIBRARY "")
-  set(MFEM_GLVIS_LOGO_LIBRARY "")
+  # PATH_VARS wants an absolute path. The package file reads these only when
+  # GLVis was fetched.
+  set(MFEM_GLVIS_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/libglvis.a")
+  set(MFEM_GLVIS_LOGO_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/libglvis_logo.a")
 endif()
 
 # This is the build-tree version
@@ -1021,10 +1040,11 @@ set(LIB_INSTALL_DIR ${PROJECT_BINARY_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/MFEMConfig.cmake
   INSTALL_DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
-  PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR)
+  PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR
+            MFEM_GLVIS_LIBRARY MFEM_GLVIS_LOGO_LIBRARY)
 
 # This is the version that will be installed
-if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
   set(MFEM_GLVIS_LIBRARY
     "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/libglvis.a")
   set(MFEM_GLVIS_LOGO_LIBRARY
@@ -1035,7 +1055,8 @@ set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/MFEMConfig.cmake
   INSTALL_DESTINATION ${INSTALL_CMAKE_DIR}
-  PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR)
+  PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR
+            MFEM_GLVIS_LIBRARY MFEM_GLVIS_LOGO_LIBRARY)
 
 # Write the version file (same for build and install tree)
 write_basic_package_version_file(

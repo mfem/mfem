@@ -86,7 +86,8 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
         # Apple SDK headers included by glvis's Objective-C++ are not system
         # headers under Homebrew Clang's framework path. Leave warning-as-error
         # flags on MFEM and do not apply them to the fetched library.
-        if(APPLE AND (opt MATCHES "^-Werror(=.+)?$" OR opt STREQUAL "-pedantic-errors"))
+        if(APPLE AND (opt MATCHES "^-Werror(=.+)?$"
+                      OR opt STREQUAL "-pedantic-errors"))
             continue()
         endif()
         list(APPEND _glvis_cxx_flags "${opt}")
@@ -109,8 +110,6 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
             "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}")
     endif()
     list(JOIN _glvis_cxx_flags " " COMPILE_CXX_FLAGS)
-
-    cmake_host_system_information(RESULT NCPU QUERY NUMBER_OF_LOGICAL_CORES)
 
     add_library(GLVIS STATIC IMPORTED)
 
@@ -142,7 +141,6 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
             --build ${FETCH_GLVIS}/build
             --config $<CONFIG>
             --target glvis glvis_logo
-            --parallel ${NCPU}
         BUILD_BYPRODUCTS
             ${FETCH_GLVIS}/build/lib/libglvis.a
             ${FETCH_GLVIS}/build/share/libglvis_logo.a
@@ -156,6 +154,10 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
         ${FETCH_GLVIS}/build/share/libglvis_logo.a
         ${GLVIS_DEP_LIBS})
 
+    set(GLVIS_LIBRARIES
+        ${FETCH_GLVIS}/build/lib/libglvis.a
+        ${FETCH_GLVIS}/build/share/libglvis_logo.a
+        ${GLVIS_DEP_LIBS})
     set(GLVIS_FOUND TRUE)
     return()
 endif()

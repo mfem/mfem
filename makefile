@@ -296,7 +296,8 @@ endif
 
 # GLVis configuration
 ifeq ($(MFEM_USE_GLVIS),YES)
-	GLVIS_DIR:=$(abspath $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(GLVIS_DIR)))
+   GLVIS_DIR := $(abspath $(subst @MFEM_DIR@,\
+      $(if $(MFEM_DIR),$(MFEM_DIR),..),$(GLVIS_DIR)))
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -404,7 +405,7 @@ MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS) $(LDFLAGS_INTERNAL)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
-   @MFEM_EXT_LIBS@
+   @MFEM_EXT_LIBS@$(if $(filter YES,$(MFEM_USE_GLVIS)), -lmfem)
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
@@ -438,8 +439,14 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_INCFLAGS = -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
    MFEM_FLAGS    = @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
-      @MFEM_EXT_LIBS@
+      @MFEM_EXT_LIBS@$(if $(filter YES,$(MFEM_USE_GLVIS)), -lmfem)
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
+   # ALL_LIBS already expanded -L$(GLVIS_DIR)/lib. The installed archive is
+   # next to libmfem, and config-mk turns @MFEM_LIB_DIR@ into $(MFEM_LIB_DIR).
+   ifeq ($(MFEM_USE_GLVIS),YES)
+      MFEM_EXT_LIBS := $(subst -L$(GLVIS_DIR)/lib,\
+         -L@MFEM_LIB_DIR@,$(MFEM_EXT_LIBS))
+   endif
    ifeq ($(MFEM_USE_OCCA),YES)
       ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
@@ -522,10 +529,10 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 
 ifeq ($(MFEM_USE_GLVIS),YES)
 $(GLVIS_DIR)/lib/libglvis.a: $(BLD)libmfem.a
-	$(if $(wildcard $(GLVIS_DIR)/makefile),,$(error No makefile in GLVIS_DIR: $(GLVIS_DIR)))
-	@$(MAKE) -C $(GLVIS_DIR) -j $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1) \
-		MFEM_DIR=$(BUILD_REAL_DIR) \
-		GLVIS_USE_LOGO=NO GLVIS_USE_LIBPNG=YES lib/libglvis.a
+	$(if $(wildcard $(GLVIS_DIR)/makefile),,\
+	$(error No makefile in GLVIS_DIR: $(GLVIS_DIR)))
+	@$(MAKE) -C $(GLVIS_DIR) MFEM_DIR=$(BUILD_REAL_DIR) \
+	   GLVIS_USE_LOGO=NO GLVIS_USE_LIBPNG=YES lib/libglvis.a
 endif
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM

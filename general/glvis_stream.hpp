@@ -50,9 +50,15 @@ struct glvis_data
 #endif
 };
 
+/// Gathers one GLVis payload. Rank 0 opens the window.
+///
+/// flush() and '<< std::flush' are collective. Every rank of the stored
+/// communicator enters them together. Rank 0 blocks in the window. The other
+/// ranks wait until it returns. A failure is raised on every rank.
 class glvis_stream: public std::iostream
 {
    glvis_data data;
+   bool visualize = true;
    void serialize();
 
 public:
@@ -87,7 +93,11 @@ public:
    bool is_open() const { return true; }
    int close() { return 0; }
 
+   /// Collective gather. Rank 0 then blocks in the GLVis window.
    void flush();
+
+   /// When @a on is false, flush gathers and does not open a window.
+   void SetVisualize(bool on) { visualize = on; }
 
    void reset()
    {

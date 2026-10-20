@@ -627,7 +627,10 @@ MFEM_USE_ENZYME = YES/NO
    options for Enzyme" below.
 
 MFEM_USE_GLVIS = YES/NO
-   Enables using a GLVis stream directly instead of the socket one.
+   Enables glvis_stream (stream_sessions) instead of a socketstream. Point
+   GLVIS_DIR at a GLVis source tree. The link also needs OpenGL, GLEW, SDL2,
+   PNG, Freetype, and Fontconfig. flush() is collective on the stream's
+   communicator. Rank 0 blocks in the GLVis window.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.

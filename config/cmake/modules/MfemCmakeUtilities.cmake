@@ -1081,6 +1081,10 @@ function(mfem_export_mk_files)
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
   endforeach()
+  # libglvis calls back into MFEM, so downstream links repeat -lmfem after it.
+  if (MFEM_USE_GLVIS)
+    set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} -lmfem")
+  endif()
 
   # Create the build-tree version of 'config.mk'
   configure_file(
