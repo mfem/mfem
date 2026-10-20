@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     int num_levels = 2;
     real_t diff_c = 1.0;
     int agglom = 0;
-    problem = 2;
+    int problem = 2;
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file.");
