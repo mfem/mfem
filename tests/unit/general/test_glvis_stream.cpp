@@ -34,6 +34,15 @@ TEST_CASE("glvis_stream gather parallel", "[Parallel]")
    glvis << "mesh\n" << std::flush;
    REQUIRE(glvis.size() == 0);
 }
+
+TEST_CASE("glvis_stream parallel header", "[Parallel]")
+{
+   glvis_stream glvis(MPI_COMM_WORLD);
+   glvis.SetVisualize(false);
+   glvis << "parallel " << Mpi::WorldSize() << ' '
+         << Mpi::WorldRank() << '\n' << std::flush;
+   REQUIRE(glvis.size() == 0);
+}
 #endif
 
 #endif

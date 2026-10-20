@@ -12,6 +12,7 @@
 #include <exception>
 #include <istream>
 #include <limits>
+#include <new>
 
 #include "../config/config.hpp"
 #include "communication.hpp"
@@ -23,10 +24,6 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #endif
-
-// libglvis references this symbol. The definition has to live in libmfem.
-#include "../fem/geom.hpp"
-thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
 
 // Use local declaration to avoid circular dependency when fetching GLVis
 extern int GLVisStreamSession(
@@ -41,31 +38,12 @@ extern int GLVisStreamSession(
 namespace mfem
 {
 
-#ifdef MFEM_USE_MPI
-namespace
-{
-glvis_data MakeGlVisData(MPI_Comm comm)
-{
-   // Serial examples link a parallel MFEM and never call Mpi::Init.
-   if (!Mpi::IsInitialized() || Mpi::IsFinalized())
-   {
-      return glvis_data(true, 1, true, MPI_COMM_NULL);
-   }
-   int size = 1, rank = 0;
-   MFEM_VERIFY(MPI_Comm_size(comm, &size) == MPI_SUCCESS &&
-               MPI_Comm_rank(comm, &rank) == MPI_SUCCESS,
-               "MPI_Comm_size/rank failed");
-   return glvis_data(size == 1, size, rank == 0, comm);
-}
-} // namespace
-#endif
-
 glvis_stream::glvis_stream()
    : std::iostream(nullptr),
 #ifdef MFEM_USE_MPI
-     data(MakeGlVisData(MPI_COMM_WORLD))
+     data(MPI_COMM_WORLD)
 #else
-     data(true, 1, true)
+     data()
 #endif
 {
    std::iostream::rdbuf(data.stream.rdbuf());
@@ -73,11 +51,33 @@ glvis_stream::glvis_stream()
 
 #ifdef MFEM_USE_MPI
 glvis_stream::glvis_stream(MPI_Comm comm)
-   : std::iostream(nullptr), data(MakeGlVisData(comm))
+   : std::iostream(nullptr), data(comm)
 {
    std::iostream::rdbuf(data.stream.rdbuf());
 }
 #endif
+
+void glvis_stream::SyncComm()
+{
+#ifdef MFEM_USE_MPI
+   // A serial example may link a parallel MFEM and never call Mpi::Init.
+   // A stream built before init reads the communicator here, on flush.
+   if (!Mpi::IsInitialized() || Mpi::IsFinalized())
+   {
+      data.serial = true;
+      data.mpi_size = 1;
+      data.mpi_root = true;
+      return;
+   }
+   int size = 1, rank = 0;
+   MFEM_VERIFY(MPI_Comm_size(data.comm, &size) == MPI_SUCCESS &&
+               MPI_Comm_rank(data.comm, &rank) == MPI_SUCCESS,
+               "MPI_Comm_size/rank failed");
+   data.serial = (size == 1);
+   data.mpi_size = size;
+   data.mpi_root = (rank == 0);
+#endif
+}
 
 glvis_stream& glvis_stream::operator<<(ostream_manipulator pf)
 {
@@ -123,6 +123,8 @@ static void FailTogether(int failed, const std::string &why
 
 void glvis_stream::operator()()
 {
+   SyncComm();
+
    if (data.serial)
    {
       const std::streamoff written = data.stream.tellp();
@@ -143,67 +145,88 @@ void glvis_stream::operator()()
    int failed = 0;
    std::string why;
 
-   if (data.mpi_root)
+   try
    {
-      if (data.mpi_size < 0 ||
-          static_cast<size_t>(data.mpi_size) + 1 != data.offsets.size())
+      if (data.mpi_root)
       {
-         failed = 1;
-         why = "Invalid MPI size";
-      }
-
-      const std::string payload = data.stream.str();
-      data.streams.clear();
-      data.type.clear();
-
-      for (int k = 0; k < data.mpi_size && !failed; ++k)
-      {
-         const size_t offset = static_cast<size_t>(data.offsets[k]);
-         const size_t count = static_cast<size_t>(data.offsets[k + 1] -
-                                                  data.offsets[k]);
-         if (offset + count > payload.size())
+         if (data.mpi_size < 0 ||
+             static_cast<size_t>(data.mpi_size) + 1 != data.offsets.size())
          {
             failed = 1;
-            why = "GLVis rank slice is out of range";
-            break;
+            why = "Invalid MPI size";
          }
 
-         data.streams.emplace_back(std::make_unique<std::stringstream>());
-         data.streams.back()->write(payload.data() + offset, count);
+         const std::string payload = data.stream.str();
+         data.streams.clear();
+         data.type.clear();
 
-         auto stream = data.streams.back().get();
-         if (!(*stream)) { break; }
-
-         *stream >> std::ws >> data.type >> std::ws;
-
-         if (data.type == "parallel")
+         for (int k = 0; k < data.mpi_size && !failed; ++k)
          {
-            int is_mpi_size = 0, is_mpi_rank = 0;
-            *stream >> is_mpi_size >> is_mpi_rank;
-            if (is_mpi_size != data.mpi_size || is_mpi_rank != k)
+            const size_t offset = static_cast<size_t>(data.offsets[k]);
+            const size_t count = static_cast<size_t>(data.offsets[k + 1] -
+                                                     data.offsets[k]);
+            if (offset + count > payload.size())
             {
                failed = 1;
-               why = "GLVis parallel header does not match the communicator";
+               why = "GLVis rank slice is out of range";
+               break;
+            }
+
+            data.streams.emplace_back(std::make_unique<std::stringstream>());
+            data.streams.back()->write(payload.data() + offset, count);
+
+            auto stream = data.streams.back().get();
+            if (!(*stream))
+            {
+               failed = 1;
+               why = "GLVis rank slice could not be written";
+               break;
+            }
+
+            std::string rank_type;
+            *stream >> std::ws >> rank_type >> std::ws;
+            if (rank_type.empty())
+            {
+               failed = 1;
+               why = "GLVis payload has no type";
+               break;
+            }
+            if (data.type.empty())
+            {
+               data.type = rank_type;
+            }
+            else if (rank_type != data.type)
+            {
+               failed = 1;
+               why = "GLVis ranks sent different payload types";
+               break;
+            }
+
+            if (data.type == "parallel")
+            {
+               int is_mpi_size = 0, is_mpi_rank = 0;
+               *stream >> is_mpi_size >> is_mpi_rank;
+               if (!(*stream) ||
+                   is_mpi_size != data.mpi_size || is_mpi_rank != k)
+               {
+                  failed = 1;
+                  why = "GLVis parallel header mismatch";
+                  break;
+               }
+            }
+            else if (data.type != "mesh" && data.type != "solution")
+            {
+               failed = 1;
+               why = "Stream: unknown command: " + data.type;
                break;
             }
          }
-         else if (data.type != "mesh" && data.type != "solution")
-         {
-            failed = 1;
-            why = "Stream: unknown command: " + data.type;
-            break;
-         }
       }
-   }
 
-   reset();
+      reset();
 
-   if (data.mpi_root && !failed && visualize)
-   {
-#ifdef MFEM_USE_EXCEPTIONS
-      try
+      if (data.mpi_root && !failed && visualize)
       {
-#endif
          constexpr bool fix_elem_orien = true;
          constexpr bool save_coloring = true;
          constexpr bool keep_attr = false;
@@ -224,15 +247,20 @@ void glvis_stream::operator()()
             failed = 1;
             why = "GLVisStreamSession failed";
          }
-#ifdef MFEM_USE_EXCEPTIONS
       }
-      catch (const std::exception &ex)
-      {
-         failed = 1;
-         why = ex.what();
-      }
-#endif
    }
+   catch (const std::bad_alloc &)
+   {
+      failed = 1;
+      if (why.empty()) { why = "GLVis stream allocation failed"; }
+   }
+#ifdef MFEM_USE_EXCEPTIONS
+   catch (const std::exception &ex)
+   {
+      failed = 1;
+      why = ex.what();
+   }
+#endif
 
    FailTogether(failed, why
 #ifdef MFEM_USE_MPI
@@ -244,20 +272,49 @@ void glvis_stream::operator()()
 void glvis_stream::serialize()
 {
 #ifdef MFEM_USE_MPI
-   const std::string local = data.stream.str();
-   const std::streamoff written = data.stream.tellp();
-   const unsigned long long limit =
-      static_cast<unsigned long long>(std::numeric_limits<int>::max());
-   const bool too_big =
-      written < 0 ||
-      static_cast<unsigned long long>(written) > limit ||
-      (written >= 0 && static_cast<size_t>(written) > local.size());
-   FailTogether(too_big ? 1 : 0,
-                "GLVis stream is too large for MPI_Gatherv",
-                data.serial, data.comm);
+   int failed = 0;
+   std::string why;
+   std::string local;
+   std::streamoff written = 0;
+   try
+   {
+      local = data.stream.str();
+      written = data.stream.tellp();
+   }
+   catch (const std::exception &)
+   {
+      failed = 1;
+      why = "GLVis stream allocation failed";
+   }
+   if (!failed)
+   {
+      const unsigned long long limit =
+         static_cast<unsigned long long>(std::numeric_limits<int>::max());
+      const bool too_big =
+         written < 0 ||
+         static_cast<unsigned long long>(written) > limit ||
+         (written >= 0 && static_cast<size_t>(written) > local.size());
+      if (too_big)
+      {
+         failed = 1;
+         why = "GLVis stream is too large for MPI_Gatherv";
+      }
+   }
+   FailTogether(failed, why, data.serial, data.comm);
    const int local_size = static_cast<int>(written);
 
-   std::vector<int> sizes(data.mpi_size);
+   std::vector<int> sizes;
+   try
+   {
+      sizes.resize(static_cast<size_t>(data.mpi_size));
+   }
+   catch (const std::exception &)
+   {
+      failed = 1;
+      why = "GLVis stream allocation failed";
+   }
+   FailTogether(failed, why, data.serial, data.comm);
+
    MFEM_VERIFY(MPI_Allgather(&local_size, 1, MPI_INT,
                              sizes.data(), 1, MPI_INT,
                              data.comm) == MPI_SUCCESS,
@@ -272,18 +329,28 @@ void glvis_stream::serialize()
                   "GLVis stream is too large for MPI_Gatherv");
    }
 
-   if (data.mpi_root)
+   std::vector<char> recvbuf;
+   try
    {
-      data.offsets.resize(data.mpi_size + 1);
-      data.offsets[0] = 0;
-      for (int i = 0; i < data.mpi_size; ++i)
+      if (data.mpi_root)
       {
-         data.offsets[i + 1] = data.offsets[i] + sizes[i];
+         data.offsets.resize(static_cast<size_t>(data.mpi_size) + 1);
+         data.offsets[0] = 0;
+         for (int i = 0; i < data.mpi_size; ++i)
+         {
+            data.offsets[i + 1] = data.offsets[i] + sizes[i];
+         }
+         data.total_size = static_cast<int>(total);
+         recvbuf.resize(static_cast<size_t>(total));
       }
-      data.total_size = static_cast<int>(total);
    }
+   catch (const std::exception &)
+   {
+      failed = 1;
+      why = "GLVis stream allocation failed";
+   }
+   FailTogether(failed, why, data.serial, data.comm);
 
-   std::vector<char> recvbuf(data.mpi_root ? static_cast<size_t>(total) : 0);
    MFEM_VERIFY(MPI_Gatherv(local.data(), local_size, MPI_CHAR,
                            data.mpi_root ? recvbuf.data() : nullptr,
                            data.mpi_root ? sizes.data() : nullptr,
@@ -293,9 +360,23 @@ void glvis_stream::serialize()
 
    if (data.mpi_root)
    {
-      reset();
-      data.stream.write(recvbuf.data(), data.total_size);
+      try
+      {
+         reset();
+         data.stream.write(recvbuf.data(), data.total_size);
+         if (!data.stream)
+         {
+            failed = 1;
+            why = "GLVis rank slice could not be written";
+         }
+      }
+      catch (const std::exception &)
+      {
+         failed = 1;
+         why = "GLVis stream allocation failed";
+      }
    }
+   FailTogether(failed, why, data.serial, data.comm);
 #endif // MFEM_USE_MPI
 }
 

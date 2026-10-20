@@ -26,9 +26,9 @@ namespace mfem
 
 struct glvis_data
 {
-   const bool serial;
-   const int mpi_size;
-   const bool mpi_root;
+   bool serial;
+   int mpi_size;
+   bool mpi_root;
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
 #endif
@@ -39,13 +39,12 @@ struct glvis_data
    std::string type;
 
 #ifdef MFEM_USE_MPI
-   glvis_data(const bool serial, const int size, const bool root,
-              MPI_Comm comm)
-      : serial(serial), mpi_size(size), mpi_root(root), comm(comm),
+   explicit glvis_data(MPI_Comm comm)
+      : serial(true), mpi_size(1), mpi_root(true), comm(comm),
         total_size(0), type({}) {}
 #else
-   glvis_data(const bool serial, const int size, const bool root)
-      : serial(serial), mpi_size(size), mpi_root(root),
+   glvis_data()
+      : serial(true), mpi_size(1), mpi_root(true),
         total_size(0), type({}) {}
 #endif
 };
@@ -55,10 +54,14 @@ struct glvis_data
 /// flush() and '<< std::flush' are collective. Every rank of the stored
 /// communicator enters them together. Rank 0 blocks in the window. The other
 /// ranks wait until it returns. A failure is raised on every rank.
+/// std::endl and a flush through std::ostream only sync this buffer: flush()
+/// is not virtual, and Mesh::Print calls it on an ostream reference while the
+/// mesh is still incomplete.
 class glvis_stream: public std::iostream
 {
    glvis_data data;
    bool visualize = true;
+   void SyncComm();
    void serialize();
 
 public:
