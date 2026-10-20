@@ -35,6 +35,7 @@ macro(mfem_glvis_dep OUT)
 endmacro()
 
 function(mfem_glvis_find_deps OUT)
+    mfem_glvis_prefer_non_sdk_zlib()
     find_package(OpenGL QUIET)
     find_package(GLEW QUIET)
     find_package(SDL2 QUIET)
@@ -64,6 +65,7 @@ function(mfem_glvis_find_deps OUT)
         endif()
         list(APPEND deps "${COCOA_LIBRARY}")
     endif()
+    mfem_glvis_prefer_non_sdk_zlib()
     set(${OUT} "${deps}" PARENT_SCOPE)
 endfunction()
 
@@ -77,6 +79,55 @@ macro(mfem_glvis_without_werror OUT IN)
         string(STRIP "${${OUT}}" ${OUT})
     else()
         set(${OUT} "${IN}")
+    endif()
+endmacro()
+
+# FindZLIB selects the macOS SDK usr/include. Homebrew Clang searches
+# that -isystem before libc++'s C headers, including on MFEM consumers
+# that inherit GLVis's link interface.
+macro(mfem_glvis_prefer_non_sdk_zlib)
+    if(APPLE AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        set(_glvis_zlib_root "")
+        foreach(_glvis_prefix /opt/homebrew /usr/local)
+            if(EXISTS "${_glvis_prefix}/opt/zlib/include/zlib.h")
+                set(_glvis_zlib_root "${_glvis_prefix}/opt/zlib")
+                break()
+            endif()
+        endforeach()
+        if(_glvis_zlib_root)
+            find_library(_glvis_zlib_lib z
+                PATHS "${_glvis_zlib_root}/lib" NO_DEFAULT_PATH)
+        endif()
+        if(_glvis_zlib_root AND _glvis_zlib_lib)
+            set(ZLIB_ROOT "${_glvis_zlib_root}" CACHE PATH
+                "zlib prefix outside the macOS SDK" FORCE)
+            set(ZLIB_INCLUDE_DIR "${_glvis_zlib_root}/include" CACHE PATH
+                "zlib headers outside the macOS SDK" FORCE)
+            set(ZLIB_LIBRARY "${_glvis_zlib_lib}" CACHE FILEPATH
+                "zlib library outside the macOS SDK" FORCE)
+            if(TARGET ZLIB::ZLIB)
+                set_target_properties(ZLIB::ZLIB PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES
+                    "${_glvis_zlib_root}/include")
+            endif()
+            if(TARGET PNG::PNG)
+                get_target_property(_glvis_png_incs PNG::PNG
+                    INTERFACE_INCLUDE_DIRECTORIES)
+                if(_glvis_png_incs)
+                    set(_glvis_png_kept "")
+                    foreach(_glvis_inc IN LISTS _glvis_png_incs)
+                        if(_glvis_inc MATCHES "/SDKs/.*/usr/include$")
+                            list(APPEND _glvis_png_kept
+                                "${_glvis_zlib_root}/include")
+                        else()
+                            list(APPEND _glvis_png_kept "${_glvis_inc}")
+                        endif()
+                    endforeach()
+                    set_property(TARGET PNG::PNG PROPERTY
+                        INTERFACE_INCLUDE_DIRECTORIES ${_glvis_png_kept})
+                endif()
+            endif()
+        endif()
     endif()
 endmacro()
 
@@ -123,28 +174,12 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
             "-isystem ${PROJECT_BINARY_DIR}")
     endif()
     set(_glvis_extra_cmake_args "")
-    # FindZLIB inside GLVis selects the macOS SDK usr/include. Homebrew
-    # Clang then searches that -isystem before libc++'s C headers.
-    # A zlib prefix that is not the SDK keeps those headers out of the
-    # fetched compile.
-    if(APPLE AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-        set(_glvis_zlib_root "")
-        foreach(_glvis_prefix /opt/homebrew /usr/local)
-            if(EXISTS "${_glvis_prefix}/opt/zlib/include/zlib.h")
-                set(_glvis_zlib_root "${_glvis_prefix}/opt/zlib")
-                break()
-            endif()
-        endforeach()
-        if(_glvis_zlib_root)
-            find_library(_glvis_zlib_lib z
-                PATHS "${_glvis_zlib_root}/lib" NO_DEFAULT_PATH)
-            if(_glvis_zlib_lib)
-                list(APPEND _glvis_extra_cmake_args
-                    "-DZLIB_ROOT=${_glvis_zlib_root}"
-                    "-DZLIB_INCLUDE_DIR=${_glvis_zlib_root}/include"
-                    "-DZLIB_LIBRARY=${_glvis_zlib_lib}")
-            endif()
-        endif()
+    mfem_glvis_prefer_non_sdk_zlib()
+    if(_glvis_zlib_root AND _glvis_zlib_lib)
+        list(APPEND _glvis_extra_cmake_args
+            "-DZLIB_ROOT=${_glvis_zlib_root}"
+            "-DZLIB_INCLUDE_DIR=${_glvis_zlib_root}/include"
+            "-DZLIB_LIBRARY=${_glvis_zlib_lib}")
     endif()
     if(CMAKE_OSX_SYSROOT)
         list(APPEND _glvis_extra_cmake_args
