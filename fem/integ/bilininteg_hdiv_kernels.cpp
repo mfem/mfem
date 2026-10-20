@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -294,61 +294,14 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
    }); // end of element loop
 }
 
-void PAHdivMassApply(const int dim,
-                     const int D1D,
-                     const int Q1D,
-                     const int NE,
-                     const bool symmetric,
-                     const Array<real_t> &Bo,
-                     const Array<real_t> &Bc,
-                     const Array<real_t> &Bot,
-                     const Array<real_t> &Bct,
-                     const Vector &op,
-                     const Vector &x,
-                     Vector &y)
+void PAHdivMassApply2D(const int NE, const bool symmetric, const bool,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int TestD1D, const int Q1D)
 {
-   const int id = (D1D << 4) | Q1D;
-
-   if (dim == 2)
-   {
-      switch (id)
-      {
-         case 0x22: return SmemPAHdivMassApply2D<2,2>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x33: return SmemPAHdivMassApply2D<3,3>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x44: return SmemPAHdivMassApply2D<4,4>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x55: return SmemPAHdivMassApply2D<5,5>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         default: // fallback
-            return PAHdivMassApply2D(D1D,Q1D,NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-      }
-   }
-   else if (dim == 3)
-   {
-      switch (id)
-      {
-         case 0x23: return SmemPAHdivMassApply3D<2,3>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x34: return SmemPAHdivMassApply3D<3,4>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x45: return SmemPAHdivMassApply3D<4,5>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x56: return SmemPAHdivMassApply3D<5,6>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x67: return SmemPAHdivMassApply3D<6,7>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         case 0x78: return SmemPAHdivMassApply3D<7,8>(NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-         default: // fallback
-            return PAHdivMassApply3D(D1D,Q1D,NE,symmetric,Bo,Bc,Bot,Bct,op,x,y);
-      }
-   }
-}
-
-void PAHdivMassApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const bool symmetric,
-                       const Array<real_t> &Bo_,
-                       const Array<real_t> &Bc_,
-                       const Array<real_t> &Bot_,
-                       const Array<real_t> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_)
-{
+   MFEM_VERIFY(D1D == TestD1D,
+               "Trial and test spaces must have same number of dofs");
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
@@ -468,18 +421,14 @@ void PAHdivMassApply2D(const int D1D,
    }); // end of element loop
 }
 
-void PAHdivMassApply3D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const bool symmetric,
-                       const Array<real_t> &Bo_,
-                       const Array<real_t> &Bc_,
-                       const Array<real_t> &Bot_,
-                       const Array<real_t> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_)
+void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int TestD1D, const int Q1D)
 {
+   MFEM_VERIFY(D1D == TestD1D,
+               "Trial and test spaces must have same number of dofs");
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
                "Error: D1D > HDIV_MAX_D1D");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
@@ -1147,41 +1096,54 @@ void PADivDivApply3D(const int D1D,
    }); // end of element loop
 }
 
-void PAHdivL2Setup2D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op)
+void PAHdivL2Setup2D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
+   bool have_detJ = (geom != nullptr);
+   auto detJ = Reshape(have_detJ ? geom->detJ.Read() : nullptr, NQ, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
-         y(q,e) = W[q] * coeff(q,e);
+         if (have_detJ)
+         {
+            y(q, e) = W[q] * coeff(q, e) / detJ(q, e);
+         }
+         else
+         {
+            y(q, e) = W[q] * coeff(q, e);
+         }
       }
    });
 }
 
-void PAHdivL2Setup3D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op)
+void PAHdivL2Setup3D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
+   bool have_detJ = (geom != nullptr);
+   auto detJ = Reshape(have_detJ ? geom->detJ.Read() : nullptr, NQ, NE);
+
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
-         y(q,e) = W[q] * coeff(q, e);
+         if (have_detJ)
+         {
+            y(q, e) = W[q] * coeff(q, e) / detJ(q, e);
+         }
+         else
+         {
+            y(q, e) = W[q] * coeff(q, e);
+         }
       }
    });
 }

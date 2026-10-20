@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -48,8 +48,8 @@ setup:
   extends: .job_on_dane
   stage: jobs-stage-2
   variables:
-    # Dane has 224 threads/node and we run 7 separate jobs: 224=7*32
-    THREADS: 28
+    # Dane has 224 threads/node and we run 8 separate jobs: 224=8*28
+    THREADS: 24
 
 debug_ser_gcc_10:
   extends: .mfem_job_on_dane
