@@ -18,7 +18,7 @@ include(MfemCmakeUtilities)
 if (CMAKE_VERSION VERSION_LESS 3.17)
   message(FATAL_ERROR "AmgX support requires CMake >= 3.17")
 endif()
-list(APPEND AMGX_REQUIRED_PACKAGES CUDAToolkit)
+find_package(CUDAToolkit REQUIRED)
 list(APPEND AMGX_REQUIRED_LIBRARIES CUDA::cublas CUDA::cusparse CUDA::cusolver)
 mfem_find_package(AMGX AMGX AMGX_DIR "include" "amgx_c.h" "lib" "amgx"
   "Paths to headers required by AMGX." "Libraries required by AMGX.")
