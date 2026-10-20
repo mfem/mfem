@@ -148,6 +148,49 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
          static_assert(t3d(1,1,0) == 7_r);
          static_assert(t3d(1,1,1) == 8_r);
       }
+
+      // Rectangular get_col() and flatten()
+      {
+         constexpr auto t2d =
+         make_tensor<2,3>([](int i, int j) { return 10_r*i + j; });
+         constexpr auto col = get_col(t2d, 2);
+         static_assert(std::is_same_v<decltype(col), const tensor<real_t,2>>);
+         static_assert(col(0) == 2_r);
+         static_assert(col(1) == 12_r);
+         // flatten() is column-major: B(i + j*n) = A(i,j)
+         constexpr auto flat = flatten(t2d);
+         static_assert(std::is_same_v<decltype(flat), const tensor<real_t,6>>);
+         static_assert(flat(0) == 0_r);
+         static_assert(flat(1) == 10_r);
+         static_assert(flat(2) == 1_r);
+         static_assert(flat(3) == 11_r);
+         static_assert(flat(4) == 2_r);
+         static_assert(flat(5) == 12_r);
+      }
+
+      // 6-D tensors, above the former limit of 5
+      {
+         constexpr auto t6d = make_tensor<2,1,3,1,2,2>(
+                                 [](int i, int j, int k, int l, int m, int n)
+         { return 100000_r*i + 10000_r*j + 1000_r*k + 100_r*l + 10_r*m + n; });
+         static_assert(t6d.rank() == 6);
+         static_assert(t6d.size(0) == 2);
+         static_assert(t6d.size(2) == 3);
+         static_assert(t6d.size(5) == 2);
+         static_assert(std::is_same_v<std::remove_cv_t<
+                       std::remove_reference_t<decltype(t6d[1])>>,
+                       tensor<real_t,1,3,1,2,2>>);
+         static_assert(sizeof(t6d) == 24*sizeof(real_t));
+         static_assert(t6d(1,0,2,0,1,1) == 102011_r);
+         static_assert(t6d(0,0,1,0,1,0) == 1010_r);
+         static_assert(t6d[1][0][2][0][0][1] == 102001_r);
+         constexpr auto t6d_sum = t6d + t6d;
+         constexpr auto t6d_diff = t6d_sum - t6d;
+         constexpr auto t6d_neg = -t6d;
+         static_assert(t6d_sum(1,0,2,0,1,1) == 2_r*102011_r);
+         static_assert(t6d_diff(0,0,2,0,1,0) == 2010_r);
+         static_assert(t6d_neg(1,0,1,0,0,1) == -101001_r);
+      }
    });
    errors.HostRead();
    CHECK(errors.Sum() == 0);
@@ -218,14 +261,14 @@ TEST_CASE("Tensor make_tensor and outer of arbitrary rank", "[Tensor]")
 
    // non-constexpr check of the full outer product
    const auto CB = outer(C, B);
-   real_t err = 0_r;
+   real_t abs_err = 0_r;
    for (int i = 0; i < 3; i++)
       for (int j = 0; j < 2; j++)
          for (int k = 0; k < 2; k++)
             for (int l = 0; l < 2; l++)
                for (int m = 0; m < 3; m++)
                {
-                  err += std::abs(CB(i, j, k, l, m) - C(i, j, k) * B(l, m));
+                  abs_err += std::abs(CB(i, j, k, l, m) - C(i, j, k) * B(l, m));
                }
-   REQUIRE(err == 0_r);
+   REQUIRE(abs_err == 0_r);
 }
