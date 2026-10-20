@@ -441,12 +441,8 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
       @MFEM_EXT_LIBS@$(if $(filter YES,$(MFEM_USE_GLVIS)), -lmfem)
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
-   # ALL_LIBS already expanded -L$(GLVIS_DIR)/lib. The installed archive is
-   # next to libmfem, and config-mk turns @MFEM_LIB_DIR@ into $(MFEM_LIB_DIR).
-   ifeq ($(MFEM_USE_GLVIS),YES)
-      MFEM_EXT_LIBS := $(subst -L$(GLVIS_DIR)/lib,\
-         -L@MFEM_LIB_DIR@,$(MFEM_EXT_LIBS))
-   endif
+   # Leave MFEM_EXT_LIBS unchanged for the shared relink. -L@MFEM_LIB_DIR@
+   # is not a directory. config-mk substitutes the installed search path.
    ifeq ($(MFEM_USE_OCCA),YES)
       ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
@@ -661,8 +657,8 @@ install: $(if $(static),$(BLD)libmfem.a) \
 	$(MKINSTALLDIR) $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALLDEF) $(BLD)libmfem.a $(PREFIX_LIB))
-	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(if $(static),\
-	$(INSTALLDEF) $(GLVIS_DIR)/lib/libglvis.a $(PREFIX_LIB)))
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),\
+	$(INSTALLDEF) $(GLVIS_DIR)/lib/libglvis.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
 	$(MKINSTALLDIR) $(PREFIX_INC)/mfem
@@ -704,7 +700,9 @@ install: $(if $(static),$(BLD)libmfem.a) \
 	   $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 # install config.mk in $(PREFIX_SHARE)
 	$(MKINSTALLDIR) $(PREFIX_SHARE)
-	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
+	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk \
+	   MFEM_EXT_LIBS='$(subst -L$(GLVIS_DIR)/lib,\
+	   -L@MFEM_LIB_DIR@,$(MFEM_EXT_LIBS))'
 	$(INSTALLDEF) $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
