@@ -14,6 +14,7 @@
 #include "unit_tests.hpp"
 
 #include <array>
+#include <sstream>
 namespace mfem
 {
 
@@ -42,32 +43,31 @@ Mesh OneSidedRefinedDividingLineMesh(bool tri_mesh)
    return mesh;
 }
 
-// Check that the true DOFs on the interior boundary of a mesh from
+// Check that the DOFs on the interior boundary of a mesh from
 // OneSidedRefinedDividingLineMesh, except those on the exterior boundary, are
-// essential if and only if the interior boundary is. The function tdof_of
-// returns the true DOF of a local DOF, or -1 for a constrained (slave) or
-// non-owned DOF. Returns the number of checked true DOFs.
-template <typename TDofOf>
-int CheckInteriorBoundaryEssentialDofs(Mesh &mesh,
+// essential if and only if the interior boundary is. The array ess_marker marks
+// the essential DOFs, true or local, and the function dof_of returns the DOF of
+// a local DOF in ess_marker, or -1 for a DOF not to check (e.g. a constrained
+// or non-owned DOF). Returns the number of checked DOFs.
+template <typename DofOf>
+int CheckInteriorBoundaryEssentialDofs(const Mesh &mesh,
                                        const FiniteElementSpace &fes,
-                                       const Array<int> &ess_tdof_list,
-                                       bool ess_interior, TDofOf &&tdof_of)
+                                       const Array<int> &ess_marker,
+                                       bool ess_interior, DofOf &&dof_of)
 {
-   std::vector<bool> is_ess(fes.GetTrueVSize(), false);
-   for (int t : ess_tdof_list) { is_ess[t] = true; }
    auto on_interior = [&](int v)
    {
       const real_t *x = mesh.GetVertex(v);
       return std::abs(x[0] - 0.5) < EPS && x[1] > EPS && x[1] < 1.0 - EPS;
    };
    int checked = 0;
-   auto check = [&](const Array<int> &dofs)
+   auto check_essential_dofs = [&](const Array<int> &dofs)
    {
       for (int d : dofs)
       {
-         const int t = tdof_of(d >= 0 ? d : -1 - d);
+         const int t = dof_of(UnsignIndex(d));
          if (t < 0) { continue; }
-         CHECK(is_ess[t] == ess_interior);
+         CHECK((ess_marker[t] != 0) == ess_interior);
          checked++;
       }
    };
@@ -81,13 +81,13 @@ int CheckInteriorBoundaryEssentialDofs(Mesh &mesh,
          continue;
       }
       fes.GetEdgeInteriorDofs(e, dofs);
-      check(dofs);
+      check_essential_dofs(dofs);
    }
    for (int v = 0; v < mesh.GetNV(); v++)
    {
       if (!on_interior(v)) { continue; }
       fes.GetVertexDofs(v, dofs);
-      check(dofs);
+      check_essential_dofs(dofs);
    }
    return checked;
 }
@@ -1832,7 +1832,9 @@ TEST_CASE("Parallel RP=I", "[Parallel], [NCMesh]")
 //            non-conforming mesh refined on one side of it. The master edges
 //            on the coarse side have no boundary elements, and must be marked
 //            from the slave boundary elements on the refined side only if the
-//            interior boundary is essential.
+//            interior boundary is essential. The same is checked on the part
+//            of the mesh of each rank loaded as a serial mesh, in which the
+//            slave edges of a master edge may all be in ghost elements.
 TEST_CASE("ParInteriorBoundaryEssentialDofs2D", "[Parallel], [NCMesh]")
 {
    const bool tri_mesh = GENERATE(false, true);
@@ -1842,6 +1844,9 @@ TEST_CASE("ParInteriorBoundaryEssentialDofs2D", "[Parallel], [NCMesh]")
 
    auto smesh = OneSidedRefinedDividingLineMesh(tri_mesh);
    ParMesh mesh(MPI_COMM_WORLD, smesh);
+   std::stringstream part_stream;
+   mesh.ParPrint(part_stream);
+   Mesh part(part_stream, 1, 1);
    const int interior_attr = mesh.bdr_attributes.Max();
    Array<int> ess_bdr(interior_attr);
    ess_bdr = ess_interior ? 0 : 1;
@@ -1854,11 +1859,26 @@ TEST_CASE("ParInteriorBoundaryEssentialDofs2D", "[Parallel], [NCMesh]")
    {
       CAPTURE(fec->Name());
       ParFiniteElementSpace fes(&mesh, fec);
-      Array<int> ess_tdof_list;
+      Array<int> ess_tdof_list, ess_tdof_marker;
       fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      FiniteElementSpace::ListToMarker(ess_tdof_list, fes.GetTrueVSize(),
+                                       ess_tdof_marker);
       auto tdof_of = [&](int ldof) { return fes.GetLocalTDofNumber(ldof); };
-      int checked = CheckInteriorBoundaryEssentialDofs(mesh, fes, ess_tdof_list,
-                                                       ess_interior, tdof_of);
+      int checked = CheckInteriorBoundaryEssentialDofs(
+                       mesh, fes, ess_tdof_marker, ess_interior, tdof_of);
+      MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM,
+                    MPI_COMM_WORLD);
+      REQUIRE(checked > 0);
+
+      // The true DOFs of a serial space on the part are not supported when the
+      // master edges of some of its slave edges are ghosts, so check its local
+      // DOFs instead.
+      FiniteElementSpace part_fes(&part, fec);
+      Array<int> ess_dof_marker;
+      part_fes.GetEssentialVDofs(ess_bdr, ess_dof_marker);
+      auto ldof_of = [](int ldof) { return ldof; };
+      checked = CheckInteriorBoundaryEssentialDofs(
+                   part, part_fes, ess_dof_marker, ess_interior, ldof_of);
       MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM,
                     MPI_COMM_WORLD);
       REQUIRE(checked > 0);
@@ -3086,8 +3106,10 @@ TEST_CASE("InteriorBoundaryEssentialDofs2D", "[NCMesh]")
    {
       CAPTURE(fec->Name());
       FiniteElementSpace fes(&mesh, fec);
-      Array<int> ess_tdof_list;
+      Array<int> ess_tdof_list, ess_tdof_marker;
       fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      FiniteElementSpace::ListToMarker(ess_tdof_list, fes.GetTrueVSize(),
+                                       ess_tdof_marker);
       const SparseMatrix *R = fes.GetConformingRestriction();
       REQUIRE(R != nullptr);
       std::vector<int> tdof_of_ldof(fes.GetVSize(), -1);
@@ -3097,7 +3119,7 @@ TEST_CASE("InteriorBoundaryEssentialDofs2D", "[NCMesh]")
       }
       auto tdof_of = [&](int ldof) { return tdof_of_ldof[ldof]; };
       const int checked = CheckInteriorBoundaryEssentialDofs(
-                             mesh, fes, ess_tdof_list, ess_interior, tdof_of);
+                             mesh, fes, ess_tdof_marker, ess_interior, tdof_of);
       REQUIRE(checked > 0);
    }
 }
