@@ -24,6 +24,12 @@ Linear and nonlinear solvers
   destruction, and the creation of several serial AmgXSolver instances, which
   initialized AmgX again.
 
+Miscellaneous
+-------------
+- Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
+  column so the inner loop vectorizes. This roughly doubles the speed of full
+  assembly for DiffusionIntegrator at higher orders.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
