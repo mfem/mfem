@@ -555,8 +555,8 @@ tensor<decltype(S {} + T{}), n...>
  * @param[in] A The tensor to be scaled
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -584,8 +584,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The scaling factor
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -613,8 +613,8 @@ tensor<decltype(T {} * S{}), n...>
  * @param[in] A The tensor of denominators
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -642,8 +642,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The denominator
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -785,7 +785,7 @@ constexpr tensor<T, n...>& operator-=(tensor<T, n...>& A, zero)
 template <typename S, typename T> MFEM_HOST_DEVICE
 auto outer(S A, T B) -> decltype(A * B)
 {
-   static_assert(std::is_arithmetic<S>::value && std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<S> && std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    return A * B;
 }
@@ -811,7 +811,7 @@ tensor<T, n * m> flatten(tensor<T, n, m> A)
 template <typename S, typename T, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
 {
-   static_assert(std::is_arithmetic<S>::value,
+   static_assert(std::is_arithmetic_v<S>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), n> AB{};
    for (int i = 0; i < n; i++)
@@ -828,7 +828,7 @@ tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
 template <typename S, typename T, int m> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m> outer(const tensor<S, m>& A, T B)
 {
-   static_assert(std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m> AB{};
    for (int i = 0; i < m; i++)
@@ -866,7 +866,7 @@ zero outer(const tensor<T, n>&, zero)
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)
 {
-   static_assert(std::is_arithmetic<S>::value,
+   static_assert(std::is_arithmetic_v<S>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m, n> AB{};
    for (int i = 0; i < m; i++)
@@ -906,7 +906,7 @@ tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m>& A,
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m, n>& A, T B)
 {
-   static_assert(std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m, n> AB{};
    for (int i = 0; i < m; i++)
