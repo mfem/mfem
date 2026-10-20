@@ -122,30 +122,30 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
             "-isystem ${PROJECT_SOURCE_DIR}"
             "-isystem ${PROJECT_BINARY_DIR}")
     endif()
-    # Homebrew Clang searches an -isystem of the macOS SDK usr/include
-    # (FindZLIB inside GLVis) before libc++'s own C headers. -I is
-    # searched first, so <stdlib.h> stays the libc++ wrapper.
+    set(_glvis_extra_cmake_args "")
+    # FindZLIB inside GLVis selects the macOS SDK usr/include. Homebrew
+    # Clang then searches that -isystem before libc++'s C headers.
+    # A zlib prefix that is not the SDK keeps those headers out of the
+    # fetched compile.
     if(APPLE AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-        execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -print-resource-dir
-            OUTPUT_VARIABLE _glvis_resource
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-            RESULT_VARIABLE _glvis_resource_rc)
-        if(_glvis_resource_rc EQUAL 0 AND _glvis_resource)
-            get_filename_component(_glvis_llvm_root
-                "${_glvis_resource}" DIRECTORY)
-            get_filename_component(_glvis_llvm_root
-                "${_glvis_llvm_root}" DIRECTORY)
-            get_filename_component(_glvis_llvm_root
-                "${_glvis_llvm_root}" DIRECTORY)
-            set(_glvis_libcxx "${_glvis_llvm_root}/include/c++/v1")
-            if(EXISTS "${_glvis_libcxx}/stdlib.h")
-                list(APPEND _glvis_cxx_flags "-I${_glvis_libcxx}")
+        set(_glvis_zlib_root "")
+        foreach(_glvis_prefix /opt/homebrew /usr/local)
+            if(EXISTS "${_glvis_prefix}/opt/zlib/include/zlib.h")
+                set(_glvis_zlib_root "${_glvis_prefix}/opt/zlib")
+                break()
+            endif()
+        endforeach()
+        if(_glvis_zlib_root)
+            find_library(_glvis_zlib_lib z
+                PATHS "${_glvis_zlib_root}/lib" NO_DEFAULT_PATH)
+            if(_glvis_zlib_lib)
+                list(APPEND _glvis_extra_cmake_args
+                    "-DZLIB_ROOT=${_glvis_zlib_root}"
+                    "-DZLIB_INCLUDE_DIR=${_glvis_zlib_root}/include"
+                    "-DZLIB_LIBRARY=${_glvis_zlib_lib}")
             endif()
         endif()
     endif()
-
-    set(_glvis_extra_cmake_args "")
     if(CMAKE_OSX_SYSROOT)
         list(APPEND _glvis_extra_cmake_args
             "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}")
