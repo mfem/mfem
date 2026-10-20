@@ -158,10 +158,10 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
    {
       auto meshs = { "../../data/beam-tet.mesh",
                      "../../data/inline-tet.mesh",
-                     "../../data/ref-tetrahedron.mesh"
+                     "../../data/ref-tetrahedron.mesh",
+                     "../../data/escher-p2.mesh"
                    };
       auto extra = { "../../data/escher.mesh",
-                     "../../data/escher-p2.mesh",
                      "../../data/inline-hex.mesh",
                      "../../data/fichera-q2.mesh",
                      "../../data/periodic-cube.mesh"

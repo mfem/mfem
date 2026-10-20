@@ -277,34 +277,21 @@ inline void PADiffusionApplyTriangle(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline int ij_to_index(const int p, const int i, const int j)
-{
-   return i * (2 * p - i + 1) / 2 + j;
-}
-
-MFEM_HOST_DEVICE inline int ijk_to_index(const int p, const int i, const int j,
-                                         const int k)
-{
-   const int n = p - k;
-   const int layer_sum = (p * (p + 1) * (p + 2) - n * (n + 1) * (n + 2)) / 6;
-   const int offset_in_layer = j * (2 * n - j + 1) / 2 + i;
-   return layer_sum + offset_in_layer;
-}
 
 template<int T_D1D, int T_Q1D>
 inline void SmemPADiffusionApplyTriangle(const int NE,
                                          const bool symmetric,
-                                         const Array<int> &lex_map_,
-                                         const Array<int> &forward_map2d_,
-                                         const Array<int> &inverse_map2d_,
-                                         const Array<int> &forward_map3d_,
-                                         const Array<int> &inverse_map3d_,
+                                         const Array<int> &/*lex_map_*/,
+                                         const Array<int> &/*forward_map2d_*/,
+                                         const Array<int> &/*inverse_map2d_*/,
+                                         const Array<int> &/*forward_map3d_*/,
+                                         const Array<int> &/*inverse_map3d_*/,
                                          const Array<real_t> &ga1_,
                                          const Array<real_t> &ga2_,
-                                         const Array<real_t> &ga3_,
-                                         const Array<real_t> &ga1t_,
-                                         const Array<real_t> &ga2t_,
-                                         const Array<real_t> &ga3t_,
+                                         const Array<real_t> &/*ga3_*/,
+                                         const Array<real_t> &/*ga1t_*/,
+                                         const Array<real_t> &/*ga2t_*/,
+                                         const Array<real_t> &/*ga3t_*/,
                                          const Vector &d_,
                                          const Vector &x_,
                                          Vector &y_,
@@ -314,19 +301,6 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPADiffusionApplyTriangle requires compile-time D1D and Q1D");
 
-   // Host backend: dispatch to the non-Smem fallback. The Smem kernel
-   // reads Ga1 from __constant__ memory on GPU, whose host shadow is not
-   // initialized when running on the host backend.
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      PADiffusionApplyTriangle<T_D1D, T_Q1D>(
-         NE, symmetric, lex_map_, forward_map2d_, inverse_map2d_,
-         forward_map3d_, inverse_map3d_, ga1_, ga2_, ga3_,
-         ga1t_, ga2t_, ga3t_, d_, x_, y_, T_D1D, T_Q1D);
-      return;
-   }
-
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM = D1D * (D1D+1) / 2;
@@ -335,6 +309,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
+   const auto Ga1_ptr = ga1_.HostRead();
    const auto Ga2_ptr = ga2_.Read();
    const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
@@ -344,28 +319,28 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    constexpr int BZ_RAW = 128 / BLK;
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-   // Updating this shared symbol during application is not concurrency-safe;
-   // see ConstantBasisCache for the caller's serialization requirements.
-   static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
-   basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
-      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                        MFEM_DEVICE_SYMBOL(SmemPADiffTriGa1<T_D1D, T_Q1D>),
-                        values, bytes, 0,
-                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
-   });
+      // Updating this shared symbol during application is not concurrency-safe;
+      // see ConstantBasisCache for the caller's serialization requirements.
+      static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
+      basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
+      {
+         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
+                           MFEM_DEVICE_SYMBOL(SmemPADiffTriGa1<T_D1D, T_Q1D>),
+                           values, bytes, 0,
+                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      });
+   }
+#endif
 
    mfem::forall_2D_batch(NE, Q1D, 1, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
       // Avoid VLA-size zero when D1D == 1.
       constexpr int D1Dm1 = (D1D - 1 > 0) ? D1D - 1 : 1;
 
-      // Ga1 lives in device __constant__ memory (initialized above): the
-      // kernel reads `SmemPADiffTriGa1<T_D1D, T_Q1D>` directly and does
-      // not allocate a shared-memory copy. The lambda only executes on
-      // the GPU (the function returns early on the host backend), so the
-      // host shadow of the __constant__ symbol being uninitialized is
-      // harmless.
+      // The first basis factor is read from constant memory on GPU.
       MFEM_SHARED real_t Ga2[Q1D][D1Dm1][D1Dm1];
       MFEM_SHARED real_t GD[BZ][2][BLK][BLK];
 
@@ -404,8 +379,12 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      // Ga1 lives in __constant__ memory: read it directly.
+      (void) Ga1_ptr; // Keep host/device lambda captures consistent.
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       const auto &Ga1_view = SmemPADiffTriGa1<T_D1D, T_Q1D>;
+#else
+      const auto Ga1_view = (const real_t (*)[D1Dm1]) Ga1_ptr;
+#endif
 
       // DQ corresponds to C1 in AAD algorithm
       MFEM_FOREACH_THREAD_DIRECT(a1, x, D1D - 1)
@@ -522,9 +501,6 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          }
       }
    });
-#else
-   MFEM_ASSERT(false, "Unreachable code");
-#endif
 }
 
 /* This function computes the action of the diffusion integrator for the Bernstein basis on tetrahedrons.
@@ -816,24 +792,21 @@ inline void PADiffusionApplyTetrahedron(const int NE,
    });
 }
 
-// Shared-memory PA diffusion kernel on tetrahedra. This kernel relies on
-// per-thread register state surviving __syncthreads() barriers and on fast
-// block-scoped shared-memory atomics, so it is GPU-only. On the host
-// backend the function dispatches to the non-Smem fallback.
+// Shared-memory PA diffusion kernel on tetrahedra.
 template<int T_D1D, int T_Q1D>
 inline void SmemPADiffusionApplyTetrahedron(const int NE,
                                             const bool symmetric,
-                                            const Array<int> &lex_map_,
-                                            const Array<int> &forward_map2d_,
-                                            const Array<int> &inverse_map2d_,
-                                            const Array<int> &forward_map3d_,
-                                            const Array<int> &inverse_map3d_,
+                                            const Array<int> &/*lex_map_*/,
+                                            const Array<int> &/*forward_map2d_*/,
+                                            const Array<int> &/*inverse_map2d_*/,
+                                            const Array<int> &/*forward_map3d_*/,
+                                            const Array<int> &/*inverse_map3d_*/,
                                             const Array<real_t> &ga1_,
                                             const Array<real_t> &ga2_,
                                             const Array<real_t> &ga3_,
-                                            const Array<real_t> &ga1t_,
-                                            const Array<real_t> &ga2t_,
-                                            const Array<real_t> &ga3t_,
+                                            const Array<real_t> &/*ga1t_*/,
+                                            const Array<real_t> &/*ga2t_*/,
+                                            const Array<real_t> &/*ga3t_*/,
                                             const Vector &d_,
                                             const Vector &x_,
                                             Vector &y_,
@@ -843,17 +816,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPADiffusionApplyTetrahedron requires compile-time D1D and Q1D");
 
-   // Host backend: dispatch to the (correct, non-Smem) fallback.
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      PADiffusionApplyTetrahedron<T_D1D, T_Q1D>(
-         NE, symmetric, lex_map_, forward_map2d_, inverse_map2d_,
-         forward_map3d_, inverse_map3d_, ga1_, ga2_, ga3_,
-         ga1t_, ga2t_, ga3t_, d_, x_, y_, T_D1D, T_Q1D);
-      return;
-   }
-
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
@@ -864,6 +826,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
+   const auto Ga1_ptr = ga1_.HostRead();
    const auto Ga2_ptr = ga2_.Read();
    const auto Ga3_ptr = ga3_.Read();
    auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
@@ -874,16 +837,21 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-   // Updating this shared symbol during application is not concurrency-safe;
-   // see ConstantBasisCache for the caller's serialization requirements.
-   static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
-   basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
-      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                        MFEM_DEVICE_SYMBOL(SmemPADiffTetGa1<T_D1D, T_Q1D>),
-                        values, bytes, 0,
-                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
-   });
+      // Updating this shared symbol during application is not concurrency-safe;
+      // see ConstantBasisCache for the caller's serialization requirements.
+      static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
+      basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
+      {
+         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
+                           MFEM_DEVICE_SYMBOL(SmemPADiffTetGa1<T_D1D, T_Q1D>),
+                           values, bytes, 0,
+                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      });
+   }
+#endif
 
    mfem::forall_2D_batch(NE, BLK, BLK, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -903,10 +871,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          real_t X[BZ][BASIS_DIM3D];
       } sm0;
 
-      // Ga1 lives in device __constant__ memory (initialized above): the
-      // kernel reads `SmemPADiffTetGa1<T_D1D, T_Q1D>` directly and does
-      // not allocate a shared-memory copy. The lambda only executes on
-      // the GPU (the function returns early on the host backend).
+      // The first basis factor is read from constant memory on GPU.
       MFEM_SHARED real_t Ga2[Q1D][BD2D];
       MFEM_SHARED real_t Ga3[Q1D][BD3D];
 
@@ -952,26 +917,38 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      // Ga1 lives in __constant__ memory: read it directly.
+      (void) Ga1_ptr; // Keep host/device lambda captures consistent.
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       const auto &Ga1_view = SmemPADiffTetGa1<T_D1D, T_Q1D>;
+#else
+      const auto Ga1_view = (const real_t (*)[D1Dm1]) Ga1_ptr;
+#endif
+
+      // Preserve each logical thread's registers across phases on the host.
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+      constexpr int NR = 1;
+#else
+      constexpr int NR = BLK * BLK;
+#endif
 
       // Step 1: Bernstein gradient evaluation, contract in third index.
       // X is aliased with DDQ via the union — we read X into per-thread
       // registers BEFORE the sync, then write DDQ after.
       {
-         real_t us[D1Dm1], vs[D1Dm1], ws[D1Dm1];
+         real_t us[NR][D1Dm1], vs[NR][D1Dm1], ws[NR][D1Dm1];
          MFEM_FOREACH_THREAD_DIRECT(a1, y, D1D - 1)
          {
             MFEM_FOREACH_THREAD_DIRECT(a2, x, D1D - a1 - 1)
             {
+               const int r = NR == 1 ? 0 : a1 * BLK + a2;
                MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a3 = 0; a3 < D1D - 1; a3++)
                {
                   if (a1 + a2 + a3 >= D1D - 1) { break; }
                   const real_t x0 = X[ijk_to_index(D1D, a1, a2, a3)];
-                  us[a3] = X[ijk_to_index(D1D, a1 + 1, a2, a3)] - x0;
-                  vs[a3] = X[ijk_to_index(D1D, a1, a2 + 1, a3)] - x0;
-                  ws[a3] = X[ijk_to_index(D1D, a1, a2, a3 + 1)] - x0;
+                  us[r][a3] = X[ijk_to_index(D1D, a1 + 1, a2, a3)] - x0;
+                  vs[r][a3] = X[ijk_to_index(D1D, a1, a2 + 1, a3)] - x0;
+                  ws[r][a3] = X[ijk_to_index(D1D, a1, a2, a3 + 1)] - x0;
                }
             }
          }
@@ -980,6 +957,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a2, x, D1D - a1 - 1)
             {
+               const int r = NR == 1 ? 0 : a1 * BLK + a2;
                MFEM_UNROLL(Q1D)
                for (int i3 = 0; i3 < Q1D; i3++)
                {
@@ -990,9 +968,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                      if (a1 + a2 + a3 >= D1D - 1) { break; }
                      const int a = ijk_to_index(D1D - 1, a1, a2, a3);
                      const real_t Gai = Ga3[i3][a];
-                     uu += us[a3] * Gai;
-                     vv += vs[a3] * Gai;
-                     ww += ws[a3] * Gai;
+                     uu += us[r][a3] * Gai;
+                     vv += vs[r][a3] * Gai;
+                     ww += ws[r][a3] * Gai;
                   }
                   DDQ0[a1][a2][i3] = uu;
                   DDQ1[a1][a2][i3] = vv;
@@ -1005,18 +983,19 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 
       // Step 2: contract in second index. DDQ → DQQ (aliases DDQ).
       {
-         real_t us[D1Dm1], vs[D1Dm1], ws[D1Dm1];
+         real_t us[NR][D1Dm1], vs[NR][D1Dm1], ws[NR][D1Dm1];
          MFEM_FOREACH_THREAD_DIRECT(a1, y, D1D - 1)
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a1 * BLK + a3;
                MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a2 = 0; a2 < D1D - 1; a2++)
                {
                   if (a1 + a2 >= D1D - 1) { break; }
-                  us[a2] = DDQ0[a1][a2][a3];
-                  vs[a2] = DDQ1[a1][a2][a3];
-                  ws[a2] = DDQ2[a1][a2][a3];
+                  us[r][a2] = DDQ0[a1][a2][a3];
+                  vs[r][a2] = DDQ1[a1][a2][a3];
+                  ws[r][a2] = DDQ2[a1][a2][a3];
                }
             }
          }
@@ -1025,6 +1004,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a1 * BLK + a3;
                MFEM_UNROLL(Q1D)
                for (int i2 = 0; i2 < Q1D; i2++)
                {
@@ -1035,9 +1015,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                      if (a1 + a2 >= D1D - 1) { break; }
                      const int a_2d = ij_to_index(D1D - 1, a1, a2);
                      const real_t Gai = Ga2[i2][a_2d];
-                     u += us[a2] * Gai;
-                     v += vs[a2] * Gai;
-                     w += ws[a2] * Gai;
+                     u += us[r][a2] * Gai;
+                     v += vs[r][a2] * Gai;
+                     w += ws[r][a2] * Gai;
                   }
                   DQQ0[a1][i2][a3] = u;
                   DQQ1[a1][i2][a3] = v;
@@ -1050,17 +1030,18 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 
       // Step 3: contract in first index, apply D. DQQ → QQQ (aliases DQQ).
       {
-         real_t us[D1Dm1], vs[D1Dm1], ws[D1Dm1];
+         real_t us[NR][D1Dm1], vs[NR][D1Dm1], ws[NR][D1Dm1];
          MFEM_FOREACH_THREAD_DIRECT(a2, y, Q1D)
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a2 * BLK + a3;
                MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a1 = 0; a1 < D1D - 1; a1++)
                {
-                  us[a1] = DQQ0[a1][a2][a3];
-                  vs[a1] = DQQ1[a1][a2][a3];
-                  ws[a1] = DQQ2[a1][a2][a3];
+                  us[r][a1] = DQQ0[a1][a2][a3];
+                  vs[r][a1] = DQQ1[a1][a2][a3];
+                  ws[r][a1] = DQQ2[a1][a2][a3];
                }
             }
          }
@@ -1069,6 +1050,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a2 * BLK + a3;
                MFEM_UNROLL(Q1D)
                for (int i1 = 0; i1 < Q1D; i1++)
                {
@@ -1077,9 +1059,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                   for (int a1 = 0; a1 < D1D - 1; a1++)
                   {
                      const real_t Gai = Ga1_view[i1][a1];
-                     u += us[a1] * Gai;
-                     v += vs[a1] * Gai;
-                     w += ws[a1] * Gai;
+                     u += us[r][a1] * Gai;
+                     v += vs[r][a1] * Gai;
+                     w += ws[r][a1] * Gai;
                   }
                   const real_t O11 = d(i1,a2,a3,0,e);
                   const real_t O12 = d(i1,a2,a3,1,e);
@@ -1102,17 +1084,18 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       // Step 4: Bernstein moment, contract in first index.
       // QQQ → QQD (aliases QQQ).
       {
-         real_t us[Q1D], vs[Q1D], ws[Q1D];
+         real_t us[NR][Q1D], vs[NR][Q1D], ws[NR][Q1D];
          MFEM_FOREACH_THREAD_DIRECT(a2, y, Q1D)
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a2 * BLK + a3;
                MFEM_UNROLL(Q1D)
                for (int i1 = 0; i1 < Q1D; i1++)
                {
-                  us[i1] = QQQ0[i1][a2][a3];
-                  vs[i1] = QQQ1[i1][a2][a3];
-                  ws[i1] = QQQ2[i1][a2][a3];
+                  us[r][i1] = QQQ0[i1][a2][a3];
+                  vs[r][i1] = QQQ1[i1][a2][a3];
+                  ws[r][i1] = QQQ2[i1][a2][a3];
                }
             }
          }
@@ -1121,6 +1104,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a2 * BLK + a3;
                MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a1 = 0; a1 < D1D - 1; a1++)
                {
@@ -1129,9 +1113,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                   for (int i1 = 0; i1 < Q1D; i1++)
                   {
                      const real_t Gai = Ga1_view[i1][a1];
-                     u += us[i1] * Gai;
-                     v += vs[i1] * Gai;
-                     w += ws[i1] * Gai;
+                     u += us[r][i1] * Gai;
+                     v += vs[r][i1] * Gai;
+                     w += ws[r][i1] * Gai;
                   }
                   QQD0[a1][a2][a3] = u;
                   QQD1[a1][a2][a3] = v;
@@ -1144,17 +1128,18 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 
       // Step 5: contract in second index. QQD → QDD (aliases QQD).
       {
-         real_t us[Q1D], vs[Q1D], ws[Q1D];
+         real_t us[NR][Q1D], vs[NR][Q1D], ws[NR][Q1D];
          MFEM_FOREACH_THREAD_DIRECT(a1, y, D1D - 1)
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a1 * BLK + a3;
                MFEM_UNROLL(Q1D)
                for (int i2 = 0; i2 < Q1D; i2++)
                {
-                  us[i2] = QQD0[a1][i2][a3];
-                  vs[i2] = QQD1[a1][i2][a3];
-                  ws[i2] = QQD2[a1][i2][a3];
+                  us[r][i2] = QQD0[a1][i2][a3];
+                  vs[r][i2] = QQD1[a1][i2][a3];
+                  ws[r][i2] = QQD2[a1][i2][a3];
                }
             }
          }
@@ -1163,6 +1148,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             MFEM_FOREACH_THREAD_DIRECT(a3, x, Q1D)
             {
+               const int r = NR == 1 ? 0 : a1 * BLK + a3;
                MFEM_UNROLL(D1D == 1 ? 1 : D1D - 1)
                for (int a2 = 0; a2 < D1D - 1; a2++)
                {
@@ -1173,9 +1159,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                   for (int i2 = 0; i2 < Q1D; i2++)
                   {
                      const real_t Gai = Ga2[i2][a_2d];
-                     u += us[i2] * Gai;
-                     v += vs[i2] * Gai;
-                     w += ws[i2] * Gai;
+                     u += us[r][i2] * Gai;
+                     v += vs[r][i2] * Gai;
+                     w += ws[r][i2] * Gai;
                   }
                   QDD0[a1][a2][a3] = u;
                   QDD1[a1][a2][a3] = v;
@@ -1227,9 +1213,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          }
       }
    });
-#else
-   MFEM_ASSERT(false, "Unreachable code");
-#endif
 }
 } // namespace internal
 

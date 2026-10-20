@@ -13,7 +13,6 @@
 #define MFEM_BILININTEG_PA_SIMPLICES_COMMON_HPP
 
 #include "../../general/array.hpp"
-#include "../../general/backends.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -31,6 +30,20 @@ namespace mfem
 
 namespace internal
 {
+
+MFEM_HOST_DEVICE inline int ij_to_index(const int p, const int i, const int j)
+{
+   return i * (2 * p - i + 1) / 2 + j;
+}
+
+MFEM_HOST_DEVICE inline int ijk_to_index(const int p, const int i, const int j,
+                                         const int k)
+{
+   const int n = p - k;
+   const int layer_sum = (p * (p + 1) * (p + 2) - n * (n + 1) * (n + 2)) / 6;
+   const int offset_in_layer = j * (2 * n - j + 1) / 2 + i;
+   return layer_sum + offset_in_layer;
+}
 
 /** @brief Host mirror of the basis values stored in one device constant symbol.
 

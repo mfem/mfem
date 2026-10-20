@@ -225,34 +225,21 @@ inline void PAMassApplyTriangle(const int NE,
    });
 }
 
-MFEM_HOST_DEVICE inline int ij_to_index(const int p, const int i, const int j)
-{
-   return i * (2 * p - i + 1) / 2 + j;
-}
-
-MFEM_HOST_DEVICE inline int ijk_to_index(const int p, const int i, const int j,
-                                         const int k)
-{
-   const int n = p - k;
-   const int layer_sum = (p * (p + 1) * (p + 2) - n * (n + 1) * (n + 2)) / 6;
-   const int offset_in_layer = j * (2 * n - j + 1) / 2 + i;
-   return layer_sum + offset_in_layer;
-}
 
 // PA Mass Apply 2D kernel on triangles with shared memory
 template<int T_D1D, int T_Q1D>
 inline void SmemPAMassApplyTriangle(const int NE,
-                                    const Array<int> &lex_map_,
-                                    const Array<int> &forward_map2d_,
-                                    const Array<int> &inverse_map2d_,
-                                    const Array<int> &forward_map3d_,
-                                    const Array<int> &inverse_map3d_,
+                                    const Array<int> &/*lex_map_*/,
+                                    const Array<int> &/*forward_map2d_*/,
+                                    const Array<int> &/*inverse_map2d_*/,
+                                    const Array<int> &/*forward_map3d_*/,
+                                    const Array<int> &/*inverse_map3d_*/,
                                     const Array<real_t> &ba1_,
                                     const Array<real_t> &ba2_,
-                                    const Array<real_t> &ba3_,
-                                    const Array<real_t> &ba1t_,
-                                    const Array<real_t> &ba2t_,
-                                    const Array<real_t> &ba3t_,
+                                    const Array<real_t> &/*ba3_*/,
+                                    const Array<real_t> &/*ba1t_*/,
+                                    const Array<real_t> &/*ba2t_*/,
+                                    const Array<real_t> &/*ba3t_*/,
                                     const Vector &d_,
                                     const Vector &x_,
                                     Vector &y_,
@@ -262,24 +249,13 @@ inline void SmemPAMassApplyTriangle(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPAMassApplyTriangle requires compile-time D1D and Q1D");
 
-   // Host backend: dispatch to the non-Smem fallback. The Smem kernel
-   // reads Ba1 from __constant__ memory on GPU.
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      PAMassApplyTriangle<T_D1D, T_Q1D>(
-         NE, lex_map_, forward_map2d_, inverse_map2d_, forward_map3d_,
-         inverse_map3d_, ba1_, ba2_, ba3_, ba1t_, ba2t_, ba3t_,
-         d_, x_, y_, T_D1D, T_Q1D);
-      return;
-   }
-
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
+   const auto Ba1_ptr = ba1_.HostRead();
    const auto Ba2_ptr = ba2_.Read();
    const auto D_ptr = d_.Read();
    const auto X_ptr = x_.Read();
@@ -288,16 +264,21 @@ inline void SmemPAMassApplyTriangle(const int NE,
    constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
    constexpr int BZ = (128 / BLK < 64) ? 128 / BLK : 64;
 
-   // Updating this shared symbol during application is not concurrency-safe;
-   // see ConstantBasisCache for the caller's serialization requirements.
-   static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
-   basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
-      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                        MFEM_DEVICE_SYMBOL(SmemPAMassTriBa1<T_D1D, T_Q1D>),
-                        values, bytes, 0,
-                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
-   });
+      // Updating this shared symbol during application is not concurrency-safe;
+      // see ConstantBasisCache for the caller's serialization requirements.
+      static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
+      basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
+      {
+         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
+                           MFEM_DEVICE_SYMBOL(SmemPAMassTriBa1<T_D1D, T_Q1D>),
+                           values, bytes, 0,
+                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      });
+   }
+#endif
 
    mfem::forall_2D_batch(NE, BLK, 1, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -307,9 +288,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
       const auto x = ConstDeviceMatrix(X_ptr, BASIS_DIM, NE);
       auto Y = DeviceMatrix(Y_ptr, BASIS_DIM, NE);
 
-      // Ba1 lives in device __constant__ memory (initialized above): the
-      // kernel reads `SmemPAMassTriBa1<T_D1D, T_Q1D>` directly and does
-      // not allocate a shared-memory copy.
+      // The first basis factor is read from constant memory on GPU.
       MFEM_SHARED real_t Ba2[Q1D][D1D][D1D];
       MFEM_SHARED real_t sm1[BZ][BLK * BLK];
       auto DQ = (real_t (*)[BLK]) (sm1[MFEM_THREAD_ID(z)]);
@@ -342,8 +321,12 @@ inline void SmemPAMassApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      // Ba1 lives in __constant__ memory: read it directly.
+      (void) Ba1_ptr; // Keep host/device lambda captures consistent.
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       const auto &Ba1_view = SmemPAMassTriBa1<T_D1D, T_Q1D>;
+#else
+      const auto Ba1_view = (const real_t (*)[D1D]) Ba1_ptr;
+#endif
 
       // quad to dofs operation, step 1: convert first quadrature index to first
       // multiindex. DQ corresponds to C1 in the AAD algorithm.
@@ -445,9 +428,6 @@ inline void SmemPAMassApplyTriangle(const int NE,
          }
       }
    });
-#else
-   MFEM_ASSERT(false, "Unreachable code");
-#endif
 }
 
 /* This function computes the action of the mass integrator for the Bernstein basis on tetrahedrons.
@@ -696,17 +676,17 @@ inline void PAMassApplyTetrahedron(const int NE,
 // Shared memory PA Mass Apply 3D Kernel on tetrahedrons (Bernstein only)
 template<int T_D1D, int T_Q1D>
 inline void SmemPAMassApplyTetrahedron(const int NE,
-                                       const Array<int> &lex_map_,
-                                       const Array<int> &forward_map2d_,
-                                       const Array<int> &inverse_map2d_,
-                                       const Array<int> &forward_map3d_,
-                                       const Array<int> &inverse_map3d_,
+                                       const Array<int> &/*lex_map_*/,
+                                       const Array<int> &/*forward_map2d_*/,
+                                       const Array<int> &/*inverse_map2d_*/,
+                                       const Array<int> &/*forward_map3d_*/,
+                                       const Array<int> &/*inverse_map3d_*/,
                                        const Array<real_t> &ba1_,
                                        const Array<real_t> &ba2_,
                                        const Array<real_t> &ba3_,
-                                       const Array<real_t> &ba1t_,
-                                       const Array<real_t> &ba2t_,
-                                       const Array<real_t> &ba3t_,
+                                       const Array<real_t> &/*ba1t_*/,
+                                       const Array<real_t> &/*ba2t_*/,
+                                       const Array<real_t> &/*ba3t_*/,
                                        const Vector &d_,
                                        const Vector &x_,
                                        Vector &y_,
@@ -716,24 +696,13 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPAMassApplyTetrahedron requires compile-time D1D and Q1D");
 
-   // Host backend: dispatch to the non-Smem fallback. The Smem kernel
-   // reads Ba1 from __constant__ memory on GPU.
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      PAMassApplyTetrahedron<T_D1D, T_Q1D>(
-         NE, lex_map_, forward_map2d_, inverse_map2d_, forward_map3d_,
-         inverse_map3d_, ba1_, ba2_, ba3_, ba1t_, ba2t_, ba3t_,
-         d_, x_, y_, T_D1D, T_Q1D);
-      return;
-   }
-
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
+   const auto Ba1_ptr = ba1_.HostRead();
    const auto Ba2_ptr = ba2_.Read();
    const auto Ba3_ptr = ba3_.Read();
    const auto D_ptr = d_.Read();
@@ -744,16 +713,21 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-   // Updating this shared symbol during application is not concurrency-safe;
-   // see ConstantBasisCache for the caller's serialization requirements.
-   static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
-   basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   if (Device::Allows(Backend::DEVICE_MASK))
    {
-      MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                        MFEM_DEVICE_SYMBOL(SmemPAMassTetBa1<T_D1D, T_Q1D>),
-                        values, bytes, 0,
-                        MFEM_cuda_or_hip(MemcpyHostToDevice)));
-   });
+      // Updating this shared symbol during application is not concurrency-safe;
+      // see ConstantBasisCache for the caller's serialization requirements.
+      static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
+      basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
+      {
+         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
+                           MFEM_DEVICE_SYMBOL(SmemPAMassTetBa1<T_D1D, T_Q1D>),
+                           values, bytes, 0,
+                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      });
+   }
+#endif
 
    mfem::forall_2D_batch(NE, BLK, BLK, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -764,23 +738,23 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       const auto x = ConstDeviceMatrix(X_ptr, BASIS_DIM3D_MASS, NE);
       auto y = DeviceMatrix(Y_ptr, BASIS_DIM3D_MASS, NE);
 
-      // Ba1 lives in device __constant__ memory (initialized above): the
-      // kernel reads `SmemPAMassTetBa1<T_D1D, T_Q1D>` directly and does
-      // not allocate a shared-memory copy.
+      // The first basis factor is read from constant memory on GPU.
       MFEM_SHARED real_t Ba2[Q1D][BASIS_DIM2D_MASS];
       MFEM_SHARED real_t Ba3[Q1D][BASIS_DIM3D_MASS];
       MFEM_SHARED union
       {
-         real_t points[BZ][D1D][D1D][Q1D];
+         real_t DDQ[BZ][D1D][D1D][Q1D];
+         real_t DQQ[BZ][D1D][Q1D][Q1D];
+         real_t QQQ[BZ][Q1D][Q1D][Q1D];
          real_t X[BZ][BASIS_DIM3D_MASS];
       } sm[2];
       auto X = (real_t (*)) sm[1].X[MFEM_THREAD_ID(z)];
 
-      auto C1 = sm[0].points[MFEM_THREAD_ID(z)];
-      auto C2 = sm[1].points[MFEM_THREAD_ID(z)];
-      auto C3 = sm[0].points[MFEM_THREAD_ID(z)];
-      auto F1 = sm[1].points[MFEM_THREAD_ID(z)];
-      auto F2 = sm[0].points[MFEM_THREAD_ID(z)];
+      auto C1 = sm[0].DDQ[MFEM_THREAD_ID(z)];
+      auto C2 = sm[1].DQQ[MFEM_THREAD_ID(z)];
+      auto C3 = sm[0].QQQ[MFEM_THREAD_ID(z)];
+      auto F1 = sm[1].DQQ[MFEM_THREAD_ID(z)];
+      auto F2 = sm[0].DDQ[MFEM_THREAD_ID(z)];
 
       // Cooperatively load Ba1, Ba2, Ba3 into shared memory, and X for this batch.
       // Cooperative-load helpers. MFEM_THREAD_SIZE returns 1 on host so a
@@ -807,8 +781,12 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      // Ba1 lives in __constant__ memory: read it directly.
+      (void) Ba1_ptr; // Keep host/device lambda captures consistent.
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
       const auto &Ba1_view = SmemPAMassTetBa1<T_D1D, T_Q1D>;
+#else
+      const auto Ba1_view = (const real_t (*)[D1D]) Ba1_ptr;
+#endif
 
       // Bernstein polynomial evaluation, contraction in third index.
       MFEM_FOREACH_THREAD_DIRECT(a1, y, D1D)
@@ -981,9 +959,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
          }
       }
    });
-#else
-   MFEM_ASSERT(false, "Unreachable code");
-#endif
 }
 
 } // namespace internal
