@@ -15,6 +15,12 @@
 #include <string>
 #include <vector>
 
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
+
 namespace mfem
 {
 
@@ -23,15 +29,25 @@ struct glvis_data
    const bool serial;
    const int mpi_size;
    const bool mpi_root;
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm;
+#endif
    std::stringstream stream;
    std::vector<std::unique_ptr<std::stringstream>> streams;
    int total_size;
    std::vector<int> offsets;
    std::string type;
 
-   glvis_data(const bool serial, const int size, const bool root):
-      serial(serial), mpi_size(size), mpi_root(root),
-      total_size(0), type({}) {}
+#ifdef MFEM_USE_MPI
+   glvis_data(const bool serial, const int size, const bool root,
+              MPI_Comm comm)
+      : serial(serial), mpi_size(size), mpi_root(root), comm(comm),
+        total_size(0), type({}) {}
+#else
+   glvis_data(const bool serial, const int size, const bool root)
+      : serial(serial), mpi_size(size), mpi_root(root),
+        total_size(0), type({}) {}
+#endif
 };
 
 class glvis_stream: public std::iostream
@@ -41,6 +57,9 @@ class glvis_stream: public std::iostream
 
 public:
    glvis_stream();
+#ifdef MFEM_USE_MPI
+   explicit glvis_stream(MPI_Comm comm);
+#endif
 
    glvis_stream(glvis_stream &&) = delete;
    glvis_stream(const glvis_stream &) = delete;
@@ -68,10 +87,11 @@ public:
    bool is_open() const { return true; }
    int close() { return 0; }
 
-   void flush() { std::iostream::flush(); }
+   void flush();
 
    void reset()
    {
+      data.stream.str(std::string());
       data.stream.clear();
       data.stream.seekg(0, std::ios::beg);
       data.stream.seekp(0, std::ios::beg);

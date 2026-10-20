@@ -107,9 +107,8 @@ endif
 PTHREAD_LIB = -lpthread
 
 GLVIS_LIBS += $(PTHREAD_LIB)
-GLVIS_LIBS += $(if $(NOTMAC),-lmfem)
 GLVIS_LIBS := $(sort $(GLVIS_LIBS))
-GLVIS_LIBS += $(OPENGL_LIBS)
+GLVIS_LIBS += -lmfem $(OPENGL_LIBS)
 
 GLVIS_DIR = @MFEM_DIR@/../glvis
 GLVIS_OPT = 

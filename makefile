@@ -386,7 +386,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
  MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE\
  MFEM_USE_CUDSS MFEM_CUDSS_COMM_LIB MFEM_CUDSS_THREADING_LIB\
- MFEM_USE_GLVIS
+ MFEM_USE_GLVIS GLVIS_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -487,7 +487,7 @@ OKL_DIRS = fem
 
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
-	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(if $(static), $(GLVIS_DIR)/lib/libglvis.a))
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(GLVIS_DIR)/lib/libglvis.a)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -531,7 +531,8 @@ endif
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
-$(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
+$(BLD)libmfem.$(SO_VER): $(OBJECT_FILES) \
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(GLVIS_DIR)/lib/libglvis.a)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
@@ -622,7 +623,6 @@ clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
-	$(if $(filter YES,$(MFEM_USE_GLVIS)),-$(MAKE) -C $(GLVIS_DIR) distclean)
 
 # User-definable install permissions.
 # Install permissions for everything except directories and binaries:
@@ -650,11 +650,12 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
 install: $(if $(static),$(BLD)libmfem.a) \
 			$(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
 			$(if $(filter YES,$(MFEM_USE_GLVIS)),\
-				$(if $(static),$(GLVIS_DIR)/lib/libglvis.a))
+				$(GLVIS_DIR)/lib/libglvis.a)
 	$(MKINSTALLDIR) $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALLDEF) $(BLD)libmfem.a $(PREFIX_LIB))
-	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(if $(static),$(INSTALLDEF) $(GLVIS_DIR)/lib/libglvis.a) $(PREFIX_LIB))
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(if $(static),\
+	$(INSTALLDEF) $(GLVIS_DIR)/lib/libglvis.a $(PREFIX_LIB)))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
 	$(MKINSTALLDIR) $(PREFIX_INC)/mfem

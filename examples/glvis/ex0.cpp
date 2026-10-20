@@ -21,12 +21,16 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    // 1. Parse command line options.
-   string mesh_file = "../data/star.mesh";
+   string mesh_file = "../../data/star.mesh";
    int order = 1;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
@@ -74,9 +78,12 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    // 11. Send the solution to a non-server mode GLVis.
-   glvis_stream glvis;
-   glvis.precision(8);
-   glvis << "solution\n" << mesh << x << flush;
+   if (visualization)
+   {
+      glvis_stream glvis;
+      glvis.precision(8);
+      glvis << "solution\n" << mesh << x << flush;
+   }
 
    return 0;
 }

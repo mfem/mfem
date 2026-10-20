@@ -54,9 +54,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 EX0_ARGS := -m ../../data/square-disc.mesh
 
 ex0-test-seq: ex0
-	@$(call mfem-test,$<,, Serial GLVis example,$(EX0_ARGS),SKIP-NO-VIS)
+	@$(call mfem-test,$<,, Serial GLVis example,$(EX0_ARGS))
 ex0p-test-par: ex0p
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel GLVis example,$(EX0_ARGS),SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel GLVis example,$(EX0_ARGS))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

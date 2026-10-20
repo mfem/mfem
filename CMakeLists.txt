@@ -857,6 +857,11 @@ endif()
 # Define a target that all examples and miniapps will depend on.
 set(MFEM_EXEC_PREREQUISITES_TARGET_NAME exec_prerequisites)
 add_custom_target(${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
+# glvis's external project already DEPENDS mfem.
+# Executables are the targets that link libglvis.a.
+if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS AND TARGET glvis)
+  add_dependencies(${MFEM_EXEC_PREREQUISITES_TARGET_NAME} glvis)
+endif()
 
 # Create a target for all examples and, optionally, enable it.
 set(MFEM_ALL_EXAMPLES_TARGET_NAME examples)
@@ -932,6 +937,10 @@ target_include_directories(mfem BEFORE
 
 if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
     target_link_libraries(mfem PUBLIC GLVIS)
+    install(FILES
+      ${FETCH_GLVIS}/build/lib/libglvis.a
+      ${FETCH_GLVIS}/build/share/libglvis_logo.a
+      DESTINATION ${INSTALL_LIB_DIR})
 endif()
 
 # The 'install' target will not depend on 'all'.
@@ -998,6 +1007,14 @@ export(TARGETS ${PROJECT_NAME}
 # TODO: How do we register the install-tree? Replacing the build-tree?
 export(PACKAGE ${PROJECT_NAME})
 
+if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+  set(MFEM_GLVIS_LIBRARY "${FETCH_GLVIS}/build/lib/libglvis.a")
+  set(MFEM_GLVIS_LOGO_LIBRARY "${FETCH_GLVIS}/build/share/libglvis_logo.a")
+else()
+  set(MFEM_GLVIS_LIBRARY "")
+  set(MFEM_GLVIS_LOGO_LIBRARY "")
+endif()
+
 # This is the build-tree version
 set(INCLUDE_INSTALL_DIRS ${PROJECT_BINARY_DIR} ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${PROJECT_BINARY_DIR})
@@ -1007,6 +1024,12 @@ configure_package_config_file(config/cmake/MFEMConfig.cmake.in
   PATH_VARS INCLUDE_INSTALL_DIRS LIB_INSTALL_DIR)
 
 # This is the version that will be installed
+if (MFEM_USE_GLVIS AND MFEM_FETCH_GLVIS)
+  set(MFEM_GLVIS_LIBRARY
+    "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/libglvis.a")
+  set(MFEM_GLVIS_LOGO_LIBRARY
+    "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/libglvis_logo.a")
+endif()
 set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in

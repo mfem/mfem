@@ -33,7 +33,7 @@ add_mfem_examples(GLVIS_EXAMPLES_SRCS ${PFX} "" test_glvis)
 
 if (MFEM_ENABLE_TESTING)
   # Command line options for the tests.
-  set(EX0_TEST_OPTS -m ../../data/square-disc.mesh)
+  set(EX0_TEST_OPTS -m ../../data/square-disc.mesh -no-vis)
   set(EX0P_TEST_OPTS ${EX0_TEST_OPTS})
 
   # Add the tests: one test per source file.

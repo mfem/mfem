@@ -26,12 +26,16 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command line options.
-   string mesh_file = "../data/star.mesh";
+   string mesh_file = "../../data/star.mesh";
    int order = 1;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
    args.AddOption(&order, "-o", "--order", "Finite element polynomial degree");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.ParseCheck();
 
    // 3. Read the serial mesh from the given mesh file.
@@ -94,10 +98,15 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    // 13. Send the solution to a non-server mode GLVis.
-   glvis_stream glvis;
-   glvis << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank() << "\n";
-   glvis.precision(8);
-   glvis << "solution\n" << mesh << x << flush;
+   // Ranks that skip this flush must not be in mesh.GetComm().
+   if (visualization)
+   {
+      glvis_stream glvis(mesh.GetComm());
+      glvis << "parallel " << mesh.GetNRanks() << " " << mesh.GetMyRank()
+            << "\n";
+      glvis.precision(8);
+      glvis << "solution\n" << mesh << x << flush;
+   }
 
    return 0;
 }
