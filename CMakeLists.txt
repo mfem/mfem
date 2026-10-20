@@ -1096,3 +1096,23 @@ if (MFEM_USE_CUDA OR MFEM_USE_HIP)
   option(MFEM_EXPORT_GPU_CONFIG "Export config.mk for GPU-enabled downstream packages" ON)
 endif()
 mfem_export_mk_files()
+# The build-tree config.mk keeps the fetch archives. The install tree
+# copies those archives into the prefix, so its config.mk must too.
+if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
+  set(_glvis_install_mk "${PROJECT_BINARY_DIR}/config/config-install.mk")
+  file(READ "${_glvis_install_mk}" _glvis_install_text)
+  set(_glvis_mk_prefix "$(MFEM_LIB_DIR)/${CMAKE_STATIC_LIBRARY_PREFIX}")
+  set(_glvis_mk_lib
+      "${_glvis_mk_prefix}glvis${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(_glvis_mk_logo
+      "${_glvis_mk_prefix}glvis_logo${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  string(REPLACE "${GLVIS_LIBRARY}" "${_glvis_mk_lib}"
+         _glvis_install_text "${_glvis_install_text}")
+  string(REPLACE "${GLVIS_LOGO_LIBRARY}" "${_glvis_mk_logo}"
+         _glvis_install_text "${_glvis_install_text}")
+  file(WRITE "${_glvis_install_mk}" "${_glvis_install_text}")
+  if (_glvis_install_text MATCHES "fetch/glvis/build")
+    message(FATAL_ERROR
+      "install-tree config.mk names the GLVis fetch build directory")
+  endif()
+endif()
