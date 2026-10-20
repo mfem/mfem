@@ -18,6 +18,7 @@
 #pragma once
 
 #include "../general/backends.hpp"
+#include "../general/error.hpp"
 #include "dual.hpp"
 #include <limits>
 #include <type_traits> // for std::false_type, std::conditional_t, and more
@@ -53,6 +54,15 @@ struct carray
 };
 
 #undef MFEM_TENSOR_ALWAYS_INLINE
+
+namespace internal
+{
+/// Not constexpr, so reaching it during constant evaluation is a compile error.
+MFEM_HOST_DEVICE inline void tensor_ilist_too_long()
+{
+   MFEM_ABORT_KERNEL("tensor: too many initializers");
+}
+} // namespace internal
 
 template <typename T, int... Dims>
 struct tensor;
@@ -113,7 +123,10 @@ struct tensor<T, N0, Ns...>
 
    MFEM_HOST_DEVICE constexpr
    tensor(std::initializer_list<sub_tensor_type> ilist)
-      : tensor(ilist, std::make_index_sequence<N0> {}) { }
+      : tensor(ilist, std::make_index_sequence<N0> {})
+   {
+      if (ilist.size() > std::size_t(N0)) { internal::tensor_ilist_too_long(); }
+   }
 
    MFEM_HOST_DEVICE constexpr auto& operator[](int i) { return values[i]; }
 
