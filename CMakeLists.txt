@@ -951,8 +951,8 @@ if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
         target_link_libraries(mfem PRIVATE "-Wl,-undefined,dynamic_lookup")
     endif()
     install(FILES
-      ${FETCH_GLVIS}/build/lib/libglvis.a
-      ${FETCH_GLVIS}/build/share/libglvis_logo.a
+      "${GLVIS_LIBRARY}"
+      "${GLVIS_LOGO_LIBRARY}"
       DESTINATION ${INSTALL_LIB_DIR})
 endif()
 if (MFEM_USE_GLVIS AND NOT BUILD_SHARED_LIBS)
@@ -1025,13 +1025,19 @@ export(TARGETS ${PROJECT_NAME}
 export(PACKAGE ${PROJECT_NAME})
 
 if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
-  set(MFEM_GLVIS_LIBRARY "${FETCH_GLVIS}/build/lib/libglvis.a")
-  set(MFEM_GLVIS_LOGO_LIBRARY "${FETCH_GLVIS}/build/share/libglvis_logo.a")
+  set(MFEM_GLVIS_LIBRARY "${GLVIS_LIBRARY}")
+  set(MFEM_GLVIS_LOGO_LIBRARY "${GLVIS_LOGO_LIBRARY}")
 else()
   # PATH_VARS wants an absolute path. The package file reads these only when
   # GLVis was fetched.
-  set(MFEM_GLVIS_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/libglvis.a")
-  set(MFEM_GLVIS_LOGO_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/libglvis_logo.a")
+  set(_glvis_placeholder_lib
+      "${CMAKE_STATIC_LIBRARY_PREFIX}glvis${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(_glvis_placeholder_logo
+      "${CMAKE_STATIC_LIBRARY_PREFIX}glvis_logo${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(MFEM_GLVIS_LIBRARY
+      "${CMAKE_CURRENT_BINARY_DIR}/${_glvis_placeholder_lib}")
+  set(MFEM_GLVIS_LOGO_LIBRARY
+      "${CMAKE_CURRENT_BINARY_DIR}/${_glvis_placeholder_logo}")
 endif()
 
 # This is the build-tree version
@@ -1045,10 +1051,14 @@ configure_package_config_file(config/cmake/MFEMConfig.cmake.in
 
 # This is the version that will be installed
 if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
+  set(_glvis_installed_lib
+      "${CMAKE_STATIC_LIBRARY_PREFIX}glvis${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(_glvis_installed_logo
+      "${CMAKE_STATIC_LIBRARY_PREFIX}glvis_logo${CMAKE_STATIC_LIBRARY_SUFFIX}")
   set(MFEM_GLVIS_LIBRARY
-    "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/libglvis.a")
+      "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/${_glvis_installed_lib}")
   set(MFEM_GLVIS_LOGO_LIBRARY
-    "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/libglvis_logo.a")
+      "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/${_glvis_installed_logo}")
 endif()
 set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
