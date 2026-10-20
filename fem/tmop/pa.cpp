@@ -14,8 +14,157 @@
 #include "../gridfunc.hpp"
 #include "../../linalg/dtensor.hpp"
 
+#include <algorithm>
+
 namespace mfem
 {
+
+namespace
+{
+
+int AbsDof(int dof)
+{
+   return (dof >= 0) ? dof : -1 - dof;
+}
+
+// Map lexicographic local dofs to the element's native ordering.
+void BuildLexToNativeMap(const FiniteElement &fe, Array<int> &lex_to_native)
+{
+   const Array<int> *ordering = nullptr;
+   if (const auto *nfe = dynamic_cast<const NodalFiniteElement *>(&fe))
+   {
+      if (nfe->GetLexicographicOrdering().Size() > 0)
+      {
+         ordering = &nfe->GetLexicographicOrdering();
+      }
+   }
+   if (!ordering)
+   {
+      if (const auto *tfe = dynamic_cast<const TensorBasisElement *>(&fe))
+      {
+         if (tfe->GetDofMap().Size() > 0) { ordering = &tfe->GetDofMap(); }
+      }
+   }
+   lex_to_native.SetSize(fe.GetDof());
+   for (int i = 0; i < lex_to_native.Size(); i++)
+   {
+      lex_to_native[i] = ordering ? AbsDof((*ordering)[i]) : i;
+   }
+}
+
+// Convert a parameter-space E-vector to physical coordinates and optionally
+// update the nodal Jacobians and Hessians of the analytic map. This is the
+// coefficient-like setup for a nonlinear state: AnalyticSurface is a host-side
+// runtime-polymorphic interface. The repeated residual and Hessian operations
+// on the resulting E-vectors are device kernels. The PA E-vector is
+// lexicographic, while AnalyticCompositeSurface works with native element
+// ordering, so each element is reordered around ConvertParamToPhys().
+void ConvertTangential(const AnalyticCompositeSurface &surfaces,
+                       const FiniteElementSpace &fes,
+                       const Vector &param, Vector &phys,
+                       Vector *map_jac, Vector *map_hess)
+{
+   const int dim = fes.GetMesh()->Dimension();
+   const int ne = fes.GetNE();
+   const FiniteElement &fe = *fes.GetTypicalFE();
+   const int dof = fe.GetDof();
+   MFEM_VERIFY(param.Size() == ne*dof*dim, "invalid E-vector size");
+
+   phys.SetSize(param.Size(), Device::GetMemoryType());
+   phys.UseDevice(true);
+   const real_t *p = param.HostRead();
+   real_t *x = phys.HostWrite();
+
+   real_t *jac = nullptr;
+   real_t *hess = nullptr;
+   if (map_jac)
+   {
+      map_jac->SetSize(ne*dof*dim*dim, Device::GetMemoryType());
+      map_jac->UseDevice(true);
+      jac = map_jac->HostWrite();
+      std::fill(jac, jac + map_jac->Size(), 0.0);
+   }
+   if (map_hess)
+   {
+      map_hess->SetSize(ne*dof*dim*dim*dim, Device::GetMemoryType());
+      map_hess->UseDevice(true);
+      hess = map_hess->HostWrite();
+      std::fill(hess, hess + map_hess->Size(), 0.0);
+   }
+
+   Array<int> vdofs;
+   Array<int> lex_to_native;
+   BuildLexToNativeMap(fe, lex_to_native);
+   Vector param_native(dof*dim), phys_native(dof*dim);
+   for (int e = 0; e < ne; e++)
+   {
+      fes.GetElementVDofs(e, vdofs);
+      MFEM_VERIFY(vdofs.Size() == dof*dim, "invalid element vdof count");
+
+      for (int i = 0; i < dof; i++)
+      {
+         const int ni = lex_to_native[i];
+         for (int c = 0; c < dim; c++)
+         {
+            param_native(ni + c*dof) = p[i + dof*(c + dim*e)];
+         }
+      }
+      surfaces.ConvertParamToPhys(vdofs, param_native, phys_native);
+      for (int i = 0; i < dof; i++)
+      {
+         const int ni = lex_to_native[i];
+         for (int c = 0; c < dim; c++)
+         {
+            x[i + dof*(c + dim*e)] = phys_native(ni + c*dof);
+         }
+
+         if (!jac && !hess) { continue; }
+         const AnalyticSurface *surface = surfaces.GetSurface(AbsDof(vdofs[ni]));
+         const int node = i + dof*e;
+         if (!surface)
+         {
+            if (jac)
+            {
+               for (int c = 0; c < dim; c++)
+               {
+                  jac[c + dim*(c + dim*node)] = 1.0;
+               }
+            }
+            continue;
+         }
+
+         const int nparam = surface->NumParams();
+         MFEM_VERIFY(nparam > 0 && nparam < dim,
+                     "invalid analytic-surface parameter dimension");
+         double node_param[3] = { 0.0, 0.0, 0.0 };
+         for (int a = 0; a < nparam; a++)
+         {
+            node_param[a] = param_native(ni + a*dof);
+         }
+         DenseMatrix deriv_1;
+         DenseTensor deriv_2;
+         surface->Deriv_1(node_param, deriv_1);
+         surface->Deriv_2(node_param, deriv_2);
+         for (int c = 0; c < dim; c++)
+         {
+            for (int a = 0; a < nparam; a++)
+            {
+               if (jac) { jac[c + dim*(a + dim*node)] = deriv_1(c, a); }
+               if (hess)
+               {
+                  for (int b = 0; b < nparam; b++)
+                  {
+                     hess[c + dim*(a + dim*(b + dim*node))] =
+                        deriv_2(c, a, b);
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+} // namespace
 
 void TMOP_Integrator::AssembleGradPA(const Vector &de,
                                      const FiniteElementSpace &fes)
@@ -36,24 +185,60 @@ void TMOP_Integrator::AssembleGradPA(const Vector &de,
    }
    else { xe = de; }
 
+   const Vector *state = &xe;
+   if (tan_analytic_surf)
+   {
+      ConvertTangential(*tan_analytic_surf, fes, xe, PA.tan_X,
+                        &PA.tan_J, &PA.tan_H);
+      state = &PA.tan_X;
+   }
+
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
-      ComputeAllElementTargets(xe);
+      ComputeAllElementTargets(*state);
       PA.Jtr_debug_grad = true;
    }
 
    if (PA.dim == 2)
    {
-      AssembleGradPA_2D(xe);
-      if (lim_coeff) { AssembleGradPA_C0_2D(xe); }
-      if (adapt_lim_gf.Size() > 0) { AssembleGradPA_AdaptLim_2D(xe); }
+      AssembleGradPA_2D(*state);
+      if (lim_coeff) { AssembleGradPA_C0_2D(*state); }
+      if (adapt_lim_gf.Size() > 0) { AssembleGradPA_AdaptLim_2D(*state); }
+
+      // The mapping-curvature part of the parameter-space Hessian uses the
+      // physical-coordinate residual at the linearization point.
+      if (tan_analytic_surf)
+      {
+         PA.tan_R.SetSize(state->Size(), Device::GetMemoryType());
+         PA.tan_R.UseDevice(true);
+         PA.tan_R = 0.0;
+         AddMultPA_2D(*state, PA.tan_R);
+         if (lim_coeff) { AddMultPA_C0_2D(*state, PA.tan_R); }
+         if (adapt_lim_gf.Size() > 0)
+         {
+            AddMultPA_AdaptLim_2D(*state, PA.tan_R);
+         }
+      }
    }
 
    if (PA.dim == 3)
    {
-      AssembleGradPA_3D(xe);
-      if (lim_coeff) { AssembleGradPA_C0_3D(xe); }
-      if (adapt_lim_gf.Size() > 0) { AssembleGradPA_AdaptLim_3D(xe); }
+      AssembleGradPA_3D(*state);
+      if (lim_coeff) { AssembleGradPA_C0_3D(*state); }
+      if (adapt_lim_gf.Size() > 0) { AssembleGradPA_AdaptLim_3D(*state); }
+
+      if (tan_analytic_surf)
+      {
+         PA.tan_R.SetSize(state->Size(), Device::GetMemoryType());
+         PA.tan_R.UseDevice(true);
+         PA.tan_R = 0.0;
+         AddMultPA_3D(*state, PA.tan_R);
+         if (lim_coeff) { AddMultPA_C0_3D(*state, PA.tan_R); }
+         if (adapt_lim_gf.Size() > 0)
+         {
+            AddMultPA_AdaptLim_3D(*state, PA.tan_R);
+         }
+      }
    }
 }
 
@@ -188,23 +373,29 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
-   Vector x_loc;
-   if (periodic)
-   {
-      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
-   }
-   else
-   {
-      x_loc.SetSize(x_0->Size());
-      add(*x_0, d_loc, x_loc);
-   }
-
-
    // All are constant or not specified.
    const int nal = PA.nal;
    const bool alc_is_qvec =
       (nal > 0) ? (PA.ALC.Size() == nal * PA.nq * PA.ne) : false;
    if (PA.MC.Size() == 1 && PA.C0.Size() <= 1 && !alc_is_qvec) { return; }
+
+   Vector param_loc;
+   if (periodic)
+   {
+      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, param_loc);
+   }
+   else
+   {
+      param_loc.SetSize(x_0->Size());
+      add(*x_0, d_loc, param_loc);
+   }
+
+   Vector x_loc;
+   if (tan_analytic_surf)
+   {
+      tan_analytic_surf->ConvertParamCoordToPhys(param_loc, x_loc);
+   }
+   else { x_loc = param_loc; }
 
    // Coefficients are always evaluated on the CPU for now.
    PA.MC.HostWrite();
@@ -254,9 +445,6 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   MFEM_VERIFY(tan_analytic_surf == nullptr,
-               "Tangential movement is not supported with partial assembly.");
-
    const MemoryType mt =
       (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
    PA.enabled = true;
@@ -494,6 +682,9 @@ void TMOP_Integrator::AssembleGradDiagonalPA(Vector &de) const
                   " or Jtr was overwritten by another method!");
    }
 
+   MFEM_VERIFY(tan_analytic_surf == nullptr,
+               "The diagonal of tangential PA is not implemented.");
+
    if (PA.dim == 2)
    {
       AssembleDiagonalPA_2D(de);
@@ -523,34 +714,67 @@ void TMOP_Integrator::AddMultPA(const Vector &de, Vector &ye) const
    }
    else { xe = de; }
 
+   const Vector *state = &xe;
+   if (tan_analytic_surf)
+   {
+      ConvertTangential(*tan_analytic_surf, *PA.fes, xe, PA.tan_X,
+                        &PA.tan_D, nullptr);
+      state = &PA.tan_X;
+   }
+
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
-      ComputeAllElementTargets(xe);
+      ComputeAllElementTargets(*state);
    }
 
    if (PA.dim == 2)
    {
-      AddMultPA_2D(xe, ye);
-      if (lim_coeff) { AddMultPA_C0_2D(xe, ye); }
+      Vector *output = &ye;
+      if (tan_analytic_surf)
+      {
+         PA.tan_C.SetSize(state->Size(), Device::GetMemoryType());
+         PA.tan_C.UseDevice(true);
+         PA.tan_C = 0.0;
+         output = &PA.tan_C;
+      }
+      AddMultPA_2D(*state, *output);
+      if (lim_coeff) { AddMultPA_C0_2D(*state, *output); }
       if (adapt_lim_gf.Size() > 0)
       {
          // AddMultPA_AdaptLim_2D uses the precomputed AdaptLim field gradient
          // at quadrature points (PA.ALFG). Ensure it is up-to-date for the
          // current mesh configuration.
-         AssembleGradPA_AdaptLim_2D(xe);
-         AddMultPA_AdaptLim_2D(xe, ye);
+         AssembleGradPA_AdaptLim_2D(*state);
+         AddMultPA_AdaptLim_2D(*state, *output);
       }
-
+      if (tan_analytic_surf)
+      {
+         TangentialPullBackPA_2D(PA.tan_D, PA.tan_C, xe);
+         ye += xe;
+      }
    }
 
    if (PA.dim == 3)
    {
-      AddMultPA_3D(xe, ye);
-      if (lim_coeff) { AddMultPA_C0_3D(xe, ye); }
+      Vector *output = &ye;
+      if (tan_analytic_surf)
+      {
+         PA.tan_C.SetSize(state->Size(), Device::GetMemoryType());
+         PA.tan_C.UseDevice(true);
+         PA.tan_C = 0.0;
+         output = &PA.tan_C;
+      }
+      AddMultPA_3D(*state, *output);
+      if (lim_coeff) { AddMultPA_C0_3D(*state, *output); }
       if (adapt_lim_gf.Size() > 0)
       {
-         AssembleGradPA_AdaptLim_3D(xe);
-         AddMultPA_AdaptLim_3D(xe, ye);
+         AssembleGradPA_AdaptLim_3D(*state);
+         AddMultPA_AdaptLim_3D(*state, *output);
+      }
+      if (tan_analytic_surf)
+      {
+         TangentialPullBackPA_3D(PA.tan_D, PA.tan_C, xe);
+         ye += xe;
       }
    }
 }
@@ -570,16 +794,56 @@ void TMOP_Integrator::AddMultGradPA(const Vector &re, Vector &ce) const
 
    if (PA.dim == 2)
    {
-      AddMultGradPA_2D(re, ce);
-      if (lim_coeff) { AddMultGradPA_C0_2D(re, ce); }
-      if (adapt_lim_gf.Size() > 0) { AddMultGradPA_AdaptLim_2D(re, ce); }
+      if (tan_analytic_surf)
+      {
+         // Matrix-free parameter-space action:
+         //   H_p v = B^T H_x (B v) + (R_x : d^2 Phi) v.
+         // The middle operations retain their tensor-factorized PA kernels;
+         // the two tangential maps are pointwise device kernels.
+         TangentialPushForwardPA_2D(PA.tan_J, re, PA.tan_D);
+         PA.tan_C.SetSize(re.Size(), Device::GetMemoryType());
+         PA.tan_C.UseDevice(true);
+         PA.tan_C = 0.0;
+         AddMultGradPA_2D(PA.tan_D, PA.tan_C);
+         if (lim_coeff) { AddMultGradPA_C0_2D(PA.tan_D, PA.tan_C); }
+         if (adapt_lim_gf.Size() > 0)
+         {
+            AddMultGradPA_AdaptLim_2D(PA.tan_D, PA.tan_C);
+         }
+         TangentialPullBackGradPA_2D(PA.tan_C, re, PA.tan_X);
+         ce += PA.tan_X;
+      }
+      else
+      {
+         AddMultGradPA_2D(re, ce);
+         if (lim_coeff) { AddMultGradPA_C0_2D(re, ce); }
+         if (adapt_lim_gf.Size() > 0) { AddMultGradPA_AdaptLim_2D(re, ce); }
+      }
    }
 
    if (PA.dim == 3)
    {
-      AddMultGradPA_3D(re, ce);
-      if (lim_coeff) { AddMultGradPA_C0_3D(re, ce); }
-      if (adapt_lim_gf.Size() > 0) { AddMultGradPA_AdaptLim_3D(re, ce); }
+      if (tan_analytic_surf)
+      {
+         TangentialPushForwardPA_3D(PA.tan_J, re, PA.tan_D);
+         PA.tan_C.SetSize(re.Size(), Device::GetMemoryType());
+         PA.tan_C.UseDevice(true);
+         PA.tan_C = 0.0;
+         AddMultGradPA_3D(PA.tan_D, PA.tan_C);
+         if (lim_coeff) { AddMultGradPA_C0_3D(PA.tan_D, PA.tan_C); }
+         if (adapt_lim_gf.Size() > 0)
+         {
+            AddMultGradPA_AdaptLim_3D(PA.tan_D, PA.tan_C);
+         }
+         TangentialPullBackGradPA_3D(PA.tan_C, re, PA.tan_X);
+         ce += PA.tan_X;
+      }
+      else
+      {
+         AddMultGradPA_3D(re, ce);
+         if (lim_coeff) { AddMultGradPA_C0_3D(re, ce); }
+         if (adapt_lim_gf.Size() > 0) { AddMultGradPA_AdaptLim_3D(re, ce); }
+      }
    }
 }
 
@@ -597,25 +861,33 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA(const Vector &de) const
    }
    else { xe = de; }
 
+   const Vector *state = &xe;
+   if (tan_analytic_surf)
+   {
+      ConvertTangential(*tan_analytic_surf, *PA.fes, xe, PA.tan_X,
+                        nullptr, nullptr);
+      state = &PA.tan_X;
+   }
+
    real_t energy = 0.0;
 
    if (PA.Jtr_needs_update || targetC->UsesPhysicalCoordinates())
    {
-      ComputeAllElementTargets(xe);
+      ComputeAllElementTargets(*state);
    }
 
    if (PA.dim == 2)
    {
-      GetLocalStateEnergyPA_2D(xe, energy);
-      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(xe); }
+      GetLocalStateEnergyPA_2D(*state, energy);
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_2D(*state); }
       if (adapt_lim_gf.Size() > 0)
       { energy += GetLocalStateEnergyPA_AdaptLim_2D(); }
    }
 
    if (PA.dim == 3)
    {
-      GetLocalStateEnergyPA_3D(xe, energy);
-      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(xe); }
+      GetLocalStateEnergyPA_3D(*state, energy);
+      if (lim_coeff) { energy += GetLocalStateEnergyPA_C0_3D(*state); }
       if (adapt_lim_gf.Size() > 0)
       { energy += GetLocalStateEnergyPA_AdaptLim_3D(); }
    }

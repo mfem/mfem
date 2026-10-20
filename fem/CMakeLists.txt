@@ -157,10 +157,12 @@ set(SRCS
   tmop/mult/grad2.cpp
   tmop/mult/mult2_limit.cpp
   tmop/mult/mult2.cpp
+  tmop/mult/tan2.cpp
   tmop/mult/grad3_limit.cpp
   tmop/mult/grad3.cpp
   tmop/mult/mult3_limit.cpp
   tmop/mult/mult3.cpp
+  tmop/mult/tan3.cpp
   tmop/tools/det2_jpr.cpp
   tmop/tools/det3_jpr.cpp
   tmop/tools/discrete.cpp

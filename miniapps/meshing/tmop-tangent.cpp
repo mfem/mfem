@@ -37,6 +37,8 @@ int main (int argc, char *argv[])
    int quad_order    = 5;
    real_t d          = 100;
    bool glvis        = true;
+   bool pa           = false;
+   const char *device_config = "cpu";
    // Parse command-line options.
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -52,6 +54,10 @@ int main (int argc, char *argv[])
    args.AddOption(&glvis, "-vis", "--visualization", "-no-vis",
 		 "--no-visualization",
 		 "Enable or disable GLVis visualization.");
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly", "Enable partial assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -59,6 +65,9 @@ int main (int argc, char *argv[])
       return 1;
    }
    if (myid == 0) { args.PrintOptions(cout); }
+
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
 
    // Read and refine the mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
@@ -440,8 +449,10 @@ int main (int argc, char *argv[])
 
    // Nonlinear solver.
    ParNonlinearForm nlf(&pfes_mesh);
+   if (pa) { nlf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    nlf.SetEssentialVDofs(ess_vdofs);
    nlf.AddDomainIntegrator(integ);
+   if (pa) { nlf.Setup(); }
    const IntegrationRule &ir =
     IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfes_mesh.GetComm(), ir, 0);
