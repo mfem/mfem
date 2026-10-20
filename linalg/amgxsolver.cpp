@@ -321,9 +321,6 @@ void AmgXSolver::InitAmgX()
 
    CreateConfig(cfg);
 
-   // Let AmgX handle returned error codes internally
-   AMGX_SAFE_CALL(AMGX_config_add_parameters(&cfg, "exception_handling=1"));
-
    // Create an AmgX resource object, only the first instance needs to create
    // the resource object. Its configuration and communicator live as long as
    // the resource object.
@@ -331,6 +328,8 @@ void AmgXSolver::InitAmgX()
    {
       MPI_Comm_dup(gpuWorld, &rsrc_comm);
       CreateConfig(rsrc_cfg);
+      // Let AmgX handle returned error codes internally. Only the resource
+      // reads this option.
       AMGX_SAFE_CALL(AMGX_config_add_parameters(&rsrc_cfg,
                                                 "exception_handling=1"));
       AMGX_SAFE_CALL(AMGX_resources_create(&rsrc, rsrc_cfg, &rsrc_comm, 1,
