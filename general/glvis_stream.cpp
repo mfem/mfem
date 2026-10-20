@@ -16,6 +16,7 @@
 
 #include "../config/config.hpp"
 #include "communication.hpp"
+#include "error.hpp"
 
 #ifdef MFEM_USE_GLVIS
 
