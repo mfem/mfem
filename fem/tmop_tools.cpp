@@ -982,7 +982,7 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    real_t min_detJ = infinity();
    const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
-   if (1 || dim == 1 || mixed_mesh ||
+   if (parametric || dim == 1 || mixed_mesh ||
        UsesTensorBasis(fes) == false || fes.IsVariableOrder())
    {
       const AnalyticCompositeSurface *surf = nullptr;

@@ -245,6 +245,9 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 
 void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   MFEM_VERIFY(tan_analytic_surf == nullptr,
+               "Tangential movement is not supported with partial assembly.");
+
    const MemoryType mt =
       (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
    PA.enabled = true;

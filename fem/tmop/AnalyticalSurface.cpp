@@ -1,4 +1,4 @@
-// Copyright (c) 2017, Lawrence LivermoreA National Security, LLC. Produced at
+// Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
 // reserved. See files LICENSE and NOTICE for details.
 //
@@ -22,12 +22,11 @@ namespace mfem
 AnalyticSurface::AnalyticSurface(const Array<bool> &marker)
     : dof_marker(marker), dists(0)
 {
-   //geometry->ComputeDistances(coord, pmesh, pfes_mesh);
 }
 
 AnalyticCompositeSurface::AnalyticCompositeSurface
     (const Array<AnalyticSurface *> &surf)
-    : AnalyticSurface(), surfaces(surf), dof_to_surface(0)
+    : surfaces(surf), dof_to_surface(0)
 {
    UpdateDofToSurface();
 }

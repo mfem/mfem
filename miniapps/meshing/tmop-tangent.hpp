@@ -69,56 +69,6 @@ class Line_Left : public Analytic2DCurve
    virtual double dy_dtdt(double t) const override { return 0.0; }
 };
 
-// x = 1.5 t.
-// y = 1 + 0.5 t.
-// The distance is the error in y.
-class Line_Top : public Analytic2DCurve
-{
-   public:
-   Line_Top(const Array<bool> &marker) : Analytic2DCurve(marker) { }
-
-   void t_of_xy(double x, double y, double &dist, double &t) const override
-   {
-      t    = x / 1.5;
-      dist = y - (1 + 0.5 * t);
-   }
-   void xy_of_t(double t, double dist, double &x, double &y) const override
-   {
-      x = 1.5 * t;
-      y = dist + 1.0 + 0.5 * t;
-   }
-
-   virtual double dx_dt(double t) const override { return 1.5; }
-   virtual double dy_dt(double t) const override { return 0.5; }
-   virtual double dx_dtdt(double t) const override { return 0.0; }
-   virtual double dy_dtdt(double t) const override { return 0.0; }
-};
-
-// x = 1 + 0.5 t.
-// y = 1.5 t.
-// The distance is the error in x.
-class Line_Right : public Analytic2DCurve
-{
-   public:
-   Line_Right(const Array<bool> &marker) : Analytic2DCurve(marker) { }
-
-   void t_of_xy(double x, double y, double &dist, double &t) const override
-   {
-      t    = y / 1.5;
-      dist = x - (1 + 0.5 * t);
-   }
-   void xy_of_t(double t, double dist, double &x, double &y) const override
-   {
-      x = dist + 1.0 + 0.5 * t;
-      y = 1.5 * t;
-   }
-
-   virtual double dx_dt(double t) const override { return 0.5; }
-   virtual double dy_dt(double t) const override { return 1.5; }
-   virtual double dx_dtdt(double t) const override { return 0.0; }
-   virtual double dy_dtdt(double t) const override { return 0.0; }
-};
-
 // x = [1.0 + a sin(c pi) + b] t.
 // y = 1 + a sin(c pi t) + b t.
 // The distance is the error in y.
@@ -409,7 +359,7 @@ public:
    void t_of_xyz(double x, double y, double z,
                  double &dist1, double &dist2, double &t) const override
    {
-      // Becuase the transformation is nonlinear, the problem to find t
+      // Because the transformation is nonlinear, the problem to find t
       // to parameterize the curve is solved using Newton's method.
       t = std::max(0.0, std::min(1.0, y));
       for (int it = 0; it < 12; it++)
@@ -469,7 +419,7 @@ public:
    void t_of_xyz(double x, double y, double z,
                  double &dist1, double &dist2, double &t) const override
    {
-      // Becuase the transformation is nonlinear, the problem to find t
+      // Because the transformation is nonlinear, the problem to find t
       // to parameterize the curve is solved using Newton's method.
       t = std::max(0.0, std::min(1.0, x));
       for (int it = 0; it < 12; it++)
@@ -529,7 +479,7 @@ public:
    void uv_of_xyz(double x, double y, double z,
                   double &dist, double &u, double &v) const override
    {
-      // Becuase the transformation is nonlinear, the problem to find u and v 
+      // Because the transformation is nonlinear, the problem to find u and v
       // to parameterize the surface is solved using Newton's method.
       u = std::max(0.0, std::min(1.0, y));
       v = std::max(0.0, std::min(1.0, z));
@@ -614,7 +564,7 @@ public:
    void uv_of_xyz(double x, double y, double z,
                   double &dist, double &u, double &v) const override
    {
-      // Becuase the transformation is nonlinear, the problem to find u and v 
+      // Because the transformation is nonlinear, the problem to find u and v
       // to parameterize the surface is solved using Newton's method.
       u = std::max(0.0, std::min(1.0, x));
       v = std::max(0.0, std::min(1.0, z));
@@ -699,7 +649,7 @@ public:
    void uv_of_xyz(double x, double y, double z,
                   double &dist, double &u, double &v) const override
    {
-      // Becuase the transformation is nonlinear, the problem to find u and v 
+      // Because the transformation is nonlinear, the problem to find u and v
       // to parameterize the surface is solved using Newton's method.
       u = std::max(0.0, std::min(1.0, x));
       v = std::max(0.0, std::min(1.0, y));

@@ -31,11 +31,8 @@ protected:
    Vector dists;
 
 public:
-   AnalyticSurface() : dof_marker(0), dists(0) { }
    AnalyticSurface(const Array<bool> &marker);
    virtual ~AnalyticSurface() = default;
-
-   const Array<bool> &GetMarker() const { return dof_marker; }
 
    // Go from physical to parametric coordinates on the whole mesh.
    // If the point is not on the curve, computes its offset.
@@ -74,47 +71,29 @@ public:
    virtual void Deriv_2(const double *param, DenseTensor &deriv) const = 0;
 };
 
-class AnalyticCompositeSurface : public AnalyticSurface
+class AnalyticCompositeSurface
 {
 protected:
    const Array<AnalyticSurface *> &surfaces;
    Array<int> dof_to_surface;
 
-public:
-   AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf);
-
-   int GetNumSurfaces() const { return surfaces.Size(); }
-
-   /// Must be called after the Array of surfaces is changed.
    void UpdateDofToSurface();
 
-   const AnalyticSurface *GetSurfaceID(int s_id) const
-   {
-      MFEM_VERIFY(s_id < surfaces.Size(), "wrong index");
-      return surfaces[s_id];
-   }
+public:
+   AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf);
 
    /// Surface corresponding to dof_id.
    const AnalyticSurface *GetSurface(int dof_id) const;
 
    void ConvertPhysCoordToParam(const Vector &coord_x,
-                                Vector &coord_t) override;
+                                Vector &coord_t);
 
    void ConvertParamCoordToPhys(const Vector &coord_t,
-                                Vector &coord_x) const override;
+                                Vector &coord_x) const;
 
    void ConvertParamToPhys(const Array<int> &vdofs,
                            const Vector &coord_t,
-                           Vector &coord_x) const override;
-
-   int NumParams() const override
-   { return 0; }
-
-   void Deriv_1(const double *param, DenseMatrix &deriv) const override
-   { MFEM_ABORT("Use GetSurface(surface_id)->Deriv_1(...);") }
-
-   void Deriv_2(const double *param, DenseTensor &deriv) const override
-   { MFEM_ABORT("Use GetSurface(surface_id)->Deriv_2(...);") }
+                           Vector &coord_x) const;
 };
 
 class Analytic2DCurve : public AnalyticSurface

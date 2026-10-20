@@ -16,7 +16,7 @@
 //
 // Sample runs:
 // mpirun -np 4 tmop-tangent -rs 2 -m square01.mesh -o 2 -qo 6
-// mpirun -np 4 tmop-tangent -rs 2 -m cube01.mesh -o 2 -qo 6
+// mpirun -np 4 tmop-tangent -rs 1 -m cube01.mesh -o 2 -qo 6
 
 #include "../common/mfem-common.hpp"
 #include "tmop-tangent.hpp"
@@ -25,10 +25,6 @@
 
 using namespace mfem;
 using namespace std;
-
-char vishost[] = "localhost";
-int  visport   = 19916;
-int  wsize     = 350;
 
 int main (int argc, char *argv[])
 {
@@ -113,7 +109,7 @@ int main (int argc, char *argv[])
          coord_x(i + N)   = y + a * sin(c * M_PI * x) * sin(0.5 * M_PI * y) * sin(c * M_PI * z) + b * x * y * z;
          coord_x(i + 2*N) = z + a * sin(c * M_PI * x) * sin(c * M_PI * y) * sin(0.5 * M_PI * z) + b * x * y * z;
       }
-      
+
    }
 
    ParGridFunction x0(coord_x);
@@ -153,11 +149,10 @@ int main (int argc, char *argv[])
          TOP_MARKER = 0,
          RIGHT_MARKER,
          BOTTOM_MARKER,
-         LEFT_MARKER,
-         FIXED_MARKER
+         LEFT_MARKER
       };
-      fit_markers.reserve(5);
-      for (int i = 0; i < 5; i++)
+      fit_markers.reserve(4);
+      for (int i = 0; i < 4; i++)
       {
          fit_markers.emplace_back(pfes_mesh.GetNDofs());
          fit_markers.back() = false;
@@ -166,7 +161,6 @@ int main (int argc, char *argv[])
       Array<bool> &fit_marker_right = fit_markers[RIGHT_MARKER];
       Array<bool> &fit_marker_bottom = fit_markers[BOTTOM_MARKER];
       Array<bool> &fit_marker_left = fit_markers[LEFT_MARKER];
-      Array<bool> &fit_marker_fixed = fit_markers[FIXED_MARKER];
 
       Array<int> top_bdr(pmesh.bdr_attributes.Max());
       Array<int> right_bdr(pmesh.bdr_attributes.Max());
@@ -202,7 +196,6 @@ int main (int argc, char *argv[])
 
          if (boundary_count == 2)
          {
-            fit_marker_fixed[dof] = true;
             ess_vdofs_marker[pfes_mesh.DofToVDof(dof, 0)] = 1;
             ess_vdofs_marker[pfes_mesh.DofToVDof(dof, 1)] = 1;
          }
@@ -241,12 +234,11 @@ int main (int argc, char *argv[])
          EDGE_Y0Z0_MARKER,
          EDGE_Y0Z1_MARKER,
          EDGE_Y1Z0_MARKER,
-         EDGE_Y1Z1_MARKER,
-         FIXED_MARKER
+         EDGE_Y1Z1_MARKER
       };
 
-      fit_markers.reserve(19);
-      for (int i = 0; i < 19; i++)
+      fit_markers.reserve(18);
+      for (int i = 0; i < 18; i++)
       {
          fit_markers.emplace_back(pfes_mesh.GetNDofs());
          fit_markers.back() = false;
@@ -272,7 +264,6 @@ int main (int argc, char *argv[])
       Array<bool> &fit_marker_edge_y0z1 = fit_markers[EDGE_Y0Z1_MARKER];
       Array<bool> &fit_marker_edge_y1z0 = fit_markers[EDGE_Y1Z0_MARKER];
       Array<bool> &fit_marker_edge_y1z1 = fit_markers[EDGE_Y1Z1_MARKER];
-      Array<bool> &fit_marker_fixed = fit_markers[FIXED_MARKER];
 
       Array<int> x0_bdr(pmesh.bdr_attributes.Max());
       Array<int> x1_bdr(pmesh.bdr_attributes.Max());
@@ -320,7 +311,6 @@ int main (int argc, char *argv[])
             int(on_y1) + int(on_z0) + int(on_z1);
          if (boundary_face_count == 3)
          {
-            fit_marker_fixed[dof] = true;
             for (int c = 0; c < dim; c++)
             {
                ess_vdofs_marker[pfes_mesh.DofToVDof(dof, c)] = 1;
@@ -418,14 +408,6 @@ int main (int argc, char *argv[])
    AnalyticCompositeSurface surfaces(surf_array);
    surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
 
-   // std::ostringstream mesh_name;
-   // mesh_name << "mesh_a02_b05_c15.mesh";
-   // std::ofstream mesh_ofs(mesh_name.str().c_str());
-   // mesh_ofs.precision(8);
-   // pmesh.Print(mesh_ofs);
-   // mesh_ofs.close();
-   // return 0;
-
    if (glvis)
    {
       surfaces.ConvertParamCoordToPhys(coord_t, coord_x);
@@ -438,7 +420,6 @@ int main (int argc, char *argv[])
    TMOP_QualityMetric *metric;
    if (dim == 2) { metric = new TMOP_Metric_002; }
    else          { metric = new TMOP_Metric_302; }
-   metric->use_old_invariants_code = true;
    TargetConstructor target(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE,
                             pfes_mesh.GetComm());
    target.SetNodes(coord_x);
