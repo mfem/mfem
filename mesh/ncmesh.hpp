@@ -19,6 +19,7 @@
 #include "../linalg/densemat.hpp"
 #include "element.hpp"
 #include "vertex.hpp"
+#include "entsets.hpp"
 #include "../fem/geom.hpp"
 
 #include <vector>
@@ -188,8 +189,12 @@ private:
  */
 class NCMesh
 {
+   friend class EntitySets;
+   friend class NCEntitySets;
+
 protected:
    NCMesh() = default;
+
 public:
    //// Initialize with elements from an existing Mesh.
    explicit NCMesh(const Mesh *mesh);
@@ -498,6 +503,16 @@ public:
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces);
 
+   /** Get a list of vertices (2D/3D), edges (2D/3D), and faces (3D) that
+       coincide with members of the specified entity set. In 3D this function
+       also reveals "hidden" edges or faces. In parallel it helps identifying
+       vertices/edges/faces affected by non-local entities. */
+   virtual void GetEntitySetClosure(EntitySets::EntityType t,
+                                    int set_index,
+                                    Array<int> &es_vertices,
+                                    Array<int> &es_edges,
+                                    Array<int> &es_faces);
+
    /// Return element geometry type. @a index is the Mesh element number.
    Geometry::Type GetElementGeometry(int index) const
    { return elements[leaf_elements[index]].Geom(); }
@@ -511,6 +526,19 @@ public:
 
    /// Return the distance of leaf @a i from the root.
    int GetElementDepth(int i) const;
+
+   /** Collect edge indices of all refined edges which are children of
+       the coarse edge defined by the given vertices. */
+   void GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edge_ids);
+
+   /** Collect face indices of all refined faces which are children of
+       the coarse face defined by the given vertices. */
+   void GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+                        BlockArray<int> & face_ids);
+
+   /** Collect element indices of all refined elements which are children of
+       the coarse element defined by the given element index. */
+   void GetRefinedElements(int elem_id, BlockArray<int> & elem_ids);
 
    /** Return the size reduction compared to the root element (ignoring local
        stretching and curvature). */
@@ -768,6 +796,7 @@ protected:
        Mesh is curved (Nodes != NULL) and NCMesh is topology-only. */
    Array<real_t> coordinates;
 
+
    // secondary data
    /** Apart from the primary data structure, which is the element/node/face
        hierarchy, there is secondary data that is derived from the primary data
@@ -796,6 +825,9 @@ protected:
    Array<char> face_geom; ///< face geometry by face index, set by OnMeshUpdated
 
    Table element_vertex; ///< leaf-element to vertex table, see FindSetNeighbors
+
+   // Node/edge/Face/Element sets defined on the coarse mesh
+   NCEntitySets * ncent_sets;
 
    /// Update the leaf elements indices in leaf_elements
    void UpdateLeafElements();
@@ -1110,6 +1142,10 @@ protected:
    void CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices);
    void CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
                                 Array<int> &indices);
+   void CollectElementVertices(int elem_id, Array<int> &indices);
+
+   void CollectElementEdges(int elem_id, Array<int> &indices);
+
    void BuildElementToVertexTable();
 
    void UpdateElementToVertexTable()
@@ -1419,6 +1455,7 @@ public:
 #endif
 
    friend class ParNCMesh; // for ParNCMesh::ElementSet
+   friend class ParNCEntitySets;
    friend struct MatrixMap;
    friend struct PointMatrixHash;
    friend class NCSubMesh; // for faces, nodes
