@@ -15,8 +15,8 @@
 //
 //
 // Sample runs:
-// mpirun -np 4 tmop-tangent -rs 2 -m square01.mesh -o 2 -qo 6
-// mpirun -np 4 tmop-tangent -rs 2 -m cube.mesh -o 2 -qo 6
+// mpirun -np 4 tmop-tangent -dim 2 -rs 2 -o 2 -qo 6
+// mpirun -np 4 tmop-tangent -dim 3 -rs 2 -o 2 -qo 6
 
 #include "../common/mfem-common.hpp"
 #include "tmop-tangent.hpp"
@@ -31,7 +31,7 @@ int main (int argc, char *argv[])
    // Initialize MPI.
    Mpi::Init();
    int myid = Mpi::WorldRank();
-   const char *mesh_file = "square01.mesh";
+   int dim           = 2;
    int rs_levels     = 1;
    int mesh_poly_deg = 2;
    int quad_order    = 5;
@@ -41,8 +41,8 @@ int main (int argc, char *argv[])
    const char *device_config = "cpu";
    // Parse command-line options.
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh",
-		 "Mesh file to use.");
+   args.AddOption(&dim, "-dim", "--dimension",
+                  "Dimension of the Cartesian mesh (2 or 3).");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
        "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&mesh_poly_deg, "-o", "--order",
@@ -69,12 +69,15 @@ int main (int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   // Read and refine the mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
-   const int dim = pmesh.Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "Mesh dimension must be 2 or 3.");
+
+   // Create and refine the Cartesian mesh. These initial resolutions match
+   // square01.mesh and cube.mesh, respectively.
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    // Setup mesh curvature and GridFunction that stores the coordinates.
    H1_FECollection fec_mesh(mesh_poly_deg, dim);
@@ -180,11 +183,11 @@ int main (int argc, char *argv[])
       bottom_bdr = 0;
       left_bdr = 0;
 
-      // For the square meshes used here, boundary attributes map to sides as
-      // follows: 1 -> top, 2 -> right, 3 -> bottom, 4 -> left.
-      top_bdr[0] = 1;
+      // Cartesian mesh boundary attributes are:
+      // 1 -> bottom, 2 -> right, 3 -> top, 4 -> left.
+      bottom_bdr[0] = 1;
       right_bdr[1] = 1;
-      bottom_bdr[2] = 1;
+      top_bdr[2] = 1;
       left_bdr[3] = 1;
 
       Array<int> top_x_marker, right_x_marker, bottom_x_marker, left_x_marker;
@@ -287,7 +290,7 @@ int main (int argc, char *argv[])
       z0_bdr = 0;
       z1_bdr = 0;
 
-      // For cube.mesh the boundary attributes map as:
+      // Cartesian mesh boundary attributes are:
       // 1 -> z = 0, 2 -> y = 0, 3 -> x = 1,
       // 4 -> y = 1, 5 -> x = 0, 6 -> z = 1.
       z0_bdr[0] = 1;
