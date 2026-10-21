@@ -34,7 +34,7 @@ TEST_CASE("Hyperbolic Face Gradient", "[HyperbolicFormIntegrator]")
 
    // Compare the assembled gradient with centered finite difference
    const real_t h = 1e-6;
-   real_t err = 0.0;
+   real_t error = 0.0;
    for (int j = 0; j < n; j++)
    {
       Vector up(u), um(u), rp(n), rm(n), e(n), Jcol(n);
@@ -47,8 +47,8 @@ TEST_CASE("Hyperbolic Face Gradient", "[HyperbolicFormIntegrator]")
       J.Mult(e, Jcol);
       for (int i = 0; i < n; i++)
       {
-         err = std::max(err, std::abs(Jcol(i) - (rp(i) - rm(i))/(2*h)));
+         error = std::max(error, std::abs(Jcol(i) - (rp(i) - rm(i))/(2*h)));
       }
    }
-   REQUIRE(err == MFEM_Approx(0.0, 1e-6));
+   REQUIRE(error == MFEM_Approx(0.0, 1e-6));
 }
