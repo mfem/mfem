@@ -652,7 +652,7 @@ constexpr tensor<T, n...>& operator-=(tensor<T, n...>& A, zero)
 template <typename S, typename T> MFEM_HOST_DEVICE
 constexpr auto outer(S A, T B) -> decltype(A * B)
 {
-   static_assert(std::is_arithmetic<S>::value && std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<S> && std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    return A * B;
 }
@@ -679,7 +679,7 @@ constexpr tensor<T, n * m> flatten(tensor<T, n, m> A)
 template <typename S, typename T, int... n> MFEM_HOST_DEVICE
 constexpr tensor<decltype(S{} * T{}), n...> outer(S A, const tensor<T, n...>& B)
 {
-   static_assert(std::is_arithmetic<S>::value,
+   static_assert(std::is_arithmetic_v<S>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), n...> AB{};
    for (int i = 0; i < B.size(0); i++)
@@ -697,7 +697,7 @@ constexpr tensor<decltype(S{} * T{}), n...> outer(S A, const tensor<T, n...>& B)
 template <typename S, typename T, int... m> MFEM_HOST_DEVICE
 constexpr tensor<decltype(S{} * T{}), m...> outer(const tensor<S, m...>& A, T B)
 {
-   static_assert(std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m...> AB{};
    for (int i = 0; i < A.size(0); i++)
