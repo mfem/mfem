@@ -8,14 +8,12 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
-#ifndef MFEM_BILININTEG_PA_SIMPLICES_COMMON_HPP
-#define MFEM_BILININTEG_PA_SIMPLICES_COMMON_HPP
+#pragma once
 
 #include "../../general/array.hpp"
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
-#include "../../general/backends.hpp"
+#include "../../general/backends.hpp" // IWYU pragma: keep
 #endif
 
 #include <algorithm>
@@ -133,5 +131,3 @@ public:
 /// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
-
-#endif // MFEM_BILININTEG_PA_SIMPLICES_COMMON_HPP
