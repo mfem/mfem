@@ -940,8 +940,8 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
          if (nconstraint) { constraint_rowstarts.Append(new_row); }
       }
       MFEM_VERIFY(new_row == n_rows, "Remapping failed!");
-      std::vector<int> reordered_columns(n_rows * dim);
-      std::vector<real_t> reordered_values(n_rows * dim);
+      std::vector<int> reordered_columns(std::size_t(n_rows) * dim);
+      std::vector<real_t> reordered_values(std::size_t(n_rows) * dim);
       for (const auto &it : reorder_rows)
       {
          for (int d = 0; d < dim; ++d)
