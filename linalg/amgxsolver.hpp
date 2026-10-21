@@ -344,6 +344,17 @@ private:
    // AmgX resource object.
    static AMGX_resources_handle   rsrc;
 
+   // Configuration of rsrc. AmgX keeps its address.
+   static AMGX_config_handle      rsrc_cfg;
+
+#ifdef MFEM_USE_MPI
+   // Communicator of rsrc. AmgX keeps its address.
+   static MPI_Comm                rsrc_comm;
+#endif
+
+   /// Create a configuration from the parameters of this instance.
+   void CreateConfig(AMGX_config_handle &c) const;
+
    /// Set the ID of the corresponding GPU used by this process.
    void SetDeviceIDs(const int nDevs);
 

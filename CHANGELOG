@@ -17,6 +17,13 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+Linear and nonlinear solvers
+----------------------------
+- Fixed the AmgX resource shared by the AmgXSolver instances, which used the
+  configuration and the communicator of the first instance after its
+  destruction, and the creation of several serial AmgXSolver instances, which
+  initialized AmgX again.
+
 Miscellaneous
 -------------
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
