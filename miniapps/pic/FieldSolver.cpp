@@ -60,6 +60,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
                "number of diffusion steps must be positive.");
    // Keep the N=10 product: N * c_step = 10 * c_cli.
    c = diffusivity * 10.0 / static_cast<real_t>(diffusion_steps);
+   MFEM_VERIFY(c >= 0.0, "diffusivity must be nonnegative.");
    MFEM_VERIFY(field_sample_resolution_ > 0,
                "field sample resolution must be positive.");
    efield_sample_nx = field_sample_resolution_;
@@ -81,25 +82,28 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       dm.Assemble();
       dm.Finalize();
       diffusion_matrix = dm.ParallelAssemble();
-      diffusion_prec = new HypreBoomerAMG(*diffusion_matrix);
-      diffusion_prec->SetPrintLevel(0);
+      diffusion_amg = new HypreBoomerAMG(*diffusion_matrix);
+      diffusion_amg->SetPrintLevel(0);
       diffusion_solver = new HyprePCG(diffusion_matrix->GetComm());
       diffusion_solver->SetOperator(*diffusion_matrix);
       diffusion_solver->SetTol(1e-12);
       diffusion_solver->SetMaxIter(200);
       diffusion_solver->SetPrintLevel(0);
-      diffusion_solver->SetPreconditioner(*diffusion_prec);
+      diffusion_solver->SetPreconditioner(*diffusion_amg);
    }
 
+   M_matrix = nullptr;
+   K_matrix = nullptr;
+   H_matrix = nullptr;
+   H_amg = nullptr;
+   A_matrix = nullptr;
+   if (c != 0.0)
    {
-
       ParBilinearForm m(phi_fes);
       m.AddDomainIntegrator(new MassIntegrator());
       m.Assemble();
       m.Finalize();
       M_matrix = m.ParallelAssemble();
-      M_inv = new HypreDiagScale(*M_matrix);
-      M_inv->SetErrorMode(HypreSolver::IGNORE_HYPRE_ERRORS);
 
       ParBilinearForm k(phi_fes);
       k.AddDomainIntegrator(new DiffusionIntegrator);
@@ -107,29 +111,30 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
       k.Finalize();
       K_matrix = k.ParallelAssemble();
 
-      // H = M + sqrt(c) K.
+      // The mass shift controls low frequencies and the periodic constant
+      // mode. A stiffness-only inverse deteriorates as c tends to zero.
       H_matrix = Add(1.0, *M_matrix, std::sqrt(c), *K_matrix);
-      H_inv = new HypreBoomerAMG(*H_matrix);
-      H_inv->SetPrintLevel(0);
-      // H_inv is applied as a single AMG preconditioning cycle. Its inner
-      // convergence status is not a system-solve convergence criterion; the
-      // outer GMRES check below is authoritative.
-      H_inv->SetErrorMode(HypreSolver::IGNORE_HYPRE_ERRORS);
-      H_inv->iterative_mode = false;
+      H_amg = new HypreBoomerAMG(*H_matrix);
+      H_amg->SetPrintLevel(0);
+      // Symmetric Gauss-Seidel and matching pre/post sweeps for MINRES.
+      H_amg->SetRelaxType(6);
+      H_amg->SetCycleNumSweeps(1, 1);
+      H_amg->SetErrorMode(HypreSolver::IGNORE_HYPRE_ERRORS);
+      H_amg->iterative_mode = false;
 
-      // Unknowns [V, U], so the Schur complement for U is the last block:
-      // A = [ M, -K; c K, M ].
+      // Unknowns [V, U]. K is diagonal:
+      // A = [ c K, M; M, -K ].
       Array2D<const HypreParMatrix*> blocks(2, 2);
-      blocks(0, 0) = M_matrix;
-      blocks(0, 1) = K_matrix;
-      blocks(1, 0) = K_matrix;
-      blocks(1, 1) = M_matrix;
+      blocks(0, 0) = K_matrix;
+      blocks(0, 1) = M_matrix;
+      blocks(1, 0) = M_matrix;
+      blocks(1, 1) = K_matrix;
 
       Array2D<real_t> block_coeff(2, 2);
-      block_coeff(0, 0) = 1.0;
-      block_coeff(0, 1) = -1.0;
-      block_coeff(1, 0) = c;
-      block_coeff(1, 1) = 1.0;
+      block_coeff(0, 0) = c;
+      block_coeff(0, 1) = 1.0;
+      block_coeff(1, 0) = 1.0;
+      block_coeff(1, 1) = -1.0;
       A_matrix = HypreParMatrixFromBlocks(blocks, &block_coeff);
    }
 
@@ -145,13 +150,12 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 FieldSolver::~FieldSolver()
 {
    delete diffusion_solver;
-   delete diffusion_prec;
+   delete diffusion_amg;
    delete diffusion_matrix;
-   delete M_inv;
    delete M_matrix;
-   delete K_matrix;
-   delete H_inv;
+   delete H_amg;
    delete H_matrix;
+   delete K_matrix;
    delete A_matrix;
    delete precomputed_neutralizing_lf;
    delete grad_interpolator;
@@ -449,6 +453,8 @@ void FieldSolver::SampleAndWriteScalarField(const ParGridFunction& field,
 
 void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 {
+   if (c == 0.0) { return; }
+
    ParFiniteElementSpace* pfes = rho_gf.ParFESpace();
    const int n = M_matrix->Height();
 
@@ -457,17 +463,17 @@ void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
    offsets[1] = n;
    offsets[2] = 2 * n;
 
-   // [ M, 0; c K, S ]^{-1}, with M^{-1} ≈ diag(M)^{-1} and
-   // S^{-1} ≈ H^{-1} M H^{-1} applied to U.
-   TripleProductOperator S_inv(H_inv, M_matrix, H_inv, false, false, false);
-   ScaledOperator cK(K_matrix, c);
+   // P = diag(sqrt(c) H, H/sqrt(c)), H = M + sqrt(c) K.
+   // Exact block solves give |eigenvalues| in [1/sqrt(2), 1], including
+   // constant modes. Apply P^{-1} with two scaled symmetric AMG cycles.
+   const real_t sqrt_c = std::sqrt(c);
+   ScaledOperator V_amg(H_amg, 1.0 / sqrt_c);
+   ScaledOperator U_amg(H_amg, sqrt_c);
+   BlockDiagonalPreconditioner prec(offsets);
+   prec.SetDiagonalBlock(0, &V_amg);
+   prec.SetDiagonalBlock(1, &U_amg);
 
-   BlockLowerTriangularPreconditioner prec(offsets);
-   prec.SetDiagonalBlock(0, M_inv);
-   prec.SetDiagonalBlock(1, &S_inv);
-   prec.SetBlock(1, 0, &cK);
-
-   GMRESSolver solver(A_matrix->GetComm());
+   MINRESSolver solver(A_matrix->GetComm());
    solver.SetOperator(*A_matrix);
    solver.SetRelTol(1e-12);
    solver.SetAbsTol(1e-24);
@@ -484,17 +490,18 @@ void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
       HypreParVector* B = b.ParallelAssemble();
 
       // Unknowns are [V, U]. Warm-start U from the previous rho.
+      // Swapped equations put the load B on the first block.
       HypreParVector Rho_true(pfes);
       rho_gf.GetTrueDofs(Rho_true);
       sol.GetBlock(0) = 0.0;
       sol.GetBlock(1) = Rho_true;
-      rhs.GetBlock(0) = 0.0;
-      rhs.GetBlock(1) = *B;
+      rhs.GetBlock(0) = *B;
+      rhs.GetBlock(1) = 0.0;
       delete B;
 
       solver.Mult(rhs, sol);
       MFEM_VERIFY(solver.GetConverged(),
-                  "Biharmonic GMRES failed after "
+                  "Biharmonic MINRES failed after "
                      << solver.GetNumIterations()
                      << " iterations; residual = " << solver.GetFinalNorm());
 

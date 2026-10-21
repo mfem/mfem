@@ -33,19 +33,17 @@ private:
    // Poisson stiffness with epsilon.
    HypreParMatrix* diffusion_matrix;
    // Persistent AMG preconditioner for the constant Poisson matrix.
-   HypreBoomerAMG* diffusion_prec;
-   // Persistent PCG solver so HYPRE does not rebuild diffusion_prec.
+   HypreBoomerAMG* diffusion_amg;
+   // Persistent PCG solver so HYPRE does not rebuild diffusion_amg.
    HyprePCG* diffusion_solver;
    // Biharmonic diffusion: M from MassIntegrator, K from DiffusionIntegrator.
    HypreParMatrix* M_matrix;
    HypreParMatrix* K_matrix;
-   // Persistent diagonal approximation of M^{-1}.
-   HypreDiagScale* M_inv;
-   // Schur factor H = M + sqrt(c) K. c is the -diff coefficient.
+   // Shifted diffusion H = M + sqrt(c) K, including the constant mode.
    HypreParMatrix* H_matrix;
-   // Persistent AMG approximation of H^{-1}; H_matrix is constant.
-   HypreBoomerAMG* H_inv;
-   // Unknowns [V, U]. A = [ M, -K; c K, M ].
+   // One symmetric AMG V-cycle approximating H^{-1}.
+   HypreBoomerAMG* H_amg;
+   // Unknowns [V, U]. For c > 0, A = [ c K, M; M, -K ].
    HypreParMatrix* A_matrix;
    real_t c;
    // Implicit steps per DiffuseRHS call. Each uses c_cli * 10 / diffusion_steps.
@@ -113,8 +111,9 @@ public:
                          const ParGridFunction& phi_gf,
                          const ParGridFunction& rho_gf, int timestep);
 
-   /** One implicit biharmonic-diffusion step,
-       M U + c K V = M U^n,  M V - K U = 0. */
+   /** diffusion_steps implicit biharmonic-diffusion steps,
+       M U + c K V = M U^n,  M V - K U = 0.
+       c = 0 leaves b and rho_gf unchanged. */
    void DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf);
 
    /// Compute (global) field energy: 0.5 * ∫ ||E||^2 dx
