@@ -27,6 +27,22 @@
 #endif
 #include "hip.hpp"
 
+// Paste a CUDA or HIP prefix: cuda/cu/Cu/CU/CUDA or hip/Hip/HIP.
+// cuda_or_hip is the runtime API (cudaMemcpy). cu_or_hip is cuBLAS/cuSPARSE.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_cuda_or_hip(stub) cuda##stub
+#define MFEM_cu_or_hip(stub) cu##stub
+#define MFEM_Cu_or_Hip(stub) Cu##stub
+#define MFEM_CU_or_HIP(stub) CU##stub
+#define MFEM_CUDA_or_HIP(stub) CUDA##stub
+#elif defined(MFEM_USE_HIP)
+#define MFEM_cuda_or_hip(stub) hip##stub
+#define MFEM_cu_or_hip(stub) hip##stub
+#define MFEM_Cu_or_Hip(stub) Hip##stub
+#define MFEM_CU_or_HIP(stub) HIP##stub
+#define MFEM_CUDA_or_HIP(stub) HIP##stub
+#endif
+
 #ifdef MFEM_USE_OCCA
 #include "occa.hpp"
 #endif

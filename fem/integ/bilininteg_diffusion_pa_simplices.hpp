@@ -26,18 +26,19 @@ namespace mfem
 
 namespace internal
 {
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
 // Triangle and tetrahedron use different first-dimension 1D quadrature
 // rules (Gauss-Jacobi(1,0) vs (2,0) in Stroud's construction), so the
 // Ga1 values differ and need distinct symbols.
-template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONSTANT real_t
-SmemPADiffTriGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
+struct DiffTriGa1 {};
+struct DiffTetGa1 {};
 
 template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONSTANT real_t
-SmemPADiffTetGa1[T_Q1D][(T_D1D > 1 ? T_D1D - 1 : 1)];
-#endif
+using SmemPADiffTriGa1 =
+   ConstantMatrix<DiffTriGa1, T_Q1D, (T_D1D > 1 ? T_D1D - 1 : 1)>;
+
+template<int T_D1D, int T_Q1D>
+using SmemPADiffTetGa1 =
+   ConstantMatrix<DiffTetGa1, T_Q1D, (T_D1D > 1 ? T_D1D - 1 : 1)>;
 
 /* This function computes the action of the diffusion integrator for the Bernstein basis on triangles.
    The key components are an O(p^{d+1}) routine for evaluating the Bernstein polynomial
@@ -309,7 +310,6 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ga1_ptr = ga1_.HostRead();
    const auto Ga2_ptr = ga2_.Read();
    const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
    const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
@@ -319,21 +319,13 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    constexpr int BZ_RAW = 128 / BLK;
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   if (Device::Allows(Backend::DEVICE_MASK))
+   // Updating this shared symbol during application is not concurrency-safe;
+   // see ConstantBasisCache for the caller's serialization requirements.
+   static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
+   basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
    {
-      // Updating this shared symbol during application is not concurrency-safe;
-      // see ConstantBasisCache for the caller's serialization requirements.
-      static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
-      basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
-      {
-         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                           MFEM_DEVICE_SYMBOL(SmemPADiffTriGa1<T_D1D, T_Q1D>),
-                           values, bytes, 0,
-                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
-      });
-   }
-#endif
+      SmemPADiffTriGa1<T_D1D, T_Q1D>::Upload(values, bytes);
+   });
 
    mfem::forall_2D_batch(NE, Q1D, 1, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -379,12 +371,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      (void) Ga1_ptr; // Keep host/device lambda captures consistent.
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      const auto &Ga1_view = SmemPADiffTriGa1<T_D1D, T_Q1D>;
-#else
-      const auto Ga1_view = (const real_t (*)[D1Dm1]) Ga1_ptr;
-#endif
+      const auto &Ga1_view = SmemPADiffTriGa1<T_D1D, T_Q1D>::Read();
 
       // DQ corresponds to C1 in AAD algorithm
       MFEM_FOREACH_THREAD_DIRECT(a1, x, D1D - 1)
@@ -826,7 +813,6 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ga1_ptr = ga1_.HostRead();
    const auto Ga2_ptr = ga2_.Read();
    const auto Ga3_ptr = ga3_.Read();
    auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
@@ -837,21 +823,13 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   if (Device::Allows(Backend::DEVICE_MASK))
+   // Updating this shared symbol during application is not concurrency-safe;
+   // see ConstantBasisCache for the caller's serialization requirements.
+   static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
+   basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
    {
-      // Updating this shared symbol during application is not concurrency-safe;
-      // see ConstantBasisCache for the caller's serialization requirements.
-      static ConstantBasisCache<(T_D1D - 1) * T_Q1D> basis_cache;
-      basis_cache.Update(ga1_, [](const real_t *values, std::size_t bytes)
-      {
-         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                           MFEM_DEVICE_SYMBOL(SmemPADiffTetGa1<T_D1D, T_Q1D>),
-                           values, bytes, 0,
-                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
-      });
-   }
-#endif
+      SmemPADiffTetGa1<T_D1D, T_Q1D>::Upload(values, bytes);
+   });
 
    mfem::forall_2D_batch(NE, BLK, BLK, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -917,12 +895,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      (void) Ga1_ptr; // Keep host/device lambda captures consistent.
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      const auto &Ga1_view = SmemPADiffTetGa1<T_D1D, T_Q1D>;
-#else
-      const auto Ga1_view = (const real_t (*)[D1Dm1]) Ga1_ptr;
-#endif
+      const auto &Ga1_view = SmemPADiffTetGa1<T_D1D, T_Q1D>::Read();
 
       // Preserve each logical thread's registers across phases on the host.
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)

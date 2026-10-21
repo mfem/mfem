@@ -25,13 +25,15 @@ namespace mfem
 
 namespace internal
 {
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONSTANT real_t SmemPAMassTriBa1[T_Q1D][T_D1D];
+
+struct MassTriBa1 {};
+struct MassTetBa1 {};
 
 template<int T_D1D, int T_Q1D>
-MFEM_DEVICE_CONSTANT real_t SmemPAMassTetBa1[T_Q1D][T_D1D];
-#endif
+using SmemPAMassTriBa1 = ConstantMatrix<MassTriBa1, T_Q1D, T_D1D>;
+
+template<int T_D1D, int T_Q1D>
+using SmemPAMassTetBa1 = ConstantMatrix<MassTetBa1, T_Q1D, T_D1D>;
 
 /* This function computes the action of the mass integrator for the Bernstein basis on triangles.
    The key components are an O(p^{d+1}) routine for evaluating the Bernstein polynomial
@@ -255,7 +257,6 @@ inline void SmemPAMassApplyTriangle(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ba1_ptr = ba1_.HostRead();
    const auto Ba2_ptr = ba2_.Read();
    const auto D_ptr = d_.Read();
    const auto X_ptr = x_.Read();
@@ -264,21 +265,13 @@ inline void SmemPAMassApplyTriangle(const int NE,
    constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
    constexpr int BZ = (128 / BLK < 64) ? 128 / BLK : 64;
 
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   if (Device::Allows(Backend::DEVICE_MASK))
+   // Updating this shared symbol during application is not concurrency-safe;
+   // see ConstantBasisCache for the caller's serialization requirements.
+   static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
+   basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
    {
-      // Updating this shared symbol during application is not concurrency-safe;
-      // see ConstantBasisCache for the caller's serialization requirements.
-      static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
-      basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
-      {
-         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                           MFEM_DEVICE_SYMBOL(SmemPAMassTriBa1<T_D1D, T_Q1D>),
-                           values, bytes, 0,
-                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
-      });
-   }
-#endif
+      SmemPAMassTriBa1<T_D1D, T_Q1D>::Upload(values, bytes);
+   });
 
    mfem::forall_2D_batch(NE, BLK, 1, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -288,7 +281,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
       const auto x = ConstDeviceMatrix(X_ptr, BASIS_DIM, NE);
       auto Y = DeviceMatrix(Y_ptr, BASIS_DIM, NE);
 
-      // The first basis factor is read from constant memory on GPU.
+      // Ba1 is the uploaded constant symbol, not a shared-memory tile.
       MFEM_SHARED real_t Ba2[Q1D][D1D][D1D];
       MFEM_SHARED real_t sm1[BZ][BLK * BLK];
       auto DQ = (real_t (*)[BLK]) (sm1[MFEM_THREAD_ID(z)]);
@@ -321,12 +314,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      (void) Ba1_ptr; // Keep host/device lambda captures consistent.
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      const auto &Ba1_view = SmemPAMassTriBa1<T_D1D, T_Q1D>;
-#else
-      const auto Ba1_view = (const real_t (*)[D1D]) Ba1_ptr;
-#endif
+      const auto &Ba1_view = SmemPAMassTriBa1<T_D1D, T_Q1D>::Read();
 
       // quad to dofs operation, step 1: convert first quadrature index to first
       // multiindex. DQ corresponds to C1 in the AAD algorithm.
@@ -702,7 +690,6 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
 
-   const auto Ba1_ptr = ba1_.HostRead();
    const auto Ba2_ptr = ba2_.Read();
    const auto Ba3_ptr = ba3_.Read();
    const auto D_ptr = d_.Read();
@@ -713,21 +700,13 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    constexpr int BZ_RAW = 128 / (BLK * BLK);
    constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   if (Device::Allows(Backend::DEVICE_MASK))
+   // Updating this shared symbol during application is not concurrency-safe;
+   // see ConstantBasisCache for the caller's serialization requirements.
+   static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
+   basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
    {
-      // Updating this shared symbol during application is not concurrency-safe;
-      // see ConstantBasisCache for the caller's serialization requirements.
-      static ConstantBasisCache<T_D1D * T_Q1D> basis_cache;
-      basis_cache.Update(ba1_, [](const real_t *values, std::size_t bytes)
-      {
-         MFEM_GPU_CHECK(MFEM_cuda_or_hip(MemcpyToSymbol)(
-                           MFEM_DEVICE_SYMBOL(SmemPAMassTetBa1<T_D1D, T_Q1D>),
-                           values, bytes, 0,
-                           MFEM_cuda_or_hip(MemcpyHostToDevice)));
-      });
-   }
-#endif
+      SmemPAMassTetBa1<T_D1D, T_Q1D>::Upload(values, bytes);
+   });
 
    mfem::forall_2D_batch(NE, BLK, BLK, BZ, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -738,7 +717,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       const auto x = ConstDeviceMatrix(X_ptr, BASIS_DIM3D_MASS, NE);
       auto y = DeviceMatrix(Y_ptr, BASIS_DIM3D_MASS, NE);
 
-      // The first basis factor is read from constant memory on GPU.
+      // Ba1 is the uploaded constant symbol, not a shared-memory tile.
       MFEM_SHARED real_t Ba2[Q1D][BASIS_DIM2D_MASS];
       MFEM_SHARED real_t Ba3[Q1D][BASIS_DIM3D_MASS];
       MFEM_SHARED union
@@ -781,12 +760,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
       }
       MFEM_SYNC_THREAD;
 
-      (void) Ba1_ptr; // Keep host/device lambda captures consistent.
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-      const auto &Ba1_view = SmemPAMassTetBa1<T_D1D, T_Q1D>;
-#else
-      const auto Ba1_view = (const real_t (*)[D1D]) Ba1_ptr;
-#endif
+      const auto &Ba1_view = SmemPAMassTetBa1<T_D1D, T_Q1D>::Read();
 
       // Bernstein polynomial evaluation, contraction in third index.
       MFEM_FOREACH_THREAD_DIRECT(a1, y, D1D)

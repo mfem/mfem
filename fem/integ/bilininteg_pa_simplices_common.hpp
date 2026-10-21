@@ -14,14 +14,13 @@
 
 #include "../../general/array.hpp"
 
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+#include "../../general/backends.hpp"
+#endif
+
 #include <algorithm>
 #include <cstddef>
-
-#if defined(MFEM_USE_CUDA)
-#define MFEM_cuda_or_hip(stub) cuda##stub
-#elif defined(MFEM_USE_HIP)
-#define MFEM_cuda_or_hip(stub) hip##stub
-#endif
+#include <cstring>
 
 namespace mfem
 {
@@ -30,6 +29,47 @@ namespace mfem
 
 namespace internal
 {
+
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+template<class Tag, int Rows, int Cols>
+MFEM_DEVICE_CONSTANT real_t ConstantMatrixSymbol[Rows][Cols];
+#endif
+
+/** @brief Rows-by-Cols basis table stored for both host and device kernels. */
+template<class Tag, int Rows, int Cols>
+struct ConstantMatrix
+{
+   static_assert(Rows > 0 && Cols > 0);
+
+   // Host-side values
+   static inline real_t host[Rows][Cols];
+
+   // Values visible to the kernel
+   MFEM_HOST_DEVICE static const real_t (&Read())[Rows][Cols]
+   {
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+      return ConstantMatrixSymbol<Tag, Rows, Cols>;
+#else
+      return host;
+#endif
+   }
+
+   // Copy into the host buffer and on device into the symbol
+   static void Upload(const real_t *src, std::size_t bytes)
+   {
+      MFEM_ASSERT(bytes == sizeof(host), "Invalid constant basis upload");
+      std::memcpy(host, src, bytes);
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+      if (Device::Allows(Backend::DEVICE_MASK & ~Backend::DEBUG_DEVICE))
+      {
+         MFEM_GPU_CHECK(
+            MFEM_cuda_or_hip(MemcpyToSymbol)
+            (MFEM_DEVICE_SYMBOL(ConstantMatrixSymbol<Tag, Rows, Cols>),
+             src, bytes, 0, MFEM_cuda_or_hip(MemcpyHostToDevice)));
+      }
+#endif
+   }
+};
 
 MFEM_HOST_DEVICE inline int ij_to_index(const int p, const int i, const int j)
 {
