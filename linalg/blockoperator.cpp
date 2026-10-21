@@ -46,9 +46,9 @@ BlockOperator::BlockOperator(const Array<int> &row_offsets_,
 }
 
 BlockOperator::BlockOperator(int nrow, int ncol, int ht, int wt):
-               Operator(ht, wt), owns_blocks(0),
-               nRowBlocks(nrow), nColBlocks(ncol),
-               op(nrow,ncol), coef(nrow,ncol)
+   Operator(ht, wt), owns_blocks(0),
+   nRowBlocks(nrow), nColBlocks(ncol),
+   op(nrow,ncol), coef(nrow,ncol)
 {
    op = nullptr;
    row_offsets.SetSize(0);
@@ -95,7 +95,7 @@ void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
    coef(iRow, iCol) = c;
 
    // Check consistency if offsets were set
-   if(row_offsets.Size() > 0 || col_offsets.Size() > 0)
+   if (row_offsets.Size() > 0 || col_offsets.Size() > 0)
    {
       MFEM_VERIFY(row_offsets[iRow+1] - row_offsets[iRow] == opt->NumRows() &&
                   col_offsets[iCol+1] - col_offsets[iCol] == opt->NumCols(),
