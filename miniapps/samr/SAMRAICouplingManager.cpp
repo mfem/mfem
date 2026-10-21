@@ -1130,7 +1130,7 @@ template<typename PODType>
 SAMRAICouplingManager::BlockArray<PODType>::BlockArray(const unsigned
                                                        block_size_,
                                                        const unsigned num_blocks_) : data(num_blocks_*block_size_),
-                                                       block_size(block_size_), num_blocks(num_blocks_) {}
+   block_size(block_size_), num_blocks(num_blocks_) {}
 
 template<typename PODType>
 void SAMRAICouplingManager::BlockArray<PODType>::SetBlock(const unsigned index,

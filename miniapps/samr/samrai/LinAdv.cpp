@@ -126,7 +126,8 @@ LinAdv::LinAdv(
    d_grid_geometry(grid_geom),
    d_use_nonuniform_workload(false),
    d_allocator(tbox::AllocatorDatabase::getDatabase()->getDefaultAllocator()),
-   d_xval(new pdat::NodeVariable<double>(dim, "xval", d_allocator, dim.getValue())),
+   d_xval(new pdat::NodeVariable<double>(dim, "xval", d_allocator,
+                                         dim.getValue())),
    d_uval(new pdat::CellVariable<double>(dim, "uval", d_allocator)),
    d_flux(new pdat::FaceVariable<double>(dim, "flux", d_allocator)),
    d_advection_velocity(dim.getValue()),
@@ -158,23 +159,26 @@ LinAdv::LinAdv(
    tbox::MathUtilities<double>::setVectorToSignalingNaN(d_center);
 
    // SINE problem
-   for (int k = 0; k < d_dim.getValue(); ++k) d_frequency[k] = 0.;
+   for (int k = 0; k < d_dim.getValue(); ++k) { d_frequency[k] = 0.; }
 
    /*
     * Defaults for boundary conditions. Set to bogus values
     * for error checking.
     */
 
-   if (d_dim == tbox::Dimension(2)) {
+   if (d_dim == tbox::Dimension(2))
+   {
       d_scalar_bdry_edge_conds.resize(NUM_2D_EDGES);
-      for (int ei = 0; ei < NUM_2D_EDGES; ++ei) {
+      for (int ei = 0; ei < NUM_2D_EDGES; ++ei)
+      {
          d_scalar_bdry_edge_conds[ei] = BOGUS_BDRY_DATA;
       }
 
       d_scalar_bdry_node_conds.resize(NUM_2D_NODES);
       d_node_bdry_edge.resize(NUM_2D_NODES);
 
-      for (int ni = 0; ni < NUM_2D_NODES; ++ni) {
+      for (int ni = 0; ni < NUM_2D_NODES; ++ni)
+      {
          d_scalar_bdry_node_conds[ni] = BOGUS_BDRY_DATA;
          d_node_bdry_edge[ni] = BOGUS_BDRY_DATA;
       }
@@ -182,15 +186,18 @@ LinAdv::LinAdv(
       d_bdry_edge_uval.resize(NUM_2D_EDGES);
       tbox::MathUtilities<double>::setVectorToSignalingNaN(d_bdry_edge_uval);
    }
-   if (d_dim == tbox::Dimension(3)) {
+   if (d_dim == tbox::Dimension(3))
+   {
       d_scalar_bdry_face_conds.resize(NUM_3D_FACES);
-      for (int fi = 0; fi < NUM_3D_FACES; ++fi) {
+      for (int fi = 0; fi < NUM_3D_FACES; ++fi)
+      {
          d_scalar_bdry_face_conds[fi] = BOGUS_BDRY_DATA;
       }
 
       d_scalar_bdry_edge_conds.resize(NUM_3D_EDGES);
       d_edge_bdry_face.resize(NUM_3D_EDGES);
-      for (int ei = 0; ei < NUM_3D_EDGES; ++ei) {
+      for (int ei = 0; ei < NUM_3D_EDGES; ++ei)
+      {
          d_scalar_bdry_edge_conds[ei] = BOGUS_BDRY_DATA;
          d_edge_bdry_face[ei] = BOGUS_BDRY_DATA;
       }
@@ -198,7 +205,8 @@ LinAdv::LinAdv(
       d_scalar_bdry_node_conds.resize(NUM_3D_NODES);
       d_node_bdry_face.resize(NUM_3D_NODES);
 
-      for (int ni = 0; ni < NUM_3D_NODES; ++ni) {
+      for (int ni = 0; ni < NUM_3D_NODES; ++ni)
+      {
          d_scalar_bdry_node_conds[ni] = BOGUS_BDRY_DATA;
          d_node_bdry_face[ni] = BOGUS_BDRY_DATA;
       }
@@ -211,7 +219,8 @@ LinAdv::LinAdv(
     * Initialize object with data read from given input/restart databases.
     */
    bool is_from_restart = tbox::RestartManager::getManager()->isFromRestart();
-   if (is_from_restart) {
+   if (is_from_restart)
+   {
       getFromRestart();
    }
    getFromInput(input_db, is_from_restart);
@@ -220,26 +229,41 @@ LinAdv::LinAdv(
     * Set problem data to values read from input/restart.
     */
 
-   if (d_data_problem == "PIECEWISE_CONSTANT_X") {
+   if (d_data_problem == "PIECEWISE_CONSTANT_X")
+   {
       d_data_problem_int = PIECEWISE_CONSTANT_X;
-   } else if (d_data_problem == "PIECEWISE_CONSTANT_Y") {
+   }
+   else if (d_data_problem == "PIECEWISE_CONSTANT_Y")
+   {
       d_data_problem_int = PIECEWISE_CONSTANT_Y;
-   } else if (d_data_problem == "PIECEWISE_CONSTANT_Z") {
+   }
+   else if (d_data_problem == "PIECEWISE_CONSTANT_Z")
+   {
       d_data_problem_int = PIECEWISE_CONSTANT_Z;
-   } else if (d_data_problem == "SINE_CONSTANT_X") {
+   }
+   else if (d_data_problem == "SINE_CONSTANT_X")
+   {
       d_data_problem_int = SINE_CONSTANT_X;
-   } else if (d_data_problem == "SINE_CONSTANT_Y") {
+   }
+   else if (d_data_problem == "SINE_CONSTANT_Y")
+   {
       d_data_problem_int = SINE_CONSTANT_Y;
-   } else if (d_data_problem == "SINE_CONSTANT_Z") {
+   }
+   else if (d_data_problem == "SINE_CONSTANT_Z")
+   {
       d_data_problem_int = SINE_CONSTANT_Z;
-   } else if (d_data_problem == "SPHERE") {
+   }
+   else if (d_data_problem == "SPHERE")
+   {
       d_data_problem_int = SPHERE;
-   } else {
+   }
+   else
+   {
       TBOX_ERROR(
          d_object_name << ": "
-                       << "Unknown d_data_problem string = "
-                       << d_data_problem
-                       << " encountered in constructor" << std::endl);
+         << "Unknown d_data_problem string = "
+         << d_data_problem
+         << " encountered in constructor" << std::endl);
    }
 
    /*
@@ -247,65 +271,85 @@ LinAdv::LinAdv(
     * quantity in this problem cannot have reflective boundary conditions
     * so we reset them to FLOW.
     */
-   if (d_dim == tbox::Dimension(2)) {
-      for (int i = 0; i < NUM_2D_EDGES; ++i) {
-         if (d_scalar_bdry_edge_conds[i] == BdryCond::REFLECT) {
+   if (d_dim == tbox::Dimension(2))
+   {
+      for (int i = 0; i < NUM_2D_EDGES; ++i)
+      {
+         if (d_scalar_bdry_edge_conds[i] == BdryCond::REFLECT)
+         {
             d_scalar_bdry_edge_conds[i] = BdryCond::FLOW;
          }
       }
 
-      for (int i = 0; i < NUM_2D_NODES; ++i) {
-         if (d_scalar_bdry_node_conds[i] == BdryCond::XREFLECT) {
+      for (int i = 0; i < NUM_2D_NODES; ++i)
+      {
+         if (d_scalar_bdry_node_conds[i] == BdryCond::XREFLECT)
+         {
             d_scalar_bdry_node_conds[i] = BdryCond::XFLOW;
          }
-         if (d_scalar_bdry_node_conds[i] == BdryCond::YREFLECT) {
+         if (d_scalar_bdry_node_conds[i] == BdryCond::YREFLECT)
+         {
             d_scalar_bdry_node_conds[i] = BdryCond::YFLOW;
          }
 
-         if (d_scalar_bdry_node_conds[i] != BOGUS_BDRY_DATA) {
+         if (d_scalar_bdry_node_conds[i] != BOGUS_BDRY_DATA)
+         {
             d_node_bdry_edge[i] =
                appu::CartesianBoundaryUtilities2::getEdgeLocationForNodeBdry(
                   i, d_scalar_bdry_node_conds[i]);
          }
       }
    }
-   if (d_dim == tbox::Dimension(3)) {
-      for (int i = 0; i < NUM_3D_FACES; ++i) {
-         if (d_scalar_bdry_face_conds[i] == BdryCond::REFLECT) {
+   if (d_dim == tbox::Dimension(3))
+   {
+      for (int i = 0; i < NUM_3D_FACES; ++i)
+      {
+         if (d_scalar_bdry_face_conds[i] == BdryCond::REFLECT)
+         {
             d_scalar_bdry_face_conds[i] = BdryCond::FLOW;
          }
       }
 
-      for (int i = 0; i < NUM_3D_EDGES; ++i) {
-         if (d_scalar_bdry_edge_conds[i] == BdryCond::XREFLECT) {
+      for (int i = 0; i < NUM_3D_EDGES; ++i)
+      {
+         if (d_scalar_bdry_edge_conds[i] == BdryCond::XREFLECT)
+         {
             d_scalar_bdry_edge_conds[i] = BdryCond::XFLOW;
          }
-         if (d_scalar_bdry_edge_conds[i] == BdryCond::YREFLECT) {
+         if (d_scalar_bdry_edge_conds[i] == BdryCond::YREFLECT)
+         {
             d_scalar_bdry_edge_conds[i] = BdryCond::YFLOW;
          }
-         if (d_scalar_bdry_edge_conds[i] == BdryCond::ZREFLECT) {
+         if (d_scalar_bdry_edge_conds[i] == BdryCond::ZREFLECT)
+         {
             d_scalar_bdry_edge_conds[i] = BdryCond::ZFLOW;
          }
 
-         if (d_scalar_bdry_edge_conds[i] != BOGUS_BDRY_DATA) {
+         if (d_scalar_bdry_edge_conds[i] != BOGUS_BDRY_DATA)
+         {
             d_edge_bdry_face[i] =
                appu::CartesianBoundaryUtilities3::getFaceLocationForEdgeBdry(
                   i, d_scalar_bdry_edge_conds[i]);
          }
       }
 
-      for (int i = 0; i < NUM_3D_NODES; ++i) {
-         if (d_scalar_bdry_node_conds[i] == BdryCond::XREFLECT) {
+      for (int i = 0; i < NUM_3D_NODES; ++i)
+      {
+         if (d_scalar_bdry_node_conds[i] == BdryCond::XREFLECT)
+         {
             d_scalar_bdry_node_conds[i] = BdryCond::XFLOW;
          }
-         if (d_scalar_bdry_node_conds[i] == BdryCond::REFLECT) {
+         if (d_scalar_bdry_node_conds[i] == BdryCond::REFLECT)
+         {
             d_scalar_bdry_node_conds[i] = BdryCond::YFLOW;
          }
-         if (d_scalar_bdry_node_conds[i] == BdryCond::ZREFLECT) {
+         if (d_scalar_bdry_node_conds[i] == BdryCond::ZREFLECT)
+         {
             d_scalar_bdry_node_conds[i] = BdryCond::ZFLOW;
          }
 
-         if (d_scalar_bdry_node_conds[i] != BOGUS_BDRY_DATA) {
+         if (d_scalar_bdry_node_conds[i] != BOGUS_BDRY_DATA)
+         {
             d_node_bdry_face[i] =
                appu::CartesianBoundaryUtilities3::getFaceLocationForNodeBdry(
                   i, d_scalar_bdry_node_conds[i]);
@@ -314,10 +358,11 @@ LinAdv::LinAdv(
 
    }
 
-   SAMRAI_F77_FUNC(stufprobc, STUFPROBC) (PIECEWISE_CONSTANT_X, PIECEWISE_CONSTANT_Y,
-      PIECEWISE_CONSTANT_Z,
-      SINE_CONSTANT_X, SINE_CONSTANT_Y, SINE_CONSTANT_Z, SPHERE,
-      CELLG, FACEG, FLUXG);
+   SAMRAI_F77_FUNC(stufprobc, STUFPROBC) (PIECEWISE_CONSTANT_X,
+                                          PIECEWISE_CONSTANT_Y,
+                                          PIECEWISE_CONSTANT_Z,
+                                          SINE_CONSTANT_X, SINE_CONSTANT_Y, SINE_CONSTANT_Z, SPHERE,
+                                          CELLG, FACEG, FLUXG);
 
 }
 
@@ -329,7 +374,8 @@ LinAdv::LinAdv(
  *************************************************************************
  */
 
-LinAdv::~LinAdv() {
+LinAdv::~LinAdv()
+{
 }
 
 /*
@@ -350,41 +396,43 @@ void LinAdv::registerModelVariables(
    TBOX_ASSERT(CELLG == FACEG);
 
    integrator->registerVariable(d_xval, hier::IntVector::getZero(d_dim),
-      algs::HyperbolicLevelIntegrator::INPUT,
-      d_grid_geometry,
-      "CONSTANT_COARSEN",
-      "LINEAR_REFINE");
+                                algs::HyperbolicLevelIntegrator::INPUT,
+                                d_grid_geometry,
+                                "CONSTANT_COARSEN",
+                                "LINEAR_REFINE");
 
    integrator->registerVariable(d_uval, d_nghosts,
-      algs::HyperbolicLevelIntegrator::TIME_DEP,
-      d_grid_geometry,
-      "CONSERVATIVE_COARSEN",
-      "CONSERVATIVE_LINEAR_REFINE");
+                                algs::HyperbolicLevelIntegrator::TIME_DEP,
+                                d_grid_geometry,
+                                "CONSERVATIVE_COARSEN",
+                                "CONSERVATIVE_LINEAR_REFINE");
 
    integrator->registerVariable(d_flux, d_fluxghosts,
-      algs::HyperbolicLevelIntegrator::FLUX,
-      d_grid_geometry,
-      "CONSERVATIVE_COARSEN",
-      "NO_REFINE");
+                                algs::HyperbolicLevelIntegrator::FLUX,
+                                d_grid_geometry,
+                                "CONSERVATIVE_COARSEN",
+                                "NO_REFINE");
 
 #ifdef HAVE_HDF5
    hier::VariableDatabase* vardb = hier::VariableDatabase::getDatabase();
 
-   if (d_visit_writer) {
+   if (d_visit_writer)
+   {
       d_visit_writer->
       registerPlotQuantity("U",
-         "SCALAR",
-         vardb->mapVariableAndContextToIndex(
-            d_uval, integrator->getPlotContext()));
+                           "SCALAR",
+                           vardb->mapVariableAndContextToIndex(
+                              d_uval, integrator->getPlotContext()));
    }
 #endif
 
 #ifdef HAVE_HDF5
-   if (!d_visit_writer) {
+   if (!d_visit_writer)
+   {
       TBOX_WARNING(d_object_name << ": registerModelVariables()"
-                                 << "\nVisIt data writer was not registered.\n"
-                                 << "Consequently, no plot data will"
-                                 << "\nbe written." << std::endl);
+                   << "\nVisIt data writer was not registered.\n"
+                   << "Consequently, no plot data will"
+                   << "\nbe written." << std::endl);
    }
 #endif
 
@@ -411,11 +459,13 @@ void LinAdv::setupLoadBalancer(
    hier::PatchDataRestartManager* pdrm =
       hier::PatchDataRestartManager::getManager();
 
-   if (d_use_nonuniform_workload && gridding_algorithm) {
+   if (d_use_nonuniform_workload && gridding_algorithm)
+   {
       std::shared_ptr<mesh::CascadePartitioner> load_balancer(
          std::dynamic_pointer_cast<mesh::CascadePartitioner, mesh::LoadBalanceStrategy>(
             gridding_algorithm->getLoadBalanceStrategy()));
-      if (load_balancer) {
+      if (load_balancer)
+      {
          d_workload_variable.reset(
             new pdat::CellVariable<double>(
                d_dim,
@@ -424,18 +474,22 @@ void LinAdv::setupLoadBalancer(
                1));
          d_workload_data_id =
             vardb->registerVariableAndContext(d_workload_variable,
-               vardb->getContext("WORKLOAD"),
-               zero_vec);
+                                              vardb->getContext("WORKLOAD"),
+                                              zero_vec);
          load_balancer->setWorkloadPatchDataIndex(d_workload_data_id);
          pdrm->registerPatchDataForRestart(d_workload_data_id);
-      } else {
+      }
+      else
+      {
          TBOX_WARNING(
             d_object_name << ": "
-                          << "  Unknown load balancer used in gridding algorithm."
-                          << "  Ignoring request for nonuniform load balancing." << std::endl);
+            << "  Unknown load balancer used in gridding algorithm."
+            << "  Ignoring request for nonuniform load balancing." << std::endl);
          d_use_nonuniform_workload = false;
       }
-   } else {
+   }
+   else
+   {
       d_use_nonuniform_workload = false;
    }
 
@@ -460,7 +514,8 @@ void LinAdv::initializeDataOnPatch(
 {
    NULL_USE(data_time);
 
-   if (initial_time) {
+   if (initial_time)
+   {
 
       const std::shared_ptr<geom::CartesianPatchGeometry> pgeom(
          SAMRAI_SHARED_PTR_CAST<geom::CartesianPatchGeometry, hier::PatchGeometry>(
@@ -478,7 +533,8 @@ void LinAdv::initializeDataOnPatch(
 
       for (pdat::NodeIterator in(pdat::NodeGeometry::begin(patch.getBox())),
            in_end(pdat::NodeGeometry::end(patch.getBox()));
-           in != in_end; ++in) {
+           in != in_end; ++in)
+      {
 
          const pdat::NodeIndex global_index = *in;
          const pdat::NodeIndex local_index = global_index - patch.getBox().lower();
@@ -499,112 +555,126 @@ void LinAdv::initializeDataOnPatch(
       const hier::Index ifirst = patch.getBox().lower();
       const hier::Index ilast = patch.getBox().upper();
 
-      if (d_data_problem_int == SPHERE) {
+      if (d_data_problem_int == SPHERE)
+      {
 
-         if (d_dim == tbox::Dimension(2)) {
+         if (d_dim == tbox::Dimension(2))
+         {
             SAMRAI_F77_FUNC(initsphere2d, INITSPHERE2D) (d_data_problem_int, dx, xlo,
-               xhi,
-               ifirst(0), ilast(0),
-               ifirst(1), ilast(1),
-               ghost_cells(0),
-               ghost_cells(1),
-               uval->getPointer(),
-               d_uval_inside,
-               d_uval_outside,
-               &d_center[0], d_radius);
+                                                         xhi,
+                                                         ifirst(0), ilast(0),
+                                                         ifirst(1), ilast(1),
+                                                         ghost_cells(0),
+                                                         ghost_cells(1),
+                                                         uval->getPointer(),
+                                                         d_uval_inside,
+                                                         d_uval_outside,
+                                                         &d_center[0], d_radius);
          }
-         if (d_dim == tbox::Dimension(3)) {
+         if (d_dim == tbox::Dimension(3))
+         {
             SAMRAI_F77_FUNC(initsphere3d, INITSPHERE3D) (d_data_problem_int, dx, xlo,
-               xhi,
-               ifirst(0), ilast(0),
-               ifirst(1), ilast(1),
-               ifirst(2), ilast(2),
-               ghost_cells(0),
-               ghost_cells(1),
-               ghost_cells(2),
-               uval->getPointer(),
-               d_uval_inside,
-               d_uval_outside,
-               &d_center[0], d_radius);
+                                                         xhi,
+                                                         ifirst(0), ilast(0),
+                                                         ifirst(1), ilast(1),
+                                                         ifirst(2), ilast(2),
+                                                         ghost_cells(0),
+                                                         ghost_cells(1),
+                                                         ghost_cells(2),
+                                                         uval->getPointer(),
+                                                         d_uval_inside,
+                                                         d_uval_outside,
+                                                         &d_center[0], d_radius);
          }
 
-      } else if (d_data_problem_int == SINE_CONSTANT_X ||
-                 d_data_problem_int == SINE_CONSTANT_Y ||
-                 d_data_problem_int == SINE_CONSTANT_Z) {
+      }
+      else if (d_data_problem_int == SINE_CONSTANT_X ||
+               d_data_problem_int == SINE_CONSTANT_Y ||
+               d_data_problem_int == SINE_CONSTANT_Z)
+      {
 
          const double* domain_xlo = d_grid_geometry->getXLower();
          const double* domain_xhi = d_grid_geometry->getXUpper();
          std::vector<double> domain_length(d_dim.getValue());
-         for (int i = 0; i < d_dim.getValue(); ++i) {
+         for (int i = 0; i < d_dim.getValue(); ++i)
+         {
             domain_length[i] = domain_xhi[i] - domain_xlo[i];
          }
 
-         if (d_dim == tbox::Dimension(2)) {
+         if (d_dim == tbox::Dimension(2))
+         {
             SAMRAI_F77_FUNC(linadvinitsine2d, LINADVINITSINE2D) (d_data_problem_int,
-               dx, xlo,
-               domain_xlo, &domain_length[0],
-               ifirst(0), ilast(0),
-               ifirst(1), ilast(1),
-               ghost_cells(0),
-               ghost_cells(1),
-               uval->getPointer(),
-               d_number_of_intervals,
-               &d_front_position[0],
-               &d_interval_uval[0],
-               d_amplitude,
-               &d_frequency[0]);
+                                                                 dx, xlo,
+                                                                 domain_xlo, &domain_length[0],
+                                                                 ifirst(0), ilast(0),
+                                                                 ifirst(1), ilast(1),
+                                                                 ghost_cells(0),
+                                                                 ghost_cells(1),
+                                                                 uval->getPointer(),
+                                                                 d_number_of_intervals,
+                                                                 &d_front_position[0],
+                                                                 &d_interval_uval[0],
+                                                                 d_amplitude,
+                                                                 &d_frequency[0]);
          }
-         if (d_dim == tbox::Dimension(3)) {
+         if (d_dim == tbox::Dimension(3))
+         {
             SAMRAI_F77_FUNC(linadvinitsine3d, LINADVINITSINE3D) (d_data_problem_int,
-               dx, xlo,
-               domain_xlo, &domain_length[0],
-               ifirst(0), ilast(0),
-               ifirst(1), ilast(1),
-               ifirst(2), ilast(2),
-               ghost_cells(0),
-               ghost_cells(1),
-               ghost_cells(2),
-               uval->getPointer(),
-               d_number_of_intervals,
-               &d_front_position[0],
-               &d_interval_uval[0],
-               d_amplitude,
-               &d_frequency[0]);
+                                                                 dx, xlo,
+                                                                 domain_xlo, &domain_length[0],
+                                                                 ifirst(0), ilast(0),
+                                                                 ifirst(1), ilast(1),
+                                                                 ifirst(2), ilast(2),
+                                                                 ghost_cells(0),
+                                                                 ghost_cells(1),
+                                                                 ghost_cells(2),
+                                                                 uval->getPointer(),
+                                                                 d_number_of_intervals,
+                                                                 &d_front_position[0],
+                                                                 &d_interval_uval[0],
+                                                                 d_amplitude,
+                                                                 &d_frequency[0]);
          }
-      } else {
+      }
+      else
+      {
 
-         if (d_dim == tbox::Dimension(2)) {
+         if (d_dim == tbox::Dimension(2))
+         {
             SAMRAI_F77_FUNC(linadvinit2d, LINADVINIT2D) (d_data_problem_int, dx, xlo,
-               xhi,
-               ifirst(0), ilast(0),
-               ifirst(1), ilast(1),
-               ghost_cells(0),
-               ghost_cells(1),
-               uval->getPointer(),
-               d_number_of_intervals,
-               &d_front_position[0],
-               &d_interval_uval[0]);
+                                                         xhi,
+                                                         ifirst(0), ilast(0),
+                                                         ifirst(1), ilast(1),
+                                                         ghost_cells(0),
+                                                         ghost_cells(1),
+                                                         uval->getPointer(),
+                                                         d_number_of_intervals,
+                                                         &d_front_position[0],
+                                                         &d_interval_uval[0]);
          }
-         if (d_dim == tbox::Dimension(3)) {
+         if (d_dim == tbox::Dimension(3))
+         {
             SAMRAI_F77_FUNC(linadvinit3d, LINADVINIT3D) (d_data_problem_int, dx, xlo,
-               xhi,
-               ifirst(0), ilast(0),
-               ifirst(1), ilast(1),
-               ifirst(2), ilast(2),
-               ghost_cells(0),
-               ghost_cells(1),
-               ghost_cells(2),
-               uval->getPointer(),
-               d_number_of_intervals,
-               &d_front_position[0],
-               &d_interval_uval[0]);
+                                                         xhi,
+                                                         ifirst(0), ilast(0),
+                                                         ifirst(1), ilast(1),
+                                                         ifirst(2), ilast(2),
+                                                         ghost_cells(0),
+                                                         ghost_cells(1),
+                                                         ghost_cells(2),
+                                                         uval->getPointer(),
+                                                         d_number_of_intervals,
+                                                         &d_front_position[0],
+                                                         &d_interval_uval[0]);
          }
       }
 
    }
 
-   if (d_use_nonuniform_workload) {
-      if (!patch.checkAllocated(d_workload_data_id)) {
+   if (d_use_nonuniform_workload)
+   {
+      if (!patch.checkAllocated(d_workload_data_id))
+      {
          patch.allocatePatchData(d_workload_data_id);
       }
       std::shared_ptr<pdat::CellData<double> > workload_data(
@@ -615,7 +685,8 @@ void LinAdv::initializeDataOnPatch(
       const hier::Box& box = patch.getBox();
       const hier::BoxId& box_id = box.getBoxId();
       const hier::LocalId& local_id = box_id.getLocalId();
-      double id_val = local_id.getValue() % 2 ? static_cast<double>(local_id.getValue() % 10) : 0.0;
+      double id_val = local_id.getValue() % 2 ? static_cast<double>
+                      (local_id.getValue() % 10) : 0.0;
       workload_data->fillAll(1.0+id_val);
 #if defined(HAVE_RAJA)
       tbox::parallel_synchronize();
@@ -658,25 +729,30 @@ double LinAdv::computeStableDtOnPatch(
    hier::IntVector ghost_cells(uval->getGhostCellWidth());
 
    double stabdt;
-   if (d_dim == tbox::Dimension(2)) {
+   if (d_dim == tbox::Dimension(2))
+   {
       SAMRAI_F77_FUNC(stabledt2d, STABLEDT2D) (dx,
-         ifirst(0), ilast(0),
-         ifirst(1), ilast(1),
-         ghost_cells(0),
-         ghost_cells(1),
-         &d_advection_velocity[0],
-         stabdt);
-   } else if (d_dim == tbox::Dimension(3)) {
+                                               ifirst(0), ilast(0),
+                                               ifirst(1), ilast(1),
+                                               ghost_cells(0),
+                                               ghost_cells(1),
+                                               &d_advection_velocity[0],
+                                               stabdt);
+   }
+   else if (d_dim == tbox::Dimension(3))
+   {
       SAMRAI_F77_FUNC(stabledt3d, STABLEDT3D) (dx,
-         ifirst(0), ilast(0),
-         ifirst(1), ilast(1),
-         ifirst(2), ilast(2),
-         ghost_cells(0),
-         ghost_cells(1),
-         ghost_cells(2),
-         &d_advection_velocity[0],
-         stabdt);
-   } else {
+                                               ifirst(0), ilast(0),
+                                               ifirst(1), ilast(1),
+                                               ifirst(2), ilast(2),
+                                               ghost_cells(0),
+                                               ghost_cells(1),
+                                               ghost_cells(2),
+                                               &d_advection_velocity[0],
+                                               stabdt);
+   }
+   else
+   {
       TBOX_ERROR("Only 2D or 3D allowed in LinAdv::computeStableDtOnPatch");
       stabdt = 0;
    }
@@ -701,11 +777,15 @@ void LinAdv::computeFluxesOnPatch(
 {
    NULL_USE(time);
 
-   if (d_dim == tbox::Dimension(3)) {
+   if (d_dim == tbox::Dimension(3))
+   {
 
-      if (d_corner_transport == "CORNER_TRANSPORT_2") {
+      if (d_corner_transport == "CORNER_TRANSPORT_2")
+      {
          compute3DFluxesWithCornerTransport2(patch, dt);
-      } else {
+      }
+      else
+      {
          compute3DFluxesWithCornerTransport1(patch, dt);
       }
 
@@ -718,7 +798,8 @@ void LinAdv::computeFluxesOnPatch(
          patch.getPatchData(d_flux, getDataContext())));
    TBOX_ASSERT(flux);
 
-   if (d_dim < tbox::Dimension(3)) {
+   if (d_dim < tbox::Dimension(3))
+   {
 
       TBOX_ASSERT(CELLG == FACEG);
 
@@ -749,123 +830,129 @@ void LinAdv::computeFluxesOnPatch(
       pdat::FaceData<double> traced_left(pbox, 1, d_nghosts, d_allocator);
       pdat::FaceData<double> traced_right(pbox, 1, d_nghosts, d_allocator);
 
-      if (d_dim == tbox::Dimension(2)) {
+      if (d_dim == tbox::Dimension(2))
+      {
          SAMRAI_F77_FUNC(inittraceflux2d, INITTRACEFLUX2D) (ifirst(0), ilast(0),
-            ifirst(1), ilast(1),
-            uval->getPointer(),
-            traced_left.getPointer(0),
-            traced_left.getPointer(1),
-            traced_right.getPointer(0),
-            traced_right.getPointer(1),
-            flux->getPointer(0),
-            flux->getPointer(1)
-            );
+                                                            ifirst(1), ilast(1),
+                                                            uval->getPointer(),
+                                                            traced_left.getPointer(0),
+                                                            traced_left.getPointer(1),
+                                                            traced_right.getPointer(0),
+                                                            traced_right.getPointer(1),
+                                                            flux->getPointer(0),
+                                                            flux->getPointer(1)
+                                                           );
       }
 
-      if (d_godunov_order > 1) {
+      if (d_godunov_order > 1)
+      {
 
          /*
           * Prepare temporary data for characteristic tracing.
           */
          int Mcells = 0;
-         for (tbox::Dimension::dir_t k = 0; k < d_dim.getValue(); ++k) {
+         for (tbox::Dimension::dir_t k = 0; k < d_dim.getValue(); ++k)
+         {
             Mcells = tbox::MathUtilities<int>::Max(Mcells, pbox.numberCells(k));
          }
 
-// Face-centered temporary arrays
+         // Face-centered temporary arrays
          std::vector<double> ttedgslp(2 * FACEG + 1 + Mcells);
          std::vector<double> ttraclft(2 * FACEG + 1 + Mcells);
          std::vector<double> ttracrgt(2 * FACEG + 1 + Mcells);
 
-// Cell-centered temporary arrays
+         // Cell-centered temporary arrays
          std::vector<double> ttcelslp(2 * CELLG + Mcells);
 
-/*
- *  Apply characteristic tracing to compute initial estimate of
- *  traces w^L and w^R at faces.
- *  Inputs: w^L, w^R (traced_left/right)
- *  Output: w^L, w^R
- */
-         if (d_dim == tbox::Dimension(2)) {
+         /*
+          *  Apply characteristic tracing to compute initial estimate of
+          *  traces w^L and w^R at faces.
+          *  Inputs: w^L, w^R (traced_left/right)
+          *  Output: w^L, w^R
+          */
+         if (d_dim == tbox::Dimension(2))
+         {
             SAMRAI_F77_FUNC(chartracing2d0, CHARTRACING2D0) (dt,
-               ifirst(0), ilast(0),
-               ifirst(1), ilast(1),
-               Mcells, dx[0], d_advection_velocity[0], d_godunov_order,
-               traced_left.getPointer(0),
-               traced_right.getPointer(0),
-               &ttcelslp[0],
-               &ttedgslp[0],
-               &ttraclft[0],
-               &ttracrgt[0]);
+                                                             ifirst(0), ilast(0),
+                                                             ifirst(1), ilast(1),
+                                                             Mcells, dx[0], d_advection_velocity[0], d_godunov_order,
+                                                             traced_left.getPointer(0),
+                                                             traced_right.getPointer(0),
+                                                             &ttcelslp[0],
+                                                             &ttedgslp[0],
+                                                             &ttraclft[0],
+                                                             &ttracrgt[0]);
 
             SAMRAI_F77_FUNC(chartracing2d1, CHARTRACING2D1) (dt,
-               ifirst(0), ilast(0), ifirst(1), ilast(1),
-               Mcells, dx[1], d_advection_velocity[1], d_godunov_order,
-               traced_left.getPointer(1),
-               traced_right.getPointer(1),
-               &ttcelslp[0],
-               &ttedgslp[0],
-               &ttraclft[0],
-               &ttracrgt[0]);
+                                                             ifirst(0), ilast(0), ifirst(1), ilast(1),
+                                                             Mcells, dx[1], d_advection_velocity[1], d_godunov_order,
+                                                             traced_left.getPointer(1),
+                                                             traced_right.getPointer(1),
+                                                             &ttcelslp[0],
+                                                             &ttedgslp[0],
+                                                             &ttraclft[0],
+                                                             &ttracrgt[0]);
          }
 
       }  // if (d_godunov_order > 1) ...
 
-      if (d_dim == tbox::Dimension(2)) {
-/*
- *  Compute fluxes at faces using the face states computed so far.
- *  Inputs: w^L, w^R (traced_left/right)
- *  Output: F (flux)
- */
-// fluxcalculation_(dt,*,1,dx, to get artificial viscosity
-// fluxcalculation_(dt,*,0,dx, to get NO artificial viscosity
+      if (d_dim == tbox::Dimension(2))
+      {
+         /*
+          *  Compute fluxes at faces using the face states computed so far.
+          *  Inputs: w^L, w^R (traced_left/right)
+          *  Output: F (flux)
+          */
+         // fluxcalculation_(dt,*,1,dx, to get artificial viscosity
+         // fluxcalculation_(dt,*,0,dx, to get NO artificial viscosity
 
          SAMRAI_F77_FUNC(fluxcalculation2d, FLUXCALCULATION2D) (dt, 1, 0, dx,
-            ifirst(0), ilast(0), ifirst(1), ilast(1),
-            &d_advection_velocity[0],
-            flux->getPointer(0),
-            flux->getPointer(1),
-            traced_left.getPointer(0),
-            traced_left.getPointer(1),
-            traced_right.getPointer(0),
-            traced_right.getPointer(1));
+                                                                ifirst(0), ilast(0), ifirst(1), ilast(1),
+                                                                &d_advection_velocity[0],
+                                                                flux->getPointer(0),
+                                                                flux->getPointer(1),
+                                                                traced_left.getPointer(0),
+                                                                traced_left.getPointer(1),
+                                                                traced_right.getPointer(0),
+                                                                traced_right.getPointer(1));
 
-/*
- *  Re-compute traces at cell faces with transverse correction applied.
- *  Inputs: F (flux)
- *  Output: w^L, w^R (traced_left/right)
- */
+         /*
+          *  Re-compute traces at cell faces with transverse correction applied.
+          *  Inputs: F (flux)
+          *  Output: w^L, w^R (traced_left/right)
+          */
          SAMRAI_F77_FUNC(fluxcorrec, FLUXCORREC) (dt, ifirst(0), ilast(0), ifirst(1),
-            ilast(1),
-            dx, &d_advection_velocity[0],
-            flux->getPointer(0),
-            flux->getPointer(1),
-            traced_left.getPointer(0),
-            traced_left.getPointer(1),
-            traced_right.getPointer(0),
-            traced_right.getPointer(1));
+                                                  ilast(1),
+                                                  dx, &d_advection_velocity[0],
+                                                  flux->getPointer(0),
+                                                  flux->getPointer(1),
+                                                  traced_left.getPointer(0),
+                                                  traced_left.getPointer(1),
+                                                  traced_right.getPointer(0),
+                                                  traced_right.getPointer(1));
 
          boundaryReset(patch, traced_left, traced_right);
 
-/*
- *  Re-compute fluxes with updated traces.
- *  Inputs: w^L, w^R (traced_left/right)
- *  Output: F (flux)
- */
+         /*
+          *  Re-compute fluxes with updated traces.
+          *  Inputs: w^L, w^R (traced_left/right)
+          *  Output: F (flux)
+          */
          SAMRAI_F77_FUNC(fluxcalculation2d, FLUXCALCULATION2D) (dt, 0, 0, dx,
-            ifirst(0), ilast(0), ifirst(1), ilast(1),
-            &d_advection_velocity[0],
-            flux->getPointer(0),
-            flux->getPointer(1),
-            traced_left.getPointer(0),
-            traced_left.getPointer(1),
-            traced_right.getPointer(0),
-            traced_right.getPointer(1));
+                                                                ifirst(0), ilast(0), ifirst(1), ilast(1),
+                                                                &d_advection_velocity[0],
+                                                                flux->getPointer(0),
+                                                                flux->getPointer(1),
+                                                                traced_left.getPointer(0),
+                                                                traced_left.getPointer(1),
+                                                                traced_right.getPointer(0),
+                                                                traced_right.getPointer(1));
 
       }
    }
 
-   if (d_check_fluxes) {
+   if (d_check_fluxes)
+   {
 
       /*
        * This is used for testing time-refinement.  In the associated
@@ -875,16 +962,19 @@ void LinAdv::computeFluxesOnPatch(
 
       pdat::CellIterator icend(pdat::CellGeometry::end(pbox));
       for (pdat::CellIterator ic(pdat::CellGeometry::begin(pbox));
-           ic != icend; ++ic) {
+           ic != icend; ++ic)
+      {
 
          const pdat::CellIndex& ci(*ic);
-         for (int dir = 0; dir < d_dim.getValue(); dir++) {
+         for (int dir = 0; dir < d_dim.getValue(); dir++)
+         {
 
             pdat::FaceIndex fm(ci, dir, pdat::FaceIndex::Lower);
             pdat::FaceIndex fp(ci, dir, pdat::FaceIndex::Upper);
 
             double delta = (*flux)(fm) - (*flux)(fp);
-            if (fabs(delta) > 1.e-10) {
+            if (fabs(delta) > 1.e-10)
+            {
                tbox::perr << "\nLinAdv Time Refinement Test FAILED: \n"
                           << " found non-zero net fluxes" << std::endl;
             }
@@ -960,13 +1050,15 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
     * If Godunov method requires slopes with order greater than one, perform
     * characteristic tracing to compute higher-order slopes.
     */
-   if (d_godunov_order > 1) {
+   if (d_godunov_order > 1)
+   {
 
       /*
        * Prepare temporary data for characteristic tracing.
        */
       int Mcells = 0;
-      for (tbox::Dimension::dir_t k = 0; k < d_dim.getValue(); ++k) {
+      for (tbox::Dimension::dir_t k = 0; k < d_dim.getValue(); ++k)
+      {
          Mcells = tbox::MathUtilities<int>::Max(Mcells, pbox.numberCells(k));
       }
 
@@ -985,40 +1077,40 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
        *  Output: w^L, w^R
        */
       SAMRAI_F77_FUNC(chartracing3d0, CHARTRACING3D0) (dt,
-         ifirst(0), ilast(0),
-         ifirst(1), ilast(1),
-         ifirst(2), ilast(2),
-         Mcells, dx[0], d_advection_velocity[0], d_godunov_order,
-         traced_left.getPointer(0),
-         traced_right.getPointer(0),
-         &ttcelslp[0],
-         &ttedgslp[0],
-         &ttraclft[0],
-         &ttracrgt[0]);
+                                                       ifirst(0), ilast(0),
+                                                       ifirst(1), ilast(1),
+                                                       ifirst(2), ilast(2),
+                                                       Mcells, dx[0], d_advection_velocity[0], d_godunov_order,
+                                                       traced_left.getPointer(0),
+                                                       traced_right.getPointer(0),
+                                                       &ttcelslp[0],
+                                                       &ttedgslp[0],
+                                                       &ttraclft[0],
+                                                       &ttracrgt[0]);
 
       SAMRAI_F77_FUNC(chartracing3d1, CHARTRACING3D1) (dt,
-         ifirst(0), ilast(0),
-         ifirst(1), ilast(1),
-         ifirst(2), ilast(2),
-         Mcells, dx[1], d_advection_velocity[1], d_godunov_order,
-         traced_left.getPointer(1),
-         traced_right.getPointer(1),
-         &ttcelslp[0],
-         &ttedgslp[0],
-         &ttraclft[0],
-         &ttracrgt[0]);
+                                                       ifirst(0), ilast(0),
+                                                       ifirst(1), ilast(1),
+                                                       ifirst(2), ilast(2),
+                                                       Mcells, dx[1], d_advection_velocity[1], d_godunov_order,
+                                                       traced_left.getPointer(1),
+                                                       traced_right.getPointer(1),
+                                                       &ttcelslp[0],
+                                                       &ttedgslp[0],
+                                                       &ttraclft[0],
+                                                       &ttracrgt[0]);
 
       SAMRAI_F77_FUNC(chartracing3d2, CHARTRACING3D2) (dt,
-         ifirst(0), ilast(0),
-         ifirst(1), ilast(1),
-         ifirst(2), ilast(2),
-         Mcells, dx[2], d_advection_velocity[2], d_godunov_order,
-         traced_left.getPointer(2),
-         traced_right.getPointer(2),
-         &ttcelslp[0],
-         &ttedgslp[0],
-         &ttraclft[0],
-         &ttracrgt[0]);
+                                                       ifirst(0), ilast(0),
+                                                       ifirst(1), ilast(1),
+                                                       ifirst(2), ilast(2),
+                                                       Mcells, dx[2], d_advection_velocity[2], d_godunov_order,
+                                                       traced_left.getPointer(2),
+                                                       traced_right.getPointer(2),
+                                                       &ttcelslp[0],
+                                                       &ttedgslp[0],
+                                                       &ttraclft[0],
+                                                       &ttracrgt[0]);
    }
 
    /*
@@ -1028,20 +1120,20 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
     *  Output: F (flux)
     */
 
-//  fluxcalculation_(dt,*,*,1,dx,  to do artificial viscosity
-//  fluxcalculation_(dt,*,*,0,dx,  to do NO artificial viscosity
+   //  fluxcalculation_(dt,*,*,1,dx,  to do artificial viscosity
+   //  fluxcalculation_(dt,*,*,0,dx,  to do NO artificial viscosity
    SAMRAI_F77_FUNC(fluxcalculation3d, FLUXCALCULATION3d) (dt, 1, 0, 0, dx,
-      ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-      &d_advection_velocity[0],
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      traced_left.getPointer(0),
-      traced_left.getPointer(1),
-      traced_left.getPointer(2),
-      traced_right.getPointer(0),
-      traced_right.getPointer(1),
-      traced_right.getPointer(2));
+                                                          ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                          &d_advection_velocity[0],
+                                                          flux->getPointer(0),
+                                                          flux->getPointer(1),
+                                                          flux->getPointer(2),
+                                                          traced_left.getPointer(0),
+                                                          traced_left.getPointer(1),
+                                                          traced_left.getPointer(2),
+                                                          traced_right.getPointer(0),
+                                                          traced_right.getPointer(1),
+                                                          traced_right.getPointer(2));
    /*
     *  Re-compute face traces to include one set of correction terms with
     *  transverse flux differences.  Store result in temporary vectors
@@ -1050,23 +1142,23 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
     *  Output: temp_traced_left/right
     */
    SAMRAI_F77_FUNC(fluxcorrec2d, FLUXCORREC2D) (dt, ifirst(0), ilast(0), ifirst(1),
-      ilast(1), ifirst(2), ilast(2),
-      dx, &d_advection_velocity[0], 1,
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      traced_left.getPointer(0),
-      traced_left.getPointer(1),
-      traced_left.getPointer(2),
-      traced_right.getPointer(0),
-      traced_right.getPointer(1),
-      traced_right.getPointer(2),
-      temp_traced_left.getPointer(0),
-      temp_traced_left.getPointer(1),
-      temp_traced_left.getPointer(2),
-      temp_traced_right.getPointer(0),
-      temp_traced_right.getPointer(1),
-      temp_traced_right.getPointer(2));
+                                                ilast(1), ifirst(2), ilast(2),
+                                                dx, &d_advection_velocity[0], 1,
+                                                flux->getPointer(0),
+                                                flux->getPointer(1),
+                                                flux->getPointer(2),
+                                                traced_left.getPointer(0),
+                                                traced_left.getPointer(1),
+                                                traced_left.getPointer(2),
+                                                traced_right.getPointer(0),
+                                                traced_right.getPointer(1),
+                                                traced_right.getPointer(2),
+                                                temp_traced_left.getPointer(0),
+                                                temp_traced_left.getPointer(1),
+                                                temp_traced_left.getPointer(2),
+                                                temp_traced_right.getPointer(0),
+                                                temp_traced_right.getPointer(1),
+                                                temp_traced_right.getPointer(2));
 
    boundaryReset(patch, traced_left, traced_right);
 
@@ -1077,17 +1169,17 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
     *  Output: temp_flux
     */
    SAMRAI_F77_FUNC(fluxcalculation3d, FLUXCALCULATION3d) (dt, 0, 1, 0, dx,
-      ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-      &d_advection_velocity[0],
-      temp_flux.getPointer(0),
-      temp_flux.getPointer(1),
-      temp_flux.getPointer(2),
-      temp_traced_left.getPointer(0),
-      temp_traced_left.getPointer(1),
-      temp_traced_left.getPointer(2),
-      temp_traced_right.getPointer(0),
-      temp_traced_right.getPointer(1),
-      temp_traced_right.getPointer(2));
+                                                          ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                          &d_advection_velocity[0],
+                                                          temp_flux.getPointer(0),
+                                                          temp_flux.getPointer(1),
+                                                          temp_flux.getPointer(2),
+                                                          temp_traced_left.getPointer(0),
+                                                          temp_traced_left.getPointer(1),
+                                                          temp_traced_left.getPointer(2),
+                                                          temp_traced_right.getPointer(0),
+                                                          temp_traced_right.getPointer(1),
+                                                          temp_traced_right.getPointer(2));
    /*
     *  Compute face traces with other transverse correction flux
     *  difference terms included.  Store result in temporary vectors
@@ -1096,23 +1188,23 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
     *  Output: temp_traced_left/right
     */
    SAMRAI_F77_FUNC(fluxcorrec2d, FLUXCORREC2D) (dt, ifirst(0), ilast(0), ifirst(1),
-      ilast(1), ifirst(2), ilast(2),
-      dx, &d_advection_velocity[0], -1,
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      traced_left.getPointer(0),
-      traced_left.getPointer(1),
-      traced_left.getPointer(2),
-      traced_right.getPointer(0),
-      traced_right.getPointer(1),
-      traced_right.getPointer(2),
-      temp_traced_left.getPointer(0),
-      temp_traced_left.getPointer(1),
-      temp_traced_left.getPointer(2),
-      temp_traced_right.getPointer(0),
-      temp_traced_right.getPointer(1),
-      temp_traced_right.getPointer(2));
+                                                ilast(1), ifirst(2), ilast(2),
+                                                dx, &d_advection_velocity[0], -1,
+                                                flux->getPointer(0),
+                                                flux->getPointer(1),
+                                                flux->getPointer(2),
+                                                traced_left.getPointer(0),
+                                                traced_left.getPointer(1),
+                                                traced_left.getPointer(2),
+                                                traced_right.getPointer(0),
+                                                traced_right.getPointer(1),
+                                                traced_right.getPointer(2),
+                                                temp_traced_left.getPointer(0),
+                                                temp_traced_left.getPointer(1),
+                                                temp_traced_left.getPointer(2),
+                                                temp_traced_right.getPointer(0),
+                                                temp_traced_right.getPointer(1),
+                                                temp_traced_right.getPointer(2));
 
    boundaryReset(patch, traced_left, traced_right);
 
@@ -1126,17 +1218,17 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
     *  Output: flux
     */
    SAMRAI_F77_FUNC(fluxcalculation3d, FLUXCALCULATION3d) (dt, 1, 0, 0, dx,
-      ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-      &d_advection_velocity[0],
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      temp_traced_left.getPointer(0),
-      temp_traced_left.getPointer(1),
-      temp_traced_left.getPointer(2),
-      temp_traced_right.getPointer(0),
-      temp_traced_right.getPointer(1),
-      temp_traced_right.getPointer(2));
+                                                          ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                          &d_advection_velocity[0],
+                                                          flux->getPointer(0),
+                                                          flux->getPointer(1),
+                                                          flux->getPointer(2),
+                                                          temp_traced_left.getPointer(0),
+                                                          temp_traced_left.getPointer(1),
+                                                          temp_traced_left.getPointer(2),
+                                                          temp_traced_right.getPointer(0),
+                                                          temp_traced_right.getPointer(1),
+                                                          temp_traced_right.getPointer(2));
 
    /*
     *  Compute the final trace state vectors at cell faces, using transverse
@@ -1146,40 +1238,40 @@ void LinAdv::compute3DFluxesWithCornerTransport1(
     *  Output: w^L, w^R (traced_left/right)
     */
    SAMRAI_F77_FUNC(fluxcorrec3d, FLUXCORREC3D) (dt, ifirst(0), ilast(0), ifirst(1),
-      ilast(1), ifirst(2), ilast(2),
-      dx, &d_advection_velocity[0],
-      temp_flux.getPointer(0),
-      temp_flux.getPointer(1),
-      temp_flux.getPointer(2),
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      traced_left.getPointer(0),
-      traced_left.getPointer(1),
-      traced_left.getPointer(2),
-      traced_right.getPointer(0),
-      traced_right.getPointer(1),
-      traced_right.getPointer(2));
+                                                ilast(1), ifirst(2), ilast(2),
+                                                dx, &d_advection_velocity[0],
+                                                temp_flux.getPointer(0),
+                                                temp_flux.getPointer(1),
+                                                temp_flux.getPointer(2),
+                                                flux->getPointer(0),
+                                                flux->getPointer(1),
+                                                flux->getPointer(2),
+                                                traced_left.getPointer(0),
+                                                traced_left.getPointer(1),
+                                                traced_left.getPointer(2),
+                                                traced_right.getPointer(0),
+                                                traced_right.getPointer(1),
+                                                traced_right.getPointer(2));
    /*
     *  Final flux calculation using corrected trace states.
     *  Inputs:  w^L, w^R (traced_left/right)
     *  Output:  F (flux)
     */
    SAMRAI_F77_FUNC(fluxcalculation3d, FLUXCALCULATION3d) (dt, 0, 0, 0, dx,
-      ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-      &d_advection_velocity[0],
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      traced_left.getPointer(0),
-      traced_left.getPointer(1),
-      traced_left.getPointer(2),
-      traced_right.getPointer(0),
-      traced_right.getPointer(1),
-      traced_right.getPointer(2));
+                                                          ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                          &d_advection_velocity[0],
+                                                          flux->getPointer(0),
+                                                          flux->getPointer(1),
+                                                          flux->getPointer(2),
+                                                          traced_left.getPointer(0),
+                                                          traced_left.getPointer(1),
+                                                          traced_left.getPointer(2),
+                                                          traced_right.getPointer(0),
+                                                          traced_right.getPointer(1),
+                                                          traced_right.getPointer(2));
 
-//     tbox::plog << "flux values: option1...." << std::endl;
-//     flux->print(pbox, tbox::plog);
+   //     tbox::plog << "flux values: option1...." << std::endl;
+   //     flux->print(pbox, tbox::plog);
 
 }
 
@@ -1255,29 +1347,31 @@ void LinAdv::compute3DFluxesWithCornerTransport2(
     *  Output: F (flux)
     */
    SAMRAI_F77_FUNC(fluxcalculation3d, FLUXCALCULATION3d) (dt, 1, 1, 0, dx,
-      ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-      &d_advection_velocity[0],
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      traced_left.getPointer(0),
-      traced_left.getPointer(1),
-      traced_left.getPointer(2),
-      traced_right.getPointer(0),
-      traced_right.getPointer(1),
-      traced_right.getPointer(2));
+                                                          ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                          &d_advection_velocity[0],
+                                                          flux->getPointer(0),
+                                                          flux->getPointer(1),
+                                                          flux->getPointer(2),
+                                                          traced_left.getPointer(0),
+                                                          traced_left.getPointer(1),
+                                                          traced_left.getPointer(2),
+                                                          traced_right.getPointer(0),
+                                                          traced_right.getPointer(1),
+                                                          traced_right.getPointer(2));
 
    /*
     * If Godunov method requires slopes with order greater than one, perform
     * characteristic tracing to compute higher-order slopes.
     */
-   if (d_godunov_order > 1) {
+   if (d_godunov_order > 1)
+   {
 
       /*
        * Prepare temporary data for characteristic tracing.
        */
       int Mcells = 0;
-      for (tbox::Dimension::dir_t k = 0; k < d_dim.getValue(); ++k) {
+      for (tbox::Dimension::dir_t k = 0; k < d_dim.getValue(); ++k)
+      {
          Mcells = tbox::MathUtilities<int>::Max(Mcells, pbox.numberCells(k));
       }
 
@@ -1296,41 +1390,42 @@ void LinAdv::compute3DFluxesWithCornerTransport2(
        *  Output: w^L, w^R
        */
       SAMRAI_F77_FUNC(chartracing3d0, CHARTRACING3D0) (dt,
-         ifirst(0), ilast(0),
-         ifirst(1), ilast(1),
-         ifirst(2), ilast(2),
-         Mcells, dx[0], d_advection_velocity[0], d_godunov_order,
-         traced_left.getPointer(0),
-         traced_right.getPointer(0),
-         &ttcelslp[0],
-         &ttedgslp[0],
-         &ttraclft[0],
-         &ttracrgt[0]);
+                                                       ifirst(0), ilast(0),
+                                                       ifirst(1), ilast(1),
+                                                       ifirst(2), ilast(2),
+                                                       Mcells, dx[0], d_advection_velocity[0], d_godunov_order,
+                                                       traced_left.getPointer(0),
+                                                       traced_right.getPointer(0),
+                                                       &ttcelslp[0],
+                                                       &ttedgslp[0],
+                                                       &ttraclft[0],
+                                                       &ttracrgt[0]);
 
       SAMRAI_F77_FUNC(chartracing3d1, CHARTRACING3D1) (dt,
-         ifirst(0), ilast(0), ifirst(1), ilast(1),
-         ifirst(2), ilast(2),
-         Mcells, dx[1], d_advection_velocity[1], d_godunov_order,
-         traced_left.getPointer(1),
-         traced_right.getPointer(1),
-         &ttcelslp[0],
-         &ttedgslp[0],
-         &ttraclft[0],
-         &ttracrgt[0]);
+                                                       ifirst(0), ilast(0), ifirst(1), ilast(1),
+                                                       ifirst(2), ilast(2),
+                                                       Mcells, dx[1], d_advection_velocity[1], d_godunov_order,
+                                                       traced_left.getPointer(1),
+                                                       traced_right.getPointer(1),
+                                                       &ttcelslp[0],
+                                                       &ttedgslp[0],
+                                                       &ttraclft[0],
+                                                       &ttracrgt[0]);
 
       SAMRAI_F77_FUNC(chartracing3d2, CHARTRACING3D2) (dt,
-         ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-         Mcells, dx[2], d_advection_velocity[2], d_godunov_order,
-         traced_left.getPointer(2),
-         traced_right.getPointer(2),
-         &ttcelslp[0],
-         &ttedgslp[0],
-         &ttraclft[0],
-         &ttracrgt[0]);
+                                                       ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                       Mcells, dx[2], d_advection_velocity[2], d_godunov_order,
+                                                       traced_left.getPointer(2),
+                                                       traced_right.getPointer(2),
+                                                       &ttcelslp[0],
+                                                       &ttedgslp[0],
+                                                       &ttraclft[0],
+                                                       &ttracrgt[0]);
 
    } //  if (d_godunov_order > 1) ...
 
-   for (int idir = 0; idir < d_dim.getValue(); ++idir) {
+   for (int idir = 0; idir < d_dim.getValue(); ++idir)
+   {
 
       /*
        *    Approximate traces at cell centers (in idir direction) - denoted
@@ -1339,13 +1434,13 @@ void LinAdv::compute3DFluxesWithCornerTransport2(
        *    Output:  third_state
        */
       SAMRAI_F77_FUNC(onethirdstate3d, ONETHIRDSTATE3D) (dt, dx, idir,
-         ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-         &d_advection_velocity[0],
-         uval->getPointer(),
-         flux->getPointer(0),
-         flux->getPointer(1),
-         flux->getPointer(2),
-         third_state.getPointer());
+                                                         ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                         &d_advection_velocity[0],
+                                                         uval->getPointer(),
+                                                         flux->getPointer(0),
+                                                         flux->getPointer(1),
+                                                         flux->getPointer(2),
+                                                         third_state.getPointer());
       /*
        *    Compute fluxes using 1/3 state traces, in the two directions OTHER
        *    than idir.
@@ -1354,12 +1449,12 @@ void LinAdv::compute3DFluxesWithCornerTransport2(
        *             are modified)
        */
       SAMRAI_F77_FUNC(fluxthird3d, FLUXTHIRD3D) (dt, dx, idir,
-         ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-         &d_advection_velocity[0],
-         third_state.getPointer(),
-         temp_flux.getPointer(0),
-         temp_flux.getPointer(1),
-         temp_flux.getPointer(2));
+                                                 ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                 &d_advection_velocity[0],
+                                                 third_state.getPointer(),
+                                                 temp_flux.getPointer(0),
+                                                 temp_flux.getPointer(1),
+                                                 temp_flux.getPointer(2));
 
       /*
        *    Compute transverse corrections for the traces in the two directions
@@ -1369,17 +1464,17 @@ void LinAdv::compute3DFluxesWithCornerTransport2(
        *    Output:  w^L, w^R (traced_left/right)
        */
       SAMRAI_F77_FUNC(fluxcorrecjt3d, FLUXCORRECJT3D) (dt, dx, idir,
-         ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-         &d_advection_velocity[0],
-         temp_flux.getPointer(0),
-         temp_flux.getPointer(1),
-         temp_flux.getPointer(2),
-         traced_left.getPointer(0),
-         traced_left.getPointer(1),
-         traced_left.getPointer(2),
-         traced_right.getPointer(0),
-         traced_right.getPointer(1),
-         traced_right.getPointer(2));
+                                                       ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                       &d_advection_velocity[0],
+                                                       temp_flux.getPointer(0),
+                                                       temp_flux.getPointer(1),
+                                                       temp_flux.getPointer(2),
+                                                       traced_left.getPointer(0),
+                                                       traced_left.getPointer(1),
+                                                       traced_left.getPointer(2),
+                                                       traced_right.getPointer(0),
+                                                       traced_right.getPointer(1),
+                                                       traced_right.getPointer(2));
 
    } // loop over directions...
 
@@ -1391,20 +1486,20 @@ void LinAdv::compute3DFluxesWithCornerTransport2(
     *  Output:  F (flux)
     */
    SAMRAI_F77_FUNC(fluxcalculation3d, FLUXCALCULATION3D) (dt, 0, 0, 0, dx,
-      ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
-      &d_advection_velocity[0],
-      flux->getPointer(0),
-      flux->getPointer(1),
-      flux->getPointer(2),
-      traced_left.getPointer(0),
-      traced_left.getPointer(1),
-      traced_left.getPointer(2),
-      traced_right.getPointer(0),
-      traced_right.getPointer(1),
-      traced_right.getPointer(2));
+                                                          ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
+                                                          &d_advection_velocity[0],
+                                                          flux->getPointer(0),
+                                                          flux->getPointer(1),
+                                                          flux->getPointer(2),
+                                                          traced_left.getPointer(0),
+                                                          traced_left.getPointer(1),
+                                                          traced_left.getPointer(2),
+                                                          traced_right.getPointer(0),
+                                                          traced_right.getPointer(1),
+                                                          traced_right.getPointer(2));
 
-//     tbox::plog << "flux values: option2...." << std::endl;
-//     flux->print(pbox, tbox::plog);
+   //     tbox::plog << "flux values: option2...." << std::endl;
+   //     flux->print(pbox, tbox::plog);
 }
 
 /*
@@ -1447,24 +1542,28 @@ void LinAdv::conservativeDifferenceOnPatch(
    TBOX_ASSERT(uval->getGhostCellWidth() == d_nghosts);
    TBOX_ASSERT(flux->getGhostCellWidth() == d_fluxghosts);
 
-   if (d_dim == tbox::Dimension(2)) {
-      SAMRAI_F77_FUNC(consdiff2d, CONSDIFF2D) (ifirst(0), ilast(0), ifirst(1), ilast(1),
-         dx,
-         flux->getPointer(0),
-         flux->getPointer(1),
-         &d_advection_velocity[0],
-         d_source*dt,
-         uval->getPointer());
+   if (d_dim == tbox::Dimension(2))
+   {
+      SAMRAI_F77_FUNC(consdiff2d, CONSDIFF2D) (ifirst(0), ilast(0), ifirst(1),
+                                               ilast(1),
+                                               dx,
+                                               flux->getPointer(0),
+                                               flux->getPointer(1),
+                                               &d_advection_velocity[0],
+                                               d_source*dt,
+                                               uval->getPointer());
    }
-   if (d_dim == tbox::Dimension(3)) {
-      SAMRAI_F77_FUNC(consdiff3d, CONSDIFF3D) (ifirst(0), ilast(0), ifirst(1), ilast(1),
-         ifirst(2), ilast(2), dx,
-         flux->getPointer(0),
-         flux->getPointer(1),
-         flux->getPointer(2),
-         &d_advection_velocity[0],
-         d_source*dt,
-         uval->getPointer());
+   if (d_dim == tbox::Dimension(3))
+   {
+      SAMRAI_F77_FUNC(consdiff3d, CONSDIFF3D) (ifirst(0), ilast(0), ifirst(1),
+                                               ilast(1),
+                                               ifirst(2), ilast(2), dx,
+                                               flux->getPointer(0),
+                                               flux->getPointer(1),
+                                               flux->getPointer(2),
+                                               &d_advection_velocity[0],
+                                               d_source*dt,
+                                               uval->getPointer());
    }
 
 }
@@ -1494,8 +1593,8 @@ void LinAdv::boundaryReset(
    TBOX_ASSERT(patch_geom);
    hier::BoxContainer domain_boxes;
    d_grid_geometry->computePhysicalDomain(domain_boxes,
-      patch_geom->getRatio(),
-      hier::BlockId::zero());
+                                          patch_geom->getRatio(),
+                                          hier::BlockId::zero());
 
    pdat::CellIndex icell(ifirst);
    hier::BoxContainer bdrybox;
@@ -1504,7 +1603,8 @@ void LinAdv::boundaryReset(
    int bdry_case = 0;
    int bside;
 
-   for (idir = 0; idir < d_dim.getValue(); ++idir) {
+   for (idir = 0; idir < d_dim.getValue(); ++idir)
+   {
       ibfirst(idir) = ifirst(idir) - 1;
       iblast(idir) = ifirst(idir) - 1;
       bdrybox.pushBack(hier::Box(ibfirst, iblast, hier::BlockId(0)));
@@ -1515,26 +1615,35 @@ void LinAdv::boundaryReset(
    }
 
    hier::BoxContainer::iterator ib = bdrybox.begin();
-   for (idir = 0; idir < d_dim.getValue(); ++idir) {
+   for (idir = 0; idir < d_dim.getValue(); ++idir)
+   {
       bside = 2 * idir;
-      if (d_dim == tbox::Dimension(2)) {
+      if (d_dim == tbox::Dimension(2))
+      {
          bdry_case = d_scalar_bdry_edge_conds[bside];
       }
-      if (d_dim == tbox::Dimension(3)) {
+      if (d_dim == tbox::Dimension(3))
+      {
          bdry_case = d_scalar_bdry_face_conds[bside];
       }
-      if (bdry_case == BdryCond::REFLECT) {
+      if (bdry_case == BdryCond::REFLECT)
+      {
          pdat::CellIterator icend(pdat::CellGeometry::end(*ib));
          for (pdat::CellIterator ic(pdat::CellGeometry::begin(*ib));
-              ic != icend; ++ic) {
+              ic != icend; ++ic)
+         {
             for (hier::BoxContainer::iterator domain_boxes_itr =
                     domain_boxes.begin();
                  domain_boxes_itr != domain_boxes.end();
-                 ++domain_boxes_itr) {
+                 ++domain_boxes_itr)
+            {
                if (domain_boxes_itr->contains(*ic))
+               {
                   bdry_cell = false;
+               }
             }
-            if (bdry_cell) {
+            if (bdry_cell)
+            {
                pdat::FaceIndex sidein = pdat::FaceIndex(*ic, idir, 1);
                (traced_left)(sidein, 0) = (traced_right)(sidein, 0);
             }
@@ -1543,24 +1652,32 @@ void LinAdv::boundaryReset(
       ++ib;
 
       int bnode = 2 * idir + 1;
-      if (d_dim == tbox::Dimension(2)) {
+      if (d_dim == tbox::Dimension(2))
+      {
          bdry_case = d_scalar_bdry_edge_conds[bnode];
       }
-      if (d_dim == tbox::Dimension(3)) {
+      if (d_dim == tbox::Dimension(3))
+      {
          bdry_case = d_scalar_bdry_face_conds[bnode];
       }
-      if (bdry_case == BdryCond::REFLECT) {
+      if (bdry_case == BdryCond::REFLECT)
+      {
          pdat::CellIterator icend(pdat::CellGeometry::end(*ib));
          for (pdat::CellIterator ic(pdat::CellGeometry::begin(*ib));
-              ic != icend; ++ic) {
+              ic != icend; ++ic)
+         {
             for (hier::BoxContainer::iterator domain_boxes_itr =
                     domain_boxes.begin();
                  domain_boxes_itr != domain_boxes.end();
-                 ++domain_boxes_itr) {
+                 ++domain_boxes_itr)
+            {
                if (domain_boxes_itr->contains(*ic))
+               {
                   bdry_cell = false;
+               }
             }
-            if (bdry_cell) {
+            if (bdry_cell)
+            {
                pdat::FaceIndex sidein = pdat::FaceIndex(*ic, idir, 0);
                (traced_right)(sidein, 0) = (traced_left)(sidein, 0);
             }
@@ -1598,22 +1715,23 @@ void LinAdv::setPhysicalBoundaryConditions(
 
    TBOX_ASSERT(ghost_cells == d_nghosts);
 
-   if (d_dim == tbox::Dimension(2)) {
+   if (d_dim == tbox::Dimension(2))
+   {
 
       /*
        * Set boundary conditions for cells corresponding to patch edges.
        */
       appu::CartesianBoundaryUtilities2::
       fillEdgeBoundaryData("uval", uval,
-         patch,
-         ghost_width_to_fill,
-         d_scalar_bdry_edge_conds,
-         d_bdry_edge_uval);
+                           patch,
+                           ghost_width_to_fill,
+                           d_scalar_bdry_edge_conds,
+                           d_bdry_edge_uval);
 
 #ifdef DEBUG_CHECK_ASSERTIONS
 #if CHECK_BDRY_DATA
       checkBoundaryData(Bdry::EDGE2D, patch, ghost_width_to_fill,
-         d_scalar_bdry_edge_conds);
+                        d_scalar_bdry_edge_conds);
 #endif
 #endif
 
@@ -1623,21 +1741,22 @@ void LinAdv::setPhysicalBoundaryConditions(
 
       appu::CartesianBoundaryUtilities2::
       fillNodeBoundaryData("uval", uval,
-         patch,
-         ghost_width_to_fill,
-         d_scalar_bdry_node_conds,
-         d_bdry_edge_uval);
+                           patch,
+                           ghost_width_to_fill,
+                           d_scalar_bdry_node_conds,
+                           d_bdry_edge_uval);
 
 #ifdef DEBUG_CHECK_ASSERTIONS
 #if CHECK_BDRY_DATA
       checkBoundaryData(Bdry::NODE2D, patch, ghost_width_to_fill,
-         d_scalar_bdry_node_conds);
+                        d_scalar_bdry_node_conds);
 #endif
 #endif
 
    } // d_dim == tbox::Dimension(2))
 
-   if (d_dim == tbox::Dimension(3)) {
+   if (d_dim == tbox::Dimension(3))
+   {
 
       /*
        *  Set boundary conditions for cells corresponding to patch faces.
@@ -1645,14 +1764,14 @@ void LinAdv::setPhysicalBoundaryConditions(
 
       appu::CartesianBoundaryUtilities3::
       fillFaceBoundaryData("uval", uval,
-         patch,
-         ghost_width_to_fill,
-         d_scalar_bdry_face_conds,
-         d_bdry_face_uval);
+                           patch,
+                           ghost_width_to_fill,
+                           d_scalar_bdry_face_conds,
+                           d_bdry_face_uval);
 #ifdef DEBUG_CHECK_ASSERTIONS
 #if CHECK_BDRY_DATA
       checkBoundaryData(Bdry::FACE3D, patch, ghost_width_to_fill,
-         d_scalar_bdry_face_conds);
+                        d_scalar_bdry_face_conds);
 #endif
 #endif
 
@@ -1662,14 +1781,14 @@ void LinAdv::setPhysicalBoundaryConditions(
 
       appu::CartesianBoundaryUtilities3::
       fillEdgeBoundaryData("uval", uval,
-         patch,
-         ghost_width_to_fill,
-         d_scalar_bdry_edge_conds,
-         d_bdry_face_uval);
+                           patch,
+                           ghost_width_to_fill,
+                           d_scalar_bdry_edge_conds,
+                           d_bdry_face_uval);
 #ifdef DEBUG_CHECK_ASSERTIONS
 #if CHECK_BDRY_DATA
       checkBoundaryData(Bdry::EDGE3D, patch, ghost_width_to_fill,
-         d_scalar_bdry_edge_conds);
+                        d_scalar_bdry_edge_conds);
 #endif
 #endif
 
@@ -1679,14 +1798,14 @@ void LinAdv::setPhysicalBoundaryConditions(
 
       appu::CartesianBoundaryUtilities3::
       fillNodeBoundaryData("uval", uval,
-         patch,
-         ghost_width_to_fill,
-         d_scalar_bdry_node_conds,
-         d_bdry_face_uval);
+                           patch,
+                           ghost_width_to_fill,
+                           d_scalar_bdry_node_conds,
+                           d_bdry_face_uval);
 #ifdef DEBUG_CHECK_ASSERTIONS
 #if CHECK_BDRY_DATA
       checkBoundaryData(Bdry::NODE3D, patch, ghost_width_to_fill,
-         d_scalar_bdry_node_conds);
+                        d_scalar_bdry_node_conds);
 #endif
 #endif
 
@@ -1733,14 +1852,16 @@ void LinAdv::tagRichardsonExtrapolationCells(
     * the level.
     */
    for (int ncrit = 0;
-        ncrit < static_cast<int>(d_refinement_criteria.size()); ++ncrit) {
+        ncrit < static_cast<int>(d_refinement_criteria.size()); ++ncrit)
+   {
 
       std::string ref = d_refinement_criteria[ncrit];
       int size;
       double tol;
       bool time_allowed;
 
-      if (ref == "UVAL_RICHARDSON") {
+      if (ref == "UVAL_RICHARDSON")
+      {
          std::shared_ptr<pdat::CellData<double> > coarsened_fine_var =
             SAMRAI_SHARED_PTR_CAST<pdat::CellData<double>, hier::PatchData>(
                patch.getPatchData(d_uval, coarsened_fine));
@@ -1761,7 +1882,8 @@ void LinAdv::tagRichardsonExtrapolationCells(
                             : d_rich_time_max[size - 1]);
          time_allowed = (time_min <= regrid_time) && (time_max > regrid_time);
 
-         if (time_allowed) {
+         if (time_allowed)
+         {
 
             TBOX_ASSERT(coarsened_fine_var);
             TBOX_ASSERT(advanced_coarse_var);
@@ -1782,12 +1904,13 @@ void LinAdv::tagRichardsonExtrapolationCells(
             const double* xdomainhi = d_grid_geometry->getXUpper();
             double max_length = 0.;
             double max_wave_speed = 0.;
-            for (int idir = 0; idir < d_dim.getValue(); ++idir) {
+            for (int idir = 0; idir < d_dim.getValue(); ++idir)
+            {
                double length = xdomainhi[idir] - xdomainlo[idir];
-               if (length > max_length) max_length = length;
+               if (length > max_length) { max_length = length; }
 
                double wave_speed = d_advection_velocity[idir];
-               if (wave_speed > max_wave_speed) max_wave_speed = wave_speed;
+               if (wave_speed > max_wave_speed) { max_wave_speed = wave_speed; }
             }
 
             double steps = max_length / (max_wave_speed * deltat);
@@ -1803,7 +1926,7 @@ void LinAdv::tagRichardsonExtrapolationCells(
              *             on whether Godunov order is 1st or 2nd/4th)
              */
             int order = 1;
-            if (d_godunov_order > 1) order = 2;
+            if (d_godunov_order > 1) { order = 2; }
             double r = error_coarsen_ratio;
             double rnminus1 = pow(r, order) - 1;
 
@@ -1812,13 +1935,14 @@ void LinAdv::tagRichardsonExtrapolationCells(
 
             pdat::CellIterator icend(pdat::CellGeometry::end(pbox));
             for (pdat::CellIterator ic(pdat::CellGeometry::begin(pbox));
-                 ic != icend; ++ic) {
+                 ic != icend; ++ic)
+            {
 
                /*
                 * Compute error norm
                 */
                diff = (*advanced_coarse_var)(*ic, 0)
-                  - (*coarsened_fine_var)(*ic, 0);
+                      - (*coarsened_fine_var)(*ic, 0);
                error =
                   tbox::MathUtilities<double>::Abs(diff) * rnminus1 * steps;
 
@@ -1832,10 +1956,14 @@ void LinAdv::tagRichardsonExtrapolationCells(
                 *     RICHARDSON_NEWLY_TAGGED - newly tagged in this method
                 *
                 */
-               if (error > tol) {
-                  if ((*tags)(*ic, 0)) {
+               if (error > tol)
+               {
+                  if ((*tags)(*ic, 0))
+                  {
                      (*tags)(*ic, 0) = RICHARDSON_ALREADY_TAGGED;
-                  } else {
+                  }
+                  else
+                  {
                      (*tags)(*ic, 0) = RICHARDSON_NEWLY_TAGGED;
                   }
                }
@@ -1855,14 +1983,19 @@ void LinAdv::tagRichardsonExtrapolationCells(
     * RICHARDSON_ALREADY_TAGGED and RICHARDSON_NEWLY_TAGGED as we may
     * use this information in the gradient detector.
     */
-   if (!uses_gradient_detector_too) {
+   if (!uses_gradient_detector_too)
+   {
       pdat::CellIterator icend(pdat::CellGeometry::end(pbox));
       for (pdat::CellIterator ic(pdat::CellGeometry::begin(pbox));
-           ic != icend; ++ic) {
+           ic != icend; ++ic)
+      {
          if ((*tags)(*ic, 0) == RICHARDSON_ALREADY_TAGGED ||
-             (*tags)(*ic, 0) == RICHARDSON_NEWLY_TAGGED) {
+             (*tags)(*ic, 0) == RICHARDSON_NEWLY_TAGGED)
+         {
             (*tags)(*ic, 0) = TRUE;
-         } else {
+         }
+         else
+         {
             (*tags)(*ic, 0) = FALSE;
          }
       }
@@ -1904,14 +2037,15 @@ void LinAdv::tagGradientDetectorCells(
    hier::Box pbox(patch.getBox());
    hier::BoxContainer domain_boxes;
    d_grid_geometry->computePhysicalDomain(domain_boxes,
-      patch_geom->getRatio(),
-      hier::BlockId::zero());
+                                          patch_geom->getRatio(),
+                                          hier::BlockId::zero());
    /*
     * Construct domain bounding box
     */
    hier::Box domain(d_dim);
    for (hier::BoxContainer::iterator i = domain_boxes.begin();
-        i != domain_boxes.end(); ++i) {
+        i != domain_boxes.end(); ++i)
+   {
       domain += *i;
    }
 
@@ -1945,7 +2079,8 @@ void LinAdv::tagGradientDetectorCells(
     * the level.
     */
    for (int ncrit = 0;
-        ncrit < static_cast<int>(d_refinement_criteria.size()); ++ncrit) {
+        ncrit < static_cast<int>(d_refinement_criteria.size()); ++ncrit)
+   {
 
       std::string ref = d_refinement_criteria[ncrit];
       std::shared_ptr<pdat::CellData<double> > var(
@@ -1961,25 +2096,29 @@ void LinAdv::tagGradientDetectorCells(
       double onset = 0.;
       bool time_allowed = false;
 
-      if (ref == "RANDOM") {
+      if (ref == "RANDOM")
+      {
 
          /*
           * Tag with random frequency set by d_threshold.
           */
          pdat::CellIterator icend(pdat::CellGeometry::end(pbox));
          for (pdat::CellIterator ic(pdat::CellGeometry::begin(pbox));
-              ic != icend; ++ic) {
+              ic != icend; ++ic)
+         {
 
             double u = rand()/double(RAND_MAX);
 
             (*temp_tags)(*ic, 0) = not_refine_tag_val;
-            if (u < d_threshold) {
+            if (u < d_threshold)
+            {
                (*temp_tags)(*ic, 0) = refine_tag_val;
             }
          }
       }
 
-      if (ref == "UVAL_DEVIATION") {
+      if (ref == "UVAL_DEVIATION")
+      {
          size = static_cast<int>(d_dev_tol.size());
          tol = ((error_level_number < size)
                 ? d_dev_tol[error_level_number]
@@ -1998,7 +2137,8 @@ void LinAdv::tagGradientDetectorCells(
                             : d_dev_time_max[size - 1]);
          time_allowed = (time_min <= regrid_time) && (time_max > regrid_time);
 
-         if (time_allowed) {
+         if (time_allowed)
+         {
 
             /*
              * Check for tags that have already been set in a previous
@@ -2008,23 +2148,28 @@ void LinAdv::tagGradientDetectorCells(
              */
             pdat::CellIterator icend(pdat::CellGeometry::end(pbox));
             for (pdat::CellIterator ic(pdat::CellGeometry::begin(pbox));
-                 ic != icend; ++ic) {
+                 ic != icend; ++ic)
+            {
                double locden = tol;
                int tag_val = (*tags)(*ic, 0);
-               if (tag_val) {
-                  if (tag_val != RICHARDSON_NEWLY_TAGGED) {
+               if (tag_val)
+               {
+                  if (tag_val != RICHARDSON_NEWLY_TAGGED)
+                  {
                      locden *= 0.75;
                   }
                }
                if (tbox::MathUtilities<double>::Abs((*var)(*ic) - dev) >
-                   locden) {
+                   locden)
+               {
                   (*temp_tags)(*ic, 0) = refine_tag_val;
                }
             }
          }
       }
 
-      if (ref == "UVAL_GRADIENT") {
+      if (ref == "UVAL_GRADIENT")
+      {
          size = static_cast<int>(d_grad_tol.size());
          tol = ((error_level_number < size)
                 ? d_grad_tol[error_level_number]
@@ -2039,9 +2184,11 @@ void LinAdv::tagGradientDetectorCells(
                             : d_grad_time_max[size - 1]);
          time_allowed = (time_min <= regrid_time) && (time_max > regrid_time);
 
-         if (time_allowed) {
+         if (time_allowed)
+         {
 
-            if (d_dim == tbox::Dimension(2)) {
+            if (d_dim == tbox::Dimension(2))
+            {
                SAMRAI_F77_FUNC(detectgrad2d, DETECTGRAD2D) (
                   ifirst(0), ilast(0), ifirst(1), ilast(1),
                   vghost(0), tagghost(0), d_nghosts(0),
@@ -2052,7 +2199,8 @@ void LinAdv::tagGradientDetectorCells(
                   var->getPointer(),
                   tags->getPointer(), temp_tags->getPointer());
             }
-            if (d_dim == tbox::Dimension(3)) {
+            if (d_dim == tbox::Dimension(3))
+            {
                SAMRAI_F77_FUNC(detectgrad3d, DETECTGRAD3D) (
                   ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
                   vghost(0), tagghost(0), d_nghosts(0),
@@ -2068,7 +2216,8 @@ void LinAdv::tagGradientDetectorCells(
 
       }
 
-      if (ref == "UVAL_SHOCK") {
+      if (ref == "UVAL_SHOCK")
+      {
          size = static_cast<int>(d_shock_tol.size());
          tol = ((error_level_number < size)
                 ? d_shock_tol[error_level_number]
@@ -2087,9 +2236,11 @@ void LinAdv::tagGradientDetectorCells(
                             : d_shock_time_max[size - 1]);
          time_allowed = (time_min <= regrid_time) && (time_max > regrid_time);
 
-         if (time_allowed) {
+         if (time_allowed)
+         {
 
-            if (d_dim == tbox::Dimension(2)) {
+            if (d_dim == tbox::Dimension(2))
+            {
                SAMRAI_F77_FUNC(detectshock2d, DETECTSHOCK2D) (
                   ifirst(0), ilast(0), ifirst(1), ilast(1),
                   vghost(0), tagghost(0), d_nghosts(0),
@@ -2101,7 +2252,8 @@ void LinAdv::tagGradientDetectorCells(
                   var->getPointer(),
                   tags->getPointer(), temp_tags->getPointer());
             }
-            if (d_dim == tbox::Dimension(3)) {
+            if (d_dim == tbox::Dimension(3))
+            {
                SAMRAI_F77_FUNC(detectshock3d, DETECTSHOCK3D) (
                   ifirst(0), ilast(0), ifirst(1), ilast(1), ifirst(2), ilast(2),
                   vghost(0), tagghost(0), d_nghosts(0),
@@ -2125,12 +2277,15 @@ void LinAdv::tagGradientDetectorCells(
     * Here, we just reset any tags that were set in Richardson extrapolation
     * to be the designated "refine_tag_val".
     */
-   if (uses_richardson_extrapolation_too) {
+   if (uses_richardson_extrapolation_too)
+   {
       pdat::CellIterator icend(pdat::CellGeometry::end(pbox));
       for (pdat::CellIterator ic(pdat::CellGeometry::begin(pbox));
-           ic != icend; ++ic) {
+           ic != icend; ++ic)
+      {
          if ((*tags)(*ic, 0) == RICHARDSON_ALREADY_TAGGED ||
-             (*tags)(*ic, 0) == RICHARDSON_NEWLY_TAGGED) {
+             (*tags)(*ic, 0) == RICHARDSON_NEWLY_TAGGED)
+         {
             (*temp_tags)(*ic, 0) = refine_tag_val;
          }
       }
@@ -2141,7 +2296,8 @@ void LinAdv::tagGradientDetectorCells(
     */
    pdat::CellIterator icend(pdat::CellGeometry::end(pbox));
    for (pdat::CellIterator ic(pdat::CellGeometry::begin(pbox));
-        ic != icend; ++ic) {
+        ic != icend; ++ic)
+   {
       (*tags)(*ic, 0) = (*temp_tags)(*ic, 0);
    }
 
@@ -2186,7 +2342,7 @@ void LinAdv::printClassData(
 
    os << "Parameters for numerical method ..." << std::endl;
    os << "   d_advection_velocity = ";
-   for (j = 0; j < d_dim.getValue(); ++j) os << d_advection_velocity[j] << " ";
+   for (j = 0; j < d_dim.getValue(); ++j) { os << d_advection_velocity[j] << " "; }
    os << std::endl;
    os << "   d_source = " << d_source << std::endl;
    os << "   d_godunov_order = " << d_godunov_order << std::endl;
@@ -2200,58 +2356,69 @@ void LinAdv::printClassData(
 
    os << "       d_radius = " << d_radius << std::endl;
    os << "       d_center = ";
-   for (j = 0; j < d_dim.getValue(); ++j) os << d_center[j] << " ";
+   for (j = 0; j < d_dim.getValue(); ++j) { os << d_center[j] << " "; }
    os << std::endl;
    os << "       d_uval_inside = " << d_uval_inside << std::endl;
    os << "       d_uval_outside = " << d_uval_outside << std::endl;
 
    os << "       d_number_of_intervals = " << d_number_of_intervals << std::endl;
    os << "       d_front_position = ";
-   for (k = 0; k < d_number_of_intervals - 1; ++k) {
+   for (k = 0; k < d_number_of_intervals - 1; ++k)
+   {
       os << d_front_position[k] << "  ";
    }
    os << std::endl;
    os << "       d_interval_uval = " << std::endl;
-   for (k = 0; k < d_number_of_intervals; ++k) {
+   for (k = 0; k < d_number_of_intervals; ++k)
+   {
       os << "            " << d_interval_uval[k] << std::endl;
    }
    os << "   Boundary condition data " << std::endl;
 
-   if (d_dim == tbox::Dimension(2)) {
-      for (j = 0; j < static_cast<int>(d_scalar_bdry_edge_conds.size()); ++j) {
+   if (d_dim == tbox::Dimension(2))
+   {
+      for (j = 0; j < static_cast<int>(d_scalar_bdry_edge_conds.size()); ++j)
+      {
          os << "       d_scalar_bdry_edge_conds[" << j << "] = "
             << d_scalar_bdry_edge_conds[j] << std::endl;
-         if (d_scalar_bdry_edge_conds[j] == BdryCond::DIRICHLET) {
+         if (d_scalar_bdry_edge_conds[j] == BdryCond::DIRICHLET)
+         {
             os << "         d_bdry_edge_uval[" << j << "] = "
                << d_bdry_edge_uval[j] << std::endl;
          }
       }
       os << std::endl;
-      for (j = 0; j < static_cast<int>(d_scalar_bdry_node_conds.size()); ++j) {
+      for (j = 0; j < static_cast<int>(d_scalar_bdry_node_conds.size()); ++j)
+      {
          os << "       d_scalar_bdry_node_conds[" << j << "] = "
             << d_scalar_bdry_node_conds[j] << std::endl;
          os << "       d_node_bdry_edge[" << j << "] = "
             << d_node_bdry_edge[j] << std::endl;
       }
    }
-   if (d_dim == tbox::Dimension(3)) {
-      for (j = 0; j < static_cast<int>(d_scalar_bdry_face_conds.size()); ++j) {
+   if (d_dim == tbox::Dimension(3))
+   {
+      for (j = 0; j < static_cast<int>(d_scalar_bdry_face_conds.size()); ++j)
+      {
          os << "       d_scalar_bdry_face_conds[" << j << "] = "
             << d_scalar_bdry_face_conds[j] << std::endl;
-         if (d_scalar_bdry_face_conds[j] == BdryCond::DIRICHLET) {
+         if (d_scalar_bdry_face_conds[j] == BdryCond::DIRICHLET)
+         {
             os << "         d_bdry_face_uval[" << j << "] = "
                << d_bdry_face_uval[j] << std::endl;
          }
       }
       os << std::endl;
-      for (j = 0; j < static_cast<int>(d_scalar_bdry_edge_conds.size()); ++j) {
+      for (j = 0; j < static_cast<int>(d_scalar_bdry_edge_conds.size()); ++j)
+      {
          os << "       d_scalar_bdry_edge_conds[" << j << "] = "
             << d_scalar_bdry_edge_conds[j] << std::endl;
          os << "       d_edge_bdry_face[" << j << "] = "
             << d_edge_bdry_face[j] << std::endl;
       }
       os << std::endl;
-      for (j = 0; j < static_cast<int>(d_scalar_bdry_node_conds.size()); ++j) {
+      for (j = 0; j < static_cast<int>(d_scalar_bdry_node_conds.size()); ++j)
+      {
          os << "       d_scalar_bdry_node_conds[" << j << "] = "
             << d_scalar_bdry_node_conds[j] << std::endl;
          os << "       d_node_bdry_face[" << j << "] = "
@@ -2261,76 +2428,91 @@ void LinAdv::printClassData(
 
    os << "   Refinement criteria parameters " << std::endl;
 
-   for (j = 0; j < static_cast<int>(d_refinement_criteria.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_refinement_criteria.size()); ++j)
+   {
       os << "       d_refinement_criteria[" << j << "] = "
          << d_refinement_criteria[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_dev_tol.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_dev_tol.size()); ++j)
+   {
       os << "       d_dev_tol[" << j << "] = "
          << d_dev_tol[j] << std::endl;
    }
-   for (j = 0; j < static_cast<int>(d_dev.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_dev.size()); ++j)
+   {
       os << "       d_dev[" << j << "] = "
          << d_dev[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_dev_time_max.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_dev_time_max.size()); ++j)
+   {
       os << "       d_dev_time_max[" << j << "] = "
          << d_dev_time_max[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_dev_time_min.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_dev_time_min.size()); ++j)
+   {
       os << "       d_dev_time_min[" << j << "] = "
          << d_dev_time_min[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_grad_tol.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_grad_tol.size()); ++j)
+   {
       os << "       d_grad_tol[" << j << "] = "
          << d_grad_tol[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_grad_time_max.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_grad_time_max.size()); ++j)
+   {
       os << "       d_grad_time_max[" << j << "] = "
          << d_grad_time_max[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_grad_time_min.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_grad_time_min.size()); ++j)
+   {
       os << "       d_grad_time_min[" << j << "] = "
          << d_grad_time_min[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_shock_onset.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_shock_onset.size()); ++j)
+   {
       os << "       d_shock_onset[" << j << "] = "
          << d_shock_onset[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_shock_tol.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_shock_tol.size()); ++j)
+   {
       os << "       d_shock_tol[" << j << "] = "
          << d_shock_tol[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_shock_time_max.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_shock_time_max.size()); ++j)
+   {
       os << "       d_shock_time_max[" << j << "] = "
          << d_shock_time_max[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_shock_time_min.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_shock_time_min.size()); ++j)
+   {
       os << "       d_shock_time_min[" << j << "] = "
          << d_shock_time_min[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_rich_tol.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_rich_tol.size()); ++j)
+   {
       os << "       d_rich_tol[" << j << "] = "
          << d_rich_tol[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_rich_time_max.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_rich_time_max.size()); ++j)
+   {
       os << "       d_rich_time_max[" << j << "] = "
          << d_rich_time_max[j] << std::endl;
    }
    os << std::endl;
-   for (j = 0; j < static_cast<int>(d_rich_time_min.size()); ++j) {
+   for (j = 0; j < static_cast<int>(d_rich_time_min.size()); ++j)
+   {
       os << "       d_rich_time_min[" << j << "] = "
          << d_rich_time_min[j] << std::endl;
    }
@@ -2356,24 +2538,31 @@ void LinAdv::getFromInput(
     * Note: if we are restarting, then we only allow nonuniform
     * workload to be used if nonuniform workload was used originally.
     */
-   if (!is_from_restart) {
+   if (!is_from_restart)
+   {
       d_use_nonuniform_workload =
          input_db->getBoolWithDefault("use_nonuniform_workload",
-            d_use_nonuniform_workload);
-   } else {
-      if (d_use_nonuniform_workload) {
+                                      d_use_nonuniform_workload);
+   }
+   else
+   {
+      if (d_use_nonuniform_workload)
+      {
          d_use_nonuniform_workload =
             input_db->getBool("use_nonuniform_workload");
       }
    }
 
-   if (input_db->keyExists("advection_velocity")) {
+   if (input_db->keyExists("advection_velocity"))
+   {
       input_db->getDoubleArray("advection_velocity",
-         &d_advection_velocity[0], d_dim.getValue());
-   } else {
+                               &d_advection_velocity[0], d_dim.getValue());
+   }
+   else
+   {
       TBOX_ERROR(
          d_object_name << ":  "
-                       << "Key data `advection_velocity' not found in input.");
+         << "Key data `advection_velocity' not found in input.");
    }
 
 
@@ -2383,199 +2572,263 @@ void LinAdv::getFromInput(
    d_source = input_db->getDoubleWithDefault("source", 0.0);
    d_check_fluxes = input_db->getBoolWithDefault("check_fluxes", false);
 
-   if (input_db->keyExists("godunov_order")) {
+   if (input_db->keyExists("godunov_order"))
+   {
       d_godunov_order = input_db->getInteger("godunov_order");
       if ((d_godunov_order != 1) &&
           (d_godunov_order != 2) &&
-          (d_godunov_order != 4)) {
+          (d_godunov_order != 4))
+      {
          TBOX_ERROR(
             d_object_name << ": "
-                          << "`godunov_order' in input must be 1, 2, or 4." << std::endl);
+            << "`godunov_order' in input must be 1, 2, or 4." << std::endl);
       }
-   } else {
+   }
+   else
+   {
       d_godunov_order = input_db->getIntegerWithDefault("d_godunov_order",
-            d_godunov_order);
+                                                        d_godunov_order);
    }
 
-   if (input_db->keyExists("corner_transport")) {
+   if (input_db->keyExists("corner_transport"))
+   {
       d_corner_transport = input_db->getString("corner_transport");
       if ((d_corner_transport != "CORNER_TRANSPORT_1") &&
-          (d_corner_transport != "CORNER_TRANSPORT_2")) {
+          (d_corner_transport != "CORNER_TRANSPORT_2"))
+      {
          TBOX_ERROR(
             d_object_name << ": "
-                          << "`corner_transport' in input must be either string"
-                          << " 'CORNER_TRANSPORT_1' or 'CORNER_TRANSPORT_2'." << std::endl);
+            << "`corner_transport' in input must be either string"
+            << " 'CORNER_TRANSPORT_1' or 'CORNER_TRANSPORT_2'." << std::endl);
       }
-   } else {
+   }
+   else
+   {
       d_corner_transport = input_db->getStringWithDefault("corner_transport",
-            d_corner_transport);
+                                                          d_corner_transport);
    }
 
-   if (input_db->keyExists("Refinement_data")) {
+   if (input_db->keyExists("Refinement_data"))
+   {
       std::shared_ptr<tbox::Database> refine_db(
          input_db->getDatabase("Refinement_data"));
       std::vector<std::string> refinement_keys = refine_db->getAllKeys();
       int num_keys = static_cast<int>(refinement_keys.size());
 
-      if (refine_db->keyExists("refine_criteria")) {
+      if (refine_db->keyExists("refine_criteria"))
+      {
          d_refinement_criteria = refine_db->getStringVector("refine_criteria");
-      } else {
+      }
+      else
+      {
          TBOX_WARNING(
             d_object_name << ": "
-                          << "No key `refine_criteria' found in data for"
-                          << " RefinementData. No refinement will occur." << std::endl);
+            << "No key `refine_criteria' found in data for"
+            << " RefinementData. No refinement will occur." << std::endl);
       }
 
       std::vector<std::string> ref_keys_defined(num_keys);
       int def_key_cnt = 0;
       std::shared_ptr<tbox::Database> error_db;
-      for (int i = 0; i < num_keys; ++i) {
+      for (int i = 0; i < num_keys; ++i)
+      {
 
          std::string error_key = refinement_keys[i];
          error_db.reset();
 
-         if (!(error_key == "refine_criteria")) {
+         if (!(error_key == "refine_criteria"))
+         {
 
             if (!(error_key == "UVAL_DEVIATION" ||
                   error_key == "RANDOM" ||
                   error_key == "UVAL_GRADIENT" ||
                   error_key == "UVAL_SHOCK" ||
-                  error_key == "UVAL_RICHARDSON")) {
+                  error_key == "UVAL_RICHARDSON"))
+            {
                TBOX_ERROR(
                   d_object_name << ": "
-                                << "Unknown refinement criteria: "
-                                << error_key
-                                << "\nin input." << std::endl);
-            } else {
+                  << "Unknown refinement criteria: "
+                  << error_key
+                  << "\nin input." << std::endl);
+            }
+            else
+            {
                error_db = refine_db->getDatabase(error_key);
                ref_keys_defined[def_key_cnt] = error_key;
                ++def_key_cnt;
             }
 
-            if (error_db && error_key == "RANDOM") {
+            if (error_db && error_key == "RANDOM")
+            {
                d_threshold = error_db->getDoubleWithDefault("threshold", 0.01);
             }
 
-            if (error_db && error_key == "UVAL_DEVIATION") {
+            if (error_db && error_key == "UVAL_DEVIATION")
+            {
 
-               if (error_db->keyExists("dev_tol")) {
+               if (error_db->keyExists("dev_tol"))
+               {
                   d_dev_tol = error_db->getDoubleVector("dev_tol");
-               } else {
+               }
+               else
+               {
                   TBOX_ERROR(
                      d_object_name << ": "
-                                   << "No key `dev_tol' found in data for "
-                                   << error_key << std::endl);
+                     << "No key `dev_tol' found in data for "
+                     << error_key << std::endl);
                }
 
-               if (error_db->keyExists("uval_dev")) {
+               if (error_db->keyExists("uval_dev"))
+               {
                   d_dev = error_db->getDoubleVector("uval_dev");
-               } else {
+               }
+               else
+               {
                   TBOX_ERROR(
                      d_object_name << ": "
-                                   << "No key `uval_dev' found in data for "
-                                   << error_key << std::endl);
+                     << "No key `uval_dev' found in data for "
+                     << error_key << std::endl);
                }
 
-               if (error_db->keyExists("time_max")) {
+               if (error_db->keyExists("time_max"))
+               {
                   d_dev_time_max = error_db->getDoubleVector("time_max");
-               } else {
+               }
+               else
+               {
                   d_dev_time_max.resize(1);
                   d_dev_time_max[0] = tbox::MathUtilities<double>::getMax();
                }
 
-               if (error_db->keyExists("time_min")) {
+               if (error_db->keyExists("time_min"))
+               {
                   d_dev_time_min = error_db->getDoubleVector("time_min");
-               } else {
+               }
+               else
+               {
                   d_dev_time_min.resize(1);
                   d_dev_time_min[0] = 0.;
                }
 
             }
 
-            if (error_db && error_key == "UVAL_GRADIENT") {
+            if (error_db && error_key == "UVAL_GRADIENT")
+            {
 
-               if (error_db->keyExists("grad_tol")) {
+               if (error_db->keyExists("grad_tol"))
+               {
                   d_grad_tol = error_db->getDoubleVector("grad_tol");
-               } else {
+               }
+               else
+               {
                   TBOX_ERROR(
                      d_object_name << ": "
-                                   << "No key `grad_tol' found in data for "
-                                   << error_key << std::endl);
+                     << "No key `grad_tol' found in data for "
+                     << error_key << std::endl);
                }
 
-               if (error_db->keyExists("time_max")) {
+               if (error_db->keyExists("time_max"))
+               {
                   d_grad_time_max = error_db->getDoubleVector("time_max");
-               } else {
+               }
+               else
+               {
                   d_grad_time_max.resize(1);
                   d_grad_time_max[0] = tbox::MathUtilities<double>::getMax();
                }
 
-               if (error_db->keyExists("time_min")) {
+               if (error_db->keyExists("time_min"))
+               {
                   d_grad_time_min = error_db->getDoubleVector("time_min");
-               } else {
+               }
+               else
+               {
                   d_grad_time_min.resize(1);
                   d_grad_time_min[0] = 0.;
                }
 
             }
 
-            if (error_db && error_key == "UVAL_SHOCK") {
+            if (error_db && error_key == "UVAL_SHOCK")
+            {
 
-               if (error_db->keyExists("shock_onset")) {
+               if (error_db->keyExists("shock_onset"))
+               {
                   d_shock_onset = error_db->getDoubleVector("shock_onset");
-               } else {
+               }
+               else
+               {
                   TBOX_ERROR(
                      d_object_name << ": "
-                                   << "No key `shock_onset' found in data for "
-                                   << error_key << std::endl);
+                     << "No key `shock_onset' found in data for "
+                     << error_key << std::endl);
                }
 
-               if (error_db->keyExists("shock_tol")) {
+               if (error_db->keyExists("shock_tol"))
+               {
                   d_shock_tol = error_db->getDoubleVector("shock_tol");
-               } else {
+               }
+               else
+               {
                   TBOX_ERROR(
                      d_object_name << ": "
-                                   << "No key `shock_tol' found in data for "
-                                   << error_key << std::endl);
+                     << "No key `shock_tol' found in data for "
+                     << error_key << std::endl);
                }
 
-               if (error_db->keyExists("time_max")) {
+               if (error_db->keyExists("time_max"))
+               {
                   d_shock_time_max = error_db->getDoubleVector("time_max");
-               } else {
+               }
+               else
+               {
                   d_shock_time_max.resize(1);
                   d_shock_time_max[0] = tbox::MathUtilities<double>::getMax();
                }
 
-               if (error_db->keyExists("time_min")) {
+               if (error_db->keyExists("time_min"))
+               {
                   d_shock_time_min = error_db->getDoubleVector("time_min");
-               } else {
+               }
+               else
+               {
                   d_shock_time_min.resize(1);
                   d_shock_time_min[0] = 0.;
                }
 
             }
 
-            if (error_db && error_key == "UVAL_RICHARDSON") {
+            if (error_db && error_key == "UVAL_RICHARDSON")
+            {
 
-               if (error_db->keyExists("rich_tol")) {
+               if (error_db->keyExists("rich_tol"))
+               {
                   d_rich_tol = error_db->getDoubleVector("rich_tol");
-               } else {
+               }
+               else
+               {
                   TBOX_ERROR(
                      d_object_name << ": "
-                                   << "No key `rich_tol' found in data for "
-                                   << error_key << std::endl);
+                     << "No key `rich_tol' found in data for "
+                     << error_key << std::endl);
                }
 
-               if (error_db->keyExists("time_max")) {
+               if (error_db->keyExists("time_max"))
+               {
                   d_rich_time_max = error_db->getDoubleVector("time_max");
-               } else {
+               }
+               else
+               {
                   d_rich_time_max.resize(1);
                   d_rich_time_max[0] = tbox::MathUtilities<double>::getMax();
                }
 
-               if (error_db->keyExists("time_min")) {
+               if (error_db->keyExists("time_min"))
+               {
                   d_rich_time_min = error_db->getDoubleVector("time_min");
-               } else {
+               }
+               else
+               {
                   d_rich_time_min.resize(1);
                   d_rich_time_min[0] = 0.;
                }
@@ -2590,18 +2843,21 @@ void LinAdv::getFromInput(
        * Check that input is found for each string identifier in key list.
        */
       for (int k0 = 0;
-           k0 < static_cast<int>(d_refinement_criteria.size()); ++k0) {
+           k0 < static_cast<int>(d_refinement_criteria.size()); ++k0)
+      {
          std::string use_key = d_refinement_criteria[k0];
          bool key_found = false;
-         for (int k1 = 0; k1 < def_key_cnt; ++k1) {
+         for (int k1 = 0; k1 < def_key_cnt; ++k1)
+         {
             std::string def_key = ref_keys_defined[k1];
-            if (def_key == use_key) key_found = true;
+            if (def_key == use_key) { key_found = true; }
          }
 
-         if (!key_found) {
+         if (!key_found)
+         {
             TBOX_ERROR(d_object_name << ": "
-                                     << "No input found for specified refine criteria: "
-                                     << d_refinement_criteria[k0] << std::endl);
+                       << "No input found for specified refine criteria: "
+                       << d_refinement_criteria[k0] << std::endl);
          }
       }
 
@@ -2612,56 +2868,74 @@ void LinAdv::getFromInput(
       input_db->getBoolWithDefault("write_coord_values", false);
 #endif
 
-   if (!is_from_restart) {
+   if (!is_from_restart)
+   {
 
-      if (input_db->keyExists("data_problem")) {
+      if (input_db->keyExists("data_problem"))
+      {
          d_data_problem = input_db->getString("data_problem");
-      } else {
+      }
+      else
+      {
          TBOX_ERROR(
             d_object_name << ": "
-                          << "`data_problem' value not found in input."
-                          << std::endl);
+            << "`data_problem' value not found in input."
+            << std::endl);
       }
 
-      if (!input_db->keyExists("Initial_data")) {
+      if (!input_db->keyExists("Initial_data"))
+      {
          TBOX_ERROR(
             d_object_name << ": "
-                          << "No `Initial_data' database found in input." << std::endl);
+            << "No `Initial_data' database found in input." << std::endl);
       }
       std::shared_ptr<tbox::Database> init_data_db(
          input_db->getDatabase("Initial_data"));
 
       bool found_problem_data = false;
 
-      if (d_data_problem == "SPHERE") {
+      if (d_data_problem == "SPHERE")
+      {
 
-         if (init_data_db->keyExists("radius")) {
+         if (init_data_db->keyExists("radius"))
+         {
             d_radius = init_data_db->getDouble("radius");
-         } else {
+         }
+         else
+         {
             TBOX_ERROR(
                d_object_name << ": "
-                             << "`radius' input required for SPHERE problem." << std::endl);
+               << "`radius' input required for SPHERE problem." << std::endl);
          }
-         if (init_data_db->keyExists("center")) {
+         if (init_data_db->keyExists("center"))
+         {
             d_center = init_data_db->getDoubleVector("center");
-         } else {
+         }
+         else
+         {
             TBOX_ERROR(
                d_object_name << ": "
-                             << "`center' input required for SPHERE problem." << std::endl);
+               << "`center' input required for SPHERE problem." << std::endl);
          }
-         if (init_data_db->keyExists("uval_inside")) {
+         if (init_data_db->keyExists("uval_inside"))
+         {
             d_uval_inside = init_data_db->getDouble("uval_inside");
-         } else {
-            TBOX_ERROR(d_object_name << ": "
-                                     << "`uval_inside' input required for "
-                                     << "SPHERE problem." << std::endl);
          }
-         if (init_data_db->keyExists("uval_outside")) {
-            d_uval_outside = init_data_db->getDouble("uval_outside");
-         } else {
+         else
+         {
             TBOX_ERROR(d_object_name << ": "
-                                     << "`uval_outside' input required for "
-                                     << "SPHERE problem." << std::endl);
+                       << "`uval_inside' input required for "
+                       << "SPHERE problem." << std::endl);
+         }
+         if (init_data_db->keyExists("uval_outside"))
+         {
+            d_uval_outside = init_data_db->getDouble("uval_outside");
+         }
+         else
+         {
+            TBOX_ERROR(d_object_name << ": "
+                       << "`uval_outside' input required for "
+                       << "SPHERE problem." << std::endl);
          }
 
          found_problem_data = true;
@@ -2674,40 +2948,48 @@ void LinAdv::getFromInput(
            (d_data_problem == "PIECEWISE_CONSTANT_Z") ||
            (d_data_problem == "SINE_CONSTANT_X") ||
            (d_data_problem == "SINE_CONSTANT_Y") ||
-           (d_data_problem == "SINE_CONSTANT_Z"))) {
+           (d_data_problem == "SINE_CONSTANT_Z")))
+      {
 
          int idir = 0;
-         if (d_data_problem == "PIECEWISE_CONSTANT_Y") {
-            if (d_dim < tbox::Dimension(2)) {
+         if (d_data_problem == "PIECEWISE_CONSTANT_Y")
+         {
+            if (d_dim < tbox::Dimension(2))
+            {
                TBOX_ERROR(
                   d_object_name << ": `PIECEWISE_CONSTANT_Y' "
-                                << "problem invalid in 1 dimension."
-                                << std::endl);
+                  << "problem invalid in 1 dimension."
+                  << std::endl);
             }
             idir = 1;
          }
 
-         if (d_data_problem == "PIECEWISE_CONSTANT_Z") {
-            if (d_dim < tbox::Dimension(3)) {
+         if (d_data_problem == "PIECEWISE_CONSTANT_Z")
+         {
+            if (d_dim < tbox::Dimension(3))
+            {
                TBOX_ERROR(
                   d_object_name << ": `PIECEWISE_CONSTANT_Z' "
-                                << "problem invalid in 1 or 2 dimensions." << std::endl);
+                  << "problem invalid in 1 or 2 dimensions." << std::endl);
             }
             idir = 2;
          }
 
          std::vector<std::string> init_data_keys = init_data_db->getAllKeys();
 
-         if (init_data_db->keyExists("front_position")) {
+         if (init_data_db->keyExists("front_position"))
+         {
             d_front_position = init_data_db->getDoubleVector("front_position");
-         } else {
+         }
+         else
+         {
             TBOX_ERROR(d_object_name << ": "
-                                     << "`front_position' input required for "
-                                     << d_data_problem << " problem." << std::endl);
+                       << "`front_position' input required for "
+                       << d_data_problem << " problem." << std::endl);
          }
          d_number_of_intervals =
             tbox::MathUtilities<int>::Min(static_cast<int>(d_front_position.size()) + 1,
-               static_cast<int>(init_data_keys.size()) - 1);
+                                          static_cast<int>(init_data_keys.size()) - 1);
 
          d_front_position.resize(static_cast<int>(d_front_position.size()) + 1);
          d_front_position[static_cast<int>(d_front_position.size()) - 1] =
@@ -2721,19 +3003,24 @@ void LinAdv::getFromInput(
 
          while (!found_interval_data
                 && (i < d_number_of_intervals)
-                && (nkey < static_cast<int>(init_data_keys.size()))) {
+                && (nkey < static_cast<int>(init_data_keys.size())))
+         {
 
-            if (!(init_data_keys[nkey] == "front_position")) {
+            if (!(init_data_keys[nkey] == "front_position"))
+            {
 
                std::shared_ptr<tbox::Database> interval_db(
                   init_data_db->getDatabase(init_data_keys[nkey]));
 
-               if (interval_db->keyExists("uval")) {
+               if (interval_db->keyExists("uval"))
+               {
                   d_interval_uval[i] = interval_db->getDouble("uval");
-               } else {
+               }
+               else
+               {
                   TBOX_ERROR(d_object_name << ": "
-                                           << "`uval' data missing in input for key = "
-                                           << init_data_keys[nkey] << std::endl);
+                             << "`uval' data missing in input for key = "
+                             << init_data_keys[nkey] << std::endl);
                }
                ++i;
 
@@ -2747,34 +3034,41 @@ void LinAdv::getFromInput(
 
          if ((d_data_problem == "SINE_CONSTANT_X") ||
              (d_data_problem == "SINE_CONSTANT_Y") ||
-             (d_data_problem == "SINE_CONSTANT_Z")) {
-            if (init_data_db->keyExists("amplitude")) {
+             (d_data_problem == "SINE_CONSTANT_Z"))
+         {
+            if (init_data_db->keyExists("amplitude"))
+            {
                d_amplitude = init_data_db->getDouble("amplitude");
             }
-            if (init_data_db->keyExists("frequency")) {
+            if (init_data_db->keyExists("frequency"))
+            {
                init_data_db->getDoubleArray("frequency", &d_frequency[0], d_dim.getValue());
-            } else {
+            }
+            else
+            {
                TBOX_ERROR(
                   d_object_name << ": "
-                                << "`frequency' input required for SINE problem." << std::endl);
+                  << "`frequency' input required for SINE problem." << std::endl);
             }
          }
 
-         if (!found_interval_data) {
+         if (!found_interval_data)
+         {
             TBOX_ERROR(
                d_object_name << ": "
-                             << "Insufficient interval data given in input"
-                             << " for PIECEWISE_CONSTANT_*problem."
-                             << std::endl);
+               << "Insufficient interval data given in input"
+               << " for PIECEWISE_CONSTANT_*problem."
+               << std::endl);
          }
 
          found_problem_data = true;
       }
 
-      if (!found_problem_data) {
+      if (!found_problem_data)
+      {
          TBOX_ERROR(d_object_name << ": "
-                                  << "`Initial_data' database found in input."
-                                  << " But bad data supplied." << std::endl);
+                    << "`Initial_data' database found in input."
+                    << " But bad data supplied." << std::endl);
       }
 
    } // if !is_from_restart read in problem data
@@ -2788,31 +3082,36 @@ void LinAdv::getFromInput(
    }
    */
 
-   if (input_db->keyExists("Boundary_data")) {
+   if (input_db->keyExists("Boundary_data"))
+   {
 
       std::shared_ptr<tbox::Database> bdry_db(
          input_db->getDatabase("Boundary_data"));
 
-      if (d_dim == tbox::Dimension(2)) {
+      if (d_dim == tbox::Dimension(2))
+      {
          appu::CartesianBoundaryUtilities2::getFromInput(this,
-            bdry_db,
-            d_scalar_bdry_edge_conds,
-            d_scalar_bdry_node_conds,
-            periodic);
+                                                         bdry_db,
+                                                         d_scalar_bdry_edge_conds,
+                                                         d_scalar_bdry_node_conds,
+                                                         periodic);
       }
-      if (d_dim == tbox::Dimension(3)) {
+      if (d_dim == tbox::Dimension(3))
+      {
          appu::CartesianBoundaryUtilities3::getFromInput(this,
-            bdry_db,
-            d_scalar_bdry_face_conds,
-            d_scalar_bdry_edge_conds,
-            d_scalar_bdry_node_conds,
-            periodic);
+                                                         bdry_db,
+                                                         d_scalar_bdry_face_conds,
+                                                         d_scalar_bdry_edge_conds,
+                                                         d_scalar_bdry_node_conds,
+                                                         periodic);
       }
 
-   } else {
+   }
+   else
+   {
       TBOX_ERROR(
          d_object_name << ": "
-                       << "Key data `Boundary_data' not found in input. " << std::endl);
+         << "Key data `Boundary_data' not found in input. " << std::endl);
    }
 
 }
@@ -2840,12 +3139,13 @@ void LinAdv::putToRestart(
    restart_db->putString("d_corner_transport", d_corner_transport);
    restart_db->putIntegerArray("d_nghosts", &d_nghosts[0], d_dim.getValue());
    restart_db->putIntegerArray("d_fluxghosts",
-      &d_fluxghosts[0],
-      d_dim.getValue());
+                               &d_fluxghosts[0],
+                               d_dim.getValue());
 
    restart_db->putString("d_data_problem", d_data_problem);
 
-   if (d_data_problem == "SPHERE") {
+   if (d_data_problem == "SPHERE")
+   {
       restart_db->putDouble("d_radius", d_radius);
       restart_db->putDoubleVector("d_center", d_center);
       restart_db->putDouble("d_uval_inside", d_uval_inside);
@@ -2857,49 +3157,62 @@ void LinAdv::putToRestart(
        (d_data_problem == "PIECEWISE_CONSTANT_Z") ||
        (d_data_problem == "SINE_CONSTANT_X") ||
        (d_data_problem == "SINE_CONSTANT_Y") ||
-       (d_data_problem == "SINE_CONSTANT_Z")) {
+       (d_data_problem == "SINE_CONSTANT_Z"))
+   {
       restart_db->putInteger("d_number_of_intervals", d_number_of_intervals);
-      if (d_number_of_intervals > 0) {
+      if (d_number_of_intervals > 0)
+      {
          restart_db->putDoubleVector("d_front_position", d_front_position);
          restart_db->putDoubleVector("d_interval_uval", d_interval_uval);
       }
    }
 
    restart_db->putIntegerVector("d_scalar_bdry_edge_conds",
-      d_scalar_bdry_edge_conds);
+                                d_scalar_bdry_edge_conds);
    restart_db->putIntegerVector("d_scalar_bdry_node_conds",
-      d_scalar_bdry_node_conds);
+                                d_scalar_bdry_node_conds);
 
-   if (d_dim == tbox::Dimension(2)) {
+   if (d_dim == tbox::Dimension(2))
+   {
       restart_db->putDoubleVector("d_bdry_edge_uval", d_bdry_edge_uval);
    }
-   if (d_dim == tbox::Dimension(3)) {
+   if (d_dim == tbox::Dimension(3))
+   {
       restart_db->putIntegerVector("d_scalar_bdry_face_conds",
-         d_scalar_bdry_face_conds);
+                                   d_scalar_bdry_face_conds);
       restart_db->putDoubleVector("d_bdry_face_uval", d_bdry_face_uval);
    }
 
-   if (d_refinement_criteria.size() > 0) {
+   if (d_refinement_criteria.size() > 0)
+   {
       restart_db->putStringVector("d_refinement_criteria",
-         d_refinement_criteria);
+                                  d_refinement_criteria);
    }
-   for (int i = 0; i < static_cast<int>(d_refinement_criteria.size()); ++i) {
+   for (int i = 0; i < static_cast<int>(d_refinement_criteria.size()); ++i)
+   {
 
-      if (d_refinement_criteria[i] == "UVAL_DEVIATION") {
+      if (d_refinement_criteria[i] == "UVAL_DEVIATION")
+      {
          restart_db->putDoubleVector("d_dev_tol", d_dev_tol);
          restart_db->putDoubleVector("d_dev", d_dev);
          restart_db->putDoubleVector("d_dev_time_max", d_dev_time_max);
          restart_db->putDoubleVector("d_dev_time_min", d_dev_time_min);
-      } else if (d_refinement_criteria[i] == "UVAL_GRADIENT") {
+      }
+      else if (d_refinement_criteria[i] == "UVAL_GRADIENT")
+      {
          restart_db->putDoubleVector("d_grad_tol", d_grad_tol);
          restart_db->putDoubleVector("d_grad_time_max", d_grad_time_max);
          restart_db->putDoubleVector("d_grad_time_min", d_grad_time_min);
-      } else if (d_refinement_criteria[i] == "UVAL_SHOCK") {
+      }
+      else if (d_refinement_criteria[i] == "UVAL_SHOCK")
+      {
          restart_db->putDoubleVector("d_shock_onset", d_shock_onset);
          restart_db->putDoubleVector("d_shock_tol", d_shock_tol);
          restart_db->putDoubleVector("d_shock_time_max", d_shock_time_max);
          restart_db->putDoubleVector("d_shock_time_min", d_shock_time_min);
-      } else if (d_refinement_criteria[i] == "UVAL_RICHARDSON") {
+      }
+      else if (d_refinement_criteria[i] == "UVAL_RICHARDSON")
+      {
          restart_db->putDoubleVector("d_rich_tol", d_rich_tol);
          restart_db->putDoubleVector("d_rich_time_max", d_rich_time_max);
          restart_db->putDoubleVector("d_rich_time_min", d_rich_time_min);
@@ -2921,17 +3234,19 @@ void LinAdv::getFromRestart()
    std::shared_ptr<tbox::Database> root_db(
       tbox::RestartManager::getManager()->getRootDatabase());
 
-   if (!root_db->isDatabase(d_object_name)) {
+   if (!root_db->isDatabase(d_object_name))
+   {
       TBOX_ERROR("Restart database corresponding to "
-         << d_object_name << " not found in restart file.");
+                 << d_object_name << " not found in restart file.");
    }
    std::shared_ptr<tbox::Database> db(root_db->getDatabase(d_object_name));
 
    int ver = db->getInteger("LINADV_VERSION");
-   if (ver != LINADV_VERSION) {
+   if (ver != LINADV_VERSION)
+   {
       TBOX_ERROR(
          d_object_name << ":  "
-                       << "Restart file version different than class version.");
+         << "Restart file version different than class version.");
    }
 
    d_advection_velocity = db->getDoubleVector("d_advection_velocity");
@@ -2943,22 +3258,25 @@ void LinAdv::getFromRestart()
 
    int* tmp_nghosts = &d_nghosts[0];
    db->getIntegerArray("d_nghosts", tmp_nghosts, d_dim.getValue());
-   if (!(d_nghosts == CELLG)) {
+   if (!(d_nghosts == CELLG))
+   {
       TBOX_ERROR(
          d_object_name << ": "
-                       << "Key data `d_nghosts' in restart file != CELLG." << std::endl);
+         << "Key data `d_nghosts' in restart file != CELLG." << std::endl);
    }
    int* tmp_fluxghosts = &d_fluxghosts[0];
    db->getIntegerArray("d_fluxghosts", tmp_fluxghosts, d_dim.getValue());
-   if (!(d_fluxghosts == FLUXG)) {
+   if (!(d_fluxghosts == FLUXG))
+   {
       TBOX_ERROR(
          d_object_name << ": "
-                       << "Key data `d_fluxghosts' in restart file != FLUXG." << std::endl);
+         << "Key data `d_fluxghosts' in restart file != FLUXG." << std::endl);
    }
 
    d_data_problem = db->getString("d_data_problem");
 
-   if (d_data_problem == "SPHERE") {
+   if (d_data_problem == "SPHERE")
+   {
       d_data_problem_int = SPHERE;
       d_radius = db->getDouble("d_radius");
       d_center = db->getDoubleVector("d_center");
@@ -2971,9 +3289,11 @@ void LinAdv::getFromRestart()
        (d_data_problem == "PIECEWISE_CONSTANT_Z") ||
        (d_data_problem == "SINE_CONSTANT_X") ||
        (d_data_problem == "SINE_CONSTANT_Y") ||
-       (d_data_problem == "SINE_CONSTANT_Z")) {
+       (d_data_problem == "SINE_CONSTANT_Z"))
+   {
       d_number_of_intervals = db->getInteger("d_number_of_intervals");
-      if (d_number_of_intervals > 0) {
+      if (d_number_of_intervals > 0)
+      {
          d_front_position = db->getDoubleVector("d_front_position");
          d_interval_uval = db->getDoubleVector("d_interval_uval");
       }
@@ -2982,35 +3302,46 @@ void LinAdv::getFromRestart()
    d_scalar_bdry_edge_conds = db->getIntegerVector("d_scalar_bdry_edge_conds");
    d_scalar_bdry_node_conds = db->getIntegerVector("d_scalar_bdry_node_conds");
 
-   if (d_dim == tbox::Dimension(2)) {
+   if (d_dim == tbox::Dimension(2))
+   {
       d_bdry_edge_uval = db->getDoubleVector("d_bdry_edge_uval");
    }
-   if (d_dim == tbox::Dimension(3)) {
+   if (d_dim == tbox::Dimension(3))
+   {
       d_scalar_bdry_face_conds =
          db->getIntegerVector("d_scalar_bdry_face_conds");
 
       d_bdry_face_uval = db->getDoubleVector("d_bdry_face_uval");
    }
 
-   if (db->keyExists("d_refinement_criteria")) {
+   if (db->keyExists("d_refinement_criteria"))
+   {
       d_refinement_criteria = db->getStringVector("d_refinement_criteria");
    }
-   for (int i = 0; i < static_cast<int>(d_refinement_criteria.size()); ++i) {
+   for (int i = 0; i < static_cast<int>(d_refinement_criteria.size()); ++i)
+   {
 
-      if (d_refinement_criteria[i] == "UVAL_DEVIATION") {
+      if (d_refinement_criteria[i] == "UVAL_DEVIATION")
+      {
          d_dev_tol = db->getDoubleVector("d_dev_tol");
          d_dev_time_max = db->getDoubleVector("d_dev_time_max");
          d_dev_time_min = db->getDoubleVector("d_dev_time_min");
-      } else if (d_refinement_criteria[i] == "UVAL_GRADIENT") {
+      }
+      else if (d_refinement_criteria[i] == "UVAL_GRADIENT")
+      {
          d_grad_tol = db->getDoubleVector("d_grad_tol");
          d_grad_time_max = db->getDoubleVector("d_grad_time_max");
          d_grad_time_min = db->getDoubleVector("d_grad_time_min");
-      } else if (d_refinement_criteria[i] == "UVAL_SHOCK") {
+      }
+      else if (d_refinement_criteria[i] == "UVAL_SHOCK")
+      {
          d_shock_onset = db->getDoubleVector("d_shock_onset");
          d_shock_tol = db->getDoubleVector("d_shock_tol");
          d_shock_time_max = db->getDoubleVector("d_shock_time_max");
          d_shock_time_min = db->getDoubleVector("d_shock_time_min");
-      } else if (d_refinement_criteria[i] == "UVAL_RICHARDSON") {
+      }
+      else if (d_refinement_criteria[i] == "UVAL_RICHARDSON")
+      {
          d_rich_tol = db->getDoubleVector("d_rich_tol");
          d_rich_time_max = db->getDoubleVector("d_rich_time_max");
          d_rich_time_min = db->getDoubleVector("d_rich_time_min");
@@ -3036,17 +3367,19 @@ void LinAdv::readDirichletBoundaryDataEntry(
    TBOX_ASSERT(db);
    TBOX_ASSERT(!db_name.empty());
 
-   if (d_dim == tbox::Dimension(2)) {
+   if (d_dim == tbox::Dimension(2))
+   {
       readStateDataEntry(db,
-         db_name,
-         bdry_location_index,
-         d_bdry_edge_uval);
+                         db_name,
+                         bdry_location_index,
+                         d_bdry_edge_uval);
    }
-   if (d_dim == tbox::Dimension(3)) {
+   if (d_dim == tbox::Dimension(3))
+   {
       readStateDataEntry(db,
-         db_name,
-         bdry_location_index,
-         d_bdry_face_uval);
+                         db_name,
+                         bdry_location_index,
+                         d_bdry_face_uval);
    }
 }
 
@@ -3071,12 +3404,15 @@ void LinAdv::readStateDataEntry(
    TBOX_ASSERT(array_indx >= 0);
    TBOX_ASSERT(static_cast<int>(uval.size()) > array_indx);
 
-   if (db->keyExists("uval")) {
+   if (db->keyExists("uval"))
+   {
       uval[array_indx] = db->getDouble("uval");
-   } else {
+   }
+   else
+   {
       TBOX_ERROR(d_object_name << ": "
-                               << "`uval' entry missing from " << db_name
-                               << " input database. " << std::endl);
+                 << "`uval' entry missing from " << db_name
+                 << " input database. " << std::endl);
    }
 
 }
@@ -3096,14 +3432,16 @@ void LinAdv::checkBoundaryData(
    const std::vector<int>& scalar_bconds) const
 {
 #ifdef DEBUG_CHECK_ASSERTIONS
-   if (d_dim == tbox::Dimension(2)) {
+   if (d_dim == tbox::Dimension(2))
+   {
       TBOX_ASSERT(btype == Bdry::EDGE2D ||
-         btype == Bdry::NODE2D);
+                  btype == Bdry::NODE2D);
    }
-   if (d_dim == tbox::Dimension(3)) {
+   if (d_dim == tbox::Dimension(3))
+   {
       TBOX_ASSERT(btype == Bdry::FACE3D ||
-         btype == Bdry::EDGE3D ||
-         btype == Bdry::NODE3D);
+                  btype == Bdry::EDGE3D ||
+                  btype == Bdry::NODE3D);
    }
 #endif
 
@@ -3116,39 +3454,50 @@ void LinAdv::checkBoundaryData(
 
    hier::VariableDatabase* vdb = hier::VariableDatabase::getDatabase();
 
-   for (int i = 0; i < static_cast<int>(bdry_boxes.size()); ++i) {
+   for (int i = 0; i < static_cast<int>(bdry_boxes.size()); ++i)
+   {
       hier::BoundaryBox bbox = bdry_boxes[i];
       TBOX_ASSERT(bbox.getBoundaryType() == btype);
       int bloc = bbox.getLocationIndex();
 
       int bscalarcase = 0, refbdryloc = 0;
-      if (d_dim == tbox::Dimension(2)) {
-         if (btype == Bdry::EDGE2D) {
+      if (d_dim == tbox::Dimension(2))
+      {
+         if (btype == Bdry::EDGE2D)
+         {
             TBOX_ASSERT(static_cast<int>(scalar_bconds.size()) ==
-               NUM_2D_EDGES);
+                        NUM_2D_EDGES);
             bscalarcase = scalar_bconds[bloc];
             refbdryloc = bloc;
-         } else { // btype == Bdry::NODE2D
+         }
+         else     // btype == Bdry::NODE2D
+         {
             TBOX_ASSERT(static_cast<int>(scalar_bconds.size()) ==
-               NUM_2D_NODES);
+                        NUM_2D_NODES);
             bscalarcase = scalar_bconds[bloc];
             refbdryloc = d_node_bdry_edge[bloc];
          }
       }
-      if (d_dim == tbox::Dimension(3)) {
-         if (btype == Bdry::FACE3D) {
+      if (d_dim == tbox::Dimension(3))
+      {
+         if (btype == Bdry::FACE3D)
+         {
             TBOX_ASSERT(static_cast<int>(scalar_bconds.size()) ==
-               NUM_3D_FACES);
+                        NUM_3D_FACES);
             bscalarcase = scalar_bconds[bloc];
             refbdryloc = bloc;
-         } else if (btype == Bdry::EDGE3D) {
+         }
+         else if (btype == Bdry::EDGE3D)
+         {
             TBOX_ASSERT(static_cast<int>(scalar_bconds.size()) ==
-               NUM_3D_EDGES);
+                        NUM_3D_EDGES);
             bscalarcase = scalar_bconds[bloc];
             refbdryloc = d_edge_bdry_face[bloc];
-         } else { // btype == Bdry::NODE3D
+         }
+         else     // btype == Bdry::NODE3D
+         {
             TBOX_ASSERT(static_cast<int>(scalar_bconds.size()) ==
-               NUM_3D_NODES);
+                        NUM_3D_NODES);
             bscalarcase = scalar_bconds[bloc];
             refbdryloc = d_node_bdry_face[bloc];
          }
@@ -3156,7 +3505,8 @@ void LinAdv::checkBoundaryData(
 
       int num_bad_values = 0;
 
-      if (d_dim == tbox::Dimension(2)) {
+      if (d_dim == tbox::Dimension(2))
+      {
          num_bad_values =
             appu::CartesianBoundaryUtilities2::checkBdryData(
                d_uval->getName(),
@@ -3167,7 +3517,8 @@ void LinAdv::checkBoundaryData(
                bscalarcase,
                d_bdry_edge_uval[refbdryloc]);
       }
-      if (d_dim == tbox::Dimension(3)) {
+      if (d_dim == tbox::Dimension(3))
+      {
          num_bad_values =
             appu::CartesianBoundaryUtilities3::checkBdryData(
                d_uval->getName(),
@@ -3178,15 +3529,16 @@ void LinAdv::checkBoundaryData(
                bscalarcase,
                d_bdry_face_uval[refbdryloc]);
       }
-//#if (TESTING == 1)
-      if (num_bad_values > 0) {
+      //#if (TESTING == 1)
+      if (num_bad_values > 0)
+      {
          tbox::perr << "\nLinAdv Boundary Test FAILED: \n"
                     << "     " << num_bad_values
                     << " bad UVAL values found for\n"
                     << "     boundary type " << btype << " at location "
                     << bloc << std::endl;
       }
-//#endif
+      //#endif
 
    }
 
@@ -3227,11 +3579,14 @@ LinAdv::putCoordinatesToDatabase(
          patch.getPatchGeometry()));
    TBOX_ASSERT(pgeom);
 
-   if (!d_write_coord_values) {
+   if (!d_write_coord_values)
+   {
 
       pgeom->putBlueprintCoords(coords_db, patch.getBox());
 
-   } else {
+   }
+   else
+   {
 
       const tbox::Dimension& dim(patch.getDim());
 
@@ -3244,9 +3599,11 @@ LinAdv::putCoordinatesToDatabase(
 
       pdat::NodeIterator nend = pdat::NodeGeometry::end(patch.getBox());
       for (pdat::NodeIterator itr(pdat::NodeGeometry::begin(patch.getBox()));
-           itr != nend; ++itr) {
+           itr != nend; ++itr)
+      {
          const pdat::NodeIndex& ni = *itr;
-         for (int d = 0; d < dim.getValue(); ++d) {
+         for (int d = 0; d < dim.getValue(); ++d)
+         {
             coords(ni, d) = x_lo[d] + (ni(d)-box_lo(d))*dx[d];
          }
       }
@@ -3259,10 +3616,12 @@ LinAdv::putCoordinatesToDatabase(
       int data_size = coords.getArrayData().getBox().size();
 
       values_db->putDoubleArray("x", coords.getPointer(0), data_size);
-      if (dim.getValue() > 1) {
+      if (dim.getValue() > 1)
+      {
          values_db->putDoubleArray("y", coords.getPointer(1), data_size);
       }
-      if (dim.getValue() > 2) {
+      if (dim.getValue() > 2)
+      {
          values_db->putDoubleArray("z", coords.getPointer(2), data_size);
       }
    }
@@ -3283,7 +3642,8 @@ void LinAdv::addFields(
    std::string mesh_name =
       "domain_" + tbox::Utilities::intToString(domain_id, 6);
 
-   for (int d = 0; d < uval->getDepth(); ++d) {
+   for (int d = 0; d < uval->getDepth(); ++d)
+   {
       std::string data_name = "uval_" + tbox::Utilities::intToString(d);
       uval->putBlueprintField(node[mesh_name], data_name, "mesh", d);
    }
@@ -3294,12 +3654,12 @@ int LinAdv::getPositionId() const
 {
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
    return variable_db->mapVariableAndContextToIndex(d_xval,
-      variable_db->getContext("CURRENT"));
+                                                    variable_db->getContext("CURRENT"));
 }
 
 int LinAdv::getStateId() const
 {
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
    return variable_db->mapVariableAndContextToIndex(d_uval,
-      variable_db->getContext("CURRENT"));
+                                                    variable_db->getContext("CURRENT"));
 }
