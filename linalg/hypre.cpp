@@ -320,9 +320,8 @@ Vector * HypreParVector::GlobalVector() const
                "GlobalVector method can only be called on vectors wherein each "
                "process owns one or more entries");
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
-   Vector *v = new Vector(hv->data, internal::to_int(hv->size));
-   v->MakeDataOwner();
-   hypre_SeqVectorSetDataOwner(hv,0);
+   Vector *v = new Vector(internal::to_int(hypre_VectorSize(hv)));
+   *v = hypre_VectorData(hv);
    hypre_SeqVectorDestroy(hv);
    return v;
 }
@@ -1341,9 +1340,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
       }
    }
    // count the number of columns in the off-diagonal and set the local indices
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (auto &[col, index] : offd_map)
    {
-      it->second = offd_num_cols++;
+      index = offd_num_cols++;
    }
 
    // construct the global ParCSR matrix
@@ -1391,9 +1390,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
    diag_i[nrows] = diag_nnz;
    offd_i[nrows] = offd_nnz;
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (const auto &[col, index] : offd_map)
    {
-      offd_col_map[it->second] = it->first;
+      offd_col_map[index] = col;
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
@@ -1770,11 +1769,11 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #if (MFEM_HYPRE_VERSION > 22300) || (MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
    HYPRE_BigInt cpts_global[2];
 
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, cpts_global);
 #else
    HYPRE_BigInt *cpts_global;
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
 #endif
 
@@ -5274,6 +5273,8 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_Int Pmax;
    HYPRE_Int print_level;
    HYPRE_Int max_levels;
+   HYPRE_Real tol;
+   HYPRE_Int max_iter;
    HYPRE_Int dim;
    HYPRE_Int nrbms = rbms.Size();
    HYPRE_Int nodal;
@@ -5296,6 +5297,8 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGGetPMaxElmts(amg_precond, &Pmax);
    HYPRE_BoomerAMGGetPrintLevel(amg_precond, &print_level);
    HYPRE_BoomerAMGGetMaxLevels(amg_precond, &max_levels);
+   HYPRE_BoomerAMGGetTol(amg_precond, &tol);
+   HYPRE_BoomerAMGGetMaxIter(amg_precond, &max_iter);
    HYPRE_BoomerAMGGetNumFunctions(amg_precond, &dim);
    if (nrbms) // elasticity solver options
    {
@@ -5315,13 +5318,13 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
-   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
-   HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
-   HYPRE_BoomerAMGSetMaxIter(amg_precond, 1); // one V-cycle
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
    HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    HYPRE_BoomerAMGSetPMaxElmts(amg_precond, Pmax);
    HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level);
+   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
+   HYPRE_BoomerAMGSetTol(amg_precond, tol);
+   HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter);
    HYPRE_BoomerAMGSetNumFunctions(amg_precond, dim);
    if (nrbms)
    {
