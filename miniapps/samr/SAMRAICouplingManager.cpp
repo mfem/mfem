@@ -254,6 +254,9 @@ void SAMRAICouplingManager::CreateMesh()
    int* upperData = &domain_upper[0];
    MPI_Allreduce(MPI_IN_PLACE, lowerData, dim, MPI_INT, MPI_MIN, comm);
    MPI_Allreduce(MPI_IN_PLACE, upperData, dim, MPI_INT, MPI_MAX, comm);
+   MFEM_ASSERT(domain_lower == SAMRAI::hier::Index::getZeroIndex(
+                  hierarchy->getDim()),
+               "non-zero lower SAMRAI domain index is not yet supported");
    const SAMRAI::hier::IntVector num_cells = domain_upper - domain_lower + 1;
 
    // Create a unit-cell Cartesian mesh in SAMRAI index space.
