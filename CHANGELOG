@@ -17,6 +17,12 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+Linear and nonlinear solvers
+----------------------------
+- Fixed HypreParaSails::SetOperator, which read the communicator of the
+  previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
+  in a NewtonSolver.
+
 Miscellaneous
 -------------
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
