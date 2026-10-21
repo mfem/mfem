@@ -1509,10 +1509,23 @@ inline void TMOPOptimizer::Reset()
 
 inline real_t TMOPOptimizer::GetEnergy() const
 {
+   // NonlinearForm::GetGridFunctionEnergy() is not virtual, so the parallel
+   // form must be asked explicitly or only the local energy comes back.
+   auto form_energy = [&](const GridFunction &x)
+   {
+#ifdef MFEM_USE_MPI
+      if (pmesh)
+      {
+         return static_cast<const ParNonlinearForm &>(*form)
+                .GetParGridFunctionEnergy(x);
+      }
+#endif
+      return form->GetGridFunctionEnergy(x);
+   };
    real_t energy;
    if (!Periodic())
    {
-      energy = form->GetGridFunctionEnergy(*nodes);
+      energy = form_energy(*nodes);
    }
    else
    {
@@ -1526,7 +1539,7 @@ inline real_t TMOPOptimizer::GetEnergy() const
       {
          term.integrator->SetInitialMeshPos(initial_nodes.get());
       }
-      energy = form->GetGridFunctionEnergy(*displacement);
+      energy = form_energy(*displacement);
       for (const auto &term : terms)
       {
          term.integrator->SetInitialMeshPos(nullptr);
