@@ -859,6 +859,8 @@ void GradientIntegrator::AssembleElementMatrix2(
    elmat = 0.0;
    elmat_comp.SetSize(test_dof, trial_dof);
 
+   const RuleShapes test_shapes(test_fe, *ir);
+   const RuleShapes trial_shapes(trial_fe, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -866,8 +868,8 @@ void GradientIntegrator::AssembleElementMatrix2(
 
       CalcAdjugate(Trans.Jacobian(), Jadj);
 
-      test_fe.CalcPhysShape(Trans, shape);
-      trial_fe.CalcDShape(ip, dshape);
+      test_shapes.CalcPhysShape(i, Trans, shape);
+      trial_shapes.CalcDShape(i, dshape);
 
       Mult(dshape, Jadj, gshape);
 
@@ -969,11 +971,12 @@ void DiffusionIntegrator::AssembleElementMatrix
    elmat.SetSize(nd);
 
    const IntegrationRule *ir = GetIntegrationRule(el, Trans);
+   const RuleShapes shapes(el, *ir);
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcDShape(i, dshape);
 
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
@@ -1050,11 +1053,13 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 
    const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
    elmat = 0.0;
+   const RuleShapes trial_shapes(trial_fe, *ir);
+   const RuleShapes test_shapes(test_fe, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      trial_fe.CalcDShape(ip, dshape);
-      test_fe.CalcDShape(ip, te_dshape);
+      trial_shapes.CalcDShape(i, dshape);
+      test_shapes.CalcDShape(i, te_dshape);
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), invdfdx);
@@ -1128,10 +1133,11 @@ void DiffusionIntegrator::AssembleElementVector(
 
    const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    elvect = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcDShape(i, dshape);
 
       Tr.SetIntPoint(&ip);
       CalcAdjugate(Tr.Jacobian(), invdfdx); // invdfdx = adj(J)
@@ -1402,13 +1408,14 @@ void MassIntegrator::AssembleElementMatrix
 
 
    const IntegrationRule *ir = GetIntegrationRule(el, Trans);
+   const RuleShapes shapes(el, *ir);
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint (&ip);
 
-      el.CalcPhysShape(Trans, shape);
+      shapes.CalcPhysShape(i, Trans, shape);
 
       w = Trans.Weight() * ip.weight;
       if (Q)
@@ -1437,13 +1444,15 @@ void MassIntegrator::AssembleElementMatrix2(
 
    const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
    elmat = 0.0;
+   const RuleShapes trial_shapes(trial_fe, *ir);
+   const RuleShapes test_shapes(test_fe, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint (&ip);
 
-      trial_fe.CalcPhysShape(Trans, shape);
-      test_fe.CalcPhysShape(Trans, te_shape);
+      trial_shapes.CalcPhysShape(i, Trans, shape);
+      test_shapes.CalcPhysShape(i, Trans, te_shape);
 
       w = Trans.Weight() * ip.weight;
       if (Q)
@@ -1554,11 +1563,12 @@ void ConvectionIntegrator::AssembleElementMatrix(
    Q->Eval(Q_ir, Trans, *ir);
 
    elmat = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
-      el.CalcShape(ip, shape);
+      shapes.CalcDShape(i, dshape);
+      shapes.CalcShape(i, shape);
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), adjJ);
@@ -1595,11 +1605,12 @@ void GroupConvectionIntegrator::AssembleElementMatrix(
    Q->Eval(Q_nodal, Trans, el.GetNodes()); // sets the size of Q_nodal
 
    elmat = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
-      el.CalcShape(ip, shape);
+      shapes.CalcDShape(i, dshape);
+      shapes.CalcShape(i, shape);
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), adjJ);
@@ -2156,18 +2167,20 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
    }
 
    elmat = 0.0;
+   const RuleShapes trial_shapes(trial_fe, *ir);
+   const RuleShapes test_shapes(test_fe, *ir);
    for (i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      trial_fe.CalcDShape(ip, dshape);
+      trial_shapes.CalcDShape(i, dshape);
 
       Trans.SetIntPoint (&ip);
       CalcInverse (Trans.Jacobian(), invdfdx);
       det = Trans.Weight();
       Mult (dshape, invdfdx, dshapedxt);
 
-      test_fe.CalcPhysShape(Trans, shape);
+      test_shapes.CalcPhysShape(i, Trans, shape);
 
       for (l = 0; l < trial_nd; l++)
       {
