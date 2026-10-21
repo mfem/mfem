@@ -14,7 +14,7 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
-#include "tmop/AnalyticalSurface.hpp"
+#include "tmop/AnalyticSurface.hpp"
 #include "../linalg/dual.hpp"
 
 namespace mfem

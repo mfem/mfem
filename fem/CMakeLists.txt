@@ -130,6 +130,7 @@ set(SRCS
   normal_deriv_restriction.cpp
   staticcond.cpp
   tmop.cpp
+  tmop/AnalyticSurface.cpp
   tmop/pa.cpp
   tmop/assemble/diag2_limit.cpp
   tmop/assemble/diag2.cpp
@@ -311,6 +312,7 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
+  tmop/AnalyticSurface.hpp
   tmop/pa.hpp
   tmop/assemble/grad2.hpp
   tmop/assemble/grad3.hpp

@@ -14,10 +14,10 @@
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
 
-#ifndef MFEM_ANALYTICAL_SURFACE
-#define MFEM_ANALYTICAL_SURFACE
+#ifndef MFEM_ANALYTIC_SURFACE
+#define MFEM_ANALYTIC_SURFACE
 
-#include "../pgridfunc.hpp"
+#include "../gridfunc.hpp"
 
 namespace mfem
 {
