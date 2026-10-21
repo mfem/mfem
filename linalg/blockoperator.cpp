@@ -66,8 +66,6 @@ void BlockOperator::SetOffsets(const Array<int> &row_offsets_,
    MFEM_VERIFY(row_offsets_.Size() == nRowBlocks+1 &&
                col_offsets_.Size() == nColBlocks+1,
                "incompatible offsets");
-   MFEM_VERIFY(height == row_offsets_.Last() && width == col_offsets_.Last(),
-               "incompatible operator dimensions");
    for (int i = 0; i < nRowBlocks; ++i)
    {
       for (int j = 0; j < nColBlocks; ++j)
@@ -83,6 +81,8 @@ void BlockOperator::SetOffsets(const Array<int> &row_offsets_,
    }
    row_offsets = row_offsets_;
    col_offsets = col_offsets_;
+   height = row_offsets.Last();
+   width = col_offsets.Last();
 }
 
 void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
@@ -94,7 +94,7 @@ void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
    op(iRow, iCol) = opt;
    coef(iRow, iCol) = c;
 
-   // Check consistency if offset-based constructor was used
+   // Check consistency if offsets were set
    if(row_offsets.Size() > 0 || col_offsets.Size() > 0)
    {
       MFEM_VERIFY(row_offsets[iRow+1] - row_offsets[iRow] == opt->NumRows() &&
@@ -167,7 +167,7 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(row_offsets.Size() == nRowBlocks+1 &&
                col_offsets.Size() == nColBlocks+1,
-               "BlockOperator offsets have not been set, see SetOffsets()");
+               "incompatible offsets; see SetOffsets()");
    MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
    MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
 
@@ -201,8 +201,8 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
 void BlockOperator::MultTransposeMV(const MultiVector &x,
                                     MultiVector &y) const
 {
-   MFEM_VERIFY(x.NumBlocks() == nRowBlocks, "incorrect input MultiVector size");
-   MFEM_VERIFY(y.NumBlocks() == nColBlocks, "incorrect output MultiVector size");
+   MFEM_ASSERT(x.NumBlocks() == nRowBlocks, "incorrect input MultiVector size");
+   MFEM_ASSERT(y.NumBlocks() == nColBlocks, "incorrect output MultiVector size");
 
    for (int iCol=0; iCol < nColBlocks; ++iCol)
    {

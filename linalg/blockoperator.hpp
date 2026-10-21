@@ -55,7 +55,7 @@ public:
    //! Constructor for BlockOperators with a specified number of row
    //! and column blocks and overall dimensions. Offsets must be explicitly set
    //! using SetOffsets (if operating on a Vector).
-   BlockOperator(int nrow, int ncol, int ht, int wt);
+   BlockOperator(int nrow, int ncol, int ht = 0, int wt = 0);
 
    /// Copy assignment is not supported
    BlockOperator &operator=(const BlockOperator &) = delete;
@@ -79,7 +79,7 @@ public:
    void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
 
    //! Set the row and column offsets.
-   void SetOffsets(const Array<int> &row_offsets_, const Array<int> &col_offsets_);
+   void SetOffsets(const Array<int> &row_offsets, const Array<int> &col_offsets);
 
    //! Return the number of row blocks
    int NumRowBlocks() const { return nRowBlocks; }
@@ -111,15 +111,19 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
+   /// @note Consistent row and column offsets must be set (via SetOffsets) before calling this function.
    void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
+   /// @note Consistent row and column offsets must be set (via SetOffsets) before calling this function.
    void MultTranspose (const Vector & x, Vector & y) const override;
 
-   /// Apply the block operator; block i of @a x/@a y is the i-th column/row block.
+   /// Apply the block operator to a MultiVector.
+   /// @note This function does not check consistency of the block sizes with the MultiVector dimensions.
    void MultMV(const MultiVector & x, MultiVector & y) const override;
 
    /// Apply the transpose of the block operator to a MultiVector.
+   /// @note This function does not check consistency of the block sizes with the MultiVector dimensions.
    void MultTransposeMV(const MultiVector & x, MultiVector & y) const override;
 
 #ifdef MFEM_USE_MPI
