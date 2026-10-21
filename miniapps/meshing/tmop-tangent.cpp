@@ -16,7 +16,7 @@
 //
 // Sample runs:
 // mpirun -np 4 tmop-tangent -rs 2 -m square01.mesh -o 2 -qo 6
-// mpirun -np 4 tmop-tangent -rs 1 -m cube01.mesh -o 2 -qo 6
+// mpirun -np 4 tmop-tangent -rs 2 -m cube.mesh -o 2 -qo 6
 
 #include "../common/mfem-common.hpp"
 #include "tmop-tangent.hpp"
@@ -287,7 +287,7 @@ int main (int argc, char *argv[])
       z0_bdr = 0;
       z1_bdr = 0;
 
-      // For cube01.mesh the boundary attributes map as:
+      // For cube.mesh the boundary attributes map as:
       // 1 -> z = 0, 2 -> y = 0, 3 -> x = 1,
       // 4 -> y = 1, 5 -> x = 0, 6 -> z = 1.
       z0_bdr[0] = 1;
