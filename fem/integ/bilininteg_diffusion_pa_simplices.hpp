@@ -855,21 +855,21 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
 
       const int zid = MFEM_THREAD_ID(z);
       auto X    = sm0.X[zid];
-      auto DDQ0 = sm0.contraction[zid][0];
-      auto DDQ1 = sm0.contraction[zid][1];
-      auto DDQ2 = sm0.contraction[zid][2];
-      auto DQQ0 = sm0.contraction[zid][0];
-      auto DQQ1 = sm0.contraction[zid][1];
-      auto DQQ2 = sm0.contraction[zid][2];
-      auto QQQ0 = sm0.contraction[zid][0];
-      auto QQQ1 = sm0.contraction[zid][1];
-      auto QQQ2 = sm0.contraction[zid][2];
-      auto QQD0 = sm0.contraction[zid][0];
-      auto QQD1 = sm0.contraction[zid][1];
-      auto QQD2 = sm0.contraction[zid][2];
-      auto QDD0 = sm0.contraction[zid][0];
-      auto QDD1 = sm0.contraction[zid][1];
-      auto QDD2 = sm0.contraction[zid][2];
+      auto DDQ0 = (real_t (*)[BLK][lds])(sm0.contraction[zid][0]);
+      auto DDQ1 = (real_t (*)[BLK][lds])(sm0.contraction[zid][1]);
+      auto DDQ2 = (real_t (*)[BLK][lds])(sm0.contraction[zid][2]);
+      auto DQQ0 = (real_t (*)[BLK][lds])(sm0.contraction[zid][0]);
+      auto DQQ1 = (real_t (*)[BLK][lds])(sm0.contraction[zid][1]);
+      auto DQQ2 = (real_t (*)[BLK][lds])(sm0.contraction[zid][2]);
+      auto QQQ0 = (real_t (*)[BLK][lds])(sm0.contraction[zid][0]);
+      auto QQQ1 = (real_t (*)[BLK][lds])(sm0.contraction[zid][1]);
+      auto QQQ2 = (real_t (*)[BLK][lds])(sm0.contraction[zid][2]);
+      auto QQD0 = (real_t (*)[BLK][lds])(sm0.contraction[zid][0]);
+      auto QQD1 = (real_t (*)[BLK][lds])(sm0.contraction[zid][1]);
+      auto QQD2 = (real_t (*)[BLK][lds])(sm0.contraction[zid][2]);
+      auto QDD0 = (real_t (*)[BLK][lds])(sm0.contraction[zid][0]);
+      auto QDD1 = (real_t (*)[BLK][lds])(sm0.contraction[zid][1]);
+      auto QDD2 = (real_t (*)[BLK][lds])(sm0.contraction[zid][2]);
 
       // Cooperative-load helpers. MFEM_THREAD_SIZE returns 1 on host so a
       // single thread covers the entire range there; on GPU the (x, y)
