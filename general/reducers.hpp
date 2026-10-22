@@ -307,7 +307,7 @@ template <class I> struct ArgMinReducer<double, I>
 
 /// @brief i = argmax(a[i], a[j])
 ///
-/// Note: for ties the returned index can correspond to any min entry, not
+/// Note: for ties the returned index can correspond to any max entry, not
 /// necessarily the first one.
 template <class T, class I> struct ArgMaxReducer
 {
