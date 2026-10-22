@@ -17,7 +17,7 @@ There are also parallel versions of these executables (prefixed with `p`), which
 are built if MFEM is compiled with MPI enabled. Both `unit_tests` and
 `punit_tests` accept `--device` to select an enabled MFEM device backend. The default
 is `cpu`; configured builds also run these executables with `gpu`, `raja-gpu`,
-and `omp` (OpenMP) as applicable.
+ `omp` (OpenMP), and 'raja-omp' as applicable.
 
 ## Basics of using Catch
 
