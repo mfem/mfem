@@ -84,6 +84,8 @@ EX1_ARGS_15 := -m meshes/two-cubes-nurbs.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 EX1_ARGS_16 := -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 EX1_ARGS_17 := -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 EX1_ARGS_18 := -m meshes/cube-nurbs.mesh -pm "1" -ps "2" -rf meshes/cube.ref
+EX1_ARGS_19 := -m meshes/square-nurbs-distorted.mesh -o 2 -mo 3 -r 1 -no-ibp
+
 
 nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp)
@@ -104,6 +106,7 @@ nurbs_ex1-test-seq: nurbs_ex1
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_16))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_17))
 	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_18))
+	@$(call mfem-test,$<,, NURBS miniapp,$(EX1_ARGS_19))
 
 EX1PATCH_ARGS_1 := -incdeg 3 -ref 1 -iro 8 -patcha
 EX1PATCH_ARGS_2 := -incdeg 3 -ref 1 -iro 8 -patcha -pa
