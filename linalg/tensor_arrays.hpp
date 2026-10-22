@@ -13,6 +13,7 @@
 #define MFEM_TENSOR_ARRAYS_HPP
 
 #include "tensor.hpp"
+#include "../general/enzyme.hpp"
 #include <array>       // std::array, std::size_t (indirectly)
 #include <type_traits> /* std::remove_cv_t, std::remove_reference_t,
                           std::is_const_v */
@@ -246,6 +247,9 @@ public:
          [&result, this, dynamic_offset](
             const std::array<std::size_t,tensor_rank()> &js)
       {
+#ifdef MFEM_USE_ENZYME
+         __enzyme_integer(const_cast<std::size_t *>(js.data()), sizeof(js));
+#endif
          ::mfem::future::apply(result, js) =
             data[dynamic_offset + get_static_offset(js)];
       });
@@ -325,6 +329,9 @@ public:
          for_multiindex<tensor_sizes...>(
             [&](const std::array<std::size_t,tensor_rank()> &js)
          {
+#ifdef MFEM_USE_ENZYME
+            __enzyme_integer(const_cast<std::size_t *>(js.data()), sizeof(js));
+#endif
             operator()(js) = ::mfem::future::apply(rhs, js);
          });
          return *this;

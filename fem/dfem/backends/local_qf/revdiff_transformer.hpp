@@ -488,12 +488,31 @@ struct RevDiff
       });
    }
 
+   // Reference to the I-th argument of a pack.
+   template <size_t I, typename Head, typename... Tail>
+   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE static auto &
+   pack_arg(Head &head, Tail &...tail)
+   {
+      if constexpr (I == 0) { return head; }
+      else { return pack_arg<I - 1>(tail...); }
+   }
+
+   // Zero all gradient outputs before the derivative call (Enzyme accumulates).
+   template <typename... Args, size_t... Ss>
+   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE static void zero_grads(
+      std::index_sequence<Ss...>, Args &...args)
+   {
+      ((pack_arg<num_inputs + Ss>(args...) =
+           std::decay_t<decltype(pack_arg<num_inputs + Ss>(args...))> {}),
+       ...);
+   }
+
 #ifdef MFEM_USE_ENZYME
    // Recursive builder of the per-argument reverse-mode enzyme call.
-   template <size_t I = 0, typename AllPtrs, typename... Built>
+   template <size_t I, typename... Args, typename... Built>
    MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void
-   call_enzyme_rev(AllPtrs &ptrs, output_view &scratch, output_view &adjoint,
-                   Built... built) const
+   call_enzyme_rev(output_view &scratch, output_view &adjoint,
+                   Args &...args, Built... built) const
    {
       if constexpr (I == arity)
       {
@@ -503,37 +522,25 @@ struct RevDiff
       else if constexpr (I == active_output)
       {
          // Output: primal written to scratch (unused), adjoint seeded to 1.
-         call_enzyme_rev<I + 1>(ptrs, scratch, adjoint, built...,
-                                enzyme_dupnoneed, &scratch, &adjoint);
+         call_enzyme_rev<I + 1, Args...>(scratch, adjoint, args..., built...,
+                                         enzyme_dupnoneed, &scratch, &adjoint);
       }
       else if constexpr (qf_param_is_active_v<activity, I>)
       {
          // Active input: gradient accumulates into its grad-output slot.
-         call_enzyme_rev<I + 1>(
-            ptrs, scratch, adjoint, built..., enzyme_dup,
-            mfem::future::get<int(I)>(ptrs),
-            mfem::future::get<int(num_inputs + slot_of<I>())>(ptrs));
+         constexpr size_t G = num_inputs + slot_of<I>();
+         call_enzyme_rev<I + 1, Args...>(scratch, adjoint, args..., built...,
+                                         enzyme_dup, &pack_arg<I>(args...),
+                                         &pack_arg<G>(args...));
       }
       else
       {
          // Const input: primal only, no shadow.
-         call_enzyme_rev<I + 1>(ptrs, scratch, adjoint, built...,
-                                enzyme_const, mfem::future::get<int(I)>(ptrs));
+         call_enzyme_rev<I + 1, Args...>(scratch, adjoint, args..., built...,
+                                         enzyme_const, &pack_arg<I>(args...));
       }
    }
 #endif // MFEM_USE_ENZYME
-
-   // Zero all gradient outputs before the enzyme call (Enzyme accumulates).
-   template <typename AllPtrs, size_t... Ss>
-   MFEM_HOST_DEVICE static
-   MFEM_FUTURE_ALWAYS_INLINE void zero_grads(
-      AllPtrs &ptrs,
-      std::index_sequence<Ss...>)
-   {
-      ((*mfem::future::get<int(num_inputs + Ss)>(ptrs) =
-           std::decay_t<decltype(*mfem::future::get<int(num_inputs + Ss)>(ptrs))> {}),
-       ...);
-   }
 
    // Called once per quadrature point. Arguments are, in order:
    //   * the primal value of every qfunction input (active and const), then
@@ -549,13 +556,14 @@ struct RevDiff
       static_assert(sizeof...(Args) == num_inputs + num_active_inputs,
                     "expected one primal per input plus one gradient output per "
                     "Active input");
-      auto ptrs = mfem::future::make_tuple(&args...);
-      zero_grads(ptrs, std::make_index_sequence<num_active_inputs> {});
+      zero_grads(std::make_index_sequence<num_active_inputs> {}, args...);
 #ifdef MFEM_USE_ENZYME
       output_view out_scratch {};
       output_view out_adjoint{1.0}; // seed: d(output)/d(output) = 1
-      call_enzyme_rev(ptrs, out_scratch, out_adjoint);
+      call_enzyme_rev<0, std::remove_reference_t<Args>...>(
+         out_scratch, out_adjoint, args...);
 #else
+      auto ptrs = mfem::future::make_tuple(&args...);
       call_dual_rev(ptrs);
 #endif
    }
