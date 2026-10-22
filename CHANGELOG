@@ -13,6 +13,9 @@ Version 4.10.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added optimized partial-assembly mass and diffusion kernels for triangles
+  and tetrahedra, using shared and constant memory on CUDA/HIP.
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
@@ -22,10 +25,6 @@ Miscellaneous
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
-
-- Fixed CUDA/HIP simplex partial-assembly mass and diffusion kernels to refresh
-  constant-memory basis values when integration rules change, including rules
-  with the same quadrature point count.
 
 - Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
   failure if an MPI rank had no design parameters (aka decision variables).
