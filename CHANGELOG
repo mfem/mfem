@@ -20,6 +20,12 @@ Discretization improvements
 - Added class VectorQuadratureSpace that represents a vector (multi-component)
   version of the scalar (single-component) class QuadratureSpaceBase.
   
+Linear and nonlinear solvers
+----------------------------
+- Fixed HypreParaSails::SetOperator, which read the communicator of the
+  previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
+  in a NewtonSolver.
+
 Miscellaneous
 -------------
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
