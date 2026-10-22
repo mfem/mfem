@@ -1905,7 +1905,27 @@ void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray()
    }
 
    const FiniteElementCollection *fec_ref = fespace->FEColl();
-   if (dynamic_cast<const ND_FECollection*>(fec_ref))
+   const NDPos_FECollection *ndpos =
+      dynamic_cast<const NDPos_FECollection*>(fec_ref);
+   if (ndpos)
+   {
+      const FiniteElement *ndpos_tri =
+         fec_ref->FiniteElementForGeometry(Geometry::TRIANGLE);
+      if (ndpos_tri)
+      {
+         old_DoFTransArray[Geometry::TRIANGLE] =
+            new NDPos_TriDofTransformation(ndpos_tri->GetOrder());
+      }
+
+      const FiniteElement *ndpos_tet =
+         fec_ref->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+      if (ndpos_tet)
+      {
+         old_DoFTransArray[Geometry::TETRAHEDRON] =
+            new NDPos_TetDofTransformation(ndpos_tet->GetOrder());
+      }
+   }
+   else if (dynamic_cast<const ND_FECollection*>(fec_ref))
    {
       const FiniteElement *nd_tri =
          fec_ref->FiniteElementForGeometry(Geometry::TRIANGLE);
@@ -2593,7 +2613,27 @@ void FiniteElementSpace::ConstructDoFTransArray()
       DoFTransArray[i] = NULL;
    }
    if (mesh->Dimension() < 3) { return; }
-   if (dynamic_cast<const ND_FECollection*>(fec))
+   const NDPos_FECollection *ndpos =
+      dynamic_cast<const NDPos_FECollection*>(fec);
+   if (ndpos)
+   {
+      const FiniteElement *ndpos_tri =
+         fec->FiniteElementForGeometry(Geometry::TRIANGLE);
+      if (ndpos_tri)
+      {
+         DoFTransArray[Geometry::TRIANGLE] =
+            new NDPos_TriDofTransformation(ndpos_tri->GetOrder());
+      }
+
+      const FiniteElement *ndpos_tet =
+         fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+      if (ndpos_tet)
+      {
+         DoFTransArray[Geometry::TETRAHEDRON] =
+            new NDPos_TetDofTransformation(ndpos_tet->GetOrder());
+      }
+   }
+   else if (dynamic_cast<const ND_FECollection*>(fec))
    {
       const FiniteElement *nd_tri =
          fec->FiniteElementForGeometry(Geometry::TRIANGLE);
