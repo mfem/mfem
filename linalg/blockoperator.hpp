@@ -75,6 +75,13 @@ public:
     */
    void SetDiagonalBlock(int iblock, Operator *op, bool own, real_t c = 1.0);
 
+   //! Delete overloads for non-bool ownership types
+   template<typename T>
+   void SetDiagonalBlock(int iblock, Operator *op, T own, real_t c = 1.0) = delete;
+   //! Delete overloads for non-bool ownership types
+   template<typename T>
+   void SetBlock(int iRow, int iCol, Operator *op, T own, real_t c = 1.0) = delete;
+
    //! Add a block op in the block-entry (iblock, jblock). The ownership
    //! of the block will not be changed.
    /**
