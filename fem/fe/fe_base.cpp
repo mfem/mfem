@@ -1691,8 +1691,13 @@ void VectorFiniteElement::LocalInterpolation_ND(
 {
    if (!is_nodal) { return LocalL2Projection_ND(cfe, Trans, I); }
 
+   // The coarse element may have a higher dimension than this one, e.g. an
+   // edge interpolating the face it lies in (nonconforming variable-order
+   // spaces): points and tangents then live in the coarse reference space.
+   const int sdim = cfe.GetDim();
+   MFEM_ASSERT(Trans.GetSpaceDim() == sdim, "");
    real_t vk[Geometry::MaxDim];
-   Vector xk(vk, dim);
+   Vector xk(vk, sdim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
@@ -1715,7 +1720,7 @@ void VectorFiniteElement::LocalInterpolation_ND(
       for (int j = 0; j < vshape.Height(); j++)
       {
          real_t Ikj = 0.;
-         for (int i = 0; i < dim; i++)
+         for (int i = 0; i < sdim; i++)
          {
             Ikj += vshape(j, i) * vk[i];
          }
