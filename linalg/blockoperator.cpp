@@ -54,6 +54,12 @@ void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
    SetBlock(iblock, iblock, opt, c);
 }
 
+void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, bool own, real_t c)
+{
+   SetDiagonalBlock(iblock, opt, c);
+   SetBlockOwnership(iblock, iblock, own);
+}
+
 void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
 {
    if (own_block(iRow, iCol) && op(iRow, iCol))
@@ -66,6 +72,12 @@ void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
    MFEM_VERIFY(row_offsets[iRow+1] - row_offsets[iRow] == opt->NumRows() &&
                col_offsets[iCol+1] - col_offsets[iCol] == opt->NumCols(),
                "incompatible Operator dimensions");
+}
+
+void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, bool own, real_t c)
+{
+   SetBlock(iRow, iCol, opt, c);
+   SetBlockOwnership(iRow, iCol, own);
 }
 
 // Operator application

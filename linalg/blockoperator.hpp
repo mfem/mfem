@@ -73,11 +73,7 @@ public:
     * own: flag indicating if the block is owned.
     * c: optional scalar multiple for this block.
     */
-   void SetDiagonalBlock(int iblock, Operator *op, bool own, real_t c = 1.0)
-   {
-      SetDiagonalBlock(iblock, op, c);
-      SetBlockOwnership(iblock, iblock, own);
-   }
+   void SetDiagonalBlock(int iblock, Operator *op, bool own, real_t c = 1.0);
 
    //! Add a block op in the block-entry (iblock, jblock). The ownership
    //! of the block will not be changed.
@@ -94,11 +90,7 @@ public:
     * own: flag indicating if the block is owned
     * c: optional scalar multiple for this block.
     */
-   void SetBlock(int iRow, int iCol, Operator *op, bool own, real_t c = 1.0)
-   {
-      SetBlock(iRow, iCol, op, c);
-      SetBlockOwnership(iRow, iCol, own);
-   }
+   void SetBlock(int iRow, int iCol, Operator *op, bool own, real_t c = 1.0);
 
    //! Return the number of row blocks
    int NumRowBlocks() const { return nRowBlocks; }
