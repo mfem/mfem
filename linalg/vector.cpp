@@ -1294,6 +1294,7 @@ void Vector::DeleteAt(const Array<int> &indices)
 /// implementation here so we can reuse vector_workspace
 real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
 {
+   MFEM_ASSERT(p > 0.0, "ParNormlp expects p > 0");
    real_t norm = 0.0;
    if (p == 1.0)
    {

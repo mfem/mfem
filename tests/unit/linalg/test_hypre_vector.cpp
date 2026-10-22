@@ -187,6 +187,8 @@ TEST_CASE("ParNormlp", "[Parallel], [HypreParVector], [GPU]")
            MFEM_Approx(sqrt((N * (N - 1) * (2 * N - 1)) / 6.)));
    REQUIRE(ParNormlp(v, 3, MPI_COMM_WORLD) ==
            MFEM_Approx(cbrt((N * N * (N - 1) * (N - 1)) / 4.)));
+   // no easily computed exact answer, just make sure that p=1.5 is finite
+   REQUIRE(std::isfinite(ParNormlp(v, 1.5, MPI_COMM_WORLD)));
    REQUIRE(ParNormlp(v, std::numeric_limits<real_t>::infinity(),
                      MPI_COMM_WORLD) == N - 1);
 }
