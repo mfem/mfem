@@ -54,7 +54,8 @@ void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, real_t c)
    SetBlock(iblock, iblock, opt, c);
 }
 
-void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, bool own, real_t c)
+void BlockOperator::SetDiagonalBlock(int iblock, Operator *opt, bool own,
+                                     real_t c)
 {
    SetDiagonalBlock(iblock, opt, c);
    SetBlockOwnership(iblock, iblock, own);
@@ -74,7 +75,8 @@ void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, real_t c)
                "incompatible Operator dimensions");
 }
 
-void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, bool own, real_t c)
+void BlockOperator::SetBlock(int iRow, int iCol, Operator *opt, bool own,
+                             real_t c)
 {
    SetBlock(iRow, iCol, opt, c);
    SetBlockOwnership(iRow, iCol, own);
