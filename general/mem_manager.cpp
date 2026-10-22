@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 #include <cstdint>
+#include <memory> // std::unique_ptr
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -1739,16 +1740,15 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
    void *d_ptr = (flags & Mem::ALIAS) ?
                  mm.GetAliasDevicePtr(h_ptr, size, false) :
                  mm.GetDevicePtr(h_ptr, size, false);
-   char *h_buf = new char[size];
+   std::unique_ptr<char[]> h_buf(new char[size]);
 #if defined(MFEM_USE_CUDA)
-   CuMemcpyDtoH(h_buf, d_ptr, size);
+   CuMemcpyDtoH(h_buf.get(), d_ptr, size);
 #elif defined(MFEM_USE_HIP)
-   HipMemcpyDtoH(h_buf, d_ptr, size);
+   HipMemcpyDtoH(h_buf.get(), d_ptr, size);
 #else
-   std::memcpy(h_buf, d_ptr, size);
+   std::memcpy(h_buf.get(), d_ptr, size);
 #endif
-   int res = std::memcmp(h_ptr, h_buf, size);
-   delete [] h_buf;
+   int res = std::memcmp(h_ptr, h_buf.get(), size);
    return res;
 }
 
