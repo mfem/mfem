@@ -56,6 +56,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_second_derivative.cpp
   dfem/test_tmop.cpp
   general/test_array.cpp
+  general/test_backends.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_communication.cpp
