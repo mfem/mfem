@@ -198,3 +198,146 @@ TEST_CASE("Array delete at indices", "[Array],[GPU]")
       }
    }
 }
+
+TEST_CASE("BlockArray iterator equality", "[Array]")
+{
+   // Small blocks so the iteration crosses block boundaries.
+   BlockArray<int> a(4);
+   for (int i = 0; i < 10; i++) { a.Append(i); }
+
+   int count = 0;
+   for (BlockArray<int>::iterator it = a.begin(); it != a.end(); ++it)
+   {
+      count++;
+   }
+   REQUIRE(count == a.Size());
+
+   // A compiler may compute it != end as !(end == it), so the comparison has
+   // to give the same answer with the arguments swapped.
+   BlockArray<int>::iterator it = a.begin();
+   count = 0;
+   for (; !(a.end() == it); ++it) { count++; }
+   REQUIRE(count == a.Size());
+
+   // Live iterators compare by position.
+   BlockArray<int>::iterator b1 = a.begin(), b2 = a.begin();
+   REQUIRE(b1 == b2);
+   REQUIRE_FALSE(b1 != b2);
+   ++b2;
+   REQUIRE(b1 != b2);
+   REQUIRE_FALSE(b1 == b2);
+   ++b1;
+   REQUIRE(b1 == b2);
+
+   // The same offset in a different array is a different position.
+   BlockArray<int> c(4);
+   c.Append(0);
+   REQUIRE(a.begin() != c.begin());
+   REQUIRE(c.begin() != a.begin());
+
+   // All end iterators are equal, and no live iterator equals an end.
+   REQUIRE(a.end() == a.end());
+   REQUIRE_FALSE(a.end() != a.end());
+   REQUIRE(a.end() == c.end());
+   REQUIRE(a.begin() != a.end());
+   REQUIRE_FALSE(a.end() == a.begin());
+   REQUIRE(a.end() != a.begin());
+
+   // begin() of an empty array is an end iterator.
+   BlockArray<int> empty;
+   REQUIRE(empty.begin() == empty.end());
+   REQUIRE(empty.begin() != a.begin());
+
+   // The const iterators compare the same way.
+   const BlockArray<int> &ca = a;
+   BlockArray<int>::const_iterator cb1 = ca.begin(), cb2 = ca.begin();
+   REQUIRE(cb1 == cb2);
+   REQUIRE_FALSE(cb1 != cb2);
+   ++cb1;
+   REQUIRE(cb1 != cb2);
+   REQUIRE_FALSE(cb1 == cb2);
+   REQUIRE(cb1 != ca.end());
+   REQUIRE_FALSE(cb1 == ca.end());
+   REQUIRE_FALSE(ca.end() == cb1);
+   REQUIRE(ca.end() != cb1);
+   REQUIRE(ca.end() == ca.end());
+
+   count = 0;
+   for (BlockArray<int>::const_iterator it = ca.begin(); it != ca.end(); ++it)
+   {
+      count++;
+   }
+   REQUIRE(count == ca.Size());
+
+   cb1 = ca.begin();
+   count = 0;
+   for (; !(ca.end() == cb1); ++cb1) { count++; }
+   REQUIRE(count == ca.Size());
+}
+
+namespace
+{
+
+// Item for the HashTable test below, following the Hashed2 concept.
+struct HashItem : public Hashed2 { };
+
+} // namespace
+
+TEST_CASE("HashTable iterator equality", "[Array]")
+{
+   // Small blocks so the iteration crosses block boundaries.
+   HashTable<HashItem> ht(4);
+   for (int i = 0; i < 10; i++) { ht.Get(i, i+1); }
+
+   // The iterators skip deleted items.
+   ht.Delete(0);
+
+   int count = 0;
+   for (HashTable<HashItem>::iterator it = ht.begin(); it != ht.end(); ++it)
+   {
+      count++;
+   }
+   // Size() counts the items that are not deleted, and the iterators skip
+   // exactly those.
+   REQUIRE(count == ht.Size());
+
+   // The same iteration, written the way a compiler may rewrite it.
+   HashTable<HashItem>::iterator it = ht.begin();
+   count = 0;
+   for (; !(ht.end() == it); ++it) { count++; }
+   REQUIRE(count == ht.Size());
+
+   // HashTable::iterator inherits its comparisons from BlockArray's.
+   HashTable<HashItem>::iterator h1 = ht.begin(), h2 = ht.begin();
+   REQUIRE(h1 == h2);
+   REQUIRE_FALSE(h1 != h2);
+   ++h2;
+   REQUIRE(h1 != h2);
+   REQUIRE_FALSE(h1 == h2);
+   REQUIRE(h1 != ht.end());
+   REQUIRE_FALSE(h1 == ht.end());
+   REQUIRE_FALSE(ht.end() == h1);
+   REQUIRE(ht.end() != h1);
+   REQUIRE(ht.end() == ht.end());
+
+   // And so do the const iterators.
+   const HashTable<HashItem> &cht = ht;
+   HashTable<HashItem>::const_iterator ch1 = cht.begin();
+   REQUIRE(ch1 != cht.end());
+   REQUIRE_FALSE(cht.end() == ch1);
+   REQUIRE(cht.end() != ch1);
+   REQUIRE(cht.end() == cht.end());
+
+   count = 0;
+   for (HashTable<HashItem>::const_iterator it = cht.begin(); it != cht.end();
+        ++it)
+   {
+      count++;
+   }
+   REQUIRE(count == cht.Size());
+
+   ch1 = cht.begin();
+   count = 0;
+   for (; !(cht.end() == ch1); ++ch1) { count++; }
+   REQUIRE(count == cht.Size());
+}
