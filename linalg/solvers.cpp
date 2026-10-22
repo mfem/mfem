@@ -452,104 +452,13 @@ void OperatorJacobiSmoother::Mult(const Vector &x, Vector &y) const
    });
 }
 
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, real_t max_eig_estimate_)
-   :
-   Solver(d.Size()),
-   order(order_),
-   max_eig_estimate(max_eig_estimate_),
-   N(d.Size()),
-   dinv(N),
-   diag(d),
-   coeffs(order),
-   ess_tdof_list(ess_tdofs),
-   residual(N),
-   oper(&oper_) { Setup(); }
-
-#ifdef MFEM_USE_MPI
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm,
-                                                     int power_iterations,
-                                                     real_t power_tolerance,
-                                                     int power_seed)
-#else
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_,
-                                                     int power_iterations,
-                                                     real_t power_tolerance,
-                                                     int power_seed)
-#endif
-   : Solver(d.Size()),
-     order(order_),
-     N(d.Size()),
-     dinv(N),
-     diag(d),
-     coeffs(order),
-     ess_tdof_list(ess_tdofs),
-     residual(N),
-     oper(&oper_)
+// Compute the coefficients of the Chebyshev polynomial smoother of the given
+// order, based on the estimate of the largest eigenvalue max_eig_estimate.
+static Array<real_t> ComputeChebyshevCoefficients(int order,
+                                                  real_t max_eig_estimate)
 {
-   OperatorJacobiSmoother invDiagOperator(diag, ess_tdofs, 1.0);
-   ProductOperator diagPrecond(&invDiagOperator, oper, false, false);
+   Array<real_t> coeffs(order);
 
-#ifdef MFEM_USE_MPI
-   PowerMethod powerMethod(comm);
-#else
-   PowerMethod powerMethod;
-#endif
-   Vector ev(oper->Width());
-   MFEM_VERIFY(power_seed != 0, "invalid seed!");
-   max_eig_estimate = powerMethod.EstimateLargestEigenvalue(diagPrecond, ev,
-                                                            power_iterations,
-                                                            power_tolerance,
-                                                            power_seed);
-
-   Setup();
-}
-
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, real_t max_eig_estimate_)
-   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
-
-#ifdef MFEM_USE_MPI
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
-   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
-                               power_iterations, power_tolerance) { }
-#else
-OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
-                                                     const Vector &d,
-                                                     const Array<int>& ess_tdofs,
-                                                     int order_, int power_iterations, real_t power_tolerance)
-   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
-                               power_tolerance) { }
-#endif
-
-void OperatorChebyshevSmoother::Setup()
-{
-   // Invert diagonal
-   residual.UseDevice(true);
-   helperVector.UseDevice(true);
-   auto D = diag.Read();
-   auto X = dinv.Write();
-   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
-   auto I = ess_tdof_list.Read();
-   mfem::forall(ess_tdof_list.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      X[I[i]] = 1.0;
-   });
-
-   // Set up Chebyshev coefficients
    // For reference, see e.g., Parallel multigrid smoothing: polynomial versus
    // Gauss-Seidel by Adams et al.
    real_t upper_bound = 1.2 * max_eig_estimate;
@@ -614,6 +523,119 @@ void OperatorChebyshevSmoother::Setup()
       default:
          MFEM_ABORT("Chebyshev smoother not implemented for order = " << order);
    }
+
+   return coeffs;
+}
+
+// Estimate the largest eigenvalue of the preconditioned operator B A using the
+// power method.
+static real_t EstimateMaxEigenvalue(const Operator &B, const Operator &A,
+#ifdef MFEM_USE_MPI
+                                    MPI_Comm comm,
+#endif
+                                    int power_iterations,
+                                    real_t power_tolerance,
+                                    int power_seed)
+{
+   ProductOperator BA(&B, &A, false, false);
+
+#ifdef MFEM_USE_MPI
+   PowerMethod powerMethod(comm);
+#else
+   PowerMethod powerMethod;
+#endif
+   Vector ev(A.Width());
+   MFEM_VERIFY(power_seed != 0, "invalid seed!");
+   return powerMethod.EstimateLargestEigenvalue(BA, ev, power_iterations,
+                                                power_tolerance, power_seed);
+}
+
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     const Array<real_t> &coeffs_)
+   :
+   Solver(d.Size()),
+   N(d.Size()),
+   dinv(N),
+   diag(d),
+   coeffs(coeffs_),
+   ess_tdof_list(ess_tdofs),
+   residual(N),
+   oper(&oper_) { Setup(); }
+
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, real_t max_eig_estimate_)
+   : OperatorChebyshevSmoother(oper_, d, ess_tdofs,
+                               ComputeChebyshevCoefficients(order_,
+                                                            max_eig_estimate_)) { }
+
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, MPI_Comm comm,
+                                                     int power_iterations,
+                                                     real_t power_tolerance,
+                                                     int power_seed)
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_,
+                                                     int power_iterations,
+                                                     real_t power_tolerance,
+                                                     int power_seed)
+#endif
+   : OperatorChebyshevSmoother(
+        oper_, d, ess_tdofs,
+        ComputeChebyshevCoefficients(
+           order_,
+           EstimateMaxEigenvalue(OperatorJacobiSmoother(d, ess_tdofs, 1.0),
+                                 oper_,
+#ifdef MFEM_USE_MPI
+                                 comm,
+#endif
+                                 power_iterations, power_tolerance,
+                                 power_seed))) { }
+
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, real_t max_eig_estimate_)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, max_eig_estimate_) { }
+
+#ifdef MFEM_USE_MPI
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, MPI_Comm comm, int power_iterations, real_t power_tolerance)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, comm,
+                               power_iterations, power_tolerance) { }
+#else
+OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
+                                                     const Vector &d,
+                                                     const Array<int>& ess_tdofs,
+                                                     int order_, int power_iterations, real_t power_tolerance)
+   : OperatorChebyshevSmoother(*oper_, d, ess_tdofs, order_, power_iterations,
+                               power_tolerance) { }
+#endif
+
+void OperatorChebyshevSmoother::Setup()
+{
+   // Invert diagonal
+   residual.UseDevice(true);
+   helperVector.UseDevice(true);
+   auto D = diag.Read();
+   auto X = dinv.Write();
+   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
+   auto I = ess_tdof_list.Read();
+   mfem::forall(ess_tdof_list.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      X[I[i]] = 1.0;
+   });
 }
 
 void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
@@ -635,7 +657,7 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
    y.UseDevice(true);
    y = 0.0;
 
-   for (int k = 0; k < order; ++k)
+   for (int k = 0; k < coeffs.Size(); ++k)
    {
       // Apply
       if (k > 0)
@@ -654,6 +676,91 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
       auto Y = y.ReadWrite();
       auto C = coeffs.Read();
       mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { Y[i] += C[k] * R[i]; });
+   }
+}
+
+GeneralChebyshevSmoother::GeneralChebyshevSmoother(const Operator &oper_,
+                                                   const Solver &prec_,
+                                                   const Array<real_t> &coeffs_)
+   : Solver(oper_.Height()),
+     coeffs(coeffs_),
+     residual(height),
+     z(height),
+     oper(&oper_),
+     prec(&prec_)
+{
+   MFEM_VERIFY(oper->Height() == oper->Width(), "Operator must be square.");
+   MFEM_VERIFY(prec->Height() == oper->Height() &&
+               prec->Width() == oper->Width(),
+               "Incompatible preconditioner and operator sizes.");
+
+   residual.UseDevice(true);
+   z.UseDevice(true);
+}
+
+GeneralChebyshevSmoother::GeneralChebyshevSmoother(const Operator &oper_,
+                                                   const Solver &prec_,
+                                                   int order_,
+                                                   real_t max_eig_estimate_)
+   : GeneralChebyshevSmoother(oper_, prec_,
+                              ComputeChebyshevCoefficients(order_,
+                                                           max_eig_estimate_)) { }
+
+#ifdef MFEM_USE_MPI
+GeneralChebyshevSmoother::GeneralChebyshevSmoother(const Operator &oper_,
+                                                   const Solver &prec_,
+                                                   int order_, MPI_Comm comm,
+                                                   int power_iterations,
+                                                   real_t power_tolerance,
+                                                   int power_seed)
+#else
+GeneralChebyshevSmoother::GeneralChebyshevSmoother(const Operator &oper_,
+                                                   const Solver &prec_,
+                                                   int order_,
+                                                   int power_iterations,
+                                                   real_t power_tolerance,
+                                                   int power_seed)
+#endif
+   : GeneralChebyshevSmoother(
+        oper_, prec_,
+        ComputeChebyshevCoefficients(
+           order_,
+           EstimateMaxEigenvalue(prec_, oper_,
+#ifdef MFEM_USE_MPI
+                                 comm,
+#endif
+                                 power_iterations, power_tolerance,
+                                 power_seed))) { }
+
+void GeneralChebyshevSmoother::Mult(const Vector &x, Vector &y) const
+{
+   if (iterative_mode)
+   {
+      MFEM_ABORT("Chebyshev smoother not implemented for iterative mode");
+   }
+
+   if (!oper)
+   {
+      MFEM_ABORT("Chebyshev smoother requires operator");
+   }
+
+   // Compute y = sum_k c_k (B A)^k B x
+   residual = x;
+
+   y.UseDevice(true);
+   y = 0.0;
+
+   const int order = coeffs.Size();
+   for (int k = 0; k < order; ++k)
+   {
+      // Apply the preconditioner
+      prec->Mult(residual, z);
+
+      // Add weighted contribution to y
+      y.Add(coeffs[k], z);
+
+      // Apply the operator
+      if (k < order - 1) { oper->Mult(z, residual); }
    }
 }
 
