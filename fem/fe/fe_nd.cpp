@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1282,12 +1282,49 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
    }
 }
 
+void ND_SegmentElement::CalcShape(const IntegrationPoint &ip,
+                                  Vector &shape) const
+{
+   if (obasis1d.IsIntegratedType()) { obasis1d.ScaleIntegrated(false); }
+   obasis1d.Eval(ip.x, shape);
+}
+
 void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                    DenseMatrix &shape) const
 {
    Vector vshape(shape.Data(), dof);
 
-   obasis1d.Eval(ip.x, vshape);
+   CalcShape(ip, vshape);
+}
+
+void ND_SegmentElement::ProjectIntegrated(VectorCoefficient &vc,
+                                          ElementTransformation &Trans,
+                                          Vector &dofs) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   real_t vk[Geometry::MaxDim];
+   Vector xk(vk, vc.GetVDim());
+
+   const real_t *cp = poly1d.ClosedPoints(dof, BasisType::GaussLobatto);
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, dof);
+   IntegrationPoint ip;
+
+   for (int i = 0; i < dof; i++)
+   {
+      const real_t h = cp[i+1] - cp[i];
+      real_t val = 0.0;
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip1d = ir.IntPoint(q);
+         ip.x = cp[i] + h*ip1d.x;
+         Trans.SetIntPoint(&ip);
+         vc.Eval(xk, Trans, ip);
+         val += ip1d.weight*Trans.Jacobian().InnerProduct(tk, vk);
+      }
+
+      dofs(i) = val*h;
+   }
 }
 
 const real_t ND_WedgeElement::tk[15] =
@@ -3127,6 +3164,11 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, vdim);
+#else
+   // 'vshape' is initialized with 'dim' (2) instead of 'vdim' (3) columns.
+   // 'vshape' may be modified by ND_R2D_FiniteElement::LocalInterpolation to
+   // use the number of dofs of another FE as the number of rows.
+   vshape.SetSize(dof, vdim);
 #endif
 
    real_t * tk_ptr = const_cast<real_t*>(tk);
@@ -3140,7 +3182,8 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          Jinv.Mult(t2, pt_data);

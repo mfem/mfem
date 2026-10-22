@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -54,6 +54,8 @@ void Coefficient::Project(QuadratureFunction &qf)
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
    Vector values;
+   // GetValues makes a reference, but we need it to be valid on Host
+   qf.HostWrite();
    for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
@@ -145,12 +147,11 @@ void PWCoefficient::SetTime(real_t t)
 {
    Coefficient::SetTime(t);
 
-   std::map<int, Coefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (const auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }
@@ -327,6 +328,8 @@ void VectorCoefficient::Project(QuadratureFunction &qf)
    const int ne = qspace.GetNE();
    DenseMatrix values;
    Vector col;
+   // GetValues makes a reference, but we need it to be valid on Host
+   qf.HostWrite();
    for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
@@ -372,12 +375,11 @@ void PWVectorCoefficient::SetTime(real_t t)
 {
    VectorCoefficient::SetTime(t);
 
-   std::map<int, VectorCoefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (const auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }
@@ -695,6 +697,8 @@ void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
    QuadratureSpaceBase &qspace = *qf.GetSpace();
    const int ne = qspace.GetNE();
    DenseMatrix values, matrix;
+   // GetValues makes a reference, but we need it to be valid on Host
+   qf.HostWrite();
    for (int iel = 0; iel < ne; ++iel)
    {
       qf.GetValues(iel, values);
@@ -750,12 +754,11 @@ void PWMatrixCoefficient::SetTime(real_t t)
 {
    MatrixCoefficient::SetTime(t);
 
-   std::map<int, MatrixCoefficient*>::iterator p = pieces.begin();
-   for (; p != pieces.end(); p++)
+   for (const auto &[attr, piece] : pieces)
    {
-      if (p->second != NULL)
+      if (piece != NULL)
       {
-         p->second->SetTime(t);
+         piece->SetTime(t);
       }
    }
 }

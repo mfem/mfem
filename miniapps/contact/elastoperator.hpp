@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -108,7 +108,7 @@ public:
    void SetParameters(const Vector & E, const Vector & nu);
 
    /// Apply Neumann (pressure) boundary condition on a set of boundary markers.
-   void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker);
+   void SetNeumannPressureData(ConstantCoefficient &f, Array<int> & bdr_marker);
 
    /// Apply Dirichlet (displacement) boundary condition on a set of boundary markers.
    void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr);

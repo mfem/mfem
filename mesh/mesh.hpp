@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -60,12 +60,15 @@ class CubitBlock;
 }
 #endif
 
+namespace gmsh { class GmshReader; }
+
 /// Mesh data type
 class Mesh
 {
    friend class NCMesh;
    friend class NURBSExtension;
    friend class NCNURBSExtension;
+   friend class gmsh::GmshReader;
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
@@ -247,16 +250,18 @@ protected:
    Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
-   // deleted by the caller. Of these three tables, only face_edge and
+   // deleted by the caller. Of these four tables, only face_edge, edge_face and
    // edge_vertex are returned by access functions.
    mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
    mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
+   mutable Table *edge_face;     // Returned by GetEdgeFaceTable().
    mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
+   mutable std::unique_ptr<L2_SegmentElement> EdgeTransfElement;
 
    // refinement embeddings for forward compatibility with NCMesh
    mutable CoarseFineTransformations CoarseFineTr;
@@ -362,7 +367,7 @@ protected:
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
                       bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
-   void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
+   void ReadGmshMesh(std::istream &input);
 
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
@@ -512,7 +517,7 @@ protected:
                     const std::string &kvf);
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
-       patch topology. Optional file comments can be provided in @a comments.
+       patch topology. Optional file comments can be provided in @a comment.
 
        @param[in] os  Output stream to which to write.
        @param[in] e_to_k  Map from edge to signed knotvector indices.
@@ -969,8 +974,13 @@ public:
        Quadrilaterals are split into two triangles, prisms are split into
        3 tetrahedra, and hexahedra are split into either 5 or 6 tetrahedra
        depending on the configuration.
-       @warning The curvature of the original mesh is not carried over to the
-       new mesh. Periodic meshes are not supported. */
+
+       @warning Although periodic meshes are supported, some periodic
+       configurations (such as periodic-hexagon.mesh) do not work because MFEM
+       requires edges to be uniquely identified by their endpoint vertices, and
+       so edge paths connecting periodic boundaries must have at least three
+       segments. MakeSimplicial inserts new diagonal edges that may violate this
+       condition. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.
@@ -1359,6 +1369,11 @@ public:
    /// A mixed mesh is one where there are multiple types of element geometries.
    bool IsMixedMesh() const;
 
+   /// @brief Returns true if the mesh is a simplex mesh, false otherwise.
+   ///
+   /// A simplex mesh is one where all the elements are simplices.
+   bool IsSimplexMesh() const { return (MeshGenerator() == 1); }
+
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
@@ -1480,7 +1495,7 @@ public:
 
    /// @}
 
-   /// @name Access information concerning individual mesh entites
+   /// @name Access information concerning individual mesh entities
    /// @{
 
    /// Return the attribute of element i.
@@ -1605,7 +1620,7 @@ public:
       { mesh.GetGeometries(dim, *this); }
    };
 
-   /// @name Access connectivity for individual mesh entites
+   /// @name Access connectivity for individual mesh entities
    /// @{
 
    /// Returns the indices of the vertices of element i.
@@ -1722,6 +1737,11 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    Table *GetFaceEdgeTable() const;
+
+   /// Returns the edge-to-face Table (3D)
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
+   Table *GetEdgeFaceTable() const;
 
    /// Returns the edge-to-vertex Table (3D)
    ///
@@ -2201,6 +2221,13 @@ public:
        by Mesh::GetFaceElements() and Mesh::GetFaceInfos(). */
    FaceInformation GetFaceInformation(int f) const;
 
+   /// @brief Return the indices of the elements sharing face @a Face.
+   ///
+   /// @param[in]  Face  Index of the face.
+   /// @param[out] Elem1 Index of the first element.
+   /// @param[out] Elem2 Index of the second neighboring element.
+   ///
+   /// @sa GetFaceInfos(), GetFaceInformation(), FaceInfo
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
@@ -2410,11 +2437,21 @@ public:
                                finite element space (continuous is default).
        @param[in]  space_dim   The space dimension (optional).
        @param[in]  ordering    The Ordering of the finite element space
-                               (Ordering::byVDIM is the default). */
-   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                             int ordering = 1);
+                               (Ordering::byVDIM is the default).
+       @param[in]  pyr_type    Select Bergot (pyr_type = 0) or Fuentes
+                               (pyr_type = 1) basis functions for pyramid
+                               shaped elements. */
+   virtual void SetCurvature(int order, bool discont = false,
+                             int space_dim = -1, int ordering = 1,
+                             int pyr_type = 1);
 
    /// @}
+
+   /// Create a GridFunction representing the Jacobian determinant
+   std::unique_ptr<GridFunction> GetJacobianDeterminantGF() const;
+
+   /// Update Jacobian determinant values in a given gridfunction
+   void UpdateJacobianDeterminantGF(GridFunction &detgf) const;
 
    /// @name Methods related to mesh refinement
    /// @{
@@ -2762,7 +2799,7 @@ std::ostream& operator<<(std::ostream &os, const Mesh::FaceInformation& info);
     meshes (in serial, i.e. on one processor) and save the parts in parallel
     MFEM mesh format.
 
-    Another potential futrure purpose of this class could be to facilitate
+    Another potential future purpose of this class could be to facilitate
     exchange of MeshParts between MPI ranks for repartitioning purposes. It can
     also potentially be used to implement parallel mesh I/O functions with
     partitionings that have number of parts different from the number of MPI
@@ -2822,7 +2859,7 @@ public:
 
       Note that 'entity_to_vertex' does NOT describe all "faces" in the mesh
       part (i.e. all 'dimension'-1 entities) but only the boundary elements.
-      Also, note that lower dimesional entities ('dimension'-2 and lower) are
+      Also, note that lower dimensional entities ('dimension'-2 and lower) are
       NOT described by the respective array, i.e. the array will be empty.
    */
    Array<int> entity_to_vertex[Geometry::NumGeom];

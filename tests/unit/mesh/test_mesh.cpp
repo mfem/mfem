@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -146,18 +146,72 @@ TEST_CASE("Gecko integration in MFEM", "[Mesh]")
    }
 }
 
+TEST_CASE("Hilbert reordering boundary element consistency", "[Mesh]")
+{
+   // After ReorderElements the boundary[] array must be sorted by the index of
+   // the adjacent interior element (faces_info[be_to_face[i]].Elem1No).
+   // This ensures spatial locality between volume and boundary elements.
+
+   auto test = [](Mesh & mesh)
+   {
+      // Record the number of boundary elements before reordering
+      const int nbe = mesh.GetNBE();
+      REQUIRE(nbe > 0);
+
+      Array<int> perm;
+      mesh.GetHilbertElementOrdering(perm);
+      mesh.ReorderElements(perm);
+
+      REQUIRE(mesh.GetNBE() == nbe); // count must not change
+
+      // Adjacent element indices must be non-decreasing across the boundary
+      // element list.
+      for (int i = 0; i < mesh.GetNBE() - 1; ++i)
+      {
+         int fi, fj, o;
+         mesh.GetBdrElementFace(i,     &fi, &o);
+         mesh.GetBdrElementFace(i + 1, &fj, &o);
+         int eli, elj, dummy;
+         mesh.GetFaceElements(fi, &eli, &dummy);
+         mesh.GetFaceElements(fj, &elj, &dummy);
+         REQUIRE(eli <= elj);
+      }
+   };
+
+   SECTION("3D hex mesh boundary elements sorted after Hilbert reordering")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(3, 4, 5, Element::HEXAHEDRON);
+      test(mesh);
+   }
+
+   SECTION("2D quad mesh boundary elements sorted after Hilbert reordering")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(4, 5, Element::QUADRILATERAL);
+      test(mesh);
+   }
+
+   SECTION("3D tet mesh boundary elements sorted after Hilbert reordering")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(3, 4, 5, Element::TETRAHEDRON);
+      test(mesh);
+   }
+}
+
 TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
                               "../../data/star-surf.mesh",
+                              "../../data/periodic-square.mesh",
                               "../../data/inline-tri.mesh",
                               "../../data/inline-quad.mesh",
                               "../../data/inline-hex.mesh",
                               "../../data/inline-tet.mesh",
                               "../../data/inline-wedge.mesh",
+                              "../../data/periodic-cube.mesh",
                               "../../data/beam-wedge.mesh");
+   CAPTURE(mesh_fname);
 
-   Mesh orig_mesh(mesh_fname, 1, 1);
+   Mesh orig_mesh(mesh_fname);
    Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
    Geometry::Type orig_geom = orig_mesh.GetTypicalElementGeometry();
@@ -185,8 +239,11 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    // on the original mesh, but it doesn't happen for these test cases.
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
 
+   auto *nodal_fes = orig_mesh.GetNodalFESpace();
+   bool dg = nodal_fes != nullptr && nodal_fes->IsDGSpace();
    auto curvature = GENERATE(1,2,3);
-   orig_mesh.SetCurvature(curvature, false, -1, GENERATE(0,1));
+   CAPTURE(curvature);
+   orig_mesh.SetCurvature(curvature, dg, -1, GENERATE(0,1));
    auto ho_simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
    CHECK(orig_mesh.GetNV() == simplex_mesh.GetNV());
@@ -194,13 +251,12 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
 
    // Vertex locations should be unchanged after higher order transformation.
    Vector vert;
-   constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
    for (int i = 0; i < ho_simplex_mesh.SpaceDimension(); i++)
    {
       ho_simplex_mesh.GetNodes()->GetNodalValues(vert, i+1);
       for (int j = 0; j < ho_simplex_mesh.GetNV(); j++)
       {
-         REQUIRE(std::abs(simplex_mesh.GetVertex(j)[i] - vert(j)) < tol);
+         REQUIRE(simplex_mesh.GetVertex(j)[i] - vert(j) == MFEM_Approx(0.0));
       }
    }
 }
@@ -477,4 +533,43 @@ TEST_CASE("NURBS 1D curve in 2D from patches", "[Mesh]")
          REQUIRE(new_orders[i] == max_order);
       }
    }
+}
+
+TEST_CASE("Mesh::Swap preserves named attribute sets", "[Mesh]")
+{
+   // Regression test for a bug where Mesh::Swap swapped attributes and
+   // bdr_attributes but omitted the attr_sets maps, silently losing all named
+   // element/boundary sets on any move or swap of an mfem::Mesh.
+
+   Mesh a = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   Mesh b = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+
+   Array<int> a_elem_attrs({1});
+   Array<int> b_elem_attrs({1});
+   Array<int> a_bdr_attrs({1, 2});
+   Array<int> b_bdr_attrs({3, 4});
+
+   a.attribute_sets.SetAttributeSet("elem_set_a", a_elem_attrs);
+   a.bdr_attribute_sets.SetAttributeSet("bdr_set_a", a_bdr_attrs);
+   b.attribute_sets.SetAttributeSet("elem_set_b", b_elem_attrs);
+   b.bdr_attribute_sets.SetAttributeSet("bdr_set_b", b_bdr_attrs);
+
+   a.Swap(b, true);
+
+   // After swap, a should hold b's sets and b should hold a's sets.
+   REQUIRE(a.attribute_sets.AttributeSetExists("elem_set_b"));
+   REQUIRE(!a.attribute_sets.AttributeSetExists("elem_set_a"));
+   REQUIRE(a.bdr_attribute_sets.AttributeSetExists("bdr_set_b"));
+   REQUIRE(!a.bdr_attribute_sets.AttributeSetExists("bdr_set_a"));
+
+   REQUIRE(b.attribute_sets.AttributeSetExists("elem_set_a"));
+   REQUIRE(!b.attribute_sets.AttributeSetExists("elem_set_b"));
+   REQUIRE(b.bdr_attribute_sets.AttributeSetExists("bdr_set_a"));
+   REQUIRE(!b.bdr_attribute_sets.AttributeSetExists("bdr_set_b"));
+
+   // Verify set contents survived the swap.
+   Array<int> a_bdr_result = a.bdr_attribute_sets.GetAttributeSet("bdr_set_b");
+   Array<int> b_bdr_result = b.bdr_attribute_sets.GetAttributeSet("bdr_set_a");
+   REQUIRE(a_bdr_result == b_bdr_attrs);
+   REQUIRE(b_bdr_result == a_bdr_attrs);
 }
