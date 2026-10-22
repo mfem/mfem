@@ -765,20 +765,7 @@ real_t RusanovFlux::Eval(const Vector &state1, const Vector &state2,
                          Vector &flux) const
 {
 #ifdef MFEM_THREAD_SAFE
-   // All MHD states fit here; larger systems retain the general fallback.
-   constexpr int stack_equations = 8;
-   real_t data1[stack_equations], data2[stack_equations];
-   Vector fluxN1, fluxN2;
-   if (fluxFunction.num_equations <= stack_equations)
-   {
-      fluxN1.SetDataAndSize(data1, fluxFunction.num_equations);
-      fluxN2.SetDataAndSize(data2, fluxFunction.num_equations);
-   }
-   else
-   {
-      fluxN1.SetSize(fluxFunction.num_equations);
-      fluxN2.SetSize(fluxFunction.num_equations);
-   }
+   Vector fluxN1(fluxFunction.num_equations), fluxN2(fluxFunction.num_equations);
 #endif
    const real_t speed1 = fluxFunction.ComputeFluxDotN(state1, nor, Tr, fluxN1);
    const real_t speed2 = fluxFunction.ComputeFluxDotN(state2, nor, Tr, fluxN2);
@@ -1467,44 +1454,44 @@ real_t IdealMHDFlux::ComputeFluxDotN(const Vector &x,
    for (int d = 0; d < dim; d++) { FUdotN(0) += momentum(d)*normal(d); } // normal momentum
 
    const real_t normal_velocity = FUdotN(0) / density;
-   real_t normal_mangnetic = 0.0;
-   for (int d = 0; d < dim; d++) { normal_mangnetic += magnetic(d)*normal(d); }
+   real_t normal_magnetic = 0.0;
+   for (int d = 0; d < dim; d++) { normal_magnetic += magnetic(d)*normal(d); }
 
    // (ρuuᵀ - BBᵀ) dot n + (p + 0.5*|B|^2)n
    for (int i = 0; i < MHDdim; i++)
    {
       FUdotN(1 + i) = momentum(i) * normal_velocity - magnetic(
-                         i) * normal_mangnetic + auxiliary_energy * (i < dim ? normal(i) : 0.0);
+                         i) * normal_magnetic + auxiliary_energy * (i < dim ? normal(i) : 0.0);
    }
 
    // (Buᵀ - uBᵀ) dot n
    for (int i = 0; i < MHDdim; i++)
    {
       FUdotN(1 + MHDdim + i) = magnetic(i) * normal_velocity - momentum(i) *
-                               (normal_mangnetic / density);
+                               (normal_magnetic / density);
    }
 
    // (E + p + 0.5*|B|^2) uᵀ dot n - (u⋅B) Bᵀ dot n
-   FUdotN(1 + 2*MHDdim) = FUdotN(0) * H - vB_inner * normal_mangnetic;
+   FUdotN(1 + 2*MHDdim) = FUdotN(0) * H - vB_inner * normal_magnetic;
 
    // 3. Compute maximum characteristic speed
 
    // directional fast alfven speed
    const real_t gp = specific_heat_ratio * pressure;
    const real_t normal_norm = normal*normal;
-   const real_t normal_component = normal_mangnetic / normal_norm;
-   real_t tangential_mangnetic_norm = 0.0;
+   const real_t normal_component = normal_magnetic / normal_norm;
+   real_t tangential_magnetic_norm = 0.0;
    for (int d = 0; d < MHDdim; d++)
    {
       // Preserve the sum-of-squares form near parallel fields: subtracting
       // |B|^2 - (B.n)^2/|n|^2 instead can lose accuracy or become negative.
       const real_t tangential = magnetic(d) -
                                 (d < dim ? normal(d)*normal_component : 0.0);
-      tangential_mangnetic_norm += tangential*tangential;
+      tangential_magnetic_norm += tangential*tangential;
    }
    const real_t temp = gp - magnetic_norm;
    const real_t fast_alfven = std::sqrt((gp + magnetic_norm + std::sqrt(
-                                            temp*temp + 4*gp*tangential_mangnetic_norm )) / (2*density));
+                                            temp*temp + 4*gp*tangential_magnetic_norm )) / (2*density));
    // fluid speed |u|
    const real_t speed = std::fabs(normal_velocity) / std::sqrt(normal_norm);
    // max characteristic speed = fluid speed + fast alfven speed

@@ -540,8 +540,9 @@ public:
     * @brief Construct a new LDF_DG_GP_MHD object
     *
     * @param vfes_ DG vector finite element space with Ordering::byNODES
-    * @param hyperb_form_Int_ integrator for the volume and numerical face fluxes
-    * @param gpsource_form_Int_ integrator for the volume and face GP sources
+    * @param hyperb_form_Int_ non-null integrator for the volume and face fluxes
+    * @param gpsource_form_Int_ integrator for the volume and face GP sources;
+    *        may be null only when use_GPsource_ is false
     * @param use_GPsource_ whether to include the Godunov-Powell sources
     * @param use_LDF_ whether to project magnetic updates to the LDF space
     */
@@ -602,7 +603,7 @@ LDF_DG_GP_MHD::LDF_DG_GP_MHD(
    : TimeDependentOperator(vfes_.GetTrueVSize()),
      use_GPsource(use_GPsource_),
      use_LDF(use_LDF_),
-     num_equations(hyperb_form_Int_->num_equations),
+     num_equations(hyperb_form_Int_ ? hyperb_form_Int_->num_equations : 0),
      dim(vfes_.GetMesh()->SpaceDimension()),
      MHDdim((num_equations-2)/2),
      vfes(vfes_),
@@ -610,6 +611,14 @@ LDF_DG_GP_MHD::LDF_DG_GP_MHD(
      gpsource_form_Int(std::move(gpsource_form_Int_)),
      z(vfes_.GetTrueVSize())
 {
+   MFEM_VERIFY(hyperb_form_Int, "A flux integrator is required.");
+   MFEM_VERIFY(vfes.GetVDim() == num_equations,
+               "vfes vdim must match the flux's number of equations.");
+   MFEM_VERIFY(!use_GPsource ||
+               (gpsource_form_Int &&
+                gpsource_form_Int->num_equations == num_equations),
+               "GP source integrator is missing or has a different "
+               "number of equations than the flux.");
    MFEM_VERIFY(vfes.FEColl()->GetContType() ==
                FiniteElementCollection::DISCONTINUOUS &&
                vfes.GetOrdering() == Ordering::byNODES,

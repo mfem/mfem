@@ -298,7 +298,8 @@ int main(int argc, char *argv[])
       }
       // Mult() evaluates the residual as well as wave speeds at the volume
       // and interior-face quadrature points. The first residual is discarded;
-      // later CFL updates reuse the maximum collected during the RK stages.
+      // later CFL updates reuse the maximum from the last RK stage, since
+      // each Mult() resets the characteristic-speed accumulator.
       Vector z(sol.Size());
       mhd.Mult(sol, z);
 

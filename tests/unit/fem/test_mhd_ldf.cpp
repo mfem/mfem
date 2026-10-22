@@ -634,6 +634,49 @@ TEST_CASE("MHD residual supports disabling GP without a source integrator",
    REQUIRE(op.GetMaxCharSpeed() > 0.0);
 }
 
+#ifdef MFEM_USE_EXCEPTIONS
+TEST_CASE("MHD operator rejects incompatible spaces and integrators", "[MHD]")
+{
+   Mesh mesh = MHDMesh(2, 1);
+   DG_FECollection fec(1, 1, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, 8, Ordering::byNODES);
+   IdealMHDFlux flux(1, 5.0/3.0, 3);
+   RusanovFlux numerical_flux(flux);
+   auto make_flux_integrator = [&]()
+   {
+      return std::unique_ptr<HyperbolicFormIntegrator>(
+                new MHDFormIntegrator(numerical_flux));
+   };
+
+   SECTION("The space must match the flux")
+   {
+      FiniteElementSpace wrong_fes(&mesh, &fec, 6, Ordering::byNODES);
+      REQUIRE_THROWS_AS(LDF_DG_GP_MHD(wrong_fes, make_flux_integrator(),
+                                    nullptr, false, false), ErrorException);
+   }
+   SECTION("The flux integrator is required")
+   {
+      REQUIRE_THROWS_AS(LDF_DG_GP_MHD(fes, nullptr, nullptr, false, false),
+                        ErrorException);
+   }
+   SECTION("Enabled GP sources require an integrator")
+   {
+      REQUIRE_THROWS_AS(LDF_DG_GP_MHD(fes, make_flux_integrator(),
+                                    nullptr, true, false), ErrorException);
+   }
+   SECTION("The GP source must match the flux")
+   {
+      GPsource source(1, 1);
+      RusanovGPsource numerical_source(source);
+      auto source_integrator = std::unique_ptr<GPsourceFormIntegrator>(
+                                  new GPsourceFormIntegrator(numerical_source));
+      REQUIRE_THROWS_AS(LDF_DG_GP_MHD(fes, make_flux_integrator(),
+                                    std::move(source_integrator), true, false),
+                        ErrorException);
+   }
+}
+#endif
+
 TEST_CASE("Rusanov flux retains upwinding for small and larger systems",
           "[MHD]")
 {
