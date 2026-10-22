@@ -209,8 +209,26 @@ public:
        not met, a mesh that owns the data is created and returned.
    */
    static Mesh *BlueprintMeshToMesh(const conduit::Node &n_mesh,
-                                    const std::string &main_toplogy_name = "",
+                                    const std::string &main_topology_name = "",
                                     bool zero_copy = false);
+#ifdef MFEM_USE_MPI
+   /// Constructs and MFEM mesh from a Conduit Blueprint Description
+   /** @a main_topology_name is used to select which topology to use, when
+       empty ("") the first topology entry will be used.
+
+       If zero_copy == true, tries to construct a mesh that points to the data
+       described by the conduit node. This is only possible if the data in the
+       node matches the data types needed for the MFEM API (ints for
+       connectivity, real_t for field values, etc). If these constraints are
+       not met, a mesh that owns the data is created and returned.
+
+       If the topology has an associated adjset then a ParMesh is returned.
+   */
+   static Mesh *BlueprintMeshToMesh(MPI_Comm comm,
+                                    const conduit::Node &n_mesh,
+                                    const std::string &main_topology_name = "",
+                                    bool zero_copy = false);
+#endif
 
    /// Constructs and MFEM Grid Function from a Conduit Blueprint Description
    /** If zero_copy == true, tries to construct a grid function that points to
@@ -236,6 +254,10 @@ public:
                                                                  bool zero_copy = false);
 
 private:
+   /// Returns the requested topology name or the first topology when empty.
+   static std::string ResolveTopologyName(const conduit::Node &n_mesh,
+                                          const std::string &main_topology_name);
+
    /// Converts from MFEM element type enum to mesh bp shape name
    static std::string ElementTypeToShapeName(Element::Type element_type);
 
