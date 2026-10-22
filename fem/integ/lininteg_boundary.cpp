@@ -13,6 +13,8 @@
 #include "../../fem/kernels.hpp"
 #include "../fem.hpp"
 
+#include "lininteg_boundary_kernels.hpp"
+
 namespace mfem
 {
 
@@ -241,6 +243,82 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    BLFEvalAssemble(fes, ir, markers, coeff, true, b);
+}
+
+void VectorBoundaryFluxLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
+                                                    const Array<int> &markers,
+                                                    Vector &b)
+{
+   static Kernels kernels;
+   Mesh &mesh = *fes.GetMesh();
+   // Parallel node creation is collective, including ranks without boundaries.
+   mesh.EnsureNodes();
+   if (fes.GetNBE() == 0) { return; }
+   const int dim = mesh.Dimension();
+   MFEM_VERIFY((dim == 2 || dim == 3) && mesh.SpaceDimension() == dim &&
+               fes.GetVDim() == dim,
+               "Boundary flux device assembly requires a full-dimensional "
+               "2D or 3D mesh and vector dimension equal to the mesh dimension.");
+   const int nbe = mesh.GetNFbyType(FaceType::Boundary);
+   MFEM_VERIFY(markers.Size() == nbe, "Invalid boundary face marker size.");
+   const FiniteElement &fe = *fes.GetBE(0);
+   const IntegrationRule &ir = IntRule ? *IntRule :
+                               IntRules.Get(fe.GetGeomType(), fe.GetOrder() + 1);
+   const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
+   const int d = maps.ndof, q = maps.nqpt;
+   MFEM_VERIFY(d <= DofQuadLimits::MAX_D1D && q <= DofQuadLimits::MAX_Q1D,
+               "Boundary flux dofs or quadrature points exceed kernel limits.");
+   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   mesh.GetFaceIndices(FaceType::Boundary).HostRead();
+   mesh.GetBdrFaceAttributes().HostRead();
+   CoefficientVector coeff(F, qs, CoefficientStorage::COMPRESSED);
+   MFEM_VERIFY(coeff.Size() == 1 || coeff.Size() == qs.GetSize(),
+               "Boundary flux requires scalar coefficient values on its "
+               "boundary quadrature space.");
+   const auto *geom = mesh.GetFaceGeometricFactors(
+                        ir, FaceGeometricFactors::DETERMINANTS |
+                        FaceGeometricFactors::NORMALS, FaceType::Boundary,
+                        Device::GetDeviceMemoryType());
+   AssembleKernels::Run(dim, d, q, fes.GetVDim(), nbe, d, q, markers.Read(),
+                       maps.B.Read(), geom->detJ.Read(), ir.GetWeights().Read(),
+                       geom->normal.Read(), coeff, Sign, b.ReadWrite());
+}
+
+VectorBoundaryFluxLFIntegrator::AssembleKernelType
+VectorBoundaryFluxLFIntegrator::AssembleKernels::Fallback(int DIM, int, int)
+{
+   switch (DIM)
+   {
+      case 2: return VBFEvalAssemble2D<0, 0>;
+      case 3: return VBFEvalAssemble3D<0, 0>;
+   }
+   MFEM_ABORT("Boundary flux device assembly is only supported in 2D and 3D.");
+}
+
+VectorBoundaryFluxLFIntegrator::Kernels::Kernels()
+{
+   AddSpecialization<2, 1, 1>();
+   AddSpecialization<2, 2, 2>();
+   AddSpecialization<2, 3, 3>();
+   AddSpecialization<2, 4, 4>();
+   AddSpecialization<2, 5, 5>();
+   AddSpecialization<2, 2, 3>();
+   AddSpecialization<2, 3, 4>();
+   AddSpecialization<2, 4, 5>();
+   AddSpecialization<2, 5, 6>();
+   AddSpecialization<2, 3, 2>();
+   AddSpecialization<2, 4, 3>();
+   AddSpecialization<3, 1, 1>();
+   AddSpecialization<3, 2, 2>();
+   AddSpecialization<3, 3, 3>();
+   AddSpecialization<3, 4, 4>();
+   AddSpecialization<3, 5, 5>();
+   AddSpecialization<3, 2, 3>();
+   AddSpecialization<3, 3, 4>();
+   AddSpecialization<3, 4, 5>();
+   AddSpecialization<3, 5, 6>();
+   AddSpecialization<3, 3, 2>();
+   AddSpecialization<3, 4, 3>();
 }
 
 } // namespace mfem
