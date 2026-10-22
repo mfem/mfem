@@ -200,7 +200,7 @@ set(UNIT_TESTS_SRCS
 )
 
 #-----------------------------------------------------------
-# SERIAL CPU TESTS: unit_tests
+# SERIAL TESTS: unit_tests
 #-----------------------------------------------------------
 if (MFEM_USE_CUDA)
     set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
@@ -216,8 +216,7 @@ target_link_libraries(unit_tests_srcs PUBLIC mfem)
 add_dependencies(unit_tests_srcs
       ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
 
-# All serial non-device unit tests are built into a single executable,
-# 'unit_tests'.
+# All serial unit tests are built into a single executable, 'unit_tests'.
 mfem_add_executable(unit_tests unit_test_main.cpp)
 target_link_libraries(unit_tests unit_tests_srcs)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
@@ -226,51 +225,27 @@ add_dependencies(unit_tests copy_miniapps_multidomain_data)
 # NURBS tests need meshes in ../../miniapps/nurbs
 add_dependencies(unit_tests copy_miniapps_nurbs_data)
 
-# Create a test called 'unit_tests' that runs the 'unit_tests' executable.
+# Register the executable once for each enabled device backend.
 # The unit tests can be built and run separately from the rest of the tests:
 #   make unit_tests
 #   ctest -R unit_tests [-V]
+set(UNIT_TEST_DEVICES cpu)
+if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+    list(APPEND UNIT_TEST_DEVICES gpu)
+    if (MFEM_USE_RAJA)
+        list(APPEND UNIT_TEST_DEVICES raja-gpu)
+    endif()
+endif()
+if (MFEM_USE_OPENMP)
+  list(APPEND UNIT_TEST_DEVICES omp)
+  if (MFEM_USE_RAJA)
+    list(APPEND UNIT_TEST_DEVICES raja-omp)
+  endif()
+endif()
 if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-    add_test(NAME unit_tests COMMAND unit_tests)
-endif()
-
-#-----------------------------------------------------------
-# SERIAL CUDA TESTS: gpu_unit_tests
-#-----------------------------------------------------------
-# Create CUDA executable and test
-if (MFEM_USE_CUDA)
-    # gpu_unit_tests
-    set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
-    set_property(SOURCE ${GPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
-    # some of these meshes aren't actually used right now,
-    # but add dependency just in case.
-    add_dependencies(gpu_unit_tests copy_miniapps_multidomain_data)
-    add_dependencies(gpu_unit_tests copy_miniapps_nurbs_data)
-    target_link_libraries(gpu_unit_tests unit_tests_srcs)
-    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
-    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-        add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
-    endif()
-endif()
-
-#-----------------------------------------------------------
-# SERIAL HIP TESTS: gpu_unit_tests
-#-----------------------------------------------------------
-# Create HIP 'gpu_unit_tests' executable and test
-if (MFEM_USE_HIP)
-    # gpu_unit_tests
-    set(GPU_UNIT_TESTS_SRCS gpu_unit_test_main.cpp)
-    mfem_add_executable(gpu_unit_tests ${GPU_UNIT_TESTS_SRCS})
-    # some of these meshes aren't actually used right now,
-    # but add dependency just in case.
-    add_dependencies(gpu_unit_tests copy_miniapps_multidomain_data)
-    add_dependencies(gpu_unit_tests copy_miniapps_nurbs_data)
-    target_link_libraries(gpu_unit_tests unit_tests_srcs)
-    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} gpu_unit_tests)
-    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-        add_test(NAME gpu_unit_tests COMMAND gpu_unit_tests)
-    endif()
+    foreach(device IN LISTS UNIT_TEST_DEVICES)
+        add_test(NAME unit_tests_${device} COMMAND unit_tests --device ${device})
+    endforeach()
 endif()
 
 #-----------------------------------------------------------
@@ -391,7 +366,7 @@ if (MFEM_USE_CEED)
 endif()
 
 #-----------------------------------------------------------
-# PARALLEL CPU AND CUDA TESTS: {p,pc}unit_tests and pgpu_unit_tests
+# PARALLEL TESTS: punit_tests
 #-----------------------------------------------------------
 # Define executables and tests
 if (MFEM_USE_MPI)
@@ -408,51 +383,14 @@ if (MFEM_USE_MPI)
     add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
     foreach(np 1 ${MFEM_MPI_NP})
         if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-            add_test(NAME punit_tests_np=${np}
-                  COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-                  ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
-                  ${MPIEXEC_POSTFLAGS})
+            foreach(device IN LISTS UNIT_TEST_DEVICES)
+                add_test(NAME punit_tests_${device}_np=${np}
+                      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
+                      --device ${device} ${MPIEXEC_POSTFLAGS})
+            endforeach()
         endif()
     endforeach()
-    if (MFEM_USE_CUDA)
-        # pgpu_unit_tests
-        set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
-        set_property(SOURCE ${PGPU_UNIT_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
-        target_link_libraries(pgpu_unit_tests unit_tests_srcs)
-        # some of these meshes aren't actually used right now,
-        # but add dependency just in case.
-        add_dependencies(pgpu_unit_tests copy_miniapps_multidomain_data)
-        add_dependencies(pgpu_unit_tests copy_miniapps_nurbs_data)
-        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
-        foreach(np 1 ${MFEM_MPI_NP})
-            if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-                add_test(NAME pgpu_unit_tests_np=${np}
-                      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-                      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pgpu_unit_tests>
-                      ${MPIEXEC_POSTFLAGS})
-            endif()
-        endforeach()
-    endif()
-    if (MFEM_USE_HIP)
-        # pgpu_unit_tests
-        set(PGPU_UNIT_TESTS_SRCS pgpu_unit_test_main.cpp)
-        mfem_add_executable(pgpu_unit_tests ${PGPU_UNIT_TESTS_SRCS})
-        target_link_libraries(pgpu_unit_tests unit_tests_srcs)
-        # some of these meshes aren't actually used right now,
-        # but add dependency just in case.
-        add_dependencies(pgpu_unit_tests copy_miniapps_multidomain_data)
-        add_dependencies(pgpu_unit_tests copy_miniapps_nurbs_data)
-        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pgpu_unit_tests)
-        foreach(np 1 ${MFEM_MPI_NP})
-            if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-                add_test(NAME pgpu_unit_tests_np=${np}
-                      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-                      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:pgpu_unit_tests>
-                      ${MPIEXEC_POSTFLAGS})
-            endif()
-        endforeach()
-    endif()
 endif(MFEM_USE_MPI)
 
 #-----------------------------------------------------------

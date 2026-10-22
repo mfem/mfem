@@ -12,6 +12,7 @@
 #ifndef MFEM_RUN_UNIT_TEST
 #define MFEM_RUN_UNIT_TEST
 
+#include <memory>
 #include "unit_tests.hpp"
 
 bool launch_all_non_regression_tests = false;
@@ -20,7 +21,7 @@ std::string mfem_data_dir;
 
 static int RunCatchSession(int argc, char *argv[],
                            const std::vector<std::string> &testsOrTags,
-                           bool root=true)
+                           bool root=true, bool configure_cpu=false)
 {
    // There must be exactly one instance.
    Catch::Session session;
@@ -28,7 +29,11 @@ static int RunCatchSession(int argc, char *argv[],
    // Build a new command line parser on top of Catch's
    using namespace Catch::clara;
    bool enable_mfem_out = false;
+   std::string device_config = "cpu";
+   // Catch reserves -d for test durations.
    auto cli = session.cli()
+              | Opt(device_config, "device") ["--device"]
+                ("MFEM device backend (default: cpu)")
               | Opt(launch_all_non_regression_tests) ["--all"] ("all tests")
               | Opt(mfem_data_dir, "") ["--data"] ("mfem/data repository")
               | Opt(enable_mfem_out) ["--enable-output"] ("enable mfem::out")
@@ -44,9 +49,18 @@ static int RunCatchSession(int argc, char *argv[],
    int r = session.applyCommandLine(argc, argv);
    if (r != 0) { return r; }
 
+   // Serial CPU tests may select their own device or memory types. Parallel
+   // CPU tests need an explicit device so hypre uses the CPU when possible.
+   std::unique_ptr<mfem::Device> device;
+   if (device_config != "cpu" || configure_cpu)
+   {
+      device.reset(new mfem::Device(device_config.c_str()));
+   }
+
    auto cfg = session.configData();
    cfg.testsOrTags.insert(cfg.testsOrTags.end(), testsOrTags.begin(),
                           testsOrTags.end());
+   if (device_config != "cpu") { cfg.testsOrTags.push_back("[GPU]"); }
    if (mfem_data_dir == "") { cfg.testsOrTags.push_back("~[MFEMData]"); }
    session.useConfigData(cfg);
 
