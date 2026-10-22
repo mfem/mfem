@@ -58,20 +58,47 @@ public:
    /// Move assignment is not supported
    BlockOperator &operator=(BlockOperator &&) = delete;
 
-   //! Add block op in the block-entry (iblock, iblock).
+   //! Add block op in the block-entry (iblock, iblock). The ownership
+   //! of the block will not be changed.
    /**
     * iblock: The block will be inserted in location (iblock, iblock).
     * op: the Operator to be inserted.
     * c: optional scalar multiple for this block.
     */
    void SetDiagonalBlock(int iblock, Operator *op, real_t c = 1.0);
-   //! Add a block op in the block-entry (iblock, jblock).
+   //! Add block op in the block-entry (iblock, iblock).
+   /**
+    * iblock: The block will be inserted in location (iblock, iblock).
+    * op: the Operator to be inserted.
+    * own: flag indicating if the block is owned.
+    * c: optional scalar multiple for this block.
+    */
+   void SetDiagonalBlock(int iblock, Operator *op, bool own, real_t c = 1.0)
+   {
+      SetDiagonalBlock(iblock, op, c);
+      SetBlockOwnership(iblock, iblock, own);
+   }
+
+   //! Add a block op in the block-entry (iblock, jblock). The ownership
+   //! of the block will not be changed.
    /**
     * irow, icol: The block will be inserted in location (irow, icol).
     * op: the Operator to be inserted.
     * c: optional scalar multiple for this block.
     */
    void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
+   //! Add a block op in the block-entry (iblock, jblock).
+   /**
+    * irow, icol: The block will be inserted in location (irow, icol).
+    * op: the Operator to be inserted.
+    * own: flag indicating if the block is owned
+    * c: optional scalar multiple for this block.
+    */
+   void SetBlock(int iRow, int iCol, Operator *op, bool own, real_t c = 1.0)
+   {
+      SetBlock(iRow, iCol, op, c);
+      SetBlockOwnership(iRow, iCol, own);
+   }
 
    //! Return the number of row blocks
    int NumRowBlocks() const { return nRowBlocks; }
