@@ -251,8 +251,7 @@ inline void SmemPAMassApplyTriangle(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPAMassApplyTriangle requires compile-time D1D and Q1D");
 
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
+   static constexpr int D1D = T_D1D, Q1D = T_Q1D;
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
@@ -262,8 +261,8 @@ inline void SmemPAMassApplyTriangle(const int NE,
    const auto X_ptr = x_.Read();
    auto Y_ptr = y_.ReadWrite();
 
-   constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
-   constexpr int BZ = (128 / BLK < 64) ? 128 / BLK : 64;
+   static constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
+   static constexpr int BZ = (128 / BLK < 64) ? 128 / BLK : 64;
 
    // Updating this shared symbol during application is not concurrency-safe;
    // see ConstantBasisCache for the caller's serialization requirements.
@@ -684,8 +683,7 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPAMassApplyTetrahedron requires compile-time D1D and Q1D");
 
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
+   static constexpr int D1D = T_D1D, Q1D = T_Q1D;
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
@@ -696,9 +694,9 @@ inline void SmemPAMassApplyTetrahedron(const int NE,
    const auto X_ptr = x_.Read();
    auto Y_ptr = y_.ReadWrite();
 
-   constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
-   constexpr int BZ_RAW = 128 / (BLK * BLK);
-   constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
+   static constexpr int BLK = (D1D > Q1D) ? D1D : Q1D;
+   static constexpr int BZ_RAW = 128 / (BLK * BLK);
+   static constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
    // Updating this shared symbol during application is not concurrency-safe;
    // see ConstantBasisCache for the caller's serialization requirements.

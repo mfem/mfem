@@ -302,10 +302,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPADiffusionApplyTriangle requires compile-time D1D and Q1D");
 
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
-   constexpr int BASIS_DIM = D1D * (D1D+1) / 2;
-   constexpr int p2 = (D1D-1) * (D1D-1);
+   static constexpr int D1D = T_D1D, Q1D = T_Q1D;
+   static constexpr int BASIS_DIM = D1D * (D1D+1) / 2;
+   static constexpr int p2 = (D1D-1) * (D1D-1);
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
@@ -315,9 +314,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
    auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
 
-   constexpr int BLK = (Q1D > D1D - 1) ? Q1D : D1D - 1;
-   constexpr int BZ_RAW = 128 / BLK;
-   constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
+   static constexpr int BLK = (Q1D > D1D - 1) ? Q1D : D1D - 1;
+   static constexpr int BZ_RAW = 128 / BLK;
+   static constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
    // Updating this shared symbol during application is not concurrency-safe;
    // see ConstantBasisCache for the caller's serialization requirements.
@@ -803,12 +802,11 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    static_assert(T_D1D != 0 && T_Q1D != 0,
                  "SmemPADiffusionApplyTetrahedron requires compile-time D1D and Q1D");
 
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
-   constexpr int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
-   constexpr int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
-   constexpr int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
-   constexpr int p2 = (D1D-1) * (D1D-1);
+   static constexpr int D1D = T_D1D, Q1D = T_Q1D;
+   static constexpr int BASIS_DIM3D = D1D * (D1D+1) * (D1D+2) / 6;
+   static constexpr int BASIS_DIM2D_DIFF = (D1D-1) * D1D / 2;
+   static constexpr int BASIS_DIM3D_DIFF = (D1D-1) * D1D * (D1D+1) / 6;
+   static constexpr int p2 = (D1D-1) * (D1D-1);
 
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D_SIMPLEX, "");
    MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D_SIMPLEX, "");
@@ -819,9 +817,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    auto x = Reshape(x_.Read(), BASIS_DIM3D, NE);
    auto y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
 
-   constexpr int BLK = (Q1D > D1D - 1) ? Q1D : D1D - 1;
-   constexpr int BZ_RAW = 128 / (BLK * BLK);
-   constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
+   static constexpr int BLK = (Q1D > D1D - 1) ? Q1D : D1D - 1;
+   static constexpr int BZ_RAW = 128 / (BLK * BLK);
+   static constexpr int BZ = (BZ_RAW < 64 ? (BZ_RAW < 1 ? 1 : BZ_RAW) : 64);
 
    // Updating this shared symbol during application is not concurrency-safe;
    // see ConstantBasisCache for the caller's serialization requirements.
