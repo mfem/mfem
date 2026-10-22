@@ -35,14 +35,10 @@ using namespace std;
 class BiharmonicIntegrator : public BilinearFormIntegrator
 {
 private:
-   Coefficient &D;
-
    inline static const Vector factors_2D{1.0, 2.0, 1.0};
    mutable DenseMatrix hessian;
    mutable Vector factors;
 public:
-   BiharmonicIntegrator(Coefficient &D_) : D(D_) {}
-
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans, DenseMatrix &elmat) override;
 };
@@ -117,16 +113,15 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    fespace.GetEssentialTrueDofs(all_bdr_marker, ess_tdof_list);
 
-   ConstantCoefficient one(1.0);
-
    // Initialize the bilinear form
    BilinearForm a(&fespace);
-   a.AddDomainIntegrator(new BiharmonicIntegrator(one));
+   a.AddDomainIntegrator(new BiharmonicIntegrator);
    a.AddInteriorFaceIntegrator(new C0InteriorPenaltyIntegrator(eta));
    a.AddBdrFaceIntegrator(new C0InteriorPenaltyIntegrator(eta));
    a.Assemble();
 
    // Initialize the linear form f=1.0
+   ConstantCoefficient one(1.0);
    LinearForm b(&fespace);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
@@ -187,7 +182,7 @@ void BiharmonicIntegrator::AssembleElementMatrix(const FiniteElement &el,
       el.CalcPhysHessian(Trans, hessian);
 
       factors = factors_2D;
-      factors *= D.Eval(Trans, ip) * ip.weight * Trans.Weight();
+      factors *= ip.weight * Trans.Weight();
 
       AddMultADAt(hessian, factors, elmat);
    }
