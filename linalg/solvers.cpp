@@ -554,23 +554,19 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      const Array<real_t> &coeffs_)
-   :
-   Solver(d.Size()),
-   N(d.Size()),
-   dinv(N),
-   diag(d),
-   coeffs(coeffs_),
-   ess_tdof_list(ess_tdofs),
-   residual(N),
-   oper(&oper_) { Setup(); }
+   : Solver(d.Size()),
+     diag(d),
+     jacobi(d, ess_tdofs, 1.0),
+     cheb(oper_, jacobi, coeffs_) { }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      const Vector &d,
                                                      const Array<int>& ess_tdofs,
                                                      int order_, real_t max_eig_estimate_)
-   : OperatorChebyshevSmoother(oper_, d, ess_tdofs,
-                               ComputeChebyshevCoefficients(order_,
-                                                            max_eig_estimate_)) { }
+   : Solver(d.Size()),
+     diag(d),
+     jacobi(d, ess_tdofs, 1.0),
+     cheb(oper_, jacobi, order_, max_eig_estimate_) { }
 
 #ifdef MFEM_USE_MPI
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
@@ -589,17 +585,16 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator &oper_,
                                                      real_t power_tolerance,
                                                      int power_seed)
 #endif
-   : OperatorChebyshevSmoother(
-        oper_, d, ess_tdofs,
-        ComputeChebyshevCoefficients(
-           order_,
-           EstimateMaxEigenvalue(OperatorJacobiSmoother(d, ess_tdofs, 1.0),
-                                 oper_,
+   : Solver(d.Size()),
+     diag(d),
+     jacobi(d, ess_tdofs, 1.0),
 #ifdef MFEM_USE_MPI
-                                 comm,
+     cheb(oper_, jacobi, order_, comm, power_iterations, power_tolerance,
+          power_seed) { }
+#else
+     cheb(oper_, jacobi, order_, power_iterations, power_tolerance,
+          power_seed) { }
 #endif
-                                 power_iterations, power_tolerance,
-                                 power_seed))) { }
 
 OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
                                                      const Vector &d,
@@ -625,17 +620,7 @@ OperatorChebyshevSmoother::OperatorChebyshevSmoother(const Operator* oper_,
 
 void OperatorChebyshevSmoother::Setup()
 {
-   // Invert diagonal
-   residual.UseDevice(true);
-   helperVector.UseDevice(true);
-   auto D = diag.Read();
-   auto X = dinv.Write();
-   mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { X[i] = 1.0 / D[i]; });
-   auto I = ess_tdof_list.Read();
-   mfem::forall(ess_tdof_list.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      X[I[i]] = 1.0;
-   });
+   jacobi.Setup(diag);
 }
 
 void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
@@ -644,39 +629,7 @@ void OperatorChebyshevSmoother::Mult(const Vector& x, Vector &y) const
    {
       MFEM_ABORT("Chebyshev smoother not implemented for iterative mode");
    }
-
-   if (!oper)
-   {
-      MFEM_ABORT("Chebyshev smoother requires operator");
-   }
-
-   residual = x;
-   helperVector.SetSize(x.Size());
-   helperVector.UseDevice(true);
-
-   y.UseDevice(true);
-   y = 0.0;
-
-   for (int k = 0; k < coeffs.Size(); ++k)
-   {
-      // Apply
-      if (k > 0)
-      {
-         oper->Mult(residual, helperVector);
-         residual = helperVector;
-      }
-
-      // Scale residual by inverse diagonal
-      const int n = N;
-      auto Dinv = dinv.Read();
-      auto R = residual.ReadWrite();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { R[i] *= Dinv[i]; });
-
-      // Add weighted contribution to y
-      auto Y = y.ReadWrite();
-      auto C = coeffs.Read();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { Y[i] += C[k] * R[i]; });
-   }
+   cheb.Mult(x, y);
 }
 
 GeneralChebyshevSmoother::GeneralChebyshevSmoother(const Operator &oper_,

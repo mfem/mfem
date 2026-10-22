@@ -495,10 +495,74 @@ public:
    void Setup(const Vector &diag);
 };
 
+/// Chebyshev accelerated smoothing with a general preconditioner
+/** This is a generalization of OperatorChebyshevSmoother, where the inverse
+    diagonal (Jacobi) scaling is replaced by the action of a general Solver B.
+    The resulting smoother applies p(B A) B, where p is a polynomial. By
+    default, p is the Chebyshev polynomial of the given order (1 <= order <= 5)
+    chosen based on an estimate of the largest eigenvalue of B A, but arbitrary
+    polynomial coefficients may also be provided.
+
+    The preconditioner B is expected to be applied with a zero initial guess
+    (i.e. its iterative_mode should be false). Essential boundary conditions
+    must be handled by the operator and by the preconditioner. This is just a
+    very basic Chebyshev iteration, if you want tolerances, iteration control,
+    etc. wrap this with SLISolver. */
+class GeneralChebyshevSmoother : public Solver
+{
+public:
+   /** Application is by the polynomial smoother with the given coefficients,
+       y = sum_k coeffs[k] (B A)^k B x. */
+   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
+                            const Array<real_t> &coeffs);
+
+   /** The estimated largest eigenvalue of the preconditioned operator B A must
+       be provided via max_eig_estimate. */
+   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
+                            int order, real_t max_eig_estimate);
+
+   /** The largest eigenvalue of the preconditioned operator B A is estimated
+       internally via a power method. The accuracy of the estimated eigenvalue
+       may be controlled via power_iterations and power_tolerance. */
+#ifdef MFEM_USE_MPI
+   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
+                            int order, MPI_Comm comm = MPI_COMM_NULL,
+                            int power_iterations = 10,
+                            real_t power_tolerance = 1e-8,
+                            int power_seed = 12345);
+#else
+   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
+                            int order, int power_iterations = 10,
+                            real_t power_tolerance = 1e-8,
+                            int power_seed = 12345);
+#endif
+
+   /** @brief Approach the solution of the linear system by applying Chebyshev
+       smoothing. */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Approach the solution of the transposed linear system by applying
+       Chebyshev smoothing. Assumes that the operator and preconditioner are
+       symmetric. */
+   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
+
+   /** @brief Set the operator. Note that the preconditioner and the polynomial
+       coefficients are not updated. */
+   void SetOperator(const Operator &op_) override { oper = &op_; }
+
+private:
+   Array<real_t> coeffs;
+   mutable Vector residual;
+   mutable Vector z;
+   const Operator *oper;
+   const Solver *prec;
+};
+
 /// Chebyshev accelerated smoothing with given vector, no matrix necessary
 /** Potentially useful with tensorized operators, for example. This is just a
     very basic Chebyshev iteration, if you want tolerances, iteration control,
-    etc. wrap this with SLISolver. */
+    etc. wrap this with SLISolver. This is the special case of
+    GeneralChebyshevSmoother with an OperatorJacobiSmoother preconditioner. */
 class OperatorChebyshevSmoother : public Solver
 {
 public:
@@ -564,6 +628,9 @@ public:
                              real_t power_tolerance = 1e-8);
 #endif
 
+   /// The internal smoother refers to the member jacobi, so disallow copies.
+   OperatorChebyshevSmoother(const OperatorChebyshevSmoother &) = delete;
+
    ~OperatorChebyshevSmoother() {}
 
    /** @brief Approach the solution of the linear system by applying Chebyshev
@@ -576,83 +643,18 @@ public:
 
    void SetOperator(const Operator &op_)
    {
-      oper = &op_;
+      cheb.SetOperator(op_);
    }
 
+   /// Recompute the inverse diagonal from the vector given at construction.
    void Setup();
 
 private:
-   const int N;
-   Vector dinv;
    const Vector &diag;
-   Array<real_t> coeffs;
-   const Array<int>& ess_tdof_list;
-   mutable Vector residual;
-   mutable Vector helperVector;
-   const Operator* oper;
-};
-
-/// Chebyshev accelerated smoothing with a general preconditioner
-/** This is a generalization of OperatorChebyshevSmoother, where the inverse
-    diagonal (Jacobi) scaling is replaced by the action of a general Solver B.
-    The resulting smoother applies p(B A) B, where p is a polynomial. By
-    default, p is the Chebyshev polynomial of the given order (1 <= order <= 5)
-    chosen based on an estimate of the largest eigenvalue of B A, but arbitrary
-    polynomial coefficients may also be provided.
-
-    The preconditioner B is expected to be applied with a zero initial guess
-    (i.e. its iterative_mode should be false). Essential boundary conditions
-    must be handled by the operator and by the preconditioner. This is just a
-    very basic Chebyshev iteration, if you want tolerances, iteration control,
-    etc. wrap this with SLISolver. */
-class GeneralChebyshevSmoother : public Solver
-{
-public:
-   /** Application is by the polynomial smoother with the given coefficients,
-       y = sum_k coeffs[k] (B A)^k B x. */
-   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
-                            const Array<real_t> &coeffs);
-
-   /** The estimated largest eigenvalue of the preconditioned operator B A must
-       be provided via max_eig_estimate. */
-   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
-                            int order, real_t max_eig_estimate);
-
-   /** The largest eigenvalue of the preconditioned operator B A is estimated
-       internally via a power method. The accuracy of the estimated eigenvalue
-       may be controlled via power_iterations and power_tolerance. */
-#ifdef MFEM_USE_MPI
-   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
-                            int order, MPI_Comm comm = MPI_COMM_NULL,
-                            int power_iterations = 10,
-                            real_t power_tolerance = 1e-8,
-                            int power_seed = 12345);
-#else
-   GeneralChebyshevSmoother(const Operator &oper_, const Solver &prec_,
-                            int order, int power_iterations = 10,
-                            real_t power_tolerance = 1e-8,
-                            int power_seed = 12345);
-#endif
-
-   /** @brief Approach the solution of the linear system by applying Chebyshev
-       smoothing. */
-   void Mult(const Vector &x, Vector &y) const override;
-
-   /** @brief Approach the solution of the transposed linear system by applying
-       Chebyshev smoothing. Assumes that the operator and preconditioner are
-       symmetric. */
-   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
-
-   /** @brief Set the operator. Note that the preconditioner and the polynomial
-       coefficients are not updated. */
-   void SetOperator(const Operator &op_) override { oper = &op_; }
-
-private:
-   Array<real_t> coeffs;
-   mutable Vector residual;
-   mutable Vector z;
-   const Operator *oper;
-   const Solver *prec;
+   /// Jacobi preconditioner D^{-1}, must be declared before cheb.
+   OperatorJacobiSmoother jacobi;
+   /// Chebyshev smoother using jacobi as the preconditioner.
+   GeneralChebyshevSmoother cheb;
 };
 
 
