@@ -652,7 +652,7 @@ TEST_CASE("MHD operator rejects incompatible spaces and integrators", "[MHD]")
    {
       FiniteElementSpace wrong_fes(&mesh, &fec, 6, Ordering::byNODES);
       REQUIRE_THROWS_AS(LDF_DG_GP_MHD(wrong_fes, make_flux_integrator(),
-                                    nullptr, false, false), ErrorException);
+                                      nullptr, false, false), ErrorException);
    }
    SECTION("The flux integrator is required")
    {
@@ -662,7 +662,7 @@ TEST_CASE("MHD operator rejects incompatible spaces and integrators", "[MHD]")
    SECTION("Enabled GP sources require an integrator")
    {
       REQUIRE_THROWS_AS(LDF_DG_GP_MHD(fes, make_flux_integrator(),
-                                    nullptr, true, false), ErrorException);
+                                      nullptr, true, false), ErrorException);
    }
    SECTION("The GP source must match the flux")
    {
@@ -671,7 +671,7 @@ TEST_CASE("MHD operator rejects incompatible spaces and integrators", "[MHD]")
       auto source_integrator = std::unique_ptr<GPsourceFormIntegrator>(
                                   new GPsourceFormIntegrator(numerical_source));
       REQUIRE_THROWS_AS(LDF_DG_GP_MHD(fes, make_flux_integrator(),
-                                    std::move(source_integrator), true, false),
+                                      std::move(source_integrator), true, false),
                         ErrorException);
    }
 }
