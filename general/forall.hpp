@@ -294,7 +294,7 @@ using cuda_launch_bounds_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true, LB>>;
 using cuda_launch_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
-using cuda_teams_x =
+using cuda_teams_x_loop =
    RAJA::LoopPolicy<RAJA::cuda_block_x_loop>;
 using cuda_teams_x_direct =
    RAJA::LoopPolicy<RAJA::cuda_block_x_direct>;
@@ -308,7 +308,7 @@ using hip_launch_policy =
 template <int LB>
 using hip_launch_bounds_policy =
    RAJA::LaunchPolicy<RAJA::hip_launch_t<true, LB>>;
-using hip_teams_x =
+using hip_teams_x_loop =
    RAJA::LoopPolicy<RAJA::hip_block_x_loop>;
 using hip_teams_x_direct =
    RAJA::LoopPolicy<RAJA::hip_block_x_direct>;
@@ -396,7 +396,7 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
                               [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
-      loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body);
+      loop<cuda_teams_x_loop>(ctx, RangeSegment(0, N), d_body);
    });
 
    MFEM_GPU_CHECK(cudaGetLastError());
@@ -413,7 +413,7 @@ void RajaCuWrap3DLaunchBounds(const int N, DBODY &&d_body,
    launch<cuda_launch_bounds_policy<LB> >(
       Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
       [=] RAJA_DEVICE(LaunchContext ctx)
-   { loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body); });
+   { loop<cuda_teams_x_loop>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -557,7 +557,7 @@ void RajaHipWrap3D(const int N, DBODY &&d_body,
                              [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
-      loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body);
+      loop<hip_teams_x_loop>(ctx, RangeSegment(0, N), d_body);
    });
 
    MFEM_GPU_CHECK(hipGetLastError());
@@ -574,7 +574,7 @@ void RajaHipWrap3DLaunchBounds(const int N, DBODY &&d_body, const int X,
    launch<hip_launch_bounds_policy<LB> >(
       Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
       [=] RAJA_DEVICE(LaunchContext ctx)
-   { loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body); });
+   { loop<hip_teams_x_loop>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
