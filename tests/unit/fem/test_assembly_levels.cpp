@@ -1018,6 +1018,59 @@ TEST_CASE("Parallel H1 Full Assembly", "[AssemblyLevel], [Parallel], [GPU]")
    }
 }
 
+TEST_CASE("Parallel Full Assembly Repeated Linear Systems",
+          "[AssemblyLevel][Parallel][GPU]")
+{
+   Mesh serial_mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   H1_FECollection fec(2, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+   Array<int> ess_tdof_list;
+   fes.GetBoundaryTrueDofs(ess_tdof_list);
+
+   ParBilinearForm a_fa(&fes), a_legacy(&fes);
+   a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
+   a_fa.AddDomainIntegrator(new DiffusionIntegrator);
+   a_legacy.AddDomainIntegrator(new DiffusionIntegrator);
+   a_fa.Assemble();
+   a_legacy.Assemble();
+   a_legacy.Finalize();
+
+   // Reuse the assembled operator with changing nonzero Dirichlet data.
+   // In particular, one-rank assembly must not eliminate the local matrix
+   // entries needed to form the RHS of subsequent systems.
+   const bool form_matrix_first = GENERATE(false, true);
+   if (form_matrix_first)
+   {
+      OperatorHandle A;
+      a_fa.FormSystemMatrix(ess_tdof_list, A);
+   }
+
+   for (int step = 0; step < 3; step++)
+   {
+      CAPTURE(form_matrix_first, step);
+      ParGridFunction x_fa(&fes);
+      ParLinearForm b_fa(&fes);
+      x_fa.Randomize(2*step + 1);
+      b_fa.Randomize(2*step + 2);
+      Vector x_legacy(x_fa), b_legacy(b_fa);
+      Vector X_fa, B_fa, X_legacy, B_legacy;
+      OperatorHandle A_fa, A_legacy;
+      a_fa.FormLinearSystem(ess_tdof_list, x_fa, b_fa, A_fa, X_fa, B_fa);
+      a_legacy.FormLinearSystem(ess_tdof_list, x_legacy, b_legacy,
+                                A_legacy, X_legacy, B_legacy);
+      TestSameHypreMatrices(A_fa, A_legacy);
+
+      Vector error(B_fa);
+      error -= B_legacy;
+      REQUIRE(GlobalLpNorm(infinity(), error.Normlinf(), MPI_COMM_WORLD)
+              == MFEM_Approx(0.0, 1e-10));
+   }
+}
+
 TEST_CASE("Parallel Full Assembly Typed System Matrix",
           "[AssemblyLevel][Parallel][GPU]")
 {

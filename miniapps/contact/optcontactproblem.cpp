@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "optcontactproblem.hpp"
+#include "tribol/mesh/CouplingScheme.hpp"
 #include "solver_utils.hpp"
 #include "general/scan.hpp"
 #include <algorithm>
@@ -321,8 +322,8 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & nonmortar_attrs_,
                                      real_t tribol_ratio_,
                                      bool bound_constraints_)
-   : OptContactProblem(problem_, {{mortar_attrs_, nonmortar_attrs_}},
-                       tribol_ratio_, bound_constraints_)
+   : OptContactProblem(problem_, { {mortar_attrs_, nonmortar_attrs_}},
+tribol_ratio_, bound_constraints_)
 { }
 
 OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
@@ -720,6 +721,10 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    );
 
    tribol::setBinningProximityScale(coupling_scheme_id, ratio);
+
+   // Work around Tribol coupling containment to the topology-collapse ratio.
+   tribol::CouplingSchemeManager::getInstance().at(coupling_scheme_id)
+   .getParameters().len_collapse_ratio = 1e-12;
 
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);

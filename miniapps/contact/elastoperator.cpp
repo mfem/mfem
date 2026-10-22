@@ -139,7 +139,8 @@ void ElasticityOperator::SetNeumannPressureData(ConstantCoefficient &f,
 {
    pressure_cf.Append(new ConstantCoefficient(f.constant));
    pressure_bdr_marker.Append(new Array<int>(bdr_marker));
-   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(*pressure_cf.Last()),
+   b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(
+                               *pressure_cf.Last()),
                             *pressure_bdr_marker.Last());
 }
 
