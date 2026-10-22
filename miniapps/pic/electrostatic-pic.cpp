@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
                   "Diffusivity coefficient c for diffusion matrix.");
    args.AddOption(&ctx.diffusion_steps, "-ndiff", "--num-diffusion-steps",
                   "Implicit biharmonic steps per diffusion call. "
-                  "Each step uses c*10/N.");
+                  "Each step uses c/N.");
    args.AddOption(&ctx.efield_output_interval, "-eoi",
                   "--efield-output-interval",
                   "E-field sample CSV output interval. Disabled if < 0. "

@@ -46,7 +46,7 @@ private:
    // Unknowns [V, U]. For c > 0, A = [ c K, M; M, -K ].
    HypreParMatrix* A_matrix;
    real_t c;
-   // Implicit steps per DiffuseRHS call. Each uses c_cli * 10 / diffusion_steps.
+   // Implicit steps per DiffuseRHS call. Each uses c_cli / diffusion_steps.
    int diffusion_steps;
    // Gradient operator for computing E = -∇phi
    ParDiscreteLinearOperator* grad_interpolator;

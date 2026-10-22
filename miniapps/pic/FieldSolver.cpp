@@ -58,8 +58,7 @@ FieldSolver::FieldSolver(ParFiniteElementSpace* phi_fes,
 {
    MFEM_VERIFY(diffusion_steps > 0,
                "number of diffusion steps must be positive.");
-   // Keep the N=10 product: N * c_step = 10 * c_cli.
-   c = diffusivity * 10.0 / static_cast<real_t>(diffusion_steps);
+   c = diffusivity / static_cast<real_t>(diffusion_steps);
    MFEM_VERIFY(c >= 0.0, "diffusivity must be nonnegative.");
    MFEM_VERIFY(field_sample_resolution_ > 0,
                "field sample resolution must be positive.");
@@ -475,7 +474,7 @@ void FieldSolver::DiffuseRHS(ParLinearForm& b, ParGridFunction& rho_gf)
 
    MINRESSolver solver(A_matrix->GetComm());
    solver.SetOperator(*A_matrix);
-   solver.SetRelTol(1e-12);
+   solver.SetRelTol(1e-6);
    solver.SetAbsTol(1e-24);
    solver.SetMaxIter(200);
    solver.SetPrintLevel(0);
