@@ -1275,6 +1275,11 @@ void PhysicalSpacing(NURBSExtension &nurbs, const GridFunction &nodes,
    const int num_patches = nurbs.NumCoarsePatches();
    MFEM_VERIFY(num_patches <= patches.Size(), "More coarse patches than "
                "NURBS patches.");
+   if (num_patches == 0)
+   {
+      MFEM_WARNING("Physical spacing was not corrected because coarse patch "
+                   "control point data (patch_cp) is missing.");
+   }
 
    Array3D<double> coarse_patch_cp;
    if (num_patches > 0)

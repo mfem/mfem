@@ -4026,9 +4026,10 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
       const int ncpz0 = degree + 1;
       const real_t hz0 = sz / ((real_t) (ncpz0 - 1));
 
-      mesh3D.NURBSext->SetNumCoarsePatches(np);
+      const int np_coarse = mesh.NURBSext->NumCoarsePatches();
+      mesh3D.NURBSext->SetNumCoarsePatches(np_coarse);
 
-      for (int p=0; p<np; ++p)
+      for (int p=0; p<np_coarse; ++p)
       {
          Array2D<real_t> cp2D, cp3D;
          mesh.NURBSext->GetCoarsePatchCP(p, cp2D);
