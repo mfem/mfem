@@ -593,7 +593,7 @@ private:
       gko::array<gko::stopping_status> tmp(status->get_executor()->get_master(),
                                            *status);
       convergence_status = true;
-      for (int i = 0; i < status->get_size(); i++)
+      for (gko::size_type i = 0; i < status->get_size(); i++)
       {
          if (!tmp.get_data()[i].has_converged())
          {
