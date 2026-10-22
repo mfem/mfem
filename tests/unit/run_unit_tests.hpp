@@ -33,7 +33,7 @@ static int RunCatchSession(int argc, char *argv[],
    // Catch reserves -d for test durations.
    auto cli = session.cli()
               | Opt(device_config, "device") ["--device"]
-                ("MFEM device backend (default: cpu)")
+              ("MFEM device backend (default: cpu)")
               | Opt(launch_all_non_regression_tests) ["--all"] ("all tests")
               | Opt(mfem_data_dir, "") ["--data"] ("mfem/data repository")
               | Opt(enable_mfem_out) ["--enable-output"] ("enable mfem::out")
