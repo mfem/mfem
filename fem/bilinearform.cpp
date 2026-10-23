@@ -767,20 +767,8 @@ void BilinearForm::ConformingAssemble()
    // correctly.
    Finalize(0);
    MFEM_ASSERT(mat, "the BilinearForm is not assembled");
-   std::vector<SparseMatrix *> mats_to_assemble;
-   mats_to_assemble.reserve(2);
-   mats_to_assemble.push_back(mat);
-   if (mat_e)
-   {
-      mats_to_assemble.push_back(mat_e);
-   }
-   fes->ConformingAssemble(mats_to_assemble);
-   mat = mats_to_assemble.front();
-   if (mat_e)
-   {
-      mat_e = mats_to_assemble.back();
-   }
-
+   mat = fes->ConformingAssemble(mat);
+   if (mat_e) { mat_e = fes->ConformingAssemble(mat_e); }
    height = mat->Height();
    width = mat->Width();
 }

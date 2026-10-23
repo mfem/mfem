@@ -22,7 +22,6 @@
 #include "restriction.hpp"
 #include <iostream>
 #include <unordered_map>
-#include <vector>
 
 namespace mfem
 {
@@ -679,12 +678,13 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestriction() const;
 
-   /** @brief Replace each matrix in @a mats with its conforming assembly
-       $P^T A P$, when the space has a conforming prolongation @a P.
+   /** @brief Return the conforming assembly $P^T A P$ of @a mat, where @a P is
+       the conforming prolongation.
 
-       The input matrices are deleted and replaced with newly allocated
-       matrices. On a conforming mesh, the pointers are left unchanged. */
-   void ConformingAssemble(std::vector<SparseMatrix *> &mats) const;
+       The caller owns the returned matrix and must use it in place of @a mat,
+       which may be deleted. On a conforming space the returned matrix is
+       @a mat itself. Typical use: `A = fes.ConformingAssemble(A);` */
+   SparseMatrix *ConformingAssemble(SparseMatrix *mat) const;
 
    /** Return a version of the conforming restriction matrix for variable-order
        spaces with complex hp interfaces, where some true DOFs are not owned by
