@@ -102,14 +102,13 @@ struct tensor<T, N0, Ns...>
       if (ilist.size() > std::size_t(N0)) { detail::tensor_ilist_too_long(); }
    }
 
-   MFEM_HOST_DEVICE constexpr auto& operator[](int i) { return values[i]; }
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   constexpr auto& operator[](int i) { return values[i]; }
 
-   MFEM_HOST_DEVICE constexpr const auto& operator[](int i) const
-   {
-      return values[i];
-   }
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   constexpr const auto& operator[](int i) const { return values[i]; }
 
-   template <typename... index_types> MFEM_HOST_DEVICE
+   template <typename... index_types> MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    constexpr auto& operator()(int i0, index_types... is)
    {
       static_assert(sizeof...(is) <= sizeof...(Ns),
@@ -118,7 +117,7 @@ struct tensor<T, N0, Ns...>
       else { return values[i0](is...); }
    }
 
-   template <typename... index_types> MFEM_HOST_DEVICE
+   template <typename... index_types> MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    constexpr const auto& operator()(int i0, index_types... is) const
    {
       static_assert(sizeof...(is) <= sizeof...(Ns),
