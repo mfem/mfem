@@ -32,70 +32,138 @@ namespace internal
 #define MFEM_REGS_DEVICE_COMPILE
 #endif
 
-/** @brief Tensor of registers used by the kernels below.
+/** @brief Registers of type @a T distributed over the threads of a kernel.
 
-    The last two dimensions are the "thread" dimensions and correspond to the
-    2D (y, x) tile of threads of a kernel:
-     - on GPU, each thread owns exactly one entry of the tile, so the two
-       thread dimensions collapse to a single value and the corresponding
-       indices are ignored (the thread ids are the indices);
-     - on CPU, all dimensions are stored in full.
+    @a TDims are the extents of the thread dimensions, in indexing order:
+    typically two, (y, x), for kernels using a 2D tile of threads, or three,
+    (z, y, x), for kernels using a 3D block of threads.
+     - On GPU, each thread owns exactly one @a T: the thread dimensions
+       collapse to a single value and their indices are ignored (the thread
+       ids are the indices).
+     - On CPU, all thread dimensions are stored in full, as a nested array.
 
-    Entries are accessed with chained operator[] or with a full list of indices
-    in operator(). All dimensions must be positive and the rank must be at
-    least 2. */
+    Entries are accessed with chained operator[], or with operator() taking the
+    thread indices followed by the indices of @a T, if any. All extents must be
+    positive. */
+template <typename T, int... TDims> struct thread_regs;
+
+/// One thread dimension
+template <typename T, int N0>
+struct thread_regs<T, N0>
+{
+   static_assert(N0 > 0, "thread_regs: dimensions must be positive");
+   using value_type = T;
+
+#ifdef MFEM_REGS_DEVICE_COMPILE
+   T value;
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   T &operator[](int) { return value; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const T &operator[](int) const { return value; }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int, index_types... is)
+   {
+      if constexpr (sizeof...(is) == 0) { return (value); }
+      else { return value(is...); }
+   }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int, index_types... is) const
+   {
+      if constexpr (sizeof...(is) == 0) { return (value); }
+      else { return value(is...); }
+   }
+#else
+   T values[N0];
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   T &operator[](int i) { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const T &operator[](int i) const { return values[i]; }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, index_types... is)
+   {
+      if constexpr (sizeof...(is) == 0) { return (values[i]); }
+      else { return values[i](is...); }
+   }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, index_types... is) const
+   {
+      if constexpr (sizeof...(is) == 0) { return (values[i]); }
+      else { return values[i](is...); }
+   }
+#endif
+};
+
+/// Two or more thread dimensions
+template <typename T, int N0, int N1, int... Ns>
+struct thread_regs<T, N0, N1, Ns...>
+{
+   static_assert(N0 > 0, "thread_regs: dimensions must be positive");
+   using value_type = T;
+   using sub_type = thread_regs<T, N1, Ns...>;
+
+#ifdef MFEM_REGS_DEVICE_COMPILE
+   sub_type value;
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   sub_type &operator[](int) { return value; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const sub_type &operator[](int) const { return value; }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int, int i1, index_types... is)
+   { return value(i1, is...); }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int, int i1, index_types... is) const
+   { return value(i1, is...); }
+#else
+   sub_type values[N0];
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   sub_type &operator[](int i) { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const sub_type &operator[](int i) const { return values[i]; }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, int i1, index_types... is)
+   { return values[i](i1, is...); }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, int i1, index_types... is) const
+   { return values[i](i1, is...); }
+#endif
+};
+
+/** @brief Tensor of registers with trailing thread dimensions.
+
+    The last two dimensions are the (y, x) thread dimensions, see thread_regs;
+    the leading ones, if any, are component dimensions stored in full. Entries
+    are accessed with chained operator[] or with a full list of indices in
+    operator(). All dimensions must be positive and the rank must be at least
+    2. */
 template <int... Dims> struct regs;
 
 /// 2D tile of registers mapped onto the (y, x) threads of a kernel
 template <int N0, int N1>
-struct regs<N0, N1>
-{
-   static_assert(N0 > 0 && N1 > 0, "regs: dimensions must be positive");
-
-#ifdef MFEM_REGS_DEVICE_COMPILE
-   /// One row of the tile: on GPU, the single register owned by this thread
-   struct row_t
-   {
-      real_t value;
-
-      MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-      real_t &operator[](int) { return value; }
-
-      MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-      const real_t &operator[](int) const { return value; }
-   };
-
-   row_t row;
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   row_t &operator[](int) { return row; }
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const row_t &operator[](int) const { return row; }
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   real_t &operator()(int, int) { return row.value; }
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const real_t &operator()(int, int) const { return row.value; }
-#else
-   using row_t = real_t[N1];
-
-   row_t values[N0];
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   row_t &operator[](int i) { return values[i]; }
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const row_t &operator[](int i) const { return values[i]; }
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   real_t &operator()(int i, int j) { return values[i][j]; }
-
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const real_t &operator()(int i, int j) const { return values[i][j]; }
-#endif
-};
+struct regs<N0, N1> : thread_regs<real_t, N0, N1> { };
 
 /// Tensor of registers of rank > 2: array of tensors of registers of rank - 1
 template <int N0, int... Ns>
@@ -151,6 +219,25 @@ using v_regs3d_t = regs<VDIM, N, N, N>;
 
 template <int VDIM, int DIM, int N>
 using vd_regs3d_t = regs<VDIM, DIM, N, N, N>;
+
+// Types for tensors mapped to registers with leading thread dimensions, used
+// by the dFEM kernels: the (y, x) or (z, y, x) thread indices come first and
+// are followed by the component indices of the tensor held by each thread,
+// e.g. reg[qz][qy][qx][c] or reg(qz, qy, qx, c). In 3D, all three thread
+// dimensions are collapsed on GPU, matching kernels using a 3D block of
+// threads.
+template <int DIM, int N>
+using regs2d_t = thread_regs<mfem::future::tensor<real_t, DIM>, N, N>;
+
+template <int VDIM, int DIM, int N>
+using regs2d_vd_t = thread_regs<mfem::future::tensor<real_t, VDIM, DIM>, N, N>;
+
+template <int DIM, int N>
+using regs3d_t = thread_regs<mfem::future::tensor<real_t, DIM>, N, N, N>;
+
+template <int VDIM, int DIM, int N>
+using regs3d_vd_t =
+   thread_regs<mfem::future::tensor<real_t, VDIM, DIM>, N, N, N>;
 
 #ifdef MFEM_REGS_DEVICE_COMPILE
 // on GPU, SetMaxOf is a no-op, for minimal register usage
