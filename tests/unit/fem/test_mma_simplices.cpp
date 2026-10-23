@@ -633,7 +633,8 @@ static void fvec_dim(const Vector &xvec, Vector &v)
 }
 
 /** ir_order < 0 → default (use_2p_ir ? 2*GetOrder() : MassIntegrator::GetRule). */
-void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p, bool hcurl,
+void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p,
+                                         bool hcurl,
                                          bool use_2p_ir, int ir_order = -1)
 {
    CAPTURE(filename, p, hcurl, use_2p_ir, ir_order);
@@ -759,7 +760,8 @@ TEST_CASE("VectorFE DomainLF Simplices MMA",
 
 enum class VecFeOp { Mass, CurlCurl, DivDiv };
 
-void test_hcurl_hdiv_simplex_fa_vs_mma(Mesh &mesh, int p, bool hcurl, VecFeOp op)
+void test_hcurl_hdiv_simplex_fa_vs_mma(Mesh &mesh, int p, bool hcurl,
+                                       VecFeOp op)
 {
    const int dim = mesh.Dimension();
    CAPTURE(dim, p, hcurl, int(op), mesh.GetNE());
@@ -946,9 +948,9 @@ TEST_CASE("Hcurl simplex MMA PA vs FA large NE tet",
 }
 
 #ifdef MFEM_USE_MPI
-#define MMA_ROUND "[MMAAddressRound][Parallel]"
+#define MMA_ROUND "[MMA][AddressRound][Parallel]"
 #else
-#define MMA_ROUND "[MMAAddressRound]"
+#define MMA_ROUND "[MMA][AddressRound]"
 #endif
 
 void RequireMultMatches(FiniteElementSpace &fes, BilinearForm &pa,
