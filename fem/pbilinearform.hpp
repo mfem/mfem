@@ -90,9 +90,6 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
-   /// Assemble the diagonal when the trial and test spaces are identical.
-   void AssembleDiagonal(Vector &diag) const override;
-
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a true-dof Vector.
 

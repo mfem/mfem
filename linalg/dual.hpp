@@ -65,11 +65,37 @@ struct is_dual_number<dual<value_type, gradient_type> >
    static constexpr bool value = true;  ///< whether or not type T is a dual number
 };
 
+/** @brief class for checking if a type is a nested dual number or not */
+template <typename T>
+struct is_nested_dual_number
+{
+   static constexpr bool value =
+      false;  ///< whether or not type T is a nested dual number
+};
+
+template <typename value_type, typename gradient_type>
+struct is_nested_dual_number<dual<dual<value_type, gradient_type>,
+          dual<value_type, gradient_type> > >
+{
+   static constexpr bool value =
+      true;  ///< whether or not type T is a nested dual number
+};
+
+template <typename V, typename G>
+struct is_nested_dual_number<dual<V, G>>
+{
+   static constexpr bool value =
+      is_dual_number<V>::value || is_dual_number<G>::value;
+};
+/** @brief helper variable template for is_dual_number */
+template <typename T>
+constexpr bool is_dual_number_v = is_dual_number<T>::value;
+
 /** @brief addition of a dual number and a non-dual number */
 template <typename other_type, typename value_type, typename gradient_type,
-          typename = typename std::enable_if<
-             std::is_arithmetic<other_type>::value ||
-             is_dual_number<other_type>::value>::type>
+          typename = std::enable_if_t<
+             std::is_arithmetic_v<other_type> ||
+             is_dual_number_v<other_type>, bool>>
 MFEM_HOST_DEVICE
 constexpr auto operator+(dual<value_type, gradient_type> a,
                          other_type b) -> dual<value_type, gradient_type>
@@ -87,9 +113,9 @@ constexpr auto operator+(dual<value_type, gradient_type> a,
 
 /** @brief addition of a dual number and a non-dual number */
 template <typename other_type, typename value_type, typename gradient_type,
-          typename = typename std::enable_if<
-             std::is_arithmetic<other_type>::value ||
-             is_dual_number<other_type>::value>::type>
+          typename = std::enable_if_t<
+             std::is_arithmetic_v<other_type> ||
+             is_dual_number_v<other_type>, bool>>
 MFEM_HOST_DEVICE
 constexpr auto operator+(other_type a,
                          dual<value_type, gradient_type> b) -> dual<value_type, gradient_type>

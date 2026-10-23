@@ -765,41 +765,6 @@ void ParMixedBilinearForm::Assemble(int skip_zeros)
    }
 }
 
-void ParMixedBilinearForm::AssembleDiagonal(Vector &diag) const
-{
-   MFEM_VERIFY(trial_pfes == test_pfes,
-               "AssembleDiagonal requires identical trial and test spaces");
-   MFEM_ASSERT(diag.Size() == test_pfes->GetTrueVSize(),
-               "vector for holding diagonal has wrong size");
-   if (!ext)
-   {
-      MFEM_ASSERT(p_mat.Ptr(), "the ParMixedBilinearForm is not assembled");
-      p_mat->AssembleDiagonal(diag);
-      return;
-   }
-
-   const Operator *P = test_pfes->GetProlongationMatrix();
-   if (IsIdentityProlongation(P))
-   {
-      ext->AssembleDiagonal(diag);
-      return;
-   }
-   Vector local_diag(P->Height());
-   ext->AssembleDiagonal(local_diag);
-   if (test_pfes->Conforming())
-   {
-      P->MultTranspose(local_diag, diag);
-   }
-   else if (const auto *HP = dynamic_cast<const HypreParMatrix*>(P))
-   {
-      HP->AbsMultTranspose(1.0, local_diag, 0.0, diag);
-   }
-   else
-   {
-      MFEM_ABORT("unsupported prolongation matrix type");
-   }
-}
-
 HypreParMatrix *ParMixedBilinearForm::ParallelAssembleInternalMatrix()
 {
    if (p_mat.Ptr() == NULL)

@@ -18,9 +18,9 @@
 #define MFEM_CONFIG_HPP
 
 #ifdef MFEM_CONFIG_FILE
-#include MFEM_CONFIG_FILE
+#include MFEM_CONFIG_FILE // IWYU pragma: export
 #else
-#include "_config.hpp"
+#include "_config.hpp" // IWYU pragma: export
 #endif
 
 #include <cstdint>
@@ -44,8 +44,13 @@ namespace mfem
 
 #ifdef MFEM_USE_SINGLE
 typedef float real_t;
+// Macro to simplify the selection of different values, e.g. tolerances, based
+// on the selected build-time precision, double or single. The first parameter
+// is the value for double precision, the second -- for single.
+#define MFEM_PRECISION_SWITCH(dbl,flt) (flt)
 #elif defined MFEM_USE_DOUBLE
 typedef double real_t;
+#define MFEM_PRECISION_SWITCH(dbl,flt) (dbl)
 #else
 #error "Either DOUBLE or SINGLE precision must be specified"
 #endif
@@ -80,6 +85,15 @@ constexpr real_t operator""_r(unsigned long long v)
 #else
 #pragma message("WARNING: You need to implement MFEM_DEPRECATED for this compiler")
 #define MFEM_DEPRECATED
+#endif
+
+// --- MFEM_FORCE_INLINE
+// Macro used to request that a function be always inlined (GCC and clang).
+// Unlike MFEM_ALWAYS_INLINE, MFEM_FORCE_INLINE inlines also in debug builds.
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_FORCE_INLINE __attribute__((always_inline))
+#else
+#define MFEM_FORCE_INLINE
 #endif
 
 // Common configuration macros
