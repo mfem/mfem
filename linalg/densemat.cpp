@@ -573,24 +573,6 @@ real_t DenseMatrix::Weight() const
       real_t F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
-   else if ((Height() == 4) && (Width() == 1))
-   {
-      return sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]
-                  + data[3] * data[3]);
-   }
-   else if ((Height() == 4) && (Width() == 3))
-   {
-      const real_t *d = data;
-      real_t A = d[0]*d[0] + d[1]*d[1] + d[2]*d[2] + d[3]*d[3];
-      real_t B = d[0]*d[4] + d[1]*d[5] + d[2]*d[6] + d[3]*d[7];
-      real_t C = d[0]*d[8] + d[1]*d[9] + d[2]*d[10] + d[3]*d[11];
-      real_t D = d[4]*d[4] + d[5]*d[5] + d[6]*d[6] + d[7]*d[7];
-      real_t E = d[4]*d[8] + d[5]*d[9] + d[6]*d[10] + d[7]*d[11];
-      real_t F = d[8]*d[8] + d[9]*d[9] + d[10]*d[10] + d[11]*d[11];
-
-
-      return sqrt( C *( 2*B*E - C*D ) - A*E*E + F * ( A * D - B * B) );
-   }
    mfem_error("DenseMatrix::Weight(): mismatched or unsupported dimensions");
    return 0.0;
 }
@@ -1282,7 +1264,7 @@ int DenseMatrix::Rank(real_t tol) const
 
 real_t DenseMatrix::CalcSingularvalue(const int i) const
 {
-   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 5,
+   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
                "The matrix must be square and sized 1, 2, or 3 to compute the"
                " singular values."
                << "  Height() = " << Height()
@@ -1299,16 +1281,9 @@ real_t DenseMatrix::CalcSingularvalue(const int i) const
    {
       return kernels::CalcSingularvalue<2>(d,i);
    }
-   else if (n ==3)
-   {
-      return kernels::CalcSingularvalue<3>(d,i);
-   }
    else
    {
-       Vector v(n);
-       Vector sv(min(Height(), Width()));
-       SingularValues(sv);
-       return sv(i);
+      return kernels::CalcSingularvalue<3>(d,i);
    }
 }
 
@@ -2590,7 +2565,7 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
 {
 #ifdef MFEM_DEBUG
-   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 4)
+   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
    {
       mfem_error("CalcAdjugate(...): unsupported dimensions");
    }
@@ -2643,7 +2618,7 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
       adja(1,0) = -a(1,0);
       adja(1,1) =  a(0,0);
    }
-   else if (a.Width() == 3)
+   else
    {
       adja(0,0) = a(1,1)*a(2,2)-a(1,2)*a(2,1);
       adja(0,1) = a(0,2)*a(2,1)-a(0,1)*a(2,2);
@@ -2657,51 +2632,13 @@ void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
       adja(2,1) = a(0,1)*a(2,0)-a(0,0)*a(2,1);
       adja(2,2) = a(0,0)*a(1,1)-a(0,1)*a(1,0);
    }
-   else if (a.Width() == 4)
-   {
-       adja(0,0) = -a(1,3)*a(2,2)*a(3,1)+a(1,2)*a(2,3)*a(3,1)+a(1,3)*a(2,1)*a(3,2)-a(1,
-                                                                                     1)*a(2,3)*a(3,2)-a(1,2)*a(2,1)*a(3,3)+a(1,1)*a(2,2)*a(3,3);
-       adja(0,1) = a(0,3)*a(2,2)*a(3,1)-a(0,2)*a(2,3)*a(3,1)-a(0,3)*a(2,1)*a(3,2)+a(0,
-                                                                                    1)*a(2,3)*a(3,2)+a(0,2)*a(2,1)*a(3,3)-a(0,1)*a(2,2)*a(3,3);
-       adja(0,2) = -a(0,3)*a(1,2)*a(3,1)+a(0,2)*a(1,3)*a(3,1)+a(0,3)*a(1,1)*a(3,2)-a(0,
-                                                                                     1)*a(1,3)*a(3,2)-a(0,2)*a(1,1)*a(3,3)+a(0,1)*a(1,2)*a(3,3);
-       adja(0,3) = a(0,3)*a(1,2)*a(2,1)-a(0,2)*a(1,3)*a(2,1)-a(0,3)*a(1,1)*a(2,2)+a(0,
-                                                                                    1)*a(1,3)*a(2,2)+a(0,2)*a(1,1)*a(2,3)-a(0,1)*a(1,2)*a(2,3);
-
-       adja(1,0) = a(1,3)*a(2,2)*a(3,0)-a(1,2)*a(2,3)*a(3,0)-a(1,3)*a(2,0)*a(3,2)+a(1,
-                                                                                    0)*a(2,3)*a(3,2)+a(1,2)*a(2,0)*a(3,3)-a(1,0)*a(2,2)*a(3,3);
-       adja(1,1) = -a(0,3)*a(2,2)*a(3,0)+a(0,2)*a(2,3)*a(3,0)+a(0,3)*a(2,0)*a(3,2)-a(0,
-                                                                                     0)*a(2,3)*a(3,2)-a(0,2)*a(2,0)*a(3,3)+a(0,0)*a(2,2)*a(3,3);
-       adja(1,2) = a(0,3)*a(1,2)*a(3,0)-a(0,2)*a(1,3)*a(3,0)-a(0,3)*a(1,0)*a(3,2)+a(0,
-                                                                                    0)*a(1,3)*a(3,2)+a(0,2)*a(1,0)*a(3,3)-a(0,0)*a(1,2)*a(3,3);
-       adja(1,3) = -a(0,3)*a(1,2)*a(2,0)+a(0,2)*a(1,3)*a(2,0)+a(0,3)*a(1,0)*a(2,2)-a(0,
-                                                                                     0)*a(1,3)*a(2,2)-a(0,2)*a(1,0)*a(2,3)+a(0,0)*a(1,2)*a(2,3);
-
-       adja(2,0) = -a(1,3)*a(2,1)*a(3,0)+a(1,1)*a(2,3)*a(3,0)+a(1,3)*a(2,0)*a(3,1)-a(1,
-                                                                                     0)*a(2,3)*a(3,1)-a(1,1)*a(2,0)*a(3,3)+a(1,0)*a(2,1)*a(3,3);
-       adja(2,1) = a(0,3)*a(2,1)*a(3,0)-a(0,1)*a(2,3)*a(3,0)-a(0,3)*a(2,0)*a(3,1)+a(0,
-                                                                                    0)*a(2,3)*a(3,1)+a(0,1)*a(2,0)*a(3,3)-a(0,0)*a(2,1)*a(3,3);
-       adja(2,2) = -a(0,3)*a(1,1)*a(3,0)+a(0,1)*a(1,3)*a(3,0)+a(0,3)*a(1,0)*a(3,1)-a(0,
-                                                                                     0)*a(1,3)*a(3,1)-a(0,1)*a(1,0)*a(3,3)+a(0,0)*a(1,1)*a(3,3);
-       adja(2,3) = a(0,3)*a(1,1)*a(2,0)-a(0,1)*a(1,3)*a(2,0)-a(0,3)*a(1,0)*a(2,1)+a(0,
-                                                                                    0)*a(1,3)*a(2,1)+a(0,1)*a(1,0)*a(2,3)-a(0,0)*a(1,1)*a(2,3);
-
-       adja(3,0) = a(1,2)*a(2,1)*a(3,0)-a(1,1)*a(2,2)*a(3,0)-a(1,2)*a(2,0)*a(3,1)+a(1,
-                                                                                    0)*a(2,2)*a(3,1)+a(1,1)*a(2,0)*a(3,2)-a(1,0)*a(2,1)*a(3,2);
-       adja(3,1) = -a(0,2)*a(2,1)*a(3,0)+a(0,1)*a(2,2)*a(3,0)+a(0,2)*a(2,0)*a(3,1)-a(0,
-                                                                                     0)*a(2,2)*a(3,1)-a(0,1)*a(2,0)*a(3,2)+a(0,0)*a(2,1)*a(3,2);
-       adja(3,2) = a(0,2)*a(1,1)*a(3,0)-a(0,1)*a(1,2)*a(3,0)-a(0,2)*a(1,0)*a(3,1)+a(0,
-                                                                                    0)*a(1,2)*a(3,1)+a(0,1)*a(1,0)*a(3,2)-a(0,0)*a(1,1)*a(3,2);
-       adja(3,3) = -a(0,2)*a(1,1)*a(2,0)+a(0,1)*a(1,2)*a(2,0)+a(0,2)*a(1,0)*a(2,1)-a(0,
-                                                                                     0)*a(1,2)*a(2,1)-a(0,1)*a(1,0)*a(2,2)+a(0,0)*a(1,1)*a(2,2);
-   }
 }
 
 void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
 {
 #ifdef MFEM_DEBUG
    if (a.Height() != a.Width() || adjat.Height() != adjat.Width() ||
-       a.Width() != adjat.Width() || a.Width() < 1 || a.Width() > 4)
+       a.Width() != adjat.Width() || a.Width() < 1 || a.Width() > 3)
    {
       mfem_error("CalcAdjugateTranspose(...): dimension mismatch");
    }
@@ -2717,7 +2654,7 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
       adjat(0,1) = -a(1,0);
       adjat(1,1) =  a(0,0);
    }
-   else if (a.Width() == 3)
+   else
    {
       adjat(0,0) = a(1,1)*a(2,2)-a(1,2)*a(2,1);
       adjat(1,0) = a(0,2)*a(2,1)-a(0,1)*a(2,2);
@@ -2731,16 +2668,11 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
       adjat(1,2) = a(0,1)*a(2,0)-a(0,0)*a(2,1);
       adjat(2,2) = a(0,0)*a(1,1)-a(0,1)*a(1,0);
    }
-   else if (a.Width() == 4)
-   {
-       CalcAdjugate(a, adjat);
-       adjat.Transpose();
-   }
 }
 
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
 {
-   MFEM_ASSERT(a.Width() <= a.Height() && a.Width() >= 1 && a.Height() <= 4, "");
+   MFEM_ASSERT(a.Width() <= a.Height() && a.Width() >= 1 && a.Height() <= 3, "");
    MFEM_ASSERT(inva.Height() == a.Width(), "incorrect dimensions");
    MFEM_ASSERT(inva.Width() == a.Height(), "incorrect dimensions");
 
@@ -2782,12 +2714,7 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          break;
       case 3:
          kernels::CalcInverse<3>(a.Data(), inva.Data());
-      case 4:
-      {
-         CalcAdjugate(a, inva);
-         inva *= 1./a.Det();
          break;
-      }
    }
 }
 
@@ -2827,21 +2754,15 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
          inva(1,2) = (a(0,1)*a(2,0)-a(0,0)*a(2,1))*t;
          inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
          break;
-      case 4:
-      {
-         CalcAdjugate(a, inva);
-         inva *= 1./a.Det();
-         break;
-      }
    }
 }
 
 void CalcOrtho(const DenseMatrix &J, Vector &n)
 {
-   MFEM_ASSERT( ((J.Height() == 3 && J.Width() == 2)
-                 || (J.Height() == 4 && J.Width() == 3))
+   MFEM_ASSERT( ((J.Height() == 2 && J.Width() == 1)
+                 || (J.Height() == 3 && J.Width() == 2))
                 && (J.Height() == n.Size()),
-                "Matrix must be 4X3 3x2 or 2x1, "
+                "Matrix must be 3x2 or 2x1, "
                 << "and the Vector must be sized with the rows. "
                 << " J.Height() = " << J.Height()
                 << ", J.Width() = " << J.Width()
@@ -2854,23 +2775,12 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
       n(0) =  d[1];
       n(1) = -d[0];
    }
-   else if (J.Height() == 3)
+   else
    {
       n(0) = d[1]*d[5] - d[2]*d[4];
       n(1) = d[2]*d[3] - d[0]*d[5];
       n(2) = d[0]*d[4] - d[1]*d[3];
    }
-  else if (J.Height() == 4)
-  {
-      n(0) = -d[3]*d[6]*d[9]+d[2]*d[7]*d[9]+d[3]*d[5]*d[10]-d[1]*d[7]*d[10]
-             -d[2]*d[5]*d[11]+d[1]*d[6]*d[11];
-      n(1) = d[3]*d[6]*d[8]-d[2]*d[7]*d[8]-d[3]*d[4]*d[10]+d[0]*d[7]*d[10]
-             +d[2]*d[4]*d[11]-d[0]*d[6]*d[11];
-      n(2) = -d[3]*d[5]*d[8]+d[1]*d[7]*d[8]+d[3]*d[4]*d[9]-d[0]*d[7]*d[9]
-             -d[1]*d[4]*d[11]+d[0]*d[5]*d[11];
-      n(3) = d[2]*d[5]*d[8]-d[1]*d[6]*d[8]-d[2]*d[4]*d[9]+d[0]*d[6]*d[9]
-             +d[1]*d[4]*d[10]-d[0]*d[5]*d[10];
-  }
 }
 
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat)

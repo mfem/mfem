@@ -2386,14 +2386,8 @@ void MixedBilinearForm::FormRectangularLinearSystem(
    B.SetSubVector(test_tdof_list, 0.0);
 }
 
-void MixedBilinearForm::Update(FiniteElementSpace *ntr_fes,
-      FiniteElementSpace *nte_fes)
+void MixedBilinearForm::Update()
 {
-   if ((ntr_fes && nte_fes) && (ntr_fes != trial_fes || nte_fes != test_fes))
-   {
-      trial_fes = ntr_fes;
-      test_fes = nte_fes;
-   }
    delete mat;
    mat = NULL;
    delete mat_e;

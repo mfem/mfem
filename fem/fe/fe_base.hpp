@@ -314,7 +314,7 @@ protected:
 
 public:
    /// Enumeration for range_type and deriv_range_type
-   enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR, MAT_SKEW };
+   enum RangeType { UNKNOWN_RANGE_TYPE = -1, SCALAR, VECTOR };
 
    /** @brief Enumeration for MapType: defines how reference functions are
        mapped to physical space.
@@ -347,13 +347,9 @@ public:
       H_DIV_R1D, /**< For 3-component vector fields in 1D; equivalent to a
                           direct sum of a VALUE basis and a pair of INTEGRAL
                           bases */
-      H_CURL_R1D,  /**< For 3-component vector fields in 1D; equivalent to a
+      H_CURL_R1D /**< For 3-component vector fields in 1D; equivalent to a
                           direct sum of an INTEGRAL basis and a pair of VALUE
                           bases */
-      H_DIV_SKEW, /**< For Matrix basis; preserves face integrals of the tangential components*/
-       
-      H_SkwGrad  /**< For vector fields; preserves surface integrals of
-                      three orthogonal vectors on facets*/
    };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -368,9 +364,7 @@ public:
       NONE, ///< No derivatives implemented
       GRAD, ///< Implements CalcDShape methods
       DIV,  ///< Implements CalcDivShape methods
-      CURL, ///< Implements CalcCurlShape methods
-      SkwGrad  ///< Implements CalcSkwGradShape methods
-
+      CURL  ///< Implements CalcCurlShape methods
    };
 
    /** @brief Construct FiniteElement with given
@@ -551,12 +545,6 @@ public:
        CDim = 1 for #dim = 2. */
    virtual void CalcCurlShape(const IntegrationPoint &ip,
                               DenseMatrix &curl_shape) const;
-    
-   virtual void CalcSkwGradShape(const IntegrationPoint &ip,
-                               DenseMatrix &SkwGrad_shape) const;
-    
-   virtual void CalcDivSkewShape(const IntegrationPoint &ip,
-                                  DenseMatrix &curl_shape) const;
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in physical space at the point described by @a Trans. */
@@ -920,12 +908,6 @@ protected:
 
    void CalcVShape_RT(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
-    
-   void CalcVShape_DivSkew(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
-    
-   void CalcVShape_Hcurl(ElementTransformation &Trans,
-                           DenseMatrix &shape) const;
 
    void CalcVShape_ND(ElementTransformation &Trans,
                       DenseMatrix &shape) const;
@@ -1333,24 +1315,6 @@ public:
 
    static void CalcLegendre(const int p, const real_t x, real_t *u);
    static void CalcLegendre(const int p, const real_t x, real_t *u, real_t *d);
-   static void CalcLegendre(const int &p, const double &x, std::vector<double> &u, std::vector<double> &d);
-
-  
-   static void CalcLegendreShifted(const int &p, const double &x, const double &t, std::vector<double> &u);
-   static void CalcScaledLegendreDerivative(const int &p, const double &x, const double &t,
-                                             std::vector<double> &u,
-                                             std::vector<double> &dudx, std::vector<double> &dudt);
-     
-   static void CalcIntLegendre(const int &p, const double &x, const double &t, std::vector<double> &u);
-   static void CalcJacobi(const int &p, const double &x, const double &t ,const double &alpha, std::vector<double> &u);
-   static void CalcScaledJacobiDerivative(const int &p, const double &alpha,
-                                           const double &x, const double &t,
-                                           std::vector<double> &u, std::vector<double> &dudx, std::vector<double> &dudt);
-     
-   static void CalcIntJacobi(const int &p, const double &x, const double &t, const double &alpha, std::vector<double> &u);
-     
-   static void CalcRLegendre(const int &p, const double &x, const double &t, std::vector<double> &u);
-   static void CalcRJacobi(const int &p, const double &x, const double &t, const double &alpha, std::vector<double> &u);
 
    ~Poly_1D() = default;
 };

@@ -421,33 +421,6 @@ public:
    void GetFaceDofs(int face, int **dofs, int *ndofs) const override;
 };
 
-/// Class for linear FE on a pentatope
-class Linear4DFiniteElement : public NodalFiniteElement
-{
-public:
-   /// Construct a linear FE on tetrahedron
-   Linear4DFiniteElement();
-
-   /** virtual function which evaluates the values of all
-       shape functions at a given point ip and stores
-       them in the vector shape of dimension Dof (4) */
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-
-   /** virtual function which evaluates the values of all
-       partial derivatives of all shape functions at a given
-       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
-       so that each row contains the derivatives of one shape function */
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-
-   virtual void ProjectDelta(int vertex, Vector &dofs) const
-   { dofs = 0.0; dofs(vertex) = 1.0; }
-
-   virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
-
-   virtual void CalcHessian(const IntegrationPoint &ip, DenseMatrix &h) const;
-};
-
 /// A 3D quadratic element on a tetrahedron with uniformly spaced nodes
 class Quadratic3DFiniteElement : public NodalFiniteElement
 {
@@ -484,6 +457,7 @@ public:
    void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
+
 
 /// A 2D Crouzeix-Raviart element on triangle
 class CrouzeixRaviartFiniteElement : public NodalFiniteElement
@@ -995,92 +969,6 @@ public:
                     DenseMatrix &grad) const override;
 };
 
-//lowest order first kind nedelec element for a pentatope
-class Nedelec1PentFiniteElement : public VectorFiniteElement
-{
-private:
-   static const double tk[10][4];
-
-public:
-   Nedelec1PentFiniteElement();
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
-   { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
-   using FiniteElement::Project;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
-
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
-
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
-};
-
-//lowest order second kind nedelec element for a pentatope
-class Nedelec1FullPentFiniteElement : public VectorFiniteElement
-{
-private:
-   static const double tk[10][4];
-
-public:
-   Nedelec1FullPentFiniteElement();
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
-   { CalcVShape_ND(Trans, shape); }
-   virtual void CalcCurlShape(const IntegrationPoint &ip,
-                              DenseMatrix &curl_shape) const;
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const {};
-   using FiniteElement::Project;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
-
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
-
-   virtual void ProjectGrad(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &grad) const;
-};
-
-class DivSkew1PentFiniteElement : public VectorFiniteElement
-{
-private:
-   static const double tk1[10][4];
-   static const double tk2[10][4];
-
-public:
-   DivSkew1PentFiniteElement();
-   virtual void CalcVShape(const IntegrationPoint &ip,
-                           DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
-                           DenseMatrix &shape) const
-   { CalcVShape_DivSkew(Trans, shape); }
-   virtual void CalcDivSkewShape(const IntegrationPoint &ip,
-                                 DenseMatrix &divSkew_shape) const;
-   virtual void GetLocalInterpolation (ElementTransformation &Trans,
-                                       DenseMatrix &I) const;
-   using FiniteElement::Project;
-   virtual void Project (VectorCoefficient &vc,
-                         ElementTransformation &Trans, Vector &dofs) const;
-
-   virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
-                        DenseMatrix &I) const;
-
-   virtual void ProjectCurl(const FiniteElement &fe,
-                            ElementTransformation &Trans,
-                            DenseMatrix &curl) const;
-};
 
 /// A 3D 1st order Nedelec element on a wedge
 class Nedelec1WdgFiniteElement : public VectorFiniteElement

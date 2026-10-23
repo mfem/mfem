@@ -496,7 +496,7 @@ public:
     */
    virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                                    Array<int> &bdr_vertices,
-                                   Array<int> &bdr_edges, Array<int> &bdr_planars, Array<int> &bdr_faces);
+                                   Array<int> &bdr_edges, Array<int> &bdr_faces);
 
    /// Return element geometry type. @a index is the Mesh element number.
    Geometry::Type GetElementGeometry(int index) const
@@ -1132,7 +1132,7 @@ protected:
    struct Point
    {
       int dim;
-      real_t coord[4];
+      real_t coord[3];
 
       Point() { dim = 0; }
 
@@ -1146,9 +1146,6 @@ protected:
 
       Point(real_t x, real_t y, real_t z)
       { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
-       
-      Point(real_t x, real_t y, real_t z, real_t t)
-      { dim = 4; coord[0] = x; coord[1] = y; coord[2] = z; coord[3] = t; }
 
       Point(const Point& p0, const Point& p1, real_t s = 0.5)
       {
@@ -1271,7 +1268,7 @@ protected:
    struct TmpVertex
    {
       bool valid, visited;
-      real_t pos[4];
+      real_t pos[3];
       TmpVertex() : valid(false), visited(false) {}
    };
 

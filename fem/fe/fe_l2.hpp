@@ -161,44 +161,6 @@ public:
 
 };
 
-class L2_PentatopeElement : public NodalFiniteElement
-{
-private:
-   int type;
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_z, shape_t, shape_l;
-   mutable Vector dshape_x, dshape_y, dshape_z, dshape_t, dshape_l, u;
-   mutable DenseMatrix du;
-#endif
-   DenseMatrix T;
-
-public:
-   L2_PentatopeElement(const int p, const int _type = 0);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-};
-
-class L2_PentatopeElement_MMCP : public NodalFiniteElement
-{
-private:
-   int type;
-#ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_z, shape_t, shape_l;
-   mutable Vector dshape_x, dshape_y, dshape_z, dshape_t, dshape_l, u;
-   mutable DenseMatrix du;
-#endif
-   DenseMatrix T;
-
-public:
-   L2_PentatopeElement_MMCP(const int p, const int _type = 0);
-   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
-   virtual void CalcDShape(const IntegrationPoint &ip,
-                           DenseMatrix &dshape) const;
-   virtual void ProjectDelta(int vertex, Vector &dofs) const;
-};
-
 
 /// Arbitrary order L2 elements in 3D on a wedge
 class L2_WedgeElement : public NodalFiniteElement

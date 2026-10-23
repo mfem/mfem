@@ -977,8 +977,6 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
 
    const FiniteElement *FElem = fes->GetFE(T.ElementNo);
    int dof = FElem->GetDof();
-    int spaceDim = fes->GetMesh()->SpaceDimension();
-
 
    Array<int> vdofs;
    DofTransformation doftrans;
@@ -1004,41 +1002,6 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
          {
             vals(k,j) = shape * (&loc_data[dof * k]);
          }
-      }
-   }
-   else if ( ((FElem->GetMapType() == FiniteElement::H_CURL)||(FElem->GetMapType() == FiniteElement::H_DIV_SKEW)) && (spaceDim == 4))
-   {
-      int vdim = 12;
-      DenseMatrix vshape(dof, vdim);
-      DenseMatrix vshapefull(dof, spaceDim*spaceDim);
-
-      vals.SetSize(vdim, nip);
-      Vector val_j;
-
-      for (int j = 0; j < nip; j++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         T.SetIntPoint(&ip);
-         FElem->CalcVShape(T, vshapefull);
-          for (int k = 0; k<dof; k++)
-          {
-              vshape(k, 0) = vshapefull(k, 1);
-              vshape(k, 1) = vshapefull(k, 2);
-              vshape(k, 2) = vshapefull(k, 3);
-              vshape(k, 3) = vshapefull(k, 6);
-              vshape(k, 4) = vshapefull(k, 7);
-              vshape(k, 5) = vshapefull(k, 11);
-              
-              vshape(k, 6) = vshapefull(k, 4);
-              vshape(k, 7) = vshapefull(k, 8);
-              vshape(k, 8) = vshapefull(k, 9);
-              vshape(k, 9) = vshapefull(k, 12);
-              vshape(k, 10) = vshapefull(k, 13);
-              vshape(k, 11) = vshapefull(k, 14);
-          }
-
-         vals.GetColumnReference(j, val_j);
-         vshape.MultTranspose(loc_data, val_j);
       }
    }
    else
@@ -2130,19 +2093,17 @@ void GridFunction::AccumulateAndCountBdrValues(
    // iff A_ij != 0. It is sufficient to resolve just the first level of
    // dependency, since A is a projection matrix: A^n = A due to cR.cP = I.
    // Cases like these arise in 3D when boundary edges are constrained by
-   // (depend on) internal faces/elements, (depend on) internal faces/elements,
-   //in 4D the same can happen for
-   // planars (2D objects) as well. We use the virtual methodor for internal boundaries in 2 or
+   // (depend on) internal faces/elements, or for internal boundaries in 2 or
    // 3D. We use the virtual method GetBoundaryClosure from NCMesh to resolve
    // the dependencies.
    if (fes->Nonconforming() && (fes->GetMesh()->Dimension() == 2 ||
-                                fes->GetMesh()->Dimension() >= 3))
+                                fes->GetMesh()->Dimension() == 3))
    {
       Vector vals;
       Mesh *mesh = fes->GetMesh();
       NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices, bdr_planars, bdr_faces;
-      ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges, bdr_planars, bdr_faces);
+      Array<int> bdr_edges, bdr_vertices, bdr_faces;
+      ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges, bdr_faces);
 
       auto mark_dofs = [&](ElementTransformation &transf, const FiniteElement &fe)
       {
@@ -2206,16 +2167,6 @@ void GridFunction::AccumulateAndCountBdrValues(
          const FiniteElement *fe = fes->GetFaceElement(face);
          mark_dofs(*transf, *fe);
       }
-       
-      for (auto planar : bdr_planars)
-      {
-         fes->GetFaceVDofs(planar, vdofs);
-         if (vdofs.Size() == 0) { continue; }
-
-         ElementTransformation *transf = mesh->GetFaceTransformation(planar);
-         const FiniteElement *fe = fes->GetFaceElement(planar);
-         mark_dofs(*transf, *fe);
-       }
    }
 }
 
@@ -2276,8 +2227,8 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    {
       Mesh *mesh = fes->GetMesh();
       NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices, bdr_planars, bdr_faces;
-      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges, bdr_planars, bdr_faces);
+      Array<int> bdr_edges, bdr_vertices, bdr_faces;
+      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges, bdr_faces);
 
       for (auto edge : bdr_edges)
       {
@@ -2776,7 +2727,7 @@ void GridFunction::ProjectCoefficient(
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
                                       ProjectType type)
 {
-   //MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()"); // No longer valid check (Fails H-curl)
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    Array<int> vdofs;
    Vector vals;
    DofTransformation doftrans;
@@ -3533,7 +3484,6 @@ real_t GridFunction::ComputeL2Error(
          T->SetIntPoint(&ip);
          elem_error += ip.weight * T->Weight() * (loc_errs(j) * loc_errs(j));
       }
-       //std::cout << "Element Error = " << fabs(elem_error) << std::endl;
       // negative quadrature weights may cause the error to be negative
       error += fabs(elem_error);
    }

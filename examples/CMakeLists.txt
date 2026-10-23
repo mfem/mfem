@@ -11,25 +11,11 @@
 
 list(APPEND ALL_EXE_SRCS
   ex0.cpp
-  vector-dg-AD-solver.cpp
-  scalar-dg-Adv-Diff.cpp
-  vector-dg-diffusion.cpp
-  vector-Adv-Diff.cpp
-  vector-Adv-Diff_fixed.cpp
   ex1.cpp
-  ex1_H1.cpp
-  ex1_L2.cpp
-  Advection_exp.cpp
   ex2.cpp
   ex3.cpp
-  ex3_Hdiv.cpp
-  ex3_SkwGrad.cpp
-  ex3_Curl.cpp
-  ex3_DivSkw.cpp
   ex4.cpp
   ex5.cpp
-  ex5_fixed.cpp
-  ex5_Hdiv_test.cpp
   ex6.cpp
   ex7.cpp
   ex8.cpp

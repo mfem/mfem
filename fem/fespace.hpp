@@ -238,9 +238,9 @@ protected:
        to be of the default order (fec->GetOrder()). */
    Array<char> elem_order;
 
-   int nvdofs, nedofs, npdofs, nfdofs, nbdofs, lnedofs, lnfdofs;
+   int nvdofs, nedofs, nfdofs, nbdofs, lnedofs, lnfdofs;
    int uni_fdof; ///< # of single face DOFs if all faces uniform; -1 otherwise
-   int *pdofs, *bdofs; ///< internal DOFs of elements if mixed/var-order; NULL otherwise
+   int *bdofs; ///< internal DOFs of elements if mixed/var-order; NULL otherwise
 
    /** Variable-order spaces only: DOF assignments for edges and faces, see
        docs in MakeDofTable. For constant order spaces the tables are empty. */
@@ -273,7 +273,6 @@ protected:
 
    // precalculated DOFs for each element, boundary element, and face
    mutable Table *elem_dof; // owned (except in NURBS FE space)
-   mutable Table *elem_pos; // planar (4D faces) orientations by element index
    mutable Table *elem_fos; // face orientations by element index
    mutable Table *bdr_elem_dof; // owned (except in NURBS FE space)
    mutable Table *bdr_elem_fos; // bdr face orientations by bdr element index
@@ -467,9 +466,6 @@ protected:
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
-    
-   void BuildConformingInterpolation4D() const;
-
 
    /** In variable-order spaces, enforce the minimum order rule on edges and
        faces, by adding constraints to @a deps for high-order DOFs to
@@ -861,8 +857,6 @@ public:
    int GetNVDofs() const { return nvdofs; }
    /// Number of all scalar edge-interior dofs
    int GetNEDofs() const { return nedofs; }
-   /// Number of all scalar planar-interior dofs
-   int GetNPDofs() const { return npdofs; }
    /// Number of all scalar face-interior dofs
    int GetNFDofs() const { return nfdofs; }
 
@@ -877,9 +871,6 @@ public:
        mesh dimension, e.g. for a 2D mesh, the faces are the 1D entities, i.e.
        the edges. */
    inline int GetNF() const { return mesh->GetNumFaces(); }
-    
-   /// Returns number of planars (i.e. co-dimension 2 entities) in the mesh.
-   inline int GetNP() const { return mesh->GetNPlanars(); }
 
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
@@ -924,9 +915,6 @@ public:
    int GetAttribute(int i) const { return mesh->GetAttribute(i); }
 
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
-    
-   virtual void GetPlanarDofs(int i, Array<int> &dofs) const;
-
 
    /// @anchor getdof @name Local DoF Access Members
    /// These member functions produce arrays of local degree of freedom
@@ -1240,9 +1228,6 @@ public:
    /// The returned indices are offsets into an @ref ldof vector with @b vdim
    /// not necessarily equal to 1. See GetFaceDofs() for more information.
    void GetFaceVDofs(int i, Array<int> &vdofs) const;
-    
-   /// Returns indexes of degrees of freedom for i'th planar element (4D).
-   void GetPlanarVDofs(int i, Array<int> &vdofs) const;
 
    /// @brief Returns the indices of the degrees of freedom for the specified
    /// edge, including the DOFs for the vertices of the edge.
@@ -1350,8 +1335,6 @@ public:
         to the MESHDIM-1 primitive so in 2D they are segments and in 1D they are
         points.*/
    const FiniteElement *GetFaceElement(int i) const;
-    
-   const FiniteElement *GetPlanarElement(int i) const;
 
    /// @brief Return a "typical" face element.
    ///

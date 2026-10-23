@@ -69,14 +69,12 @@ class StatelessDofTransformation
 {
 protected:
    int size_;
-   int ndim_;
 
-   StatelessDofTransformation(int size, int ndim)
-      : size_(size), ndim_(ndim) {}
+   StatelessDofTransformation(int size)
+      : size_(size) {}
 
 public:
    inline int Size() const { return size_; }
-   inline int Dim() const { return ndim_; }
    inline int Height() const { return size_; }
    inline int NumRows() const { return size_; }
    inline int Width() const { return size_; }
@@ -94,13 +92,6 @@ public:
    inline void TransformPrimal(const Array<int> & face_orientation,
                                Vector &v) const
    { TransformPrimal(face_orientation, v.GetData()); }
-    
-    // 4D Transform Primal
-    virtual void TransformPrimal(const Array<int> & planar_orientation, const Array<int> & face_orientation,
-                                 real_t *v) const = 0;
-    inline void TransformPrimal(const Array<int> & planar_orientation, const Array<int> & face_orientation,
-                                Vector &v) const
-    { TransformPrimal(planar_orientation, face_orientation, v.GetData()); }
 
    /** Inverse transform local DoFs. Used to transform DoFs from a global vector
        back to their element-local form. For example, this must be used to
@@ -112,13 +103,6 @@ public:
    inline void InvTransformPrimal(const Array<int> & face_orientation,
                                   Vector &v) const
    { InvTransformPrimal(face_orientation, v.GetData()); }
-    
-    // 4D InvTransform Primal
-   virtual void InvTransformPrimal(const Array<int> & planar_orientation, const Array<int> & face_orientation,
-                                    real_t *v) const = 0;
-   inline void InvTransformPrimal(const Array<int> & planar_orientation, const Array<int> & face_orientation,
-                                   Vector &v) const
-   { InvTransformPrimal(planar_orientation, face_orientation, v.GetData()); }
 
    /** Transform dual DoFs as computed by a LinearFormIntegrator before summing
        into a LinearForm object. */
@@ -127,13 +111,6 @@ public:
    inline void TransformDual(const Array<int> & face_orientation,
                              Vector &v) const
    { TransformDual(face_orientation, v.GetData()); }
-    
-    // 4D TransformDual
-    virtual void TransformDual(const Array<int> & planar_orientation, const Array<int> & face_orientation,
-                               real_t *v) const = 0;
-    inline void TransformDual(const Array<int> & planar_orientation, const Array<int> & face_orientation,
-                              Vector &v) const
-    { TransformDual(planar_orientation, face_orientation, v.GetData()); }
 
    /** Inverse Transform dual DoFs */
    virtual void InvTransformDual(const Array<int> & face_orientation,
@@ -141,13 +118,6 @@ public:
    inline void InvTransformDual(const Array<int> & face_orientation,
                                 Vector &v) const
    { InvTransformDual(face_orientation, v.GetData()); }
-    
-    // 4D Inverse Transform Dual
-    virtual void InvTransformDual(const Array<int> & planar_orienation, const Array<int> & face_orientation,
-                                  real_t *v) const = 0;
-    inline void InvTransformDual(const Array<int> & planar_orientation, const Array<int> & face_orientation,
-                                 Vector &v) const
-    { InvTransformDual(planar_orientation, face_orientation, v.GetData()); }
 
    virtual ~StatelessDofTransformation() = default;
 };
@@ -172,7 +142,6 @@ class DofTransformation
 {
 protected:
    Array<int> Fo_;
-   Array<int> Po_;
    const StatelessDofTransformation * dof_trans_;
    int vdim_;
    int ordering_;
@@ -199,15 +168,9 @@ public:
    /// The face_orientation array can be obtained from Mesh::GetElementFaces.
    inline void SetFaceOrientations(const Array<int> & Fo)
    { Fo_ = Fo; }
-    
-   inline void SetPlanarOrientations(const Array<int> & Po)
-   { Po_ = Po; }
 
    /// Return the face orientations for the current element
    inline const Array<int> & GetFaceOrientations() const { return Fo_; }
-    
-   /// Return the planar orientations for the current element
-   inline const Array<int> & GetPlanarOrientations() const { return Po_; }
 
    /// Set or change the nested StatelessDofTransformation object
    inline void SetDofTransformation(const StatelessDofTransformation & dof_trans)
@@ -342,29 +305,19 @@ class ND_DofTransformation : public StatelessDofTransformation
 private:
    static const real_t T_data[24];
    static const real_t TInv_data[24];
-   static const real_t T_data4D[216];
-   static const real_t TInv_data4D[216];
    static const DenseTensor T, TInv;
-   static const DenseTensor T4D, TInv4D;
-
 
 protected:
    const int  order;  // basis function order
    const int  nedofs; // number of DoFs per edge
    const int  ntdofs; // number of DoFs per triangular face
-   const int  ntetdofs; // number of DoFs per Tetrahedral facet
    const int  nqdofs; // number of DoFs per quadrilateral face
    const int  nedges; // number of edges per element
-   const int  nplanars; // number of planars per element
    const int  nfaces; // number of faces per element
    const int *ftypes; // Pointer to array of Geometry::Type for each face
-   const int *ptypes; // Pointer to array of Geometry::Type for each planar
 
-   ND_DofTransformation(int size, int ndim, int order, int num_edges, int num_faces,
+   ND_DofTransformation(int size, int order, int num_edges, int num_faces,
                         int *face_types);
-    
-   ND_DofTransformation(int size, int ndim, int order, int num_edges, int num_planars, int num_faces,
-                         int *planar_types, int *face_types);
 
 public:
    // Return the 2x2 transformation operator for the given face orientation
@@ -375,16 +328,11 @@ public:
    { return TInv(ori); }
 
    bool IsIdentity() const override { return ntdofs < 2; }
-   // Transformations for 3D
+
    void TransformPrimal(const Array<int> & Fo, real_t *v) const override;
    void InvTransformPrimal(const Array<int> & Fo, real_t *v) const override;
    void TransformDual(const Array<int> & Fo, real_t *v) const override;
    void InvTransformDual(const Array<int> & Fo, real_t *v) const override;
-   // Transformations for 4D
-   void TransformPrimal(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
-   void InvTransformPrimal(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
-   void TransformDual(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
-   void InvTransformDual(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
 };
 
 /// Stateless DoF transformation implementation for the Nedelec basis on
@@ -395,7 +343,7 @@ private:
    const int face_type[1] = { Geometry::TRIANGLE };
 public:
    ND_TriDofTransformation(int order)
-      : ND_DofTransformation(order*(order + 2), 2, order, 3, 1, (int *)face_type)
+      : ND_DofTransformation(order*(order + 2), order, 3, 1, (int *)face_type)
    {}
 };
 
@@ -404,31 +352,18 @@ class ND_TetDofTransformation : public ND_DofTransformation
 {
 public:
    ND_TetDofTransformation(int order)
-      : ND_DofTransformation(order*(order + 2)*(order + 3)/2, 3, order, 6, 4,
+      : ND_DofTransformation(order*(order + 2)*(order + 3)/2, order, 6, 4,
                              (int *)Geometry::Constants<Geometry::TETRAHEDRON>::
                              FaceTypes)
    {}
 };
-
-///// DoF transformation implementation for the Nedelec basis on Pentatope
-class ND_PentDofTransformation : public ND_DofTransformation
-{
-public:
-   ND_PentDofTransformation(int order)
-      : ND_DofTransformation(order*(order + 2)*(order + 3)*(order + 4)/6, 4, order, 10, 10, 5,
-                             (int *)Geometry::Constants<Geometry::PENTATOPE>::
-                             PlanarTypes, (int *)Geometry::Constants<Geometry::PENTATOPE>::
-                             FaceTypes)
-   {}
-};
-
 
 /// DoF transformation implementation for the Nedelec basis on wedge elements
 class ND_WedgeDofTransformation : public ND_DofTransformation
 {
 public:
    ND_WedgeDofTransformation(int order)
-      : ND_DofTransformation(3 * order * ((order + 1) * (order + 2))/2, 3,
+      : ND_DofTransformation(3 * order * ((order + 1) * (order + 2))/2,
                              order, 9, 5,
                              (int *)Geometry::Constants<Geometry::PRISM>::
                              FaceTypes)
@@ -440,82 +375,9 @@ class ND_PyramidDofTransformation : public ND_DofTransformation
 {
 public:
    ND_PyramidDofTransformation(int order)
-      : ND_DofTransformation(2 * order * (order * (order + 1) + 2), 3,
+      : ND_DofTransformation(2 * order * (order * (order + 1) + 2),
                              order, 8, 5,
                              (int *)Geometry::Constants<Geometry::PYRAMID>::
-                             FaceTypes)
-   {}
-};
-
-/** Abstract base class for high-order 4D H(CURL) spaces on elements with
-    tetrahedral facets.
-
-    The H-curl DoFs on the interior of tetrahedral facets come in triples which
-    share an interpolation point but have different bi-vector directions. These
-    directions depend on the orientation of the facet and can therefore differ in
-    neighboring elements. The mapping required to transform these DoFs can be
-    implemented as series of 3x3 linear transformations. The raw data for these
-    linear transformations is stored in the T_data and TInv_data arrays and can
-    be accessed as DenseMatrices using the GetFaceTransform() and
-    GetFaceInverseTransform() methods.
-*/
-class CURL_DofTransformation : public StatelessDofTransformation
-{
-private:
-   static const real_t T_data[24];
-   static const real_t TInv_data[24];
-   static const real_t T_data4D[216];
-   static const real_t TInv_data4D[216];
-   static const DenseTensor T, TInv;
-   static const DenseTensor T4D, TInv4D;
-
-
-protected:
-   const int  order;  // basis function order
-   const int  nedofs; // number of DoFs per edge
-   const int  ntdofs; // number of DoFs per triangular face
-   const int  ntetdofs; // number of DoFs per Tetrahedral facet
-   const int  nqdofs; // number of DoFs per quadrilateral face
-   const int  nedges; // number of edges per element
-   const int  nplanars; // number of planars per element
-   const int  nfaces; // number of faces per element
-   const int *ftypes; // Pointer to array of Geometry::Type for each face
-   const int *ptypes; // Pointer to array of Geometry::Type for each planar
-    
-   CURL_DofTransformation(int size, int ndim, int order, int num_edges, int num_planars, int num_faces,
-                         int *planar_types, int *face_types);
-
-public:
-    
-    // Return the 2x2 transformation operator for the given face orientation
-    static const DenseMatrix & GetFaceTransform(int ori) { return T(ori); }
-
-    // Return the 2x2 inverse transformation operator
-    static const DenseMatrix & GetFaceInverseTransform(int ori)
-    { return TInv(ori); }
-
-   bool IsIdentity() const override { return ntdofs < 2; }
-    // Transformations for 3D
-   void TransformPrimal(const Array<int> & Fo, real_t *v) const override;
-   void InvTransformPrimal(const Array<int> & Fo, real_t *v) const override;
-   void TransformDual(const Array<int> & Fo, real_t *v) const override;
-   void InvTransformDual(const Array<int> & Fo, real_t *v) const override;
-   // Transformations for 4D
-   void TransformPrimal(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
-   void InvTransformPrimal(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
-   void TransformDual(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
-   void InvTransformDual(const Array<int> & Po, const Array<int> & Fo, real_t *v) const;
-};
-
-
-// DoF transformation implementation for the Nedelec basis on Pentatope
-class CURL_PentDofTransformation : public CURL_DofTransformation
-{
-public:
-   CURL_PentDofTransformation(int order)
-      : CURL_DofTransformation(order*(order*order*order + 8*order*order + 19*order +12)/4, 4, order, 10, 10, 5,
-                             (int *)Geometry::Constants<Geometry::PENTATOPE>::
-                             PlanarTypes, (int *)Geometry::Constants<Geometry::PENTATOPE>::
                              FaceTypes)
    {}
 };

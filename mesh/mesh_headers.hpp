@@ -22,7 +22,6 @@
 #include "quadrilateral.hpp"
 #include "hexahedron.hpp"
 #include "tetrahedron.hpp"
-#include "pentatope.hpp"
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"

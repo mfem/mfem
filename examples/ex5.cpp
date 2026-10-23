@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int ref_levels =  0;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -74,8 +73,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-    args.AddOption(&ref_levels, "-ref", "--ref-levels", "");
-    
    args.Parse();
    if (!args.Good())
    {
@@ -100,7 +97,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
    {
-         //(int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -272,8 +270,8 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(1000);
-   real_t rtol(1.e-12);
-   real_t atol(1.e-14);
+   real_t rtol(1.e-6);
+   real_t atol(1.e-10);
 
    chrono.Clear();
    chrono.Start();

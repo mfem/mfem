@@ -181,7 +181,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
    const int dim = T->GetDimension();
    const int sdim = T->GetSpaceDim();
    IntegrationPoint xip, prev_xip;
-   real_t xd[4], yd[4], dxd[4], dxpd[4], dx_norm = -1.0, err_phys,
+   real_t xd[3], yd[3], dxd[3], dxpd[3], dx_norm = -1.0, err_phys,
                                          real_dx_norm = -1.0;
    Vector x(xd, dim), y(yd, sdim), dx(dxd, dim), dx_prev(dxpd, dim);
    bool hit_bdr = false, prev_hit_bdr = false;
@@ -427,7 +427,6 @@ void IsoparametricTransformation::SetIdentityTransformation(
       case Geometry::CUBE :        FElem = &HexahedronFE; break;
       case Geometry::PRISM :       FElem = &WedgeFE; break;
       case Geometry::PYRAMID :     FElem = &PyramidFE; break;
-      case Geometry::PENTATOPE:    FElem = &PentatopeFE; break;
       default:
          MFEM_ABORT("unknown Geometry::Type!");
    }
@@ -536,7 +535,6 @@ void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
    MFEM_ASSERT(FElem != nullptr, "Must provide a valid FiniteElement object!");
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
-    //PointMat.PrintMatlab(std::cout);
 
    FElem -> CalcShape(ip, shape);
    PointMat.Mult(shape, trans);
@@ -589,7 +587,7 @@ void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
 void IntegrationPointTransformation::Transform (const IntegrationPoint &ip1,
                                                 IntegrationPoint &ip2)
 {
-   real_t vec[Geometry::MaxDim];
+   real_t vec[3];
    Vector v (vec, Transf.GetPointMat().Height());
 
    Transf.Transform (ip1, v);
