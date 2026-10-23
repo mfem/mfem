@@ -41,8 +41,8 @@ void ParDPGWeakForm::ParallelAssemble(BlockMatrix *m)
 
    p_mat = new BlockOperator(tdof_offsets);
    p_mat_e = new BlockOperator(tdof_offsets);
-   p_mat->owns_blocks = 1;
-   p_mat_e->owns_blocks = 1;
+   p_mat->SetBlockOwnership(1);
+   p_mat_e->SetBlockOwnership(1);
    HypreParMatrix * A = nullptr;
    HypreParMatrix * PtAP = nullptr;
    for (int i = 0; i<nblocks; i++)
@@ -85,8 +85,8 @@ void ParDPGWeakForm::BuildProlongation()
 {
    P = new BlockOperator(dof_offsets, tdof_offsets);
    R = new BlockMatrix(tdof_offsets, dof_offsets);
-   P->owns_blocks = 0;
-   R->owns_blocks = 0;
+   P->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
 
    for (int i = 0; i<nblocks; i++)
    {

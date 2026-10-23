@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
          BlockDiagonalPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0,new GSSmoother(A00));
          prec.SetDiagonalBlock(1,new GSSmoother(A11));
-         prec.owns_blocks = 1;
+         prec.SetBlockOwnership(1);
 
          GMRES(A,prec,rhs,x,0,10000,500,1e-12,0.0);
 
