@@ -851,7 +851,8 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
       // explicit analysis call before the spmv in some cases, otherwise you get
       // errors like: invalid stage, the stage rocsparse_v2_spmv_stage_analysis
       // must be executed before the stage rocsparse_v2_spmv_stage_compute
-      // https://github.com/ROCm/rocm-libraries/blob/develop/projects/hipsparse/CHANGELOG.md#resolved-issues-1
+      // see 'Resolved issues' under 'hipSPARSE 4.6.0 for ROCm 7.14':
+      // https://github.com/ROCm/rocm-libraries/blob/develop/projects/hipsparse/CHANGELOG.md
 #if HIP_VERSION_MAJOR == 7 && HIP_VERSION_MINOR < 14
       MFEM_CHECK_SPARSE(hipsparseSpMV_preprocess(
                            handle,
