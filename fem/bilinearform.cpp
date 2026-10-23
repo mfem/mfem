@@ -15,6 +15,7 @@
 #include "../general/device.hpp"
 #include "../mesh/nurbs.hpp"
 #include <cmath>
+#include <vector>
 
 namespace mfem
 {
@@ -1572,11 +1573,197 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_trace_face_integs_marker.Append(&bdr_marker);
 }
 
+void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
+{
+   // MixedBilinearForm::Assemble normally assumes that both spaces use the
+   // same mesh.  When one mesh is a direct submesh of the other, first
+   // assemble the form on the shared submesh and then embed that operator in
+   // the original trial/test spaces.
+   FiniteElementSpace *original_trial_fes = trial_fes;
+   FiniteElementSpace *original_test_fes = test_fes;
+
+   // Replace the space on the parent mesh by an equivalent FE space on the
+   // shared submesh.  This gives Assemble() two spaces on the same mesh while
+   // retaining the original FE-space pointers for the final operator.
+   internal::SubMeshRestrictedSpace restricted(*trial_fes, *test_fes);
+   const bool is_trial_submesh = restricted.trial_on_submesh;
+   const bool is_test_submesh = !is_trial_submesh;
+   Mesh *submesh = restricted.fes->GetMesh();
+   // If the trial space is on the submesh, the intermediate rows belong to
+   // the restricted test space and must be mapped back to the original test
+   // space, while columns already use the original trial-space ordering.  The
+   // converse holds if the test space is on the submesh.
+   FiniteElementSpace *restricted_trial_fes =
+      is_trial_submesh ? trial_fes : restricted.fes.get();
+   FiniteElementSpace *restricted_test_fes =
+      is_test_submesh ? test_fes : restricted.fes.get();
+   const Array<int> &sub_to_parent_vdof_map = restricted.vdof_map;
+
+   const int original_height = original_test_fes->GetVSize();
+   const int original_width = original_trial_fes->GetVSize();
+   SparseMatrix *original_mat = mat;
+   // ParMixedBilinearForm may have already allocated extra rows/columns for
+   // face-neighbor data.  Preserve those dimensions when rebuilding the CSR
+   // graph; the logical form dimensions above do not include neighbor dofs.
+   const int target_height = original_mat ? original_mat->Height() :
+                             original_height;
+   const int target_width = original_mat ? original_mat->Width() : original_width;
+   // Keep the target matrix open.  As with ordinary MixedBilinearForm
+   // assembly, CSR conversion is deferred to the caller's Finalize() call.
+   const int submesh_bdr_attr_max = submesh->bdr_attributes.Size() ?
+                                    submesh->bdr_attributes.Max() : 0;
+   // A domain submesh can introduce interface boundary attributes.  Marker
+   // arrays supplied for the parent mesh therefore may be too short for the
+   // intermediate assembly.  Make temporary, zero-extended copies for all
+   // boundary-integrator categories, then restore the original pointers.
+   auto RestrictBoundaryMarkers = [submesh_bdr_attr_max]
+                                  (Array<Array<int>*> &markers,
+                                   std::vector<Array<int>> &restricted_markers)
+   {
+      restricted_markers.resize(markers.Size());
+      for (int k = 0; k < markers.Size(); k++)
+      {
+         if (markers[k] && markers[k]->Size() != submesh_bdr_attr_max)
+         {
+            restricted_markers[k].SetSize(submesh_bdr_attr_max);
+            restricted_markers[k] = 0;
+            const int n = std::min(markers[k]->Size(), submesh_bdr_attr_max);
+            for (int i = 0; i < n; i++)
+            {
+               restricted_markers[k][i] = (*markers[k])[i];
+            }
+            markers[k] = &restricted_markers[k];
+         }
+      }
+   };
+   Array<Array<int>*> original_bdr_markers = boundary_integs_marker;
+   Array<Array<int>*> original_bdr_face_markers = boundary_face_integs_marker;
+   Array<Array<int>*> original_bdr_trace_face_markers =
+      boundary_trace_face_integs_marker;
+   std::vector<Array<int>> restricted_bdr_markers;
+   std::vector<Array<int>> restricted_bdr_face_markers;
+   std::vector<Array<int>> restricted_bdr_trace_face_markers;
+   RestrictBoundaryMarkers(boundary_integs_marker, restricted_bdr_markers);
+   RestrictBoundaryMarkers(boundary_face_integs_marker,
+                           restricted_bdr_face_markers);
+   RestrictBoundaryMarkers(boundary_trace_face_integs_marker,
+                           restricted_bdr_trace_face_markers);
+   trial_fes = restricted_trial_fes;
+   test_fes = restricted_test_fes;
+   height = test_fes->GetVSize();
+   width = trial_fes->GetVSize();
+
+   // Assemble into a separate matrix with the restricted dimensions.  The
+   // original matrix is kept alive so its existing entries and any parallel
+   // face-neighbor storage can be merged into the result below.
+   SparseMatrix *assembly_mat = new SparseMatrix(height, width);
+   mat = assembly_mat;
+   MixedBilinearForm::Assemble(skip_zeros);
+   boundary_integs_marker = original_bdr_markers;
+   boundary_face_integs_marker = original_bdr_face_markers;
+   boundary_trace_face_integs_marker = original_bdr_trace_face_markers;
+
+   trial_fes = original_trial_fes;
+   test_fes = original_test_fes;
+   height = original_height;
+   width = original_width;
+
+   // Expand and map the intermediate matrix into the original FE-space
+   // ordering.  A negative vdof-map entry encodes an orientation reversal as
+   // -1-vdof; the row and column signs must both be applied to each value.
+   // GetRow() works for both open and finalized matrices, so this method does
+   // not need to finalize either the intermediate or target matrix.
+   std::vector<std::vector<std::pair<int, real_t>>> rows(target_height);
+   Array<int> cols;
+   Vector values;
+   if (original_mat)
+   {
+      // Start with entries from a pre-existing matrix.  This includes the
+      // empty/neighbor portion allocated by ParMixedBilinearForm.
+      for (int i = 0; i < target_height; i++)
+      {
+         original_mat->GetRow(i, cols, values);
+         for (int j = 0; j < cols.Size(); j++)
+         {
+            rows[i].emplace_back(cols[j], values[j]);
+         }
+      }
+   }
+
+   for (int i = 0; i < assembly_mat->Height(); i++)
+   {
+      const int row_map = is_trial_submesh ? sub_to_parent_vdof_map[i] : i;
+      const int row_sign = row_map < 0 ? -1 : 1;
+      const int row_index = row_map < 0 ? -1-row_map : row_map;
+      assembly_mat->GetRow(i, cols, values);
+      for (int j = 0; j < cols.Size(); j++)
+      {
+         const int col = cols[j];
+         const int col_map = is_test_submesh ? sub_to_parent_vdof_map[col] : col;
+         const int col_sign = col_map < 0 ? -1 : 1;
+         const int col_index = col_map < 0 ? -1-col_map : col_map;
+         rows[row_index].emplace_back(
+            col_index, row_sign * col_sign * values[j]);
+      }
+   }
+
+   for (auto &row : rows)
+   {
+      // Mapping rows and columns can make an intermediate entry collide with
+      // an existing entry.  Sort and combine each row before inserting it.
+      std::sort(row.begin(), row.end(),
+      [](const auto &x, const auto &y) { return x.first < y.first; });
+      int unique_size = 0;
+      for (const auto &entry : row)
+      {
+         if (unique_size > 0 && row[unique_size-1].first == entry.first)
+         {
+            row[unique_size-1].second += entry.second;
+         }
+         else
+         {
+            row[unique_size++] = entry;
+         }
+      }
+      row.resize(unique_size);
+   }
+
+   SparseMatrix *target_mat = original_mat ? original_mat : assembly_mat;
+   // Replace the target's internal storage with a fresh open sparsity
+   // structure, then insert the merged entries.  The matrix object itself
+   // remains unchanged so callers' references stay valid.
+   SparseMatrix open_mat(target_height, target_width);
+   target_mat->Swap(open_mat);
+   for (int i = 0; i < target_height; i++)
+   {
+      for (const auto &entry : rows[i])
+      {
+         target_mat->Add(i, entry.first, entry.second);
+      }
+   }
+   if (original_mat)
+   {
+      // The restricted assembly matrix is no longer needed: its contributions
+      // have been copied into the caller-visible matrix above.
+      delete assembly_mat;
+   }
+   // Keep mat pointing to the original object when one was supplied.  This is
+   // important for users holding a reference to SpMat() and for
+   // ParMixedBilinearForm's post-assembly shared-face step.
+   mat = target_mat;
+}
+
 void MixedBilinearForm::Assemble(int skip_zeros)
 {
    if (ext)
    {
       ext->Assemble();
+      return;
+   }
+
+   if (trial_fes->GetMesh() != test_fes->GetMesh())
+   {
+      SubMeshTolerantAssemble(skip_zeros);
       return;
    }
 
