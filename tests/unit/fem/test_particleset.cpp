@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <limits>
 #include <numeric>
 
 using namespace std;
@@ -182,6 +183,30 @@ TEST_CASE("Get Particle Reference", "[ParticleSet]")
 
 #if defined(MFEM_USE_MPI)
 
+// Make the device copy the only valid one. On a real GPU, also clobber the
+// stale host copy so a router that reads host memory fails the checks.
+template <typename T>
+static void MoveToDevice(Array<T> &a, T poison)
+{
+   a.GetMemory().UseDevice(true);
+   a.ReadWrite();
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      std::fill_n(a.GetData(), a.Size(), poison);
+   }
+}
+
+static void MoveToDevice(Vector &v)
+{
+   v.UseDevice(true);
+   v.ReadWrite();
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      std::fill_n(v.GetData(), v.Size(),
+                  std::numeric_limits<real_t>::quiet_NaN());
+   }
+}
+
 void TestRedistributeNative(Ordering::Type ordering)
 {
    int size = Mpi::WorldSize();
@@ -225,7 +250,21 @@ void TestRedistributeNative(Ordering::Type ordering)
          rank_list[i] = static_cast<unsigned int>(pset.Tag(target_tag)[i]);
       }
 
+      // GetIDs() is const-only; the test needs it device-resident too
+      auto &ids = const_cast<Array<ParticleSet::IDType>&>(pset.GetIDs());
+      MoveToDevice(ids, ~0ull);
+      MoveToDevice(pset.Coords());
+      for (int f = 0; f < pset.GetNFields(); f++) { MoveToDevice(pset.Field(f)); }
+      for (int t = 0; t < pset.GetNTags(); t++) { MoveToDevice(pset.Tag(t), -1); }
+      MoveToDevice(rank_list, ~0u);
+
       pset.Redistribute(rank_list);
+
+      // operator[] / GetParticle() don't sync, so bring everything back first
+      ids.HostRead();
+      pset.Coords().HostRead();
+      for (int f = 0; f < pset.GetNFields(); f++) { pset.Field(f).HostRead(); }
+      for (int t = 0; t < pset.GetNTags(); t++) { pset.Tag(t).HostRead(); }
 
       CHECK(static_cast<int>(pset.GetGlobalNParticles()) == N);
 
@@ -244,6 +283,12 @@ void TestRedistributeNative(Ordering::Type ordering)
       int wrong_particle_count = 0;
       for (int i = 0; i < pset.GetNParticles(); i++)
       {
+         // a poisoned id would index out of bounds
+         if (pset.GetIDs()[i] >= static_cast<ParticleSet::IDType>(N))
+         {
+            wrong_particle_count++;
+            continue;
+         }
          Particle &actual_p = all_particles[pset.GetIDs()[i]];
          Particle pset_p = pset.GetParticle(i);
 
@@ -258,7 +303,7 @@ void TestRedistributeNative(Ordering::Type ordering)
    }
 }
 
-TEST_CASE("Particle Redistribution (native)", "[ParticleSet][Parallel]")
+TEST_CASE("Particle Redistribution (native)", "[ParticleSet][Parallel][GPU]")
 {
    TestRedistributeNative(Ordering::byNODES);
    TestRedistributeNative(Ordering::byVDIM);

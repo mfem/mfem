@@ -42,6 +42,7 @@ set(UNIT_TESTS_SRCS
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
+  general/test_crystal_router.cpp
   general/test_error.cpp
   general/test_mem.cpp
   general/test_ordering.cpp
