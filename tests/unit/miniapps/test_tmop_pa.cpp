@@ -68,6 +68,24 @@ struct Req
    real_t init_energy, final_energy;
 };
 
+class CountingGridFunctionCoefficient : public GridFunctionCoefficient
+{
+private:
+   int eval_count = 0;
+
+public:
+   using GridFunctionCoefficient::GridFunctionCoefficient;
+
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override
+   {
+      eval_count++;
+      return GridFunctionCoefficient::Eval(T, ip);
+   }
+
+   int GetEvalCount() const { return eval_count; }
+};
+
 int tmop(int id, Req &res, int argc, char *argv[])
 {
    bool pa = false;
@@ -85,6 +103,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
    int max_lin_iter = 100;
    real_t lim_const = 0.0;
    real_t adapt_lim_const = 0.0;
+   bool adapt_lim_grid_coeff = false;
    int lim_type = 0;
    bool normalization = false;
    real_t jitter = 0.0;
@@ -119,6 +138,10 @@ int tmop(int id, Req &res, int argc, char *argv[])
    args.AddOption(&max_lin_iter, "-li", "--lin-iter", "");
    args.AddOption(&lim_const, "-lc", "--limit-const", "");
    args.AddOption(&adapt_lim_const, "-alc", "--adapt-limit-const", "");
+   args.AddOption(&adapt_lim_grid_coeff,
+                  "-algfc", "--adapt-limit-grid-function-coefficient",
+                  "-no-algfc", "--no-adapt-limit-grid-function-coefficient",
+                  "");
    args.AddOption(&lim_type, "-lt", "--limit-type", "");
    args.AddOption(&normalization, "-nor", "--normalization",
                   "-no-nor", "--no-normalization", "");
@@ -400,13 +423,28 @@ int tmop(int id, Req &res, int argc, char *argv[])
    std::unique_ptr<AdaptivityEvaluator> adapt_lim_eval = nullptr;
    std::unique_ptr<Coefficient> adapt_lim_coeff = nullptr;
    std::unique_ptr<ParGridFunction> adapt_lim_gf0 = nullptr;
+   std::unique_ptr<ParGridFunction> adapt_lim_weight = nullptr;
    if (adapt_lim_const > 0.0)
    {
       adapt_lim_gf0.reset(new ParGridFunction(&ind_fes));
       FunctionCoefficient adapt_lim_gf0_coeff(adapt_lim_fun);
       adapt_lim_gf0->ProjectCoefficient(adapt_lim_gf0_coeff);
 
-      adapt_lim_coeff.reset(new ConstantCoefficient(adapt_lim_const));
+      if (adapt_lim_grid_coeff)
+      {
+         adapt_lim_weight.reset(new ParGridFunction(&ind_fes));
+         FunctionCoefficient weight_coeff([&](const Vector &p)
+         {
+            return adapt_lim_const * (1.0 + 0.25 * p(0));
+         });
+         adapt_lim_weight->ProjectCoefficient(weight_coeff);
+         adapt_lim_coeff.reset(
+            new CountingGridFunctionCoefficient(adapt_lim_weight.get()));
+      }
+      else
+      {
+         adapt_lim_coeff.reset(new ConstantCoefficient(adapt_lim_const));
+      }
       adapt_lim_eval.reset(new AdvectorCG(al));
       tmop_integ->EnableAdaptiveLimiting(*adapt_lim_gf0, *adapt_lim_coeff,
                                          *adapt_lim_eval, 1.0);
@@ -532,7 +570,16 @@ int tmop(int id, Req &res, int argc, char *argv[])
          if (adapt_lim_const > 0.0)
          {
             adapt_lim_eval_diag.reset(new AdvectorCG(al));
-            adapt_lim_coeff_diag.reset(new ConstantCoefficient(adapt_lim_const));
+            if (adapt_lim_grid_coeff)
+            {
+               adapt_lim_coeff_diag.reset(
+                  new GridFunctionCoefficient(adapt_lim_weight.get()));
+            }
+            else
+            {
+               adapt_lim_coeff_diag.reset(
+                  new ConstantCoefficient(adapt_lim_const));
+            }
             nlfi_fa->EnableAdaptiveLimiting(*adapt_lim_gf0, *adapt_lim_coeff_diag,
                                             *adapt_lim_eval_diag, 1.0);
          }
@@ -678,6 +725,14 @@ int tmop(int id, Req &res, int argc, char *argv[])
                  MPI_COMM_WORLD);
    res.dot = dot;
 
+   if (pa && adapt_lim_grid_coeff)
+   {
+      auto *gfc =
+         dynamic_cast<CountingGridFunctionCoefficient *>(adapt_lim_coeff.get());
+      REQUIRE(gfc);
+      REQUIRE(gfc->GetEvalCount() == 0);
+   }
+
    return EXIT_SUCCESS;
 }
 
@@ -697,11 +752,12 @@ static inline void req_tmop(int id, const char *args[], Req &res)
 #define DEFAULT_ARGS const char *args[] = { "tmop_pa_tests", "-pa", "-m", "mesh", \
    "-o", "0", "-rs", "0", "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
    "-ni", "10", "-nl", "1", "-nrtol", "1e-8", "-lrtol", "1e-12", "-ls", "2", "-li", "100", "-lc", "0", \
-   "-alc", "0", "-lt", "0", "-no-nor", "-ji", "0", "-diag", "-cmb",  "0", "-no-bec", "-no-per", nullptr }
+   "-alc", "0", "-lt", "0", "-no-nor", "-ji", "0", "-diag", "-cmb",  "0", "-no-bec", "-no-per", "-no-algfc", nullptr }
 
 constexpr int ALV = 1, MSH = 3, POR = 5, RS = 7, MID = 9, TID = 11, QTY = 13,
               QOR = 15, NI = 17, NL = 19, NRTOL = 21, LRTOL = 23, LS = 25, LI = 27, LC = 29,
-              ALC = 31, LT = 33, NOR = 34, JI = 36, DIAG = 37, CMB = 39, BEC = 40, PER = 41;
+              ALC = 31, LT = 33, NOR = 34, JI = 36, DIAG = 37, CMB = 39, BEC = 40, PER = 41,
+              ALGFC = 42;
 
 static inline void dump_args(int id, const char *args[])
 {
@@ -709,11 +765,12 @@ static inline void dump_args(int id, const char *args[])
    const char *format =
       "tmop_pa_tests %6.6s -m %s -o %s -rs %s -mid %s -tid %s -qt %s -qo %s "
       "-ni %s -nl %s -nrtol %s -lrtol %s -ls %s -li %s -lc %s -alc %s -lt %s %s -ji %s "
-      "%s -cmb %s %s %s\n";
+      "%s -cmb %s %s %s %s\n";
    printf(format, args[ALV], args[MSH], args[POR], args[RS], args[MID],
           args[TID], args[QTY], args[QOR], args[NI], args[NL], args[NRTOL],
           args[LRTOL], args[LS], args[LI], args[LC], args[ALC], args[LT],
-          args[NOR], args[JI], args[DIAG], args[CMB], args[BEC], args[PER]);
+          args[NOR], args[JI], args[DIAG], args[CMB], args[BEC], args[PER],
+          args[ALGFC]);
    fflush(nullptr);
 }
 
@@ -781,6 +838,7 @@ public:
       bool bal_expl_combo = false;
       bool normalization = false;
       bool periodic = false;
+      bool adapt_lim_grid_coeff = false;
       real_t lim_const = 0.0;
       real_t adapt_lim_const = 0.0;
       int lim_type = 0;
@@ -806,6 +864,8 @@ public:
       Args &DIAGONAL(const bool arg) { diag = arg; return *this; }
       Args &BALANCE_EXPLICIT_COMBO() { bal_expl_combo = true; return *this; }
       Args &PERIODIC() { periodic = true; return *this; }
+      Args &ADAPT_LIMITING_GRID_COEFFICIENT()
+      { adapt_lim_grid_coeff = true; return *this; }
       // real_t
       Args &NEWTON_RTOLERANCE(const real_t arg) { newton_rtol = arg; return *this; }
       Args &LINSOL_RTOLERANCE(const real_t arg) { linsol_rtol = arg; return *this; }
@@ -822,7 +882,8 @@ public:
    };
    const char *name, *mesh;
    int NEWTON_ITERATIONS, LINSOL_ITERATIONS, REFINE, COMBO, LIMIT_TYPE;
-   bool NORMALIZATION, DIAGONAL, BAL_EXPL_COMBO, PERIODIC;
+   bool NORMALIZATION, DIAGONAL, BAL_EXPL_COMBO, PERIODIC,
+        ADAPT_LIMITING_GRID_COEFF;
    real_t NEWTON_RTOLERANCE, LINSOL_RTOLERANCE, LIMITING, ADAPT_LIMITING, JITTER;
    list_t P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
 
@@ -838,6 +899,7 @@ public:
       DIAGONAL(a.diag),
       BAL_EXPL_COMBO(a.bal_expl_combo),
       PERIODIC(a.periodic),
+      ADAPT_LIMITING_GRID_COEFF(a.adapt_lim_grid_coeff),
       // real_t
       NEWTON_RTOLERANCE(a.newton_rtol),
       LINSOL_RTOLERANCE(a.linsol_rtol),
@@ -870,6 +932,7 @@ public:
       args[DIAG] = DIAGONAL ? "-diag" : "-no-diag";
       args[BEC] = BAL_EXPL_COMBO ? "-bec" : "-no-bec";
       args[PER] = PERIODIC ? "-per" : "-no-per";
+      args[ALGFC] = ADAPT_LIMITING_GRID_COEFF ? "-algfc" : "-no-algfc";
       // real_t
       args[NRTOL] = dtoa(NEWTON_RTOLERANCE, nrtol);
       args[LRTOL] = dtoa(LINSOL_RTOLERANCE, lrtol);
@@ -1000,7 +1063,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .DIAGONAL(true))
    .Run(id, all);
 
-   Launch(Launch::Args("3D + adaptive limiting")
+   Launch(Launch::Args("3D + adaptive limiting GridFunctionCoefficient")
           .MESH("../../miniapps/meshing/stretched3D.mesh")
           .REFINE(0)
           .NORMALIZATION()
@@ -1013,6 +1076,7 @@ static void tmop_tests(int id = 0, bool all = false)
           .NEWTON_RTOLERANCE(1e-6)
           .LINSOL_RTOLERANCE(1e-10)
           .ADAPT_LIMITING(1.0)
+          .ADAPT_LIMITING_GRID_COEFFICIENT()
           .DIAGONAL(true))
    .Run(id, all);
 

@@ -188,6 +188,11 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
+   // Adaptive-limiting coefficients are assumed fixed during mesh optimization
+   // and PA.ALC is assembled only once. Updating these coefficients would
+   // require a remap of their underlying fields, which is not performed here.
+   if (PA.MC.Size() == 1 && PA.C0.Size() <= 1) { return; }
+
    Vector x_loc;
    if (periodic)
    {
@@ -199,17 +204,9 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
       add(*x_0, d_loc, x_loc);
    }
 
-
-   // All are constant or not specified.
-   const int nal = PA.nal;
-   const bool alc_is_qvec =
-      (nal > 0) ? (PA.ALC.Size() == nal * PA.nq * PA.ne) : false;
-   if (PA.MC.Size() == 1 && PA.C0.Size() <= 1 && !alc_is_qvec) { return; }
-
-   // Coefficients are always evaluated on the CPU for now.
-   PA.MC.HostWrite();
-   PA.C0.HostWrite();
-   if (alc_is_qvec) { PA.ALC.HostWrite(); }
+   // Mesh-position-dependent coefficients are evaluated on the CPU for now.
+   if (PA.MC.Size() > 1) { PA.MC.HostWrite(); }
+   if (PA.C0.Size() > 1) { PA.C0.HostWrite(); }
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
@@ -233,20 +230,6 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
             PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
          }
       }
-
-      if (alc_is_qvec)
-      {
-         MFEM_VERIFY(nal == adapt_lim_coeff.Size(), "internal error");
-         for (int c = 0; c < nal; c++)
-         {
-            real_t *ALC_c = PA.ALC.HostWrite() + c * PA.nq * PA.ne;
-            for (int q = 0; q < PA.nq; ++q)
-            {
-               ALC_c[q + e * PA.nq] =
-                  adapt_lim_coeff[c]->Eval(*T, ir.IntPoint(q));
-            }
-         }
-      }
    }
 
    delete T;
@@ -257,6 +240,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const MemoryType mt =
       (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
    PA.enabled = true;
+   PA.nal = 0;
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
    const int ne = PA.ne = mesh->GetNE();
@@ -366,8 +350,10 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.nal = nal;
 
    // adapt_lim_coeff -> PA.ALC
-   // Keep the ConstantCoefficient fast-path: when all coefficients are
-   // constant, store one scalar per adaptive-limiting term.
+   // Keep the ConstantCoefficient fast-path when all coefficients are
+   // constant. Otherwise, use one Q-vector block per coefficient. Same-mesh
+   // scalar GridFunctionCoefficients are projected on the device. All
+   // adaptive-limiting coefficients are assembled once and remain fixed.
    bool all_const = true;
    for (int c = 0; c < nal; c++)
    {
@@ -391,22 +377,46 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    }
    else
    {
-      // If one Coefficient is not constant, we allocate the full size for
-      // all Coefficients. Could be optimized in the future.
-      PA.ALC.SetSize(nal * PA.nq * PA.ne, Device::GetMemoryType());
-      real_t *ALC_all = PA.ALC.HostWrite();
+      const int block_size = PA.nq * PA.ne;
+      PA.ALC.SetSize(nal * block_size, Device::GetMemoryType());
+      QuadratureSpace qs(*PA.fes->GetMesh(), *PA.ir);
+      Vector ALC_c;
       for (int c = 0; c < nal; c++)
       {
-         real_t *ALC_c = ALC_all + c * PA.nq * PA.ne;
+         ALC_c.MakeRef(PA.ALC, c * block_size, block_size);
+         if (auto *cc =
+                dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]))
+         {
+            ALC_c = cc->constant;
+            continue;
+         }
+
+         auto *gfc =
+            dynamic_cast<GridFunctionCoefficient *>(adapt_lim_coeff[c]);
+         const GridFunction *gf = gfc ? gfc->GetGridFunction() : nullptr;
+         const FiniteElementSpace *gf_fes = gf ? gf->FESpace() : nullptr;
+         if (gf_fes && gf->VectorDim() == 1 &&
+             gf_fes->GetMesh() == PA.fes->GetMesh())
+         {
+            QuadratureFunction qf(qs, Device::GetMemoryType());
+            gfc->Project(qf);
+            MFEM_VERIFY(qf.Size() == block_size, "internal error");
+            ALC_c = qf;
+            continue;
+         }
+
+         Vector values(block_size);
+         real_t *values_h = values.HostWrite();
          for (int e = 0; e < PA.ne; ++e)
          {
             ElementTransformation &T = *PA.fes->GetElementTransformation(e);
             for (int q = 0; q < PA.ir->GetNPoints(); ++q)
             {
-               ALC_c[q + e * PA.nq] =
+               values_h[q + e * PA.nq] =
                   adapt_lim_coeff[c]->Eval(T, PA.ir->IntPoint(q));
             }
          }
+         ALC_c = values;
       }
    }
 
