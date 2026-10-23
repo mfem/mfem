@@ -2478,9 +2478,9 @@ public:
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
-   Coefficient *GetCoefficient() { return Q; }
+   const Coefficient *GetCoefficient() const { return Q; }
 
-   CoefficientBase *GetCoefficientBase() { return Q; }
+   CoefficientBase *GetCoefficientBase() const { return Q; }
 
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
@@ -2915,9 +2915,9 @@ public:
    void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
-   MFEM_DEPRECATED Coefficient *GetCoefficient() { return Q; }
+   MFEM_DEPRECATED const Coefficient *GetCoefficient() const { return Q; }
 
-   CoefficientBase *GetCoefficientBase() { return CoefficientBase::Get(Q, DQ, MQ); }
+   CoefficientBase *GetCoefficientBase() const { return CoefficientBase::Get(Q, DQ, MQ); }
 
    /// arguments: d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct, pa_data,
    /// x, y, useAbs
@@ -3066,9 +3066,9 @@ public:
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
-   MFEM_DEPRECATED Coefficient *GetCoefficient() { return Q; }
+   MFEM_DEPRECATED const Coefficient *GetCoefficient() const { return Q; }
 
-   CoefficientBase *GetCoefficientBase() { return CoefficientBase::Get(Q, DQ, MQ); }
+   CoefficientBase *GetCoefficientBase() const { return CoefficientBase::Get(Q, DQ, MQ); }
 };
 
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
@@ -3185,9 +3185,9 @@ public:
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
-   Coefficient *GetCoefficient() { return Q; }
+   MFEM_DEPRECATED const Coefficient *GetCoefficient() const { return Q; }
 
-   CoefficientBase *GetCoefficientBase() { return Q; }
+   CoefficientBase *GetCoefficientBase() const { return Q; }
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$,
