@@ -29,8 +29,8 @@
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
 // Problem 3: onion, 9 nested spherical shells (linear elasticity)
-// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 1 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
-// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 1 -nsteps 1 -msteps 0 -no-amgf
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -no-amgf
 
 // Description:
 // This miniapp solves benchmark frictionless contact problems using a
