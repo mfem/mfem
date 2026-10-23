@@ -2193,7 +2193,7 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant, bool transpose)
          for (int i = 0; i < height; ++i)
          {
             const real_t val = constant(i,j);
-            if (transpose) { (*this)[j + i*height + iq*vdim] = val; }
+            if (transpose) { (*this)[j + i*width + iq*vdim] = val; }
             else { (*this)[i + j*height + iq*vdim] = val; }
          }
       }
