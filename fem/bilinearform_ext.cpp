@@ -253,7 +253,7 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    bdr_face_restrict_lex = NULL;
 }
 
-static bool AllDomainIntegratorsUseCeed(const BilinearForm &form)
+static bool AllDomainIntegratorsUseCeed(BilinearForm &form)
 {
    if (!DeviceCanUseCeed()) { return false; }
    const Array<BilinearFormIntegrator*> &integs = *form.GetDBFI();
