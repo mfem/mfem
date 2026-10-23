@@ -76,9 +76,10 @@ add_mfem_miniapp(nurbs_surface
 
 add_mfem_miniapp(nurbs_spacing
   MAIN nurbs_spacing.cpp
-  EXTRA_SOURCES nurbs_spacing_solver.cpp
-  EXTRA_HEADERS nurbs_spacing_solver.hpp
   LIBRARIES mfem)
+target_sources(nurbs_spacing PRIVATE
+  nurbs_spacing_solver.cpp
+  nurbs_spacing_solver.hpp)
 
 if (MFEM_ENABLE_TESTING)
   add_test(NAME nurbs_ex1_1d_r1_o2_ser

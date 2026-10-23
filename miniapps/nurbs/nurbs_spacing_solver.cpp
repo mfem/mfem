@@ -1035,6 +1035,39 @@ void GetSpacedPatchGrid(Mesh &mesh,
          return arc;
       };
 
+      Vector element_spacing(nel[dir]);
+      if (sf[dir])
+      {
+         std::unique_ptr<SpacingFunction> spacing = sf[dir]->Clone();
+         spacing->SetSize(nel[dir]);
+         spacing->EvalAll(element_spacing);
+      }
+      else
+      {
+         // Use the nonempty knot spans as relative element widths.
+         const KnotVector *kv = mesh.NURBSext->GetKnotVector(dir);
+         const real_t knot_range = (*kv)[kv->GetNCP()] - (*kv)[kv->GetOrder()];
+         MFEM_VERIFY(kv->GetNE() == nel[dir] && knot_range > 0.0, "");
+
+         int e = 0;
+         for (int ks=0; ks<kv->GetNKS(); ++ks)
+         {
+            if (kv->isElement(ks))
+            {
+               const int k = kv->GetOrder() + ks;
+               element_spacing[e++] = ((*kv)[k + 1] - (*kv)[k]) / knot_range;
+            }
+         }
+         MFEM_VERIFY(e == nel[dir], "");
+      }
+
+      Vector spacing_prefix(nel[dir] + 1);
+      spacing_prefix[0] = 0.0;
+      for (int e=0; e<nel[dir]; ++e)
+      {
+         spacing_prefix[e + 1] = spacing_prefix[e] + element_spacing[e];
+      }
+
       for (int dof_j=0; dof_j<ncp[odir[0]]; ++dof_j)
       {
          const int ej = sample_el[odir[0]][dof_j];
@@ -1064,25 +1097,11 @@ void GetSpacedPatchGrid(Mesh &mesh,
                return a;
             }; // ArcLength
 
-            const SpacingFunction *spacing_dir = sf[dir];
-            std::unique_ptr<SpacingFunction> spacing =
-               spacing_dir ? spacing_dir->Clone() :
-               std::make_unique<UniformSpacingFunction>(nel[dir]);
-
-            spacing->SetSize(nel[dir]);
-
-            Vector spacing_prefix(nel[dir] + 1);
-            spacing_prefix[0] = 0.0;
-            for (int e=0; e<nel[dir]; ++e)
-            {
-               spacing_prefix[e + 1] = spacing_prefix[e] + spacing->Eval(e);
-            }
-
             for (int l=1; l<ncp[dir]-1; ++l)
             {
-               // Set a_l by using spacing function for non-uniform grids.
+               // Set a_l from the spacing in this direction.
                const int el_l = sample_el[dir][l];
-               const real_t s_l = spacing->Eval(el_l);
+               const real_t s_l = element_spacing[el_l];
                const real_t a_l = (spacing_prefix[el_l] +
                                    (sample_xi[dir][l] * s_l)) * totalArc;
 
