@@ -83,6 +83,8 @@ struct PICContext
 
    real_t k = 1.0;      ///< Fundamental wave number: L = 2*pi/k (lambda = L).
    int mode = 1;        ///< Excitation mode m (lambda = L/m); k_exc = mode*k.
+   int perturb_momentum =
+      0;  ///< Case 3: 0 perturbs x, 1 perturbs p
    real_t alpha = 0.1;  ///< Excitation amplitude (cases 0 and 3).
    bool landau_x =
       false;  ///< Case 0: perturb density along x only (not all axes).
@@ -175,6 +177,8 @@ int main(int argc, char* argv[])
                   "Fundamental wave number (L = 2*pi/k; mode-1 wavelength).");
    args.AddOption(&ctx.mode, "-mode", "--mode",
                   "Excitation mode m: wavelength lambda = L/m (cases 0 and 3).");
+   args.AddOption(&ctx.perturb_momentum, "-pmom", "--perturb-momentum",
+                  "Perturb cold-beam momentum (case 3 only). 0: perturb x, 1: perturb p");
    args.AddOption(&ctx.init_case, "-case", "--case",
                   "Initial distribution: 0 = Landau, 1 = two-stream, "
                   "2 = bump-on-tail, 3 = cold-beam.");
@@ -235,6 +239,10 @@ int main(int argc, char* argv[])
                "case 3 (cold-beam) requires -dim 2.");
    MFEM_VERIFY(!ctx.use_its || ctx.init_case == 0,
                "-use-its is only valid for case 0 (Landau).");
+   MFEM_VERIFY(ctx.perturb_momentum == 0 || ctx.perturb_momentum == 1,
+               "--perturb-momentum must be 0 or 1.");
+   MFEM_VERIFY(ctx.perturb_momentum == 0 || ctx.init_case == 3,
+               "--perturb-momentum is only valid for case 3 (cold-beam).");
    MFEM_VERIFY(ctx.beam_variance >= 0.0,
                "beam-variance must be non-negative.");
    if (ctx.init_case == 2)
@@ -313,7 +321,7 @@ int main(int argc, char* argv[])
    particle_mover.InitializeChargedParticles(
       ctx.k, ctx.mode, ctx.alpha, ctx.m, ctx.q, ctx.L, ctx.init_case, ctx.v0,
       ctx.beam_variance, ctx.bump_fraction, ctx.vb, ctx.vth, ctx.vtb,
-      ctx.landau_x, ctx.use_its, ctx.reproduce);
+      ctx.perturb_momentum, ctx.landau_x, ctx.use_its, ctx.reproduce);
 
    // 8. Start the main loop
    real_t t = 0;

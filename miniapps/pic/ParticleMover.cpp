@@ -142,8 +142,8 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
 void ParticleMover::InitializeChargedParticles(
    const real_t& k, int mode, const real_t& alpha, real_t m, real_t q, real_t L,
    int init_case, real_t v0, real_t beam_variance, real_t bump_fraction,
-   real_t vb, real_t vth, real_t vtb, bool landau_x, bool use_its,
-   bool reproduce)
+   real_t vb, real_t vth, real_t vtb, int perturb_momentum, bool landau_x,
+   bool use_its, bool reproduce)
 {
    MFEM_VERIFY(mode >= 1, "mode must be >= 1.");
    const real_t k_exc = mode * k;
@@ -153,6 +153,10 @@ void ParticleMover::InitializeChargedParticles(
                "(bump-on-tail), or 3 (cold-beam).");
    MFEM_VERIFY(!use_its || init_case == 0,
                "use_its is only valid for init_case 0 (Landau).");
+   MFEM_VERIFY(perturb_momentum == 0 || perturb_momentum == 1,
+               "perturb_momentum must be 0 or 1.");
+   MFEM_VERIFY(perturb_momentum == 0 || init_case == 3,
+               "perturb_momentum is only valid for init_case 3 (cold-beam).");
    MFEM_VERIFY(beam_variance >= 0.0, "beam_variance must be non-negative.");
    if (init_case == 2)
    {
@@ -239,17 +243,25 @@ void ParticleMover::InitializeChargedParticles(
       }
       else  // init_case == 3
       {
-         // 2D quiet lattice (xi_i, y_j), then 1D ITS in x only: x_i + (alpha/k) sin(k x_i) = xi_i.
-         // x_i depends on column i only (same for every y-row); y_j is unperturbed.
+         // 2D quiet lattice. perturb_momentum 0 moves x; 1 moves p_x.
          const int gid = global_offset + i;
          int n_x = 0, n_y = 0, ix = 0, iy = 0;
          ColdBeamLatticeIndices(gid, global_npt, n_x, n_y, ix, iy);
 
          const real_t xi = ColdBeamLatticeX(ix, n_x, L);
-         X(i, 0) = PerturbLatticeX(xi, L, k_exc, alpha);
          X(i, 1) = ColdBeamLatticeY(iy, n_y, L);
-
-         P(i, 0) = m * v0;
+         if (perturb_momentum == 0)
+         {
+            // x + (alpha/k) sin(k x) = xi. Momentum stays m*v0.
+            X(i, 0) = PerturbLatticeX(xi, L, k_exc, alpha);
+            P(i, 0) = m * v0;
+         }
+         else
+         {
+            // Lattice positions. p_x = m v0 (1 + alpha sin(k x)).
+            X(i, 0) = xi;
+            P(i, 0) = m * v0 * (1.0 + alpha * std::sin(k_exc * xi));
+         }
          P(i, 1) = 0.0;
       }
 

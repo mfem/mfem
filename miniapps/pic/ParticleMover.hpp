@@ -60,6 +60,7 @@ public:
    /// @a use_its: case 0 only; sample x from n(x)=[1+alpha cos(k_exc x)]/L via ITS.
    /// @a k sets domain length L = 2*pi/k; excitation uses k_exc = mode*k.
    /// @a alpha: excitation magnitude (cases 0 and 3).
+   /// @a perturb_momentum: case 3 only. 0 perturbs x, 1 perturbs p.
    void InitializeChargedParticles(const mfem::real_t& k, int mode,
                                    const mfem::real_t& alpha, mfem::real_t m,
                                    mfem::real_t q, mfem::real_t L,
@@ -67,6 +68,7 @@ public:
                                    mfem::real_t beam_variance,
                                    mfem::real_t bump_fraction, mfem::real_t vb,
                                    mfem::real_t vth, mfem::real_t vtb,
+                                   int perturb_momentum = 0,
                                    bool landau_x = false,
                                    bool use_its = false,
                                    bool reproduce = false);
