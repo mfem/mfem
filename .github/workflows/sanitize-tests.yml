@@ -104,7 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       run: ${{inputs.par && '-R "_cpu_np"' || ''}}
-      exclude: ${{inputs.par && '"unit_tests|debug"' || '"^unit_tests$|debug"'}}
+      exclude: '"unit_tests|debug"'
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
@@ -162,7 +162,7 @@ jobs:
     name: tests-unit-run-${{matrix.tag}}
     env:
       unit_tests: ${{inputs.par && 'punit_tests' || 'unit_tests'}}
-      np: ${{inputs.par && '_np=2' || ''}}
+      test_name: ${{inputs.par && 'punit_tests_cpu_np=2' || 'unit_tests_cpu'}}
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/restore
@@ -191,5 +191,5 @@ jobs:
         if: ${{steps.restore.outputs.cache-hit != 'true'}}
         working-directory: mfem/build
         run: |
-          ${{env.CTEST}} tests/unit -R "${{env.unit_tests}}${{env.np}}" --show-only
-          ${{env.CTEST}} tests/unit -R "${{env.unit_tests}}${{env.np}}"
+          ${{env.CTEST}} tests/unit -R "^${{env.test_name}}$" --show-only
+          ${{env.CTEST}} tests/unit -R "^${{env.test_name}}$" --no-tests=error
