@@ -632,9 +632,13 @@ class GmshReader
 
    /// A map containing names of physical curves, surfaces, and volumes. The
    /// first index is the dimension of the physical manifold, the second index is
-   /// the element attribute number of the set, and the string is the assigned
-   /// name.
-   unordered_map<int,unordered_map<int,string> > phys_names_by_dim;
+   /// the physical tag, and the string is the assigned name.
+   std::array<unordered_map<int,string>, 4> phys_names_by_dim;
+
+   /// A map from element attribute to physical tags 
+   /// the first index is the dimension of the element, the second 
+   /// is the element attribute.
+   std::array<unordered_map<int, std::vector<int>>, 4> phys_tags_by_attr;
 
    /// Gmsh always outputs coordinates in 3D, but MFEM distinguishes between the
    /// mesh element dimension (Dim) and the dimension of the space in which the
@@ -708,28 +712,143 @@ class GmshReader
       }
    }
 
+   /// Assign the appropriate attributes to each element and boundary element
+   /// Gmsh Entities are a unique painting per element so this is the default attribute.
+   /// If all entities (with elements) have only a single physical group we want to
+   /// preserve the behavior that the physical tag becomes the attribute.
+   ///
+   /// Also handle non-positive and error cases.
+   ///
+   /// @param mesh the mesh to reassign attributes for
+   void ReassignAttributes(Mesh &mesh)
+   {
+
+      int max_el_tag = 0, max_bdr_tag = 0;
+      int max_el_entity = 0, max_bdr_entity = 0;
+      // sort and deduplicate physical tag lists
+      for(auto &[attr, phys_tags] : phys_tags_by_attr[mesh.Dimension()])
+      {
+         max_el_entity = std::max(max_el_entity, attr);
+         std::sort(phys_tags.begin(), phys_tags.end());
+         phys_tags.erase(std::unique(phys_tags.begin(), phys_tags.end()), phys_tags.end());
+         if(not phys_tags.empty())
+            max_el_tag = std::max(max_el_tag, *(phys_tags.end() - 1));
+      }
+      for(auto &[attr, phys_tags] : phys_tags_by_attr[mesh.Dimension() - 1])
+      {
+         max_bdr_entity = std::max(max_bdr_entity, attr);
+         std::sort(phys_tags.begin(), phys_tags.end());
+         phys_tags.erase(std::unique(phys_tags.begin(), phys_tags.end()), phys_tags.end());
+         if(not phys_tags.empty())
+            max_bdr_tag = std::max(max_bdr_tag, *(phys_tags.end() - 1));
+      }
+
+      // find out if each entity has a single physical group
+      bool single_tag_per_attr = true;
+
+      for(int ie = 0; ie < mesh.GetNE(); ++ie)
+      {
+         Element* element = mesh.GetElement(ie);
+         auto& phys_tags = phys_tags_by_attr[mesh.Dimension()][element->GetAttribute()];
+         // empty physical tags we count as one tag which will get reassigned
+         single_tag_per_attr = single_tag_per_attr and phys_tags.size() <= 1;
+      }
+      for(int ibe = 0; ibe < mesh.GetNBE(); ++ibe)
+      {
+         Element* element = mesh.GetBdrElement(ibe);
+         auto& phys_tags = phys_tags_by_attr[mesh.Dimension() - 1][element->GetAttribute()];
+         // empty physical tags we count as one tag which will get reassigned
+         single_tag_per_attr = single_tag_per_attr and phys_tags.size() <= 1;
+      }
+      phys_names_by_dim[mesh.Dimension()][max_el_tag + 1] = "Unnamed Attribute";
+      phys_names_by_dim[mesh.Dimension() - 1][max_bdr_tag + 1] = "Unnamed Attribute";
+
+      if(single_tag_per_attr) 
+      {
+         has_non_positive_attrs = false;
+         std::unordered_map<int, std::vector<int>> new_el_phys_tags_by_attr;
+         std::unordered_map<int, std::vector<int>> new_bdr_phys_tags_by_attr;
+         // reassign the attribute to the single group name
+         // keep track of error cases (0 attribute or empty physical group list)
+         for(int ie = 0; ie < mesh.GetNE(); ++ie)
+         {
+            Element* element = mesh.GetElement(ie);
+            auto& phys_tags = phys_tags_by_attr[mesh.Dimension()][element->GetAttribute()];
+            bool set_unnamed = (phys_tags.empty() or phys_tags[0] == 0);
+            int new_attr = set_unnamed ? max_el_tag + 1 : phys_tags[0];
+            has_non_positive_attrs = has_non_positive_attrs and set_unnamed;
+            element->SetAttribute(new_attr);
+            new_el_phys_tags_by_attr[new_attr] = std::vector<int>{new_attr};
+         }
+         for(int ibe = 0; ibe < mesh.GetNBE(); ++ibe)
+         {
+            Element* element = mesh.GetBdrElement(ibe);
+            auto& phys_tags = phys_tags_by_attr[mesh.Dimension() - 1][element->GetAttribute()];
+            bool set_unnamed = (phys_tags.empty() or phys_tags[0] == 0);
+            int new_attr = set_unnamed ? max_bdr_tag + 1 : phys_tags[0];
+            has_non_positive_attrs = has_non_positive_attrs and set_unnamed;
+            element->SetAttribute(new_attr);
+            new_bdr_phys_tags_by_attr[new_attr] = std::vector<int>{new_attr};
+         }
+         phys_tags_by_attr[mesh.Dimension()] = new_el_phys_tags_by_attr;
+         phys_tags_by_attr[mesh.Dimension() - 1] = new_bdr_phys_tags_by_attr;
+      }
+      else
+      {
+         // reassign error cases of 0 entity tag
+         for(int ie = 0; ie < mesh.GetNE(); ++ie)
+         {
+            Element* element = mesh.GetElement(ie);
+            if(element->GetAttribute() == 0)
+               element->SetAttribute(max_el_entity + 1);
+            auto& phys_tags = phys_tags_by_attr[mesh.Dimension()][element->GetAttribute()];
+            if(phys_tags.empty())
+               phys_tags.push_back(max_el_tag + 1);
+         }
+         for(int ibe = 0; ibe < mesh.GetNBE(); ++ibe)
+         {
+            Element* element = mesh.GetBdrElement(ibe);
+            if(element->GetAttribute() == 0)
+               element->SetAttribute(max_bdr_entity + 1);
+            auto& phys_tags = phys_tags_by_attr[mesh.Dimension() - 1][element->GetAttribute()];
+            if(phys_tags.empty())
+               phys_tags.push_back(max_bdr_tag + 1);
+         }
+      }
+   }
+
    /// Add the physical names (in @a phys_names_by_dim) to the mesh's attribute
    /// sets and boundary attribute sets.
    void AddPhysicalNames(Mesh &mesh)
    {
-      // Process boundary attribute set names
-      for (auto const &bdr_attr : phys_names_by_dim[mesh.Dimension() - 1])
-      {
-         if (!mesh.bdr_attribute_sets.AttributeSetExists(bdr_attr.second))
-         {
-            mesh.bdr_attribute_sets.CreateAttributeSet(bdr_attr.second);
-         }
-         mesh.bdr_attribute_sets.AddToAttributeSet(bdr_attr.second, bdr_attr.first);
-      }
 
-      // Process element attribute set names
-      for (auto const &attr : phys_names_by_dim[mesh.Dimension()])
+      // Process boundary element attribute set names
+      for (auto const & [phys_tag, phys_name]: phys_names_by_dim[mesh.Dimension() - 1])
       {
-         if (!mesh.attribute_sets.AttributeSetExists(attr.second))
+         if (!mesh.bdr_attribute_sets.AttributeSetExists(phys_name))
+            mesh.bdr_attribute_sets.CreateAttributeSet(phys_name);
+      }
+      for(auto const& [attr, phys_tags] : phys_tags_by_attr[mesh.Dimension() - 1])
+      {
+         for(int phys_tag : phys_tags)
          {
-            mesh.attribute_sets.CreateAttributeSet(attr.second);
+            const auto& phys_name = phys_names_by_dim[mesh.Dimension() - 1][phys_tag];
+            mesh.bdr_attribute_sets.AddToAttributeSet(phys_name, attr);
          }
-         mesh.attribute_sets.AddToAttributeSet(attr.second, attr.first);
+      }
+      // Process element attribute set names
+      for (auto const & [phys_tag, phys_name]: phys_names_by_dim[mesh.Dimension()])
+      {
+         if (!mesh.attribute_sets.AttributeSetExists(phys_name))
+            mesh.attribute_sets.CreateAttributeSet(phys_name);
+      }
+      for(auto const& [attr, phys_tags] : phys_tags_by_attr[mesh.Dimension()])
+      {
+         for(int phys_tag : phys_tags)
+         {
+            const auto& phys_name = phys_names_by_dim[mesh.Dimension()][phys_tag];
+            mesh.attribute_sets.AddToAttributeSet(phys_name, attr);
+         }
       }
    }
 
@@ -803,15 +922,13 @@ class GmshReader
       }
    }
 
-   /// Set the attribute of element @a e to @a attribute. If the attribute is
-   /// non-positive, set it to 1. Keep track if non-positive or positive
-   /// attributes are encountered to potentially report errors to the user.
+   /// Set the attribute of element @a e to @a attribute. 
+   /// Keep track of non-positive attributes for later error reporting
    void SetAttribute(Element *e, int attribute)
    {
       if (attribute < 1)
       {
          has_non_positive_attrs = true;
-         attribute = 1; // Resetting non-positive attributes to be 1.
       }
       else
       {
@@ -884,7 +1001,6 @@ class GmshReader
       MFEM_VERIFY(data_size == sizeof(size_t), "Incompatible Gmsh mesh.");
 
       const auto b = is_binary;
-      unordered_map<pair<int,int>, int, PairHasher> entity_physical_tag;
 
       string section;
       do
@@ -905,6 +1021,8 @@ class GmshReader
          }
          else if (section == "Entities")
          {
+            // Note: the gmsh 4.1 specification states: 
+            // "to represent ... full topology ... an $Entities should be present before $Nodes"
             const size_t n_points = ReadBinaryOrASCII<size_t>(input, b);
             const size_t n_curves = ReadBinaryOrASCII<size_t>(input, b);
             const size_t n_surfaces = ReadBinaryOrASCII<size_t>(input, b);
@@ -919,11 +1037,13 @@ class GmshReader
                   const int tag = ReadBinaryOrASCII<int>(input, b);
                   Skip<double>(input, d == 0 ? 3 : 6, b); // Skip X, Y, Z
                   const size_t n_phys_tags = ReadBinaryOrASCII<size_t>(input, b);
+                  std::vector<int> phys_tags(n_phys_tags);
                   for (size_t iphys = 0; iphys < n_phys_tags; ++iphys)
                   {
                      const int phys_tag = ReadBinaryOrASCII<int>(input, b);
-                     entity_physical_tag[ {d, tag}] = phys_tag;
+                     phys_tags[iphys] = phys_tag;
                   }
+                  phys_tags_by_attr[d][tag] = phys_tags;
                   if (d > 0)
                   {
                      const size_t n_bounding = ReadBinaryOrASCII<size_t>(input, b);
@@ -934,6 +1054,8 @@ class GmshReader
          }
          else if (section == "Nodes")
          {
+            // Note: the gmsh 4.1 specification states 
+            // "Nodes are assumed to be defined before elements"
             const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, b);
             const size_t n_nodes = ReadBinaryOrASCII<size_t>(input, b);
             Skip<size_t>(input, 2, b); // Skip min and max tags
@@ -1009,7 +1131,8 @@ class GmshReader
                      node_tags[inode] = ReadBinaryOrASCII<size_t>(input, b);
                   }
 
-                  const int attribute = entity_physical_tag[ {entity_dim, entity_tag}];
+                  // The entity is unique for each element, maps cleanly to attribute
+                  int attribute = entity_tag;
                   auto e = NewElement(mesh, geom, el_order, node_tags, attribute);
                   elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
                }
@@ -1085,21 +1208,34 @@ class GmshReader
 
             vector<vector<unique_ptr<Element>>> elems_by_dim(4);
 
+            // WARNING: Msh 2.2 can support multiple physical tags per element
+            // but does this by duplicating the row with a different physical tag.
+            // The specification does not require that these duplicated entries
+            // are sequential, but the current writers do this.
+            // We assume sequential duplicates to avoid expensive connectivity lookups
+            int prev_el_type;
+            int prev_el_entity;
+            std::vector<int> prev_el_nodes{};
+            bool has_prev = false;
+
+            // keep track for an entity if all tags have been populated
+            std::array<std::unordered_map<int, bool>, 4> entity_tags_populated; 
+
+            auto add_element = [&](int el_type, int el_attr, Geometry::Type geom,
+                                  int el_order, const vector<int>& el_nodes)
+            {
+               if (geom != Geometry::POINT)
+               {
+                  if (mesh_order < 0) { mesh_order = el_order; }
+                  MFEM_VERIFY(mesh_order == el_order,
+                              "Variable order Gmsh meshes are not supported");
+               }
+               Element *e = NewElement(mesh, geom, el_order, el_nodes, el_attr);
+               elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
+            };
+
             while (num_el_read < num_elements)
             {
-               auto add_element = [&](int el_type, int el_phys_tag, Geometry::Type geom,
-                                      int el_order, const vector<int> &el_nodes)
-               {
-                  if (geom != Geometry::POINT)
-                  {
-                     if (mesh_order < 0) { mesh_order = el_order; }
-                     MFEM_VERIFY(mesh_order == el_order,
-                                 "Variable order Gmsh meshes are not supported");
-                  }
-                  Element *e = NewElement(mesh, geom, el_order, el_nodes, el_phys_tag);
-                  elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
-               };
-
                if (b)
                {
                   // Header
@@ -1113,17 +1249,51 @@ class GmshReader
                   for (int e = 0; e < n_els; ++e)
                   {
                      Skip<int>(input, 1, BINARY); // Skip element number
-                     int el_phys_tag = 0;
+
+                     // read the physical tag and entity
+                     int physical_tag = 0, entity = 0;
                      if (n_tags > 0)
-                     {
-                        el_phys_tag = ReadBinaryOrASCII<int>(input, BINARY);
-                        Skip<int>(input, n_tags - 1, BINARY);
-                     }
+                        physical_tag  = ReadBinaryOrASCII<int>(input, BINARY);
+                     if (n_tags > 1)
+                        entity = ReadBinaryOrASCII<int>(input, BINARY);
+                     // The rest are geometric and partitioningi info
+                     if(n_tags > 2)
+                        Skip<int>(input, n_tags - 2, BINARY);
+
+                     MFEM_VERIFY(not (physical_tag > 0 and entity == 0),
+                                 "Gmsh 2.2 reader: a positive physical tag requires "
+                                 "a nonzero elementary entity tag.");
+
+                     const int el_dim = Geometry::Dimension[geom];
                      for (int i = 0; i < n_el_nodes; ++i)
-                     {
                         el_nodes[i] = ReadBinaryOrASCII<int>(input, BINARY);
+
+                     // if this one is not a duplicate of the pending element 
+                     // we skip making a new element
+                     bool matches_prev = has_prev 
+                        and el_type == prev_el_type
+                        and entity == prev_el_entity
+                        and el_nodes == prev_el_nodes;
+
+                     if (has_prev and not matches_prev)
+                     {
+                        // mark the previous entity tags as populated upon reaching a new element
+                        const auto [prev_geom, prev_order] = GetGeometryAndOrder(prev_el_type);
+                        entity_tags_populated[Geometry::Dimension[prev_geom]][prev_el_entity] = true;
                      }
-                     add_element(el_type, el_phys_tag, geom, el_order, el_nodes);
+
+                     if(not entity_tags_populated[el_dim][entity])
+                        phys_tags_by_attr[el_dim][entity].push_back(physical_tag);
+
+                     if(not matches_prev)
+                     {
+                        add_element(el_type, entity, geom, el_order, el_nodes);
+                        prev_el_type = el_type;
+                        prev_el_nodes = el_nodes;
+                        prev_el_entity = entity;
+                        has_prev = true;
+                     }
+
                      num_el_read += 1;
                   }
                }
@@ -1132,20 +1302,56 @@ class GmshReader
                   Skip<int>(input, 1, ASCII); // Skip element number
                   const int el_type = ReadBinaryOrASCII<int>(input, ASCII);
                   const int n_tags = ReadBinaryOrASCII<int>(input, ASCII);
-                  int el_phys_tag = 0;
+
+                  // read the physical tag and entity
+                  int physical_tag = 0, entity = 0;
                   if (n_tags > 0)
-                  {
-                     el_phys_tag = ReadBinaryOrASCII<int>(input, ASCII);
-                     Skip<int>(input, n_tags - 1, ASCII);
-                  }
+                     physical_tag  = ReadBinaryOrASCII<int>(input, ASCII);
+                  if (n_tags > 1)
+                     entity = ReadBinaryOrASCII<int>(input, ASCII);
+                  // The rest are geometric and partitioning info
+                  if (n_tags > 2)
+                     Skip<int>(input, n_tags - 2, ASCII);
+
+                  MFEM_VERIFY(not (physical_tag > 0 and entity == 0),
+                              "Gmsh 2.2 reader: a positive physical tag requires "
+                              "a nonzero elementary entity tag.");
+
+                  // read geometry and nodes
                   const auto [geom, el_order] = GetGeometryAndOrder(el_type);
                   const int n_el_nodes = NumNodesInElement(geom, el_order);
                   vector<int> el_nodes(n_el_nodes);
                   for (int i = 0; i < n_el_nodes; ++i)
-                  {
                      el_nodes[i] = ReadBinaryOrASCII<int>(input, ASCII);
+
+                  const int el_dim = Geometry::Dimension[geom];
+
+                  // if this one is not a duplicate of the pending element 
+                  // we skip making a new element
+                  bool matches_prev = has_prev 
+                     and el_type == prev_el_type
+                     and entity == prev_el_entity
+                     and el_nodes == prev_el_nodes;
+
+                  if (has_prev and not matches_prev)
+                  {
+                     // mark the previous entity tags as populated upon reaching a new element
+                     const auto [prev_geom, prev_order] = GetGeometryAndOrder(prev_el_type);
+                     entity_tags_populated[Geometry::Dimension[prev_geom]][prev_el_entity] = true;
                   }
-                  add_element(el_type, el_phys_tag, geom, el_order, el_nodes);
+
+                  if(not entity_tags_populated[el_dim][entity])
+                     phys_tags_by_attr[el_dim][entity].push_back(physical_tag);
+
+                  if(not matches_prev)
+                  {
+                     add_element(el_type, entity, geom, el_order, el_nodes);
+                     prev_el_type = el_type;
+                     prev_el_nodes = std::move(el_nodes);
+                     prev_el_entity = entity;
+                     has_prev = true;
+                  }
+
                   num_el_read += 1;
                }
             }
@@ -1225,6 +1431,8 @@ public:
       {
          ReadGmsh2Mesh(mesh);
       }
+
+      ReassignAttributes(mesh);
 
       // Make sure all element and boundary attributes are positive.
       CheckAttributes();
