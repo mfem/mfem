@@ -188,9 +188,10 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
 
 void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
 {
-   // Adaptive-limiting coefficients are assumed fixed during mesh optimization
-   // and PA.ALC is assembled only once. Updating these coefficients would
-   // require a remap of their underlying fields, which is not performed here.
+   // The Coefficients for adaptive limiting are assumed fixed during mesh
+   // optimization and PA.ALC is assembled only once.
+   // When these are GridFunctionCoefficients, updating them would
+   // require a remap of their underlying fields, which TMOP doesn't do.
    if (PA.MC.Size() == 1 && PA.C0.Size() <= 1) { return; }
 
    Vector x_loc;
@@ -334,10 +335,10 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AssemblePA_AdaptLim()
 {
-   const int nal = adapt_lim_coeff.Size();
-   MFEM_VERIFY(nal > 0, "internal error");
+   PA.nal = adapt_lim_coeff.Size();
+   MFEM_VERIFY(PA.nal > 0, "internal error");
 
-   MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
+   MFEM_VERIFY(adapt_lim_gf.Size() == PA.nal && adapt_lim_gf0.Size() == PA.nal,
                "internal error");
    const FiniteElementSpace *alfes = adapt_lim_gf[0]->FESpace();
    MFEM_VERIFY(alfes && alfes->GetVDim() == 1, "internal error");
@@ -347,7 +348,6 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
                "The PA code assumes the same FE spaces for mesh and limiting.");
 
    PA.AL_grads_assembled = false;
-   PA.nal = nal;
 
    // adapt_lim_coeff -> PA.ALC
    // Keep the ConstantCoefficient fast-path when all coefficients are
@@ -355,7 +355,7 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    // scalar GridFunctionCoefficients are projected on the device. All
    // adaptive-limiting coefficients are assembled once and remain fixed.
    bool all_const = true;
-   for (int c = 0; c < nal; c++)
+   for (int c = 0; c < PA.nal; c++)
    {
       if (!dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]))
       {
@@ -366,9 +366,9 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.ALC.UseDevice(true);
    if (all_const)
    {
-      PA.ALC.SetSize(nal, Device::GetMemoryType());
+      PA.ALC.SetSize(PA.nal, Device::GetMemoryType());
       real_t *ALC_all = PA.ALC.HostWrite();
-      for (int c = 0; c < nal; c++)
+      for (int c = 0; c < PA.nal; c++)
       {
          auto *cc = dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]);
          MFEM_VERIFY(cc, "internal error");
@@ -378,45 +378,16 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    else
    {
       const int block_size = PA.nq * PA.ne;
-      PA.ALC.SetSize(nal * block_size, Device::GetMemoryType());
+      PA.ALC.SetSize(PA.nal * block_size, Device::GetMemoryType());
       QuadratureSpace qs(*PA.fes->GetMesh(), *PA.ir);
       Vector ALC_c;
-      for (int c = 0; c < nal; c++)
+      for (int c = 0; c < PA.nal; c++)
       {
          ALC_c.MakeRef(PA.ALC, c * block_size, block_size);
-         if (auto *cc =
-                dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]))
-         {
-            ALC_c = cc->constant;
-            continue;
-         }
-
-         auto *gfc =
-            dynamic_cast<GridFunctionCoefficient *>(adapt_lim_coeff[c]);
-         const GridFunction *gf = gfc ? gfc->GetGridFunction() : nullptr;
-         const FiniteElementSpace *gf_fes = gf ? gf->FESpace() : nullptr;
-         if (gf_fes && gf->VectorDim() == 1 &&
-             gf_fes->GetMesh() == PA.fes->GetMesh())
-         {
-            QuadratureFunction qf(qs, Device::GetMemoryType());
-            gfc->Project(qf);
-            MFEM_VERIFY(qf.Size() == block_size, "internal error");
-            ALC_c = qf;
-            continue;
-         }
-
-         Vector values(block_size);
-         real_t *values_h = values.HostWrite();
-         for (int e = 0; e < PA.ne; ++e)
-         {
-            ElementTransformation &T = *PA.fes->GetElementTransformation(e);
-            for (int q = 0; q < PA.ir->GetNPoints(); ++q)
-            {
-               values_h[q + e * PA.nq] =
-                  adapt_lim_coeff[c]->Eval(T, PA.ir->IntPoint(q));
-            }
-         }
-         ALC_c = values;
+         QuadratureFunction qf(qs, Device::GetMemoryType());
+         adapt_lim_coeff[c]->Project(qf);
+         MFEM_VERIFY(qf.Size() == block_size, "internal error");
+         ALC_c = qf;
       }
    }
 
@@ -451,13 +422,13 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    const int ndofs = alfes->GetVSize();
 
    const int Esize = alf_R->Height();
-   PA.ALF.SetSize(nal * Esize, Device::GetMemoryType());
+   PA.ALF.SetSize(PA.nal * Esize, Device::GetMemoryType());
    PA.ALF.UseDevice(true);
-   PA.ALFmF0.SetSize(nal * Esize, Device::GetMemoryType());
+   PA.ALFmF0.SetSize(PA.nal * Esize, Device::GetMemoryType());
    PA.ALFmF0.UseDevice(true);
 
    Vector ALFc, ALF0c;
-   for (int c = 0; c < nal; c++)
+   for (int c = 0; c < PA.nal; c++)
    {
       ALFc.MakeRef(PA.ALF, c * Esize, Esize);
       ALF0c.MakeRef(PA.ALFmF0, c * Esize, Esize);
@@ -473,18 +444,18 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.ALFmF0 += PA.ALF;
 
    // Per-field delta_max values.
-   MFEM_VERIFY(adapt_lim_delta_max.Size() == nal, "internal error");
-   PA.ALD.SetSize(nal);
+   MFEM_VERIFY(adapt_lim_delta_max.Size() == PA.nal, "internal error");
+   PA.ALD.SetSize(PA.nal);
    PA.ALD.HostWrite();
-   for (int c = 0; c < nal; c++) { PA.ALD(c) = adapt_lim_delta_max[c]; }
+   for (int c = 0; c < PA.nal; c++) { PA.ALD(c) = adapt_lim_delta_max[c]; }
 
    // Allocate storage for gradient and Hessian of ALF at quadrature points
    // These will be filled during AssembleGradPA
    const int dim = PA.dim;
    PA.ALFG.UseDevice(true);
-   PA.ALFG.SetSize(nal * dim * PA.nq * PA.ne, Device::GetMemoryType());
+   PA.ALFG.SetSize(PA.nal * dim * PA.nq * PA.ne, Device::GetMemoryType());
    PA.ALFH.UseDevice(true);
-   PA.ALFH.SetSize(nal * dim * dim * PA.nq * PA.ne, Device::GetMemoryType());
+   PA.ALFH.SetSize(PA.nal * dim * dim * PA.nq * PA.ne, Device::GetMemoryType());
 
 }
 

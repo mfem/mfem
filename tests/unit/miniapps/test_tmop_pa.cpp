@@ -68,6 +68,7 @@ struct Req
    real_t init_energy, final_energy;
 };
 
+// Counts the number of Evals calls.
 class CountingGridFunctionCoefficient : public GridFunctionCoefficient
 {
 private:
@@ -76,8 +77,7 @@ private:
 public:
    using GridFunctionCoefficient::GridFunctionCoefficient;
 
-   real_t Eval(ElementTransformation &T,
-               const IntegrationPoint &ip) override
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    {
       eval_count++;
       return GridFunctionCoefficient::Eval(T, ip);
