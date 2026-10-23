@@ -711,6 +711,9 @@ void ConstrainedSolver::SetConstraintRHS(const Vector& r)
 
 void ConstrainedSolver::Mult(const Vector& f, Vector &x) const
 {
+   f.HostRead();
+   x.HostReadWrite();
+
    Vector pworkb(A.Height() + B.Height());
    Vector pworkx(A.Height() + B.Height());
    pworkb = 0.0;
@@ -727,13 +730,14 @@ void ConstrainedSolver::Mult(const Vector& f, Vector &x) const
 
    LagrangeSystemMult(pworkb, pworkx);
 
+   pworkx.HostRead();
    for (int i = 0; i < f.Size(); ++i)
    {
-      x(i) = pworkx(i);
+      x(i) = std::as_const(pworkx)(i);
    }
    for (int i = 0; i < B.Height(); ++i)
    {
-      multiplier_sol(i) = pworkx(f.Size() + i);
+      multiplier_sol(i) = std::as_const(pworkx)(f.Size() + i);
    }
 }
 
