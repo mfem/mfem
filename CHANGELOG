@@ -13,6 +13,9 @@ Version 4.10.1 (development)
 
 Discretization improvements
 ---------------------------
+- Added optimized partial-assembly mass and diffusion kernels for triangles
+  and tetrahedra, using shared and constant memory on CUDA/HIP.
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
