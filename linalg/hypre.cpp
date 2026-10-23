@@ -3084,21 +3084,12 @@ HypreParMatrix * RAP(const HypreParMatrix *A, const HypreParMatrix *P)
    hypre_ParCSRMatrix * rap;
 
 #ifdef HYPRE_USING_GPU
-   // FIXME: this way of computing Pt A P can completely eliminate zero rows
-   //        from the sparsity pattern of the product which prevents
-   //        EliminateZeroRows() from working correctly. This issue is observed
-   //        in ex28p.
-   // Quick fix: add a diagonal matrix with 0 diagonal.
-   // Maybe use hypre_CSRMatrixCheckDiagFirst to see if we need the fix.
+   // with hypre < 3.0, this way of computing Pt A P can completely eliminate
+   // zero rows from the sparsity pattern of the product which prevents
+   // EliminateZeroRows() from working correctly.
    if (HypreUsingGPU())
    {
-      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
-      const bool keepTranspose = false;
-      rap = hypre_ParCSRTMatMatKT(*P,Q,keepTranspose);
-      hypre_ParCSRMatrixDestroy(Q);
-
-      // alternative:
-      // hypre_ParCSRMatrixRAPKT
+      rap = hypre_ParCSRMatrixRAP(*P, *A, *P);
    }
    else
 #endif
@@ -3136,9 +3127,7 @@ HypreParMatrix * RAP(const HypreParMatrix * Rt, const HypreParMatrix *A,
 #ifdef HYPRE_USING_GPU
    if (HypreUsingGPU())
    {
-      hypre_ParCSRMatrix *Q = hypre_ParCSRMatMat(*A,*P);
-      rap = hypre_ParCSRTMatMat(*Rt,Q);
-      hypre_ParCSRMatrixDestroy(Q);
+      rap = hypre_ParCSRMatrixRAP(*Rt, *A, *P);
    }
    else
 #endif
