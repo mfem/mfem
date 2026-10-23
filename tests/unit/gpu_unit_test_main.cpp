@@ -20,8 +20,11 @@ int main(int argc, char *argv[])
              " precision.\n\n";
    return MFEM_SKIP_RETURN_VALUE;
 #endif
-
+#ifdef MFEM_USE_RAJA
+   mfem::Device device("raja-gpu");
+#else
    mfem::Device device("gpu");
+#endif
 
    // Include only tests labeled with GPU. Exclude parallel tests.
    return RunCatchSession(argc, argv, {"[GPU]", "~[Parallel]"});
