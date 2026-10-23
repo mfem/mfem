@@ -97,7 +97,7 @@ endif()
 # Examples that return MFEM_SKIP_RETURN_VALUE in some cases:
 set(SKIP_TESTS)
 if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
-  list(APPEND SKIP_TESTS ex19p.cpp ex28p.cpp)
+  list(APPEND SKIP_TESTS ex19p.cpp)
 endif()
 if (MFEM_USE_SINGLE)
   list(APPEND SKIP_TESTS ex33.cpp ex33p.cpp)
@@ -152,10 +152,10 @@ if (MFEM_ENABLE_TESTING)
   # Add CUDA/HIP tests.
   set(DEVICE_EXAMPLES
       # serial examples with device support:
-      ex1 ex3 ex4 ex5 ex6 ex9 ex14 ex22 ex24 ex25 ex26 ex34
+      ex1 ex3 ex4 ex5 ex6 ex9 ex14 ex22 ex24 ex25 ex26 ex28 ex34
       # parallel examples with device support:
       ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex9p ex13p ex14p ex22p ex24p ex25p
-      ex26p ex34p ex35p)
+      ex26p ex28p ex34p ex35p)
   set(MFEM_TEST_DEVICE)
   if (MFEM_USE_CUDA)
     set(MFEM_TEST_DEVICE "cuda")
