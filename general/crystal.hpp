@@ -5,6 +5,7 @@
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
+#include <algorithm>
 #include <cstring>
 #include <cstddef>
 #include <initializer_list>
@@ -125,7 +126,7 @@ public:
          });
       }
 
-      host_buf->HostRead();
+      host_buf->HostReadWrite();
       host_buf->GetMemory().UseDevice(false);
 
       auto host_field = std::make_unique<ArrayField<T>>(*host_buf, n_comps, col_ordering);
@@ -145,7 +146,10 @@ public:
       const int n_comps = vdim;
       const Ordering::Type col_ordering = ordering;
 
-      mfem::Array<T> new_col(new_n_particles*n_comps,arr->GetMemory().GetMemoryType());
+      // keep the old capacity, only the size shrinks
+      mfem::Array<T> new_col(std::max(arr->Capacity(), new_n_particles*n_comps),
+                             arr->GetMemory().GetMemoryType());
+      new_col.SetSize(new_n_particles*n_comps);
       new_col.GetMemory().UseDevice(arr->UseDevice());
       if (new_n_particles > 0) {
          const T *col_data = n_staying > 0 ? arr->Read(use_dev) : nullptr;
@@ -258,7 +262,7 @@ public:
          });
       }
 
-      host_buf->HostRead();
+      host_buf->HostReadWrite();
       host_buf->UseDevice(false);
 
       auto host_field = std::make_unique<VectorField>(*host_buf, n_comps, col_ordering);
@@ -279,7 +283,10 @@ public:
       const Ordering::Type col_ordering = ordering;
 
       mfem::Vector new_col;
-      new_col.SetSize(new_n_particles*n_comps, vec->GetMemory().GetMemoryType());
+      // keep the old capacity, only the size shrinks
+      new_col.SetSize(std::max(vec->Capacity(), new_n_particles*n_comps),
+                      vec->GetMemory().GetMemoryType());
+      new_col.SetSize(new_n_particles*n_comps);
       new_col.UseDevice(vec->UseDevice());
       if (new_n_particles > 0) {
          const real_t *col_data = n_staying > 0 ? vec->Read(use_dev) : nullptr;
@@ -422,7 +429,9 @@ public:
       const Ordering::Type col_ordering = pv->GetOrdering();
 
       mfem::Vector new_col;
-      new_col.SetSize(new_n_particles*n_comps, pv->GetMemory().GetMemoryType());
+      new_col.SetSize(std::max(pv->Capacity(), new_n_particles*n_comps),
+                      pv->GetMemory().GetMemoryType());
+      new_col.SetSize(new_n_particles*n_comps);
       new_col.UseDevice(pv->UseDevice());
       if (new_n_particles > 0) {
          const real_t *col_data = n_staying > 0 ? pv->Read(use_dev) : nullptr;
@@ -537,6 +546,8 @@ class CrystalRouter {
 public:
    CrystalRouter(MPI_Comm comm);
    ~CrystalRouter();
+   CrystalRouter(const CrystalRouter&) = delete;
+   CrystalRouter& operator=(const CrystalRouter&) = delete;
 
    // external route, {field, field, field} call
    void Route(const Array<unsigned int> &rank_list,

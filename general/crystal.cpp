@@ -1,4 +1,5 @@
 #include "crystal.hpp"
+#include "communication.hpp"
 
 #ifdef MFEM_USE_MPI
 #include <cstring>
@@ -16,7 +17,7 @@ CrystalRouter::CrystalRouter(MPI_Comm comm) {
 }
 
 CrystalRouter::~CrystalRouter() {
-   MPI_Comm_free(&comm);
+   if (!Mpi::IsFinalized()) { MPI_Comm_free(&comm); }
 }
 
 void CrystalRouter::Route(const Array<unsigned int> &rank_list,
@@ -75,6 +76,9 @@ void CrystalRouter::RouteDevice(const Array<unsigned int> &rank_list,
 
    // route
    RouteInternal(ranks, host_field_ptrs);
+
+   // nothing left or arrived: fields are already correct
+   if (leaving_idx.Size() == 0 && ranks.Size() == 0) { return; }
 
    // return to device
    for (std::size_t k = 0; k < fields.size(); k++) {
