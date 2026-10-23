@@ -345,20 +345,23 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               real_t u[D1D];
+               real_t u[MD1];
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               for (int dz = 0; dz < MD1; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MD1)
                for (int dx = 0; dx < nx; ++dx)
                {
                   MFEM_UNROLL(MD1)
-                  for (int dz = 0; dz < nz; ++dz)
+                  for (int dz = 0; dz < MD1; ++dz)
                   {
-                     u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx);
+                     if (dz < nz) { u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx); }
                   }
                }
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { QDD(qx,dy,dz,vd) = u[dz]; }
+               for (int dz = 0; dz < MD1; ++dz)
+               {
+                  if (dz < nz) { QDD(qx,dy,dz,vd) = u[dz]; }
+               }
             }
          }
       }
@@ -372,20 +375,23 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               real_t u[D1D];
+               real_t u[MD1];
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               for (int dz = 0; dz < MD1; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MD1)
                for (int dy = 0; dy < ny; ++dy)
                {
                   MFEM_UNROLL(MD1)
-                  for (int dz = 0; dz < nz; ++dz)
+                  for (int dz = 0; dz < MD1; ++dz)
                   {
-                     u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy);
+                     if (dz < nz) { u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy); }
                   }
                }
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { QQD(qx,qy,dz,vd) = u[dz]; }
+               for (int dz = 0; dz < MD1; ++dz)
+               {
+                  if (dz < nz) { QQD(qx,qy,dz,vd) = u[dz]; }
+               }
             }
          }
       }
@@ -513,20 +519,23 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
          {
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
-               real_t u[D1D];
+               real_t u[MD1];
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               for (int dz = 0; dz < MD1; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   MFEM_UNROLL(MD1)
-                  for (int dz = 0; dz < nz; ++dz)
+                  for (int dz = 0; dz < MD1; ++dz)
                   {
-                     u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz);
+                     if (dz < nz) { u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz); }
                   }
                }
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+               for (int dz = 0; dz < MD1; ++dz)
+               {
+                  if (dz < nz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+               }
             }
          }
       }
@@ -874,18 +883,21 @@ inline void SmemPADivDivApply3D(const int d1d,
             {
                real_t u[MD1];
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               for (int dz = 0; dz < MD1; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MD1)
                for (int dx = 0; dx < nx; ++dx)
                {
                   MFEM_UNROLL(MD1)
-                  for (int dz = 0; dz < nz; ++dz)
+                  for (int dz = 0; dz < MD1; ++dz)
                   {
-                     u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx);
+                     if (dz < nz) { u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx); }
                   }
                }
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { QDD(qx,dy,dz,vd) = u[dz]; }
+               for (int dz = 0; dz < MD1; ++dz)
+               {
+                  if (dz < nz) { QDD(qx,dy,dz,vd) = u[dz]; }
+               }
             }
          }
       }
@@ -901,18 +913,21 @@ inline void SmemPADivDivApply3D(const int d1d,
             {
                real_t u[MD1];
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               for (int dz = 0; dz < MD1; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MD1)
                for (int dy = 0; dy < ny; ++dy)
                {
                   MFEM_UNROLL(MD1)
-                  for (int dz = 0; dz < nz; ++dz)
+                  for (int dz = 0; dz < MD1; ++dz)
                   {
-                     u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy);
+                     if (dz < nz) { u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy); }
                   }
                }
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { QQD(qx,qy,dz,vd) = u[dz]; }
+               for (int dz = 0; dz < MD1; ++dz)
+               {
+                  if (dz < nz) { QQD(qx,qy,dz,vd) = u[dz]; }
+               }
             }
          }
       }
@@ -1028,18 +1043,21 @@ inline void SmemPADivDivApply3D(const int d1d,
             {
                real_t u[MD1];
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               for (int dz = 0; dz < MD1; ++dz) { u[dz] = 0.0; }
                MFEM_UNROLL(MQ1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   MFEM_UNROLL(MD1)
-                  for (int dz = 0; dz < nz; ++dz)
+                  for (int dz = 0; dz < MD1; ++dz)
                   {
-                     u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz);
+                     if (dz < nz) { u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz); }
                   }
                }
                MFEM_UNROLL(MD1)
-               for (int dz = 0; dz < nz; ++dz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+               for (int dz = 0; dz < MD1; ++dz)
+               {
+                  if (dz < nz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+               }
             }
          }
       }
