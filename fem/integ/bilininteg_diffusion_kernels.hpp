@@ -156,14 +156,14 @@ inline void PADiffusionDiagonal2D(const int NE,
 
 namespace diffusion
 {
-constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
-constexpr int D11(int x) { return (11 - x)/2; }
-constexpr int D10(int x) { return (10 - x)/2; }
-constexpr int NBZApply(int D1D)
+MFEM_CONSTEVAL int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+MFEM_CONSTEVAL int D11(int x) { return (11 - x)/2; }
+MFEM_CONSTEVAL int D10(int x) { return (10 - x)/2; }
+MFEM_CONSTEVAL int NBZApply(int D1D)
 {
    return ipow(2, D11(D1D) >= 0 ? D11(D1D) : 0);
 }
-constexpr int NBZDiagonal(int D1D)
+MFEM_CONSTEVAL int NBZDiagonal(int D1D)
 {
    return ipow(2, D10(D1D) >= 0 ? D10(D1D) : 0);
 }
