@@ -439,6 +439,77 @@ TEST_CASE("ParNCMesh Rebalance preserves element attributes",
    SECTION("Default partition, refined") { CheckRebalance(true, false); }
 }
 
+TEST_CASE("ParNCMesh Rebalance transfers fields", "[Parallel], [NCMesh]")
+{
+   enum class Space { ND1, ND2, RT0, RT1, H1, VectorH1, L2 };
+   const auto space = GENERATE(Space::ND1, Space::ND2, Space::RT0, Space::RT1,
+                               Space::H1, Space::VectorH1, Space::L2);
+   const bool tet = GENERATE(false, true);
+   CAPTURE(int(space), tet);
+
+   Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, tet ? Element::TETRAHEDRON :
+                                     Element::HEXAHEDRON);
+   mesh.EnsureNCMesh(tet);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // Refine all elements of rank 0, so that rebalancing moves elements.
+   Array<int> refs;
+   if (Mpi::WorldRank() == 0)
+   {
+      for (int i = 0; i < pmesh.GetNE(); i++) { refs.Append(i); }
+   }
+   pmesh.GeneralRefinement(refs);
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   int vdim = 1;
+   switch (space)
+   {
+      case Space::ND1: fec.reset(new ND_FECollection(1, 3)); break;
+      case Space::ND2: fec.reset(new ND_FECollection(2, 3)); break;
+      case Space::RT0: fec.reset(new RT_FECollection(0, 3)); break;
+      case Space::RT1: fec.reset(new RT_FECollection(1, 3)); break;
+      case Space::H1: fec.reset(new H1_FECollection(2, 3)); break;
+      case Space::VectorH1:
+         fec.reset(new H1_FECollection(2, 3));
+         vdim = 3;
+         break;
+      case Space::L2: fec.reset(new L2_FECollection(1, 3)); break;
+   }
+   ParFiniteElementSpace fes(&pmesh, fec.get(), vdim, Ordering::byVDIM);
+
+   VectorFunctionCoefficient vcoeff(3, [](const Vector &x, Vector &v)
+   {
+      v(0) = 1.0 + x(1)*x(2);
+      v(1) = 2.0 - x(0)*x(2);
+      v(2) = 0.5 + x(0)*x(1);
+   });
+   FunctionCoefficient coeff([](const Vector &x)
+   {
+      return 1.0 + x(0) + 2.0*x(1)*x(2);
+   });
+   const bool vector_field = (space != Space::H1 && space != Space::L2);
+   auto project = [&](ParGridFunction &gf)
+   {
+      if (vector_field) { gf.ProjectCoefficient(vcoeff); }
+      else { gf.ProjectCoefficient(coeff); }
+   };
+
+   ParGridFunction x(&fes);
+   project(x);
+
+   pmesh.Rebalance();
+   fes.Update();
+   x.Update();
+
+   ParGridFunction x_exact(&fes);
+   project(x_exact);
+   x -= x_exact;
+   real_t max_err = x.Normlinf();
+   MPI_Allreduce(MPI_IN_PLACE, &max_err, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, MPI_COMM_WORLD);
+   REQUIRE(max_err < 1e-12);
+}
+
 TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
 {
    auto exact_soln = [](const Vector& x)
