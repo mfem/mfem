@@ -68,6 +68,10 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    {
       pncmesh = new ParNCMesh(*pmesh.pncmesh);
       pncmesh->OnMeshUpdated(this);
+
+      // Update AttributeSets pointers
+      pncmesh->attribute_sets = &attribute_sets;
+      pncmesh->bdr_attribute_sets = &bdr_attribute_sets;
    }
    else
    {
@@ -151,6 +155,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, const int *partitioning_,
       // Copy attribute and bdr_attribute names
       mesh.attribute_sets.Copy(attribute_sets);
       mesh.bdr_attribute_sets.Copy(bdr_attribute_sets);
+
+      // Update AttributeSets pointers
+      ncmesh->attribute_sets = &attribute_sets;
+      ncmesh->bdr_attribute_sets = &bdr_attribute_sets;
 
       GenerateNCFaceInfo();
    }
