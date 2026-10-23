@@ -13,6 +13,13 @@ Version 4.10.1 (development)
 
 Discretization improvements
 ---------------------------
+- Fixed variable-order Nedelec spaces on meshes with triangular faces, serial
+  and parallel: DOF transformations of elements whose order differs from the
+  collection's order, zero edge-in-face constraints on nonconforming meshes
+  (also affected hexahedral meshes), a hang in the parallel P matrix
+  construction, and the parallel group communicator of variable-order spaces
+  (also H1, see #5623).
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
