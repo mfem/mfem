@@ -152,6 +152,8 @@ public:
 
    ceed::Operator& GetCeedOp() { return *ceedOp; }
 
+   bool HasCeedOp() const { return ceedOp != nullptr; }
+
    virtual ~NonlinearFormIntegrator()
    {
       delete ceedOp;

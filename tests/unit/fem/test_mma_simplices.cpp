@@ -945,4 +945,186 @@ TEST_CASE("Hcurl simplex MMA PA vs FA large NE tet",
    }
 }
 
+#ifdef MFEM_USE_MPI
+#define MMA_ROUND "[MMAAddressRound][Parallel]"
+#else
+#define MMA_ROUND "[MMAAddressRound]"
+#endif
+
+void RequireMultMatches(FiniteElementSpace &fes, BilinearForm &pa,
+                        BilinearForm &fa, int seed)
+{
+   GridFunction x(&fes), y_pa(&fes), y_fa(&fes);
+   x.Randomize(seed);
+   y_pa = 0.0;
+   y_fa = 0.0;
+   pa.Mult(x, y_pa);
+   fa.Mult(x, y_fa);
+   y_fa -= y_pa;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+}
+
+void RequireDiagonalMatches(FiniteElementSpace &fes, BilinearForm &pa,
+                            BilinearForm &fa)
+{
+   Vector d_pa(fes.GetTrueVSize()), d_fa(fes.GetTrueVSize());
+   pa.AssembleDiagonal(d_pa);
+   fa.AssembleDiagonal(d_fa);
+   d_fa -= d_pa;
+   REQUIRE(d_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+}
+
+// Unregistered 7-point rule on a quadratic triangle: nq=7, ndof=6, vdim=2.
+// The first divisor of the PA sizes is the wrong (nq, ndof) pair.
+TEST_CASE("Unregistered simplex VQ and MQ", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec, 2);
+   const IntegrationRule &ir = IntRules.Get(Geometry::TRIANGLE, 5);
+   REQUIRE(ir.GetNPoints() == 7);
+   REQUIRE(fes.GetTypicalFE()->GetDof() == 6);
+
+   VectorFunctionCoefficient vq(2, [](const Vector &pt, Vector &v)
+   {
+      v(0) = 1.0 + pt(0);
+      v(1) = 2.0 + 0.3 * pt(1);
+   });
+   MatrixFunctionCoefficient mq(2, [](const Vector &pt, DenseMatrix &m)
+   {
+      m(0, 0) = 1.2 + pt(0);
+      m(1, 0) = 0.2;
+      m(0, 1) = 0.2;
+      m(1, 1) = 0.7 + pt(1);
+   });
+
+   auto run = [&](bool diffusion, bool matrix_coeff)
+   {
+      BilinearForm pa(&fes), fa(&fes);
+      auto add = [&](BilinearForm &a)
+      {
+         BilinearFormIntegrator *integ = nullptr;
+         if (diffusion && matrix_coeff)
+         {
+            integ = new VectorDiffusionIntegrator(mq);
+         }
+         else if (diffusion)
+         {
+            integ = new VectorDiffusionIntegrator(vq);
+         }
+         else if (matrix_coeff)
+         {
+            integ = new VectorMassIntegrator(mq);
+         }
+         else
+         {
+            integ = new VectorMassIntegrator(vq);
+         }
+         integ->SetIntRule(&ir);
+         a.AddDomainIntegrator(integ);
+      };
+      add(pa);
+      add(fa);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pa.Assemble();
+      fa.Assemble();
+      fa.Finalize();
+      RequireMultMatches(fes, pa, fa, 0x51);
+   };
+   run(false, false);
+   run(false, true);
+   run(true, false);
+   run(true, true);
+}
+
+// Stock 2D H(div) mass used MAX_D1D = 8 with no check. RT_7 has D1D = 9.
+TEST_CASE("Hdiv mass above the shrunk CPU cap", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   RT_FECollection fec(7, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   const IntegrationRule &ir = IntRules.Get(Geometry::SQUARE, 16);
+   BilinearForm pa(&fes), fa(&fes);
+   auto add = [&](BilinearForm &a)
+   {
+      auto *integ = new VectorFEMassIntegrator;
+      integ->SetIntRule(&ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa);
+   add(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x52);
+}
+
+// Simplex curl-curl, div-div, and vector FE mass must add their diagonal.
+TEST_CASE("Simplex vector FE diagonal", MMA_ROUND)
+{
+   MMAForce on(true);
+   const int p = GENERATE(1, 2);
+   Mesh tri = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+
+   SECTION("curl-curl and vector FE mass")
+   {
+      ND_FECollection fec(p, 2);
+      FiniteElementSpace fes(&tri, &fec);
+      BilinearForm pa(&fes), fa(&fes);
+      auto add = [&](BilinearForm &a)
+      {
+         a.AddDomainIntegrator(new VectorFEMassIntegrator);
+         a.AddDomainIntegrator(new CurlCurlIntegrator);
+      };
+      add(pa);
+      add(fa);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pa.Assemble();
+      fa.Assemble();
+      fa.Finalize();
+      RequireDiagonalMatches(fes, pa, fa);
+   }
+   SECTION("div-div")
+   {
+      RT_FECollection fec(p, 2);
+      FiniteElementSpace fes(&tri, &fec);
+      BilinearForm pa(&fes), fa(&fes);
+      pa.AddDomainIntegrator(new DivDivIntegrator);
+      fa.AddDomainIntegrator(new DivDivIntegrator);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pa.Assemble();
+      fa.Assemble();
+      fa.Finalize();
+      RequireDiagonalMatches(fes, pa, fa);
+   }
+}
+
+// Host scratch was alloca'd inside the element loop, so stack use grew with NE.
+TEST_CASE("Simplex mass apply on many elements", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(90, 90, Element::TRIANGLE);
+   REQUIRE(mesh.GetNE() > 15000);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   const IntegrationRule &ir = IntRules.Get(Geometry::TRIANGLE, 21);
+   REQUIRE(ir.GetNPoints() == 126);
+   BilinearForm pa(&fes), fa(&fes);
+   auto add = [&](BilinearForm &a)
+   {
+      auto *integ = new MassIntegrator;
+      integ->SetIntRule(&ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa);
+   add(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x53);
+}
+
+#undef MMA_ROUND
+
 } // namespace pa_simplices_mma

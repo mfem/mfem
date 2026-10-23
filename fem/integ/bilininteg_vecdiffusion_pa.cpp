@@ -341,7 +341,7 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 
    // Use CEED backend if available
-   if (DeviceCanUseCeed()) { return ceedOp->AddMult(x, y); }
+   if (ceedOp) { return ceedOp->AddMult(x, y); }
 
    // Add the VectorDiffusionAddMultPA specializations
    static const auto vector_diffusion_kernel_specializations =
@@ -580,7 +580,7 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
-   if (DeviceCanUseCeed())
+   if (ceedOp)
    {
       ceedOp->GetDiagonal(diag);
    }

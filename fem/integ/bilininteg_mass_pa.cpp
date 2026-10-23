@@ -185,7 +185,7 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
-   else if (DeviceCanUseCeed())
+   else if (ceedOp)
    {
       ceedOp->GetDiagonal(diag);
    }
@@ -218,7 +218,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
       ApplyTensorsMmaSumPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt, pa_data, x,
                                     y, dofs1D, quad1D);
    }
-   else if (DeviceCanUseCeed())
+   else if (ceedOp)
    {
       ceedOp->AddMult(x, y);
    }
@@ -274,7 +274,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
-   if (DeviceCanUseCeed())
+   if (ceedOp)
    {
       MFEM_ABORT("AddAbsMultPA not implemented with CEED!");
       ceedOp->AddMult(x, y);

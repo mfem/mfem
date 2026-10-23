@@ -253,21 +253,37 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form)
    bdr_face_restrict_lex = NULL;
 }
 
+static bool AllDomainIntegratorsUseCeed(const BilinearForm &form)
+{
+   if (!DeviceCanUseCeed()) { return false; }
+   const Array<BilinearFormIntegrator*> &integs = *form.GetDBFI();
+   for (int i = 0; i < integs.Size(); ++i)
+   {
+      if (!integs[i]->HasCeedOp()) { return false; }
+   }
+   return true;
+}
+
 void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 {
-   if ( Device::Allows(Backend::CEED_MASK) ) { return; }
-   ElementDofOrdering ordering = GetEVectorOrdering(*a->FESpace());
-   elem_restrict = trial_fes->GetElementRestriction(ordering);
-   if (elem_restrict)
+   const bool ceed_device = Device::Allows(Backend::CEED_MASK);
+   if (!(ceed_device && AllDomainIntegratorsUseCeed(*a)))
    {
-      localX.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-      localY.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
-      localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
+      ElementDofOrdering ordering = GetEVectorOrdering(*a->FESpace());
+      elem_restrict = trial_fes->GetElementRestriction(ordering);
+      if (elem_restrict)
+      {
+         localX.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
+         localY.SetSize(elem_restrict->Height(), Device::GetDeviceMemoryType());
+         localY.UseDevice(true); // ensure 'localY = 0.0' is done on device
 
-      // Gather the attributes on the host from all the elements
-      const Mesh &mesh = *trial_fes->GetMesh();
-      elem_attributes = &mesh.GetElementAttributes();
+         // Gather the attributes on the host from all the elements
+         const Mesh &mesh = *trial_fes->GetMesh();
+         elem_attributes = &mesh.GetElementAttributes();
+      }
    }
+
+   if (ceed_device) { return; }
 
    // Construct face restriction operators only if the bilinear form has
    // interior or boundary face integrators
@@ -331,8 +347,6 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
 void PABilinearFormExtension::Assemble()
 {
-   SetupRestrictionOperators(L2FaceValues::DoubleValued);
-
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    for (BilinearFormIntegrator *integ : integrators)
    {
@@ -365,6 +379,8 @@ void PABilinearFormExtension::Assemble()
    {
       integ->AssemblePABoundaryFaces(*a->FESpace());
    }
+
+   SetupRestrictionOperators(L2FaceValues::DoubleValued);
 }
 
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
@@ -399,7 +415,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    };
 
    const int iSz = integrators.Size();
-   if (elem_restrict && !DeviceCanUseCeed())
+   if (elem_restrict && !AllDomainIntegratorsUseCeed(*a))
    {
       if (iSz > 0)
       {
@@ -509,7 +525,7 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
    MFEM_VERIFY(!(somePatchwise && !allPatchwise),
                "All or none of the integrators should be patchwise");
 
-   if (DeviceCanUseCeed() || !elem_restrict || allPatchwise)
+   if (AllDomainIntegratorsUseCeed(*a) || !elem_restrict || allPatchwise)
    {
       y.UseDevice(true); // typically this is a large vector, so store on device
       y = 0.0;

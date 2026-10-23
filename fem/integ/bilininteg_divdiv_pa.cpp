@@ -84,7 +84,28 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 {
    if (use_simplex_mma)
    {
-      diag = 0.0;
+      const int nd = simplex_nd;
+      MFEM_VERIFY(nd > 0 && ne > 0, "");
+      MFEM_VERIFY(diag.Size() == nd * ne, "");
+      MFEM_VERIFY(pa_data.Size() % ne == 0, "");
+      const int stride = pa_data.Size() / ne;
+      const real_t *pa = pa_data.HostRead();
+      Vector x(nd), y(nd), slice(stride);
+      real_t *d = diag.HostReadWrite();
+      for (int e = 0; e < ne; ++e)
+      {
+         const real_t *src = pa + static_cast<size_t>(stride) * e;
+         for (int k = 0; k < stride; ++k) { slice(k) = src[k]; }
+         for (int i = 0; i < nd; ++i)
+         {
+            x = 0.0;
+            x(i) = 1.0;
+            y = 0.0;
+            internal::MmaDivDivApplySimplex(dim, 1, nd, simplex_nq, dofs1D,
+                                            simplex_B, slice, x, y);
+            d[i + nd * e] += y(i);
+         }
+      }
       return;
    }
    if (dim == 3)

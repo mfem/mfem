@@ -258,10 +258,10 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *P, const real_t *D,
                           const real_t *X, real_t *Y)
 {
+   auto *u = static_cast<real_t *>(
+                alloca(sizeof(real_t) * static_cast<size_t>(nq)));
    for (int e = 0; e < NE; ++e)
    {
-      auto *u = static_cast<real_t *>(
-                   alloca(sizeof(real_t) * static_cast<size_t>(nq)));
       EvalApplyDenseElement(qfn, nq, ndof, P, D + nq * e,
                             X + ndof * e, Y + ndof * e, u);
    }
@@ -348,6 +348,20 @@ MFEM_HOST_DEVICE inline void EvalApplyVdimElement(
                            vdim, uq, yq);
 }
 
+/** Scratch stays out of the forall lambda (GCC 8.5 ICE on dependent bounds). */
+template <int MAX_NQ, typename QFn>
+MFEM_HOST_DEVICE inline void EvalApplyVdimScratch(
+   QFn qfn, const int nq, const int ndof,
+   const real_t *P, const real_t *D, const real_t *X, real_t *Y,
+   const int e, const int vdim, const int coeff_vdim)
+{
+   real_t u[MAX_NQ];
+   real_t uq[MAX_NQ * 3];
+   real_t yq[MAX_NQ * 3];
+   EvalApplyVdimElement(qfn, nq, ndof, P, D, X, Y, e, vdim, coeff_vdim,
+                        u, uq, yq);
+}
+
 /** Eval multi-component with coeff_vdim (1 / vdim / vdim²), stock PA layouts. */
 template <typename QFn>
 inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
@@ -365,18 +379,18 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
    }
 
    const bool matrix_coeff = (vdim > 1 && coeff_vdim == vdim * vdim);
+   auto *u = static_cast<real_t *>(
+                alloca(sizeof(real_t) * static_cast<size_t>(nq)));
+   real_t *uq = nullptr, *yq = nullptr;
+   if (matrix_coeff)
+   {
+      uq = static_cast<real_t *>(
+              alloca(sizeof(real_t) * static_cast<size_t>(nq * vdim)));
+      yq = static_cast<real_t *>(
+              alloca(sizeof(real_t) * static_cast<size_t>(nq * vdim)));
+   }
    for (int e = 0; e < NE; ++e)
    {
-      auto *u = static_cast<real_t *>(
-                   alloca(sizeof(real_t) * static_cast<size_t>(nq)));
-      real_t *uq = nullptr, *yq = nullptr;
-      if (matrix_coeff)
-      {
-         uq = static_cast<real_t *>(
-                 alloca(sizeof(real_t) * static_cast<size_t>(nq * vdim)));
-         yq = static_cast<real_t *>(
-                 alloca(sizeof(real_t) * static_cast<size_t>(nq * vdim)));
-      }
       EvalApplyVdimElement(qfn, nq, ndof, P, D, X, Y, e, vdim, coeff_vdim,
                            u, uq, yq);
    }
@@ -504,9 +518,8 @@ ApplySimplex(const int NE,
    const int cv = coeff_vdim;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t u[MQ], uq[MQ * 3], yq[MQ * 3];
       MFEM_ASSERT(vdim <= 3, "");
-      EvalApplyVdimElement(qfn, QND, NDOF, P, D, X, Y, e, vdim, cv, u, uq, yq);
+      EvalApplyVdimScratch<MQ>(qfn, QND, NDOF, P, D, X, Y, e, vdim, cv);
    });
 }
 
@@ -588,24 +601,18 @@ ApplySimplex(const int NE,
 {
    MFEM_VERIFY(vdim >= 1 && NE > 0, "");
    MFEM_VERIFY(basis.Size() > 0 && d.Size() % NE == 0, "");
-   // Infer nq from basis: basis is (nq × ndof); d is (nq × coeff_vdim × NE).
-   MFEM_VERIFY(basis.Size() % 1 == 0, "");
-   // Find nq: try coeff_vdim candidates against d.Size().
-   int nq = -1, coeff_vdim = -1, ndof = -1;
-   for (int cv : {1, vdim, vdim * vdim})
-   {
-      if (d.Size() % (cv * NE) != 0) { continue; }
-      const int nq_try = d.Size() / (cv * NE);
-      if (nq_try > 0 && basis.Size() % nq_try == 0)
-      {
-         nq = nq_try;
-         coeff_vdim = cv;
-         ndof = basis.Size() / nq_try;
-         break;
-      }
-   }
-   MFEM_VERIFY(nq > 0 && coeff_vdim > 0, "VectorMass MMA: bad PA size");
-   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+   // The E-vector fixes ndof. The first divisor of (basis, d) is not unique.
+   MFEM_VERIFY(x.Size() % (vdim * NE) == 0, "VectorMass MMA: bad E-vector");
+   const int ndof = x.Size() / (vdim * NE);
+   MFEM_VERIFY(ndof > 0 && basis.Size() % ndof == 0,
+               "VectorMass MMA: bad basis");
+   const int nq = basis.Size() / ndof;
+   MFEM_VERIFY(nq > 0 && d.Size() % (nq * NE) == 0,
+               "VectorMass MMA: bad PA size");
+   const int coeff_vdim = d.Size() / (nq * NE);
+   MFEM_VERIFY(coeff_vdim == 1 || coeff_vdim == vdim ||
+               coeff_vdim == vdim * vdim, "VectorMass MMA: bad coeff_vdim");
+   MFEM_VERIFY(y.Size() >= ndof * vdim * NE, "");
 
    if (vdim == 1 && coeff_vdim == 1)
    {
@@ -636,10 +643,17 @@ ApplySimplex(const int NE,
    const int nq_c = nq, ndof_c = ndof, cv = coeff_vdim;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t u[MAX_NQ], uq[MAX_NQ * 3], yq[MAX_NQ * 3];
       MFEM_ASSERT(vdim <= 3, "");
-      EvalApplyVdimElement(qfn, nq_c, ndof_c, P, D, X, Y, e, vdim, cv,
-                           u, uq, yq);
+      if constexpr (DIM == 2)
+      {
+         EvalApplyVdimScratch<SimplexMaxNq<2, 0>()>(
+            qfn, nq_c, ndof_c, P, D, X, Y, e, vdim, cv);
+      }
+      else
+      {
+         EvalApplyVdimScratch<SimplexMaxNq<3, 0>()>(
+            qfn, nq_c, ndof_c, P, D, X, Y, e, vdim, cv);
+      }
    });
 }
 
@@ -1251,10 +1265,10 @@ inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *X, real_t *Y)
 {
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   auto *u = static_cast<real_t *>(
+                alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
    for (int e = 0; e < NE; ++e)
    {
-      auto *u = static_cast<real_t *>(
-                   alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
       GradApplyDenseElement<DIM, SYM>(
          qfn, nq, ndof, G, Dv + nq * PA_SIZE * e,
          X + ndof * e, Y + ndof * e, u);
@@ -1365,6 +1379,33 @@ MFEM_HOST_DEVICE inline void GradApplyVdimElement(
       X + ndof * vdim * e, Y + ndof * vdim * e, vdim, grads, outg);
 }
 
+/** Scratch stays out of the forall lambda (GCC 8.5 ICE on dependent bounds). */
+template <int DIM, int MAX_NQ, bool SYM, typename QFn>
+MFEM_HOST_DEVICE inline void GradApplyVdimScratch(
+   QFn qfn, const int nq, const int ndof,
+   const real_t *G, const real_t *Dv, const real_t *X, real_t *Y,
+   const int e, const int vdim, const int ncomp)
+{
+   real_t u[DIM * MAX_NQ];
+   real_t grads[DIM * MAX_NQ * 3];
+   real_t outg[DIM * MAX_NQ * 3];
+   GradApplyVdimElement<DIM, SYM>(
+      qfn, nq, ndof, G, Dv, X, Y, e, vdim, ncomp, u, grads, outg);
+}
+
+template <int DIM, int MAX_NQ, bool SYM, typename QFn>
+MFEM_HOST_DEVICE inline void GradApplyScalarScratch(
+   QFn qfn, const int nq, const int ndof,
+   const real_t *G, const real_t *Dv, const real_t *X, real_t *Y,
+   const int e)
+{
+   constexpr int PA = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   real_t u[DIM * MAX_NQ];
+   GradApplyDenseElement<DIM, SYM>(
+      qfn, nq, ndof, G, Dv + nq * PA * e,
+      X + ndof * e, Y + ndof * e, u);
+}
+
 template <int DIM, bool SYM, typename QFn>
 inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *G, const real_t *Dv,
@@ -1373,20 +1414,20 @@ inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
 {
    MFEM_VERIFY(vdim >= 1 && ncomp >= 1, "");
    const bool matrix_coeff = (ncomp == vdim * DIM);
+   auto *u = static_cast<real_t *>(
+                alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
+   real_t *grads = nullptr, *outg = nullptr;
+   if (matrix_coeff)
+   {
+      grads = static_cast<real_t *>(
+                 alloca(sizeof(real_t) *
+                        static_cast<size_t>(DIM * nq * vdim)));
+      outg = static_cast<real_t *>(
+                alloca(sizeof(real_t) *
+                       static_cast<size_t>(DIM * nq * vdim)));
+   }
    for (int e = 0; e < NE; ++e)
    {
-      auto *u = static_cast<real_t *>(
-                   alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
-      real_t *grads = nullptr, *outg = nullptr;
-      if (matrix_coeff)
-      {
-         grads = static_cast<real_t *>(
-                    alloca(sizeof(real_t) *
-                           static_cast<size_t>(DIM * nq * vdim)));
-         outg = static_cast<real_t *>(
-                   alloca(sizeof(real_t) *
-                          static_cast<size_t>(DIM * nq * vdim)));
-      }
       GradApplyVdimElement<DIM, SYM>(
          qfn, nq, ndof, G, Dv, X, Y, e, vdim, ncomp, u, grads, outg);
    }
@@ -1844,10 +1885,9 @@ ApplySimplex(const int NE,
    const int ncomp_c = ncomp;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t u[DIM * MQ], grads[DIM * MQ * 3], outg[DIM * MQ * 3];
       MFEM_ASSERT(vdim <= 3, "");
-      GradApplyVdimElement<DIM, SYM>(
-         qfn, QND, ndof, G, Dv, X, Y, e, vdim, ncomp_c, u, grads, outg);
+      GradApplyVdimScratch<DIM, MQ, SYM>(
+         qfn, QND, ndof, G, Dv, X, Y, e, vdim, ncomp_c);
    });
 }
 
@@ -1900,10 +1940,16 @@ ApplySimplex(const int NE,
       auto Y = y.ReadWrite();
       mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
-         real_t u[DIM * max_nq];
-         GradApplyDenseElement<DIM, SYM>(
-            qfn, nq, ndof, G, Dv + nq * PA_SIZE * e,
-            X + ndof * e, Y + ndof * e, u);
+         if constexpr (DIM == 2)
+         {
+            GradApplyScalarScratch<2, SimplexMaxNq<2, 0>(), SYM>(
+               qfn, nq, ndof, G, Dv, X, Y, e);
+         }
+         else
+         {
+            GradApplyScalarScratch<3, SimplexMaxNq<3, 0>(), SYM>(
+               qfn, nq, ndof, G, Dv, X, Y, e);
+         }
       });
       return;
    }
@@ -1947,24 +1993,21 @@ ApplySimplex(const int NE,
    constexpr bool SYM = Tr::symmetric_pa;
    constexpr int PA_VEC = DIM * DIM;
    MFEM_VERIFY(d.Size() % (PA_VEC * NE) == 0, "");
-   // Infer nq / ncomp from basis (nq*ndof*DIM) and d (nq*PA_VEC*ncomp*NE).
+   // The E-vector fixes ndof. The first divisor of (basis, d) is not unique.
    MFEM_VERIFY(basis.Size() % DIM == 0, "");
+   MFEM_VERIFY(x.Size() % (vdim * NE) == 0,
+               "VectorDiffusion MMA: bad E-vector");
+   const int ndof = x.Size() / (vdim * NE);
    const int basis_nd = basis.Size() / DIM;
-   int nq = -1, ncomp = -1, ndof = -1;
-   for (int nc : {1, vdim, vdim * DIM})
-   {
-      if (d.Size() % (PA_VEC * nc * NE) != 0) { continue; }
-      const int nq_try = d.Size() / (PA_VEC * nc * NE);
-      if (nq_try > 0 && basis_nd % nq_try == 0)
-      {
-         nq = nq_try;
-         ncomp = nc;
-         ndof = basis_nd / nq_try;
-         break;
-      }
-   }
-   MFEM_VERIFY(nq > 0 && ncomp > 0, "VectorDiffusion MMA: bad PA size");
-   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+   MFEM_VERIFY(ndof > 0 && basis_nd % ndof == 0,
+               "VectorDiffusion MMA: bad basis");
+   const int nq = basis_nd / ndof;
+   MFEM_VERIFY(nq > 0 && d.Size() % (PA_VEC * nq * NE) == 0,
+               "VectorDiffusion MMA: bad PA size");
+   const int ncomp = d.Size() / (PA_VEC * nq * NE);
+   MFEM_VERIFY(ncomp == 1 || ncomp == vdim || ncomp == vdim * DIM,
+               "VectorDiffusion MMA: bad ncomp");
+   MFEM_VERIFY(y.Size() >= ndof * vdim * NE, "");
 
    if (vdim == 1 && ncomp == 1)
    {
@@ -1992,10 +2035,17 @@ ApplySimplex(const int NE,
    const int nq_c = nq, ndof_c = ndof, ncomp_c = ncomp;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t u[DIM * max_nq], grads[DIM * max_nq * 3], outg[DIM * max_nq * 3];
       MFEM_ASSERT(vdim <= 3, "");
-      GradApplyVdimElement<DIM, SYM>(
-         qfn, nq_c, ndof_c, G, Dv, X, Y, e, vdim, ncomp_c, u, grads, outg);
+      if constexpr (DIM == 2)
+      {
+         GradApplyVdimScratch<2, SimplexMaxNq<2, 0>(), SYM>(
+            qfn, nq_c, ndof_c, G, Dv, X, Y, e, vdim, ncomp_c);
+      }
+      else
+      {
+         GradApplyVdimScratch<3, SimplexMaxNq<3, 0>(), SYM>(
+            qfn, nq_c, ndof_c, G, Dv, X, Y, e, vdim, ncomp_c);
+      }
    });
 }
 

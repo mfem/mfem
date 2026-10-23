@@ -315,6 +315,10 @@ void PAHdivMassApply2D(const int NE, const bool symmetric, const bool,
 {
    MFEM_VERIFY(D1D == TestD1D,
                "Trial and test spaces must have same number of dofs");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
@@ -326,9 +330,8 @@ void PAHdivMassApply2D(const int NE, const bool symmetric, const bool,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int VDIM = 2;
-      // RT_p tensor GL q=p+2 uses D1D=Q1D=p+2 (p=6 → 8), above CUDA HDIV_MAX_*=5/6
-      constexpr static int MAX_D1D = 8;
-      constexpr static int MAX_Q1D = 8;
+      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
 
       real_t mass[MAX_Q1D][MAX_Q1D][VDIM];
 
@@ -443,11 +446,10 @@ void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
 {
    MFEM_VERIFY(D1D == TestD1D,
                "Trial and test spaces must have same number of dofs");
-   // RT_p tensor GL q=p+2 uses D1D=Q1D=p+2 (p=6 → 8), above CUDA HDIV_MAX_*=5/6
-   constexpr int MD = 8;
-   constexpr int MQ = 8;
-   MFEM_VERIFY(D1D <= MD, "Error: D1D > 8");
-   MFEM_VERIFY(Q1D <= MQ, "Error: Q1D > 8");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -460,6 +462,8 @@ void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int MD = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ = DofQuadLimits::HDIV_MAX_Q1D;
       real_t mass[MQ][MQ][MQ][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -837,11 +841,10 @@ void PADivDivApply2D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
-   // RT_p tensor GL q=p+2 uses D1D=Q1D=p+2 (p=6 → 8), above CUDA HDIV_MAX_*=5/6
-   constexpr int MD = 8;
-   constexpr int MQ = 8;
-   MFEM_VERIFY(D1D <= MD, "Error: D1D > 8");
-   MFEM_VERIFY(Q1D <= MQ, "Error: Q1D > 8");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
@@ -854,6 +857,8 @@ void PADivDivApply2D(const int D1D,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int VDIM = 2;
+      constexpr int MD = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ = DofQuadLimits::HDIV_MAX_Q1D;
 
       real_t div[MQ][MQ];
 
@@ -960,11 +965,10 @@ void PADivDivApply3D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
-   // RT_p tensor GL q=p+2 uses D1D=Q1D=p+2 (p=6 → 8), above CUDA HDIV_MAX_*=5/6
-   constexpr int MD = 8;
-   constexpr int MQ = 8;
-   MFEM_VERIFY(D1D <= MD, "Error: D1D > 8");
-   MFEM_VERIFY(Q1D <= MQ, "Error: Q1D > 8");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    constexpr static int VDIM = 3;
 
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
@@ -977,6 +981,8 @@ void PADivDivApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int MD = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ = DofQuadLimits::HDIV_MAX_Q1D;
       real_t div[MQ][MQ][MQ];
 
       for (int qz = 0; qz < Q1D; ++qz)

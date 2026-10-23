@@ -219,7 +219,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    }
 
    // Use CEED backend if available
-   if (DeviceCanUseCeed()) { return ceedOp->AddMult(x, y); }
+   if (ceedOp) { return ceedOp->AddMult(x, y); }
 
    // Add the VectorMassAddMultPA specializations
    static const auto vector_mass_kernel_specializations =
@@ -262,7 +262,7 @@ void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
-   if (DeviceCanUseCeed()) { return ceedOp->GetDiagonal(diag); }
+   if (ceedOp) { return ceedOp->GetDiagonal(diag); }
 
    MFEM_VERIFY(coeff_vdim == 1, "coeff_vdim != 1");
    MFEM_VERIFY(!VQ && !MQ, "VQ and MQ not supported");
