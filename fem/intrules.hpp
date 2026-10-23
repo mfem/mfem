@@ -1,0 +1,709 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_INTRULES
+#define MFEM_INTRULES
+
+#include "../config/config.hpp"
+#include "../general/array.hpp"
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+#include <omp.h>
+#endif
+
+#include <vector>
+#include <map>
+
+namespace mfem
+{
+
+class KnotVector;
+class Mesh;
+
+/* Classes for IntegrationPoint, IntegrationRule, and container class
+   IntegrationRules.  Declares the global variable IntRules */
+
+/// Class for integration point with weight
+class IntegrationPoint
+{
+public:
+   real_t x, y, z, t, weight;
+   int index;
+
+   void Init(int const i)
+   {
+      x = y = z = t = weight = 0.0;
+      index = i;
+   }
+    
+   void Set4w(const double *p) { x = p[0]; y = p[1]; z = p[2]; t = p[3]; weight = p[4]; }
+
+   void Set4w(const double x1, const double x2, const double x3, const double x4,
+                   const double w)
+   { x = x1; y = x2; z = x3; t = x4; weight = w; }
+
+   void Set4(const double *p) { x = p[0]; y = p[1]; z = p[2]; t = p[3]; }
+
+   void Set4(const double x1, const double x2, const double x3, const double x4)
+   { x = x1; y = x2; z = x3; t = x4; }
+
+   void Set3w(const real_t x1, const real_t x2, const real_t x3, const real_t w)
+   { x = x1; y = x2; z = x3; weight = w; }
+   void Set2w(const real_t x1, const real_t x2, const real_t w)
+   { x = x1; y = x2; weight = w; }
+   void Set1w(const real_t x1, const real_t w)
+   { x = x1; weight = w; }
+
+   void Set3w(const real_t *p) { Set3w(p[0], p[1], p[2], p[3]); }
+   void Set2w(const real_t *p) { Set2w(p[0], p[1], p[2]); }
+   void Set1w(const real_t *p) { Set1w(p[0], p[1]); }
+
+   void Set3(const real_t x1, const real_t x2, const real_t x3)
+   { x = x1; y = x2; z = x3; }
+   void Set2(const real_t x1, const real_t x2)
+   { x = x1; y = x2; }
+   void Set1(const real_t x1)
+   { x = x1; }
+
+   void Set3(const real_t *p) { Set3(p[0], p[1], p[2]); }
+   void Set2(const real_t *p) { Set2(p[0], p[1]); }
+   void Set1(const real_t *p) { Set1(p[0]); }
+
+   void Set(const real_t x1, const real_t x2, const real_t x3, const real_t w)
+   { Set3w(x1, x2, x3, w); }
+
+   void Set(const real_t *p, const int dim)
+   {
+
+      MFEM_ASSERT(1 <= dim && dim <= 4, "invalid dim: " << dim);
+      x = p[0];
+      if (dim > 1)
+      {
+         y = p[1];
+         if (dim > 2)
+         {
+            z = p[2];
+         }
+         if (dim > 3)
+         {
+             t = p[3];
+         }
+      }
+   }
+
+   void Get(real_t *p, const int dim) const
+   {
+
+      MFEM_ASSERT(1 <= dim && dim <= 4, "invalid dim: " << dim);
+      p[0] = x;
+      if (dim > 1)
+      {
+         p[1] = y;
+         if (dim > 2)
+         {
+            p[2] = z;
+         }
+         if (dim > 3)
+         {
+            p[3] = t;
+         }
+      }
+   }
+    
+};
+
+/// Class for an integration rule - an Array of IntegrationPoint.
+class IntegrationRule : public Array<IntegrationPoint>
+{
+private:
+   friend class IntegrationRules;
+   int Order = 0;
+   /** @brief The quadrature weights gathered as a contiguous array. Created
+       by request with the method GetWeights(). */
+   mutable Array<real_t> weights;
+
+   /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
+   void GrundmannMollerSimplexRule(int s, int n = 3);
+    
+   void AddTriPoint(const int off, const real_t weight)
+   { IntPoint(off).Set2w(1./2., 1./2., weight); }
+    
+   void AddTriMidPoint(const int off, const real_t weight)
+   { IntPoint(off).Set2w(1./3., 1./3., weight); }
+
+   void AddTriPoints3(const int off, const real_t a, const real_t b,
+                      const real_t weight)
+   {
+      IntPoint(off + 0).Set2w(a, a, weight);
+      IntPoint(off + 1).Set2w(a, b, weight);
+      IntPoint(off + 2).Set2w(b, a, weight);
+   }
+
+   void AddTriPoints3(const int off, const real_t a, const real_t weight)
+   { AddTriPoints3(off, a, 1. - 2.*a, weight); }
+
+   void AddTriPoints3b(const int off, const real_t b, const real_t weight)
+   { AddTriPoints3(off, (1. - b)/2., b, weight); }
+
+   void AddTriPoints6(const int off, const real_t a, const real_t b,
+                      const real_t c, const real_t weight)
+   {
+      IntPoint(off + 0).Set2w(a, b, weight);
+      IntPoint(off + 1).Set2w(b, a, weight);
+      IntPoint(off + 2).Set2w(a, c, weight);
+      IntPoint(off + 3).Set2w(c, a, weight);
+      IntPoint(off + 4).Set2w(b, c, weight);
+      IntPoint(off + 5).Set2w(c, b, weight);
+   }
+
+   void AddTriPoints6(const int off, const real_t a, const real_t b,
+                      const real_t weight)
+   { AddTriPoints6(off, a, b, 1. - a - b, weight); }
+
+   // add the permutations of (a,a,b)
+   void AddTetPoints3(const int off, const real_t a, const real_t b,
+                      const real_t weight)
+   {
+      IntPoint(off + 0).Set(a, a, b, weight);
+      IntPoint(off + 1).Set(a, b, a, weight);
+      IntPoint(off + 2).Set(b, a, a, weight);
+   }
+
+   // add the permutations of (a,b,c)
+   void AddTetPoints6(const int off, const real_t a, const real_t b,
+                      const real_t c, const real_t weight)
+   {
+      IntPoint(off + 0).Set(a, b, c, weight);
+      IntPoint(off + 1).Set(a, c, b, weight);
+      IntPoint(off + 2).Set(b, c, a, weight);
+      IntPoint(off + 3).Set(b, a, c, weight);
+      IntPoint(off + 4).Set(c, a, b, weight);
+      IntPoint(off + 5).Set(c, b, a, weight);
+   }
+    
+    void AddTetPoint(const int off, const double x, const double y, const double z, double weight)
+    {
+       IntPoint(off).Set3w(x, y, z, weight);
+    }
+
+   void AddTetMidPoint(const int off, const real_t weight)
+   { IntPoint(off).Set(0.25, 0.25, 0.25, weight); }
+
+   // given a, add the permutations of (a,a,a,b), where 3*a + b = 1
+   void AddTetPoints4(const int off, const real_t a, const real_t weight)
+   {
+      IntPoint(off).Set(a, a, a, weight);
+      AddTetPoints3(off + 1, a, 1. - 3.*a, weight);
+   }
+    
+   // given b, add the permutations of (a,a,a,b), where 3*a + b = 1
+   void AddTetPoints4b(const int off, const real_t b, const real_t weight)
+    {
+      const real_t a = (1. - b)/3.;
+      IntPoint(off).Set(a, a, a, weight);
+      AddTetPoints3(off + 1, a, b, weight);
+    }
+
+   // add the permutations of (a,a,b,b), 2*(a + b) = 1
+   void AddTetPoints6(const int off, const real_t a, const real_t weight)
+   {
+      const real_t b = 0.5 - a;
+      AddTetPoints3(off,     a, b, weight);
+      AddTetPoints3(off + 3, b, a, weight);
+   }
+
+   // given (a,b) or (a,c), add the permutations of (a,a,b,c), 2*a + b + c = 1
+   void AddTetPoints12(const int off, const real_t a, const real_t bc,
+                       const real_t weight)
+   {
+      const real_t cb = 1. - 2*a - bc;
+      AddTetPoints3(off,     a, bc, weight);
+      AddTetPoints3(off + 3, a, cb, weight);
+      AddTetPoints6(off + 6, a, bc, cb, weight);
+   }
+
+   // add all 24 permutations of (a,b,c,d) where a+b+c+d = 1, all distinct
+   void AddTetPoints24(const int off, const real_t a, const real_t b,
+                       const real_t c, const real_t weight)
+   {
+      const real_t d = 1. - a - b - c;
+      // all 24 permutations of 4 distinct barycentric coordinates
+      // permuting which coordinate goes to x, y, z (4th is 1-x-y-z)
+      IntPoint(off +  0).Set(a, b, c, weight);
+      IntPoint(off +  1).Set(a, b, d, weight);
+      IntPoint(off +  2).Set(a, c, b, weight);
+      IntPoint(off +  3).Set(a, c, d, weight);
+      IntPoint(off +  4).Set(a, d, b, weight);
+      IntPoint(off +  5).Set(a, d, c, weight);
+      IntPoint(off +  6).Set(b, a, c, weight);
+      IntPoint(off +  7).Set(b, a, d, weight);
+      IntPoint(off +  8).Set(b, c, a, weight);
+      IntPoint(off +  9).Set(b, c, d, weight);
+      IntPoint(off + 10).Set(b, d, a, weight);
+      IntPoint(off + 11).Set(b, d, c, weight);
+      IntPoint(off + 12).Set(c, a, b, weight);
+      IntPoint(off + 13).Set(c, a, d, weight);
+      IntPoint(off + 14).Set(c, b, a, weight);
+      IntPoint(off + 15).Set(c, b, d, weight);
+      IntPoint(off + 16).Set(c, d, a, weight);
+      IntPoint(off + 17).Set(c, d, b, weight);
+      IntPoint(off + 18).Set(d, a, b, weight);
+      IntPoint(off + 19).Set(d, a, c, weight);
+      IntPoint(off + 20).Set(d, b, a, weight);
+      IntPoint(off + 21).Set(d, b, c, weight);
+      IntPoint(off + 22).Set(d, c, a, weight);
+      IntPoint(off + 23).Set(d, c, b, weight);
+   }
+    
+    void AddPentMidPoint(const int off, const double weight)
+   { IntPoint(off).Set4w(0.25, 0.25, 0.25, 0.25, weight); }
+
+   void AddPentPoint(const int off, const double x, const double y, const double z,
+                     const double t, double weight)
+   {
+      IntPoint(off).Set4w(x, y, z, t, weight);
+   }
+
+   // given (a), add the permuations of (a,a,a,a,b), b = 1 - 4*a
+   void AddPentPoints5(const int off, const double a,
+                       double weight)
+   {
+      const double b = 1. - 4 * a;
+      IntPoint(off + 0).Set4w(a, a, a, a, weight);
+      IntPoint(off + 1).Set4w(b, a, a, a, weight);
+      IntPoint(off + 2).Set4w(a, b, a, a, weight);
+      IntPoint(off + 3).Set4w(a, a, b, a, weight);
+      IntPoint(off + 4).Set4w(a, a, a, b, weight);
+   }
+
+   // given (a,b), add the permuations of (a,a,a,b,b)
+   void AddPentPoints10(const int off, const double a, const double b, double weight)
+   {
+      IntPoint(off + 0).Set4w(a, a, a, b, weight);
+      IntPoint(off + 1).Set4w(a, a, b, a, weight);
+      IntPoint(off + 2).Set4w(a, a, b, b, weight);
+      IntPoint(off + 3).Set4w(a, b, a, a, weight);
+      IntPoint(off + 4).Set4w(a, b, a, b, weight);
+      IntPoint(off + 5).Set4w(a, b, b, a, weight);
+      IntPoint(off + 6).Set4w(b, a, a, a, weight);
+      IntPoint(off + 7).Set4w(b, a, a, b, weight);
+      IntPoint(off + 8).Set4w(b, a, b, a, weight);
+      IntPoint(off + 9).Set4w(b, b, a, a, weight);
+   }
+
+   // given (a,b,c), add the permuations of (a,a,a,b,c), c = 1 - 3 a - b
+   void AddPentPoints20(const int off, const double a, const double b, double weight)
+   {
+      const double c = 1. - 3. * a - b;
+      IntPoint(off + 0).Set4w(a, a, a, b, weight);
+      IntPoint(off + 1).Set4w(a, a, a, c, weight);
+      IntPoint(off + 2).Set4w(a, a, b, a, weight);
+      IntPoint(off + 3).Set4w(a, a, b, c, weight);
+      IntPoint(off + 4).Set4w(a, a, c, a, weight);
+      IntPoint(off + 5).Set4w(a, a, c, b, weight);
+      IntPoint(off + 6).Set4w(a, b, a, a, weight);
+      IntPoint(off + 7).Set4w(a, b, a, c, weight);
+      IntPoint(off + 8).Set4w(a, b, c, a, weight);
+      IntPoint(off + 9).Set4w(a, c, a, a, weight);
+      IntPoint(off + 10).Set4w(a, c, a, b, weight);
+      IntPoint(off + 11).Set4w(a, c, b, a, weight);
+      IntPoint(off + 12).Set4w(b, a, a, a, weight);
+      IntPoint(off + 13).Set4w(b, a, a, c, weight);
+      IntPoint(off + 14).Set4w(b, a, c, a, weight);
+      IntPoint(off + 15).Set4w(b, c, a, a, weight);
+      IntPoint(off + 16).Set4w(c, a, a, a, weight);
+      IntPoint(off + 17).Set4w(c, a, a, b, weight);
+      IntPoint(off + 18).Set4w(c, a, b, a, weight);
+      IntPoint(off + 19).Set4w(c, b, a, a, weight);
+   }
+   // given (a,b,c), add the permutations of (a,a,b,b,c), c = 1 - 2 a - 2 b
+   void AddPentPoints30(const int off, const double a, const double b, double weight)
+   {
+      double c = 1. - 2. * a - 2. * b;
+      IntPoint(off + 0).Set4w(a, a, b, b, weight);
+      IntPoint(off + 1).Set4w(a, a, b, c, weight);
+      IntPoint(off + 2).Set4w(a, a, c, b, weight);
+      IntPoint(off + 3).Set4w(a, b, a, b, weight);
+      IntPoint(off + 4).Set4w(a, b, a, c, weight);
+      IntPoint(off + 5).Set4w(a, b, b, a, weight);
+      IntPoint(off + 6).Set4w(a, b, b, c, weight);
+      IntPoint(off + 7).Set4w(a, b, c, a, weight);
+      IntPoint(off + 8).Set4w(a, b, c, b, weight);
+      IntPoint(off + 9).Set4w(a, c, a, b, weight);
+      IntPoint(off + 10).Set4w(a, c, b, a, weight);
+      IntPoint(off + 11).Set4w(a, c, b, b, weight);
+      IntPoint(off + 12).Set4w(b, a, a, b, weight);
+      IntPoint(off + 13).Set4w(b, a, a, c, weight);
+      IntPoint(off + 14).Set4w(b, a, b, a, weight);
+      IntPoint(off + 15).Set4w(b, a, b, c, weight);
+      IntPoint(off + 16).Set4w(b, a, c, a, weight);
+      IntPoint(off + 17).Set4w(b, a, c, b, weight);
+      IntPoint(off + 18).Set4w(b, b, a, a, weight);
+      IntPoint(off + 19).Set4w(b, b, a, c, weight);
+      IntPoint(off + 20).Set4w(b, b, c, a, weight);
+      IntPoint(off + 21).Set4w(b, c, a, a, weight);
+      IntPoint(off + 22).Set4w(b, c, a, b, weight);
+      IntPoint(off + 23).Set4w(b, c, b, a, weight);
+      IntPoint(off + 24).Set4w(c, a, a, b, weight);
+      IntPoint(off + 25).Set4w(c, a, b, a, weight);
+      IntPoint(off + 26).Set4w(c, a, b, b, weight);
+      IntPoint(off + 27).Set4w(c, b, a, a, weight);
+      IntPoint(off + 28).Set4w(c, b, a, b, weight);
+      IntPoint(off + 29).Set4w(c, b, b, a, weight);
+   }
+
+public:
+   IntegrationRule() :
+      Array<IntegrationPoint>() { }
+
+   /// Construct an integration rule with given number of points
+   explicit IntegrationRule(int NP) :
+      Array<IntegrationPoint>(NP)
+   {
+      for (int i = 0; i < this->Size(); i++)
+      {
+         (*this)[i].Init(i);
+      }
+   }
+
+   /// Sets the indices of each quadrature point on initialization.
+   /** Note that most calls to IntegrationRule::SetSize should be paired with a
+       call to SetPointIndices in order for the indices to be set correctly. */
+   void SetPointIndices();
+
+   /// Tensor product of two 1D integration rules
+   IntegrationRule(IntegrationRule &irx, IntegrationRule &iry);
+
+   /// Tensor product of three 1D integration rules
+   IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
+                   IntegrationRule &irz);
+
+   /// Returns the order of the integration rule
+   int GetOrder() const { return Order; }
+
+   /** @brief Sets the order of the integration rule. This is only for keeping
+       order information, it does not alter any data in the IntegrationRule. */
+   void SetOrder(const int order) { Order = order; }
+
+   /// Returns the number of the points in the integration rule
+   int GetNPoints() const { return Size(); }
+
+   /// Returns a reference to the i-th integration point
+   IntegrationPoint &IntPoint(int i) { return (*this)[i]; }
+
+   /// Returns a const reference to the i-th integration point
+   const IntegrationPoint &IntPoint(int i) const { return (*this)[i]; }
+
+   /// Return the quadrature weights in a contiguous array.
+   /** If a contiguous array is not required, the weights can be accessed with
+       a call like this: `IntPoint(i).weight`. */
+   const Array<real_t> &GetWeights() const;
+
+   /// @brief Return an integration rule for KnotVector @a kv, defined by
+   /// applying this rule on each knot interval.
+   IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+
+   /** @brief  Returns an integration rule such that the new IntegrationPoints
+    *  are re-ordered based on @a ordering.
+    *
+    *  @details In the new integration rule, ip_new[i] = ip_old[ordering[i]]
+    */
+   IntegrationRule Reorder(const Array<int> &ordering) const;
+
+   /// Destroys an IntegrationRule object
+   ~IntegrationRule() { }
+};
+
+/// Class for defining different integration rules on each NURBS patch.
+class NURBSMeshRules
+{
+public:
+   /// Construct a rule for each patch, using SetPatchRules1D.
+   NURBSMeshRules(const int numPatches, const int dim_) :
+      patchRules1D(numPatches, dim_),
+      npatches(numPatches), dim(dim_) { }
+
+   /// Returns a rule for the element.
+   IntegrationRule &GetElementRule(const int elem, const int patch,
+                                   const int *ijk,
+                                   Array<const KnotVector*> const& kv) const;
+
+   /// Add a rule to be used for individual elements. Returns the rule index.
+   std::size_t AddElementRule(IntegrationRule *ir_element)
+   {
+      elementRule.push_back(ir_element);
+      return elementRule.size() - 1;
+   }
+
+   /// @brief Set the integration rule for the element of the given index. This
+   /// rule is used instead of the rule for the patch containing the element.
+   void SetElementRule(const std::size_t element,
+                       const std::size_t elementRuleIndex)
+   {
+      elementToRule[element] = elementRuleIndex;
+   }
+
+   /// @brief Set 1D integration rules to be used as a tensor product rule on
+   /// the patch with index @a patch. This class takes ownership of these rules.
+   void SetPatchRules1D(const int patch,
+                        std::vector<const IntegrationRule*> & ir1D);
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return a pointer to the 1D rule in the specified
+   /// @a dimension.
+   const IntegrationRule* GetPatchRule1D(const int patch,
+                                         const int dimension) const
+   {
+      return patchRules1D(patch, dimension);
+   }
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), return the integration point with index (i,j,k).
+   void GetIntegrationPointFrom1D(const int patch, int i, int j, int k,
+                                  IntegrationPoint & ip);
+
+   /// @brief Finalize() must be called before this class can be used for
+   /// assembly. In particular, it defines data used by GetPointElement().
+   void Finalize(Mesh const& mesh);
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns the index of the element containing
+   /// integration point (i,j,k) for patch index @a patch. Finalize() must be
+   /// called first.
+   int GetPointElement(int patch, int i, int j, int k) const
+   {
+      return pointToElem[patch](i,j,k);
+   }
+
+   int GetDim() const { return dim; }
+
+   /// @brief For tensor product rules defined on each patch by
+   /// SetPatchRules1D(), returns an array of knot span indices for each
+   /// integration point in the specified @a dimension.
+   const Array<int>& GetPatchRule1D_KnotSpan(const int patch,
+                                             const int dimension) const
+   {
+      return patchRules1D_KnotSpan[patch][dimension];
+   }
+
+   ~NURBSMeshRules();
+
+private:
+   /// Tensor-product rules defined on all patches independently.
+   Array2D<const IntegrationRule*> patchRules1D;
+
+   /// Integration rules defined on elements.
+   std::vector<IntegrationRule*> elementRule;
+
+   std::map<std::size_t, std::size_t> elementToRule;
+
+   std::vector<Array3D<int>> pointToElem;
+   std::vector<std::vector<Array<int>>> patchRules1D_KnotSpan;
+
+#ifndef MFEM_THREAD_SAFE
+   // This is a temporary quadrature rule for integrating over the
+   // current element in an assembly loop. It may be modified when
+   // moving to a new element, and is therefore not thread-safe.
+   mutable IntegrationRule temporaryElementRule;
+#endif
+
+   const int npatches;
+   const int dim;
+};
+
+/// A Class that defines 1-D numerical quadrature rules on [0,1].
+class QuadratureFunctions1D
+{
+public:
+   /** @name Methods for calculating quadrature rules.
+       These methods calculate the actual points and weights for the different
+       types of quadrature rules. */
+   ///@{
+   static void GaussJacobi(const int np, const real_t alpha, const real_t beta,
+                           IntegrationRule* ir);
+   static void GaussLegendre(const int np, IntegrationRule* ir);
+   static void GaussLobatto(const int np, IntegrationRule *ir);
+   static void OpenUniform(const int np, IntegrationRule *ir);
+   static void ClosedUniform(const int np, IntegrationRule *ir);
+   static void OpenHalfUniform(const int np, IntegrationRule *ir);
+   static void ClosedGL(const int np, IntegrationRule *ir);
+   ///@}
+
+   /// A helper function that will play nice with Poly_1D::OpenPoints and
+   /// Poly_1D::ClosedPoints
+   static void GivePolyPoints(const int np, real_t *pts, const int type);
+
+private:
+   static void CalculateUniformWeights(IntegrationRule *ir, const int type);
+};
+
+/// A class container for 1D quadrature type constants.
+class Quadrature1D
+{
+public:
+   enum
+   {
+      Invalid         = -1,
+      GaussLegendre   = 0,
+      GaussLobatto    = 1,
+      OpenUniform     = 2,  ///< aka open Newton-Cotes
+      ClosedUniform   = 3,  ///< aka closed Newton-Cotes
+      OpenHalfUniform = 4,  ///< aka "open half" Newton-Cotes
+      ClosedGL        = 5   ///< aka closed Gauss Legendre
+   };
+   /** @brief If the Quadrature1D type is not closed return Invalid; otherwise
+       return type. */
+   static int CheckClosed(int type);
+   /** @brief If the Quadrature1D type is not open return Invalid; otherwise
+       return type. */
+   static int CheckOpen(int type);
+};
+
+/// Container class for integration rules
+class IntegrationRules
+{
+private:
+   /// Taken from the Quadrature1D class anonymous enum
+   /// Determines the type of numerical quadrature used for
+   /// segment, square, and cube geometries
+   const int quad_type;
+
+   int own_rules, refined;
+
+   Array<IntegrationRule *> PointIntRules;
+   Array<IntegrationRule *> SegmentIntRules;
+   Array<IntegrationRule *> TriangleIntRules;
+   Array<IntegrationRule *> SquareIntRules;
+   Array<IntegrationRule *> TetrahedronIntRules;
+   Array<IntegrationRule *> PyramidIntRules;
+   Array<IntegrationRule *> PrismIntRules;
+   Array<IntegrationRule *> CubeIntRules;
+   Array<IntegrationRule *> PentatopeIntRules;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   Array<omp_lock_t> IntRuleLocks;
+#endif
+
+   void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order) const
+   {
+      if (ir_array.Size() <= Order)
+      {
+         ir_array.SetSize(Order + 1, NULL);
+      }
+   }
+   bool HaveIntRule(Array<IntegrationRule *> &ir_array, int Order) const
+   {
+      return (ir_array.Size() > Order && ir_array[Order] != NULL);
+   }
+   int GetSegmentRealOrder(int Order) const
+   {
+      return Order | 1; // valid for all quad_type's
+   }
+   void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array) const;
+
+   /// The following methods allocate new IntegrationRule objects without
+   /// checking if they already exist.  To avoid memory leaks use
+   /// IntegrationRules::Get(int GeomType, int Order) instead.
+   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
+   IntegrationRule *PointIntegrationRule(int Order);
+   IntegrationRule *SegmentIntegrationRule(int Order);
+   IntegrationRule *TriangleIntegrationRule(int Order);
+   IntegrationRule *SquareIntegrationRule(int Order);
+   IntegrationRule *TetrahedronIntegrationRule(int Order);
+   IntegrationRule *PyramidIntegrationRule(int Order);
+   IntegrationRule *PrismIntegrationRule(int Order);
+   IntegrationRule *CubeIntegrationRule(int Order);
+   IntegrationRule *PentatopeIntegrationRule(int Order);
+
+public:
+   /// Sets initial sizes for the integration rule arrays, but rules
+   /// are defined the first time they are requested with the Get method.
+   explicit IntegrationRules(int ref = 0,
+                             int type = Quadrature1D::GaussLegendre);
+
+   /// Returns an integration rule for given GeomType and Order.
+   const IntegrationRule &Get(int GeomType, int Order);
+
+   void Set(int GeomType, int Order, IntegrationRule &IntRule);
+
+   void SetOwnRules(int o) { own_rules = o; }
+
+   /// Destroys an IntegrationRules object
+   ~IntegrationRules();
+};
+
+/// Container class for integration rules
+class StroudIntegrationRules
+{
+private:
+   Array<IntegrationRule *> SquareStroudIntRules;
+   Array<IntegrationRule *> TriangleStroudIntRules;
+   Array<IntegrationRule *> CubeStroudIntRules;
+   Array<IntegrationRule *> TetrahedronStroudIntRules;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   Array<omp_lock_t> IntRuleLocks;
+#endif
+
+   void AllocIntRule(Array<IntegrationRule *> &ir_array, int Order) const
+   {
+      if (ir_array.Size() <= Order)
+      {
+         ir_array.SetSize(Order + 1, NULL);
+      }
+   }
+   bool HaveIntRule(Array<IntegrationRule *> &ir_array, int Order) const
+   {
+      return (ir_array.Size() > Order && ir_array[Order] != NULL);
+   }
+   int GetSegmentRealOrder(int Order) const
+   {
+      return Order | 1; // valid for all quad_type's
+   }
+   void DeleteIntRuleArray(Array<IntegrationRule *> &ir_array) const;
+
+   /// The following methods allocate new IntegrationRule objects without
+   /// checking if they already exist.  To avoid memory leaks use
+   /// IntegrationRules::Get(int GeomType, int Order) instead.
+   IntegrationRule *GenerateIntegrationRule(int GeomType, int Order);
+   IntegrationRule *TriangleStroudIntegrationRule(int Order);
+   IntegrationRule *TetrahedronStroudIntegrationRule(int Order);
+
+public:
+   /// Sets initial sizes for the integration rule arrays, but rules
+   /// are defined the first time they are requested with the Get method.
+   explicit StroudIntegrationRules();
+
+   /// Returns a Stroud integration rule for given GeomType and Order.
+   const IntegrationRule &Get(int GeomType, int Order);
+
+   /// Destroys an StroudIntegrationRules object
+   ~StroudIntegrationRules();
+};
+
+/// A global object with all integration rules (defined in intrules.cpp)
+extern MFEM_EXPORT IntegrationRules IntRules;
+
+/// A global object with all refined integration rules
+extern MFEM_EXPORT IntegrationRules RefinedIntRules;
+
+/// A global object with all Stroud integration rules (defined in intrules.cpp)
+extern MFEM_EXPORT StroudIntegrationRules StroudIntRules;
+
+/// Duffy Transformation of 2D and 3D tensor product rules of the form
+/// $X(t) = \sum_{i=1}^{d+1} \lambda_i(t) * x_i$, where $x_i$ are the vertices
+/// of the simplex and $\lambda_i = t_i * (1-\lambda_1-...-\lambda_{i-1})$, with
+/// $t$ being the coordinates in the unit square/cube. This function is used only
+/// in the partial assembly of Bernstein elements on simplices and does NOT
+/// modify the quadrature weights.
+IntegrationRule DuffyTrans(const IntegrationRule &ir, int dim);
+}
+
+#endif

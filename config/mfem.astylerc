@@ -1,0 +1,19 @@
+# MFEM formatting options for Artistic Style
+--style=allman
+--indent=spaces=3
+--keep-one-line-statements
+--keep-one-line-blocks
+--pad-header
+--max-code-length=80
+--max-instatement-indent=80
+--min-conditional-indent=0
+--indent-col1-comments
+--indent-labels
+--break-after-logical
+--add-brackets
+--indent-switches
+--convert-tabs
+--lineend=linux
+--suffix=none
+--preserve-date
+--formatted
