@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -34,7 +34,7 @@ jobs:
           NO_FLAGS: true
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-hypre@v2.7
+        uses: mfem/github-actions/build-hypre@v2.8
         with:
           archive: ${{env.HYPRE_TGZ}}
           dir: ${{env.HYPRE_DIR}}

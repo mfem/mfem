@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -331,6 +331,48 @@ TEST_CASE("DenseMatrix A^T*B methods",
    }
 }
 
+TEST_CASE("AddMult_a_AAt", "[DenseMatrix]")
+{
+   // The widths 1..3 take the specialized branches, 4 and 5 the generic
+   // fallback; the heights cover the element sizes the integrators use.
+   const int widths[] = { 1, 2, 3, 4, 5 };
+   const int heights[] = { 1, 3, 8, 27 };
+   const real_t a = 0.37;
+
+   for (const int w : widths)
+   {
+      for (const int h : heights)
+      {
+         DenseMatrix A(h, w), AAt(h, h), AAt_ref(h, h);
+         for (int k = 0; k < w; k++)
+         {
+            for (int i = 0; i < h; i++)
+            {
+               A(i, k) = 0.5*(i + 1) - 0.25*k + 0.1*((i*k) % 5);
+            }
+         }
+         // Non-zero initial value so the accumulation is exercised too.
+         AAt = 1.0;
+         AAt_ref = 1.0;
+
+         AddMult_a_AAt(a, A, AAt);
+
+         for (int i = 0; i < h; i++)
+         {
+            for (int j = 0; j < h; j++)
+            {
+               real_t d = 0.;
+               for (int k = 0; k < w; k++) { d += A(i, k)*A(j, k); }
+               AAt_ref(i, j) += a*d;
+            }
+         }
+
+         AAt.Add(-1.0, AAt_ref);
+         REQUIRE(AAt.MaxMaxNorm() < 1e-12);
+      }
+   }
+}
+
 TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 {
    real_t tol = 1e-12;
@@ -493,6 +535,64 @@ TEST_CASE("Batched Linear Algebra",
       }
    }
 }
+
+#ifdef MFEM_USE_EXCEPTIONS
+namespace
+{
+
+DenseTensor MakeSingularBatchedMatrices()
+{
+   const int n = 3;
+   const int n_mat = 3;
+
+   DenseTensor A_batch(n, n, n_mat);
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix &A = A_batch(i);
+      A = 0.0;
+      for (int j = 0; j < n; ++j)
+      {
+         A(j, j) = 2.0 + i + j;
+      }
+   }
+
+   DenseMatrix &singular = A_batch(1);
+   singular = 0.0;
+   singular(0, 0) = 1.0;
+   singular(2, 2) = 1.0;
+
+   return A_batch;
+}
+
+}
+
+TEST_CASE("Batched LU factorization failure handling",
+          "[DenseMatrix][GPU]")
+{
+   auto backend = GENERATE(BatchedLinAlg::NATIVE,
+                           BatchedLinAlg::GPU_BLAS,
+                           BatchedLinAlg::MAGMA);
+   if (!BatchedLinAlg::IsAvailable(backend)) { return; }
+   CAPTURE(backend);
+
+   SECTION("LUFactor")
+   {
+      DenseTensor A_batch = MakeSingularBatchedMatrices();
+      Array<int> P;
+      REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).LUFactor(A_batch, P),
+                          Catch::Matchers::Contains(
+                             "Batch LU factorization failed"));
+   }
+
+   SECTION("Invert")
+   {
+      DenseTensor A_batch = MakeSingularBatchedMatrices();
+      REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).Invert(A_batch),
+                          Catch::Matchers::Contains(
+                             "Batch LU factorization failed"));
+   }
+}
+#endif
 
 TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
 {
