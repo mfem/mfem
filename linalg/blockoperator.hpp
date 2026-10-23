@@ -87,15 +87,15 @@ public:
    template<typename T, typename std::enable_if<
                std::is_arithmetic<T>::value &&
                !std::is_same<T, bool>::value, int>::type = 0>
-   void SetDiagonalBlock(int iblock, Operator *op, T c)
-   { SetDiagonalBlock(iblock, op, static_cast<real_t>(c)); }
+   void SetDiagonalBlock(int iblock, Operator *opt, T c)
+   { SetDiagonalBlock(iblock, opt, static_cast<real_t>(c)); }
    //! Accept any non-bool arithmetic type as the coefficient (avoids an
    //! ambiguous conversion to bool @a own).
    template<typename T, typename std::enable_if<
                std::is_arithmetic<T>::value &&
                !std::is_same<T, bool>::value, int>::type = 0>
-   void SetBlock(int iRow, int iCol, Operator *op, T c)
-   { SetBlock(iRow, iCol, op, static_cast<real_t>(c)); }
+   void SetBlock(int iRow, int iCol, Operator *opt, T c)
+   { SetBlock(iRow, iCol, opt, static_cast<real_t>(c)); }
 
    //! Add a block op in the block-entry (iblock, jblock). The ownership
    //! of the block will not be changed.
