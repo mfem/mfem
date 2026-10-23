@@ -11,6 +11,9 @@
 Version 4.10.1 (development)
 ============================
 
+- Added DenseMatrixStack for storing stacks of dense matrices with
+  layer-specific dimensions, including rectangular local operators.
+
 Discretization improvements
 ---------------------------
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
