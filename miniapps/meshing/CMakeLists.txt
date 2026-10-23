@@ -14,6 +14,7 @@ set(MESH_FILES
   blade.mesh
   cube.mesh
   cube-tet.mesh
+  cube01.mesh
   icf.mesh
   jagged.mesh
   square01.mesh
@@ -155,6 +156,12 @@ if (MFEM_USE_MPI)
     MAIN pref321.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(tmop-tangent
+    MAIN tmop-tangent.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+  add_dependencies(tmop-tangent copy_miniapps_meshing_data)
+
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
@@ -165,6 +172,7 @@ if (MFEM_USE_MPI)
       pminimal-surface
       phpref
       pref321
+      tmop-tangent
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)

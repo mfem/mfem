@@ -24,7 +24,7 @@ SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	ref321 mesh-quality hpref
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
-	phpref pref321 mesh-bounding-boxes
+	phpref pref321 mesh-bounding-boxes tmop-tangent
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -57,8 +57,9 @@ lib-common:
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
 ifneq ($(SRC),)
-MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
-jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh stretched3D.mesh
+MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh cube01.mesh\
+icf.mesh jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh\
+stretched3D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer pmesh-fitting fit-node-position: | $(MESH_FILES)
@@ -125,6 +126,7 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -f tmop-tangent.mesh tmop-tangent.gf
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh*
 	@rm -f toroid-*.mesh twist-*.mesh trimmer.mesh reflected.mesh
 	@rm -f partitioning.txt shaper.mesh extruder.mesh ref321.mesh sol.gf
