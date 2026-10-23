@@ -591,6 +591,75 @@ TEST_CASE("Serial-parallel Comparison for Variable Order FiniteElementSpace",
    Mesh mesh = MakeCartesianMesh(4, dimension);
    TestRandomPRefinement(mesh);
 }
+
+// Variable-order H1 spaces with base order > 1 have shared edge and face DOFs,
+// whose variants can differ between the ranks sharing them.
+TEST_CASE("Parallel Variable Order Group Communication",
+          "[FiniteElementSpace]"
+          "[NCMesh][Parallel]")
+{
+   const int dimension = GENERATE(2, 3);
+   const int base_order = GENERATE(2, 3);
+   enum class Orders { ByRank, Alternating, Lowered };
+   const auto orders = GENERATE(Orders::ByRank, Orders::Alternating,
+                                Orders::Lowered);
+   CAPTURE(dimension, base_order, int(orders));
+
+   Mesh mesh = MakeCartesianMesh(dimension == 2 ? 4 : 3, dimension);
+   mesh.EnsureNCMesh();
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+
+   H1_FECollection fec(base_order, dimension);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   const int rank = pmesh.GetMyRank();
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      int p = 1;
+      if (orders == Orders::ByRank) { p = base_order + rank%2; }
+      else if (orders == Orders::Alternating) { p = base_order + (e+rank)%2; }
+      pfes.SetElementOrder(e, p);
+   }
+   pfes.Update(false);
+
+   // All communicated DOFs must be valid local DOFs.
+   const Table &group_ldof = pfes.GroupComm().GroupLDofTable();
+   for (int j = 0; j < group_ldof.Size_of_connections(); j++)
+   {
+      const int ldof = group_ldof.GetJ()[j];
+      REQUIRE((ldof >= 0 && ldof < pfes.GetVSize()));
+   }
+
+   // Boundary and full projections must agree on the essential true DOFs.
+   FunctionCoefficient coeff([](const Vector &x)
+   {
+      real_t r = 0.0;
+      for (int i = 0; i < x.Size(); i++) { r += (i + 1)*x(i)*x(i)*x(i); }
+      return r;
+   });
+   Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   Array<int> ess_tdofs;
+   pfes.GetEssentialTrueDofs(ess_bdr, ess_tdofs);
+
+   ParGridFunction x_bdr(&pfes), x_full(&pfes);
+   x_bdr = 0.0;
+   x_bdr.ProjectBdrCoefficient(coeff, ess_bdr);
+   x_full.ProjectCoefficient(coeff);
+
+   Vector X_bdr(pfes.GetTrueVSize()), X_full(pfes.GetTrueVSize());
+   x_bdr.GetTrueDofs(X_bdr);
+   x_full.GetTrueDofs(X_full);
+
+   real_t max_diff = 0.0;
+   for (int i : ess_tdofs)
+   {
+      max_diff = std::max(max_diff, std::abs(X_bdr(i) - X_full(i)));
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &max_diff, 1, MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, MPI_COMM_WORLD);
+   REQUIRE(max_diff < 1e-12);
+}
 #endif  // MFEM_USE_MPI
 
 // Exact solution: x^2 + y^2 + z^2

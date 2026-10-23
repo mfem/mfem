@@ -13,6 +13,11 @@ Version 4.10.1 (development)
 
 Discretization improvements
 ---------------------------
+- Fixed the group communicator of parallel variable-order H1 spaces with base
+  order 2 and above, which used incorrect DOF indices for shared edges and
+  faces. This affected, e.g., essential DOFs and boundary projections, and
+  could write out of bounds after lowering element orders.
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
