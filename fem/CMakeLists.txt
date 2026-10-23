@@ -70,6 +70,7 @@ set(SRCS
   eltrans.cpp
   batchitrans.cpp
   estimators.cpp
+  estimator_impl.cpp
   fe.cpp
   fe/face_map_utils.cpp
   fe/fe_base.cpp
@@ -229,6 +230,7 @@ set(HDRS
   dfem/util.hpp
   eltrans.hpp
   estimators.hpp
+  estimator_impl.hpp
   fe.hpp
   fe/face_map_utils.hpp
   fe/fe_base.hpp
