@@ -58,13 +58,9 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
 
       // 1-D tensors
       static_assert(std::is_same_v<tensor<real_t,3>::c_array_type,real_t[3]>);
-      static_assert(std::is_same_v<tensor<real_t,0>::c_array_type,real_t[1]>);
       static_assert(sizeof(tensor<real_t,3>) ==
                     sizeof(tensor<real_t,3>::c_array_type));
-      static_assert(sizeof(tensor<real_t,0>) ==
-                    sizeof(tensor<real_t,0>::c_array_type));
       static_assert(std::is_trivial_v<tensor<real_t,5>>);
-      static_assert(std::is_trivial_v<tensor<real_t,0>>);
       tensor<real_t,3> t1d{1_r, 2_r, 3_r};
       [[maybe_unused]] tensor<real_t,3> t1d_v2{{1_r, 2_r, 3_r}};
       [[maybe_unused]] constexpr tensor<real_t,3> t1d_v3 = {1_r, 2_r, 3_r};
@@ -81,10 +77,6 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
       [[maybe_unused]] auto t1d_minus_t1d_2 = t1d - t1d_2;
       // dot product: result is real_t:
       [[maybe_unused]] auto t1d_dot_t1d_2 = t1d * t1d_2;
-      // 1-D tensor with size 0:
-      [[maybe_unused]] tensor<real_t,0> t1d_0;
-      [[maybe_unused]] auto sizeof_t1d_0 = sizeof(t1d_0);
-      static_assert(t1d_0.size(0) == 0);
 
       // 2-D tensors
       {
@@ -108,18 +100,6 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
          static_assert(t2d.rank() == 2);
          static_assert(t2d.size(0) == 3);
          static_assert(t2d.size(1) == 2);
-      }
-      // 2-D tensor with 0 size(s):
-      {
-         // [[maybe_unused]] for nvcc:
-         [[maybe_unused]] tensor<real_t,0,3> t2d_0{};
-         [[maybe_unused]] auto sizeof_t2d_0 = sizeof(t2d_0);
-         // [[maybe_unused]] for nvcc:
-         [[maybe_unused]] tensor<real_t,3,0> t2d_1{};
-         [[maybe_unused]] auto sizeof_t2d_1 = sizeof(t2d_1);
-         // [[maybe_unused]] for nvcc:
-         [[maybe_unused]] tensor<real_t,0,0> t2d_2{};
-         [[maybe_unused]] auto sizeof_t2d_2 = sizeof(t2d_2);
       }
       // det(), inv(), sqnorm()
       {

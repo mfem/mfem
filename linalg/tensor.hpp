@@ -70,7 +70,8 @@ private:
 template <typename T, int N0, int... Ns>
 struct tensor<T, N0, Ns...>
 {
-   static_assert(N0 >= 0);
+   static_assert(N0 > 0 && ((Ns > 0) && ...),
+                 "tensor: all dimensions must be positive");
 
    using type = T;
    using sub_tensor_type = std::conditional_t<
@@ -79,7 +80,7 @@ struct tensor<T, N0, Ns...>
                             (sizeof...(Ns) > 0),
                             typename tensor<T, Ns...>::c_array_type,
                             T>;
-   using c_array_type = c_sub_array_type[N0 ? N0 : 1];
+   using c_array_type = c_sub_array_type[N0];
 
    static constexpr int rank() { return 1 + sizeof...(Ns); }
 
@@ -127,10 +128,7 @@ struct tensor<T, N0, Ns...>
    }
 
 private:
-   // Plain C array storage. N0 = 0 is supported by allocating a single
-   // (unused) entry; std::array<T,0> is avoided since it is not trivial in
-   // MSVC.
-   sub_tensor_type values[N0 ? N0 : 1];
+   sub_tensor_type values[N0];
 
    // Helper constructor from c_array_type
    template <std::size_t... Is> MFEM_HOST_DEVICE

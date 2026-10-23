@@ -27,51 +27,135 @@ namespace kernels
 namespace internal
 {
 
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
+     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+#define MFEM_REGS_DEVICE_COMPILE
+#endif
+
+/** @brief Tensor of registers used by the kernels below.
+
+    The last two dimensions are the "thread" dimensions and correspond to the
+    2D (y, x) tile of threads of a kernel:
+     - on GPU, each thread owns exactly one entry of the tile, so the two
+       thread dimensions collapse to a single value and the corresponding
+       indices are ignored (the thread ids are the indices);
+     - on CPU, all dimensions are stored in full.
+
+    Entries are accessed with chained operator[] or with a full list of indices
+    in operator(). All dimensions must be positive and the rank must be at
+    least 2. */
+template <int... Dims> struct regs;
+
+/// 2D tile of registers mapped onto the (y, x) threads of a kernel
+template <int N0, int N1>
+struct regs<N0, N1>
+{
+   static_assert(N0 > 0 && N1 > 0, "regs: dimensions must be positive");
+
+#ifdef MFEM_REGS_DEVICE_COMPILE
+   /// One row of the tile: on GPU, the single register owned by this thread
+   struct row_t
+   {
+      real_t value;
+
+      MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+      real_t &operator[](int) { return value; }
+
+      MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+      const real_t &operator[](int) const { return value; }
+   };
+
+   row_t row;
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   row_t &operator[](int) { return row; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const row_t &operator[](int) const { return row; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   real_t &operator()(int, int) { return row.value; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const real_t &operator()(int, int) const { return row.value; }
+#else
+   using row_t = real_t[N1];
+
+   row_t values[N0];
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   row_t &operator[](int i) { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const row_t &operator[](int i) const { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   real_t &operator()(int i, int j) { return values[i][j]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const real_t &operator()(int i, int j) const { return values[i][j]; }
+#endif
+};
+
+/// Tensor of registers of rank > 2: array of tensors of registers of rank - 1
+template <int N0, int... Ns>
+struct regs<N0, Ns...>
+{
+   static_assert(N0 > 0, "regs: dimensions must be positive");
+
+   regs<Ns...> values[N0];
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   regs<Ns...> &operator[](int i) { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const regs<Ns...> &operator[](int i) const { return values[i]; }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   real_t &operator()(int i0, index_types... is)
+   {
+      static_assert(sizeof...(is) == sizeof...(Ns),
+                    "regs: invalid number of indices!");
+      return values[i0](is...);
+   }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const real_t &operator()(int i0, index_types... is) const
+   {
+      static_assert(sizeof...(is) == sizeof...(Ns),
+                    "regs: invalid number of indices!");
+      return values[i0](is...);
+   }
+};
+
 // Types for tensors mapped to registers
 //  - N is the number of threads in each of the x and y dimensions
 //  - N should not be greater than 32, to have a maximum of 1024 threads
-// On GPU, the last two dimensions are set to 0 to match a 2D tile of threads
-#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
-     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
-template <int N = 0>
-using s_regs2d_t = mfem::future::tensor<real_t, 0, 0>;
-
-template <int VDIM, int N>
-using v_regs2d_t = mfem::future::tensor<real_t, VDIM, 0, 0>;
-
-template <int VDIM, int DIM, int N = 0>
-using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
-
+// The last two dimensions are the thread dimensions, see regs above.
 template <int N>
-using s_regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
+using s_regs2d_t = regs<N, N>;
 
 template <int VDIM, int N>
-using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, 0, 0>;
+using v_regs2d_t = regs<VDIM, N, N>;
 
 template <int VDIM, int DIM, int N>
-using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
+using vd_regs2d_t = regs<VDIM, DIM, N, N>;
 
+template <int N>
+using s_regs3d_t = regs<N, N, N>;
+
+template <int VDIM, int N>
+using v_regs3d_t = regs<VDIM, N, N, N>;
+
+template <int VDIM, int DIM, int N>
+using vd_regs3d_t = regs<VDIM, DIM, N, N, N>;
+
+#ifdef MFEM_REGS_DEVICE_COMPILE
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
 #else
-template <int N>
-using s_regs2d_t = mfem::future::tensor<real_t, N, N>;
-
-template <int VDIM, int N>
-using v_regs2d_t = mfem::future::tensor<real_t, VDIM, N, N>;
-
-template <int VDIM, int DIM, int N>
-using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
-
-template <int N>
-using s_regs3d_t = mfem::future::tensor<real_t, N, N, N>;
-
-template <int VDIM, int N>
-using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, N, N>;
-
-template <int VDIM, int DIM, int N>
-using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
-
 // on CPU, get next multiple of 4, allowing better alignments
 template <int N>
 constexpr int NextMultipleOf(int n)
@@ -80,7 +164,7 @@ constexpr int NextMultipleOf(int n)
    return (n + (N - 1)) & ~(N - 1);
 }
 constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
-#endif // CUDA/HIP && DEVICE_COMPILE
+#endif // MFEM_REGS_DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory
 template <int MQ1, bool TRANSPOSE = false>
@@ -105,7 +189,7 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
 }
 
 /// Load 2D input VDIM*DIM vector into given register tensor, specific component
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
                                         const DeviceTensor<4, const real_t> &X,
                                         vd_regs2d_t<VDIM, DIM, MQ1> &Y)
@@ -124,7 +208,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
 }
 
 /// Load 2D input VDIM*DIM vector into given register tensor
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<4, const real_t> &X,
                                         vd_regs2d_t<VDIM, DIM, MQ1> &Y)
@@ -133,7 +217,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
 }
 
 /// Load 2D input VDIM vector into given register tensor
-template <int VDIM, int MQ1 = 0>
+template <int VDIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<4, const real_t> &X,
                                         v_regs2d_t<VDIM, MQ1> &Y)
@@ -152,7 +236,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
 }
 
 /// Load 2D input scalar into given register tensor
-template <int MQ1 = 0>
+template <int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<3, const real_t> &X,
                                         s_regs2d_t<MQ1> &Y)
@@ -168,7 +252,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
 }
 
 /// Write 2D vector into given device tensor, with read (i) write (j) indices
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          const int i, const int j,
                                          vd_regs2d_t<VDIM, DIM, MQ1> &X,
@@ -187,7 +271,7 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
 }
 
 /// Write 2D VDIM*DIM vector into given device tensor
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          vd_regs2d_t<VDIM, DIM, MQ1> &X,
                                          const DeviceTensor<4, real_t> &Y)
@@ -196,7 +280,7 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
 }
 
 /// Write 2D VDIM vector into given device tensor
-template <int VDIM, int MQ1 = 0>
+template <int VDIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          v_regs2d_t<VDIM, MQ1> &X,
                                          const DeviceTensor<4, real_t> &Y)
@@ -399,7 +483,7 @@ inline MFEM_HOST_DEVICE void ContractY2d(const int d1d, const int q1d,
 }
 
 /// 2D scalar copy
-template <int MQ1 = 0>
+template <int MQ1>
 inline MFEM_HOST_DEVICE void Copy2d(const int q1d,
                                     s_regs2d_t<MQ1> &X,
                                     s_regs2d_t<MQ1> &Y)
