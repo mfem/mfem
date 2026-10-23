@@ -119,7 +119,8 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu moonolith
+EXAMPLE_SUBDIRS = amgx caliper ginkgo glvis hiop petsc pumi sundials \
+ superlu moonolith
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -162,6 +163,8 @@ endif
 MFEM_BUILD_DIR := $(BUILD_DIR)
 
 CONFIG_MK = $(BLD)config/config.mk
+
+GLVIS_MK = $(SRC)config/glvis.mk
 
 DEFAULTS_MK = $(SRC)config/defaults.mk
 include $(DEFAULTS_MK)
@@ -291,6 +294,12 @@ ifeq ($(MFEM_USE_HIP),YES)
    endif
 endif
 
+# GLVis configuration
+ifeq ($(MFEM_USE_GLVIS),YES)
+   GLVIS_DIR := $(abspath $(subst @MFEM_DIR@,\
+      $(if $(MFEM_DIR),$(MFEM_DIR),..),$(GLVIS_DIR)))
+endif
+
 DEP_CXX ?= $(MFEM_CXX)
 
 # Check legacy OpenMP configuration
@@ -307,7 +316,7 @@ endif
 MFEM_REQ_LIB_DEPS = SUPERLU MUMPS METIS FMS CONDUIT SIDRE LAPACK SUNDIALS\
  SUITESPARSE STRUMPACK GINKGO GNUTLS HDF5 NETCDF SLEPC PETSC MPFR PUMI HIOP\
  GSLIB OCCA CEED RAJA UMPIRE MKL_CPARDISO MKL_PARDISO AMGX MAGMA CALIPER PARELAG\
- TRIBOL BENCHMARK MOONOLITH ALGOIM CUDSS
+ TRIBOL BENCHMARK MOONOLITH ALGOIM CUDSS GLVIS
 
 
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
@@ -377,7 +386,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
  MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
  MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE\
- MFEM_USE_CUDSS MFEM_CUDSS_COMM_LIB MFEM_CUDSS_THREADING_LIB
+ MFEM_USE_CUDSS MFEM_CUDSS_COMM_LIB MFEM_CUDSS_THREADING_LIB\
+ MFEM_USE_GLVIS GLVIS_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_HOST_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS\
@@ -395,7 +405,7 @@ MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS) $(LDFLAGS_INTERNAL)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
-   @MFEM_EXT_LIBS@
+   @MFEM_EXT_LIBS@$(if $(filter YES,$(MFEM_USE_GLVIS)), -lmfem)
 MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
@@ -429,8 +439,10 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    MFEM_INCFLAGS = -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
    MFEM_FLAGS    = @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
    MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
-      @MFEM_EXT_LIBS@
+      @MFEM_EXT_LIBS@$(if $(filter YES,$(MFEM_USE_GLVIS)), -lmfem)
    MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_VER),a)
+   # Leave MFEM_EXT_LIBS unchanged for the shared relink. -L@MFEM_LIB_DIR@
+   # is not a directory. config-mk substitutes the installed search path.
    ifeq ($(MFEM_USE_OCCA),YES)
       ifneq ($(MFEM_INSTALL_DIR),$(abspath $(PREFIX)))
          $(error OCCA is enabled: PREFIX must be set during configuration!)
@@ -477,7 +489,8 @@ OKL_DIRS = fem
 %:	%.cpp
 
 # Default rule.
-lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(GLVIS_DIR)/lib/libglvis.a)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -510,10 +523,19 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 	cd $(@D) && ln -sf $(<F) $(@F)
 	@$(MAKE) deprecation-warnings
 
+ifeq ($(MFEM_USE_GLVIS),YES)
+$(GLVIS_DIR)/lib/libglvis.a: $(BLD)libmfem.a
+	$(if $(wildcard $(GLVIS_DIR)/makefile),,\
+	$(error No makefile in GLVIS_DIR: $(GLVIS_DIR)))
+	@$(MAKE) -C $(GLVIS_DIR) MFEM_DIR=$(BUILD_REAL_DIR) \
+	   GLVIS_USE_LOGO=NO GLVIS_USE_LIBPNG=YES lib/libglvis.a
+endif
+
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
-$(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
+$(BLD)libmfem.$(SO_VER): $(OBJECT_FILES) \
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),$(GLVIS_DIR)/lib/libglvis.a)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
@@ -628,10 +650,15 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_LINK_FLAGS) $(INSTALL_SOFLAGS)\
    cd $(PREFIX_LIB) && chmod $(INSTALL_BIN_PERM) libmfem.$(SO_VER) && \
    ( umask $(INSTALLMASK) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT) )
 
-install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
+install: $(if $(static),$(BLD)libmfem.a) \
+			$(if $(shared),$(BLD)libmfem.$(SO_EXT)) \
+			$(if $(filter YES,$(MFEM_USE_GLVIS)),\
+				$(GLVIS_DIR)/lib/libglvis.a)
 	$(MKINSTALLDIR) $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALLDEF) $(BLD)libmfem.a $(PREFIX_LIB))
+	$(if $(filter YES,$(MFEM_USE_GLVIS)),\
+	$(INSTALLDEF) $(GLVIS_DIR)/lib/libglvis.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
 	$(MKINSTALLDIR) $(PREFIX_INC)/mfem
@@ -673,7 +700,9 @@ install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	   $(PREFIX_INC)/mfem/fem/ceed/integrators/nlconvection
 # install config.mk in $(PREFIX_SHARE)
 	$(MKINSTALLDIR) $(PREFIX_SHARE)
-	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk
+	$(MAKE) -C $(BLD)config config-mk CONFIG_MK=config-install.mk \
+	   MFEM_EXT_LIBS='$(subst -L$(GLVIS_DIR)/lib,\
+	   -L@MFEM_LIB_DIR@,$(MFEM_EXT_LIBS))'
 	$(INSTALLDEF) $(BLD)config/config-install.mk $(PREFIX_SHARE)/config.mk
 	rm -f $(BLD)config/config-install.mk
 # install test.mk in $(PREFIX_SHARE)
@@ -778,6 +807,7 @@ status info:
 	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
 	$(info MFEM_USE_TRIBOL        = $(MFEM_USE_TRIBOL))
 	$(info MFEM_USE_ENZYME        = $(MFEM_USE_ENZYME))
+	$(info MFEM_USE_GLVIS         = $(MFEM_USE_GLVIS))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
