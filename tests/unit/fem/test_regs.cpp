@@ -18,10 +18,6 @@ using namespace mfem;
 using namespace mfem::kernels::internal;
 using mfem::future::tensor;
 
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-#define MFEM_REGS_TEST_DEVICE_PASS
-#endif
-
 namespace
 {
 
@@ -46,12 +42,14 @@ TEST_CASE("Register tensors (host layout)", "[Kernels]")
    // On the host, all dimensions are stored in full, without padding. (The
    // device compilation pass of a CUDA/HIP compiler also parses this host
    // function, with the device layout of the types, so skip the checks there.)
-#ifndef MFEM_REGS_TEST_DEVICE_PASS
+#ifndef MFEM_DEVICE_COMPILE
    static_assert(sizeof(s_regs2d_t<N>) == N * N * sizeof(real_t));
    static_assert(sizeof(v_regs2d_t<VDIM, N>) == VDIM * N * N * sizeof(real_t));
    static_assert(sizeof(vd_regs3d_t<VDIM, DIM, N>) ==
                  VDIM * DIM * N * N * N * sizeof(real_t));
    static_assert(sizeof(regs2d_t<DIM, N>) == N * N * DIM * sizeof(real_t));
+   static_assert(sizeof(regs2d_vd_t<VDIM, DIM, N>) ==
+                 N * N * VDIM * DIM * sizeof(real_t));
    static_assert(sizeof(regs3d_vd_t<VDIM, DIM, N>) ==
                  N * N * N * VDIM * DIM * sizeof(real_t));
 #endif
@@ -84,6 +82,12 @@ TEST_CASE("Register tensors (host layout)", "[Kernels]")
    Q(1, 1, 0) = 8_r;
    CHECK(Q[1][1][0] == 8_r);
    CHECK(Q[1][1][1] == 0_r);
+   regs2d_vd_t<VDIM, DIM, N> W{};
+   W[0][2][1][2] = 9_r;
+   CHECK(W(0, 2, 1, 2) == 9_r);
+   CHECK(W(0, 1, 1, 2) == 0_r);
+   tensor<real_t, VDIM, DIM> &w = W(0, 2);
+   CHECK(w(1, 2) == 9_r);
 }
 
 TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
@@ -95,7 +99,7 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
    // 2D tile of threads, trailing thread dimensions (TMOP, vector PA kernels)
    mfem::forall_2D(1, N, N, [=] MFEM_HOST_DEVICE (int)
    {
-#ifdef MFEM_REGS_TEST_DEVICE_PASS
+#ifdef MFEM_DEVICE_COMPILE
       // On GPU, each thread owns one entry per thread tile
       static_assert(sizeof(s_regs2d_t<N>) == sizeof(real_t));
       static_assert(sizeof(vd_regs2d_t<VDIM, DIM, N>) ==
@@ -129,7 +133,7 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
                   if (A(c, d, y, x) != Val(c, d, 0, y, x)) { nerr++; }
                   const s_regs2d_t<N> &A_cd = A[c][d];
                   if (A_cd[y][x] != Val(c, d, 0, y, x)) { nerr++; }
-#ifdef MFEM_REGS_TEST_DEVICE_PASS
+#ifdef MFEM_DEVICE_COMPILE
                   // the thread indices are ignored on GPU
                   if (A[c][d][0][0] != Val(c, d, 0, y, x)) { nerr++; }
 #endif
@@ -147,7 +151,7 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
    // 3D block of threads, leading thread dimensions (dFEM kernels)
    mfem::forall_3D(1, N, N, N, [=] MFEM_HOST_DEVICE (int)
    {
-#ifdef MFEM_REGS_TEST_DEVICE_PASS
+#ifdef MFEM_DEVICE_COMPILE
       static_assert(sizeof(regs3d_t<DIM, N>) == DIM * sizeof(real_t));
       static_assert(sizeof(regs3d_vd_t<VDIM, DIM, N>) ==
                     VDIM * DIM * sizeof(real_t));
@@ -191,7 +195,7 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
                for (int d = 0; d < DIM; d++)
                {
                   if (S[z][y][x][d] != Val(0, d, z, y, x)) { nerr++; }
-#ifdef MFEM_REGS_TEST_DEVICE_PASS
+#ifdef MFEM_DEVICE_COMPILE
                   if (S(0, 0, 0, d) != Val(0, d, z, y, x)) { nerr++; }
 #endif
                }

@@ -27,11 +27,6 @@ namespace kernels
 namespace internal
 {
 
-#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
-     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
-#define MFEM_REGS_DEVICE_COMPILE
-#endif
-
 /** @brief Registers of type @a T distributed over the threads of a kernel.
 
     @a TDims are the extents of the thread dimensions, in indexing order:
@@ -59,57 +54,46 @@ template <typename T, int N0>
 struct thread_regs<T, N0>
 {
    static_assert(N0 > 0, "thread_regs: dimensions must be positive");
-   using value_type = T;
 
-#ifdef MFEM_REGS_DEVICE_COMPILE
+#ifdef MFEM_DEVICE_COMPILE
    T value;
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   T &operator[](int) { return value; }
+   T &at(int) { return value; }
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const T &operator[](int) const { return value; }
-
-   template <typename... index_types>
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   decltype(auto) operator()(int, index_types... is)
-   {
-      if constexpr (sizeof...(is) == 0) { return (value); }
-      else { return value(is...); }
-   }
-
-   template <typename... index_types>
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   decltype(auto) operator()(int, index_types... is) const
-   {
-      if constexpr (sizeof...(is) == 0) { return (value); }
-      else { return value(is...); }
-   }
+   const T &at(int) const { return value; }
 #else
    T values[N0];
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   T &operator[](int i) { return values[i]; }
+   T &at(int i) { return values[i]; }
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const T &operator[](int i) const { return values[i]; }
+   const T &at(int i) const { return values[i]; }
+#endif
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   T &operator[](int i) { return at(i); }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const T &operator[](int i) const { return at(i); }
 
    template <typename... index_types>
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    decltype(auto) operator()(int i, index_types... is)
    {
-      if constexpr (sizeof...(is) == 0) { return (values[i]); }
-      else { return values[i](is...); }
+      if constexpr (sizeof...(is) == 0) { return (at(i)); }
+      else { return at(i)(is...); }
    }
 
    template <typename... index_types>
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    decltype(auto) operator()(int i, index_types... is) const
    {
-      if constexpr (sizeof...(is) == 0) { return (values[i]); }
-      else { return values[i](is...); }
+      if constexpr (sizeof...(is) == 0) { return (at(i)); }
+      else { return at(i)(is...); }
    }
-#endif
 };
 
 /// Two or more thread dimensions
@@ -117,46 +101,41 @@ template <typename T, int N0, int N1, int... Ns>
 struct thread_regs<T, N0, N1, Ns...>
 {
    static_assert(N0 > 0, "thread_regs: dimensions must be positive");
-   using value_type = T;
    using sub_type = thread_regs<T, N1, Ns...>;
 
-#ifdef MFEM_REGS_DEVICE_COMPILE
+#ifdef MFEM_DEVICE_COMPILE
    sub_type value;
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   sub_type &operator[](int) { return value; }
+   sub_type &at(int) { return value; }
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const sub_type &operator[](int) const { return value; }
-
-   template <typename... index_types>
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   decltype(auto) operator()(int, int i1, index_types... is)
-   { return value(i1, is...); }
-
-   template <typename... index_types>
-   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   decltype(auto) operator()(int, int i1, index_types... is) const
-   { return value(i1, is...); }
+   const sub_type &at(int) const { return value; }
 #else
    sub_type values[N0];
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   sub_type &operator[](int i) { return values[i]; }
+   sub_type &at(int i) { return values[i]; }
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const sub_type &operator[](int i) const { return values[i]; }
+   const sub_type &at(int i) const { return values[i]; }
+#endif
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   sub_type &operator[](int i) { return at(i); }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const sub_type &operator[](int i) const { return at(i); }
 
    template <typename... index_types>
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    decltype(auto) operator()(int i, int i1, index_types... is)
-   { return values[i](i1, is...); }
+   { return at(i)(i1, is...); }
 
    template <typename... index_types>
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    decltype(auto) operator()(int i, int i1, index_types... is) const
-   { return values[i](i1, is...); }
-#endif
+   { return at(i)(i1, is...); }
 };
 
 /** @brief Tensor of registers with trailing thread dimensions.
@@ -252,7 +231,7 @@ template <int VDIM, int DIM, int N>
 using regs3d_vd_t =
    thread_regs<mfem::future::tensor<real_t, VDIM, DIM>, N, N, N>;
 
-#ifdef MFEM_REGS_DEVICE_COMPILE
+#ifdef MFEM_DEVICE_COMPILE
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
 #else
@@ -264,9 +243,7 @@ constexpr int NextMultipleOf(int n)
    return (n + (N - 1)) & ~(N - 1);
 }
 constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
-#endif // MFEM_REGS_DEVICE_COMPILE
-
-#undef MFEM_REGS_DEVICE_COMPILE
+#endif // MFEM_DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory
 template <int MQ1, bool TRANSPOSE = false>
