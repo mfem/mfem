@@ -65,6 +65,13 @@ void FiniteElement::CalcDivShape(
    MFEM_ABORT("method is not implemented for this class");
 }
 
+void FiniteElement::CalcDivSkewShape(const IntegrationPoint &ip,
+                                     DenseMatrix &curl_shape) const
+{
+   mfem_error ("FiniteElement::CalcDivSkewShape (ip, ...)\n"
+               "   is not implemented for this class!");
+}
+
 void FiniteElement::CalcPhysDivShape(
    ElementTransformation &Trans, Vector &div_shape) const
 {
@@ -74,6 +81,12 @@ void FiniteElement::CalcPhysDivShape(
 
 void FiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                                   DenseMatrix &curl_shape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
+void FiniteElement::CalcSkwGradShape(const IntegrationPoint &ip,
+                                  DenseMatrix &SkwGrad_shape) const
 {
    MFEM_ABORT("method is not implemented for this class");
 }
@@ -1023,6 +1036,7 @@ VectorFiniteElement::VectorFiniteElement(int D, Geometry::Type G,
    {
       cdim = (dim == 3) ? 3 : 1;
    }
+    int test = 0;
 }
 
 void VectorFiniteElement::CalcShape(
@@ -1043,9 +1057,19 @@ void VectorFiniteElement::SetDerivMembers()
 {
    switch (map_type)
    {
+      case H_SkwGrad:
+         deriv_type = SkwGrad;
+         deriv_range_type = MAT_SKEW;
+         deriv_map_type = INTEGRAL;
+         break;
       case H_DIV:
          switch (dim)
          {
+            case 4: // div: 4d H_DIV -> 4D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
             case 3: // div: 3D H_DIV -> 3D INTEGRAL
                deriv_type = DIV;
                deriv_range_type = SCALAR;
@@ -1089,9 +1113,20 @@ void VectorFiniteElement::SetDerivMembers()
                MFEM_ABORT("Invalid dimension, Dim = " << dim);
          }
          break;
+     case H_DIV_SKEW:
+         deriv_type = H_DIV_SKEW;
+         deriv_range_type = VECTOR;
+         deriv_map_type = H_DIV;
+         break;
       case H_CURL:
          switch (dim)
          {
+            case 4: // curl: 4D H_CURL -> 4D H_DIV(skew)
+               deriv_type = CURL;
+               deriv_range_type = MAT_SKEW;
+               deriv_map_type = H_SkwGrad;  // was equal = H_DIV_SKEW;
+                 //mfem_error("Error: 4D H-curl deriv map not support yet!");
+               break;
             case 3: // curl: 3D H_CURL -> 3D H_DIV
                deriv_type = CURL;
                deriv_range_type = VECTOR;
@@ -1175,6 +1210,117 @@ void VectorFiniteElement::CalcVShape_ND(
    CalcVShape(Trans.GetIntPoint(), vshape);
    Mult(vshape, Trans.InverseJacobian(), shape);
 }
+
+void VectorFiniteElement::CalcVShape_DivSkew (
+   ElementTransformation &Trans, DenseMatrix &shape) const
+{
+   if (dim!=4) { return; }
+
+   MFEM_ASSERT(map_type == H_DIV_SKEW, "");
+   const DenseMatrix &J = Trans.Jacobian();
+   DenseMatrix Jinv; // Add By MMCP
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim*dim);
+   DenseMatrix Jinv(J.Width(), J.Height());
+#else
+   Jinv.SetSize(J.Width(), J.Height());
+#endif
+
+   if (vshape.Width()!=dim*dim) { vshape.SetSize(dof,dim*dim); }
+
+   CalcInverse(J, Jinv);
+   DenseMatrix invJtr(Jinv); invJtr.Transpose();
+    
+   IntegrationPoint true_ip = Trans.GetIntPoint();
+
+
+
+   CalcVShape(Trans.GetIntPoint(), vshape);
+
+   DenseMatrix mat(dim,dim); mat = 0.0;
+   DenseMatrix tempMat(dim,dim);
+
+   for (int o=0; o<dof; o++)
+   {
+
+       //Old Proxy
+      mat(0,0) =  0.0;            mat(0,1) =  vshape(o,11);
+      mat(0,2) =  vshape(o,13); mat(0,3) =  vshape(o,6);
+      mat(1,0) =  vshape(o,14); mat(1,1) =  0.0;
+      mat(1,2) =  vshape(o,3);  mat(1,3) =  vshape(o,8);
+      mat(2,0) =  vshape(o,7);  mat(2,1) =  vshape(o,12); mat(2,2) =  0.0;
+      mat(2,3) =  vshape(o,1);
+      mat(3,0) =  vshape(o,9);  mat(3,1) =  vshape(o,2);
+      mat(3,2) =  vshape(o,4);  mat(3,3) =  0.0;
+       
+
+      Mult(mat, Jinv, tempMat);
+      Mult(invJtr, tempMat, mat);
+       
+    
+
+        //old proxy
+      shape(o,0) =  0.0;      shape(o,1) =  mat(2,3); shape(o,2) =  mat(3,1);
+      shape(o,3) =  mat(1,2);
+      shape(o,4) =  mat(3,2); shape(o,5) =  0.0;      shape(o,6) =  mat(0,3);
+      shape(o,7) =  mat(2,0);
+      shape(o,8) =  mat(1,3); shape(o,9) =  mat(3,0); shape(o,10) = 0.0;
+      shape(o,11) = mat(0,1);
+      shape(o,12) = mat(2,1); shape(o,13) = mat(0,2); shape(o,14) = mat(1,0);
+      shape(o,15) = 0.0;
+       
+   }
+}
+
+void VectorFiniteElement::CalcVShape_Hcurl (
+   ElementTransformation &Trans, DenseMatrix &shape) const
+{
+   if (dim!=4) { return; }
+
+   MFEM_ASSERT(map_type == H_DIV_SKEW, "");
+   const DenseMatrix &J = Trans.Jacobian();
+   DenseMatrix Jinv; // Add By MMCP
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(dof, dim*dim);
+   DenseMatrix Jinv(J.Width(), J.Height());
+#else
+   Jinv.SetSize(J.Width(), J.Height());
+#endif
+
+   if (vshape.Width()!=dim*dim) { vshape.SetSize(dof,dim*dim); }
+
+
+   CalcInverse(J, Jinv);
+   DenseMatrix invJtr(Jinv); invJtr.Transpose();
+    
+   IntegrationPoint true_ip = Trans.GetIntPoint();
+
+   CalcVShape(Trans.GetIntPoint(), vshape);
+
+   DenseMatrix mat(dim,dim); mat = 0.0;
+   DenseMatrix tempMat(dim,dim);
+
+   for (int o=0; o<dof; o++)
+   {
+
+       // New Proxy
+       mat(0,0) =  0.0;          mat(0,1) =  vshape(o,1); mat(0,2) =  vshape(o,2); mat(0,3) =  vshape(o,3);
+       mat(1,0) =  vshape(o,4);  mat(1,1) =  0.0; mat(1,2) =  vshape(o,6);  mat(1,3) =  vshape(o,7);
+       mat(2,0) =  vshape(o,8);  mat(2,1) =  vshape(o,9); mat(2,2) =  0.0; mat(2,3) =  vshape(o,11);
+       mat(3,0) =  vshape(o,12); mat(3,1) =  vshape(o,13); mat(3,2) =  vshape(o,14);  mat(3,3) =  0.0;
+       
+      Mult(mat, Jinv, tempMat);
+      Mult(invJtr, tempMat, mat);
+       
+       // New Proxy
+       shape(o,0) =  0.0;      shape(o,1) =  mat(0,1); shape(o,2) =  mat(0,2); shape(o,3) =  mat(0,3);
+       shape(o,4) =  mat(1,0); shape(o,5) =  0.0;      shape(o,6) =  mat(1,2); shape(o,7) =  mat(1,3);
+       shape(o,8) =  mat(2,0); shape(o,9) =  mat(2,1); shape(o,10) = 0.0;      shape(o,11) = mat(2,3);
+       shape(o,12) = mat(3,0); shape(o,13) = mat(3,1); shape(o,14) = mat(3,2); shape(o,15) = 0.0;
+       
+   }
+}
+
 
 void VectorFiniteElement::Project_RT(
    const real_t *nk, const Array<int> &d2n,
@@ -1621,7 +1767,7 @@ void VectorFiniteElement::LocalInterpolation_RT(
    for (int k = 0; k < dof; k++)
    {
       Trans.Transform(Nodes.IntPoint(k), xk);
-      ip.Set3(vk);
+      ip.Set4(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = |J| J^{-t} n_k
       adjJ.MultTranspose(nk + d2n[k]*dim, vk);
@@ -2353,6 +2499,218 @@ void Poly_1D::CalcLegendre(const int p, const real_t x, real_t *u)
       u[n+1] = ((2*n + 1)*z*u[n] - n*u[n-1])/(n + 1);
    }
 }
+
+
+void Poly_1D::CalcLegendre(const int &p, const double &x, std::vector<double> &u, std::vector<double> &d)
+{
+   // use the recursive definition for [-1,1]:
+   // (n+1)*P_{n+1}(z) = (2*n+1)*z*P_n(z)-n*P_{n-1}(z)
+   // for the derivative use, z in [-1,1]:
+   // P'_{n+1}(z) = (2*n+1)*P_n(z)+P'_{n-1}(z)
+   double z;
+   u.push_back(1.0);
+   d.push_back(0.0);
+   if (p == 0) { return; }
+   z = 2.*x - 1.;
+   u.push_back(z);
+   d.push_back(2.0);
+   for (int n = 1; n < p; n++)
+   {
+      u.push_back(((2*n + 1)*z*u[n] - n*u[n-1])/(n + 1));
+      d.push_back((4*n + 2)*u[n] + d[n-1]);
+   }
+}
+
+void Poly_1D::CalcLegendreShifted(const int &p, const double &x, const double &y, std::vector<double> &u)
+{
+    // use recursive definiton for [0,1] shifted Legendre Polynomials
+    // (n+1)*P_{n+1} = (2x-1)(2*n+1)*z*P_n(z)-n*P_{n-1}(z)
+    // ** Note the scaled and Shifted polynomials are otained when y != 1
+    double z;
+    u.push_back(1.0);
+    if (p == 0) { return; }
+    u.push_back(2.*x - y);
+    z = 2.*x - y;
+    for (int n = 1; n < p; n++)
+    {
+        u.push_back(((2*n + 1)*z*u[n] - n*(y*y)*u[n-1])/(n + 1));
+    }
+}
+
+void Poly_1D::CalcScaledLegendreDerivative(const int &p, const double &x, const double &t,
+                                        std::vector<double> &u,
+                                        std::vector<double> &dudx, std::vector<double> &dudt)
+{
+   MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
+   if (t > 0.0)
+   {
+      Poly_1D::CalcLegendre(p, x / t, u, dudx);
+      dudx[0] = 0.0;
+      dudt.push_back( - dudx[0] * x / t);
+      for (int i = 1; i <= p; i++)
+      {
+         u[i]    *= pow(t, i);
+         dudx[i] *= pow(t, i - 1);
+         dudt.push_back( (u[i] * i - dudx[i] * x) / t);
+      }
+   }
+   else
+   {
+      // This assumes x = 0 as well as t = 0 since x \in [0,t]
+      u[0]    = 1.0;
+      dudx[0] = 0.0;
+      dudt.push_back(0.0);
+      if (p >=1)
+      {
+         u[1]    =  0.0;
+         dudx[1] =  2.0;
+         dudt.push_back(-1.0);
+      }
+      for (int i = 2; i <= p; i++)
+      {
+         u[i] = 0.0;
+         dudx[i] = 0.0;
+         dudt.push_back(0.0);
+      }
+   }
+}
+
+void Poly_1D::CalcIntLegendre(const int &p, const double &x, const double &y, std::vector<double> &u)
+{
+    // use recursive definiton for [0,1] shifted, scaled and integrated Legendre Polynomials are
+    // 2(2n+1)*L_{n+1} = P_{n+1}-P_{n-1}
+    
+    u.push_back(x);
+    if (p == 1) { return; }
+    for (int n = 1; n < p; n++)
+    {
+        double i = n+1;
+        std::vector<double> P_i;
+        std::vector<double> P_i_2;
+        CalcLegendreShifted(i, x, y, P_i);
+        CalcLegendreShifted(i-2, x, y, P_i_2);
+        u.push_back((P_i[P_i.size()-1] - (y*y)*P_i_2[P_i_2.size()-1])/(2.*(2.*i-1)));
+    }
+}
+
+void Poly_1D::CalcRLegendre(const int &p, const double &x, const double &y, std::vector<double> &u)
+{
+    //
+    
+    u.push_back(0);
+    if (p == 0) { return; }
+    for (int n = 1; n <= p; n++)
+    {
+        double i = n;
+        std::vector<double> P_i;
+        std::vector<double> P_i_1;
+        CalcLegendreShifted(i, x, y, P_i);
+        CalcLegendreShifted(i-1, x, y, P_i_1);
+        u.push_back(-0.5*(P_i[P_i.size()-1] + y*P_i_1[P_i_1.size()-1]));
+    }
+}
+
+
+void Poly_1D::CalcJacobi(const int &p, const double &x, const double &y, const double &alpha, std::vector<double> &u)
+{
+    
+    //use the recursive definition for [0,1]:
+    // a*P_i = b(c*(2*x-y)+alpha^2*y)P_(i-1)-d*y^2*P_(i-2)
+    // ** Note the scaled and Shifted polynomials are otained when y != 1
+    
+    //u[0] = 1.;
+    u.push_back(1.0);
+    if (p == 0) { return; }
+    //u[1] = 2.*x +alpha*x - 1.;
+    u.push_back(2.*x -y +alpha*x);
+    for (int n = 1; n < p; n++)
+    {
+        double i = n+1;
+        double a = 2*i*(i+alpha)*(2*i+alpha-2);
+        double b = 2*i+alpha-1;
+        double c = (2*i+alpha)*(2*i+alpha-2);
+        double d = 2*(i+alpha-1)*(i-1)*(2*i+alpha);
+        u.push_back((b*((c)*(2*x-y)+(alpha*alpha)*y)*u[n] - d*(y*y)*u[n-1])/(a));
+    }
+}
+
+void Poly_1D::CalcRJacobi(const int &p, const double &x, const double &y, const double &alpha, std::vector<double> &u)
+{
+    //
+    
+    u.push_back(0);
+    if (p == 0) { return; }
+    for (int n = 1; n <= p; n++)
+    {
+        double i = n;
+        std::vector<double> P_i;
+        std::vector<double> P_i_1;
+        CalcJacobi(i, x, y, alpha, P_i);
+        CalcJacobi(i-1, x, y, alpha, P_i_1);
+        u.push_back((-1*(i/(2*i+alpha)))*(P_i[P_i.size()-1] + y*P_i_1[P_i_1.size()-1]));
+    }
+}
+
+void Poly_1D::CalcScaledJacobiDerivative(const int &p, const double &alpha,
+                                      const double &x, const double &t,
+                                      std::vector<double> &u, std::vector<double> &dudx, std::vector<double> &dudt)
+{
+   MFEM_ASSERT(p >= 0, "Polynomial order must be zero or larger");
+
+   u.push_back(1.0);
+   dudx.push_back(0.0);
+   dudt.push_back(0.0);
+   if (p >= 1)
+   {
+      u.push_back( (2.0 + alpha) * x - t);
+      dudx.push_back(2.0 + alpha);
+      dudt.push_back(-1.0);
+   }
+   for (int i = 2; i <= p; i++)
+   {
+      double a = 2.0 * i * (alpha + i) * (2.0 * i + alpha - 2.0);
+      double b = 2.0 * i + alpha - 1.0;
+      double c = (2.0 * i + alpha) * (2.0 * i + alpha - 2.0);
+      double d = 2.0 * (alpha + i - 1.0) * (i - 1) * (2.0 * i + alpha);
+      u.push_back((b * (c * (2.0 * x - t) + alpha * alpha * t) * u[i - 1]
+              - d * t * t * u[i - 2]) / a);
+      dudx.push_back((b * ((c * (2.0 * x - t) + alpha * alpha * t) * dudx[i - 1] +
+                      2.0 * c * u[i - 1])
+                 - d * t * t * dudx[i - 2]) / a);
+      dudt.push_back( (b * ((c * (2.0 * x - t) + alpha * alpha * t) * dudt[i - 1] +
+                      (alpha * alpha - c) * u[i - 1])
+                 - d * t * t * dudt[i - 2] - 2.0 * d * t * u[i - 2]) / a);
+   }
+}
+
+void Poly_1D::CalcIntJacobi(const int &p, const double &x, const double &y, const double &alpha, std::vector<double> &u)
+{
+    
+    // use the recursive definition for [0,1]:
+    // L_i = a*P_i+b*y*P_(i-1)-c*y^2*P_(i-2)
+    // ** Note the scaled and Shifted polynomials are otained when y != 1
+    
+    u.push_back(x);
+    if (p==1) {
+        return;
+     }
+    for (int n = 1; n < p; n++)
+    {
+        double i = n+1;
+        std::vector<double> P_i;
+        std::vector<double> P_i_1;
+        std::vector<double> P_i_2;
+        CalcJacobi(i, x, y, alpha, P_i);
+        CalcJacobi(i-1, x, y, alpha, P_i_1);
+        CalcJacobi(i-2, x, y, alpha, P_i_2);
+        double a = (i+alpha)/((2*i+alpha-1)*(2*i+alpha));
+        double b = (alpha)/((2*i+alpha-2)*(2*i+alpha));
+        double c = (i-1)/((2*i+alpha-2)*(2*i+alpha-1));
+        double nextval = a*P_i[P_i.size()-1]+b*y*P_i_1[P_i_1.size()-1]-c*(y*y)*P_i_2[P_i_2.size()-1];
+        u.push_back(nextval);
+    }
+}
+
 
 void Poly_1D::CalcLegendre(const int p, const real_t x, real_t *u, real_t *d)
 {

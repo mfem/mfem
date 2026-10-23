@@ -18,7 +18,7 @@ process.
 
 * For building instructions, see the file [INSTALL](INSTALL), or type "make help".
 
-* Copyright and licensing information can be found in files [LICENSE](LICENSE) and [NOTICE](NOTICE).
+* Copyright and licensing helloo hello information can be found in files [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 * The best starting point for new users interested in MFEM's features is to
   review the examples and miniapps at https://mfem.org/examples.

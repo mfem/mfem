@@ -33,6 +33,7 @@ set(SRCS
   vtk.cpp
   vtkhdf.cpp
   wedge.cpp
+  pentatope.cpp
   submesh/submesh.cpp
   submesh/ncsubmesh.cpp
   submesh/submesh_utils.cpp
@@ -63,6 +64,7 @@ set(HDRS
   vtk.hpp
   vtkhdf.hpp
   wedge.hpp
+  pentatope.hpp
   submesh/ncsubmesh.hpp
   submesh/submesh.hpp
   submesh/submesh_utils.hpp

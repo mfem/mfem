@@ -294,6 +294,9 @@ public:
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
    { return 0.0; }
+    
+   //void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+
 
    /** @brief For bilinear forms on element faces, specifies if the normal
               derivatives are needed on the faces or just the face restriction.
@@ -2447,6 +2450,35 @@ protected:
    }
 };
 
+class VectorDGDiffusionIntegrator : public BilinearFormIntegrator
+{
+protected:
+   Coefficient *Q = nullptr;
+   MatrixCoefficient *MQ = nullptr;
+   real_t sigma, kappa;
+   int vdim;
+
+   // these are not thread-safe!
+   Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
+   DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
+public:
+   VectorDGDiffusionIntegrator(real_t s, real_t k, int vd=-1)
+      : sigma(s), kappa(k), vdim(vd) { }
+   VectorDGDiffusionIntegrator(Coefficient &q, real_t s, real_t k, int vd=-1)
+      : Q(&q), sigma(s), kappa(k), vdim(vd) { }
+   VectorDGDiffusionIntegrator(MatrixCoefficient &mq, real_t s, real_t k,
+                               int vd=-1)
+      : MQ(&mq), sigma(s), kappa(k), vdim(vd) { }
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &full_elmat);
+};
+
+
 /** Class for local mass matrix assembling $a(u,v) := (Q u, v)$ */
 class MassIntegrator: public BilinearFormIntegrator
 {
@@ -3005,6 +3037,264 @@ public:
       ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
+};
+
+/// Integrator for $(\mathrm{curl}(u), \mathrm{curl}(v))$ for Nedelec elements
+class SkwGradSkwGradIntegrator: public BilinearFormIntegrator
+{
+private:
+   Vector vec, pointflux;
+#ifndef MFEM_THREAD_SAFE
+   Vector D;
+   DenseMatrix SkwGradshape, SkwGradshape_dFt, M;
+   DenseMatrix te_curlshape, te_curlshape_dFt;
+   DenseMatrix vshape, projcurl;
+#endif
+
+protected:
+   Coefficient *Q;
+   DiagonalMatrixCoefficient *DQ;
+   MatrixCoefficient *MQ;
+
+   // PA extension
+   Vector pa_data;
+   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const GeometricFactors *geom;   ///< Not owned
+   int dim, ne, nq, dofs1D, quad1D;
+   bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+
+public:
+   SkwGradSkwGradIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   SkwGradSkwGradIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL) { }
+   SkwGradSkwGradIntegrator(DiagonalMatrixCoefficient &dq,
+                      const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL) { }
+   SkwGradSkwGradIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
+      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq) { }
+
+   /* Given a particular Finite Element, compute the
+      element curl-curl matrix elmat */
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override;
+
+//   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+//                               const FiniteElement &test_fe,
+//                               ElementTransformation &Trans,
+//                               DenseMatrix &elmat) override;
+//
+//   void ComputeElementFlux(const FiniteElement &el,
+//                           ElementTransformation &Trans,
+//                           Vector &u, const FiniteElement &fluxelem,
+//                           Vector &flux, bool with_coef,
+//                           const IntegrationRule *ir = NULL) override;
+//
+//   real_t ComputeFluxEnergy(const FiniteElement &fluxelem,
+//                            ElementTransformation &Trans,
+//                            Vector &flux, Vector *d_energy = NULL) override;
+//
+//   using BilinearFormIntegrator::AssemblePA;
+//   void AssemblePA(const FiniteElementSpace &fes) override;
+//   void AddMultPA(const Vector &x, Vector &y) const override;
+//   void AssembleDiagonalPA(Vector& diag) override;
+
+   const Coefficient *GetCoefficient() const { return Q; }
+};
+
+class DivSkewDivSkewIntegrator: public BilinearFormIntegrator
+{
+private:
+   DenseMatrix DivSkewshape, DivSkew_dFt;
+
+   Coefficient *Q;
+
+public:
+   DivSkewDivSkewIntegrator() { Q = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   DivSkewDivSkewIntegrator(Coefficient &q) : Q(&q) { }
+
+   /* Given a particular Finite Element, compute the
+      element DivSkew-DivSkew matrix elmat */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      real_t w;
+
+      DivSkewshape.SetSize(nd,dim);
+      DivSkew_dFt.SetSize(nd,dim);
+
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = 2*el.GetOrder()+2;
+
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+
+         Trans.SetIntPoint (&ip);
+
+         el.CalcDivSkewShape(ip, DivSkewshape);
+
+         MultABt(DivSkewshape, Trans.Jacobian(), DivSkew_dFt);
+
+         DivSkew_dFt *= (1.0 / Trans.Weight());
+
+         w = ip.weight * fabs(Trans.Weight());
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         AddMult_a_AAt(w, DivSkew_dFt, elmat);
+
+      }
+       //std::cout << "Start of New Elmat DivSkw Int ------" << std::endl;
+//       real_t thres = 1e-16;
+//       elmat.Threshold(thres);
+//       elmat.PrintMatlab(std::cout);
+//       std::cout << std::endl;
+   }
+
+};
+
+class VectorFE_DivSkewMassIntegrator: public BilinearFormIntegrator
+{
+private:
+   DenseMatrix shape;
+
+   Coefficient *Q;
+
+public:
+   VectorFE_DivSkewMassIntegrator() { Q = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   VectorFE_DivSkewMassIntegrator(Coefficient &q) : Q(&q) { }
+
+   /* Given a particular Finite Element, compute the
+      element curl-curl matrix elmat */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      real_t w;
+
+      shape.SetSize(nd,dim*dim);
+
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = Trans.OrderW() + 2 * el.GetOrder();
+
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint (&ip);
+
+         w = ip.weight * fabs(Trans.Weight());
+
+
+         el.CalcVShape(Trans, shape);
+
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         AddMult_a_AAt(w, shape, elmat);
+      }
+       //std::cout << "Start of New Elmat Mass Int ------" << std::endl;
+//       real_t thres = 1e-16;
+//       elmat.Threshold(thres);
+//       elmat.PrintMatlab(std::cout);
+//       std::cout << std::endl;
+   }
+
+};
+
+class VectorFE_CurlMassIntegrator: public BilinearFormIntegrator
+{
+private:
+   DenseMatrix shape;
+
+   Coefficient *Q;
+
+public:
+   VectorFE_CurlMassIntegrator() { Q = NULL; }
+   /// Construct a bilinear form integrator for Nedelec elements
+   VectorFE_CurlMassIntegrator(Coefficient &q) : Q(&q) { }
+
+   /* Given a particular Finite Element, compute the
+      element curl-curl matrix elmat */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      real_t w;
+
+      shape.SetSize(nd,dim*dim);
+
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order = Trans.OrderW() + 2 * el.GetOrder();
+
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint (&ip);
+
+         w = ip.weight * fabs(Trans.Weight());
+
+
+         el.CalcVShape(Trans, shape);
+
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+            w = (1./1.)*w; // 2.0 factor to account for skew-sym. that is not accounted for by computation using 6-independent components.
+
+         }
+
+         AddMult_a_AAt(w, shape, elmat);
+      }
+       //std::cout << "Start of New Elmat Mass Int ------" << std::endl;
+//       real_t thres = 1e-16;
+//       elmat.Threshold(thres);
+//       elmat.PrintMatlab(std::cout);
+//       std::cout << std::endl;
+   }
+
 };
 
 /** Integrator for $(\mathrm{curl}(u), \mathrm{curl}(v))$ for FE spaces defined by 'dim' copies of a

@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = 0;
    bool set_bc = true;
    bool static_cond = false;
    bool hybridization = false;
@@ -95,6 +96,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ref_levels, "-ref", "--ref-levels", "");
+
    args.ParseCheck();
    kappa = freq * M_PI;
 
@@ -114,14 +117,12 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 25,000
    //    elements.
+   
+   for (int l = 0; l < ref_levels; l++)
    {
-      int ref_levels =
-         (int)floor(log(25000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      mesh->UniformRefinement();
    }
+   
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
@@ -228,7 +229,21 @@ int main(int argc, char *argv[])
    a->RecoverFEMSolution(X, *b, x);
 
    // 13. Compute and print the L^2 norm of the error.
-   cout << "\n|| F_h - F ||_{L^2} = " << x.ComputeL2Error(F) << '\n' << endl;
+    
+    const IntegrationRule* irs[Geometry::NumGeom];
+    for (int i = 0; i < Geometry::NumGeom; i++)
+    {
+        if (i == 4)
+        {
+            // Tet Int Rule
+            irs[i] = &(IntRules.Get(i, 10));
+        }else
+        {
+            // Everything else
+            irs[i] = &(IntRules.Get(i, 16));
+        }
+    }
+   cout << "\n|| F_h - F ||_{L^2} = " << x.ComputeL2Error(F,irs) << '\n' << endl;
 
    // 14. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -270,17 +285,39 @@ int main(int argc, char *argv[])
 void F_exact(const Vector &p, Vector &F)
 {
    int dim = p.Size();
-
-   real_t x = p(0);
-   real_t y = p(1);
-   // real_t z = (dim == 3) ? p(2) : 0.0; // Uncomment if F is changed to depend on z
-
-   F(0) = cos(kappa*x)*sin(kappa*y);
-   F(1) = cos(kappa*y)*sin(kappa*x);
+   if (dim == 2)
+   {
+       real_t x = p(0);
+       real_t y = p(1);
+       
+       F(0) = cos(kappa*x)*sin(kappa*y);
+       F(1) = cos(kappa*y)*sin(kappa*x);
+   }
+    
    if (dim == 3)
    {
-      F(2) = 0.0;
+      real_t x = p(0);
+      real_t y = p(1);
+      real_t z = p(2);
+      F(0) = cos(kappa*x)*sin(kappa*y)*sin(kappa*z);
+      F(1) = cos(kappa*y)*sin(kappa*z)*sin(kappa*x);
+      F(2) = cos(kappa*z)*sin(kappa*x)*sin(kappa*y);
+      //F(2) = 0.0;
    }
+    
+    if (dim == 4)
+    {
+        real_t x = p(0);
+        real_t y = p(1);
+        real_t z = p(2);
+        real_t t = p(3);
+        
+        F(0) = cos(kappa*x)*sin(kappa*y)*sin(kappa*z)*sin(kappa*t);
+        F(1) = cos(kappa*y)*sin(kappa*z)*sin(kappa*t)*sin(kappa*x);
+        F(2) = cos(kappa*z)*sin(kappa*t)*sin(kappa*x)*sin(kappa*y);
+        F(3) = cos(kappa*t)*sin(kappa*x)*sin(kappa*y)*sin(kappa*z);
+
+    }
 }
 
 // The right hand side
@@ -288,16 +325,42 @@ void f_exact(const Vector &p, Vector &f)
 {
    int dim = p.Size();
 
-   real_t x = p(0);
-   real_t y = p(1);
-   // real_t z = (dim == 3) ? p(2) : 0.0; // Uncomment if f is changed to depend on z
-
-   real_t temp = 1 + 2*kappa*kappa;
-
-   f(0) = temp*cos(kappa*x)*sin(kappa*y);
-   f(1) = temp*cos(kappa*y)*sin(kappa*x);
-   if (dim == 3)
+   if (dim == 2)
    {
-      f(2) = 0;
-   }
+       real_t x = p(0);
+       real_t y = p(1);
+
+       real_t temp = 1 + 2*kappa*kappa;
+
+       f(0) = temp*cos(kappa*x)*sin(kappa*y);
+       f(1) = temp*cos(kappa*y)*sin(kappa*x);
+    }
+
+    if (dim == 3)
+    {
+      real_t x = p(0);
+      real_t y = p(1);
+      real_t z = p(2);
+        
+      real_t temp = 1 + 3*kappa*kappa;
+      f(0) = temp*cos(kappa*x)*sin(kappa*y)*sin(kappa*z);
+      f(1) = temp*sin(kappa*x)*cos(kappa*y)*sin(kappa*z);
+      f(2) = temp*sin(kappa*x)*sin(kappa*y)*cos(kappa*z);
+
+        
+    }
+    
+    if (dim == 4)
+    {
+      real_t x = p(0);
+      real_t y = p(1);
+      real_t z = p(2);
+      real_t t = p(3);
+        
+      real_t temp = 1 + 4*kappa*kappa;
+      f(0) = temp*cos(kappa*x)*sin(kappa*y)*sin(kappa*z)*sin(kappa*t);
+      f(1) = temp*sin(kappa*x)*cos(kappa*y)*sin(kappa*z)*sin(kappa*t);
+      f(2) = temp*sin(kappa*x)*sin(kappa*y)*cos(kappa*z)*sin(kappa*t);
+      f(3) = temp*sin(kappa*x)*sin(kappa*y)*sin(kappa*z)*cos(kappa*t);
+    }
 }

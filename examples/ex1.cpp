@@ -1,7 +1,7 @@
 //                                MFEM Example 1
 //
 // Compile with: make ex1
-//
+// Hello 
 // Sample runs:  ex1 -m ../data/square-disc.mesh
 //               ex1 -m ../data/star.mesh
 //               ex1 -m ../data/star-mixed.mesh

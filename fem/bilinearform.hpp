@@ -727,6 +727,11 @@ public:
    */
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
+   void SetIntegratorOwnership(int _extern_bfs)
+   {
+      extern_bfs = _extern_bfs;
+   }
+    
    /// Indicate that integrators are not owned by the BilinearForm
    void UseExternalIntegrators() { extern_bfs = 1; }
 
@@ -1192,8 +1197,13 @@ public:
    }
 
    /// Must be called after making changes to #trial_fes or #test_fes.
-   void Update();
+   virtual void Update(FiniteElementSpace *ntr_fes = NULL,
+                        FiniteElementSpace *nte_fes = NULL);
 
+   void SetIntegratorOwnership(int _extern_bfs)
+   {
+      extern_bfs = _extern_bfs;
+   }
    /// Return the trial FE space associated with the BilinearForm.
    FiniteElementSpace *TrialFESpace() { return trial_fes; }
 

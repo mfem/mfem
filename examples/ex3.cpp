@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
+   int ref_levels = 0;
    bool static_cond = false;
    bool pa = false;
    bool nc = false;
@@ -86,6 +87,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&ref_levels, "-ref", "--ref-levels", "");
+
    args.Parse();
    if (!args.Good())
    {
@@ -117,8 +120,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      //int ref_levels =
+         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -161,6 +164,22 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    VectorFunctionCoefficient E(sdim, E_exact);
    x.ProjectCoefficient(E);
+    
+    const IntegrationRule* irs[Geometry::NumGeom];
+    for (int i = 0; i < Geometry::NumGeom; i++)
+    {
+        if (i == 4)
+        {
+            // Tet Int Rule
+            irs[i] = &(IntRules.Get(i, 10));
+        }else
+        {
+            // Everything else
+            irs[i] = &(IntRules.Get(i, 16));
+        }
+    }
+   cout << "\n Initial || E_h - E ||_{L^2} = " << x.ComputeL2Error(E,irs) << '\n' << endl;
+
 
    // 9. Set up the bilinear form corresponding to the EM diffusion operator
    //    curl muinv curl + sigma I, by adding the curl-curl and the mass domain
@@ -189,7 +208,7 @@ int main(int argc, char *argv[])
    if (pa) // Jacobi preconditioning in partial assembly mode
    {
       OperatorJacobiSmoother M(*a, ess_tdof_list);
-      PCG(*A, M, B, X, 1, 1000, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 5000, 1e-12, 0.0);
    }
    else
    {
@@ -197,7 +216,7 @@ int main(int argc, char *argv[])
       // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       //     solve the system Ax=b with PCG.
       GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 500, 1e-12, 0.0);
+      PCG(*A, M, B, X, 1, 5000, 1e-18, 0.0);
 #else
       // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
       //     system.
@@ -212,7 +231,8 @@ int main(int argc, char *argv[])
    a->RecoverFEMSolution(X, *b, x);
 
    // 13. Compute and print the L^2 norm of the error.
-   cout << "\n|| E_h - E ||_{L^2} = " << x.ComputeL2Error(E) << '\n' << endl;
+
+   cout << "\n|| E_h - E ||_{L^2} = " << x.ComputeL2Error(E,irs) << '\n' << endl;
 
    // 14. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".

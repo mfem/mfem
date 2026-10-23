@@ -14,6 +14,7 @@
 #include "fe_nd.hpp"
 #include "face_map_utils.hpp"
 #include "../coefficient.hpp"
+#include <fstream>
 
 namespace mfem
 {
@@ -988,7 +989,6 @@ ND_TetrahedronElement::ND_TetrahedronElement(const int p)
    }
 
    Ti.Factor(T);
-   // mfem::out << "ND_TetrahedronElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void ND_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
@@ -1816,6 +1816,8 @@ ND_FuentesPyramidElement::ND_FuentesPyramidElement(const int p,
       const Vector tm({tk[3*dof2tk[m]], tk[3*dof2tk[m]+1], tk[3*dof2tk[m]+2]});
       u.Mult(tm, T.GetColumn(m));
    }
+    std::ofstream T_file("Pyrimid_Vander_matrix.txt");
+    T.PrintMatlab(T_file);
 
    Ti.Factor(T);
 }

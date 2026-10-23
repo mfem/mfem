@@ -205,7 +205,9 @@ public:
                           DenseMatrix &I) const override
    { LocalInterpolation_ND(CheckVectorFE(fe), tk, dof2tk, Trans, I); }
    const StatelessDofTransformation *GetDofTransformation() const override
-   { return &doftrans; }
+   { 
+       return &doftrans;
+   }
    using FiniteElement::Project;
    void Project(VectorCoefficient &vc,
                 ElementTransformation &Trans, Vector &dofs) const override

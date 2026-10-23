@@ -135,6 +135,16 @@ void DGHyperbolicConservationLaws::ComputeInvMass()
                                      *vfes.GetElementTransformation(i),
                                      invmass[i]);
    }
+    
+//    DenseMatrix Block_dense_mat;
+//    // Print each block of inverse mass
+//    for (int block = 0; block<vfes.GetNE(); block++)
+//    {
+//        Block_dense_mat = invmass[block];
+//        Block_dense_mat.Print();
+//        Block_dense_mat = 0.0;
+//    }
+    
 }
 
 void DGHyperbolicConservationLaws::ComputeWeakDivergence()
@@ -211,6 +221,8 @@ void DGHyperbolicConservationLaws::Mult(const Vector &x, Vector &y) const
          current_ymat.SetSize(dof, num_equations);
          mfem::Mult(invmass[i], current_zmat, current_ymat);
          y.SetSubVector(vdofs, current_ymat.GetData());
+          //y.Print();
+          std::cout << "hello";
       }
    }
    else

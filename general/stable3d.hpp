@@ -75,6 +75,78 @@ public:
    ~STable3D ();
 };
 
+class STable4DNode
+{
+public:
+   STable4DNode *Prev;
+   int Column, Floor, Trace, Number;
+};
+
+
+/// Symmetric 4D Table
+class STable4D
+{
+private:
+   int Size, NElem;
+   STable4DNode **Rows;
+
+#ifdef MFEM_USE_MEMALLOC
+   MemAlloc <STable4DNode, 1024> NodesMem;
+#endif
+
+public:
+   explicit STable4D (int nr);
+
+   int Push (int r, int c, int f, int t);
+
+   int operator() (int r, int c, int f, int t) const;
+
+   int Index (int r, int c, int f, int t) const;
+
+   int NumberOfElements() { return NElem; };
+
+   ~STable4D ();
+};
+
+
+
+class STable5DNode
+{
+public:
+   STable5DNode *Prev;
+   int Column, Floor, Trace, Next, Number;
+};
+
+/// Symmetric 5D Table
+class STable5D
+{
+private:
+   int Size, NElem;
+   STable5DNode **Rows;
+
+#ifdef MFEM_USE_MEMALLOC
+   MemAlloc <STable5DNode, 1024> NodesMem;
+#endif
+
+public:
+   explicit STable5D (int nr);
+
+   int Push (int r, int c, int f, int t, int u);
+
+   int operator() (int r, int c, int f, int t, int u) const;
+
+   int Index (int r, int c, int f, int t, int u) const;
+
+   int Push8 (int u1, int u2, int u3, int u4, int u5, int u6, int u7, int u8);
+   int operator() (int u1, int u2, int u3, int u4, int u5, int u6, int u7,
+                   int u8) const;
+
+   int NumberOfElements() { return NElem; };
+
+   ~STable5D ();
+};
+
+
 }
 
 #endif

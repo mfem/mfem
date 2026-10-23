@@ -43,6 +43,10 @@ LinearWedgeFiniteElement WedgeFE;
 // Defined here to ensure it is constructed before 'Geometries'.
 LinearPyramidFiniteElement PyramidFE;
 
+// Object declared in mesh/pentatope.hpp.
+// Defined here to ensure it is constructed before 'Geometries'.
+Linear4DFiniteElement PentatopeFE;
+
 // Object declared in geom.hpp.
 // Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', 'WedgeFE', and
 // PyramidFE.

@@ -2749,7 +2749,7 @@ const real_t* NCMesh::CalcVertexPos(int node) const
    const real_t* pos1 = CalcVertexPos(nd.p1);
    const real_t* pos2 = CalcVertexPos(nd.p2);
 
-   for (int i = 0; i < 3; i++)
+   for (int i = 0; i < Dim; i++)
    {
       tv.pos[i] = ((1.0 - nd.GetScale()) * pos1[i]) + (nd.GetScale() * pos2[i]);
    }
@@ -5825,14 +5825,17 @@ std::array<int, 4> NCMesh::FindFaceNodes(const Face &fa) const
 }
 
 void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
-                                Array<int> &bdr_vertices, Array<int> &bdr_edges,
+                                Array<int> &bdr_vertices, Array<int> &bdr_edges, Array<int> &bdr_planars,
                                 Array<int> &bdr_faces)
 {
    bdr_vertices.SetSize(0);
    bdr_edges.SetSize(0);
    bdr_faces.SetSize(0);
-
-   if (Dim == 3)
+   if (Dim == 4)
+   {
+       // TO DO 
+   }
+   else if (Dim == 3)
    {
       GetFaceList(); // make sure 'boundary_faces' is up to date
       for (int f : boundary_faces)

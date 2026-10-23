@@ -219,6 +219,8 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+
+
 /// Class for boundary integration $ L(v) = (g \cdot n, v) $
 class BoundaryNormalLFIntegrator : public LinearFormIntegrator
 {
@@ -636,6 +638,42 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+class VectorDGDirichletLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   VectorCoefficient &uD;
+   Coefficient *Q = nullptr;
+   MatrixCoefficient *MQ = nullptr;
+   real_t sigma, kappa;
+   int vdim;
+
+   // these are not thread-safe!
+   Vector shape, dshape_dn, nor, nh, ni, uD_vec;
+   DenseMatrix dshape, mq, adjJ;
+
+public:
+   VectorDGDirichletLFIntegrator(VectorCoefficient &u, real_t s, real_t k,
+                                 int vd=-1)
+      : uD(u), sigma(s), kappa(k), vdim(vd) { }
+   VectorDGDirichletLFIntegrator(VectorCoefficient &u, Coefficient &q, real_t s,
+                                 real_t k, int vd=-1)
+      : uD(u), Q(&q), sigma(s), kappa(k), vdim(vd) { }
+   VectorDGDirichletLFIntegrator(VectorCoefficient &u, MatrixCoefficient &mq,
+                                 real_t s, real_t k, int vd=-1)
+      : uD(u), MQ(&mq), sigma(s), kappa(k), vdim(vd) { }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
+   { MFEM_ABORT("Not implemented."); }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+};
+
 
 /** Boundary linear form integrator for imposing non-zero Dirichlet boundary
     conditions, in a DG elasticity formulation. Specifically, the linear form is
@@ -852,6 +890,60 @@ public:
       MFEM_WARNING("Integration rule not used in this class. "
                    "The QuadratureFunction integration rules are used instead");
    }
+};
+
+class MatFEDomainLFIntegrator : public LinearFormIntegrator
+{
+private:
+   MatrixCoefficient &QF;
+   DenseMatrix vshape;
+   DenseMatrix mat;
+   Vector matToVec;
+
+public:
+   MatFEDomainLFIntegrator (MatrixCoefficient &F) : QF(F) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect)
+   {
+      int dof = el.GetDof();
+      int dim = el.GetDim();
+
+      vshape.SetSize(dof,dim*dim);
+      mat.SetSize(dim,dim);
+      matToVec.SetSize(dim*dim);
+
+      elvect.SetSize(dof);
+      elvect = 0.0;
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
+         int intorder = 2*el.GetOrder() + 2;
+         ir = &IntRules.Get(el.GetGeomType(), intorder);
+      }
+
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Tr.SetIntPoint (&ip);
+
+         el.CalcVShape(Tr, vshape);
+
+         QF.Eval (mat, Tr, ip);
+         mat *= ip.weight * fabs(Tr.Weight());
+         for (int ki=0; ki<dim; ki++) for (int kj=0; kj<dim; kj++) { matToVec(dim*ki+kj) = mat(ki,kj); }
+
+         vshape.AddMult(matToVec, elvect);
+      }
+           //std::cout << "Start new El Linear Int ------" << std::endl;
+//           elvect.Print(std::cout);
+//           std::cout << std::endl;
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 }

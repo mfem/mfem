@@ -21,6 +21,8 @@
 #include "fe/fe_fixed_order.hpp"
 #include "fe/fe_h1.hpp"
 #include "fe/fe_nd.hpp"
+#include "fe/fe_skwgrad.hpp"
+#include "fe/fe_curl.hpp"
 #include "fe/fe_rt.hpp"
 #include "fe/fe_l2.hpp"
 #include "fe/fe_nurbs.hpp"

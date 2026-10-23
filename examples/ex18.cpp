@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
    string mesh_file = "";
    int IntOrderOffset = 1;
-   int ref_levels = 1;
+   int ref_levels = 0;
    int order = 3;
    int ode_solver_type = 4;
    real_t t_final = 2.0;

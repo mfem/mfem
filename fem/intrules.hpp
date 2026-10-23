@@ -34,14 +34,25 @@ class Mesh;
 class IntegrationPoint
 {
 public:
-   real_t x, y, z, weight;
+   real_t x, y, z, t, weight;
    int index;
 
    void Init(int const i)
    {
-      x = y = z = weight = 0.0;
+      x = y = z = t = weight = 0.0;
       index = i;
    }
+    
+   void Set4w(const double *p) { x = p[0]; y = p[1]; z = p[2]; t = p[3]; weight = p[4]; }
+
+   void Set4w(const double x1, const double x2, const double x3, const double x4,
+                   const double w)
+   { x = x1; y = x2; z = x3; t = x4; weight = w; }
+
+   void Set4(const double *p) { x = p[0]; y = p[1]; z = p[2]; t = p[3]; }
+
+   void Set4(const double x1, const double x2, const double x3, const double x4)
+   { x = x1; y = x2; z = x3; t = x4; }
 
    void Set3w(const real_t x1, const real_t x2, const real_t x3, const real_t w)
    { x = x1; y = x2; z = x3; weight = w; }
@@ -70,25 +81,42 @@ public:
 
    void Set(const real_t *p, const int dim)
    {
-      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
-      switch (dim)
+
+      MFEM_ASSERT(1 <= dim && dim <= 4, "invalid dim: " << dim);
+      x = p[0];
+      if (dim > 1)
       {
-         case 3: Set3(p); break;
-         case 2: Set2(p); break;
-         case 1: Set1(p); break;
+         y = p[1];
+         if (dim > 2)
+         {
+            z = p[2];
+         }
+         if (dim > 3)
+         {
+             t = p[3];
+         }
       }
    }
 
    void Get(real_t *p, const int dim) const
    {
-      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
-      switch (dim)
+
+      MFEM_ASSERT(1 <= dim && dim <= 4, "invalid dim: " << dim);
+      p[0] = x;
+      if (dim > 1)
       {
-         case 3: p[2] = z;
-         case 2: p[1] = y;
-         case 1: p[0] = x;
+         p[1] = y;
+         if (dim > 2)
+         {
+            p[2] = z;
+         }
+         if (dim > 3)
+         {
+            p[3] = t;
+         }
       }
    }
+    
 };
 
 /// Class for an integration rule - an Array of IntegrationPoint.
@@ -103,7 +131,10 @@ private:
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
-
+    
+   void AddTriPoint(const int off, const real_t weight)
+   { IntPoint(off).Set2w(1./2., 1./2., weight); }
+    
    void AddTriMidPoint(const int off, const real_t weight)
    { IntPoint(off).Set2w(1./3., 1./3., weight); }
 
@@ -156,6 +187,11 @@ private:
       IntPoint(off + 4).Set(c, a, b, weight);
       IntPoint(off + 5).Set(c, b, a, weight);
    }
+    
+    void AddTetPoint(const int off, const double x, const double y, const double z, double weight)
+    {
+       IntPoint(off).Set3w(x, y, z, weight);
+    }
 
    void AddTetMidPoint(const int off, const real_t weight)
    { IntPoint(off).Set(0.25, 0.25, 0.25, weight); }
@@ -166,6 +202,14 @@ private:
       IntPoint(off).Set(a, a, a, weight);
       AddTetPoints3(off + 1, a, 1. - 3.*a, weight);
    }
+    
+   // given b, add the permutations of (a,a,a,b), where 3*a + b = 1
+   void AddTetPoints4b(const int off, const real_t b, const real_t weight)
+    {
+      const real_t a = (1. - b)/3.;
+      IntPoint(off).Set(a, a, a, weight);
+      AddTetPoints3(off + 1, a, b, weight);
+    }
 
    // add the permutations of (a,a,b,b), 2*(a + b) = 1
    void AddTetPoints6(const int off, const real_t a, const real_t weight)
@@ -216,6 +260,103 @@ private:
       IntPoint(off + 21).Set(d, b, c, weight);
       IntPoint(off + 22).Set(d, c, a, weight);
       IntPoint(off + 23).Set(d, c, b, weight);
+   }
+    
+    void AddPentMidPoint(const int off, const double weight)
+   { IntPoint(off).Set4w(0.25, 0.25, 0.25, 0.25, weight); }
+
+   void AddPentPoint(const int off, const double x, const double y, const double z,
+                     const double t, double weight)
+   {
+      IntPoint(off).Set4w(x, y, z, t, weight);
+   }
+
+   // given (a), add the permuations of (a,a,a,a,b), b = 1 - 4*a
+   void AddPentPoints5(const int off, const double a,
+                       double weight)
+   {
+      const double b = 1. - 4 * a;
+      IntPoint(off + 0).Set4w(a, a, a, a, weight);
+      IntPoint(off + 1).Set4w(b, a, a, a, weight);
+      IntPoint(off + 2).Set4w(a, b, a, a, weight);
+      IntPoint(off + 3).Set4w(a, a, b, a, weight);
+      IntPoint(off + 4).Set4w(a, a, a, b, weight);
+   }
+
+   // given (a,b), add the permuations of (a,a,a,b,b)
+   void AddPentPoints10(const int off, const double a, const double b, double weight)
+   {
+      IntPoint(off + 0).Set4w(a, a, a, b, weight);
+      IntPoint(off + 1).Set4w(a, a, b, a, weight);
+      IntPoint(off + 2).Set4w(a, a, b, b, weight);
+      IntPoint(off + 3).Set4w(a, b, a, a, weight);
+      IntPoint(off + 4).Set4w(a, b, a, b, weight);
+      IntPoint(off + 5).Set4w(a, b, b, a, weight);
+      IntPoint(off + 6).Set4w(b, a, a, a, weight);
+      IntPoint(off + 7).Set4w(b, a, a, b, weight);
+      IntPoint(off + 8).Set4w(b, a, b, a, weight);
+      IntPoint(off + 9).Set4w(b, b, a, a, weight);
+   }
+
+   // given (a,b,c), add the permuations of (a,a,a,b,c), c = 1 - 3 a - b
+   void AddPentPoints20(const int off, const double a, const double b, double weight)
+   {
+      const double c = 1. - 3. * a - b;
+      IntPoint(off + 0).Set4w(a, a, a, b, weight);
+      IntPoint(off + 1).Set4w(a, a, a, c, weight);
+      IntPoint(off + 2).Set4w(a, a, b, a, weight);
+      IntPoint(off + 3).Set4w(a, a, b, c, weight);
+      IntPoint(off + 4).Set4w(a, a, c, a, weight);
+      IntPoint(off + 5).Set4w(a, a, c, b, weight);
+      IntPoint(off + 6).Set4w(a, b, a, a, weight);
+      IntPoint(off + 7).Set4w(a, b, a, c, weight);
+      IntPoint(off + 8).Set4w(a, b, c, a, weight);
+      IntPoint(off + 9).Set4w(a, c, a, a, weight);
+      IntPoint(off + 10).Set4w(a, c, a, b, weight);
+      IntPoint(off + 11).Set4w(a, c, b, a, weight);
+      IntPoint(off + 12).Set4w(b, a, a, a, weight);
+      IntPoint(off + 13).Set4w(b, a, a, c, weight);
+      IntPoint(off + 14).Set4w(b, a, c, a, weight);
+      IntPoint(off + 15).Set4w(b, c, a, a, weight);
+      IntPoint(off + 16).Set4w(c, a, a, a, weight);
+      IntPoint(off + 17).Set4w(c, a, a, b, weight);
+      IntPoint(off + 18).Set4w(c, a, b, a, weight);
+      IntPoint(off + 19).Set4w(c, b, a, a, weight);
+   }
+   // given (a,b,c), add the permutations of (a,a,b,b,c), c = 1 - 2 a - 2 b
+   void AddPentPoints30(const int off, const double a, const double b, double weight)
+   {
+      double c = 1. - 2. * a - 2. * b;
+      IntPoint(off + 0).Set4w(a, a, b, b, weight);
+      IntPoint(off + 1).Set4w(a, a, b, c, weight);
+      IntPoint(off + 2).Set4w(a, a, c, b, weight);
+      IntPoint(off + 3).Set4w(a, b, a, b, weight);
+      IntPoint(off + 4).Set4w(a, b, a, c, weight);
+      IntPoint(off + 5).Set4w(a, b, b, a, weight);
+      IntPoint(off + 6).Set4w(a, b, b, c, weight);
+      IntPoint(off + 7).Set4w(a, b, c, a, weight);
+      IntPoint(off + 8).Set4w(a, b, c, b, weight);
+      IntPoint(off + 9).Set4w(a, c, a, b, weight);
+      IntPoint(off + 10).Set4w(a, c, b, a, weight);
+      IntPoint(off + 11).Set4w(a, c, b, b, weight);
+      IntPoint(off + 12).Set4w(b, a, a, b, weight);
+      IntPoint(off + 13).Set4w(b, a, a, c, weight);
+      IntPoint(off + 14).Set4w(b, a, b, a, weight);
+      IntPoint(off + 15).Set4w(b, a, b, c, weight);
+      IntPoint(off + 16).Set4w(b, a, c, a, weight);
+      IntPoint(off + 17).Set4w(b, a, c, b, weight);
+      IntPoint(off + 18).Set4w(b, b, a, a, weight);
+      IntPoint(off + 19).Set4w(b, b, a, c, weight);
+      IntPoint(off + 20).Set4w(b, b, c, a, weight);
+      IntPoint(off + 21).Set4w(b, c, a, a, weight);
+      IntPoint(off + 22).Set4w(b, c, a, b, weight);
+      IntPoint(off + 23).Set4w(b, c, b, a, weight);
+      IntPoint(off + 24).Set4w(c, a, a, b, weight);
+      IntPoint(off + 25).Set4w(c, a, b, a, weight);
+      IntPoint(off + 26).Set4w(c, a, b, b, weight);
+      IntPoint(off + 27).Set4w(c, b, a, a, weight);
+      IntPoint(off + 28).Set4w(c, b, a, b, weight);
+      IntPoint(off + 29).Set4w(c, b, b, a, weight);
    }
 
 public:
@@ -444,6 +585,7 @@ private:
    Array<IntegrationRule *> PyramidIntRules;
    Array<IntegrationRule *> PrismIntRules;
    Array<IntegrationRule *> CubeIntRules;
+   Array<IntegrationRule *> PentatopeIntRules;
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    Array<omp_lock_t> IntRuleLocks;
@@ -478,6 +620,7 @@ private:
    IntegrationRule *PyramidIntegrationRule(int Order);
    IntegrationRule *PrismIntegrationRule(int Order);
    IntegrationRule *CubeIntegrationRule(int Order);
+   IntegrationRule *PentatopeIntegrationRule(int Order);
 
 public:
    /// Sets initial sizes for the integration rule arrays, but rules

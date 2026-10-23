@@ -57,6 +57,13 @@ doc/warnings.log
 *.dSYM
 .DS_Store
 
+# Data files
+data/cube3d_24tet_decomp.msh
+data/cube4d_24.MFEM
+data/cube4d_384.MFEM
+data/cube4d_6144.MFEM
+data/cube4d_98304.MFEM
+
 # Example and miniapp binaries and outputs
 
 examples/ex[0-9]

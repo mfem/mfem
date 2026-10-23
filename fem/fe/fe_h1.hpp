@@ -125,6 +125,48 @@ public:
                     DenseMatrix &ddshape) const override;
 };
 
+class H1_PentatopeElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector shape_x, shape_y, shape_z, shape_t, shape_l;
+   mutable Vector dshape_x, dshape_y, dshape_z, dshape_t, dshape_l, u;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z, ddshape_t, ddshape_l;
+   mutable DenseMatrix du, ddu;
+#endif
+   DenseMatrixInverse Ti;
+
+public:
+   H1_PentatopeElement(const int p,
+                       const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                            DenseMatrix &ddshape) const;
+};
+
+class H1_PentatopeElement_Barycentric : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+    mutable Vector shape_x, shape_y, shape_z, shape_t, shape_l;
+    mutable Vector dshape_x, dshape_y, dshape_z, dshape_t, dshape_l, u;
+    mutable Vector ddshape_x, ddshape_y, ddshape_z, ddshape_t, ddshape_l;
+    mutable DenseMatrix du, ddu;
+#endif
+    DenseMatrixInverse Ti;
+    
+public:
+    H1_PentatopeElement_Barycentric(const int p,
+                                    const int btype = BasisType::GaussLobatto);
+    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+    virtual void CalcDShape(const IntegrationPoint &ip,
+                            DenseMatrix &dshape) const;
+    virtual void CalcHessian(const IntegrationPoint &ip,
+                             DenseMatrix &ddshape) const;
+};
+
 
 
 /// Arbitrary order H1 elements in 3D on a wedge

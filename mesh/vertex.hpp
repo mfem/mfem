@@ -22,7 +22,7 @@ namespace mfem
 class Vertex
 {
 protected:
-   real_t coord[3];
+   real_t coord[4];
 
 public:
    Vertex() = default;
@@ -30,9 +30,11 @@ public:
    // Trivial copy constructor and trivial copy assignment operator
 
    Vertex(real_t *xx, int dim);
-   Vertex(real_t x, real_t y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
+   Vertex(real_t x, real_t y) { coord[0] = x; coord[1] = y; coord[2] = 0.; coord[3] = 0.; }
    Vertex(real_t x, real_t y, real_t z)
-   { coord[0] = x; coord[1] = y; coord[2] = z; }
+   { coord[0] = x; coord[1] = y; coord[2] = z; coord[3] = 0.;}
+   Vertex( double x, double y, double z, double t)
+   { coord[0] = x; coord[1] = y; coord[2] = z; coord[3] = t; }
 
    /// Returns pointer to the coordinates of the vertex.
    inline real_t * operator() () const { return (real_t*)coord; }
@@ -46,7 +48,7 @@ public:
    /// (DEPRECATED) Set the coordinates of the Vertex.
    /** @deprecated This old version of SetCoords is not always memory safe. */
    MFEM_DEPRECATED void SetCoords(const real_t *p)
-   { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; }
+   { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; coord[3] = p[3]; }
 
    /// Sets vertex location based on given point p
    void SetCoords(int dim, const real_t *p)
