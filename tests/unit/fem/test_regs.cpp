@@ -43,7 +43,10 @@ TEST_CASE("Register tensors (host layout)", "[Kernels]")
    static_assert(std::is_trivial_v<regs2d_t<DIM, N>>);
    static_assert(std::is_trivial_v<regs3d_vd_t<VDIM, DIM, N>>);
 
-   // On the host, all dimensions are stored in full, without padding
+   // On the host, all dimensions are stored in full, without padding. (The
+   // device compilation pass of a CUDA/HIP compiler also parses this host
+   // function, with the device layout of the types, so skip the checks there.)
+#ifndef MFEM_REGS_TEST_DEVICE_PASS
    static_assert(sizeof(s_regs2d_t<N>) == N * N * sizeof(real_t));
    static_assert(sizeof(v_regs2d_t<VDIM, N>) == VDIM * N * N * sizeof(real_t));
    static_assert(sizeof(vd_regs3d_t<VDIM, DIM, N>) ==
@@ -51,6 +54,7 @@ TEST_CASE("Register tensors (host layout)", "[Kernels]")
    static_assert(sizeof(regs2d_t<DIM, N>) == N * N * DIM * sizeof(real_t));
    static_assert(sizeof(regs3d_vd_t<VDIM, DIM, N>) ==
                  N * N * N * VDIM * DIM * sizeof(real_t));
+#endif
 
    // Trailing thread dimensions: distinct (y, x) entries do not alias
    vd_regs2d_t<VDIM, DIM, N> A{};
