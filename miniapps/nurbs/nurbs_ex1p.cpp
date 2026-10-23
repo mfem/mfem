@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   if (!pmesh->NURBSext)
+   if (!pmesh->IsNURBS())
    {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
@@ -265,11 +265,11 @@ int main(int argc, char *argv[])
          own_fec = 1;
       }
    }
-   else if (pmesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
+   else if (pmesh->IsNURBS() && (order[0] > 0) )  // Subparametric NURBS
    {
       fec = new NURBSFECollection(order[0]);
       own_fec = 1;
-      int nkv = pmesh->NURBSext->GetNKV();
+      int nkv = pmesh->NURBSExt()->GetNKV();
 
       if (order.Size() == 1)
       {
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
          order = tmp;
       }
       if (order.Size() != nkv ) { mfem_error("Wrong number of orders set."); }
-      NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+      NURBSext = new NURBSExtension(pmesh->NURBSExt(), order);
 
       // Enforce periodic BC's
       if (master.Size() > 0)
@@ -308,12 +308,12 @@ int main(int argc, char *argv[])
 
    if (!ibp)
    {
-      if (!pmesh->NURBSext)
+      if (!pmesh->IsNURBS())
       {
          cout << "No integration by parts requires a NURBS mesh."<< endl;
          return 2;
       }
-      if (pmesh->NURBSext->GetNP()>1)
+      if (pmesh->NURBSExt()->GetNP()>1)
       {
          cout << "No integration by parts requires a NURBS mesh, with only 1 patch."<<
               endl;
