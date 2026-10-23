@@ -109,6 +109,7 @@ public:
     *   @param E Vector of Young’s modulus values (per attribute).
     *   @param nu Vector of Poisson’s ratio values (per attribute).
     *   @param nonlinear_ If true, setup nonlinear hyperelasticity.
+    *   @param use_fa_ If true, use full assembly for linear elasticity.
     */
    ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_,
                       Array<int> & ess_bdr_attr_comp_,
