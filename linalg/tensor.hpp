@@ -29,32 +29,6 @@ namespace mfem
 namespace future
 {
 
-// Force inlining even in debug builds, unlike MFEM_ALWAYS_INLINE
-#if defined(__GNUC__) || defined(__clang__)
-#define MFEM_TENSOR_ALWAYS_INLINE __attribute__((always_inline))
-#else
-#define MFEM_TENSOR_ALWAYS_INLINE
-#endif
-
-/**
-   @brief Fixed-size array used as the storage of tensor.
-
-   N = 0 is supported by allocating a single (unused) entry.
-*/
-template <typename T, int N>
-struct carray
-{
-   T data[N ? N : 1];
-
-   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
-   constexpr T& operator[](int i) { return data[i]; }
-
-   MFEM_HOST_DEVICE MFEM_TENSOR_ALWAYS_INLINE
-   constexpr const T& operator[](int i) const { return data[i]; }
-};
-
-#undef MFEM_TENSOR_ALWAYS_INLINE
-
 namespace detail
 {
 /// Not constexpr, so reaching it during constant evaluation is a compile error.
@@ -154,7 +128,10 @@ struct tensor<T, N0, Ns...>
    }
 
 private:
-   carray<sub_tensor_type, N0> values;
+   // Plain C array storage. N0 = 0 is supported by allocating a single
+   // (unused) entry; std::array<T,0> is avoided since it is not trivial in
+   // MSVC.
+   sub_tensor_type values[N0 ? N0 : 1];
 
    // Helper constructor from c_array_type
    template <std::size_t... Is> MFEM_HOST_DEVICE
