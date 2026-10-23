@@ -108,6 +108,7 @@ public:
    /// connections established by the used constructor. Otherwise, it is exactly
    /// the number of established connections after calling Finalize(). */
    inline int Size_of_connections() const { return J.Size(); }
+   int GetISize() const { return I.Size(); }
 
    /// @brief Returns index of the connection between element i of TYPE I and
    /// element j of TYPE II.

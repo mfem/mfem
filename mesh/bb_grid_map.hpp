@@ -98,7 +98,7 @@ namespace mfem
  *  elements.
  *
  *  See Mittal et al., "General Field Evaluation in High-Order Meshes on GPUs".
- *  (2025). Computers & Fluids. for technical details.
+ *  (2026). Computers & Fluids. for technical details.
  */
 class BBoxTensorGridMap
 {
