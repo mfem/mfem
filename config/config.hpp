@@ -87,6 +87,15 @@ constexpr real_t operator""_r(unsigned long long v)
 #define MFEM_DEPRECATED
 #endif
 
+// --- MFEM_FORCE_INLINE
+// Macro used to request that a function be always inlined (GCC and clang).
+// Unlike MFEM_ALWAYS_INLINE, MFEM_FORCE_INLINE inlines also in debug builds.
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_FORCE_INLINE __attribute__((always_inline))
+#else
+#define MFEM_FORCE_INLINE
+#endif
+
 // Common configuration macros
 
 #if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)) || defined(__clang__)

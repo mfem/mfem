@@ -200,7 +200,7 @@ struct FwdDiff
    // runtime). The always-inliner runs even at -O0, hoisting this call into
    // operator() where the nested handling applies.
    template <typename PrimalPtrs, typename ShadowPtrs, size_t... Is>
-   MFEM_FUTURE_ALWAYS_INLINE
+   MFEM_FORCE_INLINE
    MFEM_HOST_DEVICE static void call_enzyme(PrimalPtrs &primal_ptrs,
                                             ShadowPtrs &shadow_ptrs,
                                             std::index_sequence<Is...>)
