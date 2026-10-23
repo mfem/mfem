@@ -30,8 +30,6 @@ namespace CR
 class Field {
 public:
    virtual ~Field() = default;
-   virtual int GetVDim() const = 0;
-   virtual Ordering::Type GetOrdering() const = 0;
    virtual int Size() const = 0;
    virtual std::size_t RowBytes() const = 0;
    virtual void Pack(int i, char *dst) const = 0;
@@ -97,8 +95,6 @@ public:
               Ordering::Type ordering_ = Ordering::byNODES)
       : arr(&a), vdim(vdim_), ordering(ordering_) { }
 
-   int              GetVDim() const override        { return vdim; }
-   Ordering::Type   GetOrdering() const override    { return ordering; }
    int              Size() const override           { return arr->Size() / vdim; }
    std::size_t      RowBytes() const override       { return (std::size_t)vdim * sizeof(T); }
 
@@ -233,8 +229,6 @@ public:
                Ordering::Type ordering_ = Ordering::byNODES)
       : vec(&v), vdim(vdim_), ordering(ordering_) { }
 
-   int              GetVDim() const override        { return vdim; }
-   Ordering::Type   GetOrdering() const override    { return ordering; }
    int              Size() const override           { return vec->Size() / vdim; }
    std::size_t      RowBytes() const override       { return (std::size_t)vdim * sizeof(real_t); }
 
@@ -379,8 +373,6 @@ class ParticleVectorField : public Field {
 public:
    ParticleVectorField(mfem::ParticleVector &pv_) : pv(&pv_) { }
 
-   int              GetVDim() const override        { return pv->GetVDim(); }
-   Ordering::Type   GetOrdering() const override    { return pv->GetOrdering(); }
    int              Size() const override           { return pv->GetNumParticles(); }
    std::size_t      RowBytes() const override       { return (std::size_t)pv->GetVDim() * sizeof(real_t); }
 
@@ -408,7 +400,7 @@ public:
          });
       }
 
-      host_buf->HostRead();
+      host_buf->HostReadWrite();
       host_buf->UseDevice(false);
 
       auto host_field = std::make_unique<ParticleVectorField>(*host_buf);

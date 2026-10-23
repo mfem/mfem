@@ -201,12 +201,12 @@ void CrystalRouter::Exchange(Array<unsigned int> &ranks,
    int send_n = send_buf.Size() / total_bytes;
 
    if (recvn >= 1) {
-      MPI_Irecv(&count[0], 1, MPI_INT32_T, target, msg_tag, comm, &reqs[1]);
+      MPI_Irecv(&count[0], 1, MPI_INT, target, msg_tag, comm, &reqs[1]);
    }
    if (recvn == 2) {
-      MPI_Irecv(&count[1], 1, MPI_INT32_T, rank - 1, msg_tag, comm, &reqs[2]);
+      MPI_Irecv(&count[1], 1, MPI_INT, rank - 1, msg_tag, comm, &reqs[2]);
    }
-   MPI_Isend(&send_n, 1, MPI_INT32_T, target, msg_tag, comm, &reqs[0]);
+   MPI_Isend(&send_n, 1, MPI_INT, target, msg_tag, comm, &reqs[0]);
    MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
 
    int nrecv = count[0] + count[1];
