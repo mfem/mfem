@@ -120,8 +120,7 @@ FiniteElementSpace& FiniteElementSpaceHierarchy::GetFinestFESpace()
    return GetFESpaceAtLevel(GetFinestLevelIndex());
 }
 
-const Operator* FiniteElementSpaceHierarchy::GetProlongationAtLevel(
-   int level) const
+Operator* FiniteElementSpaceHierarchy::GetProlongationAtLevel(int level) const
 {
    MFEM_ASSERT(level < prolongations.Size(),
                "Prolongation at given level does not exist.");
