@@ -677,6 +677,14 @@ public:
    /// The returned SparseMatrix is owned by the FiniteElementSpace.
    const SparseMatrix *GetConformingRestriction() const;
 
+   /** @brief Return the conforming assembly $P^T A P$ of @a mat, where @a P is
+       the conforming prolongation.
+
+       The caller owns the returned matrix and must use it in place of @a mat,
+       which may be deleted. On a conforming space the returned matrix is
+       @a mat itself. Typical use: `A = fes.ConformingAssemble(A);` */
+   SparseMatrix *ConformingAssemble(SparseMatrix *mat) const;
+
    /** Return a version of the conforming restriction matrix for variable-order
        spaces with complex hp interfaces, where some true DOFs are not owned by
        any elements and need to be interpolated from higher order edge/face
