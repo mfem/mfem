@@ -90,7 +90,7 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
 {
    Array<int> errors(1);
    errors = 0;
-   auto *d_errors = errors.Write();
+   auto *d_errors = errors.ReadWrite();
 
    // 2D tile of threads, trailing thread dimensions (TMOP, vector PA kernels)
    mfem::forall_2D(1, N, N, [=] MFEM_HOST_DEVICE (int)
