@@ -44,7 +44,14 @@ namespace internal
 
     Entries are accessed with chained operator[], or with operator() taking the
     thread indices followed by the indices of @a T, if any. All extents must be
-    positive. */
+    positive.
+
+    @warning The size and layout of these types differ between the host and
+    the device compilation passes of the same translation unit. Objects of
+    these types must only be used as local variables inside a kernel body (or
+    in host-only code): they must not be kernel arguments, captured by a
+    forall lambda, or stored in memory that is visible to both host and
+    device. */
 template <typename T, int... TDims> struct thread_regs;
 
 /// One thread dimension
@@ -158,32 +165,38 @@ struct thread_regs<T, N0, N1, Ns...>
     the leading ones, if any, are component dimensions stored in full. Entries
     are accessed with chained operator[] or with a full list of indices in
     operator(). All dimensions must be positive and the rank must be at least
-    2. */
-template <int... Dims> struct regs;
+    2. The @warning of thread_regs about host/device layout applies. */
+template <int... Dims>
+struct regs
+{
+   static_assert(sizeof...(Dims) >= 2, "regs: the rank must be at least 2");
+};
 
 /// 2D tile of registers mapped onto the (y, x) threads of a kernel
 template <int N0, int N1>
 struct regs<N0, N1> : thread_regs<real_t, N0, N1> { };
 
 /// Tensor of registers of rank > 2: array of tensors of registers of rank - 1
-template <int N0, int... Ns>
-struct regs<N0, Ns...>
+template <int N0, int N1, int N2, int... Ns>
+struct regs<N0, N1, N2, Ns...>
 {
    static_assert(N0 > 0, "regs: dimensions must be positive");
 
-   regs<Ns...> values[N0];
+   using sub_type = regs<N1, N2, Ns...>;
+
+   sub_type values[N0];
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   regs<Ns...> &operator[](int i) { return values[i]; }
+   sub_type &operator[](int i) { return values[i]; }
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
-   const regs<Ns...> &operator[](int i) const { return values[i]; }
+   const sub_type &operator[](int i) const { return values[i]; }
 
    template <typename... index_types>
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    real_t &operator()(int i0, index_types... is)
    {
-      static_assert(sizeof...(is) == sizeof...(Ns),
+      static_assert(sizeof...(is) == 2 + sizeof...(Ns),
                     "regs: invalid number of indices!");
       return values[i0](is...);
    }
@@ -192,7 +205,7 @@ struct regs<N0, Ns...>
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
    const real_t &operator()(int i0, index_types... is) const
    {
-      static_assert(sizeof...(is) == sizeof...(Ns),
+      static_assert(sizeof...(is) == 2 + sizeof...(Ns),
                     "regs: invalid number of indices!");
       return values[i0](is...);
    }
@@ -252,6 +265,8 @@ constexpr int NextMultipleOf(int n)
 }
 constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
 #endif // MFEM_REGS_DEVICE_COMPILE
+
+#undef MFEM_REGS_DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory
 template <int MQ1, bool TRANSPOSE = false>
