@@ -24,6 +24,12 @@ Meshing improvements
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
 
+Linear and nonlinear solvers
+----------------------------
+- Fixed HypreParaSails::SetOperator, which read the communicator of the
+  previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
+  in a NewtonSolver.
+
 Miscellaneous
 -------------
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
@@ -33,12 +39,6 @@ Miscellaneous
 - Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
   failure if an MPI rank had no design parameters (aka decision variables).
   Also plugged a MPI communicator leak that would cause memory leaks.
-
-Linear and nonlinear solvers
-----------------------------
-- Fixed HypreParaSails::SetOperator, which read the communicator of the
-  previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
-  in a NewtonSolver.
 
 
 Version 4.10, released on Sep 1, 2026
