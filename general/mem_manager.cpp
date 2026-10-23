@@ -198,7 +198,7 @@ struct Maps
 
 } // namespace mfem::internal
 
-static internal::Maps *maps;
+static MFEM_CONSTINIT internal::Maps *maps;
 
 namespace internal
 {
@@ -813,7 +813,7 @@ private:
 
 } // namespace mfem::internal
 
-static internal::Ctrl *ctrl;
+static MFEM_CONSTINIT internal::Ctrl *ctrl;
 
 void *MemoryManager::New_(void *h_tmp, size_t bytes, MemoryType mt,
                           unsigned &flags)
@@ -1790,11 +1790,11 @@ void MemoryManager::CheckHostMemoryType_(MemoryType h_mt, void *h_ptr,
 
 MemoryManager mm;
 
-bool MemoryManager::exists = false;
-bool MemoryManager::configured = false;
+MFEM_CONSTINIT bool MemoryManager::exists = false;
+MFEM_CONSTINIT bool MemoryManager::configured = false;
 
-MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
-MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
+MFEM_CONSTINIT MemoryType MemoryManager::host_mem_type = MemoryType::HOST;
+MFEM_CONSTINIT MemoryType MemoryManager::device_mem_type = MemoryType::HOST;
 
 MemoryType MemoryManager::dual_map[MemoryTypeSize] =
 {
