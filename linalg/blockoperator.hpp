@@ -75,12 +75,27 @@ public:
     */
    void SetDiagonalBlock(int iblock, Operator *op, bool own, real_t c = 1.0);
 
-   //! Delete overloads for non-bool ownership types
+   //! Reject non-bool ownership flags when a coefficient is also given.
    template<typename T>
-   void SetDiagonalBlock(int iblock, Operator *op, T own, real_t c = 1.0) = delete;
-   //! Delete overloads for non-bool ownership types
+   void SetDiagonalBlock(int iblock, Operator *op, T own, real_t c) = delete;
+   //! Reject non-bool ownership flags when a coefficient is also given.
    template<typename T>
-   void SetBlock(int iRow, int iCol, Operator *op, T own, real_t c = 1.0) = delete;
+   void SetBlock(int iRow, int iCol, Operator *op, T own, real_t c) = delete;
+
+   //! Accept any non-bool arithmetic type as the coefficient (avoids an
+   //! ambiguous conversion to bool @a own).
+   template<typename T, typename std::enable_if<
+               std::is_arithmetic<T>::value &&
+               !std::is_same<T, bool>::value, int>::type = 0>
+   void SetDiagonalBlock(int iblock, Operator *op, T c)
+   { SetDiagonalBlock(iblock, op, static_cast<real_t>(c)); }
+   //! Accept any non-bool arithmetic type as the coefficient (avoids an
+   //! ambiguous conversion to bool @a own).
+   template<typename T, typename std::enable_if<
+               std::is_arithmetic<T>::value &&
+               !std::is_same<T, bool>::value, int>::type = 0>
+   void SetBlock(int iRow, int iCol, Operator *op, T c)
+   { SetBlock(iRow, iCol, op, static_cast<real_t>(c)); }
 
    //! Add a block op in the block-entry (iblock, jblock). The ownership
    //! of the block will not be changed.
