@@ -240,6 +240,7 @@ NCMesh::NCMesh(const NCMesh &other)
    , nodes(other.nodes)
    , faces(other.faces)
    , using_scaling(other.using_scaling)
+   , using_attribute_sets(other.using_attribute_sets)
    , elements(other.elements)
    , free_element_ids(other.free_element_ids)
    , root_state(other.root_state)
@@ -6353,11 +6354,15 @@ bool NCMesh::ZeroRootStates() const
 }
 
 void NCMesh::Print(std::ostream &os, const std::string &comments,
-                   bool nurbs) const
+                   bool nurbs, bool attribute_sets) const
 {
    if (nurbs)
    {
       os << "MFEM NURBS NC-patch mesh v1.0\n\n";
+   }
+   else if (attribute_sets)
+   {
+      os << "MFEM NC mesh v1.2\n\n";
    }
    else if (using_scaling)
    {
@@ -6509,7 +6514,7 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
-     using_scaling(version == 11)
+     using_scaling(version >= 11), using_attribute_sets(version >= 12)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
@@ -6519,7 +6524,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       return;
    }
 
-   MFEM_ASSERT(version == 10 || version == 11, "");
+   MFEM_ASSERT(version == 10 || version == 11 || version == 12, "");
    std::string ident;
    int count;
 

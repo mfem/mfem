@@ -5101,10 +5101,12 @@ void Mesh::SetMeshGen()
 }
 
 void Mesh::Loader(std::istream &input, int generate_edges,
-                  std::string parse_tag)
+                  std::string parse_tag, bool defer_nodes,
+                  bool *nodes_deferred)
 {
    int curved = 0, read_gf = 1;
    bool finalize_topo = true;
+   if (nodes_deferred) { *nodes_deferred = false; }
 
    if (!input)
    {
@@ -5129,6 +5131,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    int mfem_nc_version = 0;
    if (mesh_type == "MFEM NC mesh v1.0") { mfem_nc_version = 10; }
    else if (mesh_type == "MFEM NC mesh v1.1") { mfem_nc_version = 11; }
+   else if (mesh_type == "MFEM NC mesh v1.2") { mfem_nc_version = 12; }
    else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
 
    if (mfem_version)
@@ -5288,16 +5291,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       FinalizeTopology(generate_bdr);
    }
 
+   if (defer_nodes && curved && read_gf)
+   {
+      if (nodes_deferred) { *nodes_deferred = true; }
+      return;
+   }
+
    if (curved && read_gf)
    {
-      Nodes = new GridFunction(this, input);
-
-      own_nodes = 1;
-      spaceDim = Nodes->VectorDim();
-      if (ncmesh) { ncmesh->spaceDim = spaceDim; }
-
-      // Set vertex coordinates from the 'Nodes'
-      SetVerticesFromNodes(Nodes);
+      LoadNodes(input);
    }
 
    // If a parse tag was supplied, keep reading the stream until the tag is
@@ -5323,7 +5325,28 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       string ident;
       skip_comment_lines(input, '#');
-      input >> ident;
+      if (mfem_nc_version >= 12)
+      {
+         input >> ident;
+         MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
+         attribute_sets.attr_sets.Load(input);
+         attribute_sets.attr_sets.SortAll();
+         attribute_sets.attr_sets.UniqueAll();
+
+         skip_comment_lines(input, '#');
+         input >> ident;
+         MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
+         bdr_attribute_sets.attr_sets.Load(input);
+         bdr_attribute_sets.attr_sets.SortAll();
+         bdr_attribute_sets.attr_sets.UniqueAll();
+
+         skip_comment_lines(input, '#');
+         input >> ident;
+      }
+      else
+      {
+         input >> ident;
+      }
       MFEM_VERIFY(ident == "mfem_mesh_end",
                   "invalid mesh: end of file tag not found");
    }
@@ -5342,6 +5365,16 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
 
    // Finalize(...) should be called after this, if needed.
+}
+
+void Mesh::LoadNodes(std::istream &input)
+{
+   MFEM_ASSERT(Nodes == nullptr, "nodes are already initialized");
+   Nodes = new GridFunction(this, input);
+   own_nodes = 1;
+   spaceDim = Nodes->VectorDim();
+   if (ncmesh) { ncmesh->spaceDim = spaceDim; }
+   SetVerticesFromNodes(Nodes);
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
@@ -9369,10 +9402,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                             options,
                                             &edgecut,
                                             mpartitioning);
-         if (errflag != 1)
+         if (errflag != METIS_OK)
          {
-            mfem_error("Mesh::GeneratePartitioning: "
-                       " error in METIS_PartGraphRecursive!");
+            switch (errflag)
+            {
+               case METIS_ERROR_INPUT:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR_INPUT");
+               case METIS_ERROR_MEMORY:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR_MEMORY");
+               default:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR");
+            }
          }
 #endif
       }
@@ -9407,10 +9450,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                        options,
                                        &edgecut,
                                        mpartitioning);
-         if (errflag != 1)
+         if (errflag != METIS_OK)
          {
-            mfem_error("Mesh::GeneratePartitioning: "
-                       " error in METIS_PartGraphKway!");
+            switch (errflag)
+            {
+               case METIS_ERROR_INPUT:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR_INPUT");
+               case METIS_ERROR_MEMORY:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR_MEMORY");
+               default:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR");
+            }
          }
 #endif
       }
@@ -12495,8 +12548,11 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
       Array<real_t> coords_save;
       if (Nodes) { mfem::Swap(coords_save, ncmesh->coordinates); }
 
+      const bool set_names = attribute_sets.SetsExist() ||
+                             bdr_attribute_sets.SetsExist();
+
       // nonconforming mesh format
-      ncmesh->Print(os, comments);
+      ncmesh->Print(os, comments, false, set_names);
 
       if (Nodes)
       {
@@ -12505,6 +12561,14 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
          os << "\n# mesh curvature GridFunction";
          os << "\nnodes\n";
          Nodes->Save(os);
+      }
+
+      if (set_names)
+      {
+         os << "\nattribute_sets\n";
+         attribute_sets.Print(os);
+         os << "\nbdr_attribute_sets\n";
+         bdr_attribute_sets.Print(os);
       }
 
       os << "\nmfem_mesh_end" << endl;
@@ -14577,7 +14641,8 @@ MeshPart::Entity MeshPart::EntityHelper::FindEntity(int bytype_entity_id)
 
 void MeshPart::Print(std::ostream &os) const
 {
-   os << "MFEM mesh v1.2\n";
+   const bool set_names = attribute_sets.Size() || bdr_attribute_sets.Size();
+   os << (set_names ? "MFEM mesh v1.3\n" : "MFEM mesh v1.2\n");
 
    // optional
    os <<
@@ -14618,6 +14683,12 @@ void MeshPart::Print(std::ostream &os) const
       }
    }
 
+   if (set_names)
+   {
+      os << "\nattribute_sets\n";
+      attribute_sets.Print(os);
+   }
+
    os << "\nboundary\n" << num_bdr_elements << '\n';
    {
       const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
@@ -14639,6 +14710,12 @@ void MeshPart::Print(std::ostream &os) const
          }
          os << '\n';
       }
+   }
+
+   if (set_names)
+   {
+      os << "\nbdr_attribute_sets\n";
+      bdr_attribute_sets.Print(os);
    }
 
    os << "\nvertices\n" << num_vertices << '\n';
@@ -14837,13 +14914,131 @@ Mesh &MeshPart::GetMesh()
    return *mesh;
 }
 
+namespace
+{
+
+std::unique_ptr<GridFunction>
+ExtractElementwiseGridFunction(const Array<int> &global_elem_ids,
+                               const GridFunction &global_gf,
+                               FiniteElementSpace &local_fespace)
+{
+   std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
+
+   Array<int> gvdofs, lvdofs;
+   Vector loc_vals;
+   for (int loc_elem_id = 0; loc_elem_id < global_elem_ids.Size(); loc_elem_id++)
+   {
+      const int glob_elem_id = global_elem_ids[loc_elem_id];
+      DofTransformation glob_dt, local_dt;
+      global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs, glob_dt);
+      global_gf.GetSubVector(gvdofs, loc_vals);
+      glob_dt.InvTransformPrimal(loc_vals);
+      local_fespace.GetElementVDofs(loc_elem_id, lvdofs, local_dt);
+      local_dt.TransformPrimal(loc_vals);
+      local_gf->SetSubVector(lvdofs, loc_vals);
+   }
+
+   return local_gf;
+}
+
+class NCMeshPartWriter : public NCMesh
+{
+public:
+   explicit NCMeshPartWriter(const NCMesh &ncmesh)
+      : NCMesh(ncmesh)
+   { }
+
+   void SelectPart(int part_id, const Array<int> &partitioning,
+                   Array<int> &owned_global_elem_ids)
+   {
+      MFEM_ASSERT(leaf_elements.Size() == partitioning.Size(),
+                  "invalid partitioning size");
+
+      Array<int> elem_to_global(elements.Size());
+      elem_to_global = -1;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const int elem = leaf_elements[i];
+         elem_to_global[elem] = i;
+         elements[elem].rank = partitioning[i];
+      }
+
+      MyRank = part_id;
+
+      Array<char> owned_set(leaf_elements.Size());
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         owned_set[i] = (partitioning[i] == part_id);
+      }
+
+      Array<char> ghost_set;
+      FindSetNeighbors(owned_set, nullptr, &ghost_set);
+
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         if (!owned_set[i] && !ghost_set[i])
+         {
+            elements[leaf_elements[i]].rank = -1;
+         }
+      }
+
+      // Remove branches which contain neither owned nor ghost elements. Just
+      // hiding their leaves leaves their nodes and faces in the hierarchy.
+      // This is a serialization-only operation: unlike ParNCMesh::Prune(), it
+      // does not construct derefinement transforms, so it is also valid for
+      // anisotropic 3D refinement trees.
+      for (int i = 0; i < root_state.Size(); i++)
+      {
+         if (PruneTree(i)) { DerefineElement(i); }
+      }
+      Update();
+
+      owned_global_elem_ids.SetSize(NElements);
+      for (int i = 0; i < NElements; i++)
+      {
+         const int global_id = elem_to_global[leaf_elements[i]];
+         MFEM_ASSERT(global_id >= 0,
+                     "internal error: missing global element mapping");
+         owned_global_elem_ids[i] = global_id;
+      }
+   }
+
+   bool PruneTree(int elem)
+   {
+      Element &el = elements[elem];
+      if (el.IsLeaf()) { return el.rank < 0; }
+
+      bool remove_all = true;
+      bool remove[MaxElemChildren];
+      for (int i = 0; i < MaxElemChildren; i++)
+      {
+         remove[i] = el.child[i] >= 0 && PruneTree(el.child[i]);
+         if (el.child[i] >= 0 && !remove[i]) { remove_all = false; }
+      }
+      if (remove_all) { return true; }
+      for (int i = 0; i < MaxElemChildren; i++)
+      {
+         if (remove[i]) { DerefineElement(el.child[i]); }
+      }
+      return false;
+   }
+
+   void DropCoordinates()
+   {
+      coordinates.DeleteAll();
+   }
+};
+
+} // namespace
+
 
 MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
                                  const int *partitioning_,
                                  int part_method)
-   : mesh(mesh_)
+   : mesh(mesh_), num_parts(num_parts_)
 {
+   MFEM_VERIFY(mesh.NURBSext == nullptr, "NURBS meshes not supported yet");
    if (partitioning_)
    {
       partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
@@ -14857,6 +15052,10 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
       constexpr MemoryType mt = MemoryType::HOST;
       partitioning.MakeRef(mesh.GeneratePartitioning(num_parts_, part_method),
                            mesh.GetNE(), mt, true);
+   }
+   if (mesh.Nonconforming())
+   {
+      return;
    }
 
    Transpose(partitioning, part_to_element, num_parts_);
@@ -14907,12 +15106,15 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
 
    Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
    vertex_to_element.Swap(*vert_element);
+   MFEM_ASSERT(num_parts == part_to_element.Size(), "");
+
    delete vert_element;
 }
 
 void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
 {
-   const int num_parts = part_to_element.Size();
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractPart not supported for non-conforming meshes");
 
    MFEM_VERIFY(0 <= part_id && part_id < num_parts,
                "invalid part_id = " << part_id
@@ -14940,6 +15142,8 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    mesh_part.boundary_map.SetSize(0); // 0 or 'num_bdr_elements', if needed
    mesh_part.attributes.SetSize(num_elems);
    mesh_part.bdr_attributes.SetSize(num_bdr_elems);
+   mesh_part.attribute_sets = mesh.attribute_sets.attr_sets;
+   mesh_part.bdr_attribute_sets = mesh.bdr_attribute_sets.attr_sets;
    mesh_part.vertex_coordinates.SetSize(0);
 
    mesh_part.num_parts = num_parts;
@@ -15379,10 +15583,66 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    }
 }
 
+void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
+{
+   MFEM_VERIFY(0 <= part_id && part_id < num_parts,
+               "invalid part_id = " << part_id
+               << ", num_parts = " << num_parts);
+
+   if (mesh.Nonconforming())
+   {
+      MFEM_VERIFY(mesh.ncmesh, "missing NCMesh.");
+
+      NCMeshPartWriter part_ncmesh(*mesh.ncmesh);
+      Array<int> owned_global_elem_ids;
+      part_ncmesh.SelectPart(part_id, partitioning, owned_global_elem_ids);
+      if (mesh.GetNodes())
+      {
+         part_ncmesh.DropCoordinates();
+      }
+
+      const bool set_names = mesh.attribute_sets.SetsExist() ||
+                             mesh.bdr_attribute_sets.SetsExist();
+      part_ncmesh.Print(os, "", false, set_names);
+
+      if (mesh.GetNodes())
+      {
+         Mesh part_mesh(part_ncmesh);
+         FiniteElementSpace nodal_fes(&part_mesh,
+                                      mesh.GetNodes()->FESpace()->FEColl(),
+                                      mesh.GetNodes()->VectorDim(),
+                                      mesh.GetNodes()->FESpace()->GetOrdering());
+         std::unique_ptr<GridFunction> local_nodes =
+            ExtractElementwiseGridFunction(owned_global_elem_ids,
+                                           *mesh.GetNodes(),
+                                           nodal_fes);
+         os << "\n# mesh curvature GridFunction";
+         os << "\nnodes\n";
+         local_nodes->Save(os);
+      }
+
+      if (set_names)
+      {
+         os << "\nattribute_sets\n";
+         mesh.attribute_sets.Print(os);
+         os << "\nbdr_attribute_sets\n";
+         mesh.bdr_attribute_sets.Print(os);
+      }
+
+      os << "\nmfem_mesh_end" << endl;
+      return;
+   }
+   MeshPart mesh_part;
+   ExtractPart(part_id, mesh_part);
+   mesh_part.Print(os);
+}
+
 std::unique_ptr<FiniteElementSpace>
 MeshPartitioner::ExtractFESpace(MeshPart &mesh_part,
                                 const FiniteElementSpace &global_fespace) const
 {
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractFESpace not supported for non-conforming meshes");
    mesh_part.GetMesh(); // initialize 'mesh_part.mesh'
    // Note: the nodes of 'mesh_part.mesh' are not set by GetMesh() unless they
    // were already constructed, e.g. by ExtractPart().
@@ -15399,6 +15659,8 @@ MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
                                      const GridFunction &global_gf,
                                      FiniteElementSpace &local_fespace) const
 {
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractGridFunction not supported for non-conforming meshes");
    std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
 
    // Transfer data from 'global_gf' to 'local_gf'.
