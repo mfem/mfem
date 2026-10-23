@@ -191,7 +191,7 @@ public:
    /// Stores the tangent of every output component, @a tangent(o, i, k), in
    /// cache column @a col, with the row layout DerivativeApply reads.
    template <typename tangent_t>
-   static MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE void
+   static MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE void
    store_cache_column(const DeviceTensor<3, real_t> &cache, const int q,
                       const int e, const int col, tangent_t &&tangent)
    {
@@ -310,7 +310,7 @@ public:
       const auto d_elem_attr = ctx.elem_attr->Read();
 
       dfem::forall<MTPB>(
-         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FUTURE_ALWAYS_INLINE
+         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
