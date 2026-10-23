@@ -75,6 +75,7 @@ public:
    virtual ~Wedge() = default;
 };
 
+// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
 extern MFEM_EXPORT class LinearWedgeFiniteElement WedgeFE;
 
 }
