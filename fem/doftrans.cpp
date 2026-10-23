@@ -545,25 +545,25 @@ NDPos_DofTransformation::NDPos_DofTransformation(
 }
 
 void NDPos_DofTransformation::TransformPrimal(const Array<int> &Fo,
-                                               real_t *v) const
+                                              real_t *v) const
 {
    NDPosApplyFaceMatrices(T, order, nedges, nfaces, Fo, v, false);
 }
 
 void NDPos_DofTransformation::InvTransformPrimal(const Array<int> &Fo,
-                                                  real_t *v) const
+                                                 real_t *v) const
 {
    NDPosApplyFaceMatrices(TInv, order, nedges, nfaces, Fo, v, false);
 }
 
 void NDPos_DofTransformation::TransformDual(const Array<int> &Fo,
-                                             real_t *v) const
+                                            real_t *v) const
 {
    NDPosApplyFaceMatrices(TInv, order, nedges, nfaces, Fo, v, true);
 }
 
 void NDPos_DofTransformation::InvTransformDual(const Array<int> &Fo,
-                                                real_t *v) const
+                                               real_t *v) const
 {
    NDPosApplyFaceMatrices(T, order, nedges, nfaces, Fo, v, true);
 }

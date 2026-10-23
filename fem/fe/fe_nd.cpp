@@ -1629,7 +1629,8 @@ void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
    H1Pos_TetrahedronElement::CalcShape(order, ip.x, ip.y, ip.z,
                                        bernstein.GetData());
    const real_t lambda[4] = {1.0 - ip.x - ip.y - ip.z,
-                             ip.x, ip.y, ip.z};
+                             ip.x, ip.y, ip.z
+                            };
    shape.SetSize(dof, 3);
    shape = 0.0;
    for (int basis = 0; basis < dof; basis++)
@@ -1663,7 +1664,7 @@ void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
                beta[i]--; beta[l]++;
                const real_t coefficient = alpha[l] - (i == l) + 1;
                const real_t b = bernstein[
-                  TetBernsteinMultiindexTo1D(order, beta)];
+                                   TetBernsteinMultiindexTo1D(order, beta)];
                for (int d = 0; d < 3; d++)
                {
                   shape(basis,d) += coefficient * b * grad_lambda_3d[i][d];
@@ -1692,7 +1693,7 @@ void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
             int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
             beta[i]++;
             const real_t b = bernstein[
-               TetBernsteinMultiindexTo1D(order, beta)];
+                                TetBernsteinMultiindexTo1D(order, beta)];
             for (int d = 0; d < 3; d++)
             {
                shape(basis,d) += (alpha[i] + 1) * b *
@@ -1717,7 +1718,7 @@ void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
             int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
             beta[i]--;
             const real_t b = bernstein[
-               TetBernsteinMultiindexTo1D(order, beta)];
+                                TetBernsteinMultiindexTo1D(order, beta)];
             const real_t coefficient =
                (i == l ? order + 1 : 0) - alpha[l];
             for (int d = 0; d < 3; d++)
@@ -1771,12 +1772,12 @@ void NDPos_TetrahedronElement::CalcCurlShape(
                beta[i]++; beta[m]--;
                if (beta[m] < 0) { continue; }
                const real_t b = curl_bernstein[
-                  TetBernsteinMultiindexTo1D(degree, beta)];
+                                   TetBernsteinMultiindexTo1D(degree, beta)];
                for (int d = 0; d < 3; d++)
                {
                   curl_shape(basis,d) += order * (alpha[i] + 1) * b *
-                     (alpha[k] * tangent_3d[m][j][d] -
-                      alpha[j] * tangent_3d[m][k][d]);
+                                         (alpha[k] * tangent_3d[m][j][d] -
+                                          alpha[j] * tangent_3d[m][k][d]);
                }
             }
          }
@@ -1792,7 +1793,7 @@ void NDPos_TetrahedronElement::CalcCurlShape(
             beta[i]--; beta[l]--;
             if (beta[i] < 0 || beta[l] < 0) { continue; }
             const real_t b = curl_bernstein[
-               TetBernsteinMultiindexTo1D(degree, beta)];
+                                TetBernsteinMultiindexTo1D(degree, beta)];
             for (int d = 0; d < 3; d++)
             {
                curl_shape(basis,d) +=
@@ -1960,7 +1961,7 @@ void NDPos_TriangleElement::BuildBasisDescriptors()
    // for the face (i,j,k). These basis functions are determined solely by
    // the multiindex alpha. The latter has the form
    //    order * B^{order-1}_alpha * (ai * w_jk + ak * w_ij).
-   // Unlike in the case of tetrahedrons, we do not require the vertex 
+   // Unlike in the case of tetrahedrons, we do not require the vertex
    // indices here since each triangle consists of a single face.
    for (int i = 1; i <= order - 2; i++)
       for (int j = 1; j <= order - i - 1; j++)
@@ -2065,7 +2066,7 @@ void NDPos_TriangleElement::CalcVShape(const IntegrationPoint &ip,
                beta[i]--; beta[l]++;
                const real_t coefficient = alpha[l] - (i == l) + 1;
                const real_t b = bernstein[
-                  TriBernsteinMultiindexTo1D(order, beta)];
+                                   TriBernsteinMultiindexTo1D(order, beta)];
                for (int d = 0; d < 2; d++)
                {
                   shape(basis,d) += coefficient * b * grad_lambda_2d[i][d];
@@ -2084,7 +2085,7 @@ void NDPos_TriangleElement::CalcVShape(const IntegrationPoint &ip,
             int beta[3] = {alpha[0], alpha[1], alpha[2]};
             beta[i]++;
             const real_t b = bernstein[
-               TriBernsteinMultiindexTo1D(order, beta)];
+                                TriBernsteinMultiindexTo1D(order, beta)];
             for (int d = 0; d < 2; d++)
             {
                shape(basis,d) += (alpha[i] + 1) * b *
@@ -2133,10 +2134,10 @@ void NDPos_TriangleElement::CalcCurlShape(
                beta[i]++; beta[q]--;
                if (beta[q] < 0) { continue; }
                const real_t b = curl_bernstein[
-                  TriBernsteinMultiindexTo1D(degree, beta)];
+                                   TriBernsteinMultiindexTo1D(degree, beta)];
                curl_shape(basis,0) += order * (alpha[i] + 1) * b *
-                  (alpha[k] * tangent_2d[q][j] -
-                   alpha[j] * tangent_2d[q][k]);
+                                      (alpha[k] * tangent_2d[q][j] -
+                                       alpha[j] * tangent_2d[q][k]);
             }
          }
       }
