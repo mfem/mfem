@@ -725,6 +725,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
                  MPI_COMM_WORLD);
    res.dot = dot;
 
+   // Adaptive limiting should not call Coefficient::Eval().
    if (pa && adapt_lim_grid_coeff)
    {
       auto *gfc =
