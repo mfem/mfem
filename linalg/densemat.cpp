@@ -28,6 +28,7 @@
 #include <limits>
 #include <algorithm>
 #include <cstdlib>
+#include <type_traits>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define copysign _copysign
@@ -3572,24 +3573,74 @@ void LUFactors::Mult(int m, int n, real_t *X) const
    }
 }
 
+namespace
+{
+
+// Solve W columns per pass so their independent updates hide each other's
+// latency. Per column the operations match kernels::LSolve/USolve bit for bit.
+template <int W>
+void LSolveColumns(const real_t *data, int m, real_t *X)
+{
+   for (int j = 0; j < m; j++)
+   {
+      real_t x_j[W];
+      for (int w = 0; w < W; w++) { x_j[w] = X[j+w*m]; }
+      for (int i = j+1; i < m; i++)
+      {
+         const real_t L_ij = data[i+j*m];
+         for (int w = 0; w < W; w++) { X[i+w*m] -= L_ij * x_j[w]; }
+      }
+   }
+}
+
+template <int W>
+void USolveColumns(const real_t *data, int m, real_t *X)
+{
+   for (int j = m-1; j >= 0; j--)
+   {
+      real_t x_j[W];
+      for (int w = 0; w < W; w++) { x_j[w] = (X[j+w*m] /= data[j+j*m]); }
+      for (int i = 0; i < j; i++)
+      {
+         const real_t U_ij = data[i+j*m];
+         for (int w = 0; w < W; w++) { X[i+w*m] -= U_ij * x_j[w]; }
+      }
+   }
+}
+
+template <typename F>
+void ForColumnGroups(int m, int n, real_t *X, F &&f)
+{
+   int k = 0;
+   for (; k + 4 <= n; k += 4) { f(std::integral_constant<int, 4>(), X + k*m); }
+   switch (n - k)
+   {
+      case 3: f(std::integral_constant<int, 3>(), X + k*m); break;
+      case 2: f(std::integral_constant<int, 2>(), X + k*m); break;
+      case 1: f(std::integral_constant<int, 1>(), X + k*m); break;
+   }
+}
+
+} // namespace
+
 void LUFactors::LSolve(int m, int n, real_t *X) const
 {
-   real_t *x = X;
-   for (int k = 0; k < n; k++)
+   // X <- P X
+   for (real_t *x = X; x < X + m*n; x += m)
    {
-      kernels::LSolve(data, m, ipiv, x);
-      x += m;
+      for (int i = 0; i < m; i++)
+      {
+         mfem::Swap<real_t>(x[i], x[ipiv[i]-ipiv_base]);
+      }
    }
+   ForColumnGroups(m, n, X, [&](auto W, real_t *x)
+   { LSolveColumns<decltype(W)::value>(data, m, x); });
 }
 
 void LUFactors::USolve(int m, int n, real_t *X) const
 {
-   real_t *x = X;
-   for (int k = 0; k < n; k++)
-   {
-      kernels::USolve(data, m, x);
-      x += m;
-   }
+   ForColumnGroups(m, n, X, [&](auto W, real_t *x)
+   { USolveColumns<decltype(W)::value>(data, m, x); });
 }
 
 void LUFactors::Solve(int m, int n, real_t *X) const
