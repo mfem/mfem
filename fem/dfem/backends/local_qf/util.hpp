@@ -411,13 +411,15 @@ template <
    typename backend_t, typename qfunc_t, int MQ1, bool... Active>
 struct build_masked_input_args_reg
 {
+   static constexpr std::array<bool, sizeof...(Active)> active_flags {Active...};
+
    template <std::size_t... Is>
    static auto make(std::index_sequence<Is...>)
    -> tuple<std::conditional_t<
-   std::array<bool, sizeof...(Active)> {Active...} [Is],
-       typename backend_t::template QReg<
-          typename qf_param_slot<qfunc_t, Is>::qf_reg_param_t>,
-                   UnusedQReg>...>;
+   active_flags[Is],
+                typename backend_t::template QReg<
+                   typename qf_param_slot<qfunc_t, Is>::qf_reg_param_t>,
+                            UnusedQReg>...>;
 
    using type = decltype(make(std::make_index_sequence<sizeof...(Active)> {}));
 };
