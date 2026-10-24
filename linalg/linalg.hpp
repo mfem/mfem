@@ -29,6 +29,7 @@
 #include "symmat.hpp"
 #include "ode.hpp"
 #include "solvers.hpp"
+#include "deflation.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
 #include "constraints.hpp"
