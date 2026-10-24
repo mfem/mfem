@@ -190,10 +190,9 @@ int main(int argc, char *argv[])
    //    block_trueOffsets is used for Vector based on true dof (HypreParVector
    //    for the rhs and solution of the linear system).  The offsets computed
    //    here are local to the processor.
-   ParMixedSystemForm *mixed_system = new ParMixedSystemForm(R_space, W_space,
-                                                             false);
-   const Array<int> &block_offsets = mixed_system->GetOffsets();
-   const Array<int> &block_trueOffsets = mixed_system->GetTrueOffsets();
+   ParMixedSystemForm mixed_system(R_space, W_space, false);
+   const Array<int> &block_offsets = mixed_system.GetOffsets();
+   const Array<int> &block_trueOffsets = mixed_system.GetTrueOffsets();
 
    // 9. Define the coefficients, analytical solution, and rhs of the PDE.
    const real_t k = 1.0;
@@ -211,11 +210,11 @@ int main(int argc, char *argv[])
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
 
-   ParLinearForm *fform = mixed_system->GetParFluxRHS();
+   ParLinearForm *fform = mixed_system.GetParFluxRHS();
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
 
-   ParLinearForm *gform = mixed_system->GetParPotentialRHS();
+   ParLinearForm *gform = mixed_system.GetParPotentialRHS();
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
 
    // 11. Assemble the finite element matrices for the Darcy operator
@@ -226,8 +225,8 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   ParBilinearForm *mVarf = mixed_system->GetParFluxMassForm();
-   ParMixedBilinearForm *bVarf = mixed_system->GetParFluxDivForm();
+   ParBilinearForm *mVarf = mixed_system.GetParFluxMassForm();
+   ParMixedBilinearForm *bVarf = mixed_system.GetParFluxDivForm();
 
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
 
@@ -248,19 +247,19 @@ int main(int argc, char *argv[])
    {
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
-      mixed_system->EnableHybridization(trace_space,
-                                        new NormalTraceJumpIntegrator(),
-                                        ess_flux_tdofs_list);
+      mixed_system.EnableHybridization(trace_space,
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
    }
 
-   if (pa) { mixed_system->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { mixed_system.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   mixed_system->Assemble();
+   mixed_system.Assemble();
 
    OperatorPtr A;
    Vector X, B;
    x = 0.;
-   mixed_system->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
+   mixed_system.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
    chrono.Stop();
    if (verbose)
@@ -291,7 +290,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      mixed_system->RecoverFEMSolution(X, x);
+      mixed_system.RecoverFEMSolution(X, x);
 
       chrono.Stop();
 
@@ -380,7 +379,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      mixed_system->RecoverFEMSolution(X, x);
+      mixed_system.RecoverFEMSolution(X, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
       chrono.Stop();
@@ -523,7 +522,6 @@ int main(int argc, char *argv[])
    }
 
    // 20. Free the used memory.
-   delete mixed_system;
    delete W_space;
    delete R_space;
    delete trace_space;

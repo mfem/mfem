@@ -142,12 +142,11 @@ int main(int argc, char *argv[])
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   MixedSystemForm *mixed_system = new MixedSystemForm(R_space, W_space);
-
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   const Array<int> &block_offsets = mixed_system->GetOffsets();
+   MixedSystemForm mixed_system(R_space, W_space);
+   const Array<int> &block_offsets = mixed_system.GetOffsets();
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -195,9 +194,9 @@ int main(int argc, char *argv[])
    //     C   = \int_\Omega \curl E_h q_h d\Omega   E_h \in R_h, q_h \in W_h
    //BilinearForm *mEVarf(new BilinearForm(R_space));
    //MixedBilinearForm *cVarf(new MixedBilinearForm(R_space, W_space));
-   BilinearForm *mEVarf = mixed_system->GetFluxMassForm();
-   MixedBilinearForm *cVarf = mixed_system->GetFluxDivForm();
-   BilinearForm *mBVarf = mixed_system->GetPotentialMassForm();
+   BilinearForm *mEVarf = mixed_system.GetFluxMassForm();
+   MixedBilinearForm *cVarf = mixed_system.GetFluxDivForm();
+   BilinearForm *mBVarf = mixed_system.GetPotentialMassForm();
 
    //if (pa) { mEVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mEVarf->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
@@ -238,22 +237,22 @@ int main(int argc, char *argv[])
    {
       trace_coll = new ND_Trace_FECollection(order+1, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      mixed_system->EnableHybridization(trace_space,
-                                        new TangentTraceJumpIntegrator(),
-                                        ess_flux_tdofs_list);
+      mixed_system.EnableHybridization(trace_space,
+                                       new TangentTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
    }
 
-   if (pa) { mixed_system->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { mixed_system.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   mixed_system->Assemble();
-   //if (!pa) { mixed_system->Finalize(); }
+   mixed_system.Assemble();
+   //if (!pa) { mixed_system.Finalize(); }
 
    OperatorHandle pMixedSystemOp;
    Vector X, RHS;
 
-   //mixed_system->FormSystemMatrix(ess_flux_tdofs_list, pMixedSystemOp);
-   mixed_system->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                                  pMixedSystemOp, X, RHS);
+   //mixed_system.FormSystemMatrix(ess_flux_tdofs_list, pMixedSystemOp);
+   mixed_system.FormLinearSystem(ess_flux_tdofs_list, x, rhs,
+                                 pMixedSystemOp, X, RHS);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
@@ -281,7 +280,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(RHS, X);
-      mixed_system->RecoverFEMSolution(X, rhs, x);
+      mixed_system.RecoverFEMSolution(X, rhs, x);
 
       chrono.Stop();
 
@@ -385,7 +384,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(RHS, X);
-      mixed_system->RecoverFEMSolution(X, rhs, x);
+      mixed_system.RecoverFEMSolution(X, rhs, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
       chrono.Stop();
@@ -484,7 +483,6 @@ int main(int argc, char *argv[])
    delete gform;
    //delete mEVarf;
    //delete cVarf;
-   delete mixed_system;
    delete W_space;
    delete R_space;
    delete trace_space;
