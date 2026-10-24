@@ -20,6 +20,13 @@ Discretization improvements
 - Added class VectorQuadratureSpace that represents a vector (multi-component)
   version of the scalar (single-component) class QuadratureSpaceBase.
   
+Meshing improvements
+--------------------
+- Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
+  refined on one side only: on parallel meshes, the edges on the unrefined side
+  of essential boundaries were not essential, and on serial meshes, those of
+  all interior boundaries were.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
