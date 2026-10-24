@@ -90,34 +90,69 @@ std::unique_ptr<SpacingFunction> SpacingFunction::Clone() const
 
 void GeometricSpacingFunction::CalculateSpacing()
 {
-   // GeometricSpacingFunction requires more than 1 interval. If only 1
-   // interval is requested, just use uniform spacing.
-   if (n == 1) { return; }
+   MFEM_VERIFY(n > 0 && std::isfinite(s) && s > 0,
+               "Geometric spacing needs a positive interval count and "
+               "initial spacing");
 
-   // Find the root of g(r) = s * (r^n - 1) - r + 1 by Newton's method.
+   // In case n == 1, keep s as the parameter for future refinement even when
+   // the current one-interval representation necessarily has uniform spacing.
+   if (n == 1) { r = 1.0; return; }
 
-   constexpr real_t convTol = 1.0e-8;
-   constexpr int maxIter = 100;
+   MFEM_VERIFY(s < 1.0,
+               "The initial geometric spacing must be less than one");
 
-   const real_t s_unif = 1.0 / ((real_t) n);
+   const real_t uniform = 1.0 / real_t(n);
 
-   r = s < s_unif ? 1.5 : 0.5;  // Initial guess
+   if (s == uniform) { r = 1.0; return; }
 
-   bool converged = false;
-   for (int iter=0; iter<maxIter; ++iter)
+   // Solve for r in s * (1 + r + ... + r^(n-1)) = 1 using a bisection method.
+
+   const long double first = s;
+
+   const auto sum = [first, this](long double ratio)
    {
-      const real_t g = (s * (std::pow(r,n) - 1.0)) - r + 1.0;
-      const real_t dg = (n * s * std::pow(r,n-1)) - 1.0;
-      r -= g / dg;
-
-      if (std::abs(g / dg) < convTol)
+      long double value = first;
+      for (int i = 1; i < n; ++i)
       {
-         converged = true;
-         break;
+         value = first + ratio*value;
+         if (value > 1.0L) { break; } // Values exceeding 1 can be disregarded.
       }
+
+      return value;
+   };
+
+   long double lower, upper;
+
+   if (s < uniform)
+   {
+      lower = 1.0L;
+
+      // At this upper bound the last interval alone has width one.
+      upper = std::exp(-std::log(first) / (n - 1));
+      upper *= 1.0L + 64*std::numeric_limits<long double>::epsilon();
+   }
+   else
+   {
+      // The infinite series at r=1-s sums to one, giving the lower bound.
+      // The first two terms sum to one at r=(1-s)/s, giving the upper bound.
+      lower = 1.0L - first;
+      upper = std::min(1.0L, lower / first);
    }
 
-   MFEM_VERIFY(converged, "Convergence failure in GeometricSpacingFunction");
+   MFEM_VERIFY(std::isfinite(upper),
+               "Geometric spacing ratio exceeds the finite numerical range");
+
+   for (int iteration = 0; iteration < 256; ++iteration)
+   {
+      const long double middle = lower + (upper - lower)*0.5L;
+      if (middle == lower || middle == upper) { break; }
+      if (sum(middle) < 1.0L) { lower = middle; }
+      else { upper = middle; }
+   }
+
+   r = real_t(lower + (upper - lower)*0.5L);
+   MFEM_VERIFY(std::isfinite(r) && r > 0,
+               "Geometric spacing ratio exceeds the finite numerical range");
 }
 
 void BellSpacingFunction::CalculateSpacing()
