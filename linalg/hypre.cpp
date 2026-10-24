@@ -21,6 +21,7 @@
 #include <iomanip>
 #include <cmath>
 #include <cstdlib>
+#include <utility>
 
 using namespace std;
 
@@ -1452,9 +1453,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
 
 HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
 {
-   hypre_ParCSRMatrix *Ph = static_cast<hypre_ParCSRMatrix *>(P);
-
    Init();
+   height = width = 0;
+
+   // Everything below dereferences A, so an empty matrix copies as empty.
+   if (P.A == NULL) { return; }
+
+   hypre_ParCSRMatrix *Ph = static_cast<hypre_ParCSRMatrix *>(P);
 
    // Clone the structure
    A = hypre_ParCSRMatrixCompleteClone(Ph);
@@ -1473,6 +1478,57 @@ HypreParMatrix::HypreParMatrix(const HypreParMatrix &P)
 
    diagOwner = HypreCsrToMem(A->diag, GetHypreMemoryType(), false, mem_diag);
    offdOwner = HypreCsrToMem(A->offd, GetHypreMemoryType(), false, mem_offd);
+}
+
+void HypreParMatrix::Swap(HypreParMatrix &other)
+{
+   // X and Y wrap the data of the A they were created with, so they move
+   // together with A.
+   std::swap(A, other.A);
+   std::swap(X, other.X);
+   std::swap(Y, other.Y);
+   auxX.Swap(other.auxX);
+   auxY.Swap(other.auxY);
+   mem_diag.I.Swap(other.mem_diag.I);
+   mem_diag.J.Swap(other.mem_diag.J);
+   mem_diag.data.Swap(other.mem_diag.data);
+   mem_offd.I.Swap(other.mem_offd.I);
+   mem_offd.J.Swap(other.mem_offd.J);
+   mem_offd.data.Swap(other.mem_offd.data);
+   std::swap(diagOwner, other.diagOwner);
+   std::swap(offdOwner, other.offdOwner);
+   std::swap(colMapOwner, other.colMapOwner);
+   std::swap(ParCSROwner, other.ParCSROwner);
+   std::swap(height, other.height);
+   std::swap(width, other.width);
+}
+
+HypreParMatrix &HypreParMatrix::operator=(const HypreParMatrix &P)
+{
+   if (this != &P)
+   {
+      HypreParMatrix(P).Swap(*this);
+   }
+   return *this;
+}
+
+HypreParMatrix::HypreParMatrix(HypreParMatrix &&P) noexcept
+   : HypreParMatrix()
+{
+   Swap(P);
+}
+
+HypreParMatrix &HypreParMatrix::operator=(HypreParMatrix &&P) noexcept
+{
+   if (this != &P)
+   {
+      // Hand the current state to a temporary so its destructor frees it,
+      // then take over P's; P is left empty but valid.
+      HypreParMatrix old;
+      old.Swap(*this);
+      Swap(P);
+   }
+   return *this;
 }
 
 void HypreParMatrix::MakeRef(const HypreParMatrix &master)
