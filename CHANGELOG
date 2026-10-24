@@ -11,6 +11,8 @@
 Version 4.10.1 (development)
 ============================
 
+- Avoided reading device-resident hypre row caches in host matrix products.
+
 Discretization improvements
 ---------------------------
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
