@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "darcyhybridization.hpp"
+#include "mixed_system_hybridization.hpp"
 
 #include "../../mesh/segment.hpp"
 #include "../../mesh/triangle.hpp"
@@ -18,10 +18,10 @@
 namespace mfem
 {
 
-DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
-                                       FiniteElementSpace *fes_p_,
-                                       FiniteElementSpace *fes_c_,
-                                       bool bsymmetrize)
+MixedSystemHybridization::MixedSystemHybridization(FiniteElementSpace *fes_u_,
+                                                   FiniteElementSpace *fes_p_,
+                                                   FiniteElementSpace *fes_c_,
+                                                   bool bsymmetrize)
    : Hybridization(fes_u_, fes_c_),
      fes_p(*fes_p_), bsym(bsymmetrize)
 {
@@ -34,7 +34,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
    SetLocalNLPreconditioner(LPrecType::GMRES);
 }
 
-DarcyHybridization::~DarcyHybridization()
+MixedSystemHybridization::~MixedSystemHybridization()
 {
    if (own_m_nlfi_u) { delete m_nlfi_u; }
    if (own_m_nlfi_p) { delete m_nlfi_p; }
@@ -50,7 +50,7 @@ DarcyHybridization::~DarcyHybridization()
    }
 }
 
-void DarcyHybridization::SetConstraintIntegrators(
+void MixedSystemHybridization::SetConstraintIntegrators(
    BilinearFormIntegrator *c_flux_integ, BilinearFormIntegrator *c_pot_integ)
 {
    MFEM_VERIFY(!m_nlfi_p, "Linear constraint cannot work with a non-linear mass");
@@ -61,7 +61,7 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_nlfi.reset();
 }
 
-void DarcyHybridization::SetConstraintIntegrators(
+void MixedSystemHybridization::SetConstraintIntegrators(
    BilinearFormIntegrator *c_flux_integ, NonlinearFormIntegrator *c_pot_integ)
 {
    c_bfi.reset(c_flux_integ);
@@ -70,7 +70,7 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_nlfi.reset();
 }
 
-void DarcyHybridization::SetConstraintIntegrators(
+void MixedSystemHybridization::SetConstraintIntegrators(
    BilinearFormIntegrator *c_flux_integ, BlockNonlinearFormIntegrator *c_integ)
 {
    c_bfi.reset(c_flux_integ);
@@ -79,7 +79,7 @@ void DarcyHybridization::SetConstraintIntegrators(
    c_nlfi.reset(c_integ);
 }
 
-void DarcyHybridization::SetFluxMassNonlinearIntegrator(
+void MixedSystemHybridization::SetFluxMassNonlinearIntegrator(
    NonlinearFormIntegrator *flux_integ, bool own)
 {
    if (own_m_nlfi_u) { delete m_nlfi_u; }
@@ -87,8 +87,8 @@ void DarcyHybridization::SetFluxMassNonlinearIntegrator(
    m_nlfi_u = flux_integ;
 }
 
-void DarcyHybridization::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
-                                                       *pot_integ, bool own)
+void MixedSystemHybridization::SetPotMassNonlinearIntegrator(
+   NonlinearFormIntegrator *pot_integ, bool own)
 {
    MFEM_VERIFY(!c_bfi_p, "Non-linear mass cannot work with a linear constraint");
 
@@ -97,7 +97,7 @@ void DarcyHybridization::SetPotMassNonlinearIntegrator(NonlinearFormIntegrator
    m_nlfi_p = pot_integ;
 }
 
-void DarcyHybridization::SetBlockNonlinearIntegrator(
+void MixedSystemHybridization::SetBlockNonlinearIntegrator(
    BlockNonlinearFormIntegrator *block_integ, bool own)
 {
    if (own_m_nlfi) { delete m_nlfi; }
@@ -105,7 +105,7 @@ void DarcyHybridization::SetBlockNonlinearIntegrator(
    m_nlfi = block_integ;
 }
 
-void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
+void MixedSystemHybridization::Init(const Array<int> &ess_flux_tdof_list)
 {
    const int NE = fes.GetNE();
 
@@ -210,12 +210,12 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    Df_offsets[0] = 0;
    Df_f_offsets.SetSize(NE+1);
    Df_f_offsets[0] = 0;
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    Ae_offsets.SetSize(NE+1);
    Ae_offsets[0] = 0;
    Be_offsets.SetSize(NE+1);
    Be_offsets[0] = 0;
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    for (int i = 0; i < NE; i++)
    {
       int f_size = Af_f_offsets[i+1] - Af_f_offsets[i];
@@ -223,12 +223,12 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       Bf_offsets[i+1] = Bf_offsets[i] + f_size*d_size;
       Df_offsets[i+1] = Df_offsets[i] + d_size*d_size;
       Df_f_offsets[i+1] = Df_f_offsets[i] + d_size;
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
       int a_size = hat_offsets[i+1] - hat_offsets[i];
       int e_size = a_size - f_size;
       Ae_offsets[i+1] = Ae_offsets[i] + e_size*a_size;
       Be_offsets[i+1] = Be_offsets[i] + e_size*d_size;
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    }
 
    Bf_data.SetSize(Bf_offsets[NE]); Bf_data = 0.;
@@ -236,10 +236,10 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    {
       AllocD();
    }
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    Ae_data.SetSize(Ae_offsets[NE]);
    Be_data.SetSize(Be_offsets[NE]); Be_data = 0.;
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
 
    if (c_bfi_p)
    {
@@ -251,12 +251,13 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    }
 }
 
-void DarcyHybridization::SetEssentialBC(const Array<int> &bdr_attr_is_ess)
+void MixedSystemHybridization::SetEssentialBC(const Array<int> &bdr_attr_is_ess)
 {
    c_fes.GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list);
 }
 
-void DarcyHybridization::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
+void MixedSystemHybridization::SetEssentialVDofs(
+   const Array<int> &ess_vdofs_list)
 {
    if (c_fes.Conforming() && !ParallelC())
    {
@@ -285,25 +286,26 @@ void DarcyHybridization::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
-void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
+void MixedSystemHybridization::AssembleFluxMassMatrix(int el,
+                                                      const DenseMatrix &A)
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
    int Af_el_idx = Af_offsets[el];
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    int Ae_el_idx = Ae_offsets[el];
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < s; j++)
    {
       if (hat_dofs_marker[o + j] == 1)
       {
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
          for (int i = 0; i < s; i++)
          {
             Ae_data[Ae_el_idx++] = A(i, j);
          }
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
          continue;
       }
       for (int i = 0; i < s; i++)
@@ -313,14 +315,15 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
       }
    }
    MFEM_ASSERT(Af_el_idx == Af_offsets[el+1], "Internal error");
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    MFEM_ASSERT(Ae_el_idx == Ae_offsets[el+1], "Internal error");
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
 
    A_empty = false;
 }
 
-void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
+void MixedSystemHybridization::AssemblePotMassMatrix(int el,
+                                                     const DenseMatrix &D)
 {
    const int s = Df_f_offsets[el+1] - Df_f_offsets[el];
    DenseMatrix D_i(&Df_data[Df_offsets[el]], s, s);
@@ -331,26 +334,26 @@ void DarcyHybridization::AssemblePotMassMatrix(int el, const DenseMatrix &D)
    D_empty = false;
 }
 
-void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
+void MixedSystemHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
 {
    const int o = hat_offsets[el];
    const int w = hat_offsets[el+1] - o;
    const int h = Df_f_offsets[el+1] - Df_f_offsets[el];
    int Bf_el_idx = Bf_offsets[el];
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    int Be_el_idx = Be_offsets[el];
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
 
    for (int j = 0; j < w; j++)
    {
       if (hat_dofs_marker[o + j] == 1)
       {
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
          for (int i = 0; i < h; i++)
          {
             Be_data[Be_el_idx++] += B(i, j);
          }
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
          continue;
       }
       for (int i = 0; i < h; i++)
@@ -359,12 +362,12 @@ void DarcyHybridization::AssembleDivMatrix(int el, const DenseMatrix &B)
       }
    }
    MFEM_ASSERT(Bf_el_idx == Bf_offsets[el+1], "Internal error");
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    MFEM_ASSERT(Be_el_idx == Be_offsets[el+1], "Internal error");
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
 }
 
-void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
+void MixedSystemHybridization::ComputeAndAssemblePotFaceMatrix(
    int face, DenseMatrix &elmat1, DenseMatrix &elmat2, Array<int> &vdofs1,
    Array<int> &vdofs2, int skip_zeros)
 {
@@ -523,7 +526,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    }
 }
 
-void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
+void MixedSystemHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    int bface, DenseMatrix &elmat1, Array<int> &vdofs, int skip_zeros)
 {
    Mesh *mesh = fes_p.GetMesh();
@@ -591,7 +594,7 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    }
 }
 
-void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
+void MixedSystemHybridization::GetFDofs(int el, Array<int> &fdofs) const
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
@@ -609,7 +612,7 @@ void DarcyHybridization::GetFDofs(int el, Array<int> &fdofs) const
    }
 }
 
-void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
+void MixedSystemHybridization::GetEDofs(int el, Array<int> &edofs) const
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
@@ -627,7 +630,7 @@ void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
    }
 }
 
-FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
+FaceElementTransformations *MixedSystemHybridization::GetFaceTransformation(
    int f) const
 {
    int el1, el2;
@@ -652,8 +655,8 @@ FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
    return FTr;
 }
 
-void DarcyHybridization::AssembleCtFaceMatrix(int face,
-                                              const DenseMatrix &elmat)
+void MixedSystemHybridization::AssembleCtFaceMatrix(int face,
+                                                    const DenseMatrix &elmat)
 {
    const Mesh *mesh = fes.GetMesh();
    const int num_faces = mesh->GetNumFaces();
@@ -708,8 +711,9 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face,
    }
 }
 
-void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
-                                             DenseMatrix &Ct_, int ioff)
+void MixedSystemHybridization::AssembleCtSubMatrix(int el,
+                                                   const DenseMatrix &elmat,
+                                                   DenseMatrix &Ct_, int ioff)
 {
    const int hat_offset = hat_offsets[el];
    const int hat_size = hat_offsets[el+1] - hat_offset;
@@ -736,10 +740,10 @@ void DarcyHybridization::AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
    MFEM_ASSERT(row == Af_f_offsets[el+1] - Af_f_offsets[el], "Internal error.");
 }
 
-void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
-                                                   face_getter fx_Ct, const DenseMatrix *Ct_,
-                                                   face_getter fx_C, const DenseMatrix *C_,
-                                                   face_getter fx_H, const DenseMatrix *H_)
+void MixedSystemHybridization::AssembleNCSlaveFaceMatrix(int f,
+                                                         face_getter fx_Ct, const DenseMatrix *Ct_,
+                                                         face_getter fx_C, const DenseMatrix *C_,
+                                                         face_getter fx_H, const DenseMatrix *H_)
 {
    const Mesh *mesh = fes.GetMesh();
 #ifdef MFEM_DEBUG
@@ -938,23 +942,23 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
    }
 }
 
-void DarcyHybridization::AssembleNCSlaveCtFaceMatrix(int face,
-                                                     const DenseMatrix &Ct_)
+void MixedSystemHybridization::AssembleNCSlaveCtFaceMatrix(int face,
+                                                           const DenseMatrix &Ct_)
 {
    AssembleNCSlaveFaceMatrix(face,
    [this](int f, DenseMatrix &m) { GetCtFaceMatrix(f, 0, m); }, &Ct_);
 }
 
-void DarcyHybridization::AssembleNCSlaveEGFaceMatrix(int face,
-                                                     const DenseMatrix &E, const DenseMatrix &G)
+void MixedSystemHybridization::AssembleNCSlaveEGFaceMatrix(int face,
+                                                           const DenseMatrix &E, const DenseMatrix &G)
 {
    AssembleNCSlaveFaceMatrix(face,
    [this](int f, DenseMatrix &m) { GetEFaceMatrix(f, 0, m); }, &E,
    [this](int f, DenseMatrix &m) { GetGFaceMatrix(f, 0, m); }, &G);
 }
 
-void DarcyHybridization::AssembleNCSlaveHFaceMatrix(int face,
-                                                    const DenseMatrix &H)
+void MixedSystemHybridization::AssembleNCSlaveHFaceMatrix(int face,
+                                                          const DenseMatrix &H)
 {
    AssembleNCSlaveFaceMatrix(face,
                              face_getter(), NULL,
@@ -962,7 +966,7 @@ void DarcyHybridization::AssembleNCSlaveHFaceMatrix(int face,
    [this](int f, DenseMatrix &m) { GetHFaceMatrix(f, m); }, &H);
 }
 
-void DarcyHybridization::ConstructC()
+void MixedSystemHybridization::ConstructC()
 {
    Mesh *mesh = fes.GetMesh();
    int num_faces = mesh->GetNumFaces();
@@ -1115,13 +1119,13 @@ void DarcyHybridization::ConstructC()
    }
 }
 
-void DarcyHybridization::AllocD() const
+void MixedSystemHybridization::AllocD() const
 {
    Df_data.SetSize(Df_offsets.Last()); Df_data = 0.;
    Df_ipiv.SetSize(Df_f_offsets.Last());
 }
 
-void DarcyHybridization::AllocEG() const
+void MixedSystemHybridization::AllocEG() const
 {
    Mesh *mesh = fes.GetMesh();
    const int num_faces = mesh->GetNumFaces();
@@ -1151,7 +1155,7 @@ void DarcyHybridization::AllocEG() const
    G_data.SetSize(G_offsets.Last()); G_data = 0.;
 }
 
-void DarcyHybridization::AllocH() const
+void MixedSystemHybridization::AllocH() const
 {
    Mesh *mesh = fes.GetMesh();
    int num_faces = mesh->GetNumFaces();
@@ -1168,7 +1172,7 @@ void DarcyHybridization::AllocH() const
    H_data.SetSize(H_offsets[num_faces]); H_data = 0.;
 }
 
-void DarcyHybridization::InvertA()
+void MixedSystemHybridization::InvertA()
 {
    const int NE = fes.GetNE();
 
@@ -1184,7 +1188,7 @@ void DarcyHybridization::InvertA()
    }
 }
 
-void DarcyHybridization::InvertD()
+void MixedSystemHybridization::InvertD()
 {
    const int NE = fes.GetNE();
 
@@ -1213,7 +1217,7 @@ void DarcyHybridization::InvertD()
    }
 }
 
-void DarcyHybridization::GetElementFaces(int el, Array<int> &faces) const
+void MixedSystemHybridization::GetElementFaces(int el, Array<int> &faces) const
 {
    const Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
@@ -1238,8 +1242,8 @@ void DarcyHybridization::GetElementFaces(int el, Array<int> &faces) const
    }
 }
 
-void DarcyHybridization::ComputeH(ComputeHMode mode,
-                                  std::unique_ptr<SparseMatrix> &H_) const
+void MixedSystemHybridization::ComputeH(ComputeHMode mode,
+                                        std::unique_ptr<SparseMatrix> &H_) const
 {
    MFEM_ASSERT(mode != ComputeHMode::Linear || !IsNonlinear(),
                "Cannot assemble H matrix in the non-linear regime");
@@ -1412,8 +1416,8 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
 }
 
 #ifdef MFEM_USE_MPI
-void DarcyHybridization::ComputeParH(ComputeHMode mode,
-                                     std::unique_ptr<SparseMatrix> &H_, OperatorHandle &pH_) const
+void MixedSystemHybridization::ComputeParH(ComputeHMode mode,
+                                           std::unique_ptr<SparseMatrix> &H_, OperatorHandle &pH_) const
 {
    ComputeH(mode, H_);
 
@@ -1443,7 +1447,7 @@ void DarcyHybridization::ComputeParH(ComputeHMode mode,
 }
 #endif //MFEM_USE_MPI
 
-void DarcyHybridization::GetCtFaceMatrix(
+void MixedSystemHybridization::GetCtFaceMatrix(
    int f, int side, DenseMatrix &Ct_) const
 {
    int el1, el2;
@@ -1465,7 +1469,7 @@ void DarcyHybridization::GetCtFaceMatrix(
    }
 }
 
-void DarcyHybridization::GetEFaceMatrix(
+void MixedSystemHybridization::GetEFaceMatrix(
    int f, int side, DenseMatrix &E) const
 {
    int el1, el2;
@@ -1486,7 +1490,7 @@ void DarcyHybridization::GetEFaceMatrix(
    }
 }
 
-void DarcyHybridization::GetGFaceMatrix(
+void MixedSystemHybridization::GetGFaceMatrix(
    int f, int side, DenseMatrix &G) const
 {
    int el1, el2;
@@ -1507,15 +1511,15 @@ void DarcyHybridization::GetGFaceMatrix(
    }
 }
 
-void DarcyHybridization::GetHFaceMatrix(int f, DenseMatrix &H) const
+void MixedSystemHybridization::GetHFaceMatrix(int f, DenseMatrix &H) const
 {
    const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
 
    H.Reset(&H_data[H_offsets[f]], c_size, c_size);
 }
 
-void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
-                                        DenseMatrix &Ct_l) const
+void MixedSystemHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
+                                              DenseMatrix &Ct_l) const
 {
    const int hat_offset = hat_offsets[el  ];
    const int hat_size = hat_offsets[el+1] - hat_offset;
@@ -1549,9 +1553,9 @@ void DarcyHybridization::GetCtSubMatrix(int el, const Array<int> &c_dofs,
    }
 }
 
-void DarcyHybridization::Mult(const Vector &x, Vector &y) const
+void MixedSystemHybridization::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+   MFEM_VERIFY(bfin, "MixedSystemHybridization must be finalized");
 
    if (H)
    {
@@ -1559,12 +1563,12 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
       return;
    }
 
-   MultNL(MultNlMode::Mult, darcy_rhs, x, y);
+   MultNL(MultNlMode::Mult, mixed_system_rhs, x, y);
 }
 
-Operator &DarcyHybridization::GetGradient(const Vector &x) const
+Operator &MixedSystemHybridization::GetGradient(const Vector &x) const
 {
-   MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+   MFEM_VERIFY(bfin, "MixedSystemHybridization must be finalized");
 
    if (H) { return *H; }
 
@@ -1578,9 +1582,9 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    }
 
    Vector y;//dummy
-   MultNL(MultNlMode::Grad, darcy_rhs, x, y);
+   MultNL(MultNlMode::Grad, mixed_system_rhs, x, y);
 
-#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
    //assemble gradient matrix
    Grad.reset();
    ComputeH(ComputeHMode::Gradient, Grad);
@@ -1592,8 +1596,8 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
 #endif
 }
 
-void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
-                                const Vector &bp, const Vector &x, Vector &y) const
+void MixedSystemHybridization::MultNL(MultNlMode mode, const Vector &bu,
+                                      const Vector &bp, const Vector &x, Vector &y) const
 {
    const int NE = fes.GetNE();
    const int dim = fes.GetMesh()->Dimension();
@@ -1608,7 +1612,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
    BlockVector yb;
    if (mode == MultNlMode::Sol)
    {
-      yb.Update(y, darcy_offsets);
+      yb.Update(y, mixed_system_offsets);
    }
    else
    {
@@ -1698,10 +1702,10 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       if (mode != MultNlMode::GradMult)
       {
          //local u
-         if (darcy_u.Size() > 0)
+         if (mixed_system_u.Size() > 0)
          {
             //load the initial guess from the non-reduced solution vector
-            darcy_u.GetSubVector(u_vdofs, u_l);
+            mixed_system_u.GetSubVector(u_vdofs, u_l);
          }
          else
          {
@@ -1711,10 +1715,10 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          }
 
          //local p
-         if (darcy_p.Size() > 0)
+         if (mixed_system_p.Size() > 0)
          {
             //load the initial guess from the non-reduced solution vector
-            darcy_p.GetSubVector(p_dofs, p_l);
+            mixed_system_p.GetSubVector(p_dofs, p_l);
          }
          else
          {
@@ -1872,8 +1876,9 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
    }
 }
 
-void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
-                                   const Vector &x_t, Vector &y_t) const
+void MixedSystemHybridization::ParMultNL(MultNlMode mode,
+                                         const BlockVector &b_t,
+                                         const Vector &x_t, Vector &y_t) const
 {
    Vector x;
    const Operator *tr_cP;
@@ -1925,11 +1930,11 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    {
       if (!ParallelU() && !cR)
       {
-         y.MakeRef(y_t, 0, darcy_offsets.Last());
+         y.MakeRef(y_t, 0, mixed_system_offsets.Last());
       }
       else
       {
-         y.SetSize(darcy_offsets.Last());
+         y.SetSize(mixed_system_offsets.Last());
       }
    }
    else
@@ -1951,8 +1956,8 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    {
       if (ParallelU() || cR)
       {
-         BlockVector yb(y, darcy_offsets);
-         BlockVector yb_t(y_t, darcy_toffsets);
+         BlockVector yb(y, mixed_system_offsets);
+         BlockVector yb_t(y_t, mixed_system_toffsets);
 
          if (!ParallelU())
          {
@@ -1982,7 +1987,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    }
 }
 
-void DarcyHybridization::Finalize()
+void MixedSystemHybridization::Finalize()
 {
    if (bfin) { return; }
 
@@ -2040,8 +2045,8 @@ void DarcyHybridization::Finalize()
    bfin = true;
 }
 
-void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
-                                             const BlockVector &x, BlockVector &b)
+void MixedSystemHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
+                                                   const BlockVector &x, BlockVector &b)
 {
    if (IsNonlinear())
    {
@@ -2049,8 +2054,8 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                   "In parallel, use ParallelEliminateTDofsInRHS() instead!");
 
       //save the rhs for initial guess in the iterative local solve
-      darcy_u = x.GetBlock(0);
-      darcy_p = x.GetBlock(1);
+      mixed_system_u = x.GetBlock(0);
+      mixed_system_p = x.GetBlock(1);
    }
 
    MFEM_ASSERT(x.Size() == fes.GetVSize() + fes_p.GetVSize(),
@@ -2106,7 +2111,7 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
-void DarcyHybridization::EliminateTrueDofsInRHS(
+void MixedSystemHybridization::EliminateTrueDofsInRHS(
    const Array<int> &tdofs_flux, const BlockVector &x_t, BlockVector &b_t)
 {
    Vector xu, bu;
@@ -2146,8 +2151,8 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
    if (IsNonlinear())
    {
       //save the rhs for initial guess in the iterative local solve
-      darcy_u = xu;
-      darcy_p = x_t.GetBlock(1);
+      mixed_system_u = xu;
+      mixed_system_p = x_t.GetBlock(1);
    }
 
    Vector &bp = b_t.GetBlock(1);
@@ -2209,8 +2214,8 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
    }
 }
 
-void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
-                                                DiagonalPolicy dpolicy)
+void MixedSystemHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
+                                                      DiagonalPolicy dpolicy)
 {
    if (IsNonlinear()) { return; } // not implemented
 
@@ -2237,13 +2242,14 @@ void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
    }
 }
 
-void DarcyHybridization::EliminateTraceTrueDofs(DiagonalPolicy dpolicy)
+void MixedSystemHybridization::EliminateTraceTrueDofs(DiagonalPolicy dpolicy)
 {
    EliminateTraceTrueDofs(GetEssentialTrueDofs(), dpolicy);
 }
 
-void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &tdofs_,
-                                                     const Vector &x, Vector &b)
+void MixedSystemHybridization::EliminateTraceTrueDofsInRHS(
+   const Array<int> &tdofs_,
+   const Vector &x, Vector &b)
 {
    if (IsNonlinear()) { return; } // not implemented
 
@@ -2263,14 +2269,15 @@ void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &tdofs_,
    }
 }
 
-void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Vector &x, Vector &b)
+void MixedSystemHybridization::EliminateTraceTrueDofsInRHS(const Vector &x,
+                                                           Vector &b)
 {
    EliminateTraceTrueDofsInRHS(GetEssentialTrueDofs(), x, b);
 }
 
-void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
-                                   const Vector &bp_l, const BlockVector &x_l,
-                                   Vector &u_l, Vector &p_l) const
+void MixedSystemHybridization::MultInvNL(int el, const Vector &bu_l,
+                                         const Vector &bp_l, const BlockVector &x_l,
+                                         Vector &u_l, Vector &p_l) const
 {
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
@@ -2432,8 +2439,9 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    delete lop;
 }
 
-void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
-                                 Vector &u, Vector &p) const
+void MixedSystemHybridization::MultInv(int el, const Vector &bu,
+                                       const Vector &bp,
+                                       Vector &u, Vector &p) const
 {
    Vector AiBtSiBAibu, AiBtSibp;
 
@@ -2477,9 +2485,9 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
    else { u -= AiBtSiBAibu; }
 }
 
-void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
-                                       const BlockVector &x_l,
-                                       const Vector &u_l, const Vector &p_l) const
+void MixedSystemHybridization::ConstructGrad(int el, const Array<int> &faces,
+                                             const BlockVector &x_l,
+                                             const Vector &u_l, const Vector &p_l) const
 {
    const FiniteElement *fe_u = fes.GetFE(el);
    const FiniteElement *fe_p = fes_p.GetFE(el);
@@ -2608,7 +2616,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       }
    }
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
    if (lop_type != LocalOpType::PotNL)
    {
       // Decompose A
@@ -2636,10 +2644,10 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    {
       MFEM_ABORT("Not implemented");
    }
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
 }
 
-void DarcyHybridization::AssembleHDGGrad(
+void MixedSystemHybridization::AssembleHDGGrad(
    int el, FaceElementTransformations *FTr, NonlinearFormIntegrator &nlfi,
    const Vector &x_f, const Vector &p_l) const
 {
@@ -2683,7 +2691,7 @@ void DarcyHybridization::AssembleHDGGrad(
    H_f += elmat_H;
 }
 
-void DarcyHybridization::AssembleHDGGrad(
+void MixedSystemHybridization::AssembleHDGGrad(
    int el, FaceElementTransformations *FTr, BlockNonlinearFormIntegrator &nlfi,
    const Vector &x_f, const Vector &u_l, const Vector &p_l) const
 {
@@ -2738,32 +2746,33 @@ void DarcyHybridization::AssembleHDGGrad(
    if (elmat_H.Height() != 0) { H_f += elmat_H; }
 }
 
-void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
+void MixedSystemHybridization::ReduceRHS(const BlockVector &b_t,
+                                         Vector &b_tr) const
 {
    const Operator *tr_cP = NULL;
 
    if (IsNonlinear())
    {
       //store RHS for Mult
-      if (!darcy_offsets.Size())
+      if (!mixed_system_offsets.Size())
       {
-         darcy_offsets.SetSize(3);
-         darcy_offsets[0] = 0;
-         darcy_offsets[1] = fes.GetVSize();
-         darcy_offsets[2] = fes_p.GetVSize();
-         darcy_offsets.PartialSum();
+         mixed_system_offsets.SetSize(3);
+         mixed_system_offsets[0] = 0;
+         mixed_system_offsets[1] = fes.GetVSize();
+         mixed_system_offsets[2] = fes_p.GetVSize();
+         mixed_system_offsets.PartialSum();
       }
-      if (!darcy_toffsets.Size())
+      if (!mixed_system_toffsets.Size())
       {
-         darcy_toffsets.SetSize(3);
-         darcy_toffsets[0] = 0;
-         darcy_toffsets[1] = fes.GetTrueVSize();
-         darcy_toffsets[2] = fes_p.GetTrueVSize();
-         darcy_toffsets.PartialSum();
+         mixed_system_toffsets.SetSize(3);
+         mixed_system_toffsets[0] = 0;
+         mixed_system_toffsets[1] = fes.GetTrueVSize();
+         mixed_system_toffsets[2] = fes_p.GetTrueVSize();
+         mixed_system_toffsets.PartialSum();
 
-         darcy_rhs.Update(darcy_toffsets);
+         mixed_system_rhs.Update(mixed_system_toffsets);
       }
-      darcy_rhs = b_t;
+      mixed_system_rhs = b_t;
 
       //initialize reduced rhs
       if (ParallelC())
@@ -2919,8 +2928,8 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    }
 }
 
-void DarcyHybridization::ProjectSolution(const BlockVector &sol,
-                                         Vector &sol_r) const
+void MixedSystemHybridization::ProjectSolution(const BlockVector &sol,
+                                               Vector &sol_r) const
 {
    MFEM_VERIFY(c_fes.FEColl()->GetContType() !=
                FiniteElementCollection::CONTINUOUS,
@@ -2962,8 +2971,8 @@ void DarcyHybridization::ProjectSolution(const BlockVector &sol,
    }
 }
 
-void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
-                                         const Vector &sol_tr, BlockVector &sol_t) const
+void MixedSystemHybridization::ComputeSolution(const BlockVector &b_t,
+                                               const Vector &sol_tr, BlockVector &sol_t) const
 {
    if (IsNonlinear())
    {
@@ -3088,7 +3097,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
    }
 }
 
-void DarcyHybridization::ReconstructTotalFlux(
+void MixedSystemHybridization::ReconstructTotalFlux(
    const BlockVector &sol, const Vector &x, total_flux_fun ut_fx,
    GridFunction &ut) const
 {
@@ -3434,7 +3443,7 @@ void DarcyHybridization::ReconstructTotalFlux(
    }
 }
 
-void DarcyHybridization::Reset()
+void MixedSystemHybridization::Reset()
 {
    Hybridization::Reset();
    bfin = false;
@@ -3450,23 +3459,24 @@ void DarcyHybridization::Reset()
       Df_data = 0.;
       D_empty = true;
    }
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    Be_data = 0.;
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
 }
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
+void MixedSystemHybridization::Gradient::Mult(const Vector &x, Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
-   dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+   dh.MultNL(MultNlMode::GradMult, dh.mixed_system_rhs, x, y);
 }
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
 
 #ifdef MFEM_USE_MPI
-void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
+void MixedSystemHybridization::ParOperator::Mult(const Vector &x,
+                                                 Vector &y) const
 {
-   MFEM_VERIFY(dh.bfin, "DarcyHybridization must be finalized");
+   MFEM_VERIFY(dh.bfin, "MixedSystemHybridization must be finalized");
 
    if (dh.pH.Ptr())
    {
@@ -3474,11 +3484,12 @@ void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
       return;
    }
 
-   dh.ParMultNL(MultNlMode::Mult, dh.darcy_rhs, x, y);
+   dh.ParMultNL(MultNlMode::Mult, dh.mixed_system_rhs, x, y);
 }
-Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
+Operator &MixedSystemHybridization::ParOperator::GetGradient(
+   const Vector &x) const
 {
-   MFEM_VERIFY(dh.bfin, "DarcyHybridization must be finalized");
+   MFEM_VERIFY(dh.bfin, "MixedSystemHybridization must be finalized");
 
    if (dh.pH.Ptr()) { return *dh.pH.Ptr(); }
 
@@ -3492,9 +3503,9 @@ Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
    }
 
    Vector y;//dummy
-   dh.ParMultNL(MultNlMode::Grad, dh.darcy_rhs, x, y);
+   dh.ParMultNL(MultNlMode::Grad, dh.mixed_system_rhs, x, y);
 
-#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
    //assemble gradient matrix
    dh.Grad.reset();
    pGrad.SetType(dh.pH.Type());
@@ -3506,17 +3517,18 @@ Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
    return *pGrad;
 }
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
+void MixedSystemHybridization::ParGradient::Mult(const Vector &x,
+                                                 Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
-   dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+   dh.ParMultNL(MultNlMode::GradMult, dh.mixed_system_rhs, x, y);
 }
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
 #endif // MFEM_USE_MPI
 
-DarcyHybridization::LocalNLOperator::LocalNLOperator(
-   const DarcyHybridization &dh_, int el_, const BlockVector &trps_,
+MixedSystemHybridization::LocalNLOperator::LocalNLOperator(
+   const MixedSystemHybridization &dh_, int el_, const BlockVector &trps_,
    const Array<int> &faces_)
    : dh(dh_), el(el_), trps(trps_), faces(faces_),
      a_dofs_size(dh.Af_f_offsets[el+1] - dh.Af_f_offsets[el]),
@@ -3594,7 +3606,7 @@ DarcyHybridization::LocalNLOperator::LocalNLOperator(
    }
 }
 
-DarcyHybridization::LocalNLOperator::~LocalNLOperator()
+MixedSystemHybridization::LocalNLOperator::~LocalNLOperator()
 {
    delete Tr;
    for (int f = 0; f < faces.Size(); f++)
@@ -3604,8 +3616,8 @@ DarcyHybridization::LocalNLOperator::~LocalNLOperator()
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
-                                                       const Vector &p_l, Vector &bu, Vector &bp) const
+void MixedSystemHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
+                                                             const Vector &p_l, Vector &bu, Vector &bp) const
 {
    if (dh.m_nlfi)
    {
@@ -3670,8 +3682,8 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
-                                                   Vector &bu) const
+void MixedSystemHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
+                                                         Vector &bu) const
 {
    //bu += A u_l
    if (dh.m_nlfi_u)
@@ -3687,8 +3699,8 @@ void DarcyHybridization::LocalNLOperator::AddMultA(const Vector &u_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
-                                                    Vector &bp) const
+void MixedSystemHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
+                                                          Vector &bp) const
 {
    //bp += D p_l
    if (dh.m_nlfi_p)
@@ -3746,8 +3758,8 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
-                                                       const Vector &p_l, DenseMatrix &gA, DenseMatrix &gD) const
+void MixedSystemHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
+                                                             const Vector &p_l, DenseMatrix &gA, DenseMatrix &gD) const
 {
    if (dh.m_nlfi)
    {
@@ -3818,8 +3830,8 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddGradA(const Vector &u_l,
-                                                   DenseMatrix &grad) const
+void MixedSystemHybridization::LocalNLOperator::AddGradA(const Vector &u_l,
+                                                         DenseMatrix &grad) const
 {
    //grad += A
    if (dh.m_nlfi_u)
@@ -3836,8 +3848,8 @@ void DarcyHybridization::LocalNLOperator::AddGradA(const Vector &u_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
-                                                    DenseMatrix &grad) const
+void MixedSystemHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
+                                                          DenseMatrix &grad) const
 {
    //grad += D
    if (dh.m_nlfi_p)
@@ -3896,7 +3908,8 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
    }
 }
 
-void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
+void MixedSystemHybridization::LocalNLOperator::Mult(const Vector &x,
+                                                     Vector &y) const
 {
    MFEM_ASSERT(x.Size() == Width() && y.Size() == Height(), "Incompatible size");
 
@@ -3925,7 +3938,7 @@ void DarcyHybridization::LocalNLOperator::Mult(const Vector &x, Vector &y) const
    AddMultBlock(u_l, p_l, bu, bp);
 }
 
-Operator &DarcyHybridization::LocalNLOperator::GetGradient(
+Operator &MixedSystemHybridization::LocalNLOperator::GetGradient(
    const Vector &x) const
 {
    MFEM_ASSERT(x.Size() == Width(), "Incompatible size");
@@ -3959,8 +3972,8 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    return grad;
 }
 
-DarcyHybridization::LocalFluxNLOperator::LocalFluxNLOperator(
-   const DarcyHybridization &dh_, int el_, const Vector &bp_,
+MixedSystemHybridization::LocalFluxNLOperator::LocalFluxNLOperator(
+   const MixedSystemHybridization &dh_, int el_, const Vector &bp_,
    const BlockVector &trps_, const Array<int> &faces_)
    : LocalNLOperator(dh_, el_, trps_, faces_), bp(bp_),
      LU_D(&dh.Df_data[dh.Df_offsets[el]], &dh.Df_ipiv[dh.Df_f_offsets[el]])
@@ -3970,8 +3983,8 @@ DarcyHybridization::LocalFluxNLOperator::LocalFluxNLOperator(
    width = height = a_dofs_size;
 }
 
-void DarcyHybridization::LocalFluxNLOperator::SolveP(const Vector &u_l,
-                                                     Vector &p_l) const
+void MixedSystemHybridization::LocalFluxNLOperator::SolveP(const Vector &u_l,
+                                                           Vector &p_l) const
 {
    p_l = bp;
 
@@ -3982,8 +3995,8 @@ void DarcyHybridization::LocalFluxNLOperator::SolveP(const Vector &u_l,
    LU_D.Solve(d_dofs_size, 1, p_l.GetData());
 }
 
-void DarcyHybridization::LocalFluxNLOperator::Mult(const Vector &u_l,
-                                                   Vector &bu) const
+void MixedSystemHybridization::LocalFluxNLOperator::Mult(const Vector &u_l,
+                                                         Vector &bu) const
 {
    MFEM_ASSERT(u_l.Size() == a_dofs_size &&
                bu.Size() == a_dofs_size, "Incompatible size");
@@ -3997,7 +4010,7 @@ void DarcyHybridization::LocalFluxNLOperator::Mult(const Vector &u_l,
    AddMultA(u_l, bu);
 }
 
-Operator &DarcyHybridization::LocalFluxNLOperator::GetGradient(
+Operator &MixedSystemHybridization::LocalFluxNLOperator::GetGradient(
    const Vector &u_l) const
 {
    MFEM_ASSERT(u_l.Size() == a_dofs_size, "Incompatible size");
@@ -4018,8 +4031,8 @@ Operator &DarcyHybridization::LocalFluxNLOperator::GetGradient(
    return grad_A;
 }
 
-DarcyHybridization::LocalPotNLOperator::LocalPotNLOperator(
-   const DarcyHybridization &dh_, int el_, const Vector &bu_,
+MixedSystemHybridization::LocalPotNLOperator::LocalPotNLOperator(
+   const MixedSystemHybridization &dh_, int el_, const Vector &bu_,
    const BlockVector &trps_, const Array<int> &faces_)
    : LocalNLOperator(dh_, el_, trps_, faces_), bu(bu_),
      LU_A(&dh.Af_data[dh.Af_offsets[el]], &dh.Af_ipiv[dh.Af_f_offsets[el]])
@@ -4029,8 +4042,8 @@ DarcyHybridization::LocalPotNLOperator::LocalPotNLOperator(
    width = height = d_dofs_size;
 }
 
-void DarcyHybridization::LocalPotNLOperator::SolveU(const Vector &p_l,
-                                                    Vector &u_l) const
+void MixedSystemHybridization::LocalPotNLOperator::SolveU(const Vector &p_l,
+                                                          Vector &u_l) const
 {
    u_l = bu;
 
@@ -4041,8 +4054,8 @@ void DarcyHybridization::LocalPotNLOperator::SolveU(const Vector &p_l,
    LU_A.Solve(a_dofs_size, 1, u_l.GetData());
 }
 
-void DarcyHybridization::LocalPotNLOperator::Mult(const Vector &p_l,
-                                                  Vector &bp) const
+void MixedSystemHybridization::LocalPotNLOperator::Mult(const Vector &p_l,
+                                                        Vector &bp) const
 {
    MFEM_ASSERT(p_l.Size() == d_dofs_size &&
                bp.Size() == d_dofs_size, "Incompatible size");
@@ -4055,7 +4068,7 @@ void DarcyHybridization::LocalPotNLOperator::Mult(const Vector &p_l,
    AddMultDE(p_l, bp);
 }
 
-Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
+Operator &MixedSystemHybridization::LocalPotNLOperator::GetGradient(
    const Vector &p_l) const
 {
    MFEM_ASSERT(p_l.Size() == d_dofs_size, "Incompatible size");
@@ -4076,4 +4089,4 @@ Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
    return grad_D;
 }
 
-}
+} // namespace mfem

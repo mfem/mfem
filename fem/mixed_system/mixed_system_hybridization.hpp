@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DARCYHYBRIDIZATION
-#define MFEM_DARCYHYBRIDIZATION
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION
+#define MFEM_MIXED_SYSTEM_HYBRIDIZATION
 
 #include "../../config/config.hpp"
 #include "../bilinearform.hpp"
@@ -22,16 +22,16 @@
 
 #include <functional>
 
-#define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-#define MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#define MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
+#define MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
 
 namespace mfem
 {
 
 /// Class for total flux hybridization of Darcy-like mixed systems
-/** Class DarcyHybridization performs total flux hybridization of mixed systems
-    with (anti)symmetric weak form common for parabolic and elliptic problems.
-    They can be written as:
+/** Class MixedSystemHybridization performs total flux hybridization of mixed
+    systems with (anti)symmetric weak form common for parabolic and elliptic
+    problems. They can be written as:
     \verbatim
         ┌        ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ || u | _ | bu |
@@ -46,7 +46,7 @@ namespace mfem
     respectively.
 
     The sign convention of the system is chosen in the constructor
-    DarcyHybridization(). Given the set of the forms (Mu, B, Mp), either a
+    MixedSystemHybridization(). Given the set of the forms (Mu, B, Mp), either a
     symmetric system without a sign change (#bsym == false) or with a flipped
     sign (#bsym == true) is formed respectively:
     \verbatim
@@ -167,7 +167,7 @@ namespace mfem
     economical, sharing the nodal DOFs between adjacent faces, at the expense
     of local conservation properties and conditioning of the local problem.
  */
-class DarcyHybridization : public Hybridization
+class MixedSystemHybridization : public Hybridization
 {
 public:
    enum class LSsolveType
@@ -211,7 +211,7 @@ protected:
    /// Indicates if the boundary_constraint_pot_integs integrators are owned externally
    bool extern_bdr_constr_pot_integs{false};
 
-   bool bsym{};      ///< sign convention, see DarcyReduction()
+   bool bsym{};      ///< sign convention, see MixedSystemHybridization()
    bool bfin{};      ///< indicates finalized hybridization
    DiagonalPolicy diag_policy{DIAG_ONE};  ///< diagonal policy
    Array<int> ess_tdof_list;              ///< essential flux true DOFs
@@ -257,9 +257,9 @@ private:
    mutable Array<int> H_offsets;
    mutable Array<real_t> H_data;
 
-   mutable Array<int> darcy_offsets, darcy_toffsets;
-   mutable BlockVector darcy_rhs;
-   Vector darcy_u, darcy_p;
+   mutable Array<int> mixed_system_offsets, mixed_system_toffsets;
+   mutable BlockVector mixed_system_rhs;
+   Vector mixed_system_u, mixed_system_p;
    mutable Array<int> f_2_b;
 
    std::unique_ptr<SparseMatrix> He;
@@ -267,27 +267,27 @@ private:
    mutable std::unique_ptr<SparseMatrix> Grad;
    mutable OperatorHandle pGrad;
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
    friend class Gradient;
    class Gradient : public Operator
    {
-      const DarcyHybridization &dh;
+      const MixedSystemHybridization &dh;
    public:
-      Gradient(const DarcyHybridization &dh)
+      Gradient(const MixedSystemHybridization &dh)
          : Operator(dh.Width()), dh(dh) { }
 
       void Mult(const Vector &x, Vector &y) const override;
    };
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
 
 #ifdef MFEM_USE_MPI
    friend class ParOperator;
    class ParOperator : public Operator
    {
-      const DarcyHybridization &dh;
+      const MixedSystemHybridization &dh;
       mutable OperatorHandle pGrad;
    public:
-      ParOperator(const DarcyHybridization &dh)
+      ParOperator(const MixedSystemHybridization &dh)
          : Operator(dh.c_fes.GetTrueVSize()), dh(dh) { }
 
       void Mult(const Vector &x, Vector &y) const override;
@@ -295,17 +295,17 @@ private:
    };
    mutable OperatorHandle pOp;
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
    class ParGradient : public Operator
    {
-      const DarcyHybridization &dh;
+      const MixedSystemHybridization &dh;
    public:
-      ParGradient(const DarcyHybridization &dh)
+      ParGradient(const MixedSystemHybridization &dh)
          : Operator(dh.c_fes.GetTrueVSize()), dh(dh) { }
 
       void Mult(const Vector &x, Vector &y) const override;
    };
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_GRAD_MAT
 #endif //MFEM_USE_MPI
 
    enum class LocalOpType { FluxNL, PotNL, FullNL };
@@ -315,7 +315,7 @@ private:
    class LocalNLOperator : public Operator
    {
    protected:
-      const DarcyHybridization &dh;
+      const MixedSystemHybridization &dh;
       int el;
       const BlockVector &trps;
       const Array<int> &faces;
@@ -342,8 +342,8 @@ private:
       void AddGradDE(const Vector &p_l, DenseMatrix &gD) const;
 
    public:
-      LocalNLOperator(const DarcyHybridization &dh, int el, const BlockVector &trps,
-                      const Array<int> &faces);
+      LocalNLOperator(const MixedSystemHybridization &dh, int el,
+                      const BlockVector &trps, const Array<int> &faces);
       virtual ~LocalNLOperator();
 
       inline const Array<int>& GetOffsets() const { return offsets; }
@@ -360,8 +360,9 @@ private:
       mutable Vector p_l;
 
    public:
-      LocalFluxNLOperator(const DarcyHybridization &dh, int el, const Vector &bp,
-                          const BlockVector &trps, const Array<int> &faces);
+      LocalFluxNLOperator(const MixedSystemHybridization &dh, int el,
+                          const Vector &bp, const BlockVector &trps,
+                          const Array<int> &faces);
 
       void SolveP(const Vector &u_l, Vector &p_l) const;
       void Mult(const Vector &x, Vector &y) const override;
@@ -376,7 +377,7 @@ private:
       mutable Vector u_l;
 
    public:
-      LocalPotNLOperator(const DarcyHybridization &dh, int el, const Vector &bu,
+      LocalPotNLOperator(const MixedSystemHybridization &dh, int el, const Vector &bu,
                          const BlockVector &trps, const Array<int> &faces);
 
       void SolveU(const Vector &p_l, Vector &u_l) const;
@@ -483,11 +484,11 @@ public:
                             flips the sign of B and Mp to obtain a symmetric
                             system with -Bᵀ in the flux equation
     */
-   DarcyHybridization(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-                      FiniteElementSpace *fes_c, bool bsymmetrize = true);
+   MixedSystemHybridization(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
+                            FiniteElementSpace *fes_c, bool bsymmetrize = true);
 
    /// Destructor
-   ~DarcyHybridization();
+   ~MixedSystemHybridization();
 
    /** @brief Sets Operator::DiagonalPolicy used upon construction of the
        linear system.
@@ -531,9 +532,9 @@ public:
        matrices for fluxes @a C and (if provided) stabilization contributions
        to @a E, @a G, @a D and @a H for potentials. Note the potential
        integrator is required to implement the method
-       BilinearFormIntegrator::AssembleHDGFaceMatrix(). The DarcyHybridization
-       object assumes ownership of the integrators, i.e. it will delete the
-       integrators when destroyed. */
+       BilinearFormIntegrator::AssembleHDGFaceMatrix(). The
+       MixedSystemHybridization object assumes ownership of the integrators,
+       i.e. it will delete the integrators when destroyed. */
    void SetConstraintIntegrators(BilinearFormIntegrator *c_flux_integ,
                                  BilinearFormIntegrator *c_pot_integ);
 
@@ -581,17 +582,18 @@ public:
 
    /// Adds flux boundary constraint integrator
    /** Add the boundary face integrator that will be used to construct the
-       constraint matrix @a C. The DarcyHybridization object assumes ownership
-       of the integrator, i.e. it will delete the integrator when destroyed. */
+       constraint matrix @a C. The MixedSystemHybridization object assumes
+       ownership of the integrator, i.e. it will delete the integrator when
+       destroyed. */
    void AddBdrFluxConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { Hybridization::AddBdrConstraintIntegrator(c_integ); }
 
    /// Adds flux boundary constraint integrator (with a boundary marker)
    /** Add the boundary face integrator that will be used to construct the
-       constraint matrix @a C. The DarcyHybridization object assumes ownership
-       of the integrator, i.e. it will delete the integrator when destroyed.
-       The boundary attribute marker array is referenced and must remain valid
-       over the lifetime. */
+       constraint matrix @a C. The MixedSystemHybridization object assumes
+       ownership of the integrator, i.e. it will delete the integrator when
+       destroyed. The boundary attribute marker array is referenced and must
+       remain valid over the lifetime. */
    void AddBdrFluxConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                        Array<int> &bdr_marker)
    { Hybridization::AddBdrConstraintIntegrator(c_integ, bdr_marker); }
@@ -611,9 +613,9 @@ public:
    /** Add the boundary face integrator that will be used to construct the
        constraint stabilization matrices @a E, @a G, @a D and @a H. Note the
        integrator is required to implement the method
-       BilinearFormIntegrator::AssembleHDGFaceMatrix(). The DarcyHybridization
-       object assumes ownership of the integrator, i.e. it will delete the
-       integrator when destroyed. */
+       BilinearFormIntegrator::AssembleHDGFaceMatrix(). The
+       MixedSystemHybridization object assumes ownership of the integrator, i.e.
+       it will delete the integrator when destroyed. */
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ)
    {
       boundary_constraint_pot_integs.push_back(c_integ);
@@ -625,10 +627,10 @@ public:
    /** Add the boundary face integrator that will be used to construct the
        constraint stabilization matrices @a E, @a G, @a D and @a H. Note the
        integrator is required to implement the method
-       BilinearFormIntegrator::AssembleHDGFaceMatrix(). The DarcyHybridization
-       object assumes ownership of the integrator, i.e. it will delete the
-       integrator when destroyed. The boundary attribute marker array is
-       referenced and must remain valid over the lifetime. */
+       BilinearFormIntegrator::AssembleHDGFaceMatrix(). The
+       MixedSystemHybridization object assumes ownership of the integrator, i.e.
+       it will delete the integrator when destroyed. The boundary attribute
+       marker array is referenced and must remain valid over the lifetime. */
    void AddBdrPotConstraintIntegrator(BilinearFormIntegrator *c_integ,
                                       Array<int> &bdr_marker)
    {
@@ -703,7 +705,7 @@ public:
    /// Indicate that boundary potential constraint integrators are not owned
    void UseExternalBdrPotConstraintIntegrators() { extern_bdr_constr_pot_integs = 1; }
 
-   /// Prepare the DarcyHybridization object for assembly.
+   /// Prepare the MixedSystemHybridization object for assembly.
    /** @param ess_flux_tdof_list    essential true DOFs of the flux */
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
@@ -839,7 +841,7 @@ public:
    void ProjectSolution(const BlockVector &sol, Vector &sol_r) const;
 
    /// Apply the hybridized operator.
-   /** @note The DarcyHybridization object must be finalized by Finalize(). */
+   /** @note The MixedSystemHybridization object must be finalized by Finalize(). */
    void Mult(const Vector &x, Vector &y) const override;
 
    /// Evaluate the gradient operator at the point @a x.
@@ -890,6 +892,6 @@ public:
    void Reset() override;
 };
 
-}
+} // namespace mfem
 
-#endif
+#endif // MFEM_MIXED_SYSTEM_HYBRIDIZATION

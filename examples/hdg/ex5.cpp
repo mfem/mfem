@@ -28,10 +28,10 @@
 //               polynomials (pressure p). Alternatively, the piecewise
 //               discontinuous polynomials are used for both quantities.
 //
-//               The example demonstrates the use of the DarcyForm class, as
-//               well as algebraic reduction and hybridization of mixed systems
-//               and the collective saving of several grid functions in VisIt
-//               (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               The example demonstrates the use of the MixedSystemForm class,
+//               as well as algebraic reduction and hybridization of mixed
+//               systems and the collective saving of several grid functions in
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
 //               We recommend viewing the standard version of this example
 //               to understand the extension for the Local / Hybridizable
@@ -169,9 +169,9 @@ int main(int argc, char *argv[])
    // 6. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   auto darcy = make_unique<DarcyForm>(R_space.get(), W_space.get());
-   const Array<int> &block_offsets = darcy->GetOffsets();
-   const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
+   auto mixed_system = make_unique<MixedSystemForm>(R_space.get(), W_space.get());
+   const Array<int> &block_offsets = mixed_system->GetOffsets();
+   const Array<int> &block_trueOffsets = mixed_system->GetTrueOffsets();
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
 
-   LinearForm *fform = darcy->GetFluxRHS();
+   LinearForm *fform = mixed_system->GetFluxRHS();
    // Domain rhs
    if (dg)
    {
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   LinearForm *gform = darcy->GetPotentialRHS();
+   LinearForm *gform = mixed_system->GetPotentialRHS();
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
 
    // 9. Assemble the finite element matrices for the Darcy operator
@@ -238,9 +238,9 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   BilinearForm *mVarf = darcy->GetFluxMassForm();
-   MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
-   BilinearForm *mpVarf = (dg)?(darcy->GetPotentialMassForm()):(NULL);
+   BilinearForm *mVarf = mixed_system->GetFluxMassForm();
+   MixedBilinearForm *bVarf = mixed_system->GetFluxDivForm();
+   BilinearForm *mpVarf = (dg)?(mixed_system->GetPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -294,9 +294,9 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
-      darcy->EnableHybridization(trace_space.get(),
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      mixed_system->EnableHybridization(trace_space.get(),
+                                        new NormalTraceJumpIntegrator(),
+                                        ess_flux_tdofs_list);
       // Set essential BC
       if (trace_ess_bc && mesh.bdr_attributes.Size() > 0)
       {
@@ -310,22 +310,22 @@ int main(int argc, char *argv[])
          phat.ProjectBdrCoefficient(pcoeff, bdr_is_ess);
          phat.SetTrueVector();
 
-         darcy->GetHybridization()->SetEssentialBC(bdr_is_ess);
+         mixed_system->GetHybridization()->SetEssentialBC(bdr_is_ess);
       }
    }
    else if (reduction && (dg || brt))
    {
-      darcy->EnableFluxReduction();
+      mixed_system->EnableFluxReduction();
    }
 
-   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { mixed_system->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   darcy->Assemble();
+   mixed_system->Assemble();
 
    OperatorPtr A;
    Vector B;
    x = 0.;
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B, true);
+   mixed_system->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B, true);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, x);
+      mixed_system->RecoverFEMSolution(X, x);
 
       chrono.Stop();
 
@@ -454,7 +454,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, x);
+      mixed_system->RecoverFEMSolution(X, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
       chrono.Stop();

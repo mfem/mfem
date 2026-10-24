@@ -59,7 +59,7 @@ $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
 # Rules for building the miniapps
-HDG_DEPS = $(SRC)../hdg/darcyop
+HDG_DEPS = $(SRC)../hdg/mixed_system_op
 HDG_MINIAPPS = braginskii_hdg
 
 %: $(SRC)%.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common

@@ -216,15 +216,15 @@ public:
         | B   D  E  || p | = | bp |
         | C   G  H  || λ |   | 0  |
         └           ┘└   ┘   └    ┘
-    using the provided DarcyForm with enabled hybridization (through
-    DarcyHybridization). It adds @a 1/dt*Mp term to @a D and multiplies the
-    provided righ hand side by @a 1/dt as well to form @a bp, effectively
+    using the provided MixedSystemForm with enabled hybridization (through
+    MixedSystemHybridization). It adds @a 1/dt*Mp term to @a D and multiplies
+    the provided righ hand side by @a 1/dt as well to form @a bp, effectively
     solving the system for the implicit potential @a p at the new time level.
   */
 class ImplicitTrace_Solver : public Solver
 {
 private:
-   DarcyForm &darcy;
+   MixedSystemForm &mixed_system;
    const Array<int> &ess_tdof_list;
    const FiniteElementSpace *c_fes;
    OperatorHandle A;
@@ -233,10 +233,11 @@ private:
    real_t dt;
    FunctionCoefficient idt_coeff;
 public:
-   ImplicitTrace_Solver(DarcyForm &darcy_, const Array<int> &ess_tdof_list_)
-      : darcy(darcy_),
+   ImplicitTrace_Solver(MixedSystemForm &mixed_system_,
+                        const Array<int> &ess_tdof_list_)
+      : mixed_system(mixed_system_),
         ess_tdof_list(ess_tdof_list_),
-        c_fes(darcy_.GetHybridization()->ConstraintFESpace()),
+        c_fes(mixed_system_.GetHybridization()->ConstraintFESpace()),
         prec(c_fes->GetTypicalTraceElement()->GetDof(),
              BlockILU::Reordering::MINIMUM_DISCARDED_FILL),
         dt(1.0),
@@ -249,7 +250,7 @@ public:
       linear_solver.SetPrintLevel(0);
       linear_solver.SetPreconditioner(prec);
 
-      darcy.GetPotentialMassForm()->AddDomainIntegrator(
+      mixed_system.GetPotentialMassForm()->AddDomainIntegrator(
          new MassIntegrator(idt_coeff));
    }
 
@@ -264,10 +265,10 @@ public:
       {
          dt = dt_;
          // Form operator A
-         darcy.Update();
-         darcy.Assemble();
+         mixed_system.Update();
+         mixed_system.Assemble();
 
-         darcy.FormSystemMatrix(ess_tdof_list, A);
+         mixed_system.FormSystemMatrix(ess_tdof_list, A);
 
          // this will also call SetOperator on the preconditioner
          linear_solver.SetOperator(*A);
@@ -281,20 +282,21 @@ public:
 
    void Mult(const Vector &b, Vector &x) const override
    {
-      BlockVector darcy_b(darcy.GetOffsets());
-      darcy_b.GetBlock(0) = 0.;
-      darcy_b.GetBlock(1).Set(-1./dt, b);
+      BlockVector mixed_system_b(mixed_system.GetOffsets());
+      mixed_system_b.GetBlock(0) = 0.;
+      mixed_system_b.GetBlock(1).Set(-1./dt, b);
 
       Vector rb;
-      darcy.GetHybridization()->ReduceRHS(darcy_b, rb);
+      mixed_system.GetHybridization()->ReduceRHS(mixed_system_b, rb);
 
       Vector rx(A->Width());
       rx = 0.;
       linear_solver.Mult(rb, rx);
 
-      BlockVector darcy_x(darcy.GetOffsets());
-      darcy.GetHybridization()->ComputeSolution(darcy_b, rx, darcy_x);
-      x = darcy_x.GetBlock(1);
+      BlockVector mixed_system_x(mixed_system.GetOffsets());
+      mixed_system.GetHybridization()->ComputeSolution(mixed_system_b, rx,
+                                                       mixed_system_x);
+      x = mixed_system_x.GetBlock(1);
    }
 };
 
@@ -309,7 +311,7 @@ class IMEX_Evolution : public TimeDependentOperator
 private:
    BilinearForm &M;
    Operator &K;
-   DarcyForm &darcy;
+   MixedSystemForm &mixed_system;
    OperatorHandle S;
    const Vector &b;
    unique_ptr<Solver> M_prec;
@@ -320,7 +322,7 @@ private:
    mutable Vector z;
 
 public:
-   IMEX_Evolution(BilinearForm &M_, Operator &K_, DarcyForm &darcy_,
+   IMEX_Evolution(BilinearForm &M_, Operator &K_, MixedSystemForm &mixed_system_,
                   const Vector &b_);
 
    /// Evaluate k1=M^{-1}*G1(u,t); -> k1 = M^{-1}*(K*u + b)
@@ -494,12 +496,12 @@ int main(int argc, char *argv[])
    ConstantCoefficient diff_coeff(diffusion_term);
    ConstantCoefficient inv_diff_coeff(1./diffusion_term);
 
-   DarcyForm darcy(V_space.get(), W_space.get());
-   BilinearForm *mq = darcy.GetFluxMassForm();
-   MixedBilinearForm *divq = darcy.GetFluxDivForm();
-   BilinearForm *mp = (dg)?(darcy.GetPotentialMassForm()):(NULL);
+   MixedSystemForm mixed_system(V_space.get(), W_space.get());
+   BilinearForm *mq = mixed_system.GetFluxMassForm();
+   MixedBilinearForm *divq = mixed_system.GetFluxDivForm();
+   BilinearForm *mp = (dg)?(mixed_system.GetPotentialMassForm()):(NULL);
 
-   LinearForm *bp = darcy.GetPotentialRHS();
+   LinearForm *bp = mixed_system.GetPotentialRHS();
    *bp = 0.0; //The inflow on the boundaries is set to zero.
 
    if (dg)
@@ -554,13 +556,13 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
-      darcy.EnableHybridization(trace_space.get(),
-                                new NormalTraceJumpIntegrator(),
-                                ess_flux_tdofs_list);
+      mixed_system.EnableHybridization(trace_space.get(),
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
    }
    else if (dg || brt)
    {
-      darcy.EnableFluxReduction();
+      mixed_system.EnableFluxReduction();
    }
    else
    {
@@ -574,14 +576,14 @@ int main(int argc, char *argv[])
    k.Assemble(skip_zeros);
    if (!hybridization)
    {
-      darcy.Assemble(skip_zeros);
+      mixed_system.Assemble(skip_zeros);
    }
 
    m.Finalize(skip_zeros);
    k.Finalize(skip_zeros);
    if (!hybridization)
    {
-      darcy.Finalize(skip_zeros);
+      mixed_system.Finalize(skip_zeros);
    }
 
    // 9. Define the initial conditions.
@@ -672,7 +674,7 @@ int main(int argc, char *argv[])
    // 12. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   IMEX_Evolution adv(m, k, darcy, *bp);
+   IMEX_Evolution adv(m, k, mixed_system, *bp);
 
    real_t t = 0.0;
    adv.SetTime(t);
@@ -716,9 +718,9 @@ int main(int argc, char *argv[])
 
 // Implementation of class IMEX_Evolution
 IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, Operator &K_,
-                               DarcyForm &darcy_, const Vector &b_)
+                               MixedSystemForm &mixed_system_, const Vector &b_)
    : TimeDependentOperator(M_.FESpace()->GetTrueVSize()),
-     M(M_), K(K_), darcy(darcy_), b(b_), z(height)
+     M(M_), K(K_), mixed_system(mixed_system_), b(b_), z(height)
 {
    Array<int> ess_tdof_list;
 
@@ -732,15 +734,16 @@ IMEX_Evolution::IMEX_Evolution(BilinearForm &M_, Operator &K_,
       MFEM_ABORT("Implicit time integration is not supported with partial assembly");
    }
 
-   if (darcy.GetReduction())
+   if (mixed_system.GetReduction())
    {
-      darcy.FormSystemMatrix(ess_tdof_list, S);
+      mixed_system.FormSystemMatrix(ess_tdof_list, S);
       implicit_solver = make_unique<Implicit_Solver>(
                            M.SpMat(), *S.As<SparseMatrix>(), *M.FESpace());
    }
-   else if (darcy.GetHybridization())
+   else if (mixed_system.GetHybridization())
    {
-      implicit_trace_solver = make_unique<ImplicitTrace_Solver>(darcy, ess_tdof_list);
+      implicit_trace_solver = make_unique<ImplicitTrace_Solver>(mixed_system,
+                                                                ess_tdof_list);
    }
    else
    {

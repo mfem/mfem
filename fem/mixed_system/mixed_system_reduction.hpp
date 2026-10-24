@@ -9,21 +9,21 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DARCYREDUCTION
-#define MFEM_DARCYREDUCTION
+#ifndef MFEM_MIXED_SYSTEM_REDUCTION
+#define MFEM_MIXED_SYSTEM_REDUCTION
 
 #include "../../config/config.hpp"
 #include "../bilinearform.hpp"
 #include "../nonlinearform.hpp"
 
-#define MFEM_DARCY_REDUCTION_ELIM_BCS
+#define MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
 
 namespace mfem
 {
 
 /// Class for algebraic reduction of Darcy-like mixed systems
-/** DarcyReduction is the base class for objects performing algebraic reduction
-    by elimination of one of the equations of mixed systems with
+/** MixedSystemReduction is the base class for objects performing algebraic
+    reduction by elimination of one of the equations of mixed systems with
     (anti)symmetric weak form common for parabolic and elliptic problems. They
     can be written as:
     \verbatim
@@ -40,7 +40,7 @@ namespace mfem
     respectively.
 
     The sign convention of the system is chosen in the constructor
-    DarcyReduction(). Given the set of the forms (Mu, B, Mp), either a
+    MixedSystemReduction(). Given the set of the forms (Mu, B, Mp), either a
     symmetric system without a sign change (#bsym == false) or with a flipped
     sign (#bsym == true) is formed respectively:
     \verbatim
@@ -59,7 +59,7 @@ namespace mfem
     reduced system, the original quantities of the system can be recovered
     through ComputeSolution().
  */
-class DarcyReduction : public Operator
+class MixedSystemReduction : public Operator
 {
 protected:
    FiniteElementSpace &fes_u;   ///< flux FE space
@@ -84,7 +84,7 @@ protected:
    Array<real_t> D_data;         ///< @a Mp element matrix data
    Array<real_t> D_face_data;    ///< @a Mp face element matrix data
 
-   bool bsym{};      ///< sign convention, see DarcyReduction()
+   bool bsym{};      ///< sign convention, see MixedSystemReduction()
 
    std::unique_ptr<SparseMatrix> S;    ///< reduced system matrix
 
@@ -129,11 +129,11 @@ public:
                             flips the sign of B and Mp to obtain a symmetric
                             system with -Bᵀ in the flux equation
     */
-   DarcyReduction(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-                  bool bsymmetrize = true);
+   MixedSystemReduction(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
+                        bool bsymmetrize = true);
 
    /// Destructor
-   virtual ~DarcyReduction();
+   virtual ~MixedSystemReduction();
 
    void SetFluxMassNonlinearIntegrator(NonlinearFormIntegrator *flux_integ,
                                        bool own = true);
@@ -144,7 +144,7 @@ public:
    NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_p; }
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
-   /// Prepare the DarcyReduction object for assembly
+   /// Prepare the MixedSystemReduction object for assembly
    /** @param ess_flux_tdof_list    essential true DOFs of the flux */
    virtual void Init(const Array<int> &ess_flux_tdof_list);
 
@@ -190,7 +190,7 @@ public:
    { MFEM_ABORT("Not implemented"); }
 
    /// Apply the reduced operator.
-   /** @note The DarcyReduction object must be finalized by Finalize(). */
+   /** @note The MixedSystemReduction object must be finalized by Finalize(). */
    void Mult(const Vector &x, Vector &y) const override;
 
    /// Finalize the construction of the reduced matrix.
@@ -232,8 +232,8 @@ public:
 };
 
 /// Class for flux elimination from Darcy-like mixed systems
-/** Assuming the notation of DarcyReduction, the algebraic reduction by Schur
-    complement to eliminate the flux is performed as follows:
+/** Assuming the notation of MixedSystemReduction, the algebraic reduction by
+    Schur complement to eliminate the flux is performed as follows:
     \verbatim
         S = Mp ± B Mu⁻¹ Bᵀ
         br = bp - B Mu⁻¹ bu
@@ -243,7 +243,7 @@ public:
     However, the forms @a B and @a Mp can have face integrators. This enables
     construction of Local Discontinuous Galerkin (LDG) methods, for example.
  */
-class DarcyFluxReduction : public DarcyReduction
+class MixedSystemFluxReduction : public MixedSystemReduction
 {
    Array<int> Af_ipiv;
    std::unique_ptr<SparseMatrix> sBt, sAiBt;
@@ -261,12 +261,12 @@ class DarcyFluxReduction : public DarcyReduction
    void ComputeS() override;
 
 public:
-   /// @copydoc DarcyReduction::DarcyReduction()
-   DarcyFluxReduction(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-                      bool bsymmetrize = true);
+   /// @copydoc MixedSystemReduction::MixedSystemReduction()
+   MixedSystemFluxReduction(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
+                            bool bsymmetrize = true);
 
    /// Destructor
-   ~DarcyFluxReduction();
+   ~MixedSystemFluxReduction();
 
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
@@ -291,8 +291,8 @@ public:
 };
 
 /// Class for potential elimination from Darcy-like mixed systems
-/** Assuming the notation of DarcyReduction, the algebraic reduction by Schur
-    complement to eliminate the potential is performed as follows:
+/** Assuming the notation of MixedSystemReduction, the algebraic reduction by
+    Schur complement to eliminate the potential is performed as follows:
     \verbatim
         S = Mu ± Bᵀ Mp⁻¹ B
         br = bu ± Bᵀ Mp⁻¹ bp
@@ -301,7 +301,7 @@ public:
     can be discontinuous or continuous. However, the forms @a B and @a Mp
     cannot have face integrators.
  */
-class DarcyPotentialReduction : public DarcyReduction
+class MixedSystemPotentialReduction : public MixedSystemReduction
 {
    Array<int> hat_offsets, hat_dofs_marker;
 
@@ -326,12 +326,13 @@ class DarcyPotentialReduction : public DarcyReduction
    void ComputeS() override;
 
 public:
-   /// @copydoc DarcyReduction::DarcyReduction()
-   DarcyPotentialReduction(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-                           bool bsymmetrize = true);
+   /// @copydoc MixedSystemReduction::MixedSystemReduction()
+   MixedSystemPotentialReduction(FiniteElementSpace *fes_u,
+                                 FiniteElementSpace *fes_p,
+                                 bool bsymmetrize = true);
 
    /// Destructor
-   ~DarcyPotentialReduction();
+   ~MixedSystemPotentialReduction();
 
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
@@ -364,6 +365,6 @@ public:
    void Reset() override;
 };
 
-}
+} // namespace mfem
 
-#endif
+#endif // MFEM_MIXED_SYSTEM_REDUCTION

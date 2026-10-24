@@ -13,7 +13,7 @@
 #define MFEM_BRAGINSKII_HDG_SOLVER
 
 #include "mfem.hpp"
-#include "../hdg/darcyop.hpp"
+#include "../hdg/mixed_system_op.hpp"
 #include <memory>
 
 namespace mfem
@@ -25,7 +25,7 @@ namespace plasma
 class ConvectionDiffusionOp : public TimeDependentOperator
 {
    const FiniteElementSpace &fes_p;
-   hdg::DarcyOperator &darcy_op;
+   hdg::MixedSystemOperator &mixed_system_op;
    Operator &conv_op;
 
    std::unique_ptr<DGMassInverse> Minv;
@@ -33,24 +33,24 @@ class ConvectionDiffusionOp : public TimeDependentOperator
 
 public:
    ConvectionDiffusionOp(const FiniteElementSpace &fes_p_,
-                         hdg::DarcyOperator &darcy_op_, Operator &conv_op_);
+                         hdg::MixedSystemOperator &mixed_system_op_, Operator &conv_op_);
 
    void AddMult(const Vector &x, Vector &y, real_t a = 1.) const override;
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &y) override;
 
-   void SetTime(real_t t) override { darcy_op.SetTime(t); }
+   void SetTime(real_t t) override { mixed_system_op.SetTime(t); }
 
    void SetTolerance(real_t rtol, real_t atol)
    {
-      darcy_op.SetTolerance(rtol, atol);
+      mixed_system_op.SetTolerance(rtol, atol);
       Minv->SetRelTol(rtol);
       Minv->SetAbsTol(atol);
    }
 
    void SetMaxIters(int iters)
    {
-      darcy_op.SetMaxIters(iters);
+      mixed_system_op.SetMaxIters(iters);
       Minv->SetMaxIter(iters);
    }
 };

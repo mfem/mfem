@@ -462,7 +462,7 @@ int main(int argc, char *argv[])
    FiniteElementSpace qfes(&mesh, qfec.get(), (dg)?(dim):(1));
    FiniteElementSpace qvfes(&mesh, qfec.get(), ((dg)?(dim):(1)) * num_equations);
 
-   DarcyForm darcy(&qvfes, &vfes);
+   MixedSystemForm mixed_system(&qvfes, &vfes);
 
    // This example depends on this ordering of the space.
    MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
@@ -471,12 +471,12 @@ int main(int argc, char *argv[])
 
    // 5. Set up the nonlinear form with euler flux and numerical flux
 
-   BilinearForm *Mq = darcy.GetFluxMassForm();
-   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   BilinearForm *Mq = mixed_system.GetFluxMassForm();
+   MixedBilinearForm *B = mixed_system.GetFluxDivForm();
 #ifndef BRAGINSKII_IMEX
-   NonlinearForm *Mtnl = darcy.GetPotentialMassNonlinearForm();
+   NonlinearForm *Mtnl = mixed_system.GetPotentialMassNonlinearForm();
 #else // BRAGINSKII_IMEX
-   BilinearForm *Mt = darcy.GetPotentialMassForm();
+   BilinearForm *Mt = mixed_system.GetPotentialMassForm();
 #endif // BRAGINSKII_IMEX
 
    //linear diffusion
@@ -569,7 +569,7 @@ int main(int argc, char *argv[])
 #else //BRAGINSKII_IMEX
    Mtnl->AddDomainIntegrator(hyperbolicIntegrator.get());
    Mtnl->AddInteriorFaceIntegrator(hyperbolicIntegrator.get());
-   Mtnl->UseExternalIntegrators();//not handled by DarcyOperator!!
+   Mtnl->UseExternalIntegrators();//not handled by MixedSystemOperator!!
 #endif //BRAGINSKII_IMEX
 
    // diffusion Dirichlet boundary condition
@@ -580,7 +580,7 @@ int main(int argc, char *argv[])
 
    if (bc_dirichlet)
    {
-      LinearForm *bq = darcy.GetFluxRHS();
+      LinearForm *bq = mixed_system.GetFluxRHS();
 
       if (dg)
       {
@@ -630,10 +630,10 @@ int main(int argc, char *argv[])
       trace_coll.reset(new DG_Interface_FECollection(order, dim));
       trace_space.reset(new FiniteElementSpace(&mesh, trace_coll.get(),
                                                num_equations));
-      darcy.EnableHybridization(trace_space.get(),
-                                new VectorBlockDiagonalIntegrator(
-                                   num_equations, new NormalTraceJumpIntegrator()),
-                                ess_flux_tdofs_list);
+      mixed_system.EnableHybridization(trace_space.get(),
+                                       new VectorBlockDiagonalIntegrator(
+                                          num_equations, new NormalTraceJumpIntegrator()),
+                                       ess_flux_tdofs_list);
 
    }
 
@@ -645,7 +645,8 @@ int main(int argc, char *argv[])
    auto u0Fun = GetU0Fun(pars);
    VectorFunctionCoefficient u0(num_equations, u0Fun);
 
-   const Array<int> block_offsets(DarcyOperator::ConstructOffsets(darcy));
+   const Array<int> block_offsets(MixedSystemOperator::ConstructOffsets(
+                                     mixed_system));
    BlockVector x(block_offsets);
    x = 0.;
    GridFunction sol(&vfes, x.GetBlock(1), 0);
@@ -656,7 +657,7 @@ int main(int argc, char *argv[])
 
    if (hybridization)
    {
-      darcy.GetHybridization()->ProjectSolution(x, x.GetBlock(2));
+      mixed_system.GetHybridization()->ProjectSolution(x, x.GetBlock(2));
    }
 
    // Output the initial solution.
@@ -681,14 +682,15 @@ int main(int argc, char *argv[])
    // Setup the system operator
 
    Array<Coefficient*> coeffs;
-   DarcyOperator darcy_op(ess_flux_tdofs_list, &darcy, NULL, NULL, NULL, coeffs,
-                          DarcyOperator::SolverType::Newton, false, true);
+   MixedSystemOperator mixed_system_op(ess_flux_tdofs_list, &mixed_system, NULL,
+                                       NULL, NULL, coeffs,
+                                       MixedSystemOperator::SolverType::Newton, false, true);
 
 #ifdef BRAGINSKII_IMEX
    Mt_ex->Setup();
-   ConvectionDiffusionOp op(fes, darcy_op, *Mt_ex);
+   ConvectionDiffusionOp op(fes, mixed_system_op, *Mt_ex);
 #else //BRAGINSKII_IMEX
-   DarcyOperator &op = darcy_op;
+   MixedSystemOperator &op = mixed_system_op;
 #endif //BRAGINSKII_IMEX
 
    constexpr real_t rtol = 1e-6;

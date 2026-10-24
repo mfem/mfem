@@ -129,16 +129,16 @@ int main(int argc, char *argv[])
    //    the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
 
-   DarcyForm darcy(R_space.get(), W_space.get());
+   MixedSystemForm mixed_system(R_space.get(), W_space.get());
 
    ConstantCoefficient one(1.0), negone(-1.0);
 
-   LinearForm *f = darcy.GetPotentialRHS();
+   LinearForm *f = mixed_system.GetPotentialRHS();
    f->AddDomainIntegrator(new DomainLFIntegrator(negone));
 
-   BilinearForm *Mq = darcy.GetFluxMassForm();
-   MixedBilinearForm *Bq = darcy.GetFluxDivForm();
-   BilinearForm *Mu = (dg)?(darcy.GetPotentialMassForm()):(NULL);
+   BilinearForm *Mq = mixed_system.GetFluxMassForm();
+   MixedBilinearForm *Bq = mixed_system.GetFluxDivForm();
+   BilinearForm *Mu = (dg)?(mixed_system.GetPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -175,14 +175,14 @@ int main(int argc, char *argv[])
       trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
    }
    trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
-   darcy.EnableHybridization(trace_space.get(),
-                             new NormalTraceJumpIntegrator(),
-                             ess_flux_tdofs_list);
+   mixed_system.EnableHybridization(trace_space.get(),
+                                    new NormalTraceJumpIntegrator(),
+                                    ess_flux_tdofs_list);
 
    // 7. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
    MemoryType mt = device.GetMemoryType();
-   BlockVector x(darcy.GetOffsets(), mt);
+   BlockVector x(mixed_system.GetOffsets(), mt);
    x = 0.0;
 
    GridFunction u_h, uhat_h;
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
       cout << "Number of trace unknowns: " << uhat_dofs << endl;
 
       // 12. Assemble the stiffness matrix.
-      darcy.Assemble();
+      mixed_system.Assemble();
 
       // 13. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
       OperatorPtr A;
       Vector B, X;
 
-      darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
+      mixed_system.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
       // 14. Solve the linear system A X = B.
 #ifndef MFEM_USE_SUITESPARSE
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
       // 15. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      darcy.RecoverFEMSolution(X, x);
+      mixed_system.RecoverFEMSolution(X, x);
       uhat_h.MakeTRef(trace_space.get(), X, 0);
       uhat_h.SetFromTrueVector();
 
@@ -292,15 +292,15 @@ int main(int argc, char *argv[])
       // 19. Inform also the bilinear and linear forms that the space has
       //     changed.
 
-      darcy.Update();
-      x.Update(darcy.GetOffsets(), mt);
+      mixed_system.Update();
+      x.Update(mixed_system.GetOffsets(), mt);
 
       x = 0.;
       u_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
-      darcy.EnableHybridization(trace_space.get(),
-                                new NormalTraceJumpIntegrator(),
-                                ess_flux_tdofs_list);
+      mixed_system.EnableHybridization(trace_space.get(),
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
    }
 
    return 0;

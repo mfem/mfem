@@ -9,21 +9,21 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DARCYFORM
-#define MFEM_DARCYFORM
+#ifndef MFEM_MIXED_SYSTEM_FORM
+#define MFEM_MIXED_SYSTEM_FORM
 
 #include "../../config/config.hpp"
 #include "../bilinearform.hpp"
 #include "../nonlinearform.hpp"
-#include "darcyreduction.hpp"
-#include "darcyhybridization.hpp"
+#include "mixed_system_reduction.hpp"
+#include "mixed_system_hybridization.hpp"
 
 namespace mfem
 {
 
 /// Block bilinear form for Darcy-like mixed systems
-/** Class DarcyForm represents mixed systems with (anti)symmetric weak form
-    common for parabolic and elliptic problems. They can be written as:
+/** Class MixedSystemForm represents mixed systems with (anti)symmetric weak
+    form common for parabolic and elliptic problems. They can be written as:
     \verbatim
         ┌        ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ || u | _ | bu |
@@ -38,10 +38,10 @@ namespace mfem
     respectively. The r.h.s terms can be constructed internally or
     provided externally (see FormLinearSystem()).
 
-    The sign convention of the system is chosen in the constructor DarcyForm().
-    Given the set of the forms (Mu, B, Mp), either a symmetric system without
-    a sign change (#bsym == false) or with a flipped sign (#bsym == true) is
-    formed respectively:
+    The sign convention of the system is chosen in the constructor
+    MixedSystemForm(). Given the set of the forms (Mu, B, Mp), either a
+    symmetric system without a sign change (#bsym == false) or with a flipped
+    sign (#bsym == true) is formed respectively:
     \verbatim
         ┌       ┐        ┌        ┐
         | Mu Bᵀ |        | Mu -Bᵀ |
@@ -59,14 +59,14 @@ namespace mfem
     variables and the r.h.s terms are packed together in BlockVector%s
     (with offsets obtained through GetOffsets()).
 
-    A notable feature of DarcyForm is the capability to perform algebraic
+    A notable feature of MixedSystemForm is the capability to perform algebraic
     reduction or hybridization of the system. To reduce the system by
     elimination of discontinuous fluxes, use EnableFluxReduction(). Similarly,
     elimination of potentials (without face integrators) is triggered by
     EnablePotentialReduction() before the assembling process. Alternatively,
     the system can be hybridized in terms of the total flux by
     EnableHybridization(), reducing the system to the trace unknowns through
-    DarcyHybridization. In any case, the reductions are performed in
+    MixedSystemHybridization. In any case, the reductions are performed in
     FormSystemMatrix() or FormLinearSystem(), where the original set of the
     quantities (flux and potential) is recovered though RecoverFEMSolution().
 
@@ -77,9 +77,9 @@ namespace mfem
     ReconstructTotalFlux(). The second step is reconstruction of the fluxes
     and potentials with the increased polynomial order through
     ReconstructFluxAndPot(). Both steps are combined in Reconstruct(). Refer
-    to DarcyHybridization for more detailed explanation of the process.
+    to MixedSystemHybridization for more detailed explanation of the process.
  */
-class DarcyForm : public Operator
+class MixedSystemForm : public Operator
 {
 protected:
    Array<int> offsets;      ///< block offsets (VDOFs)
@@ -88,7 +88,7 @@ protected:
    FiniteElementSpace *fes_u;   ///< flux FE space
    FiniteElementSpace *fes_p;   ///< potential FE space
 
-   bool bsym;   ///< sign convention, see DarcyForm()
+   bool bsym;   ///< sign convention, see MixedSystemForm()
 
    std::unique_ptr<BilinearForm> M_u;       ///< flux mass form
    std::unique_ptr<BilinearForm> M_p;       ///< potential mass form
@@ -112,20 +112,20 @@ protected:
    std::unique_ptr<BlockVector> block_b;    ///< block r.h.s.
    mutable std::unique_ptr<BlockOperator> block_grad;
 
-   std::unique_ptr<DarcyReduction> reduction;           ///< reduction
-   std::unique_ptr<DarcyHybridization> hybridization;   ///< hybridization
+   std::unique_ptr<MixedSystemReduction> reduction;           ///< reduction
+   std::unique_ptr<MixedSystemHybridization> hybridization;   ///< hybridization
 
    /// Indicates the Mesh::sequence corresponding to the current state
    long sequence = -1;
 
-   /// The DarcyForm of the reconstructed super-convergent system
-   mutable std::unique_ptr<DarcyForm> reconstruction;
+   /// The MixedSystemForm of the reconstructed super-convergent system
+   mutable std::unique_ptr<MixedSystemForm> reconstruction;
    mutable std::unique_ptr<MixedBilinearForm> M_p_src;
 
    void UpdateOffsetsAndSize();
    void UpdateTOffsetsAndSize();
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
-                        DarcyReduction *reduction);
+                        MixedSystemReduction *reduction);
 
    void AssembleDivLDGFaces(int skip_zeros);
    void AssemblePotLDGFaces(int skip_zeros);
@@ -138,21 +138,22 @@ protected:
 
    void NonblockMult(const Vector &x, Vector &y) const;
 
-   void ReconstructFluxAndPot(const DarcyHybridization &h, const GridFunction &pc,
-                              const GridFunction &ut, GridFunction &u, GridFunction &p,
-                              GridFunction &tr, MixedBilinearForm *D = NULL) const;
+   void ReconstructFluxAndPot(const MixedSystemHybridization &h,
+                              const GridFunction &pc, const GridFunction &ut,
+                              GridFunction &u, GridFunction &p, GridFunction &tr,
+                              MixedBilinearForm *D = NULL) const;
 
 public:
    friend class Gradient;
    class Gradient : public Operator
    {
-      const DarcyForm &p;
+      const MixedSystemForm &p;
       const Operator &G;
       mutable std::unique_ptr<BlockOperator> block_grad;
       mutable std::array<std::array<std::unique_ptr<SparseMatrix>,2>,2> smats;
 
    public:
-      Gradient(const DarcyForm &p, const Vector &x)
+      Gradient(const MixedSystemForm &p, const Vector &x)
          : Operator(p.Width()), p(p), G(p.Mnl->GetGradient(x)) { }
 
       void Mult(const Vector &x, Vector &y) const override;
@@ -167,8 +168,8 @@ public:
                             flips the sign of B and Mp to obtain a symmetric
                             system with -Bᵀ in the flux equation
     */
-   DarcyForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
-             bool bsymmetrize = true);
+   MixedSystemForm(FiniteElementSpace *fes_u, FiniteElementSpace *fes_p,
+                   bool bsymmetrize = true);
 
    /// Get VDOF block offsets
    inline const Array<int>& GetOffsets() const { return offsets; }
@@ -261,28 +262,28 @@ public:
    AssemblyLevel GetAssemblyLevel() const { return assembly; }
 
    /// Enable flux reduction
-   /** For details see the description for class DarcyFluxReduction. This
+   /** For details see the description for class MixedSystemFluxReduction. This
        method should be called before assembly. */
    void EnableFluxReduction();
 
    /// Enable potential reduction
-   /** For details see the description for class DarcyPotentialReduction. This
-       method should be called before assembly. */
+   /** For details see the description for class MixedSystemPotentialReduction.
+       This method should be called before assembly. */
    void EnablePotentialReduction(const Array<int> &ess_flux_tdof_list);
 
    /// Get the applied reduction
    /** @see EnableFluxReduction() and EnablePotentialReduction() */
-   DarcyReduction *GetReduction() const { return reduction.get(); }
+   MixedSystemReduction *GetReduction() const { return reduction.get(); }
 
    /// Enable hybridization
-   /** For details see the description for class DarcyHybridization. This
+   /** For details see the description for class MixedSystemHybridization. This
        method should be called before assembly. */
    void EnableHybridization(FiniteElementSpace *constr_space,
                             BilinearFormIntegrator *constr_flux_integ,
                             const Array<int> &ess_flux_tdof_list);
 
    /// Get the applied hybridization
-   DarcyHybridization *GetHybridization() const { return hybridization.get(); }
+   MixedSystemHybridization *GetHybridization() const { return hybridization.get(); }
 
    /// Assembles the form i.e. sums over all integrators
    /** All bilinear forms are assembled internally, including the right-hand-
@@ -483,9 +484,9 @@ public:
    virtual void Update();
 
    /// Destroys the form.
-   virtual ~DarcyForm() = default;
+   virtual ~MixedSystemForm() = default;
 };
 
-}
+} // namespace mfem
 
-#endif
+#endif // MFEM_MIXED_SYSTEM_FORM

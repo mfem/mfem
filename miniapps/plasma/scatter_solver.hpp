@@ -41,7 +41,7 @@ class CoupledOperator : public TimeDependentOperator
    LinearForm *bq{}, *bp{};
    MixedBilinearForm *CE{}, *Dq{};
    DiscreteLinearOperator *CdE{};
-   DarcyForm *darcy{};
+   MixedSystemForm *mixed_system{};
    real_t idt{};
    std::unique_ptr<Coefficient> idtcoeff;
    std::unique_ptr<FluxFunction> flux;
@@ -50,20 +50,20 @@ class CoupledOperator : public TimeDependentOperator
    class ReducedOperator : public Operator
    {
       Coefficient *sigma;
-      DarcyForm *darcy;
+      MixedSystemForm *mixed_system;
       FiniteElementSpace *fes_E;
       Operator &op_pl, &op_max;
 
       Array<int> offsets, offsets_x;
-      Vector *darcy_bp{};
-      Vector darcy_bp_lin;
+      Vector *mixed_system_bp{};
+      Vector mixed_system_bp_lin;
       OperatorHandle op;
       Array<int> ess_tdofs_list;
       mutable OperatorHandle grad;
 
    public:
-      ReducedOperator(Coefficient *sigma, DarcyForm *darcy, FiniteElementSpace *fes_E,
-                      Operator &pl, Operator &max);
+      ReducedOperator(Coefficient *sigma, MixedSystemForm *mixed_system,
+                      FiniteElementSpace *fes_E, Operator &pl, Operator &max);
       ~ReducedOperator();
 
       void SetEssentialTDOFs(const Array<int> &u_tdofs_list,

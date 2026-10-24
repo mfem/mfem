@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 
    if (disc != discret_type::DPG && theta > 0.)
    {
-      std::cerr << "AMR is not supported in DarcyForm" << std::endl;
+      std::cerr << "AMR is not supported in MixedSystemForm" << std::endl;
       return 1;
    }
 
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
 
    // (Bi)linear forms
    DPGWeakForm * a_dpg{};
-   DarcyForm * a_darcy{};
+   MixedSystemForm * a_mixed_system{};
    BilinearForm *a_sigma{}, *a_u{};
    MixedBilinearForm *a_div{};
    LinearForm *b_sigma{}, *b_u{};
@@ -374,11 +374,11 @@ int main(int argc, char *argv[])
    else
    {
       // Define the RT/LDG formulation
-      a_darcy = new DarcyForm(sigma_fes, u_fes);
+      a_mixed_system = new MixedSystemForm(sigma_fes, u_fes);
 
-      a_sigma = a_darcy->GetFluxMassForm();
-      a_div = a_darcy->GetFluxDivForm();
-      a_u = a_darcy->GetPotentialMassForm();
+      a_sigma = a_mixed_system->GetFluxMassForm();
+      a_div = a_mixed_system->GetFluxDivForm();
+      a_u = a_mixed_system->GetPotentialMassForm();
 
       // diffusion part
       if (disc == discret_type::LDG)
@@ -427,7 +427,7 @@ int main(int argc, char *argv[])
 
       //RHS
       // sigma part
-      b_sigma = a_darcy->GetFluxRHS();
+      b_sigma = a_mixed_system->GetFluxRHS();
 
       if (disc == discret_type::LDG)
       {
@@ -456,7 +456,7 @@ int main(int argc, char *argv[])
       }
 
       // u part
-      b_u = a_darcy->GetPotentialRHS();
+      b_u = a_mixed_system->GetPotentialRHS();
       b_u->AddDomainIntegrator(new DomainLFIntegrator(negf));
 
       if (!hybridization)
@@ -563,12 +563,12 @@ int main(int argc, char *argv[])
 
          if (hybridization)
          {
-            a_darcy->EnableHybridization(hatu_fes,
-                                         new NormalTraceJumpIntegrator(-1.),
-                                         ess_tdof_list);
+            a_mixed_system->EnableHybridization(hatu_fes,
+                                                new NormalTraceJumpIntegrator(-1.),
+                                                ess_tdof_list);
          }
 
-         a_darcy->Assemble();
+         a_mixed_system->Assemble();
       }
 
       Array<int> offsets(5);
@@ -583,7 +583,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         offsets.MakeRef(a_darcy->GetOffsets());
+         offsets.MakeRef(a_mixed_system->GetOffsets());
       }
 
       int dofs = 0;
@@ -626,7 +626,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         a_darcy->FormLinearSystem(ess_tdof_list, x, Ah, X, B);
+         a_mixed_system->FormLinearSystem(ess_tdof_list, x, Ah, X, B);
       }
 
       // Construct preconditioners
@@ -655,8 +655,8 @@ int main(int argc, char *argv[])
          }
          else
          {
-            auto *darcy_prec = new BlockDiagonalPreconditioner(offsets);
-            darcy_prec->owns_blocks = 1;
+            auto *schur_prec = new BlockDiagonalPreconditioner(offsets);
+            schur_prec->owns_blocks = 1;
 
             SparseMatrix &M(a_sigma->SpMat());
             M.GetDiag(Md);
@@ -676,10 +676,10 @@ int main(int argc, char *argv[])
             SparseMatrix *Snew = Add(Mtm, *S);
             S.reset(Snew);
 
-            darcy_prec->SetDiagonalBlock(0, new DSmoother(M));
-            darcy_prec->SetDiagonalBlock(1, new GSSmoother(*S));
+            schur_prec->SetDiagonalBlock(0, new DSmoother(M));
+            schur_prec->SetDiagonalBlock(1, new GSSmoother(*S));
 
-            prec.reset(darcy_prec);
+            prec.reset(schur_prec);
          }
       }
 
@@ -714,7 +714,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         a_darcy->RecoverFEMSolution(X, x);
+         a_mixed_system->RecoverFEMSolution(X, x);
       }
 
       chrono_total.Stop();
@@ -813,14 +813,14 @@ int main(int argc, char *argv[])
       }
       else
       {
-         a_darcy->Update();
+         a_mixed_system->Update();
       }
    }
 
    delete coeff_fes;
    delete coeff_fec;
    delete a_dpg;
-   delete a_darcy;
+   delete a_mixed_system;
    delete tau_fec;
    delete v_fec;
    delete hatf_fes;

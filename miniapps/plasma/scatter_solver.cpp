@@ -78,15 +78,15 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
    }
 
    //(bi)linear forms
-   darcy = new DarcyForm(q_space, p_space);
+   mixed_system = new MixedSystemForm(q_space, p_space);
 
-   Mq = darcy->GetFluxMassForm();
-   Mpnl = darcy->GetPotentialMassNonlinearForm();
+   Mq = mixed_system->GetFluxMassForm();
+   Mpnl = mixed_system->GetPotentialMassNonlinearForm();
    Kp = (imex_plasma)?(new NonlinearForm(p_space)):(Mpnl);
-   Dq = darcy->GetFluxDivForm();
+   Dq = mixed_system->GetFluxDivForm();
 
-   bq = darcy->GetFluxRHS();
-   bp = darcy->GetPotentialRHS();
+   bq = mixed_system->GetFluxRHS();
+   bp = mixed_system->GetPotentialRHS();
 
    MFEM_ASSERT(kappa.size() == (size_t)num_equations,
                "Not the right number of coefficients");
@@ -196,13 +196,13 @@ CoupledOperator::CoupledOperator(std::vector<Coefficient*> kappa_,
 
    if (tr_space)
    {
-      darcy->EnableHybridization(tr_space,
-                                 new VectorBlockDiagonalIntegrator(
-                                    num_equations, new NormalTraceJumpIntegrator()),
-                                 ess_q_tdofs_list);
+      mixed_system->EnableHybridization(tr_space,
+                                        new VectorBlockDiagonalIntegrator(
+                                           num_equations, new NormalTraceJumpIntegrator()),
+                                        ess_q_tdofs_list);
    }
 
-   darcy->Assemble();
+   mixed_system->Assemble();
 
    //Maxwell
 
@@ -260,7 +260,7 @@ CoupledOperator::~CoupledOperator()
    delete ME;
    delete CE;
    delete CdE;
-   delete darcy;
+   delete mixed_system;
 }
 
 Array<int> CoupledOperator::ConstructOffsets(
@@ -286,11 +286,11 @@ Array<int> CoupledOperator::ConstructOffsets(
 
 void CoupledOperator::ProjectIC(BlockVector &x, VectorCoefficient &p) const
 {
-   GridFunction p_h(darcy->PotentialFESpace(), x.GetBlock(1), 0);
+   GridFunction p_h(mixed_system->PotentialFESpace(), x.GetBlock(1), 0);
    p_h.ProjectCoefficient(p); //initial condition
    if (tr_space)
    {
-      darcy->GetHybridization()->ProjectSolution(x, x.GetBlock(2));
+      mixed_system->GetHybridization()->ProjectSolution(x, x.GetBlock(2));
    }
 }
 
@@ -325,7 +325,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    }
    else
    {
-      X_offsets[1] = darcy->Width();
+      X_offsets[1] = mixed_system->Width();
    }
    X_offsets[2] = E_space->GetVSize();
    X_offsets.PartialSum();
@@ -360,7 +360,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    if (Mpdt)
    {
       GridFunction p_h;
-      p_h.MakeRef(darcy->PotentialFESpace(), const_cast<Vector&>(pn), 0);
+      p_h.MakeRef(mixed_system->PotentialFESpace(), const_cast<Vector&>(pn), 0);
       if (imex_plasma)
       {
          Kp->Mult(p_h, *bp);
@@ -376,20 +376,20 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    //form the system operator
 
    OperatorHandle op_pl;
-   BlockVector darcy_x(const_cast<Vector&>(x), darcy->GetOffsets());
+   BlockVector mixed_system_x(const_cast<Vector&>(x), mixed_system->GetOffsets());
    Vector X_pl;
    Vector RHS_pl;
 
    if (tr_space)
    {
-      const Vector darcy_tr(const_cast<Vector&>(bx.GetBlock(2)), 0,
-                            bx.GetBlock(2).Size());
-      X_pl.SetSize(darcy_tr.Size());
-      X_pl = darcy_tr;
+      const Vector mixed_system_tr(const_cast<Vector&>(bx.GetBlock(2)), 0,
+                                   bx.GetBlock(2).Size());
+      X_pl.SetSize(mixed_system_tr.Size());
+      X_pl = mixed_system_tr;
    }
 
-   darcy->FormLinearSystem(ess_q_tdofs_list, darcy_x,
-                           op_pl, X_pl, RHS_pl, true);
+   mixed_system->FormLinearSystem(ess_q_tdofs_list, mixed_system_x,
+                                  op_pl, X_pl, RHS_pl, true);
 
    //solution & rhs vectors
 
@@ -420,12 +420,13 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    }
    else
    {
-      BlockDiagonalPreconditioner *darcy_prec = new BlockDiagonalPreconditioner(
-         darcy->GetOffsets());
-      darcy_prec->owns_blocks = true;
-      darcy_prec->SetDiagonalBlock(0, new GSSmoother(Mq->SpMat()));
-      darcy_prec->SetDiagonalBlock(1, new DSmoother(Mpdt->SpMat(), 0, idt));
-      bprec.SetDiagonalBlock(0, darcy_prec);
+      BlockDiagonalPreconditioner *mixed_system_prec = new
+      BlockDiagonalPreconditioner(
+         mixed_system->GetOffsets());
+      mixed_system_prec->owns_blocks = true;
+      mixed_system_prec->SetDiagonalBlock(0, new GSSmoother(Mq->SpMat()));
+      mixed_system_prec->SetDiagonalBlock(1, new DSmoother(Mpdt->SpMat(), 0, idt));
+      bprec.SetDiagonalBlock(0, mixed_system_prec);
    }
 
    //Maxwell
@@ -455,7 +456,7 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 
    //coupling
 
-   ReducedOperator bop(sigma, darcy, E_space, *op_pl, op_max);
+   ReducedOperator bop(sigma, mixed_system, E_space, *op_pl, op_max);
    if (tr_space)
    {
       Array<int> ess_tr_tdofs_list;//dummy
@@ -473,11 +474,11 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 
    if (tr_space)
    {
-      darcy->GetHybridization()->SetLocalNLSolver(
-         DarcyHybridization::LSsolveType::Newton,
+      mixed_system->GetHybridization()->SetLocalNLSolver(
+         MixedSystemHybridization::LSsolveType::Newton,
          1000, rtol * 1e-3);
-      darcy->GetHybridization()->SetLocalNLPreconditioner(
-         DarcyHybridization::LPrecType::GMRES);
+      mixed_system->GetHybridization()->SetLocalNLPreconditioner(
+         MixedSystemHybridization::LPrecType::GMRES);
    }
 
    GMRESSolver solver;
@@ -525,26 +526,26 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 
    //recover solution
 
-   BlockVector darcy_y(y, darcy->GetOffsets());
-   darcy_y = darcy_x;
+   BlockVector mixed_system_y(y, mixed_system->GetOffsets());
+   mixed_system_y = mixed_system_x;
 
    if (tr_space)
    {
-      darcy->RecoverFEMSolution(X_pl, darcy_y);
-      Vector &darcy_tr = by.GetBlock(2);
-      darcy_tr = X_pl;
-      darcy_tr -= bx.GetBlock(2);
-      darcy_tr *= idt;
+      mixed_system->RecoverFEMSolution(X_pl, mixed_system_y);
+      Vector &mixed_system_tr = by.GetBlock(2);
+      mixed_system_tr = X_pl;
+      mixed_system_tr -= bx.GetBlock(2);
+      mixed_system_tr *= idt;
    }
    else
    {
-      BlockVector bX_pl(X_pl, darcy->GetOffsets());
-      darcy->RecoverFEMSolution(X_pl, bX_pl);
-      darcy_y = bX_pl;
+      BlockVector bX_pl(X_pl, mixed_system->GetOffsets());
+      mixed_system->RecoverFEMSolution(X_pl, bX_pl);
+      mixed_system_y = bX_pl;
    }
 
-   darcy_y -= darcy_x;
-   darcy_y *= idt;
+   mixed_system_y -= mixed_system_x;
+   mixed_system_y *= idt;
 
    E = X_max;
 
@@ -557,9 +558,10 @@ void CoupledOperator::ImplicitSolve(const double dt, const Vector &x, Vector &y)
    B.Neg();
 }
 CoupledOperator::ReducedOperator::ReducedOperator(
-   Coefficient *sigma_, DarcyForm *darcy_, FiniteElementSpace *fes_E_,
+   Coefficient *sigma_, MixedSystemForm *mixed_system_, FiniteElementSpace *fes_E_,
    Operator &pl_, Operator &max_)
-   : sigma(sigma_), darcy(darcy_), fes_E(fes_E_), op_pl(pl_), op_max(max_)
+   : sigma(sigma_), mixed_system(mixed_system_), fes_E(fes_E_), op_pl(pl_),
+     op_max(max_)
 {
    offsets.SetSize(3);
    offsets[0] = 0;
@@ -569,18 +571,18 @@ CoupledOperator::ReducedOperator::ReducedOperator(
 
    width = height = offsets.Last();
 
-   if (darcy->GetHybridization())
+   if (mixed_system->GetHybridization())
    {
       offsets_x = offsets;
-      darcy_bp = darcy->GetPotentialRHS();
-      darcy_bp_lin = *darcy_bp;
+      mixed_system_bp = mixed_system->GetPotentialRHS();
+      mixed_system_bp_lin = *mixed_system_bp;
    }
    else
    {
       offsets_x.SetSize(4);
       offsets_x[0] = 0;
-      offsets_x[1] = darcy->FluxFESpace()->GetVSize();
-      offsets_x[2] = darcy->PotentialFESpace()->GetVSize();
+      offsets_x[1] = mixed_system->FluxFESpace()->GetVSize();
+      offsets_x[2] = mixed_system->PotentialFESpace()->GetVSize();
       offsets_x[3] = fes_E->GetVSize();
       offsets_x.PartialSum();
    }
@@ -661,7 +663,7 @@ void CoupledOperator::ReducedOperator::Mult(const Vector &x, Vector &y) const
 void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
                                                          Vector &y) const
 {
-   const bool hybr = darcy->GetHybridization() != NULL;
+   const bool hybr = mixed_system->GetHybridization() != NULL;
 
    if (hybr)
    {
@@ -674,27 +676,27 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
 
    BlockVector bx(const_cast<Vector&>(x), offsets_x);
    BlockVector by(const_cast<Vector&>(y), offsets_x);
-   BlockVector darcy_x;
+   BlockVector mixed_system_x;
 
    if (hybr)
    {
-      darcy_x.Update(darcy->GetOffsets());
-      darcy->RecoverFEMSolution(bx.GetBlock(0), darcy_x);
-      *darcy_bp = darcy_bp_lin;
+      mixed_system_x.Update(mixed_system->GetOffsets());
+      mixed_system->RecoverFEMSolution(bx.GetBlock(0), mixed_system_x);
+      *mixed_system_bp = mixed_system_bp_lin;
    }
 
-   const Vector &xp = ((hybr)?(darcy_x):(bx)).GetBlock(1);
-   const int dim = darcy->PotentialFESpace()->GetMesh()->Dimension();
-   const int vdim = darcy->PotentialFESpace()->GetVDim();
+   const Vector &xp = ((hybr)?(mixed_system_x):(bx)).GetBlock(1);
+   const int dim = mixed_system->PotentialFESpace()->GetMesh()->Dimension();
+   const int vdim = mixed_system->PotentialFESpace()->GetVDim();
    MFEM_ASSERT(vdim == dim+1, "Wrong number of dimensions");
-   const int size = darcy->PotentialFESpace()->GetNDofs();
+   const int size = mixed_system->PotentialFESpace()->GetNDofs();
    const Vector xn(const_cast<Vector&>(xp), 0, size);
    const Vector &xE = bx.GetBlock((hybr)?(1):(2));
-   Vector &yp = ((hybr)?(*darcy_bp):(by.GetBlock(1)));
+   Vector &yp = ((hybr)?(*mixed_system_bp):(by.GetBlock(1)));
    Vector &yE = by.GetBlock((hybr)?(1):(2));
 
    Mesh *mesh = fes_E->GetMesh();
-   FiniteElementSpace *fes_p = darcy->PotentialFESpace();
+   FiniteElementSpace *fes_p = mixed_system->PotentialFESpace();
    Array<int> vdofs_u, dofs_p, vdofs_E;
    DenseMatrix vshape_E;
    Vector shape_E, shape_p, n_z, E_z, E, bu_z, bE_z;
@@ -761,8 +763,9 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
 
    if (hybr)
    {
-      BlockVector darcy_Xrhs(darcy->GetFluxRHS()->GetData(), darcy->GetOffsets());
-      darcy->GetHybridization()->ReduceRHS(darcy_Xrhs, by.GetBlock(0));
+      BlockVector mixed_system_Xrhs(mixed_system->GetFluxRHS()->GetData(),
+                                    mixed_system->GetOffsets());
+      mixed_system->GetHybridization()->ReduceRHS(mixed_system_Xrhs, by.GetBlock(0));
       op->AddMult(x, y);
    }
 }
@@ -770,7 +773,7 @@ void CoupledOperator::ReducedOperator::MultUnconstrained(const Vector &x,
 Operator &CoupledOperator::ReducedOperator::GetGradient(const Vector &x) const
 {
 
-   const bool hybr = darcy->GetHybridization() != NULL;
+   const bool hybr = mixed_system->GetHybridization() != NULL;
 
    const BlockVector bx(const_cast<Vector&>(x), offsets_x);
 
@@ -781,14 +784,15 @@ Operator &CoupledOperator::ReducedOperator::GetGradient(const Vector &x) const
    }
    else
    {
-      const BlockVector darcy_x(const_cast<Vector&>(x), darcy->GetOffsets());
-      bgrad->SetBlock(0, 0, &op_pl.GetGradient(darcy_x));
+      const BlockVector mixed_system_x(const_cast<Vector&>(x),
+                                       mixed_system->GetOffsets());
+      bgrad->SetBlock(0, 0, &op_pl.GetGradient(mixed_system_x));
    }
    bgrad->SetBlock(1, 1, &op_max);
    grad.Reset(bgrad);
    return *grad;
 
-   //if (darcy->GetHybridization())
+   //if (mixed_system->GetHybridization())
    /*{
       //TODO: coupling terms
       //return const_cast<Operator&>(*op);
@@ -797,8 +801,8 @@ Operator &CoupledOperator::ReducedOperator::GetGradient(const Vector &x) const
 
    /*grad.Clear();
 
-   FiniteElementSpace *fes_u = darcy->FluxFESpace();
-   FiniteElementSpace *fes_n = darcy->PotentialFESpace();
+   FiniteElementSpace *fes_u = mixed_system->FluxFESpace();
+   FiniteElementSpace *fes_n = mixed_system->PotentialFESpace();
 
    SparseMatrix *BEE, *BEu, *BnE, *Bnu;
 

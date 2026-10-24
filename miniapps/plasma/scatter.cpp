@@ -44,10 +44,10 @@
 //               tangentially continuous Nedelec the electric field; and
 //               piecewise discountinuous polynomials the magnetic field B.
 //
-//               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective saving
-//               of several grid functions in VisIt (visit.llnl.gov) and ParaView
-//               (paraview.org) formats.
+//               The example demonstrates the use of the MixedSystemForm class,
+//               as well as hybridization of mixed systems and the collective
+//               saving of several grid functions in VisIt (visit.llnl.gov) and
+//               ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
    bool nonlinear_conv = false;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
-   int solver_type = (int)DarcyOperator::SolverType::Default;
+   int solver_type = (int)MixedSystemOperator::SolverType::Default;
    bool pa = false;*/
    const char *device_config = "cpu";
    bool mfem = false;
@@ -402,7 +402,7 @@ int main(int argc, char *argv[])
    auto Efun = GetEfieldFun(params);
    VectorFunctionCoefficient Ecoeff(dim, Efun); //electric field
 
-   // 7. Assemble the finite element matrices for the Darcy operator
+   // 7. Assemble the finite element matrices for the mixed system operator
    //
    //                            D = [ M  B^T ]
    //                                [ B   0  ]

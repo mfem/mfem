@@ -13,18 +13,18 @@
 
 #ifdef MFEM_USE_MPI
 
-#include "pdarcyform.hpp"
+#include "pmixed_system_form.hpp"
 
 namespace mfem
 {
-ParDarcyForm::ParDarcyForm(ParFiniteElementSpace *fes_u_,
-                           ParFiniteElementSpace *fes_p_, bool bsym_)
-   : DarcyForm(fes_u_, fes_p_, bsym_), pfes_u(*fes_u_), pfes_p(*fes_p_)
+ParMixedSystemForm::ParMixedSystemForm(ParFiniteElementSpace *fes_u_,
+                                       ParFiniteElementSpace *fes_p_, bool bsym_)
+   : MixedSystemForm(fes_u_, fes_p_, bsym_), pfes_u(*fes_u_), pfes_p(*fes_p_)
 {
    UpdateTOffsets();
 }
 
-void ParDarcyForm::UpdateTOffsets()
+void ParMixedSystemForm::UpdateTOffsets()
 {
    if (!toffsets.OwnsData()) { toffsets.DeleteAll(); }
    toffsets.SetSize(3);
@@ -34,7 +34,7 @@ void ParDarcyForm::UpdateTOffsets()
    toffsets.PartialSum();
 }
 
-BilinearForm *ParDarcyForm::GetFluxMassForm()
+BilinearForm *ParMixedSystemForm::GetFluxMassForm()
 {
    if (!pM_u)
    {
@@ -44,7 +44,7 @@ BilinearForm *ParDarcyForm::GetFluxMassForm()
    return pM_u;
 }
 
-BilinearForm *ParDarcyForm::GetPotentialMassForm()
+BilinearForm *ParMixedSystemForm::GetPotentialMassForm()
 {
    if (!pM_p)
    {
@@ -54,19 +54,19 @@ BilinearForm *ParDarcyForm::GetPotentialMassForm()
    return pM_p;
 }
 
-NonlinearForm *ParDarcyForm::GetFluxMassNonlinearForm()
+NonlinearForm *ParMixedSystemForm::GetFluxMassNonlinearForm()
 {
    if (!pMnl_u) { Mnl_u.reset(pMnl_u = new ParNonlinearForm(&pfes_u)); }
    return pMnl_u;
 }
 
-NonlinearForm *ParDarcyForm::GetPotentialMassNonlinearForm()
+NonlinearForm *ParMixedSystemForm::GetPotentialMassNonlinearForm()
 {
    if (!pMnl_p) { Mnl_p.reset(pMnl_p = new ParNonlinearForm(&pfes_p)); }
    return pMnl_p;
 }
 
-MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
+MixedBilinearForm *ParMixedSystemForm::GetFluxDivForm()
 {
    if (!pB)
    {
@@ -76,7 +76,7 @@ MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
    return pB;
 }
 
-ParBlockNonlinearForm *ParDarcyForm::GetParBlockNonlinearForm()
+ParBlockNonlinearForm *ParMixedSystemForm::GetParBlockNonlinearForm()
 {
    if (!pMnl)
    {
@@ -86,7 +86,7 @@ ParBlockNonlinearForm *ParDarcyForm::GetParBlockNonlinearForm()
    return pMnl;
 }
 
-LinearForm *ParDarcyForm::GetFluxRHS()
+LinearForm *ParMixedSystemForm::GetFluxRHS()
 {
    if (!pb_u)
    {
@@ -98,7 +98,7 @@ LinearForm *ParDarcyForm::GetFluxRHS()
    return pb_u;
 }
 
-LinearForm *ParDarcyForm::GetPotentialRHS()
+LinearForm *ParMixedSystemForm::GetPotentialRHS()
 {
    if (!pb_p)
    {
@@ -110,7 +110,7 @@ LinearForm *ParDarcyForm::GetPotentialRHS()
    return pb_p;
 }
 
-void ParDarcyForm::Assemble(int skip_zeros)
+void ParMixedSystemForm::Assemble(int skip_zeros)
 {
    if (pB || pM_p || pMnl_p)
    {
@@ -128,9 +128,9 @@ void ParDarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_u -> GetNE(); i++)
          {
             pM_u->ComputeElementMatrix(i, elmat);
-#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
             pM_u->AssembleElementMatrix(i, elmat, skip_zeros);
-#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //!MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
             hybridization->AssembleFluxMassMatrix(i, elmat);
          }
       }
@@ -142,9 +142,9 @@ void ParDarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_u -> GetNE(); i++)
          {
             pM_u->ComputeElementMatrix(i, elmat);
-#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
             pM_u->AssembleElementMatrix(i, elmat, skip_zeros);
-#endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //!MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
             reduction->AssembleFluxMassMatrix(i, elmat);
          }
       }
@@ -168,9 +168,9 @@ void ParDarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_u -> GetNE(); i++)
          {
             pB->ComputeElementMatrix(i, elmat);
-#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
             pB->AssembleElementMatrix(i, elmat, skip_zeros);
-#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //!MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
             hybridization->AssembleDivMatrix(i, elmat);
          }
       }
@@ -182,9 +182,9 @@ void ParDarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_u -> GetNE(); i++)
          {
             pB->ComputeElementMatrix(i, elmat);
-#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
             pB->AssembleElementMatrix(i, elmat, skip_zeros);
-#endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //!MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
             reduction->AssembleDivMatrix(i, elmat);
          }
 
@@ -207,9 +207,9 @@ void ParDarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_p -> GetNE(); i++)
          {
             pM_p->ComputeElementMatrix(i, elmat);
-#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
             pM_p->AssembleElementMatrix(i, elmat, skip_zeros);
-#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //!MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
             hybridization->AssemblePotMassMatrix(i, elmat);
          }
 
@@ -224,9 +224,9 @@ void ParDarcyForm::Assemble(int skip_zeros)
          for (int i = 0; i < fes_p -> GetNE(); i++)
          {
             pM_p->ComputeElementMatrix(i, elmat);
-#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
             pM_p->AssembleElementMatrix(i, elmat, skip_zeros);
-#endif //!MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //!MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
             reduction->AssemblePotMassMatrix(i, elmat);
          }
 
@@ -256,7 +256,7 @@ void ParDarcyForm::Assemble(int skip_zeros)
    }
 }
 
-void ParDarcyForm::Finalize(int skip_zeros)
+void ParMixedSystemForm::Finalize(int skip_zeros)
 {
    AllocBlockOp();
 
@@ -288,7 +288,7 @@ void ParDarcyForm::Finalize(int skip_zeros)
    }
 }
 
-void ParDarcyForm::FormLinearSystem(
+void ParMixedSystemForm::FormLinearSystem(
    const Array<int> &ess_flux_tdof_list, BlockVector &x, BlockVector &b,
    OperatorHandle &A, Vector &X_, Vector &B_, int copy_interior)
 {
@@ -471,16 +471,16 @@ void ParDarcyForm::FormLinearSystem(
    }
 }
 
-void ParDarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                                    BlockVector &x, OperatorHandle &A, Vector &X_, Vector &B_, int copy_interior)
+void ParMixedSystemForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                                          BlockVector &x, OperatorHandle &A, Vector &X_, Vector &B_, int copy_interior)
 {
    AllocRHS();
 
    FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X_, B_, copy_interior);
 }
 
-void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
-                                    OperatorHandle &A)
+void ParMixedSystemForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
+                                          OperatorHandle &A)
 {
    AllocBlockOp();
 
@@ -555,8 +555,9 @@ void ParDarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    }
 }
 
-void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
-                                      BlockVector &x)
+void ParMixedSystemForm::RecoverFEMSolution(const Vector &X_,
+                                            const BlockVector &b,
+                                            BlockVector &x)
 {
    if (reduction || hybridization)
    {
@@ -608,30 +609,31 @@ void ParDarcyForm::RecoverFEMSolution(const Vector &X_, const BlockVector &b,
    }
 }
 
-void ParDarcyForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
+void ParMixedSystemForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
 {
    MFEM_ASSERT(block_b, "RHS does not exist");
 
    RecoverFEMSolution(X, *block_b, x);
 }
 
-void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
-                                               const BlockVector &x, BlockVector &b)
+void ParMixedSystemForm::ParallelEliminateTDofsInRHS(const Array<int>
+                                                     &tdofs_flux,
+                                                     const BlockVector &x, BlockVector &b)
 {
-#ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    if (hybridization)
    {
       hybridization->EliminateTrueDofsInRHS(tdofs_flux, x, b);
       return;
    }
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-#ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
    if (reduction)
    {
       reduction->EliminateTrueDofsInRHS(tdofs_flux, x, b);
       return;
    }
-#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
    if (pB)
    {
       if (bsym)
@@ -657,91 +659,98 @@ void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
    }
 }
 
-void ParDarcyForm::Mult(const Vector &x, Vector &y) const
+void ParMixedSystemForm::Mult(const Vector &x, Vector &y) const
 {
    NonblockMult(x, y);
 }
 
-void ParDarcyForm::ParOperator::Mult(const Vector &x, Vector &y) const
+void ParMixedSystemForm::ParOperator::Mult(const Vector &x, Vector &y) const
 {
-   darcy.block_op->Mult(x, y);
-   if (darcy.pMnl)
+   mixed_system.block_op->Mult(x, y);
+   if (mixed_system.pMnl)
    {
-      if (darcy.bsym)
+      if (mixed_system.bsym)
       {
-         BlockVector ynl(darcy.toffsets);
-         darcy.pMnl->Mult(x, ynl);
+         BlockVector ynl(mixed_system.toffsets);
+         mixed_system.pMnl->Mult(x, ynl);
          ynl.GetBlock(1).Neg();
          y += ynl;
       }
       else
       {
-         darcy.pMnl->AddMult(x, y);
+         mixed_system.pMnl->AddMult(x, y);
       }
    }
 }
 
-Operator &ParDarcyForm::ParOperator::GetGradient(const Vector &x) const
+Operator &ParMixedSystemForm::ParOperator::GetGradient(const Vector &x) const
 {
-   const BlockVector bx(const_cast<Vector&>(x), darcy.toffsets);
+   const BlockVector bx(const_cast<Vector&>(x), mixed_system.toffsets);
 
-   if (!darcy.Mnl && !darcy.Mnl_u && !darcy.Mnl_p) { return *darcy.block_op; }
+   if (!mixed_system.Mnl && !mixed_system.Mnl_u && !mixed_system.Mnl_p) { return *mixed_system.block_op; }
 
-   if (darcy.Mnl_u || darcy.Mnl_p)
+   if (mixed_system.Mnl_u || mixed_system.Mnl_p)
    {
       if (!block_grad)
       {
-         block_grad.reset(new BlockOperator(darcy.toffsets));
+         block_grad.reset(new BlockOperator(mixed_system.toffsets));
       }
 
-      if (darcy.opM_u.Ptr())
+      if (mixed_system.opM_u.Ptr())
       {
-         block_grad->SetDiagonalBlock(0, darcy.opM_u.Ptr());
+         block_grad->SetDiagonalBlock(0, mixed_system.opM_u.Ptr());
       }
-      else if (darcy.pM_u)
+      else if (mixed_system.pM_u)
       {
-         block_grad->SetDiagonalBlock(0, darcy.pM_u->ParallelAssembleInternalMatrix());
+         block_grad->SetDiagonalBlock(0,
+                                      mixed_system.pM_u->ParallelAssembleInternalMatrix());
       }
-      else if (darcy.pMnl_u)
+      else if (mixed_system.pMnl_u)
       {
-         block_grad->SetDiagonalBlock(0, &darcy.pMnl_u->GetGradient(bx.GetBlock(0)));
-      }
-
-      if (darcy.opM_p.Ptr())
-      {
-         block_grad->SetDiagonalBlock(1, darcy.opM_p.Ptr(), (darcy.bsym)?(-1.):(+1.));
-      }
-      else if (darcy.pM_p)
-      {
-         block_grad->SetDiagonalBlock(1, darcy.pM_p->ParallelAssembleInternalMatrix(),
-                                      (darcy.bsym)?(-1.):(+1.));
-      }
-      else if (darcy.pMnl_p)
-      {
-         block_grad->SetDiagonalBlock(1, &darcy.pMnl_p->GetGradient(bx.GetBlock(1)),
-                                      (darcy.bsym)?(-1.):(+1.));
+         block_grad->SetDiagonalBlock(0,
+                                      &mixed_system.pMnl_u->GetGradient(bx.GetBlock(0)));
       }
 
-      if (darcy.pB)
+      if (mixed_system.opM_p.Ptr())
       {
-         if (!darcy.opB.Ptr() || !darcy.opBt.Ptr())
+         block_grad->SetDiagonalBlock(1, mixed_system.opM_p.Ptr(),
+                                      (mixed_system.bsym)?(-1.):(+1.));
+      }
+      else if (mixed_system.pM_p)
+      {
+         block_grad->SetDiagonalBlock(1,
+                                      mixed_system.pM_p->ParallelAssembleInternalMatrix(),
+                                      (mixed_system.bsym)?(-1.):(+1.));
+      }
+      else if (mixed_system.pMnl_p)
+      {
+         block_grad->SetDiagonalBlock(1,
+                                      &mixed_system.pMnl_p->GetGradient(bx.GetBlock(1)),
+                                      (mixed_system.bsym)?(-1.):(+1.));
+      }
+
+      if (mixed_system.pB)
+      {
+         if (!mixed_system.opB.Ptr() || !mixed_system.opBt.Ptr())
          {
-            HypreParMatrix *hB = darcy.pB->ParallelAssembleInternalMatrix();
-            darcy.opB.Reset(hB, false);
-            darcy.ConstructBT(darcy.opB);
+            HypreParMatrix *hB = mixed_system.pB->ParallelAssembleInternalMatrix();
+            mixed_system.opB.Reset(hB, false);
+            mixed_system.ConstructBT(mixed_system.opB);
          }
-         block_grad->SetBlock(0, 1, darcy.opBt.Ptr(), (darcy.bsym)?(-1.):(+1.));
-         block_grad->SetBlock(1, 0, darcy.opB.Ptr(), (darcy.bsym)?(-1.):(+1.));
+         block_grad->SetBlock(0, 1, mixed_system.opBt.Ptr(),
+                              (mixed_system.bsym)?(-1.):(+1.));
+         block_grad->SetBlock(1, 0, mixed_system.opB.Ptr(),
+                              (mixed_system.bsym)?(-1.):(+1.));
       }
 
-      if (!darcy.Mnl) { return *block_grad; }
+      if (!mixed_system.Mnl) { return *block_grad; }
    }
 
    opG.Reset(new ParGradient(*this, x));
    return *opG.Ptr();
 }
 
-void ParDarcyForm::ParGradient::Mult(const Vector &x, Vector &y) const
+void ParMixedSystemForm::ParGradient::Mult(const Vector &x, Vector &y) const
 {
    if (block_grad)
    {
@@ -755,12 +764,12 @@ void ParDarcyForm::ParGradient::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      p.darcy.block_op->Mult(x, y);
+      p.mixed_system.block_op->Mult(x, y);
    }
 
-   if (p.darcy.bsym)
+   if (p.mixed_system.bsym)
    {
-      BlockVector ynl(p.darcy.toffsets);
+      BlockVector ynl(p.mixed_system.toffsets);
       G.Mult(x, ynl);
       ynl.GetBlock(1).Neg();
       y += ynl;
@@ -771,14 +780,14 @@ void ParDarcyForm::ParGradient::Mult(const Vector &x, Vector &y) const
    }
 }
 
-const BlockOperator& ParDarcyForm::ParGradient::BlockMatrices() const
+const BlockOperator& ParMixedSystemForm::ParGradient::BlockMatrices() const
 {
    if (block_grad) { return *block_grad.get(); }
 
-   block_grad.reset(new BlockOperator(p.darcy.toffsets));
+   block_grad.reset(new BlockOperator(p.mixed_system.toffsets));
 
    const BlockOperator *bop = (p.block_grad)?(p.block_grad.get()):
-                              (p.darcy.block_op.get());
+                              (p.mixed_system.block_op.get());
    const BlockOperator *bgrad = static_cast<const BlockOperator*>(&G);
 
    for (int i = 0; i < 2; i++)
@@ -809,7 +818,7 @@ const BlockOperator& ParDarcyForm::ParGradient::BlockMatrices() const
             else
             {
                op = &(bgrad->GetBlock(i,j));
-               c = (i != 0 && p.darcy.bsym)?(-1):(+1.);
+               c = (i != 0 && p.mixed_system.bsym)?(-1):(+1.);
             }
             // transpose operator is passed as is
             MFEM_ASSERT((i == 0 && j == 1) ||
@@ -821,18 +830,18 @@ const BlockOperator& ParDarcyForm::ParGradient::BlockMatrices() const
    return *block_grad;
 }
 
-void ParDarcyForm::Update()
+void ParMixedSystemForm::Update()
 {
-   DarcyForm::Update();
+   MixedSystemForm::Update();
    UpdateTOffsets();
 }
 
-void ParDarcyForm::AllocBlockOp()
+void ParMixedSystemForm::AllocBlockOp()
 {
    bool noblock = false;
-#ifdef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifdef MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
    noblock = noblock || reduction || hybridization;
-#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
 
    if (!noblock)
    {
@@ -840,14 +849,14 @@ void ParDarcyForm::AllocBlockOp()
    }
 }
 
-void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
+void ParMixedSystemForm::AssembleDivLDGSharedFaces(int skip_zeros)
 {
    ParMesh *pmesh = pfes_p.GetParMesh();
    const int NE = pmesh->GetNE();
    FaceElementTransformations *tr;
-#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
    MFEM_ABORT("Not supported");
-#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
 
    auto &interior_face_integs = *B->GetFBFI();
 
@@ -879,14 +888,14 @@ void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
    }
 }
 
-void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
+void ParMixedSystemForm::AssemblePotLDGSharedFaces(int skip_zeros)
 {
    ParMesh *pmesh = pfes_p.GetParMesh();
    const int NE = pmesh->GetNE();
    FaceElementTransformations *tr;
-#ifndef MFEM_DARCY_REDUCTION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
    MFEM_ABORT("Not supported");
-#endif //MFEM_DARCY_REDUCTION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_REDUCTION_ELIM_BCS
 
    auto &interior_face_integs = *M_p->GetFBFI();
 
@@ -914,14 +923,14 @@ void ParDarcyForm::AssemblePotLDGSharedFaces(int skip_zeros)
    }
 }
 
-void ParDarcyForm::AssemblePotHDGSharedFaces(int skip_zeros)
+void ParMixedSystemForm::AssemblePotHDGSharedFaces(int skip_zeros)
 {
    ParMesh *pmesh = pfes_p.GetParMesh();
    DenseMatrix elmat1, elmat2;
    Array<int> vdofs1, vdofs2;
-#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#ifndef MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
    MFEM_ABORT("Not supported");
-#endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+#endif //MFEM_MIXED_SYSTEM_HYBRIDIZATION_ELIM_BCS
 
    if (hybridization->GetPotConstraintIntegrator())
    {

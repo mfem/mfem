@@ -29,9 +29,10 @@
 //               finite elements (electric field E) and piecewise discontinuous
 //               integral polynomials (magnetic field B).
 //
-//               The example demonstrates the use of the DarcyForm class, as
-//               well as the collective saving of several grid functions in
-//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
+//               The example demonstrates the use of the MixedSystemForm class,
+//               as well as hybridization of mixed systems and the collective
+//               saving of several grid functions in VisIt (visit.llnl.gov) and
+//               ParaView (paraview.org) formats.
 //
 //               We recommend viewing examples 1-4 before viewing this example.
 
@@ -141,12 +142,12 @@ int main(int argc, char *argv[])
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
 
-   DarcyForm *darcy = new DarcyForm(R_space, W_space);
+   MixedSystemForm *mixed_system = new MixedSystemForm(R_space, W_space);
 
    // 6. Define the BlockStructure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   const Array<int> &block_offsets = darcy->GetOffsets();
+   const Array<int> &block_offsets = mixed_system->GetOffsets();
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -184,7 +185,7 @@ int main(int argc, char *argv[])
    gform->Assemble();
    gform->SyncAliasMemory(rhs);
 
-   // 9. Assemble the finite element matrices for the Darcy operator
+   // 9. Assemble the finite element matrices for the mixed system operator
    //
    //                            D = [ M  C^T ]
    //                                [ C   0  ]
@@ -194,9 +195,9 @@ int main(int argc, char *argv[])
    //     C   = \int_\Omega \curl E_h q_h d\Omega   E_h \in R_h, q_h \in W_h
    //BilinearForm *mEVarf(new BilinearForm(R_space));
    //MixedBilinearForm *cVarf(new MixedBilinearForm(R_space, W_space));
-   BilinearForm *mEVarf = darcy->GetFluxMassForm();
-   MixedBilinearForm *cVarf = darcy->GetFluxDivForm();
-   BilinearForm *mBVarf = darcy->GetPotentialMassForm();
+   BilinearForm *mEVarf = mixed_system->GetFluxMassForm();
+   MixedBilinearForm *cVarf = mixed_system->GetFluxDivForm();
+   BilinearForm *mBVarf = mixed_system->GetPotentialMassForm();
 
    //if (pa) { mEVarf->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
    mEVarf->AddDomainIntegrator(new VectorFEMassIntegrator(sigma));
@@ -237,22 +238,22 @@ int main(int argc, char *argv[])
    {
       trace_coll = new ND_Trace_FECollection(order+1, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
-                                 new TangentTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      mixed_system->EnableHybridization(trace_space,
+                                        new TangentTraceJumpIntegrator(),
+                                        ess_flux_tdofs_list);
    }
 
-   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { mixed_system->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   darcy->Assemble();
-   //if (!pa) { darcy->Finalize(); }
+   mixed_system->Assemble();
+   //if (!pa) { mixed_system->Finalize(); }
 
-   OperatorHandle pDarcyOp;
+   OperatorHandle pMixedSystemOp;
    Vector X, RHS;
 
-   //darcy->FormSystemMatrix(ess_flux_tdofs_list, pDarcyOp);
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           pDarcyOp, X, RHS);
+   //mixed_system->FormSystemMatrix(ess_flux_tdofs_list, pMixedSystemOp);
+   mixed_system->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
+                                  pMixedSystemOp, X, RHS);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
@@ -265,7 +266,7 @@ int main(int argc, char *argv[])
    if (hybridization)
    {
       // 10. Construct the preconditioner
-      GSSmoother prec(*pDarcyOp.As<SparseMatrix>());
+      GSSmoother prec(*pMixedSystemOp.As<SparseMatrix>());
 
       // 11. Solve the linear system with GMRES.
       //     Check the norm of the unpreconditioned residual.
@@ -275,12 +276,12 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
+      solver.SetOperator(*pMixedSystemOp);
       solver.SetPreconditioner(prec);
       solver.SetPrintLevel(1);
 
       solver.Mult(RHS, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+      mixed_system->RecoverFEMSolution(X, rhs, x);
 
       chrono.Stop();
 
@@ -310,7 +311,7 @@ int main(int argc, char *argv[])
       SparseMatrix *MinvBt = NULL;
       Vector Md(mEVarf->Height());
 
-      BlockDiagonalPreconditioner darcyPrec(block_offsets);
+      BlockDiagonalPreconditioner schur_prec(block_offsets);
       Solver *invM, *invS;
       SparseMatrix *S = NULL;
 
@@ -367,8 +368,8 @@ int main(int argc, char *argv[])
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
-      darcyPrec.SetDiagonalBlock(0, invM);
-      darcyPrec.SetDiagonalBlock(1, invS);
+      schur_prec.SetDiagonalBlock(0, invM);
+      schur_prec.SetDiagonalBlock(1, invS);
 
       // 11. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
@@ -379,12 +380,12 @@ int main(int argc, char *argv[])
       solver.SetAbsTol(atol);
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
-      solver.SetOperator(*pDarcyOp);
-      solver.SetPreconditioner(darcyPrec);
+      solver.SetOperator(*pMixedSystemOp);
+      solver.SetPreconditioner(schur_prec);
       solver.SetPrintLevel(1);
 
       solver.Mult(RHS, X);
-      darcy->RecoverFEMSolution(X, rhs, x);
+      mixed_system->RecoverFEMSolution(X, rhs, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
       chrono.Stop();
@@ -483,7 +484,7 @@ int main(int argc, char *argv[])
    delete gform;
    //delete mEVarf;
    //delete cVarf;
-   delete darcy;
+   delete mixed_system;
    delete W_space;
    delete R_space;
    delete trace_space;

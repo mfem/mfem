@@ -184,13 +184,13 @@ int main(int argc, char *argv[])
    // 7. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
 
-   ParDarcyForm darcy(R_space.get(), W_space.get());
-   const Array<int> &block_offsets = darcy.GetOffsets();
-   const Array<int> &block_trueOffsets = darcy.GetTrueOffsets();
+   ParMixedSystemForm mixed_system(R_space.get(), W_space.get());
+   const Array<int> &block_offsets = mixed_system.GetOffsets();
+   const Array<int> &block_trueOffsets = mixed_system.GetTrueOffsets();
 
    ConstantCoefficient one(1.0), negone(-1.0);
 
-   ParLinearForm *f = darcy.GetParPotentialRHS();
+   ParLinearForm *f = mixed_system.GetParPotentialRHS();
    f->AddDomainIntegrator(new DomainLFIntegrator(negone));
 
    // 8. Define the solution vector x as a parallel finite element grid function
@@ -205,9 +205,9 @@ int main(int argc, char *argv[])
    //    Note that boundary conditions are imposed weakly in the form, so there
    //    is no need for dof elimination. After serial and parallel assembly we
    //    extract the corresponding parallel matrix A.
-   ParBilinearForm *Mq = darcy.GetParFluxMassForm();
-   ParMixedBilinearForm *Bq = darcy.GetParFluxDivForm();
-   ParBilinearForm *Mu = (dg)?(darcy.GetParPotentialMassForm()):(NULL);
+   ParBilinearForm *Mq = mixed_system.GetParFluxMassForm();
+   ParMixedBilinearForm *Bq = mixed_system.GetParFluxDivForm();
+   ParBilinearForm *Mu = (dg)?(mixed_system.GetParPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -246,24 +246,24 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
-      darcy.EnableHybridization(trace_space.get(),
-                                new NormalTraceJumpIntegrator(),
-                                ess_flux_tdofs_list);
+      mixed_system.EnableHybridization(trace_space.get(),
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
    }
    else if (reduction && (dg || brt))
    {
-      darcy.EnableFluxReduction();
+      mixed_system.EnableFluxReduction();
    }
 
-   if (pa) { darcy.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   darcy.Assemble();
+   if (pa) { mixed_system.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   mixed_system.Assemble();
 
    // 10. Define the parallel (hypre) matrix and vectors representing a(.,.),
    //     b(.) and the finite element approximation.
 
    OperatorHandle A;
    Vector X, B;
-   darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
+   mixed_system.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
 
    constexpr int maxIter(500);
@@ -342,9 +342,9 @@ int main(int argc, char *argv[])
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
-      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      darcyPrec.SetDiagonalBlock(0, invM.get());
-      darcyPrec.SetDiagonalBlock(1, invS.get());
+      BlockDiagonalPreconditioner schur_prec(block_trueOffsets);
+      schur_prec.SetDiagonalBlock(0, invM.get());
+      schur_prec.SetDiagonalBlock(1, invS.get());
 
       // 12. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
@@ -354,13 +354,13 @@ int main(int argc, char *argv[])
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
       solver.SetOperator(*A);
-      solver.SetPreconditioner(darcyPrec);
+      solver.SetPreconditioner(schur_prec);
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
    }
 
-   darcy.RecoverFEMSolution(X, x);
+   mixed_system.RecoverFEMSolution(X, x);
    if (device.IsEnabled()) { x.HostRead(); }
 
    // 13. Save the refined mesh and the solution in parallel. This output can

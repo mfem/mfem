@@ -44,7 +44,7 @@ endif
 all: $(MINIAPPS)
 
 # Rules for building the miniapps
-HDG_DEPS = darcyop
+HDG_DEPS = mixed_system_op
 
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) $(HDG_DEPS).o
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<)

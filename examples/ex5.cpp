@@ -33,8 +33,8 @@
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective
+//               The example demonstrates the use of the MixedSystemForm class,
+//               as well as hybridization of mixed systems and the collective
 //               saving of several grid functions in VisIt (visit.llnl.gov) and
 //               ParaView (paraview.org) formats.
 //
@@ -131,9 +131,9 @@ int main(int argc, char *argv[])
    // 6. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   DarcyForm *darcy = new DarcyForm(R_space, W_space, false);
-   const Array<int> &block_offsets = darcy->GetOffsets();
-   const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
+   MixedSystemForm *mixed_system = new MixedSystemForm(R_space, W_space, false);
+   const Array<int> &block_offsets = mixed_system->GetOffsets();
+   const Array<int> &block_trueOffsets = mixed_system->GetTrueOffsets();
 
    std::cout << "***********************************************************\n";
    std::cout << "dim(R) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -160,11 +160,11 @@ int main(int argc, char *argv[])
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
 
-   LinearForm *fform = darcy->GetFluxRHS();
+   LinearForm *fform = mixed_system->GetFluxRHS();
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
 
-   LinearForm *gform = darcy->GetPotentialRHS();
+   LinearForm *gform = mixed_system->GetPotentialRHS();
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
 
    // 9. Assemble the finite element matrices for the Darcy operator
@@ -175,8 +175,8 @@ int main(int argc, char *argv[])
    //
    //     M = \int_\Omega k u_h \cdot v_h d\Omega   u_h, v_h \in R_h
    //     B   = -\int_\Omega \div u_h q_h d\Omega   u_h \in R_h, q_h \in W_h
-   BilinearForm *mVarf = darcy->GetFluxMassForm();
-   MixedBilinearForm *bVarf = darcy->GetFluxDivForm();
+   BilinearForm *mVarf = mixed_system->GetFluxMassForm();
+   MixedBilinearForm *bVarf = mixed_system->GetFluxDivForm();
 
    mVarf->AddDomainIntegrator(new VectorFEMassIntegrator(kcoeff));
 
@@ -197,19 +197,19 @@ int main(int argc, char *argv[])
    {
       trace_coll = new DG_Interface_FECollection(order, dim);
       trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      mixed_system->EnableHybridization(trace_space,
+                                        new NormalTraceJumpIntegrator(),
+                                        ess_flux_tdofs_list);
    }
 
-   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { mixed_system->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
-   darcy->Assemble();
+   mixed_system->Assemble();
 
    OperatorPtr A;
    Vector X, B;
    x = 0.;
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
+   mixed_system->FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, x);
+      mixed_system->RecoverFEMSolution(X, x);
 
       chrono.Stop();
 
@@ -334,7 +334,7 @@ int main(int argc, char *argv[])
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
-      darcy->RecoverFEMSolution(X, x);
+      mixed_system->RecoverFEMSolution(X, x);
 
       if (device.IsEnabled()) { x.HostRead(); }
       chrono.Stop();
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   delete darcy;
+   delete mixed_system;
    delete W_space;
    delete R_space;
    delete trace_space;

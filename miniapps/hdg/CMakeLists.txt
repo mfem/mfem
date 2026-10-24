@@ -10,10 +10,10 @@
 # CONTRIBUTING.md for details.
 
 list(APPEND HDG_COMMON_SOURCES
-  darcyop.cpp)
+  mixed_system_op.cpp)
 
 list(APPEND HDG_COMMON_HEADERS
-  darcyop.hpp)
+  mixed_system_op.hpp)
 
 convert_filenames_to_full_paths(HDG_COMMON_SOURCES)
 convert_filenames_to_full_paths(HDG_COMMON_HEADERS)

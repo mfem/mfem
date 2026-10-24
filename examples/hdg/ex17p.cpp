@@ -180,9 +180,9 @@ int main(int argc, char *argv[])
       cout << "Assembling: " << flush;
    }
 
-   ParDarcyForm darcy(&R_space, &W_space);
-   const Array<int> &block_offsets = darcy.GetOffsets();
-   const Array<int> &block_trueOffsets = darcy.GetTrueOffsets();
+   ParMixedSystemForm mixed_system(&R_space, &W_space);
+   const Array<int> &block_offsets = mixed_system.GetOffsets();
+   const Array<int> &block_trueOffsets = mixed_system.GetTrueOffsets();
 
    // 5. In this example, the Dirichlet boundary conditions are defined by
    //    marking boundary attributes 1 and 2 in the marker Array 'dir_bdr'.
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
    //    values for the Dirichlet boundary condition are taken from the
    //    VectorFunctionCoefficient 'x_init' which in turn is based on the
    //    function 'InitDisplacement'.
-   ParLinearForm *f = darcy.GetParFluxRHS();
+   ParLinearForm *f = mixed_system.GetParFluxRHS();
    if (Mpi::Root()) { cout << "r.h.s. ... " << flush; }
    if (!hybridization || !trace_ess_bc)
    {
@@ -271,9 +271,9 @@ int main(int argc, char *argv[])
    //    boundary face integrator works together with the boundary integrator
    //    added to the linear form b(.) to impose weakly the Dirichlet boundary
    //    conditions.
-   ParBilinearForm *Ms = darcy.GetParFluxMassForm();
-   ParMixedBilinearForm *Bs = darcy.GetParFluxDivForm();
-   ParBilinearForm *Mu = darcy.GetParPotentialMassForm();
+   ParBilinearForm *Ms = mixed_system.GetParFluxMassForm();
+   ParMixedBilinearForm *Bs = mixed_system.GetParFluxDivForm();
+   ParBilinearForm *Mu = mixed_system.GetParPotentialMassForm();
 
    Ms->AddDomainIntegrator(new VectorMassIntegrator(ilame_c));
    Bs->AddDomainIntegrator(new StressDivergenceIntegrator(-1.));
@@ -308,9 +308,9 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get(), dim);
-      darcy.EnableHybridization(trace_space.get(),
-                                new NormalStressJumpIntegrator(-1.),
-                                ess_stress_tdofs_list);
+      mixed_system.EnableHybridization(trace_space.get(),
+                                       new NormalStressJumpIntegrator(-1.),
+                                       ess_stress_tdofs_list);
       // Set essential BC
       if (trace_ess_bc)
       {
@@ -322,21 +322,21 @@ int main(int argc, char *argv[])
          uhat.ProjectBdrCoefficient(init_u, dir_bdr);
          uhat.SetTrueVector();
 
-         darcy.GetHybridization()->SetEssentialBC(dir_bdr);
+         mixed_system.GetHybridization()->SetEssentialBC(dir_bdr);
       }
    }
    else if (reduction)
    {
-      darcy.EnableFluxReduction();
+      mixed_system.EnableFluxReduction();
    }
 
    // 10. Assemble the bilinear form and the corresponding linear system.
    if (Mpi::Root()) { cout << "matrix ... " << flush; }
-   darcy.Assemble();
+   mixed_system.Assemble();
 
    OperatorPtr A;
    Vector B;
-   darcy.FormLinearSystem(ess_stress_tdofs_list, x, A, X, B, true);
+   mixed_system.FormLinearSystem(ess_stress_tdofs_list, x, A, X, B, true);
    if (Mpi::Root()) { cout << "done." << endl; }
 
    constexpr int maxIter(500);
@@ -397,9 +397,9 @@ int main(int argc, char *argv[])
       invM->iterative_mode = false;
       invS->iterative_mode = false;
 
-      BlockDiagonalPreconditioner darcyPrec(block_trueOffsets);
-      darcyPrec.SetDiagonalBlock(0, invM.get());
-      darcyPrec.SetDiagonalBlock(1, invS.get());
+      BlockDiagonalPreconditioner schur_prec(block_trueOffsets);
+      schur_prec.SetDiagonalBlock(0, invM.get());
+      schur_prec.SetDiagonalBlock(1, invS.get());
 
       // 13. Solve the linear system with MINRES.
       //     Check the norm of the unpreconditioned residual.
@@ -409,14 +409,14 @@ int main(int argc, char *argv[])
       solver.SetRelTol(rtol);
       solver.SetMaxIter(maxIter);
       solver.SetOperator(*A);
-      solver.SetPreconditioner(darcyPrec);
+      solver.SetPreconditioner(schur_prec);
       solver.SetPrintLevel(1);
 
       solver.Mult(B, X);
    }
 
    // 12. Recover the solution as a finite element grid function 'x'.
-   darcy.RecoverFEMSolution(X, x);
+   mixed_system.RecoverFEMSolution(X, x);
 
    // 13. Use the DG solution space as the mesh nodal space. This allows us to
    //     save the displaced mesh as a curved DG mesh.

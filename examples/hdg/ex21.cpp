@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace R_space(&mesh, &R_coll, dim_lame);
    FiniteElementSpace W_space(&mesh, &W_coll, dim);
 
-   DarcyForm darcy(&R_space, &W_space);
-   const Array<int> &block_offsets = darcy.GetOffsets();
+   MixedSystemForm mixed_system(&R_space, &W_space);
+   const Array<int> &block_offsets = mixed_system.GetOffsets();
 
    // 5. In this example, the Dirichlet boundary condition is defined by
    //    unmarking boundary attribute 1 in the marker Array 'neu_bdr'.
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
       force_c.Set(dim-1, new PWConstCoefficient(pull_force));
    }
 
-   LinearForm *g = darcy.GetPotentialRHS();
+   LinearForm *g = mixed_system.GetPotentialRHS();
    g->AddBdrFaceIntegrator(new VectorBoundaryLFIntegrator(force_c));
 
    // 7. Set up the bilinear form a(.,.) on the finite element space
@@ -175,9 +175,9 @@ int main(int argc, char *argv[])
       ilame_c.Set(i, &i2mu_c, false);
    }
 
-   BilinearForm *Ms = darcy.GetFluxMassForm();
-   MixedBilinearForm *Bs = darcy.GetFluxDivForm();
-   BilinearForm *Mu = darcy.GetPotentialMassForm();
+   BilinearForm *Ms = mixed_system.GetFluxMassForm();
+   MixedBilinearForm *Bs = mixed_system.GetFluxDivForm();
+   BilinearForm *Mu = mixed_system.GetPotentialMassForm();
 
    Ms->AddDomainIntegrator(new VectorMassIntegrator(ilame_c));
    Bs->AddDomainIntegrator(new StressDivergenceIntegrator(-1.));
@@ -202,9 +202,9 @@ int main(int argc, char *argv[])
       trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
    }
    trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get(), dim);
-   darcy.EnableHybridization(trace_space.get(),
-                             new NormalStressJumpIntegrator(-1.),
-                             ess_stress_tdofs_list);
+   mixed_system.EnableHybridization(trace_space.get(),
+                                    new NormalStressJumpIntegrator(-1.),
+                                    ess_stress_tdofs_list);
 
    // 9. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
       cout << "Number of trace unknowns: " << uhat_dofs << endl;
 
       // 14. Assemble the stiffness matrix and the right-hand side.
-      darcy.Assemble();
+      mixed_system.Assemble();
 
       // 15. Create the linear system: eliminate boundary conditions, constrain
       //     hanging nodes and possibly apply other transformations. The system
@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
       SparseMatrix A;
       Vector B, X;
       const int copy_interior = 1;
-      darcy.FormLinearSystem(ess_stress_tdofs_list, x, A, X, B, copy_interior);
+      mixed_system.FormLinearSystem(ess_stress_tdofs_list, x, A, X, B, copy_interior);
 
 #ifndef MFEM_USE_SUITESPARSE
       // 16. Define a simple symmetric Gauss-Seidel preconditioner and use it to
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
       // 17. After solving the linear system, reconstruct the solution as a
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
-      darcy.RecoverFEMSolution(X, x);
+      mixed_system.RecoverFEMSolution(X, x);
       uhat.MakeTRef(trace_space.get(), X, 0);
       uhat.SetFromTrueVector();
 
@@ -335,17 +335,17 @@ int main(int argc, char *argv[])
 
       // 21. Inform also the bilinear and linear forms that the space has
       //     changed.
-      darcy.Update();
-      x.Update(darcy.GetOffsets());
+      mixed_system.Update();
+      x.Update(mixed_system.GetOffsets());
 
       x = 0.;
       u.MakeRef(&W_space, x.GetBlock(1), 0);
 
       // 22. Reinitialize the hybridization to recompute the constraints on the
       //     new mesh.
-      darcy.EnableHybridization(trace_space.get(),
-                                new NormalStressJumpIntegrator(-1.),
-                                ess_stress_tdofs_list);
+      mixed_system.EnableHybridization(trace_space.get(),
+                                       new NormalStressJumpIntegrator(-1.),
+                                       ess_stress_tdofs_list);
    }
 
    {

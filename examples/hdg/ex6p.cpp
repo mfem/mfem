@@ -194,16 +194,16 @@ int main(int argc, char *argv[])
    // 11. As in Example 1p, we set up bilinear and linear forms corresponding to
    //     the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //     problem yet, this will be done in the main loop.
-   ParDarcyForm darcy(R_space.get(), W_space.get());
+   ParMixedSystemForm mixed_system(R_space.get(), W_space.get());
 
    ConstantCoefficient one(1.0), negone(-1.0);
 
-   ParLinearForm *f = darcy.GetParPotentialRHS();
+   ParLinearForm *f = mixed_system.GetParPotentialRHS();
    f->AddDomainIntegrator(new DomainLFIntegrator(negone));
 
-   ParBilinearForm *Mq = darcy.GetParFluxMassForm();
-   ParMixedBilinearForm *Bq = darcy.GetParFluxDivForm();
-   ParBilinearForm *Mu = (dg)?(darcy.GetParPotentialMassForm()):(NULL);
+   ParBilinearForm *Mq = mixed_system.GetParFluxMassForm();
+   ParMixedBilinearForm *Bq = mixed_system.GetParFluxDivForm();
+   ParBilinearForm *Mu = (dg)?(mixed_system.GetParPotentialMassForm()):(NULL);
 
    if (dg)
    {
@@ -240,14 +240,14 @@ int main(int argc, char *argv[])
       trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
    }
    trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
-   darcy.EnableHybridization(trace_space.get(),
-                             new NormalTraceJumpIntegrator(),
-                             ess_flux_tdofs_list);
+   mixed_system.EnableHybridization(trace_space.get(),
+                                    new NormalTraceJumpIntegrator(),
+                                    ess_flux_tdofs_list);
 
    // 12. The solution vector x and the associated finite element grid function
    //     will be maintained over the AMR iterations. We initialize it to zero.
    MemoryType mt = device.GetMemoryType();
-   BlockVector x(darcy.GetOffsets(), mt);
+   BlockVector x(mixed_system.GetOffsets(), mt);
    x = 0.0;
 
    ParGridFunction u_h, uhat_h;
@@ -309,14 +309,14 @@ int main(int argc, char *argv[])
       //     point that the mesh is nonconforming and parallel.  The FE space is
       //     considered 'cut' along hanging edges/faces, and also across
       //     processor boundaries.
-      darcy.Assemble();
+      mixed_system.Assemble();
 
       // 18. Create the parallel linear system: eliminate boundary conditions.
       //     The system will be solved for true (unconstrained/unique) DOFs only.
       OperatorPtr A;
       Vector B, X;
 
-      darcy.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
+      mixed_system.FormLinearSystem(ess_flux_tdofs_list, x, A, X, B);
 
       // 19. Solve the linear system A X = B.
       //     * With full assembly, use the BoomerAMG preconditioner from hypre.
@@ -335,7 +335,7 @@ int main(int argc, char *argv[])
       // 20. Switch back to the host and extract the parallel grid function
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
-      darcy.RecoverFEMSolution(X, x);
+      mixed_system.RecoverFEMSolution(X, x);
       uhat_h.MakeTRef(trace_space.get(), X, 0);
       uhat_h.SetFromTrueVector();
 
@@ -393,15 +393,15 @@ int main(int argc, char *argv[])
 
       // 25. Inform also the bilinear and linear forms that the space has
       //     changed.
-      darcy.Update();
-      x.Update(darcy.GetOffsets(), mt);
+      mixed_system.Update();
+      x.Update(mixed_system.GetOffsets(), mt);
 
       x = 0.;
       u_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
-      darcy.EnableHybridization(trace_space.get(),
-                                new NormalTraceJumpIntegrator(),
-                                ess_flux_tdofs_list);
+      mixed_system.EnableHybridization(trace_space.get(),
+                                       new NormalTraceJumpIntegrator(),
+                                       ess_flux_tdofs_list);
 
       // 26. Save the current state of the mesh every 5 iterations. The
       //     computation can be restarted from this point. Note that unlike in

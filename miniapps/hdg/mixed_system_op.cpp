@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "darcyop.hpp"
+#include "mixed_system_op.hpp"
 #include "../../general/tic_toc.hpp"
 #include <fstream>
 
@@ -22,11 +22,12 @@ namespace mfem
 namespace hdg
 {
 
-void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
-                                         int max_iters_)
+void MixedSystemOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
+                                               int max_iters_)
 {
 #ifdef MFEM_USE_MPI
-   MPI_Comm comm = (pdarcy)?(pdarcy->ParFluxFESpace()->GetComm()):(MPI_COMM_NULL);
+   MPI_Comm comm = (pmixed_system)?(pmixed_system->ParFluxFESpace()->GetComm()):
+                   (MPI_COMM_NULL);
 #endif
    IterativeSolver *lin_solver = NULL;
    switch (solver_type)
@@ -35,7 +36,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
       case SolverType::LBFGS:
          prec = NULL;
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
             solver.reset(new LBFGSSolver(comm));
          }
@@ -47,7 +48,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
       case SolverType::LBB:
          prec = NULL;
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
             solver.reset(new LBBSolver(comm));
          }
@@ -58,7 +59,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
          break;
       case SolverType::Newton:
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
             lin_solver = new GMRESSolver(comm);
          }
@@ -67,7 +68,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
             lin_solver = new GMRESSolver();
          prec_str = "GMRES";
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
             solver.reset(new NewtonSolver(comm));
          }
@@ -79,7 +80,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
       case SolverType::KINSol:
 #ifdef MFEM_USE_SUNDIALS
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
             lin_solver = new GMRESSolver(comm);
          }
@@ -88,7 +89,7 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
             lin_solver = new GMRESSolver();
          prec_str = "GMRES";
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
             solver.reset(new KINSolver(comm, KIN_PICARD));
          }
@@ -105,10 +106,10 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
 
    if (lin_solver)
    {
-      if (darcy->GetHybridization())
+      if (mixed_system->GetHybridization())
       {
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
             auto *amg = new HypreBoomerAMG();
             amg->SetAdvectiveOptions();
@@ -126,13 +127,13 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
       {
          SchurPreconditioner *schur;
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
-            schur = new SchurPreconditioner(pdarcy, true);
+            schur = new SchurPreconditioner(pmixed_system, true);
          }
          else
 #endif
-            schur = new SchurPreconditioner(darcy, true);
+            schur = new SchurPreconditioner(mixed_system, true);
          lin_prec.reset(schur);
          lin_prec_str = schur->GetString();
          lin_solver->SetPreconditioner(*lin_prec);
@@ -153,13 +154,13 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
    solver->iterative_mode = true;
 }
 
-void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
-                                      int max_iters_)
+void MixedSystemOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
+                                            int max_iters_)
 {
-   if (darcy->GetHybridization())
+   if (mixed_system->GetHybridization())
    {
 #ifdef MFEM_USE_MPI
-      if (pdarcy)
+      if (pmixed_system)
       {
          auto *amg = new HypreBoomerAMG();
          amg->SetAdvectiveOptions();
@@ -178,10 +179,10 @@ void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
 #endif
       }
    }
-   else if (darcy->GetReduction())
+   else if (mixed_system->GetReduction())
    {
 #ifdef MFEM_USE_MPI
-      if (pdarcy)
+      if (pmixed_system)
       {
          auto *amg = new HypreBoomerAMG();
          amg->SetAdvectiveOptions();
@@ -204,21 +205,21 @@ void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
    {
       SchurPreconditioner *schur;
 #ifdef MFEM_USE_MPI
-      if (pdarcy)
+      if (pmixed_system)
       {
-         schur = new SchurPreconditioner(pdarcy);
+         schur = new SchurPreconditioner(pmixed_system);
       }
       else
 #endif
-         schur = new SchurPreconditioner(darcy);
+         schur = new SchurPreconditioner(mixed_system);
       prec.reset(schur);
       prec_str = schur->GetString();
    }
 
 #ifdef MFEM_USE_MPI
-   if (pdarcy)
+   if (pmixed_system)
    {
-      MPI_Comm comm = pdarcy->ParFluxFESpace()->GetComm();
+      MPI_Comm comm = pmixed_system->ParFluxFESpace()->GetComm();
       solver.reset(new GMRESSolver(comm));
    }
    else
@@ -237,24 +238,25 @@ void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
       if (sol_type != SolutionController::Type::Native)
       {
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
-            monitor.reset(new ParSolutionController(*pdarcy, x, rhs, sol_type, rtol));
+            monitor.reset(new ParSolutionController(*pmixed_system, x, rhs, sol_type,
+                                                    rtol));
          }
          else
 #endif
-            monitor.reset(new SolutionController(*darcy, x, rhs, sol_type, rtol));
+            monitor.reset(new SolutionController(*mixed_system, x, rhs, sol_type, rtol));
       }
       else if (monitor_step >= 0)
       {
 #ifdef MFEM_USE_MPI
-         if (pdarcy)
+         if (pmixed_system)
          {
-            monitor.reset(new ParIterativeGLVis(*pdarcy, x, rhs, monitor_step));
+            monitor.reset(new ParIterativeGLVis(*pmixed_system, x, rhs, monitor_step));
          }
          else
 #endif
-            monitor.reset(new IterativeGLVis(*darcy, x, rhs, monitor_step));
+            monitor.reset(new IterativeGLVis(*mixed_system, x, rhs, monitor_step));
       }
 
       if (monitor)
@@ -264,16 +266,16 @@ void DarcyOperator::SetupLinearSolver(real_t rtol_, real_t atol_,
    }
 }
 
-DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
-                             DarcyForm *darcy_,
-                             std::vector<LinearForm*> rhs,
-                             std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs_,
-                             SolverType stype_, bool btime_u_, bool btime_p_)
+MixedSystemOperator::MixedSystemOperator(const Array<int> &ess_flux_tdofs_list_,
+                                         MixedSystemForm *mixed_system_,
+                                         std::vector<LinearForm*> rhs,
+                                         std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs_,
+                                         SolverType stype_, bool btime_u_, bool btime_p_)
    : TimeDependentOperator(0, 0., IMPLICIT),
-     ess_flux_tdofs_list(ess_flux_tdofs_list_), darcy(darcy_),
+     ess_flux_tdofs_list(ess_flux_tdofs_list_), mixed_system(mixed_system_),
      coeffs(coeffs_), solver_type(stype_), btime_u(btime_u_), btime_p(btime_p_)
 {
-   offsets = ConstructOffsets(*darcy);
+   offsets = ConstructOffsets(*mixed_system);
    width = height = offsets.Last();
 
    if (rhs.size() >= 1 && rhs[0])
@@ -282,7 +284,7 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
    }
    else
    {
-      g = darcy->GetFluxRHS();
+      g = mixed_system->GetFluxRHS();
    }
 
    if (rhs.size() >= 2 && rhs[1])
@@ -291,12 +293,12 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
    }
    else
    {
-      f = darcy->GetPotentialRHS();
+      f = mixed_system->GetPotentialRHS();
    }
 
-   if (darcy->GetHybridization())
+   if (mixed_system->GetHybridization())
    {
-      trace_space = darcy->GetHybridization()->ConstraintFESpace();
+      trace_space = mixed_system->GetHybridization()->ConstraintFESpace();
       if (rhs.size() >= 3) { h = rhs[2]; }
    }
 
@@ -306,12 +308,12 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
    if (btime_u)
    {
       BilinearForm *Mq = const_cast<BilinearForm*>(
-                            (const_cast<const DarcyForm*>(darcy))->GetFluxMassForm());
+                            (const_cast<const MixedSystemForm*>(mixed_system))->GetFluxMassForm());
       NonlinearForm *Mqnl = const_cast<NonlinearForm*>(
-                               (const_cast<const DarcyForm*>(darcy))->GetFluxMassNonlinearForm());
-      const int dim = darcy->FluxFESpace()->GetMesh()->Dimension();
-      const int vdim = darcy->FluxFESpace()->GetVDim();
-      const bool dg = (darcy->FluxFESpace()->FEColl()->GetRangeType(
+                               (const_cast<const MixedSystemForm*>(mixed_system))->GetFluxMassNonlinearForm());
+      const int dim = mixed_system->FluxFESpace()->GetMesh()->Dimension();
+      const int vdim = mixed_system->FluxFESpace()->GetVDim();
+      const bool dg = (mixed_system->FluxFESpace()->FEColl()->GetRangeType(
                           dim) == FiniteElement::SCALAR);
 
       if (dg)
@@ -334,13 +336,13 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
          //hybridization must be reconstructed, since the non-linear
          //potential mass must be passed to it
          const int c_vdim = trace_space->GetVDim();
-         darcy->EnableHybridization(trace_space,
-                                    new VectorBlockDiagonalIntegrator(
-                                       c_vdim, new NormalTraceJumpIntegrator()),
-                                    ess_flux_tdofs_list);
+         mixed_system->EnableHybridization(trace_space,
+                                           new VectorBlockDiagonalIntegrator(
+                                              c_vdim, new NormalTraceJumpIntegrator()),
+                                           ess_flux_tdofs_list);
       }
 
-      Mq0.reset(new BilinearForm(darcy->FluxFESpace()));
+      Mq0.reset(new BilinearForm(mixed_system->FluxFESpace()));
       if (dg)
       {
          auto *bfi = new VectorMassIntegrator(*idtcoeff);
@@ -356,12 +358,13 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
 
    if (btime_p)
    {
-      const int vdim = darcy->PotentialFESpace()->GetVDim();
+      const int vdim = mixed_system->PotentialFESpace()->GetVDim();
 
       BilinearForm *Mt = const_cast<BilinearForm*>(
-                            (const_cast<const DarcyForm*>(darcy))->GetPotentialMassForm());
+                            (const_cast<const MixedSystemForm*>(mixed_system))->GetPotentialMassForm());
       NonlinearForm *Mtnl = const_cast<NonlinearForm*>(
-                               (const_cast<const DarcyForm*>(darcy))->GetPotentialMassNonlinearForm());
+                               (const_cast<const MixedSystemForm*>
+                                (mixed_system))->GetPotentialMassNonlinearForm());
 
       auto *bfi = new VectorMassIntegrator(*idtcoeff);
       bfi->SetVDim(vdim);
@@ -373,13 +376,13 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
          //hybridization must be reconstructed, since the non-linear
          //potential mass must be passed to it
          const int c_vdim = trace_space->GetVDim();
-         darcy->EnableHybridization(trace_space,
-                                    new VectorBlockDiagonalIntegrator(
-                                       c_vdim, new NormalTraceJumpIntegrator()),
-                                    ess_flux_tdofs_list);
+         mixed_system->EnableHybridization(trace_space,
+                                           new VectorBlockDiagonalIntegrator(
+                                              c_vdim, new NormalTraceJumpIntegrator()),
+                                           ess_flux_tdofs_list);
       }
 
-      Mt0.reset(new BilinearForm(darcy->PotentialFESpace()));
+      Mt0.reset(new BilinearForm(mixed_system->PotentialFESpace()));
       auto *bfi0 = new VectorMassIntegrator(*idtcoeff);
       bfi0->SetVDim(vdim);
       Mt0->AddDomainIntegrator(bfi0);
@@ -387,16 +390,16 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list_,
 }
 
 #ifdef MFEM_USE_MPI
-DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list,
-                             ParDarcyForm *darcy_,
-                             std::vector<ParLinearForm*> rhs,
-                             std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
-                             SolverType stype, bool bflux_u, bool btime_p)
-   : DarcyOperator(ess_flux_tdofs_list, (DarcyForm*) darcy_,
-                   std::vector<LinearForm*>(rhs.begin(), rhs.end()), coeffs,
-                   stype, bflux_u, btime_p)
+MixedSystemOperator::MixedSystemOperator(const Array<int> &ess_flux_tdofs_list,
+                                         ParMixedSystemForm *mixed_system_,
+                                         std::vector<ParLinearForm*> rhs,
+                                         std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
+                                         SolverType stype, bool bflux_u, bool btime_p)
+   : MixedSystemOperator(ess_flux_tdofs_list, (MixedSystemForm*) mixed_system_,
+                         std::vector<LinearForm*>(rhs.begin(), rhs.end()), coeffs,
+                         stype, bflux_u, btime_p)
 {
-   pdarcy = darcy_;
+   pmixed_system = mixed_system_;
 
    pg = static_cast<ParLinearForm*>(g);
    pf = static_cast<ParLinearForm*>(f);
@@ -404,40 +407,41 @@ DarcyOperator::DarcyOperator(const Array<int> &ess_flux_tdofs_list,
 }
 #endif //MFEM_USE_MPI
 
-DarcyOperator::~DarcyOperator()
+MixedSystemOperator::~MixedSystemOperator()
 {
 }
 
-Array<int> DarcyOperator::ConstructOffsets(const DarcyForm &darcy)
+Array<int> MixedSystemOperator::ConstructOffsets(const MixedSystemForm
+                                                 &mixed_system)
 {
-   if (!darcy.GetHybridization())
+   if (!mixed_system.GetHybridization())
    {
-      return darcy.GetOffsets();
+      return mixed_system.GetOffsets();
    }
 
    Array<int> offsets(4);
    offsets[0] = 0;
-   offsets[1] = darcy.FluxFESpace()->GetVSize();
-   offsets[2] = darcy.PotentialFESpace()->GetVSize();
-   offsets[3] = darcy.GetHybridization()->ConstraintFESpace()->GetVSize();
+   offsets[1] = mixed_system.FluxFESpace()->GetVSize();
+   offsets[2] = mixed_system.PotentialFESpace()->GetVSize();
+   offsets[3] = mixed_system.GetHybridization()->ConstraintFESpace()->GetVSize();
    offsets.PartialSum();
 
    return offsets;
 }
 
-void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
-                                  Vector &dx_v)
+void MixedSystemOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
+                                        Vector &dx_v)
 {
 #ifdef MFEM_USE_MPI
-   const bool verbose = (pdarcy)?(Mpi::Root()):(true);
+   const bool verbose = (pmixed_system)?(Mpi::Root()):(true);
 #else
    const bool verbose = true;
 #endif
 
    //form the linear system
 
-   rhs.Update(g->GetData(), darcy->GetOffsets());
-   x.Update(dx_v, darcy->GetOffsets());
+   rhs.Update(g->GetData(), mixed_system->GetOffsets());
+   x.Update(dx_v, mixed_system->GetOffsets());
    dx_v = x_v;
 
    //set time
@@ -461,7 +465,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    chrono.Start();
 
 #ifdef MFEM_USE_MPI
-   if (pdarcy)
+   if (pmixed_system)
    {
       pg->Assemble();
       pf->Assemble();
@@ -485,18 +489,18 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
       //reset the operator
 
-      darcy->Update();
+      mixed_system->Update();
 
       //assemble the system
 #ifdef MFEM_USE_MPI
-      if (pdarcy)
+      if (pmixed_system)
       {
-         pdarcy->Assemble();
+         pmixed_system->Assemble();
       }
       else
 #endif //MFEM_USE_MPI
       {
-         darcy->Assemble();
+         mixed_system->Assemble();
       }
 
       if (Mq0)
@@ -516,24 +520,24 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    if (Mq0)
    {
       GridFunction u_h;
-      u_h.MakeRef(darcy->FluxFESpace(), x.GetBlock(0), 0);
+      u_h.MakeRef(mixed_system->FluxFESpace(), x.GetBlock(0), 0);
       Mq0->AddMult(u_h, *g, +1.);
    }
 
    if (Mt0)
    {
       GridFunction p_h;
-      p_h.MakeRef(darcy->PotentialFESpace(), x.GetBlock(1), 0);
+      p_h.MakeRef(mixed_system->PotentialFESpace(), x.GetBlock(1), 0);
       Mt0->AddMult(p_h, *f, -1.);
    }
 #if 0
    if (Mq0 && Mt0)
    {
       GridFunction u_h, p_h;
-      u_h.MakeRef(darcy->FluxFESpace(), x.GetBlock(0), 0);
-      p_h.MakeRef(darcy->PotentialFESpace(), x.GetBlock(1), 0);
-      darcy->GetFluxDivForm()->AddMultTranspose(p_h, *g, -1.);
-      darcy->GetFluxDivForm()->AddMult(u_h, *f, +1.);
+      u_h.MakeRef(mixed_system->FluxFESpace(), x.GetBlock(0), 0);
+      p_h.MakeRef(mixed_system->PotentialFESpace(), x.GetBlock(1), 0);
+      mixed_system->GetFluxDivForm()->AddMultTranspose(p_h, *g, -1.);
+      mixed_system->GetFluxDivForm()->AddMult(u_h, *f, +1.);
    }
 #endif
    //form the reduced system
@@ -543,7 +547,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    if (trace_space)
    {
 #ifdef MFEM_USE_MPI
-      if (pdarcy)
+      if (pmixed_system)
       {
          if (ph)
          {
@@ -573,8 +577,8 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       }
    }
 
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
-                           op, X, RHS, true);
+   mixed_system->FormLinearSystem(ess_flux_tdofs_list, x, rhs,
+                                  op, X, RHS, true);
 
 
    chrono.Stop();
@@ -588,22 +592,23 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       chrono.Start();
 
       // We do not want to initialize any new forms here, only obtain
-      // the existing ones, so we const cast the DarcyForm
-      const DarcyForm *cdarcy = const_cast<const DarcyForm*>(darcy);
+      // the existing ones, so we const cast the MixedSystemForm
+      const MixedSystemForm *cmixed_system =
+         const_cast<const MixedSystemForm*>(mixed_system);
 
-      //const BilinearForm *Mq = cdarcy->GetFluxMassForm();
-      const NonlinearForm *Mqnl = cdarcy->GetFluxMassNonlinearForm();
-      const BlockNonlinearForm *Mnl = cdarcy->GetBlockNonlinearForm();
-      //const MixedBilinearForm *B = cdarcy->GetFluxDivForm();
-      //const BilinearForm *Mt = cdarcy->GetPotentialMassForm();
-      const NonlinearForm *Mtnl = cdarcy->GetPotentialMassNonlinearForm();
+      //const BilinearForm *Mq = cmixed_system->GetFluxMassForm();
+      const NonlinearForm *Mqnl = cmixed_system->GetFluxMassNonlinearForm();
+      const BlockNonlinearForm *Mnl = cmixed_system->GetBlockNonlinearForm();
+      //const MixedBilinearForm *B = cmixed_system->GetFluxDivForm();
+      //const BilinearForm *Mt = cmixed_system->GetPotentialMassForm();
+      const NonlinearForm *Mtnl = cmixed_system->GetPotentialMassNonlinearForm();
 
       if (trace_space) //hybridization
       {
          if (Mqnl || Mtnl || Mnl)
          {
-            darcy->GetHybridization()->SetLocalNLSolver(
-               DarcyHybridization::LSsolveType::Newton,
+            mixed_system->GetHybridization()->SetLocalNLSolver(
+               MixedSystemHybridization::LSsolveType::Newton,
                max_iters, rtol * 1e-3, atol, -1);
             lsolver_str = "Newton+GMRES";
 
@@ -616,7 +621,7 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
          solver->SetOperator(*op);
       }
-      else if (darcy->GetReduction()) //reduction
+      else if (mixed_system->GetReduction()) //reduction
       {
          SetupLinearSolver(rtol, atol, max_iters);
 
@@ -657,12 +662,12 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    solver->Mult(RHS, X);
 
-   darcy->RecoverFEMSolution(X, rhs, x);
+   mixed_system->RecoverFEMSolution(X, rhs, x);
 
    if (trace_space)
    {
 #ifdef MFEM_USE_MPI
-      if (pdarcy)
+      if (pmixed_system)
       {
          Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
          trace_space->GetProlongationMatrix()->Mult(X, x_r);
@@ -704,9 +709,9 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
    dx_v *= idt;
 }
 
-void DarcyOperator::Update()
+void MixedSystemOperator::Update()
 {
-   offsets = ConstructOffsets(*darcy);
+   offsets = ConstructOffsets(*mixed_system);
    width = height = offsets.Last();
 
    if (Mt0) { Mt0->Update(); }
@@ -715,9 +720,10 @@ void DarcyOperator::Update()
    idt = 0.;
 }
 
-DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
-                                                        bool nonlinear_)
-   : Solver(darcy_->Height()), darcy(darcy_), nonlinear(nonlinear_)
+MixedSystemOperator::SchurPreconditioner::SchurPreconditioner(
+   const MixedSystemForm *mixed_system_, bool nonlinear_)
+   : Solver(mixed_system_->Height()), mixed_system(mixed_system_),
+     nonlinear(nonlinear_)
 {
    if (!nonlinear)
    {
@@ -726,7 +732,7 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
       Construct(x_);
    }
 
-   const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
+   const bool pa = (mixed_system->GetAssemblyLevel() != AssemblyLevel::LEGACY);
 
    if (pa)
    {
@@ -743,9 +749,10 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(const DarcyForm *darcy_,
 }
 
 #ifdef MFEM_USE_MPI
-DarcyOperator::SchurPreconditioner::SchurPreconditioner(
-   const ParDarcyForm *darcy_, bool nonlinear_)
-   : Solver(darcy_->Height()), darcy(darcy_), pdarcy(darcy_), nonlinear(nonlinear_)
+MixedSystemOperator::SchurPreconditioner::SchurPreconditioner(
+   const ParMixedSystemForm *mixed_system_, bool nonlinear_)
+   : Solver(mixed_system_->Height()), mixed_system(mixed_system_),
+     pmixed_system(mixed_system_), nonlinear(nonlinear_)
 {
    if (!nonlinear)
    {
@@ -754,7 +761,7 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
       ConstructPar(x_);
    }
 
-   const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
+   const bool pa = (mixed_system->GetAssemblyLevel() != AssemblyLevel::LEGACY);
 
    if (pa)
    {
@@ -767,13 +774,13 @@ DarcyOperator::SchurPreconditioner::SchurPreconditioner(
 }
 #endif //MFEM_USE_MPI
 
-void DarcyOperator::SchurPreconditioner::Mult(const Vector &x_,
-                                              Vector &y_) const
+void MixedSystemOperator::SchurPreconditioner::Mult(const Vector &x_,
+                                                    Vector &y_) const
 {
    if (nonlinear && reconstruct)
    {
 #ifdef MFEM_USE_MPI
-      if (pdarcy)
+      if (pmixed_system)
       {
          ConstructPar(x_);
       }
@@ -784,12 +791,13 @@ void DarcyOperator::SchurPreconditioner::Mult(const Vector &x_,
       }
       reconstruct = false;
    }
-   darcyPrec->Mult(x_,y_);
+   schur_prec->Mult(x_,y_);
 }
 
-void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
+void MixedSystemOperator::SchurPreconditioner::Construct(
+   const Vector &x_v) const
 {
-   const Array<int> &block_offsets = darcy->GetTrueOffsets();
+   const Array<int> &block_offsets = mixed_system->GetTrueOffsets();
    BlockVector bx(x_v.GetData(), block_offsets);
 
    // Construct the operators for preconditioner
@@ -800,14 +808,14 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
    //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
    //     temperature Schur Complement
 
-   const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
+   const bool pa = (mixed_system->GetAssemblyLevel() != AssemblyLevel::LEGACY);
 
-   const BilinearForm *Mq = darcy->GetFluxMassForm();
-   const NonlinearForm *Mqnl = darcy->GetFluxMassNonlinearForm();
-   const BlockNonlinearForm *Mnl = darcy->GetBlockNonlinearForm();
-   const MixedBilinearForm *B = darcy->GetFluxDivForm();
-   const BilinearForm *Mt = darcy->GetPotentialMassForm();
-   const NonlinearForm *Mtnl = darcy->GetPotentialMassNonlinearForm();
+   const BilinearForm *Mq = mixed_system->GetFluxMassForm();
+   const NonlinearForm *Mqnl = mixed_system->GetFluxMassNonlinearForm();
+   const BlockNonlinearForm *Mnl = mixed_system->GetBlockNonlinearForm();
+   const MixedBilinearForm *B = mixed_system->GetFluxDivForm();
+   const BilinearForm *Mt = mixed_system->GetPotentialMassForm();
+   const NonlinearForm *Mtnl = mixed_system->GetPotentialMassNonlinearForm();
 
    const int a_tsize = block_offsets[1] - block_offsets[0];
    const int d_tsize = block_offsets[2] - block_offsets[1];
@@ -842,7 +850,7 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
          bop = dynamic_cast<const BlockOperator*>(op);
          if (!bop)
          {
-            auto *grad = dynamic_cast<const DarcyForm::Gradient*>(op);
+            auto *grad = dynamic_cast<const MixedSystemForm::Gradient*>(op);
             MFEM_ASSERT(grad, "Unknown gradient operator!");
             bop = &grad->BlockMatrices();
          }
@@ -926,16 +934,17 @@ void DarcyOperator::SchurPreconditioner::Construct(const Vector &x_v) const
    invM->iterative_mode = false;
    invS->iterative_mode = false;
 
-   darcyPrec.reset(new BlockDiagonalPreconditioner(block_offsets));
-   darcyPrec->owns_blocks = true;
-   darcyPrec->SetDiagonalBlock(0, invM);
-   darcyPrec->SetDiagonalBlock(1, invS);
+   schur_prec.reset(new BlockDiagonalPreconditioner(block_offsets));
+   schur_prec->owns_blocks = true;
+   schur_prec->SetDiagonalBlock(0, invM);
+   schur_prec->SetDiagonalBlock(1, invS);
 }
 
 #ifdef MFEM_USE_MPI
-void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
+void MixedSystemOperator::SchurPreconditioner::ConstructPar(
+   const Vector &x_v) const
 {
-   const Array<int> &block_offsets = pdarcy->GetTrueOffsets();
+   const Array<int> &block_offsets = pmixed_system->GetTrueOffsets();
    BlockVector bx(x_v.GetData(), block_offsets);
 
    // Construct the operators for preconditioner
@@ -946,20 +955,21 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
    //     temperature Schur Complement
 
-   const bool pa = (darcy->GetAssemblyLevel() != AssemblyLevel::LEGACY);
+   const bool pa = (mixed_system->GetAssemblyLevel() != AssemblyLevel::LEGACY);
 
-   const ParBilinearForm *Mq = pdarcy->GetParFluxMassForm();
-   const ParNonlinearForm *Mqnl = pdarcy->GetParFluxMassNonlinearForm();
-   const ParBlockNonlinearForm *Mnl = pdarcy->GetParBlockNonlinearForm();
-   const ParMixedBilinearForm *B = pdarcy->GetParFluxDivForm();
-   const ParBilinearForm *Mt = pdarcy->GetParPotentialMassForm();
-   const ParNonlinearForm *Mtnl = pdarcy->GetParPotentialMassNonlinearForm();
+   const ParBilinearForm *Mq = pmixed_system->GetParFluxMassForm();
+   const ParNonlinearForm *Mqnl = pmixed_system->GetParFluxMassNonlinearForm();
+   const ParBlockNonlinearForm *Mnl = pmixed_system->GetParBlockNonlinearForm();
+   const ParMixedBilinearForm *B = pmixed_system->GetParFluxDivForm();
+   const ParBilinearForm *Mt = pmixed_system->GetParPotentialMassForm();
+   const ParNonlinearForm *Mtnl =
+      pmixed_system->GetParPotentialMassNonlinearForm();
 
    const int a_tsize = block_offsets[1] - block_offsets[0];
    const int d_tsize = block_offsets[2] - block_offsets[1];
    Vector Md(a_tsize);
-   darcyPrec.reset(new BlockDiagonalPreconditioner(block_offsets));
-   darcyPrec->owns_blocks = true;
+   schur_prec.reset(new BlockDiagonalPreconditioner(block_offsets));
+   schur_prec->owns_blocks = true;
    Solver *invM, *invS;
 
    if (pa)
@@ -990,7 +1000,7 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
          bop = dynamic_cast<const BlockOperator*>(op);
          if (!bop)
          {
-            auto *grad = dynamic_cast<const ParDarcyForm::ParGradient*>(op);
+            auto *grad = dynamic_cast<const ParMixedSystemForm::ParGradient*>(op);
             MFEM_ASSERT(grad, "Unknown gradient operator!");
             bop = &grad->BlockMatrices();
          }
@@ -1083,31 +1093,32 @@ void DarcyOperator::SchurPreconditioner::ConstructPar(const Vector &x_v) const
    invM->iterative_mode = false;
    invS->iterative_mode = false;
 
-   darcyPrec->SetDiagonalBlock(0, invM);
-   darcyPrec->SetDiagonalBlock(1, invS);
+   schur_prec->SetDiagonalBlock(0, invM);
+   schur_prec->SetDiagonalBlock(1, invS);
 }
 #endif
 
-DarcyOperator::SolutionController::SolutionController(
-   DarcyForm &darcy_, BlockVector &x_, const BlockVector &rhs_, Type type_,
+MixedSystemOperator::SolutionController::SolutionController(
+   MixedSystemForm &mixed_system_, BlockVector &x_, const BlockVector &rhs_,
+   Type type_,
    real_t rtol_)
-   : darcy(darcy_), x(x_), rhs(rhs_), type(type_), rtol(rtol_)
+   : mixed_system(mixed_system_), x(x_), rhs(rhs_), type(type_), rtol(rtol_)
 {
    switch (type)
    {
       case Type::Native:
          break;
       case Type::Flux:
-         sol_prev.SetSize(darcy.FluxFESpace()->GetTrueVSize());
+         sol_prev.SetSize(mixed_system.FluxFESpace()->GetTrueVSize());
          break;
       case Type::Potential:
-         sol_prev.SetSize(darcy.PotentialFESpace()->GetTrueVSize());
+         sol_prev.SetSize(mixed_system.PotentialFESpace()->GetTrueVSize());
          break;
    }
 }
 
-bool DarcyOperator::SolutionController::CheckSolution(const Vector &x,
-                                                      const Vector &y) const
+bool MixedSystemOperator::SolutionController::CheckSolution(const Vector &x,
+                                                            const Vector &y) const
 {
    real_t vals[2];
    real_t &diff = vals[0], &sum = vals[1];
@@ -1125,12 +1136,12 @@ bool DarcyOperator::SolutionController::CheckSolution(const Vector &x,
    return diff < sum * (rtol*rtol);
 }
 
-void DarcyOperator::SolutionController::MonitorSolution(int it, real_t norm,
-                                                        const Vector &X, bool final)
+void MixedSystemOperator::SolutionController::MonitorSolution(
+   int it, real_t norm, const Vector &X, bool final)
 {
    if (type == Type::Native || converged) { return; }
 
-   darcy.RecoverFEMSolution(X, rhs, x);
+   mixed_system.RecoverFEMSolution(X, rhs, x);
 
    Vector &sol = x.GetBlock((type == Type::Flux)?(0):(1));
 
@@ -1144,28 +1155,31 @@ void DarcyOperator::SolutionController::MonitorSolution(int it, real_t norm,
 }
 
 #ifdef MFEM_USE_MPI
-DarcyOperator::ParSolutionController::ParSolutionController(
-   ParDarcyForm &pdarcy_, BlockVector &x_, const BlockVector &rhs_, Type type_,
+MixedSystemOperator::ParSolutionController::ParSolutionController(
+   ParMixedSystemForm &pmixed_system_, BlockVector &x_, const BlockVector &rhs_,
+   Type type_,
    real_t rtol_)
-   : SolutionController(pdarcy_, x_, rhs_, type_, rtol_), pdarcy(pdarcy_) { }
+   : SolutionController(pmixed_system_, x_, rhs_, type_, rtol_),
+     pmixed_system(pmixed_system_) { }
 
-void DarcyOperator::ParSolutionController::ReduceValues(real_t vals[],
-                                                        int num) const
+void MixedSystemOperator::ParSolutionController::ReduceValues(real_t vals[],
+                                                              int num) const
 {
-   MPI_Comm comm = pdarcy.ParFluxFESpace()->GetComm();
+   MPI_Comm comm = pmixed_system.ParFluxFESpace()->GetComm();
    MPI_Allreduce(MPI_IN_PLACE, vals, 2, MFEM_MPI_REAL_T, MPI_SUM, comm);
 }
 
-void DarcyOperator::ParSolutionController::MonitorSolution(
+void MixedSystemOperator::ParSolutionController::MonitorSolution(
    int it, real_t norm, const Vector &X, bool final)
 {
    if (type == Type::Native || converged) { return; }
 
-   darcy.RecoverFEMSolution(X, rhs, x);
+   mixed_system.RecoverFEMSolution(X, rhs, x);
 
    Vector &sol_x = x.GetBlock((type == Type::Flux)?(0):(1));
-   ParFiniteElementSpace *fes = (type == Type::Flux)?(pdarcy.ParFluxFESpace()):
-                                (pdarcy.ParPotentialFESpace());
+   ParFiniteElementSpace *fes = (type == Type::Flux)?
+                                (pmixed_system.ParFluxFESpace()):
+                                (pmixed_system.ParPotentialFESpace());
    Vector sol(fes->GetTrueVSize());
 
    fes->GetRestrictionOperator()->Mult(sol_x, sol);
@@ -1180,22 +1194,24 @@ void DarcyOperator::ParSolutionController::MonitorSolution(
 }
 #endif //MFEM_USE_MPI
 
-DarcyOperator::IterativeGLVis::IterativeGLVis(
-   DarcyForm &darcy_, BlockVector &x_, const BlockVector &rhs_, int step_,
-   bool save_files_)
-   : darcy(darcy_), x(x_), rhs(&rhs_), step(step_), save_files(save_files_)
+MixedSystemOperator::IterativeGLVis::IterativeGLVis(
+   MixedSystemForm &mixed_system_, BlockVector &x_, const BlockVector &rhs_,
+   int step_, bool save_files_)
+   : mixed_system(mixed_system_), x(x_), rhs(&rhs_), step(step_),
+     save_files(save_files_)
 {
    Init();
 }
 
-DarcyOperator::IterativeGLVis::IterativeGLVis(
-   DarcyForm &darcy_, BlockVector &x_, int step_, bool save_files_)
-   : darcy(darcy_), x(x_), rhs(NULL), step(step_), save_files(save_files_)
+MixedSystemOperator::IterativeGLVis::IterativeGLVis(
+   MixedSystemForm &mixed_system_, BlockVector &x_, int step_, bool save_files_)
+   : mixed_system(mixed_system_), x(x_), rhs(NULL), step(step_),
+     save_files(save_files_)
 {
    Init();
 }
 
-void DarcyOperator::IterativeGLVis::Init()
+void MixedSystemOperator::IterativeGLVis::Init()
 {
    const char vishost[] = "localhost";
    const int  visport   = 19916;
@@ -1205,30 +1221,30 @@ void DarcyOperator::IterativeGLVis::Init()
    t_sock.precision(8);
 }
 
-std::string DarcyOperator::IterativeGLVis::FormFilename(const char *base,
-                                                        int it, const char *suff)
+std::string MixedSystemOperator::IterativeGLVis::FormFilename(const char *base,
+                                                              int it, const char *suff)
 {
    std::stringstream ss;
    ss << base << "_" << std::setfill('0') << std::setw(5) << it << "." << suff;
    return ss.str();
 }
 
-void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
-                                                    const Vector &X, bool final)
+void MixedSystemOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
+                                                          const Vector &X, bool final)
 {
    if (step != 0 && it % step != 0 && !final) { return; }
 
    if (rhs)
    {
-      darcy.RecoverFEMSolution(X, *rhs, x);
+      mixed_system.RecoverFEMSolution(X, *rhs, x);
    }
    else
    {
-      darcy.RecoverFEMSolution(X, x);
+      mixed_system.RecoverFEMSolution(X, x);
    }
 
-   GridFunction q_h(darcy.FluxFESpace(), x.GetBlock(0));
-   GridFunction t_h(darcy.PotentialFESpace(), x.GetBlock(1));
+   GridFunction q_h(mixed_system.FluxFESpace(), x.GetBlock(0));
+   GridFunction t_h(mixed_system.PotentialFESpace(), x.GetBlock(1));
 
    //heat flux
 
@@ -1269,18 +1285,18 @@ void DarcyOperator::IterativeGLVis::MonitorSolution(int it, real_t norm,
 }
 
 #ifdef MFEM_USE_MPI
-void DarcyOperator::ParIterativeGLVis::StreamPreamble(socketstream &ss)
+void MixedSystemOperator::ParIterativeGLVis::StreamPreamble(socketstream &ss)
 {
-   const int num_procs = pdarcy.ParFluxFESpace()->GetNRanks();
-   const int myid = pdarcy.ParFluxFESpace()->GetMyRank();
+   const int num_procs = pmixed_system.ParFluxFESpace()->GetNRanks();
+   const int myid = pmixed_system.ParFluxFESpace()->GetMyRank();
    ss << "parallel " << num_procs << " " << myid << "\n";
 }
 
-std::string DarcyOperator::ParIterativeGLVis::FormFilename(const char *base,
-                                                           int it, const char *suff)
+std::string MixedSystemOperator::ParIterativeGLVis::FormFilename(
+   const char *base, int it, const char *suff)
 {
    std::stringstream ss;
-   const int myid = pdarcy.ParFluxFESpace()->GetMyRank();
+   const int myid = pmixed_system.ParFluxFESpace()->GetMyRank();
    ss << base << "_" << std::setfill('0') << std::setw(6) << myid
       << "_" << std::setw(5) << it << "." << suff;
    return ss.str();
