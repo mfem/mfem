@@ -76,6 +76,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_particlevector.cpp
   linalg/test_petsc_nonlinear.cpp
   linalg/test_sparsesmoothers.cpp
+  linalg/test_tensor.cpp
   linalg/test_vector.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
@@ -167,6 +168,7 @@ set(UNIT_TESTS_SRCS
   fem/test_quadraturefunc.cpp
   fem/test_r1d_bilininteg.cpp
   fem/test_r2d_bilininteg.cpp
+  fem/test_regs.cpp
   fem/test_sparse_matrix.cpp
   fem/test_sum_bilin.cpp
   fem/test_surf_blf.cpp
