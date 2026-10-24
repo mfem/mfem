@@ -230,7 +230,7 @@ HypreParMatrix *StackContactJacobians(
    HYPRE_BigInt *offd_col_map_data = nullptr;
    if (!offd_col_map.empty())
    {
-      offd_col_map_data = new HYPRE_BigInt[offd_col_map.size()];
+      offd_col_map_data = Memory<HYPRE_BigInt>(offd_col_map.size());
       std::copy(offd_col_map.begin(), offd_col_map.end(), offd_col_map_data);
    }
 
@@ -241,6 +241,8 @@ HypreParMatrix *StackContactJacobians(
    stacked->CopyColStarts();
    stacked->SetOwnerFlags(stacked->OwnsDiag(), stacked->OwnsOffd(),
                           offd_col_map_data ? 1 : 0);
+   // Set the CSR memory location before HYPRE propagates it to new matrices.
+   stacked->HypreRead();
    return stacked;
 }
 
@@ -517,6 +519,9 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
                                                 vfes->GetTrueDofOffsets(),
                                                 &Pct);
       HypreStealOwnership(*P_ct, Pct);
+      // Rectangular construction leaves HYPRE's CSR memory location unset.
+      // Transpose must see the location matching the assembled CSR pointers.
+      P_ct->HypreRead();
       Pc = P_ct->Transpose();
       delete P_ct;
    }
@@ -777,6 +782,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    M->CopyColStarts();
    M->SetOwnerFlags(M->OwnsDiag(), M->OwnsOffd(),
                     filtered.offd_num_cols ? 1 : 0);
+   // Set the CSR memory location before HYPRE propagates it to new matrices.
+   M->HypreRead();
    return M;
 }
 
@@ -1005,7 +1012,7 @@ OptContactProblem::FilterContactMatrixAndGap(
    if (compact_offd_num_cols)
    {
       const int *used_offd_cols_host = used_offd_cols.HostRead();
-      filtered.offd_cmap = new HYPRE_BigInt[compact_offd_num_cols];
+      filtered.offd_cmap = Memory<HYPRE_BigInt>(compact_offd_num_cols);
       for (int i = 0; i < compact_offd_num_cols; i++)
       {
          filtered.offd_cmap[i] = offd_cmap[used_offd_cols_host[i]];
