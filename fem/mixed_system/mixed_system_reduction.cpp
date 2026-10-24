@@ -9,14 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "darcyreduction.hpp"
+#include "mixed_system_reduction.hpp"
 #include "../pgridfunc.hpp"
 
 namespace mfem
 {
 
-DarcyReduction::DarcyReduction(FiniteElementSpace *fes_u_,
-                               FiniteElementSpace *fes_p_, bool bsym_)
+MixedSystemReduction::MixedSystemReduction(FiniteElementSpace *fes_u_,
+                                           FiniteElementSpace *fes_p_, bool bsym_)
    : fes_u(*fes_u_), fes_p(*fes_p_), bsym(bsym_)
 {
 #ifdef MFEM_USE_MPI
@@ -27,7 +27,7 @@ DarcyReduction::DarcyReduction(FiniteElementSpace *fes_u_,
 #endif //MFEM_USE_MPI
 }
 
-void DarcyReduction::InitA()
+void MixedSystemReduction::InitA()
 {
    const int NE = fes_u.GetNE();
 
@@ -47,7 +47,7 @@ void DarcyReduction::InitA()
    Af_data.SetSize(Af_offsets[NE]);
 }
 
-void DarcyReduction::InitBD()
+void MixedSystemReduction::InitBD()
 {
    const int NE = fes_u.GetNE();
 
@@ -72,7 +72,7 @@ void DarcyReduction::InitBD()
    D_data.SetSize(D_offsets[NE]); D_data = 0.;
 }
 
-void DarcyReduction::InitBFaces()
+void MixedSystemReduction::InitBFaces()
 {
    Mesh *mesh = fes_u.GetMesh();
    const int num_faces = mesh->GetNumFaces();
@@ -107,7 +107,7 @@ void DarcyReduction::InitBFaces()
    Bf_face_data.SetSize(Bf_face_offsets[num_faces]); Bf_face_data = 0.;
 }
 
-void DarcyReduction::InitDFaces()
+void MixedSystemReduction::InitDFaces()
 {
    Mesh *mesh = fes_u.GetMesh();
    int num_faces = mesh->GetNumFaces();
@@ -140,13 +140,13 @@ void DarcyReduction::InitDFaces()
    D_face_data.SetSize(D_face_offsets[num_faces]); D_face_data = 0.;
 }
 
-void DarcyReduction::Init(const Array<int> &)
+void MixedSystemReduction::Init(const Array<int> &)
 {
    InitA();
    InitBD();
 }
 
-void DarcyReduction::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
+void MixedSystemReduction::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 {
    const int s = Af_f_offsets[el+1] - Af_f_offsets[el];
    DenseMatrix A_i(&Af_data[Af_offsets[el]], s, s);
@@ -155,7 +155,7 @@ void DarcyReduction::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
    A_i = A;
 }
 
-void DarcyReduction::AssemblePotMassMatrix(int el, const DenseMatrix &D)
+void MixedSystemReduction::AssemblePotMassMatrix(int el, const DenseMatrix &D)
 {
    const int s = D_f_offsets[el+1] - D_f_offsets[el];
    DenseMatrix D_i(&D_data[D_offsets[el]], s, s);
@@ -164,7 +164,7 @@ void DarcyReduction::AssemblePotMassMatrix(int el, const DenseMatrix &D)
    D_i += D;
 }
 
-void DarcyReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
+void MixedSystemReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
 {
    const int w = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int h = D_f_offsets[el+1] - D_f_offsets[el];
@@ -174,7 +174,8 @@ void DarcyReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
    B_i += B;
 }
 
-void DarcyReduction::AssembleDivFaceMatrix(int face, const DenseMatrix &elmat)
+void MixedSystemReduction::AssembleDivFaceMatrix(int face,
+                                                 const DenseMatrix &elmat)
 {
    if (!Bf_face_data.Size()) { InitBFaces(); }
 
@@ -215,7 +216,8 @@ void DarcyReduction::AssembleDivFaceMatrix(int face, const DenseMatrix &elmat)
    }
 }
 
-void DarcyReduction::AssemblePotFaceMatrix(int face, const DenseMatrix &elmat)
+void MixedSystemReduction::AssemblePotFaceMatrix(int face,
+                                                 const DenseMatrix &elmat)
 {
    if (!D_face_data.Size()) { InitDFaces(); }
 
@@ -253,13 +255,13 @@ void DarcyReduction::AssemblePotFaceMatrix(int face, const DenseMatrix &elmat)
    }
 }
 
-void DarcyReduction::Mult(const Vector &x, Vector &y) const
+void MixedSystemReduction::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(S, "DarcyReduction must be finalized!");
+   MFEM_VERIFY(S, "MixedSystemReduction must be finalized!");
    S->Mult(x, y);
 }
 
-void DarcyReduction::Finalize()
+void MixedSystemReduction::Finalize()
 {
 #ifndef MFEM_USE_MPI
    if (!S) { ComputeS(); }
@@ -268,7 +270,7 @@ void DarcyReduction::Finalize()
 #endif
 }
 
-void DarcyReduction::Reset()
+void MixedSystemReduction::Reset()
 {
    S.reset();
 #ifdef MFEM_USE_MPI
@@ -282,8 +284,8 @@ void DarcyReduction::Reset()
 }
 
 #ifdef MFEM_USE_MPI
-HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
-                                                   ParFiniteElementSpace *pfes_tr, ParFiniteElementSpace *pfes_te)
+HypreParMatrix *MixedSystemReduction::ConstructParMatrix(SparseMatrix *spmat,
+                                                         ParFiniteElementSpace *pfes_tr, ParFiniteElementSpace *pfes_te)
 {
    HYPRE_BigInt num_rows = spmat->Height();
    const int num_ldofs = pfes_tr->GetVSize();
@@ -323,9 +325,9 @@ HypreParMatrix *DarcyReduction::ConstructParMatrix(SparseMatrix *spmat,
 }
 #endif //MFEM_USE_MPI
 
-DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u_,
-                                       FiniteElementSpace *fes_p_, bool bsym_)
-   : DarcyReduction(fes_u_, fes_p_, bsym_)
+MixedSystemFluxReduction::MixedSystemFluxReduction(FiniteElementSpace *fes_u_,
+                                                   FiniteElementSpace *fes_p_, bool bsym_)
+   : MixedSystemReduction(fes_u_, fes_p_, bsym_)
 {
    width = height = fes_p.GetVSize();
    MFEM_ASSERT(fes_u.FEColl()->GetContType() ==
@@ -333,16 +335,16 @@ DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u_,
                "The flux space is not discontinuous!");
 }
 
-DarcyFluxReduction::~DarcyFluxReduction()
+MixedSystemFluxReduction::~MixedSystemFluxReduction()
 {
 }
 
-void DarcyFluxReduction::Init(const Array<int> &ess_flux_tdof_list)
+void MixedSystemFluxReduction::Init(const Array<int> &ess_flux_tdof_list)
 {
    MFEM_ASSERT(ess_flux_tdof_list.Size() == 0,
                "Essential VDOFs are not supported");
 
-   DarcyReduction::Init(ess_flux_tdof_list);
+   MixedSystemReduction::Init(ess_flux_tdof_list);
 #ifdef MFEM_USE_MPI
    if (Parallel()) { pfes_p->ExchangeFaceNbrData(); }
    InitDNbr();
@@ -353,7 +355,7 @@ void DarcyFluxReduction::Init(const Array<int> &ess_flux_tdof_list)
 }
 
 #ifdef MFEM_USE_MPI
-void DarcyFluxReduction::InitDNbr()
+void MixedSystemFluxReduction::InitDNbr()
 {
    if (!Parallel()) { return; }
 
@@ -371,7 +373,7 @@ void DarcyFluxReduction::InitDNbr()
    }
 }
 
-void DarcyFluxReduction::CountBSharedFaces(Array<int> &face_offs) const
+void MixedSystemFluxReduction::CountBSharedFaces(Array<int> &face_offs) const
 {
    if (!Parallel()) { return; }
 
@@ -394,7 +396,7 @@ void DarcyFluxReduction::CountBSharedFaces(Array<int> &face_offs) const
    }
 }
 
-void DarcyFluxReduction::CountDSharedFaces(Array<int> &face_offs) const
+void MixedSystemFluxReduction::CountDSharedFaces(Array<int> &face_offs) const
 {
    if (!Parallel()) { return; }
 
@@ -417,8 +419,8 @@ void DarcyFluxReduction::CountDSharedFaces(Array<int> &face_offs) const
    }
 }
 
-void DarcyFluxReduction::AssembleDivSharedFaceMatrix(int sface,
-                                                     const DenseMatrix &elmat)
+void MixedSystemFluxReduction::AssembleDivSharedFaceMatrix(int sface,
+                                                           const DenseMatrix &elmat)
 {
    if (!Bf_face_data.Size()) { InitBFaces(); }
 
@@ -447,8 +449,8 @@ void DarcyFluxReduction::AssembleDivSharedFaceMatrix(int sface,
    Bf_f_21 += B_21;
 }
 
-void DarcyFluxReduction::AssemblePotSharedFaceMatrix(int sface,
-                                                     const DenseMatrix &elmat)
+void MixedSystemFluxReduction::AssemblePotSharedFaceMatrix(int sface,
+                                                           const DenseMatrix &elmat)
 {
    if (!D_face_data.Size()) { InitDFaces(); }
 
@@ -475,8 +477,8 @@ void DarcyFluxReduction::AssemblePotSharedFaceMatrix(int sface,
    D_f_12 += D_12;
 }
 
-int DarcyFluxReduction::GetFaceNbrVDofs(int el, Array<int> &vdofs,
-                                        bool adjust_vdofs) const
+int MixedSystemFluxReduction::GetFaceNbrVDofs(int el, Array<int> &vdofs,
+                                              bool adjust_vdofs) const
 {
    MFEM_ASSERT(el < 0, "Not a face neighbor");
    const int NE = pfes_p->GetNE();
@@ -500,7 +502,7 @@ int DarcyFluxReduction::GetFaceNbrVDofs(int el, Array<int> &vdofs,
 }
 #endif // MFEM_USE_MPI
 
-void DarcyFluxReduction::ComputeS()
+void MixedSystemFluxReduction::ComputeS()
 {
    const int skip_zeros = 1;
    Mesh *mesh = fes_u.GetMesh();
@@ -738,7 +740,8 @@ void DarcyFluxReduction::ComputeS()
    }
 }
 
-void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
+void MixedSystemFluxReduction::ReduceRHS(const BlockVector &b,
+                                         Vector &b_tr) const
 {
    Mesh *mesh = fes_u.GetMesh();
    const int NE = mesh->GetNE();
@@ -841,9 +844,9 @@ void DarcyFluxReduction::ReduceRHS(const BlockVector &b, Vector &b_tr) const
    }
 }
 
-void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
-                                         const Vector &sol_tr,
-                                         BlockVector &sol) const
+void MixedSystemFluxReduction::ComputeSolution(const BlockVector &b,
+                                               const Vector &sol_tr,
+                                               BlockVector &sol) const
 {
    Mesh *mesh = fes_u.GetMesh();
    const int NE = mesh->GetNE();
@@ -933,9 +936,10 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
    }
 }
 
-DarcyPotentialReduction::DarcyPotentialReduction(FiniteElementSpace *fes_u_,
-                                                 FiniteElementSpace *fes_p_, bool bsym_)
-   : DarcyReduction(fes_u_, fes_p_, bsym_)
+MixedSystemPotentialReduction::MixedSystemPotentialReduction(
+   FiniteElementSpace *fes_u_,
+   FiniteElementSpace *fes_p_, bool bsym_)
+   : MixedSystemReduction(fes_u_, fes_p_, bsym_)
 {
    width = height = fes_u.GetVSize();
    MFEM_ASSERT(fes_p.FEColl()->GetContType() ==
@@ -943,11 +947,11 @@ DarcyPotentialReduction::DarcyPotentialReduction(FiniteElementSpace *fes_u_,
                "The potential space is not discontinuous!");
 }
 
-DarcyPotentialReduction::~DarcyPotentialReduction()
+MixedSystemPotentialReduction::~MixedSystemPotentialReduction()
 {
 }
 
-void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
+void MixedSystemPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
 {
    const int NE = fes_p.GetNE();
 
@@ -1055,7 +1059,7 @@ void DarcyPotentialReduction::Init(const Array<int> &ess_flux_tdof_list)
    D_ipiv.SetSize(D_f_offsets[NE]);
 }
 
-void DarcyPotentialReduction::GetFDofs(int el, Array<int> &fdofs) const
+void MixedSystemPotentialReduction::GetFDofs(int el, Array<int> &fdofs) const
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
@@ -1073,7 +1077,7 @@ void DarcyPotentialReduction::GetFDofs(int el, Array<int> &fdofs) const
    }
 }
 
-void DarcyPotentialReduction::GetEDofs(int el, Array<int> &edofs) const
+void MixedSystemPotentialReduction::GetEDofs(int el, Array<int> &edofs) const
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
@@ -1091,7 +1095,7 @@ void DarcyPotentialReduction::GetEDofs(int el, Array<int> &edofs) const
    }
 }
 
-void DarcyPotentialReduction::ComputeS()
+void MixedSystemPotentialReduction::ComputeS()
 {
    const int skip_zeros = 1;
    const int NE = fes_u.GetNE();
@@ -1162,8 +1166,8 @@ void DarcyPotentialReduction::ComputeS()
    }
 }
 
-void DarcyPotentialReduction::AssembleFluxMassMatrix(int el,
-                                                     const DenseMatrix &A)
+void MixedSystemPotentialReduction::AssembleFluxMassMatrix(int el,
+                                                           const DenseMatrix &A)
 {
    const int o = hat_offsets[el];
    const int s = hat_offsets[el+1] - o;
@@ -1190,7 +1194,8 @@ void DarcyPotentialReduction::AssembleFluxMassMatrix(int el,
    MFEM_ASSERT(Ae_el_idx == Ae_offsets[el+1], "Internal error");
 }
 
-void DarcyPotentialReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
+void MixedSystemPotentialReduction::AssembleDivMatrix(int el,
+                                                      const DenseMatrix &B)
 {
    const int o = hat_offsets[el];
    const int w = hat_offsets[el+1] - o;
@@ -1217,8 +1222,9 @@ void DarcyPotentialReduction::AssembleDivMatrix(int el, const DenseMatrix &B)
    MFEM_ASSERT(Be_el_idx == Be_offsets[el+1], "Internal error");
 }
 
-void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
-                                                  const BlockVector &x, BlockVector &b)
+void MixedSystemPotentialReduction::EliminateVDofsInRHS(
+   const Array<int> &vdofs_flux,
+   const BlockVector &x, BlockVector &b)
 {
    MFEM_ASSERT(x.Size() == fes_u.GetVSize() + fes_p.GetVSize(),
                "Wrong size of the solution vector!");
@@ -1272,7 +1278,7 @@ void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
-void DarcyPotentialReduction::EliminateTrueDofsInRHS(
+void MixedSystemPotentialReduction::EliminateTrueDofsInRHS(
    const Array<int> &tdofs_flux, const BlockVector &x, BlockVector &b)
 {
    const int NE = fes_u.GetNE();
@@ -1360,8 +1366,8 @@ void DarcyPotentialReduction::EliminateTrueDofsInRHS(
    }
 }
 
-void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
-                                        Vector &b_tr) const
+void MixedSystemPotentialReduction::ReduceRHS(const BlockVector &b,
+                                              Vector &b_tr) const
 {
    const int NE = fes_u.GetNE();
    Vector bu_l, bp_l;
@@ -1434,9 +1440,9 @@ void DarcyPotentialReduction::ReduceRHS(const BlockVector &b,
    }
 }
 
-void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
-                                              const Vector &sol_tr,
-                                              BlockVector &sol) const
+void MixedSystemPotentialReduction::ComputeSolution(const BlockVector &b,
+                                                    const Vector &sol_tr,
+                                                    BlockVector &sol) const
 {
    const int NE = fes_u.GetNE();
    Vector bp_l, u_l;
@@ -1501,11 +1507,11 @@ void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
    }
 }
 
-void DarcyPotentialReduction::Reset()
+void MixedSystemPotentialReduction::Reset()
 {
-   DarcyReduction::Reset();
+   MixedSystemReduction::Reset();
 
    Be_data = 0.;
 }
 
-}
+} // namespace mfem

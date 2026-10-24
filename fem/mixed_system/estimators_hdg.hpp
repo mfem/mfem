@@ -27,7 +27,7 @@ namespace mfem
         | C   G  H  || λ |   | br |
         └           ┘└   ┘   └    ┘
     \endverbatim
-    where the notation follows DarcyHybridization.
+    where the notation follows MixedSystemHybridization.
 
     The idea behind HDGErrorEstimator is evaluation of the error |p̂-λ| between
     trace of the potential @a p̂ and the trace unknown @a λ, which is also used

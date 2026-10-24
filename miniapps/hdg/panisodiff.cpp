@@ -74,14 +74,14 @@
 //               the mixed system is algebraically reduced or hybridized with
 //               DG interface elements or H1 trace elements.
 //
-//               The miniapp demonstrates the use of the DarcyForm class and
-//               the wrapping system operator DarcyOperator in an AMR loop with
-//               the HDG error estimator.
+//               The miniapp demonstrates the use of the ParMixedSystemForm
+//               class and the wrapping system operator MixedSystemOperator in
+//               an AMR loop with the HDG error estimator.
 //
 //               We recommend viewing examples 1-6 before viewing this miniapp.
 
 #include "mfem.hpp"
-#include "darcyop.hpp"
+#include "mixed_system_op.hpp"
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -419,8 +419,9 @@ int main(int argc, char *argv[])
    // Temperature FE space
    auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
 
-   // Darcy form
-   auto darcy = make_unique<ParDarcyForm>(V_space.get(), W_space.get());
+   // Mixed system form
+   auto mixed_system = make_unique<ParMixedSystemForm>(V_space.get(),
+                                                       W_space.get());
 
    // 11. Define the coefficients, analytical solution, and rhs of the PDE.
    pars.t_0 = 1.; // Base temperature
@@ -442,7 +443,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient qcoeff(dim, qFun); // Analytic heat flux
    ConstantCoefficient one;
 
-   // 12. Assemble the finite element matrices for the Darcy operator
+   // 12. Assemble the finite element matrices for the mixed system operator
    //
    //                     ┌        ┐
    //                     | Mq -Bᵀ |
@@ -463,7 +464,7 @@ int main(int argc, char *argv[])
    //     Mt = (a T, w) + <td k hˉ¹[T], [w]> T, w ∈ W
 
    // Diffusion
-   ParBilinearForm *Mq = darcy->GetParFluxMassForm();
+   ParBilinearForm *Mq = mixed_system->GetParFluxMassForm();
    if (dg)
    {
       Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
@@ -476,7 +477,7 @@ int main(int argc, char *argv[])
    // Diffusion stabilization
    if (dg && td > 0.)
    {
-      ParBilinearForm *Mt = darcy->GetParPotentialMassForm();
+      ParBilinearForm *Mt = mixed_system->GetParPotentialMassForm();
       Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
       Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
                                bdr_is_neumann);
@@ -488,7 +489,7 @@ int main(int argc, char *argv[])
    }
 
    // Divergence/weak gradient
-   ParMixedBilinearForm *B = darcy->GetParFluxDivForm();
+   ParMixedBilinearForm *B = mixed_system->GetParFluxDivForm();
    if (dg)
    {
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
@@ -514,7 +515,7 @@ int main(int argc, char *argv[])
    // Inertial term
    if (pars.a > 0.)
    {
-      ParBilinearForm *Mt = darcy->GetParPotentialMassForm();
+      ParBilinearForm *Mt = mixed_system->GetParPotentialMassForm();
       Mt->AddDomainIntegrator(new MassIntegrator(acoeff));
    }
 
@@ -544,13 +545,13 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
-      darcy->EnableHybridization(trace_space.get(),
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      mixed_system->EnableHybridization(trace_space.get(),
+                                        new NormalTraceJumpIntegrator(),
+                                        ess_flux_tdofs_list);
       // Set essential BC
       if (trace_ess_bc)
       {
-         darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+         mixed_system->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
       chrono.Stop();
       if (root) { cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
@@ -563,11 +564,11 @@ int main(int argc, char *argv[])
 
       if (dg || brt)
       {
-         darcy->EnableFluxReduction();
+         mixed_system->EnableFluxReduction();
       }
       else if (pars.a > 0.)
       {
-         darcy->EnablePotentialReduction(ess_flux_tdofs_list);
+         mixed_system->EnablePotentialReduction(ess_flux_tdofs_list);
       }
       else
       {
@@ -579,12 +580,12 @@ int main(int argc, char *argv[])
       if (root) { cout << "Reduction init took " << chrono.RealTime() << "s.\n"; }
    }
 
-   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { mixed_system->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    // 13. Define the block structure of the problem, i.e. define the array of
    //     offsets for each variable. The last component of the Array is the sum
    //     of the dimensions of each block.
-   Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
+   Array<int> block_offsets(MixedSystemOperator::ConstructOffsets(*mixed_system));
 
    if (root)
    {
@@ -684,7 +685,7 @@ int main(int argc, char *argv[])
 
    // 15. Construct the spatial operator
 
-   DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
+   MixedSystemOperator op(ess_flux_tdofs_list, mixed_system.get(),
    {gform.get(), fform.get(), hform.get()},
    {&gcoeff, &fcoeff, &qcoeff});
 
@@ -766,7 +767,7 @@ int main(int argc, char *argv[])
 
       if (reconstruct)
       {
-         darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
+         mixed_system->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
          real_t err_qt = qt_h.ComputeL2Error(qcoeff, irs);
          real_t norm_qt = ComputeGlobalLpNorm(2., qcoeff, pmesh, irs);
          real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
@@ -939,7 +940,7 @@ int main(int argc, char *argv[])
          }
 
          // Update grid functions and linear forms
-         block_offsets = DarcyOperator::ConstructOffsets(*darcy);
+         block_offsets = MixedSystemOperator::ConstructOffsets(*mixed_system);
          x.Update(block_offsets, mt);
          rhs.Update(block_offsets, mt);
 
@@ -976,22 +977,23 @@ int main(int argc, char *argv[])
             tr_h.ProjectBdrCoefficient(tcoeff, bdr_is_dirichlet); // essential Dirichlet BC
          }
 
-         // Update Darcy form, where hybridization must be reinitialized to
-         // reintegrate the constraint and eliminate the essential b.c.
-         darcy->Update();
+         // Update the mixed system form, where hybridization must be
+         // reinitialized to reintegrate the constraint and eliminate the
+         // essential b.c.
+         mixed_system->Update();
          if (hybridization)
          {
-            darcy->EnableHybridization(trace_space.get(),
-                                       new NormalTraceJumpIntegrator(),
-                                       ess_flux_tdofs_list);
+            mixed_system->EnableHybridization(trace_space.get(),
+                                              new NormalTraceJumpIntegrator(),
+                                              ess_flux_tdofs_list);
             // Set essential b.c.
             if (trace_ess_bc)
             {
-               darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+               mixed_system->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
             }
          }
 
-         // Update Darcy operator
+         // Update the mixed system operator
          op.Update();
       }
    }

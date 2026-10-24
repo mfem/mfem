@@ -449,8 +449,8 @@ endif
 DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/mass fem/ceed/integrators/convection \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
-	   fem/ceed/interface fem/ceed/solvers fem/darcy fem/eltrans fem/fe \
-	   fem/gslib fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop \
+	   fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
+	   fem/integ fem/lor fem/mixed_system fem/moonolith fem/qinterp fem/tmop \
 	   fem/dfem fem/tmop/assemble fem/tmop/metrics fem/tmop/mult \
 	   fem/tmop/tools
 

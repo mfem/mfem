@@ -9,21 +9,21 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "darcyform.hpp"
-#include "../hyperbolic.hpp"
+#include "mixed_system_form.hpp"
 
 namespace mfem
 {
 
-DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
-                     bool bsym_)
+MixedSystemForm::MixedSystemForm(FiniteElementSpace *fes_u_,
+                                 FiniteElementSpace *fes_p_,
+                                 bool bsym_)
    : fes_u(fes_u_), fes_p(fes_p_), bsym(bsym_)
 {
    sequence = fes_u->GetSequence();
    UpdateOffsetsAndSize();
 }
 
-void DarcyForm::UpdateOffsetsAndSize()
+void MixedSystemForm::UpdateOffsetsAndSize()
 {
    offsets.SetSize(3);
    offsets[0] = 0;
@@ -39,7 +39,7 @@ void DarcyForm::UpdateOffsetsAndSize()
    if (block_b) { block_b->Update(offsets); *block_b = 0.; }
 }
 
-void DarcyForm::UpdateTOffsetsAndSize()
+void MixedSystemForm::UpdateTOffsetsAndSize()
 {
    if (!toffsets.OwnsData()) { toffsets.DeleteAll(); }
    toffsets.SetSize(3);
@@ -53,7 +53,7 @@ void DarcyForm::UpdateTOffsetsAndSize()
    block_op.reset();
 }
 
-BilinearForm* DarcyForm::GetFluxMassForm()
+BilinearForm* MixedSystemForm::GetFluxMassForm()
 {
    if (!M_u)
    {
@@ -63,7 +63,7 @@ BilinearForm* DarcyForm::GetFluxMassForm()
    return M_u.get();
 }
 
-BilinearForm* DarcyForm::GetPotentialMassForm()
+BilinearForm* MixedSystemForm::GetPotentialMassForm()
 {
    if (!M_p)
    {
@@ -73,7 +73,7 @@ BilinearForm* DarcyForm::GetPotentialMassForm()
    return M_p.get();
 }
 
-MixedBilinearForm* DarcyForm::GetFluxDivForm()
+MixedBilinearForm* MixedSystemForm::GetFluxDivForm()
 {
    if (!B)
    {
@@ -83,7 +83,7 @@ MixedBilinearForm* DarcyForm::GetFluxDivForm()
    return B.get();
 }
 
-LinearForm *DarcyForm::GetFluxRHS()
+LinearForm *MixedSystemForm::GetFluxRHS()
 {
    if (!b_u)
    {
@@ -94,7 +94,7 @@ LinearForm *DarcyForm::GetFluxRHS()
    return b_u.get();
 }
 
-LinearForm *DarcyForm::GetPotentialRHS()
+LinearForm *MixedSystemForm::GetPotentialRHS()
 {
    if (!b_p)
    {
@@ -105,7 +105,7 @@ LinearForm *DarcyForm::GetPotentialRHS()
    return b_p.get();
 }
 
-void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
+void MixedSystemForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    assembly = assembly_level;
 
@@ -114,8 +114,8 @@ void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
    if (B) { B->SetAssemblyLevel(assembly); }
 }
 
-void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
-                                DarcyReduction *reduction_)
+void MixedSystemForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
+                                      MixedSystemReduction *reduction_)
 {
    reduction.reset();
    if (assembly != AssemblyLevel::LEGACY)
@@ -129,27 +129,29 @@ void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
    reduction->Init(ess_flux_tdof_list);
 }
 
-void DarcyForm::EnableFluxReduction()
+void MixedSystemForm::EnableFluxReduction()
 {
    MFEM_ASSERT(M_u,
                "Mass forms for the fluxes must be set prior to this call!");
 
    Array<int> ess_flux_tdof_list; //empty
-   EnableReduction(ess_flux_tdof_list, new DarcyFluxReduction(fes_u, fes_p, bsym));
+   EnableReduction(ess_flux_tdof_list,
+                   new MixedSystemFluxReduction(fes_u, fes_p, bsym));
 }
 
-void DarcyForm::EnablePotentialReduction(const Array<int> &ess_flux_tdof_list)
+void MixedSystemForm::EnablePotentialReduction(
+   const Array<int> &ess_flux_tdof_list)
 {
    MFEM_ASSERT(M_u && M_p,
                "Mass forms for the fluxes and potentials must be set prior to this call!");
 
-   EnableReduction(ess_flux_tdof_list, new DarcyPotentialReduction(fes_u, fes_p,
-                                                                   bsym));
+   EnableReduction(ess_flux_tdof_list,
+                   new MixedSystemPotentialReduction(fes_u, fes_p, bsym));
 }
 
-void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
-                                    BilinearFormIntegrator *constr_flux_integ,
-                                    const Array<int> &ess_flux_tdof_list)
+void MixedSystemForm::EnableHybridization(FiniteElementSpace *constr_space,
+                                          BilinearFormIntegrator *constr_flux_integ,
+                                          const Array<int> &ess_flux_tdof_list)
 {
    MFEM_ASSERT(M_u,
                "Mass form for the fluxes must be set prior to this call!");
@@ -161,7 +163,8 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
       MFEM_WARNING("Hybridization not supported for this assembly level");
       return;
    }
-   hybridization.reset(new DarcyHybridization(fes_u, fes_p, constr_space, bsym));
+   hybridization.reset(
+      new MixedSystemHybridization(fes_u, fes_p, constr_space, bsym));
 
    // Automatically load the potential constraint operator from the face integrators
    if (M_p)
@@ -229,7 +232,7 @@ void DarcyForm::EnableHybridization(FiniteElementSpace *constr_space,
    hybridization->Init(ess_flux_tdof_list);
 }
 
-void DarcyForm::Assemble(int skip_zeros)
+void MixedSystemForm::Assemble(int skip_zeros)
 {
    if (M_u)
    {
@@ -340,7 +343,7 @@ void DarcyForm::Assemble(int skip_zeros)
    }
 }
 
-void DarcyForm::Finalize(int skip_zeros)
+void MixedSystemForm::Finalize(int skip_zeros)
 {
    AllocBlockOp();
 
@@ -379,9 +382,10 @@ void DarcyForm::Finalize(int skip_zeros)
    }
 }
 
-void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                                 BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X_, Vector &B_,
-                                 int copy_interior)
+void MixedSystemForm::FormLinearSystem(
+   const Array<int> &ess_flux_tdof_list,
+   BlockVector &x, BlockVector &b, OperatorHandle &A, Vector &X_, Vector &B_,
+   int copy_interior)
 {
    const SparseMatrix *P = fes_u->GetConformingProlongation();
 
@@ -583,17 +587,17 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
    }
 }
 
-void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
-                                 BlockVector &x, OperatorHandle &A,
-                                 Vector &X_, Vector &B_, int copy_interior)
+void MixedSystemForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
+                                       BlockVector &x, OperatorHandle &A,
+                                       Vector &X_, Vector &B_, int copy_interior)
 {
    AllocRHS();
 
    FormLinearSystem(ess_flux_tdof_list, x, *block_b, A, X_, B_, copy_interior);
 }
 
-void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
-                                 OperatorHandle &A)
+void MixedSystemForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
+                                       OperatorHandle &A)
 {
    AllocBlockOp(true);
 
@@ -640,8 +644,8 @@ void DarcyForm::FormSystemMatrix(const Array<int> &ess_flux_tdof_list,
    }
 }
 
-void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
-                                   BlockVector &x)
+void MixedSystemForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
+                                         BlockVector &x)
 {
    const SparseMatrix *P = fes_u->GetConformingProlongation();
    if (!P) // conforming space
@@ -701,15 +705,15 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, const BlockVector &b,
    }
 }
 
-void DarcyForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
+void MixedSystemForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
 {
    MFEM_ASSERT(block_b, "RHS does not exist");
 
    RecoverFEMSolution(X, *block_b, x);
 }
 
-void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
-                                     const Vector &sol_r, GridFunction &ut) const
+void MixedSystemForm::ReconstructTotalFlux(const BlockVector &sol,
+                                           const Vector &sol_r, GridFunction &ut) const
 {
    MFEM_ASSERT(fes_p->GetVDim() == 1,
                "Reconstruction is implemented only for vdim == 1");
@@ -783,9 +787,9 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
    }
 }
 
-void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
-                                      const GridFunction &ut, GridFunction &u,
-                                      GridFunction &p, GridFunction &tr) const
+void MixedSystemForm::ReconstructFluxAndPot(const BlockVector &sol,
+                                            const GridFunction &ut, GridFunction &u,
+                                            GridFunction &p, GridFunction &tr) const
 {
    MFEM_ASSERT(fes_p->GetVDim() == 1,
                "Reconstruction is implemented only for vdim == 1");
@@ -868,11 +872,11 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
       tr.MakeOwner(trs_coll);
    }
 
-   // define reconstructed DarcyForm
+   // define reconstructed MixedSystemForm
    if (!reconstruction || reconstruction->FluxFESpace() != u.FESpace() ||
        reconstruction->PotentialFESpace() != p.FESpace())
    {
-      reconstruction.reset(new DarcyForm(u.FESpace(), p.FESpace()));
+      reconstruction.reset(new MixedSystemForm(u.FESpace(), p.FESpace()));
       M_p_src.reset();
 
       BilinearForm *Mu_s = reconstruction->GetFluxMassForm();
@@ -929,11 +933,11 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
                                          M_p_src.get());
 }
 
-void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
-                                      const GridFunction &pc,
-                                      const GridFunction &ut, GridFunction &u,
-                                      GridFunction &p, GridFunction &tr,
-                                      MixedBilinearForm *Mp_src) const
+void MixedSystemForm::ReconstructFluxAndPot(const MixedSystemHybridization &h,
+                                            const GridFunction &pc,
+                                            const GridFunction &ut, GridFunction &u,
+                                            GridFunction &p, GridFunction &tr,
+                                            MixedBilinearForm *Mp_src) const
 {
    BilinearFormIntegrator *c_bfi = h.GetFluxConstraintIntegrator();
    BilinearFormIntegrator *c_bfi_p = h.GetPotConstraintIntegrator();
@@ -1170,8 +1174,8 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
    }
 }
 
-void DarcyForm::EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
-                                       const BlockVector &x, BlockVector &b)
+void MixedSystemForm::EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
+                                             const BlockVector &x, BlockVector &b)
 {
    if (hybridization)
    {
@@ -1186,8 +1190,8 @@ void DarcyForm::EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
    EliminateVDofsInRHS(tdofs_flux, x, b);
 }
 
-void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
-                                    const BlockVector &x, BlockVector &b)
+void MixedSystemForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
+                                          const BlockVector &x, BlockVector &b)
 {
    if (hybridization)
    {
@@ -1220,7 +1224,7 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    }
 }
 
-void DarcyForm::Mult(const Vector &x, Vector &y) const
+void MixedSystemForm::Mult(const Vector &x, Vector &y) const
 {
    if (!block_op)
    {
@@ -1232,7 +1236,7 @@ void DarcyForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
-void DarcyForm::NonblockMult(const Vector &x, Vector &y) const
+void MixedSystemForm::NonblockMult(const Vector &x, Vector &y) const
 {
    const BlockVector xb(const_cast<Vector&>(x), offsets);
    BlockVector yb(y, offsets);
@@ -1254,13 +1258,13 @@ void DarcyForm::NonblockMult(const Vector &x, Vector &y) const
    }
 }
 
-Operator &DarcyForm::GetGradient(const Vector &) const
+Operator &MixedSystemForm::GetGradient(const Vector &) const
 {
-   MFEM_VERIFY(block_op, "DarcyForm must be finalized!");
+   MFEM_VERIFY(block_op, "MixedSystemForm must be finalized!");
    return *block_op;
 }
 
-void DarcyForm::Update()
+void MixedSystemForm::Update()
 {
    // Check for different size (e.g. assembled form on non-conforming space)
    // or different sequence number.
@@ -1292,7 +1296,7 @@ void DarcyForm::Update()
    reconstruction.reset();
 }
 
-void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
+void MixedSystemForm::AssembleDivLDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    FaceElementTransformations *tr;
@@ -1388,7 +1392,7 @@ void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
    }
 }
 
-void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
+void MixedSystemForm::AssemblePotLDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    FaceElementTransformations *tr;
@@ -1477,7 +1481,7 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
    }
 }
 
-void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
+void MixedSystemForm::AssemblePotHDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();
    DenseMatrix elmat1, elmat2;
@@ -1533,7 +1537,7 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
    }
 }
 
-void DarcyForm::AllocBlockOp(bool nonconforming)
+void MixedSystemForm::AllocBlockOp(bool nonconforming)
 {
    if (nonconforming) { UpdateTOffsetsAndSize(); }
 
@@ -1545,14 +1549,14 @@ void DarcyForm::AllocBlockOp(bool nonconforming)
    }
 }
 
-void DarcyForm::AllocRHS()
+void MixedSystemForm::AllocRHS()
 {
    if (block_b) { return; }
    block_b.reset(new BlockVector(offsets));
    *block_b = 0.;
 }
 
-const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B_) const
+const Operator *MixedSystemForm::ConstructBT(const MixedBilinearForm *B_) const
 {
    if (B_->HasSpMat())
    {
@@ -1565,7 +1569,7 @@ const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B_) const
    return opBt.Ptr();
 }
 
-const Operator* DarcyForm::ConstructBT(const OperatorHandle &B_) const
+const Operator* MixedSystemForm::ConstructBT(const OperatorHandle &B_) const
 {
    if (B_.Type() == Operator::Type::MFEM_SPARSEMAT)
    {
@@ -1584,4 +1588,4 @@ const Operator* DarcyForm::ConstructBT(const OperatorHandle &B_) const
    return opBt.Ptr();
 }
 
-}
+} // namespace mfem

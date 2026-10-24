@@ -9,19 +9,19 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_DARCY_HPP
-#define MFEM_DARCY_HPP
+#ifndef MFEM_MIXED_SYSTEM_HPP
+#define MFEM_MIXED_SYSTEM_HPP
 
 #include "../../config/config.hpp"
 
-#include "darcyform.hpp"
-#include "darcyhybridization.hpp"
-#include "darcyreduction.hpp"
+#include "mixed_system_form.hpp"
+#include "mixed_system_hybridization.hpp"
+#include "mixed_system_reduction.hpp"
 #include "bilininteg_hdg.hpp"
 #include "estimators_hdg.hpp"
 
 #ifdef MFEM_USE_MPI
-#include "pdarcyform.hpp"
+#include "pmixed_system_form.hpp"
 #endif // MFEM_USE_MPI
 
-#endif
+#endif // MFEM_MIXED_SYSTEM_HPP

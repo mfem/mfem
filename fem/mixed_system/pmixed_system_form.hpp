@@ -9,14 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_PDARCYFORM
-#define MFEM_PDARCYFORM
+#ifndef MFEM_PMIXED_SYSTEM_FORM
+#define MFEM_PMIXED_SYSTEM_FORM
 
 #include "../../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 
-#include "darcyform.hpp"
+#include "mixed_system_form.hpp"
 #include "../pbilinearform.hpp"
 #include "../plinearform.hpp"
 
@@ -24,8 +24,8 @@ namespace mfem
 {
 
 /// Parallel block bilinear form for Darcy-like mixed systems
-/** Class ParDarcyForm is a parallel version of DarcyForm, wrapping the block
-    system operator as follows:
+/** Class ParMixedSystemForm is a parallel version of MixedSystemForm, wrapping
+    the block system operator as follows:
     \verbatim
         ┌             ┐┌   ┐   ┌      ┐
         | PᵀMuP ±PᵀBᵀ || u | _ | Pᵀbu |
@@ -36,7 +36,7 @@ namespace mfem
     transformatiom to true DOFs is performed in FormSystemMatrix() or
     FormLinearSystem() automatically.
  */
-class ParDarcyForm : public DarcyForm
+class ParMixedSystemForm : public MixedSystemForm
 {
 protected:
    ParFiniteElementSpace &pfes_u;   ///< flux FE space
@@ -65,13 +65,13 @@ public:
                             flips the sign of B and Mp to obtain a symmetric
                             system with -Bᵀ in the flux equation
     */
-   ParDarcyForm(ParFiniteElementSpace *fes_u, ParFiniteElementSpace *fes_p,
-                bool bsymmetrize = true);
+   ParMixedSystemForm(ParFiniteElementSpace *fes_u, ParFiniteElementSpace *fes_p,
+                      bool bsymmetrize = true);
 
    /// @name Flux mass
    ///@{
 
-   using DarcyForm::GetFluxMassForm;
+   using MixedSystemForm::GetFluxMassForm;
 
    /// Get the flux mass form (non-const)
    /** @note The form is constructed if it has not been already. */
@@ -90,7 +90,7 @@ public:
    /// @name Potential mass
    ///@{
 
-   using DarcyForm::GetPotentialMassForm;
+   using MixedSystemForm::GetPotentialMassForm;
 
    /// Get the potential mass form (non-const)
    /** @note The form is constructed if it has not been already. */
@@ -109,7 +109,7 @@ public:
    /// @name Flux divergence
    ///@{
 
-   using DarcyForm::GetFluxDivForm;
+   using MixedSystemForm::GetFluxDivForm;
 
    /// Get the flux divergence form (non-const)
    /** @note The form is constructed if it has not been already. */
@@ -128,7 +128,7 @@ public:
    /// @name Flux r.h.s.
    ///@{
 
-   using DarcyForm::GetFluxRHS;
+   using MixedSystemForm::GetFluxRHS;
 
    /// Get the flux right-hand-side form (non-const)
    /** @note The form is constructed if it has not been already. */
@@ -147,7 +147,7 @@ public:
    /// @name Potential r.h.s.
    ///@{
 
-   using DarcyForm::GetPotentialRHS;
+   using MixedSystemForm::GetPotentialRHS;
 
    /// Get the potential right-hand-side form (non-const)
    /** @note The form is constructed if it has not been already. */
@@ -173,7 +173,7 @@ public:
        the case of hybridization or reduction. */
    void Finalize(int skip_zeros = 1);
 
-   using DarcyForm::FormLinearSystem;
+   using MixedSystemForm::FormLinearSystem;
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
        form and the linear form @a b(.). */
@@ -265,5 +265,4 @@ public:
 }
 
 #endif // MFEM_USE_MPI
-
-#endif
+#endif // MFEM_PMIXED_SYSTEM_FORM

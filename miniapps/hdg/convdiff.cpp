@@ -70,15 +70,16 @@
 //               also upwinded along the velocity field in both, diffusion and
 //               convection parts, or centered (default).
 //
-//               The miniapp demonstrates the use of the DarcyForm class and
-//               time evolution of the system operator provided by DarcyOperator
-//               with different boundary conditions and discretizations.
+//               The miniapp demonstrates the use of the MixedSystemForm class
+//               and time evolution of the system operator provided by
+//               MixedSystemOperator with different boundary conditions and
+//               discretizations.
 //
 //               We recommend viewing examples 1-5, 9 and 41 before viewing this
 //               miniapp.
 
 #include "mfem.hpp"
-#include "darcyop.hpp"
+#include "mixed_system_op.hpp"
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -391,8 +392,8 @@ int main(int argc, char *argv[])
    // Temperature FE space
    auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
-   // Darcy form
-   auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
+   // Mixed system form
+   auto mixed_system = make_unique<MixedSystemForm>(V_space.get(), W_space.get());
 
    // 7. Define the coefficients, analytical solution, and rhs of the PDE.
    pars.t_0 = 1.; // Base temperature
@@ -419,7 +420,7 @@ int main(int argc, char *argv[])
    VectorCoefficient &qtcoeff = (bconv)?((VectorCoefficient&)qtcoeff_)
                                 :((VectorCoefficient&)qcoeff); //<-- velocity is undefined
 
-   // 8. Assemble the finite element matrices for the Darcy operator
+   // 8. Assemble the finite element matrices for the mixed system operator
    //
    //                     ┌        ┐
    //                     | Mq -Bᵀ |
@@ -441,7 +442,7 @@ int main(int argc, char *argv[])
    //         - (c T, ∇w) - <c⋅n{T}, [w]>             T, w ∈ W
 
    // Diffusion
-   BilinearForm *Mq = darcy->GetFluxMassForm();
+   BilinearForm *Mq = mixed_system->GetFluxMassForm();
    if (dg)
    {
       Mq->AddDomainIntegrator(new VectorMassIntegrator(ikcoeff));
@@ -454,7 +455,7 @@ int main(int argc, char *argv[])
    // Diffusion stabilization
    if (dg && td > 0.)
    {
-      BilinearForm *Mt = darcy->GetPotentialMassForm();
+      BilinearForm *Mt = mixed_system->GetPotentialMassForm();
       if (upwinded && hybridization)
       {
          Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(ccoeff, kcoeff, td));
@@ -480,7 +481,7 @@ int main(int argc, char *argv[])
    }
 
    // Divergence/weak gradient
-   MixedBilinearForm *B = darcy->GetFluxDivForm();
+   MixedBilinearForm *B = mixed_system->GetFluxDivForm();
    if (dg)
    {
       B->AddDomainIntegrator(new VectorDivergenceIntegrator());
@@ -521,7 +522,7 @@ int main(int argc, char *argv[])
    // Convection
    if (bconv)
    {
-      BilinearForm *Mt = darcy->GetPotentialMassForm();
+      BilinearForm *Mt = mixed_system->GetPotentialMassForm();
       Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(ccoeff));
       if (upwinded)
       {
@@ -559,11 +560,11 @@ int main(int argc, char *argv[])
    }
 
    // Inertial term
-   // Note the mass integrator is added in DarcyOperator, but we must construct
-   // the corresponding bilinear form here
+   // Note the mass integrator is added in MixedSystemOperator, but we must
+   // construct the corresponding bilinear form here
    if (btime)
    {
-      darcy->GetPotentialMassForm();
+      mixed_system->GetPotentialMassForm();
    }
 
    // Set hybridization / reduction / assembly level
@@ -592,13 +593,13 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
-      darcy->EnableHybridization(trace_space.get(),
-                                 new NormalTraceJumpIntegrator(),
-                                 ess_flux_tdofs_list);
+      mixed_system->EnableHybridization(trace_space.get(),
+                                        new NormalTraceJumpIntegrator(),
+                                        ess_flux_tdofs_list);
       // Set essential BC
       if (trace_ess_bc)
       {
-         darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+         mixed_system->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
       chrono.Stop();
       cout << "Hybridization init took " << chrono.RealTime() << "s.\n";
@@ -611,11 +612,11 @@ int main(int argc, char *argv[])
 
       if (dg || brt)
       {
-         darcy->EnableFluxReduction();
+         mixed_system->EnableFluxReduction();
       }
       else if (!bconv && btime)
       {
-         darcy->EnablePotentialReduction(ess_flux_tdofs_list);
+         mixed_system->EnablePotentialReduction(ess_flux_tdofs_list);
       }
       else
       {
@@ -627,12 +628,13 @@ int main(int argc, char *argv[])
       cout << "Reduction init took " << chrono.RealTime() << "s.\n";
    }
 
-   if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (pa) { mixed_system->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
 
    // 9. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   const Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
+   const Array<int> block_offsets(MixedSystemOperator::ConstructOffsets(
+                                     *mixed_system));
 
    cout << "***********************************************************\n";
    cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
@@ -770,7 +772,7 @@ int main(int argc, char *argv[])
 
    // 11. Construct the spatial operator
 
-   DarcyOperator op(ess_flux_tdofs_list, darcy.get(),
+   MixedSystemOperator op(ess_flux_tdofs_list, mixed_system.get(),
    {gform.get(), fform.get(), hform.get()},
    {&gcoeff, &fcoeff, &qtcoeff},
    false, btime);
@@ -851,7 +853,7 @@ int main(int argc, char *argv[])
 
       if (reconstruct)
       {
-         darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
+         mixed_system->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
          real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
          real_t norm_qt = ComputeLpNorm(2., qtcoeff, mesh, irs);
          cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";

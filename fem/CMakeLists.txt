@@ -183,12 +183,11 @@ set(SRCS
   gslib/interpolate_local_3.cpp
   transfer.cpp
   hyperbolic.cpp
-  darcy/bilininteg_hdg.cpp
-  darcy/darcyform.cpp
-  darcy/darcyhybridization.cpp
-  darcy/darcyreduction.cpp
-  darcy/estimators_hdg.cpp
-  darcy/pdarcyform.cpp
+  mixed_system/bilininteg_hdg.cpp
+  mixed_system/estimators_hdg.cpp
+  mixed_system/mixed_system_form.cpp
+  mixed_system/mixed_system_hybridization.cpp
+  mixed_system/mixed_system_reduction.cpp
   integrator.cpp
   bounds.cpp
   particleset.cpp
@@ -327,13 +326,12 @@ set(HDRS
   gslib/gslib_kernel_helpers.hpp
   transfer.hpp
   hyperbolic.hpp
-  darcy/bilininteg_hdg.hpp
-  darcy/darcy.hpp
-  darcy/darcyform.hpp
-  darcy/darcyhybridization.hpp
-  darcy/darcyreduction.hpp
-  darcy/estimators_hdg.hpp
-  darcy/pdarcyform.hpp
+  mixed_system/bilininteg_hdg.hpp
+  mixed_system/estimators_hdg.hpp
+  mixed_system/mixed_system.hpp
+  mixed_system/mixed_system_form.hpp
+  mixed_system/mixed_system_hybridization.hpp
+  mixed_system/mixed_system_reduction.hpp
   integrator.hpp
   bounds.hpp
   particleset.hpp
@@ -366,7 +364,8 @@ if (MFEM_USE_MPI)
     pgridfunc.cpp
     plinearform.cpp
     pnonlinearform.cpp
-    prestriction.cpp)
+    prestriction.cpp
+    mixed_system/pmixed_system_form.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
@@ -375,7 +374,8 @@ if (MFEM_USE_MPI)
     pgridfunc.hpp
     plinearform.hpp
     pnonlinearform.hpp
-    prestriction.hpp)
+    prestriction.hpp
+    mixed_system/pmixed_system_form.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

@@ -151,7 +151,7 @@ namespace mfem {
  *   <a class="el" href="hdg_2ex21p_8cpp_source.html">21p</a>,
  *   <a class="el" href="hdg_2ex41_8cpp_source.html">41</a> and
  *   <a class="el" href="hdg_2ex41p_8cpp_source.html">41p</a>,
- *   demonstrating the use of MFEM's \link darcyhybridization.hpp hybridization framework for mixed systems\endlink.
+ *   demonstrating the use of MFEM's \link mixed_system_hybridization.hpp hybridization framework for mixed systems\endlink.
  *
  * <H4>HiOp Examples</H4>
  * - Variants of Examples

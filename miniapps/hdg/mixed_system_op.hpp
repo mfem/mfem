@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#ifndef MFEM_HDG_DARCYOP
-#define MFEM_HDG_DARCYOP
+#ifndef MFEM_HDG_MIXED_SYSTEM_OP
+#define MFEM_HDG_MIXED_SYSTEM_OP
 
 #include "mfem.hpp"
 #include "../../general/socketstream.hpp"
@@ -22,7 +22,7 @@ namespace mfem
 namespace hdg
 {
 /// A helper operator for Darcy-like mixed systems
-/** Class DarcyOperator helps with construction of a spatial operator for
+/** Class MixedSystemOperator helps with construction of a spatial operator for
     mixed systems with (anti)symmetric weak form common for parabolic and
     elliptic problems. These can be written as:
     \verbatim
@@ -31,9 +31,9 @@ namespace hdg
         | B  Mp  || p | ̅  | bp |
         └        ┘└   ┘   └    ┘
     \endverbatim
-    following the notation of DarcyForm.
+    following the notation of MixedSystemForm.
 
-    The mixed system discretization provided through DarcyForm is solved
+    The mixed system discretization provided through MixedSystemForm is solved
     implicitly with an appropriate solver and preconditioner to provide
     time derivatives for time evolution of the system. Specifically,
     these configurations are set up:
@@ -41,35 +41,37 @@ namespace hdg
                      preconditioner for the flux mass and HypreBoomerAMG in
                      parallel for the Schur complement, or UMFPackSolver
                      / GSSmoother in serial (depending on availability and
-                     @a USE_DIRECT_SOLVER_SCHUR in darcyop.cpp).
+                     @a USE_DIRECT_SOLVER_SCHUR in mixed_system_op.cpp).
     - hybridized system - HypreBoomerAMG in parallel, or UMFPackSolver
                           / GSSmoother in serial (depending on availability
-                          and @a USE_DIRECT_SOLVER_HYBRIDIZATION in darcyop.cpp)
+                          and @a USE_DIRECT_SOLVER_HYBRIDIZATION in
+                          mixed_system_op.cpp)
     - reduced system - HypreBoomerAMG in parallel, or UMFPackSolver
                        / GSSmoother in serial (depending on availability
-                       and @a USE_DIRECT_SOLVER_REDUCTION in darcyop.cpp)
+                       and @a USE_DIRECT_SOLVER_REDUCTION in
+                       mixed_system_op.cpp)
 
-    Note that DarcyOperator uses a BlockVector (with offsets obtained through
-    GetOffsets()) for representation of the state, which has 3 components for
-    hybridized systems: flux, potential and trace unknowns. This construction
-    speeds up the solution procedure by providing an initial guess of the trace
-    unknows to the linear solver.
+    Note that MixedSystemOperator uses a BlockVector (with offsets obtained
+    through GetOffsets()) for representation of the state, which has 3
+    components for hybridized systems: flux, potential and trace unknowns. This
+    construction speeds up the solution procedure by providing an initial guess
+    of the trace unknows to the linear solver.
 
-    DarcyOperator also handles construction of the intertial term in time
+    MixedSystemOperator also handles construction of the intertial term in time
     evolving cases (indicated in the constructor), which is added to the
-    DarcyForm and its contribution is added to the right hand side as well
+    MixedSystemForm and its contribution is added to the right hand side as well
     every time step.
   */
-class DarcyOperator : public TimeDependentOperator
+class MixedSystemOperator : public TimeDependentOperator
 {
    Array<int> offsets;
    const Array<int> &ess_flux_tdofs_list;
-   DarcyForm *darcy;
+   MixedSystemForm *mixed_system;
    LinearForm *g{};
    LinearForm *f{};
    LinearForm *h{};
 #ifdef MFEM_USE_MPI
-   ParDarcyForm *pdarcy {};
+   ParMixedSystemForm *pmixed_system {};
    ParLinearForm *pg{};
    ParLinearForm *pf{};
    ParLinearForm *ph{};
@@ -95,14 +97,14 @@ class DarcyOperator : public TimeDependentOperator
 
    class SchurPreconditioner : public Solver
    {
-      const DarcyForm *darcy;
+      const MixedSystemForm *mixed_system;
 #ifdef MFEM_USE_MPI
-      const ParDarcyForm *pdarcy {};
+      const ParMixedSystemForm *pmixed_system {};
 #endif
       const Operator *op {};
 
       const char *prec_str;
-      mutable std::unique_ptr<BlockDiagonalPreconditioner> darcyPrec;
+      mutable std::unique_ptr<BlockDiagonalPreconditioner> schur_prec;
       mutable std::unique_ptr<SparseMatrix> S;
 #ifdef MFEM_USE_MPI
       mutable std::unique_ptr<HypreParMatrix> hS;
@@ -115,9 +117,9 @@ class DarcyOperator : public TimeDependentOperator
 #endif
 
    public:
-      SchurPreconditioner(const DarcyForm *darcy);
+      SchurPreconditioner(const MixedSystemForm *mixed_system);
 #ifdef MFEM_USE_MPI
-      SchurPreconditioner(const ParDarcyForm *darcy);
+      SchurPreconditioner(const ParMixedSystemForm *mixed_system);
 #endif
 
       const char *GetString() const { return prec_str; }
@@ -133,7 +135,7 @@ class DarcyOperator : public TimeDependentOperator
 public:
    /// Constructor
    /** @param ess_flux_tdofs_list      list of essential TDOFs for the flux
-       @param darcy                    discretization of the mixed system
+       @param mixed_system             discretization of the mixed system
        @param rhs                      right hand sides
        @param coeffs                   array of time-dependent coefficients
                                        that need to be updated for assembly
@@ -141,15 +143,16 @@ public:
        @param btime_u                  flag for time evolving flux
        @param btime_p                  flag for time evolving potential
     */
-   DarcyOperator(const Array<int> &ess_flux_tdofs_list, DarcyForm *darcy,
-                 std::vector<LinearForm*> rhs,
-                 std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
-                 bool btime_u = false, bool btime_p = false);
+   MixedSystemOperator(const Array<int> &ess_flux_tdofs_list,
+                       MixedSystemForm *mixed_system,
+                       std::vector<LinearForm*> rhs,
+                       std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
+                       bool btime_u = false, bool btime_p = false);
 
 #ifdef MFEM_USE_MPI
    /// Constructor (parallel)
    /** @param ess_flux_tdofs_list      list of essential TDOFs for the flux
-       @param darcy                    discretization of the mixed system
+       @param mixed_system             discretization of the mixed system
        @param rhs                      right hand side
        @param coeffs                   array of time-dependent coefficients
                                        that need to be updated for assembly
@@ -157,14 +160,15 @@ public:
        @param btime_u                  flag for time evolving flux
        @param btime_p                  flag for time evolving potential
     */
-   DarcyOperator(const Array<int> &ess_flux_tdofs_list, ParDarcyForm *darcy,
-                 std::vector<ParLinearForm*> rhs,
-                 std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
-                 bool btime_u = false, bool btime_p = false);
+   MixedSystemOperator(const Array<int> &ess_flux_tdofs_list,
+                       ParMixedSystemForm *mixed_system,
+                       std::vector<ParLinearForm*> rhs,
+                       std::vector<std::variant<Coefficient*,VectorCoefficient*>> coeffs,
+                       bool btime_u = false, bool btime_p = false);
 #endif
 
    /// Destructor
-   ~DarcyOperator();
+   ~MixedSystemOperator();
 
    /// Set the tolerance of iterative solvers
    void SetTolerance(real_t rtol_, real_t atol_ = 0.) { rtol = rtol_; atol = atol_; }
@@ -173,21 +177,22 @@ public:
    void SetMaxIters(int iters_) { max_iters = iters_; }
 
    /// Construct state vector offsets
-   /** Constructs state vector offsets corresponding to the DarcyForm @p darcy.
-       Note this includes trace unknonws for hybridized systems. */
-   static Array<int> ConstructOffsets(const DarcyForm &darcy);
+   /** Constructs state vector offsets corresponding to the MixedSystemForm
+       @p mixed_system. Note this includes trace unknonws for hybridized
+       systems. */
+   static Array<int> ConstructOffsets(const MixedSystemForm &mixed_system);
 
    /// Get the state vector offsets
    /** @see ConstructOffsets() */
    inline const Array<int>& GetOffsets() const { return offsets; }
 
-   /// Get the associated DarcyForm
-   inline const DarcyForm& GetDarcyForm() const { return *darcy; }
+   /// Get the associated MixedSystemForm
+   inline const MixedSystemForm& GetMixedSystemForm() const { return *mixed_system; }
 
 #ifdef MFEM_USE_MPI
-   /// Get the associated ParDarcyForm
-   inline const ParDarcyForm& GetParDarcyForm() const
-   { MFEM_VERIFY(pdarcy, "No ParDarcyForm!"); return *pdarcy; }
+   /// Get the associated ParMixedSystemForm
+   inline const ParMixedSystemForm& GetParMixedSystemForm() const
+   { MFEM_VERIFY(pmixed_system, "No ParMixedSystemForm!"); return *pmixed_system; }
 #endif
 
    void ImplicitSolve(const real_t dt, const Vector &x, Vector &k) override;
@@ -199,4 +204,4 @@ public:
 } // namespace hdg
 } // namespace mfem
 
-#endif // MFEM_HDG_DARCYOP
+#endif // MFEM_HDG_MIXED_SYSTEM_OP

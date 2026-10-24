@@ -128,13 +128,13 @@ The MFEM source code has the following structure:
   │   └── superlu
   ├── fem
   │   ├── ceed
-  │   ├── darcy
   │   ├── dfem
   │   ├── eltrans
   │   ├── fe
   │   ├── gslib
   │   ├── integ
   │   ├── lor
+  │   ├── mixed_system
   │   ├── moonolith
   │   ├── qinterp
   │   └── tmop
