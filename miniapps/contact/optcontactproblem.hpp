@@ -66,9 +66,10 @@ private:
    /// Gap vector on contact interface.
    Vector gapv;
 
-   /// Mortar and non-mortar attribute sets.
-   std::set<int> mortar_attrs;
-   std::set<int> nonmortar_attrs;
+   /// (mortar, non-mortar) attribute sets, one pair per contact interface.
+   /// Each interface is handled by its own Tribol coupling scheme so that
+   /// faces of different interfaces are never paired with each other.
+   std::vector<std::pair<std::set<int>, std::set<int>>> contact_pairs;
 
    /// Negative identity matrix (used in constraints).
    HypreParMatrix * NegId = nullptr;
@@ -94,6 +95,26 @@ private:
    /// Compute gap and its Jacobian using Tribol.
    void ComputeGapJacobian();
 
+   struct FilteredContactMatrix
+   {
+      SparseMatrix *diag = nullptr;
+      SparseMatrix *offd = nullptr;
+      HYPRE_BigInt *offd_cmap = nullptr;
+      HYPRE_BigInt row_starts[2];
+      HYPRE_BigInt col_starts[2];
+      HYPRE_BigInt global_num_rows = 0;
+      HYPRE_BigInt global_num_cols = 0;
+      HYPRE_Int offd_num_cols = 0;
+   };
+
+   /// Filter inactive contact rows and compact the associated gap and lumped
+   /// contact surface mass data.
+   FilteredContactMatrix FilterContactMatrixAndGap(
+      HypreParMatrix &contact_matrix,
+      ParFiniteElementSpace &pfes,
+      int coupling_scheme_id,
+      Vector &gap, Vector &mcslump);
+
    /// Constraint partition offsets (for distributed data).
    Array<HYPRE_BigInt> constraints_starts;
 
@@ -116,19 +137,13 @@ private:
    /// Cached constraint Jacobian with bounds.
    HypreParMatrix * dcdu = nullptr;
 
-   /// Mass matrix in the volume.
-   HypreParMatrix * Mv = nullptr;
-
-   /// Mass matrix on the contact surface.
-   HypreParMatrix * Mcs = nullptr;
-
    /// Lumped volume mass vector.
    Vector Mvlump;
 
    /// Lumped contact surface mass (full).
    Vector Mcslumpfull;
 
-   /// Lumped contact surface mass (reduced).
+   /// Lumped contact surface mass (reduced, one entry per gap constraint).
    Vector Mcslump;
 
    /// Bound displacement vector for constraints.
@@ -156,6 +171,14 @@ public:
    OptContactProblem(ElasticityOperator * problem_,
                      const std::set<int> & mortar_attrs_,
                      const std::set<int> & nonmortar_attrs_,
+                     real_t tribol_ratio_,
+                     bool bound_constraints_);
+
+   /// Construct with several contact interfaces given as (mortar, non-mortar)
+   /// attribute set pairs.
+   OptContactProblem(ElasticityOperator * problem_,
+                     const std::vector<std::pair<std::set<int>, std::set<int>>> &
+                     contact_pairs_,
                      real_t tribol_ratio_,
                      bool bound_constraints_);
 
@@ -231,12 +254,14 @@ public:
    /// Activate bound constraints (if enabled).
    void ActivateBoundConstraints();
 
-   /// Get Gap and its Jacobian from Tribol.
+   /// Get Gap, its Jacobian and the lumped contact surface mass from Tribol
+   /// for a single contact interface.
    HypreParMatrix *  SetupTribol(ParMesh * pmesh, ParGridFunction * coords,
                                  const Array<int> & ess_tdofs,
                                  const std::set<int> & mortar_attrs,
                                  const std::set<int> & non_mortar_attrs,
-                                 Vector &gap,  real_t tribol_ratio);
+                                 Vector &gap, Vector &mcslump,
+                                 real_t tribol_ratio);
 
    /// Get lumped mass weights for contact and volume spaces.
    void GetLumpedMassWeights(Vector & Mcslump_, Vector & Mvlump_)

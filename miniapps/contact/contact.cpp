@@ -28,6 +28,10 @@
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
+// Problem 3: onion, 9 nested spherical shells (linear elasticity)
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -no-amgf
+
 // Description:
 // This miniapp solves benchmark frictionless contact problems using a
 // self-contained Interior Point (IP) optimizer. Contact constraints
@@ -38,9 +42,9 @@
 
 // Notes:
 //  1. Non-linear elasticity is supported only for -prob 2. If -nonlin is
-//     requested for -prob 0/1, the app falls back to the linear model.
-//  2. The required meshes for -prob 0,1 are generated on the fly. For -prob 2,
-//     the mesh is constructed from the file ./meshes/beam-sphere.mesh.
+//     requested for -prob 0/1/3, the app falls back to the linear model.
+//  2. The meshes for -prob 0,1,3 are generated on the fly. For -prob 2,
+//     the mesh is read from ./meshes/beam-sphere.mesh.
 //  3. AMGF requires a parallel direct solver for the filtered subspace; build
 //     MFEM with MUMPS or MKL CPardiso. If unavailable, requesting -amgf aborts
 //     with an error.
@@ -48,8 +52,14 @@
 //     available at https://github.com/LLNL/Tribol.
 
 #include "mfem.hpp"
+#include <array>
+#include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <string>
+#include <utility>
+#include <vector>
 #include "ip.hpp"
 #include "solver_utils.hpp"
 
@@ -60,10 +70,131 @@ enum problem_name
 {
    twoblock,
    ironing,
-   beamsphere
+   beamsphere,
+   onion
 };
 
 Mesh * GetProblemMesh(problem_name prob_name);
+Mesh * MakeOnionMesh();
+
+template <typename T>
+void PrintAMGOption(const char *option, const T &value)
+{
+   const int option_width = 28;
+   cout << "  " << left << setw(option_width) << option << value << endl;
+}
+
+void PrintAMGIntOption(const char *option, HYPRE_Solver solver,
+                       HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Int *))
+{
+   HYPRE_Int value = 0;
+   const HYPRE_Int ierr = getter(solver, &value);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGRealOption(const char *option, HYPRE_Solver solver,
+                        HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Real *))
+{
+   HYPRE_Real value = 0.0;
+   const HYPRE_Int ierr = getter(solver, &value);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGCycleIntOption(const char *option, HYPRE_Solver solver,
+                            HYPRE_Int cycle,
+                            HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Int *,
+                                                HYPRE_Int))
+{
+   HYPRE_Int value = 0;
+   const HYPRE_Int ierr = getter(solver, &value, cycle);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGOptions(const HypreBoomerAMG &amg,
+                     const char *preconditioner,
+                     int amg_agg_levels,
+                     const char *amgf_fsolver = nullptr)
+{
+   const int option_width = 28;
+   HYPRE_Solver solver = amg;
+
+   cout << "BoomerAMG options from configured object:" << endl
+        << "  " << left << setw(option_width) << "option" << "value" << endl
+        << "  " << left << setw(option_width) << "preconditioner"
+        << preconditioner << endl;
+
+   if (amgf_fsolver)
+   {
+      PrintAMGOption("filtered-solver", amgf_fsolver);
+   }
+
+   PrintAMGIntOption("num-functions", solver, HYPRE_BoomerAMGGetNumFunctions);
+   PrintAMGIntOption("converge-type", solver, HYPRE_BoomerAMGGetConvergeType);
+   PrintAMGRealOption("tol", solver, HYPRE_BoomerAMGGetTol);
+   PrintAMGIntOption("max-iter", solver, HYPRE_BoomerAMGGetMaxIter);
+   PrintAMGIntOption("max-coarse-size", solver,
+                     HYPRE_BoomerAMGGetMaxCoarseSize);
+   PrintAMGIntOption("min-coarse-size", solver,
+                     HYPRE_BoomerAMGGetMinCoarseSize);
+   PrintAMGIntOption("max-levels", solver, HYPRE_BoomerAMGGetMaxLevels);
+   PrintAMGIntOption("coarsen-cut-factor", solver,
+                     HYPRE_BoomerAMGGetCoarsenCutFactor);
+   PrintAMGRealOption("strong-threshold", solver,
+                      HYPRE_BoomerAMGGetStrongThreshold);
+   PrintAMGRealOption("strong-threshold-r", solver,
+                      HYPRE_BoomerAMGGetStrongThresholdR);
+   PrintAMGRealOption("filter-threshold-r", solver,
+                      HYPRE_BoomerAMGGetFilterThresholdR);
+   PrintAMGRealOption("max-row-sum", solver, HYPRE_BoomerAMGGetMaxRowSum);
+   PrintAMGIntOption("coarsen-type", solver, HYPRE_BoomerAMGGetCoarsenType);
+   PrintAMGOption("aggressive-levels", amg_agg_levels);
+   HYPRE_Int interp_type = 0;
+   const HYPRE_Int interp_ierr =
+      hypre_BoomerAMGGetInterpType((void *)solver, &interp_type);
+   PrintAMGOption("interpolation-type",
+                  interp_ierr ? "unavailable" : to_string(interp_type));
+   PrintAMGIntOption("measure-type", solver, HYPRE_BoomerAMGGetMeasureType);
+   PrintAMGRealOption("trunc-factor", solver, HYPRE_BoomerAMGGetTruncFactor);
+   PrintAMGIntOption("p-max-elmts", solver, HYPRE_BoomerAMGGetPMaxElmts);
+   PrintAMGIntOption("cycle-type", solver, HYPRE_BoomerAMGGetCycleType);
+   PrintAMGIntOption("f-cycle", solver, HYPRE_BoomerAMGGetFCycle);
+   PrintAMGIntOption("additive", solver, HYPRE_BoomerAMGGetAdditive);
+   PrintAMGIntOption("mult-additive", solver, HYPRE_BoomerAMGGetMultAdditive);
+   PrintAMGIntOption("simple", solver, HYPRE_BoomerAMGGetSimple);
+   PrintAMGIntOption("seq-threshold", solver, HYPRE_BoomerAMGGetSeqThreshold);
+   PrintAMGIntOption("redundant", solver, HYPRE_BoomerAMGGetRedundant);
+   PrintAMGCycleIntOption("num-sweeps-down", solver, 1,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("num-sweeps-up", solver, 2,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("num-sweeps-coarse", solver, 3,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("relax-type-down", solver, 1,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGCycleIntOption("relax-type-up", solver, 2,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGCycleIntOption("relax-type-coarse", solver, 3,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGIntOption("smooth-type", solver, HYPRE_BoomerAMGGetSmoothType);
+   PrintAMGIntOption("smooth-num-levels", solver,
+                     HYPRE_BoomerAMGGetSmoothNumLevels);
+   PrintAMGIntOption("smooth-num-sweeps", solver,
+                     HYPRE_BoomerAMGGetSmoothNumSweeps);
+   PrintAMGIntOption("variant", solver, HYPRE_BoomerAMGGetVariant);
+   PrintAMGIntOption("overlap", solver, HYPRE_BoomerAMGGetOverlap);
+   PrintAMGIntOption("domain-type", solver, HYPRE_BoomerAMGGetDomainType);
+   PrintAMGRealOption("schwarz-relax-weight", solver,
+                      HYPRE_BoomerAMGGetSchwarzRlxWeight);
+   PrintAMGIntOption("print-level", solver, HYPRE_BoomerAMGGetPrintLevel);
+   PrintAMGIntOption("logging", solver, HYPRE_BoomerAMGGetLogging);
+   PrintAMGIntOption("debug-flag", solver, HYPRE_BoomerAMGGetDebugFlag);
+   PrintAMGIntOption("post-interp-type", solver,
+                     HYPRE_BoomerAMGGetPostInterpType);
+   PrintAMGRealOption("jacobi-trunc-threshold", solver,
+                      HYPRE_BoomerAMGGetJacobiTruncThreshold);
+
+   cout << right;
+}
 
 int main(int argc, char *argv[])
 {
@@ -94,6 +225,8 @@ int main(int argc, char *argv[])
    int nsteps = 1;
    // number of times steps in the x-direction (problem 1)
    int msteps = 0;
+   // Maximum number of iterations for the optimizer
+   int opt_maxit = 100;
    // Use non-linear elasticity (only for problem 2)
    bool nonlinear = false;
    // Tribol search proximity ratio
@@ -104,6 +237,16 @@ int main(int argc, char *argv[])
    // Direct solver for AMGF filtered subspace
    // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
    const char *amgf_fsolver = "auto";
+   // BoomerAMG options. Defaults match MFEM/HYPRE's GPU-oriented defaults.
+   int amg_coarsen_type = 8;
+   int amg_agg_levels = 0;
+   int amg_interp_type = 6;
+   int amg_relax_type = 18;
+   bool amg_print_options = false;
+   // Device configuration string.
+   const char *device_config = "cpu";
+   // Use full assembly for the linear elasticity stiffness matrix.
+   bool elasticity_fa = false;
 
 
    // 1. Parse command-line options.
@@ -112,11 +255,14 @@ int main(int argc, char *argv[])
                   "Choice of problem:"
                   "0: two-block problem"
                   "1: ironing problem"
-                  "2: beam-sphere problem");
+                  "2: beam-sphere problem"
+                  "3: onion problem");
    args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
                   "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
                   "Number of uniform refinements.");
+   args.AddOption(&opt_maxit, "-opt-maxit", "--optimizer-max-iterations",
+                  "Maximum number of iterations for the optimizer.");
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
    args.AddOption(&msteps, "-msteps", "--msteps",
@@ -128,12 +274,33 @@ int main(int argc, char *argv[])
    args.AddOption(&amgf_fsolver, "-amgf-fsolver", "--amgf-filtered-solver",
                   "Direct solver for AMGF filtered subspace.\n"
                   "Choices: auto, mumps, cpardiso, superlu, strumpack.");
+   args.AddOption(&amg_coarsen_type, "-amg-coarsen-type",
+                  "--amg-coarsen-type",
+                  "BoomerAMG coarsening type.");
+   args.AddOption(&amg_agg_levels, "-amg-agg-levels",
+                  "--amg-agg-levels",
+                  "BoomerAMG number of aggressive coarsening levels.");
+   args.AddOption(&amg_interp_type, "-amg-interp-type",
+                  "--amg-interpolation-type",
+                  "BoomerAMG interpolation type.");
+   args.AddOption(&amg_relax_type, "-amg-relax-type",
+                  "--amg-relax-type",
+                  "BoomerAMG relaxation/smoother type.");
+   args.AddOption(&amg_print_options, "-amg-print-options",
+                  "--amg-print-options", "-no-amg-print-options",
+                  "--no-amg-print-options",
+                  "Print BoomerAMG options configured by this miniapp.");
+   args.AddOption(&elasticity_fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly",
+                  "Use full assembly for the linear elasticity stiffness matrix.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&tribol_ratio, "-tr", "--tribol-proximity-parameter",
                   "Tribol-proximity-parameter.");
 
@@ -151,9 +318,12 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   Device device(device_config);
+   if (myid == 0) { device.Print(); }
+
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
-               prob_no <= 2, "Unknown test problem number: " << prob_no);
+               prob_no <= 3, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
 
@@ -162,11 +332,17 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-         cout << "Non-linear elasticity not supported for the two-block and ironing problems"
+         cout << "Non-linear elasticity is only supported for the beam-sphere problem"
               << endl;
          cout << "Switching to the linear model ..." << endl;
       }
       nonlinear = false;
+   }
+   if (nonlinear && elasticity_fa && myid == 0)
+   {
+      cout << "Full assembly is only used by the linear elasticity model; "
+           << "the nonlinear operator will use its existing assembly path."
+           << endl;
    }
 
    // Bound constraints are used only for the non-linear case
@@ -219,6 +395,14 @@ int main(int argc, char *argv[])
          E = 1.e3;
          nu = 0.4;
          break;
+      case onion:
+         // symmetry planes x = 0, y = 0, z = 0
+         ess_bdr_attr.Append(21); ess_bdr_attr_comp.Append(0);
+         ess_bdr_attr.Append(22); ess_bdr_attr_comp.Append(1);
+         ess_bdr_attr.Append(23); ess_bdr_attr_comp.Append(2);
+         E = 1.e3;
+         nu = 0.33;
+         break;
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -227,7 +411,7 @@ int main(int argc, char *argv[])
    // 6. Build the elasticity problem object (linear or non-linear).
    // It owns the FE space and will assemble the stiffness and RHS.
    ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E, nu,
-                           nonlinear);
+                           nonlinear, elasticity_fa);
 
    ParFiniteElementSpace * fes = prob.GetFESpace();
    HYPRE_BigInt gndofs = fes->GlobalTrueVSize();
@@ -235,24 +419,33 @@ int main(int argc, char *argv[])
    {
       mfem::out << "\n --------------------------------------" << endl;
       mfem::out << "  Global number of dofs = " << gndofs << endl;
+      mfem::out << "  Elasticity assembly   = "
+                << (elasticity_fa && !nonlinear ? "full" : "legacy") << endl;
+      mfem::out << "  RHS assembly          = "
+                << (prob.UsesFastRHSAssembly() ? "fast" : "legacy") << endl;
       mfem::out << " --------------------------------------" << endl;
    }
 
-   // 7. Set up the contact interface for Tribol.
-   std::set<int> mortar_attr;
-   std::set<int> nonmortar_attr;
+   // 7. Set up the contact interfaces for Tribol. Each (mortar, non-mortar)
+   // pair is handled by its own Tribol coupling scheme.
+   std::vector<std::pair<std::set<int>, std::set<int>>> contact_pairs;
    switch (prob_name)
    {
       case twoblock:
       case  ironing:
-         mortar_attr.insert(3);
-         nonmortar_attr.insert(4);
+         contact_pairs.push_back({{3}, {4}});
          break;
       case beamsphere:
-         mortar_attr.insert(6);
-         mortar_attr.insert(9);
-         nonmortar_attr.insert(7);
-         nonmortar_attr.insert(8);
+         contact_pairs.push_back({{6, 9}, {7, 8}});
+         break;
+      case onion:
+         // interfaces between consecutive shells: outer surface of shell k
+         // (mortar, attr 2k) and inner surface of shell k+1 (non-mortar,
+         // attr 2k+1)
+         for (int a = 2; a <= 16; a += 2)
+         {
+            contact_pairs.push_back({{a}, {a+1}});
+         }
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -301,16 +494,16 @@ int main(int argc, char *argv[])
    pmesh.GetNodes(new_coords);
    pmesh.GetNodes(ref_coords);
 
-   // Load magnitude for problem 2 (beam-sphere).
-   real_t p = 40.0;
+   // Load magnitude for problems 2 (beam-sphere) and 3 (onion).
+   real_t p = (prob_name == problem_name::onion) ? 30.0 : 40.0;
    ConstantCoefficient f(p);
 
    // 8. Construct the contact optimization problem wrapper. It sets up the
    // contact system using Tribol and provides operators for objective evaluation,
    // gradients, Hessians, and constraints. It also provides the filtered subspace
    // transfer operator used by AMGF
-   OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
-                             tribol_ratio, bound_constraints);
+   OptContactProblem contact(&prob, contact_pairs, tribol_ratio,
+                             bound_constraints);
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim); ess_values = 0.0;
@@ -360,6 +553,21 @@ int main(int argc, char *argv[])
             f.constant = -p*(i+1)/nsteps;
             prob.SetNeumannPressureData(f,ess_bdr);
             break;
+         case onion:
+            // equal pressure on the innermost (attr 1) and outermost
+            // (attr 18) surfaces
+            f.constant = -p*(i+1)/nsteps;
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[0] = 1;
+            }
+            prob.SetNeumannPressureData(f,ess_bdr);
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[17] = 1;
+            }
+            prob.SetNeumannPressureData(f,ess_bdr);
+            break;
          default:
             MFEM_ABORT("Should be unreachable");
             break;
@@ -370,6 +578,7 @@ int main(int argc, char *argv[])
 
       // Store the current (reference) displacement in true dofs.
       Vector xref;
+      xref.UseDevice(true);
       x_gf.GetTrueDofs(xref);
 
       // 9(c). Form the contact system. This also builds the filtered subspace
@@ -386,20 +595,21 @@ int main(int argc, char *argv[])
       // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
       Solver * prec = nullptr;
       ParallelDirectSolver * subspacesolver = nullptr;
-#if MFEM_HYPRE_VERSION >= 23000
-      // new l1-hybrid symmetric Gauss-Seidel smoother
-      int amg_relax_type = 88;
-#else
-      int amg_relax_type = (!amgf && prob_name==problem_name::ironing) ? 18 : 8;
-#endif
-
       if (amgf)
       {
-         prec = new AMGFSolver();
-         auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
+         auto *amgfprec = new AMGFSolver();
+         prec = amgfprec;
          amgfprec->GetAMG().SetSystemsOptions(3);
+         amgfprec->GetAMG().SetCoarsening(amg_coarsen_type);
+         amgfprec->GetAMG().SetAggressiveCoarsening(amg_agg_levels);
+         amgfprec->GetAMG().SetInterpolation(amg_interp_type);
          amgfprec->GetAMG().SetPrintLevel(0);
          amgfprec->GetAMG().SetRelaxType(amg_relax_type);
+         if (amg_print_options && myid == 0)
+         {
+            PrintAMGOptions(amgfprec->GetAMG(), "AMGF", amg_agg_levels,
+                            amgf_fsolver);
+         }
          subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
          subspacesolver->SetPrintLevel(0);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
@@ -408,16 +618,23 @@ int main(int argc, char *argv[])
       }
       else
       {
-         prec = new HypreBoomerAMG();
-         auto * amgprec = dynamic_cast<HypreBoomerAMG *>(prec);
+         auto *amgprec = new HypreBoomerAMG();
+         prec = amgprec;
          amgprec->SetSystemsOptions(3);
+         amgprec->SetCoarsening(amg_coarsen_type);
+         amgprec->SetAggressiveCoarsening(amg_agg_levels);
+         amgprec->SetInterpolation(amg_interp_type);
          amgprec->SetPrintLevel(0);
          amgprec->SetRelaxType(amg_relax_type);
+         if (amg_print_options && myid == 0)
+         {
+            PrintAMGOptions(*amgprec, "AMG", amg_agg_levels);
+         }
       }
 
       // 9(f). Linear solver used inside the IP optimizer.
       CGSolver cgsolver(MPI_COMM_WORLD);
-      cgsolver.SetPrintLevel(0);
+      cgsolver.SetPrintLevel(3);
       cgsolver.SetRelTol(1e-10);
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
@@ -425,25 +642,25 @@ int main(int argc, char *argv[])
       // 9(g). Interior-Point optimizer driving contact resolution.
       IPSolver optimizer(&contact);
       optimizer.SetTol(1e-6);
-      optimizer.SetMaxIter(100);
+      optimizer.SetMaxIter(opt_maxit);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetPrintLevel(0);
 
       // Initial guess = previous reference configuration.
       x_gf.SetTrueVector();
       int ndofs = prob.GetFESpace()->GetTrueVSize();
-      Vector x0(ndofs); x0 = 0.0;
+      Vector x0(ndofs); x0.UseDevice(true); x0 = 0.0;
       x0.Set(1.0, xref);
 
       // Solve for the next step displacement (xf).
-      Vector xf(ndofs); xf = 0.0;
+      Vector xf(ndofs); xf.UseDevice(true); xf = 0.0;
       optimizer.Mult(x0, xf);
 
       delete prec;
       if (subspacesolver) { delete subspacesolver; }
 
       // Update internal state for next step (for bound constraints).
-      Vector dx(xf); dx -= x0;
+      Vector dx(xf); dx.UseDevice(true); dx -= x0;
       if (bound_constraints)
       {
          contact.SetDisplacement(dx, (i>=activation_step));
@@ -515,6 +732,10 @@ Mesh * GetProblemMesh(problem_name prob_name)
    if (prob_name == problem_name::beamsphere)
    {
       return new Mesh("meshes/beam-sphere.mesh",1);
+   }
+   else if (prob_name == problem_name::onion)
+   {
+      return MakeOnionMesh();
    }
    else // construct the two-block or ironing mesh
    {
@@ -633,4 +854,120 @@ Mesh * GetProblemMesh(problem_name prob_name)
 
       return combined_mesh;
    }
+}
+
+// Generate nine disconnected spherical octant shells. Distinct surface meshes
+// at each shared radius are intentional: Tribol owns the eight interfaces.
+Mesh * MakeOnionMesh()
+{
+   // Keep the element count close to the former mesh while giving neighboring
+   // shells different surface resolutions for nonmatching mortar interfaces.
+   constexpr int angular_cells[9] = {16, 17, 17, 17, 18, 18, 19, 19, 19};
+   Mesh *mesh = new Mesh(3, 0, 0);
+
+   for (int shell = 0; shell < 9; ++shell)
+   {
+      const int n = angular_cells[shell];
+      const int radial_cells = shell < 4 ? 2 : 1;
+      const int side = n + 1;
+      const auto flat = [side](int i, int j, int k)
+      {
+         return (i * side + j) * side + k;
+      };
+
+      // Three square faces of the positive octant of a cube map to a sphere.
+      // The shared edges use one vertex, while different shells do not share
+      // vertices, including where their radii coincide.
+      std::vector<int> surface_index(side * side * side, -1);
+      std::vector<std::array<int, 3>> directions;
+      for (int i = 0; i <= n; ++i)
+      {
+         for (int j = 0; j <= n; ++j)
+         {
+            for (int k = 0; k <= n; ++k)
+            {
+               if (i != n && j != n && k != n) { continue; }
+               surface_index[flat(i, j, k)] = directions.size();
+               directions.push_back({i, j, k});
+            }
+         }
+      }
+
+      std::vector<std::vector<int>> vertex(radial_cells + 1,
+                                           std::vector<int>(directions.size()));
+      for (int layer = 0; layer <= radial_cells; ++layer)
+      {
+         const real_t radius = 5.5 + 0.5 * shell +
+                               0.5 * layer / radial_cells;
+         for (int d = 0; d < static_cast<int>(directions.size()); ++d)
+         {
+            const auto &p = directions[d];
+            const real_t scale = radius / std::sqrt(real_t(p[0] * p[0] +
+                                                           p[1] * p[1] +
+                                                           p[2] * p[2]));
+            vertex[layer][d] = mesh->AddVertex(scale * p[0], scale * p[1],
+                                               scale * p[2]);
+         }
+      }
+
+      const auto face_point = [n](int face, int u, int v)
+      {
+         if (face == 0) { return std::array<int, 3> {n, u, v}; }
+         if (face == 1) { return std::array<int, 3> {u, n, v}; }
+         return std::array<int, 3> {u, v, n};
+      };
+      for (int face = 0; face < 3; ++face)
+      {
+         for (int u = 0; u < n; ++u)
+         {
+            for (int v = 0; v < n; ++v)
+            {
+               std::array<std::array<int, 3>, 4> p = {{
+                     face_point(face, u, v), face_point(face, u + 1, v),
+                     face_point(face, u + 1, v + 1), face_point(face, u, v + 1)
+                  }
+               };
+               if (face == 1) { std::swap(p[1], p[3]); }
+
+               for (int layer = 0; layer < radial_cells; ++layer)
+               {
+                  int inner[4], outer[4];
+                  for (int c = 0; c < 4; ++c)
+                  {
+                     const int id = surface_index[flat(p[c][0], p[c][1], p[c][2])];
+                     inner[c] = vertex[layer][id];
+                     outer[c] = vertex[layer + 1][id];
+                  }
+                  mesh->AddHex(inner[0], inner[1], inner[2], inner[3],
+                               outer[0], outer[1], outer[2], outer[3], shell + 1);
+                  if (layer == 0)
+                  {
+                     mesh->AddBdrQuad(inner[3], inner[2], inner[1], inner[0],
+                                      2 * shell + 1);
+                  }
+                  if (layer == radial_cells - 1)
+                  {
+                     mesh->AddBdrQuad(outer[0], outer[1], outer[2], outer[3],
+                                      2 * shell + 2);
+                  }
+                  for (int edge = 0; edge < 4; ++edge)
+                  {
+                     const int next = (edge + 1) % 4;
+                     for (int axis = 0; axis < 3; ++axis)
+                     {
+                        if (p[edge][axis] == 0 && p[next][axis] == 0)
+                        {
+                           mesh->AddBdrQuad(inner[edge], inner[next],
+                                            outer[next], outer[edge], 21 + axis);
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   mesh->FinalizeHexMesh(1, 1);
+   return mesh;
 }

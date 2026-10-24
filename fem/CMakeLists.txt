@@ -40,6 +40,7 @@ set(SRCS
   integ/bilininteg_vecdiffusion_mf.cpp
   integ/bilininteg_vecdiffusion_pa.cpp
   integ/bilininteg_vecdiv_pa.cpp
+  integ/bilininteg_vecmass_ea.cpp
   integ/bilininteg_vecmass_mf.cpp
   integ/bilininteg_vecmass_pa.cpp
   integ/bilininteg_vectorfediv_pa.cpp

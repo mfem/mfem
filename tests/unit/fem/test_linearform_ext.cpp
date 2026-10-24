@@ -46,7 +46,8 @@ struct LinearFormExtTest
 {
    enum { DLFEval, QLFEval, DLFGrad, // scalar domain
           VDLFEval, VQLFEval, VDLFGrad, // vector domain
-          BLFEval, BNLFEval // boundary
+          BLFEval, BNLFEval, // boundary
+          VBFLFEval // vector boundary
         };
    const double abs_tol = 1e-14, rel_tol = 1e-14;
    const char *mesh_filename;
@@ -150,16 +151,23 @@ struct LinearFormExtTest
          lfi_dev = new BoundaryNormalLFIntegrator(dim_fn_coeff);
          lfi_std = new BoundaryNormalLFIntegrator(dim_fn_coeff);
       }
+      else if (problem == VBFLFEval)
+      {
+         lfi_dev = new VectorBoundaryFluxLFIntegrator(fn_coeff, -0.5);
+         lfi_std = new VectorBoundaryFluxLFIntegrator(fn_coeff, -0.5);
+      }
       else { REQUIRE(false); }
 
-      if (problem != QLFEval && problem != VQLFEval && problem != BLFEval &&
-          problem != BNLFEval)
+      const bool boundary = problem == BLFEval || problem == BNLFEval ||
+                            problem == VBFLFEval;
+
+      if (problem != QLFEval && problem != VQLFEval && !boundary)
       {
          lfi_dev->SetIntRule((qtype == Lobatto) ? irGLL : ir);
          lfi_std->SetIntRule((qtype == Lobatto) ? irGLL : ir);
       }
 
-      if (problem != BLFEval && problem != BNLFEval)
+      if (!boundary)
       {
          lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
          lf_std.AddDomainIntegrator(lfi_std, elem_marker);
@@ -231,6 +239,16 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [GPU]")
                                     LinearFormExtTest::VQLFEval,
                                     LinearFormExtTest::VDLFGrad);
       LinearFormExtTest(mesh_file, vdim, ordering, qtype, problem, p).Run();
+   }
+
+   SECTION("Vector boundary flux")
+   {
+      // The vector dimension must equal the mesh dimension. The quadrature
+      // type is not used by the boundary integrators.
+      const int dim = Mesh::LoadFromFile(mesh_file).Dimension();
+      const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
+      LinearFormExtTest(mesh_file, dim, ordering, Legendre,
+                        LinearFormExtTest::VBFLFEval, p).Run();
    }
 
    SECTION("SetIntPoint")
