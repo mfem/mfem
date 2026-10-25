@@ -30,7 +30,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
       const int pa = pa_data.Size() / (nq * ne);
       MFEM_VERIFY(pa == (symmetric ? (dim * (dim + 1)) / 2 : dim * dim), "");
       const auto G = Reshape(mma_G.Read(), nq, nd, dim);
-      const auto D = Reshape(pa_data.Read(), nq, pa, ne);
+      const auto P = Reshape(pa_data.Read(), nq, pa, ne);
       auto Y = Reshape(diag.ReadWrite(), nd, ne);
       const int dim_c = dim;
       const bool sym = symmetric;
@@ -44,17 +44,17 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
                if (dim_c == 2)
                {
                   const real_t g0 = G(q, i, 0), g1 = G(q, i, 1);
-                  const real_t a00 = D(q, 0, e);
+                  const real_t a00 = P(q, 0, e);
                   if (sym)
                   {
-                     const real_t a10 = D(q, 1, e), a11 = D(q, 2, e);
+                     const real_t a10 = P(q, 1, e), a11 = P(q, 2, e);
                      s += g0 * (a00 * g0 + a10 * g1) +
                           g1 * (a10 * g0 + a11 * g1);
                   }
                   else
                   {
-                     const real_t a01 = D(q, 1, e), a10 = D(q, 2, e),
-                                  a11 = D(q, 3, e);
+                     const real_t a01 = P(q, 1, e), a10 = P(q, 2, e),
+                                  a11 = P(q, 3, e);
                      s += g0 * (a00 * g0 + a01 * g1) +
                           g1 * (a10 * g0 + a11 * g1);
                   }
@@ -65,21 +65,21 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
                   real_t Ag[3];
                   if (sym)
                   {
-                     const real_t a00 = D(q, 0, e), a01 = D(q, 1, e),
-                                  a02 = D(q, 2, e), a11 = D(q, 3, e),
-                                  a12 = D(q, 4, e), a22 = D(q, 5, e);
+                     const real_t a00 = P(q, 0, e), a01 = P(q, 1, e),
+                                  a02 = P(q, 2, e), a11 = P(q, 3, e),
+                                  a12 = P(q, 4, e), a22 = P(q, 5, e);
                      Ag[0] = a00 * g[0] + a01 * g[1] + a02 * g[2];
                      Ag[1] = a01 * g[0] + a11 * g[1] + a12 * g[2];
                      Ag[2] = a02 * g[0] + a12 * g[1] + a22 * g[2];
                   }
                   else
                   {
-                     Ag[0] = D(q, 0, e) * g[0] + D(q, 1, e) * g[1] +
-                             D(q, 2, e) * g[2];
-                     Ag[1] = D(q, 3, e) * g[0] + D(q, 4, e) * g[1] +
-                             D(q, 5, e) * g[2];
-                     Ag[2] = D(q, 6, e) * g[0] + D(q, 7, e) * g[1] +
-                             D(q, 8, e) * g[2];
+                     Ag[0] = P(q, 0, e) * g[0] + P(q, 1, e) * g[1] +
+                             P(q, 2, e) * g[2];
+                     Ag[1] = P(q, 3, e) * g[0] + P(q, 4, e) * g[1] +
+                             P(q, 5, e) * g[2];
+                     Ag[2] = P(q, 6, e) * g[0] + P(q, 7, e) * g[1] +
+                             P(q, 8, e) * g[2];
                   }
                   s += g[0] * Ag[0] + g[1] * Ag[1] + g[2] * Ag[2];
                }
