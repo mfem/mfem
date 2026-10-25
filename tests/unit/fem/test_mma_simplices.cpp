@@ -628,7 +628,6 @@ static void fvec_dim(const Vector &xvec, Vector &v)
 }
 
 /** ir_order < 0: default (use_2p_ir ? 2*GetOrder() : GetRule). */
- */
 void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p,
                                          bool hcurl,
                                          bool use_2p_ir, int ir_order = -1)

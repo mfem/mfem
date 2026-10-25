@@ -1058,7 +1058,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    }
 }
 
-/** C(M,N) =[/+=] A(M,K)*B(K,N). A is DeviceMatrix(M,K). Sibling of InterpYt2D. */
+/** C(M,N) =[/+=] A(M,K)*B(K,N). Sibling of InterpYt2D. */
 template <bool ACCUM>
 MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
                                       const int N, const real_t *A,
