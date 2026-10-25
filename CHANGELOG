@@ -32,6 +32,9 @@ Linear and nonlinear solvers
 
 Miscellaneous
 -------------
+- Fixed the Umpire device memory types, which allocated on the device 0 when
+  the configured device was another one.
+
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
