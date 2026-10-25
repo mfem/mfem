@@ -199,9 +199,14 @@ void ParNCMesh::BuildFaceList()
 
    face_list.Clear();
    shared_faces.Clear();
+
+   // In 2D, the boundary faces are collected by BuildEdgeList, as in the serial
+   // NCMesh::BuildFaceList.
+   if (Dim < 3) { return; }
+
    boundary_faces.SetSize(0);
 
-   if (Dim < 3 || !leaf_elements.Size()) { return; }
+   if (!leaf_elements.Size()) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
@@ -703,16 +708,16 @@ void ParNCMesh::CalcFaceOrientations()
    }
 }
 
-void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces)
 {
-   NCMesh::GetBoundaryClosure(bdr_attr_is_ess, bdr_vertices, bdr_edges, bdr_faces);
+   NCMesh::GetBoundaryClosure(bdr_attr_marked, bdr_vertices, bdr_edges, bdr_faces);
 
    if (Dim == 3)
    {
-      // Mark masters of shared slave boundary faces as essential boundary
-      // faces. Some master faces may only have slave children.
+      // Add the masters of shared slave boundary faces with marked attributes.
+      // Some master faces may only have slave children.
       for (const auto &mf : shared_faces.masters)
       {
          if (elements[mf.element].rank != MyRank) { continue; }
@@ -725,7 +730,7 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                continue;
             }
             const Face &face = *GetFace(elements[sf.element], sf.local);
-            if (face.Boundary() && bdr_attr_is_ess[face.attribute - 1])
+            if (face.Boundary() && bdr_attr_marked[face.attribute - 1])
             {
                bdr_faces.Append(mf.index);
             }
@@ -734,8 +739,8 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    }
    else if (Dim == 2)
    {
-      // Mark masters of shared slave boundary edges as essential boundary
-      // edges. Some master edges may only have slave children.
+      // Add the masters of shared slave boundary edges with marked attributes.
+      // Some master edges may only have slave children.
       for (const auto &me : shared_edges.masters)
       {
          if (elements[me.element].rank != MyRank) { continue; }
@@ -743,7 +748,7 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          {
             const auto &se = GetEdgeList().slaves[j];
             Face *face = GetFace(elements[se.element], se.local);
-            if (face && face->Boundary() && bdr_attr_is_ess[face->attribute - 1])
+            if (face && face->Boundary() && bdr_attr_marked[face->attribute - 1])
             {
                bdr_edges.Append(me.index);
             }
