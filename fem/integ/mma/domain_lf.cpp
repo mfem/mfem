@@ -179,7 +179,8 @@ void VectorFEDLFAssembleSimplexMma(const FiniteElementSpace &fes,
          const real_t w = W(q);
          if (nd_space)
          {
-            // D = w * adj(J) * f  (matches FA (J^{-T} hat)·f |detJ| w for detJ>0)
+            // D = w * adj(J) * f (matches FA (J^{-T} hat)·f |detJ| w for
+            // detJ>0)
             Dv(q, 0, e) = w * ( J22 * f0 - J12 * f1);
             Dv(q, 1, e) = w * (-J21 * f0 + J11 * f1);
          }

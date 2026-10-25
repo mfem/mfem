@@ -40,7 +40,8 @@ struct HcurlMass
 
 template <int DIM, bool SYM>
 struct qfn_traits<HcurlMass<DIM, SYM>>
-                                       : VecEvalEvalQFnTraits<DIM, SYM, true, true> {};
+                                       : VecEvalEvalQFnTraits<DIM, SYM, true,
+                                         true> {};
 
 /** Curl-curl at Q: y = A * curl(u). 2D: scalar A; 3D: 3×3 A. */
 template <int DIM, bool SYM = true>

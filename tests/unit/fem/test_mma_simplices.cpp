@@ -541,7 +541,10 @@ void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir,
    const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
    if (ir->GetNPoints() > max_nq) { return; }
 
-   for (int e = 0; e < mesh.GetNE(); e++) { mesh.SetAttribute(e, e % 2 ? 1 : 2); }
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.SetAttribute(e, e % 2 ? 1 : 2);
+   }
    mesh.SetAttributes();
    Array<int> elem_marker(mesh.attributes.Max());
    elem_marker = 1;
@@ -576,7 +579,8 @@ void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir,
 TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) :
+                  GENERATE(1, 2, 3, 4, 5, 6);
    const auto use_2p_ir = GENERATE(false, true);
 
    SECTION("2D")
@@ -607,7 +611,8 @@ TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
    SECTION("Fallback 3D tet nq=35")
    {
       // Tables register (2,4/8/14/24), not (2,35).
-      test_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh", 1, false, 7);
+      test_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh",
+                                1, false, 7);
       test_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1, false, 7);
    }
 }
@@ -622,7 +627,8 @@ static void fvec_dim(const Vector &xvec, Vector &v)
    for (int d = 0; d < dim; ++d) { v[d] = val / real_t(d + 1); }
 }
 
-/** ir_order < 0 → default (use_2p_ir ? 2*GetOrder() : MassIntegrator::GetRule). */
+/** ir_order < 0 → default (use_2p_ir ? 2*GetOrder() : MassIntegrator::GetRule).
+ */
 void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p,
                                          bool hcurl,
                                          bool use_2p_ir, int ir_order = -1)
@@ -669,7 +675,10 @@ void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p,
    const int max_nq = (dim == 2) ? max_q1d * max_q1d : 256;
    if (ir->GetNPoints() > max_nq) { return; }
 
-   for (int e = 0; e < mesh.GetNE(); e++) { mesh.SetAttribute(e, e % 2 ? 1 : 2); }
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.SetAttribute(e, e % 2 ? 1 : 2);
+   }
    mesh.SetAttributes();
    Array<int> elem_marker(mesh.attributes.Max());
    elem_marker = 1;
@@ -709,7 +718,8 @@ TEST_CASE("VectorFE DomainLF Simplices MMA",
           "[LinearFormExtension][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) :
+                  GENERATE(1, 2, 3, 4, 5, 6);
    const auto use_2p_ir = GENERATE(false, true);
    const auto hcurl = GENERATE(true, false);
 

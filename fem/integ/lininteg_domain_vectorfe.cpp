@@ -54,38 +54,66 @@ VectorFEDomainLFIntegrator::Kernels::Kernels()
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 7, 6>();
    VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::DIV, 3, 8, 7>();
 
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 1, 1>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 2, 2>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 3, 3>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 4, 4>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 5, 5>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 6, 6>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 7, 7>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 8, 8>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 1, 1>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 2, 2>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 3, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 4, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 5, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 6, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 7, 7>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 8, 8>();
 
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 1, 2>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 2, 3>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 3, 4>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 4, 5>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 5, 6>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 6, 7>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 7, 8>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 3, 8, 9>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 1, 2>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 2, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 3, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 4, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 5, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 6, 7>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 7, 8>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 3, 8, 9>();
 
    // 2D ND: ir order 2p → Q1D=p+1; also GL Q1D=p+2 (p = 1…6 ⇒ D1D = 2…7)
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 2, 2>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 3, 3>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 4, 4>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 5, 5>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 6, 6>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 7, 7>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 2, 2>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 3, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 4, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 5, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 6, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 7, 7>();
 
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 2, 3>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 3, 4>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 4, 5>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 5, 6>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 6, 7>();
-   VectorFEDomainLFIntegrator::AddSpecialization<FiniteElement::CURL, 2, 7, 8>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 2, 3>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 3, 4>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 4, 5>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 5, 6>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 6, 7>();
+   VectorFEDomainLFIntegrator::AddSpecialization<
+      FiniteElement::CURL, 2, 7, 8>();
 
    RegisterSimplexMmaKernels();
 }

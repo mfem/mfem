@@ -11,7 +11,7 @@
 #pragma once
 
 /** @file domain_lf.hpp
-    DomainLF / VectorFE DomainLF PA MMA — IdentityLoad QFn + simplex Kernel decls.
+    DomainLF / VectorFE DomainLF PA MMA — IdentityLoad QFn.
 */
 
 #include "../../lininteg.hpp"
@@ -29,7 +29,8 @@ void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
                                const Vector &coeff,
                                Vector &y);
 
-/** Assemble VectorFE DomainLF PA data for simplex MMA (ND adj(J)f, RT J^T f). */
+/** Assemble VectorFE DomainLF PA data for simplex MMA (ND adj(J)f, RT J^T f).
+ */
 void VectorFEDLFAssembleSimplexMma(const FiniteElementSpace &fes,
                                    const IntegrationRule *ir,
                                    const Array<int> &markers,
@@ -109,7 +110,7 @@ VectorFEDomainLFIntegrator::AssembleSimplexMmaKernels::Fallback(int dim, int,
                                                                 int)
 {
    MFEM_VERIFY(dim == 2 || dim == 3,
-               "Simplex MMA VectorFE DomainLF is only implemented for triangles/tets");
+               "Simplex MMA VectorFE DomainLF is only for triangles/tets");
    return ApplyVecLF;
 }
 

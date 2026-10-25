@@ -241,7 +241,8 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const Array<real_t> &B = maps->B;
       const Array<real_t> &Bt = maps->Bt;
-      ApplyTensorsMmaSumPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt, pa_data, x,
+      ApplyTensorsMmaSumPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt,
+                                      pa_data, x,
                                     y, dofs1D, quad1D);
    }
    else if (ceedOp)
@@ -309,7 +310,8 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
                   "AbsMultPA not implemented for ragged tensor basis");
-      MFEM_VERIFY(!use_simplex_mma && !use_tensors_mma_sum && !use_tensors_mma_gem,
+      MFEM_VERIFY(!use_simplex_mma && !use_tensors_mma_sum &&
+                  !use_tensors_mma_gem,
                   "AbsMultPA not implemented for MMA PA");
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();

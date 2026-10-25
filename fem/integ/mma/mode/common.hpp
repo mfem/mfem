@@ -42,7 +42,10 @@ MFEM_HOST_DEVICE inline int getLaneId(int thread) { return thread % WarpSize; }
 
 // CUDA m8n8k4 lane grouping (unused on HIP MFMA paths).
 MFEM_HOST_DEVICE inline int getGroupId(int laneId) { return laneId / 4; }
-MFEM_HOST_DEVICE inline int getThreadIdInGroup(int laneId) { return laneId % 4; }
+MFEM_HOST_DEVICE inline int getThreadIdInGroup(int laneId)
+{
+   return laneId % 4;
+}
 
 /** Prefer small MFMA tile when both matrix dims fit in ~24 (low-order tris). */
 MFEM_HOST_DEVICE inline bool PreferMfma4(int nq, int ndof)
@@ -280,7 +283,7 @@ inline void VerifySharedMemBytes(const int needed_bytes)
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       MFEM_VERIFY(needed_bytes <= Device::SharedMemoryPerBlock(),
-                  "Simplex MMA shared memory exceeds Device::SharedMemoryPerBlock()");
+                  "Simplex MMA shared memory exceeds the device cap");
    }
 }
 
@@ -588,7 +591,8 @@ MFEM_HOST_DEVICE constexpr int BankMap(int n = -1)
    return BankMapDefault();
 }
 
-/** Physical N index: mmaN-tile origin + 3-bit column remap (handles N>8, e.g. Q1D=9). */
+    Physical N index: mmaN-tile origin + 3-bit column remap (handles N>8, e.g.
+    Q1D=9). */
 MFEM_HOST_DEVICE inline int MappedNCol(int bankMap, int slot, int n0)
 {
    return n0 + ((bankMap >> (3 * slot)) & 0b111);
@@ -658,7 +662,7 @@ constexpr int kTensorCostLight = 1;
 constexpr int kTensorCostHeavy = 2;
 
 /** 3D scalar Eval element batch — match stock mass::NBZ3D(Q1D).
-    Serial multi-elem NB (e.g. 8) is slower than 1-elem/block on H100 for BP1. */
+    Serial multi-elem NB is slower than 1-elem/block on H100. */
 MFEM_HOST_DEVICE constexpr int TensorEvalNB3D(int Q1D)
 {
    const int q3 = Q1D * Q1D * Q1D;
@@ -740,7 +744,8 @@ inline int TensorThreads3DRuntime(int D1D, int Q1D, int cost = kTensorCostLight)
 constexpr int TensorsMmaMaxD1D = 9;
 constexpr int TensorsMmaMaxQ1D = 9;
 
-/** Resolve specialized vs runtime D1D/Q1D and shell smem caps (tensor mass/diff). */
+    Resolve specialized vs runtime D1D/Q1D and shell smem caps (tensor
+    mass/diff). */
 template <int T_D1D, int T_Q1D>
 struct TensorShellDims
 {
@@ -786,7 +791,8 @@ inline bool PreferTensorDense(int D1D, int NE)
    return NE >= 4 && D1D >= 1;
 }
 
-/** Host tensor element-tile width (used by blas_ dense sum-fact and lapack paths). */
+    Host tensor element-tile width (used by blas_ dense sum-fact and lapack
+    paths). */
 inline int TensorTileNB(int D1D, int Q1D)
 {
    const long long work = static_cast<long long>(D1D) * Q1D;

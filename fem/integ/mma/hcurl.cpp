@@ -220,7 +220,8 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHcurlPA(
    int nd_n = 0;
    internal::GetSimplexSetupGeom(*mesh, ir, mt, nodes_e, G, nd_n);
    internal::PAJinvQJinvTSetupSimplexFromNodes(
-      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e, coeff, pa_data);
+      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e,
+      coeff, pa_data);
 }
 
 void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
@@ -276,7 +277,8 @@ void CurlCurlIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    const int ncomp = symmetric ? 6 : 9;
    pa_data.SetSize(ncomp * nq * ne, mt);
    internal::PAJTQJSetupSimplexFromNodes(
-      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e, coeff, pa_data);
+      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e,
+      coeff, pa_data);
 }
 
 } // namespace mfem

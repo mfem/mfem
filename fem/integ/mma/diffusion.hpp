@@ -11,7 +11,7 @@
 #pragma once
 
 /** @file diffusion.hpp
-    Diffusion / VectorDiffusion PA MMA — shared QFn + simplex/tensor Kernel decls.
+    Diffusion / VectorDiffusion PA MMA — shared QFn + kernel decls.
 
     form::Diffusion (y = A * u). VectorDiffusion uses SYM metric + vdim.
 */
@@ -284,7 +284,7 @@ DiffusionIntegrator::ApplySimplexMmaGemPAKernels::Fallback(int dim, int, int)
    using internal::mma::form::ApplyDiffusionDispatch;
    using Fn = ApplySimplexMmaKernelType;
    MFEM_VERIFY(dim == 2 || dim == 3,
-               "Simplex MMA diffusion PA is only implemented for triangles/tets");
+               "Simplex MMA diffusion PA is only for triangles/tets");
    if (dim == 2)
    {
       return static_cast<Fn>(ApplyDiffusionDispatch<2>);

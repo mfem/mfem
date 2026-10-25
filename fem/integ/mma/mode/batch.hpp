@@ -86,7 +86,8 @@ constexpr bool BatchUseQTile()
 #endif
 }
 
-/** Largest TQ (multiple of MMA M) that fits X + DIM·U at a given NB and byte cap. */
+    Largest TQ (multiple of MMA M) that fits X + DIM·U at a given NB and byte
+    cap. */
 template <int DIM, int D1D, int QND, int NB>
 constexpr int BatchQTileForNBAt(int bytes_cap)
 {
@@ -113,7 +114,8 @@ constexpr int BatchQTileForNB()
    return BatchQTileForNBAt<DIM, D1D, QND, NB>(SharedMemBytesPrefer);
 }
 
-/** Q-tile element batch: HIP keeps NBATCH; CUDA picks NB in {8,16} with fewer passes. */
+    Q-tile element batch: HIP keeps NBATCH; CUDA picks NB in {8,16} with fewer
+    passes. */
 template <int DIM, int D1D, int QND>
 constexpr int BatchQTileNB()
 {

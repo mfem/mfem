@@ -152,7 +152,8 @@ public:
 
    /// parameters: DIM, D1D, QND (QND = ir.GetNPoints())
    MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels, AssembleSimplexMmaKernelType,
+   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels,
+                         AssembleSimplexMmaKernelType,
                          (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -449,7 +450,8 @@ public:
                                                  const Vector &D, Vector &y);
 
    /// parameters: DIM, D1D, QND (QND = ir.GetNPoints())
-   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels, AssembleSimplexMmaKernelType,
+   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels,
+                         AssembleSimplexMmaKernelType,
                          (int, int, int));
 
    template <int DIM, int D1D, int QND>

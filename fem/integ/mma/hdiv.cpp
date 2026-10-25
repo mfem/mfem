@@ -85,7 +85,8 @@ void VectorFEMassIntegrator::AssembleSimplexMmaHdivPA(
    int nd_n = 0;
    internal::GetSimplexSetupGeom(*mesh, ir, mt, nodes_e, G, nd_n);
    internal::PAJTQJSetupSimplexFromNodes(
-      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e, coeff, pa_data);
+      dim, coeff_dim, ne, nq, nd_n, ir.GetWeights(), *G, nodes_e,
+      coeff, pa_data);
 
    simplex_nd = el.GetDof();
    simplex_sdim = dim;

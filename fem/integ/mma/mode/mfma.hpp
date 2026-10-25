@@ -110,7 +110,8 @@ MFEM_HOST_DEVICE inline void Gemm16(const int M, const int K, const int N,
    }
 }
 
-/** Fused 2-component forward: U_d = G_d * X for d=0..1, loading each X fragment once. */
+    Fused 2-component forward: U_d = G_d * X for d=0..1, loading each X fragment
+    once. */
 template <typename TA0, typename TA1, typename TB, typename TC0, typename TC1>
 MFEM_HOST_DEVICE inline void Gemm16_Fwd2(const int M, const int K,
                                          const int N,
@@ -169,7 +170,8 @@ MFEM_HOST_DEVICE inline void Gemm16_Fwd2(const int M, const int K,
    }
 }
 
-/** Fused 2-component GemmT: Y += G_d^T * U_d for d=0..1 (shared Y accumulate). */
+/** Fused 2-component GemmT: Y += G_d^T * U_d for d=0..1 (shared Y accumulate).
+ */
 template <typename TA0, typename TA1, typename TB0, typename TB1, typename TC>
 MFEM_HOST_DEVICE inline void GemmT16_2(const int M, const int K,
                                        const int N,
@@ -232,7 +234,8 @@ MFEM_HOST_DEVICE inline void GemmT16_2(const int M, const int K,
    }
 }
 
-/** Fused 3-component forward: U_d = G_d * X for d=0..2, loading each X fragment once. */
+    Fused 3-component forward: U_d = G_d * X for d=0..2, loading each X fragment
+    once. */
 template <typename TA0, typename TA1, typename TA2, typename TB,
           typename TC0, typename TC1, typename TC2>
 MFEM_HOST_DEVICE inline void Gemm16_Fwd3(const int M, const int K,
@@ -297,7 +300,8 @@ MFEM_HOST_DEVICE inline void Gemm16_Fwd3(const int M, const int K,
    }
 }
 
-/** Fused 3-component GemmT: Y += G_d^T * U_d for d=0..2 (shared Y accumulate). */
+/** Fused 3-component GemmT: Y += G_d^T * U_d for d=0..2 (shared Y accumulate).
+ */
 template <typename TA0, typename TA1, typename TA2, typename TB0,
           typename TB1, typename TB2, typename TC>
 MFEM_HOST_DEVICE inline void GemmT16_3(const int M, const int K,
@@ -553,7 +557,8 @@ MFEM_HOST_DEVICE inline void GemmT(const int M, const int K, const int N,
    gemm(M, K, N, A, B, C, e0, NE);
 }
 
-/** SUMF layout: storage is DeviceMatrix(p, k, m); A_fwd(m_idx,k_idx)=storage(k_idx,m_idx). */
+    SUMF layout: storage is DeviceMatrix(p, k, m);
+    A_fwd(m_idx,k_idx)=storage(k_idx,m_idx). */
 struct SumfAFromKbyM
 {
    const real_t *p;
@@ -564,7 +569,8 @@ struct SumfAFromKbyM
    }
 };
 
-/** Already (M,K) layout: DeviceMatrix(p, m, k); A_fwd(row,col)=storage(row,col). */
+    Already (M,K) layout: DeviceMatrix(p, m, k);
+    A_fwd(row,col)=storage(row,col). */
 struct SumfAFromMbyK
 {
    const real_t *p;
@@ -597,7 +603,10 @@ struct SumfCToMbyN
 
 struct SumfNullD
 {
-   MFEM_HOST_DEVICE inline real_t operator()(int, int) const { return real_t(1); }
+   MFEM_HOST_DEVICE inline real_t operator()(int, int) const
+   {
+      return real_t(1);
+   }
 };
 
 struct SumfMassD
@@ -801,7 +810,8 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
                                       const int k,
                                       const real_t *B1d,
                                       const real_t *A, real_t *C,
-                                      const DeviceTensor<2, const real_t> *D = nullptr,
+                                      const DeviceTensor<2, const real_t> *D =
+                                         nullptr,
                                       const int e = 0)
 {
    if constexpr (ScaleAtStore)

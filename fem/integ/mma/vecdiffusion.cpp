@@ -238,7 +238,8 @@ VectorDiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 void VectorDiffusionIntegrator::RegisterTensorsMmaKernels()
 {
    // Shared tensor list (p = 3..7) — see form/register.hpp.
-   internal::mma::RegisterTensorsMmaSumSpecializations<VectorDiffusionIntegrator>();
+   internal::mma::RegisterTensorsMmaSumSpecializations<
+   VectorDiffusionIntegrator>();
 }
 
 VectorDiffusionIntegrator::ApplyTensorsMmaKernelType
@@ -246,7 +247,7 @@ VectorDiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
 {
    if (dim == 2) { return internal::MmaVectorDiffusionApplyTensors2D; }
    if (dim == 3) { return internal::MmaVectorDiffusionApplyTensors3D; }
-   MFEM_ABORT("Tensors MMA VectorDiffusion PA is only implemented for dim 2 or 3");
+   MFEM_ABORT("Tensors MMA VectorDiffusion PA is only for dim 2 or 3");
    return nullptr;
 }
 

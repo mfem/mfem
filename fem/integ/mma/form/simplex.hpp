@@ -239,9 +239,9 @@ struct EvalApplyRuntimeKernel
       MFEM_SHARED real_t Us[max_u_ld * max_nb];
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(x_ld) * nb));
+                                               static_cast<size_t>(x_ld) * nb));
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(u_ld) * nb));
+                                               static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -364,7 +364,8 @@ MFEM_HOST_DEVICE inline void EvalApplyVdimScratch(
                         u, uq, yq);
 }
 
-/** Eval multi-component with coeff_vdim (1 / vdim / vdim²), stock PA layouts. */
+/** Eval multi-component with coeff_vdim (1 / vdim / vdim²), stock PA layouts.
+ */
 template <typename QFn>
 inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *P, const real_t *D,
@@ -504,7 +505,8 @@ ApplySimplex(const int NE,
    constexpr int NDOF = SimplexNdof<DIM, D1D>();
    constexpr int MQ = SimplexMaxNq<DIM, QND>();
    MFEM_VERIFY(basis.Size() == QND * NDOF, "");
-   MFEM_VERIFY(x.Size() >= NDOF * vdim * NE && y.Size() >= NDOF * vdim * NE, "");
+   MFEM_VERIFY(x.Size() >= NDOF * vdim * NE &&
+               y.Size() >= NDOF * vdim * NE, "");
 
    DumpFormApply<QFn, DIM, D1D, QND>("ApplySimplex", NE, QND, NDOF);
 
@@ -959,7 +961,7 @@ struct LFApplyRuntimeKernel
       MFEM_SHARED real_t Us[max_u_ld * max_nb];
 #else
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(u_ld) * nb));
+                                               static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -970,7 +972,7 @@ struct LFApplyRuntimeKernel
 };
 
 /** Specialized DomainLF-style Apply. Matches AssembleSimplexMmaKernelType.
-    Launch: forall_3D + MFEM_SHARED U-only (preserves today's specialized quirk). */
+    Launch: forall_3D + MFEM_SHARED U-only (specialized quirk). */
 template <typename QFn, int DIM, int D1D, int QND>
 inline void ApplyLF(const int NE,
                     const Array<real_t> &basis,
@@ -1011,7 +1013,8 @@ inline void ApplyLF(const int NE,
    const int nthreads = LaunchNthreads<QND>(QND, NDOF);
    const int nbatches = (NE + NB - 1) / NB;
 
-   // Specialized: forall_3D + MFEM_SHARED (not forall_3D_smem) — DomainLF quirk.
+   // Specialized: forall_3D + MFEM_SHARED (not forall_3D_smem) — DomainLF
+   // quirk.
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
       struct alignas(16) Smem
@@ -1288,7 +1291,7 @@ inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
 }
 
 /** VectorDiffusion-style Grad apply: PA storage is always dim² per component
-    slot; SYM QFn reads the leading PackPaMetric slots (2D: convert full→SYM). */
+    slot; SYM QFn reads leading PackPaMetric slots (2D full→SYM). */
 template <int DIM, bool SYM, typename QFn>
 MFEM_HOST_DEVICE inline void GradApplyDenseElementVecPa(
    QFn qfn,
@@ -1604,9 +1607,10 @@ struct GradApplyRuntimeKernel
       MFEM_SHARED real_t UV[DIM * max_u_ld * max_nb];
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(x_ld) * nb));
+                                               static_cast<size_t>(x_ld) * nb));
       real_t *UV = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(DIM) * u_ld * nb));
+                                               static_cast<size_t>(DIM) * u_ld *
+                                               nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -1662,7 +1666,7 @@ MFEM_HOST_DEVICE inline void GradQTileGemm(
    }
 }
 
-/** Runtime leading dimensions. 3D uses fused Gemm3 / GemmT3; 2D one Gemm per plane.
+/** Runtime leading dimensions. 3D uses fused Gemm3 / GemmT3.
     GradQTileGemm cannot take a hex basis: its LDs are compile-time. */
 template <typename QFn, int DIM, bool SYM, typename TD, typename XMat>
 MFEM_HOST_DEVICE inline void GradQTileGemmRuntime(
@@ -1796,7 +1800,8 @@ MFEM_HOST_DEVICE inline void GradBatchBody(
 }
 
 // ---------------------------------------------------------------------------
-// Public ApplySimplex for Grad×Grad QFns (generic; integrator supplies QFn + traits)
+// Public ApplySimplex for Grad×Grad QFns (generic; integrator supplies QFn +
+// traits)
 // ---------------------------------------------------------------------------
 
 /** Specialized Grad×Grad ApplySimplex. */
@@ -1873,7 +1878,8 @@ ApplySimplex(const int NE,
    const int ncomp = d.Size() / (PA_VEC * QND * NE);
    MFEM_VERIFY(ncomp == 1 || ncomp == vdim || ncomp == vdim * DIM, "");
    MFEM_VERIFY(basis.Size() == QND * ndof * DIM, "");
-   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+   MFEM_VERIFY(x.Size() >= ndof * vdim * NE &&
+               y.Size() >= ndof * vdim * NE, "");
 
    // Scalar Diffusion shared layout (ncomp==1, vdim==1) stays on scalar path.
    if (vdim == 1 && ncomp == 1)
@@ -1905,7 +1911,8 @@ ApplySimplex(const int NE,
    });
 }
 
-/** Runtime Fallback Grad ApplySimplex — full-NQ only; Q-tile falls back to dense. */
+    Runtime Fallback Grad ApplySimplex — full-NQ only; Q-tile falls back to
+    dense. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
@@ -2078,7 +2085,8 @@ ApplySimplex(const int NE,
 namespace detail
 {
 
-/** Unpack 2D PA metric: SYM [11,12,22], non-SYM [11,12,21,22] (matches setup). */
+/** Unpack 2D PA metric: SYM [11,12,22], non-SYM [11,12,21,22] (matches setup).
+ */
 template <typename DAcc>
 MFEM_HOST_DEVICE inline void UnpackSimplexPaMetric2D(
    DAcc D, int q, int e, bool symmetric,
@@ -2173,7 +2181,8 @@ inline void SimplexVecEvalApply(const int /*dim*/,
    });
 }
 
-/** Y(i,e) += sum_{q,c} B(q,i,c[,e]) * D(q,c,e). VectorFE DomainLF on simplices. */
+/** Y(i,e) += sum_{q,c} B(q,i,c[,e]) * D(q,c,e). VectorFE DomainLF on simplices.
+ */
 inline void SimplexVecLFApply(const int NE, const int nd, const int nq,
                               const int sdim, const Array<real_t> &B,
                               const Vector &D, Vector &y)
@@ -2336,9 +2345,9 @@ struct VecScalarEvalRuntimeKernel
       real_t *Us = XY + x_ld * nb;
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(x_ld) * nb));
+                                               static_cast<size_t>(x_ld) * nb));
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(u_ld) * nb));
+                                               static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -2370,7 +2379,7 @@ struct VecPlaneEvalRuntimeKernel
       real_t *UV = XY + x_ld * nb;
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                                static_cast<size_t>(x_ld) * nb));
+                                               static_cast<size_t>(x_ld) * nb));
       real_t *UV = static_cast<real_t *>(alloca(sizeof(real_t) *
                                                 static_cast<size_t>(DIM) *
                                                 u_ld * nb));
@@ -2517,7 +2526,8 @@ inline void ApplySimplexPlaneEval(const int NE, const int nq, const int nd,
    {
       const real_t *Dv = d.Read();
       HostPlaneEvalApply<DIM>(NE, nq, nd, basis.Read(), x.Read(), y.ReadWrite(),
-                              [qfn, Dv, nq, NE](const real_t *u, real_t *v, int q, int e)
+                              [qfn, Dv, nq, NE](const real_t *u, real_t *v,
+                                 int q, int e)
       {
          HostApplyPlaneQFn<QFn, DIM>(qfn, Dv, nq, NE, q, e, u, v);
       });

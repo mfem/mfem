@@ -41,7 +41,10 @@ constexpr std::size_t KB = (1 << 10);
 inline bool ParseBoolContext(const std::string &value)
 {
    std::string v = value;
-   for (char &c : v) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+   for (char &c : v)
+   {
+      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+   }
    if (v == "true" || v == "1" || v == "yes") { return true; }
    if (v == "false" || v == "0" || v == "no") { return false; }
    MFEM_ABORT("Invalid boolean context value: '" << value
@@ -85,7 +88,8 @@ enum class CounterColor : int
    Default = 0, Red, Green, Yellow, Blue, Magenta, Cyan, White
 };
 
-/// Side channel: insertion order + color + display (UserCounters is alphabetical).
+/// Side channel: insertion order + color + display (UserCounters is
+/// alphabetical).
 struct CounterMeta
 {
    struct Entry
@@ -205,7 +209,8 @@ protected:
          const auto it = result.counters.find(name);
          if (it == result.counters.end()) { continue; }
          const bm::Counter &c = it->second;
-         const int width = static_cast<int>(std::max<std::size_t>(10, name.size()));
+         const int width =
+            static_cast<int>(std::max<std::size_t>(10, name.size()));
          const char *rate = (c.flags & bm::Counter::kIsRate) ? "/s" : "";
          const int field = width - static_cast<int>(std::strlen(rate));
          const CounterColor cc = CounterMeta::Instance().ColorOf(name);

@@ -178,18 +178,30 @@ static void AddKernelSpecializations()
 
    // BP8 ND mass: closed D1D=p+1, Q1D=p+2. BP10 RT mass: D1D=Q1D=p+2.
    using VFM = VectorFEMassIntegrator;
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 2, 2, 3>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 3, 3, 4>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 4, 4, 5>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 5, 5, 6>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 6, 6, 7>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 2, 7, 7, 8>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 3>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 4>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 5>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 5, 5, 6>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 6, 6, 7>();
-   VFM::AddSpecialization<FiniteElement::CURL, FiniteElement::CURL, 3, 7, 7, 8>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 2, 2, 2, 3>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 2, 3, 3, 4>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 2, 4, 4, 5>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 2, 5, 5, 6>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 2, 6, 6, 7>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 2, 7, 7, 8>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 3>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 4>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 5>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 3, 5, 5, 6>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 3, 6, 6, 7>();
+   VFM::AddSpecialization<
+      FiniteElement::CURL, FiniteElement::CURL, 3, 7, 7, 8>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 3, 3, 3>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 4, 4, 4>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 5, 5, 5>();
@@ -260,12 +272,19 @@ template <int BFI> struct BakeOffIntegrator;
 template <> struct BakeOffIntegrator<1> { using type = MassIntegrator; };
 template <> struct BakeOffIntegrator<2> { using type = VectorMassIntegrator; };
 template <> struct BakeOffIntegrator<3> { using type = DiffusionIntegrator; };
-template <> struct BakeOffIntegrator<4> { using type = VectorDiffusionIntegrator; };
+template <> struct BakeOffIntegrator<4>
+{
+   using type = VectorDiffusionIntegrator;
+};
 template <> struct BakeOffIntegrator<5> { using type = DiffusionIntegrator; };
-template <> struct BakeOffIntegrator<6> { using type = VectorDiffusionIntegrator; };
+template <> struct BakeOffIntegrator<6>
+{
+   using type = VectorDiffusionIntegrator;
+};
 
 // Bake-off base class
-// QGL: true → CEED GL quadrature q=p+2 (BP/BK 1–4); false → GLL q=p+1 (BP/BK 5–6)
+// QGL: true → CEED GL quadrature q=p+2 (BP/BK 1–4); false → GLL q=p+1 (BP/BK
+// 5–6)
 template <int BFI, int DIM, int VDIM, bool QGL,
           bool SIMPLEX, bool POS, bool MMA, bool GEM>
 struct BakeOff
@@ -273,7 +292,8 @@ struct BakeOff
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
    static_assert(BFI >= 1 && BFI <= 6, "Invalid BilinearFormIntegrator");
    static_assert(QGL ||
-                 !SIMPLEX, "GLL quadrature (q=p+1) is only for tensor elements");
+                 !SIMPLEX,
+                 "GLL quadrature (q=p+1) is only for tensor elements");
 
    using IntegratorType = typename BakeOffIntegrator<BFI>::type;
 
@@ -389,8 +409,10 @@ struct BakeOff
          const FiniteElement &el = *fes.GetTypicalFE();
          ElementTransformation &T0 = *mesh.GetTypicalElementTransformation();
          const IntegrationRule &fa_ir = mass
-                                        ? MassIntegrator::GetRule(el, el, T0, false)
-                                        : DiffusionIntegrator::GetRule(el, el, false);
+                                        ? MassIntegrator::GetRule(el, el,
+                                              T0, false)
+                                        : DiffusionIntegrator::GetRule(
+                                              el, el, false);
          const int fa_nq = fa_ir.GetNPoints();
          MFEM_VERIFY(qnd == fa_nq, "simplex MMA qnd must match FA GetRule nq");
       }
@@ -415,7 +437,8 @@ struct BakeOff
 
 // Bake-off Problems (BPs)
 template
-<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA, bool GEM>
+<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS,
+ bool MMA, bool GEM>
 struct BP : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>
 {
    const int max_it = 32, print_lvl = -1;
@@ -506,7 +529,8 @@ struct BP : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>
 
 // Bake-off Kernels (BKs)
 template
-<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA, bool GEM>
+<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS,
+ bool MMA, bool GEM>
 struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>
 {
    Vector xe, ye;
@@ -552,7 +576,8 @@ struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA, GEM>
 // MFEM-local BP7 (ND curl-curl) / BP8 (ND mass) / BP9 (RT div-div) /
 // BP10 (RT mass). Tensor GL q=p+2 or simplex MassIntegrator::GetRule.
 // No BK; no simplex pos_sum.
-// hex_sum/quad_sum: stock PA (MMAForce false). *_mma: MMA. tet/tri: simplex MMA.
+// hex_sum/quad_sum: stock PA (MMAForce false). *_mma: MMA. tet/tri: simplex
+// MMA.
 template <int BFI, int DIM, bool SIMPLEX, bool MMA>
 struct BakeOffDeRham
 {
@@ -564,7 +589,8 @@ struct BakeOffDeRham
    static constexpr bool is_hcurl = (BFI == 7 || BFI == 8);
    static constexpr bool is_mass = (BFI == 8 || BFI == 10);
 
-   using FecType = std::conditional_t<is_hcurl, ND_FECollection, RT_FECollection>;
+   using FecType = std::conditional_t<is_hcurl, ND_FECollection,
+                                      RT_FECollection>;
    using IntegratorType = std::conditional_t<
                           BFI == 7, CurlCurlIntegrator,
                           std::conditional_t<BFI == 9, DivDivIntegrator,
@@ -952,7 +978,8 @@ REGISTER_DERHAM(10, TriGllMma);
  *
  * Names: {geom}[_{basis}]_{algo}
  *    hex_sum / quad_sum         — stock MFEM tensor PA (MMAForce off)
- *    hex_mma_sum / quad_mma_sum — BP1/BP3 tensor sum-fact + small per-direction MMA
+ * hex_mma_sum / quad_mma_sum — BP1/BP3 tensor sum-fact + small per-direction
+ * MMA
  *    hex_mma_gem / quad_mma_gem — BP1/BP3 dense element GEMM
  *    hex_mma / quad_mma         — BP7–BP10 tensor sum-fact MMA
  *    tet_gll_mma / tri_gll_mma — simplex GLL nodal, dense MMA GEMM

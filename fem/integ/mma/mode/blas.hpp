@@ -231,7 +231,8 @@ template <bool SCALE, bool ACCUM>
 MFEM_HOST_DEVICE inline void Sumf(const int m, const int n,
                                   const int k, const real_t *A,
                                   const real_t *B1d, real_t *C,
-                                  const DeviceTensor<2, const real_t> *D = nullptr,
+                                  const DeviceTensor<2, const real_t> *D =
+                                     nullptr,
                                   const int e = 0)
 {
    const int tid = getThreadIdxX();
@@ -418,7 +419,8 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
                                       const int k,
                                       const real_t *B1d,
                                       const real_t *A, real_t *C,
-                                      const DeviceTensor<2, const real_t> *D = nullptr,
+                                      const DeviceTensor<2, const real_t> *D =
+                                         nullptr,
                                       const int e = 0)
 {
    Sumf<ScaleAtStore, false>(m, n, k, A, B1d, C, D, e);

@@ -15,9 +15,10 @@
 
     Contents:
       - PackPaMetric, ApplyGradQFnVec/Smem
-      - Eval×Eval: host dense + device shell (TensorEvalApply / *Device; DIM-templated)
-      - Grad×Grad: host multi-RHS tiles + device shell (TensorGradApply / *Device)
-      - form::ApplyTensor<QFn, …> (SFINAE; Grad / H(curl) mass+curl / H(div) mass+div)
+      - Eval×Eval: host dense + device shell
+        (TensorEvalApply / *Device; DIM-templated)
+      - Grad×Grad: host multi-RHS tiles + device shell
+      - form::ApplyTensor<QFn, …> (SFINAE; Grad / H(curl)/H(div))
       - form::gem: dense element GEMM for tensor Mass and Diffusion
       - H(curl)/H(div) smem InterpAx/Grad* shells
       - 2D/3D: outer entries unified; Tile/Element/Ws stay dim-specific
@@ -375,7 +376,7 @@ inline bool TryTensorEvalHost(const int NE,
 /** Named forall bodies — avoid nvcc extended-lambda host stubs that can be
     null when the same specialization is instantiated in multiple TUs
     (scalar Mass + VectorMass).
-    MQ=true: matrix coeff (ucomp smem). Scalar/VQ Q use MQ=false (coeff_vdim). */
+    MQ=true: matrix coeff (ucomp smem). Scalar/VQ use MQ=false. */
 template <typename QFn, int MD1, int MQ1, int MDQ, bool MQ>
 struct TensorEvalKernel2D
 {
@@ -638,7 +639,8 @@ struct TensorEvalKernel3D
                MFEM_SYNC_THREAD;
                mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
                MFEM_SYNC_THREAD;
-               mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
+               mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB,
+                                              sm0, sm1);
                MFEM_SYNC_THREAD;
                {
                   const int tid = mma::getThreadIdxX();
@@ -707,7 +709,8 @@ struct TensorEvalKernel3D
                MFEM_SYNC_THREAD;
                mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
                MFEM_SYNC_THREAD;
-               mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
+               mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB,
+                                              sm0, sm1);
                MFEM_SYNC_THREAD;
                {
                   const int tid = mma::getThreadIdxX();
@@ -797,7 +800,7 @@ inline void TensorEvalApplyDevice(const int NE,
                               ? mma::TensorThreads3D<T_D1D, T_Q1D,
                               mma::kTensorCostLight>()
                               : mma::TensorThreads3DRuntime(D1D, Q1D,
-                                                            mma::kTensorCostLight));
+                              mma::kTensorCostLight));
 
       const auto B = Reshape(b.Read(), Q1D, D1D);
 
@@ -838,7 +841,8 @@ inline void TensorEvalApplyDevice(const int NE,
    }
 }
 
-/** Entry: host PreferTensorDense sum-fact (vdim==1), else device/Emulate shell. */
+/** Entry: host PreferTensorDense sum-fact (vdim==1), else device/Emulate shell.
+ */
 template <typename QFn, int DIM, int T_D1D, int T_Q1D>
 inline void TensorEvalApply(
    const int NE,
@@ -1228,7 +1232,8 @@ inline bool TryTensorGradHost(
 // ---------------------------------------------------------------------------
 
 /** One 3D element: LoadX → GradXYZ → O·g → Gradt → Y. */
-template <typename QFn, int MD1, int MQ1, bool SYM, typename TD, typename TX, typename TY>
+template <typename QFn, int MD1, int MQ1, bool SYM, typename TD,
+          typename TX, typename TY>
 MFEM_HOST_DEVICE inline
 void TensorGradElement3D(const int D1D, const int Q1D, const int e,
                          real_t (&BG)[2][MQ1 * MD1],
@@ -1262,7 +1267,8 @@ void TensorGradElement3D(const int D1D, const int Q1D, const int e,
 }
 
 /** One 2D element: LoadX → GradXY → O·g → Gradt → Y. */
-template <typename QFn, int MD1, int MQ1, int MDQ, bool SYM, typename TD, typename TX,
+template <typename QFn, int MD1, int MQ1, int MDQ, bool SYM, typename TD,
+          typename TX,
           typename TY>
 MFEM_HOST_DEVICE inline
 void TensorGradElement2D(const int D1D, const int Q1D, const int e,
@@ -1677,11 +1683,9 @@ inline void TensorGradApplyDevice(const int NE,
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
       const int nthreads = mma::TensorShellNthreads(
-                              T_D1D
-                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
-                              mma::kTensorCostHeavy>()
-                              : mma::TensorThreads3DRuntime(D1D, Q1D,
-                                                            mma::kTensorCostHeavy));
+         T_D1D
+         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
 
       const auto B = Reshape(b.Read(), Q1D, D1D);
       const auto G = Reshape(g.Read(), Q1D, D1D);
@@ -1755,7 +1759,7 @@ namespace mfem::internal::mma::form
 // Eval×Eval — B basis only (mass-like)
 // ---------------------------------------------------------------------------
 
-/** Tensor Eval apply. bt is accepted for API symmetry with registration; unused.
+/** Tensor Eval apply. bt is accepted for API symmetry; unused.
     vdim>1: block-diagonal multi-component (layout D… × vdim × NE). */
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
 inline std::enable_if_t<
@@ -2024,8 +2028,10 @@ struct TensorVecEvalKernel2D
             }
             MFEM_SYNC_THREAD;
 
-            const real_t *Bx = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBo : sBc;
-            const real_t *By = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBo : sBc;
+            const real_t *Bx =
+               (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBo : sBc;
+            const real_t *By =
+               (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBo : sBc;
             mma::InterpAx<MD1, MQ1>(Dy, Q1D, Dx, Bx, sm0, sm1);
             MFEM_SYNC_THREAD;
             mma::InterpAx<MD1, MQ1>(Q1D, Q1D, Dy, By, sm1, sm0);
@@ -2055,10 +2061,10 @@ struct TensorVecEvalKernel2D
             int Dx, Dy;
             if constexpr (OPEN) { CurlCompSizes2D(D1D, c, Dx, Dy); }
             else { DivCompSizes2D(D1D, c, Dx, Dy); }
-            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1,
-                                                                         c)) ? sBot : sBct;
-            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0,
-                                                                         c)) ? sBot : sBct;
+            const real_t *Byt =
+               (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBot : sBct;
+            const real_t *Bxt =
+               (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBot : sBct;
             CurlTranspAdd2D<MD1, MQ1>(Dx, Dy, Q1D, Bxt, Byt, ucomp + nq * c,
                                       sm0, sm1, Y, c * osc_c, e, 1.0,
                                       tid, stride);
@@ -2121,9 +2127,12 @@ struct TensorVecEvalKernel3D
             }
             MFEM_SYNC_THREAD;
 
-            const real_t *Bx = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBo : sBc;
-            const real_t *By = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBo : sBc;
-            const real_t *Bz = (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2, c)) ? sBo : sBc;
+            const real_t *Bx =
+               (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBo : sBc;
+            const real_t *By =
+               (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBo : sBc;
+            const real_t *Bz =
+               (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2, c)) ? sBo : sBc;
             mma::InterpAx<MD1, MQ1>(Dy * Dz, Q1D, Dx, Bx, sm0, sm1);
             MFEM_SYNC_THREAD;
             mma::InterpAx<MD1, MQ1>(Dz * Q1D, Q1D, Dy, By, sm1, sm0);
@@ -2157,12 +2166,12 @@ struct TensorVecEvalKernel3D
             int Dx, Dy, Dz;
             if constexpr (OPEN) { CurlCompSizes3D(D1D, c, Dx, Dy, Dz); }
             else { DivCompSizes3D(D1D, c, Dx, Dy, Dz); }
-            const real_t *Bzt = (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2,
-                                                                         c)) ? sBot : sBct;
-            const real_t *Byt = (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1,
-                                                                         c)) ? sBot : sBct;
-            const real_t *Bxt = (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0,
-                                                                         c)) ? sBot : sBct;
+            const real_t *Bzt =
+               (OPEN ? CurlAxisOpen(2, c) : DivAxisOpen(2, c)) ? sBot : sBct;
+            const real_t *Byt =
+               (OPEN ? CurlAxisOpen(1, c) : DivAxisOpen(1, c)) ? sBot : sBct;
+            const real_t *Bxt =
+               (OPEN ? CurlAxisOpen(0, c) : DivAxisOpen(0, c)) ? sBot : sBct;
             CurlTranspAdd3D<MD1, MQ1>(Dx, Dy, Dz, Q1D, Bxt, Byt, Bzt,
                                       ucomp + nq * c, sm0, sm1, Y,
                                       c * osc_c, e, 1.0, tid, stride);
@@ -2230,11 +2239,9 @@ inline void TensorVecEvalApplyDevice(const int NE,
    else
    {
       const int nthreads = mma::TensorShellNthreads(
-                              T_D1D
-                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
-                              mma::kTensorCostHeavy>()
-                              : mma::TensorThreads3DRuntime(D1D, Q1D,
-                                                            mma::kTensorCostHeavy));
+         T_D1D
+         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
       const int NB = T_D1D
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
@@ -2503,10 +2510,12 @@ struct TensorCurlCurlKernel3D
                                    tid, stride);
          // u2: curl_x → (Bct, Gct, Bot); curl_y → -(Gct, Bct, Bot)
          CurlTranspAdd3D<MD1, MQ1>(D1D, D1D, D1D - 1, Q1D, sBct, sGct, sBot,
-                                   curl[0], smA[0], smC[0], Y, 2 * osc_c, e, 1.0,
+                                   curl[0], smA[0], smC[0], Y, 2 * osc_c,
+                                   e, 1.0,
                                    tid, stride);
          CurlTranspAdd3D<MD1, MQ1>(D1D, D1D, D1D - 1, Q1D, sGct, sBct, sBot,
-                                   curl[1], smA[0], smC[0], Y, 2 * osc_c, e, -1.0,
+                                   curl[1], smA[0], smC[0], Y, 2 * osc_c,
+                                   e, -1.0,
                                    tid, stride);
       }
    }
@@ -2566,11 +2575,9 @@ inline void TensorCurlCurlApplyDevice(const int NE,
       constexpr int ncomp = SYM ? 6 : 9;
       MFEM_VERIFY(d.Size() == nq * ncomp * NE, "");
       const int nthreads = mma::TensorShellNthreads(
-                              T_D1D
-                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
-                              mma::kTensorCostHeavy>()
-                              : mma::TensorThreads3DRuntime(D1D, Q1D,
-                                                            mma::kTensorCostHeavy));
+         T_D1D
+         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
       const int NB = T_D1D
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
@@ -2799,11 +2806,9 @@ inline void TensorDivDivApplyDevice(const int NE,
    else
    {
       const int nthreads = mma::TensorShellNthreads(
-                              T_D1D
-                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
-                              mma::kTensorCostHeavy>()
-                              : mma::TensorThreads3DRuntime(D1D, Q1D,
-                                                            mma::kTensorCostHeavy));
+         T_D1D
+         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
       const int NB = T_D1D
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
@@ -2935,7 +2940,8 @@ inline void BuildTensorGemMassBasis(const int dim, const int D1D, const int Q1D,
 }
 
 inline void BuildTensorGemGradBasis(const int dim, const int D1D, const int Q1D,
-                                    const real_t *B, const real_t *G, real_t *Grad)
+                                    const real_t *B, const real_t *G,
+                                    real_t *Grad)
 {
    MFEM_VERIFY(dim == 2 || dim == 3, "");
    if (dim == 2)

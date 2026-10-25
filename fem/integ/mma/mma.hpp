@@ -32,7 +32,7 @@
 
     ## Package map (fem/integ/mma/)
     - mma.hpp / mma.cpp   ForceMMA / Uses* / simplex helpers
-    - mode/               backends: common, dispatch, dmma, mfma, blas, lapack, batch
+    - mode/               backends: common, dispatch, dmma, mfma, blas
     - form/               integrator-agnostic Apply engines
     - mass.hpp, …         operator drivers (QFn + Kernel registration)
 */
@@ -42,15 +42,12 @@
 #include "nddual.hpp"
 
 // Public Uses* / ForceMMA + simplex helpers
-#include "../../fespace.hpp"   // FiniteElementSpace, ElementDofOrdering (pulls mesh)
+#include "../../fespace.hpp"   // FiniteElementSpace, ElementDofOrdering
 #include "../../fe/fe_h1.hpp"
 #include "../../fe/fe_pos.hpp"
 #include "../../fe/fe_nd.hpp"
 #include "../../fe/fe_rt.hpp"
 #include "../../gridfunc.hpp"  // GetSimplexMeshNodesE
-#ifdef MFEM_USE_MPI
-#include "../../mesh/pmesh.hpp"
-#endif
 
 namespace mfem
 {
@@ -63,7 +60,8 @@ namespace mfem
 bool ForceMMA(bool enable = true);
 bool GetForceMMA();
 
-/** @brief RAII: ForceMMA(enable) for this scope, then restore the previous flag. */
+    @brief RAII: ForceMMA(enable) for this scope, then restore the previous
+    flag. */
 class MMAForce
 {
    const bool previous;
@@ -81,7 +79,8 @@ public:
 bool ForceGEM(bool enable = true);
 bool GetForceGEM();
 
-/** @brief RAII: ForceGEM(enable) for this scope, then restore the previous flag. */
+    @brief RAII: ForceGEM(enable) for this scope, then restore the previous
+    flag. */
 class GEMForce
 {
    const bool previous;
@@ -108,19 +107,7 @@ inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
 }
 
 /** MPI agreement for Uses* so empty ranks take the same path as others. */
-inline bool AllreduceMmaFlag(const FiniteElementSpace &fes, bool ok)
-{
-#ifdef MFEM_USE_MPI
-   if (const auto *pmesh = dynamic_cast<const ParMesh*>(fes.GetMesh()))
-   {
-      int loc = ok ? 1 : 0;
-      int glob = loc;
-      MPI_Allreduce(&loc, &glob, 1, MPI_INT, MPI_MIN, pmesh->GetComm());
-      return glob != 0;
-   }
-#endif
-   return ok;
-}
+bool AllreduceMmaFlag(const FiniteElementSpace &fes, bool ok);
 
 /** Local mesh checks. Empty ranks skip GetNumGeometries (no local bits). */
 inline bool MmaVolumetricMeshOk(const Mesh &mesh, int dim)
@@ -187,7 +174,7 @@ inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
     Mass and Diffusion only.
     GPU: MMA smem shell (Interp/Grad/GemmMbyK + dmma/mfma when TensorMmaEnabled,
     else fine-grained blas::Sumf / blas::GemmMbyK).
-    CPU: 1D LAPACK GEMM when profitable (mass), else same MMA shell + dense blas_*.
+    CPU: 1D LAPACK GEMM when profitable, else MMA shell + dense blas_*.
     Unregistered (D1D,Q1D) Fallback is the runtime MMA shell.
     Requires ForceMMA / MFEM_USE_MMA; double precision only. */
 inline bool UsesTensorMMA(const FiniteElementSpace &fes)
@@ -238,7 +225,7 @@ inline bool IsTensorsMmaHdivElement(const FiniteElement &el, int dim)
    return dynamic_cast<const RT_HexahedronElement *>(&el) != nullptr;
 }
 
-/** Opt-in tensor MMA for fixed-order ND (Hcurl) quad/hex. ForceMMA; double; p≥3.
+/** Opt-in tensor MMA for fixed-order ND quad/hex. ForceMMA; double; p≥3.
     GPU: MMA smem shell (InterpAx/GradX/GemmMbyK via MMA_BACKEND_PICK).
     Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
 inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
@@ -446,7 +433,8 @@ inline NdDualCtx MakeNdDualCtx(const FiniteElementSpace &fes,
    return ctx;
 }
 
-/** TransformDual each native E-vector column (gathers Fo, then device apply). */
+/** TransformDual each native E-vector column (gathers Fo, then device apply).
+ */
 void TransformDualEVector(const FiniteElementSpace &fes, Vector &y);
 void TransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
 void InvTransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
@@ -510,9 +498,12 @@ MFEM_HOST_DEVICE inline void EvalSimplexJ2(EAcc E, GAcc G, const int q,
 template <typename EAcc, typename GAcc>
 MFEM_HOST_DEVICE inline void EvalSimplexJ3(EAcc E, GAcc G, const int q,
                                            const int e, const int ND,
-                                           real_t &J11, real_t &J21, real_t &J31,
-                                           real_t &J12, real_t &J22, real_t &J32,
-                                           real_t &J13, real_t &J23, real_t &J33)
+                                           real_t &J11, real_t &J21,
+                                           real_t &J31,
+                                           real_t &J12, real_t &J22,
+                                           real_t &J32,
+                                           real_t &J13, real_t &J23,
+                                           real_t &J33)
 {
    J11 = J21 = J31 = J12 = J22 = J32 = J13 = J23 = J33 = 0.0;
    for (int i = 0; i < ND; i++)
@@ -570,7 +561,8 @@ void PAInvDetJSetupSimplexFromNodes(const int dim,
                                     const Vector &c,
                                     Vector &d);
 
-/** D = (w/|J|) J^T C J  (H(div) mass, 3D curl-curl). Packed like simplex apply. */
+/** D = (w/|J|) J^T C J (H(div) mass, 3D curl-curl). Packed like simplex apply.
+ */
 void PAJTQJSetupSimplexFromNodes(const int dim,
                                  const int coeffDim,
                                  const int NE,

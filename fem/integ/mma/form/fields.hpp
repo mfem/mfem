@@ -11,7 +11,7 @@
 #pragma once
 
 /** @file fields.hpp
-    Field value types (eval_t / grad_t / curl_t / div_t / none_t) and QFn traits.
+    Field value types (eval_t / grad_t / curl_t / div_t / none_t).
 */
 
 #include "../../../../linalg/tensor.hpp"
@@ -333,7 +333,7 @@ struct DivDivQFnTraits
 
 /** Vector Eval×Eval for H(curl)/H(div) mass at Q.
     OPEN_ON_COMP: true = H(curl) (open along component axis); false = H(div).
-    SYM_PACK_O21: true = Diffusion/Hcurl packed [11,21,22]; false = Hdiv [11,12,22]. */
+    SYM_PACK_O21: true = Diffusion/Hcurl [11,21,22]; false = Hdiv. */
 template <int DIM, bool SYM = true, bool OPEN_ON_COMP = true,
           bool SYM_PACK_O21 = OPEN_ON_COMP>
 struct VecEvalEvalQFnTraits
@@ -362,7 +362,8 @@ struct VecEvalEvalQFnTraits
    }
 };
 
-// ---- QFn invoke (arity from traits; no hard-coded operator() shape at call sites) --
+// ---- QFn invoke (arity from traits; no hard-coded operator() shape at call
+// sites) --
 
 /** Bilinear: qfn(const trial&, test&, coeff). */
 template <typename QFn, typename Trial, typename Test, typename Coeff>

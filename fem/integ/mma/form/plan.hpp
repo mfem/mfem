@@ -180,7 +180,8 @@ SmemPlan MakeDevicePlan()
 // Opt-in form dump (MFEM_MMA_FORM_DUMP)
 // ---------------------------------------------------------------------------
 
-/** True when MFEM_MMA_FORM_DUMP is set and not "0". Cached after first query. */
+/** True when MFEM_MMA_FORM_DUMP is set and not "0". Cached after first query.
+ */
 inline bool FormDumpEnabled()
 {
    static int env = -1; // -1 unset, 0 off, 1 on
@@ -236,7 +237,8 @@ inline void DumpFormApply(const char *entry, int NE, int nq, int ndof)
              << '\n';
    mfem::out << "  trial=" << FieldKindName(
                 field_traits<typename Tr::trial_kind>::kind)
-             << " test=" << FieldKindName(field_traits<typename Tr::test_kind>::kind)
+             << " test="
+             << FieldKindName(field_traits<typename Tr::test_kind>::kind)
              << " load_x=" << (Tr::load_x ? 1 : 0)
              << " planes=" << Tr::u_planes(DIM)
              << '\n';
@@ -273,7 +275,8 @@ inline void DumpFormApplyRuntime(const char *entry, int NE, int nq, int ndof)
              << '\n';
    mfem::out << "  trial=" << FieldKindName(
                 field_traits<typename Tr::trial_kind>::kind)
-             << " test=" << FieldKindName(field_traits<typename Tr::test_kind>::kind)
+             << " test="
+             << FieldKindName(field_traits<typename Tr::test_kind>::kind)
              << " load_x=" << (Tr::load_x ? 1 : 0)
              << " planes=" << Tr::u_planes(DIM)
              << '\n';

@@ -2260,7 +2260,8 @@ public:
 
    using ApplySimplexMmaKernelType = void(*)(const int, const bool,
                                              const Array<real_t>&,
-                                             const Vector&, const Vector&, Vector&);
+                                             const Vector&, const Vector&,
+                                             Vector&);
    using ApplyTensorsMmaKernelType = ApplyKernelType;
 
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
@@ -2540,7 +2541,8 @@ public:
                                           const int, const int);
 
    using ApplySimplexMmaKernelType = void(*)(const int, const Array<real_t>&,
-                                             const Vector&, const Vector&, Vector&);
+                                             const Vector&, const Vector&,
+                                             Vector&);
    using ApplyTensorsMmaKernelType = ApplyKernelType;
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,

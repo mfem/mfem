@@ -571,8 +571,10 @@ void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
 template <int T_D1D = 0, int T_Q1D = 0>
 void HcurlDLFAssemble2D(const int ne, const Array<int> &markers,
                         const Vector &jac, const Array<real_t> &weights,
-                        const Array<real_t> &testBO, const Array<real_t> &testBC,
-                        const Vector &coeff, Vector &y, const int d, const int q)
+                        const Array<real_t> &testBO,
+                        const Array<real_t> &testBC,
+                        const Vector &coeff, Vector &y,
+                        const int d, const int q)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Problem size too large.");
@@ -628,7 +630,8 @@ void HcurlDLFAssemble2D(const int ne, const Array<int> &markers,
                const real_t A21 = -J21, A22 = J11;
                const real_t C0 = cst ? cst_val_0 : C(0,x,y,e);
                const real_t C1 = cst ? cst_val_1 : C(1,x,y,e);
-               const real_t Av = (vd == 0) ? (A11*C0 + A12*C1) : (A21*C0 + A22*C1);
+               const real_t Av = (vd == 0) ? (A11*C0 + A12*C1)
+                              : (A21*C0 + A22*C1);
                QQ(x,y,vd) = W(x,y)*Av;
             }
          }

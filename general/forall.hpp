@@ -801,7 +801,8 @@ void CuWrap3D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
-/** 3D CUDA launch with dynamic shared memory (bytes). Opt-in for >48KB (H100). */
+/** 3D CUDA launch with dynamic shared memory (bytes). Opt-in for >48KB (H100).
+ */
 template <typename DBODY>
 void CuWrap3DSmem(const int N, DBODY &&d_body,
                   const int X, const int Y, const int Z, const int G,
@@ -1287,7 +1288,7 @@ inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 }
 
 /** Like forall_3D, but pass @a smem_bytes of dynamic shared memory (CUDA).
-    Body should use: extern __shared__ char ...[]; HIP/CPU fall back to forall_3D. */
+    Body: extern __shared__ char ...[]; HIP/CPU use forall_3D. */
 template<typename lambda>
 inline void forall_3D_smem(int N, int X, int Y, int Z, int smem_bytes,
                            lambda &&body)

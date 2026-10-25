@@ -29,7 +29,8 @@ MFEM_HOST_DEVICE inline void Sync(double aReg[1],
 {
 #ifdef __CUDA_ARCH__
    asm volatile(
-      "mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+      "mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 "
+      "{%0,%1}, {%2}, {%3}, {%0,%1};"
       : "+d"(cReg[0]), "+d"(cReg[1]) : "d"(aReg[0]), "d"(bReg[0]));
 #endif
 }
@@ -646,7 +647,8 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
             for (int i = 0; i < 2; i++)
             {
                const int cRow = MapM(groupId, mM);
-               const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
+               const int cColumn =
+                  MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
                   DeviceMatrix cC(C[d], m, n);
@@ -676,7 +678,8 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
                                       const int k,
                                       const real_t *B1d,
                                       const real_t *A, real_t *C,
-                                      const DeviceTensor<2, const real_t> *D = nullptr,
+                                      const DeviceTensor<2, const real_t> *D =
+                                         nullptr,
                                       const int e = 0)
 {
    ConstDeviceMatrix B(B1d, k, n);
@@ -713,7 +716,8 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
          for (int i = 0; i < 2; i++)
          {
             const int cRow = MapM(groupId, mM);
-            const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
+            const int cColumn =
+               MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
             if (cRow < m && cColumn < n)
             {
                DeviceMatrix cC(C, m, n);
@@ -855,7 +859,8 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
          for (int i = 0; i < 2; i++)
          {
             const int cRow = MapM(groupId, mM);
-            const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
+            const int cColumn =
+               MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
             if (cRow < m && cColumn < n)
             {
                Y(cRow % D1D, cRow / D1D, cColumn, e) += cReg[i];
@@ -1053,7 +1058,8 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    }
 }
 
-/** C(M,N) =[/+=] A(M,K) * B(K,N). A is DeviceMatrix(M,K). Sibling of InterpYt2D. */
+    C(M,N) =[/+=] A(M,K) * B(K,N). A is DeviceMatrix(M,K). Sibling of
+    InterpYt2D. */
 template <bool ACCUM>
 MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
                                       const int N, const real_t *A,

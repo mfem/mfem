@@ -27,7 +27,8 @@ namespace mfem::internal::mma
     Macro (not a template): host-only builds never form &dmma:: / &mfma::, which
     exist only under MFEM_USE_CUDA / HIP device compile.
     Callers must parenthesize each arg (commas in template args):
-      MMA_BACKEND_PICK((&dmma::Foo<A,B>), (&mfma::Foo<A,B>), (&blas::Foo<A,B>)) */
+      MMA_BACKEND_PICK((&dmma::Foo<A,B>), (&mfma::Foo<A,B>),
+                       (&blas::Foo<A,B>)) */
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
 #define MMA_BACKEND_PICK(dmma_fn, mfma_fn, blas_fn) \
    (TensorMmaEnabled() ? static_cast<decltype(blas_fn)>(dmma_fn) : (blas_fn))
@@ -437,7 +438,8 @@ template<int MD1, int MQ1, bool ScaleAtStore = false>
 MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
                                       const real_t *B1d,
                                       const real_t *A, real_t *C,
-                                      const DeviceTensor<2, const real_t> *D = nullptr,
+                                      const DeviceTensor<2, const real_t> *D =
+                                         nullptr,
                                       const int e = 0)
 {
    const auto fn = MMA_BACKEND_PICK(

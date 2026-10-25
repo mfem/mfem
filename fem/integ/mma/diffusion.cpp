@@ -165,12 +165,18 @@ void PADiffusionSetupSimplexFromNodes(const int dim,
          const real_t C1 = get_coeff(C, 0, q, e);
          const real_t C2 = get_coeff(C, coeffDim == 3 ? 1 : 0, q, e);
          const real_t C3 = get_coeff(C, coeffDim == 3 ? 2 : 0, q, e);
-         D(q, 0, e) = w_detJ * (C1 * A11 * A11 + C2 * A12 * A12 + C3 * A13 * A13);
-         D(q, 1, e) = w_detJ * (C1 * A11 * A21 + C2 * A12 * A22 + C3 * A13 * A23);
-         D(q, 2, e) = w_detJ * (C1 * A11 * A31 + C2 * A12 * A32 + C3 * A13 * A33);
-         D(q, 3, e) = w_detJ * (C1 * A21 * A21 + C2 * A22 * A22 + C3 * A23 * A23);
-         D(q, 4, e) = w_detJ * (C1 * A21 * A31 + C2 * A22 * A32 + C3 * A23 * A33);
-         D(q, 5, e) = w_detJ * (C1 * A31 * A31 + C2 * A32 * A32 + C3 * A33 * A33);
+         D(q, 0, e) = w_detJ *
+                        (C1 * A11 * A11 + C2 * A12 * A12 + C3 * A13 * A13);
+         D(q, 1, e) = w_detJ *
+                        (C1 * A11 * A21 + C2 * A12 * A22 + C3 * A13 * A23);
+         D(q, 2, e) = w_detJ *
+                        (C1 * A11 * A31 + C2 * A12 * A32 + C3 * A13 * A33);
+         D(q, 3, e) = w_detJ *
+                        (C1 * A21 * A21 + C2 * A22 * A22 + C3 * A23 * A23);
+         D(q, 4, e) = w_detJ *
+                        (C1 * A21 * A31 + C2 * A22 * A32 + C3 * A23 * A33);
+         D(q, 5, e) = w_detJ *
+                        (C1 * A31 * A31 + C2 * A32 * A32 + C3 * A33 * A33);
       }
    });
 }
@@ -256,8 +262,10 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 
 void DiffusionIntegrator::RegisterSimplexMmaKernels()
 {
-   // Shared with VectorDiffusion — see form/register.hpp. Unregistered → Fallback.
-   internal::mma::RegisterDiffusionSimplexMmaSpecializations<DiffusionIntegrator>();
+   // Shared with VectorDiffusion — see form/register.hpp. Unregistered →
+   // Fallback.
+   internal::mma::RegisterDiffusionSimplexMmaSpecializations<
+   DiffusionIntegrator>();
 }
 
 void DiffusionIntegrator::RegisterTensorsMmaKernels()

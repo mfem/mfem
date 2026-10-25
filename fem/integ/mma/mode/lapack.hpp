@@ -35,7 +35,8 @@ inline bool PreferMultiRhs(int nq, int ndof, int NE)
    return false;
 }
 
-/** Multi-RHS tile width for the lapack path (mass / diffusion / linear form). */
+/** Multi-RHS tile width for the lapack path (mass / diffusion / linear form).
+ */
 inline int NB(int nq, int ndof)
 {
    const long long work = static_cast<long long>(nq) * ndof;
@@ -47,7 +48,7 @@ inline int NB(int nq, int ndof)
    return 8;
 }
 
-/** Full tile: return X + ndof*e0. Partial: pack into xloc (zero-padded), return xloc.
+/** Full tile: return X + ndof*e0. Partial: pack into xloc, return xloc.
     Layout: X[dx + D1D*(dy + D1D*e)], xloc[dx + D1D*(dy + D1D*b)]. */
 template <int D1D>
 inline const real_t *PackX2D(int e0, int nbe, int NB,

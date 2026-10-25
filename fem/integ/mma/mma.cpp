@@ -12,11 +12,28 @@
 #include "mma.hpp"
 
 #include "../../../general/globals.hpp"
+#ifdef MFEM_USE_MPI
+#include "../../../mesh/pmesh.hpp"
+#endif
 
 #include <cstring>
 
 namespace mfem
 {
+
+bool AllreduceMmaFlag(const FiniteElementSpace &fes, bool ok)
+{
+#ifdef MFEM_USE_MPI
+   if (const auto *pmesh = dynamic_cast<const ParMesh*>(fes.GetMesh()))
+   {
+      int loc = ok ? 1 : 0;
+      int glob = loc;
+      MPI_Allreduce(&loc, &glob, 1, MPI_INT, MPI_MIN, pmesh->GetComm());
+      return glob != 0;
+   }
+#endif
+   return ok;
+}
 
 namespace
 {
@@ -102,7 +119,8 @@ void PADetJSetupSimplexFromNodes(const int dim,
       const int e = idx / NQ;
       const int q = idx - NQ * e;
       real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
-      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      EvalSimplexJ3(E, G, q, e, ND,
+                    J11, J21, J31, J12, J22, J32, J13, J23, J33);
       const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                           J21 * (J12 * J33 - J32 * J13) +
                           J31 * (J12 * J23 - J22 * J13);
@@ -155,12 +173,14 @@ void PAInvDetJSetupSimplexFromNodes(const int dim,
       return;
    }
 
-   MFEM_VERIFY(dim == 3, "PAInvDetJSetupSimplexFromNodes only supports dim 2/3");
+   MFEM_VERIFY(dim == 3,
+               "PAInvDetJSetupSimplexFromNodes only supports dim 2/3");
    mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
    {
       const int e = idx / NQ, q = idx - NQ * e;
       real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
-      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      EvalSimplexJ3(E, G, q, e, ND,
+                    J11, J21, J31, J12, J22, J32, J13, J23, J33);
       const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                           J21 * (J12 * J33 - J32 * J13) +
                           J31 * (J12 * J23 - J22 * J13);
@@ -244,7 +264,8 @@ void PAJTQJSetupSimplexFromNodes(const int dim,
    {
       const int e = idx / NQ, q = idx - NQ * e;
       real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
-      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      EvalSimplexJ3(E, G, q, e, ND,
+                    J11, J21, J31, J12, J22, J32, J13, J23, J33);
       const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                           J21 * (J12 * J33 - J32 * J13) +
                           J31 * (J12 * J23 - J22 * J13);
@@ -399,7 +420,8 @@ void PAJinvQJinvTSetupSimplexFromNodes(const int dim,
    {
       const int e = idx / NQ, q = idx - NQ * e;
       real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
-      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      EvalSimplexJ3(E, G, q, e, ND,
+                    J11, J21, J31, J12, J22, J32, J13, J23, J33);
       const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
                           J21 * (J12 * J33 - J32 * J13) +
                           J31 * (J12 * J23 - J22 * J13);

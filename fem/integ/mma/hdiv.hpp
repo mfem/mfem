@@ -39,7 +39,8 @@ struct HdivMass
 
 template <int DIM, bool SYM>
 struct qfn_traits<HdivMass<DIM, SYM>>
-                                      : VecEvalEvalQFnTraits<DIM, SYM, false, false> {};
+                                      : VecEvalEvalQFnTraits<DIM, SYM, false,
+                                        false> {};
 
 /** Div-div at Q: y = d * div(u). */
 struct DivDivQFn

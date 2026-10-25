@@ -477,7 +477,8 @@ TEST_CASE("MMA form pipeline Eval Apply runtime vs ref",
    Y_ref = 0.0;
    Y_pipe = 0.0;
 
-   MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
+   MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(),
+           Y_ref.GetData());
    form::ApplySimplex<Mass, 2>(NE, P, D, X, Y_pipe);
 
    {
@@ -505,7 +506,8 @@ TEST_CASE("MMA form pipeline Eval Apply specialized vs ref",
    Y_ref = 0.0;
    Y_pipe = 0.0;
 
-   MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
+   MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(),
+           Y_ref.GetData());
    form::ApplySimplex<Mass, DIM, D1D, QND>(NE, P, D, X, Y_pipe);
 
    {
@@ -793,7 +795,9 @@ TEST_CASE("MMA form Curl ApplySimplex vs ref", "[MMA][Form][Pipeline]")
             const real_t a11 = D(q + nq * (3 + PA * e));
             const real_t a21 = D(q + nq * (4 + PA * e));
             const real_t a22 = D(q + nq * (5 + PA * e));
-            const real_t u0 = U[0 * nq + q], u1 = U[1 * nq + q], u2 = U[2 * nq + q];
+            const real_t u0 = U[0 * nq + q];
+            const real_t u1 = U[1 * nq + q];
+            const real_t u2 = U[2 * nq + q];
             U[0 * nq + q] = a00 * u0 + a10 * u1 + a20 * u2;
             U[1 * nq + q] = a10 * u0 + a11 * u1 + a21 * u2;
             U[2 * nq + q] = a20 * u0 + a21 * u1 + a22 * u2;
