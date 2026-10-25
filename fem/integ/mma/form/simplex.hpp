@@ -1911,8 +1911,7 @@ ApplySimplex(const int NE,
    });
 }
 
-    Runtime Fallback Grad ApplySimplex — full-NQ only; Q-tile falls back to
-    dense. */
+/** Runtime Fallback Grad ApplySimplex: full-NQ; Q-tile uses dense. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
