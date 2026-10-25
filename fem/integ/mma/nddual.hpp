@@ -25,7 +25,7 @@ namespace internal
 
 enum class NdDofTransOp : int { InvPrimal, Dual, Primal, InvDual };
 
-/** Face-orientation dual for one MMA batch. Empty / p<2 → Active() is false. */
+/** Face-orientation dual for one MMA batch. Empty / p<2: Active() is false. */
 struct NdDualCtx
 {
    const int *fo = nullptr; ///< Fo(f,e) packed nfaces*NE, first index fastest

@@ -669,7 +669,7 @@ ApplySimplex(const int NE,
 }
 
 // ---------------------------------------------------------------------------
-// Linear-form ApplyLF — trial none_t (DomainLF): QFn fills U from D, then GemmT
+// Linear-form ApplyLF: none trial (DomainLF) fills U from D, then GemmT
 // ---------------------------------------------------------------------------
 
 /** Fill U(q,b) via QFn(test_t, coeff) — no trial DOFs. */
@@ -1922,7 +1922,7 @@ ApplySimplex(const int NE,
              Vector &y)
 {
    using Tr = qfn_traits<QFn>;
-   static_assert(Tr::test_is_grad, "Grad Apply runtime requires Grad×Grad QFn");
+   static_assert(Tr::test_is_grad, "Grad Apply runtime needs Grad x Grad QFn");
    static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplySimplex DIM");
 
    constexpr bool SYM = Tr::symmetric_pa;

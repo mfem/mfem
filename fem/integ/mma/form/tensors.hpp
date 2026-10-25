@@ -1051,7 +1051,7 @@ struct Diff3DWs
 };
 
 /** One 3D Grad tile: sum-fact via multi-RHS GEMM (B/G × tile of elements).
-    gX=(B⊗B⊗G)X, gY=(B⊗G⊗B)X, gZ=(G⊗B⊗B)X, then O·g, then adjoints. */
+    gX=(BxBxG)X, gY=(BxGxB)X, gZ=(GxBxB)X, then O.g, then adjoints. */
 template <typename QFn, int D1D, int Q1D, bool SYM>
 inline void TensorGradHost3DTile(
    const int e0, const int nbe, const int NB,

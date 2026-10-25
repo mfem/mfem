@@ -591,8 +591,7 @@ MFEM_HOST_DEVICE constexpr int BankMap(int n = -1)
    return BankMapDefault();
 }
 
-    Physical N index: mmaN-tile origin + 3-bit column remap (handles N>8, e.g.
-    Q1D=9). */
+/** Physical N index: mmaN-tile origin + 3-bit column remap (N>8). */
 MFEM_HOST_DEVICE inline int MappedNCol(int bankMap, int slot, int n0)
 {
    return n0 + ((bankMap >> (3 * slot)) & 0b111);
@@ -694,7 +693,7 @@ MFEM_HOST_DEVICE constexpr int TensorNB3D()
    return (D1D <= 4) ? 2 : 4;
 }
 
-/** 3D tensor block threads: light ≤64; heavy up to 128 with min tile cover. */
+/** 3D tensor block threads: light <=64; heavy up to 128. */
 template <int D1D, int Q1D, int Cost = kTensorCostLight>
 MFEM_HOST_DEVICE constexpr int TensorThreads3D()
 {
@@ -744,8 +743,7 @@ inline int TensorThreads3DRuntime(int D1D, int Q1D, int cost = kTensorCostLight)
 constexpr int TensorsMmaMaxD1D = 9;
 constexpr int TensorsMmaMaxQ1D = 9;
 
-    Resolve specialized vs runtime D1D/Q1D and shell smem caps (tensor
-    mass/diff). */
+/** Resolve specialized vs runtime D1D/Q1D and shell smem caps. */
 template <int T_D1D, int T_Q1D>
 struct TensorShellDims
 {
@@ -791,8 +789,7 @@ inline bool PreferTensorDense(int D1D, int NE)
    return NE >= 4 && D1D >= 1;
 }
 
-    Host tensor element-tile width (used by blas_ dense sum-fact and lapack
-    paths). */
+/** Host tensor element-tile width (blas dense sum-fact and lapack). */
 inline int TensorTileNB(int D1D, int Q1D)
 {
    const long long work = static_cast<long long>(D1D) * Q1D;

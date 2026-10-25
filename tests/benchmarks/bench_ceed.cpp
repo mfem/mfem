@@ -283,7 +283,7 @@ template <> struct BakeOffIntegrator<6>
 };
 
 // Bake-off base class
-// QGL: true → CEED GL quadrature q=p+2 (BP/BK 1–4); false → GLL q=p+1 (BP/BK
+// QGL: true: CEED GL q=p+2 (BP/BK 1-4); false: GLL q=p+1 (BP/BK
 // 5–6)
 template <int BFI, int DIM, int VDIM, bool QGL,
           bool SIMPLEX, bool POS, bool MMA, bool GEM>

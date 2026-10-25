@@ -627,7 +627,7 @@ static void fvec_dim(const Vector &xvec, Vector &v)
    for (int d = 0; d < dim; ++d) { v[d] = val / real_t(d + 1); }
 }
 
-/** ir_order < 0 → default (use_2p_ir ? 2*GetOrder() : MassIntegrator::GetRule).
+/** ir_order < 0: default (use_2p_ir ? 2*GetOrder() : GetRule). */
  */
 void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p,
                                          bool hcurl,

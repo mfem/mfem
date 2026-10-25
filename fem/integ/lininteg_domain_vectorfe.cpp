@@ -88,7 +88,7 @@ VectorFEDomainLFIntegrator::Kernels::Kernels()
    VectorFEDomainLFIntegrator::AddSpecialization<
       FiniteElement::CURL, 3, 8, 9>();
 
-   // 2D ND: ir order 2p → Q1D=p+1; also GL Q1D=p+2 (p = 1…6 ⇒ D1D = 2…7)
+   // 2D ND: ir order 2p -> Q1D=p+1; also GL Q1D=p+2 (p=1..6 => D1D=2..7)
    VectorFEDomainLFIntegrator::AddSpecialization<
       FiniteElement::CURL, 2, 2, 2>();
    VectorFEDomainLFIntegrator::AddSpecialization<

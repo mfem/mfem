@@ -24,7 +24,7 @@
     - Tensor: PreferTensorDense → dense sum-fact vs Emulate shell
     - Tensor H(curl)/H(div) shells: InterpAx / GradX / GemmMbyK
       (LAPACK: vendor GEMM on host; CUDA/HIP: DMMA/MFMA via MMA_BACKEND_PICK)
-    - Simplex host: PreferMultiRhs(nq, ndof, NE) → lapack multi-RHS (size gate)
+    - Simplex host: PreferMultiRhs -> lapack multi-RHS (size gate)
       else → dense / form simplex host path
 
     ## Device apply tree
@@ -60,8 +60,7 @@ namespace mfem
 bool ForceMMA(bool enable = true);
 bool GetForceMMA();
 
-    @brief RAII: ForceMMA(enable) for this scope, then restore the previous
-    flag. */
+/** @brief RAII: ForceMMA(enable) for this scope, then restore the flag. */
 class MMAForce
 {
    const bool previous;
@@ -79,8 +78,7 @@ public:
 bool ForceGEM(bool enable = true);
 bool GetForceGEM();
 
-    @brief RAII: ForceGEM(enable) for this scope, then restore the previous
-    flag. */
+/** @brief RAII: ForceGEM(enable) for this scope, then restore the flag. */
 class GEMForce
 {
    const bool previous;
@@ -259,7 +257,7 @@ inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
    return AllreduceMmaFlag(fes, ok);
 }
 
-/** Opt-in tensor MMA for fixed-order RT (Hdiv) quad/hex. ForceMMA; double; p≥3.
+/** Opt-in tensor MMA for fixed-order RT quad/hex. ForceMMA; double; p>=3.
     GPU: MMA smem shell (InterpAx/GradX/GemmMbyK via MMA_BACKEND_PICK).
     Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
 inline bool UsesTensorMmaHdiv(const FiniteElementSpace &fes)
