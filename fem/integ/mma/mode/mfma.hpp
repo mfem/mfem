@@ -28,12 +28,26 @@ using double4 =
 
 MFEM_HOST_DEVICE inline void Sync16(double a, double b, double4 &c)
 {
+#if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__) || defined(__gfx950__)
    c = __builtin_amdgcn_mfma_f64_16x16x4f64(a, b, c, 0, 0, 0);
+#else
+   MFEM_CONTRACT_VAR(a);
+   MFEM_CONTRACT_VAR(b);
+   MFEM_CONTRACT_VAR(c);
+#endif
 }
 
 MFEM_HOST_DEVICE inline void Sync4(double a, double b, double &c)
 {
+#if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__) || defined(__gfx950__)
    c = __builtin_amdgcn_mfma_f64_4x4x4f64(a, b, c, 0, 0, 0);
+#else
+   MFEM_CONTRACT_VAR(a);
+   MFEM_CONTRACT_VAR(b);
+   MFEM_CONTRACT_VAR(c);
+#endif
 }
 
 /** C = A * B via MFMA 16x16x4 (CDNA3). Lane L: A[L%16][L/16], B[L/16][L%16],
@@ -621,7 +635,7 @@ MFEM_HOST_DEVICE inline void Sumf16(const int M, const int K,
       {
          const int n0 = nt * TN;
          const int nTile = (N - n0 < TN) ? (N - n0) : TN;
-         mma::double4 cReg = {0, 0, 0, 0};
+         double4 cReg = {0, 0, 0, 0};
 
          for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
          {
@@ -957,4 +971,3 @@ MFEM_HOST_DEVICE inline void GemmMbyK(const int M, const int K,
 } // namespace mfem::internal::mma::mfma
 
 /// \endcond DO_NOT_DOCUMENT
-

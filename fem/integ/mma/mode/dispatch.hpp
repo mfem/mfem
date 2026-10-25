@@ -397,6 +397,40 @@ MFEM_HOST_DEVICE inline void LoadBBoth(const int D1D, const int Q1D,
    }
 }
 
+/// Load B(q,d) into smem B(d,q).
+template<int MD1, int MQ1, typename BAcc>
+MFEM_HOST_DEVICE inline void LoadB(const int D1D, const int Q1D,
+                                   BAcc b, real_t (&sB)[MQ1*MD1])
+{
+   DeviceMatrix B(sB, D1D, Q1D);
+   const int tid = getThreadIdxX();
+   const int n = D1D * Q1D;
+   const int stride = getBlockNthreadsX();
+   for (int t = tid; t < n; t += stride)
+   {
+      const int q = t / D1D;
+      const int d = t % D1D;
+      B(d, q) = b(q, d);
+   }
+}
+
+/// Load maps->Bt stored as Bt(d,q) into smem Bt(q,d).
+template<int MD1, int MQ1, typename BtAcc>
+MFEM_HOST_DEVICE inline void LoadBt(const int D1D, const int Q1D,
+                                    BtAcc bt, real_t (&sBt)[MQ1*MD1])
+{
+   DeviceMatrix Bt(sBt, Q1D, D1D);
+   const int tid = getThreadIdxX();
+   const int n = D1D * Q1D;
+   const int stride = getBlockNthreadsX();
+   for (int t = tid; t < n; t += stride)
+   {
+      const int d = t % D1D;
+      const int q = t / D1D;
+      Bt(q, d) = bt(d, q);
+   }
+}
+
 /** Mass interp core: strip-mined 1-comp B·A → C.
  *  ScaleAtStore: C *= D(q,e) (fused mass Q-fn). */
 template<int MD1, int MQ1, bool ScaleAtStore = false>
@@ -628,4 +662,3 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
 } // namespace mfem::internal::mma
 
 /// \endcond DO_NOT_DOCUMENT
-

@@ -161,6 +161,14 @@ bool LinearForm::SupportsDevice() const
    if ((UsesSimplexMMA(*fes) || UsesSimplexMmaHcurl(*fes) ||
         UsesSimplexMmaHdiv(*fes)) && boundary_integs.Size() == 0)
    {
+      for (int i = 0; i < domain_integs.Size(); ++i)
+      {
+         if (dynamic_cast<DomainLFGradIntegrator*>(domain_integs[i]) ||
+             dynamic_cast<VectorDomainLFGradIntegrator*>(domain_integs[i]))
+         {
+            return false;
+         }
+      }
       return true;
    }
 

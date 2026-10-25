@@ -34,6 +34,8 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (UsesSimplexMMA(fes))
    {
+      delete ceedOp;
+      ceedOp = nullptr;
       AssembleSimplexMmaPA(fes);
       return;
    }
@@ -118,17 +120,21 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       });
    }
 
-   if (UsesTensorMMA(fes) && GetForceGEM())
+   const bool tensor_shell =
+      UsesTensorMMA(fes) &&
+      dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+      quad1D <= internal::mma::TensorsMmaMaxQ1D;
+   if (tensor_shell && GetForceGEM())
    {
       use_tensors_mma_gem = true;
       const int ndof = internal::mma::form::gem::TensorGemPow(dofs1D, dim);
       MFEM_VERIFY(nq == internal::mma::form::gem::TensorGemPow(quad1D, dim),
                   "tensor GEM mass nq must be Q1D^dim");
       mma_P.SetSize(nq * ndof, mt);
-      internal::mma::form::gem::BuildTensorGemMassBasis(dim, dofs1D, quad1D, maps->B.HostRead(),
-                                        mma_P.HostWrite());
+      internal::mma::form::gem::BuildTensorGemMassBasis(
+         dim, dofs1D, quad1D, maps->B.HostRead(), mma_P.HostWrite());
    }
-   else if (UsesTensorMMA(fes))
+   else if (tensor_shell)
    {
       use_tensors_mma_sum = true;
    }
@@ -181,11 +187,31 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplex_mma || use_tensors_mma_sum || use_tensors_mma_gem)
+   if (use_simplex_mma)
    {
-      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
+      if (ne <= 0 || nq <= 0) { return; }
+      const int nd = mma_P.Size() / nq;
+      MFEM_VERIFY(nd > 0 && mma_P.Size() == nq * nd, "");
+      MFEM_VERIFY(pa_data.Size() == nq * ne, "");
+      const auto P = Reshape(mma_P.Read(), nq, nd);
+      const auto D = Reshape(pa_data.Read(), nq, ne);
+      auto Y = Reshape(diag.ReadWrite(), nd, ne);
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int i = 0; i < nd; ++i)
+         {
+            real_t s = 0.0;
+            for (int q = 0; q < nq; ++q)
+            {
+               const real_t b = P(q, i);
+               s += b * b * D(q, e);
+            }
+            Y(i, e) += s;
+         }
+      });
+      return;
    }
-   else if (ceedOp)
+   if (ceedOp)
    {
       ceedOp->GetDiagonal(diag);
    }

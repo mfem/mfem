@@ -15,8 +15,6 @@
 #include "../../fe/fe_nd.hpp"
 #include "../../doftrans.hpp"
 
-#include <limits>
-
 namespace mfem
 {
 
@@ -119,8 +117,9 @@ void ApplyNdDofTransEVector(NdDofTransOp op, const FiniteElementSpace &fes,
    const int nd = el.GetDof();
    const int p = el.GetOrder();
    const int dim = fes.GetMesh()->Dimension();
+   if (NE <= 0) { return; }
    MFEM_VERIFY(y.Size() == nd * NE, "ApplyNdDofTransEVector size");
-   MFEM_VERIFY(NE > 0 && fo.Size() % NE == 0, "ND Fo packing");
+   MFEM_VERIFY(fo.Size() % NE == 0, "ND Fo packing");
    const int nfaces = fo.Size() / NE;
    const int nedges = (dim == 2) ? 3 : 6;
    const int nedofs = p;
@@ -172,49 +171,6 @@ void InvTransformDualEVector(const FiniteElementSpace &fes, Vector &y)
    Array<int> fo;
    GatherNdFaceOrientations(fes, fo);
    ApplyNdDofTransEVector(NdDofTransOp::InvDual, fes, fo, y);
-}
-
-void BakeNdDofTransformation(const FiniteElementSpace &fes,
-                             Array<real_t> &B, int nq, int nd, int ncomp)
-{
-   const int NE = fes.GetNE();
-   MFEM_VERIFY(B.Size() == nq * nd * ncomp * NE || B.Size() == nq * nd * ncomp,
-               "unexpected simplex basis size");
-   if (B.Size() == nq * nd * ncomp)
-   {
-      const long long nB = (long long)nq * nd * ncomp * NE;
-      // Array::SetSize is int; skip per-element bake when it cannot fit.
-      if (nB > std::numeric_limits<int>::max()) { return; }
-      Array<real_t> B0 = B;
-      B.SetSize(static_cast<int>(nB));
-      const auto Bin = Reshape(B0.Read(), nq, nd, ncomp);
-      auto Bout = Reshape(B.Write(), nq, nd, ncomp, NE);
-      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
-      {
-         for (int c = 0; c < ncomp; ++c)
-            for (int i = 0; i < nd; ++i)
-               for (int q = 0; q < nq; ++q)
-               {
-                  Bout(q, i, c, e) = Bin(q, i, c);
-               }
-      });
-   }
-   // TransformDual is a host DofTransformation API.
-   auto Bb = Reshape(B.HostReadWrite(), nq, nd, ncomp, NE);
-   Array<int> vdofs;
-   Vector col(nd);
-   for (int e = 0; e < NE; ++e)
-   {
-      DofTransformation *dt = fes.GetElementVDofs(e, vdofs);
-      if (!dt) { continue; }
-      for (int q = 0; q < nq; ++q)
-         for (int c = 0; c < ncomp; ++c)
-         {
-            for (int i = 0; i < nd; ++i) { col(i) = Bb(q, i, c, e); }
-            dt->TransformDual(col);
-            for (int i = 0; i < nd; ++i) { Bb(q, i, c, e) = col(i); }
-         }
-   }
 }
 
 } // namespace internal

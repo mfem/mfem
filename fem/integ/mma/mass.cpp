@@ -51,19 +51,13 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    use_simplex_mma = true;
    maps = nullptr;
 
+   const DofToQuad &bmaps = el.GetDofToQuad(ir, DofToQuad::FULL);
+   MFEM_VERIFY(bmaps.ndof == ndof && bmaps.nqpt == nq, "");
    mma_P.SetSize(nq * ndof, mt);
    {
+      const real_t *B = bmaps.B.HostRead();
       real_t *Ph = mma_P.HostWrite();
-      Vector shape_ref(ndof);
-      for (int q = 0; q < nq; q++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(q);
-         el.CalcShape(ip, shape_ref);
-         for (int i = 0; i < ndof; i++)
-         {
-            Ph[q + nq * i] = shape_ref(i);
-         }
-      }
+      for (int i = 0; i < nq * ndof; ++i) { Ph[i] = B[i]; }
    }
 
    // Assemble from restricted mesh nodes

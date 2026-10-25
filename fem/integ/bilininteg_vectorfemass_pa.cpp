@@ -296,11 +296,19 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_ABORT("Unknown kernel.");
    }
 
-   if (trial_curl && test_curl && UsesTensorMmaHcurl(trial_fes))
+   if (trial_curl && test_curl &&
+       UsesTensorMmaHcurl(trial_fes) && UsesTensorMmaHcurl(test_fes) &&
+       dofs1D == dofs1Dtest &&
+       dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+       quad1D <= internal::mma::TensorsMmaMaxQ1D)
    {
       use_tensors_mma_sum = true;
    }
-   else if (trial_div && test_div && UsesTensorMmaHdiv(trial_fes))
+   else if (trial_div && test_div &&
+            UsesTensorMmaHdiv(trial_fes) && UsesTensorMmaHdiv(test_fes) &&
+            dofs1D == dofs1Dtest &&
+            dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+            quad1D <= internal::mma::TensorsMmaMaxQ1D)
    {
       use_tensors_mma_sum = true;
    }
@@ -355,8 +363,10 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
          for (int k = 0; k < stride; ++k) { slice(k) = src[k]; }
          for (int i = 0; i < nd; ++i)
          {
+            x.HostWrite();
             x = 0.0;
             x(i) = 1.0;
+            y.UseDevice(true);
             y = 0.0;
             if (curl)
             {
@@ -364,6 +374,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
                internal::MmaHcurlMassApplySimplex(
                   dim, 1, nd, nq, dofs1D, simplex_sdim, symmetric,
                   simplex_B, slice, x, y);
+               y.HostReadWrite();
                ApplySimplexNdFacePairs(simplex_nd_fo, dim, p, ne, e, dual, y);
             }
             else
@@ -372,7 +383,7 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
                   dim, 1, nd, nq, dofs1D, simplex_sdim, symmetric,
                   simplex_B, slice, x, y);
             }
-            d[i + nd * e] += y(i);
+            d[i + nd * e] += y.HostRead()[i];
          }
       }
       return;

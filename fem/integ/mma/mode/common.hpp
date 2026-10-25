@@ -500,7 +500,12 @@ MFEM_HOST_DEVICE constexpr bool TensorMmaEnabled()
 #elif defined(__CUDA_ARCH__)
    return __CUDA_ARCH__ >= 800;
 #elif defined(__HIP_DEVICE_COMPILE__)
+#if defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__) || defined(__gfx950__)
    return true;
+#else
+   return false;
+#endif
 #else
    return false;
 #endif
@@ -833,4 +838,3 @@ struct host_Arena
 } // namespace mfem::internal::mma
 
 /// \endcond DO_NOT_DOCUMENT
-

@@ -79,6 +79,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Simplex MMA before CEED / tensor maps (Q / VQ / MQ; sdim==dim).
    if (UsesSimplexMMA(fes))
    {
+      delete ceedOp;
+      ceedOp = nullptr;
       AssembleSimplexMmaPA(fes);
       return;
    }
@@ -296,7 +298,9 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 
    // Tensor MMA: stock PA layouts for Q / VQ / MQ (sdim==dim; no surface).
-   if (UsesTensorMMA(fes) && sdim == dim)
+   if (UsesTensorMMA(fes) && sdim == dim &&
+       dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+       quad1D <= internal::mma::TensorsMmaMaxQ1D)
    {
       use_tensors_mma_sum = true;
    }
@@ -576,9 +580,58 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
 
 void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplex_mma || use_tensors_mma_sum)
+   if (use_simplex_mma)
    {
-      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
+      if (ne <= 0 || nq <= 0) { return; }
+      const int nd = mma_G.Size() / (nq * dim);
+      MFEM_VERIFY(nd > 0 && mma_G.Size() == nq * nd * dim, "");
+      const int pa = dim * dim;
+      const int ncomp = pa_data.Size() / (nq * pa * ne);
+      MFEM_VERIFY(ncomp > 0 && pa_data.Size() == nq * pa * ncomp * ne, "");
+      const auto G = Reshape(mma_G.Read(), nq, nd, dim);
+      const auto D = Reshape(pa_data.Read(), nq, pa, ncomp, ne);
+      auto Y = Reshape(diag.ReadWrite(), nd, vdim, ne);
+      const int dim_c = dim, vd = vdim, nc = ncomp;
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int c = 0; c < vd; ++c)
+         {
+            const int slot = (c < nc) ? c : 0;
+            for (int i = 0; i < nd; ++i)
+            {
+               real_t s = 0.0;
+               for (int q = 0; q < nq; ++q)
+               {
+                  if (dim_c == 2)
+                  {
+                     const real_t g0 = G(q, i, 0), g1 = G(q, i, 1);
+                     const real_t a00 = D(q, 0, slot, e);
+                     const real_t a01 = D(q, 1, slot, e);
+                     const real_t a10 = D(q, 2, slot, e);
+                     const real_t a11 = D(q, 3, slot, e);
+                     s += g0 * (a00 * g0 + a01 * g1) +
+                          g1 * (a10 * g0 + a11 * g1);
+                  }
+                  else
+                  {
+                     const real_t g0 = G(q, i, 0), g1 = G(q, i, 1),
+                                  g2 = G(q, i, 2);
+                     const real_t d11 = D(q, 0, slot, e);
+                     const real_t d21 = D(q, 1, slot, e);
+                     const real_t d31 = D(q, 2, slot, e);
+                     const real_t d22 = D(q, 3, slot, e);
+                     const real_t d32 = D(q, 4, slot, e);
+                     const real_t d33 = D(q, 5, slot, e);
+                     s += g0 * (d11 * g0 + d21 * g1 + d31 * g2) +
+                          g1 * (d21 * g0 + d22 * g1 + d32 * g2) +
+                          g2 * (d31 * g0 + d32 * g1 + d33 * g2);
+                  }
+               }
+               Y(i, c, e) += s;
+            }
+         }
+      });
+      return;
    }
    if (ceedOp)
    {

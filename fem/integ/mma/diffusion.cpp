@@ -213,16 +213,16 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    mma_G.SetSize(nq * dof * dim, mt);
    {
       real_t *Gh = mma_G.HostWrite();
-      dshape.SetSize(dof, dim);
+      DenseMatrix dshape_q(dof, dim);
       for (int q = 0; q < nq; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
-         el.CalcDShape(ip, dshape);
+         el.CalcDShape(ip, dshape_q);
          for (int d = 0; d < dim; d++)
          {
             for (int i = 0; i < dof; i++)
             {
-               Gh[q + nq * (i + dof * d)] = dshape(i, d);
+               Gh[q + nq * (i + dof * d)] = dshape_q(i, d);
             }
          }
       }

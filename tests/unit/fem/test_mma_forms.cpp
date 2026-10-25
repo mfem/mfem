@@ -480,9 +480,12 @@ TEST_CASE("MMA form pipeline Eval Apply runtime vs ref",
    MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
    form::ApplySimplex<Mass, 2>(NE, P, D, X, Y_pipe);
 
-   for (int i = 0; i < ndof * NE; ++i)
    {
-      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      const real_t *yp = Y_pipe.HostRead();
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(yp[i] == MFEM_Approx(Y_ref(i)));
+      }
    }
 }
 
@@ -505,9 +508,12 @@ TEST_CASE("MMA form pipeline Eval Apply specialized vs ref",
    MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
    form::ApplySimplex<Mass, DIM, D1D, QND>(NE, P, D, X, Y_pipe);
 
-   for (int i = 0; i < ndof * NE; ++i)
    {
-      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      const real_t *yp = Y_pipe.HostRead();
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(yp[i] == MFEM_Approx(Y_ref(i)));
+      }
    }
 }
 
@@ -548,9 +554,12 @@ TEST_CASE("MMA form ApplyLF IdentityLoad vs ref", "[MMA][Form][Pipeline]")
 
    form::ApplyLF<IdentityLoad, 2>(NE, P, D, Y_pipe.GetData(), vdim, vc);
 
-   for (int i = 0; i < ndof * NE; ++i)
    {
-      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      const real_t *yp = Y_pipe.HostRead();
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(yp[i] == MFEM_Approx(Y_ref(i)));
+      }
    }
 }
 
@@ -634,9 +643,12 @@ TEST_CASE("MMA form Grad Apply dense vs ref", "[MMA][Form][Pipeline]")
 
    form::ApplySimplex<Diffusion<2, true>, 2>(NE, G, D, X, Y_pipe);
 
-   for (int i = 0; i < ndof * NE; ++i)
    {
-      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      const real_t *yp = Y_pipe.HostRead();
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(yp[i] == MFEM_Approx(Y_ref(i)));
+      }
    }
 }
 
@@ -693,9 +705,12 @@ TEST_CASE("MMA form VecEval ApplySimplex vs ref", "[MMA][Form][Pipeline]")
 
    form::ApplySimplex<HcurlMass<2, true>, 2>(NE, B, D, X, Y_pipe);
 
-   for (int i = 0; i < ndof * NE; ++i)
    {
-      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      const real_t *yp = Y_pipe.HostRead();
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(yp[i] == MFEM_Approx(Y_ref(i)));
+      }
    }
 }
 
@@ -738,7 +753,7 @@ TEST_CASE("MMA form Curl ApplySimplex vs ref", "[MMA][Form][Pipeline]")
 
       for (int i = 0; i < ndof * NE; ++i)
       {
-         REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+         REQUIRE(Y_pipe.HostRead()[i] == MFEM_Approx(Y_ref(i)));
       }
    }
 
@@ -799,7 +814,7 @@ TEST_CASE("MMA form Curl ApplySimplex vs ref", "[MMA][Form][Pipeline]")
 
       for (int i = 0; i < ndof * NE; ++i)
       {
-         REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+         REQUIRE(Y_pipe.HostRead()[i] == MFEM_Approx(Y_ref(i)));
       }
    }
 }
@@ -839,9 +854,12 @@ TEST_CASE("MMA form Div ApplySimplex vs ref", "[MMA][Form][Pipeline]")
 
    form::ApplySimplex<DivDivQFn, 3>(NE, Div, D, X, Y_pipe);
 
-   for (int i = 0; i < ndof * NE; ++i)
    {
-      REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+      const real_t *yp = Y_pipe.HostRead();
+      for (int i = 0; i < ndof * NE; ++i)
+      {
+         REQUIRE(yp[i] == MFEM_Approx(Y_ref(i)));
+      }
    }
 }
 
@@ -970,7 +988,16 @@ TEST_CASE("MMA form custom QFn DensitySquaredMass", "[MMA][Form][Author]")
 
       for (int i = 0; i < ndof * NE; ++i)
       {
-         REQUIRE(Y_pipe(i) == MFEM_Approx(Y_ref(i)));
+         REQUIRE(Y_pipe.HostRead()[i] == MFEM_Approx(Y_ref(i)));
       }
    }
+}
+
+TEST_CASE("MMA form ApplySimplex empty NE", "[MMA][Form][Pipeline]")
+{
+   Array<real_t> P(3 * 3);
+   Vector D, X, Y;
+   P = 1.0;
+   form::ApplySimplex<Mass, 2>(0, P, D, X, Y);
+   REQUIRE(Y.Size() == 0);
 }

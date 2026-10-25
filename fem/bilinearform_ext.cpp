@@ -423,6 +423,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
          for (int i = 0; i < iSz; ++i)
          {
+            if (integrators[i]->HasCeedOp()) { continue; }
             assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
                                            *elem_attributes, localY);
          }
@@ -435,6 +436,12 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
          else
          {
             elem_restrict->MultTranspose(localY, y);
+         }
+         for (int i = 0; i < iSz; ++i)
+         {
+            if (!integrators[i]->HasCeedOp()) { continue; }
+            assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
+                                           *elem_attributes, y);
          }
       }
       else
@@ -561,6 +568,7 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
          localY = 0.0;
          for (int i = 0; i < iSz; ++i)
          {
+            if (integrators[i]->HasCeedOp()) { continue; }
             AddMultWithMarkers(*integrators[i], localX, elem_markers[i],
                                *elem_attributes, false, localY, useAbs);
          }
@@ -571,6 +579,12 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
          else
          {
             elem_restrict->MultTranspose(localY, y);
+         }
+         for (int i = 0; i < iSz; ++i)
+         {
+            if (!integrators[i]->HasCeedOp()) { continue; }
+            AddMultWithMarkers(*integrators[i], x, elem_markers[i],
+                               *elem_attributes, false, y, useAbs);
          }
       }
       else

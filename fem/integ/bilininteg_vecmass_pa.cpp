@@ -29,6 +29,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Simplex MMA before CEED / tensor maps (Q / VQ / MQ).
    if (UsesSimplexMMA(fes))
    {
+      delete ceedOp;
+      ceedOp = nullptr;
       AssembleSimplexMmaPA(fes);
       return;
    }
@@ -181,7 +183,9 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
 
    // Tensor MMA: stock PA layouts for Q / VQ / MQ.
-   if (UsesTensorMMA(fes))
+   if (UsesTensorMMA(fes) &&
+       dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+       quad1D <= internal::mma::TensorsMmaMaxQ1D)
    {
       use_tensors_mma_sum = true;
    }
@@ -258,9 +262,39 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplex_mma || use_tensors_mma_sum)
+   if (use_simplex_mma)
    {
-      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
+      if (ne <= 0 || nq <= 0) { return; }
+      const int nd = mma_P.Size() / nq;
+      MFEM_VERIFY(nd > 0 && mma_P.Size() == nq * nd, "");
+      MFEM_VERIFY(pa_data.Size() == coeff_vdim * nq * ne, "");
+      const auto P = Reshape(mma_P.Read(), nq, nd);
+      const auto D = Reshape(pa_data.Read(), nq, coeff_vdim, ne);
+      auto Y = Reshape(diag.ReadWrite(), nd, vdim, ne);
+      const int vd = vdim, cv = coeff_vdim;
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int c = 0; c < vd; ++c)
+         {
+            for (int i = 0; i < nd; ++i)
+            {
+               real_t s = 0.0;
+               for (int q = 0; q < nq; ++q)
+               {
+                  const real_t b = P(q, i);
+                  real_t dq = D(q, 0, e);
+                  if (cv == vd) { dq = D(q, c, e); }
+                  else if (cv == vd * vd)
+                  {
+                     dq = D(q, c + vd * c, e);
+                  }
+                  s += b * b * dq;
+               }
+               Y(i, c, e) += s;
+            }
+         }
+      });
+      return;
    }
    if (ceedOp) { return ceedOp->GetDiagonal(diag); }
 

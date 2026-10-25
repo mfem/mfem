@@ -579,4 +579,3 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
 } // namespace mfem::internal::mma::blas
 
 /// \endcond DO_NOT_DOCUMENT
-

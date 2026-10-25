@@ -17,7 +17,7 @@
     - Programmatic: ForceMMA(true) / MMAForce RAII
     - Env: MFEM_USE_MMA set and not "0" (see GetForceMMA)
     - UsesSimplexMMA: fixed-order H1/H1Pos tri/tet; Positive only if ForceMMA
-    - UsesTensorMMA: ForceMMA + H1 GLL quad/hex, double (any order)
+    - UsesTensorMMA: ForceMMA + H1 GLL quad/hex, double, D1D<=9
     - ForceGEM: with UsesTensorMMA, Mass/Diffusion use dense element GEMM
 
     ## Host apply tree
@@ -48,6 +48,9 @@
 #include "../../fe/fe_nd.hpp"
 #include "../../fe/fe_rt.hpp"
 #include "../../gridfunc.hpp"  // GetSimplexMeshNodesE
+#ifdef MFEM_USE_MPI
+#include "../../mesh/pmesh.hpp"
+#endif
 
 namespace mfem
 {
@@ -104,6 +107,38 @@ inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
           dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
 }
 
+/** MPI agreement for Uses* so empty ranks take the same path as others. */
+inline bool AllreduceMmaFlag(const FiniteElementSpace &fes, bool ok)
+{
+#ifdef MFEM_USE_MPI
+   if (const auto *pmesh = dynamic_cast<const ParMesh*>(fes.GetMesh()))
+   {
+      int loc = ok ? 1 : 0;
+      int glob = loc;
+      MPI_Allreduce(&loc, &glob, 1, MPI_INT, MPI_MIN, pmesh->GetComm());
+      return glob != 0;
+   }
+#endif
+   return ok;
+}
+
+/** Local mesh checks. Empty ranks skip GetNumGeometries (no local bits). */
+inline bool MmaVolumetricMeshOk(const Mesh &mesh, int dim)
+{
+   if (dim != 2 && dim != 3) { return false; }
+   if (mesh.SpaceDimension() != dim) { return false; }
+   if (mesh.GetNE() > 0 && mesh.GetNumGeometries(dim) != 1)
+   {
+      return false;
+   }
+   return true;
+}
+
+inline bool TypicalFeAvailable(const Mesh &mesh)
+{
+   return mesh.GetNE() > 0 || mesh.MeshGenerator() != 0;
+}
+
 /** True if this space can use dense simplex PA (as opposed to Stroud
     sum-factorization on Positive bases).
     Backends: CUDA DMMA, HIP MFMA, or dense host GEMM/hand kernels on CPU.
@@ -111,30 +146,31 @@ inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
     - Positive (`H1Pos_*`): only when forced via ForceMMA / MFEM_USE_MMA. */
 inline bool UsesSimplexMMA(const FiniteElementSpace &fes)
 {
-   if (fes.IsVariableOrder()) { return false; }
-
+   bool ok = !fes.IsVariableOrder();
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   if (dim != 2 && dim != 3) { return false; }
-   if (mesh->SpaceDimension() != dim) { return false; }
-   if (mesh->GetNumGeometries(dim) != 1) { return false; }
-
-   const FiniteElement &el = *fes.GetTypicalFE();
-   if (dim == 2)
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
    {
-      if (el.GetGeomType() != Geometry::TRIANGLE) { return false; }
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::TRIANGLE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::TETRAHEDRON;
+      }
+      ok = ok && IsSimplexMmaH1Element(el, dim);
+      if (ok)
+      {
+         const bool positive =
+            dynamic_cast<const H1Pos_TriangleElement *>(&el) ||
+            dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
+         if (positive && !GetForceMMA()) { ok = false; }
+      }
    }
-   else
-   {
-      if (el.GetGeomType() != Geometry::TETRAHEDRON) { return false; }
-   }
-   if (!IsSimplexMmaH1Element(el, dim)) { return false; }
-
-   const bool positive =
-      dynamic_cast<const H1Pos_TriangleElement *>(&el) ||
-      dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
-   if (positive && !GetForceMMA()) { return false; }
-   return true;
+   return AllreduceMmaFlag(fes, ok);
 }
 
 inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
@@ -146,7 +182,7 @@ inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
    return dynamic_cast<const H1_HexahedronElement *>(&el) != nullptr;
 }
 
-/** Opt-in tensor MMA for fixed-order H1 GLL quad/hex, any order.
+/** Opt-in tensor MMA for fixed-order H1 GLL quad/hex, D1D <= 9.
     Default apply is sum-factored. ForceGEM selects dense element GEMM for
     Mass and Diffusion only.
     GPU: MMA smem shell (Interp/Grad/GemmMbyK + dmma/mfma when TensorMmaEnabled,
@@ -156,28 +192,32 @@ inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
     Requires ForceMMA / MFEM_USE_MMA; double precision only. */
 inline bool UsesTensorMMA(const FiniteElementSpace &fes)
 {
-   if (!GetForceMMA()) { return false; }
-   if (fes.IsVariableOrder()) { return false; }
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
 #if defined(MFEM_USE_SINGLE)
-   return false;
+   ok = false;
 #else
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   if (dim != 2 && dim != 3) { return false; }
-   if (mesh->SpaceDimension() != dim) { return false; }
-   if (mesh->GetNumGeometries(dim) != 1) { return false; }
-   const FiniteElement &el = *fes.GetTypicalFE();
-   if (dim == 2)
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
    {
-      if (el.GetGeomType() != Geometry::SQUARE) { return false; }
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::SQUARE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::CUBE;
+      }
+      ok = ok && IsTensorsMmaH1Element(el, dim);
+      if (ok && el.GetOrder() + 1 > internal::mma::TensorsMmaMaxD1D)
+      {
+         ok = false;
+      }
    }
-   else
-   {
-      if (el.GetGeomType() != Geometry::CUBE) { return false; }
-   }
-   if (!IsTensorsMmaH1Element(el, dim)) { return false; }
-   return true;
 #endif
+   return AllreduceMmaFlag(fes, ok);
 }
 
 inline bool IsTensorsMmaHcurlElement(const FiniteElement &el, int dim)
@@ -203,26 +243,33 @@ inline bool IsTensorsMmaHdivElement(const FiniteElement &el, int dim)
     Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
 inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
 {
-   if (!GetForceMMA()) { return false; }
-   if (fes.IsVariableOrder()) { return false; }
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
 #if defined(MFEM_USE_SINGLE)
-   return false;
+   ok = false;
 #else
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   if (dim != 2 && dim != 3) { return false; }
-   if (mesh->SpaceDimension() != dim) { return false; }
-   if (mesh->GetNumGeometries(dim) != 1) { return false; }
-   const FiniteElement &el = *fes.GetTypicalFE();
-   if (dim == 2)
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
    {
-      if (el.GetGeomType() != Geometry::SQUARE) { return false; }
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::SQUARE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::CUBE;
+      }
+      ok = ok && IsTensorsMmaHcurlElement(el, dim);
+      ok = ok && el.GetOrder() >= 3;
+      if (ok && el.GetOrder() + 1 > internal::mma::TensorsMmaMaxD1D)
+      {
+         ok = false;
+      }
    }
-   else if (el.GetGeomType() != Geometry::CUBE) { return false; }
-   if (!IsTensorsMmaHcurlElement(el, dim)) { return false; }
-   if (el.GetOrder() < 3) { return false; }
-   return true;
 #endif
+   return AllreduceMmaFlag(fes, ok);
 }
 
 /** Opt-in tensor MMA for fixed-order RT (Hdiv) quad/hex. ForceMMA; double; p≥3.
@@ -230,27 +277,34 @@ inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
     Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
 inline bool UsesTensorMmaHdiv(const FiniteElementSpace &fes)
 {
-   if (!GetForceMMA()) { return false; }
-   if (fes.IsVariableOrder()) { return false; }
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
 #if defined(MFEM_USE_SINGLE)
-   return false;
+   ok = false;
 #else
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   if (dim != 2 && dim != 3) { return false; }
-   if (mesh->SpaceDimension() != dim) { return false; }
-   if (mesh->GetNumGeometries(dim) != 1) { return false; }
-   const FiniteElement &el = *fes.GetTypicalFE();
-   if (dim == 2)
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
    {
-      if (el.GetGeomType() != Geometry::SQUARE) { return false; }
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::SQUARE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::CUBE;
+      }
+      ok = ok && IsTensorsMmaHdivElement(el, dim);
+      // RT order p means D1D = p+1 for closed; require p >= 3 like H1/ND
+      ok = ok && el.GetOrder() >= 3;
+      if (ok && el.GetOrder() + 1 > internal::mma::TensorsMmaMaxD1D)
+      {
+         ok = false;
+      }
    }
-   else if (el.GetGeomType() != Geometry::CUBE) { return false; }
-   if (!IsTensorsMmaHdivElement(el, dim)) { return false; }
-   // RT order p means D1D = p+1 for closed; require p >= 3 like H1/ND
-   if (el.GetOrder() < 3) { return false; }
-   return true;
 #endif
+   return AllreduceMmaFlag(fes, ok);
 }
 
 inline bool IsSimplexMmaHcurlElement(const FiniteElement &el, int dim)
@@ -274,47 +328,55 @@ inline bool IsSimplexMmaHdivElement(const FiniteElement &el, int dim)
 /** Dense simplex MMA for fixed-order ND on tri/tet. ForceMMA; double. */
 inline bool UsesSimplexMmaHcurl(const FiniteElementSpace &fes)
 {
-   if (!GetForceMMA()) { return false; }
-   if (fes.IsVariableOrder()) { return false; }
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
 #if defined(MFEM_USE_SINGLE)
-   return false;
+   ok = false;
 #else
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   if (dim != 2 && dim != 3) { return false; }
-   if (mesh->SpaceDimension() != dim) { return false; }
-   if (mesh->GetNumGeometries(dim) != 1) { return false; }
-   const FiniteElement &el = *fes.GetTypicalFE();
-   if (dim == 2)
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
    {
-      if (el.GetGeomType() != Geometry::TRIANGLE) { return false; }
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::TRIANGLE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::TETRAHEDRON;
+      }
+      ok = ok && IsSimplexMmaHcurlElement(el, dim);
    }
-   else if (el.GetGeomType() != Geometry::TETRAHEDRON) { return false; }
-   return IsSimplexMmaHcurlElement(el, dim);
 #endif
+   return AllreduceMmaFlag(fes, ok);
 }
 
 /** Dense simplex MMA for fixed-order RT on tri/tet. ForceMMA; double. */
 inline bool UsesSimplexMmaHdiv(const FiniteElementSpace &fes)
 {
-   if (!GetForceMMA()) { return false; }
-   if (fes.IsVariableOrder()) { return false; }
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
 #if defined(MFEM_USE_SINGLE)
-   return false;
+   ok = false;
 #else
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
-   if (dim != 2 && dim != 3) { return false; }
-   if (mesh->SpaceDimension() != dim) { return false; }
-   if (mesh->GetNumGeometries(dim) != 1) { return false; }
-   const FiniteElement &el = *fes.GetTypicalFE();
-   if (dim == 2)
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
    {
-      if (el.GetGeomType() != Geometry::TRIANGLE) { return false; }
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::TRIANGLE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::TETRAHEDRON;
+      }
+      ok = ok && IsSimplexMmaHdivElement(el, dim);
    }
-   else if (el.GetGeomType() != Geometry::TETRAHEDRON) { return false; }
-   return IsSimplexMmaHdivElement(el, dim);
 #endif
+   return AllreduceMmaFlag(fes, ok);
 }
 
 } // namespace mfem
@@ -359,11 +421,6 @@ inline void GetSimplexSetupGeom(Mesh &mesh, const IntegrationRule &ir,
 /** Reference ND / RT vector shapes at IR: B(q,i,c). Host FE eval, once. */
 void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
                     Array<real_t> &B);
-
-/** Apply TransformDual on the nd-axis of a (nq,nd,ncomp[,NE]) basis so that
-    B_eff @ x_E matches FA TransformDual without an EA Mult path. */
-void BakeNdDofTransformation(const FiniteElementSpace &fes,
-                             Array<real_t> &B, int nq, int nd, int ncomp);
 
 /** Face orientations Fo(f,e) packed as nfaces*NE; empty if identity (p<2). */
 void GatherNdFaceOrientations(const FiniteElementSpace &fes, Array<int> &fo);
@@ -540,4 +597,3 @@ void PAJinvQJinvTSetupSimplexFromNodes(const int dim,
 } // namespace mfem::internal
 
 /// \endcond DO_NOT_DOCUMENT
-

@@ -45,6 +45,8 @@ using ::mfem::internal::ZeroSmemTile;
 // ND tet p=6 is 216 dofs; RT tet p=6 is 280; BP9 tet p=6 nq is 175.
 constexpr int SimplexVecMaxNdof = 320;
 constexpr int SimplexVecMaxNq = 256;
+// VectorMass can have more than spatial dim; scratch is compile-time.
+constexpr int SimplexMaxVdim = 8;
 
 // ---------------------------------------------------------------------------
 // Pointwise Eval Q-phase on smem U(q,b) with scalar PA density D(q,e)
@@ -356,8 +358,8 @@ MFEM_HOST_DEVICE inline void EvalApplyVdimScratch(
    const int e, const int vdim, const int coeff_vdim)
 {
    real_t u[MAX_NQ];
-   real_t uq[MAX_NQ * 3];
-   real_t yq[MAX_NQ * 3];
+   real_t uq[MAX_NQ * SimplexMaxVdim];
+   real_t yq[MAX_NQ * SimplexMaxVdim];
    EvalApplyVdimElement(qfn, nq, ndof, P, D, X, Y, e, vdim, coeff_vdim,
                         u, uq, yq);
 }
@@ -369,7 +371,7 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *X, real_t *Y,
                           const int vdim, const int coeff_vdim)
 {
-   MFEM_VERIFY(vdim >= 1, "");
+   MFEM_VERIFY(vdim >= 1 && vdim <= SimplexMaxVdim, "");
    MFEM_VERIFY(coeff_vdim == 1 || coeff_vdim == vdim ||
                coeff_vdim == vdim * vdim, "");
    if (vdim == 1 && coeff_vdim == 1)
@@ -420,7 +422,8 @@ ApplySimplex(const int NE,
    static_assert(D1D > 0 && QND > 0, "requires specialized D1D/QND");
 
    constexpr int NDOF = SimplexNdof<DIM, D1D>();
-   MFEM_VERIFY(NE > 0 && d.Size() == QND * NE, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(d.Size() == QND * NE, "");
    MFEM_VERIFY(basis.Size() == QND * NDOF, "");
    MFEM_VERIFY(x.Size() >= NDOF * NE && y.Size() >= NDOF * NE, "");
 
@@ -481,8 +484,9 @@ ApplySimplex(const int NE,
              Vector &y,
              const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1, "");
-   MFEM_VERIFY(NE > 0 && d.Size() % (QND * NE) == 0, "");
+   MFEM_VERIFY(vdim >= 1 && vdim <= SimplexMaxVdim, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(d.Size() % (QND * NE) == 0, "");
    const int coeff_vdim = d.Size() / (QND * NE);
    MFEM_VERIFY(coeff_vdim == 1 || coeff_vdim == vdim ||
                coeff_vdim == vdim * vdim, "");
@@ -518,7 +522,7 @@ ApplySimplex(const int NE,
    const int cv = coeff_vdim;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_ASSERT(vdim <= 3, "");
+      MFEM_ASSERT(vdim <= SimplexMaxVdim, "");
       EvalApplyVdimScratch<MQ>(qfn, QND, NDOF, P, D, X, Y, e, vdim, cv);
    });
 }
@@ -540,7 +544,7 @@ ApplySimplex(const int NE,
    static_assert(Tr::load_x && !Tr::test_is_grad,
                  "Eval Apply runtime requires load_x and Eval test");
 
-   MFEM_VERIFY(NE > 0, "");
+   if (NE <= 0) { return; }
    MFEM_VERIFY(d.Size() % NE == 0, "");
    const int nq = d.Size() / NE;
    MFEM_VERIFY(nq > 0 && basis.Size() % nq == 0, "");
@@ -599,7 +603,8 @@ ApplySimplex(const int NE,
              Vector &y,
              const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1 && NE > 0, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(vdim >= 1 && vdim <= SimplexMaxVdim, "");
    MFEM_VERIFY(basis.Size() > 0 && d.Size() % NE == 0, "");
    // The E-vector fixes ndof. The first divisor of (basis, d) is not unique.
    MFEM_VERIFY(x.Size() % (vdim * NE) == 0, "VectorMass MMA: bad E-vector");
@@ -641,20 +646,24 @@ ApplySimplex(const int NE,
    const auto P = basis.Read(), D = d.Read(), X = x.Read();
    auto Y = y.ReadWrite();
    const int nq_c = nq, ndof_c = ndof, cv = coeff_vdim;
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   if constexpr (DIM == 2)
    {
-      MFEM_ASSERT(vdim <= 3, "");
-      if constexpr (DIM == 2)
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
+         MFEM_ASSERT(vdim <= SimplexMaxVdim, "");
          EvalApplyVdimScratch<SimplexMaxNq<2, 0>()>(
             qfn, nq_c, ndof_c, P, D, X, Y, e, vdim, cv);
-      }
-      else
+      });
+   }
+   else
+   {
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
+         MFEM_ASSERT(vdim <= SimplexMaxVdim, "");
          EvalApplyVdimScratch<SimplexMaxNq<3, 0>()>(
             qfn, nq_c, ndof_c, P, D, X, Y, e, vdim, cv);
-      }
-   });
+      });
+   }
 }
 
 // ---------------------------------------------------------------------------
@@ -976,7 +985,8 @@ inline void ApplyLF(const int NE,
    static_assert(D1D > 0 && QND > 0, "requires specialized D1D/QND");
 
    constexpr int NDOF = SimplexNdof<DIM, D1D>();
-   MFEM_VERIFY(NE > 0 && d.Size() == QND * NE, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(d.Size() == QND * NE, "");
    MFEM_VERIFY(basis.Size() == QND * NDOF, "");
    MFEM_VERIFY(vdim >= 1 && vc >= 0 && vc < vdim, "");
 
@@ -1030,7 +1040,7 @@ inline void ApplyLF(const int NE,
    static_assert(!Tr::load_x && !Tr::test_is_grad,
                  "ApplyLF runtime requires none trial + Eval test");
 
-   MFEM_VERIFY(NE > 0, "");
+   if (NE <= 0) { return; }
    MFEM_VERIFY(d.Size() % NE == 0, "");
    const int nq = d.Size() / NE;
    MFEM_VERIFY(nq > 0 && basis.Size() % nq == 0, "");
@@ -1084,16 +1094,18 @@ MFEM_HOST_DEVICE inline void LoadMetricTensor(
    if constexpr (DIM == 2)
    {
       const real_t O11 = D(q, 0, e);
-      const real_t O21 = D(q, 1, e);
       if constexpr (SYM)
       {
+         const real_t O21 = D(q, 1, e);
          const real_t O22 = D(q, 2, e);
          A(0, 0) = O11; A(0, 1) = O21;
          A(1, 0) = O21; A(1, 1) = O22;
       }
       else
       {
-         const real_t O12 = D(q, 2, e);
+         // Setup stores [A00, A01, A10, A11].
+         const real_t O12 = D(q, 1, e);
+         const real_t O21 = D(q, 2, e);
          const real_t O22 = D(q, 3, e);
          A(0, 0) = O11; A(0, 1) = O12;
          A(1, 0) = O21; A(1, 1) = O22;
@@ -1387,8 +1399,8 @@ MFEM_HOST_DEVICE inline void GradApplyVdimScratch(
    const int e, const int vdim, const int ncomp)
 {
    real_t u[DIM * MAX_NQ];
-   real_t grads[DIM * MAX_NQ * 3];
-   real_t outg[DIM * MAX_NQ * 3];
+   real_t grads[DIM * MAX_NQ * SimplexMaxVdim];
+   real_t outg[DIM * MAX_NQ * SimplexMaxVdim];
    GradApplyVdimElement<DIM, SYM>(
       qfn, nq, ndof, G, Dv, X, Y, e, vdim, ncomp, u, grads, outg);
 }
@@ -1412,7 +1424,7 @@ inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *X, real_t *Y, const int vdim,
                           const int ncomp)
 {
-   MFEM_VERIFY(vdim >= 1 && ncomp >= 1, "");
+   MFEM_VERIFY(vdim >= 1 && vdim <= SimplexMaxVdim && ncomp >= 1, "");
    const bool matrix_coeff = (ncomp == vdim * DIM);
    auto *u = static_cast<real_t *>(
                 alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
@@ -1804,7 +1816,8 @@ ApplySimplex(const int NE,
    constexpr bool SYM = Tr::symmetric_pa;
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    constexpr int ndof = SimplexNdof<DIM, D1D>();
-   MFEM_VERIFY(NE > 0 && d.Size() == PA_SIZE * QND * NE, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(d.Size() == PA_SIZE * QND * NE, "");
    MFEM_VERIFY(basis.Size() == QND * ndof * DIM, "");
    MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
 
@@ -1844,7 +1857,8 @@ ApplySimplex(const int NE,
              Vector &y,
              const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1 && NE > 0, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(vdim >= 1 && vdim <= SimplexMaxVdim, "");
 
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad);
@@ -1885,7 +1899,7 @@ ApplySimplex(const int NE,
    const int ncomp_c = ncomp;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_ASSERT(vdim <= 3, "");
+      MFEM_ASSERT(vdim <= SimplexMaxVdim, "");
       GradApplyVdimScratch<DIM, MQ, SYM>(
          qfn, QND, ndof, G, Dv, X, Y, e, vdim, ncomp_c);
    });
@@ -1907,7 +1921,7 @@ ApplySimplex(const int NE,
    constexpr bool SYM = Tr::symmetric_pa;
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
 
-   MFEM_VERIFY(NE > 0, "");
+   if (NE <= 0) { return; }
    MFEM_VERIFY(d.Size() % (PA_SIZE * NE) == 0, "");
    const int nq = d.Size() / (PA_SIZE * NE);
    MFEM_VERIFY(nq > 0 && basis.Size() % (nq * DIM) == 0, "");
@@ -1938,19 +1952,22 @@ ApplySimplex(const int NE,
       const auto Dv = d.Read();
       const auto X = x.Read();
       auto Y = y.ReadWrite();
-      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+      if constexpr (DIM == 2)
       {
-         if constexpr (DIM == 2)
+         mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
          {
             GradApplyScalarScratch<2, SimplexMaxNq<2, 0>(), SYM>(
                qfn, nq, ndof, G, Dv, X, Y, e);
-         }
-         else
+         });
+      }
+      else
+      {
+         mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
          {
             GradApplyScalarScratch<3, SimplexMaxNq<3, 0>(), SYM>(
                qfn, nq, ndof, G, Dv, X, Y, e);
-         }
-      });
+         });
+      }
       return;
    }
 
@@ -1984,7 +2001,8 @@ ApplySimplex(const int NE,
              Vector &y,
              const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1 && NE > 0, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(vdim >= 1 && vdim <= SimplexMaxVdim, "");
 
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad, "");
@@ -2033,20 +2051,24 @@ ApplySimplex(const int NE,
    const auto G = basis.Read(), Dv = d.Read(), X = x.Read();
    auto Y = y.ReadWrite();
    const int nq_c = nq, ndof_c = ndof, ncomp_c = ncomp;
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   if constexpr (DIM == 2)
    {
-      MFEM_ASSERT(vdim <= 3, "");
-      if constexpr (DIM == 2)
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
+         MFEM_ASSERT(vdim <= SimplexMaxVdim, "");
          GradApplyVdimScratch<2, SimplexMaxNq<2, 0>(), SYM>(
             qfn, nq_c, ndof_c, G, Dv, X, Y, e, vdim, ncomp_c);
-      }
-      else
+      });
+   }
+   else
+   {
+      mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
       {
+         MFEM_ASSERT(vdim <= SimplexMaxVdim, "");
          GradApplyVdimScratch<3, SimplexMaxNq<3, 0>(), SYM>(
             qfn, nq_c, ndof_c, G, Dv, X, Y, e, vdim, ncomp_c);
-      }
-   });
+      });
+   }
 }
 
 // De Rham simplex PA — dense value/curl/div engines + ApplySimplex overloads
@@ -2537,6 +2559,7 @@ ApplySimplex(const int NE,
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplySimplex DIM");
+   if (NE <= 0) { return; }
    const int nd = x.Size() / NE;
    ApplySimplexPlaneEval<QFn, DIM>(NE, QND, nd, basis, d, x, y, dual);
 }
@@ -2553,6 +2576,7 @@ ApplySimplex(const int NE,
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::spatial_dim == DIM, "");
    constexpr bool SYM = Tr::symmetric_pa;
+   if (NE <= 0) { return; }
    const int nd = x.Size() / NE;
    const int ncomp = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    MFEM_VERIFY(d.Size() % (ncomp * NE) == 0, "pa_data size");
@@ -2574,6 +2598,7 @@ ApplySimplex(const int NE,
              NdDualCtx dual = {})
 {
    static_assert(qfn_traits<QFn>::spatial_dim == DIM, "");
+   if (NE <= 0) { return; }
    const int nd = x.Size() / NE;
    if constexpr (DIM == 2)
    {
@@ -2597,6 +2622,7 @@ ApplySimplex(const int NE,
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::spatial_dim == DIM, "");
    constexpr bool SYM = Tr::symmetric_pa;
+   if (NE <= 0) { return; }
    const int nd = x.Size() / NE;
    int nq;
    if constexpr (DIM == 2)
@@ -2627,6 +2653,7 @@ ApplySimplex(const int NE,
              Vector &y,
              NdDualCtx /*dual*/ = {})
 {
+   if (NE <= 0) { return; }
    const int nd = x.Size() / NE;
    ApplySimplexScalarEval<QFn, DIM>(NE, QND, nd, div_basis, d, x, y);
 }
@@ -2640,6 +2667,7 @@ ApplySimplex(const int NE,
              Vector &y,
              NdDualCtx /*dual*/ = {})
 {
+   if (NE <= 0) { return; }
    const int nd = x.Size() / NE;
    MFEM_VERIFY(d.Size() % NE == 0, "");
    const int nq = d.Size() / NE;
@@ -2654,6 +2682,7 @@ inline void ApplySimplexRegistered(const int d1d, const int nq, const int NE,
                                    const Vector &x, Vector &y,
                                    NdDualCtx dual = {})
 {
+   if (NE <= 0) { return; }
 #define MFEM_TRY_SIMPLEX(D1, Q) \
    if (d1d == (D1) && nq == (Q)) \
    { ApplySimplex<QFn, DIM, D1, Q>(NE, basis, d, x, y, dual); return; }

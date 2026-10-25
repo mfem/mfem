@@ -22,11 +22,74 @@ namespace mfem
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_simplex_mma || use_tensors_mma_sum || use_tensors_mma_gem)
+   if (use_simplex_mma)
    {
-      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
+      if (ne <= 0 || nq <= 0) { return; }
+      const int nd = mma_G.Size() / (nq * dim);
+      MFEM_VERIFY(nd > 0 && mma_G.Size() == nq * nd * dim, "");
+      const int pa = pa_data.Size() / (nq * ne);
+      MFEM_VERIFY(pa == (symmetric ? (dim * (dim + 1)) / 2 : dim * dim), "");
+      const auto G = Reshape(mma_G.Read(), nq, nd, dim);
+      const auto D = Reshape(pa_data.Read(), nq, pa, ne);
+      auto Y = Reshape(diag.ReadWrite(), nd, ne);
+      const int dim_c = dim;
+      const bool sym = symmetric;
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int i = 0; i < nd; ++i)
+         {
+            real_t s = 0.0;
+            for (int q = 0; q < nq; ++q)
+            {
+               if (dim_c == 2)
+               {
+                  const real_t g0 = G(q, i, 0), g1 = G(q, i, 1);
+                  const real_t a00 = D(q, 0, e);
+                  if (sym)
+                  {
+                     const real_t a10 = D(q, 1, e), a11 = D(q, 2, e);
+                     s += g0 * (a00 * g0 + a10 * g1) +
+                          g1 * (a10 * g0 + a11 * g1);
+                  }
+                  else
+                  {
+                     const real_t a01 = D(q, 1, e), a10 = D(q, 2, e),
+                                  a11 = D(q, 3, e);
+                     s += g0 * (a00 * g0 + a01 * g1) +
+                          g1 * (a10 * g0 + a11 * g1);
+                  }
+               }
+               else
+               {
+                  real_t g[3] = {G(q, i, 0), G(q, i, 1), G(q, i, 2)};
+                  real_t Ag[3];
+                  if (sym)
+                  {
+                     const real_t a00 = D(q, 0, e), a01 = D(q, 1, e),
+                                  a02 = D(q, 2, e), a11 = D(q, 3, e),
+                                  a12 = D(q, 4, e), a22 = D(q, 5, e);
+                     Ag[0] = a00 * g[0] + a01 * g[1] + a02 * g[2];
+                     Ag[1] = a01 * g[0] + a11 * g[1] + a12 * g[2];
+                     Ag[2] = a02 * g[0] + a12 * g[1] + a22 * g[2];
+                  }
+                  else
+                  {
+                     Ag[0] = D(q, 0, e) * g[0] + D(q, 1, e) * g[1] +
+                             D(q, 2, e) * g[2];
+                     Ag[1] = D(q, 3, e) * g[0] + D(q, 4, e) * g[1] +
+                             D(q, 5, e) * g[2];
+                     Ag[2] = D(q, 6, e) * g[0] + D(q, 7, e) * g[1] +
+                             D(q, 8, e) * g[2];
+                  }
+                  s += g[0] * Ag[0] + g[1] * Ag[1] + g[2] * Ag[2];
+               }
+            }
+            Y(i, e) += s;
+         }
+      });
+      return;
    }
-   else if (DeviceCanUseCeed())
+   if (DeviceCanUseCeed() && ceedOp)
    {
       ceedOp->GetDiagonal(diag);
    }
@@ -141,6 +204,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    if (UsesSimplexMMA(fes))
    {
+      delete ceedOp;
+      ceedOp = nullptr;
       AssembleSimplexMmaPA(fes);
       return;
    }
@@ -226,18 +291,22 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
                               ir->GetWeights(), geom->J, coeff, pa_data);
 
-   if (UsesTensorMMA(fes) && GetForceGEM())
+   const bool tensor_shell =
+      UsesTensorMMA(fes) &&
+      dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+      quad1D <= internal::mma::TensorsMmaMaxQ1D;
+   if (tensor_shell && GetForceGEM())
    {
       use_tensors_mma_gem = true;
       const int ndof = internal::mma::form::gem::TensorGemPow(dofs1D, dim);
       MFEM_VERIFY(nq == internal::mma::form::gem::TensorGemPow(quad1D, dim),
                   "tensor GEM diffusion nq must be Q1D^dim");
       mma_G.SetSize(nq * ndof * dim, mt);
-      internal::mma::form::gem::BuildTensorGemGradBasis(dim, dofs1D, quad1D,
-                                                        maps->B.HostRead(), maps->G.HostRead(),
-                                                        mma_G.HostWrite());
+      internal::mma::form::gem::BuildTensorGemGradBasis(
+         dim, dofs1D, quad1D, maps->B.HostRead(), maps->G.HostRead(),
+         mma_G.HostWrite());
    }
-   else if (UsesTensorMMA(fes))
+   else if (tensor_shell)
    {
       use_tensors_mma_sum = true;
    }

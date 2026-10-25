@@ -1978,7 +1978,7 @@ template <int MD1, int MQ1, int MDQ, bool OPEN, bool SYM>
 struct TensorVecEvalKernel2D
 {
    int NE, D1D, Q1D, NB;
-   DeviceTensor<2, const real_t> Bo, Bc;
+   DeviceTensor<2, const real_t> Bo, Bc, Bot, Bct;
    DeviceTensor<3, const real_t> D; // (nq, ncomp, NE)
    DeviceTensor<2, const real_t> X;
    DeviceTensor<2, real_t> Y;
@@ -1994,8 +1994,10 @@ struct TensorVecEvalKernel2D
       MFEM_SHARED real_t sBct[MD1 * MQ1];
       MFEM_SHARED real_t ucomp[VDIM * MDQ * MDQ];
 
-      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
-      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, Bc, sBc, sBct);
+      mma::LoadB<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo);
+      mma::LoadBt<MD1, MQ1>(D1D - 1, Q1D, Bot, sBot);
+      mma::LoadB<MD1, MQ1>(D1D, Q1D, Bc, sBc);
+      mma::LoadBt<MD1, MQ1>(D1D, Q1D, Bct, sBct);
       MFEM_SYNC_THREAD;
 
       const int tid = mma::getThreadIdxX();
@@ -2069,7 +2071,7 @@ template <int MD1, int MQ1, bool OPEN, bool SYM>
 struct TensorVecEvalKernel3D
 {
    int NE, D1D, Q1D, NB;
-   DeviceTensor<2, const real_t> Bo, Bc;
+   DeviceTensor<2, const real_t> Bo, Bc, Bot, Bct;
    DeviceTensor<3, const real_t> D; // (nq, ncomp, NE)
    DeviceTensor<2, const real_t> X;
    DeviceTensor<2, real_t> Y;
@@ -2085,8 +2087,10 @@ struct TensorVecEvalKernel3D
       MFEM_SHARED real_t sBct[MD1 * MQ1];
       MFEM_SHARED real_t ucomp[VDIM * MQ1 * MQ1 * MQ1];
 
-      mma::LoadBBoth<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo, sBot);
-      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, Bc, sBc, sBct);
+      mma::LoadB<MD1, MQ1>(D1D - 1, Q1D, Bo, sBo);
+      mma::LoadBt<MD1, MQ1>(D1D - 1, Q1D, Bot, sBot);
+      mma::LoadB<MD1, MQ1>(D1D, Q1D, Bc, sBc);
+      mma::LoadBt<MD1, MQ1>(D1D, Q1D, Bct, sBct);
       MFEM_SYNC_THREAD;
 
       const int tid = mma::getThreadIdxX();
@@ -2167,13 +2171,13 @@ struct TensorVecEvalKernel3D
    }
 };
 
-/** Device/Emulate vector-mass shell (ND/RT). bot/bct unused: LoadBBoth. */
+/** Device/Emulate vector-mass shell (ND/RT). Trial B, test Bt. */
 template <typename QFn, int DIM, int T_D1D = 0, int T_Q1D = 0>
 inline void TensorVecEvalApplyDevice(const int NE,
                                      const Array<real_t> &bo,
                                      const Array<real_t> &bc,
-                                     const Array<real_t> &,
-                                     const Array<real_t> &,
+                                     const Array<real_t> &bot,
+                                     const Array<real_t> &bct,
                                      const Vector &d,
                                      const Vector &x,
                                      Vector &y,
@@ -2189,6 +2193,7 @@ inline void TensorVecEvalApplyDevice(const int NE,
    const int D1D = dq.D1D, Q1D = dq.Q1D;
    constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
    constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
+   if (NE <= 0) { return; }
    dq.Verify(NE, "Tensor H(curl)/H(div) mass MMA D1D/Q1D exceeds shell cap");
 
    const int nq = (DIM == 2) ? (Q1D * Q1D) : (Q1D * Q1D * Q1D);
@@ -2203,6 +2208,8 @@ inline void TensorVecEvalApplyDevice(const int NE,
 
    const auto Bo = Reshape(bo.Read(), Q1D, D1D - 1);
    const auto Bc = Reshape(bc.Read(), Q1D, D1D);
+   const auto Bot = Reshape(bot.Read(), D1D - 1, Q1D);
+   const auto Bct = Reshape(bct.Read(), D1D, Q1D);
    const auto Dv = Reshape(d.Read(), nq, ncomp, NE);
    const auto X = Reshape(x.Read(), ndof, NE);
    auto Y = Reshape(y.ReadWrite(), ndof, NE);
@@ -2218,7 +2225,7 @@ inline void TensorVecEvalApplyDevice(const int NE,
       const int nblocks = (NE + NB - 1) / NB;
       mfem::forall_3D(nblocks, nthreads, 1, 1,
                       TensorVecEvalKernel2D<MD1, MQ1, MDQ, OPEN, SYM>
-      {NE, D1D, Q1D, NB, Bo, Bc, Dv, X, Y});
+      {NE, D1D, Q1D, NB, Bo, Bc, Bot, Bct, Dv, X, Y});
    }
    else
    {
@@ -2234,7 +2241,7 @@ inline void TensorVecEvalApplyDevice(const int NE,
       const int nblocks = (NE + NB - 1) / NB;
       mfem::forall_3D(nblocks, nthreads, 1, 1,
                       TensorVecEvalKernel3D<MD1, MQ1, OPEN, SYM>
-      {NE, D1D, Q1D, NB, Bo, Bc, Dv, X, Y});
+      {NE, D1D, Q1D, NB, Bo, Bc, Bot, Bct, Dv, X, Y});
    }
 }
 
@@ -3232,7 +3239,8 @@ inline void ApplyTensorGemEval(const int NE, const int nq, const int ndof,
                                const Array<real_t> &basis,
                                const Vector &d, const Vector &x, Vector &y)
 {
-   MFEM_VERIFY(NE > 0 && nq > 0 && ndof > 0, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(nq > 0 && ndof > 0, "");
    MFEM_VERIFY(basis.Size() == nq * ndof, "");
    MFEM_VERIFY(d.Size() == nq * NE, "");
    MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
@@ -3241,7 +3249,8 @@ inline void ApplyTensorGemEval(const int NE, const int nq, const int ndof,
       MFEM_VERIFY(nq == NQ && ndof == NDOF, "");
    }
 
-   if (!Device::Allows(Backend::DEVICE_MASK))
+   // Debug device compiles the GEM body out; use the host apply.
+   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       HostScalarEvalApply(QFn{}, NE, nq, ndof,
                           basis.Read(), d.Read(), x.Read(), y.ReadWrite());
@@ -3281,7 +3290,8 @@ inline void ApplyTensorGemGrad(const int NE, const int nq, const int ndof,
 {
    using Tr = qfn_traits<QFn>;
    constexpr int PA = Tr::symmetric_pa ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
-   MFEM_VERIFY(NE > 0 && nq > 0 && ndof > 0, "");
+   if (NE <= 0) { return; }
+   MFEM_VERIFY(nq > 0 && ndof > 0, "");
    MFEM_VERIFY(basis.Size() == DIM * nq * ndof, "");
    MFEM_VERIFY(d.Size() == PA * nq * NE, "");
    MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
@@ -3290,7 +3300,7 @@ inline void ApplyTensorGemGrad(const int NE, const int nq, const int ndof,
       MFEM_VERIFY(nq == NQ && ndof == NDOF, "");
    }
 
-   if (!Device::Allows(Backend::DEVICE_MASK))
+   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
       const real_t *Dv = d.Read();
       QFn qfn{};

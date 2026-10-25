@@ -98,12 +98,14 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
          for (int k = 0; k < stride; ++k) { slice(k) = src[k]; }
          for (int i = 0; i < nd; ++i)
          {
+            x.HostWrite();
             x = 0.0;
             x(i) = 1.0;
+            y.UseDevice(true);
             y = 0.0;
             internal::MmaDivDivApplySimplex(dim, 1, nd, simplex_nq, dofs1D,
                                             simplex_B, slice, x, y);
-            d[i + nd * e] += y(i);
+            d[i + nd * e] += y.HostRead()[i];
          }
       }
       return;

@@ -107,8 +107,9 @@ inline void MmaHcurlMassApplyTensors2D(
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int /*test_d1d*/, const int q1d)
+   const int d1d, const int test_d1d, const int q1d)
 {
+   MFEM_VERIFY(d1d == test_d1d, "tensor H(curl) mass MMA needs matching D1D");
    MmaHcurlMassApplyTensors<2>(NE, symmetric, bo, bc, bot, bct,
                                pa_data, x, y, d1d, q1d);
 }
@@ -118,8 +119,9 @@ inline void MmaHcurlMassApplyTensors3D(
    const Array<real_t> &bo, const Array<real_t> &bc,
    const Array<real_t> &bot, const Array<real_t> &bct,
    const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d, const int /*test_d1d*/, const int q1d)
+   const int d1d, const int test_d1d, const int q1d)
 {
+   MFEM_VERIFY(d1d == test_d1d, "tensor H(curl) mass MMA needs matching D1D");
    MmaHcurlMassApplyTensors<3>(NE, symmetric, bo, bc, bot, bct,
                                pa_data, x, y, d1d, q1d);
 }

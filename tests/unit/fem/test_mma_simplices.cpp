@@ -151,20 +151,10 @@ void test_pa_simplices_mma_h1(const char *filename, int p,
    pa_mma.Assemble();
    pa_mma.Mult(x, y_mma);
 
-   if (!compare_stock)
-   {
-      REQUIRE(y_mma.Norml2() >= 0.0);
-      return;
-   }
-
-   BilinearForm pa_sum(&fes);
-   AddMassDiffIntegrators(pa_sum, ir, const_coeff, funct_coeff);
-   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   {
-      MMAForce off(false);
-      pa_sum.Assemble();
-   }
-   pa_sum.Mult(x, y_sum);
+   BilinearForm fa(&fes);
+   AddMassDiffIntegrators(fa, ir, const_coeff, funct_coeff);
+   fa.Assemble();
+   fa.Mult(x, y_sum);
    y_sum -= y_mma;
    REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
@@ -1125,6 +1115,88 @@ TEST_CASE("Simplex mass apply on many elements", MMA_ROUND)
    fa.Assemble();
    fa.Finalize();
    RequireMultMatches(fes, pa, fa, 0x53);
+}
+
+TEST_CASE("Simplex mass and diffusion diagonal", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   BilinearForm pa(&fes), fa(&fes);
+   pa.AddDomainIntegrator(new MassIntegrator);
+   pa.AddDomainIntegrator(new DiffusionIntegrator);
+   fa.AddDomainIntegrator(new MassIntegrator);
+   fa.AddDomainIntegrator(new DiffusionIntegrator);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireDiagonalMatches(fes, pa, fa);
+}
+
+TEST_CASE("Simplex linear form rejects gradient device", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   Vector v(2);
+   v = 1.0;
+   VectorConstantCoefficient coeff(v);
+   LinearForm lf(&fes);
+   lf.AddDomainIntegrator(new DomainLFGradIntegrator(coeff));
+   REQUIRE_FALSE(lf.SupportsDevice());
+   lf.Assemble();
+   REQUIRE(lf.Norml2() >= 0.0);
+}
+
+TEST_CASE("Tensor MMA rejects D1D above the shell cap", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   H1_FECollection fec9(9, 2);
+   FiniteElementSpace fes9(&mesh, &fec9);
+   MMAForce on(true);
+   REQUIRE_FALSE(UsesTensorMMA(fes9));
+   H1_FECollection fec8(8, 2);
+   FiniteElementSpace fes8(&mesh, &fec8);
+   REQUIRE(UsesTensorMMA(fes8));
+}
+
+TEST_CASE("Simplex vector mass four components", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec, 4);
+   REQUIRE(UsesSimplexMMA(fes));
+   BilinearForm pa(&fes), fa(&fes);
+   auto *vm_pa = new VectorMassIntegrator;
+   auto *vm_fa = new VectorMassIntegrator;
+   vm_pa->SetVDim(4);
+   vm_fa->SetVDim(4);
+   pa.AddDomainIntegrator(vm_pa);
+   fa.AddDomainIntegrator(vm_fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x54);
+}
+
+TEST_CASE("Tensor MMA GEM mass vs FA", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   MMAForce on(true);
+   GEMForce gem(true);
+   REQUIRE(UsesTensorMMA(fes));
+   BilinearForm pa(&fes), fa(&fes);
+   pa.AddDomainIntegrator(new MassIntegrator);
+   fa.AddDomainIntegrator(new MassIntegrator);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x55);
 }
 
 #undef MMA_ROUND
