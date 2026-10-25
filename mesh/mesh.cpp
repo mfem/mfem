@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -667,9 +667,84 @@ void Mesh::GetEdgeTransformation(int EdgeNo,
          }
          EdTr->SetFE(edge_el);
       }
-      else
+      else // L2 Nodes (e.g., periodic mesh), go through the face containing the edge
       {
-         MFEM_ABORT("Not implemented.");
+         // Search for a face that contains this edge
+         GetEdgeFaceTable();
+
+         Array<int> faces_e;
+         edge_face->GetRow(EdgeNo, faces_e);
+
+         MFEM_VERIFY(faces_e.Size() > 0, "Edge not found in any face!");
+         const int face_no = faces_e[0];
+
+         // Get edge local index and orientation
+         Array<int> edges_f, oris_f;
+         GetFaceEdges(face_no, edges_f, oris_f);
+         const int local_idx = edges_f.Find(EdgeNo);
+         MFEM_ASSERT(local_idx >= 0, "Edge not found on the face!");
+         const int edge_ori = oris_f[local_idx] > 0 ? 0 : 1;
+
+         // Get face information
+         const FaceInfo &face_info = faces_info[face_no];
+
+         // Get transformation from face to edge
+         IntegrationPointTransformation LocEdge;
+         int edge_info = EncodeFaceInfo(local_idx, edge_ori);
+         Element::Type face_type = GetFaceElementType(face_no);
+
+         switch (face_type)
+         {
+            case Element::TRIANGLE:
+               GetLocalSegToTriTransformation(LocEdge.Transf, edge_info);
+               break;
+            case Element::QUADRILATERAL:
+               GetLocalSegToQuadTransformation(LocEdge.Transf, edge_info);
+               break;
+            default:
+               MFEM_ABORT("Unsupported face type for edge transformation!");
+         }
+
+         // Get edge element
+         const int order = Nodes->FESpace()->GetElementOrder(face_info.Elem1No);
+         const L2_FECollection *l2_fec = dynamic_cast<const L2_FECollection*>
+                                         (Nodes->FESpace()->FEColl());
+         if (l2_fec)
+         {
+            // L2 elements do not have a defined trace space
+            if (!EdgeTransfElement || EdgeTransfElement->GetOrder() != order
+                || EdgeTransfElement->GetBasisType() != l2_fec->GetBasisType())
+            {
+               EdgeTransfElement = make_unique<L2_SegmentElement>(
+                                      order, l2_fec->GetBasisType());
+            }
+            edge_el = EdgeTransfElement.get();
+         }
+         else
+         {
+            MFEM_ABORT("Unsupported finite element collection.");
+         }
+
+         // Map edge nodes to face reference space
+         IntegrationRule face_ir(edge_el->GetDof());
+         LocEdge.Transform(edge_el->GetNodes(), face_ir);
+
+         // Then, map from face to element
+         IntegrationPointTransformation Loc1;
+         GetLocalFaceTransformation(face_type,
+                                    GetElementType(face_info.Elem1No),
+                                    Loc1.Transf, face_info.Elem1Inf);
+
+         IntegrationRule elem_ir(edge_el->GetDof());
+         Loc1.Transf.ElementNo = face_info.Elem1No;
+         Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
+         Loc1.Transf.mesh = this;
+         Loc1.Transform(face_ir, elem_ir);
+
+         // Finally, get the physical coordinates
+         Nodes->GetVectorValues(Loc1.Transf, elem_ir, pm);
+
+         EdTr->SetFE(edge_el);
       }
    }
 }
@@ -1824,8 +1899,8 @@ void Mesh::Init()
 
 void Mesh::InitTables()
 {
-   el_to_edge =
-      el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = NULL;
+   el_to_edge = el_to_face = el_to_el = bel_to_edge = NULL;
+   face_edge = edge_face = edge_vertex = NULL;
    face_to_elem = NULL;
 }
 
@@ -1848,6 +1923,7 @@ void Mesh::DestroyTables()
    }
 
    delete face_edge;
+   delete edge_face;
    delete edge_vertex;
 
    delete face_to_elem;
@@ -1921,6 +1997,7 @@ void Mesh::ResetLazyData()
 {
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
+   delete edge_face;    edge_face = NULL;
    delete face_to_elem;    face_to_elem = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    DeleteGeometricFactors();
@@ -2845,6 +2922,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    //                 boundary element ordering
    // - el_to_el    - no need to rebuild
    // - face_edge   - no need to rebuild
+   // - edge_face   - no need to rebuild
    // - edge_vertex - no need to rebuild
    // - geom_factors - no need to rebuild
 
@@ -3327,11 +3405,25 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
       // loop over all elements
       for (int i = 0; i < GetNE(); i++)
       {
+         fes->GetElementInteriorDofs(i, old_dofs);
+         // No need to permute the dofs if there are fewer than two
+         if (old_dofs.Size() < 2)
+         {
+            offset += old_dofs.Size();
+            continue;
+         }
+
          const int *old_v = old_elem_vert->GetRow(i);
          const int *new_v = elements[i]->GetVertices();
          const int *dof_ord;
          int new_or;
          const Geometry::Type geom = elements[i]->GetGeometryType();
+         if (geom == Geometry::CUBE || geom == Geometry::PRISM ||
+             geom == Geometry::PYRAMID)
+         {
+            offset += old_dofs.Size();
+            continue;
+         }
          switch (geom)
          {
             case Geometry::SEGMENT:
@@ -3355,9 +3447,8 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
          dof_ord = fec->DofOrderForOrientation(geom, new_or);
          MFEM_VERIFY(dof_ord != NULL,
                      "FE collection '" << fec->Name()
-                     << "' does not define reordering for "
+                     << "' does not define reordering (" << new_or << ") for "
                      << Geometry::Name[geom] << " elements!");
-         fes->GetElementInteriorDofs(i, old_dofs);
          new_dofs.SetSize(old_dofs.Size());
          for (int j = 0; j < new_dofs.Size(); j++)
          {
@@ -4585,8 +4676,9 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Do NOT copy the element-to-element Table, el_to_el
    el_to_el = NULL;
 
-   // Do NOT copy the face-to-edge Table, face_edge
+   // Do NOT copy the face-to-edge Table, face_edge and edge_face
    face_edge = NULL;
+   edge_face = NULL;
    face_to_elem = NULL;
 
    // Copy the edge-to-vertex Table, edge_vertex
@@ -5576,7 +5668,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
    for (int el_coarse = 0; el_coarse < orig_ne; ++el_coarse)
    {
       Geometry::Type geom = orig_mesh.GetElementBaseGeometry(el_coarse);
-      // Have we seen this pair of (goemetry, refinement level) before?
+      // Have we seen this pair of (geometry, refinement level) before?
       GeomRef id(geom, ref_factors[el_coarse]);
       if (point_matrices_offsets.find(id) == point_matrices_offsets.end())
       {
@@ -5640,6 +5732,7 @@ Mesh Mesh::MakeSimplicial(const Mesh &orig_mesh)
    {
       mesh.MakeHigherOrderSimplicial_(orig_mesh, parent_elements);
    }
+   MFEM_VERIFY(mesh.CheckBdrElementOrientation(false) == 0, "");
    return mesh;
 }
 
@@ -5973,8 +6066,10 @@ Array<int> Mesh::MakeSimplicial_(const Mesh &orig_mesh, int *vglobal)
    sequence = orig_mesh.GetSequence();
    last_operation = orig_mesh.last_operation;
 
-   MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+   if (orig_mesh.GetNodes() == nullptr)
+   {
+      MFEM_VERIFY(CheckElementOrientation(false) == 0, "");
+   }
 
    return parent_elems;
 }
@@ -5986,7 +6081,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
    // Higher order associated to vertices are unchanged, and those for
    // previously existing edges. DOFs associated to new elements need to be set.
    const int sdim = orig_mesh.SpaceDimension();
-   auto *orig_fespace = orig_mesh.GetNodes()->FESpace();
+   auto *orig_fespace = orig_mesh.GetNodalFESpace();
    SetCurvature(orig_fespace->GetMaxElementOrder(), orig_fespace->IsDGSpace(),
                 orig_mesh.SpaceDimension(), orig_fespace->GetOrdering());
 
@@ -6005,7 +6100,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
 
    Array<int> edofs; // element dofs in new element
    Array<int> parent_vertices, child_vertices; // vertices of parent and child.
-   Array<int> node_map; // node indices of parent from child.
+   Array<int> vertex_map; // vertex indices of parent from child.
    Vector edofvals; // values of elements dofs in original element
    // Storage for evaluating node function on parent element, at node locations
    // of child element
@@ -6023,7 +6118,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
          case Geometry::Type::SEGMENT : // fall through
          case Geometry::Type::TRIANGLE : // fall through
          case Geometry::Type::TETRAHEDRON :
-            GetNodes()->FESpace()->GetElementVDofs(i, edofs);
+            GetNodalFESpace()->GetElementVDofs(i, edofs);
             GetNodes()->SetSubVector(edofs, edofvals);
             break;
          case Geometry::Type::CUBE : // fall through
@@ -6033,34 +6128,34 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
          {
             // Extract the vertices of parent and child, can then form the
             // map from child reference coordinates to parent reference
-            // coordinates. Exploit the fact that for Nodes, the vertex
-            // entries come first, and their indexing matches the vertex
-            // numbering. Thus we have already have an inverse index map.
+            // coordinates.
             orig_mesh.GetElementVertices(ip, parent_vertices);
             GetElementVertices(i, child_vertices);
-            node_map.SetSize(0);
+            vertex_map.SetSize(0);
             for (auto cv : child_vertices)
                for (int ipv = 0; ipv < parent_vertices.Size(); ipv++)
                   if (cv == parent_vertices[ipv])
                   {
-                     node_map.Append(ipv);
+                     vertex_map.Append(ipv);
                      break;
                   }
-            MFEM_ASSERT(node_map.Size() == Geometry::NumVerts[GetElementBaseGeometry(i)],
-                        "!");
-            // node_map now says which of the parent vertex nodes map to each
+            MFEM_ASSERT(vertex_map.Size() == Geometry::NumVerts[GetElementBaseGeometry(i)],
+                        "");
+            // vertex_map now says which of the parent vertex nodes map to each
             // of the child vertex nodes. Using this can build a basis in the
             // parent element from child Node values, exploit the linearity
             // to then transform all nodes.
             child_nodes_in_parent.SetSize(0);
-            const auto *orig_FE = orig_mesh.GetNodes()->FESpace()->GetFE(ip);
-            for (auto pn : node_map)
+            const auto *orig_FE = orig_fespace->GetFE(ip);
+            const IntegrationRule &parent_ref_vertices =
+               *Geometries.GetVertices(orig_geom);
+            for (auto pv : vertex_map)
             {
-               child_nodes_in_parent.Append(orig_FE->GetNodes()[pn]);
+               child_nodes_in_parent.Append(parent_ref_vertices[pv]);
             }
-            const auto *simplex_FE = GetNodes()->FESpace()->GetFE(i);
-            shape.SetSize(orig_FE->GetDof(),
-                          simplex_FE->GetDof()); // One set of evaluations per simplex dof.
+            const auto *simplex_FE = GetNodalFESpace()->GetFE(i);
+            // One set of evaluations per simplex dof.
+            shape.SetSize(orig_FE->GetDof(), simplex_FE->GetDof());
             Vector col;
             for (int j = 0; j < simplex_FE->GetNodes().Size(); j++)
             {
@@ -6097,7 +6192,7 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
             DenseMatrix edofvals_mat(edofvals.GetData(), orig_FE->GetDof(), sdim);
             point_matrix.SetSize(simplex_FE->GetDof(), sdim);
             MultAtB(shape, edofvals_mat, point_matrix);
-            GetNodes()->FESpace()->GetElementVDofs(i, edofs);
+            GetNodalFESpace()->GetElementVDofs(i, edofs);
             GetNodes()->SetSubVector(edofs, point_matrix.GetData());
          }
          break;
@@ -6107,6 +6202,8 @@ void Mesh::MakeHigherOrderSimplicial_(const Mesh &orig_mesh,
             MFEM_ABORT("Internal Error!");
       }
    }
+
+   MFEM_VERIFY(CheckElementOrientation(false) == 0, "");
 }
 
 
@@ -7116,7 +7213,8 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
    return ((Nodes) ? Nodes->FESpace() : NULL);
 }
 
-void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering,
+                        int pyr_type)
 {
    if (order <= 0)
    {
@@ -7129,11 +7227,12 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    if (discont)
    {
       const int type = 1; // Gauss-Lobatto points
-      nfec = new L2_FECollection(order, Dim, type);
+      nfec = new L2_FECollection(order, Dim, type, FiniteElement::VALUE,
+                                 pyr_type);
    }
    else
    {
-      nfec = new H1_FECollection(order, Dim);
+      nfec = new H1_FECollection(order, Dim, BasisType::GaussLobatto, pyr_type);
    }
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
@@ -8077,6 +8176,22 @@ Table *Mesh::GetFaceEdgeTable() const
    GetElementArrayEdgeTable(faces, v_to_v, *face_edge);
 
    return (face_edge);
+}
+
+Table *Mesh::GetEdgeFaceTable() const
+{
+   if (edge_face)
+   {
+      return edge_face;
+   }
+
+   if (Dim != 3)
+   {
+      return NULL;
+   }
+
+   edge_face = Transpose(*GetFaceEdgeTable());
+   return edge_face;
 }
 
 Table *Mesh::GetEdgeVertexTable() const
@@ -11437,6 +11552,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(bel_to_edge, other.bel_to_edge);
    mfem::Swap(be_to_face, other.be_to_face);
    mfem::Swap(face_edge, other.face_edge);
+   mfem::Swap(edge_face, other.edge_face);
    mfem::Swap(face_to_elem, other.face_to_elem);
    mfem::Swap(edge_vertex, other.edge_vertex);
 
@@ -12373,7 +12489,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    if (Nonconforming())
    {
       // Workaround for inconsistent Mesh state where the Mesh has nodes and
-      // ncmesh->coodrinates is not empty. Such state can be created with the
+      // ncmesh->coordinates is not empty. Such state can be created with the
       // method Mesh::SwapNodes(), see the comment at the beginning of its
       // implementation.
       Array<real_t> coords_save;

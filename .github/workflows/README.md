@@ -29,15 +29,11 @@ Runs a number of static repository-level sanity checks.
 
 - `branch-history` guards against accidental commits of large files using the `--history` option of the `config/githooks/pre-push` script.
 
-## `mfem-analysis.yml` (`build-analysis`)
-
-Checks if the code builds and satisfies minimal requirements.
-
-- `gitignore` builds hypre, METIS, and MFEM using `mfem/github-actions/build-hypre`, `mfem/github-actions/build-metis`, and `mfem/github-actions/build-mfem` and checks for correct `.gitignore` settings by running the `tests/scripts/gitignore` script.
-
 ## `builds-and-tests.yml`
 
 Runs a matrix of builds and tests runs with different compilers, OS, mfem/hypre settings, etc. Also processes and upload Codecov reports.
+
+One matrix job runs `tests/scripts/gitignore` after `make test-noclean` to check generated artifacts against `.gitignore`.
 
 Uses the following GitHub Actions from <https://github.com/mfem/github-actions>:
 
@@ -52,8 +48,8 @@ This workflow validates MFEM unit tests, examples, and miniapps using sanitizer 
 
 - `sanitizers.yml` orchestrates:
   - Building and caching dependencies: HYPRE, METIS, LSAN suppression file, and LLVM libcxx.
-  - Launching fine-grained jobs for serial (ASAN, MSAN, UBSAN) and parallel (ASAN, UBSAN) sanitizers.
-- `sanitize-tests.yml` is a reusable workflow accepting `par` mode (`true` for parallel) and `sanitizer` (ASAN, MSAN, or UBSAN) as inputs. It executes the following jobs:
+  - Launching fine-grained jobs for serial (ASAN+UBSAN, MSAN) and parallel (ASAN+UBSAN) sanitizers. UBSAN can be combined with ASAN in the same build, so the asan-ubsan pipelines test both sanitizers at once. MSAN cannot be combined with ASAN, and runs only serially because it requires every linked library to be MSAN-instrumented, which rules out MPI/HYPRE/METIS.
+- `sanitize-tests.yml` is a reusable workflow accepting `par` mode (`true` for parallel) and `sanitizer` (`asan-ubsan` or `msan`) as inputs. It executes the following jobs:
   - **Build**: Compiles the MFEM library with specified parallel and sanitizer settings.
   - **Check**: Runs verification checks.
   - Parallel jobs to test the following: **Examples**, **Miniapps** and **Unit tests**

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,7 +94,9 @@ public:
 #ifdef MFEM_USE_MPI
    /**
     * \brief Parallel constructor
-    * \param comm_  the MPI communicator participating in the NLP solve
+    * \param comm_  the MPI communicator participating in the NLP solve.
+    *               This communicator is borrowed, and the caller must
+    *               ensure its existence for the duration of this object.
     * \param nVar   number of design parameters on this MPI rank
     * \param nCon   total number of inequality constraints (i.e., $C$).
     *               Every MPI rank provides the same value here.
@@ -121,7 +123,9 @@ public:
        int iterationNumber = 0);
    /**
     * \brief Parallel constructor
-    * \param comm_  the MPI communicator participating in the NLP solve
+    * \param comm_  the MPI communicator participating in the NLP solve.
+    *               This communicator is borrowed, and the caller must
+    *               ensure its existence for the duration of this object.
     * \param nVar   number of design parameters on this MPI rank
     * \param nCon   total number of inequality constraints (i.e., $C$).
     *               Every MPI rank provides the same value here.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,6 +28,10 @@
 namespace mfem
 {
 
+// Forward declaration
+template <typename ViewedType> class MemoryView;
+
+
 /** @brief Swap objects of type T. The operation is performed using the most
     specialized `swap` function from the `mfem` namespace (or other visible
     `swap` functions), or using the `std::swap` generic template and its
@@ -54,7 +58,10 @@ protected:
 
    inline void GrowSize(int minsize);
 
-   static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   static_assert(std::is_trivial_v<T>, "type T must be trivial");
+
+   friend class MemoryView<Array<T>>;
+   friend class MemoryView<const Array<T>>;
 
 public:
    using value_type = T; ///< Type alias for stl.
@@ -97,8 +104,8 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Construct an Array from a braced initializer list of convertible type
-   template <typename CT, typename std::enable_if<
-                std::is_convertible<CT,T>::value,bool>::type = true>
+   template <typename CT, std::enable_if_t<
+                std::is_convertible_v<CT,T>,bool> = true>
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
@@ -158,6 +165,13 @@ public:
 
    /// Return a reference to the Memory object used by the Array, const version.
    const Memory<T> &GetMemory() const { return data; }
+
+   /** @brief Set the device flag of the Array, i.e. the device flag of the
+       Memory object used by the Array.
+
+       Setting the device flag to true will inform other MFEM functions and
+       classes to prefer using the Array on device. */
+   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
 
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
@@ -783,8 +797,7 @@ inline Array<T>::Array(const Array<CT> &src)
 }
 
 template <typename T>
-template <typename CT, typename std::enable_if<
-             std::is_convertible<CT,T>::value,bool>::type>
+template <typename CT, std::enable_if_t<std::is_convertible_v<CT,T>,bool>>
 inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
 {
    std::copy(values.begin(), values.end(), begin());
