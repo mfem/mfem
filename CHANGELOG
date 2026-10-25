@@ -17,20 +17,41 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
-New and updated examples and miniapps
--------------------------------------
-- Added the optics hologram miniapps (miniapps/optics). Serial hologram and
-  parallel phologram turn a PNG target into a phase mask and a monochromatic
-  hologram. They require MFEM_USE_ZLIB.
+Meshing improvements
+--------------------
+- Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
+  refined on one side only: on parallel meshes, the edges on the unrefined side
+  of essential boundaries were not essential, and on serial meshes, those of
+  all interior boundaries were.
+
+Linear and nonlinear solvers
+----------------------------
+- Fixed HypreParaSails::SetOperator, which read the communicator of the
+  previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
+  in a NewtonSolver.
 
 Miscellaneous
 -------------
+- Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
+  column so the inner loop vectorizes. This roughly doubles the speed of full
+  assembly for DiffusionIntegrator at higher orders.
+
+- Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
+  failure if an MPI rank had no design parameters (aka decision variables).
+  Also plugged a MPI communicator leak that would cause memory leaks.
+
 - Added header-only PNG input and output as mfem::png in general/zpng.hpp,
   which is not included by mfem.hpp and must be included explicitly. Images
   are 8-bit RGB. Requires MFEM_USE_ZLIB to be set.
 
 - Added mfem::complex_t in linalg/complex.hpp, included by linalg.hpp and
   used by the optics, minimal-surface, and Schrödinger miniapps.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added the optics hologram miniapps (miniapps/optics). Serial hologram and
+  parallel phologram turn a PNG target into a phase mask and a monochromatic
+  hologram. They require MFEM_USE_ZLIB.
 
 
 Version 4.10, released on Sep 1, 2026
