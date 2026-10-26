@@ -631,7 +631,7 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
    smesh.GeneralRefinement(ref);
    REQUIRE(smesh.GetNE() == 15);
 
-   // On rank 1, group 0 still means self. No faces should be shared.
+   // On rank 1, SelfGroupId still means self. No faces should be shared.
    {
       Array<int> local_partition(smesh.GetNE());
       local_partition = 1;
@@ -650,7 +650,7 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
    const auto &faces = nc.GetFaceList();
    const auto &edges = nc.GetEdgeList();
 
-   int checked = 0, missing = 0;
+   int checked = 0, remote = 0, missing = 0;
    for (const auto &master : faces.masters)
    {
       if (nc.IsGhost(2, master.index)) { continue; }
@@ -673,14 +673,19 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
             // Use the slave face's edges, not the edge-face records.
             const int owner = nc.GetGroup(nc.GetEntityOwnerId(1, edge))[0];
             checked++;
+            remote += (owner != Mpi::WorldRank());
             const auto group = nc.GetEntityGroupId(2, master.index);
             missing += !nc.GroupContains(group, owner);
          }
       }
    }
    MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &remote, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    MPI_Allreduce(MPI_IN_PLACE, &missing, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    REQUIRE(checked > 0);
+   // The partition must exercise an edge owned by another rank, which is the
+   // case that previously left that rank out of the master face's group.
+   REQUIRE(remote > 0);
    // Fail on all ranks before a missing row can hang space construction.
    REQUIRE(missing == 0);
 

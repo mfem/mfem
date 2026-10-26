@@ -148,7 +148,7 @@ void ParNCMesh::Update()
    CommGroup self;
    self.push_back(MyRank);
    groups.push_back(self);
-   group_id[self] = 0;
+   group_id[self] = SelfGroupId;
 
    for (int i = 0; i < 3; i++)
    {
@@ -410,9 +410,9 @@ void ParNCMesh::BuildVertexList()
 
    auto owner_rank = [&](int entity, int index, int nlocal)
    {
-      // For a ghost, group 0 means unknown owner, not self.
+      // For a ghost, SelfGroupId means unknown owner, not self.
       if (index < 0 || index >= entity_owner[entity].Size() ||
-          (index >= nlocal && entity_owner[entity][index] == 0))
+          (index >= nlocal && entity_owner[entity][index] == SelfGroupId))
       {
          return INT_MAX;
       }
@@ -491,8 +491,8 @@ void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner_)
    entity_owner_.SetSize(num);
    for (int i = 0; i < num; i++)
    {
-      entity_owner_[i] =
-         (tmp_owner[i] != INT_MAX) ? GetSingletonGroup(tmp_owner[i]) : 0;
+      entity_owner_[i] = (tmp_owner[i] != INT_MAX) ?
+                         GetSingletonGroup(tmp_owner[i]) : SelfGroupId;
    }
 }
 
@@ -518,7 +518,7 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
          }
          else // special case: edge-face constraint
          {
-            if (entity_owner[1][FlipIndexSign(si)] != 0)
+            if (entity_owner[1][FlipIndexSign(si)] != SelfGroupId)
             {
                master_flag |= 0x2;
             }
@@ -580,7 +580,7 @@ ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
 {
    if (group.size() == 1 && group[0] == MyRank)
    {
-      return 0;
+      return SelfGroupId;
    }
    MFEM_ASSERT(group_sorted(group), "invalid group");
    GroupId &id = group_id[group];

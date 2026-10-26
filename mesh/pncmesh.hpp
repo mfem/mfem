@@ -154,6 +154,10 @@ public:
    using GroupId = short;
    using CommGroup = std::vector<int>;
 
+   /// ID of the group containing only this rank, i.e., groups[SelfGroupId] =
+   /// { MyRank }.
+   static constexpr GroupId SelfGroupId = 0;
+
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
    {
@@ -308,7 +312,7 @@ protected: // implementation
    using GroupList = std::vector<CommGroup>;
    using GroupMap = std::map<CommGroup, GroupId>;
 
-   GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
+   GroupList groups;  // comm group list; NOTE: groups[SelfGroupId] = {MyRank}
    GroupMap group_id; // search index over groups
 
    // owner rank for each vertex, edge and face (encoded as singleton group)

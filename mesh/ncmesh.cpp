@@ -3664,15 +3664,15 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
       {
          if (all_edges || !b[1].unsplit || b[1].ghost_neighbor)
          {
-            TraverseTetEdge(mid[0],mid[1], pmid0,pmid1, matrix_map);
+            TraverseTetEdge(mid[0], mid[1], pmid0, pmid1, matrix_map);
          }
          if (all_edges || !b[2].unsplit || b[2].ghost_neighbor)
          {
-            TraverseTetEdge(mid[1],mid[2], pmid1,pmid2, matrix_map);
+            TraverseTetEdge(mid[1], mid[2], pmid1, pmid2, matrix_map);
          }
          if (all_edges || !b[0].unsplit || b[0].ghost_neighbor)
          {
-            TraverseTetEdge(mid[2],mid[0], pmid2,pmid0, matrix_map);
+            TraverseTetEdge(mid[2], mid[0], pmid2, pmid0, matrix_map);
          }
       }
    }
