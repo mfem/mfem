@@ -429,6 +429,21 @@ public:
    /// Free all internal data created by the above three functions.
    void ClearTransforms();
 
+   /** @brief Calculate the relation of each leaf element to its root element,
+       the element of the coarsest mesh of the refinement hierarchy it was
+       refined from.
+
+       For element i of the Mesh, @a transforms.embeddings[i].parent is the
+       index of its root element in the refinement tree (see GetElement()). The
+       root elements are the first GetNumRootElements() elements of the tree,
+       with the same indices on all processes of a ParNCMesh. The point matrix
+       @a transforms.point_matrices[geom](@a transforms.embeddings[i].matrix),
+       where geom = @a transforms.embeddings[i].geom is the geometry of the
+       root element, holds the coordinates of the vertices of element i in the
+       reference element of the root element, in its first columns. Unlike
+       GetRefinementTransforms(), this does not depend on MarkCoarseLevel(). */
+   void GetRootTransforms(CoarseFineTransformations &transforms) const;
+
 
    // grid ordering
 
@@ -723,6 +738,19 @@ public:
     * @return const Element&
     */
    const Element& GetElement(int i) const { return elements[i]; }
+   /**
+    * @brief Return the corner nodes of element @a i of the refinement tree, in
+    * the order of the vertices of its geometry.
+    * @details Unlike Element::node, which only holds them for leaf elements,
+    * this also gives the corners of a refined element, which are corners of
+    * some of its descendants. The corners of the root elements (see
+    * GetNumRootElements()) are top-level nodes, which have the same indices on
+    * all processes of a ParNCMesh.
+    *
+    * @param i Index of the element
+    * @param[out] nodes The corner nodes of the element
+    */
+   void GetElementCornerNodes(int i, Array<int> &nodes) const;
 
    /**
     * @brief Given a set of nodes defining a face, traverse the nodes structure
@@ -1029,7 +1057,7 @@ protected:
    void CollectDerefinements(int elem, Array<Connection> &list);
 
    /// Return el.node[index] correctly, even if the element is refined.
-   int RetrieveNode(const Element &el, int index);
+   int RetrieveNode(const Element &el, int index) const;
 
    /// Extended version of find_node: works if 'el' is refined.
    int FindNodeExt(const Element &el, int node, bool abort = true);
