@@ -12,6 +12,11 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <array>
+#include <map>
+#include <set>
+#include <vector>
+
 namespace mfem
 {
 
@@ -603,7 +608,9 @@ TEST_CASE("Parallel Variable Order Group Communication",
    enum class Orders { ByRank, Alternating, Lowered };
    const auto orders = GENERATE(Orders::ByRank, Orders::Alternating,
                                 Orders::Lowered);
-   CAPTURE(dimension, base_order, int(orders));
+   // Parallel variable-order vector spaces ordered byVDIM are not supported.
+   const int vdim = GENERATE(1, 2);
+   CAPTURE(dimension, base_order, int(orders), vdim);
 
    Mesh mesh = MakeCartesianMesh(dimension == 2 ? 4 : 3, dimension);
    mesh.EnsureNCMesh();
@@ -611,7 +618,7 @@ TEST_CASE("Parallel Variable Order Group Communication",
    mesh.Clear();
 
    H1_FECollection fec(base_order, dimension);
-   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParFiniteElementSpace pfes(&pmesh, &fec, vdim);
    const int rank = pmesh.GetMyRank();
    for (int e = 0; e < pmesh.GetNE(); e++)
    {
@@ -621,14 +628,105 @@ TEST_CASE("Parallel Variable Order Group Communication",
       pfes.SetElementOrder(e, p);
    }
    pfes.Update(false);
+   GroupCommunicator &gcomm = pfes.GroupComm();
 
    // All communicated DOFs must be valid local DOFs.
-   const Table &group_ldof = pfes.GroupComm().GroupLDofTable();
+   const Table &group_ldof = gcomm.GroupLDofTable();
    for (int j = 0; j < group_ldof.Size_of_connections(); j++)
    {
       const int ldof = group_ldof.GetJ()[j];
       REQUIRE((ldof >= 0 && ldof < pfes.GetVSize()));
    }
+
+   // The local true DOF table is set, as for fixed-order spaces.
+   gcomm.GetDeviceComm();
+
+   // Communicating a conforming vector must not change it.
+   real_t comm_diff = 0.0;
+   {
+      Vector X(pfes.GetTrueVSize());
+      for (int i = 0; i < X.Size(); i++)
+      {
+         X(i) = std::sin(1.0 + pfes.GetMyTDofOffset() + i);
+      }
+      ParGridFunction x(&pfes), y(&pfes);
+      x.SetFromTrueDofs(X);
+      y = x;
+      gcomm.Reduce<real_t>(y.HostReadWrite(), GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(y.HostReadWrite());
+      y -= x;
+      comm_diff = y.Normlinf();
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &comm_diff, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 MPI_COMM_WORLD);
+   REQUIRE(comm_diff < 1e-12);
+
+   if (vdim > 1) { return; }
+
+   // Every DOF must be communicated with all ranks holding it. The ranks
+   // holding a DOF are found from its node position and variant order.
+   int count_diff = 0;
+   {
+      using Key = std::array<long long, 4>;
+      std::vector<Key> keys(pfes.GetVSize());
+      Array<int> dofs;
+      Vector pt(3), ptd;
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         pfes.GetElementDofs(e, dofs);
+         const IntegrationRule &nodes = pfes.GetFE(e)->GetNodes();
+         ElementTransformation *T = pmesh.GetElementTransformation(e);
+         for (int j = 0; j < dofs.Size(); j++)
+         {
+            pt = 0.0;
+            ptd.SetDataAndSize(pt.GetData(), dimension);
+            T->Transform(nodes.IntPoint(j), ptd);
+            const int d = dofs[j] >= 0 ? dofs[j] : -1 - dofs[j];
+            const int p = (d < pmesh.GetNV()) ? 0 : pfes.GetElementOrder(e);
+            keys[d] = {std::llround(1e8*pt(0)), std::llround(1e8*pt(1)),
+                       std::llround(1e8*pt(2)), p
+                      };
+         }
+      }
+
+      const int nranks = pmesh.GetNRanks();
+      Array<int> sizes(nranks), offsets(nranks);
+      int size = 4*static_cast<int>(keys.size());
+      MPI_Allgather(&size, 1, MPI_INT, sizes.GetData(), 1, MPI_INT,
+                    MPI_COMM_WORLD);
+      offsets[0] = 0;
+      for (int r = 1; r < nranks; r++)
+      {
+         offsets[r] = offsets[r-1] + sizes[r-1];
+      }
+      std::vector<long long> all_keys(offsets.Last() + sizes.Last());
+      MPI_Allgatherv(keys.data(), size, MPI_LONG_LONG, all_keys.data(),
+                     sizes.GetData(), offsets.GetData(), MPI_LONG_LONG,
+                     MPI_COMM_WORLD);
+      std::map<Key, int> num_ranks;
+      for (int r = 0; r < nranks; r++)
+      {
+         std::set<Key> rank_keys;
+         for (int i = offsets[r]; i < offsets[r] + sizes[r]; i += 4)
+         {
+            rank_keys.insert({all_keys[i], all_keys[i+1], all_keys[i+2],
+                              all_keys[i+3]});
+         }
+         for (const Key &key : rank_keys) { num_ranks[key]++; }
+      }
+
+      Array<int> count(pfes.GetVSize());
+      count = 1;
+      gcomm.Reduce<int>(count, GroupCommunicator::Sum);
+      gcomm.Bcast(count);
+      for (int i = 0; i < count.Size(); i++)
+      {
+         count_diff += (count[i] != num_ranks[keys[i]]);
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &count_diff, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(count_diff == 0);
 
    // Boundary and full projections must agree on the essential true DOFs.
    FunctionCoefficient coeff([](const Vector &x)
@@ -656,8 +754,8 @@ TEST_CASE("Parallel Variable Order Group Communication",
    {
       max_diff = std::max(max_diff, std::abs(X_bdr(i) - X_full(i)));
    }
-   MPI_Allreduce(MPI_IN_PLACE, &max_diff, 1, MPITypeMap<real_t>::mpi_type,
-                 MPI_MAX, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &max_diff, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 MPI_COMM_WORLD);
    REQUIRE(max_diff < 1e-12);
 }
 #endif  // MFEM_USE_MPI

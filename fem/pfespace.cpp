@@ -24,7 +24,10 @@
 
 #include "pderefmat_op.hpp"
 
+#include <algorithm>
+#include <array>
 #include <limits>
+#include <map>
 #include <list>
 #include <unordered_map>
 #include <unordered_set>
@@ -553,99 +556,122 @@ void ParFiniteElementSpace::GetGroupComm(
    gc.Finalize();
 }
 
+// Calls f(entity, index, ori, geom, pos) for the edges (entity = 1) and faces
+// (entity = 2) of group 'gr'; 'pos' is the same on all ranks of the group.
+template <typename F>
+static void ForEachGroupEdgeFace(const ParMesh &pmesh, int gr, F &&f)
+{
+   int k, o, pos = 0;
+   for (int j = 0; j < pmesh.GroupNEdges(gr); j++, pos++)
+   {
+      pmesh.GroupEdge(gr, j, k, o);
+      f(1, k, o, Geometry::SEGMENT, pos);
+   }
+   if (pmesh.Dimension() < 3) { return; }
+   for (int j = 0; j < pmesh.GroupNTriangles(gr); j++, pos++)
+   {
+      pmesh.GroupTriangle(gr, j, k, o);
+      f(2, k, o, Geometry::TRIANGLE, pos);
+   }
+   for (int j = 0; j < pmesh.GroupNQuadrilaterals(gr); j++, pos++)
+   {
+      pmesh.GroupQuadrilateral(gr, j, k, o);
+      f(2, k, o, Geometry::SQUARE, pos);
+   }
+}
+
 void ParFiniteElementSpace::GetVarOrderGroupComm(GroupCommunicator &gc,
                                                  int ldof_type) const
 {
-   MFEM_VERIFY(group_edge_orders.Size() == mesh->GetNEdges(),
-               "group variant orders are not set");
+   MFEM_VERIFY(var_gtopo, "variable-order groups are not set");
 
-   const int ng = pmesh->GetNGroups();
+   const GroupTopology &mesh_gt = pmesh->gtopo;
    const int nvd = fec->DofForGeometry(Geometry::POINT);
-   const bool faces = (group_face_orders.Size() > 0);
 
-   // Append the DOFs of the edge/face variants with the given orders.
-   auto append_variant_dofs = [&](int entity, int index, Geometry::Type geom,
-                                  int ori, VarOrderBits orders,
-                                  Array<int> &dofs)
+   // Entries {group, mesh group master rank, mesh group in the master, entity
+   // position, order, DOF index, DOF}, sorted to the same order on all ranks.
+   std::vector<std::array<int, 7>> entries;
+   for (int gr = 1; gr < mesh_gt.NGroups(); gr++)
    {
-      const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
-      const int first = (entity == 1) ? nvdofs : nvdofs + nedofs;
-      for (int var = 0; var < GetNVariants(entity, index); var++)
-      {
-         const int p = (entity == 1) ? GetEdgeOrder(index, var) :
-                       GetFaceOrder(index, var);
-         const int nd = fec->GetNumDof(geom, p);
-         if (nd == 0 || !(orders & (VarOrderBits(1) << p))) { continue; }
-
-         const int *ind = fec->GetDofOrdering(geom, p, ori);
-         const int base = first + ent_dofs.GetRow(index)[var];
-         for (int l = 0; l < nd; l++)
-         {
-            MFEM_ASSERT(ind[l] >= 0, "unexpected H1 DOF sign flip");
-            dofs.Append(base + ind[l]);
-         }
-      }
-   };
-
-   auto get_group_dofs = [&](int gr, Array<int> &dofs)
-   {
-      int k, o;
-      dofs.SetSize(0);
+      const int mrank = mesh_gt.GetGroupMasterRank(gr);
+      const int mgroup = mesh_gt.GetGroupMasterGroup(gr);
       for (int j = 0; j < pmesh->GroupNVertices(gr); j++)
       {
-         k = pmesh->GroupVertex(gr, j);
-         for (int l = 0; l < nvd; l++) { dofs.Append(nvd*k + l); }
-      }
-      for (int j = 0; j < pmesh->GroupNEdges(gr); j++)
-      {
-         pmesh->GroupEdge(gr, j, k, o);
-         append_variant_dofs(1, k, Geometry::SEGMENT, o, group_edge_orders[k],
-                             dofs);
-      }
-      if (faces)
-      {
-         for (int j = 0; j < pmesh->GroupNTriangles(gr); j++)
+         const int k = pmesh->GroupVertex(gr, j);
+         for (int l = 0; l < nvd; l++)
          {
-            pmesh->GroupTriangle(gr, j, k, o);
-            append_variant_dofs(2, k, Geometry::TRIANGLE, o,
-                                group_face_orders[k], dofs);
-         }
-         for (int j = 0; j < pmesh->GroupNQuadrilaterals(gr); j++)
-         {
-            pmesh->GroupQuadrilateral(gr, j, k, o);
-            append_variant_dofs(2, k, Geometry::SQUARE, o,
-                                group_face_orders[k], dofs);
+            entries.push_back({gr, mrank, mgroup, -1 - j, 0, l, nvd*k + l});
          }
       }
-      if (ldof_type) { DofsToVDofs(dofs); }
-   };
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int ori,
+                                           Geometry::Type geom, int pos)
+      {
+         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+         const Array<int> &var_group = (entity == 1) ? edge_var_group :
+                                       face_var_group;
+         const int first = (entity == 1) ? nvdofs : nvdofs + nedofs;
+         for (int var = 0; var < GetNVariants(entity, index); var++)
+         {
+            const int g = var_group[ent_dofs.GetI()[index] + var];
+            const int p = (entity == 1) ? GetEdgeOrder(index, var) :
+                          GetFaceOrder(index, var);
+            const int nd = fec->GetNumDof(geom, p);
+            if (g == 0 || nd == 0) { continue; }
+
+            const int *ind = fec->GetDofOrdering(geom, p, ori);
+            const int base = first + ent_dofs.GetRow(index)[var];
+            for (int l = 0; l < nd; l++)
+            {
+               MFEM_ASSERT(ind[l] >= 0, "unexpected H1 DOF sign flip");
+               entries.push_back({g, mrank, mgroup, pos, p, l, base + ind[l]});
+            }
+         }
+      });
+   }
+   std::sort(entries.begin(), entries.end());
 
    Table &group_ldof = gc.GroupLDofTable();
-   Array<int> dofs;
-   group_ldof.MakeI(ng);
-   for (int gr = 1; gr < ng; gr++)
+   group_ldof.MakeI(var_gtopo->NGroups());
+   for (const auto &e : entries)
    {
-      get_group_dofs(gr, dofs);
-      group_ldof.AddColumnsInRow(gr, dofs.Size());
+      group_ldof.AddColumnsInRow(e[0], ldof_type ? vdim : 1);
    }
    group_ldof.MakeJ();
-   for (int gr = 1; gr < ng; gr++)
+   Array<int> dofs;
+   for (std::size_t b = 0, e; b < entries.size(); b = e)
    {
-      get_group_dofs(gr, dofs);
-      group_ldof.AddConnections(gr, dofs.GetData(), dofs.Size());
+      dofs.SetSize(0);
+      for (e = b; e < entries.size() && entries[e][0] == entries[b][0]; e++)
+      {
+         dofs.Append(entries[e][6]);
+      }
+      if (ldof_type) { DofsToVDofs(dofs); }
+      group_ldof.AddConnections(entries[b][0], dofs.GetData(), dofs.Size());
    }
    group_ldof.ShiftUpI();
 
    gc.Finalize();
 }
 
-void ParFiniteElementSpace::SetGroupVarOrders()
+void ParFiniteElementSpace::SetVarOrderGroups()
 {
-   // The local variants of a shared entity can differ between ranks. Find the
-   // common orders by BitOR-reducing the complemented masks, as 32-bit halves.
-   const int ng = pmesh->GetNGroups();
+   // Each edge/face variant is communicated among the ranks having it. To find
+   // them, the local order masks (as 32-bit halves) are exchanged in the group.
+   const GroupTopology &mesh_gt = pmesh->gtopo;
+   const int ng = mesh_gt.NGroups();
    const int nedges = mesh->GetNEdges();
    const int nfaces = (mesh->Dimension() >= 3) ? mesh->GetNFaces() : 0;
+
+   std::vector<Array<int>> ranks(ng);
+   for (int gr = 0; gr < ng; gr++)
+   {
+      ranks[gr].SetSize(mesh_gt.GetGroupSize(gr));
+      for (int i = 0; i < ranks[gr].Size(); i++)
+      {
+         ranks[gr][i] = mesh_gt.GetNeighborRank(mesh_gt.GetGroup(gr)[i]);
+      }
+      ranks[gr].Sort();
+   }
 
    auto local_orders = [&](int entity, int index)
    {
@@ -659,83 +685,113 @@ void ParFiniteElementSpace::SetGroupVarOrders()
       return orders;
    };
 
-   Array<int> masks(2*(nedges + nfaces));
-   for (int i = 0; i < nedges + nfaces; i++)
+   // Two mask slots per rank of the group, for each shared edge/face.
+   GroupCommunicator ent_comm(mesh_gt);
+   Table &group_slots = ent_comm.GroupLDofTable();
+   group_slots.MakeI(ng);
+   Array<int> slot(nedges + nfaces);
+   int nslots = 0;
+   for (int gr = 1; gr < ng; gr++)
    {
-      const VarOrderBits not_orders = ~(i < nedges ? local_orders(1, i) :
-                                        local_orders(2, i - nedges));
-      masks[2*i] = static_cast<int>(static_cast<std::uint32_t>(not_orders));
-      masks[2*i+1] =
-         static_cast<int>(static_cast<std::uint32_t>(not_orders >> 32));
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int,
+                                           Geometry::Type, int)
+      {
+         slot[entity == 1 ? index : nedges + index] = nslots;
+         nslots += 2*ranks[gr].Size();
+         group_slots.AddColumnsInRow(gr, 2*ranks[gr].Size());
+      });
    }
+   group_slots.MakeJ();
 
-   GroupCommunicator ent_comm(pmesh->gtopo);
-   Table &group_ent = ent_comm.GroupLDofTable();
-   group_ent.MakeI(ng);
+   Array<int> masks(nslots);
+   masks = 0;
    for (int gr = 1; gr < ng; gr++)
    {
-      int nents = pmesh->GroupNEdges(gr);
-      if (nfaces)
+      const int me = ranks[gr].Find(MyRank);
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int,
+                                           Geometry::Type, int)
       {
-         nents += pmesh->GroupNTriangles(gr) + pmesh->GroupNQuadrilaterals(gr);
-      }
-      group_ent.AddColumnsInRow(gr, 2*nents);
-   }
-   group_ent.MakeJ();
-   auto add_entity = [&](int gr, int i)
-   {
-      group_ent.AddConnection(gr, 2*i);
-      group_ent.AddConnection(gr, 2*i+1);
-   };
-   for (int gr = 1; gr < ng; gr++)
-   {
-      int k, o;
-      for (int j = 0; j < pmesh->GroupNEdges(gr); j++)
-      {
-         pmesh->GroupEdge(gr, j, k, o);
-         add_entity(gr, k);
-      }
-      if (nfaces)
-      {
-         for (int j = 0; j < pmesh->GroupNTriangles(gr); j++)
+         const int s = slot[entity == 1 ? index : nedges + index];
+         const VarOrderBits orders = local_orders(entity, index);
+         masks[s + 2*me] = static_cast<int>(static_cast<std::uint32_t>(orders));
+         masks[s + 2*me + 1] =
+            static_cast<int>(static_cast<std::uint32_t>(orders >> 32));
+         for (int i = 0; i < 2*ranks[gr].Size(); i++)
          {
-            pmesh->GroupTriangle(gr, j, k, o);
-            add_entity(gr, nedges + k);
+            group_slots.AddConnection(gr, s + i);
          }
-         for (int j = 0; j < pmesh->GroupNQuadrilaterals(gr); j++)
-         {
-            pmesh->GroupQuadrilateral(gr, j, k, o);
-            add_entity(gr, nedges + k);
-         }
-      }
+      });
    }
-   group_ent.ShiftUpI();
+   group_slots.ShiftUpI();
    ent_comm.Finalize();
 
    ent_comm.Reduce<int>(masks, GroupCommunicator::BitOR);
    ent_comm.Bcast(masks);
 
-   auto common_orders = [&](int i)
+   // The mesh groups keep their indices, followed by the rank subsets.
+   ListOfIntegerSets groups;
+   IntegerSet iset;
+   for (int gr = 0; gr < ng; gr++)
    {
-      const VarOrderBits lo = static_cast<std::uint32_t>(masks[2*i]);
-      const VarOrderBits hi = static_cast<std::uint32_t>(masks[2*i+1]);
-      return ~(lo | (hi << 32));
-   };
-
-   group_edge_orders.SetSize(nedges);
-   group_face_orders.SetSize(nfaces);
-   for (int i = 0; i < nedges; i++) { group_edge_orders[i] = common_orders(i); }
-   for (int i = 0; i < nfaces; i++)
-   {
-      group_face_orders[i] = common_orders(nedges + i);
+      iset.Recreate(ranks[gr].Size(), ranks[gr].GetData());
+      groups.Insert(iset);
    }
+
+   edge_var_group.SetSize(var_edge_orders.Size());
+   face_var_group.SetSize(var_face_orders.Size());
+   edge_var_group = 0;
+   face_var_group = 0;
+   std::map<std::vector<int>, int> subset_group;
+   std::vector<int> var_ranks;
+   for (int gr = 1; gr < ng; gr++)
+   {
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int,
+                                           Geometry::Type, int)
+      {
+         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+         Array<int> &var_group = (entity == 1) ? edge_var_group :
+                                 face_var_group;
+         const int s = slot[entity == 1 ? index : nedges + index];
+         for (int var = 0; var < GetNVariants(entity, index); var++)
+         {
+            const int p = (entity == 1) ? GetEdgeOrder(index, var) :
+                          GetFaceOrder(index, var);
+            var_ranks.clear();
+            for (int i = 0; i < ranks[gr].Size(); i++)
+            {
+               const auto half = static_cast<std::uint32_t>(masks[s+2*i+p/32]);
+               if ((half >> (p % 32)) & 1)
+               {
+                  var_ranks.push_back(ranks[gr][i]);
+               }
+            }
+            int &g = var_group[ent_dofs.GetI()[index] + var];
+            const int nr = static_cast<int>(var_ranks.size());
+            if (nr == ranks[gr].Size()) { g = gr; }
+            else if (nr > 1)
+            {
+               auto it = subset_group.find(var_ranks);
+               if (it == subset_group.end())
+               {
+                  iset.Recreate(nr, var_ranks.data());
+                  const int new_g = groups.Insert(iset);
+                  it = subset_group.emplace(var_ranks, new_g).first;
+               }
+               g = it->second;
+            }
+         }
+      });
+   }
+
+   var_gtopo.reset(new GroupTopology(MyComm));
+   var_gtopo->Create(groups, 823);
 }
 
 void ParFiniteElementSpace::ConstructVarOrderGroupComm()
 {
-   SetGroupVarOrders();
+   SetVarOrderGroups();
 
-   gcomm = new GroupCommunicator(pmesh->gtopo);
+   gcomm = new GroupCommunicator(*var_gtopo);
    GetGroupComm(*gcomm, 1, &ldof_sign);
 
    const Table &group_ldof = gcomm->GroupLDofTable();
@@ -749,6 +805,14 @@ void ParFiniteElementSpace::ConstructVarOrderGroupComm()
          ldof_group[ldofs[i]] = gr;
       }
    }
+
+   // Local true DOFs of the cut space, as for fixed-order spaces.
+   Array<int> cut_ltdof(GetVSize());
+   for (int i = 0, n = 0; i < cut_ltdof.Size(); i++)
+   {
+      cut_ltdof[i] = var_gtopo->IAmMaster(ldof_group[i]) ? n++ : -1;
+   }
+   gcomm->SetLTDofTable(cut_ltdof);
 }
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
@@ -5334,8 +5398,8 @@ void ParFiniteElementSpace::Destroy()
    tdof_nb_offsets.DeleteAll();
    // preserve old_dof_offsets
    ldof_sign.DeleteAll();
-   group_edge_orders.DeleteAll();
-   group_face_orders.DeleteAll();
+   edge_var_group.DeleteAll();
+   face_var_group.DeleteAll();
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
@@ -5343,6 +5407,7 @@ void ParFiniteElementSpace::Destroy()
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
+   var_gtopo.reset();
 
    num_face_nbr_dofs = -1;
    face_nbr_element_dof.Clear();

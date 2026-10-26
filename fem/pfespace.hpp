@@ -116,8 +116,11 @@ private:
    /// Ghost element order data, set by CommunicateGhostOrder().
    Array<ParNCMesh::VarOrderElemInfo> ghost_orders;
 
-   /// Variable-order H1: edge/face variant orders common to all sharing ranks.
-   Array<VarOrderBits> group_edge_orders, group_face_orders;
+   /** Variable-order spaces (currently H1 only): communication groups, which
+       include the subsets of ranks sharing an edge/face DOF variant, and the
+       group of each local edge/face variant. */
+   std::unique_ptr<GroupTopology> var_gtopo;
+   Array<int> edge_var_group, face_var_group;
 
    /// Resets nd_strias flag at construction or after rebalancing
    void CheckNDSTriaDofs();
@@ -129,7 +132,10 @@ private:
       const NURBSExtension *globNURBSext, const NURBSExtension *parNURBSext);
 
    GroupTopology &GetGroupTopo() const
-   { return (NURBSext) ? pNURBSext()->gtopo : pmesh->gtopo; }
+   {
+      if (var_gtopo) { return *var_gtopo; }
+      return (NURBSext) ? pNURBSext()->gtopo : pmesh->gtopo;
+   }
 
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
@@ -158,13 +164,13 @@ private:
    void GetGroupComm(GroupCommunicator &gcomm, int ldof_type,
                      Array<int> *ldof_sign = NULL);
 
-   /// Variable-order H1 version of GetGroupComm().
+   /// Variable-order version of GetGroupComm() (currently H1 only).
    void GetVarOrderGroupComm(GroupCommunicator &gcomm, int ldof_type) const;
 
-   /// Set group_edge_orders and group_face_orders.
-   void SetGroupVarOrders();
+   /// Set var_gtopo, edge_var_group and face_var_group.
+   void SetVarOrderGroups();
 
-   /// Construct gcomm and ldof_group in a variable-order H1 space.
+   /// Construct gcomm and ldof_group for variable orders (currently H1 only).
    void ConstructVarOrderGroupComm();
 
    /// Construct dof_offsets and tdof_offsets using global communication.
