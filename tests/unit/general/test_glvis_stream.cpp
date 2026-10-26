@@ -16,7 +16,7 @@ using namespace mfem;
 
 #ifdef MFEM_USE_GLVIS
 
-TEST_CASE("glvis_stream gather", "[General]")
+TEST_CASE("glvis_stream gather", "[GLVis]")
 {
    glvis_stream glvis;
    glvis.SetVisualize(false);
@@ -27,7 +27,7 @@ TEST_CASE("glvis_stream gather", "[General]")
 }
 
 #ifdef MFEM_USE_MPI
-TEST_CASE("glvis_stream gather parallel", "[Parallel]")
+TEST_CASE("glvis_stream gather parallel", "[GLVis][Parallel]")
 {
    glvis_stream glvis(MPI_COMM_WORLD);
    glvis.SetVisualize(false);
@@ -35,7 +35,7 @@ TEST_CASE("glvis_stream gather parallel", "[Parallel]")
    REQUIRE(glvis.size() == 0);
 }
 
-TEST_CASE("glvis_stream parallel header", "[Parallel]")
+TEST_CASE("glvis_stream parallel header", "[GLVis][Parallel]")
 {
    glvis_stream glvis(MPI_COMM_WORLD);
    glvis.SetVisualize(false);
