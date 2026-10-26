@@ -675,7 +675,7 @@ int main(int argc, char *argv[])
       {
          BlockDiagonalPreconditioner * real_prec = new BlockDiagonalPreconditioner(
             BlockA_r->RowOffsets());
-         real_prec->owns_blocks = 1;
+         real_prec->SetBlockOwnership(1);
          for (int i = 0; i<BlockA_r->NumRowBlocks(); i++)
          {
             auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);

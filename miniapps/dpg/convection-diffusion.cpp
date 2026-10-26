@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
       BlockMatrix * A = Ah.As<BlockMatrix>();
 
       BlockDiagonalPreconditioner M(A->RowOffsets());
-      M.owns_blocks = 1;
+      M.SetBlockOwnership(1);
       for (int i = 0 ; i < A->NumRowBlocks(); i++)
       {
          M.SetDiagonalBlock(i,new DSmoother(A->GetBlock(i,i)));

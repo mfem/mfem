@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
 #else
          prec.SetDiagonalBlock(1,new UMFPackSolver(*S));
 #endif
-         prec.owns_blocks = 1;
+         prec.SetBlockOwnership(1);
 
          BlockOperator A(offsets);
          A.SetBlock(0,0,&A00);

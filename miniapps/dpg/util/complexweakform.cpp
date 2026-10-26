@@ -85,9 +85,9 @@ void ComplexDPGWeakForm::AllocMat()
    if (static_cond) { return; }
 
    mat_r = new BlockMatrix(dof_offsets);
-   mat_r->owns_blocks = 1;
+   mat_r->SetBlockOwnership(1);
    mat_i = new BlockMatrix(dof_offsets);
-   mat_i->owns_blocks = 1;
+   mat_i->SetBlockOwnership(1);
 
    for (int i = 0; i < mat_r->NumRowBlocks(); i++)
    {
@@ -179,8 +179,8 @@ void ComplexDPGWeakForm::BuildProlongation()
 {
    P = new BlockMatrix(dof_offsets, tdof_offsets);
    R = new BlockMatrix(tdof_offsets, dof_offsets);
-   P->owns_blocks = 0;
-   R->owns_blocks = 0;
+   P->SetBlockOwnership(0);
+   R->SetBlockOwnership(0);
    for (int i = 0; i<nblocks; i++)
    {
       const SparseMatrix *P_ = trial_fes[i]->GetConformingProlongation();
@@ -201,8 +201,8 @@ void ComplexDPGWeakForm::ConformingAssemble()
    BlockMatrix * Pt = Transpose(*P);
    BlockMatrix * PtA_r = mfem::Mult(*Pt, *mat_r);
    BlockMatrix * PtA_i = mfem::Mult(*Pt, *mat_i);
-   mat_r->owns_blocks = 0;
-   mat_i->owns_blocks = 0;
+   mat_r->SetBlockOwnership(0);
+   mat_i->SetBlockOwnership(0);
    for (int i = 0; i < nblocks; i++)
    {
       for (int j = 0; j < nblocks; j++)
@@ -227,8 +227,8 @@ void ComplexDPGWeakForm::ConformingAssemble()
    {
       BlockMatrix *PtAe_r = mfem::Mult(*Pt, *mat_e_r);
       BlockMatrix *PtAe_i = mfem::Mult(*Pt, *mat_e_i);
-      mat_e_r->owns_blocks = 0;
-      mat_e_i->owns_blocks = 0;
+      mat_e_r->SetBlockOwnership(0);
+      mat_e_i->SetBlockOwnership(0);
       for (int i = 0; i<nblocks; i++)
       {
          for (int j = 0; j<nblocks; j++)
@@ -257,8 +257,8 @@ void ComplexDPGWeakForm::ConformingAssemble()
    mat_r = mfem::Mult(*PtA_r, *P);
    mat_i = mfem::Mult(*PtA_i, *P);
 
-   PtA_r->owns_blocks = 0;
-   PtA_i->owns_blocks = 0;
+   PtA_r->SetBlockOwnership(0);
+   PtA_i->SetBlockOwnership(0);
    for (int i = 0; i < nblocks; i++)
    {
       for (int j = 0; j < nblocks; j++)
@@ -284,8 +284,8 @@ void ComplexDPGWeakForm::ConformingAssemble()
    {
       BlockMatrix *PtAeP_r = mfem::Mult(*mat_e_r, *P);
       BlockMatrix *PtAeP_i = mfem::Mult(*mat_e_i, *P);
-      mat_e_r->owns_blocks = 0;
-      mat_e_i->owns_blocks = 0;
+      mat_e_r->SetBlockOwnership(0);
+      mat_e_i->SetBlockOwnership(0);
       for (int i = 0; i < nblocks; i++)
       {
          for (int j = 0; j < nblocks; j++)
@@ -742,9 +742,9 @@ void ComplexDPGWeakForm::EliminateVDofs(const Array<int> &vdofs,
       offsets.MakeRef( (P) ? tdof_offsets : dof_offsets);
 
       mat_e_r = new BlockMatrix(offsets);
-      mat_e_r->owns_blocks = 1;
+      mat_e_r->SetBlockOwnership(1);
       mat_e_i = new BlockMatrix(offsets);
-      mat_e_i->owns_blocks = 1;
+      mat_e_i->SetBlockOwnership(1);
       for (int i = 0; i < mat_e_r->NumRowBlocks(); i++)
       {
          int h = offsets[i+1] - offsets[i];
