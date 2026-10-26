@@ -21,6 +21,13 @@
 
 using namespace mfem;
 
+constexpr bool mfem_use_gpu =
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   true;
+#else
+   false;
+#endif
+
 // Custom benchmark arguments generator ///////////////////////////////////////
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
