@@ -548,11 +548,11 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 void AdamsBashforthSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    CheckTimestep(dt);
+   f->SetTime(t);
+   f->Mult(x, state[0]);
 
    if (state.Size() >= stages -1)
    {
-      f->SetTime(t);
-      f->Mult(x, state[0]);
       state.Increment();
       for (int i = 0; i < stages; i++)
       {
@@ -562,8 +562,6 @@ void AdamsBashforthSolver::Step(Vector &x, real_t &t, real_t &dt)
    }
    else
    {
-      f->SetTime(t);
-      f->Mult(x,state[0]);
       RKsolver->Step(x,t,dt);
       state.Increment();
    }
