@@ -697,7 +697,6 @@ public:
 
    void Mult(const Vector &r, Vector &c) const override
    {
-      c = 0.0;
       cg.Mult(r, c);
    }
 
