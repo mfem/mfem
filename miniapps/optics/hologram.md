@@ -165,7 +165,7 @@ $$
 $\omega^y\thinspace(\cdot)\thinspace\omega^x$. Call that field $V$. The residual omits
 $e^{ikz}$; the factor has modulus one, so $J$ is the same either way.
 `FresnelOp::Propagate` multiplies by it on the hologram replay. With
-$m_i = |V_i|$, `RasterField::MatchTarget` rescales
+$m_i = |V_i|$, `holo::MatchTarget` rescales
 $V$ by the least-squares factor
 
 $$
