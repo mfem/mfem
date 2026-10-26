@@ -33,7 +33,7 @@ struct glvis_data
    MPI_Comm comm;
 #endif
    std::stringstream stream;
-   std::vector<std::unique_ptr<std::stringstream>> streams;
+   std::vector<std::unique_ptr<std::istream>> streams;
    int total_size;
    std::vector<int> offsets;
    std::string type;

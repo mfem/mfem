@@ -122,6 +122,62 @@ static void FailTogether(int failed, const std::string &why
    }
 }
 
+namespace
+{
+
+// Read-only view of one rank slice. The bytes stay in the shared payload.
+class SliceInBuf : public std::streambuf
+{
+   char *begin;
+   std::size_t size;
+
+public:
+   SliceInBuf(const char *data, std::size_t n)
+      : begin(const_cast<char *>(data)), size(n)
+   {
+      setg(begin, begin, begin + size);
+   }
+
+protected:
+   pos_type seekoff(off_type off, std::ios_base::seekdir way,
+                    std::ios_base::openmode which) override
+   {
+      if (!(which & std::ios_base::in)) { return pos_type(off_type(-1)); }
+      off_type next = off;
+      if (way == std::ios_base::cur) { next = (gptr() - begin) + off; }
+      else if (way == std::ios_base::end)
+      {
+         next = static_cast<off_type>(size) + off;
+      }
+      else if (way != std::ios_base::beg) { return pos_type(off_type(-1)); }
+      if (next < 0 || static_cast<std::size_t>(next) > size)
+      {
+         return pos_type(off_type(-1));
+      }
+      setg(begin, begin + next, begin + size);
+      return pos_type(next);
+   }
+
+   pos_type seekpos(pos_type sp, std::ios_base::openmode which) override
+   {
+      return seekoff(off_type(sp), std::ios_base::beg, which);
+   }
+};
+
+class SliceIn : public std::istream
+{
+   SliceInBuf buf;
+
+public:
+   SliceIn(const char *data, std::size_t n)
+      : std::istream(nullptr), buf(data, n)
+   {
+      rdbuf(&buf);
+   }
+};
+
+} // namespace
+
 void glvis_stream::operator()()
 {
    SyncComm();
@@ -160,6 +216,8 @@ void glvis_stream::operator()()
 
    try
    {
+      // Lives until GLVisStreamSession returns. Rank slices only view it.
+      std::string payload;
       if (data.mpi_root)
       {
          if (data.mpi_size < 0 ||
@@ -169,7 +227,8 @@ void glvis_stream::operator()()
             why = "Invalid MPI size";
          }
 
-         const std::string payload = data.stream.str();
+         payload = data.stream.str();
+         reset();
          data.streams.clear();
          data.type.clear();
 
@@ -185,16 +244,9 @@ void glvis_stream::operator()()
                break;
             }
 
-            data.streams.emplace_back(std::make_unique<std::stringstream>());
-            data.streams.back()->write(payload.data() + offset, count);
-
-            auto stream = data.streams.back().get();
-            if (!(*stream))
-            {
-               failed = 1;
-               why = "GLVis rank slice could not be written";
-               break;
-            }
+            data.streams.push_back(std::make_unique<SliceIn>(
+                                      payload.data() + offset, count));
+            std::istream *stream = data.streams.back().get();
 
             std::string rank_type;
             *stream >> std::ws >> rank_type >> std::ws;
