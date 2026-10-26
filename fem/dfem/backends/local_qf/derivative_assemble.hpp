@@ -1213,22 +1213,22 @@ public:
                // The outputs share fhat_storage, so one has to be done with it
                // before the next zeroes it.
                MFEM_SYNC_THREAD;
-                detail::assemble_element_mat_sumfact<backend_t::DIM,
-                   max_q1d_v<backend_t, T_Q1D>, backend_t>(Ae,
-                                                   qpdc,
-                                                   e,
-                                                   itod,
-                                                   inputs,
-                                                   get<o>(outputs),
-                                                   input_dtq_maps,
-                                                   output_dtq_maps[o],
-                                                   out_offsets[o],
-                                                   out_vdim[o],
-                                                   out_op_dim[o],
-                                                   q1d,
-                                                   num_trial_dof_1d,
-                                                   fhat_storage,
-                                                   s);
+               detail::assemble_element_mat_sumfact<backend_t::DIM,
+                      max_q1d_v<backend_t, T_Q1D>, backend_t>(Ae,
+                                                              qpdc,
+                                                              e,
+                                                              itod,
+                                                              inputs,
+                                                              get<o>(outputs),
+                                                              input_dtq_maps,
+                                                              output_dtq_maps[o],
+                                                              out_offsets[o],
+                                                              out_vdim[o],
+                                                              out_op_dim[o],
+                                                              q1d,
+                                                              num_trial_dof_1d,
+                                                              fhat_storage,
+                                                              s);
             }
          });
       },

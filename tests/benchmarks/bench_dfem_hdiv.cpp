@@ -577,7 +577,7 @@ struct HdivBakeOff
    Vector B, X;
    OperatorPtr A;
 
-   static constexpr int U = 0, Ξ = 1, Q = 2;
+   static constexpr int U = 0, Coords = 1, Q = 2;
    std::unique_ptr<DifferentiableOperator> dop;
    std::unique_ptr<DifferentiableOperator> qdata_setup_dop;
    std::shared_ptr<future::DerivativeOperator> ddop;
@@ -724,17 +724,17 @@ struct HdivBakeOff
       const auto dMFSetup = [&] (auto backend, auto qfunction)
       {
          using backend_t = decltype(backend);
-         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
+         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Coords, &mfes}};
          const auto ofd = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd, ofd, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          dop->template AddDomainIntegrator<backend_t>(
             qfunction,
-            tuple{Value<U>{}, Gradient<Ξ>{}, Weight{}},
+            tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Value<U>{}},
             *ir, dom_attr);
          using QT = decltype(qfunction);
-         using IT = decltype(tuple{Value<U>{}, Gradient<Ξ>{}, Weight{}});
+         using IT = decltype(tuple{Value<U>{}, Gradient<Coords>{}, Weight{}});
          using OT = decltype(tuple{Value<U>{}});
          AddLocalQFActionSpecializations<backend_t, DIM, QT, IT, OT>(Q1Ds{});
          formLinearSystem(nodes);
@@ -745,17 +745,17 @@ struct HdivBakeOff
                                               bool use_cached_setup)
       {
          using backend_t = decltype(backend);
-         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
+         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Coords, &mfes}};
          const auto ofd = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd, ofd, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          dop->template AddDomainIntegrator<backend_t>(
             qfunction,
-            tuple{Value<U>{}, Gradient<Ξ>{}, Weight{}},
+            tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Value<U>{}},
             *ir, dom_attr, future::Derivatives<U> {});
          using QT = decltype(qfunction);
-         using IT = decltype(tuple{Value<U>{}, Gradient<Ξ>{}, Weight{}});
+         using IT = decltype(tuple{Value<U>{}, Gradient<Coords>{}, Weight{}});
          using OT = decltype(tuple{Value<U>{}});
          AddLocalQFDerivativeSpecializations<backend_t, DIM, U, QT, IT, OT>(Q1Ds{});
          MultiVector state{x, nodes};
@@ -778,17 +778,17 @@ struct HdivBakeOff
       const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
       {
          using backend_t = decltype(backend);
-         const auto ifd0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
+         const auto ifd0 = std::vector<FieldDescriptor> {{Coords, &mfes}};
          const auto ofd0 = std::vector<FieldDescriptor> {{Q, &vqspace}};
          qdata_setup_dop = std::make_unique<DifferentiableOperator>(ifd0, ofd0, pmesh);
          qdata_setup_dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          qdata_setup_dop->template AddDomainIntegrator<backend_t>(
             setup_qf,
-            tuple{Gradient<Ξ>{}, Weight{}},
+            tuple{Gradient<Coords>{}, Weight{}},
             tuple{Identity<Q>{}},
             *ir, dom_attr);
          using SetupQT = decltype(setup_qf);
-         using SetupIT = decltype(tuple{Gradient<Ξ>{}, Weight{}});
+         using SetupIT = decltype(tuple{Gradient<Coords>{}, Weight{}});
          using SetupOT = decltype(tuple{Identity<Q>{}});
          AddLocalQFActionSpecializations<backend_t, DIM, SetupQT, SetupIT, SetupOT>
          (Q1Ds{});
