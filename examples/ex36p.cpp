@@ -666,9 +666,8 @@ void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
    delete S;
    delete P11;
    S = Add(1.0, A11, 1.0, *GDGt);
-   HypreBoomerAMG *amg = new HypreBoomerAMG(*S);
-   amg->SetPrintLevel(0);
-   P11 = amg;
+   P11 = new HypreBoomerAMG(*S);
+   P11->SetPrintLevel(0);
 
    prec.SetDiagonalBlock(1, P11);
 }
