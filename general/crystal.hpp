@@ -25,34 +25,84 @@ namespace mfem
 
 namespace CR
 {
-// Generic Abstract Field Class
-// Different datatypes replace these functions
-class Field {
+/** @brief Abstract interface for one data column routed by CrystalRouter
+
+    A Field is a column of a particle attribute (coordinates, id, tag, etc.)
+    stored for all particles. It wraps over an MFEM container to be used for
+    routing. Subclasses implement specific functionalities for routing.
+    Each row slice of a field is the attribute that belongs to one particle.
+*/
+class Field
+{
 public:
    virtual ~Field() = default;
-   virtual int Size() const = 0;
-   virtual std::size_t RowBytes() const = 0;
-   virtual void Pack(int i, char *dst) const = 0;
-   virtual void Unpack(int i, const char *src) = 0;
-   virtual void Copy(int src, int dst) = 0;
-   virtual void Resize(int n) = 0;
+   virtual int GetNumParticles() const = 0;
+   virtual std::size_t GetParticleBytes() const = 0;
 
+   /** @brief Copy the data of particle @a i into a byte buffer
+
+       @param[in]  i    Index of the particle to copy
+       @param[out] dst  Destination buffer */
+   virtual void Pack(int i, char *dst) const = 0;
+
+   /** @brief Copy a byte buffer into the data of particle @a i
+
+       @param[in] i    Index of the particle to overwrite
+       @param[in] src  Source buffer */
+   virtual void Unpack(int i, const char *src) = 0;
+
+   /** @brief Copy the data of particle @a src onto particle @a dst
+
+       @param[in] src  Index of the particle to read
+       @param[in] dst  Index of the particle to overwrite */
+   virtual void Copy(int src, int dst) = 0;
+
+   /** @brief Change the number of particles to @a n
+
+       Existing particles keep their data and their order,
+       new particle slots are initialized to zero.
+
+       @param[in] n  New number of particles */
+   virtual void SetNumParticles(int n) = 0;
+
+   /** @brief Copy the leaving device particles into a new field on host
+
+       @param[in] leaving_idx  Indices of the particles to copy
+       @return A new field with leaving_idx.Size() particles */
    virtual std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) = 0;
+
+   /** @brief Rebuild this field from the staying particles and the arrivals
+
+       @param[in]     staying_idx  Indices of the particles that did not leave
+       @param[in,out] arrivals     Field of received particles, must have the
+                                   same type as this field */
    virtual void ToDevice(const mfem::Array<int> &staying_idx, Field &arrivals) = 0;
 };
 
 namespace internal
 {
 
-// helper function for nodes vs vdim indexing:
+/** @brief Return the position of one component of a particle in a flat array,
+    used internally for indexing
+
+    @param[in] particle     Particle index
+    @param[in] comp         Component index, in [0, @a vdim)
+    @param[in] n_particles  Total number of particles stored
+    @param[in] vdim         Number of components per particle
+    @param[in] ordering     Ordering::byNODES or Ordering::byVDIM */
 MFEM_HOST_DEVICE inline int ElemIndex(int particle, int comp, int n_particles,
                                       int vdim, Ordering::Type ordering) {
-   if(ordering == Ordering::byNODES)
-       return (comp*n_particles) + particle;
-   return particle*vdim + comp;
+   if(ordering == Ordering::byNODES){ return (comp*n_particles) + particle; }
+   else { return particle*vdim + comp; }
 }
 
-// helper function for compacting and spreading nodes
+/** @brief Shrink an Ordering::byNODES container in place from @a old_n to @a new_n
+
+    @tparam C  Container with operator[] (Array, Vector, ...)
+    @param[in,out] cont   Container to compact
+    @param[in]     old_n  Current number of particles
+    @param[in]     new_n  New number of particles, at most @a old_n
+    @param[in]     vdim   Number of components per particle */
 template <typename C>
 void CompactNodes(C &cont, int old_n, int new_n, int vdim) {
    for (int c = 1; c < vdim; c++) {
@@ -62,6 +112,15 @@ void CompactNodes(C &cont, int old_n, int new_n, int vdim) {
    }
 }
 
+/** @brief Grow an Ordering::byNODES container in place from @a old_n to @a new_n
+
+    @tparam C  Container with operator[] (Array, Vector, ...)
+    @tparam E  Type of the fill value
+    @param[in,out] cont   Container to spread
+    @param[in]     old_n  Current number of particles
+    @param[in]     new_n  New number of particles, at least @a old_n
+    @param[in]     vdim   Number of components per particle
+    @param[in]     fill   Value written into the new slots */
 template <typename C, typename E>
 void SpreadNodes(C &cont, int old_n, int new_n, int vdim, const E &fill) {
    for (int c = vdim-1; c > 0; c--) {
@@ -78,29 +137,38 @@ void SpreadNodes(C &cont, int old_n, int new_n, int vdim, const E &fill) {
 
 } // namespace internal
 
+///----------------------------------------------------------------------------------------------
 
-// mfem::Array
-// @param *arr: pointer to the array
-// @param vdim: # of dimensions
-// @param ordering: ordering type (nodes or vdim)
+/** @brief Field that wraps an mfem::Array
+
+    @tparam T  Element type */
 template <typename T>
-class ArrayField : public Field {
+class ArrayField : public Field
+{
    mfem::Array<T> *arr;
    int vdim;
    Ordering::Type ordering;
-   std::shared_ptr<mfem::Array<T>> own; // set only when wrapping a host_buf
+   std::shared_ptr<mfem::Array<T>> own;
 
 public:
+   /** @brief Wrap an array as a Field
+
+       @param[in,out] a          Array to wrap
+       @param[in]     vdim_      Number of values per particle
+       @param[in]     ordering_  Layout of the values in @a a */
    ArrayField(mfem::Array<T> &a, int vdim_ = 1,
               Ordering::Type ordering_ = Ordering::byNODES)
       : arr(&a), vdim(vdim_), ordering(ordering_) { }
 
-   int              Size() const override           { return arr->Size() / vdim; }
-   std::size_t      RowBytes() const override       { return (std::size_t)vdim * sizeof(T); }
+   /// @copydoc Field::GetNumParticles
+   int              GetNumParticles() const override  { return arr->Size() / vdim; }
+   /// @copydoc Field::GetParticleBytes
+   std::size_t      GetParticleBytes() const override { return (std::size_t)vdim * sizeof(T); }
 
+   /// @copydoc Field::ToHost
    std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) override {
       const bool use_dev = Device::IsEnabled() && arr->UseDevice();
-      const int n_particles = Size();
+      const int n_particles = GetNumParticles();
       const int n_leaving = leaving_idx.Size();
       const int n_comps = vdim;
       const Ordering::Type col_ordering = ordering;
@@ -112,6 +180,7 @@ public:
          const int *leaving = leaving_idx.Read(use_dev);
          T *host_buf_data = host_buf->Write(use_dev);
 
+         /// Loops to copy every device particle col_data into host buffer host_buf_data
          mfem::forall_switch(use_dev, n_leaving, [=] MFEM_HOST_DEVICE (int k) {
             const int particle = leaving[k];
             for (int comp = 0; comp < n_comps; comp++) {
@@ -131,10 +200,11 @@ public:
    }
 
 
+   /// @copydoc Field::ToDevice
    void ToDevice(const mfem::Array<int> &staying_idx, Field &arrivals) override {
       const mfem::Array<T> &arrival_arr = *static_cast<ArrayField<T>&>(arrivals).arr;
       const bool use_dev = Device::IsEnabled() && arr->UseDevice();
-      const int n_particles = Size();
+      const int n_particles = GetNumParticles();
       const int n_staying = staying_idx.Size();
       const int n_arrivals = arrival_arr.Size() / vdim;
       const int new_n_particles = n_staying + n_arrivals;
@@ -142,7 +212,6 @@ public:
       const int n_comps = vdim;
       const Ordering::Type col_ordering = ordering;
 
-      // keep the old capacity, only the size shrinks
       mfem::Array<T> new_col(std::max(arr->Capacity(), new_n_particles*n_comps),
                              arr->GetMemory().GetMemoryType());
       new_col.SetSize(new_n_particles*n_comps);
@@ -152,7 +221,6 @@ public:
          const int *staying = n_staying > 0 ? staying_idx.Read(use_dev) : nullptr;
          const T *arrival_data = n_arrivals > 0 ? arrival_arr.Read(use_dev) : nullptr;
          T *new_data = new_col.Write(use_dev);
-         // staying -> kept in original order; arrivals -> appended to the end
          mfem::forall_switch(use_dev, new_n_particles,
                              [=] MFEM_HOST_DEVICE (int slot) {
             for (int comp = 0; comp < n_comps; comp++) {
@@ -174,30 +242,34 @@ public:
       arr->Swap(new_col);
    }
 
+   /// @copydoc Field::Pack
    void Pack(int i, char *dst) const override {
-      const int n = Size();
+      const int n = GetNumParticles();
       for (int c = 0; c < vdim; c++) {
          const T v = (*arr)[internal::ElemIndex(i, c, n, vdim, ordering)];
          std::memcpy(dst + (std::size_t)c*sizeof(T), &v, sizeof(T));
       }
    }
+   /// @copydoc Field::Unpack
    void Unpack(int i, const char *src) override {
-      const int n = Size();
+      const int n = GetNumParticles();
       for (int c = 0; c < vdim; c++) {
          T v;
          std::memcpy(&v, src + (std::size_t)c*sizeof(T), sizeof(T));
          (*arr)[internal::ElemIndex(i, c, n, vdim, ordering)] = v;
       }
    }
+   /// @copydoc Field::Copy
    void Copy(int src, int dst) override {
-      const int n = Size();
+      const int n = GetNumParticles();
       for (int c = 0; c < vdim; c++) {
          (*arr)[internal::ElemIndex(dst, c, n, vdim, ordering)] =
             (*arr)[internal::ElemIndex(src, c, n, vdim, ordering)];
       }
    }
-   void Resize(int n) override {
-      const int old_n = Size();
+   /// @copydoc Field::SetNumParticles
+   void SetNumParticles(int n) override {
+      const int old_n = GetNumParticles();
       if (n == old_n) { return; }
       if (n < old_n) {
          if (ordering == Ordering::byNODES && vdim > 1) {
@@ -217,24 +289,41 @@ public:
 
 
 
-// mfem::Vector
-class VectorField : public Field {
+/** @brief Field that wraps an mfem::Vector of real_t values
+
+    The vector holds @a vdim consecutive values per particle, laid out
+    according to @a ordering. The vector is not owned (unless this field was
+    created by ToHost()) and must outlive the field. */
+class VectorField : public Field
+{
+   /// Wrapped vector, not owned
    mfem::Vector *vec;
+   /// Number of values per particle
    int vdim;
+   /// Layout of the values, byNODES or byVDIM
    Ordering::Type ordering;
-   std::shared_ptr<mfem::Vector> own; // set only when wrapping a host_buf
+   /// Keeps the storage alive when this field wraps a ToHost() buffer
+   std::shared_ptr<mfem::Vector> own;
 
 public:
+   /** @brief Wrap a vector as a Field
+
+       @param[in,out] v          Vector to wrap. Must outlive this field.
+       @param[in]     vdim_      Number of values per particle
+       @param[in]     ordering_  Layout of the values in @a v */
    VectorField(mfem::Vector &v, int vdim_ = 1,
                Ordering::Type ordering_ = Ordering::byNODES)
       : vec(&v), vdim(vdim_), ordering(ordering_) { }
 
-   int              Size() const override           { return vec->Size() / vdim; }
-   std::size_t      RowBytes() const override       { return (std::size_t)vdim * sizeof(real_t); }
+   /// @copydoc Field::GetNumParticles
+   int              GetNumParticles() const override           { return vec->Size() / vdim; }
+   /// @copydoc Field::GetParticleBytes
+   std::size_t      GetParticleBytes() const override       { return (std::size_t)vdim * sizeof(real_t); }
 
+   /// @copydoc Field::ToHost
    std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) override {
       const bool use_dev = Device::IsEnabled() && vec->UseDevice();
-      const int n_particles = Size();
+      const int n_particles = GetNumParticles();
       const int n_leaving = leaving_idx.Size();
       const int n_comps = vdim;
       const Ordering::Type col_ordering = ordering;
@@ -265,10 +354,11 @@ public:
    }
 
 
+   /// @copydoc Field::ToDevice
    void ToDevice(const mfem::Array<int> &staying_idx, Field &arrivals) override {
       const mfem::Vector &arrival_vec = *static_cast<VectorField&>(arrivals).vec;
       const bool use_dev = Device::IsEnabled() && vec->UseDevice();
-      const int n_particles = Size();
+      const int n_particles = GetNumParticles();
       const int n_staying = staying_idx.Size();
       const int n_arrivals = arrival_vec.Size() / vdim;
       const int new_n_particles = n_staying + n_arrivals;
@@ -306,30 +396,34 @@ public:
       vec->Swap(new_col);
    }
 
+   /// @copydoc Field::Pack
    void Pack(int i, char *dst) const override {
-      const int n = Size();
+      const int n = GetNumParticles();
       for (int c = 0; c < vdim; c++) {
          const real_t v = (*vec)[internal::ElemIndex(i, c, n, vdim, ordering)];
          std::memcpy(dst + (std::size_t)c*sizeof(real_t), &v, sizeof(real_t));
       }
    }
+   /// @copydoc Field::Unpack
    void Unpack(int i, const char *src) override {
-      const int n = Size();
+      const int n = GetNumParticles();
       for (int c = 0; c < vdim; c++) {
          real_t v;
          std::memcpy(&v, src + (std::size_t)c*sizeof(real_t), sizeof(real_t));
          (*vec)[internal::ElemIndex(i, c, n, vdim, ordering)] = v;
       }
    }
+   /// @copydoc Field::Copy
    void Copy(int src, int dst) override {
-      const int n = Size();
+      const int n = GetNumParticles();
       for (int c = 0; c < vdim; c++) {
          (*vec)[internal::ElemIndex(dst, c, n, vdim, ordering)] =
             (*vec)[internal::ElemIndex(src, c, n, vdim, ordering)];
       }
    }
-   void Resize(int n) override {
-      const int old_n = Size();
+   /// @copydoc Field::SetNumParticles
+   void SetNumParticles(int n) override {
+      const int old_n = GetNumParticles();
       if (n == old_n) { return; }
       if (n < old_n) {
          if (ordering == Ordering::byNODES && vdim > 1) {
@@ -365,20 +459,33 @@ public:
 
 
 
-// mfem::ParticleVector
-class ParticleVectorField : public Field {
+/** @brief Field that wraps an mfem::ParticleVector
+
+    The vdim and ordering are read from the ParticleVector itself. The
+    ParticleVector is not owned (unless this field was created by ToHost()) and
+    must outlive the field. */
+class ParticleVectorField : public Field
+{
+   /// Wrapped particle vector, not owned
    mfem::ParticleVector *pv;
-   std::shared_ptr<mfem::ParticleVector> own; // set only when wrapping a host_buf
+   /// Keeps the storage alive when this field wraps a ToHost() buffer
+   std::shared_ptr<mfem::ParticleVector> own;
 
 public:
+   /** @brief Wrap a ParticleVector as a Field
+
+       @param[in,out] pv_  ParticleVector to wrap. Must outlive this field. */
    ParticleVectorField(mfem::ParticleVector &pv_) : pv(&pv_) { }
 
-   int              Size() const override           { return pv->GetNumParticles(); }
-   std::size_t      RowBytes() const override       { return (std::size_t)pv->GetVDim() * sizeof(real_t); }
+   /// @copydoc Field::GetNumParticles
+   int              GetNumParticles() const override           { return pv->GetNumParticles(); }
+   /// @copydoc Field::GetParticleBytes
+   std::size_t      GetParticleBytes() const override       { return (std::size_t)pv->GetVDim() * sizeof(real_t); }
 
+   /// @copydoc Field::ToHost
    std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) override {
       const bool use_dev = Device::IsEnabled() && pv->UseDevice();
-      const int n_particles = Size();
+      const int n_particles = GetNumParticles();
       const int n_leaving = leaving_idx.Size();
       const int n_comps = pv->GetVDim();
       const Ordering::Type col_ordering = pv->GetOrdering();
@@ -409,10 +516,11 @@ public:
    }
 
 
+   /// @copydoc Field::ToDevice
    void ToDevice(const mfem::Array<int> &staying_idx, Field &arrivals) override {
       const mfem::ParticleVector &arrival_pv = *static_cast<ParticleVectorField&>(arrivals).pv;
       const bool use_dev = Device::IsEnabled() && pv->UseDevice();
-      const int n_particles = Size();
+      const int n_particles = GetNumParticles();
       const int n_staying = staying_idx.Size();
       const int n_arrivals = arrival_pv.GetNumParticles();
       const int new_n_particles = n_staying + n_arrivals;
@@ -450,6 +558,7 @@ public:
       pv->Swap(new_col);
    }
 
+   /// @copydoc Field::Pack
    void Pack(int i, char *dst) const override {
       const int vd = pv->GetVDim();
       for (int c = 0; c < vd; c++) {
@@ -457,6 +566,7 @@ public:
          std::memcpy(dst + (std::size_t)c*sizeof(real_t), &v, sizeof(real_t));
       }
    }
+   /// @copydoc Field::Unpack
    void Unpack(int i, const char *src) override {
       const int vd = pv->GetVDim();
       for (int c = 0; c < vd; c++) {
@@ -465,52 +575,85 @@ public:
          (*pv)(i, c) = v;
       }
    }
+   /// @copydoc Field::Copy
    void Copy(int src, int dst) override {
       const int vd = pv->GetVDim();
       for (int c = 0; c < vd; c++) { (*pv)(dst, c) = (*pv)(src, c); }
    }
-   void Resize(int n) override { pv->SetNumParticles(n, true); }
+   /// @copydoc Field::SetNumParticles
+   void SetNumParticles(int n) override { pv->SetNumParticles(n, true); }
 };
 
 
 
 
 
+/** @brief Wrap an mfem::Array as a Field for CrystalRouter::Route()
+
+    @tparam T  Element type. Must be trivially copyable.
+    @param[in,out] a         Array to wrap. Must outlive the returned field.
+    @param[in]     vdim      Number of values per particle
+    @param[in]     ordering  Layout of the values in @a a
+    @return The wrapping ArrayField */
 template <typename T>
 ArrayField<T> Array(mfem::Array<T> &a, int vdim = 1,
                     Ordering::Type ordering = Ordering::byNODES) {
    return ArrayField<T>(a, vdim, ordering);
 }
 
+/** @brief Wrap an mfem::Vector as a Field for CrystalRouter::Route()
+
+    @param[in,out] v         Vector to wrap. Must outlive the returned field.
+    @param[in]     vdim      Number of values per particle
+    @param[in]     ordering  Layout of the values in @a v
+    @return The wrapping VectorField */
 inline VectorField Vector(mfem::Vector &v, int vdim = 1,
                           Ordering::Type ordering = Ordering::byNODES) {
    return VectorField(v, vdim, ordering);
 }
 
+/** @brief Wrap an mfem::ParticleVector as a Field for CrystalRouter::Route()
+
+    @param[in,out] pv  ParticleVector to wrap. Must outlive the returned field.
+    @return The wrapping ParticleVectorField */
 inline ParticleVectorField ParticleVector(mfem::ParticleVector &pv) {
    return ParticleVectorField(pv);
 }
 
 
 
-// Sort the variables into the appropriate groups of pointers
-// In: Initializer List of Fields
-// Sort: Fields into the appropriate CR type
-// Out: std::vector of columns used by internal router
-class FieldGroup {
+/** @brief One or more Fields passed together as a single argument to
+    CrystalRouter::Route()
+
+    FieldGroup lets Route() take a mixed brace-enclosed list of single fields
+    and lists of fields. All constructors are implicit on purpose. Every field
+    in a group must have the same number of particles. */
+class FieldGroup
+{
 public:
+   /// The fields in this group, in routing order
    std::vector<std::shared_ptr<Field>> cols;
 
+   /// Create a group holding a copy of one ArrayField
    template <typename T>
    FieldGroup(const ArrayField<T> &f) : cols{std::make_shared<ArrayField<T>>(f)} { }
+   /// Create a group holding a copy of one VectorField
    FieldGroup(const VectorField &f) : cols{std::make_shared<VectorField>(f)} { }
+   /// Create a group holding a copy of one ParticleVectorField
    FieldGroup(const ParticleVectorField &f) : cols{std::make_shared<ParticleVectorField>(f)} { }
+   /** @brief Create a group with one ParticleVectorField per ParticleVector
+
+       @param[in] v  ParticleVectors to wrap. Must outlive the group. */
    FieldGroup(const std::vector<std::unique_ptr<mfem::ParticleVector>> &v) {
       cols.reserve(v.size());
       for (const auto &p : v) {
          cols.push_back(std::make_shared<ParticleVectorField>(*p));
       }
    }
+   /** @brief Create a group with one single-component int ArrayField per
+       array
+
+       @param[in] v  Arrays to wrap. Must outlive the group. */
    FieldGroup(const std::vector<std::unique_ptr<mfem::Array<int>>> &v) {
       cols.reserve(v.size());
       for (const auto &p : v) {
@@ -520,11 +663,20 @@ public:
 };
 
 
+/** @brief Wrap a list of ParticleVectors as one FieldGroup
+
+    @param[in] pvs  ParticleVectors to wrap. Must outlive the returned group.
+    @return The FieldGroup holding one field per ParticleVector */
 inline FieldGroup ParticleVector(
    const std::vector<std::unique_ptr<mfem::ParticleVector>> &pvs) {
    return FieldGroup(pvs);
 }
 
+/** @brief Wrap a list of int arrays as one FieldGroup
+
+    @param[in] arrs  Arrays to wrap, one value per particle each. Must outlive
+                     the returned group.
+    @return The FieldGroup holding one field per array */
 inline FieldGroup Array(
    const std::vector<std::unique_ptr<mfem::Array<int>>> &arrs) {
    return FieldGroup(arrs);
@@ -534,36 +686,111 @@ inline FieldGroup Array(
 
 
 
-class CrystalRouter {
+/** @brief Route particle data to destination MPI ranks with the crystal router
+    algorithm
+
+    Each particle carries a destination rank. Route() sends every particle, with
+    its data from all given fields, to that rank in O(log P) communication
+    rounds, where P is the number of ranks. After the call, each rank holds
+    exactly the particles addressed to it.
+
+    The order of the particles after routing is not specified
+
+    @note Route() is collective: every rank in the communicator must call it */
+class CrystalRouter
+{
 public:
+   /** @brief Create a router on a communicator
+
+       The communicator is duplicated, so messages of the router cannot clash
+       with other traffic
+
+       @param[in] comm  MPI communicator. Collective call. */
    CrystalRouter(MPI_Comm comm);
+
+   /// Free the duplicated communicator (skipped if MPI is already finalized)
    ~CrystalRouter();
+
+   /// Copying is not allowed, the router owns an MPI communicator
    CrystalRouter(const CrystalRouter&) = delete;
+   /// Copying is not allowed, the router owns an MPI communicator
    CrystalRouter& operator=(const CrystalRouter&) = delete;
 
-   // external route, {field, field, field} call
+   /** @brief Send each particle to its destination rank
+
+       All fields are resized to the new number of particles. When a mfem::Device
+       is enabled, only the leaving particles are copied to the host and only
+       the arrivals are copied back.
+
+       @param[in]     rank_list  Destination rank of each particle
+       @param[in,out] fields     Data to route, as a brace-enclosed list of
+                                 CR::Array(), CR::Vector() and
+                                 CR::ParticleVector() wrappers. Each field
+                                 must have rank_list.Size() particles.
+
+       @note Collective on the communicator of the router */
    void Route(const Array<unsigned int> &rank_list,
               std::initializer_list<CR::FieldGroup> fields);
 
 private:
+   /// Private duplicate of the user's communicator
    MPI_Comm comm;
-   int rank, nprocs;
+   /// Rank of this process in #comm
+   int rank;
+   /// Number of processes in #comm
+   int nprocs;
 
+   /// Byte buffer holding the rows that leave in the current round
    Array<char> send_buf;
+   /// Byte buffer holding the rows received in the current round
    Array<char> recv_buf;
 
-   // internal route, fields get sorted into FieldGroup -> FieldGroup call
+   /** @brief Run the crystal router rounds on host data
+
+       @param[in,out] ranks   Destination rank of each particle. Updated to
+                              match the fields after routing.
+       @param[in,out] fields  Fields to route, all of size ranks.Size() */
    void RouteInternal(Array<unsigned int> &ranks,
                       const std::vector<CR::Field*> &fields);
 
-   // device path: move only leaving particles to host, route, move arrivals back
+   /** @brief Route fields that may live on a device
+
+       Moves only the leaving particles to the host, routes them with
+       RouteInternal(), and moves the arrivals back to the device
+
+       @param[in]     rank_list  Destination rank of each particle
+       @param[in,out] fields     Fields to route */
    void RouteDevice(const Array<unsigned int> &rank_list,
                     const std::vector<CR::Field*> &fields);
 
+   /** @brief Pack the particles that cross the cutoff into #send_buf and
+       remove them from the fields
+
+       The remaining particles are compacted in place, keeping their order
+
+       @param[in,out] ranks    Destination ranks. Reduced to the kept particles.
+       @param[in,out] fields   Fields to split. Reduced to the kept particles.
+       @param[in]     cutoff   First rank of the upper half of the current
+                               group of ranks
+       @param[in]     send_hi  If true, send particles with rank >= @a cutoff,
+                               otherwise send those with rank < @a cutoff */
    void Move(Array<unsigned int> &ranks,
              const std::vector<CR::Field*> &fields,
              unsigned int cutoff, bool send_hi);
 
+   /** @brief Send #send_buf to a partner rank and append the received rows to
+       the fields
+
+       Counts are exchanged first, then the data. Each row holds the
+       destination rank followed by one row per field.
+
+       @param[in,out] ranks    Destination ranks. Received ranks are appended.
+       @param[in,out] fields   Fields. Received particles are appended.
+       @param[in]     target   Rank to send to, and to receive from
+       @param[in]     recvn    Number of messages to receive: 0, 1, or 2 (the
+                               second one comes from rank - 1)
+       @param[in]     msg_tag  Tag of the count message. The data message uses
+                               @a msg_tag + 1. */
    void Exchange(Array<unsigned int> &ranks,
                  const std::vector<CR::Field*> &fields,
                  int target, int recvn, int msg_tag);

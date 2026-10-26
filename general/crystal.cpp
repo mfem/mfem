@@ -10,16 +10,23 @@
 namespace mfem
 {
 
+/// @details Duplicates @a comm and caches the rank and size of the duplicate
 CrystalRouter::CrystalRouter(MPI_Comm comm) {
    MPI_Comm_dup(comm, &this->comm);
    MPI_Comm_rank(this->comm, &rank);
    MPI_Comm_size(this->comm, &nprocs);
 }
 
+/// @details The communicator is not freed after MPI_Finalize, which would be
+/// an error. This happens when a router outlives the Mpi session.
 CrystalRouter::~CrystalRouter() {
    if (!Mpi::IsFinalized()) { MPI_Comm_free(&comm); }
 }
 
+/** @details Flattens the field groups into one list of Field pointers, checks
+    that every field has one entry per rank in @a rank_list, then picks the
+    path: RouteDevice() if a Device is enabled, else RouteInternal() on a copy
+    of @a rank_list */
 void CrystalRouter::Route(const Array<unsigned int> &rank_list,
                           std::initializer_list<CR::FieldGroup> field_groups)
 {
@@ -28,9 +35,9 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
       for (const auto &f : g.cols) { fields.push_back(f.get()); }
    }
    for (std::size_t i = 0; i < fields.size(); i++) {
-      MFEM_VERIFY(fields[i]->Size() == rank_list.Size(),
+      MFEM_VERIFY(fields[i]->GetNumParticles() == rank_list.Size(),
                   "CrystalRouter: field " << i << " has size "
-                  << fields[i]->Size() << " but rank_list has size "
+                  << fields[i]->GetNumParticles() << " but rank_list has size "
                   << rank_list.Size());
    }
 
@@ -45,7 +52,15 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
 
 // PRIVATE METHODS
 
-// device path: only leaving particles cross to host, only arrivals cross back
+/** @details Steps:
+    -# Split the particle indices into leaving (rank differs from this rank)
+       and staying
+    -# Copy only the leaving particles of each field to the host (Field::ToHost)
+    -# Route the host copies with RouteInternal()
+    -# Rebuild each device field from the staying particles plus the arrivals
+       (Field::ToDevice)
+
+    If nothing left and nothing arrived, the fields are not touched */
 void CrystalRouter::RouteDevice(const Array<unsigned int> &rank_list,
                                 const std::vector<CR::Field*> &fields)
 {
@@ -86,6 +101,19 @@ void CrystalRouter::RouteDevice(const Array<unsigned int> &rank_list,
    }
 }
 
+/** @details Recursive halving over the ranks. The active group of @c n ranks
+    starts at rank @c bl. In each round:
+    -# The group is split at @c bh = @c bl + ceil(n/2). Ranks below @c bh are
+       the lower half.
+    -# Move() packs the particles whose destination is in the other half
+    -# Exchange() sends them to the partner @c targ, the mirror rank in the
+       other half. If @c n is odd, the middle rank has no mirror: it sends to
+       @c bh and receives nothing, and @c bh receives from both its mirror and
+       the middle rank (@c recvn = 2).
+    -# Each rank continues in its own half
+
+    After about log2(P) rounds, every particle is on its destination rank.
+    @c msg_tag grows by 2 per round (one tag for counts, one for data). */
 void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
                                   const std::vector<CR::Field*> &fields)
 {
@@ -124,6 +152,11 @@ void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
    }
 }
 
+/** @details Each sent row in #send_buf is the destination rank
+    (unsigned int) followed by the packed row of every field, in list order. The
+    rows that stay are compacted to the front of the fields in place, then all
+    fields and @a ranks are shrunk to the kept size. Fails if the send buffer
+    would exceed the size limit of mfem::Array (INT_MAX bytes). */
 void CrystalRouter::Move(Array<unsigned int> &ranks,
                          const std::vector<CR::Field*> &fields,
                          unsigned int cutoff, bool send_hi)
@@ -150,7 +183,7 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
 
    // rank | field blocks in list order
    size_t field_bytes = 0;
-   for (const auto *f : fields) { field_bytes += f->RowBytes(); }
+   for (const auto *f : fields) { field_bytes += f->GetParticleBytes(); }
    const size_t total_bytes = sizeof(unsigned int) + field_bytes;
 
    const size_t send_bytes = (size_t)nsend * total_bytes;
@@ -169,7 +202,7 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
       off += sizeof(unsigned int);
       for (auto *f : fields) {
          f->Pack(idx, row + off);
-         off += f->RowBytes();
+         off += f->GetParticleBytes();
       }
    }
 
@@ -184,15 +217,24 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
 
    // update kept sizes (each field resizes ordering-aware)
    ranks.SetSize(nkeep);
-   for (auto *f : fields) { f->Resize(nkeep); }
+   for (auto *f : fields) { f->SetNumParticles(nkeep); }
 }
 
+/** @details Two non-blocking phases, each completed with MPI_Waitall:
+    -# Exchange the row counts (tag @a msg_tag)
+    -# Exchange the packed rows (tag @a msg_tag + 1). A second receive from
+       rank - 1 is posted when @a recvn is 2, and its rows land after those of
+       @a target in #recv_buf.
+
+    The fields are then grown by the number of received rows, and each row is
+    unpacked into the new slots. Fails if a payload exceeds the MPI int-count
+    limit (INT_MAX bytes). */
 void CrystalRouter::Exchange(Array<unsigned int> &ranks,
                              const std::vector<CR::Field*> &fields,
                              int target, int recvn, int msg_tag)
 {
    size_t field_bytes = 0;
-   for (const auto *f : fields) { field_bytes += f->RowBytes(); }
+   for (const auto *f : fields) { field_bytes += f->GetParticleBytes(); }
    const size_t total_bytes = sizeof(unsigned int) + field_bytes;
 
    // exchange counts
@@ -230,7 +272,7 @@ void CrystalRouter::Exchange(Array<unsigned int> &ranks,
    MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
 
    int old_n = ranks.Size();
-   for (auto *f : fields) { f->Resize(old_n + nrecv); }
+   for (auto *f : fields) { f->SetNumParticles(old_n + nrecv); }
 
    for (int i = 0; i < nrecv; i++) {
       const char *row = recv_buf.GetData() + i * total_bytes;
@@ -241,7 +283,7 @@ void CrystalRouter::Exchange(Array<unsigned int> &ranks,
       ranks.Append(r);
       for (auto *f : fields) {
          f->Unpack(old_n + i, row + off);
-         off += f->RowBytes();
+         off += f->GetParticleBytes();
       }
    }
 }
