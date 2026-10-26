@@ -986,8 +986,8 @@ public:
       //    | DJt_ij  DJt_il |
       //    | DJt_kj  DJt_kl | = DJt_ij DJt_kl - DJt_il DJt_kj
 
-      Assemble_ddI2_rank1<false>(w, 0, nullptr, nullptr, 0, A);
-      Assemble_ddI2_struct<false>(w, 0, 0, A);
+      Assemble_ddI2_rank1<false>(w, A);
+      Assemble_ddI2_struct<false>(w, A);
    }
    void Assemble_ddI2b(scalar_t w, scalar_t *A)
    {
@@ -1246,7 +1246,7 @@ public:
    void Assemble_ddI2_TProd(scalar_t w_ddI2, scalar_t w_xy, const scalar_t *X,
                             const scalar_t *Y, scalar_t w_yy, scalar_t *A)
    {
-      Assemble_ddI2_rank1<true>(w_ddI2, w_xy, X, Y, w_yy, A);
+      Assemble_ddI2_rank1<true>(w_ddI2, A, w_xy, X, Y, w_yy);
    }
    // Assemble_ddI1(w_ddI1), the rest of Assemble_ddI2(w_ddI2) and
    // Assemble_ddI3b(w_ddI3b) in one pass over A. The ddI1 and ddI3b entries are
@@ -1254,7 +1254,8 @@ public:
    void Assemble_ddI1_ddI2_struct_ddI3b(scalar_t w_ddI1, scalar_t w_ddI2,
                                         scalar_t w_ddI3b, scalar_t *A)
    {
-      Assemble_ddI2_struct<true>(w_ddI2, w_ddI1, w_ddI3b, A);
+      // The ddI1 and ddI3b weights enter as their scaled coefficients.
+      Assemble_ddI2_struct<true>(w_ddI2, A, 2*w_ddI1, w_ddI3b/Get_I3b());
    }
 
 protected:
@@ -1265,8 +1266,9 @@ protected:
    // The two nests of Assemble_ddI2. With Fused set they also add the extra
    // terms of the fused forms above to the entries they write.
    template <bool Fused>
-   void Assemble_ddI2_rank1(scalar_t w, scalar_t w_xy, const scalar_t *X,
-                            const scalar_t *Y, scalar_t w_yy, scalar_t *A)
+   void Assemble_ddI2_rank1(scalar_t w, scalar_t *A, scalar_t w_xy = 0,
+                            const scalar_t *X = nullptr,
+                            const scalar_t *Y = nullptr, scalar_t w_yy = 0)
    {
       if (dont(HAVE_DJt)) { Eval_DJt(); }
       if constexpr (Fused)
@@ -1297,9 +1299,12 @@ protected:
          }
       }
    }
+   // a1 and a3 are the ddI1 and ddI3b coefficients, 2*w_ddI1 and w_ddI3b/I3b.
+   // Only the Fused instantiation reads them, the plain form keeps the
+   // defaults.
    template <bool Fused>
-   void Assemble_ddI2_struct(scalar_t w, scalar_t w_ddI1, scalar_t w_ddI3b,
-                             scalar_t *A)
+   void Assemble_ddI2_struct(scalar_t w, scalar_t *A, scalar_t a1 = 0,
+                             scalar_t a3 = 0)
    {
       if (dont(HAVE_DJt)) { Eval_DJt(); }
       Get_I1(); // evaluates I1 and the diagonal of B
@@ -1307,8 +1312,7 @@ protected:
       if constexpr (Fused) { if (dont(HAVE_DaJ)) { Eval_DaJ(); } }
       const int nd = D_height;
       const int ah = 3*nd;
-      const scalar_t a = 2*w, a1 = 2*w_ddI1;
-      const scalar_t a3 = Fused ? w_ddI3b/Get_I3b() : scalar_t(0);
+      const scalar_t a = 2*w;
       for (int i = 0; i < nd; i++)
       {
          const int ip[3] = { i, i+nd, i+2*nd };
@@ -1378,10 +1382,11 @@ protected:
                for (int l = 0; l < j; l++)
                {
                   const int il = ip[l], kl = kp[l];
-                  const scalar_t Z3_ik_jl = Fused ?
-                                            aDJt_i[j]*DJt[kl] - aDJt_i[l]*DJt[kj] +
-                                            a3DaJ_i[j]*DaJ[kl] - a3DaJ_i[l]*DaJ[kj] :
-                                            aDJt_i[j]*DJt[kl] - aDJt_i[l]*DJt[kj];
+                  scalar_t Z3_ik_jl = aDJt_i[j]*DJt[kl] - aDJt_i[l]*DJt[kj];
+                  if constexpr (Fused)
+                  {
+                     Z3_ik_jl += a3DaJ_i[j]*DaJ[kl] - a3DaJ_i[l]*DaJ[kj];
+                  }
                   A[ij+ah*kl] += Z3_ik_jl;
                   A[kl+ah*ij] += Z3_ik_jl;
                   A[il+ah*kj] -= Z3_ik_jl;
