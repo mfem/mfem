@@ -714,12 +714,12 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    // Form the final mesh using the computed displacement.
    if (periodic)
    {
-      Vector dx_local(nlf->FESpace()->GetVSize());
+      dx_loc.SetSize(nlf->FESpace()->GetVSize(), dx);
       const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
-      if (Pd) { Pd->Mult(dx, dx_local); }
-      else    { dx_local = dx; }
+      if (Pd) { Pd->Mult(dx, dx_loc); }
+      else    { dx_loc = dx; }
 
-      GetPeriodicPositions(x_0, dx_local, *fes_mesh_nodes,
+      GetPeriodicPositions(x_0, dx_loc, *fes_mesh_nodes,
                            *nlf->FESpace(), x);
    }
    else { x += dx; }

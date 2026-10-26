@@ -5800,8 +5800,8 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 }
 
 void TMOP_Integrator::
-UpdateAfterMeshPositionChange(const Vector &d_loc,
-                              const FiniteElementSpace &d_fes)
+UpdateAfterMeshPositionChange(const Vector &dx_loc,
+                              const FiniteElementSpace &dx_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
@@ -5811,23 +5811,23 @@ UpdateAfterMeshPositionChange(const Vector &d_loc,
       x_loc.UseDevice(x_0->UseDevice());
       if (periodic)
       {
-         GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), d_fes, x_loc);
+         GetPeriodicPositions(*x_0, dx_loc, *x_0->FESpace(), dx_fes, x_loc);
       }
-      else { add(*x_0, d_loc, x_loc); }
+      else { add(*x_0, dx_loc, x_loc); }
    }
    else
    {
-      x_loc.SetSize(d_loc.Size(), d_loc);
-      x_loc.UseDevice(d_loc.UseDevice());
-      x_loc = d_loc;
+      x_loc.SetSize(dx_loc.Size(), dx_loc);
+      x_loc.UseDevice(dx_loc.UseDevice());
+      x_loc = dx_loc;
    }
 
    if (PA.enabled) { UpdateCoefficientsPA(x_loc); }
 
-   Ordering::Type ordering = d_fes.GetOrdering();
+   Ordering::Type ordering = dx_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
-   if (fdflag) { ComputeFDh(x_loc, d_fes); }
+   if (fdflag) { ComputeFDh(x_loc, dx_fes); }
 
    // Update the target constructor if it's a discrete one.
    if (discr_tc)
@@ -6070,7 +6070,8 @@ ComputeUntanglerMaxMuBarrier(const Vector &x, const FiniteElementSpace &fes)
 }
 
 void TMOP_Integrator::
-ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
+ComputeUntangleMetricQuantiles(const Vector &dx_loc,
+                               const FiniteElementSpace &fes)
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
@@ -6079,12 +6080,18 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
 
    if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
-   Vector positions(d.Size());
    if (x_0)
    {
-      add(*x_0, d, positions);
+      x_loc.SetSize(x_0->Size(), *x_0);
+      x_loc.UseDevice(x_0->UseDevice());
+      add(*x_0, dx_loc, x_loc);
    }
-   else { positions = d; }
+   else
+   {
+      x_loc.SetSize(dx_loc.Size(), dx_loc);
+      x_loc.UseDevice(dx_loc.UseDevice());
+      x_loc = dx_loc;
+   }
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
@@ -6094,7 +6101,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = ComputeMinDetT(positions, fes);
+      real_t min_detT = ComputeMinDetT(x_loc, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
@@ -6106,7 +6113,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
       wcuo->SetMinDetT(min_detT_all);
    }
 
-   real_t max_muT = ComputeUntanglerMaxMuBarrier(positions, fes);
+   real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);
    real_t max_muT_all = max_muT;
 #ifdef MFEM_USE_MPI
    if (pfes)

@@ -2212,8 +2212,8 @@ protected:
    void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
    void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &d_loc,
-                                      const FiniteElementSpace &d_fes);
+   void UpdateAfterMeshPositionChange(const Vector &dx_loc,
+                                      const FiniteElementSpace &dx_fes);
 
    void DisableLimiting()
    {
@@ -2607,7 +2607,7 @@ public:
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
    /// across MPI ranks.
-   void ComputeUntangleMetricQuantiles(const Vector &d,
+   void ComputeUntangleMetricQuantiles(const Vector &dx_loc,
                                        const FiniteElementSpace &fes);
 };
 
