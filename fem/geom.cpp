@@ -919,6 +919,19 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
    }
 }
 
+void Geometry::InvJacToInvPerfJac(int GeomType, const DenseMatrix &invJ,
+                                  DenseMatrix &invPJ) const
+{
+   if (GeomToPerfGeomJac[GeomType])
+   {
+      Mult(*GeomToPerfGeomJac[GeomType], invJ, invPJ);
+   }
+   else
+   {
+      invPJ = invJ;
+   }
+}
+
 const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5, 5 };
 const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3, 3 };
 const int Geometry::DimStart[MaxDim+2] =
