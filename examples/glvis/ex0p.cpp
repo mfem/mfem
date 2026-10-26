@@ -3,8 +3,8 @@
 // Compile with: make ex0p
 //
 // Sample runs:  mpirun -np 4 ex0p
-//               mpirun -np 4 ex0p -m ../data/fichera.mesh
-//               mpirun -np 4 ex0p -m ../data/square-disc.mesh -o 2
+//               mpirun -np 4 ex0p -m ../../data/fichera.mesh
+//               mpirun -np 4 ex0p -m ../../data/square-disc.mesh -o 2
 //
 // Description: This example code demonstrates the most basic parallel usage of
 //              MFEM to define a simple finite element discretization of the

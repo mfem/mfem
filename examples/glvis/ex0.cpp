@@ -3,8 +3,8 @@
 // Compile with: make ex0
 //
 // Sample runs:  ex0
-//               ex0 -m ../data/fichera.mesh
-//               ex0 -m ../data/square-disc.mesh -o 2
+//               ex0 -m ../../data/fichera.mesh
+//               ex0 -m ../../data/square-disc.mesh -o 2
 //
 // Description: This example code demonstrates the most basic usage of MFEM to
 //              define a simple finite element discretization of the Poisson
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
 
-   // 10. Recover the solution x as a grid function and save to file.
+   // 10. Recover the solution x as a grid function.
    a.RecoverFEMSolution(X, b, x);
 
    // 11. Send the solution to a non-server mode GLVis.
