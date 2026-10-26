@@ -101,6 +101,11 @@ public:
    }
 
    /// Collective gather. Rank 0 then blocks in the GLVis window.
+   ///
+   /// Each payload starts with mesh, solution, or parallel. A parallel
+   /// payload continues with the communicator size and the rank, as in
+   /// "parallel 2 0". flush() consumes the buffer, so size() is 0
+   /// afterwards. An empty or unknown header aborts on every rank.
    void flush();
 
    /// When @a on is false, flush gathers and does not open a window.
