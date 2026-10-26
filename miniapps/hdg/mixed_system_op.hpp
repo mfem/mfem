@@ -21,10 +21,11 @@ namespace mfem
 {
 namespace hdg
 {
-/// A helper operator for Darcy-like mixed systems
+/// A helper operator for mixed systems
 /** Class MixedSystemOperator helps with construction of a spatial operator for
-    mixed systems with (anti)symmetric weak form common for parabolic and
-    elliptic problems. These can be written as:
+    mixed systems with (anti)symmetric weak form structure common for parabolic
+    and elliptic problems. These can be written as the following block system
+    (not necessarily symmetric):
     \verbatim
         ┌        ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ || u | _ | bu |
@@ -55,9 +56,9 @@ namespace hdg
     through GetOffsets()) for representation of the state, which has 3
     components for hybridized systems: flux, potential and trace unknowns. This
     construction speeds up the solution procedure by providing an initial guess
-    of the trace unknows to the linear solver.
+    of the trace unknowns to the linear solver.
 
-    MixedSystemOperator also handles construction of the intertial term in time
+    MixedSystemOperator also handles construction of the inertial term in time
     evolving cases (indicated in the constructor), which is added to the
     MixedSystemForm and its contribution is added to the right hand side as well
     every time step.

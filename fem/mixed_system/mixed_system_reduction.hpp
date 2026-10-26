@@ -21,11 +21,12 @@
 namespace mfem
 {
 
-/// Class for algebraic reduction of Darcy-like mixed systems
+/// Class for algebraic reduction of mixed systems
 /** MixedSystemReduction is the base class for objects performing algebraic
     reduction by elimination of one of the equations of mixed systems with
-    (anti)symmetric weak form common for parabolic and elliptic problems. They
-    can be written as:
+    (anti)symmetric weak form structure common for parabolic and elliptic
+    problems. They can be written as the following block system (not necessarily
+    symmetric):
     \verbatim
         ┌        ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ || u | _ | bu |
@@ -231,7 +232,7 @@ public:
    virtual void Reset();
 };
 
-/// Class for flux elimination from Darcy-like mixed systems
+/// Class for flux elimination from mixed systems
 /** Assuming the notation of MixedSystemReduction, the algebraic reduction by
     Schur complement to eliminate the flux is performed as follows:
     \verbatim
@@ -290,7 +291,7 @@ public:
                         BlockVector &sol) const override;
 };
 
-/// Class for potential elimination from Darcy-like mixed systems
+/// Class for potential elimination from mixed systems
 /** Assuming the notation of MixedSystemReduction, the algebraic reduction by
     Schur complement to eliminate the potential is performed as follows:
     \verbatim

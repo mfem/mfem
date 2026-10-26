@@ -17,9 +17,10 @@
 namespace mfem
 {
 
-/// (Anisotropic) error estimator for hybridized Darcy-like mixed systems
+/// (Anisotropic) error estimator for hybridized mixed systems
 /** HDGErrorEstimator is an error estimator for mixed systems with
-    (anti)symmetric weak form hybridized as follows:
+    (anti)symmetric weak form structure hybridized as the following block system
+    (not necessarily symmetric):
     \verbatim
         ┌           ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ Cᵀ || u |   | bu |
