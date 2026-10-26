@@ -481,7 +481,7 @@ class ParticleVectorField : public Field
    mfem::ParticleVector *pv;
    /// keeps a reference to local host_buf alive, if using device
    std::shared_ptr<mfem::ParticleVector> own;
-redistribute
+
 public:
    /** @brief mfem::PV -> CR::PVField constructor
 
