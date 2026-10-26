@@ -14,6 +14,13 @@
 
 using namespace mfem;
 
+#ifndef MFEM_USE_GLVIS
+TEST_CASE("glvis stream is not built", "[GLVis]")
+{
+   // GLVis is off. The case keeps the tag run from matching nothing.
+}
+#endif
+
 #ifdef MFEM_USE_GLVIS
 
 TEST_CASE("glvis_stream gather", "[GLVis]")

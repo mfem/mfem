@@ -67,6 +67,8 @@ endmacro()
 # FindZLIB selects the macOS SDK usr/include. Homebrew Clang searches
 # that -isystem before libc++'s C headers, including on MFEM consumers
 # that inherit GLVis's link interface.
+# An explicit zlib outside the SDK is kept. Only an empty or SDK
+# selection is replaced with the Homebrew prefix.
 macro(mfem_glvis_prefer_non_sdk_zlib)
     if(APPLE AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
         set(_glvis_zlib_root "")
@@ -81,26 +83,84 @@ macro(mfem_glvis_prefer_non_sdk_zlib)
                 PATHS "${_glvis_zlib_root}/lib" NO_DEFAULT_PATH)
         endif()
         if(_glvis_zlib_root AND _glvis_zlib_lib)
-            set(ZLIB_ROOT "${_glvis_zlib_root}" CACHE PATH
-                "zlib prefix outside the macOS SDK" FORCE)
-            set(ZLIB_INCLUDE_DIR "${_glvis_zlib_root}/include" CACHE PATH
-                "zlib headers outside the macOS SDK" FORCE)
-            set(ZLIB_LIBRARY "${_glvis_zlib_lib}" CACHE FILEPATH
-                "zlib library outside the macOS SDK" FORCE)
+            set(_glvis_user_zlib FALSE)
+            foreach(_glvis_zlib_choice IN ITEMS
+                    "${ZLIB_ROOT}" "${ZLIB_INCLUDE_DIR}" "${ZLIB_LIBRARY}")
+                if(NOT "${_glvis_zlib_choice}" STREQUAL "" AND NOT
+                   "${_glvis_zlib_choice}" MATCHES "/SDKs/")
+                    set(_glvis_user_zlib TRUE)
+                endif()
+            endforeach()
             if(TARGET ZLIB::ZLIB)
-                set_target_properties(ZLIB::ZLIB PROPERTIES
-                    INTERFACE_INCLUDE_DIRECTORIES
-                    "${_glvis_zlib_root}/include")
+                get_target_property(_glvis_zlib_incs ZLIB::ZLIB
+                    INTERFACE_INCLUDE_DIRECTORIES)
+                if(_glvis_zlib_incs)
+                    foreach(_glvis_inc IN LISTS _glvis_zlib_incs)
+                        if(NOT "${_glvis_inc}" STREQUAL "" AND NOT
+                           "${_glvis_inc}" MATCHES "/SDKs/")
+                            set(_glvis_user_zlib TRUE)
+                        endif()
+                    endforeach()
+                endif()
+            endif()
+            if(NOT _glvis_user_zlib)
+                set(ZLIB_ROOT "${_glvis_zlib_root}" CACHE PATH
+                    "zlib prefix outside the macOS SDK" FORCE)
+                set(ZLIB_INCLUDE_DIR "${_glvis_zlib_root}/include" CACHE PATH
+                    "zlib headers outside the macOS SDK" FORCE)
+                set(ZLIB_LIBRARY "${_glvis_zlib_lib}" CACHE FILEPATH
+                    "zlib library outside the macOS SDK" FORCE)
+                if(TARGET ZLIB::ZLIB)
+                    set_target_properties(ZLIB::ZLIB PROPERTIES
+                        INTERFACE_INCLUDE_DIRECTORIES
+                        "${_glvis_zlib_root}/include")
+                endif()
+            else()
+                if("${ZLIB_ROOT}" MATCHES "/SDKs/")
+                    set(ZLIB_ROOT "${_glvis_zlib_root}" CACHE PATH
+                        "zlib prefix outside the macOS SDK" FORCE)
+                endif()
+                if("${ZLIB_INCLUDE_DIR}" MATCHES "/SDKs/")
+                    set(ZLIB_INCLUDE_DIR "${_glvis_zlib_root}/include"
+                        CACHE PATH
+                        "zlib headers outside the macOS SDK" FORCE)
+                endif()
+                if("${ZLIB_LIBRARY}" MATCHES "/SDKs/")
+                    set(ZLIB_LIBRARY "${_glvis_zlib_lib}" CACHE FILEPATH
+                        "zlib library outside the macOS SDK" FORCE)
+                endif()
+                if(TARGET ZLIB::ZLIB)
+                    get_target_property(_glvis_zlib_incs ZLIB::ZLIB
+                        INTERFACE_INCLUDE_DIRECTORIES)
+                    if(_glvis_zlib_incs)
+                        set(_glvis_zlib_kept "")
+                        foreach(_glvis_inc IN LISTS _glvis_zlib_incs)
+                            if(_glvis_inc MATCHES "/SDKs/.*/usr/include$")
+                                list(APPEND _glvis_zlib_kept
+                                    "${_glvis_zlib_root}/include")
+                            else()
+                                list(APPEND _glvis_zlib_kept "${_glvis_inc}")
+                            endif()
+                        endforeach()
+                        set_property(TARGET ZLIB::ZLIB PROPERTY
+                            INTERFACE_INCLUDE_DIRECTORIES
+                            ${_glvis_zlib_kept})
+                    endif()
+                endif()
             endif()
             if(TARGET PNG::PNG)
+                set(_glvis_png_zlib "${_glvis_zlib_root}/include")
+                if(ZLIB_INCLUDE_DIR AND NOT
+                   "${ZLIB_INCLUDE_DIR}" MATCHES "/SDKs/")
+                    set(_glvis_png_zlib "${ZLIB_INCLUDE_DIR}")
+                endif()
                 get_target_property(_glvis_png_incs PNG::PNG
                     INTERFACE_INCLUDE_DIRECTORIES)
                 if(_glvis_png_incs)
                     set(_glvis_png_kept "")
                     foreach(_glvis_inc IN LISTS _glvis_png_incs)
                         if(_glvis_inc MATCHES "/SDKs/.*/usr/include$")
-                            list(APPEND _glvis_png_kept
-                                "${_glvis_zlib_root}/include")
+                            list(APPEND _glvis_png_kept "${_glvis_png_zlib}")
                         else()
                             list(APPEND _glvis_png_kept "${_glvis_inc}")
                         endif()
@@ -108,6 +168,12 @@ macro(mfem_glvis_prefer_non_sdk_zlib)
                     set_property(TARGET PNG::PNG PROPERTY
                         INTERFACE_INCLUDE_DIRECTORIES ${_glvis_png_kept})
                 endif()
+            endif()
+            if(DEFINED MFEM_GLVIS_EXPECT_ZLIB_ROOT AND NOT
+               "${ZLIB_ROOT}" STREQUAL "${MFEM_GLVIS_EXPECT_ZLIB_ROOT}")
+                message(FATAL_ERROR
+                    "mfem_glvis_prefer_non_sdk_zlib overwrote "
+                    "ZLIB_ROOT '${ZLIB_ROOT}'")
             endif()
         endif()
     endif()
@@ -157,7 +223,17 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
     endif()
     set(_glvis_extra_cmake_args "")
     mfem_glvis_prefer_non_sdk_zlib()
-    if(_glvis_zlib_root AND _glvis_zlib_lib)
+    if(ZLIB_ROOT AND NOT "${ZLIB_ROOT}" MATCHES "/SDKs/")
+        list(APPEND _glvis_extra_cmake_args "-DZLIB_ROOT=${ZLIB_ROOT}")
+        if(ZLIB_INCLUDE_DIR AND NOT "${ZLIB_INCLUDE_DIR}" MATCHES "/SDKs/")
+            list(APPEND _glvis_extra_cmake_args
+                "-DZLIB_INCLUDE_DIR=${ZLIB_INCLUDE_DIR}")
+        endif()
+        if(ZLIB_LIBRARY AND NOT "${ZLIB_LIBRARY}" MATCHES "/SDKs/")
+            list(APPEND _glvis_extra_cmake_args
+                "-DZLIB_LIBRARY=${ZLIB_LIBRARY}")
+        endif()
+    elseif(_glvis_zlib_root AND _glvis_zlib_lib)
         list(APPEND _glvis_extra_cmake_args
             "-DZLIB_ROOT=${_glvis_zlib_root}"
             "-DZLIB_INCLUDE_DIR=${_glvis_zlib_root}/include"
