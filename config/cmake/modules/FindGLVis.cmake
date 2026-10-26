@@ -14,25 +14,7 @@
 #   - GLVIS_LIBRARIES
 #   - GLVIS_INCLUDE_DIRS
 
-# Prefer an imported target. Otherwise use the first variable that names a
-# library. Older Find modules set only the variables.
-macro(mfem_glvis_dep OUT)
-    set(${OUT} "")
-    foreach(item ${ARGN})
-        if(TARGET "${item}")
-            set(${OUT} "${item}")
-            break()
-        endif()
-        if(DEFINED ${item} AND NOT "${${item}}" STREQUAL ""
-           AND NOT "${${item}}" MATCHES "NOTFOUND")
-            set(${OUT} "${${item}}")
-            break()
-        endif()
-    endforeach()
-    if("${${OUT}}" STREQUAL "")
-        message(FATAL_ERROR "GLVis dependency not found. Tried: ${ARGN}")
-    endif()
-endmacro()
+include(${CMAKE_CURRENT_LIST_DIR}/../MFEMGLVisDep.cmake)
 
 function(mfem_glvis_find_deps OUT)
     mfem_glvis_prefer_non_sdk_zlib()
@@ -259,8 +241,18 @@ if (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
     # still need a rule that builds the archive.
     add_dependencies(GLVIS glvis)
 
-    set_target_properties(GLVIS PROPERTIES
-        IMPORTED_LOCATION ${GLVIS_LIBRARY})
+    # IMPORTED_LOCATION does not evaluate $<CONFIG>. Name each one.
+    if(CMAKE_CONFIGURATION_TYPES)
+        foreach(_glvis_bt IN LISTS CMAKE_CONFIGURATION_TYPES)
+            string(TOUPPER "${_glvis_bt}" _glvis_bt_up)
+            set_property(TARGET GLVIS PROPERTY
+                "IMPORTED_LOCATION_${_glvis_bt_up}"
+                "${FETCH_GLVIS}/build/lib/${_glvis_bt}/${_glvis_lib_leaf}")
+        endforeach()
+    else()
+        set_target_properties(GLVIS PROPERTIES
+            IMPORTED_LOCATION "${GLVIS_LIBRARY}")
+    endif()
 
     mfem_glvis_find_deps(GLVIS_DEP_LIBS)
     target_link_libraries(GLVIS INTERFACE
@@ -278,29 +270,32 @@ endif()
 message(STATUS "[🔵 GLVis 🔵] Find pre-installed package")
 
 include(MfemCmakeUtilities)
+# libglvis.a lives in lib/ (make) or build/lib/ (CMake). The make rule does
+# not build glvis_logo; a CMake lib-only tree may.
+set(_glvis_saved_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+set(CMAKE_FIND_LIBRARY_SUFFIXES "${CMAKE_STATIC_LIBRARY_SUFFIX}")
 mfem_find_package(GLVis GLVIS GLVIS_DIR
         "include" "lib/glwindow.hpp"
-        "lib" "build/lib/${_glvis_lib_leaf}"
+        "lib;build/lib" "glvis"
         "Paths to headers required by GLVis"
         "Libraries required by GLVis")
 
 if (GLVIS_FOUND)
         set(GLVIS_INCLUDE_DIRS ${GLVIS_INCLUDE_DIRS}/lib)
 
-        # REQUIRED on find_library needs CMake 3.18. MFEM requires 3.12.
         find_library(GLVIS_LOGO_LIBRARY
                 NAMES glvis_logo
-                PATHS ${GLVIS_DIR}/build/share
+                HINTS ${GLVIS_DIR}
+                PATH_SUFFIXES build/share lib
                 NO_DEFAULT_PATH)
-        if(NOT GLVIS_LOGO_LIBRARY)
-            message(FATAL_ERROR
-                "GLVis logo library not found in ${GLVIS_DIR}/build/share")
+        if(GLVIS_LOGO_LIBRARY)
+            list(APPEND GLVIS_LIBRARIES ${GLVIS_LOGO_LIBRARY})
         endif()
-        list(APPEND GLVIS_LIBRARIES ${GLVIS_LOGO_LIBRARY})
 
         mfem_glvis_find_deps(GLVIS_DEP_LIBS)
         list(APPEND GLVIS_LIBRARIES ${GLVIS_DEP_LIBS})
 endif()
+set(CMAKE_FIND_LIBRARY_SUFFIXES "${_glvis_saved_suffixes}")
 
 message(STATUS "GLVIS_INCLUDE_DIRS: ${GLVIS_INCLUDE_DIRS}")
 message(STATUS "GLVIS_LIBRARIES: ${GLVIS_LIBRARIES}")

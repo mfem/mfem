@@ -134,28 +134,9 @@ if (MFEM_USE_GLVIS)
   endif()
 endif()
 
-# An imported target when the Find module provides one, otherwise its library
-# variable. This is the same fallback as FindGLVis.cmake.
-macro(mfem_glvis_dep OUT)
-  set(${OUT} "")
-  foreach(item ${ARGN})
-    if(TARGET "${item}")
-      set(${OUT} "${item}")
-      break()
-    endif()
-    if(DEFINED ${item} AND NOT "${${item}}" STREQUAL ""
-       AND NOT "${${item}}" MATCHES "NOTFOUND")
-      set(${OUT} "${${item}}")
-      break()
-    endif()
-  endforeach()
-  if("${${OUT}}" STREQUAL "")
-    message(FATAL_ERROR "GLVis dependency not found. Tried: ${ARGN}")
-  endif()
-endmacro()
-
 if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
     AND NOT TARGET GLVIS)
+  include(${CMAKE_CURRENT_LIST_DIR}/MFEMGLVisDep.cmake)
   mfem_glvis_dep(glvis_opengl OpenGL::GL OPENGL_LIBRARIES OpenGL_LIBRARIES)
   mfem_glvis_dep(glvis_glew GLEW::GLEW GLEW_LIBRARIES)
   mfem_glvis_dep(glvis_sdl SDL2::SDL2 SDL2_LIBRARIES SDL2_LIBRARY)
@@ -179,6 +160,7 @@ if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
   set_target_properties(GLVIS PROPERTIES
     IMPORTED_LOCATION "@PACKAGE_MFEM_GLVIS_LIBRARY@"
     INTERFACE_LINK_LIBRARIES "${_glvis_link}")
+@MFEM_GLVIS_CONFIG_LOCATIONS@
 endif()
 
 if (NOT TARGET mfem)

@@ -944,6 +944,12 @@ if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
     # INTERFACE keeps libglvis.a off libmfem's own link. The external project
     # DEPENDS mfem, so a PUBLIC link of the shared library waits for an archive
     # that waits for mfem.
+    if (BUILD_SHARED_LIBS AND WIN32)
+        message(FATAL_ERROR
+            "Fetched GLVis does not support a shared MFEM library on Windows. "
+            "libmfem calls GLVisStreamSession, which libglvis defines, and a "
+            "DLL cannot leave that symbol undefined.")
+    endif()
     target_link_libraries(mfem INTERFACE GLVIS)
     if (BUILD_SHARED_LIBS AND APPLE)
         # libmfem calls GLVisStreamSession, which libglvis defines. Apple ld
@@ -956,8 +962,29 @@ if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
       DESTINATION ${INSTALL_LIB_DIR})
 endif()
 if (MFEM_USE_GLVIS AND NOT BUILD_SHARED_LIBS)
-    # libglvis calls back into MFEM. Repeat the archive after it.
-    target_link_libraries(mfem INTERFACE "$<TARGET_FILE:mfem>")
+    # libglvis calls back into MFEM. Place GLVis and this archive ahead of
+    # LAPACK so --as-needed cannot drop OpenBLAS before geom.cpp is pulled.
+    get_target_property(_mfem_iface mfem INTERFACE_LINK_LIBRARIES)
+    if (NOT _mfem_iface)
+        set(_mfem_iface "")
+    endif()
+    set(_mfem_repeat "$<TARGET_FILE:mfem>")
+    set(_glvis_front "")
+    if (TARGET GLVIS)
+        list(REMOVE_ITEM _mfem_iface GLVIS)
+        list(APPEND _glvis_front GLVIS)
+    endif()
+    foreach (_item IN LISTS GLVIS_LIBRARIES)
+        list(FIND _mfem_iface "${_item}" _idx)
+        if (NOT _idx EQUAL -1)
+            list(REMOVE_ITEM _mfem_iface "${_item}")
+            list(APPEND _glvis_front "${_item}")
+        endif()
+    endforeach()
+    list(REMOVE_ITEM _mfem_iface "${_mfem_repeat}")
+    list(INSERT _mfem_iface 0 ${_glvis_front} "${_mfem_repeat}")
+    set_property(TARGET mfem PROPERTY INTERFACE_LINK_LIBRARIES
+        ${_mfem_iface})
 endif()
 
 # The 'install' target will not depend on 'all'.
@@ -1025,11 +1052,29 @@ export(TARGETS ${PROJECT_NAME}
 export(PACKAGE ${PROJECT_NAME})
 
 if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
-  set(MFEM_GLVIS_LIBRARY "${GLVIS_LIBRARY}")
+  # $<CONFIG> in IMPORTED_LOCATION is literal text. Record each config.
+  set(MFEM_GLVIS_CONFIG_LOCATIONS "")
+  if (CMAKE_CONFIGURATION_TYPES)
+    foreach (_glvis_bt IN LISTS CMAKE_CONFIGURATION_TYPES)
+      string(TOUPPER "${_glvis_bt}" _glvis_bt_up)
+      string(REPLACE "$<CONFIG>" "${_glvis_bt}" _glvis_cfg_lib
+          "${GLVIS_LIBRARY}")
+      string(APPEND MFEM_GLVIS_CONFIG_LOCATIONS
+        "  set_property(TARGET GLVIS PROPERTY "
+        "IMPORTED_LOCATION_${_glvis_bt_up}\n"
+        "    \"${_glvis_cfg_lib}\")\n")
+    endforeach()
+    list(GET CMAKE_CONFIGURATION_TYPES 0 _glvis_bt0)
+    string(REPLACE "$<CONFIG>" "${_glvis_bt0}" MFEM_GLVIS_LIBRARY
+        "${GLVIS_LIBRARY}")
+  else()
+    set(MFEM_GLVIS_LIBRARY "${GLVIS_LIBRARY}")
+  endif()
   set(MFEM_GLVIS_LOGO_LIBRARY "${GLVIS_LOGO_LIBRARY}")
 else()
   # PATH_VARS wants an absolute path. The package file reads these only when
   # GLVis was fetched.
+  set(MFEM_GLVIS_CONFIG_LOCATIONS "")
   set(_glvis_placeholder_lib
       "${CMAKE_STATIC_LIBRARY_PREFIX}glvis${CMAKE_STATIC_LIBRARY_SUFFIX}")
   set(_glvis_placeholder_logo
@@ -1055,11 +1100,15 @@ if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
       "${CMAKE_STATIC_LIBRARY_PREFIX}glvis${CMAKE_STATIC_LIBRARY_SUFFIX}")
   set(_glvis_installed_logo
       "${CMAKE_STATIC_LIBRARY_PREFIX}glvis_logo${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  mfem_path_to_fullpath("${INSTALL_LIB_DIR}" "${CMAKE_INSTALL_PREFIX}"
+      _glvis_install_libdir)
   set(MFEM_GLVIS_LIBRARY
-      "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/${_glvis_installed_lib}")
+      "${_glvis_install_libdir}/${_glvis_installed_lib}")
   set(MFEM_GLVIS_LOGO_LIBRARY
-      "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIB_DIR}/${_glvis_installed_logo}")
+      "${_glvis_install_libdir}/${_glvis_installed_logo}")
 endif()
+# The build-tree snippet names fetch paths. The installed package does not.
+set(MFEM_GLVIS_CONFIG_LOCATIONS "")
 set(INCLUDE_INSTALL_DIRS ${INSTALL_INCLUDE_DIR}  ${TPL_INCLUDE_DIRS})
 set(LIB_INSTALL_DIR ${INSTALL_LIB_DIR})
 configure_package_config_file(config/cmake/MFEMConfig.cmake.in
@@ -1075,9 +1124,12 @@ write_basic_package_version_file(
   COMPATIBILITY SameMajorVersion )
 
 # Install the config files
+configure_file(${PROJECT_SOURCE_DIR}/config/cmake/MFEMGLVisDep.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/MFEMGLVisDep.cmake COPYONLY)
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/MFEMConfig.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/MFEMConfigVersion.cmake
+  ${PROJECT_SOURCE_DIR}/config/cmake/MFEMGLVisDep.cmake
   DESTINATION ${INSTALL_CMAKE_DIR})
 
 # Install the export set for use with the install-tree

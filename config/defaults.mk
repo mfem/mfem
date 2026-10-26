@@ -688,7 +688,7 @@ endif
 ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
 ENZYME_LIB =
 
-# GLVis configuration
+# GLVis configuration. glvis.mk searches only if MFEM_USE_GLVIS is YES.
 include $(GLVIS_MK)
 
 # If YES, enable some informational messages

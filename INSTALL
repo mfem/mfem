@@ -1163,6 +1163,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - BENCHMARK
  - ParELAG
  - Enzyme
+ - GLVis
 
 The following built-in CMake packages are also used:
 
@@ -1178,6 +1179,7 @@ auto-detection functionality is disabled.
  - GSLIB
  - HYPRE
  - METIS
+ - GLVis
 
 Building without GNU make or CMake
 ==================================

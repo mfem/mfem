@@ -18,7 +18,8 @@ $(if $(filter-out /usr,$(1)),$(patsubst %/,%,$(dir $(firstword $(wildcard\
  $(1)/lib64/lib$(2).* $(1)/lib/lib$(2).*)))))
 endef
 
-BREW_PREFIX := $(if $(NOTMAC),,$(shell brew --prefix 2> /dev/null))
+# Expanded with the link line, so an off build does not run brew.
+BREW_PREFIX = $(if $(NOTMAC),,$(shell brew --prefix 2> /dev/null))
 
 FREETYPE_SEARCH_PATHS = $(BREW_PREFIX) /usr /opt/X11
 FREETYPE_SEARCH_FILE = include/freetype2/ft2build.h
@@ -34,7 +35,7 @@ GLEW_LIB_DIR = $(call dir2lib,$(GLEW_DIR),GLEW)
 GLEW_LIBS = -lGLEW
 
 # If SDL is in /usr, there's no need to add search paths
-SDL_SEARCH_PATHS := /usr/local $(BREW_PREFIX) $(abspath ../SDL2)
+SDL_SEARCH_PATHS = /usr/local $(BREW_PREFIX) $(abspath ../SDL2)
 SDL_SEARCH_FILE = include/SDL2/SDL.h
 SDL_DIR ?= $(call find_dir,$(SDL_SEARCH_FILE),$(SDL_SEARCH_PATHS))
 SDL_LIB_DIR = $(call dir2lib,$(SDL_DIR),SDL2)
@@ -107,9 +108,7 @@ endif
 PTHREAD_LIB = -lpthread
 
 GLVIS_LIBS += $(PTHREAD_LIB)
-GLVIS_LIBS := $(sort $(GLVIS_LIBS))
-GLVIS_LIBS += $(OPENGL_LIBS)
 
 GLVIS_DIR = @MFEM_DIR@/../glvis
 GLVIS_OPT =
-GLVIS_LIB = -L$(GLVIS_DIR)/lib -lglvis $(GLVIS_LIBS)
+GLVIS_LIB = -L$(GLVIS_DIR)/lib -lglvis $(sort $(GLVIS_LIBS)) $(OPENGL_LIBS)
