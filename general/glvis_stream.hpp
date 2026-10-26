@@ -54,6 +54,10 @@ struct glvis_data
 /// flush() and '<< std::flush' are collective. Every rank of the stored
 /// communicator enters them together. Rank 0 blocks in the window. The other
 /// ranks wait until it returns. A failure is raised on every rank.
+/// That communicator is MPI_COMM_WORLD unless the caller passes one. An
+/// explicit communicator is borrowed, not duplicated, so the caller keeps
+/// it alive until this stream is destroyed. Ranks that do not flush pass a
+/// subcommunicator of their own. A flush by only some ranks waits forever.
 /// std::endl and a flush through std::ostream only sync this buffer: flush()
 /// is not virtual, and Mesh::Print calls it on an ostream reference while the
 /// mesh is still incomplete.
@@ -65,8 +69,12 @@ class glvis_stream: public std::iostream
    void serialize();
 
 public:
+   /// Stores MPI_COMM_WORLD when MPI is on. flush() is collective there.
    glvis_stream();
 #ifdef MFEM_USE_MPI
+   /// Borrows @a comm (not duplicated). Keep @a comm alive until this
+   /// stream is destroyed. A subset of ranks passes its own subcommunicator.
+   /// A flush by only some ranks of @a comm waits forever.
    explicit glvis_stream(MPI_Comm comm);
 #endif
 
