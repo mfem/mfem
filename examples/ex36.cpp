@@ -156,10 +156,10 @@ class ProximalGalerkinPreconditioner : public Solver
 {
 private:
    BlockLowerTriangularPreconditioner prec;
+   GSSmoother   *P00  = nullptr;
    SparseMatrix *GDGt = nullptr;
-   SparseMatrix *S = nullptr;
-   GSSmoother *P00 = nullptr;
-   GSSmoother *P11 = nullptr;
+   SparseMatrix *S    = nullptr;
+   GSSmoother   *P11  = nullptr;
 
 public:
    ProximalGalerkinPreconditioner(const Array<int> &toffsets)
@@ -171,10 +171,10 @@ public:
 
    ~ProximalGalerkinPreconditioner() override
    {
-      delete GDGt;
-      delete S;
-      delete P00;
       delete P11;
+      delete S;
+      delete GDGt;
+      delete P00;
    }
 };
 
@@ -634,8 +634,8 @@ void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
    // Build an approximate Schur complement of the A11 block:
    //   S = A11 - A10 diag(A00)^{-1} A01
    //     = A11 + A10 diag(A00)^{-1} A10^T.
-   delete S;
    delete P11;
+   delete S;
    S = mfem::Add(1.0, A11, 1.0, *GDGt);
    P11 = new GSSmoother(*S);
 
