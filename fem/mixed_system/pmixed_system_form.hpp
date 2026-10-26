@@ -23,7 +23,7 @@
 namespace mfem
 {
 
-/// Parallel block bilinear form for Darcy-like mixed systems
+/// Parallel block bilinear form for mixed systems
 /** Class ParMixedSystemForm is a parallel version of MixedSystemForm, wrapping
     the block system operator as follows:
     \verbatim

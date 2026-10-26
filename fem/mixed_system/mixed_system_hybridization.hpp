@@ -23,10 +23,11 @@
 namespace mfem
 {
 
-/// Class for total flux hybridization of Darcy-like mixed systems
+/// Class for total flux hybridization of mixed systems
 /** Class MixedSystemHybridization performs total flux hybridization of mixed
-    systems with (anti)symmetric weak form common for parabolic and elliptic
-    problems. They can be written as:
+    systems with (anti)symmetric weak form structure common for parabolic and
+    elliptic problems. They can be written as the following block system (not
+    necessarily symmetric):
     \verbatim
         ┌        ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ || u | _ | bu |

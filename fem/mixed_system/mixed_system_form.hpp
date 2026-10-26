@@ -20,9 +20,10 @@
 namespace mfem
 {
 
-/// Block bilinear form for Darcy-like mixed systems
-/** Class MixedSystemForm represents mixed systems with (anti)symmetric weak
-    form common for parabolic and elliptic problems. They can be written as:
+/// Block bilinear form for mixed systems
+/** Class MixedSystemForm represents a mixed system with (anti)symmetric weak
+    form structure common for parabolic and elliptic problems. It can be written
+    as the following block system (not necessarily symmetric):
     \verbatim
         ┌        ┐┌   ┐   ┌    ┐
         | Mu ±Bᵀ || u | _ | bu |
