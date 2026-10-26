@@ -483,8 +483,10 @@ public:
       {
          const int col = idx % nx;
          const int row = row0 + idx / nx;
-         const real_t x = (static_cast<real_t>(col) + 0.5) * dx - 0.5 * extent_x;
-         const real_t y = (static_cast<real_t>(row) + 0.5) * dy - 0.5 * extent_y;
+         const real_t x = (static_cast<real_t>(col) + 0.5_r) * dx
+                          - 0.5_r * extent_x;
+         const real_t y = (static_cast<real_t>(row) + 0.5_r) * dy
+                          - 0.5_r * extent_y;
          const real_t ph = scale * (x * x + y * y);
          const real_t c = std::cos(ph);
          const real_t s = std::sin(ph);
@@ -529,16 +531,16 @@ inline float Luma(float r, float g, float b)
 // HSV→RGB with saturation and value fixed at 1. Hue is in [0, 1).
 inline MFEM_HOST_DEVICE void HsvToRgb(real_t h, real_t &r, real_t &g, real_t &b)
 {
-   const real_t x_val = 1.0 - std::fabs(std::fmod(h * 6.0, 2.0) - 1.0);
-   switch (static_cast<int>(h * 6.0) % 6)
+   const real_t x_val = 1_r - std::fabs(std::fmod(h * 6_r, 2_r) - 1_r);
+   switch (static_cast<int>(h * 6_r) % 6)
    {
-      case 0: r = 1.0; g = x_val; b = 0.0; break;
-      case 1: r = x_val; g = 1.0; b = 0.0; break;
-      case 2: r = 0.0; g = 1.0; b = x_val; break;
-      case 3: r = 0.0; g = x_val; b = 1.0; break;
-      case 4: r = x_val; g = 0.0; b = 1.0; break;
-      case 5: r = 1.0; g = 0.0; b = x_val; break;
-      default: r = g = b = 0.0; break;
+      case 0: r = 1_r; g = x_val; b = 0_r; break;
+      case 1: r = x_val; g = 1_r; b = 0_r; break;
+      case 2: r = 0_r; g = 1_r; b = x_val; break;
+      case 3: r = 0_r; g = x_val; b = 1_r; break;
+      case 4: r = x_val; g = 0_r; b = 1_r; break;
+      case 5: r = 1_r; g = 0_r; b = x_val; break;
+      default: r = g = b = 0_r; break;
    }
 }
 
@@ -614,8 +616,8 @@ inline void CieXyzAt(int index, real_t &x, real_t &y, real_t &z)
 
 inline MFEM_HOST_DEVICE real_t SrgbGamma(real_t value)
 {
-   if (value <= 0.00304) { return 12.92 * value; }
-   return 1.055 * std::pow(value, 1.0 / 2.4) - 0.055;
+   if (value <= 0.00304_r) { return 12.92_r * value; }
+   return 1.055_r * std::pow(value, 1_r / 2.4_r) - 0.055_r;
 }
 
 // Unit-intensity linear sRGB for a monochromatic wavelength in [380, 780] nm,
@@ -706,7 +708,7 @@ inline bool WritePhasePng(const std::string &path, const RealArray2D &phase)
    }
    const real_t *ph = phase_v.Read();
    unsigned char *out = rgb.Write();
-   constexpr real_t twoPi = 2.0 * kPi;
+   constexpr real_t twoPi = 2_r * kPi;
 
    mfem::forall(N, [=] MFEM_HOST_DEVICE (int idx)
    {
@@ -715,9 +717,9 @@ inline bool WritePhasePng(const std::string &path, const RealArray2D &phase)
       real_t r, g, b;
       detail::HsvToRgb(h, r, g, b);
       const int o = idx * 3;
-      out[o + 0] = static_cast<unsigned char>(std::round(255.0 * r));
-      out[o + 1] = static_cast<unsigned char>(std::round(255.0 * g));
-      out[o + 2] = static_cast<unsigned char>(std::round(255.0 * b));
+      out[o + 0] = static_cast<unsigned char>(std::round(255_r * r));
+      out[o + 1] = static_cast<unsigned char>(std::round(255_r * g));
+      out[o + 2] = static_cast<unsigned char>(std::round(255_r * b));
    });
 
    const unsigned char *host_rgb = rgb.HostRead();
@@ -808,23 +810,23 @@ inline bool EncodeMonoWavelengthRgb(const RealArray2D &intensity,
       if (g > peak) { peak = g; }
       if (b > peak) { peak = b; }
       peak += eps;
-      if (peak > 1.0)
+      if (peak > 1_r)
       {
-         const real_t scale = 1.0 / peak;
+         const real_t scale = 1_r / peak;
          r *= scale;
          g *= scale;
          b *= scale;
       }
-      if (r < 0.0) { r = 0.0; }
-      else if (r > 1.0) { r = 1.0; }
-      if (g < 0.0) { g = 0.0; }
-      else if (g > 1.0) { g = 1.0; }
-      if (b < 0.0) { b = 0.0; }
-      else if (b > 1.0) { b = 1.0; }
+      if (r < 0_r) { r = 0_r; }
+      else if (r > 1_r) { r = 1_r; }
+      if (g < 0_r) { g = 0_r; }
+      else if (g > 1_r) { g = 1_r; }
+      if (b < 0_r) { b = 0_r; }
+      else if (b > 1_r) { b = 1_r; }
       const int o = idx * 3;
-      out[o]     = static_cast<unsigned char>(std::round(r * 255.0));
-      out[o + 1] = static_cast<unsigned char>(std::round(g * 255.0));
-      out[o + 2] = static_cast<unsigned char>(std::round(b * 255.0));
+      out[o]     = static_cast<unsigned char>(std::round(r * 255_r));
+      out[o + 1] = static_cast<unsigned char>(std::round(g * 255_r));
+      out[o + 2] = static_cast<unsigned char>(std::round(b * 255_r));
    });
 
    const unsigned char *host = rgb.HostRead();

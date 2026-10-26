@@ -295,7 +295,7 @@ public:
          const real_t mag = std::sqrt(er[i] * er[i] + ei[i] * ei[i] + kLossEps);
          const real_t d = mag - at[i];
          lq[i] = d * d;
-         const real_t c = (2.0 * d / mag) * inv_n;
+         const real_t c = (2_r * d / mag) * inv_n;
          gr[i] = c * er[i];
          gi[i] = c * ei[i];
       });
