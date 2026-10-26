@@ -635,14 +635,13 @@ Operator &ProximalGalerkinOperator::GetGradient(const Vector &x) const
 
 void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
 {
-   BlockOperator &Jop =
-      const_cast<BlockOperator&>(dynamic_cast<const BlockOperator&>(op));
-   HypreParMatrix &A11 = dynamic_cast<HypreParMatrix&>(Jop.GetBlock(1, 1));
+   const BlockOperator &Jop = dynamic_cast<const BlockOperator&>(op);
+   const HypreParMatrix &A11 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(1, 1));
 
    if (P00 == nullptr)
    {
-      HypreParMatrix &A00 = dynamic_cast<HypreParMatrix&>(Jop.GetBlock(0, 0));
-      HypreParMatrix &A10 = dynamic_cast<HypreParMatrix&>(Jop.GetBlock(1, 0));
+      const HypreParMatrix &A00 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(0, 0));
+      const HypreParMatrix &A10 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(1, 0));
 
       P00 = new HypreBoomerAMG(A00);
       P00->SetPrintLevel(0);
@@ -657,7 +656,7 @@ void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
       delete A10T;
 
       prec.SetDiagonalBlock(0, P00);
-      prec.SetBlock(1, 0, &A10);
+      prec.SetBlock(1, 0, const_cast<HypreParMatrix*>(&A10));
    }
 
    // Build an approximate Schur complement of the A11 block:

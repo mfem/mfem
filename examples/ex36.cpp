@@ -607,14 +607,13 @@ Operator &ProximalGalerkinOperator::GetGradient(const Vector &x) const
 
 void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
 {
-   BlockOperator &Jop =
-      const_cast<BlockOperator&>(dynamic_cast<const BlockOperator&>(op));
-   SparseMatrix &A11 = dynamic_cast<SparseMatrix&>(Jop.GetBlock(1, 1));
+   const BlockOperator &Jop = dynamic_cast<const BlockOperator&>(op);
+   const SparseMatrix &A11 =  dynamic_cast<const SparseMatrix&>(Jop.GetBlock(1, 1));
 
    if (P00 == nullptr)
    {
-      SparseMatrix &A00 = dynamic_cast<SparseMatrix&>(Jop.GetBlock(0, 0));
-      SparseMatrix &A10 = dynamic_cast<SparseMatrix&>(Jop.GetBlock(1, 0));
+      const SparseMatrix &A00 = dynamic_cast<const SparseMatrix&>(Jop.GetBlock(0, 0));
+      const SparseMatrix &A10 = dynamic_cast<const SparseMatrix&>(Jop.GetBlock(1, 0));
 
       P00 = new GSSmoother(A00);
 
@@ -628,7 +627,7 @@ void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
       delete A10T;
 
       prec.SetDiagonalBlock(0, P00);
-      prec.SetBlock(1, 0, &A10);
+      prec.SetBlock(1, 0, const_cast<SparseMatrix*>(&A10));
    }
 
    // Build an approximate Schur complement of the A11 block:
