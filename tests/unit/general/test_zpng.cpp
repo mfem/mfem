@@ -15,6 +15,8 @@
 #include "catch.hpp"
 
 #include <cstring>
+#include <ostream>
+#include <sstream>
 #include <string>
 
 using namespace mfem;
@@ -459,6 +461,85 @@ TEST_CASE("PNG chunk structure", "[png]")
       png[33] = 0x80;
       rejects(png, "bad chunk length");
    }
+}
+
+namespace
+{
+
+class FailSyncBuf : public std::stringbuf
+{
+public:
+   int sync() override { return -1; }
+};
+
+void CheckFailedFlush()
+{
+   const unsigned char rgb[3] = {1, 2, 3};
+   const auto bytes = png::encode(1, 1, rgb, 3);
+   FailSyncBuf buf;
+   std::ostream out(&buf);
+   REQUIRE_THROWS_WITH(
+      png::detail::WriteBytes(out, bytes.data(), bytes.size()),
+      Catch::Matchers::Contains("short write"));
+}
+
+void CheckInflateLeftover()
+{
+   const unsigned char pix[3] = {1, 2, 3};
+   const auto raw = Filtered(1, 1, 3, pix, 0);
+   auto idat = Deflate(raw.data(), raw.size());
+   idat.push_back(0);
+   const std::vector<unsigned char> none;
+   const auto png = Assemble({{"IHDR", Ihdr(1, 1, 2)}, {"IDAT", idat},
+      {"IEND", none}
+   });
+   REQUIRE_THROWS_WITH(png::read(png.data(), png.size()),
+                       Catch::Matchers::Contains("data after zlib stream"));
+}
+
+void CheckHugeIhdrRejected()
+{
+   const std::size_t cap = png::detail::kMaxDecoded;
+   const unsigned height = static_cast<unsigned>(cap / 4u + 1u);
+   const std::vector<unsigned char> idat(1, 0);
+   const std::vector<unsigned char> none;
+   const auto png = Assemble({{"IHDR", Ihdr(1, height, 2)}, {"IDAT", idat},
+      {"IEND", none}
+   });
+   REQUIRE_THROWS_WITH(png::read(png.data(), png.size()),
+                       Catch::Matchers::Contains("image too large"));
+}
+
+} // namespace
+
+TEST_CASE("PNG write reports a failed flush", "[png]")
+{
+   CheckFailedFlush();
+}
+
+TEST_CASE("PNG write reports a failed flush MPI", "[png][Parallel]")
+{
+   CheckFailedFlush();
+}
+
+TEST_CASE("PNG inflate consumes leftover bytes", "[png]")
+{
+   CheckInflateLeftover();
+}
+
+TEST_CASE("PNG inflate consumes leftover bytes MPI", "[png][Parallel]")
+{
+   CheckInflateLeftover();
+}
+
+TEST_CASE("PNG decode rejects a huge IHDR", "[png]")
+{
+   CheckHugeIhdrRejected();
+}
+
+TEST_CASE("PNG decode rejects a huge IHDR MPI", "[png][Parallel]")
+{
+   CheckHugeIhdrRejected();
 }
 
 #else

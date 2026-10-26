@@ -17,6 +17,7 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -64,6 +65,8 @@ namespace detail
 {
 
 constexpr unsigned char kPngSign[8] = {137, 80, 78, 71, 13, 10, 26, 10};
+// Cap on each Decode buffer so a crafted IHDR cannot exhaust memory.
+constexpr std::size_t kMaxDecoded = 256u * 1024u * 1024u;
 
 [[noreturn]] inline void Fail(const std::string &why)
 {
@@ -227,6 +230,20 @@ inline std::uint32_t ChunkLength(std::size_t n)
    return static_cast<std::uint32_t>(n);
 }
 
+inline void WriteBytes(std::ostream &out, const unsigned char *data,
+                       std::size_t n)
+{
+   if (n > static_cast<std::size_t>(
+          std::numeric_limits<std::streamsize>::max()))
+   {
+      Fail("short write");
+   }
+   out.write(reinterpret_cast<const char *>(data),
+             static_cast<std::streamsize>(n));
+   out.flush();
+   if (!out) { Fail("short write"); }
+}
+
 inline std::vector<unsigned char> ReadFile(const std::string &path)
 {
    std::ifstream in(path.c_str(), std::ios::binary);
@@ -293,26 +310,32 @@ inline std::vector<unsigned char> Deflate(const unsigned char *src,
 inline void Inflate(const unsigned char *src, std::size_t nsrc,
                     unsigned char *dst, std::size_t ndst)
 {
-   if (nsrc > static_cast<std::size_t>(std::numeric_limits<uLong>::max()) ||
-       ndst > static_cast<std::size_t>(std::numeric_limits<uLong>::max()))
+   // inflate keeps the leftover-byte check on zlib older than 1.2.9.
+   const auto kUIntMax =
+      static_cast<std::size_t>(std::numeric_limits<uInt>::max());
+   if (nsrc > kUIntMax || ndst > kUIntMax)
    {
       Fail("zlib inflate failed");
    }
-   auto dest_len = static_cast<uLongf>(ndst);
-   auto src_len = static_cast<uLong>(nsrc);
-   const int rc = uncompress2(dst, &dest_len, src, &src_len);
+   z_stream strm;
+   std::memset(&strm, 0, sizeof(strm));
+   strm.next_in =
+      const_cast<Bytef *>(reinterpret_cast<const Bytef *>(src));
+   strm.avail_in = static_cast<uInt>(nsrc);
+   strm.next_out = dst;
+   strm.avail_out = static_cast<uInt>(ndst);
+   int rc = inflateInit(&strm);
+   if (rc != Z_OK) { Fail("zlib inflate failed"); }
+   rc = inflate(&strm, Z_FINISH);
+   const uInt left_in = strm.avail_in;
+   const uInt left_out = strm.avail_out;
+   inflateEnd(&strm);
    if (rc == Z_MEM_ERROR) { Fail("zlib out of memory"); }
    if (rc == Z_BUF_ERROR) { Fail("zlib output buffer too small"); }
    if (rc == Z_DATA_ERROR) { Fail("zlib data error"); }
-   if (rc != Z_OK) { Fail("zlib inflate failed"); }
-   if (static_cast<std::size_t>(dest_len) != ndst)
-   {
-      Fail("zlib inflate size mismatch");
-   }
-   if (static_cast<std::size_t>(src_len) != nsrc)
-   {
-      Fail("data after zlib stream");
-   }
+   if (rc != Z_STREAM_END) { Fail("zlib inflate failed"); }
+   if (left_out != 0) { Fail("zlib inflate size mismatch"); }
+   if (left_in != 0) { Fail("data after zlib stream"); }
 }
 
 struct parsed
@@ -457,6 +480,10 @@ inline image Decode(const unsigned char *bytes, std::size_t size)
    {
       Fail("invalid dimensions");
    }
+   if (raw_n > kMaxDecoded || recon_n > kMaxDecoded || rgb_n > kMaxDecoded)
+   {
+      Fail("image too large");
+   }
 
    std::vector<unsigned char> raw(raw_n);
    std::vector<unsigned char> recon(recon_n);
@@ -568,8 +595,8 @@ inline void write(const std::string &path, unsigned width, unsigned height,
    const std::vector<unsigned char> png = encode(width, height, rgb, nbytes);
    std::ofstream out(path.c_str(), std::ios::binary);
    if (!out) { throw png_error("cannot open"); }
-   out.write(reinterpret_cast<const char *>(png.data()),
-             static_cast<std::streamsize>(png.size()));
+   detail::WriteBytes(out, png.data(), png.size());
+   out.close();
    if (!out) { throw png_error("short write"); }
 #endif
 }
