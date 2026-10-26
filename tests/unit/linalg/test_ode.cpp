@@ -504,7 +504,8 @@ TEST_CASE("ODE solvers integrate a time-dependent slope",
    constexpr real_t x0 = 0.0;
    constexpr real_t t_final = 3.0;
    constexpr real_t exact = (t_final*t_final  - t0*t0)/2;
-   constexpr real_t tolerance = 1e-9;
+   constexpr real_t sol_tol = 100*std::numeric_limits<real_t>::epsilon();
+   constexpr real_t time_tol = 10*std::numeric_limits<real_t>::epsilon();
    constexpr int nsteps = 10;
    real_t dt = 1.0/nsteps;
 
@@ -548,8 +549,8 @@ TEST_CASE("ODE solvers integrate a time-dependent slope",
          INFO("Absolute error = " << error);
          INFO("Final time = " << t);
 
-         REQUIRE(error < tolerance);
-         REQUIRE(time_error < 1e-12);
+         REQUIRE(error < sol_tol);
+         REQUIRE(time_error < time_tol);
       }
    }
 }
