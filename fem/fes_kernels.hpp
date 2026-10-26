@@ -226,14 +226,7 @@ struct DerefineMatrixOpMultFunctor
             }
             if (Atomic)
             {
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-               atomicAdd(yptr + this->IndexY(row, vdim), sum);
-#else
-#ifdef MFEM_USE_OPENMP
-               #pragma omp atomic update
-#endif
-               yptr[this->IndexY(row, vdim)] += sum;
-#endif
+               AtomicAdd(yptr[this->IndexY(row, vdim)], sum);
             }
             else
             {
