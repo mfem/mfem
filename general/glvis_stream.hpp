@@ -106,8 +106,11 @@ public:
    {
       data.stream.str(std::string());
       data.stream.clear();
+      std::iostream::clear();
       data.stream.seekg(0, std::ios::beg);
       data.stream.seekp(0, std::ios::beg);
+      std::iostream::seekg(0, std::ios::beg);
+      std::iostream::seekp(0, std::ios::beg);
    }
 
    void operator()();

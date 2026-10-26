@@ -126,6 +126,21 @@ void glvis_stream::operator()()
 {
    SyncComm();
 
+   // EOF or a failed insertion lives on *this. data.stream can still look
+   // writable, so a later flush would send a short payload.
+   int failed = 0;
+   std::string why;
+   if (!good() || !data.stream.good())
+   {
+      failed = 1;
+      why = "GLVis stream is not good";
+   }
+   FailTogether(failed, why
+#ifdef MFEM_USE_MPI
+                , data.serial, data.comm
+#endif
+               );
+
    if (data.serial)
    {
       const std::streamoff written = data.stream.tellp();
@@ -142,9 +157,6 @@ void glvis_stream::operator()()
    {
       serialize();
    }
-
-   int failed = 0;
-   std::string why;
 
    try
    {

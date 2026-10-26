@@ -26,6 +26,30 @@ TEST_CASE("glvis_stream gather", "[GLVis]")
    REQUIRE(glvis.size() == 0);
 }
 
+// Reading to EOF sets the inherited failbit. reset() must clear it.
+TEST_CASE("glvis_stream reset after EOF", "[GLVis]")
+{
+   glvis_stream glvis;
+   glvis.SetVisualize(false);
+   glvis << "mesh\n";
+   REQUIRE(glvis.size() > 0);
+
+   glvis.seekg(0);
+   std::string token;
+   glvis >> token;
+   REQUIRE(token == "mesh");
+   glvis >> token;
+   REQUIRE(glvis.fail());
+
+   glvis.reset();
+   const std::string payload = "solution\n";
+   glvis << payload;
+   REQUIRE(glvis.good());
+   REQUIRE(glvis.size() == payload.size());
+   glvis << std::flush;
+   REQUIRE(glvis.size() == 0);
+}
+
 #ifdef MFEM_USE_MPI
 TEST_CASE("glvis_stream gather parallel", "[GLVis][Parallel]")
 {
