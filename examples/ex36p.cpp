@@ -600,12 +600,12 @@ Operator &ProximalGalerkinOperator::GetGradient(const Vector &x) const
 void ProximalGalerkinPreconditioner::SetOperator(const Operator &op)
 {
    const BlockOperator &Jop = dynamic_cast<const BlockOperator&>(op);
-   const HypreParMatrix &A11 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(1, 1));
+   const auto &A11 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(1,1));
 
    if (P00 == nullptr)
    {
-      const HypreParMatrix &A00 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(0, 0));
-      const HypreParMatrix &A10 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(1, 0));
+      const auto &A00 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(0,0));
+      const auto &A10 = dynamic_cast<const HypreParMatrix&>(Jop.GetBlock(1,0));
 
       P00 = new HypreBoomerAMG(A00);
       P00->SetPrintLevel(0);
