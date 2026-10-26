@@ -186,24 +186,13 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &xloc)
 {
    // The Coefficients for adaptive limiting are assumed fixed during mesh
    // optimization and PA.ALC is assembled only once.
    // When these are GridFunctionCoefficients, updating them would
    // require a remap of their underlying fields, which TMOP doesn't do.
    if (PA.MC.Size() == 1 && PA.C0.Size() <= 1) { return; }
-
-   Vector x_loc;
-   if (periodic)
-   {
-      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
-   }
-   else
-   {
-      x_loc.SetSize(x_0->Size());
-      add(*x_0, d_loc, x_loc);
-   }
 
    // Mesh-position-dependent coefficients are evaluated on the CPU for now.
    if (PA.MC.Size() > 1) { PA.MC.HostWrite(); }
@@ -213,8 +202,8 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
    auto T = new IsoparametricTransformation;
    for (int e = 0; e < PA.ne; ++e)
    {
-      // Uses the node positions in x_loc.
-      PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+      // Uses the current node positions.
+      PA.fes->GetMesh()->GetElementTransformation(e, xloc, T);
 
       if (PA.MC.Size() > 1)
       {

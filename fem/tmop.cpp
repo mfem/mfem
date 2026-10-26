@@ -5637,7 +5637,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    }
 }
 
-void TMOP_Integrator::ComputeMinJac(const Vector &x,
+void TMOP_Integrator::ComputeMinJac(const Vector &xloc,
                                     const FiniteElementSpace &fes)
 {
    const FiniteElement *fe = fes.GetTypicalFE();
@@ -5657,7 +5657,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    for (int i = 0; i < NE; i++)
    {
       fes.GetElementVDofs(i, xdofs);
-      x.GetSubVector(xdofs, posV);
+      xloc.GetSubVector(xdofs, posV);
       detv_sum = 0.;
       for (int j = 0; j < nsp; j++)
       {
@@ -5800,27 +5800,36 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 }
 
 void TMOP_Integrator::
-UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
+UpdateAfterMeshPositionChange(const Vector &dx_loc,
+                              const FiniteElementSpace &dx_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
-   if (PA.enabled) { UpdateCoefficientsPA(d); }
-
-   Ordering::Type ordering = d_fes.GetOrdering();
-
-   // Update the finite difference delta if FD are used.
-   if (fdflag) { ComputeFDh(d, d_fes); }
-
-   Vector x_loc;
    if (periodic)
    {
-      GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
+      x_loc.SetSize(x_0->Size(), *x_0);
+      x_loc.UseDevice(x_0->UseDevice());
+      GetPeriodicPositions(*x_0, dx_loc, *x_0->FESpace(), dx_fes, x_loc);
+   }
+   else if (x_0)
+   {
+      x_loc.SetSize(x_0->Size(), *x_0);
+      x_loc.UseDevice(x_0->UseDevice());
+      add(*x_0, dx_loc, x_loc);
    }
    else
    {
-      x_loc.SetSize(x_0->Size());
-      add(*x_0, d, x_loc);
+      x_loc.SetSize(dx_loc.Size(), dx_loc);
+      x_loc.UseDevice(dx_loc.UseDevice());
+      x_loc = dx_loc;
    }
+
+   if (PA.enabled) { UpdateCoefficientsPA(x_loc); }
+
+   Ordering::Type ordering = dx_fes.GetOrdering();
+
+   // Update the finite difference delta if FD are used.
+   if (fdflag) { ComputeFDh(x_loc, dx_fes); }
 
    // Update the target constructor if it's a discrete one.
    if (discr_tc)
@@ -5840,13 +5849,12 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
       // All adapt_lim_gf are remapped as a multi-component vector.
       const int nal = adapt_lim_coeff.Size();
       const int ndofs = adapt_lim_gf0[0]->Size();
-      Vector new_field_vec;
-      new_field_vec.SetSize(nal * ndofs, *adapt_lim_gf[0]);
-      new_field_vec.UseDevice(adapt_lim_gf[0]->UseDevice());
-      adapt_lim_eval->ComputeAtNewPosition(x_loc, new_field_vec, ordering);
+      adapt_lim_field.SetSize(nal * ndofs, *adapt_lim_gf[0]);
+      adapt_lim_field.UseDevice(adapt_lim_gf[0]->UseDevice());
+      adapt_lim_eval->ComputeAtNewPosition(x_loc, adapt_lim_field, ordering);
       for (int c = 0; c < nal; c++)
       {
-         const real_t *src = new_field_vec.Read() + c * ndofs;
+         const real_t *src = adapt_lim_field.Read() + c * ndofs;
          real_t *dst = adapt_lim_gf[c]->Write();
          internal::device_copy(dst, src, ndofs);
       }
@@ -5885,15 +5893,13 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    }
 }
 
-void TMOP_Integrator::ComputeFDh(const Vector &d, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeFDh(const Vector &xloc,
+                                 const FiniteElementSpace &fes)
 {
    if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
-   Vector x_loc(*x_0);
-   x_loc += d;
-
    if (!fdflag) { return; }
-   ComputeMinJac(x_loc, fes);
+   ComputeMinJac(xloc, fes);
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
@@ -5961,7 +5967,7 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 }
 #endif
 
-real_t TMOP_Integrator::ComputeMinDetT(const Vector &x,
+real_t TMOP_Integrator::ComputeMinDetT(const Vector &xloc,
                                        const FiniteElementSpace &fes)
 {
    real_t min_detT = std::numeric_limits<real_t>::infinity();
@@ -5983,7 +5989,7 @@ real_t TMOP_Integrator::ComputeMinDetT(const Vector &x,
       PMatI.UseExternalData(posV.GetData(), dof, dim);
 
       fes.GetElementVDofs(i, xdofs);
-      x.GetSubVector(xdofs, posV);
+      xloc.GetSubVector(xdofs, posV);
 
       DenseTensor Jtr(dim, dim, ir.GetNPoints());
       targetC->ComputeElementTargets(i, *fe, ir, posV, Jtr);
@@ -6066,7 +6072,8 @@ ComputeUntanglerMaxMuBarrier(const Vector &x, const FiniteElementSpace &fes)
 }
 
 void TMOP_Integrator::
-ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
+ComputeUntangleMetricQuantiles(const Vector &dx_loc,
+                               const FiniteElementSpace &fes)
 {
    TMOP_WorstCaseUntangleOptimizer_Metric *wcuo =
       dynamic_cast<TMOP_WorstCaseUntangleOptimizer_Metric *>(metric);
@@ -6075,12 +6082,18 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
 
    if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
-   Vector x_loc(d.Size());
    if (x_0)
    {
-      add(*x_0, d, x_loc);
+      x_loc.SetSize(x_0->Size(), *x_0);
+      x_loc.UseDevice(x_0->UseDevice());
+      add(*x_0, dx_loc, x_loc);
    }
-   else { x_loc = d; }
+   else
+   {
+      x_loc.SetSize(dx_loc.Size(), dx_loc);
+      x_loc.UseDevice(dx_loc.UseDevice());
+      x_loc = dx_loc;
+   }
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =

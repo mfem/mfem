@@ -5824,7 +5824,7 @@ std::array<int, 4> NCMesh::FindFaceNodes(const Face &fa) const
    return node;
 }
 
-void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                 Array<int> &bdr_vertices, Array<int> &bdr_edges,
                                 Array<int> &bdr_faces)
 {
@@ -5837,7 +5837,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       GetFaceList(); // make sure 'boundary_faces' is up to date
       for (int f : boundary_faces)
       {
-         if (bdr_attr_is_ess[faces[f].attribute - 1])
+         if (bdr_attr_marked[faces[f].attribute - 1])
          {
             auto node = FindFaceNodes(f);
             int nfv = (node[3] < 0) ? 3 : 4;
@@ -5879,18 +5879,24 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       for (int f : boundary_faces)
       {
          Face &face = faces[f];
-         if (bdr_attr_is_ess[face.attribute - 1])
+         if (bdr_attr_marked[face.attribute - 1])
          {
             bdr_vertices.Append(nodes[face.p1].vert_index);
             bdr_vertices.Append(nodes[face.p3].vert_index);
-         }
 
-         const auto id_and_type = GetEdgeList().GetMeshIdAndType(face.index);
-         if (id_and_type.type == NCList::MeshIdType::SLAVE)
-         {
-            // A slave face must mark its masters
-            const auto &slave_edge_id = static_cast<const Slave&>(*id_and_type.id);
-            bdr_edges.Append(slave_edge_id.master);
+            // The face and edge indices are the same in 2D only for non-ghost
+            // faces, so look up the edge of the face by its nodes.
+            const int enode = nodes.FindId(face.p1, face.p3);
+            MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
+            const auto id_and_type =
+               GetEdgeList().GetMeshIdAndType(nodes[enode].edge_index);
+            if (id_and_type.type == NCList::MeshIdType::SLAVE)
+            {
+               // A slave face must mark its masters
+               const auto &slave_edge_id =
+                  static_cast<const Slave&>(*id_and_type.id);
+               bdr_edges.Append(slave_edge_id.master);
+            }
          }
       }
    }
