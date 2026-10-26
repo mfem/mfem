@@ -643,7 +643,7 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
 
    // Rank 0 owns an interior edge of rank 2's slave face, but no local
    // slave face constrains that edge.
-   const std::array<int, 15> partition =
+   constexpr std::array<int, 15> partition =
    {0, 1, 2, 1, 0, 1, 1, 0, 2, 2, 0, 2, 1, 0, 0};
    ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.data());
    auto &nc = *pmesh.pncmesh;
