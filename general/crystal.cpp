@@ -17,8 +17,6 @@ CrystalRouter::CrystalRouter(MPI_Comm comm) {
    MPI_Comm_size(this->comm, &nprocs);
 }
 
-/// @details The communicator is not freed after MPI_Finalize, which would be
-/// an error. This happens when a router outlives the Mpi session.
 CrystalRouter::~CrystalRouter() {
    if (!Mpi::IsFinalized()) { MPI_Comm_free(&comm); }
 }
@@ -28,9 +26,9 @@ CrystalRouter::~CrystalRouter() {
     path: RouteDevice() if a Device is enabled, else RouteInternal() on a copy
     of @a rank_list */
 void CrystalRouter::Route(const Array<unsigned int> &rank_list,
-                          std::initializer_list<CR::FieldGroup> field_groups)
+                          std::initializer_list<CR::internal::FieldGroup> field_groups)
 {
-   std::vector<CR::Field*> fields;
+   std::vector<CR::internal::Field*> fields;
    for (const auto &g : field_groups) {
       for (const auto &f : g.cols) { fields.push_back(f.get()); }
    }
@@ -53,16 +51,14 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
 // PRIVATE METHODS
 
 /** @details Steps:
-    -# Split the particle indices into leaving (rank differs from this rank)
-       and staying
+    -# Split the particle indices into leaving and staying
     -# Copy only the leaving particles of each field to the host (Field::ToHost)
     -# Route the host copies with RouteInternal()
     -# Rebuild each device field from the staying particles plus the arrivals
        (Field::ToDevice)
-
-    If nothing left and nothing arrived, the fields are not touched */
+*/
 void CrystalRouter::RouteDevice(const Array<unsigned int> &rank_list,
-                                const std::vector<CR::Field*> &fields)
+                                const std::vector<CR::internal::Field*> &fields)
 {
    // split into leaving/staying
    const int n = rank_list.Size();
@@ -80,8 +76,8 @@ void CrystalRouter::RouteDevice(const Array<unsigned int> &rank_list,
    }
 
    // pull only the leaving particles into host buffers
-   std::vector<std::unique_ptr<CR::Field>> host_fields;
-   std::vector<CR::Field*> host_field_ptrs;
+   std::vector<std::unique_ptr<CR::internal::Field>> host_fields;
+   std::vector<CR::internal::Field*> host_field_ptrs;
    host_fields.reserve(fields.size());
    host_field_ptrs.reserve(fields.size());
    for (auto *f : fields) {
@@ -101,21 +97,16 @@ void CrystalRouter::RouteDevice(const Array<unsigned int> &rank_list,
    }
 }
 
-/** @details Recursive halving over the ranks. The active group of @c n ranks
-    starts at rank @c bl. In each round:
+/** @details Recursive halving over the ranks. In each round:
     -# The group is split at @c bh = @c bl + ceil(n/2). Ranks below @c bh are
        the lower half.
-    -# Move() packs the particles whose destination is in the other half
+    -# Move() packs particles whose destination is in the other half
     -# Exchange() sends them to the partner @c targ, the mirror rank in the
-       other half. If @c n is odd, the middle rank has no mirror: it sends to
-       @c bh and receives nothing, and @c bh receives from both its mirror and
-       the middle rank (@c recvn = 2).
+       other half.
     -# Each rank continues in its own half
-
-    After about log2(P) rounds, every particle is on its destination rank.
-    @c msg_tag grows by 2 per round (one tag for counts, one for data). */
+*/
 void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
-                                  const std::vector<CR::Field*> &fields)
+                                  const std::vector<CR::internal::Field*> &fields)
 {
 
    uint32_t bl = 0, bh, nl;
@@ -152,13 +143,12 @@ void CrystalRouter::RouteInternal(Array<unsigned int> &ranks,
    }
 }
 
-/** @details Each sent row in #send_buf is the destination rank
-    (unsigned int) followed by the packed row of every field, in list order. The
-    rows that stay are compacted to the front of the fields in place, then all
-    fields and @a ranks are shrunk to the kept size. Fails if the send buffer
-    would exceed the size limit of mfem::Array (INT_MAX bytes). */
+/** @details Each sent row in #send_buf is the destination rank (unsigned int)
+    followed by the packed row of every field, in list order. The rows that
+    stay are compacted to the front of the fields in place, then all
+    fields and @a ranks are shrunk to the kept size. */
 void CrystalRouter::Move(Array<unsigned int> &ranks,
-                         const std::vector<CR::Field*> &fields,
+                         const std::vector<CR::internal::Field*> &fields,
                          unsigned int cutoff, bool send_hi)
 {
    int n = ranks.Size();
@@ -220,17 +210,15 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
    for (auto *f : fields) { f->SetNumParticles(nkeep); }
 }
 
-/** @details Two non-blocking phases, each completed with MPI_Waitall:
+/** @details
     -# Exchange the row counts (tag @a msg_tag)
-    -# Exchange the packed rows (tag @a msg_tag + 1). A second receive from
-       rank - 1 is posted when @a recvn is 2, and its rows land after those of
-       @a target in #recv_buf.
+    -# Exchange the packed rows (tag @a msg_tag + 1), second receive from
+       rank - 1 when @a recvn is 2
 
     The fields are then grown by the number of received rows, and each row is
-    unpacked into the new slots. Fails if a payload exceeds the MPI int-count
-    limit (INT_MAX bytes). */
+    unpacked into the new slots */
 void CrystalRouter::Exchange(Array<unsigned int> &ranks,
-                             const std::vector<CR::Field*> &fields,
+                             const std::vector<CR::internal::Field*> &fields,
                              int target, int recvn, int msg_tag)
 {
    size_t field_bytes = 0;
