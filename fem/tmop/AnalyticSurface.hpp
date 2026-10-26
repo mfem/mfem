@@ -1,0 +1,234 @@
+// Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
+// reserved. See files LICENSE and NOTICE for details.
+//
+// This file is part of CEED, a collection of benchmarks, miniapps, software
+// libraries and APIs for efficient high-order finite element and spectral
+// element discretizations for exascale applications. For more information and
+// source code availability see http://github.com/ceed.
+//
+// The CEED research is supported by the Exascale Computing Project 17-SC-20-SC,
+// a collaborative effort of two U.S. Department of Energy organizations (Office
+// of Science and the National Nuclear Security Administration) responsible for
+// the planning and preparation of a capable exascale ecosystem, including
+// software, applications, hardware, advanced system engineering and early
+// testbed platforms, in support of the nation's exascale computing imperative.
+
+#ifndef MFEM_ANALYTIC_SURFACE
+#define MFEM_ANALYTIC_SURFACE
+
+#include "../gridfunc.hpp"
+
+namespace mfem
+{
+
+class AnalyticSurface
+{
+protected:
+   friend class AnalyticCompositeSurface;
+
+   Array<bool> dof_marker;
+   Vector dists;
+
+public:
+   AnalyticSurface(const Array<bool> &marker);
+   virtual ~AnalyticSurface() = default;
+
+   // Go from physical to parametric coordinates on the whole mesh.
+   // If the point is not on the curve, computes its offset.
+   // 2D curve: (x, y)    -> t.
+   // 3D curve: (x, y, z) -> t.
+   // 3D surf:  (x, y, z) -> (u, v).
+   virtual void ConvertPhysCoordToParam(const Vector &coord_x,
+                                        Vector &coord_t) = 0;
+
+   // Go from parametric to physical coordinates on the whole mesh:
+   // 2D curve: t      -> (x, y).
+   // 3D curve: t      -> (x, y, z).
+   // 3D surf:  (u, v) -> (x, y, z).
+   virtual void ConvertParamCoordToPhys(const Vector &coord_t,
+                                        Vector &coord_x) const = 0;
+
+   // Go from parametric to physical coordinates on a single element with given
+   // vdofs.
+   virtual void ConvertParamToPhys(const Array<int> &vdofs,
+                                   const Vector &coord_t,
+                                   Vector &coord_x) const = 0;
+
+   /// Number of free parameters stored for each constrained node.
+   virtual int NumParams() const = 0;
+
+   // First derivatives:
+   // 2D curve:  t     -> (dx/dt, dy/dt).
+   // 3D curve:  t     -> (dx/dt, dy/dt, dz/dt).
+   // 3D surf:  (u, v) -> (dx/du, dy/du, dz/du, dx/dv, dy/dv, dz/dv).
+   virtual void Deriv_1(const double *param, DenseMatrix &deriv) const = 0;
+
+   // Second derivatives:
+   // 2D curve:  t     -> (dx_dtdt, dy_dtdt).
+   // 3D curve:  t     -> (dx_dtdt, dy_dtdt, dz_dtdt).
+   // 3D surf:  (u, v) -> (dx/dudu, dx/dudv, dx/dvdv, ...).
+   virtual void Deriv_2(const double *param, DenseTensor &deriv) const = 0;
+};
+
+class AnalyticCompositeSurface
+{
+protected:
+   const Array<AnalyticSurface *> &surfaces;
+   Array<int> dof_to_surface;
+
+   void UpdateDofToSurface();
+
+public:
+   AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf);
+
+   /// Surface corresponding to dof_id.
+   const AnalyticSurface *GetSurface(int dof_id) const;
+
+   void ConvertPhysCoordToParam(const Vector &coord_x,
+                                Vector &coord_t);
+
+   void ConvertParamCoordToPhys(const Vector &coord_t,
+                                Vector &coord_x) const;
+
+   void ConvertParamToPhys(const Array<int> &vdofs,
+                           const Vector &coord_t,
+                           Vector &coord_x) const;
+};
+
+class Analytic2DCurve : public AnalyticSurface
+{
+public:
+   Analytic2DCurve(const Array<bool> &marker)
+    : AnalyticSurface(marker) { }
+
+   // (x, y) -> t on the whole curve.
+   void ConvertPhysCoordToParam(const Vector &coord_x,
+                                Vector &coord_t) override;
+
+   // t -> (x, y) on the whole curve.
+   void ConvertParamCoordToPhys(const Vector &coord_t,
+                                Vector &coord_x) const override;
+
+   // t -> (x, y) on a single element given by vdofs.
+   void ConvertParamToPhys(const Array<int> &vdofs,
+                           const Vector &coord_t,
+                           Vector &coord_x) const override;
+
+   int NumParams() const override { return 1; }
+
+   // t -> (dx_dt, dy_dt).
+   void Deriv_1(const double *param, DenseMatrix &deriv) const override;
+
+   // t -> (dx_dtdt, dy_dtdt).
+   void Deriv_2(const double *param, DenseTensor &deriv) const override;
+
+   virtual void t_of_xy(double x, double y,
+                        double &dist, double &t) const = 0;
+   virtual void xy_of_t(double t, double dist,
+                        double &x, double &y) const = 0;
+
+   virtual double dx_dt(double t) const = 0;
+   virtual double dy_dt(double t) const = 0;
+
+   virtual double dx_dtdt(double t) const = 0;
+   virtual double dy_dtdt(double t) const = 0;
+};
+
+class Analytic3DCurve : public AnalyticSurface
+{
+public:
+   Analytic3DCurve(const Array<bool> &marker)
+    : AnalyticSurface(marker) { }
+
+   // (x,y,z) -> t on the whole curve.
+   void ConvertPhysCoordToParam(const Vector &coord_x,
+                                Vector &coord_t) override;
+
+   // t -> (x,y,z) on the whole curve.
+   void ConvertParamCoordToPhys(const Vector &coord_t,
+                                Vector &coord_x) const override;
+
+   // t -> (x,y,z) on a single element given by vdofs.
+   void ConvertParamToPhys(const Array<int> &vdofs,
+                           const Vector &coord_t,
+                           Vector &coord_x) const override;
+
+   int NumParams() const override { return 1; }
+
+   // t -> (dx_dt, dy_dt, dz_dt).
+   void Deriv_1(const double *param, DenseMatrix &deriv) const override;
+
+   // t -> (dx_dtdt, dy_dtdt, dz_dtdt).
+   void Deriv_2(const double *param, DenseTensor &deriv) const override;
+
+   virtual void t_of_xyz(double x, double y, double z,
+                         double &dist1, double &dist2, double &t) const = 0;
+   virtual void xyz_of_t(double t, double dist1, double dist2,
+                         double &x, double &y, double &z) const = 0;
+
+   virtual double dx_dt(double t) const = 0;
+   virtual double dy_dt(double t) const = 0;
+   virtual double dz_dt(double t) const = 0;
+
+   virtual double dx_dtdt(double t) const = 0;
+   virtual double dy_dtdt(double t) const = 0;
+   virtual double dz_dtdt(double t) const = 0;
+};
+
+class Analytic3DSurface : public AnalyticSurface
+{
+public:
+   Analytic3DSurface(const Array<bool> &marker)
+    : AnalyticSurface(marker) { }
+
+   // (x,y,z) -> (u,v) on whole surface.
+   void ConvertPhysCoordToParam(const Vector &coord_x,
+                                Vector &coord_t) override;
+
+   // (u,v) -> (x,y,z) on whole surface.
+   void ConvertParamCoordToPhys(const Vector &coord_t,
+                                Vector &coord_x) const override;
+
+   // (u,v) -> (x,y,z) on a single element given by vdofs.
+   void ConvertParamToPhys(const Array<int> &vdofs,
+                           const Vector &coord_t,
+                           Vector &coord_x) const override;
+
+   int NumParams() const override { return 2; }
+
+   // (u,v) -> (dx_du, dx_dv
+   //           dy_du, dy_dv,
+   //           dz_du, dz_dv)
+   void Deriv_1(const double *param, DenseMatrix &deriv) const override;
+
+   // (u,v) -> (dx_dudu, dx_dudv    (dx_dudv, dx_dvdv,
+   //           dy_dudu, dy_dudv,    dy_dudv, dy_dvdv,
+   //           dz_dudu, dz_dudv),   dz_dudv, dz_dvdv)
+   void Deriv_2(const double *param, DenseTensor &deriv) const override;
+
+   virtual void uv_of_xyz(double x, double y, double z,
+                          double &dist, double &u, double &v) const = 0;
+   virtual void xyz_of_uv(double u, double v, double dist,
+                          double &x, double &y, double &z) const = 0;
+
+   virtual double dx_du(double u, double v) const = 0;
+   virtual double dy_du(double u, double v) const = 0;
+   virtual double dz_du(double u, double v) const = 0;
+   virtual double dx_dv(double u, double v) const = 0;
+   virtual double dy_dv(double u, double v) const = 0;
+   virtual double dz_dv(double u, double v) const = 0;
+
+   virtual double dx_dudu(double u, double v) const = 0;
+   virtual double dy_dudu(double u, double v) const = 0;
+   virtual double dz_dudu(double u, double v) const = 0;
+   virtual double dx_dudv(double u, double v) const = 0;
+   virtual double dy_dudv(double u, double v) const = 0;
+   virtual double dz_dudv(double u, double v) const = 0;
+   virtual double dx_dvdv(double u, double v) const = 0;
+   virtual double dy_dvdv(double u, double v) const = 0;
+   virtual double dz_dvdv(double u, double v) const = 0;
+};
+
+}
+#endif
