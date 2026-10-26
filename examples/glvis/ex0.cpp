@@ -78,8 +78,8 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, x);
 
    // 11. Send the solution to a non-server mode GLVis.
-   // Tests pass -no-vis. The session enters the SDL main loop and does not
-   // return, so the suite cannot open the window.
+   // Example tests pass -no-vis. The unit test sends keys "q" so the
+   // session closes and GLVisStreamSession returns.
    if (visualization)
    {
       glvis_stream glvis;

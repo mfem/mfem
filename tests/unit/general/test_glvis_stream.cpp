@@ -12,9 +12,23 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
+#include <thread>
+
 using namespace mfem;
 
 #ifdef MFEM_USE_GLVIS
+
+extern int GLVisStreamSession(
+   bool fix_elem_orient,
+   bool save_coloring,
+   bool keep_attr,
+   bool headless,
+   const std::string &plot_caption,
+   const std::string &data_type,
+   std::vector<std::unique_ptr<std::istream>> &&streams);
 
 TEST_CASE("glvis_stream gather", "[GLVis]")
 {
@@ -48,6 +62,42 @@ TEST_CASE("glvis_stream reset after EOF", "[GLVis]")
    REQUIRE(glvis.size() == payload.size());
    glvis << std::flush;
    REQUIRE(glvis.size() == 0);
+}
+
+// keys "q" closes the window, so GLVisStreamSession can return. The watchdog
+// exits the process if the SDL loop stays up.
+TEST_CASE("glvis_stream session returns", "[GLVis]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction x(&fes);
+   x = 1.0;
+
+   std::stringstream payload;
+   mesh.Print(payload);
+   x.Save(payload);
+   payload << "q\n";
+
+   std::vector<std::unique_ptr<std::istream>> streams;
+   streams.push_back(std::make_unique<std::stringstream>(payload.str()));
+
+   std::atomic<bool> done {false};
+   std::thread watchdog([&done]()
+   {
+      for (int i = 0; i < 60 && !done.load(); ++i)
+      {
+         std::this_thread::sleep_for(std::chrono::seconds(1));
+      }
+      if (!done.load()) { std::_Exit(2); }
+   });
+
+   const int status = GLVisStreamSession(
+                         true, true, false, false, "",
+                         "fem2d_gf_data_keys", std::move(streams));
+   done.store(true);
+   watchdog.join();
+   REQUIRE(status == 0);
 }
 
 #ifdef MFEM_USE_MPI
