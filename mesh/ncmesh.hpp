@@ -433,16 +433,17 @@ public:
        the element of the coarsest mesh of the refinement hierarchy it was
        refined from.
 
-       For element i of the Mesh, @a transforms.embeddings[i].parent is the
-       index of its root element in the refinement tree (see GetElement()). The
-       root elements are the first GetNumRootElements() elements of the tree,
-       with the same indices on all processes of a ParNCMesh. The point matrix
-       @a transforms.point_matrices[geom](@a transforms.embeddings[i].matrix),
-       where geom = @a transforms.embeddings[i].geom is the geometry of the
-       root element, holds the coordinates of the vertices of element i in the
+       For element i of the Mesh, @a root_transforms.embeddings[i].parent is
+       the index of its root element in the refinement tree (see GetElement()).
+       The root elements are the first GetNumRootElements() elements of the
+       tree, with the same indices on all processes of a ParNCMesh. The point
+       matrix @a root_transforms.point_matrices[geom](m), with
+       m = @a root_transforms.embeddings[i].matrix and
+       geom = @a root_transforms.embeddings[i].geom the geometry of the root
+       element, holds the coordinates of the vertices of element i in the
        reference element of the root element, in its first columns. Unlike
        GetRefinementTransforms(), this does not depend on MarkCoarseLevel(). */
-   void GetRootTransforms(CoarseFineTransformations &transforms) const;
+   void GetRootTransforms(CoarseFineTransformations &root_transforms) const;
 
 
    // grid ordering
@@ -748,9 +749,9 @@ public:
     * all processes of a ParNCMesh.
     *
     * @param i Index of the element
-    * @param[out] nodes The corner nodes of the element
+    * @param[out] corner_nodes The corner nodes of the element
     */
-   void GetElementCornerNodes(int i, Array<int> &nodes) const;
+   void GetElementCornerNodes(int i, Array<int> &corner_nodes) const;
 
    /**
     * @brief Given a set of nodes defining a face, traverse the nodes structure

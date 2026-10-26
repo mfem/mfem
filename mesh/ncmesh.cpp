@@ -5257,10 +5257,10 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
    return transforms;
 }
 
-void NCMesh::GetRootTransforms(CoarseFineTransformations &transforms) const
+void NCMesh::GetRootTransforms(CoarseFineTransformations &root_transforms) const
 {
-   transforms.Clear();
-   transforms.embeddings.SetSize(NElements);
+   root_transforms.Clear();
+   root_transforms.embeddings.SetSize(NElements);
 
    RefPathMap path_map[Geometry::NumGeom];
    std::string ref_path;
@@ -5286,16 +5286,16 @@ void NCMesh::GetRootTransforms(CoarseFineTransformations &transforms) const
       std::reverse(ref_path.begin(), ref_path.end());
 
       const Element &root = elements[elem];
-      int &matrix = path_map[root.geom][ref_path];
-      if (!matrix) { matrix = static_cast<int>(path_map[root.geom].size()); }
-      transforms.embeddings[i] = Embedding(elem, root.Geom(), matrix - 1);
+      int &matrix = path_map[root.Geom()][ref_path];
+      if (!matrix) { matrix = static_cast<int>(path_map[root.Geom()].size()); }
+      root_transforms.embeddings[i] = Embedding(elem, root.Geom(), matrix - 1);
    }
 
    for (int g = 0; g < Geometry::NumGeom; g++)
    {
       if (path_map[g].empty()) { continue; }
       const Geometry::Type geom = Geometry::Type(g);
-      DenseTensor &point_matrices = transforms.point_matrices[g];
+      DenseTensor &point_matrices = root_transforms.point_matrices[g];
       point_matrices.SetSize(Dim, GetGeomIdentity(geom).np,
                              static_cast<int>(path_map[g].size()));
       point_matrices = 0.0;
@@ -5307,14 +5307,14 @@ void NCMesh::GetRootTransforms(CoarseFineTransformations &transforms) const
    }
 }
 
-void NCMesh::GetElementCornerNodes(int i, Array<int> &nodes) const
+void NCMesh::GetElementCornerNodes(int i, Array<int> &corner_nodes) const
 {
    const Element &el = elements[i];
    const int nv = Geometry::NumVerts[el.Geom()];
-   nodes.SetSize(nv);
+   corner_nodes.SetSize(nv);
    for (int k = 0; k < nv; k++)
    {
-      nodes[k] = RetrieveNode(el, k);
+      corner_nodes[k] = RetrieveNode(el, k);
    }
 }
 
