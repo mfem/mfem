@@ -9,6 +9,32 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// H1 bake-off problem for dFEM: BP1 (scalar mass), and BP3 (scalar diffusion)
+//
+// Notation:
+//
+//   BP<problem>/<impl>/<p>/<n>/<k>:
+//   - <problem> is 1 (mass) or 3 (diffusion)
+//   - <impl> is the variant: mfem_std, or
+//             {PA,MF}_dfem_{local,global}_{primal,derivative}
+//   - p the order given to H1_FECollection
+//   - n, k the unit cube mesh: n^3 affine hexes, with n + 1 elements along
+//     the first k axes (k in [0, 2]), to fill the gaps between cubes.
+//
+// Sample runs:
+//
+//   CPU:
+//     ./bench_dfem --benchmark_filter='BP1/.*/4/5/0$'
+//     ./bench_dfem --benchmark_filter='BP3/.*/2/19/0$'
+//
+//   GPU (CUDA; use device=hip on AMD):
+//     ./bench_dfem --benchmark_context=device=cuda --benchmark_filter='BP3/.*/3/48/0$'
+//     ./bench_dfem --benchmark_context=device=cuda --benchmark_filter='BP1/(mfem_std|PA_dfem_local_primal)/4/'
+//
+
+// TODO: Implement BP2, BP4-BP6. There's just partial setup for mfem side for now.
+//
+
 #include "bench.hpp" // IWYU pragma: keep 
 
 #ifdef MFEM_USE_BENCHMARK
@@ -65,8 +91,9 @@ void info()
 {
    mfem::out << "\x1b[33m";
    mfem::out <<
-             "name: BP<n>/B<m>D<c|q>[.ad]/S<f|gk>/<impl>/<order>/<dofs per side>"
+             "name: BP<problem>/<impl>/<order>/<n>/<k>,"
              << std::endl;
+   mfem::out << "mesh: (n + (k > 0)) x (n + (k > 1)) x n" << std::endl;
    mfem::out << "expression: braces mark kernel launch boundaries"
              << std::endl;
    mfem::out << "\x1b[m" << std::endl;
@@ -101,74 +128,74 @@ constexpr const char *BenchmarkPath() noexcept
       }
       else if constexpr (VER == Version::MF_dfem_global)
       {
-         return "BP1/MF_dfem_global";
+         return "BP1/MF_dfem_global_primal";
       }
       else if constexpr (VER == Version::PA_dfem_global)
       {
-         return "BP1/PA_manual_dfem_global";
+         return "BP1/PA_dfem_global_primal";
       }
       else if constexpr (VER == Version::MF_dfem_local)
       {
-         return "BP1/MF_dfem_local";
+         return "BP1/MF_dfem_local_primal";
       }
       else if constexpr (VER == Version::PA_dfem_local)
       {
-         return "BP1/PA_manual_dfem_local";
+         return "BP1/PA_dfem_local_primal";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative)
       {
-         return "BP1/MF_dfem_global_get_derivative";
+         return "BP1/MF_dfem_global_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative)
       {
-         return "BP1/MF_dfem_local_get_derivative";
+         return "BP1/MF_dfem_local_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
       {
-         return "BP1/MF_dfem_global_get_derivative_cached";
+         return "BP1/PA_dfem_global_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
       {
-         return "BP1/MF_dfem_local_get_derivative_cached";
+         return "BP1/PA_dfem_local_derivative";
       }
    }
    else if constexpr (BFI == 3)
    {
       if constexpr (VER == Version::PA_mfem_std)
       {
-         return "BP3/B2Dc/Sf/mfem_std";
+         return "BP3/mfem_std";
       }
       else if constexpr (VER == Version::MF_dfem_global)
       {
-         return "BP3/B3Dq/Sg4/dfem";
+         return "BP3/MF_dfem_global_primal";
       }
       else if constexpr (VER == Version::PA_dfem_global)
       {
-         return "BP3/B2Dc/Sg2/dfem";
+         return "BP3/PA_dfem_global_primal";
       }
       else if constexpr (VER == Version::MF_dfem_local)
       {
-         return "BP3/B3Dq/Sf/dfem";
+         return "BP3/MF_dfem_local_primal";
       }
       else if constexpr (VER == Version::PA_dfem_local)
       {
-         return "BP3/B2Dc/Sf/dfem";
+         return "BP3/PA_dfem_local_primal";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative)
       {
-         return "BP3/B4Dq.ad/Sg5/dfem";
+         return "BP3/MF_dfem_global_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative)
       {
-         return "BP3/B4Dq.ad/Sf/dfem";
+         return "BP3/MF_dfem_local_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
       {
-         return "BP3/B2Dc.ad/Sg2/dfem";
+         return "BP3/PA_dfem_global_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
       {
-         return "BP3/B2Dc.ad/Sf/dfem";
+         return "BP3/PA_dfem_local_derivative";
       }
    }
    return "invalid";
@@ -419,6 +446,11 @@ public:
 };
 
 // Custom benchmark arguments generator
+static constexpr int H1Dofs(int order, int nx, int ny, int nz) noexcept
+{
+   return (order * nx + 1) * (order * ny + 1) * (order * nz + 1);
+}
+
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
 #if defined(MFEM_USE_CUDA_OR_HIP_LANG)
@@ -429,21 +461,20 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 
    const auto orders = { 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1 };
 
-   constexpr auto ndofs = [](int n) constexpr noexcept -> int
-   {
-      return (n + 1) * (n + 1) * (n + 1);
-   };
-
-   constexpr auto inc = [](int n) constexpr noexcept -> int
-   {
-      return n < 160 ?  4 : n < 240 ?  8 : n < 320 ? 16 : 32;
-   };
+   const double ratio = std::pow(10.0, 1.0 / 32);
 
    for (auto p : orders)
    {
-      for (int n = 4; ndofs(n) <= MAX_NDOFS; n += inc(n))
+      double last = 0.0;
+      for (int n = 2; H1Dofs(p, n, n, n) <= MAX_NDOFS; n++)
       {
-         b->Args({p, n});
+         for (int k = 0; k < 3; k++)
+         {
+            const int ndofs = H1Dofs(p, n + (k > 0), n + (k > 1), n);
+            if (ndofs > MAX_NDOFS || ndofs < last * ratio) { continue; }
+            b->Args({p, n, k});
+            last = ndofs;
+         }
       }
    }
 }
@@ -723,7 +754,7 @@ struct BakeOff
    static constexpr int bfi = BFI;
    static constexpr Version version = VER;
    static constexpr int DIM = 3;
-   const int p, c, q, n, nx, ny, nz;
+   const int p, n, k, q, nx, ny, nz;
    Mesh smesh;
    ParMesh pmesh;
    H1_FECollection fec;
@@ -745,7 +776,7 @@ struct BakeOff
    Vector B, X;
    OperatorPtr A;
 
-   static constexpr int U = 0, Ξ = 1, Q = 2;
+   static constexpr int U = 0, Coords = 1, Q = 2;
    std::unique_ptr<DifferentiableOperator> dop;
    std::unique_ptr<DifferentiableOperator> qdata_setup_dop;
    std::shared_ptr<future::DerivativeOperator> ddop;
@@ -789,10 +820,9 @@ struct BakeOff
    double mdofs{};
    double setup_time_ms{};
 
-   BakeOff(int p, int side):
-      p(p), c(side), q(2 * p + (GLL ? -1 : 3)), n((assert(c >= p), c / p)),
-      nx(n + (p * (n + 1) * p * n * p * n < c * c * c ? 1 : 0)),
-      ny(n + (p * (n + 1) * p * (n + 1) * p * n < c * c * c ? 1 : 0)), nz(n),
+   BakeOff(int p, int n, int k):
+      p(p), n(n), k(k), q(2 * p + (GLL ? -1 : 3)),
+      nx(n + (k > 0)), ny(n + (k > 1)), nz(n),
       smesh(Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON)),
       pmesh(MPI_COMM_WORLD, (smesh.EnsureNodes(), smesh)),
       fec(p, DIM, BasisType::GaussLobatto),
@@ -876,17 +906,17 @@ struct BakeOff
       {
          using backend_t = decltype(backend);
          using qfunction_t = decltype(qfunction);
-         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
+         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Coords, &mfes}};
          const auto ofd = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd, ofd, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          constexpr auto GradValU = GradOrValue<qfunction_t, DIM, U>();
          dop->template AddDomainIntegrator<backend_t>(qfunction,
-                                                      tuple{GradValU, Gradient<Ξ>{}, Weight{}},
+                                                      tuple{GradValU, Gradient<Coords>{}, Weight{}},
                                                       tuple{GradValU},
                                                       *ir, ess_bdr);
          using QT = decltype(qfunction);
-         using IT = decltype(tuple{GradValU, Gradient<Ξ>{}, Weight{}});
+         using IT = decltype(tuple{GradValU, Gradient<Coords>{}, Weight{}});
          using OT = decltype(tuple{GradValU});
          AddLocalQFActionSpecializations<backend_t, DIM, QT, IT, OT>();
          formLinearSystem(nodes);
@@ -897,18 +927,22 @@ struct BakeOff
       {
          using backend_t = decltype(backend);
          using qfunction_t = decltype(qfunction);
-         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
+         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Coords, &mfes}};
          const auto ofd = std::vector<FieldDescriptor> {{U, &pfes}};
          dop = std::make_unique<DifferentiableOperator>(ifd, ofd, pmesh);
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          constexpr auto GradValU = GradOrValue<qfunction_t, DIM, U>();
-         dop->template AddDomainIntegrator<backend_t>(
+         constexpr auto derivative_kernels =
+            (VER == Version::MF_dfem_global_get_derivative_cached ||
+             VER == Version::MF_dfem_local_get_derivative_cached)
+            ? future::DerivativeKernels::Apply : future::DerivativeKernels::MF;
+         dop->template AddDomainIntegrator<backend_t, derivative_kernels>(
             qfunction,
-            tuple{GradValU, Gradient<Ξ>{}, Weight{}},
+            tuple{GradValU, Gradient<Coords>{}, Weight{}},
             tuple{GradValU},
             *ir, ess_bdr, future::Derivatives<U> {});
          using QT = decltype(qfunction);
-         using IT = decltype(tuple{GradValU, Gradient<Ξ>{}, Weight{}});
+         using IT = decltype(tuple{GradValU, Gradient<Coords>{}, Weight{}});
          using OT = decltype(tuple{GradValU});
          AddLocalQFDerivativeSpecializations<backend_t, DIM, U, QT, IT, OT>();
          MultiVector state{x, nodes};
@@ -930,17 +964,17 @@ struct BakeOff
       const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
       {
          using backend_t = decltype(backend);
-         const auto ifd0 = std::vector<FieldDescriptor> {{Ξ, &mfes}};
+         const auto ifd0 = std::vector<FieldDescriptor> {{Coords, &mfes}};
          const auto ofd0 = std::vector<FieldDescriptor> {{Q, &vqspace}};
          qdata_setup_dop = std::make_unique<DifferentiableOperator>(ifd0, ofd0, pmesh);
          qdata_setup_dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          qdata_setup_dop->template AddDomainIntegrator<backend_t>(
             setup_qf,
-            tuple{Gradient<Ξ>{}, Weight{}},
+            tuple{Gradient<Coords>{}, Weight{}},
             tuple{Identity<Q>{}},
             *ir, ess_bdr);
          using SetupQT = decltype(setup_qf);
-         using SetupIT = decltype(tuple{Gradient<Ξ>{}, Weight{}});
+         using SetupIT = decltype(tuple{Gradient<Coords>{}, Weight{}});
          using SetupOT = decltype(tuple{Identity<Q>{}});
          AddLocalQFActionSpecializations<backend_t, DIM, SetupQT, SetupIT, SetupOT>();
          MultiVector N{nodes}, D{qfct};
@@ -1097,7 +1131,7 @@ struct BP : public BakeOff<BFI, VER, VDIM, GLL>
    using base::dofs;
    using base::mdofs;
 
-   BP(int p, int side) noexcept: base(p, side),
+   BP(int p, int n, int k) noexcept: base(p, n, k),
       cg(MPI_COMM_WORLD)
    {
       static_assert(VDIM == 1 && GLL == false);
@@ -1140,7 +1174,8 @@ static void Benchmark(bm::State& state) noexcept
       if (!run)
       {
          state.PauseTiming();
-         run = std::make_unique<T>(state.range(0), state.range(1));
+         run = std::make_unique<T>(state.range(0), state.range(1),
+                                   state.range(2));
          state.ResumeTiming();
       }
       run->benchmark();
@@ -1149,6 +1184,8 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["MDof/s"] = bm::Counter(run->SumMdofs(), bm::Counter::kIsRate);
    state.counters["Setup"] = bm::Counter(run->SetupTimeMilliseconds());
    state.counters["p"] = bm::Counter(state.range(0));
+   state.counters["n"] = bm::Counter(state.range(1));
+   state.counters["k"] = bm::Counter(state.range(2));
    state.SetLabel(BenchmarkExpression<T::bfi, T::version>());
 }
 #define REGISTER(PK, BFI, VER) \
