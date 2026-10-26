@@ -119,6 +119,8 @@ protected:
       if (Mpi::WorldSize() == 1) { return RowSum::AllRows(local, rows); }
       rows = displs.Last() + counts.Last();
       all.SetSize(rows);
+      // Add in global row order. MPI_Allreduce of the local totals would
+      // follow an order that changes with the rank count.
       MPI_Allgatherv(const_cast<real_t *>(local.HostRead()), local.Size(),
                      MPITypeMap<real_t>::mpi_type, all.HostWrite(),
                      counts.GetData(), displs.GetData(),
