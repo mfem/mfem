@@ -943,7 +943,8 @@ target_include_directories(mfem BEFORE
 if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS))
     # INTERFACE keeps libglvis.a off libmfem's own link. The external project
     # DEPENDS mfem, so a PUBLIC link of the shared library waits for an archive
-    # that waits for mfem.
+    # that waits for mfem. A companion library would link both and sit on
+    # every consumer link, so glvis_stream stays in libmfem.
     if (BUILD_SHARED_LIBS AND WIN32)
         message(FATAL_ERROR
             "Fetched GLVis does not support a shared MFEM library on Windows. "
