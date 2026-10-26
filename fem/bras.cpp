@@ -66,6 +66,83 @@ static BilinearForm *MakeMassForm(const FiniteElementSpace &fes,
    return a;
 }
 
+// The sum (or the minimum, if min is true) of the local values v over the
+// ranks of a parallel space; v itself for a serial space. Collective for a
+// parallel space.
+static real_t GlobalReduce(const FiniteElementSpace &fes, real_t v, bool min)
+{
+#ifdef MFEM_USE_MPI
+   if (auto pfes = dynamic_cast<const ParFiniteElementSpace*>(&fes))
+   {
+      real_t g;
+      MPI_Allreduce(&v, &g, 1, MFEM_MPI_REAL_T, min ? MPI_MIN : MPI_SUM,
+                    pfes->GetComm());
+      return g;
+   }
+#endif
+   return v;
+}
+
+// Return a copy of the prolongation matrix P with every entry squared, and set
+// row_nnz[i] to the number of nonzero entries in row i of P. Returns NULL if P
+// is not a matrix, which is the case for the parallel prolongation of
+// conforming spaces (ConformingProlongationOperator): its rows have at most
+// one entry, equal to +1 or -1, so the squared matrix is |P|.
+static Operator *SquaredProlongation(const Operator &P, Array<int> &row_nnz)
+{
+   row_nnz.SetSize(P.Height());
+   row_nnz = 0;
+   if (auto sP = dynamic_cast<const SparseMatrix*>(&P))
+   {
+      // Serial nonconforming spaces.
+      auto *P2 = new SparseMatrix(*sP);
+      const int *I = P2->HostReadI();
+      real_t *a = P2->HostReadWriteData();
+      for (int i = 0; i < P2->Height(); i++)
+      {
+         for (int k = I[i]; k < I[i+1]; k++)
+         {
+            if (a[k] != 0.0) { row_nnz[i]++; }
+            a[k] *= a[k];
+         }
+      }
+      return P2;
+   }
+#ifdef MFEM_USE_MPI
+   if (auto hP = dynamic_cast<const HypreParMatrix*>(&P))
+   {
+      // Parallel nonconforming spaces, and conforming spaces with Nedelec DOFs
+      // on shared triangular faces. The rows are the local DOFs; their entries
+      // are split between the diagonal block (owned true DOFs) and the
+      // off-diagonal block (true DOFs owned by other ranks). The data is
+      // modified on the host, as in HypreParMatrix::ScaleRows().
+      auto *P2 = new HypreParMatrix(*hP);
+      P2->HostReadWrite();
+      hypre_ParCSRMatrix *h = *P2;
+      hypre_CSRMatrix *blocks[2] = { hypre_ParCSRMatrixDiag(h),
+                                     hypre_ParCSRMatrixOffd(h)
+                                   };
+      for (hypre_CSRMatrix *csr : blocks)
+      {
+         const HYPRE_Int *I = hypre_CSRMatrixI(csr);
+         real_t *a = hypre_CSRMatrixData(csr);
+         if (!I) { continue; }
+         for (int i = 0; i < hypre_CSRMatrixNumRows(csr); i++)
+         {
+            for (HYPRE_Int k = I[i]; k < I[i+1]; k++)
+            {
+               if (a[k] != 0.0) { row_nnz[i]++; }
+               a[k] *= a[k];
+            }
+         }
+      }
+      P2->HypreRead();
+      return P2;
+   }
+#endif
+   return nullptr;
+}
+
 BRASPreconditioner::BRASPreconditioner(BilinearForm &a,
                                        const Array<int> &ess_tdof_list_,
                                        Weighting weighting_)
@@ -117,10 +194,11 @@ BRASPreconditioner::~BRASPreconditioner() = default;
 // are mapped to the element DOFs (E-vector) by the element restriction
 // R_E = fes->GetElementRestriction(). The operator P of the class
 // documentation is the composition R_E P_L, so that M = P^T M_br P with
-// M_br = blockdiag(M_K) acting on E-vectors. On conforming meshes both R_E and
-// P_L have at most one nonzero per row, equal to +1 or -1 (the sign accounts
-// for the relative orientation of ND and RT DOFs), so P is a signed Boolean
-// matrix.
+// M_br = blockdiag(M_K) acting on E-vectors. The element restriction R_E has
+// one nonzero per row, equal to +1 or -1 (the sign accounts for the relative
+// orientation of ND and RT DOFs). On conforming meshes P_L has the same form,
+// so P is a signed Boolean matrix. On nonconforming meshes, P_L = E in the
+// notation of the class documentation, and R_E = P_0.
 //
 // The E-vector stores the element blocks contiguously: element e owns entries
 // [e*nd, (e+1)*nd), where nd is the number of DOFs per element including all
@@ -142,18 +220,6 @@ void BRASPreconditioner::Setup()
                "supported");
    MFEM_VERIFY(mesh.GetNumGeometries(mesh.Dimension()) <= 1, "meshes with "
                "more than one element geometry are not supported");
-   // On nonconforming meshes P_L interpolates the slave DOFs from the master
-   // DOFs, so P is no longer Boolean and A_W is not diagonal.
-   MFEM_VERIFY(fes->Conforming(), "nonconforming spaces are not supported");
-#ifdef MFEM_USE_MPI
-   // With shared triangular faces, the parallel prolongation of high order
-   // Nedelec spaces applies a 2x2 transformation to the face DOFs (to account
-   // for the face orientation on the neighboring rank), so P is not a signed
-   // Boolean matrix and A_W is not diagonal.
-   auto pfes = dynamic_cast<const ParFiniteElementSpace*>(fes);
-   MFEM_VERIFY(!pfes || !pfes->SharedNDTriangleDofs(), "Nedelec spaces with "
-               "DOFs on shared triangular faces are not supported");
-#endif
 
    // M_br is assembled from the domain integrators only. Boundary and face
    // integrators would couple DOFs across elements, so M would no longer be
@@ -246,30 +312,141 @@ void BRASPreconditioner::Setup()
       }
    }
 
-   // Since P is a signed Boolean matrix and W is diagonal, the columns of
-   // W^{1/2} P are orthogonal and A_W = P^T W P is diagonal. Its entry for a
-   // true DOF is the sum of the weights w_i over all element DOFs i that the
-   // true DOF is mapped to, i.e. diag(A_W) = |P|^T w = |P_L|^T |R_E|^T w. The
-   // absolute values remove the orientation signs, which square to one in
-   // P^T W P. The L2 element restriction is a permutation without signs and
-   // does not implement AbsMultTranspose(), so its MultTranspose() is used.
-   Vector dl(fes->GetVSize());
+   // Since R_E is a signed Boolean matrix and W is diagonal, the columns of
+   // W^{1/2} R_E are orthogonal and D_W = R_E^T W R_E is diagonal. Its entry
+   // for an L-DOF is the sum of the weights w_i over all element DOFs i that
+   // the L-DOF is mapped to, i.e. diag(D_W) = |R_E|^T w. The absolute values
+   // remove the orientation signs, which square to one in R_E^T W R_E. The
+   // L2 element restriction is a permutation without signs and does not
+   // implement AbsMultTranspose(), so its MultTranspose() is used.
+   dl.SetSize(fes->GetVSize());
    if (fes->IsDGSpace()) { R->MultTranspose(w, dl); }
    else { R->AbsMultTranspose(w, dl); }
-   diag_inv.SetSize(height);
-   if (P) { P->AbsMultTranspose(dl, diag_inv); }
-   else { diag_inv = dl; }
-   diag_inv.Reciprocal();
+   SetupProlongation();
 
-   // Re-applies the (possibly updated) essential DOFs to the new diagonal.
-   SetEssentialTrueDofs(ess_tdof_list);
-
-   // Work vectors for Mult(): T-vector, L-vector (only used when P is not
-   // the identity) and the input and output E-vectors.
+   // Work vectors for Mult(): T-vectors, L-vectors (only used when P is not
+   // the identity), the input and output E-vectors, and the vectors of the
+   // Chebyshev iteration (only used on nonconforming spaces).
    xt.SetSize(height);
+   ut.SetSize(height);
    xl.SetSize(P ? P->Height() : height);
+   zl.SetSize(xl.Size());
    xe.SetSize(ne*nd);
    ye.SetSize(ne*nd);
+   if (nc)
+   {
+      cr.SetSize(height);
+      cd.SetSize(height);
+      cq.SetSize(height);
+   }
+
+   // Re-applies the (possibly updated) essential DOFs to the new diagonal.
+   // This uses the work vectors for the Chebyshev setup.
+   SetEssentialTrueDofs(ess_tdof_list);
+}
+
+// With D_W = diag(dl), A_W = P_L^T D_W P_L, so diag(A_W) = (P_L o P_L)^T dl,
+// where P_L o P_L is P_L with squared entries. On conforming spaces this is
+// |P_L|^T dl, and A_W is diagonal.
+//
+// On nonconforming spaces, split the rows of P_L into the J rows, with at most
+// one nonzero, and the H rows, with more than one; the H rows form C. Then
+// A_W = Lambda_u + C^T Lambda_h C, where Lambda_h = diag(dl) on the H rows and
+// Lambda_u = E_J^T D_W E_J = (P_L o P_L)^T (jmask o dl) is diagonal, because
+// each J row has a single entry. Every true DOF has a J row (the L-DOF of its
+// owning rank, with a unit entry), so Lambda_u is positive.
+void BRASPreconditioner::SetupProlongation()
+{
+   nc = false;
+   diag_inv.SetSize(height);
+   if (!P) { diag_inv = dl; }
+   else
+   {
+      Array<int> row_nnz;
+      std::unique_ptr<Operator> P2(SquaredProlongation(*P, row_nnz));
+      if (!P2) { P->AbsMultTranspose(dl, diag_inv); }
+      else
+      {
+         P2->MultTranspose(dl, diag_inv);
+         // The prolongation has the same type on all ranks, so either all or
+         // none of the ranks reach this reduction.
+         const real_t nc_loc = (row_nnz.Size() > 0 && row_nnz.Max() > 1);
+         nc = GlobalReduce(*fes, nc_loc, false) > 0.0;
+      }
+      if (nc)
+      {
+         const int nl = P->Height();
+         jmask.SetSize(nl);
+         hdl.SetSize(nl);
+         const real_t *h_dl = dl.HostRead();
+         real_t *h_j = jmask.HostWrite(), *h_h = hdl.HostWrite();
+         for (int i = 0; i < nl; i++)
+         {
+            const bool j_row = row_nnz[i] <= 1;
+            h_j[i] = j_row ? 1.0 : 0.0;
+            h_h[i] = j_row ? 0.0 : h_dl[i];
+         }
+         Vector jdl(dl);
+         jdl *= jmask;
+         lu_inv.SetSize(height);
+         P2->MultTranspose(jdl, lu_inv);
+         MFEM_VERIFY(height == 0 || lu_inv.Min() > 0.0, "a true DOF has no "
+                     "local DOF with a single prolongation entry");
+         lu_inv.Reciprocal();
+      }
+   }
+   diag_inv.Reciprocal();
+}
+
+// The Chebyshev polynomial in S A_W (see ApplyChebyshev()) needs an interval
+// [a, b] containing the spectrum of S A_W on the free DOFs. Since
+// A_W >= Lambda_u, the spectrum is bounded below by a = min(Lambda_u S). The
+// upper bound b is estimated by power iteration on S A_W, using the
+// generalized Rayleigh quotient (v^T A_W v)/(v^T S^{-1} v). The estimate is
+// slightly below the largest eigenvalue, which gives a better polynomial than
+// the (much larger) upper bounds of Gershgorin type. Since the trace of S A_W
+// is the number of free DOFs, its eigenvalues average to one, so a <= 1 and
+// the largest eigenvalue is at least 1.
+void BRASPreconditioner::SetupChebyshev()
+{
+   // On the free DOFs, scale = diag_inv > 0; on the essential DOFs, scale = 0.
+   const real_t *h_s = scale.HostRead();
+   const real_t *h_lu = lu_inv.HostRead();
+   real_t a = infinity();
+   for (int i = 0; i < height; i++)
+   {
+      if (h_s[i] != 0.0) { a = std::min(a, h_s[i]/h_lu[i]); }
+   }
+   a = GlobalReduce(*fes, a, true);
+   cheb_a = cheb_b = 1.0;
+   // No free DOFs: the Chebyshev polynomial is never applied to a nonzero
+   // vector.
+   if (a == infinity()) { return; }
+
+   // Power iteration, starting from the vector of ones on the free DOFs. The
+   // number of iterations is enough for the purpose of the estimate.
+   const int power_its = 20;
+   Vector v(height), Av(height), Sinv(diag_inv);
+   Sinv.Reciprocal();
+   v = 1.0;
+   v.SetSubVector(ess_tdof_list, 0.0);
+   real_t b = 1.0;
+   for (int it = 0; it < power_its; it++)
+   {
+      ApplyAW(v, Av);
+      Vector vSinv(v);
+      vSinv *= Sinv;
+      b = GlobalReduce(*fes, v*Av, false)/GlobalReduce(*fes, v*vSinv, false);
+      // v = S A_W v, normalized.
+      v = Av;
+      v *= scale;
+      v /= std::sqrt(GlobalReduce(*fes, v*v, false));
+   }
+   cheb_a = a;
+   // Keep the interval nondegenerate: if A_W is diagonal on the free DOFs
+   // (e.g. when all the hanging DOFs depend only on essential DOFs), the
+   // spectrum is {1}, a = b = 1, and any interval containing 1 is valid.
+   cheb_b = std::max({b, 1.0, (1.0 + 1e-6)*a});
 }
 
 // Let P_0 be P restricted to the columns of the free (non-essential) true
@@ -279,6 +456,11 @@ void BRASPreconditioner::Setup()
 // zero, B_0 = S P^T W M_br^{-1} W P S with S = diag(scale), where scale is
 // diag(A_W)^{-1} with the essential entries set to zero. Mult() applies B_0
 // and then sets y = x on the essential DOFs.
+//
+// On nonconforming spaces A_0 is not diagonal, but the same holds for its
+// approximations: restricting to the free columns replaces S by diag(scale),
+// Lambda_u^{-1} by diag(lu_scale), and C by C restricted to the free columns,
+// which is the action of C on vectors that vanish on the essential DOFs.
 void BRASPreconditioner::SetEssentialTrueDofs(const Array<int> &list)
 {
    if (&list != &ess_tdof_list) { ess_tdof_list = list; }
@@ -288,6 +470,21 @@ void BRASPreconditioner::SetEssentialTrueDofs(const Array<int> &list)
                "call Update(ess_tdof_list)");
    scale = diag_inv;
    scale.SetSubVector(ess_tdof_list, 0.0);
+   if (nc)
+   {
+      lu_scale = lu_inv;
+      lu_scale.SetSubVector(ess_tdof_list, 0.0);
+      // The spectrum of S A_0 depends on the essential DOFs.
+      if (nc_method == NCMethod::CHEBYSHEV) { SetupChebyshev(); }
+   }
+}
+
+void BRASPreconditioner::SetNCMethod(NCMethod method, int degree)
+{
+   MFEM_VERIFY(degree >= 1, "the Chebyshev degree must be at least 1");
+   nc_method = method;
+   cheb_degree = degree;
+   if (nc && nc_method == NCMethod::CHEBYSHEV) { SetupChebyshev(); }
 }
 
 // Setup() reads the space from the form and recomputes everything, so it
@@ -303,42 +500,196 @@ void BRASPreconditioner::Update(const Array<int> &ess_tdof_list_)
    Setup();
 }
 
-// Apply y = S P_L^T R_E^T (W M_br^{-1} W) R_E P_L S x on the free DOFs and
-// y = x on the essential DOFs, where S = diag(scale); see
-// SetEssentialTrueDofs(). The only communication is in P_L and P_L^T.
+void BRASPreconditioner::ApplyBroken(const Vector &x, Vector &y) const
+{
+   // xe = R_E x (E-vector), then ye = W M_br^{-1} W xe, one dense
+   // matrix-vector product per element. The check skips ranks without
+   // elements. Then y = R_E^T ye sums the element contributions of each DOF.
+   R->Mult(x, xe);
+   if (WMinvW.SizeK() > 0) { BatchedLinAlg::Mult(WMinvW, xe, ye); }
+   R->MultTranspose(ye, y);
+}
+
+// Only called on nonconforming spaces, where P is not NULL. Uses zl.
+void BRASPreconditioner::ApplyAW(const Vector &x, Vector &y) const
+{
+   P->Mult(x, zl);
+   zl *= dl;
+   P->MultTranspose(zl, y);
+}
+
+// The Chebyshev semi-iteration (Saad, Iterative Methods for Sparse Linear
+// Systems, Algorithm 12.1) for A_0 x = b with the preconditioner S, starting
+// from x = 0, where A_0 is A_W on the free DOFs and S = diag(scale). After k
+// steps, x = q_k(A_0) b, where the polynomial q_k minimizes the maximum of
+// |1 - t q_k(t)| over [a, b] among polynomials in S A_0 of degree k (times
+// S). Uses cr (residual), cd (update) and cq (A_W cd). All the updates are
+// multiplied by S, so x vanishes on the essential DOFs.
+void BRASPreconditioner::ApplyChebyshev(const Vector &b, Vector &x) const
+{
+   const real_t theta = 0.5*(cheb_b + cheb_a);
+   const real_t delta = 0.5*(cheb_b - cheb_a);
+   const real_t sigma = theta/delta;
+   real_t rho = 1.0/sigma;
+
+   // r = b, d = S r / theta, x = 0.
+   cr = b;
+   cd = b;
+   cd *= scale;
+   cd /= theta;
+   x = 0.0;
+   for (int it = 0; ; it++)
+   {
+      x += cd;
+      if (it == cheb_degree) { break; }
+      // r -= A_W d. Since d vanishes on the essential DOFs, A_W d = A_0 d on
+      // the free DOFs; the essential entries of r are multiplied by S = 0.
+      ApplyAW(cd, cq);
+      cr -= cq;
+      // d = rho_new rho d + (2 rho_new/delta) S r.
+      const real_t rho_new = 1.0/(2.0*sigma - rho);
+      const real_t c1 = rho_new*rho, c2 = 2.0*rho_new/delta;
+      const int n = height;
+      const auto d_s = scale.Read();
+      const auto d_r = cr.Read();
+      auto d_d = cd.ReadWrite();
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_d[i] = c1*d_d[i] + c2*d_s[i]*d_r[i];
+      });
+      rho = rho_new;
+   }
+}
+
+// The left inverse method, B_X = L_X G_m L_X^T on the free DOFs, where
+// G_m = R_E^T (W M_br^{-1} W) R_E acts on L-vectors (ApplyBroken()) and
+// L_X approximates A_W^{-1} P_L^T. Splitting the columns of P_L^T (the rows of
+// P_L) into J and H, A_W^{-1} P_L^T = [(I - X C) Lambda_u^{-1} E_J^T,
+// X Lambda_h^{-1}] with X = A_W^{-1} C^T Lambda_h (from A_W^{-1} Lambda_u =
+// I - X C). L_X replaces X by S C^T Lambda_h. For any X, L_X D_W P_L = I, so
+// the operator R_X = L_X R_E^T W satisfies R_X P = I.
+//
+// In terms of the L-vector masks jmask (1 on J) and hdl (Lambda_h on H, 0 on
+// J), u = L_X^T x and out = L_X g are computed as
+//    c   = P_L S x,
+//    z   = x - P_L^T (hdl o c),
+//    u   = jmask o (P_L Lambda_u^{-1} z) + (1 - jmask) o c,
+//    v   = Lambda_u^{-1} P_L^T (jmask o g),
+//    out = v + S P_L^T ((1 - jmask) o g - hdl o (P_L v)),
+// where o is the entrywise product: three products with P_L and three with
+// P_L^T. On the free DOFs S = diag(scale) and Lambda_u^{-1} = diag(lu_scale);
+// see SetEssentialTrueDofs().
+void BRASPreconditioner::MultLeftInverse(const Vector &x, Vector &y) const
+{
+   const int nl = P->Height();
+   const auto d_j = jmask.Read();
+   const auto d_h = hdl.Read();
+
+   // c = P_L S x, stored in xl.
+   xt = x;
+   xt *= scale;
+   P->Mult(xt, xl);
+   // z = x - P_L^T (hdl o c), stored in ut, then ut = Lambda_u^{-1} z.
+   zl = xl;
+   zl *= hdl;
+   P->MultTranspose(zl, ut);
+   subtract(x, ut, ut);
+   ut *= lu_scale;
+   // u = jmask o (P_L ut) + (1 - jmask) o c, stored in xl.
+   P->Mult(ut, zl);
+   {
+      const auto d_z = zl.Read();
+      auto d_u = xl.ReadWrite();
+      mfem::forall(nl, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_u[i] += d_j[i]*(d_z[i] - d_u[i]);
+      });
+   }
+
+   // g = G_m u, stored in xl.
+   ApplyBroken(xl, xl);
+
+   // v = Lambda_u^{-1} P_L^T (jmask o g), stored in ut.
+   zl = xl;
+   zl *= jmask;
+   P->MultTranspose(zl, ut);
+   ut *= lu_scale;
+   // zl = (1 - jmask) o g - hdl o (P_L v), then xt = P_L^T zl.
+   P->Mult(ut, zl);
+   {
+      const auto d_g = xl.Read();
+      auto d_z = zl.ReadWrite();
+      mfem::forall(nl, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_z[i] = (1.0 - d_j[i])*d_g[i] - d_h[i]*d_z[i];
+      });
+   }
+   P->MultTranspose(zl, xt);
+   // y = v + S xt.
+   const int n = height;
+   const auto d_s = scale.Read();
+   const auto d_v = ut.Read();
+   const auto d_xt = xt.Read();
+   auto d_y = y.Write();
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_y[i] = d_v[i] + d_s[i]*d_xt[i];
+   });
+}
+
+// The Chebyshev method, q_k(A_0) P_L^T G_m P_L q_k(A_0) on the free DOFs, with
+// G_m as in MultLeftInverse().
+void BRASPreconditioner::MultChebyshev(const Vector &x, Vector &y) const
+{
+   ApplyChebyshev(x, ut);
+   P->Mult(ut, xl);
+   ApplyBroken(xl, xl);
+   P->MultTranspose(xl, xt);
+   ApplyChebyshev(xt, y);
+}
+
+// On conforming spaces, and for NCMethod::DIAGONAL, apply
+// y = S P_L^T R_E^T (W M_br^{-1} W) R_E P_L S x on the free DOFs, where
+// S = diag(scale); see SetEssentialTrueDofs(). On conforming spaces this is
+// B_W, and on nonconforming spaces it is Btilde_W. The other nonconforming
+// methods are applied by MultLeftInverse() and MultChebyshev(). In all cases
+// y = x on the essential DOFs. The only communication is in P_L and P_L^T.
 void BRASPreconditioner::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == height && y.Size() == height, "invalid sizes");
 
-   // xt = S x (T-vector).
-   xt = x;
-   xt *= scale;
-   // xl = P_L xt (L-vector). Without a prolongation the T- and L-vectors
-   // coincide, so xt is used in place of xl.
-   Vector &xl_ = P ? xl : xt;
-   if (P) { P->Mult(xt, xl); }
-   // xe = R_E xl (E-vector), then ye = W M_br^{-1} W xe, one dense
-   // matrix-vector product per element. The check skips ranks without
-   // elements.
-   R->Mult(xl_, xe);
-   if (WMinvW.SizeK() > 0) { BatchedLinAlg::Mult(WMinvW, xe, ye); }
-   // xt = P_L^T R_E^T ye: sum the element contributions of each DOF.
-   R->MultTranspose(ye, xl_);
-   if (P) { P->MultTranspose(xl, xt); }
+   if (nc && nc_method == NCMethod::LEFT_INVERSE) { MultLeftInverse(x, y); }
+   else if (nc && nc_method == NCMethod::CHEBYSHEV) { MultChebyshev(x, y); }
+   else
+   {
+      // xt = S x (T-vector).
+      xt = x;
+      xt *= scale;
+      // xl = P_L xt (L-vector), then xl = G_m xl and xt = P_L^T xl. Without a
+      // prolongation the T- and L-vectors coincide, so xt is used in place of
+      // xl.
+      Vector &xl_ = P ? xl : xt;
+      if (P) { P->Mult(xt, xl); }
+      ApplyBroken(xl_, xl_);
+      if (P) { P->MultTranspose(xl, xt); }
 
-   // y = S xt.
-   const int n = height;
-   const auto d_s = scale.Read();
-   const auto d_xt = xt.Read();
-   auto d_y = y.Write();
-   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { d_y[i] = d_s[i]*d_xt[i]; });
+      // y = S xt.
+      const int n = height;
+      const auto d_s = scale.Read();
+      const auto d_xt = xt.Read();
+      auto d_y = y.Write();
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+      {
+         d_y[i] = d_s[i]*d_xt[i];
+      });
+   }
 
-   // The preconditioner is the identity on the essential DOFs, where S is
-   // zero and y is currently zero.
+   // The preconditioner is the identity on the essential DOFs, where y is
+   // currently zero.
    const int n_ess = ess_tdof_list.Size();
    const auto d_ess = ess_tdof_list.Read();
    const auto d_x = x.Read();
-   d_y = y.ReadWrite();
+   auto d_y = y.ReadWrite();
    mfem::forall(n_ess, [=] MFEM_HOST_DEVICE (int i)
    {
       const int j = d_ess[i];

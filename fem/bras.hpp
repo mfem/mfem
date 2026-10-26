@@ -40,6 +40,18 @@ namespace mfem
     element plus the (parallel) assembly $P^T$. The element matrices are
     computed once, at construction or in Update(), and inverted in place.
 
+    On nonconforming meshes, $P = P_0 E$, where $P_0$ is a signed Boolean
+    matrix and $E$ interpolates the hanging (slave) DOFs from their master
+    DOFs. Then $A_W$ is no longer diagonal and its inverse is not sparse. The
+    rows of $E$ split into the rows with at most one entry (J) and the rows
+    with more than one entry (H, forming the matrix C), and
+    $A_W = \Lambda_u + C^T \Lambda_h C$ with diagonal $\Lambda_u$ and
+    $\Lambda_h$. The action of $A_W^{-1}$ is then approximated with one of the
+    methods in NCMethod; see SetNCMethod(). The same holds for parallel
+    Nedelec spaces with DOFs on shared triangular faces, whose prolongation
+    has rows with two entries (a change of basis between the face DOFs seen
+    by the two ranks).
+
     The preconditioner acts as the identity on the essential true DOFs. On the
     remaining DOFs it is weighted BRAS for the subspace of functions vanishing
     on the essential DOFs.
@@ -56,6 +68,36 @@ public:
    {
       IDENTITY, ///< $W = I$.
       DIAGONAL  ///< $W = \mathrm{diag}(M_{br})$ (recommended).
+   };
+
+   /** @brief Approximation of $A_W^{-1}$ on nonconforming spaces. All methods
+       reduce to $B_W$ on conforming spaces.
+
+       With $S = \mathrm{diag}(A_W)^{-1}$ and
+       $G = P^T W M_{br}^{-1} W P$, the methods are: */
+   enum class NCMethod
+   {
+      /** The left inverse $B_X = R_X M_{br}^{-1} R_X^T$, where $R_X$ is the
+          left inverse of $P$ (i.e. $R_X P = I$) obtained from the exact one,
+          $A_W^{-1} P^T W$, by replacing $A_W^{-1}$ by $S$ in the coupling
+          $X = A_W^{-1} C^T \Lambda_h$ of the hanging DOFs. Since $R_X$ is a
+          left inverse, $\lambda_{\min}(B_X M) \geq 1$. Each application
+          requires three products with $P_L$ and three with $P_L^T$
+          (recommended). */
+      LEFT_INVERSE,
+      /** $\widetilde{B}_W = S G S$. This is the cheapest method, with the
+          sparsity of $M$, but the lower bound $\lambda_{\min} \geq 1$ is
+          lost. */
+      DIAGONAL,
+      /** $q_k(A_W) G q_k(A_W)$, where $q_k(A_W) \approx A_W^{-1}$ is the
+          Chebyshev polynomial approximation of degree k (in $S A_W$) for the
+          spectral interval [a, b] of $S A_W$. In the setup, a is set to a
+          lower bound, $\min (\Lambda_u S)$, and b to an estimate from a few
+          power iterations. As k increases the preconditioner converges to
+          $B_W$; k = 2 is usually close to it. Each application requires 2k
+          products with $A_W$, i.e. 2k + 1 products with $P_L$ and with
+          $P_L^T$. */
+      CHEBYSHEV
    };
 
 protected:
@@ -82,13 +124,56 @@ protected:
    /// vector on both sides gives weighted BRAS for the free DOFs.
    Vector scale;
 
-   /// Work vectors for Mult(): true DOFs (xt), L-DOFs (xl), and the input
-   /// and output E-vectors (xe, ye).
-   mutable Vector xt, xl, xe, ye;
+   NCMethod nc_method = NCMethod::LEFT_INVERSE;
+   int cheb_degree = 2;
+   /// True if $P_L$ has rows with more than one entry (the H rows) on any
+   /// rank. Then $A_W$ is not diagonal and @ref nc_method is used.
+   bool nc = false;
+   /// The diagonal of $D_W = P_0^T W P_0$ (an L-vector): the sum of the
+   /// weights of the element DOFs of each L-DOF.
+   Vector dl;
+   /// Only if @ref nc: the L-vector equal to 1 on the J rows of $P_L$ and 0
+   /// on the H rows, and the L-vector equal to @ref dl on the H rows (that
+   /// is, $\Lambda_h$) and 0 on the J rows.
+   Vector jmask, hdl;
+   /// Only if @ref nc: the inverse of $\Lambda_u$ (a T-vector), and the same
+   /// with the essential DOFs set to zero.
+   Vector lu_inv, lu_scale;
+   /// Only if @ref nc: an interval [a, b] containing the spectrum of
+   /// $S A_W$, used by NCMethod::CHEBYSHEV.
+   real_t cheb_a = 1.0, cheb_b = 1.0;
 
-   /// Build the element blocks of $W M_{br}^{-1} W$ and the diagonal of $A_W$
+   /// Work vectors for Mult(): true DOFs (xt, ut), L-DOFs (xl, zl), the
+   /// input and output E-vectors (xe, ye), and the Chebyshev iteration
+   /// (cr, cd, cq).
+   mutable Vector xt, ut, xl, zl, xe, ye, cr, cd, cq;
+
+   /// Build the element blocks of $W M_{br}^{-1} W$ and the prolongation data
    /// from the current form and space.
    void Setup();
+
+   /// Compute @ref diag_inv, and the data of the nonconforming methods, from
+   /// @ref dl and the prolongation.
+   void SetupProlongation();
+
+   /// Compute the interval @ref cheb_a, @ref cheb_b for the free DOFs.
+   void SetupChebyshev();
+
+   /// y = R_E^T (W M_br^{-1} W) R_E x, for L-vectors x and y (which may be
+   /// the same vector).
+   void ApplyBroken(const Vector &x, Vector &y) const;
+
+   /// y = A_W x = P_L^T D_W P_L x, for T-vectors.
+   void ApplyAW(const Vector &x, Vector &y) const;
+
+   /// x = q_k(A_W) b on the free DOFs, the Chebyshev approximation of
+   /// A_W^{-1} b; x is zero on the essential DOFs.
+   void ApplyChebyshev(const Vector &b, Vector &x) const;
+
+   /// Apply the NCMethod::LEFT_INVERSE and NCMethod::CHEBYSHEV methods on the
+   /// free DOFs; y is zero on the essential DOFs.
+   void MultLeftInverse(const Vector &x, Vector &y) const;
+   void MultChebyshev(const Vector &x, Vector &y) const;
 
 public:
    /** @brief Construct the BRAS preconditioner for the bilinear form @a a.
@@ -137,7 +222,7 @@ public:
    void SetOperator(const Operator &op) override { }
 
    /// Set the list of essential true DOFs, where the preconditioner is the
-   /// identity.
+   /// identity. In parallel, this must be called on all ranks.
    void SetEssentialTrueDofs(const Array<int> &ess_tdof_list);
 
    /** @brief Rebuild the preconditioner from the bilinear form, keeping the
@@ -155,6 +240,16 @@ public:
 
    /// Return the weighting used by the preconditioner.
    Weighting GetWeighting() const { return weighting; }
+
+   /** @brief Set the approximation of $A_W^{-1}$ used on nonconforming
+       spaces, and the polynomial degree (at least 1) used by
+       NCMethod::CHEBYSHEV. The default is NCMethod::LEFT_INVERSE. Has no
+       effect on conforming spaces, where $A_W$ is diagonal. In parallel, this
+       must be called on all ranks. */
+   void SetNCMethod(NCMethod method, int degree = 2);
+
+   /// Return the approximation of $A_W^{-1}$ used on nonconforming spaces.
+   NCMethod GetNCMethod() const { return nc_method; }
 
    ~BRASPreconditioner();
 };

@@ -22,6 +22,7 @@ namespace bras_test
 // spectral bounds of the theory, and compare parallel against serial runs.
 
 using Weighting = BRASPreconditioner::Weighting;
+using NCMethod = BRASPreconditioner::NCMethod;
 
 enum class MeshType { QUAD, TRI, HEX, TET };
 
@@ -197,6 +198,14 @@ bool IsPositiveDefinite(DenseMatrix A)
    return true;
 }
 
+// max_ij |A_ij - B_ij|.
+real_t MaxDiff(const DenseMatrix &A, const DenseMatrix &B)
+{
+   DenseMatrix D(A);
+   D -= B;
+   return D.MaxMaxNorm();
+}
+
 // Extreme eigenvalues of W^{-1} M for SPD M and positive diagonal W = diag(w),
 // by bisection on the definiteness of M - t W. These are the sharpest
 // constants in alpha W <= M <= beta W. Only Cholesky factorizations are used,
@@ -243,116 +252,296 @@ void ExtremeEigenvalues(const DenseMatrix &M, const Vector &w,
    lmax = hi;
 }
 
-// Reference weighted BRAS B_W = A^{-1} P^T W M_br^{-1} W P A^{-1}, with
-// A = P^T W P, built from its definition with dense matrices. Here P is the
-// signed Boolean matrix mapping the free DOFs of the serial conforming space to
-// the element DOFs. On the essential DOFs, B_W is the identity. Also returns
-// the constants alpha and beta of the equivalence alpha W <= M_br <= beta W.
+// R^T A R.
+DenseMatrix RtAR(const DenseMatrix &A, const DenseMatrix &R)
+{
+   DenseMatrix AR(A.Height(), R.Width()), RtAR_(R.Width());
+   Mult(A, R, AR);
+   MultAtB(R, AR, RtAR_);
+   return RtAR_;
+}
+
+// The dense matrices of the class documentation for a serial space, with
+// P = P_0 E, where P_0 maps the L-DOFs to the element DOFs and E is the
+// conforming prolongation (the identity on conforming meshes).
 //
-// Unlike the implementation, P is built from the signs of the element vdofs
-// (GetElementVDofs() encodes a negative orientation as -1-dof) rather than
-// from the element restriction, and A is inverted as a dense matrix, so the
-// test does not rely on P being Boolean or A being diagonal. The assembled
-// matrix of a must be available.
-DenseMatrix ReferenceBRAS(BilinearForm &a, Weighting weighting,
-                          const Array<int> &ess, real_t &alpha, real_t &beta)
+// Unlike the implementation, the products with P_0 use the signs of the
+// element vdofs (GetElementVDofs() encodes a negative orientation as -1-dof)
+// rather than the element restriction, and the products with E are computed
+// with dense matrices, so the test does not rely on the structure of P. The
+// assembled matrix of the form must be available.
+struct Reference
+{
+   Array<bool> free;    ///< The free true DOFs.
+   DenseMatrix E;       ///< E, with the essential columns set to zero.
+   Array<int> row_nnz;  ///< The number of nonzeros in each row of E.
+   Vector dl;           ///< diag(D_W) = diag(P_0^T W P_0).
+   DenseMatrix Gm;      ///< P_0^T W M_br^{-1} W P_0.
+   DenseMatrix M;       ///< E^T P_0^T M_br P_0 E, zero on the essential DOFs.
+   real_t alpha, beta;  ///< The constants in alpha W <= M_br <= beta W.
+};
+
+Reference BuildReference(BilinearForm &a, Weighting weighting,
+                         const Array<int> &ess)
 {
    const FiniteElementSpace &fes = *a.FESpace();
-   const int n = fes.GetVSize();
+   const int nl = fes.GetVSize();
+   const int nt = fes.GetTrueVSize();
    const int ne = fes.GetNE();
    const int nd = fes.GetFE(0)->GetDof()*fes.GetVDim();
-   const int nb = ne*nd;
+   Reference r;
 
-   Array<bool> free(n);
-   free = true;
-   for (int i : ess) { free[i] = false; }
+   // E and its row structure, then zero the essential columns.
+   r.E.SetSize(nl, nt);
+   if (const SparseMatrix *cP = fes.GetConformingProlongation())
+   {
+      cP->ToDenseMatrix(r.E);
+   }
+   else
+   {
+      REQUIRE(nl == nt);
+      r.E = 0.0;
+      for (int i = 0; i < nl; i++) { r.E(i,i) = 1.0; }
+   }
+   r.row_nnz.SetSize(nl);
+   r.row_nnz = 0;
+   for (int i = 0; i < nl; i++)
+   {
+      for (int j = 0; j < nt; j++) { if (r.E(i,j) != 0.0) { r.row_nnz[i]++; } }
+   }
+   r.free.SetSize(nt);
+   r.free = true;
+   for (int j : ess)
+   {
+      r.free[j] = false;
+      for (int i = 0; i < nl; i++) { r.E(i,j) = 0.0; }
+   }
 
-   // Pmat is P restricted to the free columns (the essential columns are
-   // zero), WMinvWP is (W M_br^{-1} W) P.
-   DenseMatrix Pmat(nb, n), WMinvWP(nb, n), elmat, inv;
-   Pmat = 0.0;
-   Vector w(nb);
-   DenseMatrix Mbr_P(nb, n); // M_br P, to check P^T M_br P = M
-   Mbr_P = 0.0;
-   alpha = infinity();
-   beta = 0.0;
-   Array<int> vdofs;
+   // Each element contributes to the products with P_0 through its signed
+   // vdofs: P_0 has the entry sgn(i) in row (e, i) and column dof(i), so
+   // (P_0^T X P_0)(dof(i), dof(k)) gains sgn(i) X_e(i,k) sgn(k) for each block
+   // X_e of a block diagonal X. This gives P_0^T M_br P_0, Gm and
+   // diag(D_W) = P_0^T diag(w) P_0 without forming P_0.
+   DenseMatrix P0tMP0(nl), elmat, inv;
+   P0tMP0 = 0.0;
+   r.Gm.SetSize(nl);
+   r.Gm = 0.0;
+   r.dl.SetSize(nl);
+   r.dl = 0.0;
+   r.alpha = infinity();
+   r.beta = 0.0;
+   Array<int> vdofs, dof(nd);
+   Vector sgn(nd), w_e(nd);
    DofTransformation doftrans;
-   std::vector<DenseMatrix> Me(ne), Me_inv(ne);
    for (int e = 0; e < ne; e++)
    {
       // The element matrix in the basis of the global DOFs, as summed into
-      // the assembled matrix by BilinearForm::Assemble().
+      // the assembled matrix by BilinearForm::Assemble(), and W = diag(w_e).
       fes.GetElementVDofs(e, vdofs, doftrans);
       a.ComputeElementMatrix(e, elmat);
       doftrans.TransformDual(elmat);
-      Me[e] = elmat;
-      Vector w_e(nd);
       for (int i = 0; i < nd; i++)
       {
-         const int j = vdofs[i] >= 0 ? vdofs[i] : -1 - vdofs[i];
-         if (free[j]) { Pmat(e*nd + i, j) = vdofs[i] >= 0 ? 1.0 : -1.0; }
+         dof[i] = vdofs[i] >= 0 ? vdofs[i] : -1 - vdofs[i];
+         sgn(i) = vdofs[i] >= 0 ? 1.0 : -1.0;
          w_e(i) = weighting == Weighting::DIAGONAL ? elmat(i,i) : 1.0;
-         w(e*nd + i) = w_e(i);
       }
       real_t lmin, lmax;
       ExtremeEigenvalues(elmat, w_e, lmin, lmax);
-      alpha = std::min(alpha, lmin);
-      beta = std::max(beta, lmax);
+      r.alpha = std::min(r.alpha, lmin);
+      r.beta = std::max(r.beta, lmax);
       DenseMatrixInverse(elmat).GetInverseMatrix(inv);
-      Me_inv[e] = inv;
-   }
-
-   // Block products with M_br and W M_br^{-1} W.
-   for (int e = 0; e < ne; e++)
-   {
       for (int i = 0; i < nd; i++)
       {
-         for (int j = 0; j < n; j++)
+         r.dl(dof[i]) += w_e(i);
+         for (int k = 0; k < nd; k++)
          {
-            real_t s = 0.0, t = 0.0;
-            for (int k = 0; k < nd; k++)
-            {
-               const real_t p = Pmat(e*nd + k, j);
-               s += w(e*nd + i)*Me_inv[e](i,k)*w(e*nd + k)*p;
-               t += Me[e](i,k)*p;
-            }
-            WMinvWP(e*nd + i, j) = s;
-            Mbr_P(e*nd + i, j) = t;
+            const real_t s = sgn(i)*sgn(k);
+            P0tMP0(dof[i], dof[k]) += s*elmat(i,k);
+            r.Gm(dof[i], dof[k]) += s*w_e(i)*inv(i,k)*w_e(k);
          }
       }
    }
 
-   // Check that P^T M_br P is the assembled matrix on the free DOFs.
-   DenseMatrix M(n), PtMP(n);
-   a.SpMat().ToDenseMatrix(M);
-   MultAtB(Pmat, Mbr_P, PtMP);
-   real_t err = 0.0;
-   for (int i = 0; i < n; i++)
-   {
-      for (int j = 0; j < n; j++)
-      {
-         if (free[i] && free[j]) { err = std::max(err, std::abs(M(i,j) - PtMP(i,j))); }
-      }
-   }
-   REQUIRE(err <= 1e-12*M.MaxMaxNorm());
+   // Check that P_0^T M_br P_0 is the assembled matrix on the L-DOFs.
+   DenseMatrix ML;
+   a.SpMat().ToDenseMatrix(ML);
+   REQUIRE(MaxDiff(ML, P0tMP0) <= 1e-12*ML.MaxMaxNorm());
+   r.M = RtAR(ML, r.E);
+   return r;
+}
 
-   // A = P^T W P and G = P^T W M_br^{-1} W P. The essential rows and columns
-   // of A are zero, so set A_ii = 1 there to make it invertible; this does
-   // not affect the free block of B, and the essential rows and columns of G
-   // (and therefore of B) are zero.
-   DenseMatrix WP(Pmat), A(n), G(n), AinvG(n), B(n), Ainv;
-   for (int i = 0; i < nb; i++)
-   {
-      for (int j = 0; j < n; j++) { WP(i,j) *= w(i); }
-   }
-   MultAtB(Pmat, WP, A);
-   for (int i : ess) { A(i,i) = 1.0; }
-   MultAtB(Pmat, WMinvWP, G);
+// Reference weighted BRAS B_W = A^{-1} P^T W M_br^{-1} W P A^{-1}, with
+// A = P^T W P, built from its definition with dense matrices. With the
+// essential columns of P removed, this is weighted BRAS for the free DOFs. On
+// the essential DOFs, B_W is the identity.
+DenseMatrix ReferenceBW(const Reference &r)
+{
+   const int nt = r.E.Width();
+   DenseMatrix Dl(r.dl.Size());
+   Dl.Diag(r.dl.GetData(), r.dl.Size());
+   // A = E^T D_W E and G = E^T Gm E. The essential rows and columns of A are
+   // zero, so set A_ii = 1 there to make it invertible; this does not affect
+   // the free block of B, and the essential rows and columns of G (and
+   // therefore of B) are zero.
+   DenseMatrix A = RtAR(Dl, r.E), G = RtAR(r.Gm, r.E), Ainv, AinvG(nt),
+               B(nt);
+   for (int j = 0; j < nt; j++) { if (!r.free[j]) { A(j,j) = 1.0; } }
    DenseMatrixInverse(A).GetInverseMatrix(Ainv);
    Mult(Ainv, G, AinvG);
    Mult(AinvG, Ainv, B);
-   for (int i : ess) { B(i,i) = 1.0; }
+   for (int j = 0; j < nt; j++) { if (!r.free[j]) { B(j,j) = 1.0; } }
+   return B;
+}
+
+// Reference for the nonconforming methods, from the formulas in the
+// documentation of BRASPreconditioner::NCMethod, with dense matrices. The J
+// rows of E are the rows with at most one nonzero, and the H rows form C.
+// On the free DOFs, S = diag(A)^{-1} and Lambda_u = E_J^T D_W E_J; both are
+// set to zero on the essential DOFs. If E has no H rows, A is diagonal and
+// all methods reduce to B_W.
+DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
+{
+   const int nl = r.E.Height(), nt = r.E.Width();
+   if (r.row_nnz.Max() <= 1) { return ReferenceBW(r); }
+
+   // s = diag(S), lus = diag(Lambda_u^{-1}).
+   Vector s(nt), lus(nt);
+   for (int j = 0; j < nt; j++)
+   {
+      real_t d = 0.0, lu = 0.0;
+      for (int i = 0; i < nl; i++)
+      {
+         const real_t e2 = r.E(i,j)*r.E(i,j)*r.dl(i);
+         d += e2;
+         if (r.row_nnz[i] <= 1) { lu += e2; }
+      }
+      s(j) = r.free[j] ? 1.0/d : 0.0;
+      lus(j) = r.free[j] ? 1.0/lu : 0.0;
+   }
+   const DenseMatrix G = RtAR(r.Gm, r.E);
+   DenseMatrix B(nt);
+
+   if (method == NCMethod::DIAGONAL)
+   {
+      // S G S.
+      for (int i = 0; i < nt; i++)
+      {
+         for (int j = 0; j < nt; j++) { B(i,j) = s(i)*G(i,j)*s(j); }
+      }
+   }
+   else if (method == NCMethod::LEFT_INVERSE)
+   {
+      // X C = S C^T Lambda_h C with X = S C^T Lambda_h.
+      DenseMatrix XC(nt);
+      XC = 0.0;
+      for (int i = 0; i < nl; i++)
+      {
+         if (r.row_nnz[i] <= 1) { continue; }
+         for (int j = 0; j < nt; j++)
+         {
+            if (r.E(i,j) == 0.0) { continue; }
+            for (int k = 0; k < nt; k++)
+            {
+               XC(j,k) += s(j)*r.E(i,j)*r.dl(i)*r.E(i,k);
+            }
+         }
+      }
+      // L_X = [(I - X C) Lambda_u^{-1} E_J^T, X Lambda_h^{-1}], with the
+      // columns in the order of the L-DOFs; X Lambda_h^{-1} = S C^T. A J row
+      // i of E has at most one nonzero, in column k, so column i of
+      // (I - X C) Lambda_u^{-1} E_J^T is column k of I - X C, scaled.
+      DenseMatrix Lx(nt, nl);
+      Lx = 0.0;
+      for (int i = 0; i < nl; i++)
+      {
+         if (r.row_nnz[i] <= 1)
+         {
+            for (int k = 0; k < nt; k++)
+            {
+               if (r.E(i,k) == 0.0) { continue; }
+               for (int j = 0; j < nt; j++)
+               {
+                  Lx(j,i) = ((j == k) - XC(j,k))*lus(k)*r.E(i,k);
+               }
+            }
+         }
+         else
+         {
+            for (int j = 0; j < nt; j++) { Lx(j,i) = s(j)*r.E(i,j); }
+         }
+      }
+      // L_X D_W E = I on the free DOFs, so that R_X = L_X P_0^T W is a left
+      // inverse of P. The essential rows and columns are zero.
+      DenseMatrix LxD(Lx), LxDE(nt);
+      LxD.RightScaling(r.dl);
+      Mult(LxD, r.E, LxDE);
+      for (int j = 0; j < nt; j++) { if (r.free[j]) { LxDE(j,j) -= 1.0; } }
+      REQUIRE(LxDE.MaxMaxNorm() <= 1e-12);
+      // B_X = L_X Gm L_X^T.
+      DenseMatrix LxGm(nt, nl);
+      Mult(Lx, r.Gm, LxGm);
+      MultABt(LxGm, Lx, B);
+   }
+   else
+   {
+      // A_0 = E^T D_W E, with zero essential rows and columns.
+      DenseMatrix Dl(nl);
+      Dl.Diag(r.dl.GetData(), nl);
+      const DenseMatrix A0 = RtAR(Dl, r.E);
+      // The interval: a = min(Lambda_u S) on the free DOFs, and b from 20
+      // power iterations on S A_0, from the vector of ones on the free DOFs,
+      // as in the implementation.
+      real_t a = infinity();
+      Vector v(nt), Av(nt);
+      for (int j = 0; j < nt; j++)
+      {
+         if (r.free[j]) { a = std::min(a, s(j)/lus(j)); }
+         v(j) = r.free[j] ? 1.0 : 0.0;
+      }
+      real_t b = 1.0;
+      for (int it = 0; it < 20; it++)
+      {
+         A0.Mult(v, Av);
+         real_t vSinvv = 0.0;
+         for (int j = 0; j < nt; j++) { if (r.free[j]) { vSinvv += v(j)*v(j)/s(j); } }
+         b = (v*Av)/vSinvv;
+         for (int j = 0; j < nt; j++) { v(j) = s(j)*Av(j); }
+         v /= v.Norml2();
+      }
+      b = std::max({b, 1.0, (1.0 + 1e-6)*a});
+
+      // The Chebyshev semi-iteration for A_0 Q = I, with preconditioner S,
+      // from Q = 0, gives the matrix Q = q_k(A_0).
+      const real_t theta = 0.5*(b + a), delta = 0.5*(b - a);
+      const real_t sigma = theta/delta;
+      real_t rho = 1.0/sigma;
+      DenseMatrix Q(nt), R(nt), D(nt), AD(nt);
+      Q = 0.0;
+      R = 0.0;
+      for (int j = 0; j < nt; j++) { R(j,j) = 1.0; }
+      D = R;
+      D.LeftScaling(s);
+      D *= 1.0/theta;
+      for (int it = 0; ; it++)
+      {
+         Q += D;
+         if (it == degree) { break; }
+         Mult(A0, D, AD);
+         R -= AD;
+         const real_t rho_new = 1.0/(2.0*sigma - rho);
+         DenseMatrix SR(R);
+         SR.LeftScaling(s);
+         D *= rho_new*rho;
+         D.Add(2.0*rho_new/delta, SR);
+         rho = rho_new;
+      }
+      // Q G Q.
+      DenseMatrix QG(nt);
+      Mult(Q, G, QG);
+      Mult(QG, Q, B);
+   }
+   for (int j = 0; j < nt; j++) { if (!r.free[j]) { B(j,j) = 1.0; } }
    return B;
 }
 
@@ -376,12 +565,55 @@ DenseMatrix FreeSubmatrix(const DenseMatrix &A, const Array<int> &ess)
    return S;
 }
 
-// max_ij |A_ij - B_ij|.
-real_t MaxDiff(const DenseMatrix &A, const DenseMatrix &B)
+// Check that B is symmetric, and that M^{-1} <= B <= K M^{-1} on the free
+// DOFs, i.e. lmin <= lambda(B M) <= lmax, with a small relative tolerance. If
+// lmin is zero, only the upper bound is checked. M is zero on the essential
+// DOFs.
+void CheckSpectralBounds(const DenseMatrix &B, const DenseMatrix &M,
+                         const Array<int> &ess, real_t lmin, real_t lmax)
 {
-   DenseMatrix D(A);
-   D -= B;
-   return D.MaxMaxNorm();
+   DenseMatrix Bt(B);
+   Bt.Transpose();
+   REQUIRE(MaxDiff(B, Bt) <= 1e-12*B.MaxMaxNorm());
+
+   DenseMatrix Minv;
+   DenseMatrixInverse(FreeSubmatrix(M, ess)).GetInverseMatrix(Minv);
+   const DenseMatrix B_free = FreeSubmatrix(B, ess);
+   DenseMatrix S(B_free);
+   if (lmin > 0.0)
+   {
+      S.Add(-lmin*(1.0 - 1e-8), Minv);
+      REQUIRE(IsPositiveDefinite(S));
+   }
+   S = Minv;
+   S *= lmax*(1.0 + 1e-8);
+   S -= B_free;
+   REQUIRE(IsPositiveDefinite(S));
+}
+
+// The Kantorovich factor of the theory, (alpha + beta)^2/(4 alpha beta).
+real_t Kantorovich(real_t alpha, real_t beta)
+{
+   return (alpha + beta)*(alpha + beta)/(4.0*alpha*beta);
+}
+
+// Refine nonconformingly the elements with center in x < 0.5, y < 0.5, and
+// then those with center in x < 0.25, y < 0.25, which creates hanging DOFs of
+// two levels. The result is the same for a serial and a parallel mesh.
+void RefineNC(Mesh &mesh)
+{
+   mesh.EnsureNCMesh();
+   for (real_t r : {0.5, 0.25})
+   {
+      Array<int> refs;
+      Vector c;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         mesh.GetElementCenter(e, c);
+         if (c(0) < r && c(1) < r) { refs.Append(e); }
+      }
+      mesh.GeneralRefinement(refs, 1);
+   }
 }
 
 } // namespace bras_test
@@ -431,32 +663,72 @@ TEST_CASE("BRAS dense reference", "[BRAS]")
    }
    REQUIRE(bras->Height() == fes.GetTrueVSize());
 
-   real_t alpha, beta;
    const DenseMatrix B = ToDense(*bras);
-   const DenseMatrix B_ref = ReferenceBRAS(a, weighting, ess, alpha, beta);
-   const real_t B_norm = B_ref.MaxMaxNorm();
-   REQUIRE(MaxDiff(B, B_ref) <= 1e-10*B_norm);
+   const Reference ref = BuildReference(a, weighting, ess);
+   const DenseMatrix B_ref = ReferenceBW(ref);
+   REQUIRE(MaxDiff(B, B_ref) <= 1e-10*B_ref.MaxMaxNorm());
 
-   DenseMatrix Bt(B);
-   Bt.Transpose();
-   REQUIRE(MaxDiff(B, Bt) <= 1e-12*B_norm);
+   // Theorem: 1 <= lambda(B M) <= K(alpha, beta) on the free DOFs.
+   const real_t K = Kantorovich(ref.alpha, ref.beta);
+   CAPTURE(ref.alpha, ref.beta, K);
+   CheckSpectralBounds(B, ref.M, ess, 1.0, K);
+}
 
-   // Theorem: 1 <= lambda(B M) <= K(alpha, beta) on the free DOFs, that is
-   // M^{-1} <= B <= K M^{-1}, with the Kantorovich factor K below. Both
-   // inequalities are checked with a small relative tolerance.
-   DenseMatrix M(fes.GetVSize()), Minv;
-   a.SpMat().ToDenseMatrix(M);
-   DenseMatrixInverse(FreeSubmatrix(M, ess)).GetInverseMatrix(Minv);
-   const DenseMatrix B_free = FreeSubmatrix(B, ess);
-   const real_t K = (alpha + beta)*(alpha + beta)/(4.0*alpha*beta);
-   CAPTURE(alpha, beta, K);
-   DenseMatrix S(B_free);
-   S.Add(-(1.0 - 1e-8), Minv);
-   REQUIRE(IsPositiveDefinite(S));
-   S = Minv;
-   S *= K*(1.0 + 1e-8);
-   S -= B_free;
-   REQUIRE(IsPositiveDefinite(S));
+// On nonconforming meshes, each NCMethod equals its dense reference. The
+// left inverse method satisfies lambda_min(B_X M) >= 1, and all methods
+// satisfy an upper bound close to that of B_W.
+TEST_CASE("BRAS nonconforming dense reference", "[BRAS]")
+{
+   const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX);
+   const auto space = GENERATE(Space::H1_1, Space::H1_3, Space::H1_VDIM,
+                               Space::ND_1, Space::ND_2, Space::RT_0,
+                               Space::RT_1);
+   const auto weighting = GENERATE(Weighting::IDENTITY, Weighting::DIAGONAL);
+   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::DIAGONAL,
+                                NCMethod::CHEBYSHEV);
+   const bool use_ess = GENERATE(false, true);
+   CAPTURE(int(mesh_type), int(space), int(weighting), int(method), use_ess);
+
+   // Only the lowest order spaces on hexahedra, since the others give large
+   // dense matrices. On quadrilaterals, RT_1 replaces RT_0.
+   const bool lowest_order = space == Space::H1_1 || space == Space::ND_1 ||
+                             space == Space::RT_0;
+   if (mesh_type == MeshType::HEX ? !lowest_order : space == Space::RT_0)
+   {
+      return;
+   }
+
+   Mesh mesh = MakeMesh(mesh_type, 2);
+   RefineNC(mesh);
+   SpaceInfo info = MakeSpace(space, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, info.fec.get(), info.vdim, info.ordering);
+   REQUIRE(fes.Nonconforming());
+
+   FunctionCoefficient Q(ScalarCoeff);
+   const int mdim = space == Space::H1_VDIM ? info.vdim : mesh.Dimension();
+   MatrixFunctionCoefficient MQ(mdim, MatrixCoeff);
+   Array<int> ess;
+   if (use_ess) { fes.GetBoundaryTrueDofs(ess); }
+
+   BilinearForm a(&fes);
+   AddMassIntegrator(a, space, Q, MQ);
+   a.Assemble();
+   a.Finalize();
+   BRASPreconditioner bras(a, ess, weighting);
+   REQUIRE(bras.GetNCMethod() == NCMethod::LEFT_INVERSE);
+   const int degree = 2;
+   bras.SetNCMethod(method, degree);
+
+   const DenseMatrix B = ToDense(bras);
+   const Reference ref = BuildReference(a, weighting, ess);
+   const DenseMatrix B_ref = ReferenceNC(ref, method, degree);
+   REQUIRE(MaxDiff(B, B_ref) <= 1e-10*B_ref.MaxMaxNorm());
+
+   // The upper bound of B_W holds for B_X and the Chebyshev method only
+   // approximately, so allow a factor 2. Only B_X has the lower bound 1.
+   const real_t K = Kantorovich(ref.alpha, ref.beta);
+   const real_t lmin = method == NCMethod::LEFT_INVERSE ? 1.0 : 0.0;
+   CheckSpectralBounds(B, ref.M, ess, lmin, 2.0*K);
 }
 
 TEST_CASE("BRAS L2 space is exact", "[BRAS]")
@@ -592,6 +864,38 @@ TEST_CASE("BRAS Update", "[BRAS]")
    }
 }
 
+// Update() after adaptive nonconforming refinement, starting from a mesh
+// without hanging DOFs, keeps the nonconforming method and matches a
+// preconditioner built from scratch on the refined space.
+TEST_CASE("BRAS nonconforming Update", "[BRAS]")
+{
+   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::DIAGONAL,
+                                NCMethod::CHEBYSHEV);
+   Mesh mesh = MakeMesh(MeshType::QUAD, 2);
+   mesh.EnsureNCMesh();
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   FunctionCoefficient Q(ScalarCoeff);
+   Array<int> ess;
+   fes.GetBoundaryTrueDofs(ess);
+   BRASPreconditioner bras(fes, Q, ess);
+   bras.SetNCMethod(method, 3);
+
+   for (int it = 0; it < 2; it++)
+   {
+      Array<int> refs({0});
+      mesh.GeneralRefinement(refs, 1);
+      fes.Update();
+      fes.GetBoundaryTrueDofs(ess);
+      bras.Update(ess);
+      REQUIRE(bras.GetNCMethod() == method);
+      BRASPreconditioner bras_new(fes, Q, ess);
+      bras_new.SetNCMethod(method, 3);
+      const DenseMatrix B = ToDense(bras_new);
+      REQUIRE(MaxDiff(ToDense(bras), B) <= 1e-12*B.MaxMaxNorm());
+   }
+}
+
 #ifdef MFEM_USE_MPI
 
 // The parallel preconditioner applied to the true DOFs of a distributed grid
@@ -606,8 +910,10 @@ TEST_CASE("BRAS parallel", "[BRAS][Parallel]")
                                Space::L2_2, Space::ND_1, Space::ND_2,
                                Space::RT_1);
    const auto weighting = GENERATE(Weighting::IDENTITY, Weighting::DIAGONAL);
-   // DOFs on shared triangular faces of high order Nedelec spaces are not
-   // supported.
+   // For high order Nedelec spaces on tetrahedra, the parallel prolongation
+   // applies a change of basis to the DOFs on shared triangular faces, which
+   // changes A_W, so the serial and parallel preconditioners differ. This
+   // case is tested in "BRAS parallel PCG".
    if (mesh_type == MeshType::TET && space == Space::ND_2) { return; }
    CAPTURE(int(mesh_type), int(space), int(weighting));
 
@@ -662,18 +968,92 @@ TEST_CASE("BRAS parallel", "[BRAS][Parallel]")
    REQUIRE(diff <= 1e-12*norm);
 }
 
-// PCG on the mass matrix with essential DOFs eliminated converges in a small,
-// mesh-independent number of iterations on curved meshes. The bound is loose,
-// to allow for different partitionings.
-TEST_CASE("BRAS parallel PCG", "[BRAS][Parallel]")
+// Same as above on nonconforming meshes, for each NCMethod. The hanging DOFs
+// are the same in serial and in parallel, and the true DOFs differ only by
+// orientation signs, so the methods give the same operator. Here the serial
+// space has a prolongation, so the serial true-DOF vector is prolongated to a
+// grid function before mapping it to the parallel space.
+TEST_CASE("BRAS parallel nonconforming", "[BRAS][Parallel]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX);
-   const auto space = GENERATE(Space::H1_3, Space::ND_2, Space::RT_1);
-   CAPTURE(int(mesh_type), int(space));
+   const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::ND_2,
+                               Space::RT_1);
+   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::DIAGONAL,
+                                NCMethod::CHEBYSHEV);
+   CAPTURE(int(mesh_type), int(space), int(method));
 
    const int nranks = Mpi::WorldSize();
-   const bool is_3d = mesh_type == MeshType::HEX;
+   Mesh smesh = MakeMesh(mesh_type, mesh_type == MeshType::HEX ? 2 : 4);
+   RefineNC(smesh);
+   Array<int> part = SlabPartitioning(smesh, nranks);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, part.GetData());
+
+   SpaceInfo info = MakeSpace(space, smesh.Dimension());
+   FiniteElementSpace sfes(&smesh, info.fec.get(), info.vdim, info.ordering);
+   REQUIRE(sfes.Nonconforming());
+
+   FunctionCoefficient Q(ScalarCoeff);
+   const int mdim = space == Space::H1_VDIM ? info.vdim : smesh.Dimension();
+   MatrixFunctionCoefficient MQ(mdim, MatrixCoeff);
+
+   // xs = E Xs is a conforming grid function, so its parallel true DOFs are
+   // obtained by projection.
+   Vector Xs(sfes.GetTrueVSize()), Ys(Xs.Size());
+   Xs.Randomize(1);
+   GridFunction xs(&sfes), ys(&sfes);
+   xs.SetFromTrueDofs(Xs);
+   ParGridFunction xp(&pmesh, &xs, part.GetData());
+   ParFiniteElementSpace &pfes = *xp.ParFESpace();
+   Vector X(pfes.GetTrueVSize()), Y(X.Size()), Y_ref(X.Size());
+   xp.ParallelProject(X);
+
+   Array<int> ess_s, ess_p;
+   sfes.GetBoundaryTrueDofs(ess_s);
+   pfes.GetBoundaryTrueDofs(ess_p);
+
+   std::unique_ptr<BRASPreconditioner> bras_s, bras_p;
+   if (UsesMatrixCoeff(space))
+   {
+      bras_s.reset(new BRASPreconditioner(sfes, MQ, ess_s));
+      bras_p.reset(new BRASPreconditioner(pfes, MQ, ess_p));
+   }
+   else
+   {
+      bras_s.reset(new BRASPreconditioner(sfes, Q, ess_s));
+      bras_p.reset(new BRASPreconditioner(pfes, Q, ess_p));
+   }
+   bras_s->SetNCMethod(method);
+   bras_p->SetNCMethod(method);
+
+   bras_s->Mult(Xs, Ys);
+   ys.SetFromTrueDofs(Ys);
+   ParGridFunction yp(&pmesh, &ys, part.GetData());
+   yp.ParallelProject(Y_ref);
+   bras_p->Mult(X, Y);
+
+   Y -= Y_ref;
+   const real_t diff = ParNormlp(Y, infinity(), MPI_COMM_WORLD);
+   const real_t norm = ParNormlp(Y_ref, infinity(), MPI_COMM_WORLD);
+   REQUIRE(diff <= 1e-12*norm);
+}
+
+// PCG on the mass matrix with essential DOFs eliminated converges in a small,
+// mesh-independent number of iterations on curved meshes, on conforming and
+// nonconforming meshes, and for Nedelec spaces with DOFs on shared triangular
+// faces. The bound is loose, to allow for different partitionings.
+TEST_CASE("BRAS parallel PCG", "[BRAS][Parallel]")
+{
+   const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX,
+                                   MeshType::TET);
+   const auto space = GENERATE(Space::H1_3, Space::ND_2, Space::RT_1);
+   const bool nonconforming = GENERATE(false, true);
+   if (nonconforming && mesh_type == MeshType::TET) { return; }
+   CAPTURE(int(mesh_type), int(space), nonconforming);
+
+   const int nranks = Mpi::WorldSize();
+   const bool is_3d = mesh_type != MeshType::QUAD;
    Mesh smesh = MakeMesh(mesh_type, is_3d ? 4 : 8, true);
+   if (nonconforming) { RefineNC(smesh); }
    Array<int> part = SlabPartitioning(smesh, nranks);
    ParMesh pmesh(MPI_COMM_WORLD, smesh, part.GetData());
    SpaceInfo info = MakeSpace(space, smesh.Dimension());
@@ -702,7 +1082,9 @@ TEST_CASE("BRAS parallel PCG", "[BRAS][Parallel]")
    cg.SetPreconditioner(bras);
    cg.Mult(B, X);
    REQUIRE(cg.GetConverged());
-   REQUIRE(cg.GetNumIterations() <= 20);
+   // The curved tetrahedral meshes need about 20 iterations in serial, and up
+   // to 25 with Nedelec DOFs on shared triangular faces.
+   REQUIRE(cg.GetNumIterations() <= (mesh_type == MeshType::TET ? 30 : 20));
 }
 
 #endif // MFEM_USE_MPI
