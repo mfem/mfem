@@ -24,31 +24,6 @@
 namespace mfem
 {
 
-struct glvis_data
-{
-   bool serial;
-   int mpi_size;
-   bool mpi_root;
-#ifdef MFEM_USE_MPI
-   MPI_Comm comm;
-#endif
-   std::stringstream stream;
-   std::vector<std::unique_ptr<std::istream>> streams;
-   int total_size;
-   std::vector<int> offsets;
-   std::string type;
-
-#ifdef MFEM_USE_MPI
-   explicit glvis_data(MPI_Comm comm)
-      : serial(true), mpi_size(1), mpi_root(true), comm(comm),
-        total_size(0), type({}) {}
-#else
-   glvis_data()
-      : serial(true), mpi_size(1), mpi_root(true),
-        total_size(0), type({}) {}
-#endif
-};
-
 /// Gathers one GLVis payload. Rank 0 opens the window.
 ///
 /// flush() and '<< std::flush' are collective. Every rank of the stored
@@ -63,6 +38,31 @@ struct glvis_data
 /// mesh is still incomplete.
 class glvis_stream: public std::iostream
 {
+   struct glvis_data
+   {
+      bool serial;
+      int mpi_size;
+      bool mpi_root;
+#ifdef MFEM_USE_MPI
+      MPI_Comm comm;
+#endif
+      std::stringstream stream;
+      std::vector<std::unique_ptr<std::istream>> streams;
+      int total_size;
+      std::vector<int> offsets;
+      std::string type;
+
+#ifdef MFEM_USE_MPI
+      explicit glvis_data(MPI_Comm comm)
+         : serial(true), mpi_size(1), mpi_root(true), comm(comm),
+           total_size(0), type({}) {}
+#else
+      glvis_data()
+         : serial(true), mpi_size(1), mpi_root(true),
+           total_size(0), type({}) {}
+#endif
+   };
+
    glvis_data data;
    bool visualize = true;
    void SyncComm();
