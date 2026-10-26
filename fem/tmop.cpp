@@ -5849,13 +5849,12 @@ UpdateAfterMeshPositionChange(const Vector &dx_loc,
       // All adapt_lim_gf are remapped as a multi-component vector.
       const int nal = adapt_lim_coeff.Size();
       const int ndofs = adapt_lim_gf0[0]->Size();
-      Vector new_field_vec;
-      new_field_vec.SetSize(nal * ndofs, *adapt_lim_gf[0]);
-      new_field_vec.UseDevice(adapt_lim_gf[0]->UseDevice());
-      adapt_lim_eval->ComputeAtNewPosition(x_loc, new_field_vec, ordering);
+      adapt_lim_field.SetSize(nal * ndofs, *adapt_lim_gf[0]);
+      adapt_lim_field.UseDevice(adapt_lim_gf[0]->UseDevice());
+      adapt_lim_eval->ComputeAtNewPosition(x_loc, adapt_lim_field, ordering);
       for (int c = 0; c < nal; c++)
       {
-         const real_t *src = new_field_vec.Read() + c * ndofs;
+         const real_t *src = adapt_lim_field.Read() + c * ndofs;
          real_t *dst = adapt_lim_gf[c]->Write();
          internal::device_copy(dst, src, ndofs);
       }

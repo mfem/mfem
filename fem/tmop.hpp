@@ -2051,6 +2051,7 @@ protected:
    Array<GridFunction *> adapt_lim_gf0;   // Owned. Initial fields z_k0(x0).
    Array<GridFunction *> adapt_lim_gf;    // Owned. Remapped fields z_k(x).
    Vector adapt_lim_init_nodes;           // Owned. Initial mesh nodes (ldofs).
+   Vector adapt_lim_field;                // Packed remapping workspace.
    Array<Coefficient *> adapt_lim_coeff;  // Not owned, one per field.
    AdaptivityEvaluator *adapt_lim_eval;   // Not owned. Used for all fields.
    Array<real_t> adapt_lim_delta_max;     // Per-field delta_max_k (>0).
