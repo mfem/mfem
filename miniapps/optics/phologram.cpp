@@ -1376,5 +1376,10 @@ int main(int argc, char *argv[]) try
 catch (const std::exception &exc)
 {
    mfem::err << exc.what() << "\n";
+   // Returning finalizes MPI while other ranks may still be in a collective.
+   if (Mpi::IsInitialized() && !Mpi::IsFinalized())
+   {
+      MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+   }
    return EXIT_FAILURE;
 }
