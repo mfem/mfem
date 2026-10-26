@@ -57,10 +57,11 @@ sample rows, and the Newton and CG vectors.
   global copies of the target samples. The full phase-mask image is also kept
   on every rank: the mask field is gathered to all ranks before it is formed.
   Rank 0 writes the mask PNG.
-- Fresnel propagation is distributed. Each rank applies the $x$ factor
-  $\omega^x$ to its own sample rows. An all-to-all exchange then gives each
-  rank a block of full columns, where it applies the $y$ factor $\omega^y$,
-  and a second exchange returns the rows. The adjoint uses the same steps.
+- Fresnel propagation is distributed. An all-to-all gives each rank a block
+  of full columns, where it applies the $y$ factor $\omega^y$. A second
+  exchange returns the rows, and the rank then applies the $x$ factor
+  $\omega^x$. Either order is the same product once each factor sees a full
+  axis. The adjoint uses the same steps.
 - With `-fft`, each rank plans the FFTs for its rows and its block of
   columns. With `-gem`, each rank stores the full dense $\omega^x$ and
   $\omega^y$ and their adjoints. `-gmem` applies to each rank, the host
