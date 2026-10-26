@@ -583,7 +583,7 @@ Operator &ProximalGalerkinOperator::GetGradient(const Vector &x) const
 
    psi_cur_gf = psi_old_gf;
    psi_cur_gf.Add(-alpha, lambda_gf);
-   TransformedCoefficient exp_psi(&psi_cur_cf, &obstacle, exp_sum);
+   TransformedCoefficient exp_psi(&psi_cur_cf, &zero, exp_sum);
    ProductCoefficient alpha_exp_psi(alpha, exp_psi);
 
    ParBilinearForm a11(&L2fes);
