@@ -3124,15 +3124,11 @@ TEST_CASE("InteriorBoundaryEssentialDofs2D", "[NCMesh]")
    }
 }
 
-TEST_CASE("NCMesh high-valence vertex refcount", "[NCMesh]")
+TEST_CASE("NCMesh high vertex reference count", "[NCMesh]")
 {
-   // A vertex whose valence is a multiple of 256 (unsigned char) or >= 128
-   // (signed char) overflowed the 8-bit NCMesh::Node::vert_refc counter.
-   // HasVertex() then returned false, vertex_nodeId[] was left uninitialized,
-   // and NCMesh::OnMeshUpdated() dereferenced a null node -> assert/segfault.
-   //
-   // Build a "spindle" of K tetrahedra sharing the central axis edge so the
-   // two axis vertices each have valence K.
+   // Test large vertex reference counts, supported up to the limit of
+   // std::uint16_t. K tets share a central axis edge, so the two axis
+   // vertices each have reference count K.
    auto make_spindle = [](int K)
    {
       Mesh mesh(3, K + 2, K);
@@ -3159,14 +3155,12 @@ TEST_CASE("NCMesh high-valence vertex refcount", "[NCMesh]")
    const int nv = mesh.GetNV();
    REQUIRE(mesh.GetNE() == K);
 
-   // Would assert ("edge not found") / segfault in OnMeshUpdated before the
-   // char -> int16_t refcount fix when K is a multiple of 256.
    mesh.EnsureNCMesh(true);
 
    REQUIRE(mesh.GetNV() == nv);
    REQUIRE_FALSE(mesh.Conforming());
 
-   // The (previously corrupted) non-conforming structure must be usable.
+   // The non-conforming structure must be usable.
    H1_FECollection fec(1, mesh.Dimension());
    FiniteElementSpace fes(&mesh, &fec);
    REQUIRE(fes.GetVSize() == nv);
