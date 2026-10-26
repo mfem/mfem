@@ -186,7 +186,7 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x)
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &xloc)
 {
    // All are constant or not specified.
    const int nal = PA.nal;
@@ -204,7 +204,7 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x)
    for (int e = 0; e < PA.ne; ++e)
    {
       // Uses the current node positions.
-      PA.fes->GetMesh()->GetElementTransformation(e, x, T);
+      PA.fes->GetMesh()->GetElementTransformation(e, xloc, T);
 
       if (PA.MC.Size() > 1)
       {

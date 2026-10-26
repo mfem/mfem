@@ -5637,7 +5637,7 @@ void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
    }
 }
 
-void TMOP_Integrator::ComputeMinJac(const Vector &x,
+void TMOP_Integrator::ComputeMinJac(const Vector &xloc,
                                     const FiniteElementSpace &fes)
 {
    const FiniteElement *fe = fes.GetTypicalFE();
@@ -5657,7 +5657,7 @@ void TMOP_Integrator::ComputeMinJac(const Vector &x,
    for (int i = 0; i < NE; i++)
    {
       fes.GetElementVDofs(i, xdofs);
-      x.GetSubVector(xdofs, posV);
+      xloc.GetSubVector(xdofs, posV);
       detv_sum = 0.;
       for (int j = 0; j < nsp; j++)
       {
@@ -5805,15 +5805,17 @@ UpdateAfterMeshPositionChange(const Vector &dx_loc,
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
-   if (x_0)
+   if (periodic)
    {
       x_loc.SetSize(x_0->Size(), *x_0);
       x_loc.UseDevice(x_0->UseDevice());
-      if (periodic)
-      {
-         GetPeriodicPositions(*x_0, dx_loc, *x_0->FESpace(), dx_fes, x_loc);
-      }
-      else { add(*x_0, dx_loc, x_loc); }
+      GetPeriodicPositions(*x_0, dx_loc, *x_0->FESpace(), dx_fes, x_loc);
+   }
+   else if (x_0)
+   {
+      x_loc.SetSize(x_0->Size(), *x_0);
+      x_loc.UseDevice(x_0->UseDevice());
+      add(*x_0, dx_loc, x_loc);
    }
    else
    {
@@ -5892,12 +5894,13 @@ UpdateAfterMeshPositionChange(const Vector &dx_loc,
    }
 }
 
-void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeFDh(const Vector &xloc,
+                                 const FiniteElementSpace &fes)
 {
    if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
    if (!fdflag) { return; }
-   ComputeMinJac(x, fes);
+   ComputeMinJac(xloc, fes);
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
@@ -5965,7 +5968,7 @@ void TMOP_Integrator::EnableFiniteDifferences(const ParGridFunction &x)
 }
 #endif
 
-real_t TMOP_Integrator::ComputeMinDetT(const Vector &x,
+real_t TMOP_Integrator::ComputeMinDetT(const Vector &xloc,
                                        const FiniteElementSpace &fes)
 {
    real_t min_detT = std::numeric_limits<real_t>::infinity();
@@ -5987,7 +5990,7 @@ real_t TMOP_Integrator::ComputeMinDetT(const Vector &x,
       PMatI.UseExternalData(posV.GetData(), dof, dim);
 
       fes.GetElementVDofs(i, xdofs);
-      x.GetSubVector(xdofs, posV);
+      xloc.GetSubVector(xdofs, posV);
 
       DenseTensor Jtr(dim, dim, ir.GetNPoints());
       targetC->ComputeElementTargets(i, *fe, ir, posV, Jtr);

@@ -2209,8 +2209,8 @@ protected:
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void ComputeFDh(const Vector &x, const FiniteElementSpace &fes);
-   void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &xloc, const FiniteElementSpace &fes);
+   void ComputeMinJac(const Vector &xloc, const FiniteElementSpace &fes);
 
    void UpdateAfterMeshPositionChange(const Vector &dx_loc,
                                       const FiniteElementSpace &dx_fes);
@@ -2299,10 +2299,10 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
-   void UpdateCoefficientsPA(const Vector &x);
+   void UpdateCoefficientsPA(const Vector &xloc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
-   real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
+   real_t ComputeMinDetT(const Vector &xloc, const FiniteElementSpace &fes);
    // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric,
    // does not reduce over MPI.
    real_t ComputeUntanglerMaxMuBarrier(const Vector &x,
