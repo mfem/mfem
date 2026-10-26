@@ -14,13 +14,13 @@
 
 using namespace mfem;
 
-// On simplices and prisms the element energy, action and gradient read the
-// shape gradients from the DofToQuad table. Check the energy against
+// On non-tensor-product elements the element energy, action and gradient read
+// the shape gradients from the DofToQuad table. Check the energy against
 // CalcDShape, and the action and gradient against finite differences.
-TEST_CASE("TMOP element terms on simplices", "[TMOP]")
+TEST_CASE("TMOP element terms on non-tensor-product meshes", "[TMOP]")
 {
    const auto type = GENERATE(Element::TRIANGLE, Element::TETRAHEDRON,
-                              Element::WEDGE);
+                              Element::WEDGE, Element::PYRAMID);
    const int order = GENERATE(1, 2, 3);
    CAPTURE(type, order);
 
@@ -34,7 +34,7 @@ TEST_CASE("TMOP element terms on simplices", "[TMOP]")
       y = x;
       for (int d = 0; d < x.Size(); d++)
       {
-         y(d) += 0.05*sin(3.0*x((d+1) % x.Size()) + d);
+         y(d) += 0.05*std::sin(3.0*x((d+1) % x.Size()) + d);
       }
    });
    const GridFunction &nodes = *mesh.GetNodes();
