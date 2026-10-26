@@ -42,31 +42,8 @@ real_t spherical_obstacle(const Vector &pt);
 real_t exact_solution_obstacle(const Vector &pt);
 void exact_solution_gradient_obstacle(const Vector &pt, Vector &grad);
 
-class LogarithmGridFunctionCoefficient : public Coefficient
-{
-protected:
-   GridFunction *u;
-   Coefficient *obstacle;
-
-public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_)
-      : u(&u_), obstacle(&obst_) { }
-
-   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
-};
-
-class ExponentialGridFunctionCoefficient : public Coefficient
-{
-protected:
-   GridFunction *u;
-   Coefficient *obstacle;
-
-public:
-   ExponentialGridFunctionCoefficient(GridFunction &u_, Coefficient &obst_)
-      : u(&u_), obstacle(&obst_) { }
-
-   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
-};
+real_t log_diff(const real_t u, const real_t phi) { return log(u - phi); }
+real_t exp_sum(const real_t psi, const real_t phi) { return exp(psi) + phi; }
 
 /**
  * @brief Nonlinear residual/Jacobian operator for one proximal step of the
@@ -101,6 +78,7 @@ private:
 
    mutable ConstantCoefficient zero;
    mutable GridFunction psi_cur_gf;
+   mutable GridFunctionCoefficient psi_cur_cf;
    mutable GridFunction u_gf, lambda_gf;
 
    // Constant Jacobian blocks
@@ -298,7 +276,8 @@ int main(int argc, char *argv[])
    u_old_gf = u_gf;
 
    // 9. Initialize the slack variable ψₕ = ln(uₕ - ϕ).
-   LogarithmGridFunctionCoefficient ln_u(u_gf, obstacle);
+   GridFunctionCoefficient u_cf(&u_gf);
+   TransformedCoefficient ln_u(&u_cf, &obstacle, log_diff);
    psi_gf.ProjectCoefficient(ln_u);
    psi_old_gf = psi_gf;
 
@@ -417,7 +396,8 @@ int main(int argc, char *argv[])
       const real_t L2_error = u_gf.ComputeL2Error(exact_coef);
       const real_t H1_error = u_gf.ComputeH1Error(&exact_coef,&exact_grad_coef);
 
-      ExponentialGridFunctionCoefficient u_alt_cf(psi_gf,obstacle);
+      GridFunctionCoefficient psi_cf(&psi_gf);
+      TransformedCoefficient u_alt_cf(&psi_cf, &obstacle, exp_sum);
       GridFunction u_alt_gf(&L2fes);
       u_alt_gf.ProjectCoefficient(u_alt_cf);
       const real_t L2_error_alt = u_alt_gf.ComputeL2Error(exact_coef);
@@ -431,22 +411,6 @@ int main(int argc, char *argv[])
    }
 
    return 0;
-}
-
-real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                              const IntegrationPoint &ip)
-{
-   MFEM_ASSERT(u != NULL, "grid function is not set");
-
-   return log(u->GetValue(T, ip) - obstacle->Eval(T, ip));
-}
-
-real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                                const IntegrationPoint &ip)
-{
-   MFEM_ASSERT(u != NULL, "grid function is not set");
-
-   return exp(u->GetValue(T, ip)) + obstacle->Eval(T, ip);
 }
 
 real_t spherical_obstacle(const Vector &pt)
@@ -516,7 +480,7 @@ ProximalGalerkinOperator::ProximalGalerkinOperator(
      H1fes(H1fes_), L2fes(L2fes_), alpha(alpha_), load(load_),
      obstacle(obstacle_), psi_old_gf(psi_old_gf_),
      ess_tdof_list(ess_tdof_list_), block_toffsets(block_toffsets_),
-     zero(0.0), u_gf(&H1fes_), lambda_gf(&L2fes_)
+     zero(0.0), psi_cur_cf(&psi_cur_gf), u_gf(&H1fes_), lambda_gf(&L2fes_)
 {
    BilinearForm a00(&H1fes);
    a00.AddDomainIntegrator(new DiffusionIntegrator());
@@ -568,7 +532,7 @@ void ProximalGalerkinOperator::Mult(const Vector &x, Vector &y) const
    GridFunctionCoefficient u_cf(&u_gf);
    psi_cur_gf = psi_old_gf;
    psi_cur_gf.Add(-alpha, lambda_gf);
-   ExponentialGridFunctionCoefficient exp_psi(psi_cur_gf, obstacle);
+   TransformedCoefficient exp_psi(&psi_cur_cf, &obstacle, exp_sum);
    SumCoefficient u_minus_exp_psi(u_cf, exp_psi, 1.0, -1.0);
 
    LinearForm b1(&L2fes);
@@ -591,7 +555,7 @@ Operator &ProximalGalerkinOperator::GetGradient(const Vector &x) const
 
    psi_cur_gf = psi_old_gf;
    psi_cur_gf.Add(-alpha, lambda_gf);
-   ExponentialGridFunctionCoefficient exp_psi(psi_cur_gf, zero);
+   TransformedCoefficient exp_psi(&psi_cur_cf, &zero, exp_sum);
    ProductCoefficient alpha_exp_psi(alpha, exp_psi);
 
    BilinearForm a11(&L2fes);
