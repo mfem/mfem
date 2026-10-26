@@ -471,30 +471,26 @@ public:
        parent. */
    int GetEdgeMaster(int v1, int v2) const;
 
-   /** Get a list of vertices (2D/3D), edges (3D) and faces (3D) that coincide
-       with boundary elements with the specified attributes (marked in
-       'bdr_attr_is_ess'). In 3D this function also reveals "hidden" boundary
-       edges. In parallel it helps identifying boundary vertices/edges/faces
-       affected by non-local boundary elements. Hidden faces can occur for an
-       internal boundary coincident to a processor boundary.
-       */
-
    /**
-    * @brief Get a list of vertices (2D/3D), edges (3D) and faces (3D) that
+    * @brief Get a list of vertices (2D/3D), edges (2D/3D) and faces (3D) that
     * coincide with boundary elements with the specified attributes (marked in
-    * 'bdr_attr_is_ess').
+    * 'bdr_attr_marked').
     *
-    * @details In 3D this function also reveals "hidden" boundary edges. In
-    * parallel it helps identifying boundary vertices/edges/faces affected by
-    * non-local boundary elements. Hidden faces can occur for an internal
-    * boundary coincident to a processor boundary.
+    * @details The lists also include "hidden" boundary entities, which are not
+    * boundary elements or their edges/vertices: the master edges (2D) or faces
+    * (3D) of slave boundary elements, e.g. on an internal boundary refined on
+    * one side only, and in 3D, the master edges of the edges of boundary
+    * elements, e.g. in re-entrant corners. In parallel it helps identifying
+    * boundary vertices/edges/faces affected by non-local boundary elements.
+    * Hidden faces can also occur for an internal boundary coincident to a
+    * processor boundary.
     *
-    * @param bdr_attr_is_ess Indicator if a given attribute is essential.
-    * @param bdr_vertices Array of vertices that are essential.
-    * @param bdr_edges Array of edges that are essential.
-    * @param bdr_faces Array of faces that are essential.
+    * @param bdr_attr_marked Indicator if a given boundary attribute is marked.
+    * @param bdr_vertices Array of vertices on the marked boundary.
+    * @param bdr_edges Array of edges on the marked boundary.
+    * @param bdr_faces Array of faces on the marked boundary.
     */
-   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces);
 
