@@ -5800,27 +5800,34 @@ void TMOP_Integrator::RemapSurfaceFittingLevelSetAtNodes(const Vector &new_x,
 }
 
 void TMOP_Integrator::
-UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
+UpdateAfterMeshPositionChange(const Vector &d_loc,
+                              const FiniteElementSpace &d_fes)
 {
    if (discr_tc) { PA.Jtr_needs_update = true; }
 
-   if (PA.enabled) { UpdateCoefficientsPA(d); }
+   if (x_0)
+   {
+      x_loc.SetSize(x_0->Size(), *x_0);
+      x_loc.UseDevice(x_0->UseDevice());
+      if (periodic)
+      {
+         GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), d_fes, x_loc);
+      }
+      else { add(*x_0, d_loc, x_loc); }
+   }
+   else
+   {
+      x_loc.SetSize(d_loc.Size(), d_loc);
+      x_loc.UseDevice(d_loc.UseDevice());
+      x_loc = d_loc;
+   }
+
+   if (PA.enabled) { UpdateCoefficientsPA(x_loc); }
 
    Ordering::Type ordering = d_fes.GetOrdering();
 
    // Update the finite difference delta if FD are used.
-   if (fdflag) { ComputeFDh(d, d_fes); }
-
-   Vector x_loc;
-   if (periodic)
-   {
-      GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
-   }
-   else
-   {
-      x_loc.SetSize(x_0->Size());
-      add(*x_0, d, x_loc);
-   }
+   if (fdflag) { ComputeFDh(x_loc, d_fes); }
 
    // Update the target constructor if it's a discrete one.
    if (discr_tc)
@@ -5885,15 +5892,12 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    }
 }
 
-void TMOP_Integrator::ComputeFDh(const Vector &d, const FiniteElementSpace &fes)
+void TMOP_Integrator::ComputeFDh(const Vector &x, const FiniteElementSpace &fes)
 {
    if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
-   Vector x_loc(*x_0);
-   x_loc += d;
-
    if (!fdflag) { return; }
-   ComputeMinJac(x_loc, fes);
+   ComputeMinJac(x, fes);
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
@@ -6075,12 +6079,12 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
 
    if (periodic) { MFEM_ABORT("Periodic not implemented yet."); }
 
-   Vector x_loc(d.Size());
+   Vector positions(d.Size());
    if (x_0)
    {
-      add(*x_0, d, x_loc);
+      add(*x_0, d, positions);
    }
-   else { x_loc = d; }
+   else { positions = d; }
 
 #ifdef MFEM_USE_MPI
    const ParFiniteElementSpace *pfes =
@@ -6090,7 +6094,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
    if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
-      real_t min_detT = ComputeMinDetT(x_loc, fes);
+      real_t min_detT = ComputeMinDetT(positions, fes);
       real_t min_detT_all = min_detT;
 #ifdef MFEM_USE_MPI
       if (pfes)
@@ -6102,7 +6106,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
       wcuo->SetMinDetT(min_detT_all);
    }
 
-   real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);
+   real_t max_muT = ComputeUntanglerMaxMuBarrier(positions, fes);
    real_t max_muT_all = max_muT;
 #ifdef MFEM_USE_MPI
    if (pfes)

@@ -186,20 +186,8 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &x)
 {
-   Vector x_loc;
-   if (periodic)
-   {
-      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
-   }
-   else
-   {
-      x_loc.SetSize(x_0->Size());
-      add(*x_0, d_loc, x_loc);
-   }
-
-
    // All are constant or not specified.
    const int nal = PA.nal;
    const bool alc_is_qvec =
@@ -215,8 +203,8 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
    auto T = new IsoparametricTransformation;
    for (int e = 0; e < PA.ne; ++e)
    {
-      // Uses the node positions in x_loc.
-      PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+      // Uses the current node positions.
+      PA.fes->GetMesh()->GetElementTransformation(e, x, T);
 
       if (PA.MC.Size() > 1)
       {
