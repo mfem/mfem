@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
 
       // Solve the nonlinear proximal subproblem F(X) = 0.
       newton.Mult(zero_rhs, x);
-      const real_t newton_iter = newton.GetNumIterations();
+      const int newton_iter = newton.GetNumIterations();
       total_iterations += newton_iter;
 
       // Distribute the result back to the grid functions.
