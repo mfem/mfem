@@ -92,10 +92,6 @@ public:
       return *this;
    }
 
-   int open(const char *, int) { return 0; }
-   bool is_open() const { return true; }
-   int close() { return 0; }
-
    /// Collective gather. Rank 0 then blocks in the GLVis window.
    void flush();
 
