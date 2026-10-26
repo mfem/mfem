@@ -260,6 +260,81 @@ TEST_CASE("complex_t division at the range limits", "[Complex]")
    }
 }
 
+#ifdef MFEM_USE_MPI
+TEST_CASE("complex_t range edges", "[Complex][Parallel]")
+#else
+TEST_CASE("complex_t range edges", "[Complex]")
+#endif
+{
+   using limits = std::numeric_limits<real_t>;
+   const real_t eps = 16 * limits::epsilon();
+   const real_t mx = limits::max();
+   const real_t inf = limits::infinity();
+
+   SECTION("log of two max values")
+   {
+      const complex_t z = log(complex_t(mx, mx));
+      const real_t re = std::log(mx) + real_t{0.5} * std::log(real_t{2});
+      REQUIRE(std::isfinite(z.real()));
+      CheckClose(z, re, M_PI / 4, re * eps);
+   }
+
+   SECTION("tan of a large imaginary part")
+   {
+#ifdef MFEM_USE_SINGLE
+      const real_t y = 100;
+#else
+      const real_t y = 1000;
+#endif
+      const std::complex<real_t> s = std::tan(std::complex<real_t>(0, y));
+      CheckClose(tan(complex_t(0, y)), s.real(), s.imag(), eps);
+   }
+
+   SECTION("exp near the top of the range")
+   {
+      const real_t x = std::log(mx) + real_t{0.25};
+      const complex_t z = exp(complex_t(x, M_PI / 4));
+      const real_t half_log2 = real_t{0.5} * std::log(real_t{2});
+      const real_t mag = std::exp(x - half_log2);
+      REQUIRE(std::isfinite(z.real()));
+      REQUIRE(std::isfinite(z.imag()));
+      CheckClose(z, mag, mag, mag * eps);
+   }
+
+#ifndef MFEM_USE_SINGLE
+   SECTION("division with an underflowed ratio")
+   {
+      const complex_t z =
+         complex_t(0, 1e-150) / complex_t(1e-100, 1e-300);
+      REQUIRE(std::fabs(z.real() - 1e-250) <= 1e-250 * eps);
+      REQUIRE(std::fabs(z.imag() - 1e-50) <= 1e-50 * eps);
+   }
+#endif
+
+   SECTION("exp of a positive infinity")
+   {
+      const complex_t z = exp(complex_t(inf, 0));
+      const std::complex<real_t> s =
+         std::exp(std::complex<real_t>(inf, 0));
+      REQUIRE(z.real() == s.real());
+      REQUIRE(z.imag() == s.imag());
+      REQUIRE(std::isinf(z.real()));
+      REQUIRE(z.real() > 0);
+      REQUIRE(z.imag() == 0);
+   }
+
+   SECTION("division by infinity")
+   {
+      const complex_t z = complex_t(1, -2) / complex_t(inf, inf);
+      const std::complex<real_t> s =
+         std::complex<real_t>(1, -2) / std::complex<real_t>(inf, inf);
+      REQUIRE(z.real() == s.real());
+      REQUIRE(z.imag() == s.imag());
+      REQUIRE(z.real() == 0);
+      REQUIRE(z.imag() == 0);
+   }
+}
+
 TEST_CASE("complex_t division in kernels", "[Complex][GPU]")
 {
 #ifdef MFEM_USE_SINGLE
@@ -281,16 +356,16 @@ TEST_CASE("complex_t division in kernels", "[Complex][GPU]")
       q[i] = a[i] / b[i];
       r[i] = real_t{1} / b[i];
    });
-   quo.HostRead();
-   inv.HostRead();
-   CheckClose(quo[0], big, 0.0, big * eps);
-   CheckClose(quo[1], tiny, 0.0, tiny * eps);
-   CheckClose(quo[2], 0.44, 0.08, eps);
-   CheckClose(quo[3], 3.5, 2.5, eps);
-   CheckClose(inv[0], 0.5 * big, -0.5 * big, big * eps);
-   CheckClose(inv[1], 0.5 * tiny, -0.5 * tiny, tiny * eps);
-   CheckClose(inv[2], 0.12, -0.16, eps);
-   CheckClose(inv[3], 0.0, -0.5, eps);
+   const complex_t *quo_h = quo.HostRead();
+   const complex_t *inv_h = inv.HostRead();
+   CheckClose(quo_h[0], big, 0.0, big * eps);
+   CheckClose(quo_h[1], tiny, 0.0, tiny * eps);
+   CheckClose(quo_h[2], 0.44, 0.08, eps);
+   CheckClose(quo_h[3], 3.5, 2.5, eps);
+   CheckClose(inv_h[0], 0.5 * big, -0.5 * big, big * eps);
+   CheckClose(inv_h[1], 0.5 * tiny, -0.5 * tiny, tiny * eps);
+   CheckClose(inv_h[2], 0.12, -0.16, eps);
+   CheckClose(inv_h[3], 0.0, -0.5, eps);
 
    const std::vector<DivCase> cases = LimitCases();
    const int m = static_cast<int>(cases.size());
@@ -323,19 +398,19 @@ TEST_CASE("complex_t division in kernels", "[Complex][GPU]")
       fu[4] = exp(z), fu[5] = log(z), fu[6] = pow(z, 2.5), fu[7] = sin(z);
       fu[8] = cos(z), fu[9] = tan(z);
    });
-   qualified.HostRead();
-   unqualified.HostRead();
+   const complex_t *fq_h = qualified.HostRead();
+   const complex_t *fu_h = unqualified.HostRead();
    for (int i = 0; i < nf; ++i)
    {
-      CheckClose(qualified[i], host[i].real(), host[i].imag(), eps);
-      CheckClose(unqualified[i], host[i].real(), host[i].imag(), eps);
+      CheckClose(fq_h[i], host[i].real(), host[i].imag(), eps);
+      CheckClose(fu_h[i], host[i].real(), host[i].imag(), eps);
    }
-   limQuo.HostRead();
-   limInv.HostRead();
+   const complex_t *lq_h = limQuo.HostRead();
+   const complex_t *li_h = limInv.HostRead();
    for (int i = 0; i < m; ++i)
    {
       const DivCase &c = cases[i];
-      CheckClose(limQuo[i], c.re, c.im, c.tol);
-      if (c.num.imag() == 0) { CheckClose(limInv[i], c.re, c.im, c.tol); }
+      CheckClose(lq_h[i], c.re, c.im, c.tol);
+      if (c.num.imag() == 0) { CheckClose(li_h[i], c.re, c.im, c.tol); }
    }
 }
