@@ -163,7 +163,7 @@ private:
 
 public:
    ProximalGalerkinPreconditioner(const Array<int> &toffsets)
-      : Solver(toffsets.Last()), prec(toffsets) { };
+      : Solver(toffsets.Last()), prec(toffsets) { }
 
    void SetOperator(const Operator &op) override;
 
