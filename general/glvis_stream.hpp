@@ -66,7 +66,7 @@ class glvis_stream: public std::iostream
    glvis_data data;
    bool visualize = true;
    void SyncComm();
-   void serialize();
+   void serialize(std::string &gathered);
 
 public:
    /// Stores MPI_COMM_WORLD when MPI is on. flush() is collective there.

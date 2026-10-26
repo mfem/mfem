@@ -197,6 +197,10 @@ void glvis_stream::operator()()
 #endif
                );
 
+   // Lives until GLVisStreamSession returns. Rank slices only view it.
+   // The parallel gather writes this string directly. It is not copied
+   // through data.stream.
+   std::string payload;
    if (data.serial)
    {
       const std::streamoff written = data.stream.tellp();
@@ -211,13 +215,11 @@ void glvis_stream::operator()()
    }
    else
    {
-      serialize();
+      serialize(payload);
    }
 
    try
    {
-      // Lives until GLVisStreamSession returns. Rank slices only view it.
-      std::string payload;
       if (data.mpi_root)
       {
          if (data.mpi_size < 0 ||
@@ -227,7 +229,10 @@ void glvis_stream::operator()()
             why = "Invalid MPI size";
          }
 
-         payload = data.stream.str();
+         if (data.serial)
+         {
+            payload = data.stream.str();
+         }
          reset();
          data.streams.clear();
          data.type.clear();
@@ -334,7 +339,7 @@ void glvis_stream::operator()()
                );
 }
 
-void glvis_stream::serialize()
+void glvis_stream::serialize(std::string &gathered)
 {
 #ifdef MFEM_USE_MPI
    int failed = 0;
@@ -394,7 +399,6 @@ void glvis_stream::serialize()
                   "GLVis stream is too large for MPI_Gatherv");
    }
 
-   std::vector<char> recvbuf;
    try
    {
       if (data.mpi_root)
@@ -406,7 +410,7 @@ void glvis_stream::serialize()
             data.offsets[i + 1] = data.offsets[i] + sizes[i];
          }
          data.total_size = static_cast<int>(total);
-         recvbuf.resize(static_cast<size_t>(total));
+         gathered.resize(static_cast<size_t>(total));
       }
    }
    catch (const std::exception &)
@@ -417,31 +421,11 @@ void glvis_stream::serialize()
    FailTogether(failed, why, data.serial, data.comm);
 
    MFEM_VERIFY(MPI_Gatherv(local.data(), local_size, MPI_CHAR,
-                           data.mpi_root ? recvbuf.data() : nullptr,
+                           data.mpi_root ? gathered.data() : nullptr,
                            data.mpi_root ? sizes.data() : nullptr,
                            data.mpi_root ? data.offsets.data() : nullptr,
                            MPI_CHAR, 0, data.comm) == MPI_SUCCESS,
                "MPI_Gatherv failed");
-
-   if (data.mpi_root)
-   {
-      try
-      {
-         reset();
-         data.stream.write(recvbuf.data(), data.total_size);
-         if (!data.stream)
-         {
-            failed = 1;
-            why = "GLVis rank slice could not be written";
-         }
-      }
-      catch (const std::exception &)
-      {
-         failed = 1;
-         why = "GLVis stream allocation failed";
-      }
-   }
-   FailTogether(failed, why, data.serial, data.comm);
 #endif // MFEM_USE_MPI
 }
 
