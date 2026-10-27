@@ -322,6 +322,11 @@ DetKernel QuadratureInterpolator::DetKernels::Kernel()
    else { MFEM_ABORT(""); }
 }
 
+// laghos registers these orders from the application. The body lives in this
+// file, so emit the symbols the call in laghos.cpp needs.
+template DetKernel QuadratureInterpolator::DetKernels::Kernel<2,2,5,8>();
+template DetKernel QuadratureInterpolator::DetKernels::Kernel<3,3,2,2>();
+
 DetKernel QuadratureInterpolator::DetKernels::Fallback(
    int DIM, int SDIM, int D1D, int Q1D)
 {

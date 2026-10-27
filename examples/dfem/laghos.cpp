@@ -222,20 +222,20 @@ struct TaylorSourceQFunction
 };
 
 
-static inline MFEM_HOST_DEVICE
-std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig2(
-                                                    tensor<real_t, 2, 2> &A)
-{
-   return eig(A);
-}
+// static inline MFEM_HOST_DEVICE
+// std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig2(
+//                                                     tensor<real_t, 2, 2> &A)
+// {
+//    return eig(A);
+// }
 
-static inline MFEM_HOST_DEVICE
-std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> grad_eig2(
-                                                    tensor<real_t, 2, 2> &A,
-                                                    tensor<real_t, 2, 2> &dA)
-{
-   return grad_eig(A, dA);
-}
+// static inline MFEM_HOST_DEVICE
+// std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> grad_eig2(
+//                                                     tensor<real_t, 2, 2> &A,
+//                                                     tensor<real_t, 2, 2> &dA)
+// {
+//    return grad_eig(A, dA);
+// }
 
 // void* __enzyme_register_derivative_eig[] =
 // {
@@ -780,10 +780,10 @@ public:
    public:
       LineSearchNewtonSolver(MPI_Comm comm, const LagrangianHydroOperator &hydro)
          : NewtonSolver(comm),
-           hydro(hydro),
-           beta(0.5),    // Backtracking reduction factor
-           alpha(1e-2),  // Sufficient decrease constant (Armijo condition)
-           max_line_iter(5) {}
+           beta(0.5),
+           alpha(1e-2),    // Backtracking reduction factor
+           max_line_iter(5),  // Sufficient decrease constant (Armijo condition)
+           hydro(hydro) {}
 
       void SetBacktrackingFactor(real_t b) { beta = b; }
       void SetArmijoConstant(real_t a) { alpha = a; }
@@ -1448,7 +1448,7 @@ public:
                jacobian->dRvdv->Assemble(dRvdv_mat);
                ParBilinearForm Mv(&hydro.H1);
                Mv.AddDomainIntegrator(new VectorMassIntegrator(hydro.rho0_coeff,
-                                                              &hydro.ir));
+                                                               &hydro.ir));
                Mv.Assemble();
                Mv.Finalize();
                HypreParMatrix Mv_mat;
@@ -1493,14 +1493,14 @@ public:
                PetscParMatrix dRede_petsc(&dRede_mat);
                ParBilinearForm Me(&hydro.L2);
                Me.AddDomainIntegrator(new MassIntegrator(hydro.rho0_coeff,
-                                                        &hydro.ir));
+                                                         &hydro.ir));
                Me.Assemble();
                Me.Finalize();
                HypreParMatrix Me_mat;
                Me.FormSystemMatrix(mfem::Array<int>(), Me_mat);
                PetscParMatrix Me_petsc(&Me_mat);
                PetscErrorCode ierr = MatAYPX(dRede_petsc, -h, Me_petsc,
-                                     MatStructure::DIFFERENT_NONZERO_PATTERN);
+                                             MatStructure::DIFFERENT_NONZERO_PATTERN);
                MFEM_VERIFY(ierr == PETSC_SUCCESS, "MatAYPX(dRede) failed");
 
                Array<int> offsets(4);
@@ -1889,7 +1889,7 @@ public:
          lag++;
 
          newton->Mult(zero, K);
-         
+
          // If some SDIRK stage didn't converge, keep it at false.
          // (these are reset after every time step).
          if (newton_converged)
@@ -1930,11 +1930,11 @@ public:
    {
       qdata_is_current = false;
    }
-   
+
    void ResetNewtonInfo()
    {
-       newton_converged = true;
-       newton_max_iter = -1;
+      newton_converged = true;
+      newton_max_iter = -1;
    }
 
    real_t GetTimeStepEstimate(const Vector &S)
@@ -2075,7 +2075,7 @@ public:
       xgf.MakeRef(&H1, x_loc, 0);
 
       auto g = GeometricFactors(xgf, ir, GeometricFactors::JACOBIANS |
-                                         GeometricFactors::DETERMINANTS);
+                                GeometricFactors::DETERMINANTS);
       auto min = g.detJ.Min();
       MPI_Allreduce(MPI_IN_PLACE, &min, 1, MPITypeMap<real_t>::mpi_type,
                     MPI_MIN, L2.GetComm());
@@ -2633,7 +2633,7 @@ void VisualizeField(socketstream &sock, const char *vishost, int visport,
       if (myid == 0 && newly_opened)
       {
          const char* keys = (gf.FESpace()->GetMesh()->Dimension() == 2)
-         ? "mAcRjl" : "mmaaAcl";
+                            ? "mAcRjl" : "mmaaAcl";
 
          sock << "window_title '" << title << "'\n"
               << "window_geometry "
@@ -2942,7 +2942,7 @@ int main(int argc, char *argv[])
          case 1: return 1.0;
          case 2: return (x(0) < 0.5) ? 1.0 : 0.1;
          case 3: return (dim == 2) ? x(0) > 1.0 && x(1) > 1.5 ? 0.125 : 1.0
-                                   : x(0) > 1.0 && ((x(1) < 1.5 && x(2) < 1.5) ||
+                           : x(0) > 1.0 && ((x(1) < 1.5 && x(2) < 1.5) ||
                                             (x(1) > 1.5 && x(2) > 1.5)) ? 0.125 : 1.0;
          default: MFEM_ABORT("error");
       }
@@ -3044,37 +3044,37 @@ int main(int argc, char *argv[])
       case 2:
       {
          hydro = CreateLagrangianHydroOperator<2>(H1FESpace, L2FESpace,
-                                                 ess_tdof,
-                                                 rho0_coeff,
-                                                 x0_gf, rho0_gf, material_gf,
-                                                 external_data,
-                                                 ir,
-                                                 fd_gradient,
-                                                 dump_jacobians,
-                                                 nonlinear_maximum_iterations,
-                                                 nonlinear_relative_tolerance,
-                                                 krylov_maximum_iterations,
-                                                 preconditioner_lag,
-                                                 (PRECONDITIONER_TYPE)preconditioner_type,
-                                                 use_petsc);
+                                                  ess_tdof,
+                                                  rho0_coeff,
+                                                  x0_gf, rho0_gf, material_gf,
+                                                  external_data,
+                                                  ir,
+                                                  fd_gradient,
+                                                  dump_jacobians,
+                                                  nonlinear_maximum_iterations,
+                                                  nonlinear_relative_tolerance,
+                                                  krylov_maximum_iterations,
+                                                  preconditioner_lag,
+                                                  (PRECONDITIONER_TYPE)preconditioner_type,
+                                                  use_petsc);
          break;
       }
       case 3:
       {
          hydro = CreateLagrangianHydroOperator<3>(H1FESpace, L2FESpace,
-                                                 ess_tdof,
-                                                 rho0_coeff,
-                                                 x0_gf, rho0_gf, material_gf,
-                                                 external_data,
-                                                 ir,
-                                                 fd_gradient,
-                                                 dump_jacobians,
-                                                 nonlinear_maximum_iterations,
-                                                 nonlinear_relative_tolerance,
-                                                 krylov_maximum_iterations,
-                                                 preconditioner_lag,
-                                                 (PRECONDITIONER_TYPE)preconditioner_type,
-                                                 use_petsc);
+                                                  ess_tdof,
+                                                  rho0_coeff,
+                                                  x0_gf, rho0_gf, material_gf,
+                                                  external_data,
+                                                  ir,
+                                                  fd_gradient,
+                                                  dump_jacobians,
+                                                  nonlinear_maximum_iterations,
+                                                  nonlinear_relative_tolerance,
+                                                  krylov_maximum_iterations,
+                                                  preconditioner_lag,
+                                                  (PRECONDITIONER_TYPE)preconditioner_type,
+                                                  use_petsc);
          break;
       }
       default: MFEM_ABORT("unsupported mesh dimension: " << dim);
@@ -3133,7 +3133,7 @@ int main(int argc, char *argv[])
    {
       out << "energy initial: " << energy_init << "\n";
    }
-   
+
    real_t t = 0.0;
    hydro->ResetTimeStepEstimate();
    real_t dt = hydro->GetTimeStepEstimate(S);
@@ -3198,7 +3198,7 @@ int main(int argc, char *argv[])
       S_old = S;
       t_old = t;
       hydro->ResetTimeStepEstimate();
-      
+
       hydro->ResetNewtonInfo();
       ode_solver->Step(S, t, dt);
 
@@ -3242,7 +3242,7 @@ int main(int argc, char *argv[])
                }
 
                if (!hydro->newton_converged)
-               {        
+               {
                   if (nretry == 1)
                   {
                      hydro->residual->dump_jacobians = 1;
@@ -3258,9 +3258,9 @@ int main(int argc, char *argv[])
                ti--; continue;
             }
             else if (hydro->newton_max_iter <= 1)
-            {            
+            {
                dt *= 1.05;
-               if (Mpi::Root()) { out << "Increasing dt: " << dt << std::endl; }  
+               if (Mpi::Root()) { out << "Increasing dt: " << dt << std::endl; }
             }
          }
       }
