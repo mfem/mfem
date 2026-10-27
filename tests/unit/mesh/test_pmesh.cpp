@@ -227,8 +227,6 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
 
 TEST_CASE("ParMeshPrintLoadEmptyCurvedPartitions", "[Parallel], [ParMesh]")
 {
-   if (Mpi::WorldSize() < 2) { return; }
-
    Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    mesh.SetCurvature(2);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);

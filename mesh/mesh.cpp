@@ -5293,13 +5293,17 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    {
       Nodes = new GridFunction(this, input);
       own_nodes = 1;
-      // An empty partition has no typical element to query for VectorDim().
-      const FiniteElementSpace *nfes = Nodes->FESpace();
-      const FiniteElementCollection *nfec = nfes->FEColl();
-      spaceDim = nfes->GetVDim();
-      if (nfec->GetRangeType(Dim) != FiniteElement::SCALAR)
+      // Equivalent to Nodes->VectorDim(), but queries the collection instead
+      // of a typical element, since a parallel partition may have no elements
+      // here (meshgen is reduced later in ParMesh::Load()).
       {
-         spaceDim *= nfec->GetRangeDim(Dim);
+         const FiniteElementSpace *nfes = Nodes->FESpace();
+         const FiniteElementCollection *nfec = nfes->FEColl();
+         spaceDim = nfes->GetVDim();
+         if (nfec->GetRangeType(Dim) != FiniteElement::SCALAR)
+         {
+            spaceDim *= nfec->GetRangeDim(Dim);
+         }
       }
       if (ncmesh) { ncmesh->spaceDim = spaceDim; }
       SetVerticesFromNodes(Nodes);
