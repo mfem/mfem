@@ -106,6 +106,8 @@ struct complex_t
 
    friend MFEM_HOST_DEVICE complex_t tan(const complex_t &z)
    {
+      // Real poles: the scaled denominator is zero and the imag part is 0/0.
+      if (z.y == 0) { return complex_t{std::tan(z.x), z.y}; }
       // Scale by exp(-2|y|) so a large imaginary part stays finite.
       const real_t x2 = 2 * z.x;
       const real_t y2 = 2 * z.y;

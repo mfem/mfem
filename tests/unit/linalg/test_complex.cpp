@@ -202,6 +202,10 @@ TEST_CASE("complex_t division", "[Complex]")
       CheckClose(log(complex_t(-1, 0)), 0.0, M_PI, eps);
       CheckClose(pow(complex_t(0, 2), 2), -4.0, 0.0, 4 * eps);
       CheckClose(tan(complex_t(0.5, 0)), std::tan(0.5), 0.0, eps);
+      const complex_t pole = tan(complex_t(M_PI / 2, 0));
+      REQUIRE(std::isfinite(pole.real()));
+      REQUIRE(pole.imag() == 0);
+      REQUIRE(pole.real() == std::tan(M_PI / 2));
       REQUIRE(abs(complex_t(3, 4)) == 5.0);
       REQUIRE(norm(complex_t(3, 4)) == 25.0);
       REQUIRE(real(complex_t(3, 4)) == 3.0);
