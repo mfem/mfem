@@ -4420,10 +4420,9 @@ DenseTensor &DenseTensor::operator=(real_t c)
 
 DenseMatrixStack &DenseMatrixStack::operator=(real_t c)
 {
-   real_t *data = mfem::HostWrite(tdata, tsize);
    for (int i = 0; i < tsize; i++)
    {
-      data[i] = c;
+      tdata[i] = c;
    }
    return *this;
 }
@@ -4466,7 +4465,7 @@ void DenseMatrixStack::AddMult(const Table &domain_dof, const Vector &x,
    const int *domain_J = domain_dof.GetJ();
    const int *range_I = range_dof.GetI();
    const int *range_J = range_dof.GetJ();
-   const real_t *data = mfem::HostRead(tdata, tsize);
+   const real_t *data = tdata.HostRead();
    const real_t *xp = x.HostRead();
    real_t *yp = y.HostReadWrite();
 
