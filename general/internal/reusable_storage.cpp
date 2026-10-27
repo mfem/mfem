@@ -62,7 +62,7 @@ static int LowestUnset(uint64_t val)
 #else
    for (int i = 0; i < sizeof(val) * 8; ++i)
    {
-      if (val & (1ull << i))
+      if (!(val & (1ull << i)))
       {
          return i + 1;
       }
