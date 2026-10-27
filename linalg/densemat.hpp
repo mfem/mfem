@@ -1335,7 +1335,7 @@ class DenseMatrixStack
 {
 private:
    mutable DenseMatrix Mk;
-   Memory<real_t> tdata;
+   Array<real_t> tdata;
    int tsize;
    Array<int> off, ni, nj;
    int nk;
@@ -1344,26 +1344,21 @@ private:
 
 public:
    /// Construct an empty stack with no owned or referenced data.
-   DenseMatrixStack()
-      : Mk(NULL, 0, 0)
-   {
-      tsize = 0;
-      nk = 0;
-   }
+   DenseMatrixStack() : tsize(0), nk(0) { }
 
    /** @brief Construct an owning stack with @a k layers.
 
        Layer @a l has @a ik[l] rows and @a jk[l] columns. The dimensions are
        copied and storage for all entries is allocated by the stack. */
    DenseMatrixStack(const Array<int>& ik, const Array<int>& jk, int k)
-      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+      : ni(ik), nj(jk), nk(k)
    {
       MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
       MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
-      nk = k;
+
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.New(tsize);
+      tdata.SetSize(tsize);
    }
 
    /** @brief Construct a non-owning stack that views external host data.
@@ -1374,14 +1369,14 @@ public:
        with dimensions @a ik[l] by @a jk[l]. */
    DenseMatrixStack(real_t *d, const Array<int>& ik, const Array<int>& jk,
                     int k)
-      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+      : ni(ik), nj(jk), nk(k)
    {
       MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
       MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
-      nk = k;
+
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.Wrap(d, tsize, false);
+      tdata.MakeRef(d, tsize, false);
    }
 
    /** @brief Construct an owning stack with storage of memory type @a mt.
@@ -1389,14 +1384,14 @@ public:
        Layer @a l has @a ik[l] rows and @a jk[l] columns. */
    DenseMatrixStack(const Array<int>& ik, const Array<int>& jk, int k,
                     MemoryType mt)
-      : Mk(NULL, 0, 0), ni(ik), nj(jk)
+      : ni(ik), nj(jk), nk(k)
    {
       MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
       MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
-      nk = k;
+
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.New(tsize, mt);
+      tdata.SetSize(tsize, mt);
    }
 
    /** @brief Construct an independent deep copy of @a other.
@@ -1404,14 +1399,18 @@ public:
        The new stack owns its data, including when @a other is a non-owning
        view of external data. */
    DenseMatrixStack(const DenseMatrixStack &other)
-      : Mk(NULL, 0, 0), off(other.off), ni(other.ni), nj(other.nj), nk(other.nk)
+      : tdata(other.tdata), tsize(other.tsize), off(other.off),
+        ni(other.ni), nj(other.nj), nk(other.nk) { }
+
+   DenseMatrixStack(DenseMatrixStack &&other)
+      : tdata(std::move(other.tdata)), tsize(other.tsize),
+        off(std::move(other.off)),
+        ni(std::move(other.ni)), nj(std::move(other.nj)), nk(other.nk)
    {
-      tsize = other.tsize;
-      if (tsize > 0)
-      {
-         tdata.New(tsize, other.tdata.GetMemoryType());
-         tdata.CopyFrom(other.tdata, tsize);
-      }
+      // Reset other; other.tdata, other.off, other.ni and other.nj are reset
+      // in Array<T> move constructror.
+      other.Mk.ClearExternalData();
+      other.tsize = other.nk = 0;
    }
 
    /// Return the number of rows in layer @a k.
@@ -1432,9 +1431,7 @@ public:
    void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
       const MemoryType mt = mt_ == MemoryType::PRESERVE ?
-                            tdata.GetMemoryType() : mt_;
-      tdata.Delete();
-      Mk.UseExternalData(NULL, i, j);
+                            tdata.GetMemory().GetMemoryType() : mt_;
       ni.SetSize(k);
       nj.SetSize(k);
       if (k > 0) { ni = i; }
@@ -1442,7 +1439,8 @@ public:
       nk = k;
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.New(tsize, mt);
+      Mk.ClearExternalData();
+      tdata.SetSize(tsize, mt);
    }
 
    /** @brief Resize to @a k owning matrices with @a i rows each.
@@ -1454,16 +1452,15 @@ public:
    {
       MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
       const MemoryType mt = mt_ == MemoryType::PRESERVE ?
-                            tdata.GetMemoryType() : mt_;
-      tdata.Delete();
-      Mk.UseExternalData(NULL, 0, 0);
+                            tdata.GetMemory().GetMemoryType() : mt_;
       ni.SetSize(k);
       if (k > 0) { ni = i; }
       nj = jk;
       nk = k;
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.New(tsize, mt);
+      Mk.ClearExternalData();
+      tdata.SetSize(tsize, mt);
    }
 
    /** @brief Resize to @a k owning matrices with @a j columns each.
@@ -1475,16 +1472,15 @@ public:
    {
       MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
       const MemoryType mt = mt_ == MemoryType::PRESERVE ?
-                            tdata.GetMemoryType() : mt_;
-      tdata.Delete();
-      Mk.UseExternalData(NULL, 0, 0);
+                            tdata.GetMemory().GetMemoryType() : mt_;
       ni = ik;
       nj.SetSize(k);
       if (k > 0) { nj = j; }
       nk = k;
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.New(tsize, mt);
+      Mk.ClearExternalData();
+      tdata.SetSize(tsize, mt);
    }
 
    /** @brief Resize to @a k owning matrices with per-layer dimensions.
@@ -1498,15 +1494,14 @@ public:
       MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
       MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
       const MemoryType mt = mt_ == MemoryType::PRESERVE ?
-                            tdata.GetMemoryType() : mt_;
-      tdata.Delete();
-      Mk.UseExternalData(NULL, 0, 0);
+                            tdata.GetMemory().GetMemoryType() : mt_;
       ni = ik;
       nj = jk;
       nk = k;
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.New(tsize, mt);
+      Mk.ClearExternalData();
+      tdata.SetSize(tsize, mt);
    }
 
    /** @brief Reset to a non-owning view of @a k external matrices.
@@ -1517,8 +1512,6 @@ public:
        storage is released and existing data views and pointers are invalidated. */
    void UseExternalData(real_t *ext_data, int i, int j, int k)
    {
-      tdata.Delete();
-      Mk.UseExternalData(NULL, i, j);
       ni.SetSize(k);
       nj.SetSize(k);
       ni = i;
@@ -1526,7 +1519,8 @@ public:
       nk = k;
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.Wrap(ext_data, tsize, false);
+      Mk.ClearExternalData();
+      tdata.MakeRef(ext_data, tsize);
    }
 
    /** @brief Reset to a non-owning view of external, variably sized matrices.
@@ -1540,14 +1534,13 @@ public:
    {
       MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
       MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
-      tdata.Delete();
-      Mk.UseExternalData(NULL, 0, 0);
       ni = ik;
       nj = jk;
       nk = k;
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      tdata.Wrap(ext_data, tsize, false);
+      Mk.ClearExternalData();
+      tdata.MakeRef(ext_data, tsize);
    }
 
    /** @brief Reset the stack to use the given Memory and layer dimensions.
@@ -1570,21 +1563,14 @@ public:
    {
       MFEM_ASSERT(ik.Size() == k, "incompatible Array size");
       MFEM_ASSERT(jk.Size() == k, "incompatible Array size");
-      tdata.Delete();
-      Mk.UseExternalData(NULL, 0, 0);
+
       ni = ik;
       nj = jk;
       nk = k;
       InitOffset();
       tsize = (k > 0) ? off[nk - 1] + ni[nk - 1] * nj[nk - 1] : 0;
-      if (own_mem)
-      {
-         tdata = mem;
-      }
-      else
-      {
-         tdata.MakeAlias(mem, 0, tsize);
-      }
+      Mk.ClearExternalData();
+      tdata.NewMemoryAndSize(mem, tsize, own_mem);
    }
 
    /// Set every entry in every layer to @a c.
@@ -1652,32 +1638,32 @@ public:
    real_t *GetData(int k)
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      return tdata + off[k];
+      return tdata.GetMemory() + off[k];
    }
 
    /// Const overload of GetData(int).
    const real_t *GetData(int k) const
    {
       MFEM_ASSERT_INDEX_IN_RANGE(k, 0, SizeK());
-      return tdata + off[k];
+      return tdata.GetMemory() + off[k];
    }
 
    /** @brief Return a pointer to the contiguous data of all layers.
 
        The pointer does not transfer ownership and remains valid only while
        this stack retains its current backing storage. */
-   real_t *Data() { return tdata; }
+   real_t *Data() { return tdata.GetData(); }
 
    /// Const overload of Data().
-   const real_t *Data() const { return tdata; }
+   const real_t *Data() const { return tdata.GetData(); }
 
    /** @brief Return the backing Memory object.
 
        Modifying its ownership or size can invalidate this stack; use the
        stack sizing and reset methods when changing its storage. */
-   Memory<real_t> &GetMemory() { return tdata; }
+   Memory<real_t> &GetMemory() { return tdata.GetMemory(); }
    /// Const overload of GetMemory().
-   const Memory<real_t> &GetMemory() const { return tdata; }
+   const Memory<real_t> &GetMemory() const { return tdata.GetMemory(); }
 
    /** @brief Accumulate the action of square element matrices in a global
        vector.
@@ -1716,46 +1702,68 @@ public:
        External data are not deleted. All matrix views and raw pointers
        obtained from this stack are invalidated. */
    void Clear()
-   {
-      tdata.Delete();
-      tsize = 0;
-      Mk.UseExternalData(NULL, 0, 0);
-      off.DeleteAll();
-      ni.DeleteAll();
-      nj.DeleteAll();
-      nk = 0;
-   }
+   { UseExternalData(NULL, 0, 0, 0); }
 
    /// Return the capacity of the data and dimension arrays, in bytes.
    std::size_t MemoryUsage() const
    {
-      return tdata.Capacity() * sizeof(real_t)
+      return tdata.MemoryUsage()
              + off.MemoryUsage() + ni.MemoryUsage() + nj.MemoryUsage();
    }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const real_t *Read(bool on_dev = true) const
-   { return mfem::Read(tdata, tsize, on_dev); }
+   {
+      off.Read(on_dev);
+      ni.Read(on_dev);
+      nj.Read(on_dev);
+      return tdata.Read(on_dev);
+   }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
    const real_t *HostRead() const
-   { return mfem::Read(tdata, tsize, false); }
+   {
+      off.HostRead();
+      ni.HostRead();
+      nj.HostRead();
+      return tdata.HostRead();
+   }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
    real_t *Write(bool on_dev = true)
-   { return mfem::Write(tdata, tsize, on_dev); }
+   {
+      off.Write(on_dev);
+      ni.Write(on_dev);
+      nj.Write(on_dev);
+      return tdata.Write(on_dev);
+   }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
    real_t *HostWrite()
-   { return mfem::Write(tdata, tsize, false); }
+   {
+      off.HostWrite();
+      ni.HostWrite();
+      nj.HostWrite();
+      return tdata.HostWrite();
+   }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
    real_t *ReadWrite(bool on_dev = true)
-   { return mfem::ReadWrite(tdata, tsize, on_dev); }
+   {
+      off.ReadWrite(on_dev);
+      ni.ReadWrite(on_dev);
+      nj.ReadWrite(on_dev);
+      return tdata.ReadWrite(on_dev);
+   }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
    real_t *HostReadWrite()
-   { return mfem::ReadWrite(tdata, tsize, false); }
+   {
+      off.HostReadWrite();
+      ni.HostReadWrite();
+      nj.HostReadWrite();
+      return tdata.HostReadWrite();
+   }
 
    /** @brief Exchange the data, dimensions, and reusable matrix views with @a t.
 
@@ -1764,16 +1772,8 @@ public:
        referenced by the other stack. */
    void Swap(DenseMatrixStack &t)
    {
-      mfem::Swap(tdata, t.tdata);
-      mfem::Swap(tsize, t.tsize);
-      mfem::Swap(off, t.off);
-      mfem::Swap(ni, t.ni);
-      mfem::Swap(nj, t.nj);
-      mfem::Swap(nk, t.nk);
-      Mk.Swap(t.Mk);
+      mfem::Swap(*this, t);
    }
-
-   ~DenseMatrixStack() { tdata.Delete(); }
 };
 
 /** @brief Compute the LU factorization of a batch of matrices. Calls
