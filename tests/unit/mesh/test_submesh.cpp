@@ -437,6 +437,47 @@ TEST_CASE("SubMesh boundary elements order", "[SubMesh]")
    REQUIRE(CheckSubMeshBoundaryElements(submesh) > 0);
 }
 
+TEST_CASE("SubMesh boundary elements on the same face", "[SubMesh]")
+{
+   // Two boundary elements of opposite orders on an interior face: each
+   // boundary element of the SubMesh shall have the order of its parent.
+   Mesh mesh = Mesh::MakeCartesian2D(4, 2, Element::QUADRILATERAL);
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      Vector c;
+      mesh.GetElementCenter(i, c);
+      mesh.SetAttribute(i, c(0) < 0.5 ? 1 : 2);
+   }
+   Array<int> fv;
+   for (int f = 0; f < mesh.GetNumFaces(); f++)
+   {
+      mesh.GetFaceVertices(f, fv);
+      if (mesh.GetVertex(fv[0])[0] == 0.25 && mesh.GetVertex(fv[1])[0] == 0.25)
+      {
+         break;
+      }
+   }
+   mesh.AddBdrSegment(fv[0], fv[1], 7);
+   mesh.AddBdrSegment(fv[1], fv[0], 8);
+   mesh.FinalizeTopology();
+   mesh.Finalize(false, true);
+   mesh.SetAttributes();
+   auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {1});
+   const auto &parent_vertex_ids = submesh.GetParentVertexIDMap();
+   int nchecked = 0;
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      const int attr = submesh.GetBdrAttribute(i);
+      if (attr != 7 && attr != 8) { continue; }
+      Array<int> v;
+      submesh.GetBdrElementVertices(i, v);
+      CHECK(parent_vertex_ids[v[0]] == fv[attr == 7 ? 0 : 1]);
+      CHECK(parent_vertex_ids[v[1]] == fv[attr == 7 ? 1 : 0]);
+      nchecked++;
+   }
+   CHECK(nchecked == 2);
+}
+
 TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
 {
    // Solve Poisson on a pair of cubes fully coupled, transfer to the interface
