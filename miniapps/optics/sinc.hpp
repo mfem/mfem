@@ -299,20 +299,19 @@ inline ComplexArray2D conj_transpose(const ComplexArray2D &A)
    return T;
 }
 
+// One generator per axis. The Fresnel Toeplitz matrix is symmetric, so
+// this vector is both the first row and the first column.
 struct ToeplitzGenerators
 {
-   ComplexArray1D fr_x, fc_x, fr_y, fc_y;
+   ComplexArray1D x, y;
 };
 
 inline ToeplitzGenerators
 FresnelWeights(real_t extent_x, real_t extent_y, int nx, int ny,
                real_t z, real_t k)
 {
-   const auto Nx = static_cast<std::size_t>(nx);
-   const auto Ny = static_cast<std::size_t>(ny);
-   const ComplexArray1D wx = fresnel_first(extent_x, Nx, z, k, true);
-   const ComplexArray1D wy = fresnel_first(extent_y, Ny, z, k, true);
-   return { wx, wx, wy, wy };
+   return { fresnel_first(extent_x, static_cast<std::size_t>(nx), z, k, true),
+            fresnel_first(extent_y, static_cast<std::size_t>(ny), z, k, true) };
 }
 
 // Toeplitz tools -------------------------------------------------------------
@@ -1042,8 +1041,8 @@ public:
       t.SetSize(2 * std::max(ny * colsY, rowsX * nx));
       t.UseDevice(true);
       t.Write();
-      Hx = toeplitz_to_dense(g.fr_x, g.fc_x);
-      Hy = toeplitz_to_dense(g.fr_y, g.fc_y);
+      Hx = toeplitz_to_dense(g.x, g.x);
+      Hy = toeplitz_to_dense(g.y, g.y);
       Hx_adj = conj_transpose(Hx);
       Hy_adj = conj_transpose(Hy);
    }
@@ -1096,7 +1095,7 @@ public:
          FresnelWeights(extent_x, extent_y, nx, ny, z, k);
       if (!fft) { fft = MakeToeplitzFft(); }
       if (!fft) { AbortMissingFft(); }
-      fft->Prepare(g.fr_x, g.fc_x, g.fr_y, g.fc_y, nx, ny, colsY, rowsX);
+      fft->Prepare(g.x, g.x, g.y, g.y, nx, ny, colsY, rowsX);
    }
 
    void ApplyY(complex_t *C, bool adjoint) const override
