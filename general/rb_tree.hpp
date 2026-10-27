@@ -12,6 +12,8 @@
 #ifndef MFEM_RB_TREE_HPP
 #define MFEM_RB_TREE_HPP
 
+#include "error.hpp"
+
 #include <cstddef>
 #include <utility>
 
