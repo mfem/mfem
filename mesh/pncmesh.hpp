@@ -20,6 +20,7 @@
 #include <set>
 
 #include "ncmesh.hpp"
+#include "pentsets.hpp"
 #include "../general/communication.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../fem/fespace.hpp"
@@ -79,6 +80,10 @@ public:
    ParNCMesh(const ParNCMesh &other);
 
    virtual ~ParNCMesh();
+
+   /** Rebuild the local, ownership-filtered entity sets after the Mesh has
+       been regenerated from this nonconforming hierarchy. */
+   void OnMeshUpdated(Mesh *mesh);
 
    /** An override of NCMesh::Refine, which is called eventually, after making
        sure that refinements that occur on the processor boundary are sent to
@@ -263,6 +268,25 @@ public:
        The debug mesh will have element attributes set to element rank + 1. */
    void GetDebugMesh(Mesh &debug_mesh) const;
 
+   /** Collect edge indices of all refined edges which are children of
+       the coarse edge defined by the given vertices.  This method
+       overrides a method in NCMesh and only returns locally owned
+       edges. */
+   void GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edge_ids);
+
+   /** Collect face indices of all refined faces which are children of
+       the coarse face defined by the given vertices.  This method
+       overrides a method in NCMesh and only returns locally owned
+       faces. */
+   void GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+                        BlockArray<int> & face_ids);
+
+   /** Collect element indices of all refined elements which are
+       children of the coarse element defined by the given element
+       index. This method overrides a method in NCMesh and only
+       returns locally owned elements. */
+   void GetRefinedElements(int elem_id, BlockArray<int> & elem_ids);
+
    // Ghost element indices and their orders, for parallel p-refinement.
    struct VarOrderElemInfo
    {
@@ -289,6 +313,7 @@ public:
 protected: // interface for ParMesh
 
    friend class ParMesh;
+   friend class ParEntitySets;
    friend class ParSubMesh;
 
    /** For compatibility with conforming code in ParMesh and ParFESpace.
@@ -619,6 +644,8 @@ protected: // implementation
    /// Stores modified point matrices created by GetFaceNeighbors
    Array<DenseMatrix*> aux_pm_store;
    void ClearAuxPM();
+
+   ParNCEntitySets * pncent_sets;
 
    std::size_t GroupsMemoryUsage() const;
 

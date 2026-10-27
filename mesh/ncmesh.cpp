@@ -228,6 +228,11 @@ NCMesh::NCMesh(const Mesh *mesh)
    InitGeomFlags();
 
    Update();
+
+   // Convert mesh entity indices to stable NCMesh node and element IDs after
+   // the initial node ordering has been established.
+   ncent_sets = (mesh->ent_sets) ?
+                new NCEntitySets(*mesh->ent_sets, *this) : NULL;
 }
 
 NCMesh::NCMesh(const NCMesh &other)
@@ -253,6 +258,12 @@ NCMesh::NCMesh(const NCMesh &other)
    , element_vertex(other.element_vertex)
    , shadow(1024, 2048)
 {
+   other.free_element_ids.Copy(free_element_ids);
+   other.root_state.Copy(root_state);
+   other.coordinates.Copy(coordinates);
+
+   // Copy the entity set information
+   ncent_sets = (other.ncent_sets) ? new NCEntitySets(*other.ncent_sets) : NULL;
    Update();
 }
 
@@ -291,8 +302,11 @@ NCMesh::~NCMesh()
          DeleteUnusedFaces(elemFaces);
       }
    }
+
    // NOTE: in release mode, we just throw away all faces and nodes at once
 #endif
+
+   delete ncent_sets;
 }
 
 void NCMesh::Node::SetScale(real_t s, bool overwrite)
@@ -1155,11 +1169,6 @@ void NCMesh::RefineElement(const Refinement & ref)
       }
       return;
    }
-
-   /*mfem::out << "Refining element " << elem << " (" << el.node[0] << ", " <<
-             el.node[1] << ", " << el.node[2] << ", " << el.node[3] << ", " <<
-             el.node[4] << ", " << el.node[5] << ", " << el.node[6] << ", " <<
-             el.node[7] << "), " << "ref_type " << int(ref_type) << std::endl;*/
 
    int* no = el.node;
    int attr = el.attribute;
@@ -3022,6 +3031,15 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       if (face.index < 0) { face.index = NFaces + (nghosts++); }
    }
    MFEM_ASSERT(nghosts == NGhostFaces, "");
+
+   if (ncent_sets)
+   {
+      delete mesh->ent_sets;
+      mesh->ent_sets = new EntitySets(*mesh, *this);
+   }
+
+   NEdges = mesh->GetNEdges();
+   NFaces = mesh->GetNumFaces();
 }
 
 
@@ -4060,12 +4078,15 @@ NCMesh::NCList::BuildIndex() const
 void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 {
    int mid = nodes.FindId(v0, v1);
-   if (mid >= 0 && nodes[mid].HasVertex())
+   if (mid >= 0)
    {
-      indices.Append(mid);
+      if (nodes[mid].HasVertex())
+      {
+         indices.Append(mid);
 
-      CollectEdgeVertices(v0, mid, indices);
-      CollectEdgeVertices(mid, v1, indices);
+         CollectEdgeVertices(v0, mid, indices);
+         CollectEdgeVertices(mid, v1, indices);
+      }
    }
 }
 
@@ -4125,6 +4146,78 @@ void NCMesh::CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
             CollectEdgeVertices(mid[1], mid[3], indices);
          }
          break;
+   }
+}
+
+void NCMesh::CollectElementVertices(int elem_id, Array<int> &indices)
+{
+   Element &el = elements[elem_id];
+
+   if (el.ref_type != 0)
+   {
+      // This element has been refined so recurse into its children
+      for (int i = 0; i < 8; i++)
+      {
+         if (el.child[i] >= 0 && el.child[i] < elements.Size())
+         {
+            CollectElementVertices(el.child[i], indices);
+         }
+      }
+   }
+   else
+   {
+      // This element has not been refined so add its vertices
+      for (int i=0; i<8; i++)
+      {
+         if (el.node[i] >= 0 && el.node[i] < nodes.Size())
+         {
+            indices.Append(el.node[i]);
+         }
+      }
+   }
+}
+
+void NCMesh::CollectElementEdges(int elem_id, Array<int> &indices)
+{
+   Element &el = elements[elem_id];
+
+   if (el.ref_type != 0)
+   {
+      // This element has been refined so recurse into its children
+      for (int i = 0; i < 8; i++)
+      {
+         if (el.child[i] >= 0 && el.child[i] < elements.Size())
+         {
+            CollectElementEdges(el.child[i], indices);
+         }
+      }
+   }
+   else
+   {
+      int* node = el.node;
+      GeomInfo& gi = GI[(int) el.geom];
+
+      for (int i = 0; i < gi.nv; i++)
+      {
+         if (nodes[node[i]].HasEdge())
+         {
+            indices.Append(node[i]);
+         }
+      }
+
+      for (int i = 0; i < gi.ne; i++)
+      {
+         const int* ev = gi.edges[i];
+         int index = nodes.FindId(node[ev[0]], node[ev[1]]);
+
+         if (index >= 0)
+         {
+            if (nodes[index].HasEdge())
+            {
+               indices.Append(index);
+            }
+         }
+      }
    }
 }
 
@@ -5756,6 +5849,92 @@ int NCMesh::GetElementDepth(int i) const
    return depth;
 }
 
+void NCMesh::GetRefinedEdges(int vn0, int vn1, BlockArray<int> & edges)
+{
+   int mid = nodes.FindId(vn0, vn1);
+   if (mid < 0) { return; }
+
+   Node &nd = nodes[mid];
+
+   if ( nd.HasEdge() )
+   {
+      edges.Append(mid);
+   }
+
+   GetRefinedEdges(vn0, mid, edges);
+   GetRefinedEdges(mid, vn1, edges);
+}
+
+void NCMesh::GetRefinedFaces(int vn0, int vn1, int vn2, int vn3,
+                             BlockArray<int> & face_ids)
+{
+   if (vn3 < 0)
+   {
+      const int face = faces.FindId(vn0, vn1, vn2);
+      if (face >= 0)
+      {
+         if (faces[face].index >= 0) { face_ids.Append(face); }
+         return;
+      }
+
+      int mid[3];
+      if (!TriFaceSplit(vn0, vn1, vn2, mid)) { return; }
+
+      GetRefinedFaces(vn0, mid[0], mid[2], -1, face_ids);
+      GetRefinedFaces(mid[0], vn1, mid[1], -1, face_ids);
+      GetRefinedFaces(mid[2], mid[1], vn2, -1, face_ids);
+      GetRefinedFaces(mid[0], mid[1], mid[2], -1, face_ids);
+      return;
+   }
+
+   int face = faces.FindId(vn0, vn1, vn2, vn3);
+   if (face>=0)
+   {
+      if ( faces[face].index >= 0 )
+      {
+         face_ids.Append(face);
+      }
+      return;
+   }
+
+   // we need to recurse deeper
+   int mid[5];
+   real_t scale;
+   int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, scale, mid);
+
+   if (split == 1) // "X" split face
+   {
+      GetRefinedFaces(vn0, mid[0], mid[2], vn3, face_ids);
+      GetRefinedFaces(mid[0], vn1, vn2, mid[2], face_ids);
+   }
+   else if (split == 2) // "Y" split face
+   {
+      GetRefinedFaces(vn0, vn1, mid[1], mid[3], face_ids);
+      GetRefinedFaces(mid[3], mid[1], vn2, vn3, face_ids);
+   }
+}
+
+void NCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
+{
+   Element &el = elements[elem_id];
+   if (el.ref_type != 0)
+   {
+      // This element has been refined so recurse into its children
+      for (int i = 0; i < 8; i++)
+      {
+         if (el.child[i] >= 0 && el.child[i] < elements.Size() )
+         {
+            GetRefinedElements(el.child[i], elem_ids);
+         }
+      }
+   }
+   else
+   {
+      // This element has not been refined so add it
+      elem_ids.Append(elem_id);
+   }
+}
+
 int NCMesh::GetElementSizeReduction(int i) const
 {
    int elem = leaf_elements[i];
@@ -5914,6 +6093,166 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
    FilterSortUnique(bdr_vertices, NVertices);
    FilterSortUnique(bdr_edges, NEdges);
    FilterSortUnique(bdr_faces, NFaces);
+}
+
+void NCMesh::GetEntitySetClosure(EntitySets::EntityType type,
+                                 int set_index,
+                                 Array<int> &es_vertices,
+                                 Array<int> &es_edges,
+                                 Array<int> &es_faces)
+{
+   es_vertices.SetSize(0);
+   es_edges.SetSize(0);
+   es_faces.SetSize(0);
+
+   MFEM_VERIFY(ncent_sets != NULL, "NCMesh object contains no "
+               "entity set information");
+   if (!ncent_sets->SetExists(type, set_index))
+   {
+      std::ostringstream oss; oss << "Entity set of type \""
+                                  << EntitySets::GetTypeName(type)
+                                  << "\" and index " << set_index
+                                  << " was not found.";
+
+      MFEM_VERIFY(false, oss.str().c_str());
+   }
+
+   int ni = ncent_sets->GetNumEntities(type,set_index);
+   Array<int> inds;
+   Array<int> coll_inds;
+   auto root_node = [this](int vertex)
+   {
+      return nodes.FindId(vertex, vertex);
+   };
+
+   switch (type)
+   {
+      case EntitySets::VERTEX:
+      {
+         /// Do nothing because vertices cannot hide
+      }
+      break;
+      case EntitySets::EDGE:
+      {
+         for (int i=0; i<ni; i++)
+         {
+            ncent_sets->GetEntityIndex(type, set_index, i, inds);
+            inds[0] = root_node(inds[0]);
+            inds[1] = root_node(inds[1]);
+            if (inds[0] < 0 || inds[1] < 0) { continue; }
+
+            // collect vertices
+            inds.Copy(coll_inds);
+            this->CollectEdgeVertices(inds[0], inds[1], coll_inds);
+            for (int j=0; j<coll_inds.Size(); j++)
+            {
+               int index = nodes[coll_inds[j]].vert_index;
+               if (index >= 0)
+               {
+                  es_vertices.Append(index);
+               }
+            }
+         }
+      }
+      break;
+      case EntitySets::FACE:
+      {
+         for (int i=0; i<ni; i++)
+         {
+            ncent_sets->GetEntityIndex(type, set_index, i, inds);
+            bool missing_root = false;
+            for (int j = 0; j < 3; j++)
+            {
+               inds[j] = root_node(inds[j]);
+               missing_root |= inds[j] < 0;
+            }
+            if (inds[3] >= 0)
+            {
+               inds[3] = root_node(inds[3]);
+               missing_root |= inds[3] < 0;
+            }
+            if (missing_root) { continue; }
+
+            // collect vertices
+            inds.Copy(coll_inds);
+            if (inds.Size() == 4)
+            {
+               this->CollectQuadFaceVertices(inds[0], inds[1], inds[2], inds[3],
+                                             coll_inds);
+            }
+            else
+            {
+               this->CollectTriFaceVertices(inds[0], inds[1], inds[2],
+                                            coll_inds);
+            }
+            for (int j=0; j<coll_inds.Size(); j++)
+            {
+               int index = nodes[coll_inds[j]].vert_index;
+               if (index >= 0)
+               {
+                  es_vertices.Append(index);
+               }
+            }
+         }
+      }
+      break;
+      case EntitySets::ELEMENT:
+      {
+         for (int i=0; i<ni; i++)
+         {
+            int elem_id = (*ncent_sets)(type, set_index, i);
+            // collect vertices
+            coll_inds.SetSize(0);
+            this->CollectElementVertices(elem_id, coll_inds);
+            for (int j=0; j<coll_inds.Size(); j++)
+            {
+               int index = nodes[coll_inds[j]].vert_index;
+               if (index >= 0)
+               {
+                  es_vertices.Append(index);
+               }
+            }
+
+            // collect edges
+            coll_inds.SetSize(0);
+            this->CollectElementEdges(elem_id, coll_inds);
+            for (int j=0; j<coll_inds.Size(); j++)
+            {
+               int index = nodes[coll_inds[j]].edge_index;
+               if (index >= 0)
+               {
+                  es_edges.Append(index);
+               }
+            }
+
+         }
+      }
+      break;
+      default:
+         MFEM_ABORT("GetEnitySetClosure - Unknown entity set type: \""
+                    << EntitySets::GetTypeName(type) << "\"");
+   }
+   es_vertices.Sort();
+   es_vertices.Unique();
+
+   es_edges.Sort();
+   es_edges.Unique();
+
+   es_faces.Sort();
+   es_faces.Unique();
+}
+
+static int max4(int a, int b, int c, int d)
+{
+   return std::max(std::max(a, b), std::max(c, d));
+}
+static int max6(int a, int b, int c, int d, int e, int f)
+{
+   return std::max(max4(a, b, c, d), std::max(e, f));
+}
+static int max8(int a, int b, int c, int d, int e, int f, int g, int h)
+{
+   return std::max(max4(a, b, c, d), max4(e, f, g, h));
 }
 
 int NCMesh::EdgeSplitLevel(int vn1, int vn2) const

@@ -43,6 +43,7 @@ void IntegerSet::Recreate(const int n, const int *p)
 
    Sort();
 
+   // Remove duplicate entries
    for (j = 0, i = 1; i < n; i++)
       if (data[i] != data[j])
       {
