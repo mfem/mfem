@@ -520,11 +520,15 @@ public:
    void SetAttribute(int i, int attr)
    { elements[leaf_elements[i]].attribute = attr; }
 
-   /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
-       non-empty, it will be printed after the first line of the file, and each
-       line should begin with '#'. */
+   /** I/O: Print the mesh in the MFEM NC mesh format. When
+       @a attribute_sets is true, use v1.2, which supports named attribute
+       sets. If @a comments is non-empty, it will be printed after the first
+       line of the file, and each line should begin with '#'. */
    void Print(std::ostream &out, const std::string &comments = "",
-              bool nurbs=false) const;
+              bool nurbs=false, bool attribute_sets=false) const;
+
+   /// Return true when the loaded NC mesh format supports named attribute sets.
+   bool SupportsAttributeSets() const { return using_attribute_sets; }
 
    /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
    bool IsLegacyLoaded() const { return Legacy; }
@@ -680,6 +684,7 @@ protected: // implementation
    HashTable<Face> faces; // associative container holding all Faces
 
    bool using_scaling = false; // Whether Node::scale is being used
+   bool using_attribute_sets = false; // Whether NC mesh format v1.2 is used
 
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
