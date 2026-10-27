@@ -12,10 +12,10 @@ device is `cpu` (`-d`). The default propagator is the Toeplitz–FFT product
 device, **cuFFT** or **hipFFT** on CUDA or HIP. Otherwise the default is the
 dense product (`-gem`). `-fft` does not run FFTW on a CUDA or HIP device. It
 aborts when the library for the active device was not linked. `-gem` stores
-the dense $x$ and $y$ Fresnel matrices and their adjoints, $2(n_x^2+n_y^2)$
-complex values for an $n_x \times n_y$ image. It stops with a message when
-they need more than `-gmem` GiB (default 16), the host memory, or the free
-device memory.
+the dense $x$ and $y$ Fresnel matrices, their adjoints, and one work image,
+$2(n_x^2+n_y^2)+n_x n_y$ complex values for an $n_x \times n_y$ image. It
+stops with a message when they need more than `-gmem` GiB (default 16), the
+host memory, or the free device memory.
 
 The default target is MFEM’s logo (`doc/logo-small.png`). The physical
 defaults are a wavelength of 532 nm (`-w`), a mask width of 19 mm with the
@@ -69,9 +69,9 @@ sample rows, and the Newton and CG vectors.
   axis. The adjoint uses the same steps.
 - With `-fft`, each rank plans the FFTs for its rows and its block of
   columns. With `-gem`, each rank stores the full dense $\omega^x$ and
-  $\omega^y$ and their adjoints. `-gmem` applies to each rank, the host
-  memory check counts all ranks on the node, and the device memory check
-  counts the ranks that share the GPU.
+  $\omega^y$, their adjoints, and one work image. `-gmem` applies to each
+  rank, the host memory check counts all ranks on the node, and the device
+  memory check counts the ranks that share the GPU.
 - Sums over the samples, such as $J$ and the scale factor $s$, add the row
   sums of all ranks in global row order.
 - For the hologram replay, each rank propagates its own rows. The intensity

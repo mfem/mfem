@@ -288,7 +288,7 @@ inline std::string GemMemoryError(int width, int height, real_t gemMaxGib,
    std::ostringstream msg;
    msg.precision(3);
    msg << "Image " << width << "x" << height << " needs " << need
-       << " GiB of dense Fresnel matrices for -gem";
+       << " GiB for the dense Fresnel matrices and the work image";
    if (need > gemMaxGib)
    {
       msg << ", more than -gmem/--gem-max-gib " << gemMaxGib;

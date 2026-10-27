@@ -689,7 +689,7 @@ int main(int argc, char *argv[]) try
                   "the stall stop (default 1).");
    args.AddOption(&gemMaxGib, "-gmem", "--gem-max-gib",
                   "Largest memory in GiB for the dense -gem Fresnel matrices "
-                  "(default 16).");
+                  "and the work image (default 16).");
    args.AddOption(&checkLoss, "-check", "--check", "-no-check", "--no-check",
                   "Exit with an error unless a Newton step was accepted and "
                   "the final loss is below the first loss (default off).");
