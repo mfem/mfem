@@ -4973,7 +4973,7 @@ void HypreParaSails::SetOperator(const Operator &op)
    if (A)
    {
       MPI_Comm comm;
-      HYPRE_ParCSRMatrixGetComm(*A, &comm);
+      HYPRE_ParCSRMatrixGetComm(*new_A, &comm);
       ResetSAIPrecond(comm);
    }
 
