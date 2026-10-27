@@ -259,8 +259,7 @@ void CopyIf(bool use_dev, InputIt d_in, OutputIt d_out,
     (__CUDACC_VER_MAJOR__ == 12 && __CUDACC_VER_MINOR__ < 5))
       // bug in cuda < 12.5, work-around: use Flagged instead
 #ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
-      Array<bool> flags(num_items,
-                        MemoryManager::Instance().GetDeviceMemoryType(), true);
+      auto flags = Array<bool>::NewTemporary(num_items);
 #else
       Array<bool> flags(num_items,
                         MemoryManager::Instance().GetDeviceMemoryType());
