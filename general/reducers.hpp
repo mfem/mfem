@@ -514,6 +514,15 @@ template<class B, class R> struct reduction_kernel
       }
    }
 };
+
+auto DevReduceWorkspaceMType()
+{
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
+   return MemoryManager::Instance().GetTempHostPinnedMemoryType();
+#else
+   return MemoryManager::HOST_PINNED;
+#endif
+}
 }
 
 /**
@@ -523,9 +532,8 @@ template<class B, class R> struct reduction_kernel
  @a reducer helper for joining two reduced values.
  @a use_dev true to perform the reduction on the device, if possible.
  @a workspace temporary workspace used for device reductions. May be resized to
- a larger capacity as needed. Preferably should have MemoryType::MANAGED or
- MemoryType::HOST_PINNED. TODO: replace with internal temporary workspace
- vectors once that's added to the memory manager.
+ a larger capacity as needed. Note that the memory type and contents of this
+ workspace could be changed.
  @tparam T value_type to operate on
 
  This version of reduce is @deprecated, use the version without an external
@@ -570,13 +578,7 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
-      auto mt = workspace.GetMemory().GetHostMemoryType();
-      if ((int)mt < (int)MemoryType::HOST_PINNED ||
-          (int)mt >= (int)MemoryType::DEVICE)
-      {
-         mt = MemoryType::HOST_PINNED;
-      }
-      workspace.SetSize(nblocks, mt);
+      workspace.SetSize(nblocks, internal::DevReduceWorkspaceMType());
       // By design allow reduce kernel use the "host" pointer.
       auto work = workspace.HostWrite();
       red.work = work;
@@ -612,49 +614,17 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
    {
       return;
    }
-#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
 #if defined(MFEM_USE_CUDA_OR_HIP)
    if (use_dev &&
        mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
                             Backend::RAJA_HIP))
    {
-      using red_type = internal::reduction_kernel<typename std::decay<B>::type,
-            typename std::decay<R>::type>;
-      // max block size is 256, but can be smaller
-      int block_size = std::min<int>(red_type::max_blocksize(),
-                                     1ll << red_type::block_log2(N));
-
-      int num_mp = Device::NumMultiprocessors(Device::GetId());
-#if defined(MFEM_USE_CUDA)
-      // good value of mp_sat found experimentally on Lassen
-      constexpr int mp_sat = 8;
-#elif defined(MFEM_USE_HIP)
-      // good value of mp_sat found experimentally on Tuolumne
-      constexpr int mp_sat = 4;
-#else
-      num_mp = 1;
-      constexpr int mp_sat = 1;
+#ifndef MFEM_USE_TEMPORARY_WORK_BUFFERS
+      static
 #endif
-      // determine how many items each thread should sum during the serial
-      // portion
-      int nblocks = std::min(mp_sat * num_mp, (N + block_size - 1) / block_size);
-      int items_per_thread =
-         (N + block_size * nblocks - 1) / (block_size * nblocks);
-
-      red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
-      // allocate res to fit block_size entries
-      auto mt = MemoryManager::Instance().GetTempHostPinnedMemoryType();
-      Array<T> workspace(nblocks, mt);
-      // By design allow reduce kernel use the "host" pointer.
-      auto work = workspace.HostWrite();
-      red.work = work;
-      forall_2D(nblocks, block_size, 1, std::move(red));
-      // wait for results
-      MFEM_DEVICE_SYNC;
-      for (int i = 0; i < nblocks; ++i)
-      {
-         reducer.Join(res, work[i]);
-      }
+      Array<T>
+      workspace;
+      reduce(N, res, std::forward<B>(body), reducer, use_dev, workspace);
       return;
    }
 #endif
@@ -663,11 +633,6 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
    {
       body(i, res);
    }
-#else
-   static Array<T> workspace;
-   reduce(N, res, std::forward<B>(body), reducer, use_dev, workspace);
-#endif
-
 }
 
 } // namespace mfem

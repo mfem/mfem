@@ -987,9 +987,9 @@ inline int Array<T>::Append(const Array& els)
    SetSize(size + to_append);
 #ifdef MFEM_USE_NEW_MEM_MANAGER
    Memory<T> orig;
-   orig.makeAlias(data, 0, old_size);
+   orig.MakeAlias(data, 0, old_size);
    Memory<T> dst;
-   dst.makeAlias(data, old_size, size);
+   dst.MakeAlias(data, old_size, size);
    // Match the original memory validity if it was fully valid in a single location.
    // Prefer being valid on host if orig was fully valid on host and device
    if (orig.HostIsValid())
