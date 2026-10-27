@@ -83,13 +83,15 @@ store exclusively through the window and keep it separate from primary storage.
 Capture replaces an existing ID without moving its FIFO position. When full,
 capture of a new ID erases the oldest first. Erase and Clear leave the live
 application unchanged and make stored allocations reusable. Saved metadata and
-payloads remain in the backing checkpointer. The backing store may have finite
-or absent capacity, but the window always has a positive finite count limit.
+saved application data remain in the backing checkpointer. The backing store
+may have finite or absent capacity, but the window always has a positive finite
+count limit.
 Destruction does not clear or close borrowed storage.
 
 With a window, the controller splits propagation into single-state transitions,
 capturing the origin and every reached state under ID equal to StateId. Without
 a window, it passes each requested interval directly to the propagator.
+Successful scheduled Store and Restore also capture their state in the window.
 Controller/window instances cannot be copied, are synchronous, and are not
 thread-safe. Borrowed objects must outlive their users.
 
@@ -118,8 +120,9 @@ EulerCheckpointer owns complete solution, step, time, timestep, and operator
 parameter records and reinitializes the solver on restore. Both support
 memory-block, file-block, memory-snapshots, and file-snapshots, selected through
 --storage; memory-block is the default. Blocks preallocate steps+1 fixed 64-byte
-records and recycle slots without increasing payload extent. Separate records
-grow by default; --max-checkpoints supplies an optional count limit.
+records and recycle slots without increasing the space reserved for those
+records. Separate records grow by default; --max-checkpoints supplies an
+optional count limit.
 
 The mesh example refines a changing nonconforming quadrilateral mesh. Its local
 MeshCheckpointer saves complete MFEM mesh text, the refinement cycle, and the
@@ -135,21 +138,32 @@ Examples close file stores and reopen them against fresh application objects
 before restoring and replaying. Explicitly requested stores remain on disk.
 Both file modes validate native metadata, compatibility, lengths, and checksums;
 an open marker rejects unclean stores. Reopening requires the same byte order
-and real_t precision. File blocks use a fixed-size payload file and manifest;
+and real_t precision. File blocks use a fixed-size data file and manifest;
 separate mesh/Euler files have a growing manifest. Close() is checked and
 idempotent. No crash recovery or power-loss durability is promised.
+Saved-record operations and queries require an open file store; CurrentState()
+and Capacity() remain available after close. Miniapp storage classes explicitly
+disable copying. Existing mesh and heterogeneous classes live in miniapp-local
+headers alongside EulerCheckpointer, allowing tests to use their actual code.
+Reuse covers retained records and block size; it does not promise that every
+capture is allocation-free or that snapshot files retain physical disk addresses.
 
 \section checkpointing_stages Subsequent implementation stages
 
-Stages 1, 6, and 7 are source-complete; Stages 2-5 are skipped. The removed generic
-helpers and separate adapter/storage APIs have not been reintroduced. All
+Stages 1, 6, 7, and 8 are source-complete; Stages 2-5 are skipped. The removed
+generic helpers and separate adapter/storage APIs have not been reintroduced. All
 storage code is miniapp-local; reusable schedules belong to the library.
-The remaining work in checkpoint-implementation-plan.txt is Stage 8 integration
-and fatal-error coverage.
+Stage 8 findings are documented in checkpoint-review-notes.txt. Direct dispatch
+now checks checkpoint identities and unchanged live positions, matching the
+controller. Euler construction rejects unsupported storage modes. Existing
+coverage is retained.
 Normal-path example cases are registered for every storage mode and optional
 snapshot count limits in direct, controller, and controller/window modes (54
-cases). Unit sources cover schedules, command dispatch, FIFO replacement and
-eviction, and nearest-origin replay. None have been executed.
+cases). Library unit sources also cover zero-horizon window capture and
+independent primary/window erase. There is no separate storage test executable
+or process harness. Additional allocation-reuse and fatal-error checks remain
+coverage gaps.
+Compilation and runtime verification of all sources remain pending.
 
 No compilation or execution was performed.
 */

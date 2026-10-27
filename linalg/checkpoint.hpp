@@ -80,6 +80,9 @@ public:
    virtual void Restore(CheckpointId id) = 0;
 
    /// Erase @a id and make its storage reusable; absence is a no-op.
+   /** Leaves the live application unchanged. Reuse does not imply that all
+       capture operations are allocation-free or that erased file records
+       retain their physical disk addresses. */
    virtual void Erase(CheckpointId id) = 0;
 
    /// Return whether @a id is saved in this checkpointer.
@@ -99,13 +102,15 @@ public:
 
    /// Return the configured checkpoint-count limit, or no value for growth.
    /** An absent limit does not promise infinite physical memory or disk space.
-       Finite limits may be zero. This query is not a payload byte budget. */
+       Finite limits may be zero. This query does not limit the number of bytes
+       used for saved application data. */
    virtual std::optional<std::size_t> Capacity() const = 0;
 
    /// Publish clean-close metadata and release resources when applicable.
    /** File implementations override this with checked, idempotent close.
-       Their storage operations are invalid after close, until reopened in a
-       new instance. The default is a no-op for process-local implementations.
+       Capture, restore, erase, and saved-record queries are invalid after
+       close, until reopened in a new instance. CurrentState() and Capacity()
+       remain available. The default is a no-op for process-local instances.
     */
    virtual void Close() { }
 };
@@ -231,16 +236,41 @@ public:
    virtual void Advance(StateId from, StateId to) = 0;
 };
 
-/// Bounded FIFO of exact states in a dedicated memory checkpointer.
-/** The backing checkpointer must be initially empty, bound to the same live
-    application as its user, and used exclusively through this window. It must
-    outlive the window. The caller supplies a memory implementation; the
-    Checkpointer interface does not distinguish memory from file storage.
+/// Keep a bounded number of complete application states in memory.
+/** Supports restoration of recently captured states during long simulations.
+    "Exact" means restoration recovers the complete application state saved at
+    the captured position.
 
-    Only checkpoint IDs are retained here; saved positions and payloads remain
-    in the checkpointer. Replacing an ID preserves its FIFO position. Erasing
-    or clearing records makes backing storage reusable. Destruction does not
-    clear or close the borrowed checkpointer. Instances cannot be copied. */
+    Borrows a dedicated memory Checkpointer that must initially be empty and
+    bind to the same live application as the window's user. The checkpointer
+    stores saved application data and positions; the window retains only
+    checkpoint IDs in first-in, first-out (FIFO) order. Use the backing store
+    exclusively through the window and keep it alive longer than the window.
+    The caller supplies a memory implementation; the Checkpointer interface
+    does not distinguish memory from file storage.
+
+    - Capture(id) saves the current application state. When full, capturing a
+      new ID first erases the oldest checkpoint. Capturing an existing ID
+      replaces its saved data without moving its FIFO position.
+    - Restore(id) restores the complete application state saved under that ID.
+    - FindAtOrBefore(target, info) finds the greatest saved position that does
+      not exceed the target, breaking ties by lowest checkpoint ID.
+    - Erase(id) and Clear() remove records and make backing storage reusable
+      without changing the live application. Erasing an absent ID is a no-op.
+
+    For example, a capacity-three window containing IDs [10, 20, 30] becomes
+    [20, 30, 40] when ID 40 is captured. Replacing ID 20 leaves the order
+    unchanged. FIFO order follows insertion of IDs, not their saved positions.
+
+    When attached to CheckpointController, the controller captures the origin
+    and each state reached during propagation, using the state position as the
+    window checkpoint ID. Window records are independent of primary checkpoint
+    storage, which must use a separate checkpointer.
+
+    Capacity limits the number of checkpoints, not their total byte size. The
+    window remains bounded even when its backing checkpointer supports growth
+    without a configured count limit. Destruction does not clear or close the
+    borrowed checkpointer. Instances cannot be copied. */
 class ExactCheckpointWindow
 {
 private:
@@ -293,11 +323,13 @@ public:
 /** The checkpointer, propagator, and optional window must outlive the
     controller and be bound to the same live application. Window backing
     storage must be separate from the primary checkpointer. No saved metadata
-    or payloads are owned by the controller. Copying is disabled.
+    or saved application data are owned by the controller. Copying is disabled.
 
     With a window, propagation is split into single-state transitions. Capture
     the origin and each reached state using checkpoint ID equal to StateId.
     Without a window, pass each requested advance directly to the propagator.
+    Successful scheduled Store and Restore also capture the reached state in
+    the window, including a zero-horizon initial Store.
     Scheduled Store/Restore/Erase commands refer to the primary checkpointer;
     Erase does not remove independent window records.
 

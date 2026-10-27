@@ -80,7 +80,8 @@ at most N exact states. Zero (the default) disables the window; positive sizes
 require controller mode. Euler uses preallocated memory blocks for this store;
 mesh and heterogeneous state use memory records. The controller captures the
 origin and every state reached during propagation, using StateId as the window
-checkpoint ID. A full window erases the oldest ID before capturing a new ID;
+checkpoint ID. Successful scheduled Store and Restore also capture their state
+in the window. A full window erases the oldest ID before capturing a new ID;
 replacement keeps its FIFO position. Primary scheduled records have independent
 IDs and capacity. The window also remains bounded when its backing store has
 no configured capacity. `Clear()` erases records for reuse, without changing
@@ -108,11 +109,18 @@ Select storage with `-st/--storage`:
 
 Euler blocks preallocate `steps+1` slots with fixed 64-byte application records.
 Replacement keeps a slot and erase makes it reusable; file blocks keep one
-payload file of fixed extent plus a fixed-size manifest. Separate record maps
+data file of fixed size plus a fixed-size manifest. Separate record maps
 grow incrementally with no final count reservation. Memory records reuse erased
 map nodes, and mesh records retain string capacity. File snapshot storage writes
 one file per ID, with a growing manifest and reusable I/O buffers. Mesh records
 change size after refinement, so block storage is rejected for this example.
+Reuse applies to retained record allocations and configured block size; capture
+can still allocate when data grows or while mesh text is serialized. Erased
+snapshot files do not retain a promised physical disk location.
+
+The existing application classes are defined in `euler_checkpoint.hpp`,
+`mesh_checkpoint.hpp`, and `heterogeneous_checkpoint.hpp`. They remain
+miniapp-local and cannot be copied.
 
 For snapshots, `-m/--max-checkpoints` supplies an optional count limit; `-1`
 allows growth subject to available resources. A replacement is permitted at the
@@ -131,7 +139,9 @@ reopening a store from a previous invocation; the example does this internally.
 Files have versioned native metadata, record lengths, and checksums. An open
 marker rejects unclean stores; a checked, idempotent close publishes clean
 metadata. Files require the same byte order and `real_t` precision on reopening
-and are incompatible with the earlier checkpoint implementation. No crash
+and are incompatible with the earlier checkpoint implementation. After file
+close, saved-record operations and queries are invalid; live position and
+configured capacity queries remain available. No crash
 recovery or power-loss durability is promised.
 
 ```sh
@@ -147,19 +157,29 @@ checkpoint-backward-euler --storage memory-snapshots --controller
 checkpoint-mesh-state --storage file-snapshots --controller --window-size 2 -no-pv
 ```
 
-CMake registers 54 example cases covering every mode and bounded/growing
+CMake retains 54 example cases covering every mode and bounded/growing
 snapshot counts under direct dispatch, controller dispatch, and controller
-dispatch with a two-state window. For later use, build the four miniapp targets
-and run
+dispatch with a two-state window. For later use, enable `MFEM_ENABLE_TESTING`,
+build the four miniapp targets, and run
 `ctest --test-dir <build-directory> -R '^checkpoint-' --output-on-failure`.
 Makefile builds provide the corresponding `make test` cases in this directory.
 The `[Checkpoint]` unit-test tag separately covers library schedules, controller
-command dispatch, FIFO replacement/eviction/clear, and replay origin selection.
+command dispatch, FIFO replacement/eviction/clear, replay origin selection, and
+zero-horizon capture with independent primary/window erase.
+
+`CMakeLists.txt` contains the miniapp build rules and CTest registrations.
+The Makefile registers the same example combinations through MFEM's existing
+test support. There is no separate storage test executable or process harness.
+Additional allocation-reuse and fatal-error checks remain coverage gaps.
+No examples or tests have been compiled or run.
 
 The staged implementation is in `../../checkpoint-implementation-plan.txt`.
 Stages 2-5 are skipped. Stage 6 uses application-specific miniapp classes;
 rejected generic snapshot, catalog, reader/writer, and adapter/storage interfaces
 have not been added. Stage 7 provides optional library controller/window
-services. Stage 8 integration and fatal-error coverage remain pending.
+services. Stage 8 is source-complete: contract review, targeted coverage,
+registrations, and documentation. Findings and runtime limitations are recorded
+in `../../checkpoint-review-notes.txt`. Existing test sources and the 54-case
+matrix are retained; all runtime verification remains pending.
 
 No compilation, miniapp execution, or test execution was performed.

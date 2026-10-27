@@ -171,7 +171,7 @@ private:
    // Header: magic, version, application, mode, components, precision,
    // record size, limit presence, limit, live count, clean flag, checksum.
    using Header = std::array<std::uint64_t, 12>;
-   // Metadata: active flag, checkpoint ID, state, slot, length, payload
+   // Metadata: active flag, checkpoint ID, state, slot, length, record
    // checksum, metadata checksum. Inactive block slots retain only their index.
    using Metadata = std::array<std::uint64_t, 7>;
 
@@ -352,6 +352,9 @@ private:
    }
 
 public:
+   EulerCheckpointer(const EulerCheckpointer &) = delete;
+   EulerCheckpointer &operator=(const EulerCheckpointer &) = delete;
+
    /// Bind the Euler application and create or reopen its selected storage.
    /** Blocks require a finite limit. Snapshot limits are optional. Reopen uses
        the same mode, application, and count limit as the cleanly closed store.
@@ -362,6 +365,11 @@ public:
                      const std::string &path = "", bool reopen = false)
       : state(state_), solver(solver_), oper(oper_), mode(mode_), limit(limit_)
    {
+      MFEM_VERIFY(mode == EulerStorage::MemoryBlock ||
+                  mode == EulerStorage::FileBlock ||
+                  mode == EulerStorage::MemorySnapshots ||
+                  mode == EulerStorage::FileSnapshots,
+                  "Unknown Euler checkpoint storage mode.");
       MFEM_VERIFY(state.solution.Size() == oper.Height(),
                   "Euler state and operator dimensions disagree.");
       if (IsBlock())
@@ -605,7 +613,7 @@ public:
    std::size_t Size() const override { RequireOpen(); return count; }
    std::optional<std::size_t> Capacity() const override { return limit; }
 
-   /// Publish clean metadata after checked payload flush and close.
+   /// Publish clean metadata after flushing and closing saved-data files.
    void Close() override
    {
       if (!IsFile() || closed) { return; }
@@ -624,10 +632,10 @@ public:
    /// Report the owned file directory; memory modes have an empty path.
    const fs::path &Path() const { return directory; }
 
-   /// Report fixed payload extent so the example can verify block reuse.
+   /// Report bytes reserved for checkpoint records to verify block reuse.
    std::size_t FixedBytes() const
    {
-      MFEM_VERIFY(IsBlock(), "Only block storage has a fixed payload extent.");
+      MFEM_VERIFY(IsBlock(), "Only block storage has a fixed data size.");
       if (mode == EulerStorage::FileBlock)
       {
          MFEM_VERIFY(FileSize(directory / "records.bin") == BlockBytes(),
