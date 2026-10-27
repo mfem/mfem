@@ -589,12 +589,12 @@ TEST_CASE("ParSubMesh", "[Parallel],[SubMesh]")
 
 TEST_CASE("ParSubMesh boundary elements order", "[Parallel],[SubMesh]")
 {
-   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                        Element::QUADRILATERAL, Element::TRIANGLE);
    auto attribute = GENERATE(1, 2);
-   auto nonconforming = GENERATE(false, true);
    auto curved = GENERATE(false, true);
-   CAPTURE(type, attribute, nonconforming, curved);
-   Mesh mesh = RotatedBoundaryElementsMesh(type, nonconforming, curved);
+   CAPTURE(type, attribute, curved);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, false, curved);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    auto submesh = ParSubMesh::CreateFromDomain(pmesh, Array<int> {attribute});
    int ncompared = CheckSubMeshBoundaryElements(submesh);

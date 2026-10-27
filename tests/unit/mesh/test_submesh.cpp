@@ -426,7 +426,8 @@ TEST_CASE("SubMesh", "[SubMesh]")
 
 TEST_CASE("SubMesh boundary elements order", "[SubMesh]")
 {
-   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                        Element::QUADRILATERAL, Element::TRIANGLE);
    auto attribute = GENERATE(1, 2);
    auto nonconforming = GENERATE(false, true);
    auto curved = GENERATE(false, true);

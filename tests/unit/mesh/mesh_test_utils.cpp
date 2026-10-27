@@ -495,8 +495,12 @@ void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
 Mesh RotatedBoundaryElementsMesh(Element::Type type, bool nonconforming,
                                  bool curved)
 {
-   Mesh mesh = Mesh::MakeCartesian3D(4, 2, 2, type);
-   Mesh rmesh(3, mesh.GetNV(), mesh.GetNE(), mesh.GetNBE());
+   const bool dim2 = type == Element::QUADRILATERAL ||
+                     type == Element::TRIANGLE;
+   Mesh mesh = dim2 ? Mesh::MakeCartesian2D(4, 2, type) :
+               Mesh::MakeCartesian3D(4, 2, 2, type);
+   const int dim = mesh.Dimension();
+   Mesh rmesh(dim, mesh.GetNV(), mesh.GetNE(), mesh.GetNBE());
    for (int i = 0; i < mesh.GetNV(); i++)
    {
       rmesh.AddVertex(mesh.GetVertex(i));
@@ -515,7 +519,9 @@ Mesh RotatedBoundaryElementsMesh(Element::Type type, bool nonconforming,
       int *v = be->GetVertices();
       const int n = be->GetNVertices();
       if (reverse) { std::reverse(v, v + n); }
-      std::rotate(v, v + (k++ % n), v + n);
+      // A segment has no rotation but the identity.
+      const int shift = k++ % n;
+      if (n > 2) { std::rotate(v, v + shift, v + n); }
       be->SetAttribute(attr);
       rmesh.AddBdrElement(be);
    };
@@ -540,12 +546,18 @@ Mesh RotatedBoundaryElementsMesh(Element::Type type, bool nonconforming,
    if (curved)
    {
       rmesh.SetCurvature(3);
-      VectorFunctionCoefficient curve(3, [](const Vector &x, Vector &y)
+      VectorFunctionCoefficient curve(dim, [](const Vector &x, Vector &y)
       {
          y = x;
-         y(0) += 0.05 * std::sin(M_PI * x(1)) * std::sin(M_PI * x(2));
-         y(1) += 0.05 * std::sin(M_PI * x(0)) * std::sin(M_PI * x(2));
-         y(2) += 0.05 * std::sin(M_PI * x(0)) * std::sin(M_PI * x(1));
+         for (int i = 0; i < x.Size(); i++)
+         {
+            real_t d = 0.05;
+            for (int j = 0; j < x.Size(); j++)
+            {
+               if (j != i) { d *= std::sin(M_PI * x(j)); }
+            }
+            y(i) += d;
+         }
       });
       rmesh.Transform(curve);
    }

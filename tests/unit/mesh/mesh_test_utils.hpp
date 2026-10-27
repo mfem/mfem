@@ -147,13 +147,15 @@ void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
                                    bool backwards = true);
 
 /**
- * @brief Create a 4 x 2 x 2 mesh of the unit cube, with attribute 1 for
- * x < 0.5 and 2 otherwise. Boundary elements are added on the interior faces
- * x = 0.25 (attribute 7) and x = 0.5 (attribute 8). All the boundary elements
- * are rotated with respect to their faces, and every other one on the interior
+ * @brief Create a 4 x 2 x 2 mesh of the unit cube, or a 4 x 2 mesh of the unit
+ * square, with attribute 1 for x < 0.5 and 2 otherwise. Boundary elements are
+ * added on the interior faces x = 0.25 (attribute 7) and x = 0.5 (attribute 8).
+ * All the boundary elements are rotated with respect to their faces, except
+ * the segments which have no rotation, and every other one on the interior
  * faces is reversed.
  *
- * @param type The element type, HEXAHEDRON or TETRAHEDRON
+ * @param type The element type, HEXAHEDRON, TETRAHEDRON, QUADRILATERAL or
+ * TRIANGLE
  * @param nonconforming Make the mesh nonconforming (simplices included)
  * @param curved Give the mesh third order nodes and curve it
  * @return Mesh
@@ -182,7 +184,9 @@ int CheckSubMeshBoundaryElements(SubMeshT &submesh)
 {
    const auto &parent = *submesh.GetParent();
    const auto parent_face_to_be = parent.GetFaceToBdrElMap();
-   const auto &parent_face_ids = submesh.GetParentFaceIDMap();
+   const auto &parent_face_ids = submesh.Dimension() == 3 ?
+                                 submesh.GetParentFaceIDMap() :
+                                 submesh.GetParentEdgeIDMap();
    const auto &parent_vertex_ids = submesh.GetParentVertexIDMap();
    const auto face_to_be = submesh.GetFaceToBdrElMap();
    bool one_per_face = true, orientation_kept = true;
@@ -200,13 +204,15 @@ int CheckSubMeshBoundaryElements(SubMeshT &submesh)
       Array<int> sv, pv;
       submesh.GetBdrElementVertices(i, sv);
       parent.GetBdrElementVertices(pbe, pv);
-      REQUIRE(sv.Size() == pv.Size());
+      CHECK(sv.Size() == pv.Size());
+      if (sv.Size() != pv.Size()) { continue; }
       const int n = sv.Size();
       for (int j = 0; j < n; j++) { sv[j] = parent_vertex_ids[sv[j]]; }
       bool same_cycle = false;
       for (int k = 0; !same_cycle && k < n; k++)
       {
-         bool rotation = true, reflection = !keep_orientation;
+         // A segment has no rotation but the identity.
+         bool rotation = n > 2 || k == 0, reflection = !keep_orientation;
          for (int j = 0; j < n; j++)
          {
             rotation = rotation && (pv[j] == sv[(k + j) % n]);
@@ -242,8 +248,8 @@ int CheckSubMeshBoundaryElements(SubMeshT &submesh)
    FiniteElementSpace fes(&submesh, &fec);
    FunctionCoefficient q([](const Vector &x)
    {
-      return 1 + x(0) * x(0) * x(0) + 2 * x(0) * x(1) * x(2)
-             + 3 * x(1) * x(2) * x(2);
+      const real_t z = x.Size() == 3 ? x(2) : real_t(1);
+      return 1 + x(0) * x(0) * x(0) + 2 * x(0) * x(1) * z + 3 * x(1) * z * z;
    });
    GridFunction g(&fes);
    g.ProjectCoefficient(q);
