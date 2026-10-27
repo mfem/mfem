@@ -1873,6 +1873,14 @@ public:
       else
       {
          base_mem.flags = view.data.flags;
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+         if (!base_mem.segment)
+         {
+            // Transfer the reference if registration occurred through the view.
+            base_mem.segment = view.data.segment;
+            view.data.segment = 0;
+         }
+#endif
       }
       view.data.Reset();
    }
