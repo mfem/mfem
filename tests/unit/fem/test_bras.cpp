@@ -23,13 +23,17 @@ namespace bras_test
 
 using Weighting = BRASPreconditioner::Weighting;
 using NCMethod = BRASPreconditioner::NCMethod;
+using ElementInverse = BRASPreconditioner::ElementInverse;
 
 enum class MeshType { QUAD, TRI, HEX, TET };
 
 // The spaces cover low and high order, nodal (Gauss-Lobatto) and positive
 // (Bernstein) bases, vdim > 1, discontinuous spaces, and the signed DOFs of
-// ND and RT spaces.
-enum class Space { H1_1, H1_3, H1_POS_3, H1_VDIM, L2_2, ND_1, ND_2, RT_0, RT_1 };
+// ND and RT spaces. The last two, with integrated bases and an L2 space with
+// MapType INTEGRAL, are only used for ElementInverse::TENSOR.
+enum class Space { H1_1, H1_3, H1_POS_3, H1_VDIM, L2_2, ND_1, ND_2, RT_0, RT_1,
+                   L2_INT_2, ND_INT_2
+                 };
 
 // Meshes of [0,1]^d. Quadrilateral and hexahedral meshes are perturbed to
 // have non-affine elements; if curved, the mesh has quadratic nodes. The
@@ -78,7 +82,7 @@ Array<int> SlabPartitioning(Mesh &mesh, int nparts)
    for (int e = 0; e < mesh.GetNE(); e++)
    {
       mesh.GetElementCenter(e, c);
-      part[e] = std::min(nparts - 1, int(std::floor(c(0)*nparts)));
+      part[e] = std::clamp(int(std::floor(c(0)*nparts)), 0, nparts - 1);
    }
    return part;
 }
@@ -111,8 +115,60 @@ SpaceInfo MakeSpace(Space s, int dim)
       case Space::ND_2: info.fec.reset(new ND_FECollection(2, dim)); break;
       case Space::RT_0: info.fec.reset(new RT_FECollection(0, dim)); break;
       case Space::RT_1: info.fec.reset(new RT_FECollection(1, dim)); break;
+      case Space::L2_INT_2:
+         info.fec.reset(new L2_FECollection(2, dim, BasisType::IntegratedGLL,
+                                            FiniteElement::INTEGRAL));
+         break;
+      case Space::ND_INT_2:
+         info.fec.reset(new ND_FECollection(2, dim, BasisType::GaussLobatto,
+                                            BasisType::IntegratedGLL));
+         break;
    }
    return info;
+}
+
+// Meshes of n^dim elements of the unit segment, square or cube, mapped by
+// y = A x + b. The matrix A stretches and rotates, so that the elements are
+// rectangles or boxes with orthogonal Jacobian columns, and it also shears if
+// skew is true. The attribute of each element is 1 or 2, by the sign of
+// y_0 - 0.5, for piecewise constant coefficients.
+Mesh MakeAffineMesh(int dim, int n, bool skew)
+{
+   Mesh mesh = (dim == 1) ? Mesh::MakeCartesian1D(n) :
+               (dim == 2) ? Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL,
+                                                  true) :
+               Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON);
+   mesh.Transform([skew](const Vector &x, Vector &y)
+   {
+      const int dim = x.Size();
+      // Stretch and shear.
+      Vector z(x);
+      for (int d = 0; d < dim; d++) { z(d) *= 1.0 + d; }
+      if (skew && dim > 1) { z(0) += 0.4*z(1); }
+      // Rotate in the (0,1) plane and then in the (1,2) plane.
+      y = z;
+      const real_t c = std::cos(0.3), s = std::sin(0.3);
+      if (dim > 1)
+      {
+         y(0) = c*z(0) - s*z(1);
+         y(1) = s*z(0) + c*z(1);
+      }
+      if (dim > 2)
+      {
+         const real_t y1 = y(1);
+         y(1) = c*y1 - s*z(2);
+         y(2) = s*y1 + c*z(2);
+      }
+      y(0) += 0.5;
+   });
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      Vector c;
+      mesh.GetElementCenter(e, c);
+      mesh.SetAttribute(e, c(0) < 0.5 ? 1 : 2);
+   }
+   mesh.SetAttributes();
+   return mesh;
 }
 
 // Positive, non-constant scalar coefficient.
@@ -138,7 +194,7 @@ void MatrixCoeff(const Vector &x, DenseMatrix &K)
 bool IsVectorSpace(Space s)
 {
    return s == Space::ND_1 || s == Space::ND_2 || s == Space::RT_0 ||
-          s == Space::RT_1;
+          s == Space::RT_1 || s == Space::ND_INT_2;
 }
 
 // The spaces tested with a matrix coefficient; the others use the scalar one.
@@ -935,10 +991,185 @@ TEST_CASE("BRAS assembled matrix", "[BRAS]")
    REQUIRE(MaxDiff(B_mat, B_op) <= 1e-12*B_op.MaxMaxNorm());
 
 #ifdef MFEM_USE_EXCEPTIONS
+   // CHEBYSHEV differs from LEFT_INVERSE only if the prolongation has rows
+   // with more than one entry; on nonconforming quadrilaterals this is not the
+   // case for L2 and lowest order Nedelec spaces.
+   bool hanging = false;
+   if (const SparseMatrix *Pc = fes.GetConformingProlongation())
+   {
+      for (int i = 0; i < Pc->Height(); i++)
+      {
+         hanging = hanging || Pc->RowSize(i) > 1;
+      }
+   }
    bras->SetNCMethod(NCMethod::CHEBYSHEV);
-   if (nonconforming) { REQUIRE_THROWS(bras->AssembleMatrix()); }
+   if (hanging) { REQUIRE_THROWS(bras->AssembleMatrix()); }
+   else { REQUIRE_NOTHROW(delete bras->AssembleMatrix()); }
 #endif
 }
+
+// On affine tensor product meshes with piecewise constant coefficients, the
+// sum factorization of ElementInverse::TENSOR gives the same preconditioner
+// as ElementInverse::DENSE, also on nonconforming meshes, and its assembled
+// matrix equals the operator. The coefficient is constant, or piecewise
+// constant by element attribute. Skewed meshes are only used for H1 and L2
+// spaces, which do not require orthogonal Jacobian columns.
+TEST_CASE("BRAS tensor element inverse", "[BRAS]")
+{
+   const int dim = GENERATE(1, 2, 3);
+   const auto space = GENERATE(Space::H1_1, Space::H1_3, Space::H1_POS_3,
+                               Space::H1_VDIM, Space::L2_2, Space::L2_INT_2,
+                               Space::ND_1, Space::ND_2, Space::ND_INT_2,
+                               Space::RT_0, Space::RT_1);
+   const auto weighting = GENERATE(Weighting::IDENTITY, Weighting::DIAGONAL);
+   const bool skew = GENERATE(false, true);
+   const bool pw_coeff = GENERATE(false, true);
+   const bool nonconforming = GENERATE(false, true);
+   const bool use_ess = GENERATE(false, true);
+   if ((dim == 1 || skew) && IsVectorSpace(space)) { return; }
+   if (nonconforming && (dim == 1 || space == Space::L2_2 ||
+                         space == Space::L2_INT_2)) { return; }
+   // Only the lowest order spaces on nonconforming hexahedra, since the others
+   // give large dense matrices.
+   if (nonconforming && dim == 3 && space != Space::H1_1 &&
+       space != Space::ND_1 && space != Space::RT_0) { return; }
+   CAPTURE(dim, int(space), int(weighting), skew, pw_coeff, nonconforming,
+           use_ess);
+
+   Mesh mesh = MakeAffineMesh(dim, dim == 1 ? 4 : (dim == 2 ? 3 : 2), skew);
+   if (nonconforming) { RefineNC(mesh); }
+   SpaceInfo info = MakeSpace(space, dim);
+   FiniteElementSpace fes(&mesh, info.fec.get(), info.vdim, info.ordering);
+   if (nonconforming) { REQUIRE(fes.Nonconforming()); }
+   Array<int> ess;
+   if (use_ess) { fes.GetBoundaryTrueDofs(ess); }
+
+   Vector q(2);
+   q(0) = 2.0;
+   q(1) = 5.0;
+   PWConstCoefficient pw(q);
+   ConstantCoefficient three(3.0);
+   Coefficient &Q = pw_coeff ? static_cast<Coefficient&>(pw) : three;
+
+   BRASPreconditioner bras_dense(fes, Q, ess, weighting);
+   BRASPreconditioner bras_tensor(fes, Q, ess, weighting,
+                                  ElementInverse::TENSOR);
+   REQUIRE(bras_tensor.GetElementInverse() == ElementInverse::TENSOR);
+   // The Bernstein mass matrices are ill-conditioned, which affects the
+   // rounding errors of the dense Cholesky factorization in 3D.
+   const real_t tol = space == Space::H1_POS_3 ? 1e-10 : 1e-12;
+   const DenseMatrix B = ToDense(bras_dense), B_t = ToDense(bras_tensor);
+   REQUIRE(MaxDiff(B_t, B) <= tol*B.MaxMaxNorm());
+
+   std::unique_ptr<SparseMatrix> B_mat(bras_tensor.AssembleMatrix());
+   DenseMatrix B_mat_d;
+   B_mat->ToDenseMatrix(B_mat_d);
+   REQUIRE(MaxDiff(B_mat_d, B_t) <= 1e-12*B.MaxMaxNorm());
+}
+
+// The bilinear form constructor with ElementInverse::TENSOR sums the
+// coefficients of all the mass integrators, and Update() follows a
+// coefficient change.
+TEST_CASE("BRAS tensor bilinear form", "[BRAS]")
+{
+   const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::ND_2,
+                               Space::RT_1);
+   CAPTURE(int(space));
+   Mesh mesh = MakeAffineMesh(2, 3, false);
+   SpaceInfo info = MakeSpace(space, 2);
+   FiniteElementSpace fes(&mesh, info.fec.get(), info.vdim, info.ordering);
+   Array<int> ess;
+   fes.GetBoundaryTrueDofs(ess);
+
+   Vector q(2);
+   q(0) = 2.0;
+   q(1) = 5.0;
+   PWConstCoefficient pw(q);
+   ConstantCoefficient c(1.0);
+   BilinearForm a(&fes);
+   for (Coefficient *Q : {static_cast<Coefficient*>(&pw),
+                          static_cast<Coefficient*>(&c)})
+   {
+      if (IsVectorSpace(space))
+      {
+         a.AddDomainIntegrator(new VectorFEMassIntegrator(*Q));
+      }
+      else if (space == Space::H1_VDIM)
+      {
+         a.AddDomainIntegrator(new VectorMassIntegrator(*Q));
+      }
+      else { a.AddDomainIntegrator(new MassIntegrator(*Q)); }
+   }
+   // The VectorMassIntegrator without SetVDim() has vdim equal to the space
+   // dimension, 2.
+   a.AddDomainIntegrator(space == Space::H1_VDIM ? new VectorMassIntegrator :
+                         IsVectorSpace(space) ?
+                         static_cast<BilinearFormIntegrator*>(
+                            new VectorFEMassIntegrator) :
+                         new MassIntegrator);
+
+   BRASPreconditioner bras_dense(a, ess);
+   BRASPreconditioner bras_tensor(a, ess, Weighting::DIAGONAL,
+                                  ElementInverse::TENSOR);
+   DenseMatrix B = ToDense(bras_dense);
+   REQUIRE(MaxDiff(ToDense(bras_tensor), B) <= 1e-12*B.MaxMaxNorm());
+
+   c.constant = 4.0;
+   bras_dense.Update();
+   bras_tensor.Update();
+   B = ToDense(bras_dense);
+   REQUIRE(MaxDiff(ToDense(bras_tensor), B) <= 1e-12*B.MaxMaxNorm());
+}
+
+#ifdef MFEM_USE_EXCEPTIONS
+// ElementInverse::TENSOR aborts when its requirements do not hold.
+TEST_CASE("BRAS tensor requirements", "[BRAS]")
+{
+   Array<int> ess;
+   const auto TENSOR = ElementInverse::TENSOR;
+   const auto DIAGONAL = Weighting::DIAGONAL;
+   H1_FECollection h1(2, 2);
+   ND_FECollection nd(2, 2);
+   RT_FECollection rt(1, 2);
+
+   // Non-affine quadrilaterals, and triangles.
+   for (MeshType type : {MeshType::QUAD, MeshType::TRI})
+   {
+      Mesh mesh = MakeMesh(type, 2);
+      FiniteElementSpace fes(&mesh, &h1);
+      REQUIRE_THROWS(BRASPreconditioner(fes, ess, DIAGONAL, TENSOR));
+   }
+
+   // ND and RT spaces on parallelograms.
+   Mesh skew = MakeAffineMesh(2, 2, true);
+   for (FiniteElementCollection *fec : {static_cast<FiniteElementCollection*>(&nd),
+                                        static_cast<FiniteElementCollection*>(&rt)})
+   {
+      FiniteElementSpace fes(&skew, fec);
+      REQUIRE_THROWS(BRASPreconditioner(fes, ess, DIAGONAL, TENSOR));
+   }
+
+   // Matrix coefficients, and a mass integrator plus a mass integrator with a
+   // custom integration rule or an attribute marker, or another integrator.
+   // The unmarked mass integrator keeps the forms valid for DENSE.
+   Mesh mesh = MakeAffineMesh(2, 2, false);
+   FiniteElementSpace fes(&mesh, &nd), fes_h1(&mesh, &h1);
+   MatrixFunctionCoefficient MQ(2, MatrixCoeff);
+   REQUIRE_THROWS(BRASPreconditioner(fes, MQ, ess, DIAGONAL, TENSOR));
+   const IntegrationRule &ir = IntRules.Get(Geometry::SQUARE, 8);
+   Array<int> marker({1, 0});
+   for (int c = 0; c < 3; c++)
+   {
+      BilinearForm a(&fes_h1);
+      a.AddDomainIntegrator(new MassIntegrator);
+      if (c == 0) { a.AddDomainIntegrator(new MassIntegrator(&ir)); }
+      if (c == 1) { a.AddDomainIntegrator(new MassIntegrator, marker); }
+      if (c == 2) { a.AddDomainIntegrator(new DiffusionIntegrator); }
+      REQUIRE_THROWS(BRASPreconditioner(a, ess, DIAGONAL, TENSOR));
+      REQUIRE_NOTHROW(BRASPreconditioner(a, ess, DIAGONAL));
+   }
+}
+#endif
 
 #ifdef MFEM_USE_MPI
 
@@ -1177,6 +1408,65 @@ TEST_CASE("BRAS parallel assembled matrix", "[BRAS][Parallel]")
    const real_t diff = ParNormlp(Y, infinity(), MPI_COMM_WORLD);
    const real_t norm = ParNormlp(Y_ref, infinity(), MPI_COMM_WORLD);
    REQUIRE(diff <= 1e-12*norm);
+}
+
+// The parallel preconditioner with ElementInverse::TENSOR equals the serial
+// one with ElementInverse::DENSE, and its assembled matrix equals the
+// operator, on conforming and nonconforming meshes. With the rotated meshes,
+// some ranks may have no elements.
+TEST_CASE("BRAS parallel tensor", "[BRAS][Parallel]")
+{
+   const int dim = GENERATE(2, 3);
+   const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::L2_2,
+                               Space::ND_2, Space::RT_1);
+   const bool nonconforming = GENERATE(false, true);
+   if (nonconforming && space == Space::L2_2) { return; }
+   CAPTURE(dim, int(space), nonconforming);
+
+   const int nranks = Mpi::WorldSize();
+   Mesh smesh = MakeAffineMesh(dim, dim == 2 ? 6 : 3, false);
+   if (nonconforming) { RefineNC(smesh); }
+   Array<int> part = SlabPartitioning(smesh, nranks);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, part.GetData());
+   SpaceInfo info = MakeSpace(space, dim);
+   FiniteElementSpace sfes(&smesh, info.fec.get(), info.vdim, info.ordering);
+
+   Vector q(2);
+   q(0) = 2.0;
+   q(1) = 5.0;
+   PWConstCoefficient pw(q);
+
+   // As in "BRAS parallel nonconforming".
+   Vector Xs(sfes.GetTrueVSize()), Ys(Xs.Size());
+   Xs.Randomize(1);
+   GridFunction xs(&sfes), ys(&sfes);
+   xs.SetFromTrueDofs(Xs);
+   ParGridFunction xp(&pmesh, &xs, part.GetData());
+   ParFiniteElementSpace &pfes = *xp.ParFESpace();
+   Vector X(pfes.GetTrueVSize()), Y(X.Size()), Y_ref(X.Size());
+   xp.ParallelProject(X);
+
+   Array<int> ess_s, ess_p;
+   sfes.GetBoundaryTrueDofs(ess_s);
+   pfes.GetBoundaryTrueDofs(ess_p);
+   BRASPreconditioner bras_s(sfes, pw, ess_s);
+   BRASPreconditioner bras_p(pfes, pw, ess_p, Weighting::DIAGONAL,
+                             ElementInverse::TENSOR);
+
+   bras_s.Mult(Xs, Ys);
+   ys.SetFromTrueDofs(Ys);
+   ParGridFunction yp(&pmesh, &ys, part.GetData());
+   yp.ParallelProject(Y_ref);
+   bras_p.Mult(X, Y);
+   Y -= Y_ref;
+   const real_t norm = ParNormlp(Y_ref, infinity(), MPI_COMM_WORLD);
+   REQUIRE(ParNormlp(Y, infinity(), MPI_COMM_WORLD) <= 1e-12*norm);
+
+   std::unique_ptr<HypreParMatrix> B(bras_p.ParallelAssembleMatrix());
+   B->Mult(X, Y_ref);
+   bras_p.Mult(X, Y);
+   Y -= Y_ref;
+   REQUIRE(ParNormlp(Y, infinity(), MPI_COMM_WORLD) <= 1e-12*norm);
 }
 
 #endif // MFEM_USE_MPI

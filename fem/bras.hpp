@@ -59,6 +59,10 @@ namespace mfem
     remaining DOFs it is weighted BRAS for the subspace of functions vanishing
     on the essential DOFs.
 
+    The element blocks of $W M_{br}^{-1} W$ are either stored as dense
+    matrices or, for mass matrices on affine tensor product elements, applied
+    by sum factorization; see ElementInverse.
+
     Only domain integrators are supported. Every element must receive an SPD
     contribution from the integrators; otherwise the setup aborts. Variable
     order spaces, NURBS spaces, and meshes with more than one element geometry
@@ -71,6 +75,49 @@ public:
    {
       IDENTITY, ///< $W = I$.
       DIAGONAL  ///< $W = \mathrm{diag}(M_{br})$ (recommended).
+   };
+
+   /// Computation and application of the element blocks of
+   /// $W M_{br}^{-1} W$.
+   enum class ElementInverse
+   {
+      /** The element matrices are computed by the integrators, inverted with
+          a Cholesky factorization, and stored as dense blocks of size
+          $n_d \times n_d$, where $n_d$ is the number of DOFs per element.
+          Supports all the integrators, spaces and meshes of the class
+          (default). */
+      DENSE,
+      /** Sum factorization. On an affine tensor product element K with a
+          constant coefficient, the element mass matrix of each vector
+          component is a multiple $m_K$ of the Kronecker product of 1D
+          reference mass matrices, so $M_K^{-1}$ and $\mathrm{diag}(M_K)$
+          are Kronecker products as well. Only one number per element and
+          component is stored, and each element block is applied with
+          $O(p^{d+1})$ operations instead of $O(p^{2d})$.
+
+          The requirements are checked in the setup, which aborts if they do
+          not hold:
+          - The mesh consists of segments, quadrilaterals or hexahedra, all
+            with affine transformations, and has the dimension of the space.
+          - The space is an H1 or L2 space (any vdim), or an ND or RT space,
+            with tensor product elements (e.g. not serendipity elements).
+            For ND and RT spaces, the columns of the Jacobian must also be
+            orthogonal on each element (rectangles and boxes, possibly
+            rotated); otherwise the element matrix couples the vector
+            components and is not a Kronecker product.
+          - The domain integrators are mass integrators matching the space:
+            MassIntegrator (vdim = 1), VectorMassIntegrator (vdim > 1) or
+            VectorFEMassIntegrator (ND and RT), with no coefficient or with a
+            scalar Coefficient. Attribute markers and custom integration rules
+            are not supported.
+
+          The coefficients are evaluated at the center of each element. For
+          piecewise constant coefficients (e.g. PWConstCoefficient) the
+          preconditioner then equals the one of ElementInverse::DENSE, up to
+          rounding. For other coefficients it is the BRAS preconditioner of
+          the mass matrix with the coefficient replaced by its value at the
+          element centers. */
+      TENSOR
    };
 
    /** @brief Approximation of $A_W^{-1}$ on nonconforming spaces. All methods
@@ -106,17 +153,29 @@ protected:
    std::unique_ptr<class BilinearForm> owned_form;
    const FiniteElementSpace *fes = nullptr; ///< Not owned.
    Weighting weighting;
+   ElementInverse element_inverse;
    Array<int> ess_tdof_list;
 
    /// Prolongation from true DOFs to L-DOFs; NULL if it is the identity.
    /// Owned by the space.
    const Operator *P = nullptr;
-   /// Element restriction, from L-DOFs to E-DOFs (native ordering). Owned by
-   /// the space. The operator $P$ in the class documentation is R P.
+   /// Element restriction, from L-DOFs to E-DOFs (native ordering, or
+   /// lexicographic ordering for ElementInverse::TENSOR). Owned by the space.
+   /// The operator $P$ in the class documentation is R P.
    const Operator *R = nullptr;
-   /// The element blocks of $W M_{br}^{-1} W$: block e is the nd x nd
-   /// matrix WMinvW(:,:,e), where nd is the number of DOFs per element.
+   /// Only for ElementInverse::DENSE: the element blocks of
+   /// $W M_{br}^{-1} W$: block e is the nd x nd matrix WMinvW(:,:,e), where
+   /// nd is the number of DOFs per element.
    DenseTensor WMinvW;
+   /// Only for ElementInverse::TENSOR: block e of $W M_{br}^{-1} W$ is, for
+   /// each vector component c, tensor_scale(c + ncomp*e) times the Kronecker
+   /// product of the 1D factors of c. The 1D factor of component c in
+   /// direction d is the column-major tensor_n[c][d] x tensor_n[c][d] matrix
+   /// starting at entry tensor_offset[c][d] of tensor_1d. The sizes are 1 in
+   /// the directions beyond the mesh dimension.
+   Vector tensor_1d, tensor_scale;
+   int tensor_ncomp = 0;
+   int tensor_n[3][3], tensor_offset[3][3];
    /// The inverse of the diagonal of $A_W$, in true DOFs.
    Vector diag_inv;
    /// @ref diag_inv with the essential DOFs set to zero. Scaling by this
@@ -151,6 +210,12 @@ protected:
    /// from the current form and space.
    void Setup();
 
+   /// Compute the element blocks of $W M_{br}^{-1} W$ for ElementInverse::
+   /// DENSE and ElementInverse::TENSOR, and set the E-vector w to the
+   /// diagonal of W.
+   void SetupDense(Vector &w);
+   void SetupTensor(Vector &w);
+
    /// Compute @ref diag_inv, and the data of the nonconforming methods, from
    /// @ref dl and the prolongation.
    void SetupProlongation();
@@ -161,6 +226,10 @@ protected:
    /// y = R_E^T (W M_br^{-1} W) R_E x, for L-vectors x and y (which may be
    /// the same vector).
    void ApplyBroken(const Vector &x, Vector &y) const;
+
+   /// Apply the element blocks of ElementInverse::TENSOR to the E-vector xe.
+   /// Uses xe and ye, and returns the one holding the result.
+   const Vector &ApplyTensor() const;
 
    /// y = A_W x = P_L^T D_W P_L x, for T-vectors.
    void ApplyAW(const Vector &x, Vector &y) const;
@@ -185,7 +254,9 @@ public:
        markers) are used, and @a a does not need to be assembled. The form is
        not owned and must remain valid while this object is used. */
    BRASPreconditioner(class BilinearForm &a, const Array<int> &ess_tdof_list,
-                      Weighting weighting = Weighting::DIAGONAL);
+                      Weighting weighting = Weighting::DIAGONAL,
+                      ElementInverse element_inverse =
+                         ElementInverse::DENSE);
 
    /** @brief Construct the BRAS preconditioner for the mass matrix of @a fes.
 
@@ -194,12 +265,16 @@ public:
        VectorFEMassIntegrator for vector-valued spaces (e.g. ND and RT). */
    BRASPreconditioner(const FiniteElementSpace &fes,
                       const Array<int> &ess_tdof_list,
-                      Weighting weighting = Weighting::DIAGONAL);
+                      Weighting weighting = Weighting::DIAGONAL,
+                      ElementInverse element_inverse =
+                         ElementInverse::DENSE);
 
    /// Same as above, with the scalar coefficient @a Q (not owned).
    BRASPreconditioner(const FiniteElementSpace &fes, Coefficient &Q,
                       const Array<int> &ess_tdof_list,
-                      Weighting weighting = Weighting::DIAGONAL);
+                      Weighting weighting = Weighting::DIAGONAL,
+                      ElementInverse element_inverse =
+                         ElementInverse::DENSE);
 
    /** @brief Same as above, with the matrix coefficient @a Q (not owned).
 
@@ -207,7 +282,9 @@ public:
        which case the size of @a Q must equal the vdim of @a fes). */
    BRASPreconditioner(const FiniteElementSpace &fes, MatrixCoefficient &Q,
                       const Array<int> &ess_tdof_list,
-                      Weighting weighting = Weighting::DIAGONAL);
+                      Weighting weighting = Weighting::DIAGONAL,
+                      ElementInverse element_inverse =
+                         ElementInverse::DENSE);
 
    /// Apply the preconditioner to the true-DOF vector @a x.
    void Mult(const Vector &x, Vector &y) const override;
@@ -243,6 +320,10 @@ public:
 
    /// Return the weighting used by the preconditioner.
    Weighting GetWeighting() const { return weighting; }
+
+   /// Return the computation of the element blocks used by the
+   /// preconditioner.
+   ElementInverse GetElementInverse() const { return element_inverse; }
 
    /** @brief Set the approximation of $A_W^{-1}$ used on nonconforming
        spaces, and the polynomial degree (at least 1) used by

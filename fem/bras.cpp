@@ -145,19 +145,22 @@ static Operator *SquaredProlongation(const Operator &P, Array<int> &row_nnz)
 
 BRASPreconditioner::BRASPreconditioner(BilinearForm &a,
                                        const Array<int> &ess_tdof_list_,
-                                       Weighting weighting_)
+                                       Weighting weighting_,
+                                       ElementInverse element_inverse_)
    : Solver(a.FESpace()->GetTrueVSize()), form(&a), weighting(weighting_),
-     ess_tdof_list(ess_tdof_list_)
+     element_inverse(element_inverse_), ess_tdof_list(ess_tdof_list_)
 {
    Setup();
 }
 
 BRASPreconditioner::BRASPreconditioner(const FiniteElementSpace &fes_,
                                        const Array<int> &ess_tdof_list_,
-                                       Weighting weighting_)
+                                       Weighting weighting_,
+                                       ElementInverse element_inverse_)
    : Solver(fes_.GetTrueVSize()),
      owned_form(MakeMassForm(fes_, nullptr, nullptr)),
-     weighting(weighting_), ess_tdof_list(ess_tdof_list_)
+     weighting(weighting_), element_inverse(element_inverse_),
+     ess_tdof_list(ess_tdof_list_)
 {
    form = owned_form.get();
    Setup();
@@ -166,10 +169,12 @@ BRASPreconditioner::BRASPreconditioner(const FiniteElementSpace &fes_,
 BRASPreconditioner::BRASPreconditioner(const FiniteElementSpace &fes_,
                                        Coefficient &Q,
                                        const Array<int> &ess_tdof_list_,
-                                       Weighting weighting_)
+                                       Weighting weighting_,
+                                       ElementInverse element_inverse_)
    : Solver(fes_.GetTrueVSize()),
      owned_form(MakeMassForm(fes_, &Q, nullptr)),
-     weighting(weighting_), ess_tdof_list(ess_tdof_list_)
+     weighting(weighting_), element_inverse(element_inverse_),
+     ess_tdof_list(ess_tdof_list_)
 {
    form = owned_form.get();
    Setup();
@@ -178,10 +183,12 @@ BRASPreconditioner::BRASPreconditioner(const FiniteElementSpace &fes_,
 BRASPreconditioner::BRASPreconditioner(const FiniteElementSpace &fes_,
                                        MatrixCoefficient &Q,
                                        const Array<int> &ess_tdof_list_,
-                                       Weighting weighting_)
+                                       Weighting weighting_,
+                                       ElementInverse element_inverse_)
    : Solver(fes_.GetTrueVSize()),
      owned_form(MakeMassForm(fes_, nullptr, &Q)),
-     weighting(weighting_), ess_tdof_list(ess_tdof_list_)
+     weighting(weighting_), element_inverse(element_inverse_),
+     ess_tdof_list(ess_tdof_list_)
 {
    form = owned_form.get();
    Setup();
@@ -224,9 +231,7 @@ void BRASPreconditioner::Setup()
    // M_br is assembled from the domain integrators only. Boundary and face
    // integrators would couple DOFs across elements, so M would no longer be
    // P^T M_br P with block diagonal M_br.
-   Array<BilinearFormIntegrator*> &integs = *form->GetDBFI();
-   Array<Array<int>*> &markers = *form->GetDBFI_Marker();
-   MFEM_VERIFY(integs.Size() > 0, "the bilinear form has no domain "
+   MFEM_VERIFY(form->GetDBFI()->Size() > 0, "the bilinear form has no domain "
                "integrators");
    MFEM_VERIFY(form->GetBBFI()->Size() == 0 && form->GetFBFI()->Size() == 0 &&
                form->GetBFBFI()->Size() == 0, "only domain integrators are "
@@ -238,19 +243,70 @@ void BRASPreconditioner::Setup()
    // NULL in that case skips the copy through the L-vector in Mult().
    P = fes->GetProlongationMatrix();
    if (IsIdentityProlongation(P)) { P = nullptr; }
-   // NATIVE ordering: the element DOFs are in the order of the element
-   // matrices returned by AssembleElementMatrix(), so no permutation is
-   // needed. Both R and P are owned by the space.
-   R = fes->GetElementRestriction(ElementDofOrdering::NATIVE);
+   // For ElementInverse::DENSE, NATIVE ordering: the element DOFs are in the
+   // order of the element matrices returned by AssembleElementMatrix(), so
+   // no permutation is needed. For ElementInverse::TENSOR, LEXICOGRAPHIC
+   // ordering, in which the element mass matrices are Kronecker products.
+   // Both R and P are owned by the space.
+   R = fes->GetElementRestriction(element_inverse == ElementInverse::DENSE ?
+                                  ElementDofOrdering::NATIVE :
+                                  ElementDofOrdering::LEXICOGRAPHIC);
 
    const int nd = fes->GetTypicalFE()->GetDof() * fes->GetVDim();
    MFEM_VERIFY(R->Height() == ne*nd, "inconsistent element restriction");
 
-   // Compute the element matrices M_K and replace each one by the block
-   // W_K M_K^{-1} W_K, stored in WMinvW(:,:,e). The diagonal of each W_K is
-   // also stored in the E-vector w, which is used below to form diag(A_W).
-   WMinvW.SetSize(nd, nd, ne);
+   // The diagonal of W, as an E-vector, used below to form diag(A_W).
    Vector w(ne*nd);
+   if (element_inverse == ElementInverse::DENSE) { SetupDense(w); }
+   else { SetupTensor(w); }
+
+   // Since R_E is a signed Boolean matrix and W is diagonal, the columns of
+   // W^{1/2} R_E are orthogonal and D_W = R_E^T W R_E is diagonal. Its entry
+   // for an L-DOF is the sum of the weights w_i over all element DOFs i that
+   // the L-DOF is mapped to, i.e. diag(D_W) = |R_E|^T w. The absolute values
+   // remove the orientation signs, which square to one in R_E^T W R_E. The
+   // L2 element restriction is a permutation without signs and does not
+   // implement AbsMultTranspose(), so its MultTranspose() is used.
+   dl.SetSize(fes->GetVSize());
+   if (fes->IsDGSpace()) { R->MultTranspose(w, dl); }
+   else { R->AbsMultTranspose(w, dl); }
+   SetupProlongation();
+
+   // Work vectors for Mult(): T-vectors, L-vectors (only used when P is not
+   // the identity), the input and output E-vectors, and the vectors of the
+   // Chebyshev iteration (only used on nonconforming spaces).
+   xt.SetSize(height);
+   ut.SetSize(height);
+   xl.SetSize(P ? P->Height() : height);
+   zl.SetSize(xl.Size());
+   xe.SetSize(ne*nd);
+   ye.SetSize(ne*nd);
+   if (nc)
+   {
+      cr.SetSize(height);
+      cd.SetSize(height);
+      cq.SetSize(height);
+   }
+
+   // Re-applies the (possibly updated) essential DOFs to the new diagonal.
+   // This uses the work vectors for the Chebyshev setup.
+   SetEssentialTrueDofs(ess_tdof_list);
+}
+
+// Compute the element matrices M_K and replace each one by the block
+// W_K M_K^{-1} W_K, stored in WMinvW(:,:,e). The diagonal of each W_K is
+// stored in the E-vector w.
+void BRASPreconditioner::SetupDense(Vector &w)
+{
+   Mesh &mesh = *fes->GetMesh();
+   const int ne = fes->GetNE();
+   const int nd = fes->GetTypicalFE()->GetDof() * fes->GetVDim();
+   Array<BilinearFormIntegrator*> &integs = *form->GetDBFI();
+   Array<Array<int>*> &markers = *form->GetDBFI_Marker();
+   tensor_1d.Destroy();
+   tensor_scale.Destroy();
+
+   WMinvW.SetSize(nd, nd, ne);
    real_t *h_A = WMinvW.HostWrite();
    real_t *h_w = w.HostWrite();
    DenseMatrix elmat, elmat_k, inv(nd);
@@ -311,38 +367,302 @@ void BRASPreconditioner::Setup()
          }
       }
    }
+}
 
-   // Since R_E is a signed Boolean matrix and W is diagonal, the columns of
-   // W^{1/2} R_E are orthogonal and D_W = R_E^T W R_E is diagonal. Its entry
-   // for an L-DOF is the sum of the weights w_i over all element DOFs i that
-   // the L-DOF is mapped to, i.e. diag(D_W) = |R_E|^T w. The absolute values
-   // remove the orientation signs, which square to one in R_E^T W R_E. The
-   // L2 element restriction is a permutation without signs and does not
-   // implement AbsMultTranspose(), so its MultTranspose() is used.
-   dl.SetSize(fes->GetVSize());
-   if (fes->IsDGSpace()) { R->MultTranspose(w, dl); }
-   else { R->AbsMultTranspose(w, dl); }
-   SetupProlongation();
-
-   // Work vectors for Mult(): T-vectors, L-vectors (only used when P is not
-   // the identity), the input and output E-vectors, and the vectors of the
-   // Chebyshev iteration (only used on nonconforming spaces).
-   xt.SetSize(height);
-   ut.SetSize(height);
-   xl.SetSize(P ? P->Height() : height);
-   zl.SetSize(xl.Size());
-   xe.SetSize(ne*nd);
-   ye.SetSize(ne*nd);
-   if (nc)
+// The 1D mass matrix M_ij = int_0^1 u_i u_j dx of n polynomials of degree
+// less than n, where eval(x, u) evaluates them at x.
+template <typename Eval>
+static DenseMatrix Mass1D(int n, Eval eval)
+{
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 2*n);
+   DenseMatrix M(n);
+   M = 0.0;
+   Vector u(n);
+   for (int q = 0; q < ir.GetNPoints(); q++)
    {
-      cr.SetSize(height);
-      cd.SetSize(height);
-      cq.SetSize(height);
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      eval(ip.x, u);
+      AddMult_a_VVt(ip.weight, u, M);
+   }
+   return M;
+}
+
+// The basis functions of a tensor product element, in lexicographic order,
+// are products u_i(x_0) v_j(x_1) w_k(x_2) of 1D basis functions (times the
+// unit vector e_c of the reference element for component c of ND and RT
+// elements). The 1D bases are the closed basis (GetBasis1D(), q + 1
+// functions for elements of order q) and, for ND and RT elements, the open
+// basis (GetOpenBasis1D(), q functions). Component c of an ND element uses
+// the open basis in direction c and the closed basis in the other
+// directions; RT elements do the reverse.
+//
+// On an element K with constant Jacobian J and constant coefficient c_K, the
+// mass matrix of each component is m_K M_0 x M_1 x M_2, with the 1D mass
+// matrices M_d of the bases and the scale
+//    m_K = c_K |det J|           (H1 and L2, MapType VALUE),
+//    m_K = c_K / |det J|         (L2, MapType INTEGRAL),
+//    m_K = c_K |det J| / |J e_c|^2   (ND, covariant Piola map),
+//    m_K = c_K |J e_c|^2 / |det J|   (RT, contravariant Piola map).
+// For ND and RT elements this requires orthogonal columns of J; otherwise
+// the components are coupled. Then W_K M_K^{-1} W_K is, for each component,
+// m_K F_0 x F_1 x F_2 with F_d = diag(M_d) M_d^{-1} diag(M_d) for
+// Weighting::DIAGONAL, and m_K^{-1} F_0 x F_1 x F_2 with F_d = M_d^{-1} for
+// Weighting::IDENTITY.
+//
+// The lexicographic element restriction applies the signs of the DOF map
+// (TensorBasisElement::GetDofMap()), so the E-vector holds the coefficients
+// of the tensor product basis functions above.
+void BRASPreconditioner::SetupTensor(Vector &w)
+{
+   Mesh &mesh = *fes->GetMesh();
+   const int dim = mesh.Dimension();
+   const int ne = fes->GetNE();
+   const int vdim = fes->GetVDim();
+   const FiniteElement &fe = *fes->GetTypicalFE();
+   const Geometry::Type geom = fe.GetGeomType();
+   const int map_type = fe.GetMapType();
+   const bool vector_fe = fe.GetRangeType() == FiniteElement::VECTOR;
+   const char *prefix = "ElementInverse::TENSOR: ";
+   WMinvW.Clear();
+
+   MFEM_VERIFY(Geometry::IsTensorProduct(geom) &&
+               mesh.SpaceDimension() == dim, prefix << "the mesh must consist "
+               "of segments, quadrilaterals or hexahedra, and have the "
+               "dimension of the space");
+   auto tfe = dynamic_cast<const TensorBasisElement*>(&fe);
+   auto vtfe = dynamic_cast<const VectorTensorFiniteElement*>(&fe);
+   MFEM_VERIFY(tfe && (!vector_fe || (vtfe && dim >= 2)), prefix << "the "
+               "space must have tensor product elements, and ND and RT spaces "
+               "must be two- or three-dimensional");
+
+   // The integrators must be mass integrators matching the space, with a
+   // scalar coefficient or none.
+   Array<BilinearFormIntegrator*> &integs = *form->GetDBFI();
+   Array<Array<int>*> &markers = *form->GetDBFI_Marker();
+   Array<Coefficient*> coeffs(integs.Size());
+   for (int k = 0; k < integs.Size(); k++)
+   {
+      const Coefficient *Q = nullptr;
+      bool valid = false;
+      if (vector_fe)
+      {
+         auto integ = dynamic_cast<VectorFEMassIntegrator*>(integs[k]);
+         valid = integ && !integ->GetVectorCoefficient() &&
+                 !integ->GetMatrixCoefficient();
+         if (valid) { Q = integ->GetCoefficient(); }
+      }
+      else if (vdim == 1)
+      {
+         auto integ = dynamic_cast<MassIntegrator*>(integs[k]);
+         valid = integ != nullptr;
+         if (valid) { Q = integ->GetCoefficient(); }
+      }
+      else
+      {
+         // Without a matrix or vector coefficient, VectorMassIntegrator takes
+         // the number of components from the space dimension, unless set.
+         auto integ = dynamic_cast<VectorMassIntegrator*>(integs[k]);
+         valid = integ && !integ->GetVectorCoefficient() &&
+                 !integ->GetMatrixCoefficient() &&
+                 (integ->GetVDim() == vdim ||
+                  (integ->GetVDim() == -1 && mesh.SpaceDimension() == vdim));
+         if (valid) { Q = integ->GetCoefficient(); }
+      }
+      MFEM_VERIFY(valid, prefix << "the domain integrators must be mass "
+                  "integrators matching the space, with a scalar coefficient "
+                  "or none");
+      MFEM_VERIFY(markers[k] == nullptr && integs[k]->GetIntRule() == nullptr,
+                  prefix << "attribute markers and custom integration rules "
+                  "are not supported");
+      coeffs[k] = const_cast<Coefficient*>(Q);
    }
 
-   // Re-applies the (possibly updated) essential DOFs to the new diagonal.
-   // This uses the work vectors for the Chebyshev setup.
-   SetEssentialTrueDofs(ess_tdof_list);
+   // The 1D mass matrices. The closed basis of L2 elements and the open basis
+   // of ND and RT elements can be of the integrated type, whose evaluation
+   // depends on a scaling flag of the (shared) basis object; it is set here as
+   // in the CalcShape() and CalcVShape() methods of the elements.
+   const int q = fe.GetOrder();
+   auto &cbasis = const_cast<Poly_1D::Basis&>(tfe->GetBasis1D());
+   DenseMatrix M_c = Mass1D(q + 1, [&](real_t x, Vector &u)
+   {
+      if (cbasis.IsIntegratedType())
+      {
+         cbasis.ScaleIntegrated(map_type == FiniteElement::VALUE);
+      }
+      cbasis.Eval(x, u);
+   });
+   DenseMatrix M_o;
+   if (vector_fe)
+   {
+      auto &obasis = const_cast<Poly_1D::Basis&>(vtfe->GetOpenBasis1D());
+      Vector uc(q + 1), dc(q + 1);
+      M_o = Mass1D(q, [&](real_t x, Vector &u)
+      {
+         if (obasis.IsIntegratedType())
+         {
+            cbasis.Eval(x, uc, dc);
+            obasis.ScaleIntegrated(false);
+            obasis.EvalIntegrated(dc, u);
+         }
+         else { obasis.Eval(x, u); }
+      });
+   }
+
+   // tensor_1d stores the 1 x 1 factor [1] (used in the directions beyond the
+   // mesh dimension), then the factors F_d of the closed basis (b = 0) and of
+   // the open basis (b = 1). The diagonals of the 1D mass matrices are kept
+   // in diag1d.
+   const DenseMatrix *M1d[2] = { &M_c, &M_o };
+   Vector diag1d[2];
+   int offset1d[2];
+   tensor_1d.SetSize(1 + M_c.Height()*M_c.Height() +
+                     M_o.Height()*M_o.Height());
+   real_t *h_F = tensor_1d.HostWrite();
+   h_F[0] = 1.0;
+   for (int b = 0, o = 1; b < 2; b++)
+   {
+      const int n = M1d[b]->Height();
+      offset1d[b] = o;
+      M1d[b]->GetDiag(diag1d[b]);
+      if (n == 0) { continue; }
+      DenseMatrix M(*M1d[b]), inv(n);
+      CholeskyFactors chol(M.GetData());
+      MFEM_VERIFY(chol.Factor(n), "the 1D mass matrix is not SPD");
+      chol.GetInverseMatrix(n, inv.GetData());
+      for (int j = 0; j < n; j++)
+      {
+         for (int i = 0; i < n; i++)
+         {
+            h_F[o + i + j*n] = (weighting == Weighting::DIAGONAL) ?
+                               diag1d[b](i) * inv(i,j) * diag1d[b](j) :
+                               inv(i,j);
+         }
+      }
+      o += n*n;
+   }
+
+   // The 1D basis (0 = closed, 1 = open) and the factor of each component in
+   // each direction.
+   tensor_ncomp = vector_fe ? dim : 1;
+   int basis[3][3];
+   int nd_s = 0;
+   for (int c = 0; c < tensor_ncomp; c++)
+   {
+      int size = 1;
+      for (int d = 0; d < 3; d++)
+      {
+         if (d >= dim)
+         {
+            basis[c][d] = -1;
+            tensor_n[c][d] = 1;
+            tensor_offset[c][d] = 0;
+            continue;
+         }
+         const bool open = vector_fe &&
+                           ((map_type == FiniteElement::H_CURL) == (d == c));
+         basis[c][d] = open ? 1 : 0;
+         tensor_n[c][d] = M1d[basis[c][d]]->Height();
+         tensor_offset[c][d] = offset1d[basis[c][d]];
+         size *= tensor_n[c][d];
+      }
+      nd_s += size;
+   }
+   MFEM_VERIFY(nd_s == fe.GetDof(), prefix << "unexpected number of element "
+               "DOFs");
+
+   // The scales and the diagonal of W, from the Jacobian and the coefficients
+   // at the element centers. The entries of the Jacobian are polynomials of
+   // degree at most T.Order() in each variable, so they are constant if they
+   // are equal at the points of a tensor product Gauss rule with
+   // T.Order() + 1 points per direction.
+   tensor_scale.SetSize(tensor_ncomp*ne);
+   real_t *h_s = tensor_scale.HostWrite();
+   real_t *h_w = w.HostWrite();
+   const int nd = nd_s*vdim;
+   const IntegrationPoint &center = Geometries.GetCenter(geom);
+   DenseMatrix J, JtJ(dim);
+   for (int e = 0; e < ne; e++)
+   {
+      ElementTransformation &T = *fes->GetElementTransformation(e);
+      T.SetIntPoint(&center);
+      J = T.Jacobian();
+      const real_t tol = 1e-12*J.MaxMaxNorm();
+      const IntegrationRule &ir = IntRules.Get(geom, 2*T.Order());
+      for (int k = 0; k < ir.GetNPoints(); k++)
+      {
+         T.SetIntPoint(&ir.IntPoint(k));
+         const DenseMatrix &Jk = T.Jacobian();
+         for (int i = 0; i < J.Height()*J.Width(); i++)
+         {
+            MFEM_VERIFY(std::abs(Jk.GetData()[i] - J.GetData()[i]) <= tol,
+                        prefix << "element " << e << " is not affine");
+         }
+      }
+      T.SetIntPoint(&center);
+      const real_t det = std::abs(T.Weight());
+
+      MultAtB(J, J, JtJ);
+      for (int i = 0; vector_fe && i < dim; i++)
+      {
+         for (int j = 0; j < i; j++)
+         {
+            MFEM_VERIFY(std::abs(JtJ(i,j)) <=
+                        1e-12*std::sqrt(JtJ(i,i)*JtJ(j,j)), prefix << "the "
+                        "Jacobian of element " << e << " does not have "
+                        "orthogonal columns, which ND and RT spaces require");
+         }
+      }
+
+      real_t coeff = 0.0;
+      for (int k = 0; k < integs.Size(); k++)
+      {
+         coeff += coeffs[k] ? coeffs[k]->Eval(T, center) : 1.0;
+      }
+      MFEM_VERIFY(coeff > 0.0, "the matrix of element " << e
+                  << " is not SPD");
+
+      real_t *w_e = h_w + e*nd;
+      for (int v = 0, o = 0; v < vdim; v++)
+      {
+         for (int c = 0; c < tensor_ncomp; c++)
+         {
+            real_t m = coeff;
+            switch (map_type)
+            {
+               case FiniteElement::H_CURL: m *= det/JtJ(c,c); break;
+               case FiniteElement::H_DIV: m *= JtJ(c,c)/det; break;
+               case FiniteElement::INTEGRAL: m /= det; break;
+               default: m *= det; break;
+            }
+            h_s[c + tensor_ncomp*e] =
+               (weighting == Weighting::DIAGONAL) ? m : 1.0/m;
+
+            // The diagonal of the Kronecker product is the product of the
+            // 1D diagonals.
+            const int *n = tensor_n[c];
+            for (int i2 = 0; i2 < n[2]; i2++)
+            {
+               for (int i1 = 0; i1 < n[1]; i1++)
+               {
+                  for (int i0 = 0; i0 < n[0]; i0++, o++)
+                  {
+                     if (weighting == Weighting::IDENTITY)
+                     {
+                        w_e[o] = 1.0;
+                        continue;
+                     }
+                     const int idx[3] = { i0, i1, i2 };
+                     w_e[o] = m;
+                     for (int d = 0; d < dim; d++)
+                     {
+                        w_e[o] *= diag1d[basis[c][d]](idx[d]);
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
 }
 
 // With D_W = diag(dl), A_W = P_L^T D_W P_L, so diag(A_W) = (P_L o P_L)^T dl,
@@ -503,11 +823,75 @@ void BRASPreconditioner::Update(const Array<int> &ess_tdof_list_)
 void BRASPreconditioner::ApplyBroken(const Vector &x, Vector &y) const
 {
    // xe = R_E x (E-vector), then ye = W M_br^{-1} W xe, one dense
-   // matrix-vector product per element. The check skips ranks without
-   // elements. Then y = R_E^T ye sums the element contributions of each DOF.
+   // matrix-vector product per element, or sum factorization for
+   // ElementInverse::TENSOR. The check skips ranks without elements. Then
+   // y = R_E^T ye sums the element contributions of each DOF.
    R->Mult(x, xe);
+   if (element_inverse == ElementInverse::TENSOR)
+   {
+      R->MultTranspose(ApplyTensor(), y);
+      return;
+   }
    if (WMinvW.SizeK() > 0) { BatchedLinAlg::Mult(WMinvW, xe, ye); }
    R->MultTranspose(ye, y);
+}
+
+// For each element and vector component, apply the Kronecker product
+// F_0 x F_1 x F_2 one direction at a time: the coefficients of the component
+// form an n_0 x n_1 x n_2 array (direction 0 fastest), and the factor F_d
+// multiplies its index in direction d. Each direction alternates between xe
+// and ye. The directions beyond the mesh dimension have size 1 and factor
+// [1], and are skipped. Runs on the host.
+const Vector &BRASPreconditioner::ApplyTensor() const
+{
+   const int ne = fes->GetNE();
+   const int vdim = fes->GetVDim();
+   const int dim = fes->GetMesh()->Dimension();
+   const int nd = xe.Size()/std::max(ne, 1);
+   const real_t *h_F = tensor_1d.HostRead();
+   const real_t *h_s = tensor_scale.HostRead();
+   Vector *src = &xe, *dst = &ye;
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t *h_in = src->HostRead();
+      real_t *h_out = dst->HostWrite();
+      for (int e = 0; e < ne; e++)
+      {
+         for (int v = 0, o = e*nd; v < vdim; v++)
+         {
+            for (int c = 0; c < tensor_ncomp; c++)
+            {
+               // The component is an array of size n_lo x n x n_hi, where n
+               // is its size in direction d.
+               const int *n_c = tensor_n[c];
+               const int n = n_c[d];
+               const int n_lo = (d > 0 ? n_c[0] : 1) * (d > 1 ? n_c[1] : 1);
+               const int n_hi = (d < 1 ? n_c[1] : 1) * (d < 2 ? n_c[2] : 1);
+               const real_t *F = h_F + tensor_offset[c][d];
+               // Multiply by the scale in the last direction.
+               const real_t s = (d == dim-1) ? h_s[c + tensor_ncomp*e] : 1.0;
+               for (int h = 0; h < n_hi; h++)
+               {
+                  for (int i = 0; i < n; i++)
+                  {
+                     for (int l = 0; l < n_lo; l++)
+                     {
+                        real_t sum = 0.0;
+                        for (int j = 0; j < n; j++)
+                        {
+                           sum += F[i + j*n] * h_in[o + l + n_lo*(j + n*h)];
+                        }
+                        h_out[o + l + n_lo*(i + n*h)] = s*sum;
+                     }
+                  }
+               }
+               o += n_lo*n*n_hi;
+            }
+         }
+      }
+      std::swap(src, dst);
+   }
+   return *src;
 }
 
 // Only called on nonconforming spaces, where P is not NULL. Uses zl.
@@ -699,15 +1083,77 @@ void BRASPreconditioner::Mult(const Vector &x, Vector &y) const
 // G_m = R_E^T (W M_br^{-1} W) R_E. The element VDOFs are signed in the same
 // way as the element restriction, and AddSubMatrix() applies the signs of
 // negative indices, so block e is added in the basis of the E-vector.
+//
+// For ElementInverse::TENSOR, block e is formed in the lexicographic order of
+// the E-vector and then permuted to the native order of the element VDOFs
+// with the DOF map: lexicographic DOF i is native DOF idx = d or -1-d, where
+// d = dof_map[i], with the sign + or - (an empty map is the identity). The
+// sign is the one applied by the lexicographic element restriction.
 SparseMatrix *BRASPreconditioner::AssembleBroken() const
 {
    auto *G = new SparseMatrix(fes->GetVSize());
-   WMinvW.HostRead();
    Array<int> vdofs;
+   if (element_inverse == ElementInverse::DENSE)
+   {
+      WMinvW.HostRead();
+      for (int e = 0; e < fes->GetNE(); e++)
+      {
+         fes->GetElementVDofs(e, vdofs);
+         G->AddSubMatrix(vdofs, vdofs, WMinvW(e), 0);
+      }
+      G->Finalize(0);
+      return G;
+   }
+
+   const FiniteElement &fe = *fes->GetTypicalFE();
+   const Array<int> &dof_map =
+      dynamic_cast<const TensorBasisElement&>(fe).GetDofMap();
+   const int nd_s = fe.GetDof(), vdim = fes->GetVDim();
+   const int dim = fes->GetMesh()->Dimension();
+   Array<int> perm(nd_s);
+   Vector sign(nd_s);
+   for (int i = 0; i < nd_s; i++)
+   {
+      const int d = dof_map.Size() ? dof_map[i] : i;
+      perm[i] = (d >= 0) ? d : -1 - d;
+      sign(i) = (d >= 0) ? 1.0 : -1.0;
+   }
+   const real_t *h_F = tensor_1d.HostRead();
+   const real_t *h_s = tensor_scale.HostRead();
+   DenseMatrix block(nd_s*vdim);
    for (int e = 0; e < fes->GetNE(); e++)
    {
+      block = 0.0;
+      for (int c = 0, o = 0; c < tensor_ncomp; c++)
+      {
+         // Entry (i, j) of the Kronecker product is the product of the 1D
+         // factors at the multi-indices of i and j.
+         const int *n = tensor_n[c];
+         const int size = n[0]*n[1]*n[2];
+         const real_t s = h_s[c + tensor_ncomp*e];
+         for (int j = 0; j < size; j++)
+         {
+            for (int i = 0; i < size; i++)
+            {
+               real_t a = s;
+               for (int d = 0, ii = i, jj = j; d < dim; d++)
+               {
+                  a *= h_F[tensor_offset[c][d] + ii%n[d] + n[d]*(jj%n[d])];
+                  ii /= n[d];
+                  jj /= n[d];
+               }
+               const int pi = perm[o + i], pj = perm[o + j];
+               const real_t a_ij = sign(o + i) * a * sign(o + j);
+               for (int v = 0; v < vdim; v++)
+               {
+                  block(pi + v*nd_s, pj + v*nd_s) = a_ij;
+               }
+            }
+         }
+         o += size;
+      }
       fes->GetElementVDofs(e, vdofs);
-      G->AddSubMatrix(vdofs, vdofs, WMinvW(e), 0);
+      G->AddSubMatrix(vdofs, vdofs, block, 0);
    }
    G->Finalize(0);
    return G;
