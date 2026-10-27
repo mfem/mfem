@@ -268,7 +268,7 @@ enum class MemoryClass
 inline bool IsHostMemory(MemoryType mt)
 {
 #ifdef MFEM_USE_NEW_MEM_MANAGER
-   return mt <= MemoryType::TEMP_MANAGED;
+   return mt <= MemoryType::TEMP_MANAGED_UMPIRE;
 #else
    return mt <= MemoryType::MANAGED;
 #endif
