@@ -1968,10 +1968,11 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc,
    }
    // heuristic: copy from src0 unless invalid, then copy from src1
 
-   // loc(marker0)/loc(marker1) are either <= src_offset, or everything before
-   // them is the same state (opposite of GetNode(marker).IsValid())
-   // This should only occur if marker is the first marker, which is always
-   // invalid
+   // Each nonzero source marker is at or immediately before src_offset,
+   // unless src_offset precedes the first marker. In that case, the first
+   // marker is invalid and the preceding region is implicitly valid.
+   // A marker before src_offset may be valid or invalid; its offset relative
+   // to src_offset is negative and must remain signed in the comparisons below.
    size_t next_m0 = marker0;
    size_t next_m1 = marker1;
 

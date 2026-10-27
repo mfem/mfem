@@ -180,4 +180,34 @@ TEST_CASE("Resource Copy 2", "[Resource Manager][GPU]")
    dst.Delete();
 }
 
+TEST_CASE("Resource Copy from inside a device-written region",
+          "[Resource Manager][GPU]")
+{
+   Memory<char> src(8, MemoryType::HOST);
+   auto hptr = src.HostWrite();
+   for (int i = 0; i < src.Capacity(); ++i)
+   {
+      hptr[i] = 10;
+   }
+
+   {
+      auto region = src.CreateAlias(2, 4); // [2, 6)
+      auto dptr = region.Write(true);
+      forall(4, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 20; });
+   }
+   MFEM_DEVICE_SYNC;
+
+   {
+      // The source marker at 2 precedes the copy offset at 3. Its relative
+      // offset must stay negative so CopyImpl selects the valid device data.
+      auto slice = src.CreateAlias(3, 2); // [3, 5)
+      char result[2] = {};
+      slice.CopyToHost(result, 2);
+      REQUIRE(result[0] == 20);
+      REQUIRE(result[1] == 20);
+   }
+
+   src.Delete();
+}
+
 #endif
