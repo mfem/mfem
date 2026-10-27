@@ -93,13 +93,13 @@ int tmop(int id, Req &res, int argc, char *argv[])
    int combomet = 0;
    bool bal_expl_combo = false;
    bool periodic = false;
+   bool integ_over_targ = true;
    const int mesh_node_order = Ordering::byNODES;
 
    constexpr int verbosity_level = 0;
    constexpr int seed = 0x100001b3;
    constexpr bool move_bnd = false;
    constexpr bool fdscheme = false;
-   constexpr bool integ_over_targ  = true;
    constexpr bool exactaction = false;
 
    OptionsParser args(argc, argv);
@@ -128,6 +128,8 @@ int tmop(int id, Req &res, int argc, char *argv[])
    args.AddOption(&bal_expl_combo, "-bec", "--balance-explicit-combo",
                   "-no-bec", "--no-balance-explicit-combo", "");
    args.AddOption(&periodic, "-per", "--periodic", "-no-per", "--no-periodic", "");
+   args.AddOption(&integ_over_targ, "-it", "--integrate-target",
+                  "-ir", "--integrate-reference", "");
    args.Parse();
    if (!args.Good())
    {
@@ -518,6 +520,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
          ParNonlinearForm nlf_fa(&fes_h1);
          auto *nlfi_fa = new TMOP_Integrator(metric.get(), target_c.get());
+         nlfi_fa->IntegrateOverTarget(integ_over_targ);
          nlfi_fa->SetIntegrationRules(*irules, quad_order);
          if (normalization) { nlfi_fa->ParEnableNormalization(x0); }
          if (lim_const != 0.0)
@@ -697,11 +700,12 @@ static inline void req_tmop(int id, const char *args[], Req &res)
 #define DEFAULT_ARGS const char *args[] = { "tmop_pa_tests", "-pa", "-m", "mesh", \
    "-o", "0", "-rs", "0", "-mid", "0", "-tid", "0", "-qt", "1", "-qo", "0", \
    "-ni", "10", "-nl", "1", "-nrtol", "1e-8", "-lrtol", "1e-12", "-ls", "2", "-li", "100", "-lc", "0", \
-   "-alc", "0", "-lt", "0", "-no-nor", "-ji", "0", "-diag", "-cmb",  "0", "-no-bec", "-no-per", nullptr }
+   "-alc", "0", "-lt", "0", "-no-nor", "-ji", "0", "-diag", "-cmb",  "0", "-no-bec", "-no-per", "-it", nullptr }
 
 constexpr int ALV = 1, MSH = 3, POR = 5, RS = 7, MID = 9, TID = 11, QTY = 13,
               QOR = 15, NI = 17, NL = 19, NRTOL = 21, LRTOL = 23, LS = 25, LI = 27, LC = 29,
-              ALC = 31, LT = 33, NOR = 34, JI = 36, DIAG = 37, CMB = 39, BEC = 40, PER = 41;
+              ALC = 31, LT = 33, NOR = 34, JI = 36, DIAG = 37, CMB = 39, BEC = 40, PER = 41,
+              IOT = 42;
 
 static inline void dump_args(int id, const char *args[])
 {
@@ -709,11 +713,12 @@ static inline void dump_args(int id, const char *args[])
    const char *format =
       "tmop_pa_tests %6.6s -m %s -o %s -rs %s -mid %s -tid %s -qt %s -qo %s "
       "-ni %s -nl %s -nrtol %s -lrtol %s -ls %s -li %s -lc %s -alc %s -lt %s %s -ji %s "
-      "%s -cmb %s %s %s\n";
+      "%s -cmb %s %s %s %s\n";
    printf(format, args[ALV], args[MSH], args[POR], args[RS], args[MID],
           args[TID], args[QTY], args[QOR], args[NI], args[NL], args[NRTOL],
           args[LRTOL], args[LS], args[LI], args[LC], args[ALC], args[LT],
-          args[NOR], args[JI], args[DIAG], args[CMB], args[BEC], args[PER]);
+          args[NOR], args[JI], args[DIAG], args[CMB], args[BEC], args[PER],
+          args[IOT]);
    fflush(nullptr);
 }
 
@@ -781,6 +786,7 @@ public:
       bool bal_expl_combo = false;
       bool normalization = false;
       bool periodic = false;
+      bool integ_over_target = true;
       real_t lim_const = 0.0;
       real_t adapt_lim_const = 0.0;
       int lim_type = 0;
@@ -806,6 +812,8 @@ public:
       Args &DIAGONAL(const bool arg) { diag = arg; return *this; }
       Args &BALANCE_EXPLICIT_COMBO() { bal_expl_combo = true; return *this; }
       Args &PERIODIC() { periodic = true; return *this; }
+      Args &INTEGRATE_OVER_TARGET(const bool arg)
+      { integ_over_target = arg; return *this; }
       // real_t
       Args &NEWTON_RTOLERANCE(const real_t arg) { newton_rtol = arg; return *this; }
       Args &LINSOL_RTOLERANCE(const real_t arg) { linsol_rtol = arg; return *this; }
@@ -822,7 +830,8 @@ public:
    };
    const char *name, *mesh;
    int NEWTON_ITERATIONS, LINSOL_ITERATIONS, REFINE, COMBO, LIMIT_TYPE;
-   bool NORMALIZATION, DIAGONAL, BAL_EXPL_COMBO, PERIODIC;
+   bool NORMALIZATION, DIAGONAL, BAL_EXPL_COMBO, PERIODIC,
+        INTEGRATE_OVER_TARGET;
    real_t NEWTON_RTOLERANCE, LINSOL_RTOLERANCE, LIMITING, ADAPT_LIMITING, JITTER;
    list_t P_ORDERS, TARGET_IDS, METRIC_IDS, Q_ORDERS, LINEAR_SOLVERS, NEWTON_LOOPS;
 
@@ -838,6 +847,7 @@ public:
       DIAGONAL(a.diag),
       BAL_EXPL_COMBO(a.bal_expl_combo),
       PERIODIC(a.periodic),
+      INTEGRATE_OVER_TARGET(a.integ_over_target),
       // real_t
       NEWTON_RTOLERANCE(a.newton_rtol),
       LINSOL_RTOLERANCE(a.linsol_rtol),
@@ -870,6 +880,7 @@ public:
       args[DIAG] = DIAGONAL ? "-diag" : "-no-diag";
       args[BEC] = BAL_EXPL_COMBO ? "-bec" : "-no-bec";
       args[PER] = PERIODIC ? "-per" : "-no-per";
+      args[IOT] = INTEGRATE_OVER_TARGET ? "-it" : "-ir";
       // real_t
       args[NRTOL] = dtoa(NEWTON_RTOLERANCE, nrtol);
       args[LRTOL] = dtoa(LINSOL_RTOLERANCE, lrtol);
@@ -1097,6 +1108,30 @@ static void tmop_tests(int id = 0, bool all = false)
           .QOR({ 2, 3 })
           .TID({ 3 })
           .MID({ 2 }))
+   .Run(id, all);
+
+   Launch(Launch::Args("Reference integration 2D")
+          .MESH("../../data/star.mesh")
+          .REFINE(1)
+          .JI(jitter)
+          .POR({ 2 })
+          .QOR({ 3 })
+          .TID({ 3 })
+          .MID({ 2 })
+          .INTEGRATE_OVER_TARGET(false))
+   .Run(id, all);
+
+   Launch(Launch::Args("Reference integration 3D + limiting")
+          .MESH("../../miniapps/meshing/cube.mesh")
+          .LIMITING(M_PI)
+          .LIMIT_TYPE(1)
+          .REFINE(1)
+          .JI(jitter)
+          .POR({ 2 })
+          .QOR({ 4 })
+          .TID({ 3 })
+          .MID({ 302 })
+          .INTEGRATE_OVER_TARGET(false))
    .Run(id, all);
 
    Launch(Launch::Args("TC_GIVEN_SHAPE_AND_SIZE_2D_KERNEL")

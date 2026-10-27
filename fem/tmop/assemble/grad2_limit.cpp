@@ -26,6 +26,7 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
                                const int NE,
                                const DeviceTensor<5, const real_t> &J,
                                const ConstDeviceMatrix &W,
+                               const bool integ_over_target,
                                const real_t *b,
                                const real_t *bld,
                                const DeviceTensor<4, const real_t> &X0,
@@ -61,7 +62,8 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t detJtr =
+               integ_over_target ? kernels::Det<2>(Jtr) : 1.0;
             const real_t weight = W(qx, qy) * detJtr;
             const real_t coeff0 = const_c0 ? C0(0, 0, 0) : C0(qx, qy, e);
             const real_t weight_m = weight * lim_normal * coeff0;
@@ -311,7 +313,8 @@ void TMOP_Integrator::AssembleGradPA_C0_2D(const Vector &x) const
    const bool exp_lim = el ? true : false;
 
    TMOPAssembleGradCoef2D::Run(d, q, ln, LD, const_c0, C0, NE,
-                               J, W, b, bld, XL, X, H0, exp_lim, d, q);
+                               J, W, integ_over_target, b, bld, XL, X, H0,
+                               exp_lim, d, q);
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPAssembleGradAdaptLim2D,
