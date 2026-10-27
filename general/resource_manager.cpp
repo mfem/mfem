@@ -41,14 +41,15 @@
 #include "internal/mmu.cpp"
 
 #ifndef _WIN32
-#include <unistd.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <unistd.h>
 // can't use the recommended C11 aligned_alloc because this requires s % a == 0
-#define mfem_memalign(p,a,s) posix_memalign(p,a,s)
+#define mfem_memalign(p, a, s) posix_memalign(p, a, s)
 #define mfem_aligned_free free
 #else
-#define mfem_memalign(p,a,s) (((*(p))=_aligned_malloc((s),(a))),*(p)?0:errno)
+#define mfem_memalign(p, a, s)                                                 \
+   (((*(p)) = _aligned_malloc((s), (a))), *(p) ? 0 : errno)
 #define mfem_aligned_free _aligned_free
 #endif
 
@@ -142,10 +143,7 @@ struct StdAlignedAllocator : public Allocator
       }
    }
 
-   void Dealloc(void *ptr, size_t) override
-   {
-      mfem_aligned_free(ptr);
-   }
+   void Dealloc(void *ptr, size_t) override { mfem_aligned_free(ptr); }
    virtual ~StdAlignedAllocator() = default;
 };
 
@@ -515,8 +513,7 @@ MemoryManager::MemoryManager()
 
    allocs[static_cast<int>(MemoryType::HOST_32)] = allocs_storage[2].get();
    // this is actually 128-byte aligned
-   allocs[static_cast<int>(MemoryType::TEMP_HOST_32)] =
-      allocs_storage[1].get();
+   allocs[static_cast<int>(MemoryType::TEMP_HOST_32)] = allocs_storage[1].get();
 
    allocs[static_cast<int>(MemoryType::HOST_64)] = allocs_storage[3].get();
    // this is actually 128-byte aligned
@@ -572,7 +569,7 @@ MemoryManager::MemoryManager()
 
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE)] = nullptr;
-   // TODO: managed/host-pinned umpire pools?
+   // TODO: host-pinned umpire pools?
 }
 
 void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
@@ -580,13 +577,14 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
 {
    if (device_loc == MemoryType::DEVICE_DEBUG)
    {
-      for (int mt = (int)MemoryType::HOST; mt < (int)MemoryType::MANAGED; mt += 2)
+      for (int mt = (int)MemoryType::HOST; mt < (int)MemoryType::MANAGED;
+           mt += 2)
       {
          MemoryManager::UpdateDualMemoryType((MemoryType)mt,
                                              MemoryType::DEVICE_DEBUG);
       }
-      for (int mt = (int)MemoryType::TEMP_HOST; mt < (int)MemoryType::TEMP_MANAGED;
-           mt += 2)
+      for (int mt = (int)MemoryType::TEMP_HOST;
+           mt < (int)MemoryType::TEMP_MANAGED; mt += 2)
       {
          MemoryManager::UpdateDualMemoryType((MemoryType)mt,
                                              MemoryType::TEMP_DEVICE_DEBUG);
@@ -649,10 +647,10 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
    memory_types[1] = device_loc;
    memory_types[2] = hostpinned_loc;
    memory_types[3] = managed_loc;
-   temp_memory_types[0] = static_cast<MemoryType>((int)host_loc + 1);
-   temp_memory_types[1] = static_cast<MemoryType>((int)device_loc + 1);
-   temp_memory_types[2] = static_cast<MemoryType>((int)hostpinned_loc + 1);
-   temp_memory_types[3] = static_cast<MemoryType>((int)managed_loc + 1);
+   temp_memory_types[0] = GetTemporaryMemorySpace(host_loc);
+   temp_memory_types[1] = GetTemporaryMemorySpace(device_loc);
+   temp_memory_types[2] = GetTemporaryMemorySpace(hostpinned_loc);
+   temp_memory_types[3] = GetTemporaryMemorySpace(managed_loc);
 
    UpdateDualMemoryType(host_loc, device_loc);
 }
@@ -986,8 +984,8 @@ void MemoryManager::MarkValid(size_t segment, bool on_device, ptrdiff_t start,
 }
 
 template <class F>
-void MemoryManager::MarkInvalid(size_t segment, bool on_device,
-                                ptrdiff_t start, ptrdiff_t stop, F &&func)
+void MemoryManager::MarkInvalid(size_t segment, bool on_device, ptrdiff_t start,
+                                ptrdiff_t stop, F &&func)
 {
    MFEM_MEM_OP_BENCH_SCOPE(7, false);
    auto &seg = storage.GetSegment(segment);
@@ -1162,8 +1160,7 @@ size_t MemoryManager::Insert(char *hptr, char *dptr, size_t nbytes,
 
    if (!valid_host)
    {
-      MarkInvalid(next_segment, false, 0, nbytes,
-      [](auto start, auto stop) {});
+      MarkInvalid(next_segment, false, 0, nbytes, [](auto start, auto stop) {});
    }
    if (!valid_device)
    {
@@ -1280,7 +1277,7 @@ size_t MemoryManager::FindMarker(size_t segment, ptrdiff_t offset,
    return start;
 }
 
-int MemoryManager::PrintPtrs(std::ostream& os)
+int MemoryManager::PrintPtrs(std::ostream &os)
 {
    int n_out = 0;
    storage.segments.iterate([&](const auto &seg, size_t idx)
@@ -1535,16 +1532,14 @@ char *MemoryManager::Write(size_t segment, size_t offset, size_t nbytes,
          {
             seg.mtypes[on_device] = GetDualMemoryType(seg.mtypes[!on_device]);
          }
-         seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.mtypes[on_device]);
+         seg.lowers[on_device] = Alloc(seg.nbytes, seg.mtypes[on_device]);
          segment_maps[on_device].emplace(seg.lowers[on_device], segment);
 
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device]);
       }
-      MarkValid(segment, on_device, offset, offset + nbytes,
-      [](auto, auto) {});
+      MarkValid(segment, on_device, offset, offset + nbytes, [](auto, auto) {});
       MarkInvalid(segment, !on_device, offset, offset + nbytes,
       [](auto, auto) {});
       MFEM_MEM_OP_DEBUG_USE(5, seg.lowers[on_device] + offset,
@@ -1612,8 +1607,8 @@ void MemoryManager::BatchMemCopy(
       auto &seg = copy_segs[i];
       if (i + 1 == copy_segs.size())
       {
-         MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first, dst_loc,
-                 src_loc);
+         MemCopy(dst + seg.first, src + seg.first, seg.second - seg.first,
+                 dst_loc, src_loc);
       }
       else
       {
@@ -1653,8 +1648,8 @@ void MemoryManager::BatchMemCopy2(
    }
 }
 
-bool MemoryManager::CheckReadWrite(size_t segment, size_t offset,
-                                   size_t nbytes, bool on_device)
+bool MemoryManager::CheckReadWrite(size_t segment, size_t offset, size_t nbytes,
+                                   bool on_device)
 {
    bool valid = true;
    if (segment && nbytes > 0)
@@ -1757,8 +1752,7 @@ char *MemoryManager::ReadWrite(size_t segment, size_t offset, size_t nbytes,
          {
             seg.mtypes[on_device] = GetDualMemoryType(seg.mtypes[!on_device]);
          }
-         seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.mtypes[on_device]);
+         seg.lowers[on_device] = Alloc(seg.nbytes, seg.mtypes[on_device]);
          segment_maps[on_device].emplace(seg.lowers[on_device], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
@@ -1788,8 +1782,7 @@ char *MemoryManager::ReadWrite(size_t segment, size_t offset, size_t nbytes,
                seg.mtypes[!on_device] =
                   GetDualMemoryType(seg.mtypes[on_device]);
             }
-            seg.lowers[!on_device] =
-               Alloc(seg.nbytes, seg.mtypes[!on_device]);
+            seg.lowers[!on_device] = Alloc(seg.nbytes, seg.mtypes[!on_device]);
             segment_maps[!on_device].emplace(seg.lowers[!on_device], segment);
             MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
                                   seg.lowers[!on_device] + seg.nbytes,
@@ -1842,8 +1835,7 @@ const char *MemoryManager::Read(size_t segment, size_t offset, size_t nbytes,
          {
             seg.mtypes[on_device] = GetDualMemoryType(seg.mtypes[!on_device]);
          }
-         seg.lowers[on_device] =
-            Alloc(seg.nbytes, seg.mtypes[on_device]);
+         seg.lowers[on_device] = Alloc(seg.nbytes, seg.mtypes[on_device]);
          segment_maps[on_device].emplace(seg.lowers[on_device], segment);
          MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
                                seg.lowers[on_device] + seg.nbytes,
@@ -1871,10 +1863,10 @@ const char *MemoryManager::Read(size_t segment, size_t offset, size_t nbytes,
             if (seg.mtypes[!on_device] == MemoryType::DEFAULT ||
                 seg.mtypes[!on_device] == MemoryType::PRESERVE)
             {
-               seg.mtypes[!on_device] = GetDualMemoryType(seg.mtypes[on_device]);
+               seg.mtypes[!on_device] =
+                  GetDualMemoryType(seg.mtypes[on_device]);
             }
-            seg.lowers[!on_device] =
-               Alloc(seg.nbytes, seg.mtypes[!on_device]);
+            seg.lowers[!on_device] = Alloc(seg.nbytes, seg.mtypes[!on_device]);
             segment_maps[!on_device].emplace(seg.lowers[!on_device], segment);
             MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[!on_device],
                                   seg.lowers[!on_device] + seg.nbytes,
@@ -1942,7 +1934,8 @@ int MemoryManager::CompareHostDevice(size_t segment, size_t offset,
          {
             tmp = Alloc(nbytes, GetTempHostMemoryType());
             MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, ptr1, tmp, nbytes, "",
-                                             seg.mtypes[1], GetTempHostMemoryType());
+                                             seg.mtypes[1],
+                                             GetTempHostMemoryType());
             // TODO: how to get this to work with debug device?
             MemCopy(tmp, ptr1, nbytes, GetTempHostMemoryType(), seg.mtypes[1]);
             ptr1 = tmp;
@@ -2110,7 +2103,8 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
                         // next_m0 is guaranteed to be valid
                         MFEM_ASSERT(storage.GetNode(next_m0).IsValid(),
                                     "expected next_m0 to be valid");
-                        auto npos0 = storage.GetNode(next_m0).offset - src_offset;
+                        auto npos0 =
+                           storage.GetNode(next_m0).offset - src_offset;
 
                         stop1 = std::min<decltype(stop1)>(stop1, npos0);
                      }
@@ -2230,12 +2224,11 @@ size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
       MFEM_ASSERT(dst == &dseg->lowers[on_device],
                   "dst doesn't correspond to dseg");
       // perform lazy device allocation of dst
-      dseg->lowers[on_device] =
-         Alloc(dseg->nbytes, dseg->mtypes[on_device]);
+      dseg->lowers[on_device] = Alloc(dseg->nbytes, dseg->mtypes[on_device]);
       segment_maps[on_device].emplace(dseg->lowers[on_device], dsegment);
-      MFEM_MEM_OP_DEBUG_ADD(
-         0, dseg->lowers[on_device], dseg->lowers[on_device] + dseg->nbytes,
-         "alloc " << (int)dseg->mtypes[on_device]);
+      MFEM_MEM_OP_DEBUG_ADD(0, dseg->lowers[on_device],
+                            dseg->lowers[on_device] + dseg->nbytes,
+                            "alloc " << (int)dseg->mtypes[on_device]);
    }
    if (src0)
    {
@@ -2342,8 +2335,7 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
          if (!dseg.lowers[i] && copy_segs.size())
          {
             // perform lazy device allocation
-            dseg.lowers[i] =
-               Alloc(dseg.nbytes, dseg.mtypes[i]);
+            dseg.lowers[i] = Alloc(dseg.nbytes, dseg.mtypes[i]);
             segment_maps[i].emplace(dseg.lowers[i], segment);
             MFEM_MEM_OP_DEBUG_ADD(0, dseg.lowers[i],
                                   dseg.lowers[i] + dseg.nbytes,
@@ -2453,9 +2445,8 @@ void MemoryManager::SetUmpireDevice2AllocatorName_(const char *d_name)
 
 void MemoryManager::SetUmpireManagedAllocatorName_(const char *d_name)
 {
-   MFEM_ASSERT(
-      !allocs_storage[14],
-      "Umpire Managed Allocator has already been created and cannot be changed");
+   MFEM_ASSERT(!allocs_storage[14], "Umpire Managed Allocator has already been "
+               "created and cannot be changed");
    managed_umpire_name = d_name;
 }
 

@@ -911,6 +911,10 @@ template <class T> void Memory<T>::New(size_t size)
 template <class T> void Memory<T>::New(size_t size, MemoryType loc)
 {
    auto &inst = MemoryManager::Instance();
+   if (loc == MemoryType::DEFAULT)
+   {
+      loc = inst.GetHostMemoryType();
+   }
    MemoryType hloc;
    MemoryType dloc = MemoryType::DEFAULT;
    if (IsHostMemory(loc))
