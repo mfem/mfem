@@ -648,12 +648,11 @@ void BRASPreconditioner::MultChebyshev(const Vector &x, Vector &y) const
    ApplyChebyshev(xt, y);
 }
 
-// On conforming spaces, and for NCMethod::DIAGONAL, apply
+// On conforming spaces, apply B_W, i.e.
 // y = S P_L^T R_E^T (W M_br^{-1} W) R_E P_L S x on the free DOFs, where
-// S = diag(scale); see SetEssentialTrueDofs(). On conforming spaces this is
-// B_W, and on nonconforming spaces it is Btilde_W. The other nonconforming
-// methods are applied by MultLeftInverse() and MultChebyshev(). In all cases
-// y = x on the essential DOFs. The only communication is in P_L and P_L^T.
+// S = diag(scale); see SetEssentialTrueDofs(). The nonconforming methods are
+// applied by MultLeftInverse() and MultChebyshev(). In all cases y = x on the
+// essential DOFs. The only communication is in P_L and P_L^T.
 void BRASPreconditioner::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == height && y.Size() == height, "invalid sizes");
@@ -696,5 +695,146 @@ void BRASPreconditioner::Mult(const Vector &x, Vector &y) const
       d_y[j] = d_x[j];
    });
 }
+
+// G_m = R_E^T (W M_br^{-1} W) R_E. The element VDOFs are signed in the same
+// way as the element restriction, and AddSubMatrix() applies the signs of
+// negative indices, so block e is added in the basis of the E-vector.
+SparseMatrix *BRASPreconditioner::AssembleBroken() const
+{
+   auto *G = new SparseMatrix(fes->GetVSize());
+   WMinvW.HostRead();
+   Array<int> vdofs;
+   for (int e = 0; e < fes->GetNE(); e++)
+   {
+      fes->GetElementVDofs(e, vdofs);
+      G->AddSubMatrix(vdofs, vdofs, WMinvW(e), 0);
+   }
+   G->Finalize(0);
+   return G;
+}
+
+// The vector of size n equal to 1 on the entries in list and 0 elsewhere.
+static Vector Indicator(int n, const Array<int> &list)
+{
+   Vector v(n);
+   v = 0.0;
+   v.SetSubVector(list, 1.0);
+   v.HostRead();
+   return v;
+}
+
+// The vector 1 - mask.
+static Vector Complement(const Vector &mask)
+{
+   Vector v(mask.Size());
+   v = 1.0;
+   v -= mask;
+   v.HostRead();
+   return v;
+}
+
+// The preconditioner on the free DOFs is Q^T G_m Q, where u = Q x is the
+// L-vector passed to G_m in Mult(). On conforming spaces Q = P_L S. On
+// nonconforming spaces Q = L_X^T, and from the formula for u in
+// MultLeftInverse(), with J = diag(jmask), H = diag(hdl) and
+// U = diag(lu_scale),
+//    Q = J P_L U (I - P_L^T H P_L S) + (I - J) P_L S.
+// The columns of Q of the essential DOFs vanish, since S and U vanish there,
+// so adding the identity on the essential DOFs gives the operator of Mult().
+SparseMatrix *BRASPreconditioner::AssembleMatrix() const
+{
+   MFEM_VERIFY(!nc || nc_method == NCMethod::LEFT_INVERSE,
+               "NCMethod::CHEBYSHEV cannot be assembled");
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(!dynamic_cast<const ParFiniteElementSpace*>(fes),
+               "use ParallelAssembleMatrix() for parallel spaces");
+#endif
+   std::unique_ptr<SparseMatrix> G(AssembleBroken());
+   scale.HostRead();
+
+   // Q = P_L S; P_L is NULL for conforming spaces.
+   const SparseMatrix *sP = fes->GetConformingProlongation();
+   std::unique_ptr<SparseMatrix> Q;
+   if (!sP) { Q.reset(new SparseMatrix(scale)); }
+   else
+   {
+      Q.reset(new SparseMatrix(*sP));
+      Q->ScaleColumns(scale);
+   }
+   if (nc)
+   {
+      jmask.HostRead();
+      hdl.HostRead();
+      lu_scale.HostRead();
+      // PJ = J P_L U and T = P_L^T H P_L S.
+      SparseMatrix PJ(*sP), HPS(*Q);
+      PJ.ScaleRows(jmask);
+      PJ.ScaleColumns(lu_scale);
+      HPS.ScaleRows(hdl);
+      std::unique_ptr<SparseMatrix> T(mfem::TransposeMult(*sP, HPS));
+      std::unique_ptr<SparseMatrix> PJT(mfem::Mult(PJ, *T));
+      // Q = PJ - PJ T + (I - J) P_L S.
+      Q->ScaleRows(Complement(jmask));
+      std::unique_ptr<SparseMatrix> Q1(mfem::Add(PJ, *Q));
+      Q.reset(Add(1.0, *Q1, -1.0, *PJT));
+   }
+
+   std::unique_ptr<SparseMatrix> B(mfem::RAP(*Q, *G, *Q));
+   SparseMatrix I_ess(Indicator(height, ess_tdof_list));
+   return mfem::Add(*B, I_ess);
+}
+
+#ifdef MFEM_USE_MPI
+// A diag(s), where s is a vector on the columns of A owned by this rank.
+static HypreParMatrix *ScaleColumns(const HypreParMatrix &A, const Vector &s)
+{
+   SparseMatrix s_diag(s);
+   HypreParMatrix D(A.GetComm(), A.N(), A.GetColStarts(), &s_diag);
+   return ParMult(&A, &D, true);
+}
+
+// The parallel version of AssembleMatrix(). The prolongation is the matrix
+// P_L = Dof_TrueDof_Matrix(), which is the operator applied in Mult() also
+// when the space is conforming.
+HypreParMatrix *BRASPreconditioner::ParallelAssembleMatrix() const
+{
+   auto pfes = dynamic_cast<const ParFiniteElementSpace*>(fes);
+   MFEM_VERIFY(pfes, "use AssembleMatrix() for serial spaces");
+   MFEM_VERIFY(!nc || nc_method == NCMethod::LEFT_INVERSE,
+               "NCMethod::CHEBYSHEV cannot be assembled");
+   // The parallel matrix G uses the data of G_loc.
+   std::unique_ptr<SparseMatrix> G_loc(AssembleBroken());
+   HypreParMatrix G(pfes->GetComm(), pfes->GlobalVSize(),
+                    pfes->GetDofOffsets(), G_loc.get());
+   scale.HostRead();
+
+   // Q = P_L S.
+   const HypreParMatrix &hP = *pfes->Dof_TrueDof_Matrix();
+   std::unique_ptr<HypreParMatrix> Q(ScaleColumns(hP, scale));
+   if (nc)
+   {
+      jmask.HostRead();
+      hdl.HostRead();
+      lu_scale.HostRead();
+      // PJ = J P_L U and T = P_L^T H P_L S.
+      HypreParMatrix JP(hP), HPS(*Q);
+      JP.ScaleRows(jmask);
+      std::unique_ptr<HypreParMatrix> PJ(ScaleColumns(JP, lu_scale));
+      HPS.ScaleRows(hdl);
+      std::unique_ptr<HypreParMatrix> Pt(hP.Transpose());
+      std::unique_ptr<HypreParMatrix> T(ParMult(Pt.get(), &HPS, true));
+      std::unique_ptr<HypreParMatrix> PJT(ParMult(PJ.get(), T.get(), true));
+      // Q = PJ - PJ T + (I - J) P_L S.
+      Q->ScaleRows(Complement(jmask));
+      std::unique_ptr<HypreParMatrix> Q1(Add(1.0, *PJ, 1.0, *Q));
+      Q.reset(Add(1.0, *Q1, -1.0, *PJT));
+   }
+
+   std::unique_ptr<HypreParMatrix> B(RAP(&G, Q.get()));
+   SparseMatrix I_loc(Indicator(height, ess_tdof_list));
+   HypreParMatrix I_ess(B->GetComm(), B->M(), B->GetRowStarts(), &I_loc);
+   return Add(1.0, *B, 1.0, I_ess);
+}
+#endif
 
 } // namespace mfem

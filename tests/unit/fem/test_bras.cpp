@@ -422,15 +422,7 @@ DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
    const DenseMatrix G = RtAR(r.Gm, r.E);
    DenseMatrix B(nt);
 
-   if (method == NCMethod::DIAGONAL)
-   {
-      // S G S.
-      for (int i = 0; i < nt; i++)
-      {
-         for (int j = 0; j < nt; j++) { B(i,j) = s(i)*G(i,j)*s(j); }
-      }
-   }
-   else if (method == NCMethod::LEFT_INVERSE)
+   if (method == NCMethod::LEFT_INVERSE)
    {
       // X C = S C^T Lambda_h C with X = S C^T Lambda_h.
       DenseMatrix XC(nt);
@@ -684,8 +676,7 @@ TEST_CASE("BRAS nonconforming dense reference", "[BRAS]")
                                Space::ND_1, Space::ND_2, Space::RT_0,
                                Space::RT_1);
    const auto weighting = GENERATE(Weighting::IDENTITY, Weighting::DIAGONAL);
-   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::DIAGONAL,
-                                NCMethod::CHEBYSHEV);
+   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::CHEBYSHEV);
    const bool use_ess = GENERATE(false, true);
    CAPTURE(int(mesh_type), int(space), int(weighting), int(method), use_ess);
 
@@ -869,8 +860,7 @@ TEST_CASE("BRAS Update", "[BRAS]")
 // preconditioner built from scratch on the refined space.
 TEST_CASE("BRAS nonconforming Update", "[BRAS]")
 {
-   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::DIAGONAL,
-                                NCMethod::CHEBYSHEV);
+   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::CHEBYSHEV);
    Mesh mesh = MakeMesh(MeshType::QUAD, 2);
    mesh.EnsureNCMesh();
    H1_FECollection fec(2, 2);
@@ -894,6 +884,60 @@ TEST_CASE("BRAS nonconforming Update", "[BRAS]")
       const DenseMatrix B = ToDense(bras_new);
       REQUIRE(MaxDiff(ToDense(bras), B) <= 1e-12*B.MaxMaxNorm());
    }
+}
+
+// The assembled matrix equals the operator applied by Mult(), on conforming
+// and nonconforming meshes, with and without essential DOFs. Tetrahedral
+// Nedelec spaces check the transformation of the element basis.
+TEST_CASE("BRAS assembled matrix", "[BRAS]")
+{
+   const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX,
+                                   MeshType::TET);
+   const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::L2_2,
+                               Space::ND_1, Space::ND_2, Space::RT_1);
+   const bool nonconforming = GENERATE(false, true);
+   const bool use_ess = GENERATE(false, true);
+   CAPTURE(int(mesh_type), int(space), nonconforming, use_ess);
+
+   // As in "BRAS nonconforming dense reference", only the lowest order
+   // spaces on nonconforming hexahedra.
+   if (nonconforming && (mesh_type == MeshType::TET ||
+                         (mesh_type == MeshType::HEX && space != Space::ND_1)))
+   {
+      return;
+   }
+
+   Mesh mesh = MakeMesh(mesh_type, mesh_type == MeshType::QUAD ? 3 : 2);
+   if (nonconforming) { RefineNC(mesh); }
+   SpaceInfo info = MakeSpace(space, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, info.fec.get(), info.vdim, info.ordering);
+
+   FunctionCoefficient Q(ScalarCoeff);
+   const int mdim = space == Space::H1_VDIM ? info.vdim : mesh.Dimension();
+   MatrixFunctionCoefficient MQ(mdim, MatrixCoeff);
+   Array<int> ess;
+   if (use_ess) { fes.GetBoundaryTrueDofs(ess); }
+
+   std::unique_ptr<BRASPreconditioner> bras;
+   if (UsesMatrixCoeff(space))
+   {
+      bras.reset(new BRASPreconditioner(fes, MQ, ess));
+   }
+   else
+   {
+      bras.reset(new BRASPreconditioner(fes, Q, ess));
+   }
+
+   std::unique_ptr<SparseMatrix> B(bras->AssembleMatrix());
+   const DenseMatrix B_op = ToDense(*bras);
+   DenseMatrix B_mat;
+   B->ToDenseMatrix(B_mat);
+   REQUIRE(MaxDiff(B_mat, B_op) <= 1e-12*B_op.MaxMaxNorm());
+
+#ifdef MFEM_USE_EXCEPTIONS
+   bras->SetNCMethod(NCMethod::CHEBYSHEV);
+   if (nonconforming) { REQUIRE_THROWS(bras->AssembleMatrix()); }
+#endif
 }
 
 #ifdef MFEM_USE_MPI
@@ -978,8 +1022,7 @@ TEST_CASE("BRAS parallel nonconforming", "[BRAS][Parallel]")
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX);
    const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::ND_2,
                                Space::RT_1);
-   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::DIAGONAL,
-                                NCMethod::CHEBYSHEV);
+   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::CHEBYSHEV);
    CAPTURE(int(mesh_type), int(space), int(method));
 
    const int nranks = Mpi::WorldSize();
@@ -1085,6 +1128,55 @@ TEST_CASE("BRAS parallel PCG", "[BRAS][Parallel]")
    // The curved tetrahedral meshes need about 20 iterations in serial, and up
    // to 25 with Nedelec DOFs on shared triangular faces.
    REQUIRE(cg.GetNumIterations() <= (mesh_type == MeshType::TET ? 30 : 20));
+}
+
+// The parallel assembled matrix equals the operator applied by Mult(), on
+// conforming and nonconforming meshes and for Nedelec spaces with DOFs on
+// shared triangular faces.
+TEST_CASE("BRAS parallel assembled matrix", "[BRAS][Parallel]")
+{
+   const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX,
+                                   MeshType::TET);
+   const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::ND_2,
+                               Space::RT_1);
+   const bool nonconforming = GENERATE(false, true);
+   if (nonconforming && mesh_type == MeshType::TET) { return; }
+   CAPTURE(int(mesh_type), int(space), nonconforming);
+
+   const int nranks = Mpi::WorldSize();
+   Mesh smesh = MakeMesh(mesh_type, mesh_type == MeshType::QUAD ? 8 : 4);
+   if (nonconforming) { RefineNC(smesh); }
+   Array<int> part = SlabPartitioning(smesh, nranks);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, part.GetData());
+   SpaceInfo info = MakeSpace(space, smesh.Dimension());
+   ParFiniteElementSpace pfes(&pmesh, info.fec.get(), info.vdim,
+                              info.ordering);
+
+   FunctionCoefficient Q(ScalarCoeff);
+   const int mdim = space == Space::H1_VDIM ? info.vdim : smesh.Dimension();
+   MatrixFunctionCoefficient MQ(mdim, MatrixCoeff);
+   Array<int> ess;
+   pfes.GetBoundaryTrueDofs(ess);
+
+   std::unique_ptr<BRASPreconditioner> bras;
+   if (UsesMatrixCoeff(space))
+   {
+      bras.reset(new BRASPreconditioner(pfes, MQ, ess));
+   }
+   else
+   {
+      bras.reset(new BRASPreconditioner(pfes, Q, ess));
+   }
+   std::unique_ptr<HypreParMatrix> B(bras->ParallelAssembleMatrix());
+
+   Vector X(pfes.GetTrueVSize()), Y(X.Size()), Y_ref(X.Size());
+   X.Randomize(1 + Mpi::WorldRank());
+   bras->Mult(X, Y_ref);
+   B->Mult(X, Y);
+   Y -= Y_ref;
+   const real_t diff = ParNormlp(Y, infinity(), MPI_COMM_WORLD);
+   const real_t norm = ParNormlp(Y_ref, infinity(), MPI_COMM_WORLD);
+   REQUIRE(diff <= 1e-12*norm);
 }
 
 #endif // MFEM_USE_MPI

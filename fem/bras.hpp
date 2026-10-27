@@ -15,6 +15,9 @@
 #include "../config/config.hpp"
 #include "../linalg/operator.hpp"
 #include "../linalg/densemat.hpp"
+#ifdef MFEM_USE_MPI
+#include "../linalg/hypre.hpp"
+#endif
 #include "fespace.hpp"
 #include <memory>
 
@@ -85,10 +88,6 @@ public:
           requires three products with $P_L$ and three with $P_L^T$
           (recommended). */
       LEFT_INVERSE,
-      /** $\widetilde{B}_W = S G S$. This is the cheapest method, with the
-          sparsity of $M$, but the lower bound $\lambda_{\min} \geq 1$ is
-          lost. */
-      DIAGONAL,
       /** $q_k(A_W) G q_k(A_W)$, where $q_k(A_W) \approx A_W^{-1}$ is the
           Chebyshev polynomial approximation of degree k (in $S A_W$) for the
           spectral interval [a, b] of $S A_W$. In the setup, a is set to a
@@ -175,6 +174,10 @@ protected:
    void MultLeftInverse(const Vector &x, Vector &y) const;
    void MultChebyshev(const Vector &x, Vector &y) const;
 
+   /// Return the local matrix R_E^T (W M_br^{-1} W) R_E on the L-DOFs, owned
+   /// by the caller.
+   SparseMatrix *AssembleBroken() const;
+
 public:
    /** @brief Construct the BRAS preconditioner for the bilinear form @a a.
 
@@ -250,6 +253,26 @@ public:
 
    /// Return the approximation of $A_W^{-1}$ used on nonconforming spaces.
    NCMethod GetNCMethod() const { return nc_method; }
+
+   /** @brief Return the preconditioner as a sparse matrix, owned by the
+       caller. Only for serial spaces; see ParallelAssembleMatrix().
+
+       The matrix equals the operator applied by Mult(), including the
+       identity on the essential true DOFs. On conforming spaces it is
+       $A_W^{-1} P^T W M_{br}^{-1} W P A_W^{-1}$ with diagonal $A_W$, so it has
+       the sparsity pattern of $M$. On nonconforming spaces, NCMethod::
+       LEFT_INVERSE gives $B_X = Q^T R_E^T W M_{br}^{-1} W R_E Q$, where the
+       sparse matrix $Q = R_X^T$ has the shape of $P_L$ with a wider stencil
+       at the hanging DOFs. NCMethod::CHEBYSHEV cannot be assembled, since its
+       matrix is not sparse; then this method aborts. */
+   SparseMatrix *AssembleMatrix() const;
+
+#ifdef MFEM_USE_MPI
+   /** @brief Return the preconditioner as a parallel matrix, owned by the
+       caller. Only for parallel spaces; the matrix is the one described in
+       AssembleMatrix(). Must be called on all ranks. */
+   HypreParMatrix *ParallelAssembleMatrix() const;
+#endif
 
    ~BRASPreconditioner();
 };
