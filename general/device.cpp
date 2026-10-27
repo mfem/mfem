@@ -366,7 +366,7 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
    bool use_umpire = false;
 
 #ifdef MFEM_USE_UMPIRE
-   // If MFEM has been compiled with Umpire support, use it as the default
+   // Default to HOST instead of UMPIRE_HOST; this generally performs better.
    if (!mem_host_env && !mem_types_set)
    {
       host_mem_type = MemoryType::HOST;
