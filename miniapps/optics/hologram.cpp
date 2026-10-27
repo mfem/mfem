@@ -25,13 +25,13 @@
 using namespace mfem;
 
 #include <algorithm>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 namespace holo
 {
 
+// ----------------------------------------------------------------------------
 class PixelMesh
 {
    L2_FECollection fec, fec0;
@@ -113,6 +113,7 @@ public:
    RowSum &Reducer() const { return rowSum; }
 };
 
+// ----------------------------------------------------------------------------
 struct Fields
 {
    ComplexGridFunction u, du, s, g;
@@ -153,6 +154,7 @@ struct Fields
    }
 };
 
+// ----------------------------------------------------------------------------
 struct RasterField
 {
    void operator()(const PixelMesh &grid,
@@ -364,6 +366,7 @@ public:
 
 } // namespace holo
 
+// ----------------------------------------------------------------------------
 int main(int argc, char *argv[]) try
 {
    const char *in_file = MFEM_SOURCE_DIR "/doc/logo-small.png";

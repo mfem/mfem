@@ -460,6 +460,7 @@ inline real_t MatchTarget(Vector &E, const Vector &target,
    return scale;
 }
 
+// ----------------------------------------------------------------------------
 class Lens
 {
    Vector forward, backward;

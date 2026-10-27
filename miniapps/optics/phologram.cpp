@@ -33,6 +33,7 @@ using namespace mfem;
 namespace holo
 {
 
+// ----------------------------------------------------------------------------
 // True on all ranks when error is empty on rank 0, which prints it otherwise
 inline bool RootOk(const std::string &error)
 {
@@ -134,6 +135,7 @@ public:
       : RowSum(length), counts(rowCounts), displs(rowDispls) {}
 };
 
+// ----------------------------------------------------------------------------
 class PixelMesh
 {
    L2_FECollection fec, fec0;
@@ -300,6 +302,7 @@ public:
    }
 };
 
+// ----------------------------------------------------------------------------
 struct Fields
 {
    ParComplexGridFunction u, du, s, g;
@@ -343,6 +346,7 @@ struct Fields
    }
 };
 
+// ----------------------------------------------------------------------------
 struct RasterField
 {
    void operator()(const PixelMesh &grid,
@@ -395,10 +399,6 @@ struct RasterField
       field.SyncAlias();
    }
 };
-
-// ----------------------------------------------------------------------------
-using PhaseMask =
-   PhaseMaskImpl<PixelMesh, ParGridFunction, ParComplexGridFunction, Fields>;
 
 // ----------------------------------------------------------------------------
 // Copy between rows x nx local rows and the stage, which holds the local rows
@@ -534,6 +534,10 @@ public:
       Mult(field, field);
    }
 };
+
+// ----------------------------------------------------------------------------
+using PhaseMask =
+   PhaseMaskImpl<PixelMesh, ParGridFunction, ParComplexGridFunction, Fields>;
 
 using GaussNewtonOp =
    GaussNewtonOpImpl<PixelMesh, PhaseMask, Fields, RasterField>;
@@ -710,6 +714,7 @@ public:
 
 } // namespace holo
 
+// ----------------------------------------------------------------------------
 int main(int argc, char *argv[]) try
 {
    Mpi::Init(argc, argv);
@@ -991,7 +996,6 @@ int main(int argc, char *argv[]) try
 catch (const std::exception &exc)
 {
    mfem::err << exc.what() << "\n";
-   // Returning finalizes MPI while other ranks may still be in a collective.
    if (Mpi::IsInitialized() && !Mpi::IsFinalized())
    {
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
