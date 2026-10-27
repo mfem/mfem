@@ -46,6 +46,12 @@ if (MFEM_USE_CODSPEED)
       SOURCE_SUBDIR google_benchmark
       EXCLUDE_FROM_ALL)
    FetchContent_MakeAvailable(google_benchmark)
+
+   # CodSpeed v2.4.0's generated Zig C source is incompatible with C23
+   set_property(TARGET instrument_hooks PROPERTY C_STANDARD 17)
+   set_property(TARGET instrument_hooks PROPERTY C_STANDARD_REQUIRED ON)
+   set_property(TARGET instrument_hooks PROPERTY C_EXTENSIONS OFF)
+
    set(MFEM_BENCHMARK_EXTRA_LIBS benchmark::benchmark)
 endif()
 
