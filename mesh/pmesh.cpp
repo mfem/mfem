@@ -956,61 +956,9 @@ void ParMesh::Load(istream &input, int generate_edges, int refine,
    // Tell Loader() to read up to 'mfem_serial_mesh_end' instead of
    // 'mfem_mesh_end', as we have additional parallel mesh data to load in from
    // the stream.
-   bool nodes_deferred;
-   Loader(input, generate_edges, "mfem_serial_mesh_end", true,
-          &nodes_deferred);
+   Loader(input, generate_edges, "mfem_serial_mesh_end");
 
    ReduceMeshGen(); // determine the global 'meshgen'
-
-   if (nodes_deferred)
-   {
-      // The local topology may be empty, so load the nodal GridFunction only
-      // after meshgen has been determined collectively.
-      LoadNodes(input);
-
-      if (Conforming())
-      {
-         string line;
-         do
-         {
-            skip_comment_lines(input, '#');
-            MFEM_VERIFY(input.good(), "Required mesh-end tag not found");
-            getline(input, line);
-            filter_dos(line);
-            if (line == "mfem_mesh_end") { break; }
-         }
-         while (line != "mfem_serial_mesh_end");
-      }
-      else
-      {
-         string ident;
-         skip_comment_lines(input, '#');
-         if (ncmesh->SupportsAttributeSets())
-         {
-            input >> ident;
-            MFEM_VERIFY(ident == "attribute_sets", "invalid mesh file");
-            attribute_sets.attr_sets.Load(input);
-            attribute_sets.attr_sets.SortAll();
-            attribute_sets.attr_sets.UniqueAll();
-
-            skip_comment_lines(input, '#');
-            input >> ident;
-            MFEM_VERIFY(ident == "bdr_attribute_sets", "invalid mesh file");
-            bdr_attribute_sets.attr_sets.Load(input);
-            bdr_attribute_sets.attr_sets.SortAll();
-            bdr_attribute_sets.attr_sets.UniqueAll();
-
-            skip_comment_lines(input, '#');
-            input >> ident;
-         }
-         else
-         {
-            input >> ident;
-         }
-         MFEM_VERIFY(ident == "mfem_mesh_end",
-                     "invalid mesh: end of file tag not found");
-      }
-   }
 
    if (Conforming())
    {

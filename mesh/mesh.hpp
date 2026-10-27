@@ -633,11 +633,7 @@ protected:
    void FinalizeCheck();
 
    void Loader(std::istream &input, int generate_edges = 0,
-               std::string parse_tag = "", bool defer_nodes = false,
-               bool *nodes_deferred = nullptr);
-
-   /// Read the nodal GridFunction following a curved mesh topology.
-   void LoadNodes(std::istream &input);
+               std::string parse_tag = "");
 
    /** @brief If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1
        format. If section_delimiter is empty, write mfem v1.0 format. Otherwise,

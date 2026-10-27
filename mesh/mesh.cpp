@@ -5101,12 +5101,10 @@ void Mesh::SetMeshGen()
 }
 
 void Mesh::Loader(std::istream &input, int generate_edges,
-                  std::string parse_tag, bool defer_nodes,
-                  bool *nodes_deferred)
+                  std::string parse_tag)
 {
    int curved = 0, read_gf = 1;
    bool finalize_topo = true;
-   if (nodes_deferred) { *nodes_deferred = false; }
 
    if (!input)
    {
@@ -5291,15 +5289,20 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       FinalizeTopology(generate_bdr);
    }
 
-   if (defer_nodes && curved && read_gf)
-   {
-      if (nodes_deferred) { *nodes_deferred = true; }
-      return;
-   }
-
    if (curved && read_gf)
    {
-      LoadNodes(input);
+      Nodes = new GridFunction(this, input);
+      own_nodes = 1;
+      // An empty partition has no typical element to query for VectorDim().
+      const FiniteElementSpace *nfes = Nodes->FESpace();
+      const FiniteElementCollection *nfec = nfes->FEColl();
+      spaceDim = nfes->GetVDim();
+      if (nfec->GetRangeType(Dim) != FiniteElement::SCALAR)
+      {
+         spaceDim *= nfec->GetRangeDim(Dim);
+      }
+      if (ncmesh) { ncmesh->spaceDim = spaceDim; }
+      SetVerticesFromNodes(Nodes);
    }
 
    // If a parse tag was supplied, keep reading the stream until the tag is
@@ -5365,16 +5368,6 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    }
 
    // Finalize(...) should be called after this, if needed.
-}
-
-void Mesh::LoadNodes(std::istream &input)
-{
-   MFEM_ASSERT(Nodes == nullptr, "nodes are already initialized");
-   Nodes = new GridFunction(this, input);
-   own_nodes = 1;
-   spaceDim = Nodes->VectorDim();
-   if (ncmesh) { ncmesh->spaceDim = spaceDim; }
-   SetVerticesFromNodes(Nodes);
 }
 
 Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
