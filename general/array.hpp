@@ -241,6 +241,10 @@ public:
    void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
+   /// post condition:
+   /// - if *this was originally valid on host, *this will be valid on host
+   /// - else if *this was originally valid on device, *this will be valid on device
+   /// - else *this will have mixed validity
    inline int Append(const Array<T> &els);
 
    /// Append another array to this array, resize if necessary.
@@ -250,6 +254,7 @@ public:
    }
 
    /// Prepend an 'el' to the array, resize if necessary.
+   /// post condition: everything valid on host
    inline int Prepend(const T &el);
 
    /// Return the last element in the array.
@@ -977,17 +982,37 @@ template <class T>
 inline int Array<T>::Append(const Array& els)
 {
    const int old_size = size;
+   const int to_append = els.Size();
 
-   SetSize(size + els.Size());
+   SetSize(size + to_append);
 #ifdef MFEM_USE_NEW_MEM_MANAGER
-   // resizing could have a fragmented memory validity
-   data.Write(false, old_size, els.Size());
-#endif
-   // TODO: use data.CopyFrom(els) with the proper offset
-   for (int i = 0; i < els.Size(); i++)
+   Memory<T> orig;
+   orig.makeAlias(data, 0, old_size);
+   Memory<T> dst;
+   dst.makeAlias(data, old_size, size);
+   // Match the original memory validity if it was fully valid in a single location.
+   // Prefer being valid on host if orig was fully valid on host and device
+   if (orig.HostIsValid())
+   {
+      // post: [0, size) valid on host
+      dst.HostWrite();
+   }
+   else if (orig.DeviceIsValid())
+   {
+      // post: [0, size) valid on device
+      dst.Write();
+   }
+   else
+   {
+      // post: [0, size) have mixed validity
+   }
+   dst.CopyFrom(els.data, to_append);
+#else
+   for (int i = 0; i < to_append; i++)
    {
       data[old_size+i] = els[i];
    }
+#endif
    return size;
 }
 
@@ -996,8 +1021,9 @@ inline int Array<T>::Prepend(const T &el)
 {
    SetSize(size + 1);
 #ifdef MFEM_USE_NEW_MEM_MANAGER
-   // resizing could have a fragmented memory validity
-   data.Write(false, size);
+   // Resizing could have a fragmented memory validity.
+   // Reads one entry more than strictly needed.
+   data.HostReadWrite();
 #endif
    for (int i = size - 1; i > 0; i--)
    {
