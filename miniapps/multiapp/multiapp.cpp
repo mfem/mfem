@@ -570,14 +570,14 @@ void DAGraph::MultTransposeMV(const MultiVector &x, MultiVector &y) const
     // It comes as arguments to this function loop over inputs and outputs.
     int iin = 0, iout = 0;
     const int igrad = GetGradientOrder();
-    for (auto &f : inputs)
+    for (auto &f : inputs) // TODO: Should this be 'outputs' for reverse-mode?
     {
         int idx = id_to_field_index.Get(f->ID());
         auto &fmem = state_memory[idx];
         if(fmem[igrad] != nullptr) { delete fmem[igrad]; } // Delete existing memory if any
         fmem[igrad] = const_cast<StateType*>(&x[iin++]); // Point dag's memory to inputs
     }
-    for (auto &f : outputs)
+    for (auto &f : outputs) // TODO: Should this be 'inputs' for reverse-mode?
     {
         const int idx = id_to_field_index.Get(f->ID());
         auto &fmem = state_memory[idx];
@@ -613,7 +613,7 @@ void DAGraph::Execute(bool reverse, int upto_depth) const
                                            std::make_tuple(0, operations.Size(), 1);
 
     // Determine the order of input and output fields based on the reverse flag.
-    auto fetch_io = reverse ? [](GraphOperation *op){ return std::make_tuple(op->outputs, op->inputs); } :
+    auto fetch_io = reverse ? [](GraphOperation *op){ return std::make_tuple(op->outputs, op->inputs); }:
                               [](GraphOperation *op){ return std::make_tuple(op->inputs, op->outputs); };
 
     for(int iop = istart; iop != iend; iop += istep)
@@ -623,8 +623,8 @@ void DAGraph::Execute(bool reverse, int upto_depth) const
         auto op = operations[iop];
         auto [isz, osz] = op->Sizes();
         auto [inputs, outputs] = fetch_io(op);
-        xmv.SetNumBlocks(isz);
-        ymv.SetNumBlocks(osz);
+        xmv.SetNumBlocks(isz); // TODO: isz vs. inputs.Size()
+        ymv.SetNumBlocks(osz); // TODO: osz vs. outputs.Size()
         int iin = 0, iout = 0;
         for (auto &f : inputs)
         {
@@ -684,7 +684,6 @@ Operator &DAGraph::GetGradientMV(const MultiVector &x) const
     return *grad_dag;
 }
 
-
 DualGraph::DualGraph(const DAGraph &primal) : DAGraph(primal.Size()),
                                             primal_dag(&primal)
 {
@@ -711,8 +710,9 @@ void DualGraph::Assemble()
     }
 
     DAGraph::Assemble();
-    const bool reverse = true;
-    ComputeDepth(reverse); // Compute depth in reverse order to identify leaf nodes
+    const int nin = dag_op->inputs.Size(), nout = dag_op->outputs.Size();
+    const bool reverse = (nout > nin) ? false : true; // Forward vs. Reverse-Mode
+    ComputeDepth(reverse);
 }
 
 void DualGraph::UpdateState(const MultiVector &x)
@@ -781,6 +781,134 @@ void DualGraph::UpdateState(const MultiVector &x)
             pop->Execute(xmv, ymv);
         }
         operations[iop]->SetPrimal(xmv);
+    }
+}
+
+Operator& DualGraph::GetGradientMV(const MultiVector &x) const 
+{
+    auto inputs = dag_op->inputs;
+    auto outputs = dag_op->outputs;
+    const int nin = inputs.Size(), nout = outputs.Size();
+    const bool reverse = (nout > nin) ? false : true; // Forward vs. Reverse-Mode
+
+    MultiOperator* dfdx = nullptr;
+    if(grad_op)
+    {
+        dfdx = dynamic_cast<MultiOperator*>(grad_op);
+    }
+    else
+    {
+        dfdx = new MultiOperator(nout, nin);
+    }
+
+    if(reverse)
+    {
+        MFEM_ABORT("Reverse mode not implemented yet.");
+    }
+    else
+    {
+        J_ops.DeleteAll();
+        J_ops.SetSize(fields.Size(), nin);
+        J_ops = nullptr;
+
+        // Seed for JMP (Jacobian Matrix Product)
+        int i = 0;
+        for (auto &f : inputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            J_ops(idx,i++) = new IdentityOperator(0);
+        }
+
+        // Propagate through the adjoint DAG to compute the Jacobian blocks
+        ExecuteOnOperator(false);
+
+        // Extract the Jacobian blocks into dfdx
+        i = 0;
+        for(auto &f : outputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            for(int j = 0; j < nin; j++)
+            {
+                if(J_ops(idx,j))
+                {
+                    dfdx->SetBlock(i, j, J_ops(idx,j));
+                    J_ops(idx,j) = nullptr; // Clear the reference since ownership is transferred to dfdx
+                }
+            }
+            i++;
+        }
+    }
+
+    dfdx->SetOwnership(true); // Transfer from J_ops to dfdx and free J_ops
+    grad_op = dfdx;
+    return *grad_op;
+}
+
+void DualGraph::ExecuteOnOperator(bool reverse, int upto_depth) const
+{
+    // Determine the iteration order for the operations based on the reverse flag.
+    auto [istart, iend, istep] = reverse ? std::make_tuple(operations.Size() - 1, -1, -1) :
+                                           std::make_tuple(0, operations.Size(), 1);
+
+    // Determine the order of input and output fields based on the reverse flag.
+    auto fetch_io = reverse ? [](GraphOperation *op){ return std::make_tuple(op->outputs, op->inputs); }:
+                              [](GraphOperation *op){ return std::make_tuple(op->inputs, op->outputs); };
+
+    MultiOperator* xb = nullptr, *yb = nullptr;
+    const int ncol = J_ops.NumCols(); // input or outputs depending on the reverse flag
+
+    for(int iop = istart; iop != iend; iop += istep)
+    {
+        if(op_depth[iop] < upto_depth) { break; } // Stop if depth exceeds upto_depth
+
+        auto op = operations[iop];
+        auto [inputs, outputs] = fetch_io(op);
+        const int isz = inputs.Size();
+        const int osz = outputs.Size();
+        xb = new MultiOperator(isz, ncol);
+        yb = new MultiOperator(osz, ncol);
+        xb->SetOwnership(false); // The blocks are owned by J_ops, not xb
+
+        int iin = 0, iout = 0;
+        for (auto &f : inputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            for (int icol = 0; icol < ncol; icol++)
+            {
+                if(J_ops(idx,icol))
+                {
+                    xb->SetBlock(iin, icol, J_ops(idx,icol));
+                }
+            }
+            iin++;
+        }
+
+        op->Execute(*xb, *yb, reverse); // J * xb = yb
+
+        for (auto &f : outputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            for (int icol = 0; icol < ncol; icol++)
+            {
+                if(J_ops(idx,icol)) // probably safer
+                {
+                    delete J_ops(idx,icol);
+                    J_ops(idx,icol) = nullptr;
+                }
+                if(!yb->IsZeroBlock(iout,icol))
+                {
+                    J_ops(idx,icol) = yb->GetBlock(iout, icol);
+                }
+                else
+                {
+                    J_ops(idx,icol) = nullptr;
+                }
+            }
+            iout++;
+        }
+        yb->SetOwnership(false); // Transfer ownership of blocks to J_ops
+        delete xb;
+        delete yb;
     }
 }
 

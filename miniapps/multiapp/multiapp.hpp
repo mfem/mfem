@@ -26,6 +26,44 @@ class DualGraph;
 struct GraphOperation;
 
 
+// Temporary MultiOperator class for block operators management
+// Will be replaced with BlockOperator with updated functionality
+class MultiOperator : public Operator
+{
+protected:
+    Array2D<Operator*> ops;
+    Array2D<bool> own_op;
+    int nrow = 0, ncol = 0; // Number of row and column blocks in the operator
+public:
+    MultiOperator(int nr, int nc) : Operator(nr,nc) { SetSize(nr, nc); }
+    int NumRowBlocks() const { return nrow; }
+    int NumColBlocks() const { return ncol; }
+    Operator* GetBlock(int i, int j) const { return ops(i, j); }
+    bool IsZeroBlock(int i, int j) const { return ops(i, j) == nullptr; }
+    void SetBlock(int i, int j, Operator* op, bool own = false) { ops(i, j) = op; own_op(i, j) = own; }
+    void SetOwnership(bool own){ own_op = own; }
+    void SetSize(int nr, int nc) {
+        nrow = nr; ncol = nc; ops.SetSize(nr, nc); own_op.SetSize(nr, nc);
+        own_op = false; ops = nullptr;
+    }
+    void Mult(const Vector &x, Vector &y) const override { MFEM_ABORT("MultiOperator::Mult not implemented."); }
+    void DeleteAll()
+    {
+        for (int i = 0; i < nrow; i++)
+        {
+            for (int j = 0; j < ncol; j++)
+            {
+                if (own_op(i, j)) { delete ops(i, j); }
+                ops(i, j) = nullptr;
+                own_op(i, j) = false;
+            }
+        }
+        nrow = 0; ncol = 0;
+        ops.SetSize(0, 0);
+        own_op.SetSize(0, 0);
+    }
+    ~MultiOperator() { DeleteAll(); }
+};
 
 
 // TODO: Should move these to a util namespace or a util file. 
@@ -238,6 +276,9 @@ public:
         execute(x, y);
     }
 
+    virtual void Execute(const MultiOperator &x, MultiOperator &y, bool reverse = false) const
+    { MFEM_ABORT("MultiOperator execution not implemented."); }
+
     virtual GraphOperation *GetGradient() const;
 
     Operator &GetOperator() const { return *op; }
@@ -293,6 +334,11 @@ struct GraphOperationGradient : GraphOperation
     GraphOperationGradient(GraphOperation &oper);
 
     void Execute(const MultiVector &x, MultiVector &y, bool reverse = false) const override;
+
+    // Compute y = J * x or y = J^T * x depending on the reverse flag
+    // where x and y are now BlockOperators
+    void Execute(const MultiOperator &x, MultiOperator &y, bool reverse = false) const
+    { MFEM_ABORT("MultiOperator execution not implemented."); }
 
     void SetPrimal(MultiVector &x) override;
 
@@ -556,15 +602,27 @@ public:
     ~DAGraph();
 };
 
-
+// Represents the linear action of an operator, J(x0), parameterized by x0 (i.e., y = J(x0) * x)
 class DualGraph : public DAGraph
 {
 protected:
     mutable const DAGraph *primal_dag = nullptr; ///< Pointer to the primal dag operator
+
+    mutable Operator *grad_op = nullptr; ///< DAG Jacobian; references blocks owned by J_ops
+    mutable Array2D<Operator*> J_ops; ///< Per-field Jacobian w.r.t. DAG inputs, owned
 public:
     DualGraph(const DAGraph &primal_dag);
+    ~DualGraph();
     void Assemble() override;
     void UpdateState(const MultiVector &x) override;
+
+    // Returns gradient of J(x0)*x - y w.r.t. x (i.e., J(x0))
+    Operator& GetGradientMV(const MultiVector &x) const override;
+protected:
+    /// Executes each operation with BlockOperator as input and output.
+    virtual void ExecuteOnOperator(bool reverse = false, int upto_depth = 0) const;
+public:
+
 };
 
 } //mfem namespace
