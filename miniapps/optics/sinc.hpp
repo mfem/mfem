@@ -156,7 +156,7 @@ inline std::unique_ptr<FresnelOp> MakeFresnelOp(bool use_fft);
 namespace
 {
 
-// Fresnel weights ────────────────────────────────────────────────────────────
+// Fresnel weights ------------------------------------------------------------
 constexpr real_t kPi = M_PI;
 constexpr real_t kHalf = 0.5_r;
 constexpr real_t kHalfPi = kPi * kHalf;
@@ -315,7 +315,7 @@ FresnelWeights(real_t extent_x, real_t extent_y, int nx, int ny,
    return { wx, wx, wy, wy };
 }
 
-// Toeplitz tools ─────────────────────────────────────────────────────────────
+// Toeplitz tools -------------------------------------------------------------
 inline ComplexArray2D toeplitz_to_dense(const ComplexArray1D &first_row,
                                         const ComplexArray1D &first_col)
 {
@@ -406,7 +406,8 @@ inline void ToeplitzEmbed(const ComplexArray1D &first_row,
    MFEM_VERIFY(first_col.Size() == n, "ToeplitzEmbed row/col size");
    const std::size_t embed = ToeplitzEmbedSize(static_cast<std::size_t>(n));
    MFEM_VERIFY(embed > 0 &&
-               embed <= static_cast<std::size_t>(std::numeric_limits<int>::max()),
+               embed <= static_cast<std::size_t>(
+                  std::numeric_limits<int>::max()),
                "ToeplitzEmbed: the circulant embedding of " << n
                << " exceeds the int size limit");
    const int m = static_cast<int>(embed);
@@ -442,7 +443,7 @@ inline void FillAdjointWeights(const ComplexArray1D &fr,
    });
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 /** Circulant embedding of the Toeplitz Fresnel weights. */
 class ToeplitzFft
 {
@@ -455,7 +456,7 @@ public:
    virtual void AxisX(complex_t *E, bool adjoint) const = 0;
 };
 
-// FFT implementations ────────────────────────────────────────────────────────
+// FFT implementations --------------------------------------------------------
 #if defined(HOLO_USE_CPU_FFT)
 class CpuFFT
 {
@@ -504,18 +505,23 @@ public:
       impl->along_rows = along_rows_in;
       if (batch_in == 0) { return; }
       impl->buf = static_cast<complex_t *>(
-                     holo_fftw_malloc(sizeof(complex_t) * static_cast<std::size_t>(m_in) *
+                     holo_fftw_malloc(sizeof(complex_t) *
+                                      static_cast<std::size_t>(m_in) *
                                       static_cast<std::size_t>(batch_in)));
       MFEM_VERIFY(impl->buf, "FFTW buffer allocation failed");
       impl->fwd = holo_fftw_plan_many_dft(
                      1, &impl->m, impl->batch,
-                     reinterpret_cast<fftw_cpx *>(impl->buf), nullptr, 1, impl->m,
-                     reinterpret_cast<fftw_cpx *>(impl->buf), nullptr, 1, impl->m,
+                     reinterpret_cast<fftw_cpx *>(impl->buf),
+                     nullptr, 1, impl->m,
+                     reinterpret_cast<fftw_cpx *>(impl->buf),
+                     nullptr, 1, impl->m,
                      FFTW_FORWARD, FFTW_ESTIMATE);
       impl->inv = holo_fftw_plan_many_dft(
                      1, &impl->m, impl->batch,
-                     reinterpret_cast<fftw_cpx *>(impl->buf), nullptr, 1, impl->m,
-                     reinterpret_cast<fftw_cpx *>(impl->buf), nullptr, 1, impl->m,
+                     reinterpret_cast<fftw_cpx *>(impl->buf),
+                     nullptr, 1, impl->m,
+                     reinterpret_cast<fftw_cpx *>(impl->buf),
+                     nullptr, 1, impl->m,
                      FFTW_BACKWARD, FFTW_ESTIMATE);
       MFEM_VERIFY(impl->fwd && impl->inv,
                   "FFTW could not plan the batched Fresnel FFT");
@@ -575,7 +581,10 @@ class CpuToeplitzFft : public ToeplitzFft
       ToeplitzEmbed(row, col, circ);
       host.resize(static_cast<std::size_t>(circ.Size()));
       const complex_t *src = circ.HostRead();
-      for (int i = 0; i < circ.Size(); ++i) { host[static_cast<std::size_t>(i)] = src[i]; }
+      for (int i = 0; i < circ.Size(); ++i)
+      {
+         host[static_cast<std::size_t>(i)] = src[i];
+      }
       CpuFFT::Forward(host.data(), circ.Size());
    }
 
@@ -863,8 +872,14 @@ inline void GpuFFT::Mult(complex_t *E, const complex_t *spectrum) const
    Pointwise(impl->embed.ReadWrite(), spectrum, m, batch);
    impl->Execute(impl->embed.ReadWrite(), true);
    const real_t scale = 1.0 / static_cast<real_t>(m);
-   if (impl->along_rows) { ExtractRows(impl->embed.Read(), E, n, m, batch, scale); }
-   else { ExtractCols(impl->embed.Read(), E, n, m, batch, scale); }
+   if (impl->along_rows)
+   {
+      ExtractRows(impl->embed.Read(), E, n, m, batch, scale);
+   }
+   else
+   {
+      ExtractCols(impl->embed.Read(), E, n, m, batch, scale);
+   }
 }
 
 class GpuToeplitzFft : public ToeplitzFft
@@ -956,7 +971,7 @@ inline std::unique_ptr<ToeplitzFft> MakeToeplitzFft()
 #endif
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 inline void FresnelOp::SetImage(real_t wavelength_in, real_t z_in,
                                 int nx_in, int ny_in, int colsY_in,
                                 int rowsX_in)
@@ -998,7 +1013,7 @@ inline void FresnelOp::Propagate(Vector &field) const
    Mult(field, field);
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 class GemFresnel : public FresnelOp
 {
    ComplexArray2D Hx, Hy, Hx_adj, Hy_adj;
@@ -1050,7 +1065,10 @@ public:
    }
 
    void Mult(const Vector &x, Vector &y) const override { Mult(x, y, false); }
-   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y, true); }
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      Mult(x, y, true);
+   }
 };
 
 class FftFresnel : public FresnelOp
@@ -1092,7 +1110,10 @@ public:
    }
 
    void Mult(const Vector &x, Vector &y) const override { Mult(x, y, false); }
-   void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y, true); }
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      Mult(x, y, true);
+   }
 };
 
 inline std::unique_ptr<FresnelOp> MakeFresnelOp(bool use_fft)

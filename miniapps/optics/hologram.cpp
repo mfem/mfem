@@ -197,7 +197,7 @@ struct RasterField
    }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 using PhaseMask =
    PhaseMaskImpl<PixelMesh, GridFunction, ComplexGridFunction, Fields>;
 
@@ -212,7 +212,7 @@ using PhaseNewton =
 using StallController =
    StallControllerImpl<PixelMesh, PhaseMask, Fields, RasterField>;
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 class PhaseRetrieval
 {
    PixelMesh mesh;

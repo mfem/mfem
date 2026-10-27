@@ -514,7 +514,7 @@ public:
    }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 struct GrayImage
 {
    int width = 0, height = 0;
@@ -1031,7 +1031,7 @@ public:
    }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 template <class Mesh, class Mask, class FieldSet, class Raster>
 class ObjectiveOpImpl : public mfem::Operator
 {
@@ -1095,7 +1095,7 @@ public:
    mutable real_t last_J = 0.0;
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 template <class Mesh, class Mask, class FieldSet, class Raster>
 class GaussNewtonCgImpl : public mfem::Solver
 {
@@ -1121,7 +1121,7 @@ public:
    int Iterations() const { return cg.GetNumIterations(); }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 template <class Mesh, class Mask, class FieldSet, class Raster>
 class PhaseNewtonImpl : public mfem::NewtonSolver
 {
@@ -1211,7 +1211,7 @@ public:
    }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 template <class Mesh, class Mask, class FieldSet, class Raster>
 class StallControllerImpl : public mfem::IterativeSolverController
 {

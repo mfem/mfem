@@ -396,11 +396,11 @@ struct RasterField
    }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 using PhaseMask =
    PhaseMaskImpl<PixelMesh, ParGridFunction, ParComplexGridFunction, Fields>;
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // Copy between rows x nx local rows and the stage, which holds the local rows
 // split by the column block of each of the np ranks, rank by rank
 inline void StageTranspose(const Vector &src, Vector &dst, int rows, int nx,
@@ -546,7 +546,7 @@ using PhaseNewton =
 using StallController =
    StallControllerImpl<PixelMesh, PhaseMask, Fields, RasterField>;
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 class PhaseRetrieval
 {
    PixelMesh mesh;
@@ -659,7 +659,8 @@ public:
 
       if (Mpi::Root())
       {
-         mfem::out << "[hologram] solve elements=" << mesh.Nx() << "x" << mesh.Ny()
+         mfem::out << "[hologram] solve elements=" << mesh.Nx()
+                   << "x" << mesh.Ny()
                    << "  order=" << mesh.Order()
                    << "  samples=" << mesh.SampleNx() << "x" << mesh.SampleNy()
                    << "  forward=" << (fft ? "fft" : "gem")
