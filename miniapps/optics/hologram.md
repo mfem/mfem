@@ -42,6 +42,11 @@ only part of the PNG format:
   the end of the palette is an error.
 - Ancillary chunks, such as `tRNS`, `gAMA` or `iCCP`, are ignored, so palette
   transparency, gamma and color profiles have no effect.
+- Each decode buffer is capped at 256 MiB. That covers the inflated rows,
+  which hold one filter byte plus the samples of the color type, the
+  reconstructed samples, and the expanded RGB image. An 8192 by 8192
+  RGBA file exceeds the cap. `encode` does not use the cap, and `-gmem`
+  does not change it.
 
 The RGB image is then reduced to the Rec. 601 luma described below. The mask
 and the hologram are written as 8-bit RGB PNG files without interlacing or
