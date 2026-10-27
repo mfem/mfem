@@ -29,7 +29,8 @@ MINIAPPS = $(SEQ_MINIAPPS)
 all: $(MINIAPPS)
 
 $(SEQ_MINIAPPS): checkpoint-%: $(SRC)%.cpp $(SRC)checkpoint_demo.hpp \
-   $(SRC)euler_checkpoint.hpp \
+   $(SRC)euler_checkpoint.hpp $(SRC)mesh_checkpoint.hpp \
+   $(SRC)heterogeneous_checkpoint.hpp \
    $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 

@@ -203,29 +203,42 @@ inline void ExecuteSchedule(CheckpointSchedule &schedule,
                         "Propagation reached the wrong state.");
             break;
          case CheckpointAction::Store:
+         {
             MFEM_VERIFY(command.checkpoint &&
                         command.from_step == command.to_step &&
                         command.to_step == checkpoints.CurrentState(),
                         "Invalid Store.");
             checkpoints.Store(*command.checkpoint);
-            MFEM_VERIFY(checkpoints.GetInfo(*command.checkpoint).state ==
-                        command.to_step, "Store recorded the wrong state.");
+            const auto info = checkpoints.GetInfo(*command.checkpoint);
+            MFEM_VERIFY(info.checkpoint == *command.checkpoint &&
+                        info.state == command.to_step &&
+                        checkpoints.CurrentState() == command.to_step,
+                        "Store changed live state or saved wrong metadata.");
             break;
+         }
          case CheckpointAction::Restore:
+         {
             MFEM_VERIFY(command.checkpoint &&
-                        command.from_step == command.to_step &&
-                        checkpoints.GetInfo(*command.checkpoint).state ==
-                        command.to_step, "Invalid Restore.");
+                        command.from_step == command.to_step,
+                        "Invalid Restore.");
+            const auto info = checkpoints.GetInfo(*command.checkpoint);
+            MFEM_VERIFY(info.checkpoint == *command.checkpoint &&
+                        info.state == command.to_step,
+                        "Command does not match saved checkpoint metadata.");
             checkpoints.Restore(*command.checkpoint);
             MFEM_VERIFY(checkpoints.CurrentState() == command.to_step,
                         "Restore reached the wrong state.");
             break;
+         }
          case CheckpointAction::Erase:
          {
             MFEM_VERIFY(command.checkpoint &&
-                        command.from_step == command.to_step &&
-                        checkpoints.GetInfo(*command.checkpoint).state ==
-                        command.to_step, "Invalid Erase.");
+                        command.from_step == command.to_step,
+                        "Invalid Erase.");
+            const auto info = checkpoints.GetInfo(*command.checkpoint);
+            MFEM_VERIFY(info.checkpoint == *command.checkpoint &&
+                        info.state == command.to_step,
+                        "Command does not match saved checkpoint metadata.");
             const auto position = checkpoints.CurrentState();
             checkpoints.Erase(*command.checkpoint);
             MFEM_VERIFY(!checkpoints.Contains(*command.checkpoint) &&

@@ -473,3 +473,26 @@ TEST_CASE("Controller replay can advance without primary checkpoint capacity",
       REQUIRE(checkpoints.Size() == 0);
    }
 }
+
+TEST_CASE("Zero-horizon controller capture and erase keep window independent",
+          "[Checkpoint]")
+{
+   CheckpointTestState live;
+   TestCheckpointer primary(live, 1), memory(live, 1);
+   ExactCheckpointWindow window(memory, 1);
+   TestCheckpointPropagator propagator(live);
+   CheckpointController controller(primary, propagator, &window);
+   StoreEverythingSchedule schedule;
+   schedule.Configure(0, 1);
+   controller.Run(schedule, 0);
+   REQUIRE(primary.GetInfo(1).state == 0);
+   REQUIRE(window.GetInfo(0).state == 0);
+   controller.Execute({CheckpointAction::Erase, 0, 0, CheckpointId{1}});
+   REQUIRE(primary.Size() == 0);
+   REQUIRE(window.Contains(0));
+   live = {-1, -999};
+   controller.RestoreState(0);
+   REQUIRE(live.value == 11);
+   REQUIRE(memory.restored.back() == 0);
+   REQUIRE(propagator.advances.empty());
+}
