@@ -93,11 +93,23 @@ struct tensor<T, N0, Ns...>
 
    MFEM_HOST_DEVICE constexpr tensor() = default;
 
+   /** @brief Construct from a nested C array, with the brace structure of
+       aggregate initialization, e.g. tensor<T,2,2>{{{1,2},{3,4}}}.
+
+       Missing trailing entries are value-initialized, so e.g.
+       tensor<T,2,2>{{{1},{2}}} is {{1,0},{2,0}} and tensor<T,2,2>{{{1,2}}}
+       is {{1,2},{0,0}}, as in aggregate initialization. */
    MFEM_HOST_DEVICE constexpr tensor(const c_array_type &a)
       : tensor(a, std::make_index_sequence<N0> {}) { }
 
-   MFEM_HOST_DEVICE constexpr
-   tensor(std::initializer_list<sub_tensor_type> ilist)
+   /** @brief Construct a rank-1 tensor from a list of scalars, e.g.
+       tensor<T,3>{1,2,3}. Missing trailing entries are value-initialized.
+
+       Only available for rank 1: for higher ranks a single braced element
+       (e.g. tensor<T,2,2>{{{1},{2}}}) would be taken as a list with one
+       sub-tensor instead of a nested C array, changing its meaning. */
+   template <int R = sizeof...(Ns), std::enable_if_t<R == 0, int> = 0>
+   MFEM_HOST_DEVICE constexpr tensor(std::initializer_list<T> ilist)
       : tensor(ilist, std::make_index_sequence<N0> {})
    {
       if (ilist.size() > std::size_t(N0)) { detail::tensor_ilist_too_long(); }
@@ -135,13 +147,12 @@ private:
    constexpr tensor(const c_array_type &a, std::index_sequence<Is...>)
       : values{a[Is]...} { }
 
-   // Helper constructor from std::initializer_list<sub_tensor_type>. Entries
+   // Helper constructor from std::initializer_list<T> (rank 1). Entries
    // missing from a shorter list are value-initialized, as in aggregate
    // initialization.
    template <std::size_t... Is> MFEM_HOST_DEVICE
-   constexpr tensor(std::initializer_list<sub_tensor_type> a,
-                    std::index_sequence<Is...>)
-      : values{(Is < a.size() ? a.begin()[Is] : sub_tensor_type{})...} { }
+   constexpr tensor(std::initializer_list<T> a, std::index_sequence<Is...>)
+      : values{(Is < a.size() ? a.begin()[Is] : T{})...} { }
 };
 
 

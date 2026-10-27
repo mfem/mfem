@@ -83,13 +83,24 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
          static_assert(std::is_same_v<
                        tensor<real_t,2,3>::c_array_type,
                        real_t[2][3]>);
-         constexpr tensor<real_t,2,2> t2d{{1_r, 2_r}, {3_r, 4_r}};
+         // same brace structure as aggregate initialization (and as master)
+         constexpr tensor<real_t,2,2> t2d{{{1_r, 2_r}, {3_r, 4_r}}};
          static_assert(t2d(0,0) == 1_r);
          static_assert(t2d(0,1) == 2_r);
          static_assert(t2d(1,0) == 3_r);
          static_assert(t2d(1,1) == 4_r);
          [[maybe_unused]] tensor<real_t,2,2> t2d_2({{1_r, 2_r}, {3_r, 4_r}});
-         [[maybe_unused]] tensor<real_t,2,2> t2d_3 = {{1_r, 2_r}, {3_r, 4_r}};
+         [[maybe_unused]] tensor<real_t,2,2> t2d_3 = {{{1_r, 2_r}, {3_r, 4_r}}};
+         // a single braced element per row is a row with one entry, not a
+         // list with a single row:
+         constexpr tensor<real_t,2,2> t2d_6{{{1_r}, {2_r}}};
+         static_assert(t2d_6(0,0) == 1_r && t2d_6(0,1) == 0_r);
+         static_assert(t2d_6(1,0) == 2_r && t2d_6(1,1) == 0_r);
+         constexpr tensor<real_t,3,1> t2d_7{{{1_r}, {2_r}, {3_r}}};
+         static_assert(t2d_7(0,0) == 1_r && t2d_7(1,0) == 2_r &&
+                       t2d_7(2,0) == 3_r);
+         constexpr tensor<real_t,2,2> t2d_8{{{1_r, 2_r}}};
+         static_assert(t2d_8(0,1) == 2_r && t2d_8(1,0) == 0_r);
          [[maybe_unused]] real_t a2d[2][2] = {{1_r,2_r},{3_r,4_r}};
          [[maybe_unused]] tensor<real_t,2,2> t2d_4 = a2d;
          [[maybe_unused]] tensor<real_t,2,2> t2d_5(a2d);
@@ -122,7 +133,7 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
 
       // 3-D tensors
       {
-         constexpr tensor<real_t,2,2,2> t3d = {{{1,2},{3,4}},{{5,6},{7,8}}};
+         constexpr tensor<real_t,2,2,2> t3d = {{{{1,2},{3,4}},{{5,6},{7,8}}}};
          static_assert(t3d(0,0,0) == 1_r);
          static_assert(t3d(0,0,1) == 2_r);
          static_assert(t3d(1,1,0) == 7_r);
