@@ -100,7 +100,7 @@ jobs:
             build-system: cmake
             hypre-target: int32
             precision: fp64
-            config-opts: "-DCMAKE_INSTALL_PREFIX=../cmake-install"
+            config-opts: "-DCMAKE_INSTALL_PREFIX=../cmake-install -DMFEM_USE_ZLIB=ON"
             # This option can be set to pass additional configuration options to
             # the MFEM configuration command.
             # config-opts: '-DCMAKE_VERBOSE_MAKEFILE=ON'
@@ -407,6 +407,7 @@ jobs:
           CTEST_CONFIG="Release"
           [[ ${{ matrix.target }} == 'dbg' ]] && CTEST_CONFIG="Debug"
           cd ${{ env.MFEM_TOP_DIR }}/build/tests/unit && ctest --output-on-failure -C ${CTEST_CONFIG}
+          cd ${{ env.MFEM_TOP_DIR }}/build && ctest --output-on-failure -C ${CTEST_CONFIG} -R 'hologram|phologram'
         shell: bash
 
       - name: cmake tests
