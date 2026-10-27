@@ -41,6 +41,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_mass.cpp
   dfem/test_tuple.cpp
   general/test_array.cpp
+  general/test_backends.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_communication.cpp
@@ -133,6 +134,7 @@ set(UNIT_TESTS_SRCS
   fem/test_getgradients.cpp
   fem/test_gslib.cpp
   fem/test_hp_transfer.cpp
+  fem/test_hyperbolic.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
