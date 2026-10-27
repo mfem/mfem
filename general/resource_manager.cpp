@@ -2481,7 +2481,6 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
        (IsDeviceMemory(mt) && IsHostMemory(dual_mt)))
    {
       dual_map[(int)mt] = dual_mt;
-      bool update_tmp = true;
       if (!IsTemporaryMemorySpace(mt))
       {
          // not a temporary memory type, also update the temporary dual map
