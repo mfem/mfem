@@ -12,6 +12,7 @@
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
+#include "ncnurbs.hpp"
 #include "vtkhdf.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
@@ -4703,7 +4704,17 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    else
 #endif
    {
-      NURBSext = mesh.NURBSext ? new NURBSExtension(*mesh.NURBSext) : NULL;
+      const NCNURBSExtension *nc_ext =
+         dynamic_cast<const NCNURBSExtension *>(mesh.NURBSext);
+      if (nc_ext)
+      {
+         NURBSext = new NCNURBSExtension(*nc_ext);
+      }
+      else
+      {
+         NURBSext = mesh.NURBSext ?
+                    new NURBSExtension(*mesh.NURBSext) : NULL;
+      }
    }
 
    // Deep copy the NCMesh.
@@ -4936,7 +4947,16 @@ Mesh::Mesh(const NURBSExtension& ext)
 {
    SetEmpty();
    /// make an internal copy of the NURBSExtension
-   NURBSext = new NURBSExtension(ext);
+   const NCNURBSExtension *nc_ext =
+      dynamic_cast<const NCNURBSExtension *>(&ext);
+   if (nc_ext)
+   {
+      NURBSext = new NCNURBSExtension(*nc_ext);
+   }
+   else
+   {
+      NURBSext = new NURBSExtension(ext);
+   }
 
    Dim              = NURBSext->Dimension();
    NumOfVertices    = NURBSext->GetNV();
@@ -4949,8 +4969,10 @@ Mesh::Mesh(const NURBSExtension& ext)
    vertices.SetSize(NumOfVertices);
    if (NURBSext->HavePatches())
    {
-      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
       const int vdim = NURBSext->GetPatchSpaceDimension();
+      NURBSext->SetKnotsFromPatches();
+
+      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
       FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
@@ -5338,6 +5360,15 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          input >> ident;
          MFEM_VERIFY(ident == "patch_cp", "Invalid mesh format");
          NURBSext->ReadCoarsePatchCP(input);
+
+         skip_comment_lines(input, '#');
+         // Check for the optional section "patch_w"
+         if (input.peek() == 'p')
+         {
+            input >> ident;
+            MFEM_VERIFY(ident == "patch_w", "Invalid mesh format");
+            NURBSext->ReadCoarsePatchWeights(input);
+         }
       }
    }
 
@@ -15753,6 +15784,11 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const real_t sz)
    {
       mfem::err << "Extrude2D : Not a 2D mesh!" << endl;
       mfem_error();
+   }
+
+   if (mesh->NURBSext && mesh->NURBSext->NonconformingPatches())
+   {
+      return ExtrudeNURBS2D(*mesh, mesh->NURBSext->GetOrder(), nz, sz);
    }
 
    int nvz = nz + 1;

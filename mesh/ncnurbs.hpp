@@ -27,6 +27,11 @@ public:
 
    NCNURBSExtension(std::istream &input, bool spacing=false);
 
+   /** @brief Construct an NCNURBSExtension with the given nonconforming patch
+       topology and patches, which are deep-copied. */
+   NCNURBSExtension(const Mesh *patch_topology,
+                    const Array<const NURBSPatch*> &patches_);
+
    void UniformRefinement(const Array<int> &rf) override;
 
 protected:
@@ -318,8 +323,9 @@ private:
        coarse structured patches with a single element. */
    void ReadCoarsePatchCP(std::istream &input) override;
 
-   /// Print control points for coarse patches @a patchCP.
-   void PrintCoarsePatches(std::ostream &os) override;
+   /** @brief Read the weights for coarse patches, corresponding to control
+       points read by ReadCoarsePatchCP. */
+   void ReadCoarsePatchWeights(std::istream &input) override;
 
    std::vector<Array<int>> auxef; /// Auxiliary edge refinement factors
 };
