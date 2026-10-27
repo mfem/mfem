@@ -11,6 +11,35 @@
 Version 4.10.1 (development)
 ============================
 
+Discretization improvements
+---------------------------
+- Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
+  of order 2 and above on 3D elements with triangular faces, which previously
+  ignored the DOF orientation transformations.
+
+Meshing improvements
+--------------------
+- Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
+  refined on one side only: on parallel meshes, the edges on the unrefined side
+  of essential boundaries were not essential, and on serial meshes, those of
+  all interior boundaries were.
+
+Linear and nonlinear solvers
+----------------------------
+- Fixed HypreParaSails::SetOperator, which read the communicator of the
+  previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
+  in a NewtonSolver.
+
+Miscellaneous
+-------------
+- Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
+  column so the inner loop vectorizes. This roughly doubles the speed of full
+  assembly for DiffusionIntegrator at higher orders.
+
+- Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
+  failure if an MPI rank had no design parameters (aka decision variables).
+  Also plugged a MPI communicator leak that would cause memory leaks.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

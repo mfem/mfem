@@ -58,7 +58,7 @@ protected:
 
    inline void GrowSize(int minsize);
 
-   static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   static_assert(std::is_trivial_v<T>, "type T must be trivial");
 
    friend class MemoryView<Array<T>>;
    friend class MemoryView<const Array<T>>;
@@ -104,8 +104,8 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Construct an Array from a braced initializer list of convertible type
-   template <typename CT, typename std::enable_if<
-                std::is_convertible<CT,T>::value,bool>::type = true>
+   template <typename CT, std::enable_if_t<
+                std::is_convertible_v<CT,T>,bool> = true>
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
@@ -797,8 +797,7 @@ inline Array<T>::Array(const Array<CT> &src)
 }
 
 template <typename T>
-template <typename CT, typename std::enable_if<
-             std::is_convertible<CT,T>::value,bool>::type>
+template <typename CT, std::enable_if_t<std::is_convertible_v<CT,T>,bool>>
 inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
 {
    std::copy(values.begin(), values.end(), begin());
