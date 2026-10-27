@@ -1526,6 +1526,9 @@ template <class T> void Memory<T>::EnsureRegistered() const
 
 template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
 {
+   MFEM_ASSERT(size >= 0, "Requested Memory::Write negative size");
+   MFEM_ASSERT(offset >= 0 && offset + size < size_,
+               "Requested Memory::Write exceeds memory bounds");
    MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size,
                          " Write Request");
    MFEM_MEM_OP_BENCH_SCOPE(2, true);
@@ -1545,6 +1548,9 @@ template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
 
 template <class T> T *Memory<T>::ReadWrite(bool on_device, int offset, int size)
 {
+   MFEM_ASSERT(size >= 0, "Requested Memory::ReadWrite negative size");
+   MFEM_ASSERT(offset >= 0 && offset + size < size_,
+               "Requested Memory::ReadWrite exceeds memory bounds");
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
                          " ReadWrite Request");
    MFEM_MEM_OP_BENCH_SCOPE(0, true);
@@ -1566,6 +1572,9 @@ template <class T> T *Memory<T>::ReadWrite(bool on_device, int offset, int size)
 template <class T>
 const T *Memory<T>::Read(bool on_device, int offset, int size) const
 {
+   MFEM_ASSERT(size >= 0, "Requested Memory::Read negative size");
+   MFEM_ASSERT(offset >= 0 && offset + size < size_,
+               "Requested Memory::Read exceeds memory bounds");
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size,
                          " Read Request");
    MFEM_MEM_OP_BENCH_SCOPE(1, true);
