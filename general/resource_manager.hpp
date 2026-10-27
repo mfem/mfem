@@ -868,13 +868,17 @@ template <typename T>
 template <class U>
 inline void Memory<T>::CopyConvertPtr(const Memory<U> &base)
 {
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+   }
    h_ptr = reinterpret_cast<T *>(base.h_ptr);
    size_ = base.size_;
    offset_ = base.offset_;
    segment = base.segment;
    if (segment)
    {
-      auto &inst = MemoryManager::Instance();
       auto &seg = inst.storage.GetSegment(segment);
       ++seg.ref_count;
    }
