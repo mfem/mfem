@@ -13,6 +13,9 @@
 #   - AXOM_FOUND
 #   - AXOM_LIBRARIES
 #   - AXOM_INCLUDE_DIRS
+#
+# MFEM itself does not depend on Axom, however Tribol does. This module exists
+# to support MFEM's Tribol integration (e.g. the contact miniapp).
 
 include(MfemCmakeUtilities)
 # Note: components are enabled based on the find_package() parameters.
@@ -24,6 +27,7 @@ mfem_find_package(Axom AXOM AXOM_DIR "include" "" "lib" ""
   ADD_COMPONENT lumberjack "include" axom/lumberjack.hpp "lib" axom_lumberjack
   ADD_COMPONENT mint "include" axom/mint.hpp "lib" axom_mint
   ADD_COMPONENT multimat "include" axom/multimat.hpp "lib" axom_multimat
+  ADD_COMPONENT primal "include" axom/primal.hpp "lib" ""
   ADD_COMPONENT quest "include" axom/quest.hpp "lib" axom_quest
   ADD_COMPONENT sidre "include" axom/sidre.hpp "lib" axom_sidre
   ADD_COMPONENT slam "include" axom/slam.hpp "lib" axom_slam

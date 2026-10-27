@@ -44,6 +44,9 @@ Miscellaneous
   failure if an MPI rank had no design parameters (aka decision variables).
   Also plugged a MPI communicator leak that would cause memory leaks.
 
+- Removes the SidreDataCollection class from MFEM in favor of the
+  MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
