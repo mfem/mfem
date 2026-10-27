@@ -88,6 +88,42 @@ may have finite or absent capacity, but the window always has a positive finite
 count limit.
 Destruction does not clear or close borrowed storage.
 
+\section checkpointing_ode Library ODE checkpointers
+
+mfem::ODECheckpointer checkpoints a single-step ODE time loop. It binds the
+solution Vector and, through ODECheckpointer::Fields, an optional step counter,
+time, and time step. Unbound fields are neither stored nor restored. Without a
+bound step counter, the checkpointer keeps its own position, which the loop
+advances with SetCurrentState(). Each checkpoint is one fixed-size record with
+the solution values, saved position, and bound fields, in native byte order and
+real_t precision. Restore() validates the checksum, length, position, and field
+layout before writing live objects; device solutions use their host copies.
+
+Construction requires ODESolver::GetStateSize() == 0. Multistep solvers such as
+Adams-Bashforth, Adams-Moulton, and generalized-alpha are rejected because their
+ODEStateData history cannot be captured exactly through its public interface.
+Operator-internal data are not captured.
+
+Four final classes implement the mfem::Checkpointer::Storage layouts:
+
+- mfem::ODEMemoryBlockCheckpointer preallocates a fixed number of records in
+  memory and reuses erased slots.
+- mfem::ODEFileBlockCheckpointer preallocates one fixed-size record file.
+- mfem::ODEMemorySnapshotCheckpointer allocates records on demand, with an
+  optional count limit, and reuses erased record buffers.
+- mfem::ODEFileSnapshotCheckpointer writes one file per record.
+
+mfem::MakeODECheckpointer() selects a class from a Storage value, for example
+from a command-line option. Block layouts require a capacity; memory layouts
+take no path and cannot be reopened. File layouts create a new directory; with
+an empty path they use a temporary directory that the destructor removes.
+Explicit stores remain on disk and can be reopened after a clean Close() with
+the same capacity or limit, solution size, field layout, and real_t precision.
+Close() is checked and idempotent, and an open marker rejects unclean reopens.
+
+mfem::ODEStatePropagator advances the bound state with ODESolver::Step() for use
+with CheckpointController. It requires bound time and time step.
+
 With a window, the controller splits propagation into single-state transitions,
 capturing the origin and every reached state under ID equal to StateId. Without
 a window, it passes each requested interval directly to the propagator.
@@ -151,8 +187,9 @@ capture is allocation-free or that snapshot files retain physical disk addresses
 \section checkpointing_stages Subsequent implementation stages
 
 Stages 1, 6, 7, and 8 are source-complete; Stages 2-5 are skipped. The removed
-generic helpers and separate adapter/storage APIs have not been reintroduced. All
-storage code is miniapp-local; reusable schedules belong to the library.
+generic helpers and separate adapter/storage APIs have not been reintroduced. Miniapp
+storage code is miniapp-local; reusable schedules and the ODE checkpointers
+belong to the library.
 Stage 8 findings are documented in checkpoint-review-notes.txt. Direct dispatch
 now checks checkpoint identities and unchanged live positions, matching the
 controller. Euler construction rejects unsupported storage modes. Existing

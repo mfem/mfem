@@ -30,6 +30,7 @@ list(APPEND SRCS
   mma.cpp
   multivector.cpp
   ode.cpp
+  ode_checkpoint.cpp
   operator.cpp
   ordering.cpp
   particlevector.cpp
@@ -68,6 +69,7 @@ list(APPEND HDRS
   mma.hpp
   multivector.hpp
   ode.hpp
+  ode_checkpoint.hpp
   operator.hpp
   ordering.hpp
   particlevector.hpp

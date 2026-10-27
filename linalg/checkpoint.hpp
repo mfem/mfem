@@ -56,6 +56,21 @@ struct CheckpointInfo
 class Checkpointer
 {
 public:
+   /// Storage layouts provided by concrete library checkpointers.
+   /** Block layouts preallocate a finite number of fixed-size records and
+       reuse their slots. Snapshot layouts allocate one record per checkpoint
+       and may grow without a configured count limit. Memory layouts are
+       process-local; file layouts can be closed and reopened. This enumeration
+       only names layouts; the interface has no query for the layout of an
+       instance. */
+   enum class Storage
+   {
+      MemoryBlock,     ///< Preallocated records in process memory.
+      FileBlock,       ///< Preallocated records in one fixed-size file.
+      MemorySnapshots, ///< Separately allocated records in process memory.
+      FileSnapshots    ///< One file per record.
+   };
+
    /// Release owned resources without erasing persistent checkpoint files.
    virtual ~Checkpointer() = default;
 
