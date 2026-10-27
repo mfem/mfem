@@ -92,6 +92,113 @@ int CheckInteriorBoundaryEssentialDofs(const Mesh &mesh,
    return checked;
 }
 
+// Unit cube mesh of 2 x 2 x 2 hexahedra, with the one at the origin split into
+// six pyramids with their apex at its center.
+Mesh MakeHexPyramidMesh()
+{
+   Mesh hex = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   Mesh mesh(3, hex.GetNV() + 1, hex.GetNE() + 5, hex.GetNBE());
+   for (int v = 0; v < hex.GetNV(); v++) { mesh.AddVertex(hex.GetVertex(v)); }
+   Vector c;
+   for (int e = 0; e < hex.GetNE(); e++)
+   {
+      hex.GetElementCenter(e, c);
+      const Element &el = *hex.GetElement(e);
+      if (c.Norml2() > 0.5)
+      {
+         mesh.AddElement(el.Duplicate(&mesh));
+         continue;
+      }
+      const int apex = mesh.AddVertex(c);
+      const int *v = el.GetVertices();
+      for (int f = 0; f < 6; f++)
+      {
+         // the hexahedron faces are oriented outward, the pyramid bases toward
+         // the apex
+         const int *fv = Geometry::Constants<Geometry::CUBE>::FaceVert[f];
+         const int pv[5] = {v[fv[0]], v[fv[3]], v[fv[2]], v[fv[1]], apex};
+         mesh.AddElement(new Pyramid(pv, 1));
+      }
+   }
+   for (int be = 0; be < hex.GetNBE(); be++)
+   {
+      mesh.AddBdrElement(hex.GetBdrElement(be)->Duplicate(&mesh));
+   }
+   mesh.FinalizeTopology();
+   mesh.Finalize(false, true);
+   return mesh;
+}
+
+// Refine the elements of the mesh whose center is within the distance r of the
+// origin nonconformingly, with the given refinement type for hexahedra,
+// quadrilaterals, and prisms (isotropic for the other geometries).
+void RefineNearOrigin(Mesh &mesh, real_t r, char aniso_type)
+{
+   Array<Refinement> refs;
+   Vector c;
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.GetElementCenter(e, c);
+      if (c.Norml2() >= r) { continue; }
+      const Geometry::Type geom = mesh.GetElementGeometry(e);
+      const bool aniso = (geom == Geometry::CUBE || geom == Geometry::SQUARE ||
+                          geom == Geometry::PRISM);
+      refs.Append(aniso ? Refinement(e, aniso_type) : Refinement(e));
+   }
+   mesh.GeneralRefinement(refs, 1, 0);
+}
+
+// Check NCMesh::GetRootTransforms and NCMesh::GetElementCornerNodes on a mesh
+// refined from the root mesh: the vertices of each element are the images of
+// the columns of its point matrix by the transformation of its root element,
+// and the corner nodes of the root elements are their vertices.
+void CheckRootTransforms(const Mesh &root_mesh, const Mesh &mesh)
+{
+   REQUIRE(mesh.ncmesh);
+   const NCMesh &ncmesh = *mesh.ncmesh;
+   CoarseFineTransformations tr;
+   ncmesh.GetRootTransforms(tr);
+   REQUIRE(tr.embeddings.Size() == mesh.GetNE());
+
+   IsoparametricTransformation T;
+   IntegrationPoint ip;
+   Vector x;
+   Array<int> v;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      const Embedding &emb = tr.embeddings[i];
+      REQUIRE((emb.parent >= 0 && emb.parent < root_mesh.GetNE()));
+      const Geometry::Type geom = root_mesh.GetElementGeometry(emb.parent);
+      REQUIRE(emb.geom == geom);
+      const DenseMatrix &pm = tr.point_matrices[geom](emb.matrix);
+      root_mesh.GetElementTransformation(emb.parent, &T);
+      mesh.GetElementVertices(i, v);
+      REQUIRE(v.Size() <= pm.Width());
+      for (int j = 0; j < v.Size(); j++)
+      {
+         ip.Set(pm.GetColumn(j), pm.Height());
+         T.Transform(ip, x);
+         const real_t *y = mesh.GetVertex(v[j]);
+         for (int d = 0; d < x.Size(); d++)
+         {
+            CHECK(x(d) == MFEM_Approx(y[d]));
+         }
+      }
+   }
+
+   Array<int> nodes;
+   for (int r = 0; r < root_mesh.GetNE(); r++)
+   {
+      ncmesh.GetElementCornerNodes(r, nodes);
+      root_mesh.GetElementVertices(r, v);
+      REQUIRE(nodes.Size() == v.Size());
+      for (int k = 0; k < v.Size(); k++)
+      {
+         CHECK(nodes[k] == v[k]);
+      }
+   }
+}
+
 } // namespace
 
 // Test case: Verify that a conforming mesh yields the same norm for the
@@ -256,6 +363,31 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
    real_t derefined_volume = mesh.GetElementVolume(0);
    REQUIRE(derefined_volume == MFEM_Approx(original_volume));
 } // test case
+
+TEST_CASE("NCMesh root transforms", "[NCMesh]")
+{
+   auto type = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL,
+                        Element::TETRAHEDRON, Element::HEXAHEDRON,
+                        Element::WEDGE, Element::PYRAMID);
+   CAPTURE(type);
+   const bool tri_or_quad = (type == Element::TRIANGLE ||
+                             type == Element::QUADRILATERAL);
+   Mesh mesh = tri_or_quad ? Mesh::MakeCartesian2D(2, 2, type) :
+               (type == Element::PYRAMID) ? MakeHexPyramidMesh() :
+               Mesh::MakeCartesian3D(2, 2, 2, type);
+   const Mesh root_mesh(mesh);
+   mesh.EnsureNCMesh(true);
+
+   // Three levels of refinement next to the origin, the second anisotropic for
+   // hexahedra, quadrilaterals, and prisms. The tetrahedral children of the
+   // pyramids, in a mesh of hexahedra, are refined again as tetrahedra.
+   CheckRootTransforms(root_mesh, mesh);
+   RefineNearOrigin(mesh, 0.6, Refinement::XYZ);
+   RefineNearOrigin(mesh, 0.35, Refinement::X);
+   RefineNearOrigin(mesh, 0.2, Refinement::XYZ);
+   REQUIRE(mesh.GetNE() > root_mesh.GetNE());
+   CheckRootTransforms(root_mesh, mesh);
+}
 
 
 #ifdef MFEM_USE_MPI
@@ -437,6 +569,23 @@ TEST_CASE("ParNCMesh Rebalance preserves element attributes",
    SECTION("Custom partition, unrefined") { CheckRebalance(false, true); }
    SECTION("Custom partition, refined") { CheckRebalance(true, true); }
    SECTION("Default partition, refined") { CheckRebalance(true, false); }
+}
+
+TEST_CASE("ParNCMesh root transforms", "[Parallel], [NCMesh]")
+{
+   auto type = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
+   CAPTURE(type);
+   Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, type);
+   const Mesh root_mesh(mesh);
+   mesh.EnsureNCMesh(true);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // The root elements and their corner nodes are the same on all processes,
+   // also after the refined elements are rebalanced.
+   RefineNearOrigin(pmesh, 0.6, Refinement::XYZ);
+   pmesh.Rebalance();
+   RefineNearOrigin(pmesh, 0.3, Refinement::X);
+   CheckRootTransforms(root_mesh, pmesh);
 }
 
 TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")

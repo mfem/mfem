@@ -19,6 +19,14 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Added NCMesh::GetRootTransforms, which returns the positions of the elements
+  of a non-conforming mesh in their root elements (the elements of the coarsest
+  mesh of the refinement hierarchy), and NCMesh::GetElementCornerNodes, which
+  returns the corner nodes of any element of the refinement tree. The root
+  elements and their corner nodes have the same indices on all processes of a
+  ParNCMesh. Also fixed the point matrices of refinement transformations
+  through more than one refinement of the tetrahedral children of pyramids.
+
 - Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of

@@ -13,6 +13,7 @@
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
 
+#include <algorithm>
 #include <string>
 #include <cmath>
 #include <map>
@@ -1993,7 +1994,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
 //// Derefinement //////////////////////////////////////////////////////////////
 
-int NCMesh::RetrieveNode(const Element &el, int index)
+int NCMesh::RetrieveNode(const Element &el, int index) const
 {
    if (!el.ref_type) { return el.node[index]; }
 
@@ -4967,6 +4968,10 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
          {
             pm = PointMatrix(mid03, mid04, midf0, mid34);
          }
+
+         // the next refinements of a tetrahedral child are those of a
+         // tetrahedron
+         if (child >= 6) { geom = Geometry::TETRAHEDRON; }
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
@@ -5250,6 +5255,67 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
       }
    }
    return transforms;
+}
+
+void NCMesh::GetRootTransforms(CoarseFineTransformations &root_transforms) const
+{
+   root_transforms.Clear();
+   root_transforms.embeddings.SetSize(NElements);
+
+   RefPathMap path_map[Geometry::NumGeom];
+   std::string ref_path;
+   ref_path.reserve(100);
+
+   for (int i = 0; i < NElements; i++)
+   {
+      // walk up from the leaf to its root, recording the refinement type and
+      // the child index of each level (in reverse order)
+      int elem = leaf_elements[i];
+      ref_path.clear();
+      while (elements[elem].parent >= 0)
+      {
+         const int parent = elements[elem].parent;
+         const Element &pa = elements[parent];
+         int child = 0;
+         while (child < MaxElemChildren && pa.child[child] != elem) { child++; }
+         MFEM_ASSERT(child < MaxElemChildren, "invalid refinement tree");
+         ref_path.push_back(static_cast<char>(child));
+         ref_path.push_back(pa.ref_type);
+         elem = parent;
+      }
+      std::reverse(ref_path.begin(), ref_path.end());
+
+      const Element &root = elements[elem];
+      int &matrix = path_map[root.Geom()][ref_path];
+      if (!matrix) { matrix = static_cast<int>(path_map[root.Geom()].size()); }
+      root_transforms.embeddings[i] = Embedding(elem, root.Geom(), matrix - 1);
+   }
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      if (path_map[g].empty()) { continue; }
+      const Geometry::Type geom = Geometry::Type(g);
+      DenseTensor &point_matrices = root_transforms.point_matrices[g];
+      point_matrices.SetSize(Dim, GetGeomIdentity(geom).np,
+                             static_cast<int>(path_map[g].size()));
+      point_matrices = 0.0;
+      for (const auto &path : path_map[g])
+      {
+         GetPointMatrix(geom, path.first.c_str(),
+                        point_matrices(path.second - 1));
+      }
+   }
+}
+
+void NCMesh::GetElementCornerNodes(int i, Array<int> &corner_nodes) const
+{
+   const Element &el = elements[i];
+   const int nv = Geometry::NumVerts[el.Geom()];
+   corner_nodes.SetSize(nv);
+   for (int k = 0; k < nv; k++)
+   {
+      corner_nodes[k] = RetrieveNode(el, k);
+   }
 }
 
 const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
