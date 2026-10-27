@@ -857,13 +857,6 @@ public:
       phi = 0.0;
       ParGridFunction a_src(&mesh.ElementSpace());
       a_src = 1.0;
-      Vector target_global(mesh.NumSamples());
-      target_global.UseDevice(true);
-      {
-         const real_t *s = target(0);
-         real_t *d = target_global.HostWrite();
-         for (int i = 0; i < mesh.NumSamples(); ++i) { d[i] = s[i]; }
-      }
       // Local sample rows of the target
       const int localSamples = mesh.LocalSampleRows() * mesh.SampleNx();
       Vector target_image(localSamples);
@@ -873,22 +866,22 @@ public:
          real_t *d = target_image.HostWrite();
          for (int i = 0; i < localSamples; ++i) { d[i] = s[i]; }
       }
-      Vector a_tgt_global(mesh.NumSamples());
-      a_tgt_global.UseDevice(true);
+      ParGridFunction a_tgt(&mesh.Space());
       {
-         const int n = mesh.NumSamples();
+         const int n = mesh.LocalNumSamples();
          const int nx = mesh.Nx();
          const int q1d = mesh.Q1D();
-         const real_t *s = target_global.Read();
-         real_t *d = a_tgt_global.Write();
+         const int sample_nx = mesh.SampleNx();
+         const int row0 = mesh.FirstSampleRow();
+         const int g0 = mesh.SampleDispls()[Mpi::WorldRank()];
+         const real_t *s = target_image.Read();
+         real_t *d = a_tgt.Write();
          mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
          {
-            d[i] = s[RasterIndex(i, nx, q1d)];
+            const int raster = RasterIndex(g0 + i, nx, q1d);
+            d[i] = s[raster - row0 * sample_nx];
          });
       }
-      ParGridFunction a_tgt(&mesh.Space());
-      if (Mpi::WorldSize() == 1) { a_tgt = a_tgt_global; }
-      else { mesh.ScatterDofs(a_tgt_global, a_tgt); }
       PhaseMask mask(mesh);
       mask.SetAmplitudes(a_src, a_tgt);
 
