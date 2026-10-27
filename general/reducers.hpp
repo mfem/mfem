@@ -515,7 +515,7 @@ template<class B, class R> struct reduction_kernel
    }
 };
 
-auto DevReduceWorkspaceMType()
+inline auto DevReduceWorkspaceMType()
 {
 #ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
    return MemoryManager::Instance().GetTempHostPinnedMemoryType();
