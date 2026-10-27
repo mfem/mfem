@@ -68,7 +68,6 @@ template <class T> class AllocatorAdaptor;
 class MemoryManager
 {
 private:
-
    // used to only track when invalid
    struct RBase : RBTree<RBase>
    {
@@ -159,7 +158,8 @@ private:
    };
    std::array<MemoryType, 4> temp_memory_types =
    {
-      MemoryType::TEMP_HOST, MemoryType::TEMP_HOST, MemoryType::TEMP_HOST, MemoryType::TEMP_HOST
+      MemoryType::TEMP_HOST, MemoryType::TEMP_HOST, MemoryType::TEMP_HOST,
+      MemoryType::TEMP_HOST
    };
 
    std::array<MemoryType, MemoryTypeSize> dual_map =
@@ -330,7 +330,10 @@ public:
    MemoryType GetTempHostMemoryType() const { return temp_memory_types[0]; }
    MemoryType GetTempDeviceMemoryType() const { return temp_memory_types[1]; }
 
-   MemoryType GetTempHostPinnedMemoryType() const { return temp_memory_types[2]; }
+   MemoryType GetTempHostPinnedMemoryType() const
+   {
+      return temp_memory_types[2];
+   }
    MemoryType GetTempManagedMemoryType() const { return temp_memory_types[3]; }
 
    static MemoryType GetDualMemoryType(MemoryType mt);
@@ -565,8 +568,7 @@ public:
 
    void ClearOwnerFlags() const
    {
-      flags =
-         static_cast<Flags>(flags & ~(OWNS_HOST | OWNS_DEVICE));
+      flags = static_cast<Flags>(flags & ~(OWNS_HOST | OWNS_DEVICE));
    }
 
    bool UseDevice() const { return flags & USE_DEVICE; }
@@ -643,7 +645,8 @@ public:
    void Wrap(T *ptr, size_t size, bool own);
    void Wrap(T *ptr, size_t size, MemoryType loc, bool own);
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
-             bool own_host, bool own_device, bool valid_host, bool valid_device);
+             bool own_host, bool own_device, bool valid_host,
+             bool valid_device);
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own, bool valid_host = false, bool valid_device = true);
 
@@ -697,9 +700,43 @@ public:
    template <class U> explicit operator U *();
    template <class U> explicit operator const U *() const;
 
-   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(MemoryClass mc, int size);
-   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(MemoryClass mc, int size) const;
-   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(MemoryClass mc, int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(MemoryClass mc, int offset,
+                                            int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(MemoryClass mc, int offset,
+                                             int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(MemoryClass mc, int offset, int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(MemoryClass mc, int size)
+   {
+      return ReadWrite(mc, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(MemoryClass mc, int size) const
+   {
+      return Read(mc, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(MemoryClass mc, int size)
+   {
+      return Write(mc, 0, size);
+   }
+
+   /// Check ReadWrite/Write/Read do not update any validity flags, instead they
+   /// fail if the required validity flags are not satisfied.
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *CheckReadWrite(bool on_dev, int offset,
+                                                 int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *CheckRead(bool on_dev, int offset,
+                                                  int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *CheckReadWrite(MemoryClass mc, int offset,
+                                                 int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *CheckRead(MemoryClass mc, int offset,
+                                                  int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *CheckReadWrite(MemoryClass mc, int size)
+   {
+      return CheckReadWrite(mc, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *CheckRead(MemoryClass mc,
+                                                  int size) const
+   {
+      return CheckRead(mc, 0, size);
+   }
 
    /// note: these do not check or update validity flags!
    MFEM_ENZYME_FN_LIKE_DYNCAST T &operator[](size_t idx);
@@ -721,9 +758,9 @@ public:
          {
             if (OwnsDevicePtr())
             {
-               MFEM_MEM_OP_DEBUG_REMOVE2(
-                  1, seg.lowers[1], seg.lowers[1] + seg.nbytes,
-                  "dealloc " << (int)seg.mtypes[1]);
+               MFEM_MEM_OP_DEBUG_REMOVE2(1, seg.lowers[1],
+                                         seg.lowers[1] + seg.nbytes,
+                                         "dealloc " << (int)seg.mtypes[1]);
                inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1]);
                inst.segment_maps[1].erase(seg.lowers[1]);
                seg.lowers[1] = nullptr;
@@ -734,9 +771,7 @@ public:
    }
 
    /// @deprecated This is a no-op
-   void Sync(const Memory &other) const
-   {
-   }
+   void Sync(const Memory &other) const {}
 
    /// @deprecated This is a no-op. Note that previously this could copy data
    /// between host/device pointers; this is now deferred to the next call to
@@ -800,10 +835,10 @@ public:
    }
    /// Pre-conditions:
    /// - size <= src.Capacity() and size <= this->Capacity()
-   /// This is copied to everywhere this is valid! This means if this is valid
-   /// on both host and device data is copied twice, and conversely if neither
-   /// is valid then no data is copied. Use this->Write/ReadWrite prior to
-   /// CopyFrom to specify which buffer to copy into.
+   /// This is copied to everywhere this is valid! This means if this is
+   /// valid on both host and device data is copied twice, and conversely if
+   /// neither is valid then no data is copied. Use this->Write/ReadWrite
+   /// prior to CopyFrom to specify which buffer to copy into.
    void CopyFrom(const Memory &src, int size);
    void CopyFromHost(const T *src, int size);
 
@@ -826,15 +861,14 @@ public:
 
    /// For internal use only.
    /// U* must be reinterpret_cast-able to T*
-   template <class U>
-   inline void CopyConvertPtr(const Memory<U> &base);
+   template <class U> inline void CopyConvertPtr(const Memory<U> &base);
 };
 
 template <typename T>
 template <class U>
 inline void Memory<T>::CopyConvertPtr(const Memory<U> &base)
 {
-   h_ptr = reinterpret_cast<T*>(base.h_ptr);
+   h_ptr = reinterpret_cast<T *>(base.h_ptr);
    size_ = base.size_;
    offset_ = base.offset_;
    segment = base.segment;
@@ -866,8 +900,7 @@ template <class T> void Memory<T>::New(size_t size)
    }
    else
    {
-      h_ptr =
-         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt));
+      h_ptr = reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt));
       MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
                             "alloc " << (int)h_mt << ", " << false);
    }
@@ -875,8 +908,7 @@ template <class T> void Memory<T>::New(size_t size)
    size_ = size;
 }
 
-template <class T>
-void Memory<T>::New(size_t size, MemoryType loc)
+template <class T> void Memory<T>::New(size_t size, MemoryType loc)
 {
    auto &inst = MemoryManager::Instance();
    MemoryType hloc;
@@ -915,19 +947,16 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
    if (hloc == MemoryType::HOST)
    {
       h_ptr = new T[size];
-      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                            "alloc " << (int)h_mt);
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size, "alloc " << (int)h_mt);
    }
    else
    {
-      h_ptr =
-         reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
-      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
-                            "alloc " << (int)h_mt);
+      h_ptr = reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size, "alloc " << (int)h_mt);
    }
    flags = OWNS_HOST;
-   if (hloc == dloc || (dloc == MemoryType::DEFAULT &&
-                        hloc == inst.GetDualMemoryType(hloc)))
+   if (hloc == dloc ||
+       (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
       segment = inst.Insert(reinterpret_cast<char *>(h_ptr),
@@ -1016,7 +1045,7 @@ template <class T> void Memory<T>::Delete()
          {
             MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
                                       "dealloc " << (int)h_mt);
-            auto& inst = MemoryManager::Instance();
+            auto &inst = MemoryManager::Instance();
             inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
                          h_mt);
          }
@@ -1080,7 +1109,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
       size_ = size;
       offset_ = ptr - reinterpret_cast<const T *>(iter->first);
       segment = iter->second;
-      auto& seg = inst.storage.GetSegment(segment);
+      auto &seg = inst.storage.GetSegment(segment);
       h_mt = seg.mtypes[0];
       ++seg.ref_count;
       flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
@@ -1140,7 +1169,7 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
 {
    auto &inst = MemoryManager::Instance();
    T *h_ptr_ = nullptr;
-   T* d_ptr_ = nullptr;
+   T *d_ptr_ = nullptr;
    MemoryType hloc = MemoryType::DEFAULT;
    MemoryType dloc = MemoryType::DEFAULT;
    bool own_host = false;
@@ -1174,8 +1203,7 @@ void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
          }
          else
          {
-            h_ptr_ =
-               reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
+            h_ptr_ = reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
             MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
                                   "wrap own " << (int)hloc << ", " << false);
          }
@@ -1307,13 +1335,9 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    }
 }
 
-template <class T> Memory<T>::Memory(int count)
-{
-   New(count);
-}
+template <class T> Memory<T>::Memory(int count) { New(count); }
 
-template <class T>
-Memory<T>::Memory(size_t count, MemoryType loc)
+template <class T> Memory<T>::Memory(size_t count, MemoryType loc)
 {
    New(count, loc);
 }
@@ -1326,7 +1350,7 @@ Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc)
 
 template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
 {
-   auto& inst = MemoryManager::Instance();
+   auto &inst = MemoryManager::Instance();
    MemoryType dloc = MemoryType::DEFAULT;
    if (IsHostMemory(mt))
    {
@@ -1339,13 +1363,12 @@ template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
    }
    if (dloc != MemoryType::DEFAULT)
    {
-      segment =
-         inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false);
+      segment = inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false);
    }
 }
 
-template <class T> Memory<T>::Memory(MemoryType h_mt,
-                                     MemoryType d_mt) : Memory()
+template <class T>
+Memory<T>::Memory(MemoryType h_mt, MemoryType d_mt) : Memory()
 {
    if (d_mt != MemoryType::DEFAULT)
    {
@@ -1354,8 +1377,7 @@ template <class T> Memory<T>::Memory(MemoryType h_mt,
    }
 }
 
-template <class T>
-Memory<T>::Memory(T *ptr, size_t count, bool own)
+template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
 {
    // ensure MemoryManager instance exists
    MemoryManager::Instance();
@@ -1377,13 +1399,13 @@ template <class T> Memory<T>::Memory(const Memory &base, int offset, int size)
 
 template <class T> void Memory<T>::Reset()
 {
-   auto& inst = MemoryManager::Instance();
+   auto &inst = MemoryManager::Instance();
    Reset(inst.GetHostMemoryType());
 }
 
 template <class T> void Memory<T>::Reset(MemoryType host_mt)
 {
-   auto& inst = MemoryManager::Instance();
+   auto &inst = MemoryManager::Instance();
    if (segment)
    {
       inst.Erase(segment);
@@ -1473,7 +1495,7 @@ template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
 
 template <class T> void Memory<T>::EnsureRegistered() const
 {
-   auto& inst = MemoryManager::Instance();
+   auto &inst = MemoryManager::Instance();
    if (h_ptr && !segment &&
 #if !defined(HYPRE_USING_GPU)
        IsDeviceMemory(inst.GetDeviceMemoryType())
@@ -1487,9 +1509,9 @@ template <class T> void Memory<T>::EnsureRegistered() const
       )
    {
       MFEM_ASSERT(!segment, "unexpected valid segment");
-      segment = inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
-                            size_ * sizeof(T), h_mt, MemoryType::DEFAULT, true,
-                            false);
+      segment =
+         inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
+                     size_ * sizeof(T), h_mt, MemoryType::DEFAULT, true, false);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
 }
@@ -1506,9 +1528,8 @@ template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
    }
    if (segment)
    {
-      return reinterpret_cast<T *>(inst.Write(segment,
-                                              (offset + offset_) * sizeof(T),
-                                              size * sizeof(T), on_device));
+      return reinterpret_cast<T *>(inst.Write(
+                                      segment, (offset + offset_) * sizeof(T), size * sizeof(T), on_device));
    }
    MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size, " Write");
    return h_ptr + offset;
@@ -1526,9 +1547,8 @@ template <class T> T *Memory<T>::ReadWrite(bool on_device, int offset, int size)
    }
    if (segment)
    {
-      return reinterpret_cast<T *>(
-                inst.ReadWrite(segment, (offset_ + offset) * sizeof(T),
-                               size * sizeof(T), on_device));
+      return reinterpret_cast<T *>(inst.ReadWrite(
+                                      segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
    }
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
                          " ReadWrite");
@@ -1548,27 +1568,79 @@ const T *Memory<T>::Read(bool on_device, int offset, int size) const
    }
    if (segment)
    {
-      return reinterpret_cast<const T *>(
-                inst.Read(segment, (offset_ + offset) * sizeof(T), size * sizeof(T),
-                          on_device));
+      return reinterpret_cast<const T *>(inst.Read(
+                                            segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
    }
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size, " Read");
    return h_ptr + offset;
 }
 
-template <class T> T *Memory<T>::Write(MemoryClass mc, int size)
+template <class T> T *Memory<T>::Write(MemoryClass mc, int offset, int size)
 {
-   return Write(MemoryManager::RWOnDevice(mc), size);
+   return Write(MemoryManager::RWOnDevice(mc), offset, size);
 }
 
-template <class T> T *Memory<T>::ReadWrite(MemoryClass mc, int size)
+template <class T> T *Memory<T>::ReadWrite(MemoryClass mc, int offset, int size)
 {
-   return ReadWrite(MemoryManager::RWOnDevice(mc), size);
+   return ReadWrite(MemoryManager::RWOnDevice(mc), offset, size);
 }
 
-template <class T> const T *Memory<T>::Read(MemoryClass mc, int size) const
+template <class T>
+const T *Memory<T>::Read(MemoryClass mc, int offset, int size) const
 {
-   return Read(MemoryManager::RWOnDevice(mc), size);
+   return Read(MemoryManager::RWOnDevice(mc), offset, size);
+}
+
+template <class T>
+T *Memory<T>::CheckReadWrite(bool on_device, int offset, int size)
+{
+   MFEM_VERIFY(offset >= 0 && offset + size < size_, "Index out of bounds");
+   auto &inst = MemoryManager::Instance();
+   if (on_device)
+   {
+      EnsureRegistered();
+   }
+   if (segment)
+   {
+      MFEM_VERIFY(inst.CheckReadWrite(segment, (offset_ + offset) * sizeof(T),
+                                      size * sizeof(T), on_device),
+                  "invalid pointer validity flags");
+      // use write to handle any lazy allocations
+      return ReadWrite(on_device, offset, size);
+   }
+   return h_ptr + offset;
+}
+
+template <class T>
+const T *Memory<T>::CheckRead(bool on_device, int offset, int size) const
+{
+   MFEM_VERIFY(offset >= 0 && offset + size < size_, "Index out of bounds");
+   auto &inst = MemoryManager::Instance();
+   if (on_device)
+   {
+      EnsureRegistered();
+   }
+   if (segment)
+   {
+      MFEM_VERIFY(inst.CheckRead(segment, (offset_ + offset) * sizeof(T),
+                                 size * sizeof(T), on_device),
+                  "invalid pointer validity flags");
+      // use Read to handle any lazy allocations
+      return Read(on_device, offset, size);
+   }
+   return h_ptr + offset;
+}
+
+template <class T>
+T *Memory<T>::CheckReadWrite(MemoryClass mc, int offset, int size)
+{
+   return CheckReadWrite(MemoryManager::RWOnDevice(mc), offset, size);
+}
+
+template <class T>
+const T *Memory<T>::CheckRead(MemoryClass mc, int offset, int size) const
+{
+   return CheckRead(MemoryManager::RWOnDevice(mc), offset, size);
 }
 
 template <class T> T &Memory<T>::operator[](size_t idx)
@@ -1708,8 +1780,8 @@ template <class T> Memory<T>::operator T *()
 template <class T> Memory<T>::operator const T *() const
 {
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
-   MFEM_ASSERT(MemoryManager::Instance().CheckRead(
-                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+   MFEM_ASSERT(MemoryManager::Instance().CheckRead(segment, offset_ * sizeof(T),
+                                                   size_ * sizeof(T), false),
                "invalid host pointer access");
    return h_ptr;
 }
@@ -1726,8 +1798,8 @@ template <class T> template <class U> Memory<T>::operator U *()
 template <class T> template <class U> Memory<T>::operator const U *() const
 {
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
-   MFEM_ASSERT(MemoryManager::Instance().CheckRead(
-                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+   MFEM_ASSERT(MemoryManager::Instance().CheckRead(segment, offset_ * sizeof(T),
+                                                   size_ * sizeof(T), false),
                "invalid host pointer access");
    return reinterpret_cast<const U *>(h_ptr);
 }
@@ -1740,8 +1812,7 @@ namespace mfem
 /** @brief Type that enables viewing Vector objects as Array<real_t> objects and
     vice versa. Currently, viewing methods are provided only for the first
     direction, see Vector::GetArrayView(). */
-template <typename ViewedType>
-class MemoryView
+template <typename ViewedType> class MemoryView
 {
    friend class Vector;
 
@@ -1751,12 +1822,11 @@ protected:
       std::remove_reference_t<decltype((std::remove_cv_t<ViewedType> {})[0])>;
    using MemoryType =
       std::conditional_t<is_const_view, const Memory<T>, Memory<T>>;
-   using SizeType =
-      std::conditional_t<is_const_view, const int, int>;
+   using SizeType = std::conditional_t<is_const_view, const int, int>;
 
    std::remove_cv_t<ViewedType> view;
    MemoryType &base_mem;
-   SizeType &base_size;  // if is_const_view, this is initialized but not used
+   SizeType &base_size; // if is_const_view, this is initialized but not used
 
    // Keep the constructor private, for now.
    inline MemoryView(MemoryType &mem, SizeType &size)

@@ -334,8 +334,22 @@ public:
 
    void GetRow(int r, Vector &row) const;
    void GetColumn(int c, Vector &col) const;
-   real_t *GetColumn(int col) { return &data[col*height]; }
-   const real_t *GetColumn(int col) const { return &data[col*height]; }
+   real_t *GetColumn(int col)
+   {
+#if defined(MFEM_USE_NEW_MEM_MANAGER) && defined(MFEM_DEBUG)
+      return data.CheckReadWrite(false, col * height, width);
+#else
+      return &data[col * height];
+#endif
+   }
+   const real_t *GetColumn(int col) const
+   {
+#if defined(MFEM_USE_NEW_MEM_MANAGER) && defined(MFEM_DEBUG)
+      return data.CheckRead(false, col * height, width);
+#else
+      return &data[col * height];
+#endif
+   }
 
    void GetColumnReference(int c, Vector &col)
    { col.SetDataAndSize(data + c * height, height); }
