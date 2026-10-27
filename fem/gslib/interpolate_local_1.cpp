@@ -38,13 +38,17 @@ using gslib::lagrange_eval;
 template<int T_D1D = 0>
 static void InterpolateLocal1DKernel(const bool use_dev,
                                      const double *const gf_in,
-                                     int *const el,
-                                     double *const r,
+                                     const unsigned int *const el,
+                                     const double *const r,
                                      double *const int_out,
                                      const int npt,
                                      const int nfields,
                                      double *gll1D,
                                      double *lagcoeff,
+                                     const unsigned int *const code,
+                                     const unsigned int *const proc,
+                                     const int my_rank,
+                                     const int out_ordering,
                                      const int pN = 0)
 {
    const int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
@@ -57,6 +61,10 @@ static void InterpolateLocal1DKernel(const bool use_dev,
    // for each point of the npt points, create a thread block of size dof1Dsol
    mfem::forall_2D_switch(use_dev, npt, D1D, 1, [=] MFEM_HOST_DEVICE (int i)
    {
+      // Optional mask: skip points that were not found or that belong to
+      // another rank. The whole thread block returns together.
+      if (code && (code[i] == CODE_NOT_FOUND || proc[i] != my_rank)) { return; }
+
       MFEM_SHARED double wtr[MD1];
       MFEM_SHARED double sums[MD1];
 
@@ -87,64 +95,83 @@ static void InterpolateLocal1DKernel(const bool use_dev,
             {
                sumv += sums[jj];
             }
-            int_out[fld*npt + i] = sumv;
+            const int oidx = (out_ordering == Ordering::byNODES) ?
+                             i + fld*npt : i*nfields + fld;
+            int_out[oidx] = sumv;
          }
          MFEM_SYNC_THREAD;
       }
    });
 }
 
-void FindPointsGSLIB::InterpolateLocal1( const Vector &field_in,
-                                         Array<int> &gsl_elem_dev_l,
-                                         Vector &gsl_ref_l,
-                                         Vector &field_out,
-                                         int npt,
-                                         int ncomp,
-                                         int dof1Dsol )
+void FindPointsGSLIB::InterpolateLocal1(const Vector &field_in,
+                                        const Array<unsigned int> &elem,
+                                        const Vector &ref,
+                                        Vector &field_out,
+                                        int npt, int ncomp, int dof1Dsol,
+                                        int out_ordering,
+                                        const Array<unsigned int> *code,
+                                        const Array<unsigned int> *proc,
+                                        int my_rank)
 {
    MFEM_VERIFY(dim == 1, "Kernel for edges only.");
    if (npt == 0) { return; }
-   bool use_dev = field_in.UseDevice();
-   auto pfin = field_in.Read(use_dev);
-   auto pgsl = gsl_elem_dev_l.ReadWrite(use_dev);
-   auto pgslr = gsl_ref_l.ReadWrite(use_dev);
-   auto pfout = field_out.Write(use_dev);
-   auto pgll = DEV.gll1d_sol.ReadWrite(use_dev);
-   auto plcf = DEV.lagcoeff_sol.ReadWrite(use_dev);
+   MFEM_ASSERT((code == nullptr) == (proc == nullptr),
+               "code and proc must be given together.");
+   // All arrays are accessed in the memory space selected by field_in.
+   const bool use_dev = field_in.UseDevice();
+   auto pfin  = field_in.Read(use_dev);
+   auto pelem = elem.Read(use_dev);
+   auto pref  = ref.Read(use_dev);
+   // With a mask, the entries of field_out that are not evaluated are kept.
+   auto pout  = code ? field_out.ReadWrite(use_dev) : field_out.Write(use_dev);
+   auto pcode = code ? code->Read(use_dev) : nullptr;
+   auto pproc = proc ? proc->Read(use_dev) : nullptr;
+   auto pgll  = DEV.gll1d_sol.ReadWrite(use_dev);
+   auto plcf  = DEV.lagcoeff_sol.ReadWrite(use_dev);
    switch (dof1Dsol)
    {
       case 2:
-         InterpolateLocal1DKernel<2>(use_dev, pfin, pgsl, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal1DKernel<2>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       case 3:
-         InterpolateLocal1DKernel<3>(use_dev, pfin, pgsl, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal1DKernel<3>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       case 4:
-         InterpolateLocal1DKernel<4>(use_dev, pfin, pgsl, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal1DKernel<4>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       case 5:
-         InterpolateLocal1DKernel<5>(use_dev, pfin, pgsl, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal1DKernel<5>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       default:
-         InterpolateLocal1DKernel(use_dev, pfin, pgsl, pgslr, pfout,
-                                  npt, ncomp, pgll, plcf, dof1Dsol);
+         InterpolateLocal1DKernel(use_dev, pfin, pelem, pref, pout, npt,
+                                  ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                  out_ordering, dof1Dsol);
          break;
    }
 }
+
 #undef CODE_INTERNAL
 #undef CODE_BORDER
 #undef CODE_NOT_FOUND
 #else
 void FindPointsGSLIB::InterpolateLocal1(const Vector &field_in,
-                                        Array<int> &gsl_elem_dev_l,
-                                        Vector &gsl_ref_l,
+                                        const Array<unsigned int> &elem,
+                                        const Vector &ref,
                                         Vector &field_out,
-                                        int npt, int ncomp,
-                                        int dof1Dsol) {};
+                                        int npt, int ncomp, int dof1Dsol,
+                                        int out_ordering,
+                                        const Array<unsigned int> *code,
+                                        const Array<unsigned int> *proc,
+                                        int my_rank) { }
 #endif
 
 } // namespace mfem

@@ -680,13 +680,17 @@ void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
 {
    if (redist_mesh == 0 && E_gf)
    {
-      Array<int> proc_list = E_finder.GetProc();
+      const auto &ranks = E_finder.GetProc();
+      ranks.HostRead();
+      Array<int> proc_list = ranks;
       proc_list.DeleteAt(removed_idxs);
       charged_particles->Redistribute(proc_list);
    }
    else
    {
-      Array<int> proc_list = B_finder.GetProc();
+      const auto &ranks = B_finder.GetProc();
+      ranks.HostRead();
+      Array<int> proc_list = ranks;
       proc_list.DeleteAt(removed_idxs);
       charged_particles->Redistribute(proc_list);
    }

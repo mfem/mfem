@@ -164,7 +164,8 @@ protected:
    {
       bool setup_device = false;
       bool find_device  = false;
-      int local_hash_size, dof1d, dof1d_sol, lh_nx, gh_nx;
+      int local_hash_size, lh_nx, gh_nx;
+      int dof1d = 0, dof1d_sol = 0;
       double newt_tol; // Tolerance specified during setup for Newton solve
       struct gslib::crystal *cr;
       struct gslib::hash_data_3 *hash3;
@@ -172,6 +173,25 @@ protected:
       mutable Vector bb, wtend, gll1d, lagcoeff, gll1d_sol, lagcoeff_sol;
       mutable Array<unsigned int> lh_offset, gh_offset;
       mutable Vector lh_min, lh_fac, gh_min, gh_fac;
+      // Scratch buffers for InterpolateOnDevice (grow-only, kept across
+      // calls to avoid per-call device allocations).
+      mutable Array<int> pt_flags, pt_idx, remote_idx, nsel;
+      mutable Array<unsigned int> relem_r;
+      mutable Array<int> recv_idx, recv_comp;
+      // buf_rx: coordinates (physical or reference) of selected points;
+      // buf_rh: rank (hash-cell owner or point owner) of selected points.
+      mutable Array<unsigned int> buf_rh;
+      mutable Vector buf_rx, interp_vals, recv_val;
+      mutable Array<unsigned int> elem_tmp;
+      mutable Vector ref_tmp;
+      // E-vector of the interpolated field, kept across Interpolate() calls.
+      mutable Vector node_vals;
+      // Scratch buffers for the multi-rank FindPointsOnDevice (same policy).
+      mutable Vector recv_x, recv_ref, recv_dist, recv_mref;
+      mutable Array<unsigned int> recv_code, recv_elem, recv_melem;
+      mutable Array<int> mrg_idx;
+      mutable Array<unsigned int> mrg_code, mrg_elem, mrg_proc;
+      mutable Vector mrg_ref, mrg_dist;
       // Tolerance to mark points found on the surface as CODE_INTERNAL
       // or CODE_BORDER. This is needed because we cannot only use reference
       // space coordinates to determine if a point is located inside the
@@ -268,28 +288,48 @@ protected:
                              Vector &gsl_dist_l,
                              int npt);
 
-   /// Interpolate on device for 3D.
+   /** @brief Interpolate on device for 3D.
+
+       Evaluates @a field_in (an E-vector of the solution space, with
+       @a dof1dsol nodes in each direction) at the @a npt points given by the
+       local (split) element indices @a elem and the reference coordinates
+       @a ref in [-1,1]. The result is written to @a field_out, of size
+       npt*ncomp, with the ordering @a out_ordering. If @a code and @a proc are
+       given, point i is evaluated only when code[i] != CODE_NOT_FOUND and
+       proc[i] == @a my_rank, and the other entries of @a field_out are left
+       untouched. All arrays are accessed in the memory space selected by
+       field_in.UseDevice(). */
    void InterpolateLocal3(const Vector &field_in,
-                          Array<int> &gsl_elem_dev_l,
-                          Vector &gsl_ref_l,
+                          const Array<unsigned int> &elem,
+                          const Vector &ref,
                           Vector &field_out,
-                          int npt, int ncomp,
-                          int dof1dsol);
+                          int npt, int ncomp, int dof1dsol,
+                          int out_ordering = Ordering::byNODES,
+                          const Array<unsigned int> *code = nullptr,
+                          const Array<unsigned int> *proc = nullptr,
+                          int my_rank = 0);
 
-   /// Interpolate on device for 2D.
+   /// Interpolate on device for 2D. See InterpolateLocal3 for the arguments.
    void InterpolateLocal2(const Vector &field_in,
-                          Array<int> &gsl_elem_dev_l,
-                          Vector &gsl_ref_l,
+                          const Array<unsigned int> &elem,
+                          const Vector &ref,
                           Vector &field_out,
-                          int npt, int ncomp,
-                          int dof1dsol);
+                          int npt, int ncomp, int dof1dsol,
+                          int out_ordering = Ordering::byNODES,
+                          const Array<unsigned int> *code = nullptr,
+                          const Array<unsigned int> *proc = nullptr,
+                          int my_rank = 0);
 
-   /// Interpolate on device for 1D.
+   /// Interpolate on device for 1D. See InterpolateLocal3 for the arguments.
    void InterpolateLocal1(const Vector &field_in,
-                          Array<int> &gsl_elem_dev_l,
-                          Vector &gsl_ref_l,
+                          const Array<unsigned int> &elem,
+                          const Vector &ref,
                           Vector &field_out,
-                          int npt, int ncomp, int dof1dsol);
+                          int npt, int ncomp, int dof1dsol,
+                          int out_ordering = Ordering::byNODES,
+                          const Array<unsigned int> *code = nullptr,
+                          const Array<unsigned int> *proc = nullptr,
+                          int my_rank = 0);
 
    /// Prepare data for device execution for volume meshes.
    void SetupDevice();
@@ -580,9 +620,12 @@ public:
     *  is used to filter such points based on the distance^2 value and mark them
     *  as not found.
     *
-    *  @note When the SetupSurfWithAABBExpansion method is used for surface
-    *  meshes, this tolerance is automatically computed based on the size of
-    *  expanded AABBs. Using this method will override that computed tolerance.
+    *  The default is 1e-8. SetupSurfWithAABBExpansion raises the tolerance to
+    *  at least the squared diagonal of the largest expanded AABB, so that any
+    *  point inside an expanded box can be returned as found. The tolerance is
+    *  otherwise kept across Setup and FreeData calls, so when a setup with AABB
+    *  expansion is followed by one without on the same object, call this
+    *  method after the second setup to restore a tighter value.
     *  */
    virtual void SetDistanceToleranceForPointsFoundOnBoundary(double bdr_tol_)
    {
