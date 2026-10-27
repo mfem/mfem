@@ -638,10 +638,8 @@ TEST_CASE("Parallel Variable Order Group Communication",
       REQUIRE((ldof >= 0 && ldof < pfes.GetVSize()));
    }
 
-   // The local true DOF table is set, as for fixed-order spaces.
-   gcomm.GetDeviceComm();
-
-   // Communicating a conforming vector must not change it.
+   // Communicating a conforming vector must not change it, nor restricting it
+   // to the cut-space true DOFs and prolongating it back.
    real_t comm_diff = 0.0;
    {
       Vector X(pfes.GetTrueVSize());
@@ -656,6 +654,24 @@ TEST_CASE("Parallel Variable Order Group Communication",
       gcomm.Bcast<real_t>(y.HostReadWrite());
       y -= x;
       comm_diff = y.Normlinf();
+
+      int ncut = pfes.GetVSize();
+      for (int g = 1; g < group_ldof.Size(); g++)
+      {
+         if (!gcomm.GetGroupTopology().IAmMaster(g))
+         {
+            ncut -= group_ldof.RowSize(g);
+         }
+      }
+      Array<real_t> x_ldof(x.HostReadWrite(), x.Size()), y_ldof(x.Size());
+      Array<real_t> x_cut(ncut);
+      const DeviceGroupCommunicator &dgc = gcomm.GetDeviceComm();
+      dgc.Restrict(x_ldof, x_cut);
+      dgc.Prolongate(x_cut, y_ldof);
+      for (int i = 0; i < x.Size(); i++)
+      {
+         comm_diff = std::max(comm_diff, std::abs(y_ldof[i] - x_ldof[i]));
+      }
    }
    MPI_Allreduce(MPI_IN_PLACE, &comm_diff, 1, MFEM_MPI_REAL_T, MPI_MAX,
                  MPI_COMM_WORLD);
@@ -757,6 +773,81 @@ TEST_CASE("Parallel Variable Order Group Communication",
    MPI_Allreduce(MPI_IN_PLACE, &max_diff, 1, MFEM_MPI_REAL_T, MPI_MAX,
                  MPI_COMM_WORLD);
    REQUIRE(max_diff < 1e-12);
+}
+
+// A variant of an edge shared by three ranks, present on only two of them.
+TEST_CASE("Parallel Variable Order Rank Subset Communication",
+          "[FiniteElementSpace]"
+          "[NCMesh][Parallel]")
+{
+   const int nranks = Mpi::WorldSize(), rank = Mpi::WorldRank();
+   if (nranks < 3 || nranks > 7) { return; }
+
+   // The bottom hexes, on ranks 0, 1, 2, 2, share the edge x = y = 0.5,
+   // 0 < z < 0.5. The top ones are on the other ranks, if any.
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   mesh.EnsureNCMesh();
+   Array<int> partition(mesh.GetNE());
+   Vector c;
+   for (int e = 0, top = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.GetElementCenter(e, c);
+      if (c(2) < 0.5)
+      {
+         partition[e] = std::min(int(c(0) > 0.5) + 2*int(c(1) > 0.5), 2);
+      }
+      else { partition[e] = (nranks > 3) ? 3 + top++ % (nranks - 3) : 2; }
+   }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition.GetData());
+   mesh.Clear();
+
+   // Order 3 on ranks 0 and 1, order 2 elsewhere.
+   H1_FECollection fec(2, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      pfes.SetElementOrder(e, rank < 2 ? 3 : 2);
+   }
+   pfes.Update(false);
+
+   // The DOFs inside the shared edge, with the z coordinates of their nodes.
+   std::map<int, real_t> edge_dofs;
+   Array<int> dofs;
+   Vector pt(3);
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      pfes.GetElementDofs(e, dofs);
+      const IntegrationRule &nodes = pfes.GetFE(e)->GetNodes();
+      for (int j = 0; j < dofs.Size(); j++)
+      {
+         pmesh.GetElementTransformation(e)->Transform(nodes.IntPoint(j), pt);
+         if (std::abs(pt(0) - 0.5) < 1e-12 && std::abs(pt(1) - 0.5) < 1e-12 &&
+             pt(2) > 1e-12 && pt(2) < 0.5 - 1e-12)
+         {
+            edge_dofs[dofs[j] >= 0 ? dofs[j] : -1 - dofs[j]] = pt(2);
+         }
+      }
+   }
+   REQUIRE(edge_dofs.size() == (rank < 2 ? 2u : (rank == 2 ? 1u : 0u)));
+
+   // On ranks 0 and 1, the order 3 DOFs are communicated with each other only,
+   // node by node.
+   GroupCommunicator &gcomm = pfes.GroupComm();
+   Array<int> count(pfes.GetVSize());
+   Vector z(pfes.GetVSize());
+   count = 1;
+   z = 0.0;
+   for (const auto &dof : edge_dofs) { z(dof.first) = dof.second; }
+   gcomm.Reduce<int>(count, GroupCommunicator::Sum);
+   gcomm.Bcast(count);
+   gcomm.Reduce<real_t>(z.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(z.HostReadWrite());
+   for (const auto &dof : edge_dofs)
+   {
+      CAPTURE(rank, dof.first, dof.second);
+      REQUIRE(count[dof.first] == (rank < 2 ? 2 : 1));
+      REQUIRE(z(dof.first) == MFEM_Approx(count[dof.first]*dof.second));
+   }
 }
 #endif  // MFEM_USE_MPI
 
