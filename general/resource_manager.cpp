@@ -2480,14 +2480,14 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
    if ((IsHostMemory(mt) && IsDeviceMemory(dual_mt)) ||
        (IsDeviceMemory(mt) && IsHostMemory(dual_mt)))
    {
-      MFEM_VERIFY(!IsTemporaryMemorySpace(mt),
-                  "mt cannot be a temporary memory space");
-      MFEM_VERIFY(!IsTemporaryMemorySpace(dual_mt),
-                  "dual_mt cannot be a temporary memory space");
       dual_map[(int)mt] = dual_mt;
-      // also update the temporary dual map
-      dual_map[(int)GetTemporaryMemorySpace(mt)] =
-         GetTemporaryMemorySpace(dual_mt);
+      bool update_tmp = true;
+      if (!IsTemporaryMemorySpace(mt))
+      {
+         // not a temporary memory type, also update the temporary dual map
+         dual_map[(int)GetTemporaryMemorySpace(mt)] =
+            GetTemporaryMemorySpace(dual_mt);
+      }
    }
    else
    {

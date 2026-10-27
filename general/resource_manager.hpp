@@ -287,7 +287,6 @@ private:
                     bool host_valid, bool device_valid);
 
    /// Update the dual memory type of @a mt to be @a dual_mt.
-   /// @a mt and @a dual_mt must not be temporary memory types.
    void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
    /// Host and device allocator names for Umpire.
