@@ -1619,8 +1619,8 @@ NDPos_TetrahedronElement::NDPos_TetrahedronElement(int p)
 void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {
-   const int scalar_dof = (order + 1)*(order + 2)*(order + 3)/6;
 #ifdef MFEM_THREAD_SAFE
+   const int scalar_dof = (order + 1)*(order + 2)*(order + 3)/6;
    Vector bernstein(scalar_dof);
 #else
    MFEM_ASSERT(bernstein.Size() == scalar_dof,
@@ -1734,8 +1734,8 @@ void NDPos_TetrahedronElement::CalcCurlShape(
    const IntegrationPoint &ip, DenseMatrix &curl_shape) const
 {
    const int degree = order - 1;
-   const int scalar_dof = (degree + 1)*(degree + 2)*(degree + 3)/6;
 #ifdef MFEM_THREAD_SAFE
+   const int scalar_dof = (degree + 1)*(degree + 2)*(degree + 3)/6;
    Vector curl_bernstein(scalar_dof);
 #else
    MFEM_ASSERT(curl_bernstein.Size() == scalar_dof,
@@ -2030,8 +2030,8 @@ NDPos_TriangleElement::NDPos_TriangleElement(int p)
 void NDPos_TriangleElement::CalcVShape(const IntegrationPoint &ip,
                                        DenseMatrix &shape) const
 {
-   const int scalar_dof = (order + 1)*(order + 2)/2;
 #ifdef MFEM_THREAD_SAFE
+   const int scalar_dof = (order + 1)*(order + 2)/2;
    Vector bernstein(scalar_dof);
 #else
    MFEM_ASSERT(bernstein.Size() == scalar_dof,
@@ -2101,8 +2101,8 @@ void NDPos_TriangleElement::CalcCurlShape(
    const IntegrationPoint &ip, DenseMatrix &curl_shape) const
 {
    const int degree = order - 1;
-   const int scalar_dof = (degree + 1)*(degree + 2)/2;
 #ifdef MFEM_THREAD_SAFE
+   const int scalar_dof = (degree + 1)*(degree + 2)/2;
    Vector curl_bernstein(scalar_dof);
 #else
    MFEM_ASSERT(curl_bernstein.Size() == scalar_dof,
