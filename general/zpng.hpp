@@ -46,17 +46,22 @@ public:
    using std::runtime_error::runtime_error;
 };
 
-/// Read a PNG file and expand it to 8-bit RGB.
+/// Read a PNG file and expand it to 8-bit RGB. The file is read on the host.
 [[nodiscard]] inline image read(const std::string &path);
 
-/// Read a PNG from memory and expand it to 8-bit RGB.
+/// Read a PNG from host memory and expand it to 8-bit RGB.
+/// The pointer is used in place. Device memory is not transferred.
 [[nodiscard]] inline image read(const unsigned char *bytes, std::size_t size);
 
 /// Write an 8-bit RGB buffer as a PNG file.
+/// rgb is host memory, at least 3 * width * height bytes, tightly packed,
+/// with row 0 (the top row) first. Device memory is not transferred.
 inline void write(const std::string &path, unsigned width, unsigned height,
                   const unsigned char *rgb, std::size_t nbytes);
 
 /// Encode an 8-bit RGB buffer as a PNG byte stream.
+/// rgb is host memory, at least 3 * width * height bytes, tightly packed,
+/// with row 0 (the top row) first. Device memory is not transferred.
 [[nodiscard]] inline std::vector<unsigned char>
 encode(unsigned width, unsigned height, const unsigned char *rgb,
        std::size_t nbytes);
