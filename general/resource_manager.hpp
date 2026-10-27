@@ -248,10 +248,10 @@ private:
                                                size_t nbytes, MemoryClass mc);
 
    /// src0 is the preferred copy-from location
-   size_t CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
+   size_t CopyImpl(char **dst, MemoryType dloc, ptrdiff_t dst_offset,
                    size_t marker, size_t nbytes, const char *src0,
                    const char *src1, MemoryType sloc0, MemoryType sloc1,
-                   size_t src_offset, size_t marker0, size_t marker1,
+                   ptrdiff_t src_offset, size_t marker0, size_t marker1,
                    RBase::Segment *dseg, size_t dsegment, bool on_device);
 
    /// copies to the part of dst_seg which is valid

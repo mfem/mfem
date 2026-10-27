@@ -1951,10 +1951,11 @@ int MemoryManager::CompareHostDevice(size_t segment, size_t offset,
    return 0;
 }
 
-size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc, size_t dst_offset,
+size_t MemoryManager::CopyImpl(char **dst, MemoryType dloc,
+                               ptrdiff_t dst_offset,
                                size_t marker, size_t nbytes, const char *src0,
                                const char *src1, MemoryType sloc0,
-                               MemoryType sloc1, size_t src_offset,
+                               MemoryType sloc1, ptrdiff_t src_offset,
                                size_t marker0, size_t marker1,
                                RBase::Segment *dseg, size_t dsegment,
                                bool on_device)
