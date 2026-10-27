@@ -1099,8 +1099,10 @@ The following options are CMake specific:
 
 MFEM_USE_CODSPEED    - Build the benchmarks against CodSpeed's fork of Google
                        Benchmark (https://codspeed.io) for continuous
-                       benchmarking in CI, no GNU make equivalent. Requires
-                       MFEM_USE_BENCHMARK = YES and CMake >= 3.28.
+                       benchmarking in CI. Measurements require the CodSpeed
+                       runner; for local timing use MFEM_USE_BENCHMARK alone.
+                       No GNU make equivalent. Requires MFEM_USE_BENCHMARK =
+                       YES and CMake >= 3.28.
 MFEM_ENABLE_TESTING  - Enable the ctest framework for testing.
 MFEM_ENABLE_EXAMPLES - Build all of the examples by default.
 MFEM_ENABLE_MINIAPPS - Build all of the miniapps by default.
