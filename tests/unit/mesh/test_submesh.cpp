@@ -937,10 +937,7 @@ static Mesh CheckerboardMesh(int dim)
    return mesh;
 }
 {
-   std::string mesh_file = "../../data/checker-3d.mesh";
-
-   std::ifstream ifs(mesh_file);
-   Mesh mesh(ifs);
+   Mesh mesh = CheckerboardMesh(3);
 
    REQUIRE(mesh.GetNV() == 64);
    REQUIRE(mesh.GetNE() == 27);
