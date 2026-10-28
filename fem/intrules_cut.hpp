@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,6 +18,16 @@
 #include "eltrans.hpp"
 #include "coefficient.hpp"
 
+
+#ifdef MFEM_USE_ALGOIM
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+#include <algoim_quad.hpp>
+#pragma GCC diagnostic pop
+#endif
+
 namespace mfem
 {
 /**
@@ -35,6 +45,17 @@ protected:
    Coefficient* LvlSet;
    /// Space order for the LS projection.
    int lsOrder;
+
+   /// @name Tolerances used for point comparisons
+   ///@{
+#ifdef MFEM_USE_DOUBLE
+   static constexpr real_t tol_1 = 1e-12;
+   static constexpr real_t tol_2 = 1e-15;
+#elif defined(MFEM_USE_SINGLE)
+   static constexpr real_t tol_1 = 1e-5;
+   static constexpr real_t tol_2 = 1e-7;
+#endif
+   ///@}
 
    /** @brief Constructor to set up the generated cut IntegrationRules.
 
@@ -105,6 +126,349 @@ public:
    virtual ~CutIntegrationRules() {}
 };
 
+#ifdef MFEM_USE_ALGOIM
+// define templated element bases
+namespace TmplPoly_1D
+{
+
+/// Templated version of CalcBinomTerms
+template<typename float_type>
+void CalcBinomTerms(const int p, const float_type x, const float_type y,
+                    float_type* u)
+{
+   if (p == 0)
+   {
+      u[0] = float_type(1.);
+   }
+   else
+   {
+      int i;
+      const int *b = Poly_1D::Binom(p);
+      float_type z = x;
+      for (i = 1; i < p; i++)
+      {
+         u[i] = b[i]*z;
+         z *= x;
+      }
+      u[p] = z;
+      z = y;
+      for (i--; i > 0; i--)
+      {
+         u[i] *= z;
+         z *= y;
+      }
+      u[0] = z;
+   }
+}
+
+/// Templated version of CalcBinomTerms
+template<typename float_type>
+void CalcBinomTerms(const int p, const float_type x, const float_type y,
+                    float_type* u, float_type* d)
+{
+   if (p == 0)
+   {
+      u[0] = float_type(1.);
+      d[0] = float_type(0.);
+   }
+   else
+   {
+      int i;
+      const int *b = Poly_1D::Binom(p);
+      const float_type xpy = x + y, ptx = p*x;
+      float_type z = float_type(1.);
+
+      for (i = 1; i < p; i++)
+      {
+         d[i] = b[i]*z*(i*xpy - ptx);
+         z *= x;
+         u[i] = b[i]*z;
+      }
+      d[p] = p*z;
+      u[p] = z*x;
+      z = float_type(1.);
+      for (i--; i > 0; i--)
+      {
+         d[i] *= z;
+         z *= y;
+         u[i] *= z;
+      }
+      d[0] = -p*z;
+      u[0] = z*y;
+   }
+
+}
+
+/// Templated evaluation of Bernstein basis
+template <typename float_type>
+void CalcBernstein(const int p, const float_type x, float_type *u)
+{
+   CalcBinomTerms(p, x, 1. - x, u);
+}
+
+
+/// Templated evaluation of Bernstein basis
+template <typename float_type>
+void CalcBernstein(const int p, const float_type x,
+                   float_type *u, float_type *d)
+{
+   CalcBinomTerms(p, x, 1. - x, u, d);
+}
+
+
+}
+
+class AlgoimIntegrationRules : public CutIntegrationRules
+{
+public:
+
+   /** @brief Constructor to set up the generated cut IntegrationRules.
+
+       @param [in] order  Order of the constructed IntegrationRule.
+       @param [in] lvlset Coefficient whose zero level set specifies the cut.
+       @param [in] lsO    Polynomial degree for projecting the level-set
+                          Coefficient to a GridFunction, which is used to
+                          compute gradients and normals. */
+   AlgoimIntegrationRules(int order, Coefficient &lvlset, int lsO = 2)
+      : CutIntegrationRules(order, lvlset, lsO)
+   {
+      pe=nullptr;
+      le=nullptr;
+      currentLvlSet=nullptr;
+      currentGeometry=Geometry::Type::INVALID;
+      currentElementNo = -1;
+   }
+
+   virtual ~AlgoimIntegrationRules()
+   {
+      delete pe;
+      delete le;
+   }
+
+   virtual void SetOrder(int order) override
+   {
+      MFEM_VERIFY(order > 0, "Invalid input");
+      Order = order;
+      delete pe;
+      delete le;
+      pe=nullptr;
+      le=nullptr;
+      currentLvlSet=nullptr;
+      currentGeometry=Geometry::Type::INVALID;
+      currentElementNo=-1;
+   }
+
+   virtual void SetLevelSetProjectionOrder(int order) override
+   {
+      MFEM_VERIFY(order > 0, "Invalid input");
+      lsOrder = order;
+      delete pe;
+      delete le;
+      pe=nullptr;
+      le=nullptr;
+      currentLvlSet=nullptr;
+      currentGeometry=Geometry::Type::INVALID;
+      currentElementNo=-1;
+   }
+
+
+   /**
+   @brief Construct a cut-surface IntegrationRule.
+
+   Construct an IntegrationRule to integrate on the surface given by the
+   already specified level set function, for the element given by @a Tr.
+
+   @param [in]  Tr     Specifies the IntegrationRule's associated mesh element.
+   @param [out] result IntegrationRule on the cut-surface
+   */
+   virtual
+   void GetSurfaceIntegrationRule(ElementTransformation &Tr,
+                                  IntegrationRule &result) override;
+
+   /**
+   @brief Construct a cut-volume IntegrationRule.
+
+   Construct an IntegrationRule to integrate in the subdomain given by the
+   positive values of the already specified level set function, for the element
+   given by @a Tr.
+
+   @param [in]  Tr     Specifies the IntegrationRule's associated mesh element.
+   @param [out] result IntegrationRule for the cut-volume
+   @param [in]  sir    Corresponding IntegrationRule for the surface, which can
+                       be used to avoid computations.
+   */
+   virtual
+   void GetVolumeIntegrationRule(ElementTransformation &Tr,
+                                 IntegrationRule &result,
+                                 const IntegrationRule *sir = nullptr) override;
+
+
+   /**
+   @brief Compute transformation quadrature weights for surface integration.
+
+   Compute the transformation weights for integration over the cut-surface in
+   reference space.
+
+   @param [in]  Tr      Specifies the IntegrationRule's associated element.
+   @param [in]  sir     IntegrationRule defining the IntegrationPoints
+   @param [out] weights Vector containing the transformation weights.
+   */
+   virtual
+   void GetSurfaceWeights(ElementTransformation &Tr,
+                          const IntegrationRule &sir,
+                          Vector &weights) override;
+
+private:
+
+   /// projects the lvlset coefficient onto the lsvec,
+   /// i.e., represent the level-set using Bernstein bases
+   void GenerateLSVector(ElementTransformation &Tr, Coefficient* lvlset);
+
+
+   /// Lagrange finite element used for converting coefficients to positive basis
+   FiniteElement* le;
+   PositiveTensorFiniteElement *pe;
+   DenseMatrix T; //Projection matrix from nodal basis to positive basis
+   Vector lsvec; // level-set in Bernstein basis
+   Vector lsfun; // level-set in nodal basis
+   Geometry::Type currentGeometry; // the current element geometry
+   Coefficient* currentLvlSet; //the current level-set coefficient
+   int currentElementNo; //the current element No
+
+   /// 3D level-set function object required by Algoim.
+   struct LevelSet3D
+   {
+      /// Constructor for 3D level-set function object required by Algoim.
+      LevelSet3D(PositiveTensorFiniteElement* el_, Vector& lsfun_)
+         : el(el_), lsfun(lsfun_) { }
+
+      /// Returns the value of the LSF for point x.
+      template<typename T>
+      T operator() (const blitz::TinyVector<T,3>& x) const
+      {
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> u3(el_order+1);
+         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[2], u3.data());
+
+         const Array<int>& dof_map=el->GetDofMap();
+
+         T res=T(0.0);
+         for (int oo = 0, kk = 0; kk <= el_order; kk++)
+            for (int jj = 0; jj <= el_order; jj++)
+               for (int ii = 0; ii <= el_order; ii++)
+               {
+                  res=res-u1[ii]*u2[jj]*u3[kk]*lsfun(dof_map[oo++]);
+               }
+         return res;
+      }
+
+      /// Returns the gradients of the LSF for point x.
+      template<typename T>
+      blitz::TinyVector<T,3> grad(const blitz::TinyVector<T,3>& x) const
+      {
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> u3(el_order+1);
+         std::vector<T> d1(el_order+1);
+         std::vector<T> d2(el_order+1);
+         std::vector<T> d3(el_order+1);
+
+         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.data(), d1.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.data(), d2.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[2], u3.data(), d3.data());
+
+         blitz::TinyVector<T,3> res(T(0.0),T(0.0),T(0.0));
+
+         const Array<int>& dof_map=el->GetDofMap();
+
+         for (int oo = 0, kk = 0; kk <= el_order; kk++)
+            for (int jj = 0; jj <= el_order; jj++)
+               for (int ii = 0; ii <= el_order; ii++)
+               {
+                  res[0]=res[0]-d1[ii]*u2[jj]*u3[kk]*lsfun(dof_map[oo]);
+                  res[1]=res[1]-u1[ii]*d2[jj]*u3[kk]*lsfun(dof_map[oo]);
+                  res[2]=res[2]-u1[ii]*u2[jj]*d3[kk]*lsfun(dof_map[oo]);
+                  oo++;
+               }
+
+         return res;
+      }
+
+   private:
+      PositiveTensorFiniteElement* el;
+      Vector& lsfun;
+   };
+
+   /// 2D level-set function object required by Algoim.
+   struct LevelSet2D
+   {
+      /// Constructor for 2D level-set function object required by Algoim.
+      LevelSet2D(PositiveTensorFiniteElement* el_, Vector& lsfun_)
+         :el(el_), lsfun(lsfun_) { }
+
+      /// Returns the value of the LSF for point x.
+      template<typename T>
+      T operator() (const blitz::TinyVector<T,2>& x) const
+      {
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.data());
+
+         const Array<int>& dof_map=el->GetDofMap();
+
+         T res=T(0.0);
+
+         for (int oo = 0, jj = 0; jj <= el_order; jj++)
+            for (int ii = 0; ii <= el_order; ii++)
+            {
+               res=res-u1[ii]*u2[jj]*lsfun(dof_map[oo++]);
+            }
+         return res;
+      }
+
+      /// Returns the gradients of the LSF for point x.
+      template<typename T>
+      blitz::TinyVector<T,2> grad(const blitz::TinyVector<T,2>& x) const
+      {
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> d1(el_order+1);
+         std::vector<T> d2(el_order+1);
+
+         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.data(), d1.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.data(), d2.data());
+
+         blitz::TinyVector<T,2> res(T(0.0),T(0.0));
+
+         const Array<int>& dof_map=el->GetDofMap();
+
+         for (int oo = 0, jj = 0; jj <= el_order; jj++)
+            for (int ii = 0; ii <= el_order; ii++)
+            {
+               res[0]=res[0]-(d1[ii]*u2[jj])*lsfun(dof_map[oo]);
+               res[1]=res[1]-(u1[ii]*d2[jj])*lsfun(dof_map[oo]);
+               oo++;
+            }
+
+         return res;
+      }
+
+
+   private:
+      PositiveTensorFiniteElement* el;
+      Vector& lsfun;
+   };
+};
+#endif //MFEM_USE_ALGOIM
+
 #ifdef MFEM_USE_LAPACK
 
 /**
@@ -147,7 +511,7 @@ protected:
     @param [in] order Order of the IntegrationRule
     @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
-    @param [in] Tr ElemenTransformation to initalize the members with
+    @param [in] Tr ElementTransformation to initialize the members with
    */
    void InitSurface(int order, Coefficient& levelset, int lsO,
                     ElementTransformation& Tr);
@@ -162,7 +526,7 @@ protected:
     @param [in] order Order of the IntegrationRule
     @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
-    @param [in] Tr ElemenTransformation to initalize the members with
+    @param [in] Tr ElementTransformation to initialize the members with
    */
    void InitVolume(int order, Coefficient& levelset, int lsO,
                    ElementTransformation& Tr);
@@ -201,10 +565,8 @@ protected:
     rule.
 
     @param [in] Tr ElementTransformation of the current element
-    @param [in] sir corresponding IntegrationRule on surface
     */
-   void ComputeVolumeWeights1D(ElementTransformation& Tr,
-                               const IntegrationRule* sir);
+   void ComputeVolumeWeights1D(ElementTransformation& Tr);
 
    /**
     @brief Compute 2D quadrature weights
@@ -1054,6 +1416,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape(275,2) = -2.995357736356377*xi + 26.958219627207395*pow(xi,3.)
                         - 59.30808317985627*pow(xi,5.)
                         + 36.714527682768164*pow(xi,7.);
+         [[fallthrough]];
       case 6:
          shape(133,0) = -0.3983608994994363 + 8.365578889488162*pow(nu,2.)
                         - 25.096736668464487*pow(nu,4.)
@@ -1465,6 +1828,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape(195,2) = -0.3983608994994363 + 8.365578889488162*pow(xi,2.)
                         - 25.096736668464487*pow(xi,4.)
                         + 18.404273556873957*pow(xi,6.);
+         [[fallthrough]];
       case 5:
          shape( 85,0) = 2.1986323874172324*nu - 10.260284474613751*pow(nu,3.)
                         + 9.234256027152377*pow(nu,5.);
@@ -1704,6 +2068,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
                         + 9.234256027152377*pow(xi,5.);
          shape(132,2) = 2.1986323874172324*xi - 10.260284474613751*pow(xi,3.)
                         + 9.234256027152377*pow(xi,5.);
+         [[fallthrough]];
       case 4:
          shape( 50,0) = 0.397747564417433 - 3.97747564417433*pow(nu,2.)
                         + 4.640388251536718*pow(nu,4.);
@@ -1827,6 +2192,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
                         + 4.640388251536718*pow(xi,4.);
          shape( 84,2) = 0.397747564417433 - 3.97747564417433*pow(xi,2.)
                         + 4.640388251536718*pow(xi,4.);
+         [[fallthrough]];
       case 3:
          shape( 26,0) = -1.403121520040228*nu + 2.3385358667337135*pow(nu,3.);
          shape( 27,1) = -1.403121520040228*nu + 2.3385358667337135*pow(nu,3.);
@@ -1889,6 +2255,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
                         - 7.0156076002011405*pow(xi,2.)*nu;
          shape( 48,1) = -1.403121520040228*xi + 2.3385358667337135*pow(xi,3.);
          shape( 49,2) = -1.403121520040228*xi + 2.3385358667337135*pow(xi,3.);
+         [[fallthrough]];
       case 2:
          shape( 11,0) = -0.39528470752104744 + 1.1858541225631423*pow(nu,2.);
          shape( 12,1) = -0.39528470752104744 + 1.1858541225631423*pow(nu,2.);
@@ -1911,6 +2278,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape( 23,2) = -2.3717082451262845*xi*nu;
          shape( 24,1) = -0.39528470752104744 + 1.1858541225631423*pow(xi,2.);
          shape( 25,2) = -0.39528470752104744 + 1.1858541225631423*pow(xi,2.);
+         [[fallthrough]];
       case 1:
          shape(  3,0) = 0.6123724356957945*nu;
          shape(  4,1) = 0.6123724356957945*nu;
@@ -1922,6 +2290,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape(  8,2) = -0.6123724356957945*nu;
          shape(  9,1) = 0.6123724356957945*xi;
          shape( 10,2) = 0.6123724356957945*xi;
+         [[fallthrough]];
       case 0:
          shape(  0,0) = 0.3535533905932738;
          shape(  1,1) = 0.3535533905932738;

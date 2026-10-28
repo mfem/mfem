@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -557,6 +557,101 @@ H1Pos_TriangleElement::H1Pos_TriangleElement(const int p)
       }
 }
 
+const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
+   const FiniteElement &fe, const IntegrationRule &ir,
+   DofToQuad::Mode mode,
+   Array<DofToQuad*> &dof2quad_array)
+{
+   DofToQuad *d2q = nullptr;
+   MFEM_VERIFY(mode == DofToQuad::RAGGED_TENSOR, "invalid mode requested");
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
+   {
+      for (int i = 0; i < dof2quad_array.Size(); i++)
+      {
+         d2q = dof2quad_array[i];
+         if (d2q->IntRule != &ir || d2q->mode != mode) { d2q = nullptr; }
+      }
+      if (!d2q)
+      {
+         d2q = new RaggedDofToQuad;
+         const int ndof = fe.GetOrder() + 1; // verify
+         const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/fe.GetDim()) + 0.5);
+         d2q->FE = &fe;
+         d2q->IntRule = &ir;
+         d2q->mode = mode;
+         d2q->ndof = ndof;
+         d2q->nqpt = nqpt;
+
+         RaggedDofToQuad *rd2q = static_cast<RaggedDofToQuad*>(d2q);
+         rd2q->Ba1.SetSize(nqpt*ndof);
+         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         rd2q->Ba2.SetSize((int)nqpt*ndof*ndof);
+         rd2q->Ba1t.SetSize(nqpt*ndof);
+         rd2q->Ba2t.SetSize((int)nqpt*ndof*ndof);
+         // stores first component of ragged tensor basis with order p-1, for gradients only
+         rd2q->Ga1.SetSize(nqpt*(ndof -1));
+         // stores second component of ragged tensor basis with order p-1
+         rd2q->Ga2.SetSize(nqpt*(ndof-1)*(ndof -1));
+         rd2q->Ga1t.SetSize(nqpt*(ndof -1));
+         rd2q->Ga2t.SetSize(nqpt*(ndof-1)*(ndof -1));
+         rd2q->lex_map.SetSize(ndof * ndof);
+         Vector shape_a1(ndof), shape_a2(ndof * ndof);
+         Vector shape_Ga1(ndof-1), shape_Ga2((ndof-1) * (ndof-1));
+         for (int i = 0; i < nqpt; i++)
+         {
+            // The first 'nqpt' points in the first dimension 'ir' have the same x-coordinates as those
+            // of the 1D rule (ie. (2,0) Gauss-Jacobi rule). The first 'nqpt' points in the second dimension
+            // 'ir' have the same y-coordinates as those of the 1D rule for second dimension (i.e. (1,0)
+            // Gauss-Jacobi rule). Additionally, the Bernstein PA algorithms expect evaluation of the
+            // component 1D bases at the Stroud nodes pulled back to the unit square, so perform the pullback
+            // on the fly.
+            const real_t x = ir.IntPoint(i).x;
+            const real_t y = ir.IntPoint(nqpt*i).y / (1.0 - ir.IntPoint(nqpt*i).x);
+
+            Poly_1D::CalcBernstein(ndof-1, x, shape_a1);
+            Poly_1D::CalcBernstein(ndof-2, x, shape_Ga1);
+            for (int j = 0; j < ndof; j++)
+            {
+               rd2q->Ba1t[i+nqpt*j] = rd2q->Ba1[j+ndof*i] = shape_a1(j);
+               if (j < ndof-1)
+               {
+                  rd2q->Ga1t[i+nqpt*j] = rd2q->Ga1[j+(ndof-1)*i] = shape_Ga1(j);
+                  Poly_1D::CalcBernstein(ndof-2-j, y, shape_Ga2);
+               }
+
+               Poly_1D::CalcBernstein(ndof-1-j, y, shape_a2);
+               for (int k = 0; k < ndof-j; k++)
+               {
+                  rd2q->Ba2t[i + nqpt*(j + ndof*k)] = rd2q->Ba2[k + ndof*(j + ndof*i)] = shape_a2(
+                                                                                            k);
+                  if (j < ndof-1 && k < ndof-j-1)
+                  {
+                     rd2q->Ga2t[i + nqpt*(j + (ndof-1)*k)] = rd2q->Ga2[k + (ndof-1)*(j +
+                                                                                     (ndof-1)*i)] = shape_Ga2(k);
+                  }
+               }
+            }
+         }
+
+         // stores the mapping from 2D Bernstein multi-index (i,j,p-i-j) to the
+         // lexicographic DOF ordering
+         for (int i = 0; i < ndof; i++)
+         {
+            for (int j = 0; j < ndof-i; j++)
+            {
+               int idx = ((2 * (ndof-1) + 3) - j) * j / 2 + i;
+               rd2q->lex_map[j + ndof*i] = idx;
+            }
+         }
+         dof2quad_array.Append(d2q);
+      }
+   }
+   return *d2q;
+}
+
 // static method
 void H1Pos_TriangleElement::CalcShape(
    const int p, const real_t l1, const real_t l2, real_t *shape)
@@ -747,6 +842,213 @@ H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
             dof_map[idx(i,j,k)] = o;
             Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, real_t(k)/p);
          }
+}
+
+const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
+   const FiniteElement &fe, const IntegrationRule &ir,
+   DofToQuad::Mode mode,
+   Array<DofToQuad*> &dof2quad_array)
+{
+   DofToQuad *d2q = nullptr;
+   MFEM_VERIFY(mode == DofToQuad::RAGGED_TENSOR, "invalid mode requested");
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
+   {
+      for (int i = 0; i < dof2quad_array.Size(); i++)
+      {
+         d2q = dof2quad_array[i];
+         if (d2q->IntRule != &ir || d2q->mode != mode) { d2q = nullptr; }
+      }
+      if (!d2q)
+      {
+         d2q = new RaggedDofToQuad;
+         const int ndof = fe.GetOrder() + 1; // verify
+         const int nqpt = (int)floor(pow(ir.GetNPoints(), 1.0/fe.GetDim()) + 0.5);
+         const int basis_dim2d = ndof*(ndof+1) / 2;
+         const int basis_dim3d = ndof*(ndof+1)*(ndof+2) / 6;
+         const int basis_dim2d_diff = (ndof-1)*(ndof) / 2;
+         const int basis_dim3d_diff = (ndof-1)*(ndof)*(ndof+1) / 6;
+         d2q->FE = &fe;
+         d2q->IntRule = &ir;
+         d2q->mode = mode;
+         d2q->ndof = ndof;
+         d2q->nqpt = nqpt;
+
+         RaggedDofToQuad *rd2q = static_cast<RaggedDofToQuad*>(d2q);
+         rd2q->Ba1.SetSize(nqpt * ndof);
+         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         rd2q->Ba2.SetSize(nqpt * basis_dim2d);
+         // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         rd2q->Ba3.SetSize(nqpt * basis_dim3d);
+         rd2q->Ba1t.SetSize(nqpt * ndof);
+         rd2q->Ba2t.SetSize(nqpt * basis_dim2d);
+         rd2q->Ba3t.SetSize(nqpt * basis_dim3d);
+         // stores first component of ragged tensor basis with order p-1, for gradients only
+         rd2q->Ga1.SetSize(nqpt * (ndof-1));
+         // stores second component of ragged tensor basis with order p-1
+         rd2q->Ga2.SetSize(nqpt * basis_dim2d_diff);
+         // stores third component of ragged tensor basis with order p-1
+         rd2q->Ga3.SetSize(nqpt * basis_dim3d_diff);
+         rd2q->Ga1t.SetSize(nqpt * (ndof-1));
+         rd2q->Ga2t.SetSize(nqpt * basis_dim2d_diff);
+         rd2q->Ga3t.SetSize(nqpt * basis_dim3d_diff);
+         rd2q->lex_map.SetSize(ndof * ndof * ndof);
+
+         rd2q->forward_map2d_diff.SetSize((ndof-1) * (ndof-1));
+         rd2q->forward_map3d_diff.SetSize((ndof-1) * (ndof-1) * (ndof-1));
+         rd2q->inverse_map2d_diff.SetSize(2 * basis_dim2d_diff);
+         rd2q->inverse_map3d_diff.SetSize(3 * basis_dim3d_diff);
+
+         rd2q->forward_map2d_mass.SetSize(ndof * ndof);
+         rd2q->forward_map3d_mass.SetSize(ndof * ndof * ndof);
+         rd2q->inverse_map2d_mass.SetSize(2 * basis_dim2d);
+         rd2q->inverse_map3d_mass.SetSize(2 * basis_dim3d);
+
+         // forward and inverse maps for multi-index to collapsed 1d index for diffusion, can combine
+         // these four loops, but need four idx's and clause for shorter diff loops
+         int idx = 0;
+         for (int i = 0; i < ndof-1; i++)
+         {
+            for (int j = 0; j < ndof-i-1; j++)
+            {
+               rd2q->forward_map2d_diff[j + (ndof-1)*i] = idx;
+               rd2q->inverse_map2d_diff[2*idx] = i;
+               rd2q->inverse_map2d_diff[1 + 2*idx] = j;
+               idx++;
+            }
+         }
+
+         idx = 0;
+         for (int k = 0; k < ndof-1; k++)
+         {
+            for (int j = 0; j < ndof-k-1; j++)
+            {
+               for (int i = 0; i < ndof-k-j-1; i++)
+               {
+                  rd2q->forward_map3d_diff[k + (ndof-1)*(j + (ndof-1)*i)] = idx;
+                  rd2q->inverse_map3d_diff[3*idx] = i;
+                  rd2q->inverse_map3d_diff[1 + 3*idx] = j;
+                  rd2q->inverse_map3d_diff[2 + 3*idx] = k;
+                  idx++;
+               }
+            }
+         }
+
+         // forward and inverse maps for multi-index to collapsed 1d index for mass
+         idx = 0;
+         for (int j = 0; j < ndof; j++)
+         {
+            for (int i = 0; i < ndof-j; i++)
+            {
+               rd2q->forward_map2d_mass[j + ndof*i] = idx;
+               rd2q->inverse_map2d_mass[2*idx] = i;
+               rd2q->inverse_map2d_mass[1 + 2*idx] = j;
+               idx++;
+            }
+         }
+
+         idx = 0;
+         for (int k = 0; k < ndof; k++)
+         {
+            for (int j = 0; j < ndof-k; j++)
+            {
+               for (int i = 0; i < ndof-k-j; i++)
+               {
+                  rd2q->forward_map3d_mass[k + ndof*(j + ndof*i)] = idx;
+                  rd2q->inverse_map3d_mass[2*idx] = i;
+                  rd2q->inverse_map3d_mass[1 + 2*idx] = j;
+                  // d2q->inverse_map3d_mass[2 + 3*idx] = k;
+                  idx++;
+               }
+            }
+         }
+
+         Vector shape_a1(ndof), shape_a2(ndof * ndof), shape_a3(ndof * ndof * ndof);
+         Vector shape_Ga1(ndof-1), shape_Ga2(ndof-1), shape_Ga3(ndof-1);
+         for (int i = 0; i < nqpt; i++)
+         {
+            // The first 'nqpt' points in the first dimension 'ir' have the same x-coordinates as those
+            // of the 1D rule (ie. (2,0) Gauss-Jacobi rule). The first 'nqpt' points in the second dimension
+            // 'ir' have the same y-coordinates as those of the 1D rule for second dimension (i.e. (1,0)
+            // Gauss-Jacobi rule). The first 'nqpt' points in the third dimension have the same z-coordinates
+            // as those of the 1D rule for the third dimension (i.e. Gauss-Legendre rule). Additionally,
+            // the Bernstein PA algorithms expect evaluation of the component 1D bases at the Stroud nodes
+            // pulled back to the unit cube, so perform the pullback on the fly.
+            const real_t x = ir.IntPoint(i).x;
+            const real_t y = ir.IntPoint(nqpt*i).y / (1.0 - ir.IntPoint(nqpt*i).x);
+            const real_t z = ir.IntPoint(nqpt*nqpt*i).z / (1.0 - ir.IntPoint(
+                                                              nqpt*nqpt*i).x - ir.IntPoint(nqpt*nqpt*i).y);
+            Poly_1D::CalcBernstein(ndof-1, x, shape_a1);
+            Poly_1D::CalcBernstein(ndof-2, x, shape_Ga1);
+            for (int j = 0; j < ndof; j++)
+            {
+               rd2q->Ba1t[i+nqpt*j] = rd2q->Ba1[j+ndof*i] = shape_a1(j);
+               if (j < ndof-1)
+               {
+                  rd2q->Ga1t[i+nqpt*j] = rd2q->Ga1[j+(ndof-1)*i] = shape_Ga1(j);
+                  Poly_1D::CalcBernstein(ndof-2-j, y, shape_Ga2);
+               }
+
+               Poly_1D::CalcBernstein(ndof-1-j, y, shape_a2);
+               for (int k = 0; k < ndof-j; k++)
+               {
+                  const int a_2d_mass = rd2q->forward_map2d_mass[k + ndof*j];
+                  rd2q->Ba2t[i + nqpt*a_2d_mass] = rd2q->Ba2[a_2d_mass + basis_dim2d*i] =
+                                                      shape_a2(
+                                                         k);
+                  if (j < ndof-1 && k < ndof-j-1)
+                  {
+                     const int a_2d_diff = rd2q->forward_map2d_diff[k + (ndof-1)*j];
+                     rd2q->Ga2t[i + nqpt*a_2d_diff] = rd2q->Ga2[a_2d_diff + basis_dim2d_diff*i] =
+                                                         shape_Ga2(k);
+                     Poly_1D::CalcBernstein(ndof-2-j-k, z, shape_Ga3);
+                  }
+
+                  Poly_1D::CalcBernstein(ndof-1-j-k, z, shape_a3);
+                  for (int m = 0; m < ndof-j-k; m++)
+                  {
+                     const int a_3d_mass = rd2q->forward_map3d_mass[m + ndof*(k + ndof*j)];
+                     rd2q->Ba3t[i + nqpt*a_3d_mass] = rd2q->Ba3[a_3d_mass + basis_dim3d*i] =
+                                                         shape_a3(
+                                                            m);
+                     if (j < ndof-1 && k < ndof-j-1 && m < ndof-j-k-1)
+                     {
+                        // // collapsed 1D access
+                        // d2q->Ga3[i + nqpt*(m + d2q->offset3d[k + (ndof-1)*j])] = shape_Ga3(m);
+                        // collapsed 1D access with forward mapping
+                        const int a_3d_diff = rd2q->forward_map3d_diff[m + (ndof-1)*(k + (ndof-1)*j)];
+                        rd2q->Ga3t[i + nqpt*a_3d_diff] = rd2q->Ga3[a_3d_diff + basis_dim3d_diff*i] =
+                                                            shape_Ga3(m);
+                     }
+                  }
+               }
+            }
+         }
+
+         // stores the mapping from 3D Bernstein multi-index (i,j,k,p-i-j-k) to the
+         // lexicographic DOF ordering
+         int p = ndof - 1;
+         for (int i = 0; i < ndof; i++)
+         {
+            for (int j = 0; j < ndof-i; j++)
+            {
+               for (int k = 0; k < ndof-i-j; k++)
+               {
+                  int dof = (p+1)*(p+2)*(p+3) / 6;
+                  int tet = (p-k)*(p-k+1)*(p-k+2) / 6;
+                  int tri = (p+1-k-j)*(p+2-k-j)/2;
+                  int multi_idx = dof - tet - tri + i;
+                  rd2q->lex_map[k + ndof*(j + ndof*i)] = multi_idx;
+               }
+            }
+         }
+
+         dof2quad_array.Append(d2q);
+      }
+   }
+   return *d2q;
 }
 
 // static method
@@ -1040,6 +1342,435 @@ void H1Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
       dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
    }
+}
+
+H1Pos_PyramidElement::H1Pos_PyramidElement(const int p)
+   : PositiveFiniteElement(3, Geometry::PYRAMID,
+                           ((p + 1)*(p + 2)*(2 * p + 3))/6, p,
+                           FunctionSpace::Uk),
+     nterms(((p + 1)*(p + 2)*(p + 3)*(p + 4))/24)
+{
+#ifndef MFEM_THREAD_SAFE
+   m_shape_1d.SetSize(order + 1);
+   m_shape.SetSize(nterms);
+   m_dshape.SetSize(nterms, dim);
+#endif
+
+   Index idx;
+
+   // vertices
+   dof_map[idx(p,0,0,0,0)] = 0;
+   Nodes.IntPoint(0).Set3(0., 0., 0.);
+   dof_map[idx(0,p,0,0,0)] = 1;
+   Nodes.IntPoint(1).Set3(1., 0., 0.);
+   dof_map[idx(0,0,p,0,0)] = 2;
+   Nodes.IntPoint(2).Set3(1., 1., 0.);
+   dof_map[idx(0,0,0,p,0)] = 3;
+   Nodes.IntPoint(3).Set3(0., 1., 0.);
+   dof_map[idx(0,0,0,0,p)] = 4;
+   Nodes.IntPoint(4).Set3(0., 0., 1.);
+
+   // edges (see Geometry::Constants<Geometry::PYRAMID>::Edges
+   // in fem/geom.cpp)
+   int o = 5;
+   for (int i = 1; i < p; i++)  // (0,1)
+   {
+      dof_map[idx(p-i,i,0,0,0)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(i)/p, 0., 0.);
+   }
+   for (int i = 1; i < p; i++)  // (1,2)
+   {
+      dof_map[idx(0,p-i,i,0,0)] = o;
+      Nodes.IntPoint(o++).Set3(1.0, real_t(i)/p, 0.);
+   }
+   for (int i = 1; i < p; i++)  // (3,2)
+   {
+      dof_map[idx(0,0,i,p-i,0)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(i)/p, 1., 0.);
+   }
+   for (int i = 1; i < p; i++)  // (0,3)
+   {
+      dof_map[idx(p-i,0,0,i,0)] = o;
+      Nodes.IntPoint(o++).Set3(0., real_t(i)/p, 0.);
+   }
+   for (int i = 1; i < p; i++)  // (0,4)
+   {
+      dof_map[idx(p-i,0,0,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(0., 0., real_t(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (1,4)
+   {
+      dof_map[idx(0,p-i,0,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(p-i)/p, 0., real_t(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (2,4)
+   {
+      dof_map[idx(0,0,p-i,0,i)] = o;
+      Nodes.IntPoint(o++).Set3(real_t(p-i)/p, real_t(p-i)/p, real_t(i)/p);
+   }
+   for (int i = 1; i < p; i++)  // (3,4)
+   {
+      dof_map[idx(0,0,0,p-i,i)] = o;
+      Nodes.IntPoint(o++).Set3(0., real_t(p-i)/p, real_t(i)/p);
+   }
+
+   // faces (see Geometry::Constants<Geometry::PYRAMID>::FaceVert
+   // in fem/geom.cpp)
+   for (int j = 1; j < p; j++)
+   {
+      int i1 = j;
+      int i2 = 0;
+      int i3 = 0;
+      int i4 = p - j;
+      const int i5 = 0;
+
+      for (int i = 1; i <= p - j; i++)  // (3,2,1,0)
+      {
+         i3++;
+         i4--;
+         dof_map[idx(i1,i2,i3,i4,i5)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(p-j)/p, 0);
+      }
+      for (int i = p - j + 1; i < p; i++)  // (3,2,1,0)
+      {
+         i1--;
+         i2++;
+         dof_map[idx(i1,i2,i3,i4,i5)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(p-j)/p, 0);
+      }
+   }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (0, 1, 4)
+      {
+         dof_map[idx(p-i-j,i,0,0,j)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(i)/p, 0., real_t(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (1, 2, 4)
+      {
+         dof_map[idx(0,p-i-j,i,0,j)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(p-j)/p, real_t(i)/p, real_t(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (2, 3, 4)
+      {
+         dof_map[idx(0,0,p-i-j,i,j)] = o;
+         Nodes.IntPoint(o++).Set3(real_t(p-i-j)/p, real_t(p-j)/p, real_t(j)/p);
+      }
+   for (int j = 1; j < p; j++)
+      for (int i = 1; i + j < p; i++)  // (3, 0, 4)
+      {
+         dof_map[idx(i,0,0,p-i-j,j)] = o;
+         Nodes.IntPoint(o++).Set3(0., real_t(p-i-j)/p, real_t(j)/p);
+      }
+
+   // interior
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+      {
+         int i1 = p - j - k;
+         int i2 = 0;
+         int i3 = 0;
+         int i4 = j;
+         const int i5 = k;
+
+         for (int i = 1; i <= j; i++)
+         {
+            i3++;
+            i4--;
+            dof_map[idx(i1,i2,i3,i4,i5)] = o;
+            Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+         }
+         for (int i = j + 1; i + k < p; i++)
+         {
+            i1--;
+            i2++;
+            dof_map[idx(i1,i2,i3,i4,i5)] = o;
+            Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+         }
+      }
+}
+
+// static method
+void H1Pos_PyramidElement::CalcShape(const int p, const real_t x,
+                                     const real_t y, const real_t z,
+                                     real_t *shape_1d,
+                                     real_t *shape)
+{
+   const int lshape = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<lshape; i++) { shape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p =
+   //      \sum_{l=0}^p \binom{p}{l} l5^l
+   //         \sum_{k=0}^{p-l} \binom{p-l}{k} l4^k
+   //            \sum_{j=0}^{p-l-k} \binom{p-l-k}{j} l3^j
+   //               \sum_{i=0}^{p-l-k-j} \binom{p-l-k-j}{i} l2^i l1^{p-l-k-j-i}
+   Index idx;
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, shape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               shape_1d[i2] *= ei345;
+               shape[o] += shape_1d[i2];
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+// static method
+void H1Pos_PyramidElement::CalcDShape(const int p, const real_t x,
+                                      const real_t y, const real_t z,
+                                      real_t *dshape_1d, real_t *dshape)
+{
+   const int nterms = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<3*nterms; i++) { dshape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   const Vector dl1 = grad_lam1(x, y, z);
+   const Vector dl2 = grad_lam2(x, y, z);
+   const Vector dl3 = grad_lam3(x, y, z);
+   const Vector dl4 = grad_lam4(x, y, z);
+   const Vector dl5 = grad_lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p
+   // We will compute the derivative by first computing the derivatives
+   // of these terms w.r.t each of the l1, l2, l3, l4, and l5 and summing
+   // the results together.
+   Index idx;
+
+   // Derivative w.r.t. l1 times grad(l1)
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDyBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl1 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl1 * dl1[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l2 times grad(l2)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDxBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl2 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl2*dl2[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l3 times grad(l3)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 1; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = i3*ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl3 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl3*dl3[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l4 times grad(l4)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 1; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = i4*ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl4 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl4*dl4[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l5 times grad(l5)
+   l5i5 = 1.;
+   for (int i5 = 1; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = i5*bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl5 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl5*dl5[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+void H1Pos_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                     Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   Vector m_shape(nterms);
+#endif
+
+   CalcShape(order, ip.x, ip.y, ip.z, m_shape_1d.GetData(), m_shape.GetData());
+
+   for (auto const& it : dof_map)
+   {
+      if (it.first < m_shape.Size()) { shape[it.second] = m_shape[it.first]; }
+   }
+}
+
+void H1Pos_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                      DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   DenseMatrix m_dshape(nterms, 3);
+#endif
+
+   CalcDShape(order, ip.x, ip.y, ip.z,
+              m_shape_1d.GetData(), m_dshape.GetData());
+
+   for (auto const& it : dof_map)
+      for (int d=0; d<3; d++)
+      {
+         dshape(it.second, d) = m_dshape(it.first, d);
+      }
+
 }
 
 L2Pos_SegmentElement::L2Pos_SegmentElement(const int p)
@@ -1446,6 +2177,335 @@ void L2Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
       dshape(i, 1) = t_dshape(t_dof[i],1) * s_shape[s_dof[i]];
       dshape(i, 2) = t_shape[t_dof[i]] * s_dshape(s_dof[i],0);
    }
+}
+
+L2Pos_PyramidElement::L2Pos_PyramidElement(const int p)
+   : PositiveFiniteElement(3, Geometry::PYRAMID,
+                           ((p + 1)*(p + 2)*(2 * p + 3))/6, p,
+                           FunctionSpace::Uk),
+     nterms(((p + 1)*(p + 2)*(p + 3)*(p + 4))/24)
+{
+#ifndef MFEM_THREAD_SAFE
+   m_shape_1d.SetSize(order + 1);
+   m_shape.SetSize(nterms);
+   m_dshape.SetSize(nterms, dim);
+#endif
+
+   Index idx;
+
+   if (p == 0)
+   {
+      dof_map[idx(0,0,0,0,0)] = 0;
+      Nodes.IntPoint(0).Set3(0.375, 0.375, 0.25);
+   }
+   else
+   {
+      for (int o = 0, k = 0; k <= p; k++)
+         for (int j = 0; j + k <= p; j++)
+         {
+            int i1 = p - j - k;
+            int i2 = 0;
+            int i3 = -1;
+            int i4 = j + 1;
+            const int i5 = k;
+
+            for (int i = 0; i <= j; i++)
+            {
+               i3++;
+               i4--;
+               dof_map[idx(i1,i2,i3,i4,i5)] = o;
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+            }
+            for (int i = j + 1; i + k <= p; i++)
+            {
+               i1--;
+               i2++;
+               dof_map[idx(i1,i2,i3,i4,i5)] = o;
+               Nodes.IntPoint(o++).Set3(real_t(i)/p, real_t(j)/p, 0);
+            }
+         }
+   }
+}
+
+// static method
+void L2Pos_PyramidElement::CalcShape(const int p, const real_t x,
+                                     const real_t y, const real_t z,
+                                     real_t *shape_1d,
+                                     real_t *shape)
+{
+   const int lshape = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<lshape; i++) { shape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p =
+   //      \sum_{l=0}^p \binom{p}{l} l5^l
+   //         \sum_{k=0}^{p-l} \binom{p-l}{k} l4^k
+   //            \sum_{j=0}^{p-l-k} \binom{p-l-k}{j} l3^j
+   //               \sum_{i=0}^{p-l-k-j} \binom{p-l-k-j}{i} l2^i l1^{p-l-k-j-i}
+   Index idx;
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, shape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               shape_1d[i2] *= ei345;
+               shape[o] += shape_1d[i2];
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+// static method
+void L2Pos_PyramidElement::CalcDShape(const int p, const real_t x,
+                                      const real_t y, const real_t z,
+                                      real_t *dshape_1d, real_t *dshape)
+{
+   const int nterms = ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24;
+   for (int i=0; i<3*nterms; i++) { dshape[i] = 0.0; }
+
+   const real_t l1 = lam1(x, y, z);
+   const real_t l2 = lam2(x, y, z);
+   const real_t l3 = lam3(x, y, z);
+   const real_t l4 = lam4(x, y, z);
+   const real_t l5 = lam5(x, y, z);
+
+   const Vector dl1 = grad_lam1(x, y, z);
+   const Vector dl2 = grad_lam2(x, y, z);
+   const Vector dl3 = grad_lam3(x, y, z);
+   const Vector dl4 = grad_lam4(x, y, z);
+   const Vector dl5 = grad_lam5(x, y, z);
+
+   // The basis functions are the terms in the expansion:
+   //   (l1 + l2 + l3 + l4 + l5)^p
+   // We will compute the derivative by first computing the derivatives
+   // of these terms w.r.t each of the l1, l2, l3, l4, and l5 and summing
+   // the results together.
+   Index idx;
+
+   // Derivative w.r.t. l1 times grad(l1)
+   const int *bp = Poly_1D::Binom(p);
+   real_t l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDyBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl1 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl1 * dl1[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l2 times grad(l2)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcDxBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl2 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl2*dl2[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l3 times grad(l3)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 1; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = i3*ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl3 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl3*dl3[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l4 times grad(l4)
+   l5i5 = 1.;
+   for (int i5 = 0; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 1; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = i4*ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl4 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl4*dl4[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+
+   // Derivative w.r.t. l5 times grad(l5)
+   l5i5 = 1.;
+   for (int i5 = 1; i5 <= p; i5++)
+   {
+      const int *bpi5 = Poly_1D::Binom(p - i5);
+      const real_t ei5 = i5*bp[i5]*l5i5;
+      real_t l4i4 = 1.;
+      for (int i4 = 0; i4 <= p - i5; i4++)
+      {
+         const int *bpi45 = Poly_1D::Binom(p - i5 - i4);
+         const real_t ei45 = ei5*bpi5[i4]*l4i4;
+         real_t l3i3 = 1.;
+         for (int i3 = 0; i3 <= p - i5 - i4; i3++)
+         {
+            Poly_1D::CalcBinomTerms(p - i5 - i4 - i3, l2, l1, dshape_1d);
+            real_t ei345 = ei45*bpi45[i3]*l3i3;
+            for (int i2 = 0; i2 <= p - i5 - i4 - i3; i2++)
+            {
+               const int i1 = p - i5 - i4 - i3 - i2;
+               const int o = idx(i1,i2,i3,i4,i5);
+               const real_t dshape_dl5 = dshape_1d[i2]*ei345;
+               for (int d = 0; d < 3; d++)
+               {
+                  dshape[o + d * nterms] += dshape_dl5*dl5[d];
+               }
+            }
+            l3i3 *= l3;
+         }
+         l4i4 *= l4;
+      }
+      l5i5 *= l5;
+   }
+}
+
+void L2Pos_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                     Vector &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   Vector m_shape(nterms);
+#endif
+
+   CalcShape(order, ip.x, ip.y, ip.z, m_shape_1d.GetData(), m_shape.GetData());
+
+   for (auto const& it : dof_map)
+   {
+      if (it.first < m_shape.Size()) { shape[it.second] = m_shape[it.first]; }
+   }
+}
+
+void L2Pos_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                      DenseMatrix &dshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector m_shape_1d(order + 1);
+   DenseMatrix m_dshape(nterms, 3);
+#endif
+
+   CalcDShape(order, ip.x, ip.y, ip.z,
+              m_shape_1d.GetData(), m_dshape.GetData());
+
+   for (auto const& it : dof_map)
+      for (int d=0; d<3; d++)
+      {
+         dshape(it.second, d) = m_dshape(it.first, d);
+      }
 }
 
 }

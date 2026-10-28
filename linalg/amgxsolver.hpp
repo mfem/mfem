@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,7 +32,7 @@ namespace mfem
    MFEM wrapper for Nvidia's multigrid library, AmgX (github.com/NVIDIA/AMGX)
 
    AmgX requires building MFEM with CUDA, and AMGX enabled. For distributed
-   memory parallism, MPI and Hypre (version 16.0+) are also required. Although
+   memory parallelism, MPI and Hypre (version 16.0+) are also required. Although
    CUDA is required for building, the AmgX solver is compatible with a MFEM CPU
    device configuration.
 
@@ -74,7 +74,7 @@ public:
    enum AMGX_MODE
    {
       /// Use the preconditioned conjugate gradient method with the AMG
-      /// V-cycle used as a proconditioner.  With the default configuration
+      /// V-cycle used as a preconditioner.  With the default configuration
       /// a block Jacobi smoother is used.
       SOLVER,
       /// Directly apply iterations of the AMG V cycle to the matrix
@@ -157,7 +157,7 @@ public:
       Supports operators based on either an MFEM SparseMatrix or
       HypreParMatrix.
    */
-   virtual void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /** @brief Change the input operator that is being solved via AmgX.
       Supports operators based on either an MFEM SparseMatrix or
@@ -172,21 +172,21 @@ public:
        @a x vector will be set to zero, otherwise the value of @a x passed
        in will be used.
    */
-   virtual void Mult(const Vector& b, Vector& x) const;
+   void Mult(const Vector& b, Vector& x) const override;
 
    /** @brief Return the number of iterations that were executed during the
        last solve phase. */
    int GetNumIterations();
 
    /** @brief Read in the AmgX parameters either through a file or directly
-       through a properly formated string.  If @a source is set to
+       through a properly formatted string.  If @a source is set to
        AmgXSolver::EXTERNAL the parameters are loaded from a filename set by
        @a config.  If @a source is set to AmgXSolver::INTERNAL the parameters
        are set directly by the string defined by @a config.
    */
    void ReadParameters(const std::string config, CONFIG_SRC source);
 
-   /** @brief  Set up the AmgX library with the default paramaters.
+   /** @brief  Set up the AmgX library with the default parameters.
       @param [in] amgxMode_ AmgXSolver::PRECONDITIONER,
                             AmgXSolver::SOLVER.
 

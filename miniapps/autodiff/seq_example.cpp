@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,7 +19,7 @@
 //               seq_example -m ../../data/beam-tet.mesh
 //               seq_example -m ../../data/beam-wedge.mesh
 //
-// Description:  This examples solves a quasi-static nonlinear p-Laplacian
+// Description:  This example solves a quasi-static nonlinear p-Laplacian
 //               problem with zero Dirichlet boundary conditions applied on all
 //               defined boundaries
 //

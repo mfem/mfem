@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,7 +21,7 @@ namespace mfem
     to send data to a server on a specified port number. One object of the
     class can be used for one time send of data to the server. The user
     writes in the stream, as in any other output stream and when the data
-    is ready to be send function send() has to be executed. Otherwise (if
+    is ready to be sent, the function send() has to be executed. Otherwise (if
     not executed) the destructor will send the data.
     @deprecated This class is DEPRECATED. New code should use class
     @ref socketstream (see socketstream.hpp). */
@@ -35,7 +35,7 @@ public:
 
    /** Send the current in the stream data to the server specified by
        name "hostname" (in the constructor) on port number "port".
-       Return -1 if data has already been sent or 0 for success. */
+       Returns 0. */
    int send() { (*this) << std::flush; return 0; }
 
    /** Virtual destructor. If the data hasn't been sent it sends it. */

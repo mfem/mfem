@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -35,5 +35,12 @@ inline Approx MFEM_Approx(double val,
 {
    return Approx(val).margin(abs_tol).epsilon(rel_tol);
 }
+
+/** @brief Generate values from @a base, and also from @a extra if the
+    command line '--all' option is provided. */
+#define MFEM_GENERATE_RANGES(base, extra) \
+   (!launch_all_non_regression_tests \
+    ? GENERATE_COPY(from_range(base)) \
+    : GENERATE_COPY(from_range(base), from_range(extra)))
 
 #endif

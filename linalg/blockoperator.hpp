@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,9 @@
 #include "../general/array.hpp"
 #include "operator.hpp"
 #include "blockvector.hpp"
+#ifdef MFEM_USE_MPI
+#include "hypre.hpp"
+#endif
 
 namespace mfem
 {
@@ -100,10 +103,19 @@ public:
    const Array<int> & ColOffsets() const { return col_offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
+
+#ifdef MFEM_USE_MPI
+   /** @brief Returns a monolithic HypreParMatrix formed by merging the blocks of
+       this BlockOperator, assuming every block is a HypreParMatrix.
+
+       The returned matrix is newly allocated and owned by the caller, who is
+       responsible for deleting it. */
+   HypreParMatrix * GetMonolithicHypreParMatrix() const;
+#endif
 
    ~BlockOperator();
 
@@ -157,7 +169,7 @@ public:
     */
    void SetDiagonalBlock(int iblock, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) override { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
@@ -177,10 +189,10 @@ public:
    const Array<int> & Offsets() const { return offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockDiagonalPreconditioner();
 
@@ -247,7 +259,7 @@ public:
     */
    void SetBlock(int iRow, int iCol, Operator *op);
    //! This method is present since required by the abstract base class Solver
-   virtual void SetOperator(const Operator &op) { }
+   void SetOperator(const Operator &op) override { }
 
    //! Return the number of blocks
    int NumBlocks() const { return nBlocks; }
@@ -260,10 +272,10 @@ public:
    Array<int> & Offsets() { return offsets; }
 
    /// Operator application
-   virtual void Mult (const Vector & x, Vector & y) const;
+   void Mult (const Vector & x, Vector & y) const override;
 
    /// Action of the transpose operator
-   virtual void MultTranspose (const Vector & x, Vector & y) const;
+   void MultTranspose (const Vector & x, Vector & y) const override;
 
    ~BlockLowerTriangularPreconditioner();
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -23,11 +23,14 @@
 #include "_config.hpp"
 #endif
 
+#include <cstdint>
+#include <climits>
+
 namespace mfem
 {
 
 #if (defined(MFEM_USE_CUDA) && defined(__CUDACC__)) || \
-    (defined(MFEM_USE_HIP) && defined(__HIPCC__))
+    (defined(MFEM_USE_HIP) && defined(__HIP__))
 #define MFEM_HOST_DEVICE __host__ __device__
 #else
 #define MFEM_HOST_DEVICE
@@ -41,8 +44,13 @@ namespace mfem
 
 #ifdef MFEM_USE_SINGLE
 typedef float real_t;
+// Macro to simplify the selection of different values, e.g. tolerances, based
+// on the selected build-time precision, double or single. The first parameter
+// is the value for double precision, the second -- for single.
+#define MFEM_PRECISION_SWITCH(dbl,flt) (flt)
 #elif defined MFEM_USE_DOUBLE
 typedef double real_t;
+#define MFEM_PRECISION_SWITCH(dbl,flt) (dbl)
 #else
 #error "Either DOUBLE or SINGLE precision must be specified"
 #endif
@@ -153,5 +161,11 @@ constexpr real_t operator""_r(unsigned long long v)
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #endif // MFEM_USE_MPI not defined
+
+#ifndef MFEM_USE_CUDA
+#ifdef MFEM_USE_CUDSS
+#error Building with cuDSS (MFEM_USE_CUDSS=YES) requires CUDA (MFEM_USE_CUDA=YES)
+#endif
+#endif // MFEM_USE_CUDSS not defined
 
 #endif // MFEM_CONFIG_HPP

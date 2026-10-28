@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,11 +13,16 @@ name: "Checks"
 
 permissions:
   actions: write
+  pull-requests: read
 
 on:
   push:
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # This workflow is run on pushes to any branch in the MFEM repo (with or without
 # PRs), as well as on updates to PRs from forks. In particular, we do not
@@ -25,6 +30,11 @@ on:
 # by checking if the workflow trigger is 'push' ("github.event_name == 'push'")
 # and if we are in a fork ("github.event.pull_request.head.repo.full_name !=
 # github.repository").
+#
+# The logic for the branch-history check is slightly different, since that check
+# also inspects the PR's labels to allow for overriding failures. In this case,
+# we run on all 'pull_request' triggers, but only run for 'push' triggers that
+# do not correspond to any open PRs.
 
 jobs:
   file-headers-check:
@@ -33,13 +43,8 @@ jobs:
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       - name: checkout mfem
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: copyright check
         id: copyright
@@ -94,7 +99,7 @@ jobs:
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
       - name: checkout mfem
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: get astyle
         run: |
@@ -111,7 +116,7 @@ jobs:
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
       - name: checkout mfem
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: get doxygen and graphviz
         run: |
@@ -129,18 +134,35 @@ jobs:
 
   branch-history:
     if: |
-      github.ref != 'refs/heads/next' &&
-      github.ref != 'refs/heads/master' &&
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
+      github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: checkout mfem
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
+      - name: check for pull request
+        id: check_pr
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_exists=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --head "$GITHUB_REF_NAME" \
+            --state open \
+            --json number \
+            --jq 'length > 0')
+          echo "pr_exists=$pr_exists" >> "$GITHUB_OUTPUT"
+
       - name: branch-history
+        id: branch_history
+        if: |
+          (github.event_name == 'pull_request' ||
+           github.event_name == 'workflow_dispatch' ||
+           steps.check_pr.outputs.pr_exists == 'false')
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name,
+                                        'branch-history-override') }}
         run: |
           # We override origin to make sure we point to the main repo.
           # This is to have consistent test results on PRs from forks.
@@ -148,3 +170,9 @@ jobs:
           git remote add origin https://github.com/mfem/mfem.git
           git checkout -b gh-actions-branch-history
           ./config/githooks/pre-push --history
+
+      - name: report branch-history override
+        if: steps.branch_history.outcome == 'failure'
+        run: |
+          echo "::warning::branch-history check failed, but the" \
+            "'branch-history-override' label is set."

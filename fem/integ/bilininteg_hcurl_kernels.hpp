@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@
 
 namespace mfem
 {
-
+/// \cond DO_NOT_DOCUMENT
 namespace internal
 {
 
@@ -82,24 +82,10 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
       MFEM_SHARED real_t sBo[MQ1D][MD1D];
       MFEM_SHARED real_t sBc[MQ1D][MD1D];
 
-      real_t op3[3];
-      MFEM_SHARED real_t sop[3][MQ1D][MQ1D];
+      MFEM_SHARED real_t sop[MQ1D][MQ1D][MQ1D];
+      MFEM_SHARED real_t mass_1[MQ1D][MQ1D][MD1D];
+      MFEM_SHARED real_t mass_2[MQ1D][MD1D][MD1D];
 
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
-            {
-               op3[0] = op(qx,qy,qz,0,e);
-               op3[1] = op(qx,qy,qz,symmetric ? 3 : 4,e);
-               op3[2] = op(qx,qy,qz,symmetric ? 5 : 8,e);
-            }
-         }
-      }
-
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -116,53 +102,64 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
-      int osc = 0;
+      int offset = 0;
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
          const int D1Dz = (c == 2) ? D1D - 1 : D1D;
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         real_t dxyz = 0.0;
+         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
+                                         (symmetric ? 5 : 8));
 
-         for (int qz=0; qz < Q1D; ++qz)
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
-            if (tidz == qz)
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               for (int i=0; i<3; ++i)
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  sop[i][tidx][tidy] = op3[i];
+                  sop[qz][qy][qx] = op(qx,qy,qz,opc,e);
                }
             }
+         }
+         MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const real_t wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
-
-               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  real_t val = 0.0;
+                  for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     for (int qy = 0; qy < Q1D; ++qy)
-                     {
-                        const real_t wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
-
-                        for (int qx = 0; qx < Q1D; ++qx)
-                        {
-                           const real_t wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
-                           dxyz += sop[c][qx][qy] * wx * wx * wy * wy * wz * wz;
-                        }
-                     }
+                     const real_t b = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
+                     val += b * b * sop[qz][qy][qx];
                   }
+                  mass_1[qz][qy][dx] = val;
                }
             }
+         }
+         MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-         }  // qz loop
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1Dy)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  real_t val = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const real_t b = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
+                     val += b * b * mass_1[qz][qy][dx];
+                  }
+                  mass_2[qz][dy][dx] = val;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
 
          MFEM_FOREACH_THREAD(dz,z,D1Dz)
          {
@@ -170,239 +167,330 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
             {
                MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     const real_t b = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
+                     val += b * b * mass_2[qz][dy][dx];
+                  }
+                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
+         MFEM_SYNC_THREAD;
 
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // c loop
    }); // end of element loop
 }
 
 // PA H(curl) Mass Apply 2D kernel
-void PAHcurlMassApply2D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<real_t> &bo,
-                        const Array<real_t> &bc,
-                        const Array<real_t> &bot,
-                        const Array<real_t> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y);
+void PAHcurlMassApply2D(const int NE, const bool symmetric,
+                        const bool scalar_coeff, const Array<real_t> &bo,
+                        const Array<real_t> &bc, const Array<real_t> &bot,
+                        const Array<real_t> &bct, const Vector &pa_data,
+                        const Vector &x, Vector &y, const int TrialD1D,
+                        const int TestD1D, const int Q1D);
 
 // PA H(curl) Mass Apply 3D kernel
-void PAHcurlMassApply3D(const int D1D,
-                        const int Q1D,
-                        const int NE,
-                        const bool symmetric,
-                        const Array<real_t> &bo,
-                        const Array<real_t> &bc,
-                        const Array<real_t> &bot,
-                        const Array<real_t> &bct,
-                        const Vector &pa_data,
-                        const Vector &x,
-                        Vector &y);
+void PAHcurlMassApply3D(const int NE, const bool symmetric,
+                        [[maybe_unused]] const bool scalar_coeff,
+                        const Array<real_t> &bo, const Array<real_t> &bc,
+                        const Array<real_t> &bot, const Array<real_t> &bct,
+                        const Vector &pa_data, const Vector &x, Vector &y,
+                        const int TrialD1D, [[maybe_unused]] const int TestD1D,
+                        const int Q1D);
 
 // Shared memory PA H(curl) Mass Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAHcurlMassApply3D(const int d1d,
-                                   const int q1d,
-                                   const int NE,
-                                   const bool symmetric,
-                                   const Array<real_t> &bo,
-                                   const Array<real_t> &bc,
-                                   const Array<real_t> &bot,
-                                   const Array<real_t> &bct,
-                                   const Vector &pa_data,
-                                   const Vector &x,
-                                   Vector &y)
+template <int T_D1D = 0, int T_Q1D = 0, int TBATCH = 0, bool ACCUMULATE = true>
+inline void SmemPAHcurlMassApply3D(
+   const int NE, const bool symmetric, [[maybe_unused]] const bool scalar_coeff,
+   const Array<real_t> &bo, const Array<real_t> &bc,
+   [[maybe_unused]] const Array<real_t> &bot,
+   [[maybe_unused]] const Array<real_t> &bct, const Vector &pa_data,
+   const Vector &x, Vector &y, const int d1d = 0,
+   [[maybe_unused]] const int test_d1d = 0, const int q1d = 0)
 {
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+
    MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1d > HCURL_MAX_D1D");
    MFEM_VERIFY(T_Q1D || q1d <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
                "Error: q1d > HCURL_MAX_Q1D");
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-
+   MFEM_ASSERT(Q1D >= D1D, "Expected Q1D >= D1D");
    const int dataSize = symmetric ? 6 : 9;
 
-   auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
-   auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
-   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   // assume trial space == test space
+   auto Bo = bo.Read();
+   auto Bc = bc.Read();
+   auto op =
+      Reshape(pa_data.Read(), Q1D, Q1D, Q1D, dataSize, NE);
+   auto X_ = Reshape(x.Read(), 3 * (D1D - 1) * D1D * D1D, NE);
+   auto y_ = y.ReadWrite();
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   constexpr int MD_ = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
+   constexpr int MQ_ = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
+   constexpr int MDQ_ = std::max(MD_, MQ_);
+   constexpr int MB_ = TBATCH ? TBATCH : 1;
+
+   mfem::forall_2D_batch<MDQ_ * MDQ_ * MDQ_ * MB_>(
+      NE, MDQ_ * MDQ_ * MDQ_, 1, MB_, [=] MFEM_HOST_DEVICE(int e)
    {
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+      constexpr int nbz = TBATCH ? TBATCH : 1;
+      int tidz = MFEM_THREAD_ID(z);
+#else
+      constexpr int nbz = 1;
+      constexpr int tidz = 0;
+#endif
+
       constexpr int VDIM = 3;
       constexpr int MD1D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
       constexpr int MQ1D = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MDQ = std::max(MD1D, MQ1D);
 
-      MFEM_SHARED real_t sBo[MQ1D][MD1D];
-      MFEM_SHARED real_t sBc[MQ1D][MD1D];
+      // nvcc limit work-around: can't have Y_ be captured first in
+      // if constexpr, so capture y_ and construct Y_ locally
+      // only works on GPU
+      auto Y = Reshape(y_, VDIM * (D1D - 1) * D1D * D1D, NE);
 
-      real_t op9[9];
-      MFEM_SHARED real_t sop[9*MQ1D*MQ1D];
-      MFEM_SHARED real_t mass[MQ1D][MQ1D][3];
+      MFEM_SHARED real_t sBo[MDQ * (MD1D - 1)];
+      MFEM_SHARED real_t sBc[MDQ * MD1D];
+      auto BO = Reshape(sBo, Q1D, D1D - 1);
+      auto BC = Reshape(sBc, Q1D, D1D);
 
-      MFEM_SHARED real_t sX[MD1D][MD1D][MD1D];
+      MFEM_SHARED real_t sX[nbz * VDIM * (MD1D - 1) * MD1D * MD1D];
+      MFEM_SHARED real_t sm0[nbz * VDIM * MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sm1[nbz * VDIM * MDQ * MDQ * MDQ];
 
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
+      real_t(*X)[nbz][(MD1D - 1) * MD1D * MD1D] =
+         (real_t(*)[nbz][(MD1D - 1) * MD1D * MD1D])(sX);
+      // shapes of buffers always use MQ1D to mitigate shared memory bank
+      // conflicts
+      real_t(*DDQ)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm0);
+      real_t(*DQQ)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm1);
+      real_t(*QQQ)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm0);
+      real_t(*QQD)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm1);
+      real_t(*QDD)[nbz][MQ1D][MQ1D][MQ1D] =
+         (real_t(*)[nbz][MQ1D][MQ1D][MQ1D])(sm0);
+
+      // load dofs into smem
+      const int offset = (D1D - 1) * D1D * D1D;
+      MFEM_FOREACH_THREAD_DIRECT(ix, x, offset)
       {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
+         for (int dim = 0; dim < VDIM; ++dim)
          {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
-            {
-               for (int i=0; i<dataSize; ++i)
-               {
-                  op9[i] = op(qx,qy,qz,i,e);
-               }
-            }
+            X[dim][tidz][ix] = X_(ix + dim * offset, e);
          }
       }
-
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
-      const int tidz = MFEM_THREAD_ID(z);
-
+      // load basis functions data
       if (tidz == 0)
       {
-         MFEM_FOREACH_THREAD(d,y,D1D)
+         MFEM_FOREACH_THREAD_DIRECT(ix, x, D1D * Q1D) { sBc[ix] = Bc[ix]; }
+         MFEM_FOREACH_THREAD_DIRECT(ix, x, (D1D - 1) * Q1D)
          {
-            MFEM_FOREACH_THREAD(q,x,Q1D)
+            sBo[ix] = Bo[ix];
+         }
+      }
+
+      for (int dim0 = 0; dim0 < VDIM; ++dim0)
+      {
+         MFEM_SYNC_THREAD;
+         // sum factor to QQQ = Q_{dim0,dim1} B X_{dim1}
+         for (int dim1 = 0; dim1 < VDIM; ++dim1)
+         {
+            const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
+
+            // threads assigned to mitigate bank conflicts
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, dy, dz, x, Q1D, D1Dy, D1Dz,
+                                                 Q1D, Q1D, Q1D)
             {
-               sBc[q][d] = Bc(q,d);
-               if (d < D1D-1)
+               real_t u = 0;
+               for (int dx = 0; dx < D1Dx; ++dx)
                {
-                  sBo[q][d] = Bo(q,d);
+                  real_t b;
+                  if (dim1 == 0)
+                  {
+                     b = BO(qx, dx);
+                  }
+                  else
+                  {
+                     b = BC(qx, dx);
+                  }
+                  u += X[dim1][tidz][dx + (dy + dz * D1Dy) * D1Dx] * b;
+               }
+               DDQ[dim1][tidz][dz][dy][qx] = u;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         for (int dim1 = 0; dim1 < VDIM; ++dim1)
+         {
+            const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
+            // const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
+            // threads assigned to mitigate bank conflicts
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(qx, qy, dz, x, Q1D, Q1D, D1Dz,
+                                                 Q1D, Q1D, Q1D)
+            {
+               real_t u = 0;
+               for (int dy = 0; dy < D1Dy; ++dy)
+               {
+                  real_t b;
+                  if (dim1 == 1)
+                  {
+                     b = BO(qy, dy);
+                  }
+                  else
+                  {
+                     b = BC(qy, dy);
+                  }
+                  u += DDQ[dim1][tidz][dz][dy][qx] * b;
+               }
+               DQQ[dim1][tidz][dz][qy][qx] = u;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         for (int dim1 = 0; dim1 < VDIM; ++dim1)
+         {
+            const int D1Dz = (dim1 == 2) ? D1D - 1 : D1D;
+            // const int D1Dy = (dim1 == 1) ? D1D - 1 : D1D;
+            // const int D1Dx = (dim1 == 0) ? D1D - 1 : D1D;
+            MFEM_FOREACH_THREAD_DIRECT_3D(qx, qy, qz, x, Q1D, Q1D, Q1D)
+            {
+               real_t u = 0;
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  real_t b;
+                  if (dim1 == 2)
+                  {
+                     b = BO(qz, dz);
+                  }
+                  else
+                  {
+                     b = BC(qz, dz);
+                  }
+                  u += DQQ[dim1][tidz][dz][qy][qx] * b;
+               }
+               // pa_data is row major
+               int idx;
+               if (symmetric)
+               {
+                  int row;
+                  int col;
+                  if (dim0 > dim1)
+                  {
+                     row = dim1;
+                     col = dim0;
+                  }
+                  else
+                  {
+                     row = dim0;
+                     col = dim1;
+                  }
+                  idx = col + VDIM * row - row * (row + 1) / 2;
+               }
+               else
+               {
+                  idx = dim0 * VDIM + dim1;
+               }
+               QQQ[dim1][tidz][qz][qy][qx] = op(qx, qy, qz, idx, e) * u;
+            }
+         }
+         MFEM_SYNC_THREAD;
+         // sum factor back to Y
+         // Assume bot and bct == bo^t and bc^t respectively (i.e. test ==
+         // trial functions), skip loading them again.
+         {
+            const int D1Dz = (dim0 == 2) ? D1D - 1 : D1D;
+            const int D1Dy = (dim0 == 1) ? D1D - 1 : D1D;
+            const int D1Dx = (dim0 == 0) ? D1D - 1 : D1D;
+            // threads assigned to mitigate bank conflicts
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dz, qx, qy, x, D1Dz, Q1D, Q1D,
+                                                 Q1D, Q1D, Q1D)
+            {
+               for (int dim1 = 0; dim1 < VDIM; ++dim1)
+               {
+                  real_t u = 0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     real_t b = 0;
+                     if (dim0 == 2)
+                     {
+                        b = BO(qz, dz);
+                     }
+                     else
+                     {
+                        b = BC(qz, dz);
+                     }
+                     u += QQQ[dim1][tidz][qz][qy][qx] * b;
+                  }
+                  QQD[dim1][tidz][qy][qx][dz] = u;
+               }
+            }
+            MFEM_SYNC_THREAD;
+            // threads assigned to mitigate bank conflicts
+            MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(dy, dz, qx, x, D1Dy, D1Dz, Q1D,
+                                                 Q1D, Q1D, Q1D)
+            {
+               for (int dim1 = 0; dim1 < VDIM; ++dim1)
+               {
+                  real_t u = 0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     real_t b;
+                     if (dim0 == 1)
+                     {
+                        b = BO(qy, dy);
+                     }
+                     else
+                     {
+                        b = BC(qy, dy);
+                     }
+                     u += QQD[dim1][tidz][qy][qx][dz] * b;
+                  }
+                  QDD[dim1][tidz][qx][dz][dy] = u;
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            MFEM_FOREACH_THREAD_DIRECT_3D(dx, dy, dz, x, D1Dx, D1Dy, D1Dz)
+            {
+               int ix = dx + D1Dx * (dy + D1Dy * dz);
+               real_t u = 0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  real_t b;
+                  if (dim0 == 0)
+                  {
+                     b = BO(qx, dx);
+                  }
+                  else
+                  {
+                     b = BC(qx, dx);
+                  }
+                  for (int dim1 = 0; dim1 < VDIM; ++dim1)
+                  {
+                     u += QDD[dim1][tidz][qx][dz][dy] * b;
+                  }
+               }
+               if constexpr (ACCUMULATE)
+               {
+                  Y(ix + dim0 * offset, e) += u;
+               }
+               else
+               {
+                  Y(ix + dim0 * offset, e) = u;
                }
             }
          }
       }
-      MFEM_SYNC_THREAD;
-
-      for (int qz=0; qz < Q1D; ++qz)
-      {
-         int osc = 0;
-         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-         {
-            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
-            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
-            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
-
-            MFEM_FOREACH_THREAD(dz,z,D1Dz)
-            {
-               MFEM_FOREACH_THREAD(dy,y,D1Dy)
-               {
-                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
-                  {
-                     sX[dz][dy][dx] = X(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e);
-                  }
-               }
-            }
-            MFEM_SYNC_THREAD;
-
-            if (tidz == qz)
-            {
-               for (int i=0; i<dataSize; ++i)
-               {
-                  sop[i + (dataSize*tidx) + (dataSize*Q1D*tidy)] = op9[i];
-               }
-
-               MFEM_FOREACH_THREAD(qy,y,Q1D)
-               {
-                  MFEM_FOREACH_THREAD(qx,x,Q1D)
-                  {
-                     real_t u = 0.0;
-
-                     for (int dz = 0; dz < D1Dz; ++dz)
-                     {
-                        const real_t wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
-                        for (int dy = 0; dy < D1Dy; ++dy)
-                        {
-                           const real_t wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
-                           for (int dx = 0; dx < D1Dx; ++dx)
-                           {
-                              const real_t t = sX[dz][dy][dx];
-                              const real_t wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
-                              u += t * wx * wy * wz;
-                           }
-                        }
-                     }
-
-                     mass[qy][qx][c] = u;
-                  } // qx
-               } // qy
-            } // tidz == qz
-
-            osc += D1Dx * D1Dy * D1Dz;
-            MFEM_SYNC_THREAD;
-         } // c
-
-         MFEM_SYNC_THREAD;  // Sync mass[qy][qx][d] and sop
-
-         osc = 0;
-         for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
-         {
-            const int D1Dz = (c == 2) ? D1D - 1 : D1D;
-            const int D1Dy = (c == 1) ? D1D - 1 : D1D;
-            const int D1Dx = (c == 0) ? D1D - 1 : D1D;
-
-            real_t dxyz = 0.0;
-
-            MFEM_FOREACH_THREAD(dz,z,D1Dz)
-            {
-               const real_t wz = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
-
-               MFEM_FOREACH_THREAD(dy,y,D1Dy)
-               {
-                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
-                  {
-                     for (int qy = 0; qy < Q1D; ++qy)
-                     {
-                        const real_t wy = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
-                        for (int qx = 0; qx < Q1D; ++qx)
-                        {
-                           const int os = (dataSize*qx) + (dataSize*Q1D*qy);
-                           const int id1 = os + ((c == 0) ? 0 : ((c == 1) ? (symmetric ? 1 : 3) :
-                                                                 (symmetric ? 2 : 6))); // O11, O21, O31
-                           const int id2 = os + ((c == 0) ? 1 : ((c == 1) ? (symmetric ? 3 : 4) :
-                                                                 (symmetric ? 4 : 7))); // O12, O22, O32
-                           const int id3 = os + ((c == 0) ? 2 : ((c == 1) ? (symmetric ? 4 : 5) :
-                                                                 (symmetric ? 5 : 8))); // O13, O23, O33
-
-                           const real_t m_c = (sop[id1] * mass[qy][qx][0]) + (sop[id2] * mass[qy][qx][1]) +
-                                              (sop[id3] * mass[qy][qx][2]);
-
-                           const real_t wx = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
-                           dxyz += m_c * wx * wy * wz;
-                        }
-                     }
-                  }
-               }
-            }
-
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(dz,z,D1Dz)
-            {
-               MFEM_FOREACH_THREAD(dy,y,D1Dy)
-               {
-                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
-                  {
-                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
-                  }
-               }
-            }
-
-            osc += D1Dx * D1Dy * D1Dz;
-         } // c loop
-      } // qz
    }); // end of element loop
 }
 
@@ -426,8 +514,11 @@ void PACurlCurlSetup3D(const int Q1D,
 // PA H(curl) curl-curl Diagonal 2D kernel
 void PACurlCurlAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
+                                  const bool symmetric, // unused
                                   const int NE,
                                   const Array<real_t> &bo,
+                                  const Array<real_t> &bc, // unused
+                                  const Array<real_t> &go, // unused
                                   const Array<real_t> &gc,
                                   const Vector &pa_data,
                                   Vector &diag);
@@ -636,7 +727,7 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
                                              const int NE,
                                              const Array<real_t> &bo,
                                              const Array<real_t> &bc,
-                                             const Array<real_t> &go,
+                                             [[maybe_unused]] const Array<real_t> &go,
                                              const Array<real_t> &gc,
                                              const Vector &pa_data,
                                              Vector &diag)
@@ -650,12 +741,10 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto Go = Reshape(go.Read(), Q1D, D1D-1);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, (symmetric ? 6 : 9), NE);
    auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   const int s = symmetric ? 6 : 9;
    const int i11 = 0;
    const int i12 = 1;
    const int i13 = 2;
@@ -673,6 +762,14 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
       // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
       // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
       // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+      //
+      // For each component c, the diagonal is a sum of three terms. Let a < b
+      // be the two directions other than c. Then the 1D factors of each term
+      // are:
+      //   term 0: B_c^2 in direction a, G_c^2 in direction b,
+      //   term 1: B_c G_c in directions a and b,
+      //   term 2: G_c^2 in direction a, B_c^2 in direction b,
+      // and B_o^2 in direction c. Each term is sum factorized separately.
 
       constexpr int VDIM = 3;
       constexpr int MD1D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
@@ -682,28 +779,12 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 
       MFEM_SHARED real_t sBo[MQ1D][MD1D];
       MFEM_SHARED real_t sBc[MQ1D][MD1D];
-      MFEM_SHARED real_t sGo[MQ1D][MD1D];
       MFEM_SHARED real_t sGc[MQ1D][MD1D];
 
-      real_t ope[9];
-      MFEM_SHARED real_t sop[9][MQ1D][MQ1D];
+      MFEM_SHARED real_t sop[3][MQ1D][MQ1D][MQ1D];
+      MFEM_SHARED real_t mass_1[3][MQ1D][MQ1D][MD1D];
+      MFEM_SHARED real_t mass_2[3][MQ1D][MD1D][MD1D];
 
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
-            {
-               for (int i=0; i<s; ++i)
-               {
-                  ope[i] = op(qx,qy,qz,i,e);
-               }
-            }
-         }
-      }
-
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -717,130 +798,183 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
                if (d < D1D-1)
                {
                   sBo[q][d] = Bo(q,d);
-                  sGo[q][d] = Go(q,d);
                }
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
-      int osc = 0;
+      int offset = 0;
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
          const int D1Dz = (c == 2) ? D1D - 1 : D1D;
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         real_t dxyz = 0.0;
-
-         for (int qz=0; qz < Q1D; ++qz)
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
-            if (tidz == qz)
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               for (int i=0; i<s; ++i)
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  sop[i][tidx][tidy] = ope[i];
-               }
-            }
-
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(dz,z,D1Dz)
-            {
-               const real_t wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
-               const real_t wDz = ((c == 2) ? sGo[qz][dz] : sGc[qz][dz]);
-
-               MFEM_FOREACH_THREAD(dy,y,D1Dy)
-               {
-                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  if (c == 0)
                   {
-                     for (int qy = 0; qy < Q1D; ++qy)
-                     {
-                        const real_t wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
-                        const real_t wDy = ((c == 1) ? sGo[qy][dy] : sGc[qy][dy]);
-
-                        for (int qx = 0; qx < Q1D; ++qx)
-                        {
-                           const real_t wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
-                           const real_t wDx = ((c == 0) ? sGo[qx][dx] : sGc[qx][dx]);
-
-                           if (c == 0)
-                           {
-                              // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
-
-                              // (u_0)_{x_2} O22 (u_0)_{x_2}
-                              dxyz += sop[i22][qx][qy] * wx * wx * wy * wy * wDz * wDz;
-
-                              // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
-                              dxyz += -(sop[i23][qx][qy] + sop[i32][qx][qy]) * wx * wx * wDy * wy * wDz * wz;
-
-                              // (u_0)_{x_1} O33 (u_0)_{x_1}
-                              dxyz += sop[i33][qx][qy] * wx * wx * wDy * wDy * wz * wz;
-                           }
-                           else if (c == 1)
-                           {
-                              // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
-
-                              // (u_1)_{x_2} O11 (u_1)_{x_2}
-                              dxyz += sop[i11][qx][qy] * wx * wx * wy * wy * wDz * wDz;
-
-                              // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
-                              dxyz += -(sop[i13][qx][qy] + sop[i31][qx][qy]) * wDx * wx * wy * wy * wDz * wz;
-
-                              // (u_1)_{x_0} O33 (u_1)_{x_0})
-                              dxyz += sop[i33][qx][qy] * wDx * wDx * wy * wy * wz * wz;
-                           }
-                           else
-                           {
-                              // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
-
-                              // (u_2)_{x_1} O11 (u_2)_{x_1}
-                              dxyz += sop[i11][qx][qy] * wx * wx * wDy * wDy * wz * wz;
-
-                              // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
-                              dxyz += -(sop[i12][qx][qy] + sop[i21][qx][qy]) * wDx * wx * wDy * wy * wz * wz;
-
-                              // (u_2)_{x_0} O22 (u_2)_{x_0}
-                              dxyz += sop[i22][qx][qy] * wDx * wDx * wy * wy * wz * wz;
-                           }
-                        }
-                     }
+                     // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
+                     sop[0][qz][qy][qx] = op(qx,qy,qz,i22,e);
+                     sop[1][qz][qy][qx] = -(op(qx,qy,qz,i23,e) + op(qx,qy,qz,i32,e));
+                     sop[2][qz][qy][qx] = op(qx,qy,qz,i33,e);
+                  }
+                  else if (c == 1)
+                  {
+                     // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
+                     sop[0][qz][qy][qx] = op(qx,qy,qz,i11,e);
+                     sop[1][qz][qy][qx] = -(op(qx,qy,qz,i13,e) + op(qx,qy,qz,i31,e));
+                     sop[2][qz][qy][qx] = op(qx,qy,qz,i33,e);
+                  }
+                  else
+                  {
+                     // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
+                     sop[0][qz][qy][qx] = op(qx,qy,qz,i11,e);
+                     sop[1][qz][qy][qx] = -(op(qx,qy,qz,i12,e) + op(qx,qy,qz,i21,e));
+                     sop[2][qz][qy][qx] = op(qx,qy,qz,i22,e);
                   }
                }
             }
+         }
+         MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-         }  // qz loop
+         // x contraction
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  real_t val[3] = {0.0, 0.0, 0.0};
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     real_t w[3];
+                     if (c == 0)
+                     {
+                        const real_t b = sBo[qx][dx];
+                        w[0] = w[1] = w[2] = b * b;
+                     }
+                     else
+                     {
+                        const real_t b = sBc[qx][dx];
+                        const real_t g = sGc[qx][dx];
+                        w[0] = b * b;
+                        w[1] = g * b;
+                        w[2] = g * g;
+                     }
+                     for (int t = 0; t < 3; ++t)
+                     {
+                        val[t] += w[t] * sop[t][qz][qy][qx];
+                     }
+                  }
+                  for (int t = 0; t < 3; ++t)
+                  {
+                     mass_1[t][qz][qy][dx] = val[t];
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
 
+         // y contraction
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1Dy)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  real_t val[3] = {0.0, 0.0, 0.0};
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     real_t w[3];
+                     if (c == 1)
+                     {
+                        const real_t b = sBo[qy][dy];
+                        w[0] = w[1] = w[2] = b * b;
+                     }
+                     else
+                     {
+                        const real_t b = sBc[qy][dy];
+                        const real_t g = sGc[qy][dy];
+                        w[0] = (c == 0) ? b * b : g * g;
+                        w[1] = g * b;
+                        w[2] = (c == 0) ? g * g : b * b;
+                     }
+                     for (int t = 0; t < 3; ++t)
+                     {
+                        val[t] += w[t] * mass_1[t][qz][qy][dx];
+                     }
+                  }
+                  for (int t = 0; t < 3; ++t)
+                  {
+                     mass_2[t][qz][dy][dx] = val[t];
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // z contraction
          MFEM_FOREACH_THREAD(dz,z,D1Dz)
          {
             MFEM_FOREACH_THREAD(dy,y,D1Dy)
             {
                MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     real_t w[3];
+                     if (c == 2)
+                     {
+                        const real_t b = sBo[qz][dz];
+                        w[0] = w[1] = w[2] = b * b;
+                     }
+                     else
+                     {
+                        const real_t b = sBc[qz][dz];
+                        const real_t g = sGc[qz][dz];
+                        w[0] = g * g;
+                        w[1] = g * b;
+                        w[2] = b * b;
+                     }
+                     for (int t = 0; t < 3; ++t)
+                     {
+                        val += w[t] * mass_2[t][qz][dy][dx];
+                     }
+                  }
+                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
+         MFEM_SYNC_THREAD;
 
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // c loop
    }); // end of element loop
 }
 
-// PA H(curl) curl-curl Apply 2D kernel
+// PA H(curl) curl-curl Apply/AbsApply 2D kernel
 void PACurlCurlApply2D(const int D1D,
                        const int Q1D,
+                       const bool symmetric, // unused
                        const int NE,
                        const Array<real_t> &bo,
+                       const Array<real_t> &bc, // unused
                        const Array<real_t> &bot,
+                       const Array<real_t> &bct, // unused
                        const Array<real_t> &gc,
                        const Array<real_t> &gct,
                        const Vector &pa_data,
                        const Vector &x,
-                       Vector &y);
+                       Vector &y,
+                       const bool useAbs = false);
 
-// PA H(curl) curl-curl Apply 3D kernel
+// PA H(curl) curl-curl Apply/AbsApply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void PACurlCurlApply3D(const int d1d,
                               const int q1d,
@@ -854,7 +988,8 @@ inline void PACurlCurlApply3D(const int d1d,
                               const Array<real_t> &gct,
                               const Vector &pa_data,
                               const Vector &x,
-                              Vector &y)
+                              Vector &y,
+                              const bool useAbs = false)
 {
    MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1d > HCURL_MAX_D1D");
@@ -970,7 +1105,16 @@ inline void PACurlCurlApply3D(const int d1d,
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
                      curl[qz][qy][qx][1] += gradXY[qy][qx][1] * wDz; // (u_0)_{x_2}
-                     curl[qz][qy][qx][2] -= gradXY[qy][qx][0] * wz;  // -(u_0)_{x_1}
+                     if (useAbs)
+                     {
+                        // +(u_0)_{x_1}
+                        curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;
+                     }
+                     else
+                     {
+                        // -(u_0)_{x_1}
+                        curl[qz][qy][qx][2] -= gradXY[qy][qx][0] * wz;
+                     }
                   }
                }
             }
@@ -1038,7 +1182,16 @@ inline void PACurlCurlApply3D(const int d1d,
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-                     curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz; // -(u_1)_{x_2}
+                     if (useAbs)
+                     {
+                        // +(u_1)_{x_2}
+                        curl[qz][qy][qx][0] += gradXY[qy][qx][1] * wDz;
+                     }
+                     else
+                     {
+                        // -(u_1)_{x_2}
+                        curl[qz][qy][qx][0] -= gradXY[qy][qx][1] * wDz;
+                     }
                      curl[qz][qy][qx][2] += gradXY[qy][qx][0] * wz;  // (u_1)_{x_0}
                   }
                }
@@ -1109,7 +1262,16 @@ inline void PACurlCurlApply3D(const int d1d,
                   {
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
                      curl[qz][qy][qx][0] += gradYZ[qz][qy][1] * wx;  // (u_2)_{x_1}
-                     curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx; // -(u_2)_{x_0}
+                     if (useAbs)
+                     {
+                        // +(u_2)_{x_0}
+                        curl[qz][qy][qx][1] += gradYZ[qz][qy][0] * wDx;
+                     }
+                     else
+                     {
+                        // -(u_2)_{x_0}
+                        curl[qz][qy][qx][1] -= gradYZ[qz][qy][0] * wDx;
+                     }
                   }
                }
             }
@@ -1209,9 +1371,21 @@ inline void PACurlCurlApply3D(const int d1d,
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
                      // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-                     // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
-                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                       e) += (gradXY21[dy][dx] * wDz) - (gradXY12[dy][dx] * wz);
+                     const int idx = dx + ((dy + (dz * D1Dy)) * D1Dx) + osc;
+                     if (useAbs)
+                     {
+                        // (u_0)_{x_2} * (op * curl)_1 +
+                        // (u_0)_{x_1} * (op * curl)_2
+                        Y(idx, e) += (gradXY21[dy][dx] * wDz) +
+                                     (gradXY12[dy][dx] * wz);
+                     }
+                     else
+                     {
+                        // (u_0)_{x_2} * (op * curl)_1 -
+                        // (u_0)_{x_1} * (op * curl)_2
+                        Y(idx, e) += (gradXY21[dy][dx] * wDz) -
+                                     (gradXY12[dy][dx] * wz);
+                     }
                   }
                }
             }
@@ -1278,10 +1452,22 @@ inline void PACurlCurlApply3D(const int d1d,
                {
                   for (int dx = 0; dx < D1Dx; ++dx)
                   {
+                     const int idx = dx + ((dy + (dz * D1Dy)) * D1Dx) + osc;
                      // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-                     // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                       e) += (-gradXY20[dy][dx] * wDz) + (gradXY02[dy][dx] * wz);
+                     if (useAbs)
+                     {
+                        // +(u_1)_{x_2} * (op * curl)_0 +
+                        //  (u_1)_{x_0} * (op * curl)_2
+                        Y(idx, e) += (gradXY20[dy][dx] * wDz) +
+                                     (gradXY02[dy][dx] * wz);
+                     }
+                     else
+                     {
+                        // -(u_1)_{x_2} * (op * curl)_0 +
+                        //  (u_1)_{x_0} * (op * curl)_2
+                        Y(idx, e) += (-gradXY20[dy][dx] * wDz) +
+                                     (gradXY02[dy][dx] * wz);
+                     }
                   }
                }
             }
@@ -1351,10 +1537,22 @@ inline void PACurlCurlApply3D(const int d1d,
                {
                   for (int dz = 0; dz < D1Dz; ++dz)
                   {
+                     const int idx = dx + ((dy + (dz * D1Dy)) * D1Dx) + osc;
                      // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
-                     // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-                     Y(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc,
-                       e) += (gradYZ10[dz][dy] * wx) - (gradYZ01[dz][dy] * wDx);
+                     if (useAbs)
+                     {
+                        // (u_2)_{x_1} * (op * curl)_0 +
+                        // (u_2)_{x_0} * (op * curl)_1
+                        Y(idx, e) += (gradYZ10[dz][dy] * wx) +
+                                     (gradYZ01[dz][dy] * wDx);
+                     }
+                     else
+                     {
+                        // (u_2)_{x_1} * (op * curl)_0 -
+                        // (u_2)_{x_0} * (op * curl)_1
+                        Y(idx, e) += (gradYZ10[dz][dy] * wx) -
+                                     (gradYZ01[dz][dy] * wDx);
+                     }
                   }
                }
             }
@@ -1363,7 +1561,7 @@ inline void PACurlCurlApply3D(const int d1d,
    }); // end of element loop
 }
 
-// Shared memory PA H(curl) curl-curl Apply 3D kernel
+// Shared memory PA H(curl) curl-curl Apply/AbsApply 3D kernel
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void SmemPACurlCurlApply3D(const int d1d,
                                   const int q1d,
@@ -1377,7 +1575,8 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                                   const Array<real_t> &gct,
                                   const Vector &pa_data,
                                   const Vector &x,
-                                  Vector &y)
+                                  Vector &y,
+                                  const bool useAbs = false)
 {
    MFEM_VERIFY(T_D1D || d1d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Error: d1d > HCURL_MAX_D1D");
@@ -1531,7 +1730,8 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                         }
 
                         curl[qy][qx][1] += v; // (u_0)_{x_2}
-                        curl[qy][qx][2] -= u;  // -(u_0)_{x_1}
+                        if (useAbs) { curl[qy][qx][2] += u; } // +(u_0)_{x_1}
+                        else { curl[qy][qx][2] -= u; } // -(u_0)_{x_1}
                      }
                      else if (c == 1)  // y component
                      {
@@ -1558,7 +1758,8 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                            }
                         }
 
-                        curl[qy][qx][0] -= v; // -(u_1)_{x_2}
+                        if (useAbs) { curl[qy][qx][0] += v; } // +(u_1)_{x_2}
+                        else { curl[qy][qx][0] -= v; } // -(u_1)_{x_2}
                         curl[qy][qx][2] += u; // (u_1)_{x_0}
                      }
                      else // z component
@@ -1587,7 +1788,8 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                         }
 
                         curl[qy][qx][0] += v; // (u_2)_{x_1}
-                        curl[qy][qx][1] -= u; // -(u_2)_{x_0}
+                        if (useAbs) { curl[qy][qx][1] += u; }// +(u_2)_{x_0}
+                        else { curl[qy][qx][1] -= u; } // -(u_2)_{x_0}
                      }
                   } // qx
                } // qy
@@ -1642,18 +1844,54 @@ inline void SmemPACurlCurlApply3D(const int d1d,
                         if (dx < D1D-1)
                         {
                            // \hat{\nabla}\times\hat{u} is [0, (u_0)_{x_2}, -(u_0)_{x_1}]
-                           // (u_0)_{x_2} * (op * curl)_1 - (u_0)_{x_1} * (op * curl)_2
                            const real_t wx = sBo[dx][qx];
-                           dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
+                           if (useAbs)
+                           {
+                              // (u_0)_{x_2} * (op * curl)_1 +
+                              // (u_0)_{x_1} * (op * curl)_2
+                              dxyz1 += (wx * c2 * wcy * wcDz) +
+                                       (wx * c3 * wcDy * wcz);
+                           }
+                           else
+                           {
+                              // (u_0)_{x_2} * (op * curl)_1 -
+                              // (u_0)_{x_1} * (op * curl)_2
+                              dxyz1 += (wx * c2 * wcy * wcDz) -
+                                       (wx * c3 * wcDy * wcz);
+                           }
                         }
 
                         // \hat{\nabla}\times\hat{u} is [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
-                        // -(u_1)_{x_2} * (op * curl)_0 + (u_1)_{x_0} * (op * curl)_2
-                        dxyz2 += (-wy * c1 * wcx * wcDz) + (wy * c3 * wDx * wcz);
+                        if (useAbs)
+                        {
+                           // +(u_1)_{x_2} * (op * curl)_0 +
+                           //  (u_1)_{x_0} * (op * curl)_2
+                           dxyz2 += (wy * c1 * wcx * wcDz) +
+                                    (wy * c3 * wDx * wcz);
+                        }
+                        else
+                        {
+                           // -(u_1)_{x_2} * (op * curl)_0 +
+                           //  (u_1)_{x_0} * (op * curl)_2
+                           dxyz2 += (-wy * c1 * wcx * wcDz) +
+                                    (wy * c3 * wDx * wcz);
+                        }
 
                         // \hat{\nabla}\times\hat{u} is [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
-                        // (u_2)_{x_1} * (op * curl)_0 - (u_2)_{x_0} * (op * curl)_1
-                        dxyz3 += (wcDy * wz * c1 * wcx) - (wcy * wz * c2 * wDx);
+                        if (useAbs)
+                        {
+                           // (u_2)_{x_1} * (op * curl)_0 +
+                           // (u_2)_{x_0} * (op * curl)_1
+                           dxyz3 += (wcDy * wz * c1 * wcx) +
+                                    (wcy * wz * c2 * wDx);
+                        }
+                        else
+                        {
+                           // (u_2)_{x_1} * (op * curl)_0 -
+                           // (u_2)_{x_0} * (op * curl)_1
+                           dxyz3 += (wcDy * wz * c1 * wcx) -
+                                    (wcy * wz * c2 * wDx);
+                        }
                      } // qx
                   } // qy
                } // dx
@@ -1694,12 +1932,16 @@ inline void SmemPACurlCurlApply3D(const int d1d,
    ForallWrap<3>(true, NE, device_kernel, host_kernel, Q1D, Q1D, Q1D);
 }
 
-// PA H(curl)-L2 Assemble 2D kernel
+// PA H(curl)-L2 value Assemble 2D kernel
 void PAHcurlL2Setup2D(const int Q1D,
                       const int NE,
                       const Array<real_t> &w,
                       Vector &coeff,
                       Vector &op);
+
+// PA H(curl)-L2 integral Assemble 2D kernel
+void PAHcurlL2IntSetup2D(const int Q1D, const int NE, const Array<real_t> &w,
+                         Vector &coeff, const Vector &detJ, Vector &op);
 
 // PA H(curl)-L2 Assemble 3D kernel
 void PAHcurlL2Setup3D(const int NQ,
@@ -3053,6 +3295,49 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
 
 } // namespace internal
 
+template<int DIM, int T_D1D, int T_Q1D>
+CurlCurlIntegrator::ApplyKernelType CurlCurlIntegrator::ApplyPAKernels::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return internal::PACurlCurlApply2D;
+   }
+   else if constexpr (DIM == 3)
+   {
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         return internal::SmemPACurlCurlApply3D<T_D1D, T_Q1D>;
+      }
+      else
+      {
+         return internal::PACurlCurlApply3D;
+      }
+   }
+   MFEM_ABORT("");
+}
+
+template <int DIM, int T_D1D, int T_Q1D>
+CurlCurlIntegrator::DiagonalKernelType
+CurlCurlIntegrator::DiagonalPAKernels::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return internal::PACurlCurlAssembleDiagonal2D;
+   }
+   else if constexpr (DIM == 3)
+   {
+      if (Device::Allows(Backend::DEVICE_MASK))
+      {
+         return internal::SmemPACurlCurlAssembleDiagonal3D<T_D1D, T_Q1D>;
+      }
+      else
+      {
+         return internal::PACurlCurlAssembleDiagonal3D;
+      }
+   }
+   MFEM_ABORT("");
+}
+/// \endcond DO_NOT_DOCUMENT
 } // namespace mfem
 
 #endif

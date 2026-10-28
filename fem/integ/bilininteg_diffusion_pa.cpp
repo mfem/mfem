@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,9 +15,97 @@
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
+#include "bilininteg_diffusion_pa_simplices.hpp"
 
 namespace mfem
 {
+
+void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->GetDiagonal(diag);
+   }
+   else
+   {
+      if (pa_data.Size() == 0) { AssemblePA(*fespace); }
+      MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
+                  "AssembleDiagonalPA not implemented for ragged tensor bases");
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Vector &Dv = pa_data;
+      DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Dv,
+                             diag, dofs1D, quad1D);
+   }
+}
+
+// PA Diffusion Apply kernel
+void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
+{
+   if (DeviceCanUseCeed())
+   {
+      ceedOp->AddMult(x, y);
+   }
+   else
+   {
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
+      const Vector &Dv = pa_data;
+
+#ifdef MFEM_USE_OCCA
+      if (DeviceCanUseOcca())
+      {
+         if (dim == 2)
+         {
+            internal::OccaPADiffusionApply2D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         if (dim == 3)
+         {
+            internal::OccaPADiffusionApply3D(dofs1D,quad1D,ne,B,G,Bt,Gt,Dv,x,y);
+            return;
+         }
+         MFEM_ABORT("OCCA PADiffusionApply unknown kernel!");
+      }
+#endif // MFEM_USE_OCCA
+
+      if (fespace->UsesRaggedTensorBasis())
+      {
+         const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+         return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                           rmaps->lex_map,
+                                           rmaps->forward_map2d_diff,
+                                           rmaps->inverse_map2d_diff,
+                                           rmaps->forward_map3d_diff,
+                                           rmaps->inverse_map3d_diff,
+                                           rmaps->Ga1,
+                                           rmaps->Ga2,
+                                           rmaps->Ga3,
+                                           rmaps->Ga1t,
+                                           rmaps->Ga2t,
+                                           rmaps->Ga3t,
+                                           Dv, x, y, dofs1D, quad1D);
+      }
+
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
+                          Gt, Dv, x, y, dofs1D, quad1D);
+   }
+}
+
+void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   if (symmetric)
+   {
+      AddMultPA(x, y);
+   }
+   else
+   {
+      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
+                 "the symmetric case.")
+   }
+}
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
@@ -26,9 +114,9 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
-   if (mesh->GetNE() == 0) { return; }
-   const FiniteElement &el = *fes.GetFE(0);
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   const FiniteElement &el = *fes.GetTypicalFE();
+   const bool stroud = fes.UsesRaggedTensorBasis();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, stroud);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -53,13 +141,22 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+   if (stroud)
+   {
+      maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);
+   }
+   else
+   {
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
+   // QuadratureSpace expects ir defined in reference simplex for Bernstein
+   // elements with partial assembly
 
    if (MQ) { coeff.ProjectTranspose(*MQ); }
    else if (VQ) { coeff.Project(*VQ); }
@@ -98,46 +195,35 @@ void DiffusionIntegrator::AssemblePatchPA(const int patch,
    SetupPatchPA(patch, mesh);  // For full quadrature, unitWeights = false
 }
 
-void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
+void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
    if (DeviceCanUseCeed())
    {
-      ceedOp->GetDiagonal(diag);
+      MFEM_ABORT("Ceed AbsMult not implemented yet");
    }
-   else
-   {
-      if (pa_data.Size()==0) { AssemblePA(*fespace); }
-      internal::PADiffusionAssembleDiagonal(dim, dofs1D, quad1D, ne, symmetric,
-                                            maps->B, maps->G, pa_data, diag);
-   }
+   Vector abs_pa_data(pa_data);
+   abs_pa_data.Abs();
+   auto abs_maps = maps->Abs();
+
+   ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                       abs_maps.B, abs_maps.G, abs_maps.Bt, abs_maps.Gt,
+                       abs_pa_data, x, y, dofs1D, quad1D);
 }
 
-void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
-{
-   if (DeviceCanUseCeed())
-   {
-      ceedOp->AddMult(x, y);
-   }
-   else
-   {
-      internal::PADiffusionApply(dim, dofs1D, quad1D, ne, symmetric,
-                                 maps->B, maps->G, maps->Bt, maps->Gt,
-                                 pa_data, x, y);
-   }
-}
-
-void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
+void DiffusionIntegrator::AddAbsMultTransposePA(const Vector &x,
+                                                Vector &y) const
 {
    if (symmetric)
    {
-      AddMultPA(x, y);
+      AddAbsMultPA(x, y);
    }
    else
    {
-      MFEM_ABORT("DiffusionIntegrator::AddMultTransposePA only implemented in "
-                 "the symmetric case.")
+      MFEM_ABORT("DiffusionIntegrator::AddAbsMultTransposePA only implemented "
+                 "in the symmetric case.")
    }
 }
+
 
 // This version uses full 1D quadrature rules, taking into account the
 // minimum interaction between basis functions and integration points.

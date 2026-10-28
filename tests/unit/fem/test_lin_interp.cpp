@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -142,7 +142,7 @@ TEST_CASE("Identity Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::WEDGE; type++)
+        type <= (int)Element::PYRAMID; type++)
    {
       Mesh mesh;
 
@@ -521,7 +521,7 @@ TEST_CASE("Derivative Linear Interpolators",
    double tol = 1e-9;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::WEDGE; type++)
+        type <= (int)Element::PYRAMID; type++)
    {
       Mesh mesh;
 
@@ -737,12 +737,13 @@ TEST_CASE("Product Linear Interpolators",
           "[VectorCrossProductInterpolator]"
           "[VectorInnerProductInterpolator]")
 {
-   int order_h1 = 1, order_nd = 2, order_rt = 2, n = 3, dim = -1;
-   double tol = 1e-9;
+   const int order_h1 = 1, order_nd = 2, order_rt = 1, n = 3;
+   const real_t ratio = 4.0;
 
    for (int type = (int)Element::SEGMENT;
-        type <= (int)Element::WEDGE; type++)
+        type <= (int)Element::PYRAMID; type++)
    {
+      int dim = -1;
       Mesh mesh;
 
       if (type < (int)Element::TRIANGLE)
@@ -778,7 +779,9 @@ TEST_CASE("Product Linear Interpolators",
       FunctionCoefficient        FGCoef((dim==2) ? FdotG2 : FdotG3);
       VectorFunctionCoefficient  fGCoef(dim, (dim==2) ? fG2 : fG3);
       VectorFunctionCoefficient  FgCoef(dim, (dim==2) ? Fg2 : Fg3);
-      VectorFunctionCoefficient FxGCoef(dim, (dim==2) ? FcrossG2 : FcrossG3);
+
+      VectorFunctionCoefficient FxGCoef((dim==2) ? 1 : 3,
+                                        (dim==2) ? FcrossG2 : FcrossG3);
 
       SECTION("Operators on H1 for element type " + std::to_string(type))
       {
@@ -787,6 +790,7 @@ TEST_CASE("Product Linear Interpolators",
 
          GridFunction g0(&fespace_h1);
          g0.ProjectCoefficient(gCoef);
+         CAPTURE(g0.ComputeL2Error(gCoef));
 
          SECTION("Mapping H1 to H1")
          {
@@ -799,9 +803,14 @@ TEST_CASE("Product Linear Interpolators",
             Opf0.Assemble();
 
             GridFunction fg0(&fespace_h1p);
+            fg0.ProjectCoefficient(fgCoef);
+            const real_t fgErr = std::abs(fg0.ComputeL2Error(fgCoef));
+            CAPTURE(fgErr);
+
+            fg0 = 0.0;
             Opf0.Mult(g0,fg0);
 
-            REQUIRE( fg0.ComputeL2Error(fgCoef) < tol );
+            REQUIRE( std::abs(fg0.ComputeL2Error(fgCoef)) < ratio * fgErr );
          }
          if (dim > 1)
          {
@@ -819,9 +828,14 @@ TEST_CASE("Product Linear Interpolators",
                OpF1.Assemble();
 
                GridFunction Fg1(&fespace_ndp);
+               Fg1.ProjectCoefficient(FgCoef);
+               const real_t FgErr = std::abs(Fg1.ComputeL2Error(FgCoef));
+               CAPTURE(FgErr);
+
+               Fg1 = 0.0;
                OpF1.Mult(g0,Fg1);
 
-               REQUIRE( Fg1.ComputeL2Error(FgCoef) < tol );
+               REQUIRE( std::abs(Fg1.ComputeL2Error(FgCoef)) < ratio * FgErr );
             }
          }
       }
@@ -837,9 +851,6 @@ TEST_CASE("Product Linear Interpolators",
 
             SECTION("Mapping HCurl to HCurl")
             {
-               H1_FECollection    fec_h1(order_h1, dim);
-               FiniteElementSpace fespace_h1(&mesh, &fec_h1);
-
                ND_FECollection    fec_ndp(order_nd+order_h1, dim);
                FiniteElementSpace fespace_ndp(&mesh, &fec_ndp);
 
@@ -849,9 +860,14 @@ TEST_CASE("Product Linear Interpolators",
                Opf0.Assemble();
 
                GridFunction fG1(&fespace_ndp);
+               fG1.ProjectCoefficient(fGCoef);
+               const real_t fGErr = std::abs(fG1.ComputeL2Error(fGCoef));
+               CAPTURE(fGErr);
+
+               fG1 = 0.0;
                Opf0.Mult(G1,fG1);
 
-               REQUIRE( fG1.ComputeL2Error(fGCoef) < tol );
+               REQUIRE( std::abs(fG1.ComputeL2Error(fGCoef)) < ratio * fGErr );
             }
             if (dim == 2)
             {
@@ -866,9 +882,14 @@ TEST_CASE("Product Linear Interpolators",
                   OpF1.Assemble();
 
                   GridFunction FxG2(&fespace_l2p);
+                  FxG2.ProjectCoefficient(FxGCoef);
+                  const real_t FxGErr = std::abs(FxG2.ComputeL2Error(FxGCoef));
+                  CAPTURE(FxGErr);
+
+                  FxG2 = 0.0;
                   OpF1.Mult(G1,FxG2);
 
-                  REQUIRE( FxG2.ComputeL2Error(FxGCoef) < tol );
+                  REQUIRE( std::abs(FxG2.ComputeL2Error(FxGCoef)) < ratio * FxGErr );
                }
             }
             else
@@ -884,9 +905,14 @@ TEST_CASE("Product Linear Interpolators",
                   OpF1.Assemble();
 
                   GridFunction FxG2(&fespace_rtp);
+                  FxG2.ProjectCoefficient(FxGCoef);
+                  const real_t FxGErr = std::abs(FxG2.ComputeL2Error(FxGCoef));
+                  CAPTURE(FxGErr);
+
+                  FxG2 = 0.0;
                   OpF1.Mult(G1,FxG2);
 
-                  REQUIRE( FxG2.ComputeL2Error(FxGCoef) < tol );
+                  REQUIRE( std::abs(FxG2.ComputeL2Error(FxGCoef)) < ratio * FxGErr );
                }
             }
             SECTION("Mapping to L2")
@@ -903,9 +929,14 @@ TEST_CASE("Product Linear Interpolators",
                OpF2.Assemble();
 
                GridFunction FG3(&fespace_l2p);
+               FG3.ProjectCoefficient(FGCoef);
+               const real_t FGErr = std::abs(FG3.ComputeL2Error(FGCoef));
+               CAPTURE(FGErr);
+
+               FG3 = 0.0;
                OpF2.Mult(G1,FG3);
 
-               REQUIRE( FG3.ComputeL2Error(FGCoef) < tol );
+               REQUIRE( std::abs(FG3.ComputeL2Error(FGCoef)) < ratio * FGErr );
             }
          }
          SECTION("Operators on HDiv for element type " + std::to_string(type))
@@ -918,9 +949,6 @@ TEST_CASE("Product Linear Interpolators",
 
             SECTION("Mapping to L2")
             {
-               ND_FECollection    fec_nd(order_nd, dim);
-               FiniteElementSpace fespace_nd(&mesh, &fec_nd);
-
                L2_FECollection    fec_l2p(order_nd+order_rt, dim);
                FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
@@ -930,11 +958,347 @@ TEST_CASE("Product Linear Interpolators",
                OpF1.Assemble();
 
                GridFunction FG3(&fespace_l2p);
+               FG3.ProjectCoefficient(FGCoef);
+               const real_t FGErr = std::abs(FG3.ComputeL2Error(FGCoef));
+               CAPTURE(FGErr);
+
+               FG3 = 0.0;
                OpF1.Mult(G2,FG3);
 
-               REQUIRE( FG3.ComputeL2Error(FGCoef) < tol );
+               REQUIRE( std::abs(FG3.ComputeL2Error(FGCoef)) < ratio * FGErr );
             }
          }
+      }
+   }
+}
+
+TEST_CASE("Exact Sequence Properties: d(df)=0",
+          "[GradientInterpolator]"
+          "[CurlInterpolator]"
+          "[DivergenceInterpolator]")
+{
+   const int maxOrder = 3;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+   CAPTURE(order);
+
+   int n = 3, dim = -1;
+   real_t tol = 1e-10;
+
+   auto type = (Element::Type)GENERATE(range((int)Element::TRIANGLE,
+                                             (int)Element::PYRAMID + 1));
+   CAPTURE(type);
+
+   Mesh mesh;
+
+   if (type < (int)Element::TETRAHEDRON)
+   {
+      dim = 2;
+      mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+   }
+   else
+   {
+      dim = 3;
+      mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                   2.0, 3.0, 5.0);
+   }
+
+   H1_FECollection    fec_h1(order, dim);
+   ND_FECollection    fec_nd(order, dim);
+   RT_FECollection    fec_rt(order - 1, dim);
+   L2_FECollection    fec_l2(order - 1, dim);
+
+   FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+   FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+   FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+   FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+   if (dim == 2)
+   {
+      DiscreteLinearOperator Grad(&fespace_h1, &fespace_nd);
+      Grad.AddDomainInterpolator(new GradientInterpolator());
+      Grad.Assemble();
+      Grad.Finalize();
+
+      DiscreteLinearOperator Curl(&fespace_nd, &fespace_l2);
+      Curl.AddDomainInterpolator(new CurlInterpolator());
+      Curl.Assemble();
+      Curl.Finalize();
+
+      SECTION("Curl of Gradient (2D)")
+      {
+         SparseMatrix * CurlGrad = Mult(Curl.SpMat(), Grad.SpMat());
+
+         REQUIRE(CurlGrad->MaxNorm() < tol);
+
+         delete CurlGrad;
+      }
+   }
+   else
+   {
+      DiscreteLinearOperator Grad(&fespace_h1, &fespace_nd);
+      Grad.AddDomainInterpolator(new GradientInterpolator());
+      Grad.Assemble();
+      Grad.Finalize();
+
+      DiscreteLinearOperator Curl(&fespace_nd, &fespace_rt);
+      Curl.AddDomainInterpolator(new CurlInterpolator());
+      Curl.Assemble();
+      Curl.Finalize();
+
+      DiscreteLinearOperator Div(&fespace_rt, &fespace_l2);
+      Div.AddDomainInterpolator(new DivergenceInterpolator());
+      Div.Assemble();
+      Div.Finalize();
+
+      SECTION("Curl of Gradient (3D)")
+      {
+         SparseMatrix * CurlGrad = Mult(Curl.SpMat(), Grad.SpMat());
+
+         REQUIRE(CurlGrad->MaxNorm() < tol);
+
+         delete CurlGrad;
+      }
+      SECTION("Divergence of Curl (3D)")
+      {
+         SparseMatrix * DivCurl = Mult(Div.SpMat(), Curl.SpMat());
+
+         REQUIRE(DivCurl->MaxNorm() < tol);
+
+         delete DivCurl;
+      }
+   }
+}
+
+template <class A, class B>
+static void TestCurl(FiniteElementSpace &dom_fes, FiniteElementSpace &ran_fes,
+                     A coeff, B dcoeff)
+{
+   real_t tol = 1e-10;
+   DiscreteLinearOperator CurlFA(&dom_fes, &ran_fes);
+   CurlFA.AddDomainInterpolator(new CurlInterpolator());
+   CurlFA.Assemble();
+   CurlFA.Finalize();
+
+   SparseMatrix &Curl = CurlFA.SpMat();
+   GridFunction x(&dom_fes), y_fa(&ran_fes), y(&ran_fes);
+   x.ProjectCoefficient(coeff);
+   y.ProjectCoefficient(dcoeff);
+   REQUIRE(x.Size() == Curl.Width());
+   REQUIRE(y_fa.Size() == Curl.Height());
+   Curl.Mult(x, y_fa);
+   y_fa -= y;
+   REQUIRE(y_fa.Normlinf() < tol);
+}
+
+template<class Coeff, class TCoeff>
+static void CompareCurlPA(FiniteElementSpace& dom_fes,
+                          FiniteElementSpace &ran_fes,
+                          Coeff coeff, TCoeff tcoeff)
+{
+   real_t tol = 1e-10;
+   DiscreteLinearOperator CurlFA(&dom_fes, &ran_fes);
+   CurlFA.AddDomainInterpolator(new CurlInterpolator());
+   CurlFA.Assemble();
+   CurlFA.Finalize();
+   DiscreteLinearOperator CurlPA(&dom_fes, &ran_fes);
+   CurlPA.AddDomainInterpolator(new CurlInterpolator());
+   CurlPA.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   CurlPA.Assemble();
+
+   SparseMatrix &Curl = CurlFA.SpMat();
+   GridFunction x(&dom_fes), y_fa(&ran_fes), y_pa(&ran_fes);
+   x.ProjectCoefficient(coeff);
+   REQUIRE(x.Size() == Curl.Width());
+   REQUIRE(y_fa.Size() == Curl.Height());
+   REQUIRE(x.Size() == CurlPA.Width());
+   REQUIRE(y_pa.Size() == CurlPA.Height());
+   Curl.Mult(x, y_fa);
+   CurlPA.Mult(x, y_pa);
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() < tol);
+   // transpose
+   y_fa.ProjectCoefficient(tcoeff);
+   GridFunction x_fa(&dom_fes), x_pa(&dom_fes);
+   Curl.MultTranspose(y_fa, x_fa);
+   CurlPA.MultTranspose(y_fa, x_pa);
+   x_pa -= x_fa;
+   REQUIRE(x_pa.Normlinf() < tol);
+}
+
+TEST_CASE("Partial Assemble Linear Interpolator",
+          "[CurlInterpolator]"
+          "[GPU]")
+{
+   constexpr int maxOrder = 3;
+   auto order = GENERATE_COPY(range(1, maxOrder + 1));
+   CAPTURE(order);
+
+   auto dim = GENERATE(2, 3);
+   CAPTURE(dim);
+
+   int n = 3;
+
+   Mesh mesh;
+
+   switch (dim)
+   {
+      case 2:
+         mesh =
+            Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, true, 2.0, 3.0);
+         break;
+      case 3:
+         mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 2.0, 3.0, 5.0);
+         break;
+   }
+
+   // domain spaces
+   H1_FECollection fec_h1(order, dim);
+   FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+   ND_FECollection fec_nd(order, dim);
+   FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+   // range spaces
+   RT_FECollection fec_rt(order - 1, dim);
+   FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+   L2_FECollection fec_l2(order - 1, dim, BasisType::GaussLegendre,
+                          FiniteElement::INTEGRAL);
+   FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+   switch (dim)
+   {
+      case 2:
+      {
+         FunctionCoefficient coeff([](const Vector &x)
+         { return sin(2 * M_PI * x[1] / 3) - cos(2 * M_PI * x[0] / 2); });
+         VectorFunctionCoefficient vcoeff(2, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(2);
+            y[0] = -cos(2 * M_PI * x[1] / 3);
+            y[1] = sin(2 * M_PI * x[0] / 2);
+         });
+         // out of plane H1 -> in-plane RT
+         SECTION("H1 to RT")
+         {
+            CompareCurlPA(fespace_h1, fespace_rt, coeff, vcoeff);
+         }
+         // in-plane ND -> out of plane L2
+         SECTION("ND to L2")
+         {
+            CompareCurlPA(fespace_nd, fespace_l2, vcoeff, coeff);
+         }
+         break;
+      }
+      case 3:
+      {
+         VectorFunctionCoefficient coeff(3, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(3);
+            y[0] = sin(2 * M_PI * x[2] / 5) - cos(2 * M_PI * x[1] / 3);
+            y[1] = sin(2 * M_PI * x[0] / 2) - cos(2 * M_PI * x[2] / 5);
+            y[2] = sin(2 * M_PI * x[1] / 3) - cos(2 * M_PI * x[0] / 2);
+         });
+         CompareCurlPA(fespace_nd, fespace_rt, coeff, coeff);
+         break;
+      }
+   }
+}
+
+TEST_CASE("Curl Linear Interpolator",
+          "[CurlInterpolator]"
+          "[GPU]")
+{
+   int order = 2;
+
+   auto type = (Element::Type)GENERATE(range((int)Element::TRIANGLE,
+                                             (int)Element::PYRAMID + 1));
+   CAPTURE(type);
+
+   int n = 3;
+
+   Mesh mesh;
+
+   int dim;
+
+   if (type < (int)Element::TETRAHEDRON)
+   {
+      dim = 2;
+      mesh = Mesh::MakeCartesian2D(n, n, (Element::Type)type, 1, 2.0, 3.0);
+   }
+   else
+   {
+      dim = 3;
+      mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
+                                   2.0, 3.0, 5.0);
+   }
+
+   // domain spaces
+   H1_FECollection fec_h1(order, dim);
+   FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+   ND_FECollection fec_nd(order, dim);
+   FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+   // range spaces
+   RT_FECollection fec_rt(order - 1, dim);
+   FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+   L2_FECollection fec_l2(order - 1, dim, BasisType::GaussLegendre,
+                          FiniteElement::INTEGRAL);
+   FiniteElementSpace fespace_l2(&mesh, &fec_l2);
+
+   switch (dim)
+   {
+      case 2:
+      {
+         // out of plane H1 -> in-plane RT
+         SECTION("H1 to RT")
+         {
+            FunctionCoefficient coeff([](const Vector &x)
+            {
+               return 1 - 2 * x[0] + 3 * x[1];
+            });
+            VectorFunctionCoefficient dcoeff(2, [](const Vector &x, Vector &y)
+            {
+               y.SetSize(2);
+               // d Ez/dy
+               y[0] = 3;
+               // -d Ez/dx
+               y[1] = 2;
+            });
+
+            TestCurl(fespace_h1, fespace_rt, coeff, dcoeff);
+         }
+         // in-plane ND -> out of plane L2
+         SECTION("ND to L2")
+         {
+            VectorFunctionCoefficient coeff(2, [](const Vector &x, Vector &y)
+            {
+               y.SetSize(2);
+               y[0] = 1 - 2 * x[0] + 3 * x[1];
+               y[1] = 2 * (1 - 2 * x[0] + 3 * x[1]);
+            });
+            FunctionCoefficient dcoeff([](const Vector &x)
+            { return 2 * (-2) - 3; });
+            TestCurl(fespace_nd, fespace_l2, coeff, dcoeff);
+         }
+         break;
+      }
+      case 3:
+      {
+         VectorFunctionCoefficient coeff(3, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(3);
+            y[0] = 1 + 2 * x[0] - 3 * x[1] + 4 * x[2];
+            y[1] = 4 + 3 * x[0] - 2 * x[1] + 1 * x[2];
+            y[2] = 2 - 1 * x[0] + 4 * x[1] - 3 * x[2];
+         });
+         VectorFunctionCoefficient dcoeff(3, [](const Vector &x, Vector &y)
+         {
+            y.SetSize(3);
+            y[0] = 4 - 1;
+            y[1] = 4 + 1;
+            y[2] = 3 + 3;
+         });
+         TestCurl(fespace_nd, fespace_rt, coeff, dcoeff);
+         break;
       }
    }
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,17 +11,18 @@
 //
 //             MFEM Ultraweak DPG parallel example for convection-diffusion
 //
-// Compile with: make  pconvection-diffusion
+// Compile with: make pconvection-diffusion
 //
 // sample runs
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
-// mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 3 -prob 0 -eps 1e-1 -beta '4 2' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 3 -prob 0 -eps 1e-2 -beta '2 3' -theta 0.0 -pmg
+//  mpirun -np 4 pconvection-diffusion -m ../../data/inline-hex.mesh -o 2 -ref 1 -prob 0 -sc -eps 1e-1 -theta 0.0
 
 // AMR runs
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 10 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 3 -ref 15 -prob 2 -eps 5e-3 -theta 0.7 -sc
-// mpirun -np 4 pconvection-diffusion  -o 2 -ref 12 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 10 -prob 1 -eps 1e-3 -beta '1 0' -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 3 -ref 15 -prob 2 -eps 5e-3 -theta 0.7 -sc
+//  mpirun -np 4 pconvection-diffusion -o 2 -ref 12 -prob 3 -eps 1e-2 -beta '1 2' -theta 0.7 -sc
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve a parallel
@@ -66,11 +67,12 @@
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
+#include "util/preconditioners.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
 
-using namespace std;
+
 using namespace mfem;
 using namespace mfem::common;
 
@@ -91,7 +93,7 @@ static const char *enum_str[] =
 };
 
 prob_type prob;
-Vector beta;
+Vector beta_;
 real_t epsilon;
 
 real_t exact_u(const Vector & X);
@@ -121,8 +123,12 @@ int main(int argc, char *argv[])
    real_t theta = 0.7;
    bool static_cond = false;
    epsilon = 1e0;
+   bool pmg = false;
+   int pmg_levels = -1;
+   real_t relax_factor = 2.0/3;
 
    bool visualization = true;
+   int visport = 19916;
    bool paraview = false;
 
    OptionsParser args(argc, argv);
@@ -140,22 +146,29 @@ int main(int argc, char *argv[])
                   "Theta parameter for AMR");
    args.AddOption(&iprob, "-prob", "--problem", "Problem case"
                   " 0: lshape, 1: General");
-   args.AddOption(&beta, "-beta", "--beta",
+   args.AddOption(&beta_, "-beta", "--beta",
                   "Vector Coefficient beta");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
+                  "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
+   args.AddOption(&pmg_levels, "-pmgl","--p-refinement-multigrid-levels",
+                  "Number of levels for P-Refinement Multigrid.");
+   args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                  "Relaxation factor for the p-multigrid smoother.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
       if (myid == 0)
       {
-         args.PrintUsage(cout);
+         args.PrintUsage(std::cout);
       }
       return 1;
    }
@@ -179,19 +192,19 @@ int main(int argc, char *argv[])
       case sinusoidal:
       case EJ:
       {
-         if (beta.Size() == 0)
+         if (beta_.Size() == 0)
          {
-            beta.SetSize(dim);
-            beta = 0.0;
-            beta[0] = 1.;
+            beta_.SetSize(dim);
+            beta_ = 0.0;
+            beta_[0] = 1.;
          }
          break;
       }
       case bdr_layer:
       {
-         beta.SetSize(dim);
-         beta[0] = 1.;
-         beta[1] = 2.;
+         beta_.SetSize(dim);
+         beta_[0] = 1.;
+         beta_[1] = 2.;
          exact_known = false;
       }
       break;
@@ -202,7 +215,7 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-      args.PrintOptions(cout);
+      args.PrintOptions(std::cout);
    }
 
    mesh.EnsureNCMesh(true);
@@ -351,14 +364,14 @@ int main(int argc, char *argv[])
                 << "    Dofs    |" ;
       if (exact_known)
       {
-         mfem::out << "  L2 Error  |"
+         std::cout << "  L2 Error  |"
                    << "  Rate  |";
       }
       std::cout << "  Residual  |"
                 << "  Rate  |"
-                << " CG it  |" << endl;
+                << " CG it  |" << std::endl;
       std::cout << std::string((exact_known) ? 72 : 50,'-')
-                << endl;
+                << std::endl;
    }
 
    if (static_cond) { a->EnableStaticCondensation(); }
@@ -451,44 +464,69 @@ int main(int argc, char *argv[])
 
       BlockOperator * A = Ah.As<BlockOperator>();
 
-      BlockDiagonalPreconditioner M(A->RowOffsets());
-      M.owns_blocks = 1;
-      int skip = 0;
-      if (!static_cond)
+      Solver * preconditioner = nullptr;
+      Array<ParFiniteElementSpace *> prec_fes;
+      if (static_cond)
       {
-         HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-         HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
-         amg0->SetPrintLevel(0);
-         amg1->SetPrintLevel(0);
-         M.SetDiagonalBlock(0,amg0);
-         M.SetDiagonalBlock(1,amg1);
-         skip = 2;
-      }
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,
-                                                                               skip));
-      amg2->SetPrintLevel(0);
-      M.SetDiagonalBlock(skip,amg2);
-
-      HypreSolver * prec;
-      if (dim == 2)
-      {
-         // AMS preconditioner for 2D H(div) (trace) space
-         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
+         a->GetTraceFESpaces(prec_fes);
       }
       else
       {
-         // ADS preconditioner for 3D H(div) (trace) space
-         prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatf_fes);
+         prec_fes = trial_fes;
       }
-      M.SetDiagonalBlock(skip+1,prec);
+      if (pmg)
+      {
+#ifdef MFEM_USE_MUMPS
+         bool mumps_coarse_solver = true;
+#else
+         bool mumps_coarse_solver = false;
+#endif
+         std::vector<Array<int>> ess_bdr_marker(prec_fes.Size());
+         for (int b = 0; b<prec_fes.Size(); b++)
+         {
+            if (pmesh.bdr_attributes.Size())
+            {
+               ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
+               int ess_block = (static_cond) ? 0 : 2;
+               if (b == ess_block) // hatu space has essential bdr conditions
+               {
+                  ess_bdr_marker[b] = ess_bdr_uhat;
+               }
+               else if (b == ess_block+1) // hatf space has essential bdr conditions
+               {
+                  ess_bdr_marker[b] = ess_bdr_fhat;
+               }
+               else
+               {
+                  ess_bdr_marker[b] = 0;
+               }
+            }
+         }
+         preconditioner = new PRefinementMultigrid(prec_fes, ess_bdr_marker, *A,
+                                                   pmg_levels, relax_factor, mumps_coarse_solver);
+      }
+      else
+      {
+         preconditioner = new BlockDiagonalPreconditioner(A->RowOffsets());
+         auto block_diag = dynamic_cast<BlockDiagonalPreconditioner*>(preconditioner);
+         block_diag->owns_blocks = 1;
+         for (int i = 0; i<A->NumRowBlocks(); i++)
+         {
+            auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+            prec->SetOperator(A->GetBlock(i,i));
+            block_diag->SetDiagonalBlock(i,prec);
+         }
+      }
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(M);
       cg.SetOperator(*A);
+      cg.SetPreconditioner(*preconditioner);
       cg.Mult(B, X);
+      delete preconditioner;
+
       int num_iter = cg.GetNumIterations();
 
       a->RecoverFEMSolution(X,x);
@@ -564,7 +602,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "cgRjmlk\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
          VisualizeField(u_out,vishost, visport, u_gf,
                         "Numerical u", 0,0, 500, 500, keys);
          VisualizeField(sigma_out,vishost, visport, sigma_gf,
@@ -845,7 +882,7 @@ void beta_function(const Vector & X, Vector & beta_val)
    }
    else
    {
-      beta_val = beta;
+      beta_val = beta_;
    }
 }
 
@@ -857,8 +894,8 @@ void setup_test_norm_coeffs(ParGridFunction & c1_gf, ParGridFunction & c2_gf)
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
       real_t volume = pmesh->GetElementVolume(i);
-      real_t c1 = min(epsilon/volume, (real_t) 1.);
-      real_t c2 = min(1./epsilon, 1./volume);
+      real_t c1 = std::min(epsilon/volume, (real_t) 1.);
+      real_t c2 = std::min(1./epsilon, 1./volume);
       fes->GetElementDofs(i,vdofs);
       c1_gf.SetSubVector(vdofs,c1);
       c2_gf.SetSubVector(vdofs,c2);

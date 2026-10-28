@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,7 +24,7 @@ class Vector;
 
     The class is initialized with argc and argv, and new options are added with
     the AddOption method. Currently options of type bool, int, double, char*,
-    mfem::Array<int>, and mfem::Vector are supported.
+    std::string, mfem::Array<int>, and mfem::Vector are supported.
 
     See the MFEM examples for sample use.
 */
@@ -126,7 +126,7 @@ public:
 
    /** Add an integer array (separated by spaces) option and set 'var' to
        receive the values. */
-   void AddOption(Array<int> * var, const char *short_name,
+   void AddOption(Array<int> *var, const char *short_name,
                   const char *long_name, const char *description,
                   bool required = false)
    {
@@ -136,7 +136,7 @@ public:
 
    /** Add a vector (doubles separated by spaces) option and set 'var' to
        receive the values. */
-   void AddOption(Vector * var, const char *short_name,
+   void AddOption(Vector *var, const char *short_name,
                   const char *long_name, const char *description,
                   bool required = false)
    {

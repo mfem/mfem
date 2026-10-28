@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,8 +10,12 @@
 // CONTRIBUTING.md for details.
 
 #include "complex_operator.hpp"
+#ifdef MFEM_USE_MPI
+#include "blockoperator.hpp"
+#endif
 #include <set>
 #include <map>
+#include <memory> // std::make_unique
 
 namespace mfem
 {
@@ -164,6 +168,51 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
    }
 }
 
+#ifdef MFEM_USE_MPI
+ComplexHypreParMatrix * ComplexOperator::AsComplexHypreParMatrix() const
+{
+   HypreParMatrix *Ar = nullptr;
+   HypreParMatrix *Ai = nullptr;
+   bool own_r = false;
+   bool own_i = false;
+
+   if (auto *Ahr = dynamic_cast<const HypreParMatrix*>(&real()))
+   {
+      Ar = const_cast<HypreParMatrix*>(Ahr);
+   }
+   else if (auto *Br = dynamic_cast<const BlockOperator*>(&real()))
+   {
+      Ar = Br->GetMonolithicHypreParMatrix();
+      own_r = true;
+   }
+   else
+   {
+      MFEM_ABORT("Real part is neither HypreParMatrix nor BlockOperator.");
+   }
+
+   if (auto *Ahi = dynamic_cast<const HypreParMatrix*>(&imag()))
+   {
+      Ai = const_cast<HypreParMatrix*>(Ahi);
+   }
+   else if (auto *Bi = dynamic_cast<const BlockOperator*>(&imag()))
+   {
+      Ai = Bi->GetMonolithicHypreParMatrix();
+      own_i = true;
+   }
+   else
+   {
+      MFEM_ABORT("Imag part is neither HypreParMatrix nor BlockOperator.");
+   }
+
+   return new ComplexHypreParMatrix(Ar, Ai, own_r, own_i, GetConvention());
+}
+
+
+
+#endif
+
+
+
 
 SparseMatrix & ComplexSparseMatrix::real()
 {
@@ -197,6 +246,10 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int  nrows_r = (A_r)?A_r->Height():0;
    const int  nrows_i = (A_i)?A_i->Height():0;
    const int    nrows = std::max(nrows_r, nrows_i);
+
+   const int  ncols_r = (A_r)?A_r->Width():0;
+   const int  ncols_i = (A_i)?A_i->Width():0;
+   const int    ncols = std::max(ncols_r, ncols_i);
 
    const int     *I_r = (A_r)?A_r->GetI():NULL;
    const int     *I_i = (A_i)?A_i->GetI():NULL;
@@ -232,7 +285,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
             J[I[i] + j] = J_r[I_r[i] + j];
             D[I[i] + j] = D_r[I_r[i] + j];
 
-            J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + nrows;
+            J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + ncols;
             D[I[i+nrows] + off_i + j] = factor*D_r[I_r[i] + j];
          }
       }
@@ -241,7 +294,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
          const int off_r = (I_r)?(I_r[i+1] - I_r[i]):0;
          for (int j=0; j<I_i[i+1] - I_i[i]; j++)
          {
-            J[I[i] + off_r + j] =  J_i[I_i[i] + j] + nrows;
+            J[I[i] + off_r + j] =  J_i[I_i[i] + j] + ncols;
             D[I[i] + off_r + j] = -D_i[I_i[i] + j];
 
             J[I[i+nrows] + j] = J_i[I_i[i] + j];
@@ -705,11 +758,9 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    HYPRE_BigInt * offd_col_start_stop = NULL;
    this->getColStartStop(A_r, A_i, num_recv_procs, offd_col_start_stop);
 
-   std::set<HYPRE_BigInt>::iterator sit;
    std::map<HYPRE_BigInt,HYPRE_BigInt> cmapa, cmapb, cinvmap;
-   for (sit=cset.begin(); sit!=cset.end(); sit++)
+   for (HYPRE_BigInt col_orig : cset)
    {
-      HYPRE_BigInt col_orig = *sit;
       HYPRE_BigInt col_2x2  = -1;
       HYPRE_BigInt col_size = 0;
       for (int i=0; i<num_recv_procs; i++)
@@ -722,20 +773,20 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
             break;
          }
       }
-      cmapa[*sit] = col_2x2;
-      cmapb[*sit] = col_2x2 + col_size;
+      cmapa[col_orig] = col_2x2;
+      cmapb[col_orig] = col_2x2 + col_size;
       cinvmap[col_2x2] = -1;
       cinvmap[col_2x2 + col_size] = -1;
    }
    delete [] offd_col_start_stop;
 
    {
-      std::map<HYPRE_BigInt, HYPRE_BigInt>::iterator mit;
       HYPRE_BigInt i = 0;
-      for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
+      for (auto &[col, index] : cinvmap)
       {
-         mit->second = i;
-         cmap[i] = mit->first;
+         index = i;
+         cmap[i] = col;
+         i++;
       }
    }
 
@@ -844,37 +895,34 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    HYPRE_BigInt loc_start_stop[2];
    offd_col_start_stop = new HYPRE_BigInt[2 * num_recv_procs];
 
-   const HYPRE_BigInt * row_part = (A_r) ? A_r->RowPart() :
-                                   ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_BigInt * col_part = (A_r) ? A_r->ColPart() :
+                                   ((A_i) ? A_i->ColPart() : NULL);
 
-   int row_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
-   loc_start_stop[0] = row_part[row_part_ind];
-   loc_start_stop[1] = row_part[row_part_ind+1];
+   int col_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
+   loc_start_stop[0] = col_part[col_part_ind];
+   loc_start_stop[1] = col_part[col_part_ind+1];
 
-   MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
-   MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];
+   const size_t num_reqs = send_procs.size() + recv_procs.size();
+   auto req = std::make_unique<MPI_Request[]>(num_reqs);
+   auto stat = std::make_unique<MPI_Status[]>(num_reqs);
    int send_count = 0;
    int recv_count = 0;
    int tag = 0;
 
-   std::set<HYPRE_Int>::iterator sit;
-   for (sit=send_procs.begin(); sit!=send_procs.end(); sit++)
+   for (HYPRE_Int proc : send_procs)
    {
       MPI_Isend(loc_start_stop, 2, HYPRE_MPI_BIG_INT,
-                *sit, tag, comm_, &req[send_count]);
+                proc, tag, comm_, &req[send_count]);
       send_count++;
    }
-   for (sit=recv_procs.begin(); sit!=recv_procs.end(); sit++)
+   for (HYPRE_Int proc : recv_procs)
    {
       MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_BIG_INT,
-                *sit, tag, comm_, &req[send_count+recv_count]);
+                proc, tag, comm_, &req[send_count+recv_count]);
       recv_count++;
    }
 
-   MPI_Waitall(send_count+recv_count, req, stat);
-
-   delete [] req;
-   delete [] stat;
+   MPI_Waitall(send_count+recv_count, req.get(), stat.get());
 }
 
 #endif // MFEM_USE_MPI

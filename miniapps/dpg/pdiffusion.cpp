@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,18 +14,19 @@
 // Compile with: make pdiffusion
 //
 // Sample runs
-// mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
-// mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
-// mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0
+//  mpirun -np 4 pdiffusion -m ../../data/inline-quad.mesh -o 3 -sref 1 -pref 2 -theta 0.0 -prob 0 -pmg
+//  mpirun -np 4 pdiffusion -m ../../data/inline-hex.mesh -o 2 -sref 0 -pref 1 -theta 0.0 -prob 0 -sc
+//  mpirun -np 4 pdiffusion -m ../../data/beam-tet.mesh -o 3 -sref 0 -pref 2 -theta 0.0 -prob 0 -sc
 
 // L-shape runs
 // Note: uniform ref are expected to give sub-optimal rate for the L-shape problem (rate = 2/3)
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 5 -theta 0.0 -prob 1
 
 // L-shape AMR runs
-// mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 10 -theta 0.8 -prob 1
-// mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 8 -theta 0.75 -prob 1 -sc
-// mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 6 -theta 0.75 -prob 1 -sc -do 2
+//  mpirun -np 4 pdiffusion -o 1 -sref 1 -pref 10 -theta 0.8 -prob 1
+//  mpirun -np 4 pdiffusion -o 2 -sref 1 -pref 8 -theta 0.75 -prob 1 -sc
+//  mpirun -np 4 pdiffusion -o 3 -sref 1 -pref 6 -theta 0.75 -prob 1 -sc -do 2
 
 // Description:
 // This example code demonstrates the use of MFEM to define and solve
@@ -70,6 +71,7 @@
 
 #include "mfem.hpp"
 #include "util/pweakform.hpp"
+#include "util/preconditioners.hpp"
 #include "../common/mfem-common.hpp"
 #include <fstream>
 #include <iostream>
@@ -114,9 +116,13 @@ int main(int argc, char *argv[])
    int sref = 0; // initial uniform mesh refinements
    int pref = 0; // parallel mesh refinements for AMR
    int iprob = 0;
+   bool pmg = false;
+   int pmg_levels = -1;
+   real_t relax_factor = 2.0/3;
    bool static_cond = false;
    real_t theta = 0.7;
    bool visualization = true;
+   int visport = 19916;
    bool paraview = false;
 
    OptionsParser args(argc, argv);
@@ -136,12 +142,19 @@ int main(int argc, char *argv[])
                   " 0: manufactured, 1: L-shape");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pmg, "-pmg", "--p-refinement-multigrid", "-no-pmg",
+                  "--no-p-refinement-multigrid", "Enable P-Refinement Multigrid.");
+   args.AddOption(&pmg_levels, "-pmgl","--p-refinement-multigrid-levels",
+                  "Number of levels for P-Refinement Multigrid.");
+   args.AddOption(&relax_factor, "-rf", "--relaxation-factor",
+                  "Relaxation factor for the p-multigrid smoother.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -183,7 +196,6 @@ int main(int argc, char *argv[])
          (*nodes)[2*i+1] = -2*x+1;
       }
    }
-
 
    for (int i = 0; i<sref; i++)
    {
@@ -376,43 +388,62 @@ int main(int argc, char *argv[])
 
       BlockOperator * A = Ah.As<BlockOperator>();
 
-      BlockDiagonalPreconditioner M(A->RowOffsets());
-      M.owns_blocks = 1;
-      int skip = 0;
-      if (!static_cond)
+      Solver * preconditioner = nullptr;
+      Array<ParFiniteElementSpace *> prec_fes;
+      if (static_cond)
       {
-         HypreBoomerAMG * amg0 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(0,0));
-         HypreBoomerAMG * amg1 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(1,1));
-         amg0->SetPrintLevel(0);
-         amg1->SetPrintLevel(0);
-         M.SetDiagonalBlock(0,amg0);
-         M.SetDiagonalBlock(1,amg1);
-         skip=2;
-      }
-      HypreBoomerAMG * amg2 = new HypreBoomerAMG((HypreParMatrix &)A->GetBlock(skip,
-                                                                               skip));
-      amg2->SetPrintLevel(0);
-      M.SetDiagonalBlock(skip,amg2);
-      HypreSolver * prec;
-      if (dim == 2)
-      {
-         // AMS preconditioner for 2D H(div) (trace) space
-         prec = new HypreAMS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatsigma_fes);
+         a->GetTraceFESpaces(prec_fes);
       }
       else
       {
-         // ADS preconditioner for 3D H(div) (trace) space
-         prec = new HypreADS((HypreParMatrix &)A->GetBlock(skip+1,skip+1), hatsigma_fes);
+         prec_fes = trial_fes;
       }
-      M.SetDiagonalBlock(skip+1,prec);
+      if (pmg)
+      {
+#ifdef MFEM_USE_MUMPS
+         bool mumps_coarse_solver = true;
+#else
+         bool mumps_coarse_solver = false;
+#endif
+         std::vector<Array<int>> ess_bdr_marker(prec_fes.Size());
+         for (int b = 0; b<prec_fes.Size(); b++)
+         {
+            ess_bdr_marker[b].SetSize(pmesh.bdr_attributes.Max());
+            int ess_block = (static_cond) ? 0 : 2;
+            if (b == ess_block)
+            {
+               ess_bdr_marker[b] = ess_bdr;
+            }
+            else
+            {
+               ess_bdr_marker[b] = 0;
+            }
+         }
+         preconditioner = new PRefinementMultigrid(prec_fes, ess_bdr_marker, *A,
+                                                   pmg_levels, relax_factor, mumps_coarse_solver);
+      }
+      else
+      {
+         preconditioner = new BlockDiagonalPreconditioner(A->RowOffsets());
+         auto block_diag = dynamic_cast<BlockDiagonalPreconditioner*>(preconditioner);
+         block_diag->owns_blocks = 1;
+         for (int i = 0; i<A->NumRowBlocks(); i++)
+         {
+            auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);
+            prec->SetOperator(A->GetBlock(i,i));
+            block_diag->SetDiagonalBlock(i,prec);
+         }
+      }
 
       CGSolver cg(MPI_COMM_WORLD);
       cg.SetRelTol(1e-12);
       cg.SetMaxIter(2000);
       cg.SetPrintLevel(0);
-      cg.SetPreconditioner(M);
       cg.SetOperator(*A);
+      cg.SetPreconditioner(*preconditioner);
       cg.Mult(B, X);
+
+      delete preconditioner;
 
       a->RecoverFEMSolution(X,x);
 
@@ -469,7 +500,6 @@ int main(int argc, char *argv[])
       {
          const char * keys = (it == 0 && dim == 2) ? "jRcm\n" : nullptr;
          char vishost[] = "localhost";
-         int  visport   = 19916;
 
          VisualizeField(u_out,vishost,visport,u_gf,
                         "Numerical u", 0,0,500,500,keys);

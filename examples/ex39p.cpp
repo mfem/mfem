@@ -16,7 +16,7 @@
 //
 //               The particular problem being solved here is nearly the same
 //               as that in example 1 i.e. a simple finite element
-//               discretization of the Laplace problem -Delta u = 1 with
+//               discretization of the Poisson problem -Delta u = 1 with
 //               homogeneous Dirichlet boundary conditions and, in this case,
 //               an inhomogeneous diffusion coefficient. The diffusion
 //               coefficient is given a small default value throughout the

@@ -27,6 +27,7 @@
 //               ex1 -m ../data/fichera-amr.mesh
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+//               ex1 -m ../data/nc3-nurbs.mesh -o -1
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
@@ -49,8 +50,12 @@
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
+// Device simplices sample runs:
+//               ex1 -pa -d gpu -m ../data/inline-tet.mesh
+//               ex1 -pa -d gpu -m ../data/inline-tri.mesh
+//
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -137,25 +142,25 @@ int main(int argc, char *argv[])
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
-   //    Lagrange finite elements of the specified order. If order < 1, we
-   //    instead use an isoparametric/isogeometric space.
+   //    Lagrange finite elements of the specified order.
+   //    - If order < 1, we instead use an isoparametric/isogeometric space.
+   //    - If the mesh is simplicial and partial assembly is requested,
+   //      we use the positive basis, which supports device execution.
    FiniteElementCollection *fec;
-   bool delete_fec;
+   auto basis_type = (pa && mesh.IsSimplexMesh()) ?
+                     BasisType::Positive : BasisType::GaussLobatto;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
+      fec = new H1_FECollection(order, dim, basis_type);
    }
    else if (mesh.GetNodes())
    {
       fec = mesh.GetNodes()->OwnFEC();
-      delete_fec = false;
       cout << "Using isoparametric FEs: " << fec->Name() << endl;
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
+      fec = new H1_FECollection(order = 1, dim, basis_type);
    }
    FiniteElementSpace fespace(&mesh, fec);
    cout << "Number of finite element unknowns: "
@@ -163,13 +168,18 @@ int main(int argc, char *argv[])
 
    // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
+   //    the external boundary attributes from the mesh as essential (Dirichlet)
+   //    and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (mesh.bdr_attributes.Size())
    {
       Array<int> ess_bdr(mesh.bdr_attributes.Max());
-      ess_bdr = 1;
+      ess_bdr = 0;
+      // Apply boundary conditions on all external boundaries:
+      mesh.MarkExternalBoundaries(ess_bdr);
+      // Boundary conditions can also be applied based on named attributes:
+      // mesh.MarkNamedBoundaries(set_name, ess_bdr)
+
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -218,17 +228,29 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system A X = B.
    if (!pa)
    {
-#ifndef MFEM_USE_SUITESPARSE
-      // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
-      GSSmoother M((SparseMatrix&)(*A));
-      PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
-#else
-      // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-      UMFPackSolver umf_solver;
-      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-      umf_solver.SetOperator(*A);
-      umf_solver.Mult(B, X);
+#ifdef MFEM_USE_CUDSS
+      if (Device::Allows(Backend::CUDA_MASK))
+      {
+         // Use cuDSS to solve the system.
+         CuDSSSolver cudss_solver;
+         cudss_solver.SetOperator(*A);
+         cudss_solver.Mult(B, X);
+      }
+      else
 #endif
+      {
+#ifndef MFEM_USE_SUITESPARSE
+         // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
+         GSSmoother M((SparseMatrix&)(*A));
+         PCG(*A, M, B, X, 1, 200, 1e-12, 0.0);
+#else
+         // If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+         UMFPackSolver umf_solver;
+         umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+         umf_solver.SetOperator(*A);
+         umf_solver.Mult(B, X);
+#endif
+      }
    }
    else
    {
@@ -267,17 +289,14 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       char vishost[] = "localhost";
-      int  visport   = 19916;
+      int visport = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << mesh << x << flush;
    }
 
    // 15. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
-   }
+   if (order > 0) { delete fec; }
 
    return 0;
 }

@@ -53,7 +53,7 @@ public:
                                     real_t min_val_=-36)
       : u(&u_), obstacle(&obst_), min_val(min_val_) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
 class ExponentialGridFunctionCoefficient : public Coefficient
@@ -69,7 +69,7 @@ public:
                                       real_t min_val_=0.0, real_t max_val_=1e6)
       : u(&u_), obstacle(&obst_), min_val(min_val_), max_val(max_val_) { }
 
-   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
 };
 
 int main(int argc, char *argv[])

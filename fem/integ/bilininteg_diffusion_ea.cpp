@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -247,6 +247,8 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                      const bool add)
 {
    AssemblePA(fes);
+   MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
+               "AssembleEA not implemented for ragged tensor bases");
    ne = fes.GetMesh()->GetNE();
    const Array<real_t> &B = maps->B;
    const Array<real_t> &G = maps->G;

@@ -1,0 +1,392 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#include "unit_tests.hpp"
+#include "mfem.hpp"
+
+using namespace mfem;
+
+real_t obj0(Vector& x)
+{
+   const int n=x.Size();
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+x[i]*x[i];
+   }
+
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   return rez;
+}
+
+real_t dobj0(Vector& x, Vector& dx)
+{
+   const int n=x.Size();
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+x[i]*x[i];
+      dx[i]=2.0*x[i];
+   }
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   return rez;
+}
+
+real_t g0(Vector& x)
+{
+   int n=x.Size();
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+x[i];
+   }
+
+   int gn = n;
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   rez=rez/gn;
+   return rez-2.0;
+}
+
+real_t dg0(Vector& x, Vector& dx)
+{
+   int n = x.Size();
+
+   int gn = n;
+#ifdef MFEM_USE_MPI
+   MPI_Allreduce(&n, &gn, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+x[i];
+      dx[i]=1.0/gn;
+   }
+
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   rez=rez/gn;
+   return rez-2.0;
+}
+
+
+/** \brief Constrained Unit test
+ *
+ *    minimize   F(x) = \sum[ x*x ],
+ *    subject to \sum[ x ]/ m - 2 <= 0  for m design variables
+ *
+ * */
+#ifdef MFEM_USE_MPI
+TEST_CASE("MMA Test", "[Parallel], [MMA]")
+{
+#else
+TEST_CASE("MMA Test", "[MMA]")
+{
+#endif
+   int world_size = 1;
+#ifdef MFEM_USE_MPI
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+#endif
+
+   int num_var=12 / world_size;
+
+   Vector x(num_var);
+   Vector dx(num_var);
+   Vector xmin(num_var);
+   xmin=-1.0;
+   Vector xmax(num_var);
+   xmax=2.0;
+   x=xmin;
+   x+=0.5;
+
+   MMA* mma = nullptr;
+
+#ifdef MFEM_USE_MPI
+   mma = new MMA(MPI_COMM_WORLD,num_var,1,x);
+#else
+   mma = new MMA(num_var,1,x);
+#endif
+
+   Vector g(1);
+   g=-1.0;
+   Vector dg(num_var);
+   dg=0.0;
+
+   real_t o;
+   for (int it=0; it<30; it++)
+   {
+      o=dobj0(x,dx);
+      g[0]=dg0(x,dg);
+
+      mma->Update(dx,g,dg,xmin,xmax,x);
+   }
+
+   o=obj0(x);
+
+   delete mma;
+
+   REQUIRE( std::fabs(o - 0.00233310583131376) < 1e-12 );
+}
+
+real_t obj0_c(Vector& x)
+{
+   const int n=x.Size();
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+1.0/x[i]+10.0*x[i];
+   }
+
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&rez, &grez, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   return rez;
+}
+
+real_t dobj0_c(Vector& x, Vector& dx)
+{
+   const int n=x.Size();
+   real_t rez=0.0;
+   for (int i=0; i<n; i++)
+   {
+      rez=rez+1.0/x[i]+10.0*x[i];
+      dx[i]= -1.0/(x[i]*x[i]) + 10.0;
+   }
+#ifdef MFEM_USE_MPI
+   real_t grez;
+   MPI_Allreduce(&rez, &grez, 1,MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
+   rez = grez;
+#endif
+
+   return rez;
+}
+
+/** \brief Unconstrained Unit test
+ *
+ *    minimize   F(x) = \sum[ (1 / x) + 10x ],
+ *
+ * */
+#ifdef MFEM_USE_MPI
+TEST_CASE("MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR]")
+{
+#else
+TEST_CASE("MMA Unconstrained Test", "[MMA_0CONSTR]")
+{
+#endif
+   int world_size = 1;
+#ifdef MFEM_USE_MPI
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+#endif
+
+   const int num_var=12 / world_size;
+
+   Vector x(num_var);
+   Vector dx(num_var);
+   Vector xmin(num_var);
+   xmin=0.0;
+   Vector xmax(num_var);
+   xmax=2.0;
+   x=xmin;
+   x+=1.5;
+
+   MMA* mma = nullptr;
+
+#ifdef MFEM_USE_MPI
+   mma = new MMA(MPI_COMM_WORLD,num_var,0,x);
+#else
+   mma = new MMA(num_var,0,x);
+#endif
+
+   real_t o;
+   for (int it=0; it<30; it++)
+   {
+      o=dobj0_c(x,dx);
+
+      mma->Update(dx,xmin,xmax,x);
+   }
+
+   o=obj0_c(x);
+
+   delete mma;
+
+   REQUIRE( std::fabs(o - 75.977534018859) < 1e-12 );
+}
+
+#ifdef MFEM_USE_MPI
+/** \brief Unconstrained Unit test with fewer variables than MPI ranks
+ *
+ *    minimize   F(x) = \sum[ (1 / x) + 10x ],
+ *
+ * */
+TEST_CASE("Smaller MMA Unconstrained Test", "[Parallel], [MMA_0CONSTR_SMALL]")
+{
+   int world_size = 1, my_rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+   const int global_num_var=(world_size > 1) ? ::std::min(12, world_size-1) : 12;
+   for (int offset = 0; offset < world_size;
+        ++offset)  // rotate which rank has no decision variables
+   {
+      const int adjustedRank = ((my_rank+offset) % world_size);
+      // num_var is logically const but must remain non-const due
+      // to erroneous compiler errors about MPI_Allreduce.
+      int num_var = (global_num_var/world_size) + static_cast<int>
+                    (adjustedRank <
+                     (global_num_var % world_size));
+      int global_var_check = 1;
+      MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE( global_num_var == global_var_check );
+
+      Vector x(num_var);
+      Vector dx(num_var);
+      Vector xmin(num_var);
+      xmin=0.0;
+      Vector xmax(num_var);
+      xmax=2.0;
+      x=xmin;
+      x+=1.5;
+
+      ::std::unique_ptr<MMA> mma =
+         ::std::make_unique<MMA>(MPI_COMM_WORLD,num_var,0,x);
+
+      real_t o;
+      for (int it=0; it<30; it++)
+      {
+         o=dobj0_c(x,dx);
+
+         mma->Update(dx,xmin,xmax,x);
+      }
+      o=obj0_c(x);
+
+      constexpr double amountPerVar = (75.977534018859/12);
+      const double expectedResult = (amountPerVar*global_num_var);
+      REQUIRE( std::fabs(o - expectedResult) < 1e-11 );
+   }
+}
+
+namespace
+{
+struct Constraint
+{
+   Constraint(MPI_Comm comm_, int numGlobalVar_, int numLocalVar_) : comm(comm_),
+      numGlobalVar(numGlobalVar_), numLocalVar(numLocalVar_) {}
+
+   void operator()(const Vector &x, Vector &gx, Vector &dgdx)
+   {
+      REQUIRE( x.Size() == numLocalVar );
+      double localConstraint(0), globalConstraint(0);
+      for (const double v : x)
+      {
+         localConstraint += v;
+      }
+      MPI_Allreduce(&localConstraint, &globalConstraint, 1, MPI_DOUBLE, MPI_SUM,
+                    comm);
+      gx(0) = globalConstraint - 10.0*numGlobalVar;
+      dgdx = 1;
+   }
+
+   MPI_Comm comm;
+   const int numGlobalVar;
+   const int numLocalVar;
+};
+}
+
+/** \brief Constrained Unit test with fewer variables than MPI ranks
+ *
+ *    minimize   F(x) = \sum[ (1 / x) + 10x ],
+ *    s.t.
+ *    \sum[ x ] - 0.5 * num_var <= 0
+ *
+ *  Constraint should be nonbinding.
+ * */
+TEST_CASE("Smaller MMA constrained Test", "[Parallel], [MMA_1CONSTR_SMALL]")
+{
+   int world_size = 1, my_rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+   const int global_num_var=(world_size > 2) ? ::std::min(12, world_size-1) : 12;
+   for (int offset = 0; offset < world_size;
+        ++offset)  // rotate which rank has no decision variables
+   {
+      const int adjustedRank = ((my_rank+offset) % world_size);
+      // num_var is logically const but must remain non-const due
+      // to erroneous compiler errors about MPI_Allreduce.
+      int num_var = (global_num_var/world_size) + static_cast<int>
+                    (adjustedRank <
+                     (global_num_var % world_size));
+      int global_var_check = 1;
+      MPI_Allreduce(&num_var, &global_var_check, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE( global_num_var == global_var_check );
+
+      Vector x(num_var);
+      Vector dx(num_var);
+      Vector gx(1);
+      Vector dgdx(num_var);
+      Vector xmin(num_var);
+      xmin=0.0;
+      Vector xmax(num_var);
+      xmax=2.0;
+      x=xmin;
+      x+=1.5;
+
+      ::std::unique_ptr<MMA> mma =
+         ::std::make_unique<MMA>(MPI_COMM_WORLD,num_var,1,x);
+      Constraint constraint(MPI_COMM_WORLD, global_num_var, num_var);
+
+      real_t o;
+      for (int it=0; it<30; it++)
+      {
+         o=dobj0_c(x,dx);
+         constraint(x, gx, dgdx);
+
+         mma->Update(dx,gx,dgdx,xmin,xmax,x);
+      }
+      o=obj0_c(x);
+      constraint(x, gx, dgdx);
+
+      constexpr double amountPerVar = (75.977534018859/12);
+      const double expectedResult = (amountPerVar*global_num_var);
+      REQUIRE( std::fabs(o - expectedResult) < 1e-8 );
+      REQUIRE(gx(0) <= 0);
+   }
+}
+#endif

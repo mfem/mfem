@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,7 +21,8 @@ else()
 endif()
 
 set(PERFORMANCE_CXX_OPTIONS)
-if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+if ((${CMAKE_CXX_COMPILER_ID} MATCHES "Clang") OR
+    (${CMAKE_CXX_COMPILER_ID} MATCHES "IntelLLVM"))
   list(APPEND PERFORMANCE_CXX_OPTIONS
     ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-fcolor-diagnostics"

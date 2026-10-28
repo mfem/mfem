@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,7 @@
 #define MFEM_QUADINTERP
 
 #include "fespace.hpp"
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -39,6 +40,10 @@ protected:
    mutable bool use_tensor_products;   ///< Tensor product evaluation mode
    mutable Vector d_buffer;            ///< Auxiliary device buffer
 
+   /// Auxiliary method called by Mult() when using H(div)-conforming space
+   void MultHDiv(const Vector &e_vec, unsigned eval_flags,
+                 Vector &q_val, Vector &q_div) const;
+
 public:
    static const int MAX_NQ2D = 100;
    static const int MAX_ND2D = 100;
@@ -56,7 +61,15 @@ public:
           this flag can be used to compute and store their determinants. This
           flag can only be used in Mult(). */
       DETERMINANTS = 1 << 2,
-      PHYSICAL_DERIVATIVES = 1 << 3 ///< Evaluate the physical derivatives
+      PHYSICAL_DERIVATIVES = 1 << 3, ///< Evaluate the physical derivatives
+      /** Evaluate the values in physical space; for fields with
+          FiniteElement::MapType other than FiniteElement::MapType::VALUE,
+          such as H(div) and H(curl) elements, the physical values are different
+          from the reference values. */
+      PHYSICAL_VALUES = 1 << 4,
+      /** For vector-valued fields, evaluate the magnitudes of the physical
+          space vector values at quadrature points. */
+      PHYSICAL_MAGNITUDES = 1 << 5
    };
 
    QuadratureInterpolator(const FiniteElementSpace &fes,
@@ -104,6 +117,17 @@ public:
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det.
 
+       For Integral spaces, the flags VALUES requests the computation of the
+       scalar field values. The result is stored in @a q_val. Derivative types
+       are not supported.
+
+       For H(div)-conforming spaces, the flags VALUES / PHYSICAL_VALUES request
+       the computation of the vector field values in reference or physical
+       space, respectively. The flag PHYSICAL_MAGNITUDES requests the
+       computation of the physical space magnitudes. In all 3 cases, the result
+       is stored in @a q_val and therefore only one of the 3 cases can be
+       requested in a single call.
+
        The layout of the input E-vector, @a e_vec, must be consistent with the
        evaluation mode: if tensor-product evaluations are enabled, then
        tensor-product elements, must use the ElementDofOrdering::LEXICOGRAPHIC
@@ -114,6 +138,10 @@ public:
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
+
+   /// @brief Interpolate the physical values of the E-vector @a e_vec at
+   /// quadrature points.
+   void PhysValues(const Vector &e_vec, Vector &q_val) const;
 
    /** @brief Interpolate the derivatives (with respect to reference
        coordinates) of the E-vector @a e_vec at quadrature points. */
@@ -130,6 +158,140 @@ public:
    /// Perform the transpose operation of Mult(). (TODO)
    void MultTranspose(unsigned eval_flags, const Vector &q_val,
                       const Vector &q_der, Vector &e_vec) const;
+
+   /// @brief Returns true if the given finite element space is supported by
+   /// QuadratureInterpolator.
+   static bool SupportsFESpace(const FiniteElementSpace &fespace);
+
+   // value map types
+   using TensorEvalKernelType = void (*)(const int ne, const real_t *B,
+                                         const real_t *e_vec, real_t *q_val,
+                                         const int vdim, const int nd,
+                                         const int nq);
+   using GradKernelType = void (*)(const int ne, const real_t *B,
+                                   const real_t *G, const real_t *J,
+                                   const real_t *e_vec, real_t *q_der,
+                                   const int s_dim, const int v_dim,
+                                   const int nd, const int nq);
+   using CollocatedGradKernelType = void (*)(const int ne, const real_t *G,
+                                             const real_t *J,
+                                             const real_t *e_vec, real_t *q_der,
+                                             const int sdim, const int vdim,
+                                             const int d1d);
+   using DetKernelType = void (*)(const int NE, const real_t *B,
+                                  const real_t *G, const real_t *e_vec,
+                                  real_t *q_det, const int nd, const int nq,
+                                  Vector *d_buffer);
+   using EvalKernelType = void (*)(const int NE, const int vdim,
+                                   const QVectorLayout q_layout,
+                                   const GeometricFactors *geom,
+                                   const DofToQuad &maps, const Vector &e_vec,
+                                   Vector &q_val, Vector &q_der, Vector &q_det,
+                                   const int eval_flags);
+
+   // integral map types
+   using IntTensorEvalKernelType = void (*)(const int ne, const real_t *B,
+                                            const real_t *detJ,
+                                            const real_t *e_vec, real_t *q_val,
+                                            const int vdim, const int nd,
+                                            const int nq);
+   using IntEvalKernelType =
+      void (*)(const int NE, const int vdim, const QVectorLayout q_layout,
+               const real_t *detJ, const GeometricFactors *geom,
+               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+               Vector &q_der, Vector &q_det, const int eval_flags);
+
+   using TensorEvalHDivKernelType =
+      void(*)(const int, const real_t *, const real_t *, const real_t *,
+              const real_t *, real_t *, const int, const int);
+
+   // value-type mapping
+   MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
+                         (int, QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(GradKernels, GradKernelType,
+                         (int, QVectorLayout, bool, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(DetKernels, DetKernelType, (int, int, int, int));
+   MFEM_REGISTER_KERNELS(EvalKernels, EvalKernelType, (int, int, int, int));
+   MFEM_REGISTER_KERNELS(CollocatedGradKernels, CollocatedGradKernelType,
+                         (int, QVectorLayout, bool, int, int), (int));
+
+   // integral-type mapping
+   MFEM_REGISTER_KERNELS(IntTensorEvalKernels, IntTensorEvalKernelType,
+                         (int, QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(IntEvalKernels, IntEvalKernelType, (int, int, int, int));
+
+   MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
+                         (int, QVectorLayout, unsigned, int, int));
+
+   /// Adds specializations for TensorEvalKernels
+   template <int DIM, QVectorLayout Q_LAYOUT, int VDIM, int D1D, int Q1D,
+             int NBZ = 0>
+   static void AddTensorEvalSpecializations()
+   {
+      if constexpr (NBZ)
+      {
+         IntTensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                              Q1D>::template Opt<NBZ>::Add();
+         TensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                           Q1D>::template Opt<NBZ>::Add();
+      }
+      else if constexpr (NBZ == 0)
+      {
+         IntTensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                              Q1D>::Add();
+         TensorEvalKernels::Specialization<DIM, Q_LAYOUT, VDIM, D1D,
+                           Q1D>::Add();
+      }
+   }
+
+   /// Adds specializations for EvalKernels
+   template <int DIM, int VDIM, int ND, int NQ>
+   static void AddEvalSpecializations()
+   {
+      IntEvalKernels::Specialization<DIM, VDIM, ND, NQ>::Add();
+      EvalKernels::Specialization<DIM, VDIM, ND, NQ>::Add();
+   }
+
+   /// Adds specializations for GradKernels
+   template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+             int Q1D, int NBZ = 0>
+   static void AddGradSpecializations()
+   {
+      if constexpr (NBZ)
+      {
+         GradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM, D1D,
+                     Q1D>::template Opt<NBZ>::Add();
+      }
+      else if constexpr (NBZ == 0)
+      {
+         GradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM, D1D,
+                     Q1D>::Add();
+      }
+   }
+
+   /// Adds specializations for CollocatedGradKernels
+   template <int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
+             int NBZ = 0>
+   static void AddCollocatedGradSpecializations()
+   {
+      if constexpr (NBZ)
+      {
+         CollocatedGradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM,
+                               D1D>::template Opt<NBZ>::Add();
+      }
+      else if constexpr (NBZ == 0)
+      {
+         CollocatedGradKernels::Specialization<DIM, Q_LAYOUT, GRAD_PHYS, VDIM,
+                               D1D>::Add();
+      }
+   }
+
+   /// Adds specializations for DetKernels
+   template <int DIM, int SDIM, int D1D, int Q1D>
+   static void AddDetSpecializations()
+   {
+      DetKernels::Specialization<DIM, SDIM, D1D, Q1D>::Add();
+   }
 };
 
 }

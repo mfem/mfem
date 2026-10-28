@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -52,7 +52,7 @@ public:
    ~STRUMPACKRowLocMatrix();
 
    /// Matrix vector products are not supported for this type of matrix.
-   void Mult(const Vector &x, Vector &y) const
+   void Mult(const Vector &x, Vector &y) const override
    {
       MFEM_ABORT("STRUMPACKRowLocMatrix::Mult: Matrix vector products are not "
                  "supported!");
@@ -96,19 +96,20 @@ public:
    virtual ~STRUMPACKSolverBase();
 
    /// Factor and solve the linear system $y = Op^{-1} x $.
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 
    /** @brief Factor and solve the linear systems $ Y_i = Op^{-1} X_i $
        across the array of vectors. */
-   void ArrayMult(const Array<const Vector *> &X, Array<Vector *> &Y) const;
+   void ArrayMult(const Array<const Vector *> &X,
+                  Array<Vector *> &Y) const override;
 
    /** @brief Set the operator/matrix.
        \note  @a A must be a STRUMPACKRowLocMatrix. */
-   void SetOperator(const Operator &op);
+   void SetOperator(const Operator &op) override;
 
    /** @brief Set options that were captured from the command line.
 
-       These were captured in the constructer STRUMPACKSolverBase. Refer
+       These were captured in the constructor STRUMPACKSolverBase. Refer
        to the STRUMPACK documentation for details. */
    void SetFromCommandLine();
 
@@ -118,7 +119,7 @@ public:
    /// Set up verbose printing during the solve step
    void SetPrintSolveStatistics(bool print_stat);
 
-   /// Set the relative tolerance for interative solvers
+   /// Set the relative tolerance for iterative solvers
    void SetRelTol(double rtol);
 
    /// Set the absolute tolerance for iterative solvers
@@ -230,7 +231,7 @@ public:
     *  - LOSSY:          Lossy compression
     *
     * For versions of STRUMPACK < 5, we support only NONE, HSS, and BLR.
-    * BLR_HODLR and ZPR_BLR_HODLR are supported in STRUMPACK >= 6.
+    * BLR_HODLR and ZFP_BLR_HODLR are supported in STRUMPACK >= 6.
     */
    void SetCompression(strumpack::CompressionType type);
 

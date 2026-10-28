@@ -26,7 +26,7 @@
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               discontinuous Galerkin (DG) finite element discretization of
-//               the Laplace problem -Delta u = 1 with homogeneous Dirichlet
+//               the Poisson problem -Delta u = 1 with homogeneous Dirichlet
 //               boundary conditions. Finite element spaces of any order,
 //               including zero on regular grids, are supported. The example
 //               highlights the use of discontinuous spaces and DG-specific face
@@ -53,7 +53,7 @@ public:
       pmesh(pmesh_),
       pgf(pgf_) {}
 
-   void MonitorSolution(int i, real_t norm, const Vector &x, bool final)
+   void MonitorSolution(int i, real_t norm, const Vector &x, bool final) override
    {
       char vishost[] = "localhost";
       int  visport   = 19916;

@@ -1,7 +1,9 @@
 //                       MFEM Example 9 - Parallel Version
 //                             SUNDIALS Modification
 //
-// Compile with: make ex9p
+// Compile with:
+//    make ex9p             (GNU make)
+//    make sundials_ex9p    (CMake)
 //
 // Sample runs:
 //    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -p 1 -rp 1 -s 7 -dt 0.0025
@@ -141,7 +143,7 @@ public:
         linear_solver(M.GetComm()),
         dt(-1.0)
    {
-      int block_size = fes.GetFE(0)->GetDof();
+      int block_size = fes.GetTypicalFE()->GetDof();
       if (prec_type == PrecType::ILU)
       {
          prec = new BlockILU(block_size,
