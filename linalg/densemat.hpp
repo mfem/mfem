@@ -1576,11 +1576,41 @@ public:
    /// Set every entry in every layer to @a c.
    DenseMatrixStack &operator=(real_t c);
 
-   /** @brief Replace this stack with an independent deep copy of @a other.
+   /** @brief Replace this stack with a deep copy of @a other.
 
-       Existing owned storage is released and all existing data views and
-       pointers are invalidated. */
-   DenseMatrixStack &operator=(const DenseMatrixStack &other);
+       Existing matrix views and raw pointers are invalidated. When this stack
+       views an external buffer with sufficient capacity, the copied entries
+       are stored in that buffer and the stack remains non-owning. */
+   DenseMatrixStack &operator=(const DenseMatrixStack &other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = other.tdata;
+      tsize = other.tsize;
+      off = other.off;
+      ni = other.ni;
+      nj = other.nj;
+      nk = other.nk;
+      return *this;
+   }
+
+   DenseMatrixStack &operator=(DenseMatrixStack &&other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = std::move(other.tdata);
+      tsize = other.tsize;
+      off = std::move(other.off);
+      ni = std::move(other.ni);
+      nj = std::move(other.nj);
+      nk = other.nk;
+
+      // Reset other; its Array<T> members are reset by move assignment.
+      other.Mk.ClearExternalData();
+      other.tsize = other.nk = 0;
+
+      return *this;
+   }
 
    /** @brief Return a non-owning view of layer @a k.
 
@@ -1702,7 +1732,12 @@ public:
        External data are not deleted. All matrix views and raw pointers
        obtained from this stack are invalidated. */
    void Clear()
-   { UseExternalData(NULL, 0, 0, 0); }
+   {
+      UseExternalData(NULL, 0, 0, 0);
+      off.DeleteAll();
+      ni.DeleteAll();
+      nj.DeleteAll();
+   }
 
    /// Return the capacity of the data and dimension arrays, in bytes.
    std::size_t MemoryUsage() const
@@ -1765,11 +1800,12 @@ public:
       return tdata.HostReadWrite();
    }
 
-   /** @brief Exchange the data, dimensions, and reusable matrix views with @a t.
+   /** @brief Exchange the data and dimensions with @a t.
 
-       Data pointers and matrix views previously obtained from either stack
-       refer to the same allocation after the exchange, which is then owned or
-       referenced by the other stack. */
+       Cached views returned by operator()(int) are cleared. Data pointers and
+       views stored in caller-provided DenseMatrix objects continue to refer to
+       the same allocation, which is then owned or referenced by the other
+       stack. */
    void Swap(DenseMatrixStack &t)
    {
       mfem::Swap(*this, t);

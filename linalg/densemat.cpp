@@ -4477,16 +4477,6 @@ DenseMatrixStack &DenseMatrixStack::operator=(real_t c)
    return *this;
 }
 
-DenseMatrixStack &DenseMatrixStack::operator=(const DenseMatrixStack &other)
-{
-   if (this != &other)
-   {
-      DenseMatrixStack copy(other);
-      Swap(copy);
-   }
-   return *this;
-}
-
 void DenseMatrixStack::InitOffset()
 {
    off.SetSize(nk);
