@@ -809,6 +809,69 @@ TEST_CASE("Uniform pyramid refinement transfer", "[Transfer][Pyramid]")
    REQUIRE(coarse_x.Normlinf() == Approx(0.0).margin(1e-12));
 }
 
+TEST_CASE("L2 projection transfer with mixed pyramid children",
+          "[Transfer][Pyramid]")
+{
+   dimension = 3;
+   coeff_order = 1;
+   const int pyr_type = GENERATE(0, 1);
+   const bool continuous = GENERATE(false, true);
+   const bool use_ea = GENERATE(false, true);
+   CAPTURE(pyr_type, continuous, use_ea);
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (continuous)
+   {
+      fec.reset(new H1_FECollection(2, dimension, BasisType::GaussLobatto,
+                                    pyr_type));
+   }
+   else
+   {
+      fec.reset(new L2_FECollection(2, dimension, BasisType::GaussLegendre,
+                                    FiniteElement::VALUE, pyr_type));
+   }
+
+   Mesh coarse_mesh("../../data/ref-pyramid.mesh");
+   Mesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   FiniteElementSpace coarse_fes(&coarse_mesh, fec.get());
+   FiniteElementSpace fine_fes(&fine_mesh, fec.get());
+   FunctionCoefficient func_coeff(&coeff);
+   ConstantCoefficient constant_coeff(1.0);
+   Coefficient *test_coeff = continuous ?
+                             static_cast<Coefficient*>(&constant_coeff) :
+                             static_cast<Coefficient*>(&func_coeff);
+
+   GridFunction coarse_x(&coarse_fes);
+   GridFunction fine_x(&fine_fes);
+   GridFunction fine_exact(&fine_fes);
+   GridFunction coarse_recovered(&coarse_fes);
+   GridFunction coarse_exact(&coarse_fes);
+   GridFunction coarse_transpose(&coarse_fes);
+   GridFunction fine_transpose(&fine_fes);
+   coarse_x.ProjectCoefficient(*test_coeff);
+   fine_exact.ProjectCoefficient(*test_coeff);
+   coarse_exact.ProjectCoefficient(*test_coeff);
+
+   L2ProjectionGridTransfer transfer(coarse_fes, fine_fes);
+   transfer.UseEA(use_ea);
+   const Operator &forward = transfer.ForwardOperator();
+   forward.Mult(coarse_x, fine_x);
+   forward.MultTranspose(fine_exact, coarse_transpose);
+   REQUIRE(InnerProduct(fine_x, fine_exact) ==
+           Approx(InnerProduct(coarse_x, coarse_transpose)).epsilon(1e-11));
+   fine_x -= fine_exact;
+   REQUIRE(fine_x.Normlinf() == Approx(0.0).margin(1e-11));
+
+   const Operator &backward = transfer.BackwardOperator();
+   backward.Mult(fine_exact, coarse_recovered);
+   backward.MultTranspose(coarse_exact, fine_transpose);
+   REQUIRE(InnerProduct(coarse_recovered, coarse_exact) ==
+           Approx(InnerProduct(fine_exact, fine_transpose)).epsilon(1e-11));
+   coarse_recovered -= coarse_exact;
+   REQUIRE(coarse_recovered.Normlinf() == Approx(0.0).margin(1e-11));
+}
+
 TEST_CASE("Uniform refinement uses active parent geometries", "[Transfer]")
 {
    QuadraticFECollection fec;
