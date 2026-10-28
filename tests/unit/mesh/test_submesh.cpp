@@ -936,7 +936,7 @@ TEST_CASE("Non-Contiguous SubMesh", "[SubMesh]")
 
    // Edge elements (shared vertices and edges)
    Array<int> attr2(1); attr2 = 2;
-   Mesh submesh2 = SubMesh::CreateFromDomain(mesh, attr2);
+   SubMesh submesh2 = SubMesh::CreateFromDomain(mesh, attr2);
 
    REQUIRE(submesh2.GetNV() == 56);
    REQUIRE(submesh2.GetNE() == 12);
