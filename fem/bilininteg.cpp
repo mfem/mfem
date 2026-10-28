@@ -1172,7 +1172,7 @@ void DiffusionIntegrator::AssembleElementVector(
 
 void DiffusionIntegrator::ComputeElementFlux
 ( const FiniteElement &el, ElementTransformation &Trans,
-  Vector &u, const FiniteElement &fluxelem, Vector &flux, bool with_flux,
+  Vector &u, const FiniteElement &fluxelem, Vector &flux, bool with_coef,
   const IntegrationRule *ir)
 {
    int nd, spaceDim, fnd;
@@ -1225,7 +1225,7 @@ void DiffusionIntegrator::ComputeElementFlux
       CalcInverse(Trans.Jacobian(), invdfdx);
       invdfdx.MultTranspose(vec, vecdxt);
 
-      if (with_flux)
+      if (with_coef)
       {
          if (!MQ && !VQ)
          {
@@ -2331,7 +2331,7 @@ void CurlCurlIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
 void CurlCurlIntegrator
 ::ComputeElementFlux(const FiniteElement &el, ElementTransformation &Trans,
                      Vector &u, const FiniteElement &fluxelem, Vector &flux,
-                     bool with_flux, const IntegrationRule *ir)
+                     bool with_coef, const IntegrationRule *ir)
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix projcurl;
@@ -3308,7 +3308,7 @@ void ElasticityIntegrator::AssembleElementMatrix(
 void ElasticityIntegrator::ComputeElementFlux(
    const mfem::FiniteElement &el, ElementTransformation &Trans,
    Vector &u, const mfem::FiniteElement &fluxelem, Vector &flux,
-   bool with_flux, const IntegrationRule *ir)
+   bool with_coef, const IntegrationRule *ir)
 {
    const int dof = el.GetDof();
    const int dim = el.GetDim();

@@ -1916,7 +1916,7 @@ real_t ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         Vector &error_estimates,
                         Array<int> *aniso_flags = NULL,
                         int with_subdomains = 1,
-                        bool with_flux = false);
+                        bool with_coeff = false);
 
 /// Defines the global tensor product polynomial space used by NewZZErorrEstimator
 /**

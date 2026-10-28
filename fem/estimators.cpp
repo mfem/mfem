@@ -25,7 +25,7 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    total_error = ZZErrorEstimator(integ, solution, flux, error_estimates,
                                   anisotropic ? &aniso_flags : NULL,
                                   flux_averaging,
-                                  with_flux);
+                                  with_coeff);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
 }
@@ -36,7 +36,7 @@ void LSZienkiewiczZhuEstimator::ComputeEstimates()
                                     solution,
                                     error_estimates,
                                     subdomain_reconstruction,
-                                    with_flux,
+                                    with_coeff,
                                     tichonov_coeff);
 
    current_sequence = solution.FESpace()->GetMesh()->GetSequence();
@@ -61,17 +61,60 @@ void L2ZienkiewiczZhuEstimator::ComputeEstimates()
 
 #endif // MFEM_USE_MPI
 
+namespace
+{
+
+/// Maximal polynomial degree of the two elements sharing the face.
+int MaxOrderOnFace(const FiniteElementSpace &fes,
+                   const FaceElementTransformations &FT)
+{
+   auto order = [&fes](const int e)
+   {
+#ifdef MFEM_USE_MPI
+      if (e >= fes.GetNE())
+      {
+         auto &pfes = static_cast<const ParFiniteElementSpace&>(fes);
+         return pfes.GetFaceNbrFE(e - fes.GetNE())->GetOrder();
+      }
+#endif // MFEM_USE_MPI
+      return fes.GetFE(e)->GetOrder();
+   };
+   return std::max(order(FT.Elem1No), order(FT.Elem2No));
+}
+
+/// Maximal distance between the vertices of @a T.
+real_t VertexDiameter(ElementTransformation &T)
+{
+   const IntegrationRule *vertices =
+      Geometries.GetVertices(T.GetGeometryType());
+   Vector p1(T.GetSpaceDim());
+   Vector p2(T.GetSpaceDim());
+   real_t diameter = 0.0;
+   for (int i = 0; i < vertices->GetNPoints(); i++)
+   {
+      T.Transform(vertices->IntPoint(i), p1);
+      for (int j = i+1; j < vertices->GetNPoints(); j++)
+      {
+         T.Transform(vertices->IntPoint(j), p2);
+         diameter = std::max(diameter, p2.DistanceTo(p1));
+      }
+   }
+   return diameter;
+}
+
+} // anonymous namespace
+
 KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace& flux_fespace_,
                                          const Array<int> &attributes_,
-                                         bool with_flux_)
+                                         bool with_coeff_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(&flux_fespace_)
    , own_flux_fespace(false)
-   , with_flux(with_flux_)
+   , with_coeff(with_coeff_)
 #ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
 #endif // MFEM_USE_MPI
@@ -83,13 +126,13 @@ KellyErrorEstimator::KellyErrorEstimator(BilinearFormIntegrator& di_,
                                          GridFunction& sol_,
                                          FiniteElementSpace* flux_fespace_,
                                          const Array<int> &attributes_,
-                                         bool with_flux_)
+                                         bool with_coeff_)
    : attributes(attributes_)
    , flux_integrator(&di_)
    , solution(&sol_)
    , flux_space(flux_fespace_)
    , own_flux_fespace(true)
-   , with_flux(with_flux_)
+   , with_coeff(with_coeff_)
 #ifdef MFEM_USE_MPI
    , isParallel(dynamic_cast<ParFiniteElementSpace*>(sol_.FESpace()))
 #endif // MFEM_USE_MPI
@@ -112,8 +155,9 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
       return 1.0;
    };
 
-   compute_face_coefficient = [](Mesh* mesh, const int f,
-                                 const bool shared_face)
+   const GridFunction *sol = solution;
+   compute_face_coefficient = [sol](Mesh* mesh, const int f,
+                                    const bool shared_face)
    {
       auto FT = [&]()
       {
@@ -125,34 +169,12 @@ void KellyErrorEstimator::ResetCoefficientFunctions()
 #endif // MFEM_USE_MPI
          return mesh->GetFaceElementTransformations(f);
       }();
-      const auto order = FT->GetFE()->GetOrder();
 
-      // Poor man's face diameter.
-      real_t diameter = 0.0;
-
-      Vector p1(mesh->SpaceDimension());
-      Vector p2(mesh->SpaceDimension());
-      // NOTE: We have no direct access to vertices for shared faces,
-      // so we fall back to compute the positions from the element.
-      // This can also be modified to compute the diameter for non-linear
-      // geometries by sampling along geometry-specific lines.
-      auto vtx_intrule = Geometries.GetVertices(FT->GetGeometryType());
-      const auto nip = vtx_intrule->GetNPoints();
-      for (int i = 0; i < nip; i++)
-      {
-         // Evaluate flux vector at integration point
-         auto fip1 = vtx_intrule->IntPoint(i);
-         FT->Transform(fip1, p1);
-
-         for (int j = i+1; j < nip; j++)
-         {
-            auto fip2 = vtx_intrule->IntPoint(j);
-            FT->Transform(fip2, p2);
-
-            diameter = std::max(diameter, p2.DistanceTo(p1));
-         }
-      }
-      return diameter/(2.0*order);
+      const real_t diameter = mesh->Dimension() == 1
+                              ? std::max(VertexDiameter(*FT->Elem1),
+                                         VertexDiameter(*FT->Elem2))
+                              : VertexDiameter(*FT);
+      return diameter/(2.0*MaxOrderOnFace(*sol->FESpace(), *FT));
    };
 }
 
@@ -211,106 +233,93 @@ void KellyErrorEstimator::ComputeEstimates()
 
       ElementTransformation* Transf = xfes->GetElementTransformation(e);
       flux_integrator->ComputeElementFlux(*xfes->GetFE(e), *Transf, el_x,
-                                          *flux_space->GetFE(e), el_f, with_flux);
+                                          *flux_space->GetFE(e), el_f,
+                                          with_coeff);
 
       flux_space->GetElementVDofs(e, fdofs);
       flux->AddElementVector(fdofs, el_f);
    }
 
    // 2. Add error contribution from local interior faces
-   IntegrationPoint ip;
+   const int dim = mesh->Dimension();
+   const int sdim = mesh->SpaceDimension();
    Vector val(flux_space->GetVDim());
-   Vector normal(mesh->SpaceDimension());
-   Vector ref_normal(mesh->Dimension());
-   for (int fi = 0; fi < mesh->GetNumFaces(); fi++)
+   Vector normal(sdim);
+   Vector ref_normal(dim);
+   // Computes ∫ ((flux₁ - flux₂) ⋅ n)² dS with the unit normal n.
+   auto face_jump_integral = [&](FaceElementTransformations &FT)
    {
-      if (mesh->FaceIsInterior(fi))
+      const IntegrationRule &ir =
+         IntRules.Get(FT.GetGeometryType(), 2*MaxOrderOnFace(*xfes, FT));
+      real_t jump_integral = 0.0;
+      for (int i = 0; i < ir.GetNPoints(); i++)
       {
-         // Compute NC and face information
-         int FaceElement1, FaceElement2, NCFace;
-         mesh->GetFaceInfos(fi, &FaceElement1, &FaceElement2, &NCFace);
-         mesh->GetFaceElements(fi, &FaceElement1, &FaceElement2);
+         const IntegrationPoint &fip = ir.IntPoint(i);
+         FT.SetAllIntPoints(&fip);
 
-         // We skip over master faces
-         bool isNCSlave    = FaceElement2 >= 0 && NCFace >= 0;
-         bool isConforming = FaceElement2 >= 0 && NCFace == -1;
-         if (isConforming || isNCSlave)
+         if (dim == 1 && sdim == 1)
          {
-            if (attributes.Size() &&
-                (attributes.FindSorted(mesh->GetAttribute(FaceElement1)) == -1
-                 || attributes.FindSorted(mesh->GetAttribute(FaceElement2)) == -1))
-            {
-               continue;
-            }
-
-            // Computation of the transformations is not super cheap, so we delay it until here. All ops above are cheaper lookups.
-            auto FT = mesh->GetFaceElementTransformations(fi);
-
-            // TODO Refactor this computation into a user-facing function.
-            auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(fi));
-            const auto nip = int_rule.GetNPoints();
-
-            real_t jump_integral = 0.0;
-
-            // Integral over local half face on the side of e₁
-            // i.e. the numerical integration of ∫ flux ⋅ n dS₁
-            for (int i = 0; i < nip; i++)
-            {
-               // Set up integration point
-               auto &fip = int_rule.IntPoint(i);
-               FT->Face->SetIntPoint(&fip);
-
-               // Compute normal - note that the normals match at each face integration point up to the sign!
-               if (mesh->Dimension() == mesh->SpaceDimension())
-               {
-                  // This computes a weighted normal, so we divide by the weight to get back the normal.
-                  CalcOrtho(FT->Face->Jacobian(), normal);
-                  normal /= FT->Face->Weight();
-               }
-               else
-               {
-                  // This computes a weighted normal, so we divide by the weight to get back the normal.
-                  FT->Loc1.Transf.SetIntPoint(&fip);
-                  FT->Loc1.Transform(fip, ip);
-                  CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
-                  ref_normal /= FT->Face->Weight();
-                  auto &e1 = FT->GetElement1Transformation();
-                  e1.SetIntPoint(&ip);
-                  e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
-                  // We have to cancel the additional weighting from the
-                  // reference to spatial transformation in the line above.
-                  normal /= e1.Weight();
-               }
-
-               // Evaluate flux jump at IP on element 1
-               FT->Loc1.Transf.SetIntPoint(&fip);
-               FT->Loc1.Transform(fip, ip);
-               flux->GetVectorValue(FT->Elem1No, ip, val);
-               real_t jump = val * normal;
-
-               // Evaluate flux jump at IP on element 2
-               FT->Loc2.Transf.SetIntPoint(&fip);
-               FT->Loc2.Transform(fip, ip);
-               flux->GetVectorValue(FT->Elem2No, ip, val);
-               jump -= val * normal;
-
-               // Finalize integral
-               jump_integral += jump*jump*fip.weight * FT->Face->Weight();
-            }
-
-            // A local face is shared between two local elements, so we
-            // can get away with integrating the jump only once and add
-            // it to both elements. To minimize communication, the jump
-            // of shared faces is computed locally by each process.
-            auto h_k_face = compute_face_coefficient(mesh, fi, false);
-            error_estimates(FT->Elem1No) += h_k_face*jump_integral;
-            error_estimates(FT->Elem2No) += h_k_face*jump_integral;
+            normal(0) = 1.0;
          }
+         else if (dim == sdim)
+         {
+            CalcOrtho(FT.Jacobian(), normal);
+            normal /= FT.Weight();
+         }
+         else
+         {
+            // Map the reference normal of element 1 to physical space. For
+            // the non-square Jacobian J the adjugate is det(JᵀJ) J⁺.
+            if (dim == 1)
+            {
+               ref_normal(0) = 2.0*FT.GetElement1IntPoint().x - 1.0;
+            }
+            else
+            {
+               FT.Loc1.Transf.SetIntPoint(&fip);
+               CalcOrtho(FT.Loc1.Transf.Jacobian(), ref_normal);
+               ref_normal /= FT.Weight();
+            }
+            ElementTransformation &T1 = FT.GetElement1Transformation();
+            T1.AdjugateJacobian().MultTranspose(ref_normal, normal);
+            normal /= T1.Weight();
+         }
+
+         flux->GetVectorValue(FT.Elem1No, FT.GetElement1IntPoint(), val);
+         real_t jump = val * normal;
+         flux->GetVectorValue(FT.Elem2No, FT.GetElement2IntPoint(), val);
+         jump -= val * normal;
+
+         jump_integral += jump*jump*fip.weight*FT.Weight();
       }
-      else     // We area t a boundary face
+      return jump_integral;
+   };
+
+   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   {
+      // Boundary faces are ignored. Nonconforming master faces are not
+      // interior either, as they are integrated via their slave faces.
+      if (!mesh->FaceIsInterior(f)) { continue; }
+
+      int e1, e2;
+      mesh->GetFaceElements(f, &e1, &e2);
+      if (attributes.Size() &&
+          (attributes.FindSorted(mesh->GetAttribute(e1)) == -1
+           || attributes.FindSorted(mesh->GetAttribute(e2)) == -1))
       {
-         // TODO implement boundary flux difference
+         continue;
       }
+
+      const real_t jump_integral =
+         face_jump_integral(*mesh->GetFaceElementTransformations(f));
+
+      // A local face is shared between two local elements, so we
+      // can get away with integrating the jump only once and add
+      // it to both elements. To minimize communication, the jump
+      // of shared faces is computed locally by each process.
+      const real_t h_k_face = compute_face_coefficient(mesh, f, false);
+      error_estimates(e1) += h_k_face*jump_integral;
+      error_estimates(e2) += h_k_face*jump_integral;
    }
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
@@ -345,10 +354,9 @@ void KellyErrorEstimator::ComputeEstimates()
 
    pflux->ExchangeFaceNbrData();
 
-   for (int sfi = 0; sfi < pmesh->GetNSharedFaces(); sfi++)
+   for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
    {
-      auto FT = pmesh->GetSharedFaceTransformations(sfi, true);
-
+      auto FT = pmesh->GetSharedFaceTransformations(sf, true);
       if (attributes.Size() &&
           (attributes.FindSorted(FT->Elem1->Attribute) == -1
            || attributes.FindSorted(FT->Elem2->Attribute) == -1))
@@ -356,62 +364,12 @@ void KellyErrorEstimator::ComputeEstimates()
          continue;
       }
 
-      // TODO Refactor this computation into a user-facing function.
-      const int lfi = pmesh->GetSharedFace(sfi);
-      auto &int_rule = IntRules.Get(FT->FaceGeom, 2 * xfes->GetFaceOrder(lfi));
-      const auto nip = int_rule.GetNPoints();
+      const int e1 = FT->Elem1No;
+      const real_t jump_integral = face_jump_integral(*FT);
 
-      real_t jump_integral = 0.0;
-
-      // Integral over local half face on the side of e₁
-      // i.e. the numerical integration of ∫ flux ⋅ n dS₁
-      for (int i = 0; i < nip; i++)
-      {
-         // Set up integration point
-         auto &fip = int_rule.IntPoint(i);
-         FT->Face->SetIntPoint(&fip);
-
-         // Compute normal - note that the normals match at each face integration point up to the sign!
-         if (mesh->Dimension() == mesh->SpaceDimension())
-         {
-            // This computes a weighted normal, so we divide by the weight to get back the normal.
-            CalcOrtho(FT->Face->Jacobian(), normal);
-            normal /= FT->Face->Weight();
-         }
-         else
-         {
-            // This computes a weighted normal, so we divide by the weight to get back the normal.
-            FT->Loc1.Transf.SetIntPoint(&fip);
-            FT->Loc1.Transform(fip, ip);
-            CalcOrtho(FT->Loc1.Transf.Jacobian(), ref_normal);
-            ref_normal /= FT->Face->Weight();
-            auto &e1 = FT->GetElement1Transformation();
-            e1.SetIntPoint(&ip);
-            e1.AdjugateJacobian().MultTranspose(ref_normal, normal);
-            // We have to cancel the additional weighting from the
-            // reference to spatial transformation in the line above.
-            normal /= e1.Weight();
-         }
-
-         // Evaluate flux jump at IP on element 1
-         FT->Loc1.Transf.SetIntPoint(&fip);
-         FT->Loc1.Transform(fip, ip);
-         flux->GetVectorValue(FT->Elem1No, ip, val);
-         real_t jump = val * normal;
-
-         // Evaluate flux jump at IP on element 2
-         FT->Loc2.Transf.SetIntPoint(&fip);
-         FT->Loc2.Transform(fip, ip);
-         flux->GetVectorValue(FT->Elem2No, ip, val);
-         jump -= val * normal;
-
-         // Finalize integral
-         jump_integral += jump*jump*fip.weight * FT->Face->Weight();
-      }
-
-      auto h_k_face = compute_face_coefficient(mesh, sfi, true);
-      error_estimates(FT->Elem1No) += h_k_face*jump_integral;
-      // We skip "error_estimates(FT->Elem2No) += h_k_face*jump_integral"
+      const real_t h_k_face = compute_face_coefficient(mesh, sf, true);
+      error_estimates(e1) += h_k_face*jump_integral;
+      // We skip "error_estimates(FT->Elem2No) += jump_integral"
       // because the error is stored on the remote process and
       // recomputed there.
    }
