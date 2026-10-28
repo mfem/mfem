@@ -785,7 +785,8 @@ TEST_CASE("DenseMatrixStack move operations", "[DenseMatrix][DenseMatrixStack]")
    REQUIRE(assigned(0, 1, 1) == 13.0);
 }
 
-TEST_CASE("DenseMatrixStack external Memory alias", "[DenseMatrix][DenseMatrixStack]")
+TEST_CASE("DenseMatrixStack external Memory alias",
+          "[DenseMatrix][DenseMatrixStack]")
 {
    Array<int> ni{1, 2};
    Array<int> nj{2, 1};
