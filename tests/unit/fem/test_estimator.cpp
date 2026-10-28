@@ -368,7 +368,102 @@ TEST_CASE("ZZ estimator refreshes after p-refinement", "[NCMesh]")
    REQUIRE(std::abs(fresh - cached) < 1e-12);
 }
 
+TEST_CASE("LSZZ estimator refreshes after p-refinement", "[NCMesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace solution_fes(&mesh, &fec);
+   GridFunction solution(&solution_fes);
+   FunctionCoefficient exact(testhelper::SinXSinY);
+   solution.ProjectCoefficient(exact);
+
+   DiffusionIntegrator integrator;
+   LSZienkiewiczZhuEstimator estimator(integrator, solution);
+   estimator.GetLocalErrors();
+   const real_t before = estimator.GetTotalError();
+   const long mesh_sequence = mesh.GetSequence();
+
+   Array<pRefinement> refinements(1);
+   refinements[0].index = 0;
+   refinements[0].delta = 1;
+   solution_fes.PRefineAndUpdate(refinements);
+   solution.Update();
+   solution.ProjectCoefficient(exact);
+   REQUIRE(mesh.GetSequence() == mesh_sequence);
+
+   const Vector cached_errors(estimator.GetLocalErrors());
+   LSZienkiewiczZhuEstimator fresh_estimator(integrator, solution);
+   const Vector fresh_errors(fresh_estimator.GetLocalErrors());
+   REQUIRE(std::abs(fresh_estimator.GetTotalError() - before) > 1e-12);
+   REQUIRE(estimator.GetTotalError() ==
+           MFEM_Approx(fresh_estimator.GetTotalError()));
+   REQUIRE(cached_errors.Size() == fresh_errors.Size());
+   for (int i = 0; i < cached_errors.Size(); i++)
+   {
+      REQUIRE(cached_errors(i) == MFEM_Approx(fresh_errors(i)));
+   }
+}
+
 #ifdef MFEM_USE_MPI
+
+TEST_CASE("L2ZZ estimator refreshes after p-refinement", "[NCMesh][Parallel]")
+{
+   Mesh serial_mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   serial_mesh.EnsureNCMesh();
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   H1_FECollection solution_fec(2, mesh.Dimension());
+   L2_FECollection flux_fec(0, mesh.Dimension());
+   H1_FECollection smooth_flux_fec(1, mesh.Dimension());
+   ParFiniteElementSpace solution_fes(&mesh, &solution_fec);
+   ParFiniteElementSpace flux_fes(&mesh, &flux_fec, mesh.SpaceDimension());
+   ParFiniteElementSpace smooth_flux_fes(&mesh, &smooth_flux_fec,
+                                       mesh.SpaceDimension());
+   ParGridFunction solution(&solution_fes);
+   FunctionCoefficient exact(testhelper::SinXSinY);
+   solution.ProjectCoefficient(exact);
+   DiffusionIntegrator integrator;
+   L2ZienkiewiczZhuEstimator estimator(integrator, solution, flux_fes,
+                                     smooth_flux_fes);
+   estimator.GetLocalErrors();
+   const real_t before = estimator.GetTotalError();
+   const long mesh_sequence = mesh.GetSequence();
+   Array<pRefinement> refinements(mesh.GetNE() > 0 ? 1 : 0);
+   if (refinements.Size() > 0)
+   {
+      refinements[0].index = 0;
+      refinements[0].delta = 1;
+   }
+
+   SECTION("Solution space")
+   {
+      solution_fes.PRefineAndUpdate(refinements);
+      solution.Update();
+      solution.ProjectCoefficient(exact);
+   }
+   SECTION("Discontinuous flux space")
+   {
+      flux_fes.PRefineAndUpdate(refinements);
+   }
+   SECTION("Smoothed flux space")
+   {
+      smooth_flux_fes.PRefineAndUpdate(refinements);
+   }
+   REQUIRE(mesh.GetSequence() == mesh_sequence);
+
+   const Vector cached_errors(estimator.GetLocalErrors());
+   L2ZienkiewiczZhuEstimator fresh_estimator(integrator, solution, flux_fes,
+                                           smooth_flux_fes);
+   const Vector fresh_errors(fresh_estimator.GetLocalErrors());
+   REQUIRE(std::abs(fresh_estimator.GetTotalError() - before) > 1e-12);
+   REQUIRE(estimator.GetTotalError() ==
+           MFEM_Approx(fresh_estimator.GetTotalError()));
+   REQUIRE(cached_errors.Size() == fresh_errors.Size());
+   for (int i = 0; i < cached_errors.Size(); i++)
+   {
+      REQUIRE(cached_errors(i) == MFEM_Approx(fresh_errors(i)));
+   }
+}
 
 TEST_CASE("Kelly Error Estimator on 2D NCMesh",
           "[NCMesh], [Parallel]")

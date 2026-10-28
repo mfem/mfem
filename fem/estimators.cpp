@@ -27,7 +27,7 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
                                   flux_averaging,
                                   with_coeff);
 
-   current_solution_sequence = solution.FESpace()->GetSequence();
+   current_sequence = solution.FESpace()->GetSequence();
    current_flux_sequence = flux_space->GetSequence();
 }
 

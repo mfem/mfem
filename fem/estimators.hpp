@@ -88,7 +88,8 @@ public:
 class ZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
 {
 protected:
-   long current_solution_sequence;
+   /// Sequence of the solution finite element space, including p-refinement.
+   long current_sequence;
    long current_flux_sequence;
    Vector error_estimates;
    real_t total_error;
@@ -109,9 +110,9 @@ protected:
    {
       long solution_sequence = solution.FESpace()->GetSequence();
       long flux_sequence = flux_space->GetSequence();
-      MFEM_ASSERT(solution_sequence >= current_solution_sequence, "");
+      MFEM_ASSERT(solution_sequence >= current_sequence, "");
       MFEM_ASSERT(flux_sequence >= current_flux_sequence, "");
-      return (solution_sequence > current_solution_sequence ||
+      return (solution_sequence > current_sequence ||
               flux_sequence > current_flux_sequence);
    }
 
@@ -128,7 +129,7 @@ public:
                        needed.*/
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace *flux_fes)
-      : current_solution_sequence(-1),
+      : current_sequence(-1),
         current_flux_sequence(-1),
         total_error(),
         anisotropic(false),
@@ -149,7 +150,7 @@ public:
                        when needed. */
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace &flux_fes)
-      : current_solution_sequence(-1),
+      : current_sequence(-1),
         current_flux_sequence(-1),
         total_error(),
         anisotropic(false),
@@ -199,7 +200,7 @@ public:
    /// Reset the error estimator.
    void Reset() override
    {
-      current_solution_sequence = -1;
+      current_sequence = -1;
       current_flux_sequence = -1;
    }
 
@@ -251,6 +252,7 @@ public:
 class LSZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
+   /// Sequence of the solution finite element space, including p-refinement.
    long current_sequence;
    Vector error_estimates;
    real_t total_error;
@@ -338,6 +340,7 @@ public:
 class L2ZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
+   /// Sequence of the solution finite element space, including p-refinement.
    long current_sequence;
    long current_flux_sequence;
    long current_smooth_flux_sequence;
