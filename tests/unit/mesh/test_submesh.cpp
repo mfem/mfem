@@ -1010,7 +1010,7 @@ TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
    Array<int> attr13(2); attr13[0] = 1; attr13[1] = 3;
    SubMesh submesh13 = SubMesh::CreateFromDomain(mesh, attr13);
 
-   // 3D checkerboard pattern excluding corners
+   // Checkerboard pattern excluding corners
    Array<int> attr24(dim-1); attr24[0] = 2;
    if (dim == 3) { attr24[1] = 4; }
    SubMesh submesh24 = SubMesh::CreateFromDomain(mesh, attr24);
