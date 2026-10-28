@@ -867,7 +867,8 @@ DerivativeActionLO::Fallback(int dim, int q1d)
    using DerivativeActionLO =
       typename derivative_action_t::DerivativeActionLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchLOKernelByDim<DerivativeActionLO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFLOBackendMQ1();
+   return LocalQFFallbackKernel<DerivativeActionLO, QFDIM, MQ1>(dim, q1d);
 }
 
 // High Order kernels
@@ -901,7 +902,8 @@ DerivativeActionHO::Fallback(int dim, int q1d)
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeActionHO = typename derivative_action_t::DerivativeActionHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchHOKernelByDim<DerivativeActionHO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFHOBackendMQ1();
+   return LocalQFFallbackKernel<DerivativeActionHO, QFDIM, MQ1>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

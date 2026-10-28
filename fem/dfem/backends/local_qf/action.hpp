@@ -582,27 +582,29 @@ public:
       nullptr);
    }
    using KernelType = decltype(&Action::action_callback<>);
-   MFEM_REGISTER_KERNELS_HEADER_ONLY(ActionLO, KernelType, (int, int) );
+   // ActionLO kernels are keyed by (dim, tile), with the optional number of
+   // z-threads of the 3D LOOP_Z layout, 0 (the default) to not use it
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(ActionLO, KernelType, (int, int), (int));
    MFEM_REGISTER_KERNELS_HEADER_ONLY(ActionHO, KernelType, (int, int) );
 };
 
-// Low Order kernels
+// Low Order kernels, with the 3D LOOP_Z layout when ZTHREADS > 0
 template<typename qfunc_t, typename inputs_t, typename outputs_t>
-template<int DIM, int Q1D>
+template<int DIM, int Q1D, int ZTHREADS>
 inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
 Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
    static_assert(Q1D <= LocalQFLOBackend<DIM>::MQ1);
+   // Only the input side has LOOP_Z contractions: the outputs have to be
+   // written at the quadrature points
+   static_assert(ZTHREADS == 0 ||
+                 (DIM == 3 && ZTHREADS < Q1D &&
+                  action_outputs_direct_value_v<qfunc_t, inputs_t, outputs_t>),
+                 "LOOP_Z needs a 3D action with direct-value outputs and "
+                 "ZTHREADS < Q1D");
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   if constexpr (DIM == 3 && Q1D == LocalQFLOBackendMQ1() &&
-                 action_outputs_direct_value_v<qfunc_t, inputs_t, outputs_t>)
-   {
-      return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D, Q1D / 2>>;
-   }
-   else
-   {
-      return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D>>;
-   }
+   return action_t::template action_callback<
+             LocalQFLOBackend<DIM, Q1D, ZTHREADS>>;
 }
 
 // Low Order fallback
@@ -613,7 +615,9 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    using ActionLO = typename action_t::ActionLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchLOKernelByDim<ActionLO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFLOBackendMQ1();
+   // Without LOOP_Z (ZTHREADS = 0)
+   return LocalQFFallbackKernel<ActionLO, QFDIM, MQ1, 0>(dim, q1d);
 }
 
 // High Order kernels
@@ -634,7 +638,8 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int q1d)
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    using ActionHO = typename action_t::ActionHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchHOKernelByDim<ActionHO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFHOBackendMQ1();
+   return LocalQFFallbackKernel<ActionHO, QFDIM, MQ1>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

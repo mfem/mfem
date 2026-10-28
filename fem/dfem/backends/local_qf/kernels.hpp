@@ -74,4 +74,41 @@ extern template struct LocalQFHOBackend<3, 10>;
 extern template struct LocalQFHOBackend<3, 12>;
 extern template struct LocalQFHOBackend<3, 16>;
 
+// ────────────────────────────────────────────────────────────────────────────
+/// @brief Fallback kernel of a LocalQF kernel table, used for every tile that
+/// was not registered (see AddLocalSpecializations in prelude.hpp).
+///
+/// The fallback is the kernel built at the largest tile, @a MQ1, which runs
+/// every smaller tile, so a single kernel per dimension is compiled with each
+/// q-function.
+///
+/// QFDIM is deduced at compile-time from the q-function signature.
+/// If it is not possible to deduce the dimension (QFDIM=0), we fallback
+/// to runtime dispatching, which means we emit both 2D and 3D kernels.
+/// @a OPT are the optional kernel parameters of the table, if any (e.g. the
+/// ActionLO ZTHREADS, which selects the LOOP_Z layout).
+template <typename KernelTable, int QFDIM, int MQ1, int... OPT>
+inline typename KernelTable::KernelSignature
+LocalQFFallbackKernel(int dim, int tile)
+{
+   if constexpr (QFDIM == 2 || QFDIM == 3)
+   {
+      MFEM_VERIFY(dim == QFDIM,
+                  "mesh dimension " << dim << " does not match the " << QFDIM
+                  << "D q-function signature this integrator was built from");
+   }
+   MFEM_VERIFY(dim == 2 || dim == 3, "Unsupported dimension " << dim);
+   MFEM_VERIFY(tile >= 2 && tile <= MQ1,
+               "Unsupported quadrature tile: " << tile);
+   if constexpr (QFDIM == 2 || QFDIM == 3)
+   {
+      return KernelTable::template Kernel<QFDIM, MQ1, OPT...>();
+   }
+   else
+   {
+      return dim == 2 ? KernelTable::template Kernel<2, MQ1, OPT...>()
+         : KernelTable::template Kernel<3, MQ1, OPT...>();
+   }
+}
+
 } // namespace mfem::future

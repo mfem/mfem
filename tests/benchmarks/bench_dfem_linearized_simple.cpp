@@ -173,14 +173,20 @@ Timings RunBackendCase(const int order, const int mesh_n, const int warmup,
    };
    const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
+   using qf_t = typename DiffusionQF<DIM, QFBackend>::type;
+   using inputs_t = Inputs<Gradient<U>, Gradient<Coords>, Weight>;
+   using outputs_t = Outputs<Gradient<U>>;
    DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
-   typename DiffusionQF<DIM, QFBackend>::type mf_apply_qf;
+   qf_t mf_apply_qf;
    dop_mf.AddDomainIntegrator<QFBackend>(
-      mf_apply_qf,
-      Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
-      Outputs<Gradient<U>> {},
-      *ir, all_domain_attr,
+      mf_apply_qf, inputs_t{}, outputs_t{}, *ir, all_domain_attr,
       Derivatives<U> {});
+   if constexpr (std::is_same_v<QFBackend, LocalQFBackend>)
+   {
+      // Only the action and the direct derivative action run here
+      AddAllLocalSpecializations<DIM, qf_t, inputs_t, outputs_t,
+                                 Derivatives<U>, DerivativeKernels::Action>();
+   }
 
    Vector xtvec(pfes.GetTrueVSize()), ztvec(pfes.GetTrueVSize());
    xtvec.Randomize(567);

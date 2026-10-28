@@ -535,7 +535,9 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
    using DerivativeAssembleDiagonalLO =
       typename diag_t::DerivativeAssembleDiagonalLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchLOKernelByDim<DerivativeAssembleDiagonalLO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFLOBackendMQ1();
+   return LocalQFFallbackKernel<DerivativeAssembleDiagonalLO, QFDIM, MQ1>(dim,
+                                                                          q1d);
 }
 
 template<int derivative_id,
@@ -573,7 +575,9 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
    using DerivativeAssembleDiagonalHO =
       typename diag_t::DerivativeAssembleDiagonalHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchHOKernelByDim<DerivativeAssembleDiagonalHO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFHOBackendMQ1();
+   return LocalQFFallbackKernel<DerivativeAssembleDiagonalHO, QFDIM, MQ1>(dim,
+                                                                          q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

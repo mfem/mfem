@@ -671,12 +671,14 @@ struct lo_ker_backend
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int T_DIM, int T_Q1D = LocalQFLOBackendMQ1(), int T_ZTHREADS = T_Q1D>
+/// T_ZTHREADS > 0 selects the 3D LOOP_Z layout, with fewer z-threads than
+/// T_Q1D; 0 (the default) gives one z-thread per layer.
+template<int T_DIM, int T_Q1D = LocalQFLOBackendMQ1(), int T_ZTHREADS = 0>
 struct LocalQFLOBackend
 {
    // ─────────────────────────────────────────────────────
    static constexpr int DIM = T_DIM, MQ1 = T_Q1D, Q1D = T_Q1D;
-   static constexpr int ZTHREADS = T_ZTHREADS;
+   static constexpr int ZTHREADS = T_ZTHREADS > 0 ? T_ZTHREADS : T_Q1D;
    static_assert(DIM == 2 || DIM == 3);
    static_assert(ZTHREADS > 0 && ZTHREADS <= Q1D);
 
@@ -1088,90 +1090,5 @@ struct LocalQFLOBackend
          s, e, d, q, B, G, YE, rarg);
    }
 };
-
-/// @brief Dispatch to a compile-time LO kernel matching runtime @a q1d.
-template <typename LOKernelTable, int DIM, int MQ1 = LocalQFLOBackendMQ1()>
-inline typename LOKernelTable::KernelSignature
-DispatchLOKernelByQ1D(int q1d)
-{
-   MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
-               "Unsupported LO quadrature order: " << q1d);
-   switch (q1d)
-   {
-      case 2: return LOKernelTable::template Kernel<DIM, 2>();
-      case 3:
-         if constexpr (MQ1 >= 3)
-         {
-            return LOKernelTable::template Kernel<DIM, 3>();
-         }
-         break;
-      case 4:
-         if constexpr (MQ1 >= 4)
-         {
-            return LOKernelTable::template Kernel<DIM, 4>();
-         }
-         break;
-      case 5:
-         if constexpr (MQ1 >= 5)
-         {
-            return LOKernelTable::template Kernel<DIM, 5>();
-         }
-         break;
-      case 6:
-         if constexpr (MQ1 >= 6)
-         {
-            return LOKernelTable::template Kernel<DIM, 6>();
-         }
-         break;
-      case 7:
-         if constexpr (MQ1 >= 7)
-         {
-            return LOKernelTable::template Kernel<DIM, 7>();
-         }
-         break;
-      case 8:
-         if constexpr (MQ1 >= 8)
-         {
-            return LOKernelTable::template Kernel<DIM, 8>();
-         }
-         break;
-      default: return nullptr;
-   }
-   return nullptr;
-}
-
-/// @brief Select the compile-time LO kernel for runtime @a dim.
-///
-/// QFDIM is deduced at compile-time from the q-function signature.
-/// If it is not possible to deduce the dimension (QFDIM=0), we fallback
-/// to the original runtime dispatching, which means we emit both 2D and 3D
-/// branches.
-template <typename LOKernelTable, int QFDIM, int MQ1 = LocalQFLOBackendMQ1()>
-inline typename LOKernelTable::KernelSignature
-DispatchLOKernelByDim(int dim, int q1d)
-{
-   if constexpr (QFDIM == 2 || QFDIM == 3)
-   {
-      MFEM_VERIFY(dim == QFDIM,
-                  "mesh dimension " << dim << " does not match the " << QFDIM
-                  << "D q-function signature this integrator was built from");
-      return DispatchLOKernelByQ1D<LOKernelTable, QFDIM, MQ1>(q1d);
-   }
-   else
-   {
-      // Couldn't deduce the dimension from the q-function signature,
-      // we fall back to original runtime dispatching.
-      if (dim == 2)
-      {
-         return DispatchLOKernelByQ1D<LOKernelTable, 2, MQ1>(q1d);
-      }
-      if (dim == 3)
-      {
-         return DispatchLOKernelByQ1D<LOKernelTable, 3, MQ1>(q1d);
-      }
-      MFEM_ABORT("Unsupported dimension " << dim);
-      return nullptr;
-   }
-}
 
 } // namespace mfem::future

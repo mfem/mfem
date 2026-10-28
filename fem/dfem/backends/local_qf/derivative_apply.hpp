@@ -573,7 +573,8 @@ DerivativeApplyLO::Fallback(int dim, int q1d)
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeApplyLO = typename apply_t::DerivativeApplyLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchLOKernelByDim<DerivativeApplyLO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFLOBackendMQ1();
+   return LocalQFFallbackKernel<DerivativeApplyLO, QFDIM, MQ1>(dim, q1d);
 }
 
 template<int derivative_id,
@@ -603,7 +604,8 @@ DerivativeApplyHO::Fallback(int dim, int q1d)
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeApplyHO = typename apply_t::DerivativeApplyHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   return DispatchHOKernelByDim<DerivativeApplyHO, QFDIM>(dim, q1d);
+   constexpr int MQ1 = LocalQFHOBackendMQ1();
+   return LocalQFFallbackKernel<DerivativeApplyHO, QFDIM, MQ1>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

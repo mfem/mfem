@@ -580,6 +580,10 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
 
 // ────────────────────────────────────────────────────────────────────────────
 // Assemble sparse Jacobian from cached quadrature derivatives (tensor 2D/3D)
+/// Largest tile of the 3D derivative assembly kernels (2D goes up to the HO
+/// default, LocalQFHOBackendMQ1)
+inline constexpr int LocalQFAssembleMQ1_3D() { return 8; }
+
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
@@ -1048,10 +1052,15 @@ DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeAssembleHO::Kernel()
 {
    static_assert(DIM == 2 || DIM == 3);
+   static_assert(DIM == 2 || Q1D <= LocalQFAssembleMQ1_3D(),
+                 "3D assembly is capped at LocalQFAssembleMQ1_3D()");
+   // Assembly only has HO kernels: tiles up to the LO range run the HO kernel
+   // built at the largest LO tile
+   constexpr int MQ1 = std::max(Q1D, LocalQFLOBackendMQ1());
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return assemble_t::template derivative_assemble_callback<
-             LocalQFHOBackend<DIM, Q1D>>;
+             LocalQFHOBackend<DIM, MQ1>>;
 }
 
 template<int derivative_id,
@@ -1067,33 +1076,20 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeAssembleHO = typename assemble_t::DerivativeAssembleHO;
-   // We don't route thru DispatchHOKernelByDim() as for other callbacks
-   // since this kernel caps 3D at MQ1 = 8 but leaves 2D on the default.
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   if constexpr (QFDIM == 2)
+   constexpr int MQ1_2D = LocalQFHOBackendMQ1();
+   constexpr int MQ1_3D = LocalQFAssembleMQ1_3D();
+   if constexpr (QFDIM == 2 || QFDIM == 3)
    {
-      MFEM_VERIFY(dim == 2, "mesh dimension " << dim << " does not match the "
-                  "2D q-function signature this integrator was built from");
-      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);
-   }
-   else if constexpr (QFDIM == 3)
-   {
-      MFEM_VERIFY(dim == 3, "mesh dimension " << dim << " does not match the "
-                  "3D q-function signature this integrator was built from");
-      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
+      constexpr int MQ1 = QFDIM == 2 ? MQ1_2D : MQ1_3D;
+      return LocalQFFallbackKernel<DerivativeAssembleHO, QFDIM, MQ1>(dim, q1d);
    }
    else
    {
-      if (dim == 2)
-      {
-         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);
-      }
-      if (dim == 3)
-      {
-         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
-      }
-      MFEM_ABORT("Unsupported dimension " << dim);
-      return nullptr;
+      MFEM_VERIFY(dim == 2 || dim == 3, "Unsupported dimension " << dim);
+      return dim == 2
+             ? LocalQFFallbackKernel<DerivativeAssembleHO, 2, MQ1_2D>(dim, q1d)
+             : LocalQFFallbackKernel<DerivativeAssembleHO, 3, MQ1_3D>(dim, q1d);
    }
 }
 

@@ -681,14 +681,7 @@ struct BPL
                                       Identity<Rho0DetJ0W>{},
                                       Weight{}};
       const auto local_outputs = tuple{Identity<StressTensor>{}};
-      AddLaghosLocalSpecializations<2>(local_inputs, local_outputs);
-      AddLaghosLocalSpecializations<3>(local_inputs, local_outputs);
-      AddLaghosLocalSpecializations<4>(local_inputs, local_outputs);
-      AddLaghosLocalSpecializations<5>(local_inputs, local_outputs);
-      AddLaghosLocalSpecializations<6>(local_inputs, local_outputs);
-      AddLaghosLocalSpecializations<7>(local_inputs, local_outputs);
-      AddLaghosLocalSpecializations<8>(local_inputs, local_outputs);
-      AddLaghosLocalSpecializations<9>(local_inputs, local_outputs);
+      AddLaghosLocalSpecializations(local_inputs, local_outputs);
 
       local_dop.SetQLayouts({}, {{Identity<StressTensor>{}, {2,1,0}}});
       local_dop.AddDomainIntegrator<LocalQFBackend>(
@@ -696,11 +689,13 @@ struct BPL
          future::Derivatives<Energy> {});
    }
 
-   template<int Q1D, typename IT, typename OT>
+   template<typename IT, typename OT>
    void AddLaghosLocalSpecializations(const IT &, const OT &)
    {
-      future::AddLocalSpecializations<DIM, Q1D, LocalQF, IT, OT,
-             future::Derivatives<Energy>>();
+      // Only the action and the direct derivative action run here
+      future::AddAllLocalSpecializations<DIM, LocalQF, IT, OT,
+             future::Derivatives<Energy>,
+             future::DerivativeKernels::Action>();
    }
 
    void SetupDerivativeState()
