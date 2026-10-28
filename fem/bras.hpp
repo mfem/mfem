@@ -240,13 +240,24 @@ protected:
    /// y = A_W x = P_L^T D_W P_L x, for T-vectors.
    void ApplyAW(const Vector &x, Vector &y) const;
 
+public:
+   /// @name Internal methods
+   /// Public only because they contain mfem::forall kernels: CUDA does not
+   /// allow extended lambdas in private or protected member functions.
+   ///@{
+
    /// x = q_k(A_W) b on the free DOFs, the Chebyshev approximation of
    /// A_W^{-1} b; x is zero on the essential DOFs.
    void ApplyChebyshev(const Vector &b, Vector &x) const;
 
-   /// Apply the NCMethod::LEFT_INVERSE and NCMethod::CHEBYSHEV methods on the
-   /// free DOFs; y is zero on the essential DOFs.
+   /// Apply the NCMethod::LEFT_INVERSE method on the free DOFs; y is zero on
+   /// the essential DOFs.
    void MultLeftInverse(const Vector &x, Vector &y) const;
+   ///@}
+
+protected:
+   /// Apply the NCMethod::CHEBYSHEV method on the free DOFs; y is zero on the
+   /// essential DOFs.
    void MultChebyshev(const Vector &x, Vector &y) const;
 
    /// Return the local matrix R_E^T (W M_br^{-1} W) R_E on the L-DOFs, owned
