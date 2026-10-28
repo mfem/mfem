@@ -61,7 +61,7 @@ run bench_elasticity --benchmark_filter='[[][123]/10/[01][]]$'
 # TMOP kernels: orders 1 and 2, with and without the p == q optimization.
 run bench_tmop --benchmark_filter='[[][01]/[12][]]$'
 
-# CEED bake-off kernels, on hexahedra and tetrahedra: smallest mesh (16 cells
-# per direction), orders 1 to 3. The bake-off problems of this suite are not
-# included: their PCG solves are too slow to run inside the CPU simulator.
+# CEED bake-off kernels, on hexahedra: smallest mesh (16 cells per direction),
+# orders 1 to 3. The bake-off problems of this suite are not included: their PCG
+# solves are too slow to run inside the CPU simulator.
 run bench_ceed --benchmark_filter='BK[0-9][[]BK.*[[][123]/16[]]$'
