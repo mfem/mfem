@@ -1030,6 +1030,7 @@ TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
 
    // Create a target field on the full domain
    GridFunction gf1(&fes);
+   gf1 = 0.0;
 
    // Transfer both portions and compare to original field
    SubMesh::Transfer(gf13, gf1);
