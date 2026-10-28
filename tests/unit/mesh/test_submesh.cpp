@@ -913,7 +913,29 @@ TEST_CASE("ExteriorSurfaceNCSubMesh", "[SubMesh]")
    }
 }
 
-TEST_CASE("Non-Contiguous SubMesh", "[SubMesh]")
+// 3x3 (dim == 2) or 3x3x3 (dim == 3) checkerboard; element attribute =
+// 1 + (x%2) + (y%2) + (z%2) in the x-fastest Cartesian ordering (z = 0 in
+// 2D). sfc_ordering = false is required: the default true reorders elements
+// along a space-filling curve, and the attribute loop assumes x-fastest
+// ordering. A parallel version of this test can reuse this helper via
+// ParMesh(Mpi::World(), CheckerboardMesh(dim)); when that lands, move it to
+// mesh_test_utils with the other mesh helpers.
+static Mesh CheckerboardMesh(int dim)
+{
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL,
+                                     false, 1.0, 1.0, false) :
+               Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON,
+                                     1.0, 1.0, 1.0, false);
+   for (int el = 0; el < mesh.GetNE(); el++)
+   {
+      int x = el % 3;
+      int y = (el / 3) % 3;
+      int z = el / 9;
+      mesh.GetElement(el)->SetAttribute(1 + (x % 2) + (y % 2) + (z % 2));
+   }
+   return mesh;
+}
 {
    std::string mesh_file = "../../data/checker-3d.mesh";
 
