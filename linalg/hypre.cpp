@@ -242,6 +242,8 @@ HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
       y.CreateCompatibleVector())
 {
    // Deep copy the local data
+   y.HypreRead();
+   HypreWrite();
    hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
                        hypre_ParVectorLocalVector(x));
 }
@@ -438,12 +440,19 @@ void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
 {
+   HypreWrite();
    return hypre_ParVectorSetRandomValues(x,seed);
 }
 
 void HypreParVector::Print(const std::string &fname) const
 {
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+   hypre_VectorData(x_loc) = const_cast<real_t*>(HostRead());
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_HOST;
+#endif
    hypre_ParVectorPrint(x, fname.c_str());
+   HypreRead();
 }
 
 void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
@@ -469,11 +478,15 @@ HypreParVector::~HypreParVector()
 
 real_t InnerProduct(HypreParVector *x, HypreParVector *y)
 {
+   x->HypreRead();
+   y->HypreRead();
    return hypre_ParVectorInnerProd(*x, *y);
 }
 
 real_t InnerProduct(HypreParVector &x, HypreParVector &y)
 {
+   x.HypreRead();
+   y.HypreRead();
    return hypre_ParVectorInnerProd(x, y);
 }
 
@@ -2412,8 +2425,20 @@ void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
    Array<HYPRE_Int> rc_sorted;
    get_sorted_rows_cols(rows_cols, rc_sorted);
 
+   HostReadWrite();
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x.x);
+   hypre_Vector *b_loc = hypre_ParVectorLocalVector(b.x);
+   hypre_VectorData(x_loc) = const_cast<real_t*>(x.HostRead());
+   hypre_VectorData(b_loc) = b.HostReadWrite();
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_HOST;
+   hypre_VectorMemoryLocation(b_loc) = HYPRE_MEMORY_HOST;
+#endif
    internal::hypre_ParCSRMatrixEliminateAXB(
       A, rc_sorted.Size(), rc_sorted.GetData(), x, b);
+   HypreRead();
+   x.HypreRead();
+   b.HypreRead();
 }
 
 HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
@@ -2760,6 +2785,7 @@ void HypreParMatrix::PrintCommPkg(std::ostream &os) const
 
 void HypreParMatrix::PrintHash(std::ostream &os) const
 {
+   HostRead();
    HashFunction hf;
 
    os << "global number of rows    : " << A->global_num_rows << '\n'
@@ -2822,6 +2848,7 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
 
    hf.AppendInts(A->col_map_offd, A->offd->num_cols);
    os << "col map offd hash : " << hf.GetHash() << '\n';
+   HypreRead();
 }
 
 real_t HypreParMatrix::FNorm() const
@@ -5522,6 +5549,8 @@ void HypreBoomerAMG::RecomputeRBMs()
    // Transfer the RBMs from the ParGridFunction to the HYPRE_ParVector objects
    for (int i = 0; i < nrbms; i++)
    {
+      // Prepare the current values in hypre's memory space before handoff.
+      gf_rbms[i]->HypreRead();
       rbms[i] = gf_rbms[i]->StealParVector();
       delete gf_rbms[i];
    }
@@ -5730,6 +5759,9 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
    int cycle_type = 13;
    MakeSolver(sdim, cycle_type);
 
+   x->HypreRead();
+   y->HypreRead();
+   if (z) { z->HypreRead(); }
    HYPRE_ParVector pz = z ? static_cast<HYPRE_ParVector>(*z) : NULL;
    HYPRE_AMSSetCoordinateVectors(ams, *x, *y, pz);
    HYPRE_AMSSetDiscreteGradient(ams, *G);
@@ -6135,6 +6167,9 @@ HypreADS::HypreADS(
 
    MakeSolver();
 
+   x->HypreRead();
+   y->HypreRead();
+   z->HypreRead();
    HYPRE_ADSSetCoordinateVectors(ads, *x, *y, *z);
    HYPRE_ADSSetDiscreteCurl(ads, *C);
    HYPRE_ADSSetDiscreteGradient(ads, *G);
@@ -6732,6 +6767,13 @@ HypreLOBPCG::Solve()
 
    eigenvalues.SetSize(nev);
    eigenvalues = NAN;
+
+   // Initial-vector assignment and subspace projection may update host data.
+   // LOBPCG also modifies these vectors, so invalidate their host copies.
+   for (int i = 0; i < nev; i++)
+   {
+      multi_vec->GetVector(i).HypreReadWrite();
+   }
 
    // Perform eigenmode calculation
    //
