@@ -748,9 +748,14 @@ TEST_CASE("Non-Contiguous ParSubMesh Transfers", "[Parallel],[SubMesh]")
    const auto fec_type = GENERATE(FECType::H1, FECType::ND,
                                   FECType::RT, FECType::L2);
 
-   // Construct and distribute the checkerboard parent mesh. Scale the mesh
-   // with the number of ranks so every rank owns elements in both submeshes.
-   Mesh serial_mesh = CheckerboardMesh(dim, std::max(3, Mpi::WorldSize()));
+   // Construct and distribute the checkerboard parent mesh. Use the smallest
+   // side length of at least three that is divisible by the rank count. This
+   // prevents round-robin element ownership from aliasing with checkerboard
+   // parity in the usual complementary submesh split (in particular, with
+   // two ranks).
+   const int num_ranks = Mpi::WorldSize();
+   const int side_length = num_ranks * ((3 + num_ranks - 1) / num_ranks);
+   Mesh serial_mesh = CheckerboardMesh(dim, side_length);
    Array<int> partitioning(serial_mesh.GetNE());
    for (int el = 0; el < partitioning.Size(); el++)
    {
@@ -770,6 +775,11 @@ TEST_CASE("Non-Contiguous ParSubMesh Transfers", "[Parallel],[SubMesh]")
    attr24[0] = 2;
    if (dim == 3) { attr24[1] = 4; }
    ParSubMesh submesh24 = ParSubMesh::CreateFromDomain(mesh, attr24);
+   // Verify that every rank owns elements in both portions of the usual
+   // checkerboard split. This avoids a rank-local transfer test that never
+   // has to communicate data from one of its submeshes.
+   REQUIRE(submesh13.GetNE() > 0);
+   REQUIRE(submesh24.GetNE() > 0);
 
    // Project a field onto the full domain
    FiniteElementCollection *fec = create_fec(fec_type, order, dim);
