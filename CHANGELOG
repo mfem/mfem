@@ -29,6 +29,10 @@ Linear and nonlinear solvers
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
+- Fixed the PETSc wrappers on GPUs when the device memory type is an Umpire
+  one (the default when MFEM is built with Umpire): the vectors given to PETSc
+  were host vectors while the PETSc matrices and preconditioners computed on
+  the device, so that the PETSc solvers returned wrong solutions.
 
 Miscellaneous
 -------------
