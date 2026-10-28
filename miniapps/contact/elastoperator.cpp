@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -109,8 +109,8 @@ void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
    c2_cf.UpdateConstants(c2);
 }
 
-void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f,
-                                               Array<int> & bdr_marker)
+void ElasticityOperator::SetNeumannPressureData(ConstantCoefficient &f,
+                                                Array<int> & bdr_marker)
 {
    pressure_cf.constant = f.constant;
    b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),
