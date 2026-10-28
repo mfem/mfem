@@ -38,7 +38,7 @@ public:
     MultiOperator(int nr, int nc) : Operator(nr,nc) { SetSize(nr, nc); }
     int NumRowBlocks() const { return nrow; }
     int NumColBlocks() const { return ncol; }
-    Operator* GetBlock(int i, int j) const { return ops(i, j); }
+    Operator& GetBlock(int i, int j) const { return *ops(i, j); }
     bool IsZeroBlock(int i, int j) const { return ops(i, j) == nullptr; }
     void SetBlock(int i, int j, Operator* op, bool own = false) { ops(i, j) = op; own_op(i, j) = own; }
     void SetOwnership(bool own){ own_op = own; }
@@ -64,6 +64,161 @@ public:
     }
     ~MultiOperator() { DeleteAll(); }
 };
+
+
+namespace MatrixAlgebra
+{
+inline SparseMatrix *MatMult(const SparseMatrix *A, const SparseMatrix *B)
+{ return Mult(*A, *B); }
+inline SparseMatrix *MatAdd(const SparseMatrix *A, const SparseMatrix *B)
+{ return Add(*A, *B); } // Potentially B.Add(1.0, A) but must have same sparsity pattern
+inline SparseMatrix *MatCopy(const SparseMatrix *A)
+{ return new SparseMatrix(*A); }
+inline SparseMatrix *IdentityMatrix(int n)
+{
+    auto *I = new SparseMatrix(n);
+    for (int i = 0; i < n; i++) { I->Add(i, i, 1.0); }
+    I->Finalize();
+    return I;
+}
+#ifdef MFEM_USE_MPI
+inline HypreParMatrix *MatMult(const HypreParMatrix *A, const HypreParMatrix *B)
+{ return ParMult(A, B, true); }
+inline HypreParMatrix *MatAdd(const HypreParMatrix *A, const HypreParMatrix *B)
+{ return ParAdd(A, B); } // Potentially B.Add(1.0, A) but must have same sparsity pattern
+inline HypreParMatrix *MatCopy(const HypreParMatrix *A)
+{ return new HypreParMatrix(*A); }
+#endif
+
+/// TODO: Update to replace MultiOperator with (updated) BlockOperator
+inline bool IsSameType(const MultiOperator &A)
+{
+    const int nrow = A.NumRowBlocks(), ncol = A.NumColBlocks();
+    MFEM_ASSERT(nrow > 0 && ncol > 0, "MultiOperator has no blocks.");
+    Operator::Type type = A.GetBlock(0, 0).GetType();
+    for (int i = 0; i < nrow; i++)
+    {
+        for (int j = 0; j < ncol; j++)
+        {
+            if (A.IsZeroBlock(i, j)) { continue; }
+            const Operator *op = &A.GetBlock(i, j);
+            if (op->GetType() != type)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/// Returns sum_k c_ik c_kj A(i,k) B(k,j) as a new MatType (nullptr if all zero).
+/// Nonzero blocks must be of type MatType or IdentityOperator; an identity factor
+/// yields a deep copy of the other factor.
+/// TODO: Update to replace MultiOperator with (updated) BlockOperator
+template <typename MatType>
+MatType *BlockInnerProduct(const MultiOperator &A, const MultiOperator &B,
+                           int arow, int bcol)
+{
+    MatType *sum = nullptr;
+    const int i = arow, j = bcol;
+    for (int k = 0; k < A.NumColBlocks(); k++)
+    {
+        if (A.IsZeroBlock(i, k) || B.IsZeroBlock(k, j)) { continue; }
+
+        const Operator &opa = A.GetBlock(i, k), &opb = B.GetBlock(k, j);
+        const bool ida = dynamic_cast<const IdentityOperator*>(&opa); // Check opa->GetType() == Operator::IDENTITY
+        const bool idb = dynamic_cast<const IdentityOperator*>(&opb); // Check opb->GetType() == Operator::IDENTITY
+        auto *a = dynamic_cast<const MatType*>(&opa); // Use static_cast from template type
+        auto *b = dynamic_cast<const MatType*>(&opb); // Use static_cast from template type
+
+        MFEM_VERIFY((a || ida) && (b || idb),
+                    "Blocks A(" << i << "," << k << ") and B(" << k << "," << j
+                    << ") must be IdentityOperators or of the same matrix type.");
+        MFEM_VERIFY(opa.Width() == opb.Height(), "Block size mismatch in A("
+                    << i << "," << k << ") * B(" << k << "," << j << ").");
+
+        MatType *prod = nullptr;
+        if (ida && idb)
+        {
+            if constexpr (std::is_same_v<MatType, SparseMatrix>)
+            {
+                prod = IdentityMatrix(opa.Height());
+                // Alternatively, we could do something like sum.AddDiag(1.0);
+            }
+            else
+            {
+                MFEM_ABORT("Product of two identity blocks requires SparseMatrix.");
+            }
+        }
+        else if (ida) { prod = MatCopy(b); }
+        else if (idb) { prod = MatCopy(a); }
+        else { prod = MatMult(a, b); }
+
+        // *prod *= (A.GetBlockCoef(i, k) * B.GetBlockCoef(k, j)); // for BlockOperator
+        if (sum)
+        {
+            MatType *tmp = MatAdd(sum, prod);
+            delete sum;
+            delete prod;
+            sum = tmp;
+        }
+        else { sum = prod; }
+    }
+    return sum;
+}
+
+/// @brief Computes C = A * B for BlockOperators whose blocks are SparseMatrix
+/// or HypreParMatrix. it takes ownership of the new blocks.
+/// TODO: Update to replace MultiOperator with (updated) BlockOperator
+inline void MatrixMultiply(const MultiOperator &A, const MultiOperator &B,
+                           MultiOperator &C)
+{
+    MFEM_VERIFY(A.NumColBlocks() == B.NumRowBlocks(),
+                "Block dimension mismatch: A has " << A.NumColBlocks()
+                << " column blocks, B has " << B.NumRowBlocks() << " row blocks.");
+    MFEM_VERIFY(A.Width() == B.Height(),
+                "Column offsets of A do not match row offsets of B.");
+    MFEM_VERIFY((IsSameType(A) && IsSameType(B)),
+                "Blocks of A and B must be of the same type (SparseMatrix or HypreParMatrix).");
+
+    C.SetSize(A.NumRowBlocks(), B.NumColBlocks());
+    C.SetOwnership(true); // C takes ownership of the new blocks
+    for (int i = 0; i < A.NumRowBlocks(); i++)
+    {
+        for (int j = 0; j < B.NumColBlocks(); j++)
+        {
+            // Block type comes from the first non-identity factor (sparse if all are identity)
+            const Operator *first = nullptr;
+            bool has_product = false;
+            for (int k = 0; k < A.NumColBlocks() && !first; k++)
+            {
+                if (A.IsZeroBlock(i, k) || B.IsZeroBlock(k, j)) { continue; }
+                has_product = true;
+                const Operator *a = &A.GetBlock(i, k), *b = &B.GetBlock(k, j);
+                if (!dynamic_cast<const IdentityOperator*>(a)) { first = a; }
+                else if (!dynamic_cast<const IdentityOperator*>(b)) { first = b; }
+            }
+            if (!has_product) { continue; } // Zero block in C
+
+            if (!first || dynamic_cast<const SparseMatrix*>(first))
+            {
+                C.SetBlock(i, j, BlockInnerProduct<SparseMatrix>(A, B, i, j));
+            }
+#ifdef MFEM_USE_MPI
+            else if (dynamic_cast<const HypreParMatrix*>(first))
+            {
+                C.SetBlock(i, j, BlockInnerProduct<HypreParMatrix>(A, B, i, j));
+            }
+#endif
+            else
+            {
+                MFEM_ABORT("Block A(" << i << ",*) is neither a SparseMatrix nor a HypreParMatrix.");
+            }
+        }
+    }
+}
+
+}
 
 
 // TODO: Should move these to a util namespace or a util file. 
@@ -464,7 +619,8 @@ public:
     enum class GradientMode
     {
         FINITE_DIFFERENCE = 0,
-        ALGORITHMIC_DIFFERENTIATION = 1
+        ALGORITHMIC_DIFFERENTIATION = 1, // MATRIX-FREE
+        ASSEMBLE = 2 // ASSEMBLE JACOBIAN MATRIX
     };
     GradientMode gradient_mode = GradientMode::ALGORITHMIC_DIFFERENTIATION;
     void SetGradientMode(GradientMode mode) { gradient_mode = mode; }
@@ -612,11 +768,11 @@ protected:
     mutable Array2D<Operator*> J_ops; ///< Per-field Jacobian w.r.t. DAG inputs, owned
 public:
     DualGraph(const DAGraph &primal_dag);
-    ~DualGraph();
+    // ~DualGraph(); // TODO: Implement destructor to delete grad_op and J_ops
     void Assemble() override;
     void UpdateState(const MultiVector &x) override;
 
-    // Returns gradient of J(x0)*x - y w.r.t. x (i.e., J(x0))
+    // Returns gradient of y = J(x0)*x w.r.t. x (i.e., J(x0))
     Operator& GetGradientMV(const MultiVector &x) const override;
 protected:
     /// Executes each operation with BlockOperator as input and output.

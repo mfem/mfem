@@ -650,7 +650,8 @@ Operator& DAGraph::GetGradient(const Vector &x) const
     BlockVectorToMultiVector(xb, xmv);
 
     // TODO: remove the finite difference jacobian option
-    if(gradient_mode == GradientMode::ALGORITHMIC_DIFFERENTIATION)
+    if(gradient_mode == GradientMode::ALGORITHMIC_DIFFERENTIATION ||
+       gradient_mode == GradientMode::ASSEMBLE)
     {
         return GetGradientMV(xmv);
     }
@@ -680,6 +681,11 @@ Operator &DAGraph::GetGradientMV(const MultiVector &x) const
     else
     {
         grad_dag->UpdateState(x);
+    }
+    if(gradient_mode == GradientMode::ASSEMBLE)
+    {
+        MultiVector tmp;
+        return grad_dag->GetGradientMV(tmp);
     }
     return *grad_dag;
 }
@@ -784,7 +790,7 @@ void DualGraph::UpdateState(const MultiVector &x)
     }
 }
 
-Operator& DualGraph::GetGradientMV(const MultiVector &x) const 
+Operator& DualGraph::GetGradientMV(const MultiVector &unused) const
 {
     auto inputs = dag_op->inputs;
     auto outputs = dag_op->outputs;
@@ -897,7 +903,7 @@ void DualGraph::ExecuteOnOperator(bool reverse, int upto_depth) const
                 }
                 if(!yb->IsZeroBlock(iout,icol))
                 {
-                    J_ops(idx,icol) = yb->GetBlock(iout, icol);
+                    J_ops(idx,icol) = &yb->GetBlock(iout, icol); // TODO: Update to return pointer not reference
                 }
                 else
                 {
