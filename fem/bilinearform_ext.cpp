@@ -376,26 +376,35 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
                                              const Array<int> &attributes,
                                              Vector &d)
    {
-      integ.AssembleDiagonalPA(d);
-      if (markers)
+      if (!markers)
       {
-         const int ne = attributes.Size();
-         const int nd = d.Size() / ne;
-         const auto d_attr = Reshape(attributes.Read(), ne);
-         const auto d_m = Reshape(markers->Read(), markers->Size());
-         auto d_d = Reshape(d.ReadWrite(), nd, ne);
-         mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
-         {
-            const int attr = d_attr[e];
-            if (attr <= 0 || d_m[attr - 1] == 0)
-            {
-               for (int i = 0; i < nd; ++i)
-               {
-                  d_d(i, e) = 0.0;
-               }
-            }
-         });
+         integ.AssembleDiagonalPA(d);
+         return;
       }
+      if (attributes.Size() == 0) { return; }
+      // Apply markers to this integrator's contribution, preserving the
+      // diagonal contributions accumulated by earlier integrators.
+      Vector diagonal(d.Size());
+      diagonal.UseDevice(true);
+      diagonal = 0.0;
+      integ.AssembleDiagonalPA(diagonal);
+      const int ne = attributes.Size();
+      const int nd = d.Size() / ne;
+      const auto d_attr = Reshape(attributes.Read(), ne);
+      const auto d_m = Reshape(markers->Read(), markers->Size());
+      const auto d_diagonal = Reshape(diagonal.Read(), nd, ne);
+      auto d_d = Reshape(d.ReadWrite(), nd, ne);
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      {
+         const int attr = d_attr[e];
+         if (attr > 0 && d_m[attr - 1] != 0)
+         {
+            for (int i = 0; i < nd; ++i)
+            {
+               d_d(i, e) += d_diagonal(i, e);
+            }
+         }
+      });
    };
 
    const int iSz = integrators.Size();
@@ -942,7 +951,7 @@ void EABilinearFormExtension::Assemble()
          else
          {
             ea_data_tmp.SetSize(ea_data_bdr.Size());
-            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, false);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
                              *bdr_face_attributes, add);
          }
@@ -991,7 +1000,7 @@ void EABilinearFormExtension::Assemble()
             ea_data_tmp.SetSize(ea_data_bdr.Size());
             bdr_face_integs[i]->AssembleEABoundaryFaces(*a->FESpace(),
                                                         ea_data_tmp,
-                                                        add);
+                                                        false);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
                              *bdr_face_attributes, add);
          }
