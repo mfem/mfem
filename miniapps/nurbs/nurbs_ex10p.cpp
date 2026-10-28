@@ -264,9 +264,9 @@ int main(int argc, char *argv[])
    //    parallel degrees of freedom, with offsets given by array true_offset.
    FiniteElementCollection *fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
-   if (pmesh->NURBSext)
+   if (pmesh->IsNURBS())
    {
-      NURBSext = new NURBSExtension(pmesh->NURBSext, order);
+      NURBSext = new NURBSExtension(pmesh->NURBSExt(), order);
       fec = new NURBSFECollection(order);
       if (myid == 0) { cout << "Using NURBS FEs: " << fec->Name() << endl; }
    }
