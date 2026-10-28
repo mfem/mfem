@@ -65,3 +65,7 @@ run bench_tmop --benchmark_filter='[[][01]/[12][]]$'
 # orders 1 to 3. The bake-off problems of this suite are not included: their PCG
 # solves are too slow to run inside the CPU simulator.
 run bench_ceed --benchmark_filter='BK[0-9][[]BK.*[[][123]/16[]]$'
+
+# Vector convection nonlinear form kernels, in 2D and 3D: smallest mesh (8 cells
+# per direction), orders 1 to 3.
+run bench_nlvc --benchmark_filter='[[][123]/8[]]$'
