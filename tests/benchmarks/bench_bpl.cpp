@@ -696,6 +696,11 @@ struct BPL
       future::AddAllLocalSpecializations<DIM, LocalQF, IT, OT,
              future::Derivatives<Energy>,
              future::DerivativeKernels::Action>();
+      if constexpr (DIM == 3)
+      {
+         // LOOP_Z action at tile 8: 4 z-threads with 2 qz layers each
+         future::AddAction<DIM, 8, LocalQF, IT, OT, 4>();
+      }
    }
 
    void SetupDerivativeState()

@@ -197,9 +197,74 @@ pull_directional(Reg &preg, Reg &sreg, int qx, int qy, int qz, bool dependent)
 } // namespace lok
 
 // ────────────────────────────────────────────────────────────────────────────
-/// LO tensor-product kernels
+/// LO tensor-product kernels for the LOOP_Z layout: 3D blocks with fewer
+/// z-threads than quadrature layers, where each thread handles NZ qz layers.
 namespace loz
 {
+
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
+     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+inline constexpr bool device_regs = true;
+#else
+inline constexpr bool device_regs = false;
+#endif
+
+/// Register banks of the LOOP_Z layout. On device a thread holds its NZ qz
+/// layers in register slots; on host the banks hold every layer.
+template<int VDIM, int MQ1, int NZ>
+using regs3d_t = std::conditional_t<device_regs,
+      tensor<real_t, NZ, 0, 0, VDIM>, ker::regs3d_t<VDIM, MQ1>>;
+
+template<int VDIM, int SDIM, int MQ1, int NZ>
+using regs3d_vd_t = std::conditional_t<device_regs,
+      tensor<real_t, NZ, 0, 0, VDIM, SDIM>, ker::regs3d_vd_t<VDIM, SDIM, MQ1>>;
+
+/// Call @a f(qz, slot) for each qz layer of this thread, where @a slot indexes
+/// the register banks: on device the layers threadIdx.z + k * blockDim.z,
+/// k < NZ, in slot k; on host every layer, in slot qz. The loop over k is
+/// unrolled so that the slots, hence the banks, stay in registers.
+template<int NZ, typename F>
+MFEM_HOST_DEVICE inline void ForeachZLayer(const int q1d, F &&f)
+{
+   if constexpr (device_regs)
+   {
+      MFEM_UNROLL(NZ)
+      for (int k = 0; k < NZ; ++k)
+      {
+         const int qz = MFEM_THREAD_ID(z) + k * MFEM_THREAD_SIZE(z);
+         if (qz < q1d) { f(qz, k); }
+      }
+   }
+   else
+   {
+      for (int qz = 0; qz < q1d; ++qz) { f(qz, qz); }
+   }
+}
+
+/// ker::LoadDofs3d of components c0..c0+NC-1, with the z-threads looping over
+/// the dof layers
+template<int NC, int DIM, int MQ1, typename XE_T>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
+                                        const int c0, const XE_T &XE,
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(NC <= DIM, "shared value workspace must fit NC");
+   MFEM_FOREACH_THREAD(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            MFEM_UNROLL(NC)
+            for (int c = 0; c < NC; ++c)
+            {
+               sm[dz][dy][dx][c] = XE(dx, dy, dz, c0 + c, e);
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
 
 template<int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
@@ -261,14 +326,14 @@ inline MFEM_HOST_DEVICE void EvalY(const int d1d, const int q1d,
    MFEM_SYNC_THREAD;
 }
 
-template<int VDIM, int DIM, int MQ1>
+template<int VDIM, int DIM, int MQ1, int NZ, typename Reg>
 inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
                                    const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
-                                   ker::regs3d_t<VDIM, MQ1> &reg)
+                                   Reg &reg)
 {
    static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
-   MFEM_FOREACH_THREAD(qz, z, q1d)
+   ForeachZLayer<NZ>(q1d, [&](const int qz, const int slot)
    {
       MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
       {
@@ -283,24 +348,24 @@ inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
                {
                   u = std::fma(B[dz][qz], sm0[dz][qy][qx][c], u);
                }
-               reg[qz][qy][qx][c] = u;
+               reg[slot][qy][qx][c] = u;
             }
          }
       }
-   }
+   });
    MFEM_SYNC_THREAD;
 }
 
-template<int VDIM, int DIM, int MQ1>
+template<int VDIM, int DIM, int MQ1, int NZ, typename Reg>
 inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
                                     const real_t (*B)[MQ1],
                                     real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
                                     real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
-                                    ker::regs3d_t<VDIM, MQ1> &reg)
+                                    Reg &reg)
 {
    loz::EvalX<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, sm1);
    loz::EvalY<VDIM, DIM, MQ1>(d1d, q1d, B, sm1, sm0);
-   loz::EvalZ<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, reg);
+   loz::EvalZ<VDIM, DIM, MQ1, NZ>(d1d, q1d, B, sm0, reg);
 }
 
 template<int DIM, int MQ1>
@@ -362,14 +427,14 @@ inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
    MFEM_SYNC_THREAD;
 }
 
-template<int DIM, int MQ1>
+template<int DIM, int MQ1, int NZ, typename Reg>
 inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
                                    const real_t (*B)[MQ1],
                                    const real_t (*G)[MQ1],
                                    const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
-                                   ker::regs3d_t<DIM, MQ1> &reg)
+                                   Reg &reg)
 {
-   MFEM_FOREACH_THREAD(qz, z, q1d)
+   ForeachZLayer<NZ>(q1d, [&](const int qz, const int slot)
    {
       MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
       {
@@ -383,23 +448,23 @@ inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
                u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
                u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
             }
-            reg[qz][qy][qx][0] = u[0];
-            reg[qz][qy][qx][1] = u[1];
-            reg[qz][qy][qx][2] = u[2];
+            reg[slot][qy][qx][0] = u[0];
+            reg[slot][qy][qx][1] = u[1];
+            reg[slot][qy][qx][2] = u[2];
          }
       }
-   }
+   });
    MFEM_SYNC_THREAD;
 }
 
-template<int VDIM, int DIM, int MQ1>
+template<int VDIM, int DIM, int MQ1, int NZ, typename Reg>
 inline MFEM_HOST_DEVICE void VectorGradZ(
    const int d1d, const int q1d, const int c,
    const real_t (*B)[MQ1], const real_t (*G)[MQ1],
    const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
-   ker::regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+   Reg &reg)
 {
-   MFEM_FOREACH_THREAD(qz, z, q1d)
+   ForeachZLayer<NZ>(q1d, [&](const int qz, const int slot)
    {
       MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
       {
@@ -413,59 +478,68 @@ inline MFEM_HOST_DEVICE void VectorGradZ(
                u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
                u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
             }
-            reg[qz][qy][qx][c][0] = u[0];
-            reg[qz][qy][qx][c][1] = u[1];
-            reg[qz][qy][qx][c][2] = u[2];
+            reg[slot][qy][qx][c][0] = u[0];
+            reg[slot][qy][qx][c][1] = u[1];
+            reg[slot][qy][qx][c][2] = u[2];
          }
       }
-   }
+   });
    MFEM_SYNC_THREAD;
 }
 
-template<int DIM, int MQ1>
+template<int DIM, int MQ1, int NZ, typename Reg>
 inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
                                     const real_t (*B)[MQ1],
                                     const real_t (*G)[MQ1],
                                     real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
                                     real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
-                                    ker::regs3d_t<DIM, MQ1> &reg)
+                                    Reg &reg)
 {
    loz::GradX<DIM, MQ1>(d1d, q1d, B, G, sm0, sm1);
    loz::GradY<DIM, MQ1>(d1d, q1d, B, G, sm1, sm0);
-   loz::GradZ<DIM, MQ1>(d1d, q1d, B, G, sm0, reg);
+   loz::GradZ<DIM, MQ1, NZ>(d1d, q1d, B, G, sm0, reg);
 }
 
-template<int VDIM, int DIM, int MQ1>
+template<int VDIM, int DIM, int MQ1, int NZ, typename Reg>
 inline MFEM_HOST_DEVICE void VectorGrad3d(const int d1d, const int q1d,
                                           const int c,
                                           const real_t (*B)[MQ1],
                                           const real_t (*G)[MQ1],
                                           real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
                                           real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
-                                          ker::regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+                                          Reg &reg)
 {
    loz::GradX<DIM, MQ1>(d1d, q1d, B, G, sm0, sm1);
    loz::GradY<DIM, MQ1>(d1d, q1d, B, G, sm1, sm0);
-   loz::VectorGradZ<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, sm0, reg);
+   loz::VectorGradZ<VDIM, DIM, MQ1, NZ>(d1d, q1d, c, B, G, sm0, reg);
 }
 
 } // namespace loz
 
-template<int T_DIM, int MQ1, bool LOOP_Z = false>
+template<int T_DIM, int MQ1, int ZTHREADS = MQ1>
 struct lo_ker_backend
 {
    static constexpr int DIM = T_DIM;
    static_assert(DIM == 2 || DIM == 3);
+   static_assert(ZTHREADS > 0 && ZTHREADS <= MQ1);
+
+   /// 3D LOOP_Z layout: ZTHREADS < MQ1 z-threads, each one with NZ qz layers
+   static constexpr bool LOOP_Z = (DIM == 3 && ZTHREADS < MQ1);
+   static constexpr int NZ = (MQ1 + ZTHREADS - 1) / ZTHREADS;
 
    template<int VDIM>
    using qreg_t = std::conditional_t<(DIM == 2),
          ker::regs2d_t<VDIM, MQ1>,
-         ker::regs3d_t<VDIM, MQ1>>;
+         std::conditional_t<LOOP_Z,
+         loz::regs3d_t<VDIM, MQ1, NZ>,
+         ker::regs3d_t<VDIM, MQ1>>>;
 
    template<int VDIM, int SDIM>
    using qreg_vd_t = std::conditional_t<(DIM == 2),
          ker::regs2d_vd_t<VDIM, SDIM, MQ1>,
-         ker::regs3d_vd_t<VDIM, SDIM, MQ1>>;
+         std::conditional_t<LOOP_Z,
+         loz::regs3d_vd_t<VDIM, SDIM, MQ1, NZ>,
+         ker::regs3d_vd_t<VDIM, SDIM, MQ1>>>;
 
    struct Shared2d
    {
@@ -500,13 +574,14 @@ struct lo_ker_backend
       }
       else
       {
-         ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
          if constexpr (LOOP_Z)
          {
-            loz::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            loz::LoadDofs3d<VDIM>(e, d, 0, XE, s.M[0]);
+            loz::Eval3d<VDIM, DIM, MQ1, NZ>(d, q, s.B, s.M[0], s.M[1], rarg);
          }
          else
          {
+            ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
             ker::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
          }
       }
@@ -540,13 +615,15 @@ struct lo_ker_backend
             }
             else
             {
-               ker::LoadDofs3d(e, d, 0, XE, s.M[0]);
                if constexpr (LOOP_Z)
                {
-                  loz::Grad3d<DIM, MQ1>(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
+                  loz::LoadDofs3d<1>(e, d, 0, XE, s.M[0]);
+                  loz::Grad3d<DIM, MQ1, NZ>(d, q, s.B, s.G, s.M[0], s.M[1],
+                                            rarg);
                }
                else
                {
+                  ker::LoadDofs3d(e, d, 0, XE, s.M[0]);
                   ker::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
                }
             }
@@ -558,23 +635,29 @@ struct lo_ker_backend
          static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
          if constexpr (SDIM == DIM)
          {
-            for (int c = 0; c < VDIM; ++c)
+            if constexpr (LOOP_Z)
             {
-               if constexpr (DIM == 2)
+               // Constant c, so the LOOP_Z register banks stay in registers
+               MFEM_UNROLL(VDIM)
+               for (int c = 0; c < VDIM; ++c)
                {
-                  ker::LoadDofs2d(e, d, c, XE, s.M[0]);
-                  ker::VectorGrad2d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+                  loz::LoadDofs3d<1>(e, d, c, XE, s.M[0]);
+                  loz::VectorGrad3d<VDIM, DIM, MQ1, NZ>(
+                     d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
                }
-               else
+            }
+            else
+            {
+               for (int c = 0; c < VDIM; ++c)
                {
-                  ker::LoadDofs3d(e, d, c, XE, s.M[0]);
-                  if constexpr (LOOP_Z)
+                  if constexpr (DIM == 2)
                   {
-                     loz::VectorGrad3d<VDIM, DIM, MQ1>(
-                        d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+                     ker::LoadDofs2d(e, d, c, XE, s.M[0]);
+                     ker::VectorGrad2d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
                   }
                   else
                   {
+                     ker::LoadDofs3d(e, d, c, XE, s.M[0]);
                      ker::VectorGrad3d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
                   }
                }
@@ -694,7 +777,9 @@ struct LocalQFLOBackend
    { return Q1D * Q1D * ((DIM == 2) ? 1 : ZTHREADS); }
 
    // ─────────────────────────────────────────────────────
-   using backend_t = lo_ker_backend<DIM, Q1D, (DIM == 3 && ZTHREADS < Q1D)>;
+   using backend_t = lo_ker_backend<DIM, Q1D, ZTHREADS>;
+   static constexpr bool LOOP_Z = backend_t::LOOP_Z;
+   static constexpr int NZ = backend_t::NZ;
 
    // ─────────────────────────────────────────────────────
    using Shared = typename backend_t::Shared;
@@ -1090,5 +1175,13 @@ struct LocalQFLOBackend
          s, e, d, q, B, G, YE, rarg);
    }
 };
+
+/// True for LO backends with the 3D LOOP_Z layout
+template<typename backend_t>
+inline constexpr bool lo_loop_z_v = false;
+
+template<int DIM, int Q1D, int ZTHREADS>
+inline constexpr bool lo_loop_z_v<LocalQFLOBackend<DIM, Q1D, ZTHREADS>> =
+                                                                        LocalQFLOBackend<DIM, Q1D, ZTHREADS>::LOOP_Z;
 
 } // namespace mfem::future
