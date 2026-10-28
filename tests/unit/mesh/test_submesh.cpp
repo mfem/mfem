@@ -990,6 +990,34 @@ static Mesh CheckerboardMesh(int dim)
    REQUIRE(submesh24.EulerNumber() == 1); // 56 - 120 + 78 - 13
 }
 
+TEST_CASE("Non-Contiguous SubMesh 2D", "[SubMesh]")
+{
+   Mesh mesh = CheckerboardMesh(2);
+
+   REQUIRE(mesh.GetNV() == 16);
+   REQUIRE(mesh.GetNE() == 9);
+   REQUIRE(mesh.GetNBE() == 12);
+   REQUIRE(mesh.EulerNumber2D() == 1); // 16 - 24 + 9
+
+   // Corner and zone-center elements (shared vertices)
+   Array<int> attr13(2); attr13[0] = 1; attr13[1] = 3;
+   SubMesh submesh13 = SubMesh::CreateFromDomain(mesh, attr13);
+
+   REQUIRE(submesh13.GetNV() == 16);
+   REQUIRE(submesh13.GetNE() == 5);
+   REQUIRE(submesh13.GetNBE() == 20);
+   REQUIRE(submesh13.EulerNumber2D() == 1); // 16 - 20 + 5
+
+   // Edge elements (shared vertices)
+   Array<int> attr2(1); attr2 = 2;
+   SubMesh submesh2 = SubMesh::CreateFromDomain(mesh, attr2);
+
+   REQUIRE(submesh2.GetNV() == 12);
+   REQUIRE(submesh2.GetNE() == 4);
+   REQUIRE(submesh2.GetNBE() == 16);
+   REQUIRE(submesh2.EulerNumber2D() == 0); // 12 - 16 + 4
+}
+
 TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
 {
    int order = 3; // Produce multiple DoFs per edge and face
