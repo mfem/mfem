@@ -996,15 +996,10 @@ TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
    int dim = GENERATE(2, 3);
    auto fec_type = GENERATE(FECType::H1, FECType::ND, FECType::RT, FECType::L2);
 
-   std::string mesh_file = (dim == 2) ?
-                           "../../data/checker-2d.mesh" : "../../data/checker-3d.mesh";
+   Mesh mesh = CheckerboardMesh(dim);
 
    CAPTURE(dim);
-   CAPTURE(mesh_file);
    CAPTURE(fec_type);
-
-   std::ifstream ifs(mesh_file);
-   Mesh mesh(ifs);
 
    // 3D checkerboard pattern including corners
    Array<int> attr13(2); attr13[0] = 1; attr13[1] = 3;
