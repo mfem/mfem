@@ -926,7 +926,7 @@ TEST_CASE("Non-Contiguous SubMesh", "[SubMesh]")
    REQUIRE(mesh.EulerNumber() == 1); // 64 - 144 + 108 - 27
 
    Array<int> attr1(1); attr1 = 1;
-   Mesh submesh1 = SubMesh::CreateFromDomain(mesh, attr1);
+   SubMesh submesh1 = SubMesh::CreateFromDomain(mesh, attr1);
 
    // Corner elements (non-contiguous)
    REQUIRE(submesh1.GetNV() == 64);
