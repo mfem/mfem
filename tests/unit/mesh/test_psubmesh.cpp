@@ -814,7 +814,10 @@ TEST_CASE("Non-Contiguous ParSubMesh Transfers", "[Parallel],[SubMesh]")
    ParSubMesh::Transfer(gf13, gf1);
    gf1 -= gf0;
    REQUIRE(GlobalLpNorm(2.0, gf1.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
+
+   delete fec;
 }
+
 /**
  * @brief Helper class for testing a ParNCMesh
  *
