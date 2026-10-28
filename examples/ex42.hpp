@@ -244,7 +244,6 @@ private:
    Vector shape;              // shape function value at an integration point
    Vector state;              // state value at an integration point
    Vector source;             // GP source value at an integration point
-   DenseTensor J;             // Jacobian matrix at an integration point
    DenseMatrix
    dshape;        // derivative of shape function at an integration point
 
@@ -255,7 +254,6 @@ private:
    Vector nor;     // normal vector, see mfem::CalcOrtho()
    Vector source1; // source vector at the first element
    Vector source2; // source vector at the second element
-   DenseMatrix JDotN;   // Reserved local Jacobian workspace
 #endif
 
 public:
@@ -285,12 +283,11 @@ public:
       state2.SetSize(num_equations);
       source1.SetSize(num_equations);
       source2.SetSize(num_equations);
-      JDotN.SetSize(num_equations);
       nor.SetSize(gpsource.dim);
 #endif
    }
 
-   const GPsource &GetGPsource() { return gpsource; }
+   const GPsource &GetGPsource() const { return gpsource; }
 
    /**
     * @brief Assemble (-S(U)*divB, w) using the source computed by

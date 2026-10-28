@@ -201,9 +201,6 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    // Finite element space for a scalar (thermodynamic quantity)
    FiniteElementSpace fes(&mesh, &fec);
-   // An auxiliary spatial vector space; the full state below stores momentum
-   // with MHDdim components, which can exceed dim in reduced-dimensional MHD.
-   FiniteElementSpace dfes(&mesh, &fec, dim, Ordering::byNODES);
    // Finite element space for all variables together (total thermodynamic state)
    FiniteElementSpace vfes(&mesh, &fec, num_equations, Ordering::byNODES);
 
