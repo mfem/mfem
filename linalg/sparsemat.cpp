@@ -1957,12 +1957,12 @@ void SparseMatrix::EliminateRowCol(int rc, const real_t sol, Vector &rhs,
 {
    MFEM_ASSERT(rc < height && rc >= 0,
                "Row " << rc << " not in matrix of height " << height);
-   HostReadWriteI();
-   HostReadWriteJ();
-   HostReadWriteData();
 
    if (Rows == NULL)
    {
+      HostReadWriteI();
+      HostReadWriteJ();
+      HostReadWriteData();
       for (int j = I[rc]; j < I[rc+1]; j++)
       {
          const int col = J[j];
