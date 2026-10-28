@@ -1001,7 +1001,7 @@ TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
    CAPTURE(dim);
    CAPTURE(fec_type);
 
-   // 3D checkerboard pattern including corners
+   // Checkerboard pattern including corners
    Array<int> attr13(2); attr13[0] = 1; attr13[1] = 3;
    SubMesh submesh13 = SubMesh::CreateFromDomain(mesh, attr13);
 
