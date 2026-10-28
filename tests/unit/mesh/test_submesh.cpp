@@ -1036,7 +1036,7 @@ TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
    SubMesh::Transfer(gf13, gf1);
    SubMesh::Transfer(gf24, gf1);
    gf1 -= gf0;
-   REQUIRE(gf1.Norml2() < 1e-10);
+   REQUIRE(gf1.Norml2() < 1e-10 * nrm);
 
    // Transfer both portions in the opposite order and compare to original field
    SubMesh::Transfer(gf24, gf1);
