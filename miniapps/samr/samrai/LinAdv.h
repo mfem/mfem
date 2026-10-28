@@ -29,6 +29,7 @@
 #include "SAMRAI/tbox/Serializable.h"
 #include "SAMRAI/hier/VariableContext.h"
 #include "SAMRAI/appu/VisItDataWriter.h"
+#include "SAMRAI/hier/PatchHierarchy.h"
 
 #include <string>
 #include <vector>
@@ -395,6 +396,17 @@ public:
 
    int getStateId() const;
 
+   /**
+    * Update current state data on coarser levels of the hierarchy using data
+    * from finer levels by coarsening from the finest level down, using the
+    * same coarsen operator registered with the level integrator.  Call after
+    * the state is modified outside of the integrator, e.g., by a coupled code
+    * that only updates the finest data covering each location.
+    */
+   void
+   updateStateOnCoarserLevels(
+      const std::shared_ptr<hier::PatchHierarchy>& hierarchy) const;
+
 private:
    /*
     * These private member functions read data from input and restart.
@@ -481,6 +493,11 @@ private:
     * std::shared_ptr to state variable vector - [u]
     */
    std::shared_ptr<pdat::CellVariable<double> > d_uval;
+
+   /**
+    * Coarsen operator name for the state variable
+    */
+   const std::string d_uval_coarsen_op_name = "CONSERVATIVE_COARSEN";
 
    /**
     * std::shared_ptr to flux variable vector  - [F]

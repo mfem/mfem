@@ -354,6 +354,9 @@ int main(int argc, char *argv[])
       std::pair<int, ParGridFunction&> u_fields = {samrai_state_id, *u_gf};
       coupling_manager.TransferToSAMRAI({}, {u_fields});
 
+      // Update covered coarser-level cells with data on finer cells.
+      linadv_model->updateStateOnCoarserLevels(patch_hierarchy);
+
       if (last_step || (ti % vis_steps) == 0)
       {
          if (Mpi::Root())

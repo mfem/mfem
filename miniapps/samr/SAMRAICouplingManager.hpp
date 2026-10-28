@@ -76,7 +76,8 @@ public:
                                                  const std::vector<int>& cell_ids);
 
    /// @brief Transfer MFEM grid function field data to the SAMRAI patch
-   /// hierarchy.
+   /// hierarchy, noting SAMRAI cells and nodes covered by finer patches will
+   /// not be updated.
    /// @param node_fields (SAMRAI ID, grid function) pairs specifying the source
    /// MFEM vector grid function and target SAMRAI nodal data, with values
    /// interpolated at the element vertices
@@ -88,7 +89,8 @@ public:
       std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
 
    /// @brief Transfer MFEM grid function mesh topology and field data to the
-   /// SAMRAI patch hierarchy.
+   /// SAMRAI patch hierarchy, noting SAMRAI cells and nodes covered by finer
+   /// patches will not be updated.
    /// @param position_id SAMRAI ID for target SAMRAI nodal data specifying node
    /// positions
    /// @param node_fields (SAMRAI ID, grid function) pairs specifying the source

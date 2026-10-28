@@ -52,6 +52,8 @@
 #include "SAMRAI/tbox/NVTXUtilities.h"
 #include "SAMRAI/hier/PatchDataRestartManager.h"
 #include "SAMRAI/hier/VariableDatabase.h"
+#include "SAMRAI/xfer/CoarsenAlgorithm.h"
+#include "SAMRAI/xfer/CoarsenSchedule.h"
 
 
 //integer constants for boundary conditions
@@ -404,7 +406,7 @@ void LinAdv::registerModelVariables(
    integrator->registerVariable(d_uval, d_nghosts,
                                 algs::HyperbolicLevelIntegrator::TIME_DEP,
                                 d_grid_geometry,
-                                "CONSERVATIVE_COARSEN",
+                                d_uval_coarsen_op_name,
                                 "CONSERVATIVE_LINEAR_REFINE");
 
    integrator->registerVariable(d_flux, d_fluxghosts,
@@ -3662,4 +3664,29 @@ int LinAdv::getStateId() const
    hier::VariableDatabase* variable_db = hier::VariableDatabase::getDatabase();
    return variable_db->mapVariableAndContextToIndex(d_uval,
                                                     variable_db->getContext("CURRENT"));
+}
+
+void LinAdv::updateStateOnCoarserLevels(
+   const std::shared_ptr<hier::PatchHierarchy>& hierarchy) const
+{
+   /*
+    * Construct coarsen algorithm to fill interiors on coarser levels
+    * with the state on finer levels.
+    */
+   xfer::CoarsenAlgorithm fill_state_interior_on_coarser(d_dim);
+   const int state_id = getStateId();
+   fill_state_interior_on_coarser.registerCoarsen(state_id, state_id,
+                                                  d_grid_geometry->lookupCoarsenOperator(d_uval,
+                                                        d_uval_coarsen_op_name));
+
+   /*
+    * Step through levels - finest to coarsest
+    */
+   for (int ln = hierarchy->getFinestLevelNumber(); ln > 0; --ln)
+   {
+      std::shared_ptr<xfer::CoarsenSchedule> fill_state_interior_on_coarser_sched(
+         fill_state_interior_on_coarser.createSchedule(
+            hierarchy->getPatchLevel(ln - 1), hierarchy->getPatchLevel(ln)));
+      fill_state_interior_on_coarser_sched->coarsenData();
+   }
 }
