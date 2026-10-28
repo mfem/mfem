@@ -716,7 +716,7 @@ TEST_CASE("Parallel Variable Order Group Communication",
          offsets[r] = offsets[r-1] + sizes[r-1];
       }
       std::vector<long long> all_keys(offsets.Last() + sizes.Last());
-      MPI_Allgatherv(keys.data(), size, MPI_LONG_LONG, all_keys.data(),
+      MPI_Allgatherv(keys.data()->data(), size, MPI_LONG_LONG, all_keys.data(),
                      sizes.GetData(), offsets.GetData(), MPI_LONG_LONG,
                      MPI_COMM_WORLD);
       std::map<Key, int> num_ranks;
