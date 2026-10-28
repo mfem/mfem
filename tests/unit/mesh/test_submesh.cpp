@@ -936,6 +936,8 @@ static Mesh CheckerboardMesh(int dim)
    }
    return mesh;
 }
+
+TEST_CASE("Non-Contiguous SubMesh 3D", "[SubMesh]")
 {
    Mesh mesh = CheckerboardMesh(3);
 
