@@ -42,21 +42,6 @@ struct findptsPt
    int flags;
 };
 
-struct findptsElemFace
-{
-   double *x[DIM], *dxdn[DIM];
-};
-
-struct findptsElemEdge
-{
-   double *x[DIM], *dxdn1[DIM], *dxdn2[DIM], *d2xdn1[DIM], *d2xdn2[DIM];
-};
-
-struct findptsElemPt
-{
-   double x[DIM], jac[DIM * DIM], hes[18];
-};
-
 using dbl_range_t = gslib::dbl_range_t;
 using obbox_t = gslib::obbox_t<DIM>;
 using findptsLocalHashData_t = gslib::findptsLocalHashData_t<DIM>;
@@ -146,23 +131,23 @@ static MFEM_HOST_DEVICE inline int point_index(const int x)
 }
 
 // Gets mesh nodal coordinates and normal derivative in reference-space at the
-// given face.
-static MFEM_HOST_DEVICE inline findptsElemFace
+// given face. The workspace holds two [3][pN*pN] fields: x and dxdn, each
+// indexed as jj+k*pN. Thread jidx fills the row jj=jidx%pN of component
+// dd=jidx/pN.
+static MFEM_HOST_DEVICE inline void
 get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
-         int &side_init, int jidx, int pN) // jidx < 3*pN
+         int &side_init, int jidx, int pN)
 {
+   if (jidx >= 3*pN) { return; }
+
    const int dn = fi >> 1, d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
    const int side_n = fi & 1;
    const double *wt = wtend+side_n*pN*3;
    const int p_Nfr = pN*pN;
-   findptsElemFace face;
    const int jj = jidx % pN;
    const int dd = jidx / pN;
-   for (int d = 0; d < 3; ++d)
-   {
-      face.x[d] = workspace+d*p_Nfr;
-      face.dxdn[d] = workspace+(3+d)*p_Nfr;
-   }
+   double *x = workspace+dd*p_Nfr+jj;
+   double *dxdn = x+3*p_Nfr;
 
    if (static_cast<unsigned>(side_init) != (1u << fi))
    {
@@ -171,7 +156,7 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
       for (int k = 0; k < pN; ++k)
       {
          // copy first/last entries in normal direction
-         face.x[dd][jj+k*pN] = ELX(dd, jj, k, side_n*(pN-1));
+         x[k*pN] = ELX(dd, jj, k, side_n*(pN-1));
 
          // tensor product between elx and derivative in normal direction
          double sum_l = 0;
@@ -179,20 +164,21 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
          {
             sum_l += wt[pN+l]*ELX(dd, jj, k, l);
          }
-         face.dxdn[dd][jj+k*pN] = sum_l;
+         dxdn[k*pN] = sum_l;
       }
 #undef ELX
    }
-   return face;
 }
 
 // Gets mesh nodal coordinates and normal derivatives in reference-space at the
-// given edge.
-static MFEM_HOST_DEVICE inline findptsElemEdge
+// given edge. The workspace holds five [3][pN] fields: x, dxdn1, dxdn2,
+// d2xdn1, and d2xdn2.
+static MFEM_HOST_DEVICE inline void
 get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
          int &side_init, int jidx, int pN)
 {
-   findptsElemEdge edge;
+   if (jidx >= 3*pN) { return; }
+
    const int de = ei >> 2, dn1 = plus_1_mod_3(de), dn2 = plus_2_mod_3(de);
    const int side_n1 = ei & 1, side_n2 = (ei & 2) >> 1;
 
@@ -201,23 +187,14 @@ get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
    const double *wt2 = wtend+side_n2*pN*3;
    const int jj = jidx % pN;
    const int dd = jidx / pN;
-   for (int d = 0; d < 3; ++d)
-   {
-      edge.x[d] = workspace+d*pN;
-      edge.dxdn1[d] = workspace+(3+d)*pN;
-      edge.dxdn2[d] = workspace+(6+d)*pN;
-      edge.d2xdn1[d] = workspace+(9+d)*pN;
-      edge.d2xdn2[d] = workspace+(12+d)*pN;
-   }
-
-   if (jidx >= 3*pN) { return edge; }
+   double *edge = workspace+jidx;
 
    if (static_cast<unsigned>(side_init) != (64u << ei))
    {
       const int e_stride[3] = {1, pN, pN*pN};
 #define ELX(d, j, k, l) elx[d][j*e_stride[de]+k*e_stride[dn1]+l*e_stride[dn2]]
       // copy first/last entries in normal directions
-      edge.x[dd][jj] = ELX(dd, jj, in1, in2);
+      edge[0] = ELX(dd, jj, in1, in2);
       // tensor product between elx (w/ first/last entries in second direction)
       // and the derivatives in the first normal direction
       double sums_k[2] = {0, 0};
@@ -226,8 +203,8 @@ get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
          sums_k[0] += wt1[pN+k]*ELX(dd, jj, k, in2);
          sums_k[1] += wt1[2*pN+k]*ELX(dd, jj, k, in2);
       }
-      edge.dxdn1[dd][jj] = sums_k[0];
-      edge.d2xdn1[dd][jj] = sums_k[1];
+      edge[3*pN] = sums_k[0];
+      edge[9*pN] = sums_k[1];
       // tensor product between elx (w/ first/last entries in first direction)
       // and the derivatives in the second normal direction
       sums_k[0] = 0, sums_k[1] = 0;
@@ -236,29 +213,27 @@ get_edge(const double *elx[3], const double *wtend, int ei, double *workspace,
          sums_k[0] += wt2[pN+k]*ELX(dd, jj, in1, k);
          sums_k[1] += wt2[2*pN+k]*ELX(dd, jj, in1, k);
       }
-      edge.dxdn2[dd][jj] = sums_k[0];
-      edge.d2xdn2[dd][jj] = sums_k[1];
+      edge[6*pN] = sums_k[0];
+      edge[12*pN] = sums_k[1];
 #undef ELX
    }
-   return edge;
 }
 
 // Gets nodal coordinate and derivatives at the given vertex of the element.
-static MFEM_HOST_DEVICE inline findptsElemPt get_pt(const double *elx[3],
-                                                    const double *wtend,
-                                                    int pi, int pN)
+static MFEM_HOST_DEVICE inline void get_pt(const double *elx[3],
+                                           const double *wtend, int pi, int pN,
+                                           double x[3], double jac[9],
+                                           double hes[18])
 {
    const int side_n1 = pi & 1, side_n2 = (pi >> 1) & 1, side_n3 = (pi >> 2) & 1;
    const int in1 = side_n1*(pN-1), in2 = side_n2*(pN-1),
              in3 = side_n3*(pN-1);
    const int hes_stride = (3+1)*3 / 2;
-   findptsElemPt pt;
 
 #define ELX(d, j, k, l) elx[d][j+k*pN+l*pN*pN]
    for (int d = 0; d < 3; ++d)
    {
-      pt.x[d] = ELX(d, side_n1*(pN-1), side_n2*(pN-1),
-                    side_n3*(pN-1));
+      x[d] = ELX(d, side_n1*(pN-1), side_n2*(pN-1), side_n3*(pN-1));
 
       const double *wt1 = wtend+pN*(1+3*side_n1);
       const double *wt2 = wtend+pN*(1+3*side_n2);
@@ -266,30 +241,30 @@ static MFEM_HOST_DEVICE inline findptsElemPt get_pt(const double *elx[3],
 
       for (int i = 0; i < 3; ++i)
       {
-         pt.jac[3*d+i] = 0;
+         jac[3*d+i] = 0;
       }
       for (int i = 0; i < hes_stride; ++i)
       {
-         pt.hes[hes_stride*d+i] = 0;
+         hes[hes_stride*d+i] = 0;
       }
 
       for (int j = 0; j < pN; ++j)
       {
-         pt.jac[3*d+0] += wt1[j]*ELX(d, j, in2, in3);
-         pt.hes[hes_stride*d] += wt1[pN+j]*ELX(d, j, in2, in3);
+         jac[3*d+0] += wt1[j]*ELX(d, j, in2, in3);
+         hes[hes_stride*d] += wt1[pN+j]*ELX(d, j, in2, in3);
       }
 
       const int hes_off = hes_stride*d+hes_stride / 2;
       for (int k = 0; k < pN; ++k)
       {
-         pt.jac[3*d+1] += wt2[k]*ELX(d, in1, k, in3);
-         pt.hes[hes_off] += wt2[pN+k]*ELX(d, in1, k, in3);
+         jac[3*d+1] += wt2[k]*ELX(d, in1, k, in3);
+         hes[hes_off] += wt2[pN+k]*ELX(d, in1, k, in3);
       }
 
       for (int l = 0; l < pN; ++l)
       {
-         pt.jac[3*d+2] += wt3[l]*ELX(d, in1, in2, l);
-         pt.hes[hes_stride*d+5] += wt3[pN+l]*ELX(d, in1, in2, l);
+         jac[3*d+2] += wt3[l]*ELX(d, in1, in2, l);
+         hes[hes_stride*d+5] += wt3[pN+l]*ELX(d, in1, in2, l);
       }
 
       for (int l = 0; l < pN; ++l)
@@ -303,8 +278,8 @@ static MFEM_HOST_DEVICE inline findptsElemPt get_pt(const double *elx[3],
          {
             sum_j += wt1[j]*ELX(d, j, in2, l);
          }
-         pt.hes[hes_stride*d+2] += wt3[l]*sum_j;
-         pt.hes[hes_stride*d+4] += wt3[l]*sum_k;
+         hes[hes_stride*d+2] += wt3[l]*sum_j;
+         hes[hes_stride*d+4] += wt3[l]*sum_k;
       }
       for (int k = 0; k < pN; ++k)
       {
@@ -313,11 +288,10 @@ static MFEM_HOST_DEVICE inline findptsElemPt get_pt(const double *elx[3],
          {
             sum_j += wt1[j]*ELX(d, j, k, in3);
          }
-         pt.hes[hes_stride*d+1] += wt2[k]*sum_j;
+         hes[hes_stride*d+1] += wt2[k]*sum_j;
       }
 #undef ELX
    }
-   return pt;
 }
 
 /* Check reduction in objective against prediction, and adjust trust region
@@ -954,7 +928,8 @@ static void FindPointsLocal3DKernel(const int npt,
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      // 4 D1D for seed, 18D1D+12 for vol, 21D1D+15 for face, 3D1D+32 for edge.
+      // 4D1D for seed, 18D1D+12 for vol, 21D1D+15 for face, 3D1D+32 for edge,
+      // 30 for vertex coordinates and derivatives.
       constexpr int size1 = 21*MD1+15;
       // 6D1D^2 for face, 15D1D for edge.
       constexpr int size2 = MAXC(MD1*MD1*6, MD1*3*5);
@@ -1216,13 +1191,14 @@ static void FindPointsLocal3DKernel(const int npt,
                         double *J1 = wt1, *D1 = wt1+D1D;
                         double *J2 = wt1+3*D1D, *D2 = J2+D1D;
                         double *DD1 = D1+D1D, *DD2 = D2+D1D;
-                        findptsElemFace face;
+                        // Face data layout in constraint_workspace, see
+                        // get_face: x[d] at d*D1D^2, dxdn[d] at (3+d)*D1D^2.
+                        const int p_Nfr = D1D*D1D;
 
                         MFEM_FOREACH_THREAD(j,x,D1D*DIM)
                         {
-                           // utilizes first 3*D1D threads
-                           face = get_face(elx, wtend, fi, constraint_workspace,
-                                           face_edge_init, j, D1D);
+                           get_face(elx, wtend, fi, constraint_workspace,
+                                    face_edge_init, j, D1D);
                         }
                         MFEM_SYNC_THREAD;
 
@@ -1231,8 +1207,8 @@ static void FindPointsLocal3DKernel(const int npt,
                            if (j == 0) { face_edge_init = (1 << fi); }
                            const int qp = j % D1D;
                            const int d = j / D1D;
-                           const double *u = face.x[d];
-                           const double *du = face.dxdn[d];
+                           const double *u = constraint_workspace+d*p_Nfr;
+                           const double *du = u+3*p_Nfr;
                            double sums_k[3] = {0.0, 0.0, 0.0};
                            for (int k = 0; k < D1D; ++k)
                            {
@@ -1279,7 +1255,7 @@ static void FindPointsLocal3DKernel(const int npt,
                            hes_temp[j] = 0.0;
                            for (int d=0; d<DIM; ++d)
                            {
-                              const double *u = face.x[d];
+                              const double *u = constraint_workspace+d*p_Nfr;
                               double sum = 0.0;
                               for (int k=0; k<D1D; ++k)
                               {
@@ -1329,10 +1305,6 @@ static void FindPointsLocal3DKernel(const int npt,
                         const int de = ei >> 2,
                                   dn1 = plus_1_mod_3(de),
                                   dn2 = plus_2_mod_3(de);
-                        int d_j[3];
-                        d_j[0] = de;
-                        d_j[1] = dn1;
-                        d_j[2] = dn2;
                         const int hes_count = 2*3-1;
 
                         double *wt = r_workspace_ptr;
@@ -1340,24 +1312,13 @@ static void FindPointsLocal3DKernel(const int npt,
                         double *jac = resid+3;
                         double *hes_T = jac+9;
                         double *hes = hes_T+hes_count*3;
-                        findptsElemEdge edge;
 
-                        MFEM_FOREACH_THREAD(j,x,nThreads)
+                        MFEM_FOREACH_THREAD(j,x,D1D*DIM)
                         {
-                           // utilizes first 3*D1D threads f
-                           edge = get_edge(elx, wtend, ei,
-                                           constraint_workspace,
-                                           face_edge_init, j,
-                                           D1D);
+                           get_edge(elx, wtend, ei, constraint_workspace,
+                                    face_edge_init, j, D1D);
                         }
                         MFEM_SYNC_THREAD;
-
-                        const double *const *e_x[3+3] = {edge.x, edge.x,
-                                                         edge.dxdn1,
-                                                         edge.dxdn2,
-                                                         edge.d2xdn1,
-                                                         edge.d2xdn2
-                                                        };
 
                         MFEM_FOREACH_THREAD(j,x,D1D)
                         {
@@ -1376,7 +1337,11 @@ static void FindPointsLocal3DKernel(const int npt,
                               // resid and jac_T
                               // [0, 1, 0, 0]
                               double *wt_j = wt+(row == 1 ? D1D : 0);
-                              const double *x = e_x[row][d];
+                              // x is used for both the residual and the
+                              // derivative along the edge.
+                              const int field = row > 1 ? row-1 : 0;
+                              const double *x =
+                                 constraint_workspace+(3*field+d)*D1D;
                               double sum = 0.0;
                               for (int k = 0; k < D1D; ++k)
                               {
@@ -1389,7 +1354,9 @@ static void FindPointsLocal3DKernel(const int npt,
                               }
                               else
                               {
-                                 jac[d*3+d_j[row-1]] = sum;
+                                 const int dir = row == 1 ? de :
+                                                 row == 2 ? dn1 : dn2;
+                                 jac[d*3+dir] = sum;
                               }
                            }
 
@@ -1398,7 +1365,8 @@ static void FindPointsLocal3DKernel(const int npt,
                               // n1*[2, 1, 1, 0, 0]
                               // j==1 => wt_j = wt+n1
                               double *wt_j = wt+D1D*(2 - (row+1)/2);
-                              const double *x = e_x[row+1][d];
+                              const double *x =
+                                 constraint_workspace+(3*row+d)*D1D;
                               hes_T[j] = 0.0;
                               for (int k = 0; k < D1D; ++k)
                               {
@@ -1427,7 +1395,7 @@ static void FindPointsLocal3DKernel(const int npt,
                               double steep[3-1];
                               for (int k = 0; k < 3-1; ++k)
                               {
-                                 int dn = d_j[k+1];
+                                 const int dn = k == 0 ? dn1 : dn2;
                                  steep[k] = 0;
                                  for (int d = 0; d < 3; ++d)
                                  {
@@ -1485,10 +1453,12 @@ static void FindPointsLocal3DKernel(const int npt,
                         {
                            // if (j == 0)
                            const int pi=point_index(tmp->flags & FLAG_MASK);
-                           const findptsElemPt gpt=get_pt(elx,wtend,pi,D1D);
-                           const double *const pt_x = gpt.x;
-                           const double *const jac = gpt.jac;
-                           const double *const hes = gpt.hes;
+                           // Keep vertex data in the existing shared scratch
+                           // space instead of a 30-double per-thread object.
+                           double *pt_x = r_workspace_ptr;
+                           double *jac = pt_x+3;
+                           double *hes = jac+9;
+                           get_pt(elx, wtend, pi, D1D, pt_x, jac, hes);
 
                            double resid[3], steep[3];
                            for (int d = 0; d < 3; ++d)
