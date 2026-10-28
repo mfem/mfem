@@ -1629,7 +1629,7 @@ void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
 #endif
    H1Pos_TetrahedronElement::CalcShape(order, ip.x, ip.y, ip.z,
                                        bernstein.GetData());
-   const real_t lambda[4] = {1.0 - ip.x - ip.y - ip.z,
+   const real_t lambda[4] = {1_r - ip.x - ip.y - ip.z,
                              ip.x, ip.y, ip.z
                             };
    shape.SetSize(dof, 3);
@@ -2042,7 +2042,7 @@ void NDPos_TriangleElement::CalcVShape(const IntegrationPoint &ip,
 #endif
    H1Pos_TriangleElement::CalcShape(order, ip.x, ip.y,
                                     bernstein.GetData());
-   const real_t lambda[3] = {1.0 - ip.x - ip.y, ip.x, ip.y};
+   const real_t lambda[3] = {1_r - ip.x - ip.y, ip.x, ip.y};
    shape.SetSize(dof, 2);
    shape = 0.0;
    for (int basis = 0; basis < dof; basis++)
