@@ -143,7 +143,7 @@ struct TMOPMetricSpec
 };
 
 /// Family of target-matrix construction.
-enum class TMOPTargetKind
+enum class TMOPTargetType
 {
    IdealShape, ///< TargetConstructor with an ideal element shape.
    Analytic, ///< AnalyticAdaptTC with a full given target matrix.
@@ -152,7 +152,7 @@ enum class TMOPTargetKind
    SameAs    ///< The target already built for an earlier integrator.
 };
 
-/// Ideal element size convention for TMOPTargetKind::IdealShape.
+/// Ideal element size convention for TMOPTargetType::IdealShape.
 enum class TMOPIdealShapeTargetSize
 {
    Unit, ///< IDEAL_SHAPE_UNIT_SIZE; the only type that can untangle.
@@ -161,14 +161,14 @@ enum class TMOPIdealShapeTargetSize
 };
 
 /** How to build one TargetConstructor. Grid functions are borrowed and
-    read when the optimizer is built.
+    read at construction and Reset().
 
     A plain aggregate: fill the members directly, or start from one of the
-    static presets below and adjust. Members a kind does not use are
+    static presets below and adjust. Members a type does not use are
     ignored. */
 struct TMOPTargetSpec
 {
-   TMOPTargetKind kind = TMOPTargetKind::IdealShape;
+   TMOPTargetType type = TMOPTargetType::IdealShape;
 
    /// Ideal-shape targets.
    TMOPIdealShapeTargetSize size_kind = TMOPIdealShapeTargetSize::Unit;
@@ -187,7 +187,7 @@ struct TMOPTargetSpec
        one H1 space, ordered byNODES: scalar in 2D, and in 3D a vector of
        that space for aspect ratio, skew and orientation. On a ParMesh they
        must be ParGridFunctions. Their values are copied when the optimizer
-       is built. */
+       is constructed and again at Reset(). */
    const GridFunction *size = nullptr;
    const GridFunction *aspect_ratio = nullptr;
    const GridFunction *skew = nullptr;
@@ -253,10 +253,61 @@ struct TMOPLimitingSpec
    const GridFunction *reference_nodes = nullptr;
 };
 
+/// What the marked nodes are fitted to.
+enum class TMOPFittingType
+{
+   LevelSet,           ///< The zero level set of a field on this mesh.
+   /** The zero level set of a field on a separate background mesh, which
+       need not be related to the mesh being optimized; the field, its
+       gradient and its Hessian are interpolated from there. Parallel and
+       MFEM_USE_GSLIB only. */
+   BackgroundLevelSet
+};
+
+/** Surface fitting: a penalty that moves marked nodes onto the zero level
+    set of a function. One term per integrator, attached like limiting. How
+    the weight adapts during the solve is a property of the solve and lives
+    in TMOPSolverSpec::adaptive_fitting. Not available on periodic meshes
+    or with partial assembly. */
+struct TMOPFittingSpec
+{
+   bool enabled = false;
+   TMOPFittingType type = TMOPFittingType::LevelSet;
+
+   /** Which scalar DOFs are fitted; borrowed. One entry per DOF of the
+       level set's space (LevelSet), or of a scalar space with the nodes'
+       DOFs (BackgroundLevelSet). In parallel the marks on DOFs shared
+       between ranks must agree; see TMOPSynchronizeFittingMarker(). */
+   const Array<bool> *marker = nullptr;
+
+   /** Constant weight, used when @a weight_coeff is null. Adaptive weighting
+       scales it during Optimize(); Reset() restores this value. */
+   real_t weight = 0.0;
+   /** Spatially varying weight; borrowed, and overrides @a weight. Adaptive
+       weighting needs a ConstantCoefficient and modifies it in place.
+       With adaptive weighting, Reset() restores its value recorded at
+       optimizer construction. */
+   Coefficient *weight_coeff = nullptr;
+
+   /** LevelSet: a scalar H1 field on the initial mesh whose space has the
+       same DOFs as the nodes.
+       BackgroundLevelSet: a scalar, fixed-order H1 field on the background
+       mesh; borrowed in both cases, with values copied at construction and
+       Reset(). The caller must provide values corresponding to the source
+       mesh positions at that time. */
+   const GridFunction *level_set = nullptr;
+   /// How the level set follows the nodes. BackgroundLevelSet needs
+   /// Interpolation.
+   TMOPFieldTransfer transfer = TMOPFieldTransfer::Advection;
+   /** Also remap the level set's gradient and Hessian, for an exact Hessian
+       of the fitting term; Interpolation and parallel only. Always on for
+       BackgroundLevelSet. */
+   bool remap_derivatives = false;
+};
+
 /** One TMOP_Integrator: a metric measured against a target, plus its
-    limiting term. With several integrators the problem uses a
-    TMOPComboIntegrator; @a weight scales only the quality integral, never
-    the limiting term. */
+    limiting and fitting terms. With several integrators the problem uses a
+    TMOPComboIntegrator; @a weight scales only the quality integral. */
 struct TMOPIntegratorSpec
 {
    TMOPMetricSpec metric;
@@ -272,11 +323,36 @@ struct TMOPIntegratorSpec
    int quadrature_order = -1;
 
    /// Integrate over the target element rather than the reference element.
+   /// Partial assembly always integrates over the target.
    bool integrate_over_target = true;
    /// Exact action of TMOP_Integrator, instead of the assembled operator.
    bool exact_action = false;
 
    TMOPLimitingSpec limiting;
+   TMOPFittingSpec fitting;
+};
+
+/** Adaptive surface fitting, as in TMOPNewtonSolver: between Newton
+    iterations the fitting weights are multiplied by @a weight_scale whenever
+    the average fitting error has stopped decreasing, and the solve may end
+    on the fitting error rather than the residual. One strategy for the
+    whole solve, applied to every integrator with fitting enabled. */
+struct TMOPAdaptiveFittingSpec
+{
+   /// Factor applied to the weights; <= 1 leaves the weights fixed.
+   real_t weight_scale = 0.0;
+   /// Scale when the average error's relative decrease falls below this.
+   real_t error_change_threshold = 0.001;
+   /// Give up scaling after this many increments without progress.
+   int max_increments = 10;
+   /// Largest weight the scaling may reach; ignored with converge_on_error.
+   real_t weight_limit = 1e10;
+   /** Fitting error that counts as fitted; negative sets none. Required by
+       converge_on_error, and otherwise stops the scaling once reached. */
+   real_t max_error = -1.0;
+   /// End the solve when the maximum fitting error drops below max_error,
+   /// instead of on the residual norm.
+   bool converge_on_error = false;
 };
 
 /// Outer and inner solver settings.
@@ -294,12 +370,29 @@ struct TMOPSolverSpec
    int max_linear_iterations = 100;
    TMOPAdaptiveTol adaptive_tolerance = TMOPAdaptiveTol::None;
 
-   /// Bound det(J) from below during the line search using PLBound.
+   /** @name Mesh validity during the line search
+       Two independent guards, both off by default.
+
+       The determinant bound certifies that det(J) stays positive over whole
+       elements, not only at sample points, by bounding it with PLBound on a
+       refined grid; tensor-product elements only.
+
+       The minimum determinant limit rejects a line-search step whose
+       sampled minimum det(J) falls to or below a threshold. The threshold
+       is either @a min_determinant_limit itself, or, when
+       @a min_determinant_limit_fraction is positive, that fraction of the
+       minimum det(J) of the initial mesh (the mesh at construction or at
+       the latest Reset(), where it is recomputed), which then takes
+       precedence. Default enforces a positive minimum determinant. */
+   ///@{
    bool determinant_bound = false;
    int determinant_bound_ref_factor = 4;
    int determinant_bound_depth = 4;
-   /// Reject a line-search step whose min det(J) falls to or below this.
    real_t min_determinant_limit = 0.0;
+   real_t min_determinant_limit_fraction = 0.0;
+   ///@}
+
+   TMOPAdaptiveFittingSpec adaptive_fitting;
 
    /// Order of the determinant-check rules; negative uses the problem order.
    int quadrature_order = -1;
@@ -313,8 +406,8 @@ struct TMOPSolverSpec
 /** A complete, copyable description of a TMOP optimization problem.
 
     Members may be filled in any order and inspected at any time. No member
-    is validated here; validation happens once, in the TMOPOptimizer
-    constructor, where the mesh is known. */
+    is validated here; TMOPOptimizer validates at construction and Reset(),
+    where the mesh is known. */
 struct TMOPProblem
 {
    TMOPProblem() = default;
@@ -384,21 +477,22 @@ struct TMOPProblem
     GridFunction the problem borrows must be a ParGridFunction.
 
     The constructor copies the problem and borrows the mesh, whose nodes
-    Optimize() moves. Anything the problem gives by
-    pointer is borrowed, as in TMOP, must outlive the optimizer, and stays
-    live; anything given by value is owned and fixed at construction.
-    Discrete target fields are the exception: DiscreteAdaptTC copies their
-    values.
+    Optimize() moves. Anything the problem gives by pointer is borrowed, as
+    in TMOP, and must outlive the optimizer. Discrete target and fitting
+    fields are copied at construction and Reset(); partial assembly also
+    caches borrowed inputs. Adaptive fitting weights are restored to their
+    constructor-time values at Reset(), including borrowed constants.
+    Anything given by value is recorded at construction.
 
     The "initial nodes" are a copy of the mesh nodes taken at construction
     and again by every Reset(). They are what normalization, ideal-shape
     target volumes, limiting and the periodic displacement are measured
     against when the problem names no reference nodes of its own. So a
     mesh optimized once and Reset() is optimized the second time against
-    its optimized positions. With partial assembly, changes to borrowed
-    objects also take effect after Reset(). Changing a metric, a target or
-    whether limiting is on needs a new optimizer, as does a change of mesh
-    topology or nodal space. */
+    its optimized positions. Reset() rebuilds all optimizer-owned TMOP
+    objects from the recorded problem and current borrowed inputs. Changing
+    the problem specification, mesh topology or nodal space needs a new
+    optimizer. */
 class TMOPOptimizer
 {
 public:
@@ -411,9 +505,19 @@ public:
       /// all ranks in parallel. Not a bound over whole curved elements.
       real_t initial_minimum_determinant = 0.0;
       real_t final_minimum_determinant = 0.0;
+      /// Whether the selected residual or maximum fitting-error criterion
+      /// was satisfied at the returned mesh positions.
       bool converged = false;
       int iterations = 0;
       real_t final_norm = 0.0;
+      /** Fitting error over the marked nodes of every fitting integrator:
+          the mean of their averages and the largest of their maxima; 0
+          without fitting. See GetFittingErrors() for one integrator. */
+      real_t fitting_error_avg = 0.0;
+      real_t fitting_error_max = 0.0;
+      /** The weight of the first fitting integrator with a constant weight
+          after the solve, where adaptive weighting may have grown it. */
+      real_t final_fitting_weight = 0.0;
    };
 
    /// Record @a problem by value, borrow @a mesh, validate both, and build
@@ -423,11 +527,15 @@ public:
    TMOPOptimizer(const TMOPOptimizer &) = delete;
    TMOPOptimizer &operator=(const TMOPOptimizer &) = delete;
 
-   /** Take the current mesh nodes as the initial nodes, then recompute the
-       target reference volumes, the partial-assembly data, normalization,
-       the barrier shift and the untangler quantiles from them and from the
-       borrowed inputs. Rebuilds nothing; requires unchanged mesh topology
-       and nodal space. */
+   /** Rebuild all optimizer-owned metrics, targets, integrators and solvers
+       from the recorded problem, current mesh nodes and current borrowed
+       inputs, as at construction. The current positions become the initial
+       nodes. Owned weights and solver history restart. Borrowed adaptive
+       fitting weights return to their constructor-time values; other
+       caller-owned objects keep their current state. Borrowed fields must
+       correspond to their source mesh positions. Requires unchanged mesh
+       topology and nodal space. Invalidates the result and references to
+       owned metrics and targets returned by GetMetric() and GetTarget(). */
    void Reset();
 
    /// Optimize the mesh nodes in place.
@@ -447,10 +555,18 @@ public:
    /// The recorded description, as given to the constructor.
    const TMOPProblem &GetProblem() const;
 
+   /** Average and maximum distance of integrator @a index's marked nodes
+       from the surface, at the current mesh positions. The integrator must
+       have fitting enabled. */
+   void GetFittingErrors(int index, real_t &average, real_t &maximum) const;
+   /// Current fitting weight of integrator @a index; needs a constant weight.
+   real_t GetFittingWeight(int index) const;
+
    /** The metric and target of integrator @a index, a position in
        TMOPProblem::integrators, e.g. for vis_tmop_metric_p(). The metric is
        the one before any untangling wrapper; it is non-const only because
-       TMOP's evaluation interface is. Both stay owned by the optimizer. */
+       TMOP's evaluation interface is. Owned objects are replaced at Reset();
+       external objects remain owned by the caller. */
    ///@{
    TMOP_QualityMetric &GetMetric(int index);
    const TargetConstructor &GetTarget(int index) const;
@@ -475,9 +591,20 @@ private:
       TMOP_Integrator *integrator = nullptr;
 
       /** The limiting distance and weight, owned only when the spec gives
-          constants; destroyed with the Term, which the form outlives. */
+          constants; kept alive until the form is destroyed. */
       std::unique_ptr<GridFunction> limit_distance;
       std::unique_ptr<ConstantCoefficient> limit_weight;
+
+      /** Fitting objects owned on behalf of the spec: the constant weight,
+          the transfer evaluators and, for a background level set, its
+          derivatives on that mesh plus the fields on this mesh that the
+          integrator interpolates into. The integrator borrows them all. */
+      std::unique_ptr<ConstantCoefficient> fit_weight;
+      std::unique_ptr<GridFunction> fit_bg_grad, fit_bg_hess;
+      std::unique_ptr<GridFunction> fit_level_set, fit_grad, fit_hess;
+      // Evaluators also borrow the fields' spaces and collections.
+      std::unique_ptr<AdaptivityEvaluator> fit_eval, fit_eval_grad,
+          fit_eval_hess;
    };
 
    Mesh &mesh;
@@ -486,8 +613,14 @@ private:
    ParMesh *pmesh = nullptr;
 #endif
    TMOPProblem problem;
+   // Native adaptive fitting changes borrowed constants in place. Record
+   // each distinct coefficient once, preserving sharing between terms.
+   std::map<ConstantCoefficient *, real_t> initial_fitting_weights;
    GridFunction *nodes = nullptr;
    FiniteElementSpace *nodal_space = nullptr;
+   // Reset() reuses the spaces, so topology and space updates are forbidden.
+   long mesh_sequence = 0;
+   long nodal_space_sequence = 0;
    /// The space the nonlinear form is built on: nodal, or H1 displacement.
    FiniteElementSpace *solve_space = nullptr;
    /// H1 displacement on periodic meshes; owns its space and collection.
@@ -613,7 +746,7 @@ private:
    /// Nodes an owned target measures against: the spec's, or the initial.
    const GridFunction &TargetNodes(const TMOPTargetSpec &spec) const
    {
-      return spec.kind == TMOPTargetKind::IdealShape && spec.reference_nodes
+      return spec.type == TMOPTargetType::IdealShape && spec.reference_nodes
              ? *spec.reference_nodes : *initial_nodes;
    }
 
@@ -632,6 +765,7 @@ private:
    }
 
    void Validate() const;
+   void ValidateFitting(int i, const TMOPFittingSpec &fit) const;
    std::unique_ptr<TMOP_QualityMetric> ConstructMetric(
       const TMOPMetricSpec &spec);
    void BuildIdealShapeTarget(Term &owner, const TMOPTargetSpec &spec);
@@ -641,13 +775,37 @@ private:
    void BalanceMetric(Term &owner, const TMOPIntegratorSpec &spec);
    void BuildIntegrators();
    void AttachLimiting(Term &owner, const TMOPLimitingSpec &lim);
+   void AttachFitting(Term &owner, const TMOPFittingSpec &fit);
+#ifdef MFEM_USE_MPI
+   void AttachBackgroundFitting(Term &owner, const TMOPFittingSpec &fit,
+                                Coefficient &weight);
+#endif
+   /// The fitting weight of a term when it is constant; null otherwise.
+   ConstantCoefficient *ConstantFittingWeight(int index) const
+   {
+      const Term &term = terms[index];
+      if (term.fit_weight) { return term.fit_weight.get(); }
+      return dynamic_cast<ConstantCoefficient *>(
+                problem.integrators[index].fitting.weight_coeff);
+   }
+   /// A scalar-or-vector field on this mesh in the nodes' H1 collection,
+   /// owning its space and collection.
+   std::unique_ptr<GridFunction> NewNodalOrderField(int vdim) const
+   {
+      const FiniteElementCollection *nodal_fec = solve_space->FEColl();
+      auto *fec = nodal_fec->Clone(nodal_fec->GetOrder());
+      auto *fes = NewSpace(fec, vdim, Ordering::byNODES);
+      auto field = NewGridFunction(fes);
+      field->MakeOwner(fec);
+      return field;
+   }
+   /// Apply min_determinant_limit or its fraction of the current min det(J).
+   void ApplyDeterminantThreshold();
    void EnableNormalization();
    void InitializeBarrierShift();
    void ApplyBoundaryConditions();
    void SetupSolver();
-   /// Recompute the global quantiles the untangling wrapper depends on.
-   void RefreshUntanglerQuantiles();
-   /// Called once, by the constructor.
+   /// Build the numerical objects at construction and Reset().
    void Build();
 };
 
@@ -696,7 +854,7 @@ inline TMOPMetricSpec TMOPMetricSpec::External(TMOP_QualityMetric &metric)
 inline TMOPTargetSpec TMOPTargetSpec::IdealShapeUnitSize()
 {
    TMOPTargetSpec spec;
-   spec.kind = TMOPTargetKind::IdealShape;
+   spec.type = TMOPTargetType::IdealShape;
    spec.size_kind = TMOPIdealShapeTargetSize::Unit;
    return spec;
 }
@@ -704,7 +862,7 @@ inline TMOPTargetSpec TMOPTargetSpec::IdealShapeUnitSize()
 inline TMOPTargetSpec TMOPTargetSpec::IdealShapeEqualSize(real_t volume_scale)
 {
    TMOPTargetSpec spec;
-   spec.kind = TMOPTargetKind::IdealShape;
+   spec.type = TMOPTargetType::IdealShape;
    spec.size_kind = TMOPIdealShapeTargetSize::Equal;
    spec.volume_scale = volume_scale;
    return spec;
@@ -713,7 +871,7 @@ inline TMOPTargetSpec TMOPTargetSpec::IdealShapeEqualSize(real_t volume_scale)
 inline TMOPTargetSpec TMOPTargetSpec::IdealShapeGivenSize()
 {
    TMOPTargetSpec spec;
-   spec.kind = TMOPTargetKind::IdealShape;
+   spec.type = TMOPTargetType::IdealShape;
    spec.size_kind = TMOPIdealShapeTargetSize::Given;
    return spec;
 }
@@ -721,7 +879,7 @@ inline TMOPTargetSpec TMOPTargetSpec::IdealShapeGivenSize()
 inline TMOPTargetSpec TMOPTargetSpec::Analytic(TMOPMatrixCoefficient &matrix)
 {
    TMOPTargetSpec spec;
-   spec.kind = TMOPTargetKind::Analytic;
+   spec.type = TMOPTargetType::Analytic;
    spec.analytic = &matrix;
    return spec;
 }
@@ -729,14 +887,14 @@ inline TMOPTargetSpec TMOPTargetSpec::Analytic(TMOPMatrixCoefficient &matrix)
 inline TMOPTargetSpec TMOPTargetSpec::Discrete()
 {
    TMOPTargetSpec spec;
-   spec.kind = TMOPTargetKind::Discrete;
+   spec.type = TMOPTargetType::Discrete;
    return spec;
 }
 
 inline TMOPTargetSpec TMOPTargetSpec::External(TargetConstructor &target)
 {
    TMOPTargetSpec spec;
-   spec.kind = TMOPTargetKind::External;
+   spec.type = TMOPTargetType::External;
    spec.external = &target;
    return spec;
 }
@@ -744,7 +902,7 @@ inline TMOPTargetSpec TMOPTargetSpec::External(TargetConstructor &target)
 inline TMOPTargetSpec TMOPTargetSpec::SameAs(int index)
 {
    TMOPTargetSpec spec;
-   spec.kind = TMOPTargetKind::SameAs;
+   spec.type = TMOPTargetType::SameAs;
    spec.shared_index = index;
    return spec;
 }
@@ -784,6 +942,8 @@ inline TMOPOptimizer::TMOPOptimizer(Mesh &mesh_,
    nodal_space = nodes->FESpace();
    MFEM_VERIFY(nodal_space->GetVDim() == mesh.Dimension(),
                "Mesh nodal vector dimension must equal mesh dimension.");
+   mesh_sequence = mesh.GetSequence();
+   nodal_space_sequence = nodal_space->GetSequence();
 
    // Periodic meshes carry L2 nodes; TMOP then solves for an H1
    // displacement and the Newton solver reconstructs the positions.
@@ -802,6 +962,19 @@ inline TMOPOptimizer::TMOPOptimizer(Mesh &mesh_,
    irules = std::make_unique<IntegrationRules>(
                0, problem.quadrature.quadrature_type);
    Build();
+   if (problem.solver.adaptive_fitting.weight_scale > 1.0)
+   {
+      for (const auto &term : problem.integrators)
+      {
+         if (!term.fitting.enabled) { continue; }
+         auto *weight = dynamic_cast<ConstantCoefficient *>(
+                           term.fitting.weight_coeff);
+         if (weight)
+         {
+            initial_fitting_weights.emplace(weight, weight->constant);
+         }
+      }
+   }
 }
 
 inline void TMOPOptimizer::Validate() const
@@ -838,48 +1011,134 @@ inline void TMOPOptimizer::Validate() const
                      "handing it over.");
       }
       const TMOPTargetSpec &target = spec.target;
-      switch (target.kind)
+      switch (target.type)
       {
-         case TMOPTargetKind::IdealShape: break;
-         case TMOPTargetKind::Analytic:
+         case TMOPTargetType::IdealShape: break;
+         case TMOPTargetType::Analytic:
             MFEM_VERIFY(target.analytic,
                         "Integrator " << i << ": an analytic target needs a "
                         "TMOPMatrixCoefficient; see TMOPTargetSpec::"
                         "Analytic().");
             break;
-         case TMOPTargetKind::Discrete:
+         case TMOPTargetType::Discrete:
             MFEM_VERIFY(target.size || target.aspect_ratio || target.skew ||
                         target.orientation,
                         "Integrator " << i << ": a discrete target needs at "
                         "least one field: size, aspect_ratio, skew or "
                         "orientation.");
             break;
-         case TMOPTargetKind::External:
+         case TMOPTargetType::External:
             MFEM_VERIFY(target.external,
                         "Integrator " << i << ": an external target needs a "
                         "TargetConstructor; see TMOPTargetSpec::External().");
             break;
-         case TMOPTargetKind::SameAs: break;
-         default: MFEM_ABORT("Unknown TMOPTargetKind.");
+         case TMOPTargetType::SameAs: break;
+         default: MFEM_ABORT("Unknown TMOPTargetType.");
       }
-      if (target.kind == TMOPTargetKind::SameAs)
+      if (target.type == TMOPTargetType::SameAs)
       {
          const int source = spec.target.shared_index;
          MFEM_VERIFY(source >= 0 && static_cast<std::size_t>(source) < i,
                      "TMOPTargetSpec::SameAs on integrator " << i
                      << " names " << source << "; it must name an earlier "
                      "integrator, so that the shared target already exists.");
-         MFEM_VERIFY(problem.integrators[source].target.kind !=
-                     TMOPTargetKind::SameAs,
+         MFEM_VERIFY(problem.integrators[source].target.type !=
+                     TMOPTargetType::SameAs,
                      "TMOPTargetSpec::SameAs cannot name another SameAs; "
                      "point it at the integrator that builds the target.");
       }
       MFEM_VERIFY(!pa || !spec.exact_action,
                   "Partial assembly does not support exact action.");
+      // The PA kernels weight every integral by det(Jtr) unconditionally.
+      MFEM_VERIFY(!pa || spec.integrate_over_target,
+                  "Partial assembly always integrates over the target; "
+                  "integrate_over_target = false needs legacy assembly.");
       MFEM_VERIFY(!spec.limiting.enabled || !pa || !Periodic(),
                   "Native partial-assembly limiting does not support "
                   "periodic reference nodes.");
+      ValidateFitting(static_cast<int>(i), spec.fitting);
    }
+   const TMOPAdaptiveFittingSpec &af = problem.solver.adaptive_fitting;
+   bool fitting = false;
+   for (const TMOPIntegratorSpec &s : problem.integrators)
+   {
+      fitting = fitting || s.fitting.enabled;
+   }
+   MFEM_VERIFY(fitting || (af.weight_scale <= 1.0 && !af.converge_on_error),
+               "Adaptive fitting settings need an integrator with fitting "
+               "enabled.");
+   MFEM_VERIFY(!af.converge_on_error || af.max_error >= 0.0,
+               "adaptive_fitting.converge_on_error needs a max_error.");
+}
+
+inline void TMOPOptimizer::ValidateFitting(int i,
+                                           const TMOPFittingSpec &fit) const
+{
+   if (!fit.enabled) { return; }
+   MFEM_VERIFY(!Periodic(),
+               "Integrator " << i << ": surface fitting is not supported on "
+               "periodic meshes.");
+   // The partial-assembly kernels have no fitting term, so it would be
+   // silently dropped.
+   MFEM_VERIFY(!problem.quadrature.partial_assembly,
+               "Integrator " << i << ": surface fitting needs legacy "
+               "assembly; partial assembly has no fitting term.");
+   MFEM_VERIFY(fit.marker, "Integrator " << i << ": fitting needs a marker.");
+   const int nodal_dofs = nodal_space->GetNDofs();
+   switch (fit.type)
+   {
+      case TMOPFittingType::LevelSet:
+         MFEM_VERIFY(fit.level_set,
+                     "Integrator " << i << ": fitting to a level set needs "
+                     "the field.");
+         MFEM_VERIFY(fit.level_set->FESpace()->GetVDim() == 1 &&
+                     fit.level_set->FESpace()->GetNDofs() == nodal_dofs,
+                     "Integrator " << i << ": the level set must be a scalar "
+                     "field whose space has the DOFs of the mesh nodes.");
+         MFEM_VERIFY(fit.marker->Size() == fit.level_set->Size(),
+                     "Integrator " << i << ": the marker must have one entry "
+                     "per level-set DOF.");
+         MFEM_VERIFY(!fit.remap_derivatives || Parallel(),
+                     "Integrator " << i << ": remapping the level-set "
+                     "derivatives is available in parallel only.");
+         MFEM_VERIFY(!fit.remap_derivatives ||
+                     fit.transfer == TMOPFieldTransfer::Interpolation,
+                     "Integrator " << i << ": remapping the level-set "
+                     "derivatives needs TMOPFieldTransfer::Interpolation.");
+         break;
+      case TMOPFittingType::BackgroundLevelSet:
+         MFEM_VERIFY(Parallel(),
+                     "Integrator " << i << ": a background level set is "
+                     "supported in parallel only.");
+         MFEM_VERIFY(fit.transfer == TMOPFieldTransfer::Interpolation,
+                     "Integrator " << i << ": a background level set needs "
+                     "TMOPFieldTransfer::Interpolation.");
+         MFEM_VERIFY(fit.level_set && fit.level_set->FESpace()->GetVDim() == 1,
+                     "Integrator " << i << ": fitting to a background level "
+                     "set needs the scalar field on the background mesh.");
+         // AdaptivityEvaluator also rebuilds its spaces from the collection,
+         // so preserving orders in the derivative fields alone is insufficient.
+         MFEM_VERIFY(!fit.level_set->FESpace()->IsVariableOrder(),
+                     "Integrator " << i << ": background level-set fitting "
+                     "requires a fixed-order finite element space.");
+         MFEM_VERIFY(fit.marker->Size() == nodal_dofs,
+                     "Integrator " << i << ": the marker must have one entry "
+                     "per scalar node DOF.");
+         break;
+      default: MFEM_ABORT("Unknown TMOPFittingType.");
+   }
+   if (fit.transfer == TMOPFieldTransfer::Interpolation)
+   {
+#ifndef MFEM_USE_GSLIB
+      MFEM_ABORT("Integrator " << i << ": level-set interpolation requires "
+                 "MFEM_USE_GSLIB.");
+#endif
+   }
+   const TMOPAdaptiveFittingSpec &af = problem.solver.adaptive_fitting;
+   MFEM_VERIFY(af.weight_scale <= 1.0 || !fit.weight_coeff ||
+               dynamic_cast<ConstantCoefficient *>(fit.weight_coeff),
+               "Integrator " << i << ": adaptive fitting needs a constant "
+               "weight.");
 }
 
 inline std::unique_ptr<TMOP_QualityMetric> TMOPOptimizer::ConstructMetric(
@@ -1059,19 +1318,19 @@ inline void TMOPOptimizer::BuildTarget(Term &owner,
                                        const TMOPIntegratorSpec &integrator)
 {
    const TMOPTargetSpec &spec = integrator.target;
-   switch (spec.kind)
+   switch (spec.type)
    {
-      case TMOPTargetKind::IdealShape:
+      case TMOPTargetType::IdealShape:
          BuildIdealShapeTarget(owner, spec); break;
-      case TMOPTargetKind::Analytic: BuildAnalyticTarget(owner, spec); break;
-      case TMOPTargetKind::Discrete: BuildDiscreteTarget(owner, spec); break;
-      case TMOPTargetKind::External: owner.target = spec.external; break;
-      case TMOPTargetKind::SameAs:
+      case TMOPTargetType::Analytic: BuildAnalyticTarget(owner, spec); break;
+      case TMOPTargetType::Discrete: BuildDiscreteTarget(owner, spec); break;
+      case TMOPTargetType::External: owner.target = spec.external; break;
+      case TMOPTargetType::SameAs:
          // Validated already; the source was built on an earlier pass, so
          // this borrows it rather than owning a second copy.
          owner.target = terms[spec.shared_index].target;
          break;
-      default: MFEM_ABORT("Unknown TMOPTargetKind.");
+      default: MFEM_ABORT("Unknown TMOPTargetType.");
    }
 }
 
@@ -1145,9 +1404,10 @@ inline void TMOPOptimizer::BuildIntegrators()
       if (spec.metric.balance_components) { BalanceMetric(owner, spec); }
       if (spec.weight) { integrator->SetCoefficient(*spec.weight); }
 
-      // Limiting hangs off this same integrator, so it is attached here
-      // rather than hoisted to the problem.
+      // Limiting and fitting hang off this same integrator, so they are
+      // attached here rather than hoisted to the problem.
       AttachLimiting(owner, spec.limiting);
+      AttachFitting(owner, spec.fitting);
    }
 }
 
@@ -1178,6 +1438,126 @@ inline void TMOPOptimizer::AttachLimiting(Term &owner,
    auto *limiter = lim.exponential ? new TMOP_ExponentialLimiter : nullptr;
    owner.integrator->EnableLimiting(reference, *distance, *weight, limiter);
 }
+
+inline void TMOPOptimizer::AttachFitting(Term &owner,
+                                         const TMOPFittingSpec &fit)
+{
+   if (!fit.enabled) { return; }
+   Coefficient *weight = fit.weight_coeff;
+   if (!weight)
+   {
+      owner.fit_weight = std::make_unique<ConstantCoefficient>(fit.weight);
+      weight = owner.fit_weight.get();
+   }
+
+   // The evaluators that carry the level set (and its derivatives) from the
+   // initial mesh, or the background mesh, to the moving nodes.
+   auto new_evaluator = [&]() -> std::unique_ptr<AdaptivityEvaluator>
+   {
+      if (fit.transfer == TMOPFieldTransfer::Advection)
+      {
+         return std::make_unique<AdvectorCG>(
+                   problem.quadrature.partial_assembly ? AssemblyLevel::PARTIAL
+                   : AssemblyLevel::LEGACY);
+      }
+#ifdef MFEM_USE_GSLIB
+      return std::make_unique<InterpolatorFP>();
+#else
+      MFEM_ABORT("Level-set interpolation requires MFEM_USE_GSLIB.");
+      return nullptr;
+#endif
+   };
+   owner.fit_eval = new_evaluator();
+   if (fit.remap_derivatives || fit.type == TMOPFittingType::BackgroundLevelSet)
+   {
+      owner.fit_eval_grad = new_evaluator();
+      owner.fit_eval_hess = new_evaluator();
+   }
+
+#ifdef MFEM_USE_MPI
+   if (pmesh)
+   {
+      if (fit.type == TMOPFittingType::BackgroundLevelSet)
+      {
+         AttachBackgroundFitting(owner, fit, *weight);
+         return;
+      }
+      auto *level_set = dynamic_cast<const ParGridFunction *>(fit.level_set);
+      MFEM_VERIFY(level_set, "The level set on a ParMesh must be a "
+                  "ParGridFunction.");
+      owner.integrator->EnableSurfaceFitting(*level_set, *fit.marker, *weight,
+                                             *owner.fit_eval,
+                                             owner.fit_eval_grad.get(),
+                                             owner.fit_eval_hess.get());
+      return;
+   }
+#endif
+   owner.integrator->EnableSurfaceFitting(*fit.level_set, *fit.marker, *weight,
+                                          *owner.fit_eval);
+}
+
+#ifdef MFEM_USE_MPI
+inline void TMOPOptimizer::AttachBackgroundFitting(Term &owner,
+                                                   const TMOPFittingSpec &fit,
+                                                   Coefficient &weight)
+{
+   auto *background = dynamic_cast<const ParGridFunction *>(fit.level_set);
+   MFEM_VERIFY(background, "The background level set must be a "
+               "ParGridFunction.");
+   ParFiniteElementSpace *bg_fes = background->ParFESpace();
+   ParMesh *background_mesh = bg_fes->GetParMesh();
+   if (!background_mesh->GetNodes()) { background_mesh->EnsureNodes(); }
+   const int dim = mesh.Dimension();
+
+   // Gradient and Hessian of the level set on the background mesh, in its
+   // own collection; computed once here, component by component.
+   auto new_background_field = [&](int vdim)
+   {
+      const FiniteElementCollection *bg_fec = bg_fes->FEColl();
+      auto *fec = bg_fec->Clone(bg_fec->GetOrder());
+      auto *fes = new ParFiniteElementSpace(bg_fes->GetParMesh(), fec, vdim,
+                                            Ordering::byNODES);
+      auto field = std::make_unique<ParGridFunction>(fes);
+      field->MakeOwner(fec);
+      return field;
+   };
+   auto bg_grad = new_background_field(dim);
+   auto bg_hess = new_background_field(dim * dim);
+   const int n = background->Size();
+   MFEM_VERIFY(bg_grad->Size() == dim * n &&
+               bg_hess->Size() == dim * dim * n,
+               "Background derivative spaces have incompatible sizes.");
+   for (int d = 0; d < dim; d++)
+   {
+      ParGridFunction grad_d(bg_fes, bg_grad->GetData() + d * n);
+      background->GetDerivative(1, d, grad_d);
+   }
+   for (int d = 0, k = 0; d < dim; d++)
+   {
+      for (int e = 0; e < dim; e++, k++)
+      {
+         ParGridFunction grad_d(bg_fes, bg_grad->GetData() + d * n);
+         ParGridFunction hess_k(bg_fes, bg_hess->GetData() + k * n);
+         grad_d.GetDerivative(1, e, hess_k);
+      }
+   }
+
+   // The level set and its derivatives on this mesh; the integrator fills
+   // them by interpolation from the background mesh.
+   owner.fit_level_set = NewNodalOrderField(1);
+   owner.fit_grad = NewNodalOrderField(dim);
+   owner.fit_hess = NewNodalOrderField(dim * dim);
+   auto par = [](GridFunction &g) -> ParGridFunction &
+   { return static_cast<ParGridFunction &>(g); };
+   owner.integrator->EnableSurfaceFittingFromSource(
+      *background, par(*owner.fit_level_set), *fit.marker, weight,
+      *owner.fit_eval,
+      *bg_grad, par(*owner.fit_grad), *owner.fit_eval_grad,
+      *bg_hess, par(*owner.fit_hess), *owner.fit_eval_hess);
+   owner.fit_bg_grad = std::move(bg_grad);
+   owner.fit_bg_hess = std::move(bg_hess);
+}
+#endif
 
 inline void TMOPOptimizer::EnableNormalization()
 {
@@ -1230,7 +1610,7 @@ inline real_t TMOPOptimizer::GetMinimumDeterminant() const
 inline void TMOPOptimizer::InitializeBarrierShift()
 {
    current_min_detJ = GetMinimumDeterminant();
-   barrier_shift = current_min_detJ;
+   barrier_shift = 0.0;
    if (current_min_detJ < 0.0)
    {
       for (std::size_t i = 0; i < problem.integrators.size(); i++)
@@ -1249,7 +1629,7 @@ inline void TMOPOptimizer::InitializeBarrierShift()
       }
       const DenseMatrix &ideal = Geometries.GetGeomToPerfGeomJac(
                                     mesh.GetTypicalElementGeometry());
-      barrier_shift /= ideal.Det();
+      barrier_shift = current_min_detJ / ideal.Det();
       real_t h0_min = problem.initial_min_size;
       if (h0_min < 0.0)
       {
@@ -1350,7 +1730,8 @@ inline void TMOPOptimizer::SetupSolver()
    krylov->SetPrintLevel(linear_print);
 
    // Matrix-based diagonal smoothers: Hypre's in parallel, DSmoother in
-   // serial. Both take the absolute value of the diagonal.
+   // serial. Hypre's positivity option applies to l1 norms; plain Hypre
+   // Jacobi retains the diagonal's sign, as in the native drivers.
    auto diagonal_smoother = [&](bool l1) -> std::unique_ptr<Solver>
    {
 #ifdef MFEM_USE_MPI
@@ -1429,10 +1810,22 @@ inline void TMOPOptimizer::SetupSolver()
          newton.SetAdaptiveLinRtol(2, 0.5, 0.9); break;
       default: MFEM_ABORT("Unknown TMOPAdaptiveTol.");
    }
-   if (sol.min_determinant_limit != 0.0)
+   ApplyDeterminantThreshold();
+
+   const TMOPAdaptiveFittingSpec &af = sol.adaptive_fitting;
+   if (af.weight_scale > 1.0)
    {
-      newton.SetMinimumDeterminantThreshold(sol.min_determinant_limit);
+      newton.SetAdaptiveSurfaceFittingScalingFactor(af.weight_scale);
    }
+   newton.SetAdaptiveSurfaceFittingRelativeChangeThreshold(
+      af.error_change_threshold);
+   newton.SetMaxNumberofIncrementsForAdaptiveFitting(af.max_increments);
+   newton.SetSurfaceFittingWeightLimit(af.weight_limit);
+   if (af.max_error >= 0.0)
+   {
+      newton.SetSurfaceFittingMaxErrorLimit(af.max_error);
+   }
+   newton.SetSurfaceFittingConvergenceBasedOnError(af.converge_on_error);
    IterativeSolver::PrintLevel newton_print;
    if (sol.verbosity > 0)
    { newton_print.Errors().Warnings().Iterations(); }
@@ -1440,12 +1833,15 @@ inline void TMOPOptimizer::SetupSolver()
    newton.SetPrintLevel(newton_print);
 }
 
-inline void TMOPOptimizer::RefreshUntanglerQuantiles()
+inline void TMOPOptimizer::ApplyDeterminantThreshold()
 {
-   for (auto &term : terms)
+   const TMOPSolverSpec &sol = problem.solver;
+   const real_t limit = sol.min_determinant_limit_fraction > 0.0
+                        ? sol.min_determinant_limit_fraction * current_min_detJ
+                        : sol.min_determinant_limit;
+   if (limit != 0.0)
    {
-      if (!term.wrapper_metric) { continue; }
-      term.integrator->ComputeUntangleMetricQuantiles(*nodes, *nodal_space);
+      nonlinear_solver->SetMinimumDeterminantThreshold(limit);
    }
 }
 
@@ -1465,13 +1861,14 @@ inline void TMOPOptimizer::Build()
    {
       form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    }
-   // Adds the integrators to the form and attaches their limiting.
+   // Adds the integrators to the form and attaches limiting and fitting.
    BuildIntegrators();
+   // Shifted metrics must have their initial barrier before normalization.
+   InitializeBarrierShift();
    // Partial assembly must follow the full integrator setup.
    if (problem.quadrature.partial_assembly) { form->Setup(); }
 
    EnableNormalization();
-   InitializeBarrierShift();
    if (problem.solver.verbosity > 0 && Root())
    {
       mfem::out << "Minimum det(J) of the original mesh is "
@@ -1483,28 +1880,32 @@ inline void TMOPOptimizer::Build()
 
 inline void TMOPOptimizer::Reset()
 {
-   // The current positions become the initial nodes. Everything that
-   // borrowed *initial_nodes (targets, limiting, the periodic displacement
-   // origin) sees the new values through the same object; owned targets
-   // are told again so that they drop their cached average volume.
-   *initial_nodes = *nodes;
-   for (std::size_t i = 0; i < terms.size(); i++)
+   MFEM_VERIFY(mesh.GetNodes() == nodes && nodes->FESpace() == nodal_space &&
+               mesh.GetSequence() == mesh_sequence &&
+               nodal_space->GetSequence() == nodal_space_sequence,
+               "Reset requires unchanged mesh topology and nodal space; "
+               "construct a new TMOPOptimizer after changing either.");
+
+   // Destroy borrowers before their owners, as in the member destructors.
+   nonlinear_solver.reset();
+   linear_solver.reset();
+   linear_preconditioner.reset();
+   form.reset();
+   combo = nullptr;
+   terms.clear();
+
+   for (const auto &weight : initial_fitting_weights)
    {
-      if (terms[i].owned_target)
-      {
-         terms[i].owned_target->SetNodes(
-            TargetNodes(problem.integrators[i].target));
-      }
+      weight.first->constant = weight.second;
    }
-   // Partial assembly copies the limiting reference nodes, distance and
-   // constant weights, so reassemble before normalization reads that data.
-   // The essential DOFs depend only on the topology and are kept.
-   if (problem.quadrature.partial_assembly) { form->Setup(); }
-   EnableNormalization();
+   mesh.NodesUpdated();
+   *initial_nodes = *nodes;
+   if (Periodic()) { *displacement = 0.0; }
+   barrier_shift = -0.1;
+   current_min_detJ = 0.0;
    result = Result();
-   InitializeBarrierShift();
-   RefreshUntanglerQuantiles();
    optimized = false;
+   Build();
 }
 
 inline real_t TMOPOptimizer::GetEnergy() const
@@ -1588,9 +1989,29 @@ inline TMOPOptimizer::Result TMOPOptimizer::Optimize()
    outcome.final_energy = GetEnergy();
    outcome.final_minimum_determinant = GetMinimumDeterminant();
    current_min_detJ = outcome.final_minimum_determinant;
-   outcome.converged = newton.GetConverged();
    outcome.iterations = newton.GetNumIterations();
    outcome.final_norm = newton.GetFinalNorm();
+   int fitted = 0;
+   bool weight_recorded = false;
+   for (std::size_t i = 0; i < terms.size(); i++)
+   {
+      if (!problem.integrators[i].fitting.enabled) { continue; }
+      real_t average, maximum;
+      GetFittingErrors(static_cast<int>(i), average, maximum);
+      outcome.fitting_error_avg += average;
+      outcome.fitting_error_max = std::max(outcome.fitting_error_max, maximum);
+      fitted++;
+      if (!weight_recorded && ConstantFittingWeight(static_cast<int>(i)))
+      {
+         outcome.final_fitting_weight = GetFittingWeight(static_cast<int>(i));
+         weight_recorded = true;
+      }
+   }
+   if (fitted) { outcome.fitting_error_avg /= fitted; }
+   const TMOPAdaptiveFittingSpec &af = problem.solver.adaptive_fitting;
+   outcome.converged = af.converge_on_error
+                       ? outcome.fitting_error_max < af.max_error
+                       : newton.GetConverged();
    result = outcome;
    optimized = true;
    if (problem.solver.verbosity > 0 && Root())
@@ -1622,6 +2043,44 @@ inline TMOP_QualityMetric &TMOPOptimizer::GetMetric(int index)
 
 inline const TargetConstructor &TMOPOptimizer::GetTarget(int index) const
 { return *CheckedTerm(index).target; }
+
+inline void TMOPOptimizer::GetFittingErrors(int index, real_t &average,
+                                            real_t &maximum) const
+{
+   const Term &term = CheckedTerm(index);
+   MFEM_VERIFY(problem.integrators[index].fitting.enabled,
+               "TMOP integrator " << index << " has no fitting term.");
+   term.integrator->GetSurfaceFittingErrors(*nodes, average, maximum);
+}
+
+inline real_t TMOPOptimizer::GetFittingWeight(int index) const
+{
+   CheckedTerm(index);
+   const ConstantCoefficient *weight = ConstantFittingWeight(index);
+   MFEM_VERIFY(weight, "TMOP integrator " << index << " has no constant "
+               "fitting weight.");
+   return weight->constant;
+}
+
+/** Make the fitting marks on DOFs shared between MPI ranks agree: a DOF
+    marked on any rank becomes marked on all. @a fes is the scalar space
+    the marker is sized to, i.e. the level set's. A no-op in serial. */
+inline void TMOPSynchronizeFittingMarker(Array<bool> &marker,
+                                         const FiniteElementSpace &fes)
+{
+#ifdef MFEM_USE_MPI
+   auto *pfes = dynamic_cast<const ParFiniteElementSpace *>(&fes);
+   if (!pfes) { return; }
+   MFEM_VERIFY(marker.Size() == pfes->GetVSize(),
+               "The fitting marker must have one entry per DOF of its space.");
+   Array<int> marks(marker.Size());
+   for (int i = 0; i < marks.Size(); i++) { marks[i] = marker[i] ? 1 : 0; }
+   const GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(marks, GroupCommunicator::Max);
+   gcomm.Bcast(marks);
+   for (int i = 0; i < marks.Size(); i++) { marker[i] = marks[i] != 0; }
+#endif
+}
 
 } // namespace mfem
 
