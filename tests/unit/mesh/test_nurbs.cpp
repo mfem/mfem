@@ -586,3 +586,197 @@ TEST_CASE("NURBS NC-patch large meshes", "[MFEMData][NURBS]")
    mesh.NURBSUniformRefinement();
    REQUIRE(mesh.GetNE() == ne * std::pow(2, dim));
 }
+
+TEST_CASE("NURBS removal preserves corrected left control points", "[NURBS]")
+{
+   const int degree = GENERATE(3, 5);
+   const int direction = GENERATE(0, 1);
+   KnotVector kv(degree);
+   NURBSPatch patch(&kv, &kv, 3);
+   for (int j = 0; j <= degree; ++j)
+   {
+      for (int i = 0; i <= degree; ++i)
+      {
+         const real_t weight = 1.0 + 0.125*i + 0.25*j;
+         patch(i, j, 0) = weight * i / degree;
+         patch(i, j, 1) = weight * j / degree;
+         patch(i, j, 2) = weight;
+      }
+   }
+   const NURBSPatch original(patch);
+   Vector inserted(1);
+   inserted[0] = 0.25;
+   patch.KnotInsert(direction, inserted);
+   REQUIRE(patch.KnotRemove(direction, 0.25, 1, 1.e-10) == 1);
+   REQUIRE(patch.GetKV(direction)->GetNCP() == degree + 1);
+   bool matching = true;
+   for (int j = 0; j <= degree; ++j)
+   {
+      for (int i = 0; i <= degree; ++i)
+      {
+         for (int component = 0; component < 3; ++component)
+         {
+	   if (!(patch(i, j, component) ==
+		 MFEM_Approx(original(i, j, component))))
+	     matching = false;
+         }
+      }
+   }
+
+   REQUIRE(matching);
+}
+
+TEST_CASE("NURBS coarsening counts fine knot multiplicities", "[NURBS]")
+{
+   const int degree = GENERATE(1, 2, 3);
+   const int factor = GENERATE(2, 3);
+   constexpr int spans = 6;
+   KnotVector kv(degree, spans * degree + 1);
+   int cursor = 0;
+   for (int k = 0; k <= spans; ++k)
+   {
+      const int multiplicity = degree + (k == 0 || k == spans ? 1 : 0);
+      for (int j = 0; j < multiplicity; ++j)
+      {
+         kv[cursor++] = real_t(k) / spans;
+      }
+   }
+   kv.GetElements();
+   const Vector fine = kv.GetFineKnots(factor);
+   const int unique = spans - spans / factor;
+   REQUIRE(fine.Size() == unique * degree);
+   bool matching = true;
+   for (int occurrence = 0; occurrence < degree; ++occurrence)
+   {
+      int selected = 0;
+      for (int k = 1; k < spans; ++k)
+      {
+         if (k % factor)
+         {
+	   if (!(fine[occurrence * unique + selected++] ==
+		 MFEM_Approx(real_t(k) / spans)))
+	     matching = false;
+         }
+      }
+   }
+   REQUIRE(matching);
+}
+
+TEST_CASE("Geometric spacing solves the normalized interval sum",
+          "[NURBS][Spacing]")
+{
+   const int count = GENERATE(2, 4, 32, 10000);
+   const bool reverse = GENERATE(false, true);
+   const real_t first = GENERATE(real_t(0.05), real_t(0.8), real_t(1.e-8));
+   // Large decreasing ratios eventually underflow in any finite real type;
+   // exercise large counts with resolvable increasing or near-uniform widths.
+   if (count == 10000 && first > 1.0 / count) { return; }
+   GeometricSpacingFunction spacing(count, reverse, first, false);
+   Vector widths;
+   spacing.EvalAll(widths);
+   real_t total = 0.0;
+   for (int i = 0; i < count; ++i)
+   {
+      REQUIRE(std::isfinite(widths[i]));
+      REQUIRE(widths[i] > 0.0);
+      total += widths[i];
+   }
+   REQUIRE(std::abs(total - 1.0) <
+           64*count*std::numeric_limits<real_t>::epsilon());
+   REQUIRE(widths[reverse ? count - 1 : 0] == MFEM_Approx(first));
+   const real_t ratio = widths[1] / widths[0];
+   for (int i = 2; i < count; ++i)
+   {
+      REQUIRE(widths[i] / widths[i-1] ==
+              MFEM_Approx(ratio, 0.0,
+                          64*std::numeric_limits<real_t>::epsilon()));
+   }
+}
+
+TEST_CASE("Geometric spacing retains future scaled parameters", "[NURBS][Spacing]")
+{
+   GeometricSpacingFunction spacing(1, false, 0.2, true);
+   REQUIRE(spacing.Eval(0) == 1.0);
+   spacing.ScaleParameters(0.25);
+   spacing.SetSize(4);
+   for (int count : {4, 8, 16})
+   {
+      if (count != 4)
+      {
+         spacing.ScaleParameters(0.5);
+         spacing.SetSize(count);
+      }
+      Vector widths;
+      spacing.EvalAll(widths);
+      REQUIRE(std::abs(widths.Sum() - 1.0) <
+              64*count*std::numeric_limits<real_t>::epsilon());
+      REQUIRE(widths[0] == MFEM_Approx(0.2 / count));
+      REQUIRE(widths[count-1] > widths[0]);
+   }
+   for (int count : {2, 4, 128, 10000})
+   {
+      GeometricSpacingFunction uniform(count, false, 1.0/count, false);
+      Vector widths;
+      uniform.EvalAll(widths);
+      for (int i = 0; i < count; ++i)
+      {
+         REQUIRE(widths[i] == MFEM_Approx(1.0/count));
+      }
+   }
+   GeometricSpacingFunction decreasing(10000, false, 2.0/10000, false);
+   Vector widths;
+   decreasing.EvalAll(widths);
+   REQUIRE(std::abs(widths.Sum() - 1.0) <
+           64*10000*std::numeric_limits<real_t>::epsilon());
+   REQUIRE(widths[9999] > 0.0);
+   REQUIRE(widths[9999] < widths[0]);
+}
+
+TEST_CASE("NURBS cubic multispan elevation preserves rational geometry", "[NURBS]")
+{
+   const auto filename = GENERATE("../../data/cube-nurbs.mesh",
+                                  "../../data/pipe-nurbs.mesh",
+                                  "../../data/square-nurbs.mesh");
+   Mesh mesh(filename, 1, 1);
+   mesh.DegreeElevate(2, 3);
+   Array<Vector*> insertion(mesh.NURBSext->GetNKV());
+   for (int k = 0; k < insertion.Size(); ++k)
+   {
+      insertion[k] = new Vector(k == 0 ? 2 : 0);
+   }
+   (*insertion[0])[0] = 0.25;
+   (*insertion[0])[1] = 0.75;
+   mesh.KnotInsert(insertion);
+   for (auto *values : insertion) { delete values; }
+   const int elements = mesh.GetNE();
+   std::vector<Vector> original;
+   for (int e = 0; e < elements; ++e)
+   {
+      auto *transform = mesh.GetElementTransformation(e);
+      const auto &rule = IntRules.Get(mesh.GetElementGeometry(e), 6);
+      for (int i = 0; i < rule.GetNPoints(); ++i)
+      {
+         Vector point(mesh.SpaceDimension());
+         transform->Transform(rule.IntPoint(i), point);
+         original.push_back(point);
+      }
+   }
+   mesh.DegreeElevate(1);
+   REQUIRE(mesh.GetNE() == elements);
+   int sample = 0;
+   for (int e = 0; e < elements; ++e)
+   {
+      auto *transform = mesh.GetElementTransformation(e);
+      const auto &rule = IntRules.Get(mesh.GetElementGeometry(e), 6);
+      for (int i = 0; i < rule.GetNPoints(); ++i)
+      {
+         Vector point(mesh.SpaceDimension());
+         transform->Transform(rule.IntPoint(i), point);
+         for (int d = 0; d < point.Size(); ++d)
+         {
+            REQUIRE(point[d] == MFEM_Approx(original[sample][d]));
+         }
+         ++sample;
+      }
+   }
+}
