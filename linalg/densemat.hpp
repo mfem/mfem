@@ -352,7 +352,11 @@ public:
    }
 
    void GetColumnReference(int c, Vector &col)
-   { col.SetDataAndSize(data + c * height, height); }
+   {
+      /// make an alias of our data
+      col.NewMemoryAndSize(Memory<real_t>(data.GetMemory(), c * height, height),
+                           height, false);
+   }
 
    void SetRow(int r, const real_t* row);
    void SetRow(int r, const Vector &row);
