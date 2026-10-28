@@ -255,8 +255,22 @@ void BRASPreconditioner::Setup()
    const int nd = fes->GetTypicalFE()->GetDof() * fes->GetVDim();
    MFEM_VERIFY(R->Height() == ne*nd, "inconsistent element restriction");
 
+   // The vectors used in Mult() are kept on the device, if one is
+   // configured, so that their vector operations run there as well. The
+   // element data is computed on the host.
+   for (const Vector *v :
+        {
+           &diag_inv, &scale, &dl, &jmask, &hdl, &lu_inv,
+           &lu_scale, &xt, &ut, &xl, &zl, &xe, &ye, &cr, &cd,
+           &cq
+        })
+   {
+      v->UseDevice(true);
+   }
+
    // The diagonal of W, as an E-vector, used below to form diag(A_W).
    Vector w(ne*nd);
+   w.UseDevice(true);
    if (element_inverse == ElementInverse::DENSE) { SetupDense(w); }
    else { SetupTensor(w); }
 
@@ -747,6 +761,8 @@ void BRASPreconditioner::SetupChebyshev()
    // number of iterations is enough for the purpose of the estimate.
    const int power_its = 20;
    Vector v(height), Av(height), Sinv(diag_inv);
+   v.UseDevice(true);
+   Av.UseDevice(true);
    Sinv.Reciprocal();
    v = 1.0;
    v.SetSubVector(ess_tdof_list, 0.0);
@@ -784,8 +800,9 @@ void BRASPreconditioner::SetupChebyshev()
 void BRASPreconditioner::SetEssentialTrueDofs(const Array<int> &list)
 {
    if (&list != &ess_tdof_list) { ess_tdof_list = list; }
+   ess_tdof_list.HostRead();
    MFEM_VERIFY(ess_tdof_list.Size() == 0 || (ess_tdof_list.Min() >= 0 &&
-                                              ess_tdof_list.Max() < height),
+                                             ess_tdof_list.Max() < height),
                "essential true DOF out of range; if the space has changed, "
                "call Update(ess_tdof_list)");
    scale = diag_inv;
@@ -836,59 +853,73 @@ void BRASPreconditioner::ApplyBroken(const Vector &x, Vector &y) const
    R->MultTranspose(ye, y);
 }
 
+// One direction d of ApplyTensor(): y = (I x F_d x I) x on each component
+// block of the E-vectors x and y, multiplied by the scales if last is true.
+// With the sizes n_c of component c, the block is an n_lo x n x n_hi array,
+// where n = n_c[d] and n_lo is the product of the sizes in the directions
+// before d. One thread computes one entry of y.
+static void ApplyTensorDirection(int d, bool last, int ne, int vdim,
+                                 int ncomp, const int tensor_n[3][3],
+                                 const int tensor_offset[3][3],
+                                 const Vector &F, const Vector &scale,
+                                 const Vector &x, Vector &y)
+{
+   // The size n and the size n_lo of each component in direction d, the
+   // offset of its factor F_d in F, and the offsets of the components in
+   // the element DOFs of one vector dimension.
+   int n[3], n_lo[3], off_F[3], off_c[4] = { 0, 0, 0, 0 };
+   for (int c = 0; c < ncomp; c++)
+   {
+      const int *n_c = tensor_n[c];
+      n[c] = n_c[d];
+      n_lo[c] = (d > 0 ? n_c[0] : 1) * (d > 1 ? n_c[1] : 1);
+      off_F[c] = tensor_offset[c][d];
+      off_c[c+1] = off_c[c] + n_c[0]*n_c[1]*n_c[2];
+   }
+   const int nd_s = off_c[ncomp];
+   const auto d_F = F.Read();
+   const auto d_s = scale.Read();
+   const auto d_x = x.Read();
+   auto d_y = y.Write();
+   mfem::forall(ne*vdim*nd_s, [=] MFEM_HOST_DEVICE (int k)
+   {
+      // Entry k is entry r of the vector dimension block of element e, in
+      // component c, at index (l, i, h) of the n_lo x n x n_hi array.
+      const int e = k/(vdim*nd_s);
+      const int r = k % nd_s;
+      int c = 0;
+      while (r >= off_c[c+1]) { c++; }
+      const int rc = r - off_c[c];
+      const int l = rc % n_lo[c];
+      const int i = (rc/n_lo[c]) % n[c];
+      const int h = rc/(n_lo[c]*n[c]);
+      // The entry (l, 0, h) of the array in x.
+      const int o = k - rc + l + n_lo[c]*n[c]*h;
+      const real_t *F_c = d_F + off_F[c];
+      real_t sum = 0.0;
+      for (int j = 0; j < n[c]; j++)
+      {
+         sum += F_c[i + j*n[c]] * d_x[o + n_lo[c]*j];
+      }
+      d_y[k] = last ? d_s[c + ncomp*e]*sum : sum;
+   });
+}
+
 // For each element and vector component, apply the Kronecker product
 // F_0 x F_1 x F_2 one direction at a time: the coefficients of the component
 // form an n_0 x n_1 x n_2 array (direction 0 fastest), and the factor F_d
 // multiplies its index in direction d. Each direction alternates between xe
-// and ye. The directions beyond the mesh dimension have size 1 and factor
-// [1], and are skipped. Runs on the host.
+// and ye, and the last one multiplies by the scales. The directions beyond
+// the mesh dimension have size 1 and factor [1], and are skipped.
 const Vector &BRASPreconditioner::ApplyTensor() const
 {
-   const int ne = fes->GetNE();
-   const int vdim = fes->GetVDim();
    const int dim = fes->GetMesh()->Dimension();
-   const int nd = xe.Size()/std::max(ne, 1);
-   const real_t *h_F = tensor_1d.HostRead();
-   const real_t *h_s = tensor_scale.HostRead();
    Vector *src = &xe, *dst = &ye;
    for (int d = 0; d < dim; d++)
    {
-      const real_t *h_in = src->HostRead();
-      real_t *h_out = dst->HostWrite();
-      for (int e = 0; e < ne; e++)
-      {
-         for (int v = 0, o = e*nd; v < vdim; v++)
-         {
-            for (int c = 0; c < tensor_ncomp; c++)
-            {
-               // The component is an array of size n_lo x n x n_hi, where n
-               // is its size in direction d.
-               const int *n_c = tensor_n[c];
-               const int n = n_c[d];
-               const int n_lo = (d > 0 ? n_c[0] : 1) * (d > 1 ? n_c[1] : 1);
-               const int n_hi = (d < 1 ? n_c[1] : 1) * (d < 2 ? n_c[2] : 1);
-               const real_t *F = h_F + tensor_offset[c][d];
-               // Multiply by the scale in the last direction.
-               const real_t s = (d == dim-1) ? h_s[c + tensor_ncomp*e] : 1.0;
-               for (int h = 0; h < n_hi; h++)
-               {
-                  for (int i = 0; i < n; i++)
-                  {
-                     for (int l = 0; l < n_lo; l++)
-                     {
-                        real_t sum = 0.0;
-                        for (int j = 0; j < n; j++)
-                        {
-                           sum += F[i + j*n] * h_in[o + l + n_lo*(j + n*h)];
-                        }
-                        h_out[o + l + n_lo*(i + n*h)] = s*sum;
-                     }
-                  }
-               }
-               o += n_lo*n*n_hi;
-            }
-         }
-      }
+      ApplyTensorDirection(d, d == dim-1, fes->GetNE(), fes->GetVDim(),
+                           tensor_ncomp, tensor_n, tensor_offset, tensor_1d,
+                           tensor_scale, *src, *dst);
       std::swap(src, dst);
    }
    return *src;
@@ -1204,7 +1235,12 @@ SparseMatrix *BRASPreconditioner::AssembleMatrix() const
    if (!sP) { Q.reset(new SparseMatrix(scale)); }
    else
    {
-      Q.reset(new SparseMatrix(*sP));
+      // P_L may have been used on the device in Mult(), so the copies are
+      // made on the host.
+      sP->HostReadI();
+      sP->HostReadJ();
+      sP->HostReadData();
+      Q.reset(new SparseMatrix(*sP, true, MemoryType::HOST));
       Q->ScaleColumns(scale);
    }
    if (nc)
@@ -1213,7 +1249,7 @@ SparseMatrix *BRASPreconditioner::AssembleMatrix() const
       hdl.HostRead();
       lu_scale.HostRead();
       // PJ = J P_L U and T = P_L^T H P_L S.
-      SparseMatrix PJ(*sP), HPS(*Q);
+      SparseMatrix PJ(*sP, true, MemoryType::HOST), HPS(*Q);
       PJ.ScaleRows(jmask);
       PJ.ScaleColumns(lu_scale);
       HPS.ScaleRows(hdl);

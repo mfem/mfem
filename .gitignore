@@ -405,6 +405,8 @@ miniapps/toys/lissajous.gf
 miniapps/toys/mondrian.mesh
 
 miniapps/solvers/block-solvers
+miniapps/solvers/bras_darcy
+miniapps/solvers/bras_mass
 miniapps/solvers/lor_solvers
 miniapps/solvers/plor_solvers
 miniapps/solvers/lor_elast

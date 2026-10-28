@@ -216,7 +216,8 @@ void AddMassIntegrator(BilinearForm &a, Space s, Coefficient &Q,
    else { a.AddDomainIntegrator(new MassIntegrator(Q)); }
 }
 
-// The dense matrix of the square operator op, computed column by column.
+// The dense matrix of the square operator op, computed column by column. The
+// vectors may be on the device.
 DenseMatrix ToDense(const Operator &op)
 {
    const int n = op.Height();
@@ -225,9 +226,9 @@ DenseMatrix ToDense(const Operator &op)
    for (int j = 0; j < n; j++)
    {
       e = 0.0;
-      e(j) = 1.0;
+      e.HostReadWrite()[j] = 1.0;
       op.Mult(e, col);
-      A.SetCol(j, col);
+      A.SetCol(j, col.HostRead());
    }
    return A;
 }
@@ -295,7 +296,8 @@ void ExtremeEigenvalues(const DenseMatrix &M, const Vector &w,
    for (int it = 0; it < 60; it++)
    {
       const real_t t = 0.5*(lo + hi);
-      if (pd(t, 1.0)) { lo = t; } else { hi = t; }
+      if (pd(t, 1.0)) { lo = t; }
+      else { hi = t; }
    }
    lmin = lo;
    // lmax is the smallest t with t W - M positive definite.
@@ -303,7 +305,8 @@ void ExtremeEigenvalues(const DenseMatrix &M, const Vector &w,
    for (int it = 0; it < 60; it++)
    {
       const real_t t = 0.5*(lo + hi);
-      if (pd(t, -1.0)) { hi = t; } else { lo = t; }
+      if (pd(t, -1.0)) { hi = t; }
+      else { lo = t; }
    }
    lmax = hi;
 }
@@ -351,6 +354,10 @@ Reference BuildReference(BilinearForm &a, Weighting weighting,
    r.E.SetSize(nl, nt);
    if (const SparseMatrix *cP = fes.GetConformingProlongation())
    {
+      // The prolongation may have been used on the device.
+      cP->HostReadI();
+      cP->HostReadJ();
+      cP->HostReadData();
       cP->ToDenseMatrix(r.E);
    }
    else
@@ -671,7 +678,7 @@ using namespace bras_test;
 // The preconditioner, built with the space constructor, equals the dense
 // reference, is symmetric, and satisfies the bounds of the theory, for all
 // mesh types, spaces and weightings, with and without essential DOFs.
-TEST_CASE("BRAS dense reference", "[BRAS]")
+TEST_CASE("BRAS dense reference", "[BRAS][GPU]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::TRI,
                                    MeshType::HEX, MeshType::TET);
@@ -725,7 +732,7 @@ TEST_CASE("BRAS dense reference", "[BRAS]")
 // On nonconforming meshes, each NCMethod equals its dense reference. The
 // left inverse method satisfies lambda_min(B_X M) >= 1, and all methods
 // satisfy an upper bound close to that of B_W.
-TEST_CASE("BRAS nonconforming dense reference", "[BRAS]")
+TEST_CASE("BRAS nonconforming dense reference", "[BRAS][GPU]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX);
    const auto space = GENERATE(Space::H1_1, Space::H1_3, Space::H1_VDIM,
@@ -778,7 +785,7 @@ TEST_CASE("BRAS nonconforming dense reference", "[BRAS]")
    CheckSpectralBounds(B, ref.M, ess, lmin, 2.0*K);
 }
 
-TEST_CASE("BRAS L2 space is exact", "[BRAS]")
+TEST_CASE("BRAS L2 space is exact", "[BRAS][GPU]")
 {
    // For discontinuous spaces P = I, so B_W = M^{-1} for any weighting.
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::TET);
@@ -804,7 +811,7 @@ TEST_CASE("BRAS L2 space is exact", "[BRAS]")
 
 // The bilinear form constructor sums all domain integrators and respects
 // their attribute markers.
-TEST_CASE("BRAS bilinear form constructor", "[BRAS]")
+TEST_CASE("BRAS bilinear form constructor", "[BRAS][GPU]")
 {
    Mesh mesh = MakeMesh(MeshType::QUAD, 4);
    for (int e = 0; e < mesh.GetNE(); e++)
@@ -844,7 +851,7 @@ TEST_CASE("BRAS bilinear form constructor", "[BRAS]")
    REQUIRE(MaxDiff(B1, B2) <= 1e-12*B2.MaxMaxNorm());
 }
 
-TEST_CASE("BRAS vector FE coefficient", "[BRAS]")
+TEST_CASE("BRAS vector FE coefficient", "[BRAS][GPU]")
 {
    // The coefficient must be used for vector-valued spaces: scaling the
    // coefficient by 4 scales M_br and W by 4, and B_W by 1/4.
@@ -862,7 +869,7 @@ TEST_CASE("BRAS vector FE coefficient", "[BRAS]")
 
 // Update() rebuilds the preconditioner after a coefficient change and after
 // mesh refinement, for both constructors.
-TEST_CASE("BRAS Update", "[BRAS]")
+TEST_CASE("BRAS Update", "[BRAS][GPU]")
 {
    const auto weighting = GENERATE(Weighting::IDENTITY, Weighting::DIAGONAL);
    Mesh mesh = MakeMesh(MeshType::TRI, 2);
@@ -914,7 +921,7 @@ TEST_CASE("BRAS Update", "[BRAS]")
 // Update() after adaptive nonconforming refinement, starting from a mesh
 // without hanging DOFs, keeps the nonconforming method and matches a
 // preconditioner built from scratch on the refined space.
-TEST_CASE("BRAS nonconforming Update", "[BRAS]")
+TEST_CASE("BRAS nonconforming Update", "[BRAS][GPU]")
 {
    const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::CHEBYSHEV);
    Mesh mesh = MakeMesh(MeshType::QUAD, 2);
@@ -945,7 +952,7 @@ TEST_CASE("BRAS nonconforming Update", "[BRAS]")
 // The assembled matrix equals the operator applied by Mult(), on conforming
 // and nonconforming meshes, with and without essential DOFs. Tetrahedral
 // Nedelec spaces check the transformation of the element basis.
-TEST_CASE("BRAS assembled matrix", "[BRAS]")
+TEST_CASE("BRAS assembled matrix", "[BRAS][GPU]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX,
                                    MeshType::TET);
@@ -984,8 +991,9 @@ TEST_CASE("BRAS assembled matrix", "[BRAS]")
       bras.reset(new BRASPreconditioner(fes, Q, ess));
    }
 
-   std::unique_ptr<SparseMatrix> B(bras->AssembleMatrix());
+   // Mult() first, so that the assembly reads data used on the device.
    const DenseMatrix B_op = ToDense(*bras);
+   std::unique_ptr<SparseMatrix> B(bras->AssembleMatrix());
    DenseMatrix B_mat;
    B->ToDenseMatrix(B_mat);
    REQUIRE(MaxDiff(B_mat, B_op) <= 1e-12*B_op.MaxMaxNorm());
@@ -1014,7 +1022,7 @@ TEST_CASE("BRAS assembled matrix", "[BRAS]")
 // matrix equals the operator. The coefficient is constant, or piecewise
 // constant by element attribute. Skewed meshes are only used for H1 and L2
 // spaces, which do not require orthogonal Jacobian columns.
-TEST_CASE("BRAS tensor element inverse", "[BRAS]")
+TEST_CASE("BRAS tensor element inverse", "[BRAS][GPU]")
 {
    const int dim = GENERATE(1, 2, 3);
    const auto space = GENERATE(Space::H1_1, Space::H1_3, Space::H1_POS_3,
@@ -1070,7 +1078,7 @@ TEST_CASE("BRAS tensor element inverse", "[BRAS]")
 // The bilinear form constructor with ElementInverse::TENSOR sums the
 // coefficients of all the mass integrators, and Update() follows a
 // coefficient change.
-TEST_CASE("BRAS tensor bilinear form", "[BRAS]")
+TEST_CASE("BRAS tensor bilinear form", "[BRAS][GPU]")
 {
    const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::ND_2,
                                Space::RT_1);
@@ -1087,8 +1095,11 @@ TEST_CASE("BRAS tensor bilinear form", "[BRAS]")
    PWConstCoefficient pw(q);
    ConstantCoefficient c(1.0);
    BilinearForm a(&fes);
-   for (Coefficient *Q : {static_cast<Coefficient*>(&pw),
-                          static_cast<Coefficient*>(&c)})
+   for (Coefficient *Q :
+        {
+           static_cast<Coefficient*>(&pw),
+           static_cast<Coefficient*>(&c)
+        })
    {
       if (IsVectorSpace(space))
       {
@@ -1142,8 +1153,11 @@ TEST_CASE("BRAS tensor requirements", "[BRAS]")
 
    // ND and RT spaces on parallelograms.
    Mesh skew = MakeAffineMesh(2, 2, true);
-   for (FiniteElementCollection *fec : {static_cast<FiniteElementCollection*>(&nd),
-                                        static_cast<FiniteElementCollection*>(&rt)})
+   for (FiniteElementCollection *fec :
+        {
+           static_cast<FiniteElementCollection*>(&nd),
+           static_cast<FiniteElementCollection*>(&rt)
+        })
    {
       FiniteElementSpace fes(&skew, fec);
       REQUIRE_THROWS(BRASPreconditioner(fes, ess, DIAGONAL, TENSOR));
@@ -1177,7 +1191,7 @@ TEST_CASE("BRAS tensor requirements", "[BRAS]")
 // function equals the serial preconditioner applied to the corresponding
 // serial grid function. This checks the parallel prolongation, including the
 // orientation signs of shared ND and RT DOFs.
-TEST_CASE("BRAS parallel", "[BRAS][Parallel]")
+TEST_CASE("BRAS parallel", "[BRAS][GPU][Parallel]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::TRI,
                                    MeshType::HEX, MeshType::TET);
@@ -1248,7 +1262,7 @@ TEST_CASE("BRAS parallel", "[BRAS][Parallel]")
 // orientation signs, so the methods give the same operator. Here the serial
 // space has a prolongation, so the serial true-DOF vector is prolongated to a
 // grid function before mapping it to the parallel space.
-TEST_CASE("BRAS parallel nonconforming", "[BRAS][Parallel]")
+TEST_CASE("BRAS parallel nonconforming", "[BRAS][GPU][Parallel]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX);
    const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::ND_2,
@@ -1315,7 +1329,7 @@ TEST_CASE("BRAS parallel nonconforming", "[BRAS][Parallel]")
 // mesh-independent number of iterations on curved meshes, on conforming and
 // nonconforming meshes, and for Nedelec spaces with DOFs on shared triangular
 // faces. The bound is loose, to allow for different partitionings.
-TEST_CASE("BRAS parallel PCG", "[BRAS][Parallel]")
+TEST_CASE("BRAS parallel PCG", "[BRAS][GPU][Parallel]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX,
                                    MeshType::TET);
@@ -1364,7 +1378,7 @@ TEST_CASE("BRAS parallel PCG", "[BRAS][Parallel]")
 // The parallel assembled matrix equals the operator applied by Mult(), on
 // conforming and nonconforming meshes and for Nedelec spaces with DOFs on
 // shared triangular faces.
-TEST_CASE("BRAS parallel assembled matrix", "[BRAS][Parallel]")
+TEST_CASE("BRAS parallel assembled matrix", "[BRAS][GPU][Parallel]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX,
                                    MeshType::TET);
@@ -1414,7 +1428,7 @@ TEST_CASE("BRAS parallel assembled matrix", "[BRAS][Parallel]")
 // one with ElementInverse::DENSE, and its assembled matrix equals the
 // operator, on conforming and nonconforming meshes. With the rotated meshes,
 // some ranks may have no elements.
-TEST_CASE("BRAS parallel tensor", "[BRAS][Parallel]")
+TEST_CASE("BRAS parallel tensor", "[BRAS][GPU][Parallel]")
 {
    const int dim = GENERATE(2, 3);
    const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::L2_2,

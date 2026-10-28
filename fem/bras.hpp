@@ -63,10 +63,16 @@ namespace mfem
     matrices or, for mass matrices on affine tensor product elements, applied
     by sum factorization; see ElementInverse.
 
+    Mult() runs on the device, if one is configured (see Device). The setup
+    (construction, Update(), SetEssentialTrueDofs() and SetNCMethod()) and
+    the assembly methods run on the host.
+
     Only domain integrators are supported. Every element must receive an SPD
     contribution from the integrators; otherwise the setup aborts. Variable
     order spaces, NURBS spaces, and meshes with more than one element geometry
-    are not supported. */
+    are not supported.
+
+    See the miniapps bras_mass and bras_darcy in miniapps/solvers. */
 class BRASPreconditioner : public Solver
 {
 public:

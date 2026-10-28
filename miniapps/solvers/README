@@ -82,6 +82,40 @@ The solvers for the above block system include:
        for indefinite systems resulting from mixed approximations of elliptic
        problems. Mathematics of Computation 50.181 (1988): 1-17.
 
+# BRAS Mass Matrix Preconditioning
+
+The miniapps `bras_mass` and `bras_darcy` demonstrate the `BRASPreconditioner`
+class, a weighted broken-space additive Schwarz (BRAS) preconditioner for H1,
+H(curl), H(div), and L2 mass matrices [4]. BRAS applies one element-local solve
+per element and averages the element solutions with a weighting W, by default
+the diagonal of the element mass matrices. The condition number of the
+preconditioned mass matrix is then bounded by a constant that depends only on
+the element-local spectral equivalence of the element mass matrices and their
+diagonals, independently of the mesh size and of the refinement level of
+nonconforming meshes. The element solves are dense, or use sum factorization on
+affine tensor-product elements, and the application of BRAS runs on devices.
+
+The miniapp `bras_mass` solves an L2 projection with CG, preconditioned with
+Jacobi and with BRAS, on conforming meshes and on meshes refined locally around
+a circle or sphere (option `-amr`). On nonconforming meshes, the hanging DOFs
+are treated by a left-inverse approximation (default) or a Chebyshev
+approximation (option `-cheb`).
+
+The miniapp `bras_darcy` solves the mixed Darcy problem of Example 5 with
+MINRES, preconditioned with the block diagonal preconditioner
+
+             P^{-1} = [ M_0^{-1}     0    ]
+                      [  0       AMG(S_0) ],    S_0 = B M_0^{-1} B^T,
+
+and compares M_0^{-1} = diag(M)^{-1} (as in Example 5) with M_0^{-1} = B_W,
+the BRAS preconditioner. For the latter, B_W is assembled as a HypreParMatrix
+to form S_0, which is then spectrally equivalent to the exact Schur complement
+B M^{-1} B^T, independently of the mesh size.
+
+[4] Krzysik, O. A., Southworth, B. S., and Wimmer, M., "Weighted broken-space
+    additive Schwarz preconditioning for high-order mass matrices",
+    arXiv:2607.12138, 2026.
+
 # Low-Order Refined Solvers
 
 The miniapp `lor` (and its parallel counterpart `plor`) demonstrate the use of
