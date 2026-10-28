@@ -580,7 +580,7 @@ public:
     */
    void Mult(const Vector &x, Vector &y) const override;
    /// Process-local maximum speed; call Mult() before querying it.
-   real_t GetMaxCharSpeed() { return max_char_speed; }
+   real_t GetMaxCharSpeed() const { return max_char_speed; }
    /// Rebuild residual data, mass inverses and projectors after a mesh/space
    /// update. The driver must separately transfer and reproject the state.
    void Update();
