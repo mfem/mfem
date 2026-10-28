@@ -1611,7 +1611,7 @@ const T *Memory<T>::Read(MemoryClass mc, int offset, int size) const
 template <class T>
 T *Memory<T>::CheckReadWrite(bool on_device, int offset, int size)
 {
-   MFEM_VERIFY(offset >= 0 && static_cast<size_t>(offset + size) < size_,
+   MFEM_VERIFY(offset >= 0 && static_cast<size_t>(offset + size) <= size_,
                "Index out of bounds");
    auto &inst = MemoryManager::Instance();
    if (on_device)
@@ -1632,7 +1632,7 @@ T *Memory<T>::CheckReadWrite(bool on_device, int offset, int size)
 template <class T>
 const T *Memory<T>::CheckRead(bool on_device, int offset, int size) const
 {
-   MFEM_VERIFY(offset >= 0 && static_cast<size_t>(offset + size) < size_,
+   MFEM_VERIFY(offset >= 0 && static_cast<size_t>(offset + size) <= size_,
                "Index out of bounds");
    auto &inst = MemoryManager::Instance();
    if (on_device)

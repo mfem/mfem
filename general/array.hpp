@@ -989,7 +989,7 @@ inline int Array<T>::Append(const Array& els)
    Memory<T> orig;
    orig.MakeAlias(data, 0, old_size);
    Memory<T> dst;
-   dst.MakeAlias(data, old_size, size);
+   dst.MakeAlias(data, old_size, to_append);
    // Match the original memory validity if it was fully valid in a single location.
    // Prefer being valid on host if orig was fully valid on host and device
    if (orig.HostIsValid())
