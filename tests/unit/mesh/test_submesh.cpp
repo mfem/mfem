@@ -945,7 +945,7 @@ TEST_CASE("Non-Contiguous SubMesh", "[SubMesh]")
 
    // Corner and zone-center elements (shared vertices)
    Array<int> attr14(2); attr14[0] = 1; attr14[1] = 4;
-   Mesh submesh14 = SubMesh::CreateFromDomain(mesh, attr14);
+   SubMesh submesh14 = SubMesh::CreateFromDomain(mesh, attr14);
 
    REQUIRE(submesh14.GetNV() == 64);
    REQUIRE(submesh14.GetNE() == 9);
