@@ -668,6 +668,140 @@ TEST_CASE("DenseMatrixStack", "[DenseMatrix][DenseMatrixStack]")
    REQUIRE(other(2, 2, 1) == 2.0);
 }
 
+TEST_CASE("DenseMatrixStack Swap", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> external_ni{1, 2};
+   Array<int> external_nj{2, 1};
+   real_t external_data[] = {1.0, 2.0, 3.0, 4.0};
+   DenseMatrixStack external(external_data, external_ni, external_nj, 2);
+
+   Array<int> owning_ni{2, 1, 3};
+   Array<int> owning_nj{1, 3, 1};
+   DenseMatrixStack owning(owning_ni, owning_nj, 3);
+   for (int i = 0; i < owning.TotalSize(); i++)
+   {
+      owning.Data()[i] = 10.0 + i;
+   }
+
+   real_t *external_ptr = external.Data();
+   real_t *owning_ptr = owning.Data();
+   external.Swap(owning);
+
+   REQUIRE(external.Data() == owning_ptr);
+   REQUIRE(external.SizeK() == 3);
+   REQUIRE(external.SizeI(0) == 2);
+   REQUIRE(external.SizeJ(1) == 3);
+   REQUIRE(external.SizeI(2) == 3);
+   REQUIRE(external.TotalSize() == 8);
+   REQUIRE(external(0, 0, 0) == 10.0);
+   REQUIRE(external(0, 2, 1) == 14.0);
+   REQUIRE(external(2, 0, 2) == 17.0);
+
+   REQUIRE(owning.Data() == external_ptr);
+   REQUIRE(owning.SizeK() == 2);
+   REQUIRE(owning.SizeI(0) == 1);
+   REQUIRE(owning.SizeJ(0) == 2);
+   REQUIRE(owning.SizeI(1) == 2);
+   REQUIRE(owning.SizeJ(1) == 1);
+   REQUIRE(owning.TotalSize() == 4);
+   REQUIRE(owning(0, 1, 0) == 2.0);
+   REQUIRE(owning(1, 0, 1) == 4.0);
+
+   owning(1, 0, 1) = -1.0;
+   REQUIRE(external_data[3] == -1.0);
+}
+
+TEST_CASE("DenseMatrixStack copy assignment to external data",
+          "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> source_ni{2, 1};
+   Array<int> source_nj{1, 2};
+   DenseMatrixStack source(source_ni, source_nj, 2);
+   for (int i = 0; i < source.TotalSize(); i++)
+   {
+      source.Data()[i] = 10.0 + i;
+   }
+
+   Array<int> target_ni{1, 2};
+   Array<int> target_nj{2, 1};
+   real_t target_data[] = {-1.0, -1.0, -1.0, -1.0};
+   DenseMatrixStack target(target_data, target_ni, target_nj, 2);
+   real_t *target_ptr = target.Data();
+
+   target = source;
+
+   REQUIRE(target.Data() == target_ptr);
+   REQUIRE(target.SizeK() == 2);
+   REQUIRE(target.SizeI(0) == 2);
+   REQUIRE(target.SizeJ(0) == 1);
+   REQUIRE(target.SizeI(1) == 1);
+   REQUIRE(target.SizeJ(1) == 2);
+   REQUIRE(target.TotalSize() == 4);
+   REQUIRE(target(0, 0, 0) == 10.0);
+   REQUIRE(target(1, 0, 0) == 11.0);
+   REQUIRE(target(0, 0, 1) == 12.0);
+   REQUIRE(target(0, 1, 1) == 13.0);
+   REQUIRE(target_data[3] == 13.0);
+}
+
+TEST_CASE("DenseMatrixStack Clear", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{2, 1};
+   Array<int> nj{3, 2};
+   DenseMatrixStack matrices(ni, nj, 2);
+   REQUIRE(matrices.MemoryUsage() > 0);
+
+   matrices.Clear();
+
+   REQUIRE(matrices.SizeK() == 0);
+   REQUIRE(matrices.TotalSize() == 0);
+   REQUIRE(matrices.Data() == nullptr);
+   REQUIRE(matrices.MemoryUsage() == 0);
+}
+
+TEST_CASE("DenseMatrixStack move operations", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{2, 1};
+   Array<int> nj{1, 2};
+   DenseMatrixStack source(ni, nj, 2);
+   for (int i = 0; i < source.TotalSize(); i++)
+   {
+      source.Data()[i] = 10.0 + i;
+   }
+
+   DenseMatrixStack constructed(std::move(source));
+   REQUIRE(source.SizeK() == 0);
+   REQUIRE(source.TotalSize() == 0);
+   REQUIRE(constructed.SizeK() == 2);
+   REQUIRE(constructed(1, 0, 0) == 11.0);
+   REQUIRE(constructed(0, 1, 1) == 13.0);
+
+   DenseMatrixStack assigned;
+   assigned = std::move(constructed);
+   REQUIRE(constructed.SizeK() == 0);
+   REQUIRE(constructed.TotalSize() == 0);
+   REQUIRE(assigned.SizeK() == 2);
+   REQUIRE(assigned(1, 0, 0) == 11.0);
+   REQUIRE(assigned(0, 1, 1) == 13.0);
+}
+
+TEST_CASE("DenseMatrixStack external Memory alias", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{1, 2};
+   Array<int> nj{2, 1};
+   Array<real_t> storage{1.0, 2.0, 3.0, 4.0};
+   DenseMatrixStack matrices;
+   matrices.NewMemoryAndSize(storage.GetMemory(), ni, nj, 2, false);
+
+   REQUIRE(matrices.Data() == storage.GetData());
+   REQUIRE(matrices(0, 1, 0) == 2.0);
+   REQUIRE(matrices(1, 0, 1) == 4.0);
+
+   matrices(1, 0, 1) = -1.0;
+   matrices.Clear();
+   REQUIRE(storage[3] == -1.0);
+}
+
 TEST_CASE("DenseMatrixStack AddMult", "[DenseMatrix][DenseMatrixStack]")
 {
    Array<int> n{2, 3};
