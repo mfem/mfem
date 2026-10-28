@@ -53,7 +53,7 @@ public:
    void Erase(size_t idx)
    {
       MFEM_ASSERT(idx, "invalid idx");
-      MFEM_ASSERT(idx <= data.size(), "idx oob");
+      MFEM_ASSERT(idx <= data.size(), "idx out of bounds");
       EraseInternal(idx);
    }
 
