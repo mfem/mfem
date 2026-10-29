@@ -30,11 +30,9 @@ namespace mfem
 /// associated FE space.
 class ComplexGridFunction : public Vector
 {
-private:
+protected:
    GridFunction * gfr;
    GridFunction * gfi;
-
-protected:
    /// FE space on which the grid function lives. Owned if #fec_owned
    /// is not NULL.
    FiniteElementSpace *fes;
@@ -48,11 +46,15 @@ protected:
    long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
 
    void Destroy();
+   ComplexGridFunction();
 
 public:
    /** @brief Construct a ComplexGridFunction associated with the
        FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
+
+   /// Copy a ComplexGridFunction, including its finite element space.
+   ComplexGridFunction(const ComplexGridFunction &orig);
 
    /** @brief Construct a ComplexGridFunction on the given Mesh, using the data
        from @a input.
@@ -62,7 +64,7 @@ public:
        are owned by the ComplexGridFunction. */
    ComplexGridFunction(Mesh *m, std::istream &input);
 
-   void Update();
+   virtual void Update();
 
    /** Return update counter, similar to Mesh::GetSequence(). Used to
        check if it is up to date with the space. */
@@ -143,10 +145,11 @@ public:
    ///                                   const Array<int> *elems) const
    ///      for more detailed documentation.
    virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL) const
+                                 const IntegrationRule *irs[] = NULL,
+                                 Array<int> *elems = NULL) const
    {
-      real_t err_r = gfr->ComputeL2Error(exsolr, irs);
-      real_t err_i = gfi->ComputeL2Error(exsoli, irs);
+      real_t err_r = gfr->ComputeL2Error(exsolr, irs, elems);
+      real_t err_i = gfi->ComputeL2Error(exsoli, irs, elems);
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
@@ -247,8 +250,10 @@ public:
 
 };
 
-/** Overload operator<< for std::ostream and ComplexGridFunction; not valid
-    for the class ParComplexGridFunction */
+/** Overload operator<< for std::ostream and ComplexGridFunction.
+
+    Virtual dispatch to Save() preserves the appropriate output format for a
+    ParComplexGridFunction passed through a ComplexGridFunction reference. */
 std::ostream &operator<<(std::ostream &out, const ComplexGridFunction &sol);
 
 /** Class for a complex-valued linear form
@@ -692,32 +697,29 @@ public:
 
 /// Class for parallel complex-valued grid function - real + imaginary part
 /// Vector with associated parallel FE space.
-class ParComplexGridFunction : public Vector
+class ParComplexGridFunction : public ComplexGridFunction
 {
 private:
+   // Non-owning typed aliases for the state managed by ComplexGridFunction.
+   ParFiniteElementSpace * pfes;
    ParGridFunction * pgfr;
    ParGridFunction * pgfi;
-
-protected:
-   /// FE space on which the grid function lives. Owned if #fec_owned
-   /// is not NULL.
-   ParFiniteElementSpace *pfes;
-
-   /** @brief Used when the grid function is read from a file. It can also be
-       set explicitly, see MakeOwner().
-
-       If not NULL, this pointer is owned by the ParComplexGridFunction. */
-   FiniteElementCollection *fec_owned;
-
-   long fes_sequence; // see FiniteElementSpace::sequence, Mesh::sequence
-
-   void Destroy();
 
 public:
 
    /** @brief Construct a ParComplexGridFunction associated with the
        ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
+
+   /// Copy a ParComplexGridFunction, including its parallel finite element space.
+   ParComplexGridFunction(const ParComplexGridFunction &orig);
+
+   /// Copy values while retaining this object's finite element space.
+   ParComplexGridFunction &operator=(const ParComplexGridFunction &rhs)
+   {
+      ComplexGridFunction::operator=(rhs);
+      return *this;
+   }
 
    /** @brief Construct a ParComplexGridFunction on a given ParMesh,
        @a pmesh, reading from an std::istream.
@@ -726,44 +728,30 @@ public:
        constructed. The new ParComplexGridFunction assumes ownership of both. */
    ParComplexGridFunction(ParMesh *pmesh, std::istream &input);
 
-   void Update();
+   void Update() override;
 
    /** Return update counter, similar to Mesh::GetSequence(). Used to
        check if it is up to date with the space. */
    long GetSequence() const { return fes_sequence; }
 
-   /// Make the ParComplexGridFunction the owner of #fec_owned and #pfes.
-   /** If the new FiniteElementCollection, @a fec_, is NULL, ownership
-       of #fec_owned and #pfes is taken away. */
-   void MakeOwner(FiniteElementCollection *fec_) { fec_owned = fec_; }
-
-   /// Returns a pointer to the FiniteElementCollection used to
-   /// construct this ParComplexGridFunction if this class owns that
-   /// object. Otherwise this function will return NULL.
-   FiniteElementCollection *OwnFEC() { return fec_owned; }
-
-   /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
-   /// underlying #pfes
-   int VectorDim() const;
-
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *pgfr = value.real(); *pgfi = value.imag(); return *this; }
 
-   virtual void ProjectCoefficient(Coefficient &real_coeff,
-                                   Coefficient &imag_coeff);
-   virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
-                                   VectorCoefficient &imag_vcoeff);
+   void ProjectCoefficient(Coefficient &real_coeff,
+                           Coefficient &imag_coeff) override;
+   void ProjectCoefficient(VectorCoefficient &real_vcoeff,
+                           VectorCoefficient &imag_vcoeff) override;
 
-   virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
-                                      Coefficient &imag_coeff,
-                                      Array<int> &attr);
-   virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
-                                            VectorCoefficient &imag_coeff,
-                                            Array<int> &attr);
-   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
-                                             VectorCoefficient &imag_coeff,
-                                             Array<int> &attr);
+   void ProjectBdrCoefficient(Coefficient &real_coeff,
+                              Coefficient &imag_coeff,
+                              Array<int> &attr) override;
+   void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
+                                    VectorCoefficient &imag_coeff,
+                                    Array<int> &attr) override;
+   void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+                                     VectorCoefficient &imag_coeff,
+                                     Array<int> &attr) override;
 
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
@@ -771,16 +759,22 @@ public:
    /// Returns the vector restricted to the true dofs.
    void ParallelProject(Vector &tv) const;
 
-   FiniteElementSpace *FESpace() { return pfes; }
-   const FiniteElementSpace *FESpace() const { return pfes; }
+   ParFiniteElementSpace *ParFESpace()
+   { return static_cast<ParFiniteElementSpace *>(fes); }
+   const ParFiniteElementSpace *ParFESpace() const
+   { return static_cast<const ParFiniteElementSpace *>(fes); }
 
-   ParFiniteElementSpace *ParFESpace() { return pfes; }
-   const ParFiniteElementSpace *ParFESpace() const { return pfes; }
+   // Preserve the parallel component accessors while base references expose
+   // the corresponding GridFunction accessors.
+   ParGridFunction &real() { return *pgfr; }
+   ParGridFunction &imag() { return *pgfi; }
+   const ParGridFunction &real() const { return *pgfr; }
+   const ParGridFunction &imag() const { return *pgfi; }
 
-   ParGridFunction & real() { return *pgfr; }
-   ParGridFunction & imag() { return *pgfi; }
-   const ParGridFunction & real() const { return *pgfr; }
-   const ParGridFunction & imag() const { return *pgfi; }
+   ParGridFunction &ParReal() { return *pgfr; }
+   ParGridFunction &ParImag() { return *pgfi; }
+   const ParGridFunction &ParReal() const { return *pgfr; }
+   const ParGridFunction &ParImag() const { return *pgfi; }
 
    /// Update the memory location of the real and imaginary ParGridFunction @a
    /// pgfr and @a pgfi to match the ParComplexGridFunction.
@@ -798,9 +792,9 @@ public:
    ///                                   const IntegrationRule *irs[],
    ///                                   const Array<int> *elems) const
    ///      for more detailed documentation.
-   virtual real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
+   real_t ComputeL2Error(Coefficient &exsolr, Coefficient &exsoli,
+                         const IntegrationRule *irs[] = NULL,
+                         Array<int> *elems = NULL) const override
    {
       real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
       real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
@@ -814,29 +808,45 @@ public:
    ///                                   const IntegrationRule *irs[],
    ///                                   const Array<int> *elems) const
    ///      for more detailed documentation.
-   virtual real_t ComputeL2Error(VectorCoefficient &exsolr,
-                                 VectorCoefficient &exsoli,
-                                 const IntegrationRule *irs[] = NULL,
-                                 Array<int> *elems = NULL) const
+   real_t ComputeL2Error(VectorCoefficient &exsolr,
+                         VectorCoefficient &exsoli,
+                         const IntegrationRule *irs[] = NULL,
+                         Array<int> *elems = NULL) const override
    {
       real_t err_r = pgfr->ComputeL2Error(exsolr, irs, elems);
       real_t err_i = pgfi->ComputeL2Error(exsoli, irs, elems);
       return hypot(err_r, err_i);
    }
 
+   real_t ComputeMaxError(Coefficient &exsolr, Coefficient &exsoli,
+                          const IntegrationRule *irs[] = NULL) const override
+   {
+      return ComputeLpError(infinity(), exsolr, exsoli, NULL, irs);
+   }
+
+   real_t ComputeLpError(const real_t p, Coefficient &exsolr,
+                         Coefficient &exsoli, Coefficient *weight = NULL,
+                         const IntegrationRule *irs[] = NULL,
+                         const Array<int> *elems = NULL) const override
+   {
+      return GlobalLpNorm(p, ComplexGridFunction::ComputeLpError(
+                             p, exsolr, exsoli, weight, irs, elems),
+                          pfes->GetComm());
+   }
+
    /// Save the local portion of the ParComplexGridFunction
    /** This differs from the serial ComplexGridFunction::Save in that it
        takes into account the signs of the local dofs. */
-   void Save(std::ostream &out) const;
+   void Save(std::ostream &out) const override;
 
    /// Save the ParComplexGridFunction to files
    /** Saves one file for each MPI rank. The files will be given suffixes
        according to the MPI rank. The given @a precision will be used for ASCII
        output. */
-   void Save(const char *fname, int precision=16) const;
+   void Save(const char *fname, int precision=16) const override;
 
    /// Destroys grid function.
-   virtual ~ParComplexGridFunction() { Destroy(); }
+   ~ParComplexGridFunction() override = default;
 
 };
 
