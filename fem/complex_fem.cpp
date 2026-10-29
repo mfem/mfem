@@ -96,11 +96,11 @@ ComplexGridFunction::ComplexGridFunction(const ComplexGridFunction &rhs)
    UseDevice(true);
 
    // the real and imaginary parts have to alias the copy's own data
-   gfr = new GridFunction();
-   gfr->MakeRef(fes, *this, 0);
+   gfr = new GridFunction(*rhs.gfr);
+   gfr->Vector::MakeRef(*this, 0, rhs.gfr->Size());
 
-   gfi = new GridFunction();
-   gfi->MakeRef(fes, *this, fes->GetVSize());
+   gfi = new GridFunction(*rhs.gfi);
+   gfi->Vector::MakeRef(*this, rhs.gfr->Size(), rhs.gfi->Size());
 }
 
 void ComplexGridFunction::Destroy()
@@ -1357,7 +1357,11 @@ ParComplexGridFunction::ParComplexGridFunction(
    pgfr->MakeRef(pfes, *this, 0);
 
    pgfi = new ParGridFunction();
-   pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+   pgfr = new ParGridFunction(*rhs.pgfr);
+   pgfr->Vector::MakeRef(*this, 0, rhs.pgfr->Size());
+
+   pgfi = new ParGridFunction(*rhs.pgfi);
+   pgfi->Vector::MakeRef(*this, rhs.pgfr->Size(), rhs.pgfi->Size());
 }
 
 void ParComplexGridFunction::Destroy()
