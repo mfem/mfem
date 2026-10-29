@@ -581,37 +581,9 @@ int main(int argc, char *argv[]) try
    const holo::PixelMesh &grid = solver.Grid();
    const int firstRow = grid.FirstSampleRow(), rows = grid.LocalSampleRows();
    const int nx = phase.NumCols(), ny = phase.NumRows(), n = nx * rows;
-   Vector phase_v(n), field(2 * n), Iv(n);
-   phase_v.UseDevice(true);
-   field.UseDevice(true);
-   Iv.UseDevice(true);
-   {
-      const real_t *src = phase.GetRow(firstRow);
-      real_t *h = phase_v.HostWrite();
-      for (int k = 0; k < n; ++k) { h[k] = src[k]; }
-   }
-   const real_t *ph = phase_v.Read();
-   real_t *p = field.Write();
-   mfem::forall(n, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      p[2 * idx] = std::cos(ph[idx]);
-      p[2 * idx + 1] = std::sin(ph[idx]);
-   });
-   holo::Lens lens;
-   lens(nx, ny, extent_x, extent_y, wavelength, cfg.focal, firstRow, rows);
-   lens.Apply(field);
-
-   // Propagate the field
-   propagator->Propagate(field);
-
-   // Compute the intensity
-   const auto *f = field.Read();
-   auto *Id = Iv.Write();
-   mfem::forall(n, [=] MFEM_HOST_DEVICE (int k)
-   {
-      const real_t re = f[2 * k], im = f[2 * k + 1];
-      Id[k] = re * re + im * im;
-   });
+   Vector Iv(n);
+   holo::ReplayIntensity(*propagator, phase, firstRow, rows,
+                         extent_x, extent_y, wavelength, cfg.focal, Iv);
    RealArray2D intensity;
    if (Mpi::Root()) { intensity.SetSize(ny, nx); }
    MPI_Gatherv(const_cast<real_t *>(Iv.HostRead()), n,

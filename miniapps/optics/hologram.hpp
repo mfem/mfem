@@ -626,6 +626,43 @@ public:
    }
 };
 
+template <class Prop>
+inline void ReplayIntensity(const Prop &prop, const RealArray2D &phase,
+                            int firstRow, int rows,
+                            real_t extent_x, real_t extent_y,
+                            real_t wavelength, real_t focal,
+                            Vector &intensity)
+{
+   const int nx = phase.NumCols(), ny = phase.NumRows(), n = nx * rows;
+   Vector phase_v(n), field(2 * n);
+   phase_v.UseDevice(true);
+   field.UseDevice(true);
+   intensity.UseDevice(true);
+   {
+      const real_t *src = phase.GetRow(firstRow);
+      real_t *h = phase_v.HostWrite();
+      for (int k = 0; k < n; ++k) { h[k] = src[k]; }
+   }
+   const real_t *ph = phase_v.Read();
+   real_t *p = field.Write();
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      p[2 * idx] = std::cos(ph[idx]);
+      p[2 * idx + 1] = std::sin(ph[idx]);
+   });
+   Lens lens;
+   lens(nx, ny, extent_x, extent_y, wavelength, focal, firstRow, rows);
+   lens.Apply(field);
+   prop.Propagate(field);
+   const auto *f = field.Read();
+   auto *Id = intensity.Write();
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int k)
+   {
+      const real_t re = f[2 * k], im = f[2 * k + 1];
+      Id[k] = re * re + im * im;
+   });
+}
+
 // ----------------------------------------------------------------------------
 struct GrayImage
 {
