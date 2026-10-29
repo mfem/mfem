@@ -179,11 +179,16 @@ jobs:
 
   codespell:
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name != github.repository)
     steps:
-    - name: Codespell with annotations
-      uses: codespell-project/actions-codespell@master
-      with:
-        check_filenames: true
-        check_hidden: true
-        ignore_words_list: allright,ba,equil,esy,fo,hda,lod,nd,ned,numer,ot,pres,ro,seh,shat,solfes,strat,tbe,te,warmup
+      - name: checkout mfem
+        uses: actions/checkout@v6
 
+      - name: Codespell with annotations
+        uses: codespell-project/actions-codespell@v2.2
+        with:
+          check_filenames: true
+          check_hidden: true
+          ignore_words_list: allright,ba,equil,esy,fo,hda,lod,nd,ned,numer,ot,pres,ro,seh,shat,solfes,strat,tbe,te,warmup
