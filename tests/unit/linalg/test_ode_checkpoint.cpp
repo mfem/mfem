@@ -24,12 +24,19 @@ namespace
 
 namespace fs = std::filesystem;
 
-using Storage = Checkpointer::Storage;
+using StorageType = Checkpointer::StorageType;
 
-const Storage all_storages[] = {Storage::MemoryBlock, Storage::FileBlock,
-                                Storage::MemorySnapshots,
-                                Storage::FileSnapshots
-                               };
+const StorageType all_storages[] =
+{
+   StorageType::MemoryBlock, StorageType::FileBlock,
+   StorageType::MemorySnapshots, StorageType::FileSnapshots
+};
+
+bool IsFile(StorageType storage)
+{
+   return storage == StorageType::FileBlock ||
+          storage == StorageType::FileSnapshots;
+}
 
 /// du_i/dt = t - (i+1) u_i, with a closed-form implicit solve.
 class ForcedDecay : public TimeDependentOperator
@@ -128,7 +135,7 @@ TEST_CASE("ODE checkpointers restore exact single-step continuation",
 {
    for (int kind = 0; kind < 3; kind++)
    {
-      for (const Storage storage : all_storages)
+      for (const StorageType storage : all_storages)
       {
          INFO("solver " << kind << ", storage " << static_cast<int>(storage));
          ODELive live(kind), mid(kind), ref(kind);
@@ -151,7 +158,7 @@ TEST_CASE("ODE checkpointers restore exact single-step continuation",
 TEST_CASE("ODE checkpointers bind optional fields and an internal position",
           "[ODECheckpoint]")
 {
-   for (const Storage storage : all_storages)
+   for (const StorageType storage : all_storages)
    {
       INFO("storage " << static_cast<int>(storage));
       {
@@ -193,7 +200,7 @@ TEST_CASE("ODE checkpointers bind optional fields and an internal position",
 TEST_CASE("ODE checkpointers follow the Checkpointer record contract",
           "[ODECheckpoint]")
 {
-   for (const Storage storage : all_storages)
+   for (const StorageType storage : all_storages)
    {
       INFO("storage " << static_cast<int>(storage));
       ODELive live(0);
@@ -247,8 +254,9 @@ TEST_CASE("ODE checkpointers follow the Checkpointer record contract",
 TEST_CASE("File ODE checkpointers close and reopen into fresh objects",
           "[ODECheckpoint]")
 {
-   for (const Storage storage : {Storage::FileBlock, Storage::FileSnapshots})
+   for (const StorageType storage : all_storages)
    {
+      if (!IsFile(storage)) { continue; }
       INFO("storage " << static_cast<int>(storage));
       const std::string path =
          NewStorePath(std::to_string(static_cast<int>(storage)));
@@ -340,14 +348,14 @@ TEST_CASE("ODE checkpoint factory selects the requested layout",
           "[ODECheckpoint]")
 {
    ODELive live(0);
-   const auto make = [&](Storage storage)
+   const auto make = [&](StorageType storage)
    {
       return MakeODECheckpointer(storage, live.x, *live.solver, live.All(), 1);
    };
-   const auto memory_block = make(Storage::MemoryBlock);
-   const auto file_block = make(Storage::FileBlock);
-   const auto memory_snapshots = make(Storage::MemorySnapshots);
-   const auto file_snapshots = make(Storage::FileSnapshots);
+   const auto memory_block = make(StorageType::MemoryBlock);
+   const auto file_block = make(StorageType::FileBlock);
+   const auto memory_snapshots = make(StorageType::MemorySnapshots);
+   const auto file_snapshots = make(StorageType::FileSnapshots);
    REQUIRE(dynamic_cast<ODEMemoryBlockCheckpointer *>(memory_block.get()));
    REQUIRE(dynamic_cast<ODEFileBlockCheckpointer *>(file_block.get()));
    REQUIRE(dynamic_cast<ODEMemorySnapshotCheckpointer *>(
@@ -366,16 +374,16 @@ TEST_CASE("ODE checkpointers reject invalid use", "[ODECheckpoint]")
    REQUIRE_THROWS_AS(ODEMemorySnapshotCheckpointer(live.x, multistep,
                                                    live.All()),
                      ErrorException);
-   REQUIRE_THROWS_AS(MakeODECheckpointer(Storage::MemoryBlock, live.x,
+   REQUIRE_THROWS_AS(MakeODECheckpointer(StorageType::MemoryBlock, live.x,
                                          *live.solver, live.All(),
                                          std::nullopt),
                      ErrorException);
-   REQUIRE_THROWS_AS(MakeODECheckpointer(Storage::MemorySnapshots, live.x,
+   REQUIRE_THROWS_AS(MakeODECheckpointer(StorageType::MemorySnapshots, live.x,
                                          *live.solver, live.All(),
                                          std::nullopt, "unused"),
                      ErrorException);
 
-   for (const Storage storage : all_storages)
+   for (const StorageType storage : all_storages)
    {
       INFO("storage " << static_cast<int>(storage));
       auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
@@ -387,7 +395,7 @@ TEST_CASE("ODE checkpointers reject invalid use", "[ODECheckpoint]")
       live.step = -1;
       REQUIRE_THROWS_AS(checkpoints->Store(1), ErrorException);
       live.step = 0;
-      if (storage == Storage::FileBlock || storage == Storage::FileSnapshots)
+      if (IsFile(storage))
       {
          checkpoints->Close();
          REQUIRE_THROWS_AS(checkpoints->Contains(1), ErrorException);

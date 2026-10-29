@@ -220,6 +220,9 @@ if (MFEM_ENABLE_TESTING)
   endif()
 endif()
 
+# Include the examples/checkpointing directory; it has no extra dependencies.
+add_subdirectory(checkpointing)
+
 # Include the examples/amgx directory if AmgX is enabled
 if (MFEM_USE_AMGX)
   add_subdirectory(amgx)

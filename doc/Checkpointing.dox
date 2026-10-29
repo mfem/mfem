@@ -90,21 +90,33 @@ Destruction does not clear or close borrowed storage.
 
 \section checkpointing_ode Library ODE checkpointers
 
-mfem::ODECheckpointer checkpoints a single-step ODE time loop. It binds the
-solution Vector and, through ODECheckpointer::Fields, an optional step counter,
-time, and time step. Unbound fields are neither stored nor restored. Without a
-bound step counter, the checkpointer keeps its own position, which the loop
-advances with SetCurrentState(). Each checkpoint is one fixed-size record with
-the solution values, saved position, and bound fields, in native byte order and
-real_t precision. Restore() validates the checksum, length, position, and field
-layout before writing live objects; device solutions use their host copies.
+mfem::ODECheckpointer checkpoints a single-step ODE time loop. It keeps a
+reference to your solution Vector and, through ODECheckpointer::Fields,
+pointers to your step counter, time, and time step variables. It does not copy
+them: Store() reads their current values and Restore() writes the saved values
+back into the same variables. Each pointer is optional: a null pointer means
+that value is neither stored nor restored. The vector and the variables must
+outlive the checkpointer. If Fields::step is null, the checkpointer keeps its
+own position, which the loop advances with SetCurrentState(). Each checkpoint
+is one fixed-size record with the solution values, saved position, and the
+values of the variables given in Fields, in native byte order and real_t
+precision. Restore() validates the checksum, length, position, and set of
+variables before writing anything; device solutions use their host copies.
+The size of the solution vector must stay constant: it is fixed at construction
+and determines the record size, and Store() and Restore() reject a solution
+vector whose size differs.
 
 Construction requires ODESolver::GetStateSize() == 0. Multistep solvers such as
 Adams-Bashforth, Adams-Moulton, and generalized-alpha are rejected because their
 ODEStateData history cannot be captured exactly through its public interface.
+Without the check, such a solver would restore without error but continue with
+stale or rebuilt history, so replay would not reproduce the original run. The
+solver is currently used only for this check and is not retained. It is part of
+the constructors so that a later extension can capture ODESolverWithStates
+history with each record without changing the interface.
 Operator-internal data are not captured.
 
-Four final classes implement the mfem::Checkpointer::Storage layouts:
+Four final classes implement the mfem::Checkpointer::StorageType layouts:
 
 - mfem::ODEMemoryBlockCheckpointer preallocates a fixed number of records in
   memory and reuses erased slots.
@@ -113,16 +125,31 @@ Four final classes implement the mfem::Checkpointer::Storage layouts:
   optional count limit, and reuses erased record buffers.
 - mfem::ODEFileSnapshotCheckpointer writes one file per record.
 
-mfem::MakeODECheckpointer() selects a class from a Storage value, for example
-from a command-line option. Block layouts require a capacity; memory layouts
-take no path and cannot be reopened. File layouts create a new directory; with
-an empty path they use a temporary directory that the destructor removes.
+mfem::MakeODECheckpointer() selects a class from a StorageType value, for
+example from a command-line option. Block layouts require a capacity; memory
+layouts take no path and cannot be reopened. File layouts create a new
+directory; with an empty path they use a temporary directory that the
+destructor removes.
 Explicit stores remain on disk and can be reopened after a clean Close() with
-the same capacity or limit, solution size, field layout, and real_t precision.
-Close() is checked and idempotent, and an open marker rejects unclean reopens.
+the same capacity or limit, solution size, set of variables, and real_t
+precision. Close() is checked and idempotent, and an open marker rejects
+unclean reopens.
 
-mfem::ODEStatePropagator advances the bound state with ODESolver::Step() for use
-with CheckpointController. It requires bound time and time step.
+mfem::ODEStatePropagator advances a checkpointer's solution, time, and time step
+with ODESolver::Step() for use with CheckpointController. It requires Fields to
+point to the time and time step.
+
+examples/checkpointing contains checkpointed versions of Example 16 (ex16.cpp
+and ex16p.cpp). The forward time loop is unchanged; marked blocks create the
+checkpointer and call Store() every -ci steps, without a propagator or
+controller. A reverse sweep then revisits every state with
+CheckpointController::RestoreState(), optionally with an in-memory window
+(-cw), and checks each state against the norm recorded in the forward loop.
+Because Example 16 rebuilds its diffusion operator from the solution after each
+step, the examples use their own propagator that rebuilds it before each
+replayed step instead of mfem::ODEStatePropagator. In parallel, each rank
+checkpoints its own part of the solution. The storage layout is selected with
+-cs and file stores are placed with -cp.
 
 With a window, the controller splits propagation into single-state transitions,
 capturing the origin and every reached state under ID equal to StateId. Without

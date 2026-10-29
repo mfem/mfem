@@ -30,31 +30,44 @@ namespace mfem
 {
 
 /// Checkpoint the continuation state of a single-step ODE time loop.
-/** Binds a live solution Vector and, optionally, a step counter, physical
-    time, and time step. Each checkpoint is one fixed-size record holding the
-    solution values, the saved state position, and the bound optional fields.
-    Without a bound step counter, the checkpointer keeps its own position,
-    which the time loop advances with SetCurrentState().
+/** The checkpointer keeps a reference to your solution Vector and, through
+    Fields, optional pointers to your step counter, time, and time step
+    variables. It does not copy them: Store() reads their current values and
+    Restore() writes the saved values back into the same variables. Each
+    checkpoint is one fixed-size record holding the solution values, the saved
+    state position, and the values of the variables given in Fields. If
+    Fields::step is null, the checkpointer keeps its own position, which the
+    time loop advances with SetCurrentState().
 
     Only solvers without step history are supported: construction requires
     ODESolver::GetStateSize() == 0. Multistep solvers (ODESolverWithStates)
     are rejected, because their ODEStateData cannot be captured exactly through
-    its public interface. Operator-internal data are not captured; operators
-    whose evaluation depends only on the solution and time continue exactly
-    after Restore(). The solution must keep its size while bound.
+    its public interface. The constructors take the solver for this check and
+    so that a future extension can capture solver history; see the
+    ODECheckpointer constructor.
+
+    Operator-internal data are not captured; operators whose evaluation
+    depends only on the solution and time continue exactly after Restore().
+
+    The size of the solution vector must stay constant: it is fixed at
+    construction and determines the record size. Store() and Restore() reject
+    a solution vector whose size differs; Restore() does not resize it.
 
     Records use native byte order and real_t precision. Restore() validates the
-    record checksum, length, position, and field layout before writing the live
-    objects. Device-resident solutions are read and written through their host
-    copies. Solution values are not range checked; bound time and time step
-    must be finite.
+    record checksum, length, position, and set of variables before writing
+    anything. Device-resident solutions are read and written through their host
+    copies. Solution values are not range checked; the time and time step, if
+    given, must be finite.
 
-    Concrete classes select one Checkpointer::Storage layout. Bound objects
-    must outlive the checkpointer. Copying is disabled. */
+    Concrete classes select one Checkpointer::StorageType layout. The solution
+    vector and the variables in Fields must outlive the checkpointer. Copying
+    is disabled. */
 class ODECheckpointer : public Checkpointer
 {
 public:
-   /// Optional live fields; a null pointer is neither stored nor restored.
+   /// Pointers to the time-loop variables saved along with the solution.
+   /** Each pointer is optional: a null pointer means that value is neither
+       stored nor restored. The variables must outlive the checkpointer. */
    struct Fields
    {
       StateId *step = nullptr; ///< Step counter reported by CurrentState().
@@ -63,96 +76,161 @@ public:
    };
 
 private:
-   Vector &x;
-   Fields fields;
-   StateId position = 0;
-   std::optional<std::size_t> limit;
-   int size;
-   std::size_t record_bytes;
-   std::vector<char> record;
+   Vector &x;                        ///< The caller's solution vector.
+   Fields fields;                    ///< Pointers to time-loop variables.
+   StateId position = 0;             ///< Position used if Fields::step is null.
+   std::optional<std::size_t> limit; ///< Checkpoint-count limit, if any.
+   int size;                         ///< Solution size fixed at construction.
+   std::size_t record_bytes;         ///< Size of one encoded record in bytes.
+   std::vector<char> record;         ///< Scratch buffer for one record.
 
 protected:
    /// Saved metadata and the storage slot chosen by the concrete layout.
    struct Entry
    {
-      CheckpointInfo info;
-      std::uint64_t checksum = 0;
-      std::size_t slot = 0;
+      CheckpointInfo info;        ///< Checkpoint ID and saved state position.
+      std::uint64_t checksum = 0; ///< Checksum of the complete record bytes.
+      std::size_t slot = 0;       ///< Layout-defined slot; unused by files.
    };
+
+   /// Saved metadata keyed and ordered by checkpoint ID.
    using Entries = std::map<CheckpointId, Entry>;
 
 private:
-   Entries saved;
-   std::vector<Entries::node_type> reusable;
+   Entries saved;                            ///< Metadata of saved records.
+   std::vector<Entries::node_type> reusable; ///< Erased nodes kept for reuse.
 
+   /// Return bit flags naming the non-null pointers in #fields.
+   /** The flags are stored in every record and file manifest, so that restore
+       and reopen reject records saved with a different set of variables. */
    std::uint64_t Layout() const;
+
+   /// Encode the solution, @a state, and the variables in #fields into
+   /// #record.
    void Encode(StateId state);
+
+   /// Insert @a entry into #saved, reusing an erased node when available.
+   /** A duplicate checkpoint ID is fatal. */
    void Insert(const Entry &entry);
 
 protected:
-   /// Bind live state; a finite @a limit_ bounds the checkpoint count.
+   /// Keep a reference to @a x_ and the pointers in @a fields_.
+   /** The current size of @a x_ becomes the fixed solution size. A value in
+       @a limit_ limits the checkpoint count; no value allows growth.
+
+       @a solver is the solver that advances @a x_. It is required so that
+       solvers with step history are rejected: construction verifies
+       ODESolver::GetStateSize() == 0. Multistep solvers keep earlier steps in
+       their ODEStateData. A record with only the solution, step, time, and
+       time step would restore without error, but the solver would continue
+       with stale history or rebuild it, so replay would not reproduce the
+       original trajectory. The check turns this silent mismatch into an error.
+       It only covers the solver passed here; advancing @a x_ with a different
+       solver is not detected.
+
+       The solver is currently not retained, and Store() and Restore() do not
+       use it. It is part of the interface so that a later extension can
+       support ODESolverWithStates: such an implementation would keep the
+       solver, store its ODEStateData with each record, and reinstate that
+       history on Restore(), without changing the constructors. */
    ODECheckpointer(Vector &x_, ODESolver &solver, Fields fields_,
                    std::optional<std::size_t> limit_);
 
-   /// Return a slot for a new checkpoint ID; capacity was already checked.
+   /// Return a slot for the new checkpoint @a id.
+   /** Called only for IDs that are not saved, after the count limit was
+       checked. The returned slot is passed to Write(), Read(), and Release()
+       for this ID. */
    virtual std::size_t Reserve(CheckpointId id) = 0;
 
-   /// Write a complete record of RecordBytes() bytes to a reserved slot.
+   /// Write the complete record @a data of RecordBytes() bytes to @a slot.
+   /** Called for a newly reserved slot or to replace the record of an
+       existing @a id. */
    virtual void Write(CheckpointId id, std::size_t slot,
                       const char *data) = 0;
 
-   /// Read a complete record of RecordBytes() bytes from a slot.
+   /// Read the complete record of @a id from @a slot into @a data.
+   /** @a data holds RecordBytes() bytes; the base class validates them. */
    virtual void Read(CheckpointId id, std::size_t slot, char *data) = 0;
 
-   /// Make the slot of an erased checkpoint reusable.
+   /// Make @a slot of the erased checkpoint @a id reusable.
    virtual void Release(CheckpointId id, std::size_t slot) = 0;
 
-   /// Verify that saved records are accessible; file layouts check Close().
+   /// Verify that saved records are accessible.
+   /** The default does nothing; file layouts reject use after Close(). */
    virtual void RequireOpen() const { }
 
-   /// Saved metadata, ordered by checkpoint ID.
+   /// Return the saved metadata, ordered by checkpoint ID.
    const Entries &SavedEntries() const { return saved; }
 
-   /// Publish native metadata for a file layout in @a directory.
-   void WriteManifest(const std::string &directory, Storage storage,
+   /// Publish the metadata of a file layout in @a directory.
+   /** Writes a temporary file and renames it to the manifest. @a storage
+       identifies the layout; @a clean marks the store as cleanly closed. */
+   void WriteManifest(const std::string &directory, StorageType storage,
                       bool clean) const;
 
    /// Import metadata from a cleanly closed, compatible file store.
-   /** Slots and record files are validated by the calling layout. */
-   void ReadManifest(const std::string &directory, Storage storage);
+   /** Requires no loaded metadata. Rejects an open marker, a checksum
+       mismatch, or a different @a storage, solution size, real_t precision,
+       record size, field layout, or count limit. Slots and record files are
+       validated by the calling layout. */
+   void ReadManifest(const std::string &directory, StorageType storage);
 
 public:
+   /// Copying is disabled; saved records are owned by one instance.
    ODECheckpointer(const ODECheckpointer &) = delete;
+
+   /// Copy assignment is disabled; saved records are owned by one instance.
    ODECheckpointer &operator=(const ODECheckpointer &) = delete;
 
-   /// Return the bound step counter, or the internal position.
+   /// Return *Fields::step, or the internal position if Fields::step is null.
    StateId CurrentState() const override
    { return fields.step ? *fields.step : position; }
 
-   /// Set the bound step counter, or the internal position.
+   /// Set *Fields::step, or the internal position if Fields::step is null.
+   /** A negative @a state marks the current solution as invalid; Store() then
+       fails until a valid position is set or a checkpoint is restored. */
    void SetCurrentState(StateId state)
    { if (fields.step) { *fields.step = state; } else { position = state; } }
 
-   /// Capture the solution and bound fields; replacing an ID keeps Size().
+   /// Save the solution and the variables in Fields under @a id.
+   /** Requires a non-negative CurrentState(), an unchanged solution size, and,
+       if given, a finite time and time step. Replacing an existing ID keeps
+       Size(); a new ID beyond Capacity() is fatal. Nothing is modified. */
    void Store(CheckpointId id) final;
 
-   /// Validate and restore the solution, bound fields, and position.
+   /// Write the solution, variables, and position saved under @a id back.
+   /** Validates the record checksum, saved position, set of variables, and
+       solution size before writing anything. Variables whose pointer in
+       Fields is null are not touched. A missing ID is fatal. */
    void Restore(CheckpointId id) final;
 
+   /// Erase @a id and make its slot reusable; an absent ID is a no-op.
    void Erase(CheckpointId id) final;
+
+   /// Return whether @a id is saved.
    bool Contains(CheckpointId id) const final;
+
+   /// Return the checkpoint ID and saved position of @a id; absence is fatal.
    CheckpointInfo GetInfo(CheckpointId id) const final;
+
+   /// Find the greatest saved position at or before non-negative @a target.
+   /** Ties use the lowest checkpoint ID. Returns false and leaves @a result
+       unchanged when no saved position qualifies. */
    bool FindAtOrBefore(StateId target, CheckpointInfo &result) const final;
+
+   /// Return the number of saved checkpoints.
    std::size_t Size() const final;
+
+   /// Return the checkpoint-count limit, or no value for unlimited growth.
    std::optional<std::size_t> Capacity() const final { return limit; }
 
    /// Return the fixed size of one saved record in bytes.
    std::size_t RecordBytes() const { return record_bytes; }
 
-   /// Return the bound solution.
+   /// Return the solution vector passed to the constructor.
    Vector &GetVector() { return x; }
 
-   /// Return the bound optional fields.
+   /// Return the pointers to the time-loop variables.
    const Fields &GetFields() const { return fields; }
 };
 
@@ -228,7 +306,8 @@ protected:
    void Release(CheckpointId id, std::size_t slot) override;
 
 public:
-   /// Bind live state; an absent @a limit allows growth.
+   /// Use @a x and @a fields as in ODECheckpointer; an absent @a limit allows
+   /// growth.
    ODEMemorySnapshotCheckpointer(Vector &x, ODESolver &solver, Fields fields,
                                  std::optional<std::size_t> limit = {});
 };
@@ -272,15 +351,16 @@ public:
 /** Block layouts require @a limit as their capacity. Memory layouts take no
     path and cannot be reopened. Invalid combinations are fatal. */
 std::unique_ptr<ODECheckpointer>
-MakeODECheckpointer(Checkpointer::Storage storage, Vector &x,
+MakeODECheckpointer(Checkpointer::StorageType storage, Vector &x,
                     ODESolver &solver, ODECheckpointer::Fields fields,
                     std::optional<std::size_t> limit,
                     const std::string &path = "", bool reopen = false);
 
-/// Advance an ODE checkpointer's bound state with fixed solver steps.
-/** Requires bound time and time step. Each transition calls
-    ODESolver::Step() on the bound solution and increments CurrentState().
-    The solver must be initialized and outlive the propagator. */
+/// Advance the variables of an ODE checkpointer with fixed solver steps.
+/** Requires an ODECheckpointer whose Fields point to the time and time step.
+    Each transition calls ODESolver::Step() on the checkpointer's solution
+    vector, time, and time step, and increments CurrentState(). The solver
+    must be initialized and outlive the propagator. */
 class ODEStatePropagator : public StatePropagator
 {
 private:

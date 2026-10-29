@@ -63,7 +63,7 @@ public:
        process-local; file layouts can be closed and reopened. This enumeration
        only names layouts; the interface has no query for the layout of an
        instance. */
-   enum class Storage
+   enum class StorageType
    {
       MemoryBlock,     ///< Preallocated records in process memory.
       FileBlock,       ///< Preallocated records in one fixed-size file.

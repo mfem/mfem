@@ -407,7 +407,7 @@ std::size_t ODECheckpointer::Size() const
 }
 
 void ODECheckpointer::WriteManifest(const std::string &directory,
-                                    Storage storage, bool clean) const
+                                    StorageType storage, bool clean) const
 {
    const fs::path path(directory);
    ManifestHeader header{manifest_magic, manifest_version,
@@ -437,7 +437,7 @@ void ODECheckpointer::WriteManifest(const std::string &directory,
 }
 
 void ODECheckpointer::ReadManifest(const std::string &directory,
-                                   Storage storage)
+                                   StorageType storage)
 {
    MFEM_VERIFY(saved.empty(), "ODE checkpoint metadata is already loaded.");
    const fs::path path(directory);
@@ -533,7 +533,7 @@ ODEFileBlockCheckpointer::ODEFileBlockCheckpointer(
    const fs::path records = store / "records.bin";
    if (reopen)
    {
-      ReadManifest(directory, Storage::FileBlock);
+      ReadManifest(directory, StorageType::FileBlock);
       FreeSlots(SavedEntries(), capacity, free_slots);
       MFEM_VERIFY(FileSize(records) == bytes,
                   "Invalid ODE checkpoint block extent in " << store);
@@ -556,7 +556,7 @@ ODEFileBlockCheckpointer::ODEFileBlockCheckpointer(
    MarkOpen(store);
    file.open(records, std::ios::binary | std::ios::in | std::ios::out);
    MFEM_VERIFY(file.good(), "Cannot open " << records);
-   WriteManifest(directory, Storage::FileBlock, false);
+   WriteManifest(directory, StorageType::FileBlock, false);
 }
 
 ODEFileBlockCheckpointer::~ODEFileBlockCheckpointer()
@@ -605,7 +605,7 @@ void ODEFileBlockCheckpointer::Close()
    MFEM_VERIFY(file.good(), "Failed to flush the ODE checkpoint block.");
    file.close();
    MFEM_VERIFY(!file.fail(), "Failed to close the ODE checkpoint block.");
-   WriteManifest(directory, Storage::FileBlock, true);
+   WriteManifest(directory, StorageType::FileBlock, true);
    MarkClosed(directory);
    closed = true;
 }
@@ -660,7 +660,7 @@ ODEFileSnapshotCheckpointer::ODEFileSnapshotCheckpointer(
    directory = store.string();
    if (reopen)
    {
-      ReadManifest(directory, Storage::FileSnapshots);
+      ReadManifest(directory, StorageType::FileSnapshots);
       for (const auto &entry : SavedEntries())
       {
          MFEM_VERIFY(entry.second.slot == 0 &&
@@ -669,7 +669,7 @@ ODEFileSnapshotCheckpointer::ODEFileSnapshotCheckpointer(
       }
    }
    MarkOpen(store);
-   WriteManifest(directory, Storage::FileSnapshots, false);
+   WriteManifest(directory, StorageType::FileSnapshots, false);
 }
 
 ODEFileSnapshotCheckpointer::~ODEFileSnapshotCheckpointer()
@@ -722,39 +722,39 @@ void ODEFileSnapshotCheckpointer::Release(CheckpointId id, std::size_t)
 void ODEFileSnapshotCheckpointer::Close()
 {
    if (closed) { return; }
-   WriteManifest(directory, Storage::FileSnapshots, true);
+   WriteManifest(directory, StorageType::FileSnapshots, true);
    MarkClosed(directory);
    closed = true;
 }
 
 std::unique_ptr<ODECheckpointer>
-MakeODECheckpointer(Checkpointer::Storage storage, Vector &x,
+MakeODECheckpointer(Checkpointer::StorageType storage, Vector &x,
                     ODESolver &solver, ODECheckpointer::Fields fields,
                     std::optional<std::size_t> limit,
                     const std::string &path, bool reopen)
 {
-   using Storage = Checkpointer::Storage;
-   const bool file = storage == Storage::FileBlock ||
-                     storage == Storage::FileSnapshots;
+   using StorageType = Checkpointer::StorageType;
+   const bool file = storage == StorageType::FileBlock ||
+                     storage == StorageType::FileSnapshots;
    MFEM_VERIFY(file || (path.empty() && !reopen),
                "Memory ODE checkpoint storage has no path and cannot be "
                "reopened.");
-   const bool block = storage == Storage::MemoryBlock ||
-                      storage == Storage::FileBlock;
+   const bool block = storage == StorageType::MemoryBlock ||
+                      storage == StorageType::FileBlock;
    MFEM_VERIFY(!block || limit,
                "Block ODE checkpoint storage requires a capacity.");
    switch (storage)
    {
-      case Storage::MemoryBlock:
+      case StorageType::MemoryBlock:
          return std::make_unique<ODEMemoryBlockCheckpointer>(
                    x, solver, fields, *limit);
-      case Storage::FileBlock:
+      case StorageType::FileBlock:
          return std::make_unique<ODEFileBlockCheckpointer>(
                    x, solver, fields, *limit, path, reopen);
-      case Storage::MemorySnapshots:
+      case StorageType::MemorySnapshots:
          return std::make_unique<ODEMemorySnapshotCheckpointer>(
                    x, solver, fields, limit);
-      case Storage::FileSnapshots:
+      case StorageType::FileSnapshots:
          return std::make_unique<ODEFileSnapshotCheckpointer>(
                    x, solver, fields, limit, path, reopen);
    }
