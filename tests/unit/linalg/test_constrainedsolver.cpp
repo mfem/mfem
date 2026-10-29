@@ -878,7 +878,8 @@ TEST_CASE("ParallelNormalConstraints", "[Parallel], [ConstrainedSolver]")
    std::unique_ptr<SparseMatrix> pB(
       ParBuildNormalConstraints(pfes, constrained_att, p_rowstarts));
 
-   const int local_rows = pB->Height();
+   // Use non-const to suppress false MPI warning in MPI_Allreduce below:
+   int local_rows = pB->Height();
    int global_rows;
    MPI_Allreduce(&local_rows, &global_rows, 1, MPI_INT, MPI_SUM,
                  MPI_COMM_WORLD);
