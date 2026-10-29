@@ -30,6 +30,11 @@ Linear and nonlinear solvers
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
 
+New and updated examples and miniapps
+-------------------------------------
+- Added a new example for solving the biharmonic equation (examples/ex42) based
+  on the C0 interior penalty method of Brenner & Sung using H1 elements.
+
 Miscellaneous
 -------------
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
