@@ -1136,17 +1136,6 @@ size_t MemoryManager::Insert(char *hptr, char *dptr, size_t nbytes,
    auto &seg = storage.GetSegment(next_segment);
    MFEM_ASSERT(seg.roots[0] == 0, "unexpected host root");
    MFEM_ASSERT(seg.roots[1] == 0, "unexpected device root");
-   seg.lowers[0] = hptr;
-   seg.lowers[1] = dptr;
-   if (hptr)
-   {
-      segment_maps[0].emplace(hptr, next_segment);
-   }
-   if (dptr && dptr != hptr)
-   {
-      segment_maps[1].emplace(dptr, next_segment);
-   }
-   seg.nbytes = nbytes;
    if (hptr && hloc == MemoryType::DEFAULT)
    {
       hloc = GetHostMemoryType();
@@ -1157,7 +1146,21 @@ size_t MemoryManager::Insert(char *hptr, char *dptr, size_t nbytes,
    }
    seg.mtypes[0] = hloc;
    seg.mtypes[1] = dloc;
-
+   if (!dptr && hloc == dloc)
+   {
+      dptr = hptr;
+   }
+   if (hptr)
+   {
+      segment_maps[0].emplace(hptr, next_segment);
+   }
+   seg.lowers[0] = hptr;
+   seg.lowers[1] = dptr;
+   seg.nbytes = nbytes;
+   if (dptr && dptr != hptr)
+   {
+      segment_maps[1].emplace(dptr, next_segment);
+   }
    if (!valid_host)
    {
       MarkInvalid(next_segment, false, 0, nbytes, [](auto start, auto stop) {});

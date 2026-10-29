@@ -222,7 +222,7 @@ SparseMatrix::SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data,
 
    if (!A)
    {
-      const int nnz = I[height];
+      const int nnz = *I.Read(false, height, 1);
       A.New(nnz);
       for (int ii=0; ii<nnz; ++ii)
       {

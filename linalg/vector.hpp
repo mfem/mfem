@@ -177,7 +177,7 @@ public:
       Vector vec(size, GetTemporaryMemorySpace(mt));
       if (IsDeviceMemory(mt))
       {
-         vec.UseDevice();
+         vec.UseDevice(true);
       }
       return vec;
    }
