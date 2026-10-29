@@ -889,6 +889,8 @@ The specific libraries and their options are:
   URL: https://github.com/google/benchmark
   Options: BENCHMARK_DIR, BENCHMARK_LIB.
   Versions: Benchmark >= 1.5.6.
+  With MFEM_USE_CODSPEED = YES, CodSpeed's fork of Google Benchmark is
+  downloaded and built instead: https://github.com/CodSpeedHQ/codspeed-cpp
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
@@ -1079,6 +1081,12 @@ MFEM_USE_ENZYME
 
 The following options are CMake specific:
 
+MFEM_USE_CODSPEED    - Build the benchmarks against CodSpeed's fork of Google
+                       Benchmark (https://codspeed.io) for continuous
+                       benchmarking in CI. Measurements require the CodSpeed
+                       runner; for local timing use MFEM_USE_BENCHMARK alone.
+                       No GNU make equivalent. Requires MFEM_USE_BENCHMARK =
+                       YES and CMake >= 3.28.
 MFEM_ENABLE_TESTING  - Enable the ctest framework for testing.
 MFEM_ENABLE_EXAMPLES - Build all of the examples by default.
 MFEM_ENABLE_MINIAPPS - Build all of the miniapps by default.

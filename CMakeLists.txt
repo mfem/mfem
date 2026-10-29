@@ -541,8 +541,23 @@ if (MFEM_USE_RAJA)
 endif()
 
 # GOOGLE-BENCHMARK
+if (MFEM_USE_CODSPEED AND NOT MFEM_USE_BENCHMARK)
+   message(FATAL_ERROR "MFEM_USE_CODSPEED requires MFEM_USE_BENCHMARK=YES")
+endif()
 if (MFEM_USE_BENCHMARK)
-   find_package(Benchmark REQUIRED)
+   # With MFEM_USE_CODSPEED, Google Benchmark is provided by CodSpeed's
+   # compatibility layer, which is fetched from tests/benchmarks/CMakeLists.txt.
+   # Otherwise, an existing Google Benchmark installation is required.
+   if (MFEM_USE_CODSPEED)
+      message(STATUS "Google Benchmark: using CodSpeed's fork")
+      # Drop BENCHMARK_* values cached by a previous configure with standard
+      # Google Benchmark, which would otherwise mix with CodSpeed's fork.
+      unset(BENCHMARK_FOUND CACHE)
+      unset(BENCHMARK_INCLUDE_DIRS CACHE)
+      unset(BENCHMARK_LIBRARIES CACHE)
+   else()
+      find_package(Benchmark REQUIRED)
+   endif()
 endif()
 
 # Caliper
