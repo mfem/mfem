@@ -418,13 +418,13 @@ TEST_CASE("L2ZZ estimator refreshes after p-refinement", "[NCMesh][Parallel]")
    ParFiniteElementSpace solution_fes(&mesh, &solution_fec);
    ParFiniteElementSpace flux_fes(&mesh, &flux_fec, mesh.SpaceDimension());
    ParFiniteElementSpace smooth_flux_fes(&mesh, &smooth_flux_fec,
-                                       mesh.SpaceDimension());
+                                         mesh.SpaceDimension());
    ParGridFunction solution(&solution_fes);
    FunctionCoefficient exact(testhelper::SinXSinY);
    solution.ProjectCoefficient(exact);
    DiffusionIntegrator integrator;
    L2ZienkiewiczZhuEstimator estimator(integrator, solution, flux_fes,
-                                     smooth_flux_fes);
+                                       smooth_flux_fes);
    estimator.GetLocalErrors();
    const real_t before = estimator.GetTotalError();
    const long mesh_sequence = mesh.GetSequence();
@@ -453,7 +453,7 @@ TEST_CASE("L2ZZ estimator refreshes after p-refinement", "[NCMesh][Parallel]")
 
    const Vector cached_errors(estimator.GetLocalErrors());
    L2ZienkiewiczZhuEstimator fresh_estimator(integrator, solution, flux_fes,
-                                           smooth_flux_fes);
+                                             smooth_flux_fes);
    const Vector fresh_errors(fresh_estimator.GetLocalErrors());
    REQUIRE(std::abs(fresh_estimator.GetTotalError() - before) > 1e-12);
    REQUIRE(estimator.GetTotalError() ==
