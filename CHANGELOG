@@ -11,6 +11,10 @@
 Version 4.10.1 (development)
 ============================
 
+GPU computing
+-------------
+- Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
+
 Discretization improvements
 ---------------------------
 - Added optimized partial-assembly mass and diffusion kernels for triangles

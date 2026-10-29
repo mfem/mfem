@@ -3124,4 +3124,49 @@ TEST_CASE("InteriorBoundaryEssentialDofs2D", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh high vertex reference count", "[NCMesh]")
+{
+   // Test large vertex reference counts, supported up to the limit of
+   // std::uint16_t. K tets share a central axis edge, so the two axis
+   // vertices each have reference count K.
+   auto make_spindle = [](int K)
+   {
+      Mesh mesh(3, K + 2, K);
+      Array<int> ring(K);
+      for (int i = 0; i < K; i++)
+      {
+         const real_t t = 2.0 * M_PI * i / K;
+         ring[i] = mesh.AddVertex(std::cos(t), std::sin(t), 0.0);
+      }
+      const int c = mesh.AddVertex(0.0, 0.0, -1.0);
+      const int a = mesh.AddVertex(0.0, 0.0,  1.0);
+      for (int i = 0; i < K; i++)
+      {
+         int v[4] = {c, a, ring[i], ring[(i + 1) % K]};
+         mesh.AddTet(v, 1);
+      }
+      mesh.FinalizeTetMesh(1, 0, true);
+      return mesh;
+   };
+
+   const int K = GENERATE(255, 256, 512);
+
+   Mesh mesh = make_spindle(K);
+   const int nv = mesh.GetNV();
+   REQUIRE(mesh.GetNE() == K);
+
+   mesh.EnsureNCMesh(true);
+
+   REQUIRE(mesh.GetNV() == nv);
+   REQUIRE_FALSE(mesh.Conforming());
+
+   // The non-conforming structure must be usable.
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   REQUIRE(fes.GetVSize() == nv);
+
+   mesh.UniformRefinement();
+   REQUIRE(mesh.GetNE() == 8 * K);
+}
+
 } // namespace mfem
