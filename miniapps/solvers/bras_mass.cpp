@@ -30,9 +30,9 @@
 // which is available on affine quadrilateral and hexahedral meshes (and, for
 // H(curl) and H(div), only on rectangular elements).
 //
-// [1]. O. A. Krzysik, B. S. Southworth, and M. Wimmer. Weighted broken-space
-//      additive Schwarz preconditioning for high-order mass matrices.
-//      arXiv:2607.12138. (2026)
+// [1]. O. A. Krzysik, B. S. Southworth, and G. A. Wimmer. Broken-space
+//      additive Schwarz mass inverse approximations and (block)
+//      preconditioning. arXiv:2607.12138. (2026)
 //
 // Compile with: make bras_mass
 //

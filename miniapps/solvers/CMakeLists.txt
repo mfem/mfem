@@ -55,14 +55,13 @@ if (MFEM_USE_MPI)
         -eb ${CMAKE_CURRENT_SOURCE_DIR}/anisotropic.brd
         -no-vis
         ${MPIEXEC_POSTFLAGS})
-
-      # otherwise bras_darcy returns MFEM_SKIP_RETURN_VALUE
-      add_test(NAME bras_darcy_np${MFEM_MPI_NP}
-        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-        ${MPIEXEC_PREFLAGS}
-        $<TARGET_FILE:bras_darcy> -m ../../data/amr-quad.mesh -rs 1 -no-vis
-        ${MPIEXEC_POSTFLAGS})
     endif()
+
+    add_test(NAME bras_darcy_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:bras_darcy> -m ../../data/amr-quad.mesh -rs 1 -no-vis
+      ${MPIEXEC_POSTFLAGS})
 
     add_test(NAME plor_solvers_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}

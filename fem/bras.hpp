@@ -34,7 +34,7 @@ namespace mfem
     where $W$ is an element-local SPD weighting. For any such $W$,
     $\lambda_{\min}(B_W M) \geq 1$, and $\lambda_{\max}(B_W M)$ is bounded by
     the Kantorovich factor of the element-wise spectral equivalence between
-    $W$ and $M_{br}$. See O. A. Krzysik, B. S. Southworth, and M. Wimmer,
+    $W$ and $M_{br}$. See O. A. Krzysik, B. S. Southworth, and G. A. Wimmer,
     arXiv:2607.12138.
 
     Two weightings are supported: $W = I$ (the original BRAS) and the
@@ -144,11 +144,11 @@ public:
       /** $q_k(A_W) G q_k(A_W)$, where $q_k(A_W) \approx A_W^{-1}$ is the
           Chebyshev polynomial approximation of degree k (in $S A_W$) for the
           spectral interval [a, b] of $S A_W$. In the setup, a is set to a
-          lower bound, $\min (\Lambda_u S)$, and b to an estimate from a few
-          power iterations. As k increases the preconditioner converges to
-          $B_W$; k = 2 is usually close to it. Each application requires 2k
-          products with $A_W$, i.e. 2k + 1 products with $P_L$ and with
-          $P_L^T$. */
+          lower bound, $\min (\Lambda_u S)$, and b to 1.1 times an estimate
+          from 20 power iterations. As k increases the preconditioner
+          converges to $B_W$; k = 2 or 3 is usually close to it. Each
+          application requires 2k products with $A_W$, i.e. 2k + 1 products
+          with $P_L$ and with $P_L^T$. */
       CHEBYSHEV
    };
 

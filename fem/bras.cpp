@@ -736,11 +736,31 @@ void BRASPreconditioner::SetupProlongation()
 // [a, b] containing the spectrum of S A_W on the free DOFs. Since
 // A_W >= Lambda_u, the spectrum is bounded below by a = min(Lambda_u S). The
 // upper bound b is estimated by power iteration on S A_W, using the
-// generalized Rayleigh quotient (v^T A_W v)/(v^T S^{-1} v). The estimate is
-// slightly below the largest eigenvalue, which gives a better polynomial than
-// the (much larger) upper bounds of Gershgorin type. Since the trace of S A_W
-// is the number of free DOFs, its eigenvalues average to one, so a <= 1 and
-// the largest eigenvalue is at least 1.
+// generalized Rayleigh quotient (v^T A_W v)/(v^T S^{-1} v), and multiplied by
+// a safety factor, since the estimate is below the largest eigenvalue. This
+// gives a better polynomial than the (several times larger) upper bounds of
+// Gershgorin type. Since the trace of S A_W is the number of free DOFs, its
+// eigenvalues average to one, so a <= 1 and the largest eigenvalue is at
+// least 1.
+//
+// The start vector of the power iteration must not be (nearly) orthogonal to
+// the dominant eigenvectors. Smooth vectors, such as the vector of ones, are
+// invariant under the symmetries of the mesh and can be: then 20 iterations
+// underestimate the largest eigenvalue by up to 35%, and the Chebyshev
+// polynomial is a poor approximation of A_W^{-1}. A random vector would
+// depend on the parallel partitioning. Instead, the start vector is
+// v = P^T v_L, where element e adds the value ChebyshevStartValue(c_e, j) to
+// its j-th local DOF (with the orientation sign), c_e being the average of
+// the vertices of e. This vector is quasi-random and is the same for any
+// partitioning, up to the orientation signs of the true DOFs.
+static real_t ChebyshevStartValue(const Vector &c, int j)
+{
+   real_t t = 2.39996322972865332*j; // golden angle
+   const real_t k[3] = { 12.9898, 78.233, 37.719 };
+   for (int d = 0; d < c.Size(); d++) { t += k[d]*c(d); }
+   return std::sin(t);
+}
+
 void BRASPreconditioner::SetupChebyshev()
 {
    // On the free DOFs, scale = diag_inv > 0; on the essential DOFs, scale = 0.
@@ -757,15 +777,44 @@ void BRASPreconditioner::SetupChebyshev()
    // vector.
    if (a == infinity()) { return; }
 
-   // Power iteration, starting from the vector of ones on the free DOFs. The
-   // number of iterations is enough for the purpose of the estimate.
-   const int power_its = 20;
+   // The start vector, see above, on the free DOFs.
+   const Mesh &mesh = *fes->GetMesh();
+   const int sdim = mesh.SpaceDimension();
+   Vector vl(fes->GetVSize()), c(sdim);
+   vl.UseDevice(true);
+   vl = 0.0;
+   real_t *h_vl = vl.HostReadWrite();
+   Array<int> verts, vdofs;
+   for (int e = 0; e < fes->GetNE(); e++)
+   {
+      mesh.GetElementVertices(e, verts);
+      c = 0.0;
+      for (int i : verts)
+      {
+         const real_t *x = mesh.GetVertex(i);
+         for (int d = 0; d < sdim; d++) { c(d) += x[d]; }
+      }
+      c *= 1.0/verts.Size();
+      fes->GetElementVDofs(e, vdofs);
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         const int k = vdofs[j];
+         const real_t s = ChebyshevStartValue(c, j);
+         if (k >= 0) { h_vl[k] += s; }
+         else { h_vl[-1-k] -= s; }
+      }
+   }
    Vector v(height), Av(height), Sinv(diag_inv);
    v.UseDevice(true);
    Av.UseDevice(true);
    Sinv.Reciprocal();
-   v = 1.0;
+   P->MultTranspose(vl, v);
    v.SetSubVector(ess_tdof_list, 0.0);
+
+   // Power iteration. The number of iterations and the safety factor are
+   // enough for the purpose of the estimate.
+   const int power_its = 20;
+   const real_t safety = 1.1;
    real_t b = 1.0;
    for (int it = 0; it < power_its; it++)
    {
@@ -782,7 +831,7 @@ void BRASPreconditioner::SetupChebyshev()
    // Keep the interval nondegenerate: if A_W is diagonal on the free DOFs
    // (e.g. when all the hanging DOFs depend only on essential DOFs), the
    // spectrum is {1}, a = b = 1, and any interval containing 1 is valid.
-   cheb_b = std::max({b, 1.0, (1.0 + 1e-6)*a});
+   cheb_b = std::max({safety*b, 1.0, (1.0 + 1e-6)*a});
 }
 
 // Let P_0 be P restricted to the columns of the free (non-essential) true

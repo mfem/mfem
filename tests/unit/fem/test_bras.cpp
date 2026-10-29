@@ -338,7 +338,41 @@ struct Reference
    DenseMatrix Gm;      ///< P_0^T W M_br^{-1} W P_0.
    DenseMatrix M;       ///< E^T P_0^T M_br P_0 E, zero on the essential DOFs.
    real_t alpha, beta;  ///< The constants in alpha W <= M_br <= beta W.
+   Vector v0;           ///< The start vector of the Chebyshev power iteration.
 };
+
+// The start vector of the power iteration in the setup of
+// NCMethod::CHEBYSHEV, as in the implementation: E^T v_L, where element e
+// adds sin(2.39996322972865332 j + k . c_e) to its j-th local DOF (with the
+// orientation sign), c_e being the average of its vertices.
+Vector ChebyshevStartVector(const FiniteElementSpace &fes, const DenseMatrix &E)
+{
+   const Mesh &mesh = *fes.GetMesh();
+   const real_t k[3] = { 12.9898, 78.233, 37.719 };
+   Vector vl(fes.GetVSize()), v(E.Width());
+   vl = 0.0;
+   Array<int> verts, vdofs;
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      mesh.GetElementVertices(e, verts);
+      real_t kc = 0.0;
+      for (int d = 0; d < mesh.SpaceDimension(); d++)
+      {
+         real_t c = 0.0;
+         for (int i : verts) { c += mesh.GetVertex(i)[d]; }
+         kc += k[d]*(c/verts.Size());
+      }
+      fes.GetElementVDofs(e, vdofs);
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         const real_t s = std::sin(2.39996322972865332*j + kc);
+         if (vdofs[j] >= 0) { vl(vdofs[j]) += s; }
+         else { vl(-1 - vdofs[j]) -= s; }
+      }
+   }
+   E.MultTranspose(vl, v);
+   return v;
+}
 
 Reference BuildReference(BilinearForm &a, Weighting weighting,
                          const Array<int> &ess)
@@ -431,6 +465,7 @@ Reference BuildReference(BilinearForm &a, Weighting weighting,
    a.SpMat().ToDenseMatrix(ML);
    REQUIRE(MaxDiff(ML, P0tMP0) <= 1e-12*ML.MaxMaxNorm());
    r.M = RtAR(ML, r.E);
+   r.v0 = ChebyshevStartVector(fes, r.E);
    return r;
 }
 
@@ -544,15 +579,14 @@ DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
       DenseMatrix Dl(nl);
       Dl.Diag(r.dl.GetData(), nl);
       const DenseMatrix A0 = RtAR(Dl, r.E);
-      // The interval: a = min(Lambda_u S) on the free DOFs, and b from 20
-      // power iterations on S A_0, from the vector of ones on the free DOFs,
-      // as in the implementation.
+      // The interval: a = min(Lambda_u S) on the free DOFs, and b equal to
+      // 1.1 times the estimate from 20 power iterations on S A_0, from the
+      // start vector r.v0, as in the implementation.
       real_t a = infinity();
-      Vector v(nt), Av(nt);
+      Vector v(r.v0), Av(nt);
       for (int j = 0; j < nt; j++)
       {
          if (r.free[j]) { a = std::min(a, s(j)/lus(j)); }
-         v(j) = r.free[j] ? 1.0 : 0.0;
       }
       real_t b = 1.0;
       for (int it = 0; it < 20; it++)
@@ -564,7 +598,7 @@ DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
          for (int j = 0; j < nt; j++) { v(j) = s(j)*Av(j); }
          v /= v.Norml2();
       }
-      b = std::max({b, 1.0, (1.0 + 1e-6)*a});
+      b = std::max({1.1*b, 1.0, (1.0 + 1e-6)*a});
 
       // The Chebyshev semi-iteration for A_0 Q = I, with preconditioner S,
       // from Q = 0, gives the matrix Q = q_k(A_0).

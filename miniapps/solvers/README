@@ -112,8 +112,8 @@ the BRAS preconditioner. For the latter, B_W is assembled as a HypreParMatrix
 to form S_0, which is then spectrally equivalent to the exact Schur complement
 B M^{-1} B^T, independently of the mesh size.
 
-[4] Krzysik, O. A., Southworth, B. S., and Wimmer, M., "Weighted broken-space
-    additive Schwarz preconditioning for high-order mass matrices",
+[4] Krzysik, O. A., Southworth, B. S., and Wimmer, G. A., "Broken-space
+    additive Schwarz mass inverse approximations and (block) preconditioning",
     arXiv:2607.12138, 2026.
 
 # Low-Order Refined Solvers

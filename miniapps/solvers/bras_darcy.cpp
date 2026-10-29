@@ -45,12 +45,13 @@
 // diagonals, the BRAS Schur complement approximation satisfies
 // B M^{-1} B^T <= S_0 <= kappa B M^{-1} B^T, independently of the mesh size and
 // of the refinement level of nonconforming meshes. The Jacobi approximation
-// has no such bound, and deteriorates for some high-order bases (e.g. -b U).
-// The price is a wider stencil of S_0, whose number of nonzeros is printed.
+// has no such bound, and deteriorates for some high-order bases, e.g. the
+// default closed uniform basis (-b U). The price is a wider stencil of S_0,
+// whose number of nonzeros is printed.
 //
-// [1]. O. A. Krzysik, B. S. Southworth, and M. Wimmer. Weighted broken-space
-//      additive Schwarz preconditioning for high-order mass matrices.
-//      arXiv:2607.12138. (2026)
+// [1]. O. A. Krzysik, B. S. Southworth, and G. A. Wimmer. Broken-space
+//      additive Schwarz mass inverse approximations and (block)
+//      preconditioning. arXiv:2607.12138. (2026)
 //
 // We recommend viewing Example 5 before viewing this miniapp.
 //
@@ -59,10 +60,14 @@
 // Sample runs:
 //
 //    mpirun -np 4 bras_darcy
-//    mpirun -np 4 bras_darcy -o 3 -b U
+//    mpirun -np 4 bras_darcy -o 3
+//    mpirun -np 4 bras_darcy -o 3 -b G
 //    mpirun -np 4 bras_darcy -m ../../data/amr-quad.mesh -rs 2 -o 2
 //    mpirun -np 4 bras_darcy -m ../../data/inline-hex.mesh -rs 0 -o 1
 //    mpirun -np 4 bras_darcy -m ../../data/star.mesh -rs 1 -o 2
+//
+// Device sample runs:
+//  * mpirun -np 4 bras_darcy -m ../../data/inline-hex.mesh -rs 1 -o 3 -d cuda
 
 #include "mfem.hpp"
 #include <iostream>
@@ -80,19 +85,14 @@ real_t natural_bc(const Vector &x);
 
 int main(int argc, char *argv[])
 {
-#ifdef HYPRE_USING_GPU
-   mfem::out << "\nThis miniapp is NOT supported with the GPU version of "
-             << "hypre.\n\n";
-   return MFEM_SKIP_RETURN_VALUE;
-#endif
-
    Mpi::Init();
    Hypre::Init();
 
    const char *mesh_file = "../../data/inline-quad.mesh";
    int ser_ref_levels = 2, par_ref_levels = 0;
    int order = 2;
-   const char *basis = "G";
+   const char *basis = "U";
+   const char *device_config = "cpu";
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -106,10 +106,15 @@ int main(int argc, char *argv[])
    args.AddOption(&basis, "-b", "--basis-type",
                   "Closed basis of the Raviart-Thomas space: G - Gauss-Lobatto, "
                   "U - closed uniform, c - closed Gauss-Legendre.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.ParseCheck();
+
+   Device device(device_config);
+   if (Mpi::Root()) { device.Print(); }
 
    Mesh serial_mesh(mesh_file, 1, 1);
    const int dim = serial_mesh.Dimension();
@@ -149,7 +154,8 @@ int main(int argc, char *argv[])
    // Right-hand side, as in Example 5.
    VectorFunctionCoefficient fcoeff(dim, f_exact), ucoeff(dim, u_exact);
    FunctionCoefficient natcoeff(natural_bc), gcoeff(g_exact), pcoeff(p_exact);
-   BlockVector rhs(offsets), x(offsets);
+   const MemoryType mt = device.GetMemoryType();
+   BlockVector rhs(offsets, mt), x(offsets, mt);
    ParLinearForm fform(&R_space);
    fform.AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
