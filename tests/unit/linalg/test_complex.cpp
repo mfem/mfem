@@ -329,11 +329,11 @@ TEST_CASE("complex_t range edges", "[Complex]")
 
    SECTION("division by infinity")
    {
+      // std::complex is not a portable reference here: MSVC returns NaN,
+      // while C Annex G specifies finite / infinite = zero.
       const complex_t z = complex_t(1, -2) / complex_t(inf, inf);
-      const std::complex<real_t> s =
-         std::complex<real_t>(1, -2) / std::complex<real_t>(inf, inf);
-      REQUIRE(z.real() == s.real());
-      REQUIRE(z.imag() == s.imag());
+      REQUIRE(std::isfinite(z.real()));
+      REQUIRE(std::isfinite(z.imag()));
       REQUIRE(z.real() == 0);
       REQUIRE(z.imag() == 0);
    }
