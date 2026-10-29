@@ -1,0 +1,25 @@
+                    Finite Element Discretization Library
+                                   __
+                       _ __ ___   / _|  ___  _ __ ___
+                      | '_ ` _ \ | |_  / _ \| '_ ` _ \
+                      | | | | | ||  _||  __/| | | | | |
+                      |_| |_| |_||_|   \___||_| |_| |_|
+
+                               https://mfem.org
+
+This directory contains modifications of the example codes that illustrate the
+use of MFEM's ODE checkpointing classes (mfem::ODECheckpointer and its storage
+layouts, see linalg/ode_checkpoint.hpp) together with mfem::CheckpointController
+(see linalg/checkpoint.hpp).
+
+Each example keeps the forward time loop of the original example and adds
+checkpointing in blocks marked ">>> Checkpointing" and "<<< Checkpointing".
+After the forward loop, a reverse sweep revisits every state in reverse order,
+as an adjoint computation would, restoring checkpoints and replaying steps.
+
+No additional build options are required.
+
+We recommend comparing the original example codes with the corresponding files
+in the current directory.
+
+See also the checkpointing miniapps in ../../miniapps/checkpointing.
