@@ -716,6 +716,9 @@ public:
    /// These functions can be called if the pointer(s) being wrapped are
    /// already registered.
    void CheckedWrap(T *ptr, size_t size, bool own);
+   void CheckedWrap(T *ptr, size_t size, MemoryType loc, bool own);
+   void CheckedWrap(T *h_ptr, T *d_ptr, size_t size, MemoryType loc, bool own,
+                    bool valid_host, bool valid_device);
 
    MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int offset, int size);
    MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int offset,
@@ -1127,7 +1130,8 @@ template <class T> void Memory<T>::Delete()
    }
 }
 
-template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
+template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size,
+                                               MemoryType loc, bool own)
 {
    auto &inst = MemoryManager::Instance();
    if (segment)
@@ -1201,7 +1205,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
       }
       else
       {
-         Wrap(ptr, size, own);
+         Wrap(ptr, size, loc, own);
       }
    }
 #ifdef MFEM_ENABLE_MEM_OP_DEBUG
@@ -1211,6 +1215,12 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
                             "wrap own " << (int)h_mt << ", " << false);
    }
 #endif
+}
+
+template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
+{
+   auto &inst = MemoryManager::Instance();
+   CheckedWrap(ptr, size, inst.GetHostMemoryType(), own);
 }
 
 template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)

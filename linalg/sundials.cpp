@@ -330,18 +330,20 @@ int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
 #endif
                                                 )
 {
-   if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
+   if (sunmem->ptr && sunmem->own)
    {
       if (sunmem->type == SUNMEMTYPE_HOST)
       {
-         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
-                          Device::GetHostMemoryType(), true);
+         Memory<char> mem;
+         mem.CheckedWrap(static_cast<char *>(sunmem->ptr), 1,
+                         Device::GetHostMemoryType(), true);
          mem.Delete();
       }
       else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
       {
-         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
-                          Device::GetDeviceMemoryType(), true);
+         Memory<char> mem;
+         mem.CheckedWrap(static_cast<char *>(sunmem->ptr), 1,
+                         Device::GetDeviceMemoryType(), true);
          mem.Delete();
       }
       else
@@ -449,10 +451,8 @@ void SundialsNVector::_SetDataAndSize_()
    {
       case SUNDIALS_NVEC_SERIAL:
       {
-         const bool known = mm.IsKnown(NV_DATA_S(local_x));
          size = NV_LENGTH_S(local_x);
-         data.Wrap(NV_DATA_S(local_x), size, false);
-         if (known) { data.ClearOwnerFlags(); }
+         data.CheckedWrap(NV_DATA_S(local_x), size, false);
          break;
       }
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
@@ -460,10 +460,9 @@ void SundialsNVector::_SetDataAndSize_()
       {
          double *h_ptr = SUN_Hip_OR_Cuda(N_VGetHostArrayPointer)(local_x);
          double *d_ptr = SUN_Hip_OR_Cuda(N_VGetDeviceArrayPointer)(local_x);
-         const bool known = mm.IsKnown(h_ptr);
          size = SUN_Hip_OR_Cuda(N_VGetLength)(local_x);
-         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false, false, true);
-         if (known) { data.ClearOwnerFlags(); }
+         data.CheckedWrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false, false,
+                          true);
          UseDevice(true);
          break;
       }
@@ -471,10 +470,8 @@ void SundialsNVector::_SetDataAndSize_()
 #ifdef MFEM_USE_MPI
       case SUNDIALS_NVEC_PARALLEL:
       {
-         const bool known = mm.IsKnown(NV_DATA_P(x));
          size = NV_LENGTH_S(x);
-         data.Wrap(NV_DATA_P(x), NV_LOCLENGTH_P(x), false);
-         if (known) { data.ClearOwnerFlags(); }
+         data.CheckedWrap(NV_DATA_P(x), NV_LOCLENGTH_P(x), false);
          break;
       }
 #endif
