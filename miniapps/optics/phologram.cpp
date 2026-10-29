@@ -246,6 +246,10 @@ public:
    // Sample counts and offsets of all ranks
    const Array<int> &SampleCounts() const { return counts; }
    const Array<int> &SampleDispls() const { return displs; }
+   int GlobalDof0() const
+   {
+      return SampleDispls()[Mpi::WorldRank()];
+   }
 
    ParFiniteElementSpace &Space() const { return *fes; }
    ParFiniteElementSpace &ElementSpace() const { return *fes0; }
@@ -418,185 +422,9 @@ public:
 };
 
 // ----------------------------------------------------------------------------
-using Fields =
-   FieldsImpl<PixelMesh, ParComplexGridFunction>;
-using RasterField =
-   RasterFieldImpl<PixelMesh, ParComplexGridFunction, Fields>;
-using PhaseMask =
-   PhaseMaskImpl<PixelMesh, ParGridFunction, ParComplexGridFunction, Fields>;
-
-using GaussNewtonOp =
-   GaussNewtonOpImpl<PixelMesh, PhaseMask, Fields, RasterField>;
-using ObjectiveOp =
-   ObjectiveOpImpl<PixelMesh, PhaseMask, Fields, RasterField>;
-using GaussNewtonCg =
-   GaussNewtonCgImpl<PixelMesh, PhaseMask, Fields, RasterField>;
-using PhaseNewton =
-   PhaseNewtonImpl<PixelMesh, PhaseMask, Fields, RasterField>;
-using StallController =
-   StallControllerImpl<PixelMesh, PhaseMask, Fields, RasterField>;
-
-// ----------------------------------------------------------------------------
-class PhaseRetrieval
-{
-   PixelMesh mesh;
-   RealArray2D target;
-   const real_t wavelength, extent_x, extent_y, z, focal;
-   const bool fft;
-   RealArray2D mask_image;
-   int acceptedSteps = 0;
-   real_t firstLoss = 0.0, finalLoss = 0.0;
-   std::unique_ptr<ParFresnel> propagator;
-
-public:
-   PhaseRetrieval(RealArray2D target, int order, real_t wavelength,
-                  real_t extent_x, real_t extent_y,
-                  real_t z, real_t focal,
-                  bool fft = false)
-      : mesh(target.NumCols(), target.NumRows(), order, extent_x, extent_y),
-        target(std::move(target)),
-        wavelength(wavelength), extent_x(extent_x), extent_y(extent_y),
-        z(z), focal(focal), fft(fft)
-   {
-      mask_image.SetSize(mesh.SampleNy(), mesh.SampleNx());
-      mask_image = 0.0;
-   }
-
-   void Solve(int max_iter, real_t stall_rel, real_t learning_rate,
-              int cg_max_iter)
-   {
-      // retrieve the mask
-      ParGridFunction phi(&mesh.Space());
-      phi = 0.0;
-      ParGridFunction a_src(&mesh.ElementSpace());
-      a_src = 1.0;
-      // Local sample rows of the target
-      const int localSamples = mesh.LocalSampleRows() * mesh.SampleNx();
-      Vector target_image(localSamples);
-      target_image.UseDevice(true);
-      {
-         const real_t *s = target(mesh.FirstSampleRow());
-         real_t *d = target_image.HostWrite();
-         for (int i = 0; i < localSamples; ++i) { d[i] = s[i]; }
-      }
-      ParGridFunction a_tgt(&mesh.Space());
-      {
-         const int n = mesh.LocalNumSamples();
-         const int nx = mesh.Nx();
-         const int q1d = mesh.Q1D();
-         const int sample_nx = mesh.SampleNx();
-         const int row0 = mesh.FirstSampleRow();
-         const int g0 = mesh.SampleDispls()[Mpi::WorldRank()];
-         const real_t *s = target_image.Read();
-         real_t *d = a_tgt.Write();
-         mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
-         {
-            const int raster = RasterIndex(g0 + i, nx, q1d);
-            d[i] = s[raster - row0 * sample_nx];
-         });
-      }
-      PhaseMask mask(mesh);
-      mask.SetAmplitudes(a_src, a_tgt);
-
-      // Create the propagator
-      propagator = std::make_unique<ParFresnel>(mesh, fft, wavelength,
-                                                extent_x, extent_y, z);
-
-      // Create the lens
-      Lens lens;
-      lens(mesh.SampleNx(), mesh.SampleNy(),
-           extent_x, extent_y, wavelength, focal,
-           mesh.FirstSampleRow(), mesh.LocalSampleRows());
-
-      Fields fields(mesh);
-
-      GaussNewtonOp mask_op(mask, mesh, *propagator, lens, fields.E, fields);
-      ObjectiveOp op(mask, mesh, *propagator, lens, fields.E,
-                     target_image, mask_op, fields);
-      op.ForwardLoss(phi, fields.E);
-
-      CGSolver cg(MPI_COMM_WORLD);
-      cg.SetInnerProduct(&mesh.Reducer());
-      cg.SetRelTol(1e-3);
-      cg.SetAbsTol(1e-12);
-      cg.SetMaxIter(std::max(1, cg_max_iter));
-      cg.SetPrintLevel(-1);
-
-      PhaseNewton newton(MPI_COMM_WORLD);
-      newton.on_root = Mpi::Root();
-      newton.iterative_mode = true;
-      newton.SetRelTol(0.0);
-      newton.SetAbsTol(1e-8);
-      newton.SetMaxIter(std::max(0, max_iter));
-      newton.SetPrintLevel(-1);
-      newton.SetInnerProduct(&mesh.Reducer());
-      GaussNewtonCg step(cg, mask_op);
-      newton.SetOperator(op);
-      newton.SetSolver(step);
-      newton.op = &op;
-      newton.phase = &mask;
-      newton.mask_op = &mask_op;
-      newton.step = &step;
-      newton.trial_field = &fields.E_trial;
-      ParGridFunction phi_trial(&mesh.Space());
-      newton.trial = &phi_trial;
-      newton.alpha0 = (learning_rate > 0.0) ? learning_rate : 1.0;
-      newton.max_outer = std::max(0, max_iter);
-      StallController stall;
-      stall.op = &op;
-      stall.rel_tol = stall_rel;
-      newton.SetController(stall);
-
-      if (Mpi::Root())
-      {
-         mfem::out << "[hologram] solve elements=" << mesh.Nx()
-                   << "x" << mesh.Ny()
-                   << "  order=" << mesh.Order()
-                   << "  samples=" << mesh.SampleNx() << "x" << mesh.SampleNy()
-                   << "  forward=" << (fft ? "fft" : "gem")
-                   << "  max_iter=" << max_iter
-                   << "  cg_max_iter=" << std::max(1, cg_max_iter) << "\n";
-      }
-
-      Vector b(phi.Size());
-      b.UseDevice(true);
-      b = 0.0;
-
-      mask_op.SetState(phi, op.last_scale);
-      mask_op.SetLambda();
-      step.SetOperator(mask_op);
-
-      newton.Mult(b, phi);
-      mask.Wrap(phi);
-      mask.Modulate(phi, fields.u);
-
-      RasterField aperture;
-      aperture(mesh, fields.u.real(), fields.u.imag(),
-               mask_image, fields);
-
-      acceptedSteps = newton.gn_ran;
-      firstLoss = newton.firstLoss;
-      finalLoss = newton.finalLoss;
-
-      const char *why = "max_iter";
-      if (newton.line_search_failed) { why = "line_search"; }
-      else if (stall.stop_reason) { why = stall.stop_reason; }
-      else if (newton.GetConverged()) { why = "abs_tol"; }
-      if (Mpi::Root())
-      {
-         mfem::out << "[hologram] Newton stop reason=" << why << "\n";
-      }
-   }
-
-   const RealArray2D &MaskImage() const { return mask_image; }
-   int AcceptedSteps() const { return acceptedSteps; }
-   real_t FirstLoss() const { return firstLoss; }
-   real_t FinalLoss() const { return finalLoss; }
-   const ParFresnel &Propagator() const { return *propagator; }
-   int SampleNx() const { return mesh.SampleNx(); }
-   int SampleNy() const { return mesh.SampleNy(); }
-   const PixelMesh &Grid() const { return mesh; }
-};
+using PhaseRetrieval =
+   PhaseRetrievalImpl<PixelMesh, ParGridFunction,
+                      ParComplexGridFunction, ParFresnel>;
 
 } // namespace holo
 
@@ -710,7 +538,16 @@ int main(int argc, char *argv[]) try
                                cfg.use_fft);
 
    // Solve the phase retrieval problem
-   solver.Solve(cfg.nwt_max_iter, cfg.stall_pct * 0.01, 1.0, cfg.cgs_max_iter);
+   solver.Solve(cfg.nwt_max_iter, cfg.stall_pct * 0.01, 1.0, cfg.cgs_max_iter,
+                Mpi::Root(),
+                [&]()
+   {
+      return std::make_unique<holo::ParFresnel>(solver.Grid(), cfg.use_fft,
+                                                wavelength, extent_x,
+                                                extent_y, cfg.z_prop);
+   },
+   [] { return CGSolver(MPI_COMM_WORLD); },
+   [] { return holo::PhaseRetrieval::Newton(MPI_COMM_WORLD); });
 
    // Get the phase mask
    const RealArray2D &phase = solver.MaskImage();

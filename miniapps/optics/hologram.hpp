@@ -1470,5 +1470,178 @@ public:
    }
 };
 
+// ----------------------------------------------------------------------------
+template <class Mesh, class GF, class CGF, class Prop>
+class PhaseRetrievalImpl
+{
+   using FieldSet = FieldsImpl<Mesh, CGF>;
+   using Raster   = RasterFieldImpl<Mesh, CGF, FieldSet>;
+   using Mask     = PhaseMaskImpl<Mesh, GF, CGF, FieldSet>;
+   using GnOp     = GaussNewtonOpImpl<Mesh, Mask, FieldSet, Raster>;
+   using ObjOp    = ObjectiveOpImpl<Mesh, Mask, FieldSet, Raster>;
+   using GnCG     = GaussNewtonCgImpl<Mesh, Mask, FieldSet, Raster>;
+
+public:
+   using Newton = PhaseNewtonImpl<Mesh, Mask, FieldSet, Raster>;
+
+   PhaseRetrievalImpl(RealArray2D target, int order, real_t wavelength,
+                      real_t extent_x, real_t extent_y,
+                      real_t z, real_t focal, bool fft = false)
+      : mesh(target.NumCols(), target.NumRows(), order, extent_x, extent_y),
+        target(std::move(target)),
+        wavelength(wavelength), extent_x(extent_x), extent_y(extent_y),
+        z(z), focal(focal), fft(fft)
+   {
+      mask_image.SetSize(mesh.SampleNy(), mesh.SampleNx());
+      mask_image = 0.0;
+   }
+
+   // make_prop() -> std::unique_ptr<Prop>
+   // make_cg()   -> CGSolver prvalue, comm already bound
+   // make_newton() -> Newton prvalue, comm already bound
+   // root: serial true, parallel Mpi::Root()
+   template <class MakeProp, class MakeCG, class MakeNewton>
+   void Solve(int max_iter, real_t stall_rel, real_t learning_rate,
+              int cg_max_iter, bool root,
+              MakeProp make_prop, MakeCG make_cg, MakeNewton make_newton)
+   {
+      GF phi(&mesh.Space());
+      phi = 0.0;
+      GF a_src(&mesh.ElementSpace());
+      a_src = 1.0;
+      const int localSamples = mesh.LocalSampleRows() * mesh.SampleNx();
+      Vector target_image(localSamples);
+      target_image.UseDevice(true);
+      {
+         const real_t *s = target(mesh.FirstSampleRow());
+         real_t *d = target_image.HostWrite();
+         for (int i = 0; i < localSamples; ++i) { d[i] = s[i]; }
+      }
+      GF a_tgt(&mesh.Space());
+      {
+         const int n = mesh.LocalNumSamples();
+         const int nx = mesh.Nx();
+         const int q1d = mesh.Q1D();
+         const int sample_nx = mesh.SampleNx();
+         const int row0 = mesh.FirstSampleRow();
+         const int g0 = mesh.GlobalDof0();
+         const real_t *s = target_image.Read();
+         real_t *d = a_tgt.Write();
+         mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+         {
+            const int raster = RasterIndex(g0 + i, nx, q1d);
+            d[i] = s[raster - row0 * sample_nx];
+         });
+      }
+      Mask mask(mesh);
+      mask.SetAmplitudes(a_src, a_tgt);
+
+      propagator = make_prop();
+
+      Lens lens;
+      lens(mesh.SampleNx(), mesh.SampleNy(),
+           extent_x, extent_y, wavelength, focal,
+           mesh.FirstSampleRow(), mesh.LocalSampleRows());
+
+      FieldSet fields(mesh);
+
+      GnOp mask_op(mask, mesh, *propagator, lens, fields.E, fields);
+      ObjOp op(mask, mesh, *propagator, lens, fields.E,
+               target_image, mask_op, fields);
+      op.ForwardLoss(phi, fields.E);
+
+      auto cg = make_cg();
+      cg.SetInnerProduct(&mesh.Reducer());
+      cg.SetRelTol(1e-3);
+      cg.SetAbsTol(1e-12);
+      cg.SetMaxIter(std::max(1, cg_max_iter));
+      cg.SetPrintLevel(-1);
+
+      auto newton = make_newton();
+      newton.on_root = root;
+      newton.iterative_mode = true;
+      newton.SetRelTol(0.0);
+      newton.SetAbsTol(1e-8);
+      newton.SetMaxIter(std::max(0, max_iter));
+      newton.SetPrintLevel(-1);
+      newton.SetInnerProduct(&mesh.Reducer());
+      GnCG step(cg, mask_op);
+      newton.SetOperator(op);
+      newton.SetSolver(step);
+      newton.op = &op;
+      newton.phase = &mask;
+      newton.mask_op = &mask_op;
+      newton.step = &step;
+      newton.trial_field = &fields.E_trial;
+      GF phi_trial(&mesh.Space());
+      newton.trial = &phi_trial;
+      newton.alpha0 = (learning_rate > 0.0) ? learning_rate : 1.0;
+      newton.max_outer = std::max(0, max_iter);
+      StallControllerImpl<Mesh, Mask, FieldSet, Raster> stall;
+      stall.op = &op;
+      stall.rel_tol = stall_rel;
+      newton.SetController(stall);
+
+      if (root)
+      {
+         mfem::out << "[hologram] solve elements=" << mesh.Nx()
+                   << "x" << mesh.Ny()
+                   << "  order=" << mesh.Order()
+                   << "  samples=" << mesh.SampleNx() << "x" << mesh.SampleNy()
+                   << "  forward=" << (fft ? "fft" : "gem")
+                   << "  max_iter=" << max_iter
+                   << "  cg_max_iter=" << std::max(1, cg_max_iter) << "\n";
+      }
+
+      Vector b(phi.Size());
+      b.UseDevice(true);
+      b = 0.0;
+
+      mask_op.SetState(phi, op.last_scale);
+      mask_op.SetLambda();
+      step.SetOperator(mask_op);
+
+      newton.Mult(b, phi);
+      mask.Wrap(phi);
+      mask.Modulate(phi, fields.u);
+
+      Raster aperture;
+      aperture(mesh, fields.u.real(), fields.u.imag(),
+               mask_image, fields);
+
+      acceptedSteps = newton.gn_ran;
+      firstLoss = newton.firstLoss;
+      finalLoss = newton.finalLoss;
+
+      const char *why = "max_iter";
+      if (newton.line_search_failed) { why = "line_search"; }
+      else if (stall.stop_reason) { why = stall.stop_reason; }
+      else if (newton.GetConverged()) { why = "abs_tol"; }
+      if (root)
+      {
+         mfem::out << "[hologram] Newton stop reason=" << why << "\n";
+      }
+   }
+
+   const RealArray2D &MaskImage() const { return mask_image; }
+   int AcceptedSteps() const { return acceptedSteps; }
+   real_t FirstLoss() const { return firstLoss; }
+   real_t FinalLoss() const { return finalLoss; }
+   const Prop &Propagator() const { return *propagator; }
+   int SampleNx() const { return mesh.SampleNx(); }
+   int SampleNy() const { return mesh.SampleNy(); }
+   const Mesh &Grid() const { return mesh; }
+
+private:
+   Mesh mesh;
+   RealArray2D target;
+   const real_t wavelength, extent_x, extent_y, z, focal;
+   const bool fft;
+   RealArray2D mask_image;
+   int acceptedSteps = 0;
+   real_t firstLoss = 0.0, finalLoss = 0.0;
+   std::unique_ptr<Prop> propagator;
+};
+
 
 } // namespace holo
