@@ -146,17 +146,6 @@ class PixelMesh
    Array<int> counts, displs, rowCounts, rowDispls;
    mutable ParRowSum rowSum;
 
-   static int VerifyOrder(int pixels_x, int pixels_y, int order)
-   {
-      MFEM_VERIFY(pixels_x >= 1 && pixels_y >= 1,
-                  "Pixels: image size must be positive");
-      MFEM_VERIFY(order >= 0, "Pixels: order must be >= 0");
-      const int q1d = order + 1;
-      MFEM_VERIFY(pixels_x % q1d == 0 && pixels_y % q1d == 0,
-                  "Pixels: pixel count must be divisible by order+1");
-      return order;
-   }
-
    static int RowBegin(int rows, int r, int np)
    {
       return static_cast<int>((static_cast<long long>(rows) * r) / np);
@@ -170,7 +159,7 @@ public:
 
    PixelMesh(int pixels_x, int pixels_y, int order_in,
              real_t extent_x, real_t extent_y)
-      : fec(VerifyOrder(pixels_x, pixels_y, order_in), /*dim=*/2,
+      : fec(VerifyPixelOrder(pixels_x, pixels_y, order_in), /*dim=*/2,
             BasisType::OpenHalfUniform),
         fec0(0, 2, BasisType::OpenHalfUniform),
         order(order_in),
@@ -182,17 +171,7 @@ public:
         elem0(y0 * nx),
         rowSum(nx * q1d * q1d, rowCounts, rowDispls)
    {
-      Mesh serial =
-         Mesh::MakeCartesian2D(
-            nx, ny, Element::QUADRILATERAL,
-            /*generate_edges=*/ false,
-            extent_x, extent_y,
-            /*sfc_ordering=*/ false);
-      serial.Transform([&](const Vector &x, Vector &p)
-      {
-         p(0) = x(0) - 0.5 * extent_x;
-         p(1) = x(1) - 0.5 * extent_y;
-      });
+      Mesh serial = CenteredQuadMesh(nx, ny, extent_x, extent_y);
 
       const int q2 = q1d * q1d;
       Array<int> partition(serial.GetNE());

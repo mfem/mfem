@@ -112,6 +112,34 @@ inline void MaskExtent(int width, int height,
                           static_cast<real_t>(width));
 }
 
+inline int VerifyPixelOrder(int pixels_x, int pixels_y, int order)
+{
+   MFEM_VERIFY(pixels_x >= 1 && pixels_y >= 1,
+               "Pixels: image size must be positive");
+   MFEM_VERIFY(order >= 0, "Pixels: order must be >= 0");
+   const int q1d = order + 1;
+   MFEM_VERIFY(pixels_x % q1d == 0 && pixels_y % q1d == 0,
+               "Pixels: pixel count must be divisible by order+1");
+   return order;
+}
+
+inline mfem::Mesh CenteredQuadMesh(int nx, int ny,
+                                   real_t extent_x, real_t extent_y)
+{
+   mfem::Mesh serial =
+      mfem::Mesh::MakeCartesian2D(
+         nx, ny, mfem::Element::QUADRILATERAL,
+         /*generate_edges=*/ false,
+         extent_x, extent_y,
+         /*sfc_ordering=*/ false);
+   serial.Transform([&](const Vector &x, Vector &p)
+   {
+      p(0) = x(0) - 0.5 * extent_x;
+      p(1) = x(1) - 0.5 * extent_y;
+   });
+   return serial;
+}
+
 inline std::string OptionsError(real_t wavelengthNm, real_t zProp,
                                 real_t focal, real_t stallPct, int order,
                                 int maxIter, int cgIter, real_t gemMaxGib)
