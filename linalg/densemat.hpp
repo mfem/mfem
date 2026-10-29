@@ -337,7 +337,7 @@ public:
    real_t *GetColumn(int col)
    {
 #if defined(MFEM_USE_NEW_MEM_MANAGER) && defined(MFEM_DEBUG)
-      return data.GetMemory().CheckReadWrite(false, col * height, width);
+      return data.GetMemory().CheckReadWrite(false, col * height, height);
 #else
       return &data[col * height];
 #endif
@@ -345,7 +345,7 @@ public:
    const real_t *GetColumn(int col) const
    {
 #if defined(MFEM_USE_NEW_MEM_MANAGER) && defined(MFEM_DEBUG)
-      return data.GetMemory().CheckRead(false, col * height, width);
+      return data.GetMemory().CheckRead(false, col * height, height);
 #else
       return &data[col * height];
 #endif
