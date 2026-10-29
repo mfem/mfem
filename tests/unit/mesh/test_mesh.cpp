@@ -20,23 +20,14 @@ TEST_CASE("AttrToMarker", "[Mesh][AttributeSets]")
    {
       Array<int> attrs;
       Array<int> marker = AttributeSets::AttrToMarker(5, attrs);
-      REQUIRE(marker.Size() == 5);
-      for (int i = 0; i < marker.Size(); i++)
-      {
-         REQUIRE(marker[i] == 0);
-      }
+      REQUIRE(marker == Array<int>({0, 0, 0, 0, 0}));
    }
 
    SECTION("Non-empty attribute array")
    {
       Array<int> attrs({1, 3, 3, 5});
       Array<int> marker = AttributeSets::AttrToMarker(5, attrs);
-      REQUIRE(marker.Size() == 5);
-      const int expected[] = {1, 0, 1, 0, 1};
-      for (int i = 0; i < marker.Size(); i++)
-      {
-         REQUIRE(marker[i] == expected[i]);
-      }
+      REQUIRE(marker == Array<int>({1, 0, 1, 0, 1}));
    }
 }
 
