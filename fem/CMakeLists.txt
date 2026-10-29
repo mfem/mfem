@@ -57,6 +57,8 @@ set(SRCS
   integ/lininteg_domain_grad.cpp
   integ/lininteg_domain_vectorfe.cpp
   integ/nonlininteg_vecconvection_pa.cpp
+  integ/nonlininteg_vecconvection_pa_diag.cpp
+  integ/nonlininteg_vecconvection_pa_grad.cpp
   integ/nonlininteg_vecconvection_mf.cpp
   coefficient.cpp
   complex_fem.cpp
@@ -210,7 +212,11 @@ set(HDRS
   integ/bilininteg_mass_kernels.hpp
   integ/bilininteg_mass_pa_simplices.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
+  integ/bilininteg_vecdiv_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
+  integ/nonlininteg_vecconvection_pa.hpp
+  integ/nonlininteg_vecconvection_pa_diag.hpp
+  integ/nonlininteg_vecconvection_pa_grad.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
@@ -223,6 +229,7 @@ set(HDRS
   dfem/fieldoperator.hpp
   dfem/integrator_ctx.hpp
   dfem/parameterspace.hpp
+  dfem/tensor_functions.hpp
   dfem/tuple.hpp
   dfem/util.hpp
   dfem/backends/util.hpp

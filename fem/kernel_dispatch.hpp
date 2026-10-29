@@ -65,7 +65,7 @@ namespace mfem
 #define MFEM_REGISTER_KERNELS_1(ExportMacro, KernelName, KernelType, Params)   \
    MFEM_REGISTER_KERNELS_(ExportMacro, KernelName, KernelType, Params, (), Params)
 
-// Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
+// Version of MFEM_REGISTER_KERNELS with optional (non-dispatch)
 // parameters (e.g. NBZ).
 #define MFEM_REGISTER_KERNELS_2(ExportMacro, KernelName, KernelType, Params, OptParams) \
    MFEM_REGISTER_KERNELS_(ExportMacro, KernelName, KernelType, Params, OptParams,       \

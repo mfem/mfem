@@ -38,7 +38,7 @@
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -no-vis
 //   Target 4 size+alignment ($\mu_{36}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
-//   Target 4 size+alignment ($\mu_{36}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -ex -no-vis
+//   Target 4 size+alignment ($\mu_{36}$, exact action in both solvers): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -ex -no-vis
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -ex -no-vis
 //   Target 4 shape+alignment ($\mu_{85}$): mpirun -np 4 pmesh-optimizer-enzyme -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis
 //   Equivalent pmesh-optimizer run: mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -rtol 1e-6 -bnd -qt 1 -qo 8 -no-vis

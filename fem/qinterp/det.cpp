@@ -21,24 +21,23 @@ namespace quadrature_interpolator
 
 void InitDetKernels()
 {
-   using k = QuadratureInterpolator::DetKernels;
    // 2D
-   k::Specialization<2,2,2,2>::Add();
-   k::Specialization<2,2,2,3>::Add();
-   k::Specialization<2,2,2,4>::Add();
-   k::Specialization<2,2,2,6>::Add();
-   k::Specialization<2,2,3,4>::Add();
-   k::Specialization<2,2,3,6>::Add();
-   k::Specialization<2,2,4,4>::Add();
-   k::Specialization<2,2,4,6>::Add();
-   k::Specialization<2,2,5,6>::Add();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,2>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,3>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,4>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,2,6>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,3,4>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,3,6>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,4,4>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,4,6>();
+   QuadratureInterpolator::AddDetSpecializations<2,2,5,6>();
    // 3D
-   k::Specialization<3,3,2,4>::Add();
-   k::Specialization<3,3,3,3>::Add();
-   k::Specialization<3,3,3,5>::Add();
-   k::Specialization<3,3,3,6>::Add();
-   k::Specialization<3,3,4,6>::Add();
-   k::Specialization<3,3,3,4>::Add();
+   QuadratureInterpolator::AddDetSpecializations<3,3,2,4>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,3>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,5>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,6>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,4,6>();
+   QuadratureInterpolator::AddDetSpecializations<3,3,3,4>();
 }
 
 } // namespace quadrature_interpolator
@@ -47,8 +46,8 @@ void InitDetKernels()
 /// @cond Suppress_Doxygen_warnings
 
 QuadratureInterpolator::DetKernelType
-QuadratureInterpolator::DetKernels::Fallback(
-   int DIM, int SDIM, int D1D, int Q1D)
+QuadratureInterpolator::DetKernels::Fallback(int DIM, int SDIM, int D1D,
+                                             int Q1D)
 {
    if (DIM == 1)
    {

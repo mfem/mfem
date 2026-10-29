@@ -87,7 +87,10 @@ public:
       dop = std::make_unique<DifferentiableOperator>(in_fds, out_fds, mesh);
       CubicH1Functional<dscalar_t, dim> apply;
       auto derivatives = std::integer_sequence<size_t, U> {};
-      dop->AddDomainIntegrator<LocalQFBackend>(
+      constexpr auto kernels =
+         DerivativeKernels::Apply |
+         DerivativeKernels::ApplyTranspose;
+      dop->AddDomainIntegrator<LocalQFBackend, kernels>(
          apply,
          tuple{Value<U>{}, Gradient<U>{}, Gradient<Coords>{}, Weight{}},
          tuple{Identity<Q>{}},
@@ -134,6 +137,8 @@ public:
                     comm);
 
       g.SetSize(local_size);
+      g.HostWrite();
+      u.HostRead();
       Vector up(u), um(u);
 
       // Loop over global DOF indices. Each rank perturbs only when gi falls in
@@ -141,12 +146,23 @@ public:
       for (int gi = 0; gi < global_size; ++gi)
       {
          const int li = gi - offset;
-         if (li >= 0 && li < local_size) { up(li) += eps; um(li) -= eps; }
+         if (li >= 0 && li < local_size)
+         {
+            // operator() writes the host buffer directly without invalidating
+            // the device copy. HostReadWrite() makes the host side
+            // authoritative so Eval's device-side Read() sees the perturbation.
+            up.HostReadWrite();
+            um.HostReadWrite();
+            up(li) += eps;
+            um(li) -= eps;
+         }
          const real_t Jp = Eval(up);
          const real_t Jm = Eval(um);
          if (li >= 0 && li < local_size)
          {
             g(li) = (Jp - Jm) / (2.0 * eps);
+            up.HostReadWrite();
+            um.HostReadWrite();
             up(li) = u(li);
             um(li) = u(li);
          }
@@ -166,7 +182,7 @@ private:
    {
       MultiVector X{u, coords};
       MultiVector dY{q};
-      dop->GetDerivative(U, X)->Mult(du, dY);
+      dop->GetDerivative(U, X, true)->Mult(du, dY);
       return q.Sum();
    }
 
@@ -241,12 +257,14 @@ void functional(const char *filename, int p)
 
    Vector diff(g);
    diff -= g_fd;
-   const real_t scale = std::max(real_t(1.0), g_fd.Normlinf());
-   real_t local_norm = diff.Normlinf();
-   real_t global_norm;
-   MPI_Allreduce(&local_norm, &global_norm, 1, MPITypeMap<real_t>::mpi_type,
-                 MPI_SUM, pmesh.GetComm());
-   REQUIRE(diff.Normlinf() / scale < 1e-5);
+
+   // Inf-norms reduce with MPI_MAX, and both sides of the ratio must be
+   // global so every rank asserts on the same quantity.
+   real_t local[2] = { diff.Normlinf(), g_fd.Normlinf() }, global[2];
+   MPI_Allreduce(local, global, 2, MPITypeMap<real_t>::mpi_type,
+                 MPI_MAX, pmesh.GetComm());
+   const real_t scale = std::max(real_t(1.0), global[1]);
+   REQUIRE(global[0] / scale < 1e-5);
 }
 
 TEST_CASE("dFEM functional derivative action matches finite differences",

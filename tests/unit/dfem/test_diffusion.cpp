@@ -274,7 +274,8 @@ void diffusion(const char *filename, int p)
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
-         dop_mf.AddDomainIntegrator<QFBackend>(
+         constexpr auto kernels = DerivativeKernels::Action;
+         dop_mf.AddDomainIntegrator<QFBackend, kernels>(
             mf_apply_qf,
             Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<Gradient<U>> {},
@@ -315,7 +316,8 @@ void diffusion(const char *filename, int p)
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
-         dop_mf.AddDomainIntegrator<QFBackend>(
+         constexpr auto kernels = DerivativeKernels::AssembleMatrix;
+         dop_mf.AddDomainIntegrator<QFBackend, kernels>(
             mf_apply_qf,
             Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<Gradient<U>> {},
@@ -340,7 +342,8 @@ void diffusion(const char *filename, int p)
       {
          DifferentiableOperator dop_mf(in_fds, out_fds, pmesh);
          typename Diffusion<DIM>::MFApply mf_apply_qf;
-         dop_mf.AddDomainIntegrator<QFBackend>(
+         constexpr auto kernels = DerivativeKernels::AssembleDiagonal;
+         dop_mf.AddDomainIntegrator<QFBackend, kernels>(
             mf_apply_qf,
             Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<Gradient<U>> {},
@@ -407,7 +410,7 @@ void diffusion(const char *filename, int p)
 
          ParBilinearForm vblf_fa(&vpfes);
          vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
-         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
          vblf_fa.Assemble();
          vblf_fa.Finalize();
          vblf_fa.Mult(vx, vy);
@@ -438,7 +441,8 @@ void diffusion(const char *filename, int p)
          }, pmesh);
 
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-         dop_mf.AddDomainIntegrator<QFBackend>(
+         constexpr auto kernels = DerivativeKernels::Action;
+         dop_mf.AddDomainIntegrator<QFBackend, kernels>(
             mf_vector_diffusion_qf,
             Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<Gradient<U>> {},
@@ -455,7 +459,7 @@ void diffusion(const char *filename, int p)
 
          ParBilinearForm vblf_fa(&vpfes);
          vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
-         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
          vblf_fa.Assemble();
          vblf_fa.Finalize();
          vblf_fa.Mult(vx, vy);
@@ -486,7 +490,10 @@ void diffusion(const char *filename, int p)
          }, pmesh);
 
          typename VectorDiffusion<DIM>::MFApply mf_vector_diffusion_qf;
-         dop_mf.AddDomainIntegrator<QFBackend>(
+         constexpr auto kernels =
+            DerivativeKernels::Action |
+            DerivativeKernels::AssembleMatrix;
+         dop_mf.AddDomainIntegrator<QFBackend, kernels>(
             mf_vector_diffusion_qf,
             Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<Gradient<U>> {},
@@ -503,7 +510,7 @@ void diffusion(const char *filename, int p)
 
          ParBilinearForm vblf_fa(&vpfes);
          vblf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
-         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         vblf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
          vblf_fa.Assemble();
          vblf_fa.Finalize();
 

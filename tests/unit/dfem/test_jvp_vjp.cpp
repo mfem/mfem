@@ -87,8 +87,8 @@ static void VerifyJvpVjp(DifferentiableOperator &F,
    Vector dU(tvsize), dV(tvsize);
    MultiVector mdU{ dU }, mdV{ dV };
 
-   const auto dFu = F.GetDerivative(U, state);
-   const auto dFv = F.GetDerivative(V, state);
+   const auto dFu = F.GetDerivative(U, state, true);
+   const auto dFv = F.GetDerivative(V, state, true);
    dFu->Mult(dX, mdU); // dU = (∂F/∂u) dX
    dFv->Mult(dY, mdV); // dV = (∂F/∂v) dY
    add(dU, dV, dZ);
@@ -152,18 +152,22 @@ void TestJvpVjp(const char *filename, int p)
    using OT = Outputs<Value<U>>;
    using DT = Derivatives<U, V>;
 
+   constexpr auto kernels =
+      DerivativeKernels::Apply |
+      DerivativeKernels::ApplyTranspose;
+
    if constexpr (!mfem_use_gpu)
    {
       global_qf<DIM> q_gfn{};
-      F.AddDomainIntegrator<GlobalQFBackend>(
+      F.AddDomainIntegrator<GlobalQFBackend, kernels>(
          q_gfn, IT{}, OT{}, *ir, all_domain_attr, DT{});
    }
 
    using LQT = local_qf<DIM>;
    local_qf<DIM> q_lfn{};
-   F.AddDomainIntegrator<LocalQFBackend>(
+   F.AddDomainIntegrator<LocalQFBackend, kernels>(
       q_lfn, IT{}, OT{}, *ir, all_domain_attr, DT{});
-   AddLocalSpecializations<DIM, 3, LQT, IT, OT, DT>();
+   AddLocalSpecializations<DIM, 3, LQT, IT, OT, DT, kernels>();
 
    VerifyJvpVjp<DIM>(F, fes, *nodes);
 }

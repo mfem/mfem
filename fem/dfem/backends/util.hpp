@@ -720,7 +720,7 @@ namespace enzyme_detail
 {
 
 template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
-__attribute__((always_inline)) inline void
+MFEM_FUTURE_ALWAYS_INLINE inline void
 do_enzyme_call(AccArgs... acc)
 {
    __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc..., enzyme_runtime_activity);
@@ -730,7 +730,7 @@ template <auto wrapper_fn, typename qf_return_t,
           size_t CurO, size_t NO,
           typename primals_t, typename derivs_t,
           typename... AccArgs>
-__attribute__((always_inline)) inline void
+MFEM_FUTURE_ALWAYS_INLINE inline void
 process_outputs(primals_t &primals, derivs_t &derivs, AccArgs... acc)
 {
    if constexpr (CurO == NO)
@@ -753,7 +753,7 @@ template <auto wrapper_fn, typename qf_return_t,
           typename inputs_t, typename shadows_t,
           typename primals_t, typename derivs_t,
           typename... AccArgs>
-__attribute__((always_inline)) inline void
+MFEM_FUTURE_ALWAYS_INLINE inline void
 process_inputs(inputs_t &inputs, shadows_t &shadows,
                primals_t &primals, derivs_t &derivs,
                AccArgs... acc)
@@ -821,11 +821,11 @@ inline void enzyme_fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
    constexpr std::size_t ninputs  = sizeof...(Is);
-   constexpr std::size_t noutputs = sizeof...(Os);
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts  = typename qf_signature::parameter_ts;
@@ -844,10 +844,8 @@ inline void enzyme_fwddiff(
                      typename tuple_element<Is, qf_param_ts>::type>>>(
                         shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
-   std::array<Vector, noutputs> primal_storage;
    ((primal_storage[Os].UseDevice(true)), ...);
    ((primal_storage[Os].SetSize(yq.GetBlock(Os).Size())), ...);
-   ((primal_storage[Os] = yq.GetBlock(Os)), ...);
 
    auto primals_out = std::make_tuple(
                          make_tensor_array<std::remove_cv_t<std::remove_reference_t<
@@ -912,6 +910,7 @@ inline void enzyme_fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -920,7 +919,7 @@ inline void enzyme_fwddiff(
    unused_qfunc_shadow qfunc_shadow;
    enzyme_fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t,
                   outputs_t>(qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
-                             in_layouts, out_layouts, is, os);
+                             in_layouts, out_layouts, primal_storage, is, os);
 }
 
 #endif // MFEM_USE_ENZYME
@@ -942,15 +941,17 @@ inline void fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
 #ifdef MFEM_USE_ENZYME
    enzyme_fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
-      is, os);
+      primal_storage, is, os);
 #else
    MFEM_CONTRACT_VAR(qfunc_shadow);
+   MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
       qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
 #endif
@@ -971,6 +972,7 @@ inline void fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -980,8 +982,9 @@ inline void fwddiff(
    unused_qfunc_shadow qfunc_shadow;
    fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
-      is, os);
+      primal_storage, is, os);
 #else
+   MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
       qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
 #endif
@@ -1156,7 +1159,7 @@ MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
 }
 
 template <typename qfunc_t, typename... Args>
-__attribute__((always_inline))
+MFEM_FUTURE_ALWAYS_INLINE
 MFEM_HOST_DEVICE static void enzyme_fwddiff_wrapper(qfunc_t *qf, Args &...args)
 {
    (*qf)(args...);
@@ -1182,7 +1185,7 @@ namespace pointwise_enzyme_detail
 /// argument order.
 template <auto fn, std::size_t Cur, std::size_t N, bool... Dup,
           typename shadow_t, typename... Acc>
-__attribute__((always_inline))
+MFEM_FUTURE_ALWAYS_INLINE
 MFEM_HOST_DEVICE static void append_shadows(shadow_t &shadow_args, Acc... acc)
 {
    if constexpr (Cur == N)
@@ -1210,7 +1213,7 @@ MFEM_HOST_DEVICE static void append_shadows(shadow_t &shadow_args, Acc... acc)
 template <auto fn, bool Scratch, std::size_t Cur, std::size_t N, bool... Dup,
           typename qfunc_shadow_t, typename primal_t, typename shadow_t,
           typename... Acc>
-__attribute__((always_inline))
+MFEM_FUTURE_ALWAYS_INLINE
 MFEM_HOST_DEVICE static void append_primals(qfunc_shadow_t *qfunc_shadow,
                                             primal_t &primal_args,
                                             shadow_t &shadow_args,
@@ -1249,7 +1252,7 @@ MFEM_HOST_DEVICE static void append_primals(qfunc_shadow_t *qfunc_shadow,
 
 template <bool... Dup, typename qfunc_t, typename qfunc_shadow_t,
           typename primal_t, typename shadow_t, int... Is>
-__attribute__((always_inline))
+MFEM_FUTURE_ALWAYS_INLINE
 MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active_impl(
    qfunc_t &qfunc,
    qfunc_shadow_t &qfunc_shadow,
@@ -1310,7 +1313,7 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active(
 #endif // MFEM_USE_ENZYME
 
 template <typename qfunc_t, typename qfunc_shadow_t, typename args_t, int... Is>
-__attribute__((always_inline))
+MFEM_FUTURE_ALWAYS_INLINE
 MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    qfunc_t &qfunc,
    qfunc_shadow_t &qfunc_shadow,

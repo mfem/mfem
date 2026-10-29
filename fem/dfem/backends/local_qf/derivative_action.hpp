@@ -68,11 +68,14 @@ class DerivativeAction
    std::make_index_sequence<n_inputs> {}));
 
    /// Per-quadrature-point shadow argument tuple. Only the active inputs and
-   /// the outputs are materialized; the rest are `enzyme_const` and their
-   /// shadow slots are never addressed. This is the innermost live state of the
-   /// kernel, and on device it shares a per-thread register budget capped by
-   /// the launch bounds, so the dead slots are worth removing explicitly rather
-   /// than hoping the optimizer splits the tuple.
+   /// the outputs are materialized where supported; the rest are `enzyme_const`
+   /// and their shadow slots are never addressed. This is the innermost live
+   /// state of the kernel, and on device it shares a per-thread register budget
+   /// capped by the launch bounds, so the dead slots are worth removing
+   /// explicitly rather than hoping the optimizer splits the tuple.
+#ifdef _MSC_VER
+   using shadow_args_t = args_tuple_t;
+#else
    template <std::size_t... Is>
    static auto shadow_tuple_type(std::index_sequence<Is...>)
    -> masked_args_tuple_t < args_tuple_t,
@@ -80,6 +83,7 @@ class DerivativeAction
 
    using shadow_args_t = decltype(shadow_tuple_type(
    std::make_index_sequence<n_inputs + n_outputs> {}));
+#endif
 
 #ifdef MFEM_USE_ENZYME
    /// Forward-mode call with the activity of every q-function parameter fixed
@@ -92,7 +96,7 @@ class DerivativeAction
    // `qf_t` is deduced because the kernel captures the q-function by value into
    // a const lambda, so it arrives here as `const qfunc_t`.
    template <typename qf_t, std::size_t... Is>
-   __attribute__((always_inline))
+   MFEM_FUTURE_ALWAYS_INLINE
    MFEM_HOST_DEVICE static void call_fwddiff(qf_t &qfunc,
                                              args_tuple_t &primal_args,
                                              shadow_args_t &shadow_args,
@@ -189,13 +193,16 @@ public:
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
    }
 
-   //////////////////////////////////////////////////////////////////
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const { return kernel_tile_size(q1d, input_d1d, output_d1d); }
+
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
                     std::vector<Vector *> &ye)
    {
       Backend::Run(dim,
-                   q1d,
+                   tile_size(),
                    // arguments
                    ctx,
                    qfunc,
@@ -238,11 +245,11 @@ public:
                   *direction_l,
                   direction_e,
                   ElementDofOrdering::LEXICOGRAPHIC);
-      if (q1d <= LocalQFLOBackendMQ1())
+      if (tile_size() <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeActionLO>(xe, ye);
       }
-      else if (q1d <= LocalQFHOBackendMQ1())
+      else if (tile_size() <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeActionHO>(xe, ye);
       }
@@ -276,9 +283,9 @@ public:
    };
 
    template<typename backend_t, int T_Q1D>
-   __attribute__((always_inline)) MFEM_HOST_DEVICE static void
+   MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE static void
    derivative_action_kernel_body(
-      DerivativeActionKernelData<backend_t, T_Q1D> data, const int e)
+      const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int e)
    {
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
@@ -295,6 +302,7 @@ public:
       const auto &out_d1d = data.out_d1d;
       const auto &out_q1d = data.out_q1d;
       const auto &input_dep = data.input_dep;
+      MFEM_CONTRACT_VAR(input_dep);
       const auto d_attr = data.d_attr;
       const bool has_attr = data.has_attr;
       const auto d_elem_attr = data.d_elem_attr;
@@ -620,8 +628,8 @@ public:
    template<typename backend_t, int T_Q1D>
    struct DerivativeActionKernelBody
    {
-      __attribute__((always_inline)) MFEM_HOST_DEVICE static void run(
-         DerivativeActionKernelData<backend_t, T_Q1D> data, const int e)
+      MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE static void run(
+         const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int e)
       {
          derivative_action_kernel_body<backend_t, T_Q1D>(data, e);
       }
@@ -858,19 +866,8 @@ DerivativeActionLO::Fallback(int dim, int q1d)
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeActionLO =
       typename derivative_action_t::DerivativeActionLO;
-   if (dim == 2)
-   {
-      return DispatchLOKernelByQ1D<DerivativeActionLO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchLOKernelByQ1D<DerivativeActionLO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchLOKernelByDim<DerivativeActionLO, QFDIM>(dim, q1d);
 }
 
 // High Order kernels
@@ -887,7 +884,7 @@ DerivativeActionHO::Kernel()
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return derivative_action_t::
-          template derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
+          template derivative_action_callback<LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
 
 // High Order fallback
@@ -903,19 +900,8 @@ DerivativeActionHO::Fallback(int dim, int q1d)
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeActionHO = typename derivative_action_t::DerivativeActionHO;
-   if (dim == 2)
-   {
-      return DispatchHOKernelByQ1D<DerivativeActionHO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchHOKernelByQ1D<DerivativeActionHO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchHOKernelByDim<DerivativeActionHO, QFDIM>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

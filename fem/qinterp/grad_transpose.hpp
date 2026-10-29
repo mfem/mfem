@@ -362,6 +362,98 @@ static void DerivativesTranspose3D(const int NE,
                   Reshape(q_, VDIM, 3, Q1D, Q1D, Q1D, NE);
    auto e = Reshape(e_, D1D, D1D, D1D, VDIM, NE);
 
+   if constexpr (Q_LAYOUT == QVectorLayout::byVDIM && !GRAD_PHYS &&
+                 T_VDIM == 1 && T_D1D > 0 && T_Q1D > 0 && T_Q1D <= 6)
+   {
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D,
+                      [=] MFEM_HOST_DEVICE(int el)
+      {
+         constexpr int MD1 = T_D1D;
+         constexpr int MQ1 = T_Q1D;
+
+         MFEM_SHARED real_t BG[2][MQ1*MD1];
+         kernels::internal::LoadBG<MD1,MQ1>(MD1,MQ1,b,g,BG);
+         DeviceMatrix B(BG[0], MD1, MQ1);
+         DeviceMatrix G(BG[1], MD1, MQ1);
+
+         MFEM_SHARED real_t sm0[3][MQ1*MQ1*MD1];
+         MFEM_SHARED real_t sm1[3][MQ1*MD1*MD1];
+         DeviceTensor<3> QQD0(sm0[0], MQ1, MQ1, MD1);
+         DeviceTensor<3> QQD1(sm0[1], MQ1, MQ1, MD1);
+         DeviceTensor<3> QQD2(sm0[2], MQ1, MQ1, MD1);
+         DeviceTensor<3> QDD0(sm1[0], MQ1, MD1, MD1);
+         DeviceTensor<3> QDD1(sm1[1], MQ1, MD1, MD1);
+         DeviceTensor<3> QDD2(sm1[2], MQ1, MD1, MD1);
+
+         MFEM_FOREACH_THREAD(dz,z,MD1)
+         {
+            MFEM_FOREACH_THREAD(qy,y,MQ1)
+            {
+               MFEM_FOREACH_THREAD(qx,x,MQ1)
+               {
+                  real_t u0 = 0.0;
+                  real_t u1 = 0.0;
+                  real_t u2 = 0.0;
+                  for (int qz = 0; qz < MQ1; ++qz)
+                  {
+                     const real_t b_z = B(dz,qz);
+                     u0 += b_z * q(0,0,qx,qy,qz,el);
+                     u1 += b_z * q(0,1,qx,qy,qz,el);
+                     u2 += G(dz,qz) * q(0,2,qx,qy,qz,el);
+                  }
+                  QQD0(qx,qy,dz) = u0;
+                  QQD1(qx,qy,dz) = u1;
+                  QQD2(qx,qy,dz) = u2;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz,z,MD1)
+         {
+            MFEM_FOREACH_THREAD(dy,y,MD1)
+            {
+               MFEM_FOREACH_THREAD(qx,x,MQ1)
+               {
+                  real_t u0 = 0.0;
+                  real_t u1 = 0.0;
+                  real_t u2 = 0.0;
+                  for (int qy = 0; qy < MQ1; ++qy)
+                  {
+                     const real_t b_y = B(dy,qy);
+                     u0 += b_y * QQD0(qx,qy,dz);
+                     u1 += G(dy,qy) * QQD1(qx,qy,dz);
+                     u2 += b_y * QQD2(qx,qy,dz);
+                  }
+                  QDD0(qx,dy,dz) = u0;
+                  QDD1(qx,dy,dz) = u1;
+                  QDD2(qx,dy,dz) = u2;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dz,z,MD1)
+         {
+            MFEM_FOREACH_THREAD(dy,y,MD1)
+            {
+               MFEM_FOREACH_THREAD(dx,x,MD1)
+               {
+                  real_t value = 0.0;
+                  for (int qx = 0; qx < MQ1; ++qx)
+                  {
+                     const real_t b_x = B(dx,qx);
+                     value += G(dx,qx) * QDD0(qx,dy,dz) +
+                              b_x * (QDD1(qx,dy,dz) + QDD2(qx,dy,dz));
+                  }
+                  e(dx,dy,dz,0,el) += value;
+               }
+            }
+         }
+      });
+      return;
+   }
+
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int el)
    {
       const int D1D = T_D1D ? T_D1D : d1d;

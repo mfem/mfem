@@ -1282,12 +1282,49 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
    }
 }
 
+void ND_SegmentElement::CalcShape(const IntegrationPoint &ip,
+                                  Vector &shape) const
+{
+   if (obasis1d.IsIntegratedType()) { obasis1d.ScaleIntegrated(false); }
+   obasis1d.Eval(ip.x, shape);
+}
+
 void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                    DenseMatrix &shape) const
 {
    Vector vshape(shape.Data(), dof);
 
-   obasis1d.Eval(ip.x, vshape);
+   CalcShape(ip, vshape);
+}
+
+void ND_SegmentElement::ProjectIntegrated(VectorCoefficient &vc,
+                                          ElementTransformation &Trans,
+                                          Vector &dofs) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   real_t vk[Geometry::MaxDim];
+   Vector xk(vk, vc.GetVDim());
+
+   const real_t *cp = poly1d.ClosedPoints(dof, BasisType::GaussLobatto);
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, dof);
+   IntegrationPoint ip;
+
+   for (int i = 0; i < dof; i++)
+   {
+      const real_t h = cp[i+1] - cp[i];
+      real_t val = 0.0;
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip1d = ir.IntPoint(q);
+         ip.x = cp[i] + h*ip1d.x;
+         Trans.SetIntPoint(&ip);
+         vc.Eval(xk, Trans, ip);
+         val += ip1d.weight*Trans.Jacobian().InnerProduct(tk, vk);
+      }
+
+      dofs(i) = val*h;
+   }
 }
 
 const real_t ND_WedgeElement::tk[15] =

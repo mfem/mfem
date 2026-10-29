@@ -22,74 +22,71 @@ namespace quadrature_interpolator
 template <bool P>
 void InitGradByNodesKernels()
 {
-   using k = QuadratureInterpolator::GradKernels;
    constexpr auto L = QVectorLayout::byNODES;
    // 2D
-   k::Specialization<2,L,P,1,3,3>::template Opt<16>::Add();
-   k::Specialization<2,L,P,1,3,4>::template Opt<16>::Add();
-   k::Specialization<2,L,P,1,4,3>::template Opt<16>::Add();
-   k::Specialization<2,L,P,1,4,4>::template Opt<16>::Add();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,1,3,3,16>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,1,3,4,16>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,1,4,3,16>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,1,4,4,16>();
 
-   k::Specialization<2,L,P,2,2,2>::template Opt<16>::Add();
-   k::Specialization<2,L,P,2,2,3>::template Opt<8>::Add();
-   k::Specialization<2,L,P,2,2,4>::template Opt<4>::Add();
-   k::Specialization<2,L,P,2,2,5>::template Opt<4>::Add();
-   k::Specialization<2,L,P,2,2,6>::template Opt<2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,2,2,16>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,2,3,8>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,2,4,4>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,2,5,4>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,2,6,2>();
 
-   k::Specialization<2,L,P,2,3,3>::template Opt<2>::Add();
-   k::Specialization<2,L,P,2,3,4>::template Opt<4>::Add();
-   k::Specialization<2,L,P,2,4,3>::template Opt<4>::Add();
-   k::Specialization<2,L,P,2,3,6>::template Opt<2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,3,3,2>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,3,4,4>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,4,3,4>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,3,6,2>();
 
-   k::Specialization<2,L,P,2,4,4>::template Opt<2>::Add();
-   k::Specialization<2,L,P,2,4,5>::template Opt<2>::Add();
-   k::Specialization<2,L,P,2,4,6>::template Opt<2>::Add();
-   k::Specialization<2,L,P,2,4,7>::template Opt<2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,4,4,2>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,4,5,2>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,4,6,2>();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,4,7,2>();
 
-   k::Specialization<2,L,P,2,5,6>::template Opt<2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<2,L,P,2,5,6,2>();
    // 3D
-   k::Specialization<3,L,P,1,2,4>::Add();
-   k::Specialization<3,L,P,1,3,3>::Add();
-   k::Specialization<3,L,P,1,3,4>::Add();
-   k::Specialization<3,L,P,1,3,6>::Add();
-   k::Specialization<3,L,P,1,4,4>::Add();
-   k::Specialization<3,L,P,1,4,8>::Add();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,2,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,3,3>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,3,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,3,6>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,4,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,1,4,8>();
 
-   k::Specialization<3,L,P,3,2,3>::Add();
-   k::Specialization<3,L,P,3,2,4>::Add();
-   k::Specialization<3,L,P,3,2,5>::Add();
-   k::Specialization<3,L,P,3,2,6>::Add();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,2,3>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,2,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,2,5>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,2,6>();
 
-   k::Specialization<3,L,P,3,3,3>::Add();
-   k::Specialization<3,L,P,3,3,4>::Add();
-   k::Specialization<3,L,P,3,3,5>::Add();
-   k::Specialization<3,L,P,3,3,6>::Add();
-   k::Specialization<3,L,P,3,4,4>::Add();
-   k::Specialization<3,L,P,3,4,6>::Add();
-   k::Specialization<3,L,P,3,4,7>::Add();
-   k::Specialization<3,L,P,3,4,8>::Add();
-
-   using k2 = QuadratureInterpolator::CollocatedGradKernels;
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,3,3>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,3,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,3,5>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,3,6>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,4,4>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,4,6>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,4,7>();
+   QuadratureInterpolator::AddGradSpecializations<3,L,P,3,4,8>();
 
    // 2D
-   k2::Specialization<2,L,P,1,2>::template Opt<16>::Add();
-   k2::Specialization<2,L,P,1,3>::template Opt<16>::Add();
-   k2::Specialization<2,L,P,1,4>::template Opt<16>::Add();
-   k2::Specialization<2,L,P,2,2>::template Opt<16>::Add();
-   k2::Specialization<2,L,P,2,3>::template Opt<4>::Add();
-   k2::Specialization<2,L,P,2,4>::template Opt<2>::Add();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<2,L,P,1,2,16>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<2,L,P,1,3,16>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<2,L,P,1,4,16>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<2,L,P,2,2,16>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<2,L,P,2,3,4>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<2,L,P,2,4,2>();
 
-   k2::Specialization<3,L,P,1,2>::Add();
-   k2::Specialization<3,L,P,1,3>::Add();
-   k2::Specialization<3,L,P,1,4>::Add();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,1,2>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,1,3>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,1,4>();
 
-   k2::Specialization<3,L,P,2,2>::Add();
-   k2::Specialization<3,L,P,2,3>::Add();
-   k2::Specialization<3,L,P,2,4>::Add();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,2,2>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,2,3>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,2,4>();
 
-   k2::Specialization<3,L,P,3,2>::Add();
-   k2::Specialization<3,L,P,3,3>::Add();
-   k2::Specialization<3,L,P,3,4>::Add();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,3,2>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,3,3>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<3,L,P,3,4>();
 }
 
 template void InitGradByNodesKernels<true>();

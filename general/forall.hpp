@@ -480,8 +480,8 @@ template <typename DBODY>
 void RajaHipWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
-   RAJA::forall<RAJA::hip_exec<MFEM_HIP_BLOCKS,true> >(RAJA::RangeSegment(0,N),
-                                                       d_body);
+   RAJA::forall<RAJA::hip_exec<MFEM_HIP_BLOCKS, true> >(
+      Device::GetRajaResource(), RAJA::RangeSegment(0, N), d_body);
 }
 
 template <typename DBODY>
@@ -813,8 +813,11 @@ void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
 }
 
 #ifdef MFEM_USE_ENZYME
+/// \cond DO_NOT_DOCUMENT
 template <const int BLCK, typename DBODY>
-void CuWrap1DWithEnzyme(const int N, DBODY &&d_body);
+void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
+                                                       DBODY &&d_body);
+/// \endcond
 #endif
 
 template <int Dim, int MAX_THREADS_PER_BLOCK> struct CuWrap;
@@ -876,6 +879,7 @@ struct CuWrap<3, MAX_THREADS_PER_BLOCK>
 };
 
 #ifdef MFEM_USE_ENZYME
+/// \cond DO_NOT_DOCUMENT
 template <typename BODY> struct DerivativeKernelWrapperStruct
 {
    MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY *body, const int k)
@@ -911,7 +915,7 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
 {
    static constexpr int ACTUAL_BLCK = BLCK == 0 ? MFEM_CUDA_BLOCKS : BLCK;
 
-   static void Call(const int N, DBODY *body)
+   static void __attribute__((always_inline)) Call(const int N, DBODY *body)
    {
       if (N == 0)
       {
@@ -922,7 +926,9 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
       MFEM_GPU_CHECK(cudaGetLastError());
    }
 
-   static void FwdCall(const int N, int dN, DBODY *body, DBODY *d_body)
+   static void __attribute__((always_inline)) FwdCall(const int N, int dN,
+                                                      DBODY *body,
+                                                      DBODY *d_body)
    {
       MFEM_CONTRACT_VAR(dN);
       if (N == 0)
@@ -942,18 +948,20 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
 };
 
 template <const int BLCK, typename DBODY>
-void CuWrap1DWithEnzyme(const int N, DBODY &&d_body)
+void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
+                                                       DBODY &&d_body)
 {
    using DBODY_BASE = std::remove_reference_t<DBODY>;
    // Taking the address forces instantiation/emission of the registration
-   // global for this lambda type so Enzyme can find the custom derivative for
-   // CuWrap1DStruct<..., DBODY_BASE>::Call before trying to differentiate the
-   // CUDA runtime launch inside it.
+   // global for this lambda type so Enzyme can find the custom
+   // derivative before trying to differentiate the CUDA runtime launch
+   // inside it.
    [[maybe_unused]] auto *enzyme_registration =
       &CuWrap1DStruct<BLCK, DBODY_BASE>::__enzyme_register_derivative_CuWrap1D;
    MFEM_CONTRACT_VAR(enzyme_registration);
    CuWrap1DStruct<BLCK, DBODY_BASE>::Call(N, &d_body);
 }
+/// \endcond
 #endif
 
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)

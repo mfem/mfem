@@ -30,35 +30,6 @@ int GetTotalTrueVSize(const std::vector<FieldDescriptor> &fds)
    return size;
 }
 
-using DerivativeActionMap =
-   std::map<size_t, std::vector<derivative_action_t>>;
-using DerivativeSetupMap =
-   std::map<size_t, std::vector<derivative_setup_t>>;
-using DerivativeFieldMap =
-   std::map<size_t, std::vector<FieldDescriptor>>;
-using SparseAssemblyMap =
-   std::map<size_t,
-   std::vector<assemble_derivative_sparsematrix_callback_t>>;
-using HypreAssemblyMap =
-   std::map<size_t,
-   std::vector<assemble_derivative_hypreparmatrix_callback_t>>;
-using DiagonalAssemblyMap =
-   std::map<size_t, std::vector<assemble_diagonal_callback_t>>;
-using SecondDerivativeActionMap =
-   std::map<second_derivative_key_t, std::vector<derivative_action_t>>;
-using SecondDerivativeSetupMap =
-   std::map<second_derivative_key_t, std::vector<derivative_setup_t>>;
-using SecondDerivativeFieldMap =
-   std::map<second_derivative_key_t, std::vector<FieldDescriptor>>;
-using SecondSparseAssemblyMap =
-   std::map<second_derivative_key_t,
-   std::vector<assemble_derivative_sparsematrix_callback_t>>;
-using SecondHypreAssemblyMap =
-   std::map<second_derivative_key_t,
-   std::vector<assemble_derivative_hypreparmatrix_callback_t>>;
-using SecondDiagonalAssemblyMap =
-   std::map<second_derivative_key_t, std::vector<assemble_diagonal_callback_t>>;
-
 template <typename map_t>
 const typename map_t::mapped_type &FindOrDefault(
    const map_t &map, const typename map_t::key_type &id,
@@ -76,22 +47,13 @@ typename map_t::mapped_type FindOrEmpty(
    return it == map.end() ? typename map_t::mapped_type{} : it->second;
 }
 
-const std::vector<derivative_action_t> &SelectActionCallbacks(
-   const std::vector<derivative_action_t> &direct_actions,
-   const DerivativeActionMap &cached_actions,
-   size_t derivative_id,
-   bool use_cached_setup)
+// Returns the callback list stored under the id, or nullptr empty
+template <typename map_t>
+const typename map_t::mapped_type *FindNonEmpty(
+   const map_t &map, const typename map_t::key_type &id)
 {
-   if (use_cached_setup)
-   {
-      const auto it_apply = cached_actions.find(derivative_id);
-      if (it_apply != cached_actions.end() && !it_apply->second.empty())
-      {
-         return it_apply->second;
-      }
-   }
-
-   return direct_actions;
+   const auto it = map.find(id);
+   return (it != map.end() && !it->second.empty()) ? &it->second : nullptr;
 }
 
 struct DerivativeCallbackSet
@@ -104,7 +66,6 @@ struct DerivativeCallbackSet
    const HypreAssemblyMap &assemble_hypre;
    const DiagonalAssemblyMap &assemble_diagonal;
    const DerivativeSetupMap &setup;
-   const char *missing_action_message;
 };
 
 struct SecondDerivativeCallbackSet
@@ -117,7 +78,6 @@ struct SecondDerivativeCallbackSet
    const SecondHypreAssemblyMap &assemble_hypre;
    const SecondDiagonalAssemblyMap &assemble_diagonal;
    const SecondDerivativeSetupMap &setup;
-   const char *missing_action_message;
 };
 
 template <typename vector_t>
@@ -131,16 +91,32 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
    bool lvector_mode,
    bool functional_gradient = false)
 {
+   // MF action
+   // Check that integrator was registered with DerivativeKernels::Action,
+   // If not we don't necessarily have to throw an error, because the integrator
+   // may have DerivativeKernels::Apply, for PA action.
+   static const std::vector<derivative_action_t> no_actions;
    const auto it_action = callbacks.actions.find(derivative_id);
-   MFEM_ASSERT(it_action != callbacks.actions.end(),
-               callbacks.missing_action_message << derivative_id);
+   const auto &direct_actions =
+      it_action == callbacks.actions.end() ? no_actions : it_action->second;
+
+   // PA action
+   // The cached apply only exists if the integrator was registered with
+   // DerivativeKernels::Apply.
+   const auto *cached_actions =
+      use_cached_setup ? FindNonEmpty(callbacks.cached_actions, derivative_id)
+      : nullptr;
+   MFEM_VERIFY(!use_cached_setup || cached_actions,
+               "the cached derivative apply was requested for derivative id "
+               << derivative_id << ", but the integrator was registered "
+               "without DerivativeKernels::Apply; either add it or drop the "
+               "use_cached_setup argument to use the direct action");
 
    const size_t dfidx = FindIdx(derivative_id, infds);
    const auto &doutfds =
       FindOrDefault(callbacks.outfds, derivative_id, default_outfds);
    const auto &mult_callbacks =
-      SelectActionCallbacks(it_action->second, callbacks.cached_actions,
-                            derivative_id, use_cached_setup);
+      cached_actions ? *cached_actions : direct_actions;
 
    return std::make_shared<DerivativeOperator>(
              GetTotalTrueVSize(doutfds),
@@ -159,24 +135,6 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
              functional_gradient);
 }
 
-const std::vector<derivative_action_t> &SelectSecondDerivativeActionCallbacks(
-   const std::vector<derivative_action_t> &direct_actions,
-   const SecondDerivativeActionMap &cached_actions,
-   second_derivative_key_t derivative_key,
-   bool use_cached_setup)
-{
-   if (use_cached_setup)
-   {
-      const auto it_apply = cached_actions.find(derivative_key);
-      if (it_apply != cached_actions.end() && !it_apply->second.empty())
-      {
-         return it_apply->second;
-      }
-   }
-
-   return direct_actions;
-}
-
 template <typename vector_t>
 std::shared_ptr<DerivativeOperator> MakeStatefulSecondDerivativeOperator(
    size_t gradient_id,
@@ -188,19 +146,28 @@ std::shared_ptr<DerivativeOperator> MakeStatefulSecondDerivativeOperator(
    bool use_cached_setup,
    bool lvector_mode)
 {
+   static const std::vector<derivative_action_t> no_actions;
    const second_derivative_key_t derivative_key{gradient_id, direction_id};
    const auto it_action = callbacks.actions.find(derivative_key);
-   MFEM_ASSERT(it_action != callbacks.actions.end(),
-               callbacks.missing_action_message << "(" << gradient_id << ", "
-               << direction_id << ")");
+   const auto &direct_actions =
+      it_action == callbacks.actions.end() ? no_actions : it_action->second;
+
+   // See MakeStatefulDerivativeOperator().
+   const auto *cached_actions =
+      use_cached_setup ? FindNonEmpty(callbacks.cached_actions, derivative_key)
+      : nullptr;
+   MFEM_VERIFY(!use_cached_setup || cached_actions,
+               "the cached derivative apply was requested for second "
+               "derivative block (" << gradient_id << ", " << direction_id
+               << "), but the integrator was registered without "
+               "DerivativeKernels::Apply; either add it or drop the "
+               "use_cached_setup argument to use the direct action");
 
    const size_t dfidx = FindIdx(direction_id, infds);
    const auto &doutfds =
       FindOrDefault(callbacks.outfds, derivative_key, default_outfds);
    const auto &mult_callbacks =
-      SelectSecondDerivativeActionCallbacks(
-         it_action->second, callbacks.cached_actions, derivative_key,
-         use_cached_setup);
+      cached_actions ? *cached_actions : direct_actions;
 
    return std::make_shared<DerivativeOperator>(
              GetTotalTrueVSize(doutfds),
@@ -284,10 +251,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       assemble_derivative_sparsematrix_callbacks,
       assemble_derivative_hypreparmatrix_callbacks,
       assemble_diagonal_callbacks,
-      derivative_setup_callbacks,
-      "no derivative action has been found for ID "
+      derivative_setup_callbacks
    },
-   true,
+   false,
    mult_level == MultLevel::LVECTOR,
    IsFunctionalDerivative(derivative_id));
 }
@@ -305,8 +271,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       assemble_derivative_sparsematrix_callbacks,
       assemble_derivative_hypreparmatrix_callbacks,
       assemble_diagonal_callbacks,
-      derivative_setup_callbacks,
-      "no derivative action has been found for ID "
+      derivative_setup_callbacks
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR,
@@ -316,7 +281,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    size_t derivative_id)
 {
-   MFEM_ASSERT(has_functional_integrator,
+   MFEM_ASSERT(HasFunctionalIntegrator(),
                "stateless GetDerivative is available only for functionals");
 
    const auto it_action = derivative_action_callbacks.find(derivative_id);
@@ -344,7 +309,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    size_t gradient_id, size_t direction_id, const Vector &x)
 {
-   MFEM_ASSERT(has_functional_integrator,
+   MFEM_ASSERT(HasFunctionalIntegrator(),
                "second derivatives are available only for functionals");
 
    return MakeStatefulSecondDerivativeOperator(
@@ -357,8 +322,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
       assemble_second_derivative_sparsematrix_callbacks,
       assemble_second_derivative_hypreparmatrix_callbacks,
       assemble_second_derivative_diagonal_callbacks,
-      second_derivative_setup_callbacks,
-      "no second derivative action has been found for ID "
+      second_derivative_setup_callbacks
    },
    false,
    mult_level == MultLevel::LVECTOR);
@@ -374,7 +338,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    size_t gradient_id, size_t direction_id, const MultiVector &x,
    const bool use_cached_setup)
 {
-   MFEM_ASSERT(has_functional_integrator,
+   MFEM_ASSERT(HasFunctionalIntegrator(),
                "second derivatives are available only for functionals");
 
    return MakeStatefulSecondDerivativeOperator(
@@ -387,11 +351,18 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
       assemble_second_derivative_sparsematrix_callbacks,
       assemble_second_derivative_hypreparmatrix_callbacks,
       assemble_second_derivative_diagonal_callbacks,
-      second_derivative_setup_callbacks,
-      "no second derivative action has been found for ID "
+      second_derivative_setup_callbacks
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR);
+}
+
+bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,
+                                                 size_t direction_id) const
+{
+   const second_derivative_key_t derivative_key{gradient_id, direction_id};
+   const auto it = second_derivative_action_callbacks.find(derivative_key);
+   return it != second_derivative_action_callbacks.end() && !it->second.empty();
 }
 
 #endif // MFEM_USE_MPI

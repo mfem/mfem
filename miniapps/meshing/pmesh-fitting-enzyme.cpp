@@ -1355,7 +1355,8 @@ private:
          future::tuple{future::Gradient<X>{}, Identity<TARGET_W_INV>{},
                        Identity<TARGET_DET_W>{}, Weight{}},
          future::tuple{FunctionalValue<Q>{}},
-         ir, all_domain_attr, derivatives);
+         ir, all_domain_attr, derivatives,
+         future::SecondDerivatives<future::Pairs::Diagonal> {});
    }
 
    /// Dispatch analytic or discrete surface-operator construction.
@@ -1416,7 +1417,8 @@ private:
          energy,
          future::tuple{Value<X>{}, Identity<Q>{}},
          future::tuple{FunctionalValue<Q>{}},
-         surface_node_ir, all_domain_attr, derivatives);
+         surface_node_ir, all_domain_attr, derivatives,
+         future::SecondDerivatives<future::Pairs::Diagonal> {});
    }
 
    /// Construct a fitting operator driven by sampled discrete derivative data.
@@ -1440,7 +1442,8 @@ private:
          energy,
          future::tuple{Value<X>{}, Identity<SURFACE_FIT_DATA>{}},
          future::tuple{FunctionalValue<Q>{}},
-         surface_node_ir, all_domain_attr, derivatives);
+         surface_node_ir, all_domain_attr, derivatives,
+         future::SecondDerivatives<future::Pairs::Diagonal> {});
    }
 
    /// Freeze target Jacobians at each quadrature point of the initial mesh.

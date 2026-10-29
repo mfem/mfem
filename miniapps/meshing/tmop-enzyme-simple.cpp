@@ -547,7 +547,8 @@ private:
                           Value<REFERENCE_X>{}, Identity<TARGET_W>{},
                           Identity<LIMIT_COEFF>{}, Weight{}},
             future::tuple{FunctionalValue<Q>{}},
-            ir, all_domain_attr, derivatives);
+            ir, all_domain_attr, derivatives,
+            future::SecondDerivatives<future::Pairs::Diagonal> {});
       }
 
       SetupFrozenTargetHessian<metric_id_val>(ir, all_domain_attr);
@@ -577,7 +578,8 @@ private:
          energy,
          future::tuple{future::Gradient<X>{}, Identity<TARGET_W>{}, Weight{}},
          future::tuple{FunctionalValue<Q>{}},
-         ir, all_domain_attr, derivatives);
+         ir, all_domain_attr, derivatives,
+         future::SecondDerivatives<future::Pairs::Diagonal> {});
    }
 
    template <int target_id_val, int metric_id_val>

@@ -214,6 +214,7 @@ miniapps/adjoint/adjoint_advection_diffusion
 
 miniapps/dfem/dfem-minimal-surface
 miniapps/dfem/dfem-minimal-surface-output
+miniapps/dfem/dfem-hyperelasticity_energy
 
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
@@ -260,6 +261,7 @@ miniapps/meshing/polar-nc
 miniapps/meshing/mesh-quality
 miniapps/meshing/hpref
 miniapps/meshing/phpref
+miniapps/meshing/pref321
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
 miniapps/meshing/toroid-*.mesh

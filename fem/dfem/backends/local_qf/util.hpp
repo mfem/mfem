@@ -21,6 +21,8 @@
 #include <array>
 #include <cstddef>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace mfem::future
 {
@@ -29,14 +31,16 @@ namespace mfem::future
 template <typename T>
 MFEM_HOST_DEVICE auto qf_store_value(const T &v)
 {
-   if constexpr (is_dual_number<T>::value) { return v.value; }
+   if constexpr (is_nested_dual_number<T>::value) { return v.value.value; }
+   else if constexpr (is_dual_number<T>::value) { return v.value; }
    else { return v; }
 }
 
 template <typename T>
 MFEM_HOST_DEVICE auto qf_store_gradient(const T &v)
 {
-   if constexpr (is_dual_number<T>::value) { return v.gradient; }
+   if constexpr (is_nested_dual_number<T>::value) { return v.gradient.value; }
+   else if constexpr (is_dual_number<T>::value) { return v.gradient; }
    else { return v; }
 }
 
@@ -55,9 +59,79 @@ template <typename T>
 constexpr bool qf_param_uses_dual_v = qf_param_uses_dual<T>::value;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// True when quadrature-point values of `T` carry *nested* dual numbers, i.e.
+/// `dual<dual<V,G>, dual<V,G>>`. Second derivatives taken with the native dual
+/// backend lift the q-function scalar to a nested dual so the inner pair can be
+/// seeded without clobbering the outer (incoming) direction.
+template <typename T>
+struct qf_param_uses_nested_dual : std::false_type {};
+
+template <typename S, int... Is>
+struct qf_param_uses_nested_dual<tensor<S, Is...>> :
+                                                   is_nested_dual_number<S> {};
+
+template <typename V, typename G>
+struct qf_param_uses_nested_dual<dual<V, G>> :
+                                             is_nested_dual_number<dual<V, G>> {};
+
+template <typename T>
+constexpr bool qf_param_uses_nested_dual_v =
+   qf_param_uses_nested_dual<T>::value;
+
+///////////////////////////////////////////////////////////////////////////////
+/// True when the q-function parameter at slot `I` of `param_tuple_t` is tagged
+/// Active in `activity_tuple_t` and carries dual-number derivatives. Used to
+/// decide whether a derivative can be taken with the native dual backend.
+template <typename param_tuple_t, typename activity_tuple_t, size_t... Is>
+constexpr bool active_qparams_use_dual_impl(std::index_sequence<Is...>)
+{
+   return ((qf_param_is_active_v<activity_tuple_t, Is> &&
+            qf_param_uses_dual_v<
+            std::remove_cv_t<
+            std::remove_reference_t<tuple_element_t<Is, param_tuple_t>>>>) || ...);
+}
+
+template <typename param_tuple_t, typename activity_tuple_t>
+constexpr bool active_qparams_use_dual()
+{
+   static_assert(tuple_size<param_tuple_t>::value ==
+                 tuple_size<activity_tuple_t>::value,
+                 "q-function parameter/activity tuple size mismatch");
+   return active_qparams_use_dual_impl<param_tuple_t, activity_tuple_t>(
+             std::make_index_sequence<tuple_size<param_tuple_t>::value> {});
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// `tensor` base class of `T`, or `void` when `T` has none.
+///
+/// On device, the register types in mfem::kernels::internal (regs2d_t,
+/// regs3d_t, ...) are wrapper structs *deriving* from `tensor` instead of
+/// aliases of it, so that the thread-tile extents can be zeroed while keeping
+/// the MQ1 extent part of the type. A derived class does not match the `tensor`
+/// partial specialization of qf_param_shape below, so look through to the base.
+template <typename scalar_t, int... Is>
+tensor<scalar_t, Is...> qf_tensor_base_of(const tensor<scalar_t, Is...> &);
+
+template <typename T, typename = void>
+struct qf_tensor_base { using type = void; };
+
+template <typename T>
+struct qf_tensor_base<
+T, std::void_t<decltype(qf_tensor_base_of(std::declval<const T &>()))>>
+{
+   using type = decltype(qf_tensor_base_of(std::declval<const T &>()));
+};
+
+template <typename T>
+using qf_tensor_base_t = typename qf_tensor_base<T>::type;
+
+///////////////////////////////////////////////////////////////////////////////
 /// Static shape for one decayed q-function parameter type
 template <typename T>
-struct qf_param_shape
+struct qf_param_shape : qf_param_shape<qf_tensor_base_t<T>> {};
+
+template <>
+struct qf_param_shape<void>
 {
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
@@ -108,6 +182,88 @@ struct qf_param_slot
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Spatial dimension carried by fop slot `I`, or 0 when that slot is not a
+/// Gradient. Slot `I` indexes the fop tuple and the q-function parameter list
+/// alike, so the tuple must be the inputs and outputs concatenated in signature
+/// order.
+template <typename qfunc_t, typename fops_t, std::size_t I>
+constexpr int qf_slot_dim()
+{
+   using fop_t = tuple_element_t<I, fops_t>;
+   constexpr auto ext = qf_param_slot<qfunc_t, I>::extents;
+   if constexpr (is_gradient_fop<fop_t>::value && ext.size() > 0)
+   {
+      return ext[ext.size() - 1];
+   }
+   else { return 0; }
+}
+
+template <typename qfunc_t, typename fops_t, std::size_t... Is>
+constexpr int deduce_qf_dim_impl(std::index_sequence<Is...>)
+{
+   int dim = 0;
+   ((dim = dim ? dim : qf_slot_dim<qfunc_t, fops_t, Is>()), ...);
+   return dim;
+}
+
+/// Spatial dimension implied by the q-function signature, or 0 when it
+/// cannot be deduced.
+/// Deduced from the last extent of the first Gradient parameter across both
+/// inputs and outputs (that's why they're concatenated).
+template <typename qfunc_t, typename inputs_t, typename outputs_t = tuple<>>
+constexpr int deduce_qf_dim()
+{
+   using fops_t = tuple_cat_type_t<inputs_t, outputs_t>;
+   return deduce_qf_dim_impl<qfunc_t, fops_t>(
+             std::make_index_sequence<tuple_size<fops_t>::value> {});
+}
+
+/////////////////////////////////////////////////////////////////////////
+/// Tile size a kernel must be built at, given the runtime shapes.
+///
+/// The shared basis arrays are square, B[MQ1][MQ1] and G[MQ1][MQ1],
+/// but they hold a q1d x d1d matrix.
+/// This is used to size it appropriately also for cases in which
+/// d1d > q1d.
+
+// For inputs
+template <std::size_t N>
+inline int kernel_tile_size(int q1d, const std::array<int, N> &d1d)
+{
+   if constexpr (N == 0) { return q1d; }
+   else { return std::max(q1d, *std::max_element(d1d.begin(), d1d.end())); }
+}
+
+// For inputs and outputs
+template <std::size_t NI, std::size_t NO>
+inline int kernel_tile_size(int q1d, const std::array<int, NI> &in_d1d,
+                            const std::array<int, NO> &out_d1d)
+{
+   return std::max(kernel_tile_size(q1d, in_d1d), kernel_tile_size(q1d, out_d1d));
+}
+
+/// For backends using DofToQuadMaps (d1d is the DOF extent of the B/G arrays)
+template <std::size_t N>
+inline int kernel_tile_size(int q1d, const std::array<DofToQuadMap, N> &maps)
+{
+   int s = q1d;
+   for (const auto &m : maps)
+   {
+      s = std::max(s, m.B.GetShape()[DofToQuadMap::DOF]);
+   }
+   return s;
+}
+
+template <std::size_t NI, std::size_t NO>
+inline int kernel_tile_size(int q1d,
+                            const std::array<DofToQuadMap, NI> &in_maps,
+                            const std::array<DofToQuadMap, NO> &out_maps)
+{
+   return std::max(kernel_tile_size(q1d, in_maps), kernel_tile_size(q1d,
+                                                                    out_maps));
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// Builds a register-bank tuple covering the q-function parameter slots
 /// `[K0, N)`. `K` is the recursion cursor and starts at `K0`; the resulting
 /// tuple is indexed from 0, so a bank starting at `K0 > 0` has its slot indices
@@ -148,6 +304,70 @@ using args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
+/// Empty stand-in for a tuple slot that is never loaded, read or addressed.
+struct UnusedSlot {};
+using UnusedQReg = UnusedSlot;
+
+/// Register bank for primal action. Outputs that are written directly at
+/// quadrature points, e.g. Identity/FunctionalValue outputs, do not need a
+/// per-qpoint register bank, because they are stored to the output tensor in the
+/// qfunction loop and skipped in the integration pass.
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t K, std::size_t N, typename... Acc>
+struct build_action_args_reg_tuple_impl;
+
+template <typename outputs_t, std::size_t output_idx, bool is_output>
+struct action_output_fop
+{
+   using type = UnusedSlot;
+};
+
+template <typename outputs_t, std::size_t output_idx>
+struct action_output_fop<outputs_t, output_idx, true>
+{
+   using type = tuple_element_t<output_idx, outputs_t>;
+};
+
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t N, typename... Acc>
+struct build_action_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
+          outputs_t, MQ1, N, N, Acc...>
+{
+   using type = tuple<Acc...>;
+};
+
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t K, std::size_t N, typename... Acc>
+struct build_action_args_reg_tuple_impl
+{
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr bool is_output = (K >= n_inputs);
+   using qf_reg_param_t = typename qf_param_slot<qfunc_t, K>::qf_reg_param_t;
+   using output_fop_t = typename action_output_fop<outputs_t,
+         is_output ? (K - n_inputs) : 0, is_output>::type;
+   static constexpr bool direct_output =
+      is_output &&
+      (is_identity_fop_v<output_fop_t> || is_functionalvalue_fop_v<output_fop_t>);
+   using R = std::conditional_t<direct_output,
+         UnusedQReg,
+         typename backend_t::template QReg<qf_reg_param_t>>;
+   using type = typename build_action_args_reg_tuple_impl<backend_t, qfunc_t,
+         inputs_t, outputs_t, MQ1, K + 1, N, Acc..., R>::type;
+};
+
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
+using action_args_reg_t = typename build_action_args_reg_tuple_impl<backend_t,
+      qfunc_t, inputs_t, outputs_t, MQ1, 0,
+      tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
+
 /// Register bank covering q-function inputs only (same types as first
 /// `n_inputs` slots of args_reg_t). Used where shadow / tangent paths never
 /// touch output parameter registers.
@@ -157,10 +377,6 @@ template <
 using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value>::type;
-
-/// Empty stand-in for a tuple slot that is never loaded, read or addressed.
-struct UnusedSlot {};
-using UnusedQReg = UnusedSlot;
 
 /// Copy of a q-function argument tuple with every slot whose mask entry is
 /// false collapsed to an empty type. Used for the shadow argument tuple of a
@@ -225,10 +441,119 @@ using output_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       tuple_size<inputs_t>::value,
       tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
+///////////////////////////////////////////////////////////////////////////////
+/// Flat component access for a q-function argument (scalar / dual / tensor).
+///
+/// Components are addressed column-major as `c = i_vdim + extents[0]*i_opdim`,
+/// matching the byVDIM layout used by `process_qf_arg` / `process_qf_result`.
+/// Prefer the two-index `qf_*_at` forms below wherever both indices are
+/// already available; the flat forms are for callers that only carry a single
+/// running component index, such as the per-component seeding loop of the
+/// native-dual RevDiff.
+///
+/// Nested duals `dual<dual<V,G>, dual<V,G>>` are used for second derivatives
+/// with the native dual-number backend. Lifting a dual to a nested dual uses
+/// the mapping
+///
+///   dual(a, b) -> ((a, c), (b, d))
+///
+/// where `a`/`b` are the original primal/gradient carrying the incoming
+/// direction, `c` seeds the second derivative and `d` retrieves it. The four
+/// accessors map onto the nested members as:
+///
+///   qf_[set_]flat_value             -> value.value
+///   qf_[set_]flat_gradient          -> gradient.value
+///   qf_[set_]flat_value_gradient    -> value.gradient
+///   qf_flat_gradient_gradient       -> gradient.gradient
+///
+/// Note the `is_nested_dual_number` / `qf_param_uses_nested_dual_v` branches
+/// must be tested before the plain dual ones: a nested dual also satisfies
+/// `is_dual_number`.
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_value(const ARG &a, int c)
+{
+   if constexpr (std::is_same_v<ARG, real_t> || is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return qf_store_value(a);
+   }
+   else
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return qf_store_value(a(0)); }
+      else if constexpr (RNK == 1) { return qf_store_value(a(c)); }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return qf_store_value(a(c % e0, c / e0));
+      }
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_gradient(const ARG &a, int c)
+{
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.gradient.value;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).gradient.value; }
+      else if constexpr (RNK == 1) { return a(c).gradient.value; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).gradient.value;
+      }
+   }
+   else if constexpr (is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.gradient;
+   }
+   else if constexpr (qf_param_uses_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).gradient; }
+      else if constexpr (RNK == 1) { return a(c).gradient; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).gradient;
+      }
+   }
+   else
+   {
+      // Non-dual argument carries no tangent: its derivative contribution is 0.
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      return real_t(0);
+   }
+}
+
 template <typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)
 {
    if constexpr (std::is_same_v<ARG, real_t>) { MFEM_CONTRACT_VAR(c); a = v; }
+   else if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.value.value = v;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { a(0).value.value = v; }
+      else if constexpr (RNK == 1) { a(c).value.value = v; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         a(c % e0, c / e0).value.value = v;
+      }
+   }
    else if constexpr (is_dual_number<ARG>::value)
    {
       MFEM_CONTRACT_VAR(c);
@@ -260,7 +585,23 @@ MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)
 template <typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_flat_gradient(ARG &a, int c, real_t v)
 {
-   if constexpr (is_dual_number<ARG>::value)
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.gradient.value = v;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { a(0).gradient.value = v; }
+      else if constexpr (RNK == 1) { a(c).gradient.value = v; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         a(c % e0, c / e0).gradient.value = v;
+      }
+   }
+   else if constexpr (is_dual_number<ARG>::value)
    {
       MFEM_CONTRACT_VAR(c);
       a.gradient = v;
@@ -282,6 +623,91 @@ MFEM_HOST_DEVICE inline void qf_set_flat_gradient(ARG &a, int c, real_t v)
       MFEM_CONTRACT_VAR(a);
       MFEM_CONTRACT_VAR(c);
       MFEM_CONTRACT_VAR(v);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Inner (second-derivative) half of a nested dual. On arguments that are not
+/// nested duals these are no-ops / zero: a plain dual carries no second-order
+/// slot, so seeding it would have nowhere to go and reading it is 0.
+template <typename ARG>
+MFEM_HOST_DEVICE inline void qf_set_flat_value_gradient(ARG &a, int c, real_t v)
+{
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      a.value.gradient = v;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { a(0).value.gradient = v; }
+      else if constexpr (RNK == 1) { a(c).value.gradient = v; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         a(c % e0, c / e0).value.gradient = v;
+      }
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      MFEM_CONTRACT_VAR(v);
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_value_gradient(const ARG &a, int c)
+{
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.value.gradient;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).value.gradient; }
+      else if constexpr (RNK == 1) { return a(c).value.gradient; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).value.gradient;
+      }
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      return real_t(0);
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_flat_gradient_gradient(const ARG &a, int c)
+{
+   if constexpr (is_nested_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(c);
+      return a.gradient.gradient;
+   }
+   else if constexpr (qf_param_uses_nested_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0) { return a(0).gradient.gradient; }
+      else if constexpr (RNK == 1) { return a(c).gradient.gradient; }
+      else
+      {
+         constexpr int e0 = qf_param_shape<ARG>::extents[0];
+         return a(c % e0, c / e0).gradient.gradient;
+      }
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(c);
+      return real_t(0);
    }
 }
 
@@ -614,6 +1040,94 @@ inline size_t find_infd_index(const IntegratorContext &ctx, int field_id)
    }
    return SIZE_MAX;
 }
+
+/// @brief Metadata for grouping an integrator's output operators by field.
+/// @tparam outputs_t The type of the tuple containing the output operators.
+///
+/// This is just a util used to compute the output-to-field mapping in case
+/// of multiple outputs and multiple fields case, and use it in Assemble routines.
+///
+/// For example, given:
+///
+///     ctx.outfds = {X, Y}
+///     outputs    = {Value<Y>, Gradient<X>, Value<X>}
+///
+/// We can get:
+///
+///     output_to_group = {1, 0, 0}
+///     field_ids       = {X, Y}
+///     fes             = {fes_X, fes_Y}
+///     test_vdim       = {vdim_X, vdim_Y}
+///     num_test_dof    = {dof_X, dof_Y}
+///
+template<typename outputs_t>
+struct OutputFieldGroups
+{
+   static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+
+   /// Output index -> group index.
+   std::array<int, n_outputs> output_to_group {};
+   /// Group index -> FieldDescriptor::id, in ctx.outfds order.
+   std::vector<int> field_ids;
+   /// Group index -> finite element space, or null for a non-FE field.
+   std::vector<const ParFiniteElementSpace *> fes;
+   /// Group index -> vector dimension of the output field.
+   std::vector<int> test_vdim;
+   /// Group index -> number of element dofs, or zero for a non-FE field.
+   std::vector<int> num_test_dof;
+
+   OutputFieldGroups(const IntegratorContext &ctx, outputs_t &outputs)
+   {
+      // Reuse the existing output-index -> ctx.outfds-index mapping.
+      const auto output_to_descriptor = create_output_vector_map(ctx, outputs);
+      const auto &descriptors = ctx.outfds;
+
+      // Groups follow the operator-wide output field order.
+      field_ids.reserve(descriptors.size());
+      for (const auto &descriptor : descriptors)
+      {
+         field_ids.push_back(static_cast<int>(descriptor.id));
+      }
+
+      // Use the operator-wide output-field index as the group index.
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         output_to_group[o] = static_cast<int>(output_to_descriptor[o]);
+      });
+
+      // Allocate one metadata slot per operator-wide output field. Fields not
+      // referenced by this integrator retain their null/zero defaults.
+      fes.assign(field_ids.size(), nullptr);
+      test_vdim.assign(field_ids.size(), 0);
+      num_test_dof.assign(field_ids.size(), 0);
+
+      // Resolve metadata only for fields used by this integrator. Outputs with
+      // the same field write the same slot and necessarily share its vdim.
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         const int group = output_to_group[o];
+         test_vdim[group] = get<o>(outputs).vdim;
+         const auto *group_fes = std::get_if<const ParFiniteElementSpace *>(
+                                    &descriptors[group].data);
+         fes[group] = group_fes ? *group_fes : nullptr;
+         if (fes[group] != nullptr)
+         {
+            num_test_dof[group] = fes[group]->GetFE(0)->GetDof();
+         }
+      });
+   }
+
+   /// Return the group for @a field_id, or -1 if no output uses that field.
+   int FindGroup(const int field_id) const
+   {
+      const auto field = std::find(field_ids.begin(), field_ids.end(), field_id);
+      if (field == field_ids.end()) { return -1; }
+
+      const int group = static_cast<int>(field - field_ids.begin());
+      return std::find(output_to_group.begin(), output_to_group.end(), group) ==
+             output_to_group.end() ? -1 : group;
+   }
+};
 
 template<typename entity_t = Entity::Element>
 inline int compute_element_dof_sz(

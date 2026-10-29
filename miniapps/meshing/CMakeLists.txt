@@ -173,6 +173,10 @@ if (MFEM_USE_MPI)
     MAIN phpref.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(pref321
+    MAIN pref321.cpp
+    LIBRARIES mfem)
+
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
@@ -183,6 +187,7 @@ if (MFEM_USE_MPI)
       fit-node-position
       pminimal-surface
       phpref
+      pref321
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)

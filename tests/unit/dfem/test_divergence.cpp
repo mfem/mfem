@@ -95,7 +95,10 @@ void vectordivergence(const char *filename, int p)
    };
 
    const auto derivatives = std::integer_sequence<size_t, V> {};
-   dop_mf.AddDomainIntegrator<LocalQFBackend>(
+   constexpr auto kernels =
+      DerivativeKernels::Apply |
+      DerivativeKernels::ApplyTranspose;
+   dop_mf.AddDomainIntegrator<LocalQFBackend, kernels>(
       mf_vector_divergence_qf,
       tuple{Gradient<V>{}, Gradient<Coords>{}, Weight{}},
       tuple{Value<P>{}},
@@ -127,7 +130,7 @@ void vectordivergence(const char *filename, int p)
       nodes->GetTrueDofs(nodestv);
       MultiVector X{Xv, nodestv};
       MultiVector Z{Zs};
-      auto dRdV = dop_mf.GetDerivative(V, X);
+      auto dRdV = dop_mf.GetDerivative(V, X, true);
       dRdV->Mult(X[0], Z);
 
       mblf_fa.Mult(xv, ys);

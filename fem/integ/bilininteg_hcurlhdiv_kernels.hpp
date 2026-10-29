@@ -62,6 +62,30 @@ void PAHcurlHdivMassApply2D(const int D1D,
                             const Vector &x_,
                             Vector &y_);
 
+/// H(curl) test, H(div) trial
+inline void
+PAHcurlHdivMassApply2D(const int NE, const bool, const bool scalarCoeff,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int D1Dtest, const int Q1D)
+{
+   return PAHcurlHdivMassApply2D(D1D, D1Dtest, Q1D, NE, scalarCoeff, false,
+                                 false, Bo_, Bc_, Bot_, Bct_, op_, x_, y_);
+}
+
+/// H(div) test, H(curl) trial
+inline void
+PAHdivHcurlMassApply2D(const int NE, const bool, const bool scalarCoeff,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int D1Dtest, const int Q1D)
+{
+   return PAHcurlHdivMassApply2D(D1D, D1Dtest, Q1D, NE, scalarCoeff, true,
+                                 false, Bo_, Bc_, Bot_, Bct_, op_, x_, y_);
+}
+
 // PA H(curl)-H(div) Mass Apply 3D kernel
 void PAHcurlHdivMassApply3D(const int D1D,
                             const int D1Dtest,
@@ -77,6 +101,30 @@ void PAHcurlHdivMassApply3D(const int D1D,
                             const Vector &op_,
                             const Vector &x_,
                             Vector &y_);
+
+/// H(curl) test, H(div) trial
+inline void
+PAHcurlHdivMassApply3D(const int NE, const bool, const bool scalarCoeff,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int D1Dtest, const int Q1D)
+{
+   PAHcurlHdivMassApply3D(D1D, D1Dtest, Q1D, NE, scalarCoeff, false, false, Bo_,
+                          Bc_, Bot_, Bct_, op_, x_, y_);
+}
+
+/// H(div) test, H(curl) trial
+inline void
+PAHdivHcurlMassApply3D(const int NE, const bool, const bool scalarCoeff,
+                       const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                       const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                       const Vector &op_, const Vector &x_, Vector &y_,
+                       const int D1D, const int D1Dtest, const int Q1D)
+{
+   PAHcurlHdivMassApply3D(D1D, D1Dtest, Q1D, NE, scalarCoeff, true, false, Bo_,
+                          Bc_, Bot_, Bct_, op_, x_, y_);
+}
 
 // PA H(curl)-H(div) Curl Apply 3D kernel
 template<int T_D1D = 0, int T_D1D_TEST = 0, int T_Q1D = 0>

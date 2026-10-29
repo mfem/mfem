@@ -355,7 +355,12 @@ public:
       // formed integrator should be formed. This is necessary to specify at
       // compile time in order to instantiate the correct functions.
       auto derivatives = std::integer_sequence<size_t, SOLUTION_U> {};
-      res->AddDomainIntegrator<LocalQFBackend>(
+
+      // We only need the action and assemble callbacks (for AMG)
+      constexpr auto kernels =
+         DerivativeKernels::Action |
+         DerivativeKernels::AssembleMatrix;
+      res->AddDomainIntegrator<LocalQFBackend, kernels>(
          mf_apply_qf, input_operators, output_operators,
          ir, all_domain_attr, derivatives);
 

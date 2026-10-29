@@ -66,9 +66,8 @@ struct SurfaceFitDataLayout
 
 }
 
-namespace
+namespace pmesh_optimizer_enzyme
 {
-using namespace pmesh_optimizer_enzyme;
 
 static constexpr int X = 0;
 static constexpr int Q = 1;
@@ -150,7 +149,7 @@ enum Target6Parameter
    TARGET6_NUM_PARAMETERS
 };
 
-} // namespace
+} // namespace pmesh_optimizer_enzyme
 
 namespace pmesh_optimizer_enzyme
 {
@@ -472,7 +471,8 @@ void *__enzyme_register_gradient_get_sigma_3d[3] =
 
 } // namespace pmesh_optimizer_enzyme
 
-namespace
+// Enzyme call signatures require Q-function types with external linkage.
+namespace pmesh_optimizer_enzyme
 {
 
 template <typename scalar_t, int dim, int target_id, int metric_id,
@@ -3431,7 +3431,8 @@ private:
                           Identity<TARGET_W>{}, Identity<TARGET_DATA>{},
                           Weight{}},
             future::tuple{FunctionalValue<Q>{}},
-            ir, all_domain_attr, derivatives);
+            ir, all_domain_attr, derivatives,
+            future::SecondDerivatives<future::Pairs::Diagonal> {});
       }
       else if constexpr (target_id_val == 1)
       {
@@ -3451,7 +3452,8 @@ private:
             future::tuple{future::Gradient<X>{}, Identity<TARGET_W>{},
                           Weight{}},
             future::tuple{FunctionalValue<Q>{}},
-            ir, all_domain_attr, derivatives);
+            ir, all_domain_attr, derivatives,
+            future::SecondDerivatives<future::Pairs::Diagonal> {});
       }
       else
       {
@@ -3472,7 +3474,8 @@ private:
             future::tuple{Value<X>{}, future::Gradient<X>{},
                           Identity<TARGET_W>{}, Weight{}},
             future::tuple{FunctionalValue<Q>{}},
-            ir, all_domain_attr, derivatives);
+            ir, all_domain_attr, derivatives,
+            future::SecondDerivatives<future::Pairs::Diagonal> {});
       }
 
       if (has_node_limiting)
@@ -3533,7 +3536,8 @@ private:
                        Identity<TARGET_W>{}, Identity<TARGET_DATA>{},
                        Identity<LIMIT_COEFF>{}, Weight{}},
          future::tuple{FunctionalValue<Q>{}},
-         ir, all_domain_attr, derivatives);
+         ir, all_domain_attr, derivatives,
+         future::SecondDerivatives<future::Pairs::Diagonal> {});
    }
 
    template <typename Energy>
@@ -3558,7 +3562,8 @@ private:
          future::tuple{Value<X>{}, Value<REFERENCE_X>{},
                        Identity<TARGET_W>{}, Identity<LIMIT_COEFF>{}, Weight{}},
          future::tuple{FunctionalValue<Q>{}},
-         ir, all_domain_attr, derivatives);
+         ir, all_domain_attr, derivatives,
+         future::SecondDerivatives<future::Pairs::Diagonal> {});
    }
 
    template <int metric_id_>
@@ -3580,7 +3585,8 @@ private:
          energy,
          future::tuple{future::Gradient<X>{}, Identity<TARGET_W>{}, Weight{}},
          future::tuple{FunctionalValue<Q>{}},
-         ir, all_domain_attr, derivatives);
+         ir, all_domain_attr, derivatives,
+         future::SecondDerivatives<future::Pairs::Diagonal> {});
 
       if (has_node_limiting)
       {
@@ -3600,7 +3606,8 @@ private:
                           Identity<TARGET_W>{}, Identity<LIMIT_COEFF>{},
                           Weight{}},
             future::tuple{FunctionalValue<Q>{}},
-            ir, all_domain_attr, derivatives);
+            ir, all_domain_attr, derivatives,
+            future::SecondDerivatives<future::Pairs::Diagonal> {});
       }
    }
 
@@ -3623,7 +3630,8 @@ private:
             energy,
             future::tuple{Value<X>{}, Identity<SURFACE_FIT_DATA>{}},
             future::tuple{FunctionalValue<Q>{}},
-            node_ir, all_domain_attr, derivatives);
+            node_ir, all_domain_attr, derivatives,
+            future::SecondDerivatives<future::Pairs::Diagonal> {});
       }
    }
 
@@ -4945,7 +4953,9 @@ int RunOptimizer(ParMesh &pmesh,
    return converged ? 0 : 2;
 }
 
-} // namespace
+} // namespace pmesh_optimizer_enzyme
+
+using namespace pmesh_optimizer_enzyme;
 
 #endif // MFEM_USE_MPI && MFEM_USE_ENZYME
 

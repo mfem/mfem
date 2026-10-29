@@ -83,7 +83,7 @@ using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 template <int DIM, int N>
 using regs2d_t = mfem::future::tensor<real_t, N, N, DIM>;
 
-template <int DIM, int VDIM, int N>
+template <int VDIM, int DIM, int N>
 using regs2d_vd_t = mfem::future::tensor<real_t, N, N, VDIM, DIM>;
 
 template <int N>
@@ -98,7 +98,7 @@ using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
 template <int DIM, int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
 
-template <int DIM, int VDIM, int N>
+template <int VDIM, int DIM, int N>
 using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 
 // on CPU, get next multiple of 4, allowing better alignments
@@ -112,7 +112,7 @@ constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
 #endif // CUDA/HIP && DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory
-template <int MQ1>
+template <int MQ1, bool TRANSPOSE = false>
 inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
                                         const real_t *M, real_t (*sm)[MQ1])
 {
@@ -122,7 +122,14 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            sm[dy][qx] = M[dy * q1d + qx];
+            if constexpr (TRANSPOSE)
+            {
+               sm[dy][qx] = M[qx * d1d + dy];
+            }
+            else
+            {
+               sm[dy][qx] = M[dy * q1d + qx];
+            }
          }
       }
    }

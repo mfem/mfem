@@ -139,7 +139,10 @@ struct FwdDiff
    {
       return &static_call<Is...>;
    }
-   static constexpr auto fn = fn_ptr(std::make_index_sequence<arity> {});
+   static constexpr auto fn()
+   {
+      return fn_ptr(std::make_index_sequence<arity> {});
+   }
 
    // Writable, zero-initialized scratch with the shape of argument I, used
    // as its enzyme shadow.
@@ -197,12 +200,12 @@ struct FwdDiff
    // runtime). The always-inliner runs even at -O0, hoisting this call into
    // operator() where the nested handling applies.
    template <typename PrimalPtrs, typename ShadowPtrs, size_t... Is>
-   __attribute__((always_inline))
+   MFEM_FUTURE_ALWAYS_INLINE
    MFEM_HOST_DEVICE static void call_enzyme(PrimalPtrs &primal_ptrs,
                                             ShadowPtrs &shadow_ptrs,
                                             std::index_sequence<Is...>)
    {
-      __enzyme_fwddiff<void>(fn, enzyme_dup,
+      __enzyme_fwddiff<void>(fn(), enzyme_dup,
                              mfem::future::get<int(Is)>(primal_ptrs)...,
                              enzyme_interleave,
                              mfem::future::get<int(Is)>(shadow_ptrs)...,
