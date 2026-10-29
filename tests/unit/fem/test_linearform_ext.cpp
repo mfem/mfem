@@ -454,6 +454,31 @@ TEST_CASE("Fast Boundary LinearForm Empty Rank", "[Parallel][GPU]")
    REQUIRE(b(x) == MFEM_Approx(4.0));
 }
 
+TEST_CASE("Fast Vector Boundary Flux LinearForm Empty Rank", "[Parallel][GPU]")
+{
+   // Geometry setup must also run on ranks without boundary elements.
+   Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   H1_FECollection fec(1, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec, mesh.Dimension(), ordering);
+
+   ConstantCoefficient one(1.0);
+   ParLinearForm b(&fes);
+   b.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(one, -0.5));
+   b.UseFastAssembly(true);
+   b.Assemble();
+
+   // The flux of u = (x, y) through the unit square is 2.
+   VectorFunctionCoefficient u_coeff(2, [](const Vector &p, Vector &u) { u = p; });
+   ParGridFunction x(&fes);
+   x.ProjectCoefficient(u_coeff);
+   REQUIRE(b(x) == MFEM_Approx(-1.0));
+}
+
 TEST_CASE("Fast VectorFE Boundary LinearForm Empty Rank", "[Parallel][GPU]")
 {
    // All elements are on rank 0, other ranks are empty.
