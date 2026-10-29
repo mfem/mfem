@@ -947,6 +947,115 @@ inline bool EncodeMonoWavelengthRgb(const RealArray2D &intensity,
    return true;
 }
 
+template <class Mesh, class CGF>
+struct FieldsImpl
+{
+   CGF u, du, s, g;
+   Vector dot_v, energy_v, loss_q, phase_v, glob_re, glob_im;
+   Vector E, E_trial, gE, dE, seed;
+
+   explicit FieldsImpl(const Mesh &grid)
+      : u(&grid.Space()),
+        du(&grid.Space()),
+        s(&grid.Space()),
+        g(&grid.Space())
+   {
+      const int nloc = grid.LocalNumSamples();
+      const int n = grid.NumSamples();
+      auto set_size = [](Vector &v, int m)
+      {
+         v.SetSize(m);
+         v.UseDevice(true);
+      };
+      set_size(dot_v, nloc);
+      set_size(energy_v, nloc);
+      set_size(loss_q, nloc);
+      // phase_v holds the full mask image on every rank.
+      set_size(phase_v, n);
+      const int scratch = grid.PhaseScratch();
+      if (scratch > 0)
+      {
+         set_size(glob_re, scratch);
+         set_size(glob_im, scratch);
+      }
+
+      const int nx = grid.SampleNx();
+      const int ny = grid.LocalSampleRows();
+      SetInterleavedSize(E, nx, ny);
+      SetInterleavedSize(E_trial, nx, ny);
+      SetInterleavedSize(gE, nx, ny);
+      SetInterleavedSize(dE, nx, ny);
+      SetInterleavedSize(seed, nx, ny);
+
+      for (Vector *v : {&dot_v, &energy_v, &loss_q, &phase_v})
+      {
+         v->Write();
+      }
+      if (scratch > 0)
+      {
+         glob_re.Write();
+         glob_im.Write();
+      }
+      for (Vector *v : {&E, &E_trial, &gE, &dE, &seed})
+      {
+         v->Write();
+      }
+   }
+};
+
+template <class Mesh, class CGF, class FieldSet>
+struct RasterFieldImpl
+{
+   void operator()(const Mesh &grid,
+                   const Vector &re_s, const Vector &im_s,
+                   RealArray2D &image, FieldSet &data) const
+   {
+      const int n = grid.NumSamples();
+      const Vector *re_v = &re_s;
+      const Vector *im_v = &im_s;
+      if (grid.NeedsPhaseGather())
+      {
+         grid.GatherDofs(re_s, data.glob_re);
+         grid.GatherDofs(im_s, data.glob_im);
+         re_v = &data.glob_re;
+         im_v = &data.glob_im;
+      }
+      const int nx = grid.Nx();
+      const int q1d = grid.Q1D();
+      const real_t *er = re_v->Read();
+      const real_t *ei = im_v->Read();
+      real_t *p = data.phase_v.Write();
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int k = RasterIndex(i, nx, q1d);
+         p[k] = std::atan2(ei[i], er[i]);
+      });
+      image.SetSize(grid.SampleNy(), grid.SampleNx());
+      const real_t *ph = data.phase_v.HostRead();
+      real_t *dst = image(0);
+      for (int i = 0; i < n; ++i) { dst[i] = ph[i]; }
+   }
+
+   static void FromSamples(const Mesh &grid, const Vector &re_s,
+                           const Vector &im_s, Vector &E)
+   {
+      SetInterleavedSize(E, grid.SampleNx(), grid.LocalSampleRows());
+      Pack(grid.Q1D(), grid.LocalNumSamples(), grid.Nx(), re_s, im_s, E);
+   }
+
+   static void ToSamples(const Mesh &grid, const Vector &E,
+                         Vector &re_s, Vector &im_s)
+   {
+      Unpack(grid.Q1D(), grid.LocalNumSamples(), grid.Nx(), E, re_s, im_s);
+   }
+
+   static void ToSamples(const Mesh &grid, const Vector &E, CGF &field)
+   {
+      ToSamples(grid, E, field.real(), field.imag());
+      field.SyncAlias();
+   }
+};
+
 // Shared phase mask. Mesh ownership and the Fresnel exchange stay in the
 // miniapp files.
 template <class Mesh, class GF, class CGF, class FieldSet>

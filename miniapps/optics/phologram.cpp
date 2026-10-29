@@ -240,6 +240,8 @@ public:
    }
    int FirstSampleRow() const { return y0 * q1d; }
    int LocalSampleRows() const { return (y1 - y0) * q1d; }
+   int PhaseScratch() const { return NumSamples(); }
+   bool NeedsPhaseGather() const { return Mpi::WorldSize() != 1; }
 
    // Sample counts and offsets of all ranks
    const Array<int> &SampleCounts() const { return counts; }
@@ -277,104 +279,6 @@ public:
          global.HostRead() + static_cast<long long>(elem0) * q1d * q1d;
       real_t *l = local.HostWrite();
       for (int i = 0; i < nlocal; ++i) { l[i] = g[i]; }
-   }
-};
-
-// ----------------------------------------------------------------------------
-struct Fields
-{
-   ParComplexGridFunction u, du, s, g;
-   Vector dot_v, energy_v, loss_q, phase_v;
-   Vector glob_re, glob_im;
-   Vector E, E_trial, gE, dE, seed;
-
-   explicit Fields(const PixelMesh &grid)
-      : u(&grid.Space()),
-        du(&grid.Space()),
-        s(&grid.Space()),
-        g(&grid.Space())
-   {
-      const int nloc = grid.LocalNumSamples();
-      const int n = grid.NumSamples();
-      auto set_size = [](Vector &v, int m)
-      {
-         v.SetSize(m);
-         v.UseDevice(true);
-      };
-      set_size(dot_v, nloc);
-      set_size(energy_v, nloc);
-      set_size(loss_q, nloc);
-      set_size(phase_v, n);
-      set_size(glob_re, n);
-      set_size(glob_im, n);
-
-      const int nx = grid.SampleNx(), ny = grid.LocalSampleRows();
-      SetInterleavedSize(E, nx, ny);
-      SetInterleavedSize(E_trial, nx, ny);
-      SetInterleavedSize(gE, nx, ny);
-      SetInterleavedSize(dE, nx, ny);
-      SetInterleavedSize(seed, nx, ny);
-
-      for (Vector *v :
-           {
-              &dot_v, &energy_v, &loss_q,
-              &phase_v, &glob_re, &glob_im,
-              &E, &E_trial, &gE, &dE, &seed
-           }) { v->Write(); }
-   }
-};
-
-// ----------------------------------------------------------------------------
-struct RasterField
-{
-   void operator()(const PixelMesh &grid,
-                   const Vector &re_s, const Vector &im_s,
-                   RealArray2D &image, Fields &data)
-   {
-      const int n = grid.NumSamples();
-      const Vector *re_v = &re_s;
-      const Vector *im_v = &im_s;
-      if (Mpi::WorldSize() != 1)
-      {
-         grid.GatherDofs(re_s, data.glob_re);
-         grid.GatherDofs(im_s, data.glob_im);
-         re_v = &data.glob_re;
-         im_v = &data.glob_im;
-      }
-      const int nx = grid.Nx();
-      const int q1d = grid.Q1D();
-      const real_t *er = re_v->Read();
-      const real_t *ei = im_v->Read();
-      real_t *p = data.phase_v.Write();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
-      {
-         const int k = RasterIndex(i, nx, q1d);
-         p[k] = std::atan2(ei[i], er[i]);
-      });
-      image.SetSize(grid.SampleNy(), grid.SampleNx());
-      const real_t *ph = data.phase_v.HostRead();
-      real_t *dst = image(0);
-      for (int i = 0; i < n; ++i) { dst[i] = ph[i]; }
-   }
-
-   static void FromSamples(const PixelMesh &grid, const Vector &re_s,
-                           const Vector &im_s, Vector &E)
-   {
-      SetInterleavedSize(E, grid.SampleNx(), grid.LocalSampleRows());
-      Pack(grid.Q1D(), grid.LocalNumSamples(), grid.Nx(), re_s, im_s, E);
-   }
-
-   static void ToSamples(const PixelMesh &grid, const Vector &E,
-                         Vector &re_s, Vector &im_s)
-   {
-      Unpack(grid.Q1D(), grid.LocalNumSamples(), grid.Nx(), E, re_s, im_s);
-   }
-
-   static void ToSamples(const PixelMesh &grid, const Vector &E,
-                         ParComplexGridFunction &field)
-   {
-      ToSamples(grid, E, field.real(), field.imag());
-      field.SyncAlias();
    }
 };
 
@@ -514,6 +418,10 @@ public:
 };
 
 // ----------------------------------------------------------------------------
+using Fields =
+   FieldsImpl<PixelMesh, ParComplexGridFunction>;
+using RasterField =
+   RasterFieldImpl<PixelMesh, ParComplexGridFunction, Fields>;
 using PhaseMask =
    PhaseMaskImpl<PixelMesh, ParGridFunction, ParComplexGridFunction, Fields>;
 

@@ -84,100 +84,27 @@ public:
    int NumSamples() const { return SampleNx() * SampleNy(); }
 
    int LocalNumSamples() const { return fes->GetVSize(); }
+   int LocalSampleRows() const { return SampleNy(); }
+   int PhaseScratch() const { return 0; }
+   bool NeedsPhaseGather() const { return false; }
 
    FiniteElementSpace &Space() const { return *fes; }
    FiniteElementSpace &ElementSpace() const { return *fes0; }
 
    RowSum &Reducer() const { return rowSum; }
-};
 
-// ----------------------------------------------------------------------------
-struct Fields
-{
-   ComplexGridFunction u, du, s, g;
-   Vector dot_v, energy_v, loss_q, phase_v;
-   Vector E, E_trial, gE, dE, seed;
-
-   explicit Fields(const PixelMesh &grid)
-      : u(&grid.Space()),
-        du(&grid.Space()),
-        s(&grid.Space()),
-        g(&grid.Space())
+   // Aborts: serial PixelMesh has no phase gather.
+   void GatherDofs(const Vector &, Vector &) const
    {
-      const int nloc = grid.LocalNumSamples();
-      const int n = grid.NumSamples();
-      auto set_size = [](Vector &v, int m)
-      {
-         v.SetSize(m);
-         v.UseDevice(true);
-      };
-      set_size(dot_v, n);
-      set_size(energy_v, n);
-      set_size(loss_q, nloc);
-      set_size(phase_v, n);
-
-      const int nx = grid.SampleNx(), ny = grid.SampleNy();
-      SetInterleavedSize(E, nx, ny);
-      SetInterleavedSize(E_trial, nx, ny);
-      SetInterleavedSize(gE, nx, ny);
-      SetInterleavedSize(dE, nx, ny);
-      SetInterleavedSize(seed, nx, ny);
-
-      for (Vector *v :
-           {
-              &dot_v, &energy_v, &loss_q,
-              &phase_v,
-              &E, &E_trial, &gE, &dE, &seed
-           }) { v->Write(); }
+      MFEM_ABORT("serial PixelMesh has no phase gather");
    }
 };
 
 // ----------------------------------------------------------------------------
-struct RasterField
-{
-   void operator()(const PixelMesh &grid,
-                   const Vector &re_s, const Vector &im_s,
-                   RealArray2D &image, Fields &data)
-   {
-      const int n = grid.NumSamples();
-      const int nx = grid.Nx();
-      const int q1d = grid.Q1D();
-      const real_t *er = re_s.Read();
-      const real_t *ei = im_s.Read();
-      real_t *p = data.phase_v.Write();
-      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
-      {
-         const int k = RasterIndex(i, nx, q1d);
-         p[k] = std::atan2(ei[i], er[i]);
-      });
-      image.SetSize(grid.SampleNy(), grid.SampleNx());
-      const real_t *ph = data.phase_v.HostRead();
-      real_t *dst = image(0);
-      for (int i = 0; i < n; ++i) { dst[i] = ph[i]; }
-   }
-
-   static void FromSamples(const PixelMesh &grid, const Vector &re_s,
-                           const Vector &im_s, Vector &E)
-   {
-      SetInterleavedSize(E, grid.SampleNx(), grid.SampleNy());
-      Pack(grid.Q1D(), grid.NumSamples(), grid.Nx(), re_s, im_s, E);
-   }
-
-   static void ToSamples(const PixelMesh &grid, const Vector &E,
-                         Vector &re_s, Vector &im_s)
-   {
-      Unpack(grid.Q1D(), grid.NumSamples(), grid.Nx(), E, re_s, im_s);
-   }
-
-   static void ToSamples(const PixelMesh &grid, const Vector &E,
-                         ComplexGridFunction &field)
-   {
-      ToSamples(grid, E, field.real(), field.imag());
-      field.SyncAlias();
-   }
-};
-
-// ----------------------------------------------------------------------------
+using Fields =
+   FieldsImpl<PixelMesh, ComplexGridFunction>;
+using RasterField =
+   RasterFieldImpl<PixelMesh, ComplexGridFunction, Fields>;
 using PhaseMask =
    PhaseMaskImpl<PixelMesh, GridFunction, ComplexGridFunction, Fields>;
 
