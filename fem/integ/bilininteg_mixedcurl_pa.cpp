@@ -1459,8 +1459,8 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
             trialType == mfem::FiniteElement::DIV && dim == 3)
    {
       internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1Dtrial, quad1D, ne,
-                                            mapsO->B, mapsC->B,
-                                            mapsTrialO->Bt, mapsTrialC->Bt,
+                                            mapsTrialO->B, mapsTrialC->B,
+                                            mapsO->Bt, mapsC->Bt,
                                             mapsC->Gt, pa_data, x, y);
    }
    else

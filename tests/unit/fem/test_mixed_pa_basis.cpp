@@ -46,14 +46,14 @@ real_t maxAbsDifference(const Vector &x, const Vector &y)
    return diff.Normlinf();
 }
 
-struct GradientResult
+struct ActionErrors
 {
    real_t forward_error;
    real_t transpose_error;
 };
 
-GradientResult compareMixedVectorGradient(int trial_basis, int test_basis,
-                                          bool constant)
+ActionErrors compareMixedVectorGradient(int trial_basis, int test_basis,
+                                        bool constant)
 {
    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
                                      true, 1.0, 1.0);
@@ -137,6 +137,49 @@ real_t compareMixedVectorWeakCurl(int trial_basis, int test_basis,
    return maxAbsDifference(y_fa, y_pa);
 }
 
+ActionErrors compareMixedVectorWeakCurlHDiv(int order, int trial_basis,
+                                            int test_basis)
+{
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON,
+                                     1.0, 1.0, 1.0);
+   RT_FECollection trial_fec(order - 1, 3, trial_basis,
+                             BasisType::GaussLegendre);
+   ND_FECollection test_fec(order, 3, test_basis, BasisType::GaussLegendre);
+   FiniteElementSpace trial_fes(&mesh, &trial_fec);
+   FiniteElementSpace test_fes(&mesh, &test_fec);
+
+   ConstantCoefficient coeff(1.0);
+   const IntegrationRule &ir = IntRules.Get(Geometry::CUBE, 2 * order + 4);
+   MixedBilinearForm fa(&trial_fes, &test_fes);
+   MixedBilinearForm pa(&trial_fes, &test_fes);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   auto *fa_integ = new MixedVectorWeakCurlIntegrator(coeff);
+   auto *pa_integ = new MixedVectorWeakCurlIntegrator(coeff);
+   fa_integ->SetIntRule(&ir);
+   pa_integ->SetIntRule(&ir);
+   fa.AddDomainIntegrator(fa_integ);
+   pa.AddDomainIntegrator(pa_integ);
+   fa.Assemble();
+   pa.Assemble();
+
+   GridFunction x(&trial_fes);
+   x.Randomize(1234);
+   Vector y_fa(test_fes.GetVSize());
+   Vector y_pa(test_fes.GetVSize());
+   fa.Mult(x, y_fa);
+   pa.Mult(x, y_pa);
+
+   GridFunction z(&test_fes);
+   z.Randomize(5678);
+   Vector xt_fa(trial_fes.GetVSize());
+   Vector xt_pa(trial_fes.GetVSize());
+   fa.MultTranspose(z, xt_fa);
+   pa.MultTranspose(z, xt_pa);
+
+   return {maxAbsDifference(y_fa, y_pa), maxAbsDifference(xt_fa, xt_pa)};
+}
+
 TEST_CASE("MixedVectorGradient PA preserves trial closed basis",
           "[MixedVectorGradientIntegrator][PartialAssembly]")
 {
@@ -147,7 +190,7 @@ TEST_CASE("MixedVectorGradient PA preserves trial closed basis",
    const bool constant = GENERATE(false, true);
    CAPTURE(trial_basis, test_basis, constant);
 
-   const GradientResult error =
+   const ActionErrors error =
       compareMixedVectorGradient(trial_basis, test_basis, constant);
    CHECK(error.forward_error <= 1e-11);
    CHECK(error.transpose_error <= 1e-11);
@@ -165,6 +208,22 @@ TEST_CASE("MixedVectorWeakCurl PA preserves trial closed basis",
 
    CHECK(compareMixedVectorWeakCurl(trial_basis, test_basis, constant)
          <= 1e-11);
+}
+
+TEST_CASE("MixedVectorWeakCurl PA preserves Hdiv trial basis",
+          "[MixedVectorWeakCurlIntegrator][PartialAssembly]")
+{
+   const int order = GENERATE(2, 3);
+   const int trial_basis = GENERATE(BasisType::GaussLobatto,
+                                    BasisType::ClosedUniform);
+   const int test_basis = GENERATE(BasisType::GaussLobatto,
+                                   BasisType::ClosedUniform);
+   CAPTURE(order, trial_basis, test_basis);
+
+   const ActionErrors error =
+      compareMixedVectorWeakCurlHDiv(order, trial_basis, test_basis);
+   CHECK(error.forward_error <= 1e-11);
+   CHECK(error.transpose_error <= 1e-11);
 }
 
 } // namespace mixed_pa_basis
