@@ -1694,6 +1694,10 @@ public:
    GridFunction &operator=(const Vector &v);
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
+   /** First update the associated FiniteElementSpace after each mesh operation.
+       Update all GridFunctions sharing that space before the next mesh/space
+       update and before FiniteElementSpace::UpdatesFinished() frees the transfer
+       operator. This method does not update a stale FiniteElementSpace itself. */
    virtual void Update();
 
    /** Return update counter, similar to Mesh::GetSequence(). Used to
