@@ -90,17 +90,27 @@ void MFEMFinalizePetsc();
 class PetscMemory : public Memory<real_t>
 {
 private:
+   /// TODO: can base be removed?
    Memory<real_t> *base;
    bool read;
    bool write;
    bool usedev;
 public:
    PetscMemory()                      { Reset(); base = nullptr; }
-   void SetHostValid() const          { flags |= VALID_HOST; }
-   void SetDeviceValid() const        { flags |= VALID_DEVICE; }
-   void SetHostInvalid() const        { flags &= ~VALID_HOST; }
-   void SetDeviceInvalid() const      { flags &= ~VALID_DEVICE; }
-   inline bool IsAliasForSync() const { return base && (flags & ALIAS); }
+   void SetHostValid() const          { SetHostValidity(0, size_, true); }
+   void SetDeviceValid() const        { SetDeviceValidity(0, size_, true); }
+   void SetHostInvalid() const        { SetHostValidity(0, size_, false); }
+   void SetDeviceInvalid() const      { SetDeviceValidity(0, size_, false); }
+   inline bool IsAliasForSync() const
+   {
+      if (base)
+      {
+         // can't distinguish base from alias anymore, closest approximation is
+         // there are two references
+         return SegmentRefCount() > 1;
+      }
+      return false;
+   }
 
    inline void MakeAliasForSync(const Memory<real_t> &base_, int offset_,
                                 int size_, bool usedev_)

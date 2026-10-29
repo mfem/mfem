@@ -283,6 +283,12 @@ private:
 
    void SetDeviceMemoryType(size_t segment, MemoryType loc);
 
+   void SetHostValidity(size_t segment, size_t offset, size_t nbytes,
+                        bool valid);
+
+   void SetDeviceValidity(size_t segment, size_t offset, size_t nbytes,
+                          bool valid);
+
    void SetValidity(size_t segment, size_t offset, size_t nbytes,
                     bool host_valid, bool device_valid);
 
@@ -515,6 +521,63 @@ protected:
    void EnsureRegistered() const;
 
    void New_(size_t size, MemoryType hloc, MemoryType dloc, bool valid_host);
+
+   size_t SegmentRefCount() const
+   {
+      if (segment)
+      {
+         auto &inst = MemoryManager::Instance();
+         auto &seg = inst.storage.GetSegment(segment);
+         return seg.ref_count;
+      }
+      return 0;
+   }
+
+   /// Only changes validity if registered
+   void SetHostValidity(int offset, int count, bool valid)
+   {
+      if (segment)
+      {
+         MFEM_ASSERT(count >= 0, "negative count");
+         MFEM_ASSERT(offset >= 0 &&
+                     static_cast<size_t>(offset + count) <= size_,
+                     "out of bounds");
+         auto &inst = MemoryManager::Instance();
+         inst.SetHostValidity(segment, (offset_ + offset) * sizeof(T),
+                              count * sizeof(T), valid);
+      }
+   }
+
+   /// Only changes validity if registered
+   void SetDeviceValidity(int offset, int count, bool valid)
+   {
+      if (segment)
+      {
+         MFEM_ASSERT(count >= 0, "negative count");
+         MFEM_ASSERT(offset >= 0 &&
+                     static_cast<size_t>(offset + count) <= size_,
+                     "out of bounds");
+         auto &inst = MemoryManager::Instance();
+         inst.SetHostValidity(segment, (offset_ + offset) * sizeof(T),
+                              count * sizeof(T), valid);
+      }
+   }
+
+   /// Only changes validity if registered
+   void SetValidity(int offset, int count, bool host_valid,
+                    bool device_valid)
+   {
+      if (segment)
+      {
+         MFEM_ASSERT(count >= 0, "negative count");
+         MFEM_ASSERT(offset >= 0 &&
+                     static_cast<size_t>(offset + count) <= size_,
+                     "out of bounds");
+         auto &inst = MemoryManager::Instance();
+         inst.SetValidity(segment, (offset_ + offset) * sizeof(T),
+                          count * sizeof(T), host_valid, device_valid);
+      }
+   }
 
 public:
    Memory() { MemoryManager::Instance(); };

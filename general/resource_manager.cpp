@@ -2394,11 +2394,11 @@ void MemoryManager::SetDeviceMemoryType(size_t segment, MemoryType loc)
    }
 }
 
-void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
-                                bool host_valid, bool device_valid)
+void MemoryManager::SetHostValidity(size_t segment, size_t offset,
+                                    size_t nbytes, bool valid)
 {
    auto &seg = storage.GetSegment(segment);
-   if (host_valid)
+   if (valid)
    {
       MarkValid(segment, false, offset, offset + nbytes, [](auto, auto) {});
       Unprotect(seg.lowers[0], seg.mtypes[0], offset, nbytes);
@@ -2408,8 +2408,13 @@ void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
       MarkInvalid(segment, false, offset, offset + nbytes, [](auto, auto) {});
       Protect(seg.lowers[0], seg.mtypes[0], offset, nbytes);
    }
+}
 
-   if (device_valid)
+void MemoryManager::SetDeviceValidity(size_t segment, size_t offset,
+                                      size_t nbytes, bool valid)
+{
+   auto &seg = storage.GetSegment(segment);
+   if (valid)
    {
       MarkValid(segment, true, offset, offset + nbytes, [](auto, auto) {});
       Unprotect(seg.lowers[1], seg.mtypes[1], offset, nbytes);
@@ -2419,6 +2424,13 @@ void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
       MarkInvalid(segment, true, offset, offset + nbytes, [](auto, auto) {});
       Protect(seg.lowers[1], seg.mtypes[1], offset, nbytes);
    }
+}
+
+void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
+                                bool host_valid, bool device_valid)
+{
+   SetHostValidity(segment, offset, nbytes, host_valid);
+   SetDeviceValidity(segment, offset, nbytes, host_valid);
 }
 
 #ifdef MFEM_USE_UMPIRE
