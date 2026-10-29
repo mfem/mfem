@@ -46,13 +46,13 @@ public:
 class C0InteriorPenaltyIntegrator : public BilinearFormIntegrator
 {
 private:
-   const double eta;
+   const mfem::real_t eta;
 
    mutable Vector normal[2], dnshape[2], nv[2], nd2nshape[2];
    mutable DenseMatrix dshape[2], hessian[2], blockJ[2][2], blockC[2][2], elmatJ_p,
            elmatC_p;
 public:
-   C0InteriorPenaltyIntegrator(double eta_) : eta(eta_) {};
+   C0InteriorPenaltyIntegrator(mfem::real_t eta_) : eta(eta_) {};
 
    void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
                            FaceElementTransformations &Trans, DenseMatrix &elmat) override;
@@ -234,7 +234,7 @@ void C0InteriorPenaltyIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
    }
 
    // Compute edge length
-   double h_e  = 0.0;
+   mfem::real_t h_e  = 0.0;
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
