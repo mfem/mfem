@@ -1825,7 +1825,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
       }
       else
       {
-          fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
+         fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
       }
    }
 }

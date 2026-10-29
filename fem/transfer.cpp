@@ -2166,7 +2166,8 @@ bool L2ProjectionGridTransfer::SupportsEA() const
 
    if (nel_ho > 0)
    {
-      supported = nel_lor > 0;
+      supported = nel_lor > 0 && UsesTensorBasis(dom_fes) &&
+                  UsesTensorBasis(ran_fes);
       const Geometry::Type geom_ho = mesh_ho.GetElementBaseGeometry(0);
       const int ndof_ho = dom_fes.GetFE(0)->GetDof();
       for (int iho = 1; supported && iho < nel_ho; ++iho)
@@ -2264,8 +2265,8 @@ void L2ProjectionGridTransfer::BuildF()
       if (print_warning)
       {
          MFEM_WARNING("L2ProjectionGridTransfer element assembly does not "
-                      "support this coarse/fine element layout; using standard "
-                      "assembly.");
+                      "support this coarse/fine element layout or basis; "
+                      "using standard assembly.");
       }
    }
 

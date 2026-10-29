@@ -809,6 +809,35 @@ TEST_CASE("Uniform pyramid refinement transfer", "[Transfer][Pyramid]")
    REQUIRE(coarse_x.Normlinf() == Approx(0.0).margin(1e-12));
 }
 
+TEST_CASE("Uniform refinement with legacy RT0 collection", "[Transfer]")
+{
+   const bool simplex = GENERATE(false, true);
+   CAPTURE(simplex);
+
+   const Element::Type element_type = simplex ? Element::TRIANGLE :
+                                      Element::QUADRILATERAL;
+   Mesh mesh = Mesh::MakeCartesian2D(
+                  2, 2, element_type, true, 1.0, 1.0);
+   RT0_2DFECollection fec;
+   FiniteElementSpace fes(&mesh, &fec);
+
+   Vector constant(2);
+   constant[0] = 1.0;
+   constant[1] = -2.0;
+   VectorConstantCoefficient coefficient(constant);
+   GridFunction x(&fes);
+   x.ProjectCoefficient(coefficient);
+
+   mesh.UniformRefinement();
+   fes.Update();
+   x.Update();
+
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(coefficient);
+   x -= exact;
+   REQUIRE(x.Normlinf() == Approx(0.0).margin(1e-12));
+}
+
 TEST_CASE("L2 projection transfer with mixed pyramid children",
           "[Transfer][Pyramid]")
 {
@@ -870,6 +899,54 @@ TEST_CASE("L2 projection transfer with mixed pyramid children",
            Approx(InnerProduct(fine_exact, fine_transpose)).epsilon(1e-11));
    coarse_recovered -= coarse_exact;
    REQUIRE(coarse_recovered.Normlinf() == Approx(0.0).margin(1e-11));
+}
+
+TEST_CASE("L2 projection EA falls back for triangle bases", "[Transfer]")
+{
+   dimension = 2;
+   coeff_order = 1;
+   const bool continuous = GENERATE(false, true);
+   CAPTURE(continuous);
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (continuous)
+   {
+      fec.reset(new H1_FECollection(2, dimension));
+   }
+   else
+   {
+      fec.reset(new L2_FECollection(2, dimension));
+   }
+
+   Mesh coarse_mesh = Mesh::MakeCartesian2D(
+                         1, 1, Element::TRIANGLE, true, 1.0, 1.0);
+   Mesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   FiniteElementSpace coarse_fes(&coarse_mesh, fec.get());
+   FiniteElementSpace fine_fes(&fine_mesh, fec.get());
+   REQUIRE_FALSE(UsesTensorBasis(coarse_fes));
+   REQUIRE_FALSE(UsesTensorBasis(fine_fes));
+
+   FunctionCoefficient func_coeff(&coeff);
+   GridFunction coarse_x(&coarse_fes);
+   GridFunction fine_ref(&fine_fes);
+   GridFunction fine_ea(&fine_fes);
+   GridFunction coarse_ref(&coarse_fes);
+   GridFunction coarse_ea(&coarse_fes);
+   coarse_x.ProjectCoefficient(func_coeff);
+
+   L2ProjectionGridTransfer standard_transfer(coarse_fes, fine_fes);
+   L2ProjectionGridTransfer ea_transfer(coarse_fes, fine_fes);
+   ea_transfer.UseEA(true);
+   standard_transfer.ForwardOperator().Mult(coarse_x, fine_ref);
+   ea_transfer.ForwardOperator().Mult(coarse_x, fine_ea);
+   standard_transfer.BackwardOperator().Mult(fine_ref, coarse_ref);
+   ea_transfer.BackwardOperator().Mult(fine_ref, coarse_ea);
+
+   fine_ea -= fine_ref;
+   coarse_ea -= coarse_ref;
+   REQUIRE(fine_ea.Normlinf() == Approx(0.0).margin(1e-12));
+   REQUIRE(coarse_ea.Normlinf() == Approx(0.0).margin(1e-12));
 }
 
 TEST_CASE("Uniform refinement uses active parent geometries", "[Transfer]")
