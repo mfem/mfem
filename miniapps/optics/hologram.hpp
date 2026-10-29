@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -28,6 +29,88 @@ using RealArray2D = mfem::Array2D<mfem::real_t>;
 
 namespace holo
 {
+
+struct HologramConfig
+{
+   const char *in_file = MFEM_SOURCE_DIR "/doc/logo-small.png";
+   const char *holo_file = "hologram.png";
+   const char *mask_file = "mask.png";
+   const char *device_config = "cpu";
+   real_t wavelength_nm = 532.0;
+   real_t z_prop = 0.80;
+   real_t focal = 0.80;
+   int nwt_max_iter = 50;
+   int cgs_max_iter = 20;
+   int order = 0;
+   real_t stall_pct = 1.0;
+   real_t gemMaxGib = 16.0;
+   bool checkLoss = false;
+#if defined(HOLO_USE_CPU_FFT)
+   bool use_fft = true;
+#else
+   bool use_fft = false;
+#endif
+   bool chose_propagator = false;
+
+   void AddTo(mfem::OptionsParser &args);
+   void NotePropagator(int argc, char *argv[]);
+};
+
+inline void HologramConfig::AddTo(mfem::OptionsParser &args)
+{
+   args.AddOption(&in_file, "-i", "--input", "Target PNG.");
+   args.AddOption(&holo_file, "-o", "--output", "Hologram sRGB PNG.");
+   args.AddOption(&mask_file, "-m", "--mask", "Phase-mask PNG.");
+   args.AddOption(&wavelength_nm, "-w", "--wavelength",
+                  "Wavelength in nanometres (default 532).");
+   args.AddOption(&nwt_max_iter, "-mi", "--max-iterations",
+                  "Maximum Newton iterations (default 50).");
+   args.AddOption(&cgs_max_iter, "-cg", "--cg-iterations",
+                  "Maximum CG iterations per Newton step (default 20).");
+   args.AddOption(&order, "-p", "--order",
+                  "Pixel block degree. One block covers (order+1)^2 pixels "
+                  "(default 0).");
+   args.AddOption(&z_prop, "-z", "--z",
+                  "Propagation distance in metres (default 0.80).");
+   args.AddOption(&focal, "-f", "--focal",
+                  "Lens focal length in metres (default 0.80).");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
+   args.AddOption(&use_fft, "-fft", "--fft", "-gem", "--gem",
+                  "Toeplitz FFT or the dense product (-gem). The default is "
+                  "-fft when the library for the device is linked (FFTW on "
+                  "cpu, cuFFT or hipFFT on CUDA or HIP).");
+   args.AddOption(&stall_pct, "-stall", "--loss-stall",
+                  "Newton stall relative loss drop in percent, 0 disables "
+                  "the stall stop (default 1).");
+   args.AddOption(&gemMaxGib, "-gmem", "--gem-max-gib",
+                  "Largest memory in GiB for the dense -gem Fresnel matrices "
+                  "and the work image (default 16).");
+   args.AddOption(&checkLoss, "-check", "--check", "-no-check", "--no-check",
+                  "Exit with an error unless a Newton step was accepted and "
+                  "the final loss is below the first loss (default off).");
+}
+
+inline void HologramConfig::NotePropagator(int argc, char *argv[])
+{
+   for (int i = 1; i < argc; ++i)
+   {
+      const char *arg = argv[i];
+      if (std::strcmp(arg, "-fft") == 0 || std::strcmp(arg, "--fft") == 0 ||
+          std::strcmp(arg, "-gem") == 0 || std::strcmp(arg, "--gem") == 0)
+      {
+         chose_propagator = true;
+      }
+   }
+}
+
+inline void MaskExtent(int width, int height,
+                       real_t &extent_x, real_t &extent_y)
+{
+   extent_x = 19.0e-3;
+   extent_y = extent_x * (static_cast<real_t>(height) /
+                          static_cast<real_t>(width));
+}
 
 inline std::string OptionsError(real_t wavelengthNm, real_t zProp,
                                 real_t focal, real_t stallPct, int order,

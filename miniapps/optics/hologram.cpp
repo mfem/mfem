@@ -26,7 +26,6 @@ using namespace mfem;
 
 #include <algorithm>
 #include <cstdlib>
-#include <cstring>
 
 namespace holo
 {
@@ -369,68 +368,10 @@ public:
 // ----------------------------------------------------------------------------
 int main(int argc, char *argv[]) try
 {
-   const char *in_file = MFEM_SOURCE_DIR "/doc/logo-small.png";
-   const char *holo_file = "hologram.png";
-   const char *mask_file = "mask.png";
-   const char *device_config = "cpu";
-   real_t wavelength_nm = 532.0;
-   real_t z_prop = 0.80;
-   real_t focal = 0.80;
-   int nwt_max_iter = 50;
-   int cgs_max_iter = 20;
-   int order = 0;
-   real_t stall_pct = 1.0;
-   real_t gemMaxGib = 16.0;
-   bool checkLoss = false;
-#if defined(HOLO_USE_CPU_FFT)
-   bool use_fft = true;
-#else
-   bool use_fft = false;
-#endif
-
+   holo::HologramConfig cfg;
    OptionsParser args(argc, argv);
-   args.AddOption(&in_file, "-i", "--input", "Target PNG.");
-   args.AddOption(&holo_file, "-o", "--output", "Hologram sRGB PNG.");
-   args.AddOption(&mask_file, "-m", "--mask", "Phase-mask PNG.");
-   args.AddOption(&wavelength_nm, "-w", "--wavelength",
-                  "Wavelength in nanometres (default 532).");
-   args.AddOption(&nwt_max_iter, "-mi", "--max-iterations",
-                  "Maximum Newton iterations (default 50).");
-   args.AddOption(&cgs_max_iter, "-cg", "--cg-iterations",
-                  "Maximum CG iterations per Newton step (default 20).");
-   args.AddOption(&order, "-p", "--order",
-                  "Pixel block degree. One block covers (order+1)^2 pixels "
-                  "(default 0).");
-   args.AddOption(&z_prop, "-z", "--z",
-                  "Propagation distance in metres (default 0.80).");
-   args.AddOption(&focal, "-f", "--focal",
-                  "Lens focal length in metres (default 0.80).");
-   args.AddOption(&device_config, "-d", "--device",
-                  "Device configuration string, see Device::Configure().");
-   args.AddOption(&use_fft, "-fft", "--fft", "-gem", "--gem",
-                  "Toeplitz FFT or the dense product (-gem). The default is "
-                  "-fft when the library for the device is linked (FFTW on "
-                  "cpu, cuFFT or hipFFT on CUDA or HIP).");
-   args.AddOption(&stall_pct, "-stall", "--loss-stall",
-                  "Newton stall relative loss drop in percent, 0 disables "
-                  "the stall stop (default 1).");
-   args.AddOption(&gemMaxGib, "-gmem", "--gem-max-gib",
-                  "Largest memory in GiB for the dense -gem Fresnel matrices "
-                  "and the work image (default 16).");
-   args.AddOption(&checkLoss, "-check", "--check", "-no-check", "--no-check",
-                  "Exit with an error unless a Newton step was accepted and "
-                  "the final loss is below the first loss (default off).");
-
-   bool chose_propagator = false;
-   for (int i = 1; i < argc; ++i)
-   {
-      const char *arg = argv[i];
-      if (std::strcmp(arg, "-fft") == 0 || std::strcmp(arg, "--fft") == 0 ||
-          std::strcmp(arg, "-gem") == 0 || std::strcmp(arg, "--gem") == 0)
-      {
-         chose_propagator = true;
-      }
-   }
+   cfg.AddTo(args);
+   cfg.NotePropagator(argc, argv);
    args.Parse();
    if (!args.Good())
    {
@@ -439,24 +380,25 @@ int main(int argc, char *argv[]) try
    }
 
    const std::string optionsError =
-      holo::OptionsError(wavelength_nm, z_prop, focal, stall_pct, order,
-                         nwt_max_iter, cgs_max_iter, gemMaxGib);
+      holo::OptionsError(cfg.wavelength_nm, cfg.z_prop, cfg.focal,
+                         cfg.stall_pct, cfg.order, cfg.nwt_max_iter,
+                         cfg.cgs_max_iter, cfg.gemMaxGib);
    if (!optionsError.empty())
    {
       mfem::err << optionsError << "\n";
       return EXIT_FAILURE;
    }
 
-   const real_t wavelength = wavelength_nm * 1e-9;
+   const real_t wavelength = cfg.wavelength_nm * 1e-9;
 
    // Configure the device, then pick the default propagator for that device.
-   Device device(device_config);
-   if (!chose_propagator) { use_fft = holo::FftLinkedForDevice(); }
+   Device device(cfg.device_config);
+   if (!cfg.chose_propagator) { cfg.use_fft = holo::FftLinkedForDevice(); }
    args.PrintOptions(out);
    device.Print();
 
    // Load the target image
-   const auto gray = holo::LoadPngGray(in_file);
+   const auto gray = holo::LoadPngGray(cfg.in_file);
    if (gray.width < 1 || gray.height < 1)
    {
       throw std::runtime_error("Empty target PNG");
@@ -464,25 +406,24 @@ int main(int argc, char *argv[]) try
 
    const int img_w = gray.width, img_h = gray.height;
    out << "Loaded " << img_w << "x" << img_h
-       << " from " << in_file << "\n";
+       << " from " << cfg.in_file << "\n";
 
    // Compute mask's extent
-   const real_t extent_x = 19.0e-3;
-   const real_t extent_y =
-      extent_x * (static_cast<real_t>(img_h) /
-                  static_cast<real_t>(img_w));
+   real_t extent_x, extent_y;
+   holo::MaskExtent(img_w, img_h, extent_x, extent_y);
 
    // Check the image size against the order and the propagator, the optics
    // terms and the -gem memory
-   std::string imageError = holo::ImageError(img_w, img_h, order, use_fft);
+   std::string imageError = holo::ImageError(img_w, img_h, cfg.order,
+                                              cfg.use_fft);
    if (imageError.empty())
    {
-      imageError = holo::OpticsError(wavelength_nm, z_prop, focal, extent_x,
-                                     extent_y, img_w, img_h);
+      imageError = holo::OpticsError(cfg.wavelength_nm, cfg.z_prop, cfg.focal,
+                                     extent_x, extent_y, img_w, img_h);
    }
-   if (imageError.empty() && !use_fft)
+   if (imageError.empty() && !cfg.use_fft)
    {
-      imageError = holo::GemMemoryError(img_w, img_h, gemMaxGib);
+      imageError = holo::GemMemoryError(img_w, img_h, cfg.gemMaxGib);
    }
    if (!imageError.empty())
    {
@@ -494,11 +435,12 @@ int main(int argc, char *argv[]) try
    auto amplitude = holo::GrayToReal2D(gray);
 
    // Create the solver
-   holo::PhaseRetrieval solver(std::move(amplitude), order, wavelength,
-                               extent_x, extent_y, z_prop, focal, use_fft);
+   holo::PhaseRetrieval solver(std::move(amplitude), cfg.order, wavelength,
+                               extent_x, extent_y, cfg.z_prop, cfg.focal,
+                               cfg.use_fft);
 
    // Solve the phase retrieval problem
-   solver.Solve(nwt_max_iter, stall_pct * 0.01, 1.0, cgs_max_iter);
+   solver.Solve(cfg.nwt_max_iter, cfg.stall_pct * 0.01, 1.0, cfg.cgs_max_iter);
 
    // Get the phase mask
    const RealArray2D &phase = solver.MaskImage();
@@ -509,12 +451,12 @@ int main(int argc, char *argv[]) try
    }
 
    // Write the mask to a PNG file
-   if (!holo::WritePhasePng(mask_file, phase))
+   if (!holo::WritePhasePng(cfg.mask_file, phase))
    {
-      throw std::runtime_error(std::string("Failed to write ") + mask_file);
+      throw std::runtime_error(std::string("Failed to write ") + cfg.mask_file);
    }
    mfem::out << "Wrote mask " << phase.NumCols() << "x"
-             << phase.NumRows() << " " << mask_file << "\n";
+             << phase.NumRows() << " " << cfg.mask_file << "\n";
 
    const auto propagator = &solver.Propagator();
    const int nx = phase.NumCols(), ny = phase.NumRows(), n = nx * ny;
@@ -535,7 +477,7 @@ int main(int argc, char *argv[]) try
       p[2 * idx + 1] = std::sin(ph[idx]);
    });
    holo::Lens lens;
-   lens(nx, ny, extent_x, extent_y, wavelength, focal);
+   lens(nx, ny, extent_x, extent_y, wavelength, cfg.focal);
    lens.Apply(field);
 
    // Propagate the field
@@ -557,15 +499,16 @@ int main(int argc, char *argv[]) try
    // Write the hologram to the output PNG file
    std::vector<unsigned char> rgb;
    int w = 0, h = 0;
-   if (!holo::EncodeMonoWavelengthRgb(intensity, wavelength_nm, rgb, w, h) ||
-       !holo::WritePngRgb(holo_file, w, h, rgb))
+   if (!holo::EncodeMonoWavelengthRgb(intensity, cfg.wavelength_nm,
+                                      rgb, w, h) ||
+       !holo::WritePngRgb(cfg.holo_file, w, h, rgb))
    {
-      throw std::runtime_error(std::string("Failed to write ") + holo_file);
+      throw std::runtime_error(std::string("Failed to write ") + cfg.holo_file);
    }
-   mfem::out << "Wrote " << w << "x" << h << " " << holo_file << "\n";
+   mfem::out << "Wrote " << w << "x" << h << " " << cfg.holo_file << "\n";
 
    // Check the loss decrease
-   if (checkLoss)
+   if (cfg.checkLoss)
    {
       const std::string checkError =
          holo::LossCheckError(solver.AcceptedSteps(), solver.FirstLoss(),
