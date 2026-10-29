@@ -86,11 +86,6 @@ void BatchedLOR_RT::Assemble2D()
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
-                  // const real_t mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
-                  // const real_t dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
-                  const real_t mq = 1.0;
-                  const real_t dq = 1.0;
-
                   // Loop over x,y components. c=0 => x, c=1 => y
                   for (int cj=0; cj<dim; ++cj)
                   {
@@ -121,8 +116,7 @@ void BatchedLOR_RT::Assemble2D()
                               val += byi*bxj*Q(1,iqy,iqx);
                               val += bxi*byj*Q(1,iqy,iqx);
                               val += byi*byj*Q(2,iqy,iqx);
-                              val *= mq;
-                              val += dq*div_j*div_i*Q(3,iqy,iqx);
+                              val += div_j*div_i*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
