@@ -548,11 +548,11 @@ void AdamsBashforthSolver::Init(TimeDependentOperator &f_)
 void AdamsBashforthSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    CheckTimestep(dt);
+   f->SetTime(t);
+   f->Mult(x, state[0]);
 
    if (state.Size() >= stages -1)
    {
-      f->SetTime(t);
-      f->Mult(x, state[0]);
       state.Increment();
       for (int i = 0; i < stages; i++)
       {
@@ -562,7 +562,6 @@ void AdamsBashforthSolver::Step(Vector &x, real_t &t, real_t &dt)
    }
    else
    {
-      f->Mult(x,state[0]);
       RKsolver->Step(x,t,dt);
       state.Increment();
    }
@@ -640,13 +639,14 @@ void AdamsMoultonSolver::Step(Vector &x, real_t &t, real_t &dt)
 
    if ((state.Size() == 0)&&(stages>1))
    {
+      f->SetTime(t);
       f->Mult(x,state[0]);
       state.Increment();
    }
 
    if (state.Size() >= stages )
    {
-      f->SetTime(t);
+      f->SetTime(t + dt);
       for (int i = 0; i < stages; i++)
       {
          x.Add(a[i+1]*dt, state[i]);
@@ -664,6 +664,7 @@ void AdamsMoultonSolver::Step(Vector &x, real_t &t, real_t &dt)
    {
       state.ShiftStages();
       RKsolver->Step(x,t,dt);
+      f->SetTime(t);
       f->Mult(x,state[0]);
       state.Increment();
    }
@@ -1041,6 +1042,7 @@ void GeneralizedAlphaSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    if (state.Size() == 0)
    {
+      f->SetTime(t);
       f->Mult(x,state[0]);
       state.Increment();
    }
