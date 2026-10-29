@@ -2317,6 +2317,8 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
          MFEM_MEM_OP_DEBUG_ADD(0, dseg.lowers[1], dseg.lowers[1] + dseg.nbytes,
                                "alloc " << (int)dseg.mtypes[1]);
       }
+      // BatchMemCopy applies the same offsets to source and destination, offset
+      // src so it's canceled out and has no offset applied.
       BatchMemCopy(dseg.lowers[1], src - offset, dseg.mtypes[1],
                    MemoryType::HOST, copy_segs);
    }
@@ -2346,6 +2348,8 @@ void MemoryManager::CopyFromHost(size_t segment, size_t offset, const char *src,
                                   dseg.lowers[i] + dseg.nbytes,
                                   "alloc " << (int)dseg.mtypes[i]);
          }
+         // BatchMemCopy applies the same offsets to source and destination, offset
+         // src so it's canceled out and has no offset applied.
          BatchMemCopy(dseg.lowers[i], src - offset, dseg.mtypes[i],
                       MemoryType::HOST, copy_segs);
       }
