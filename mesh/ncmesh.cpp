@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2060,7 +2060,7 @@ void NCMesh::DerefineElement(int elem)
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
    {
-      // Sets corner nodes from childs
+      // Sets corner nodes from children
       constexpr int nb_cube_childs = 8;
       for (int i = 0; i < nb_cube_childs; i++)
       {
@@ -4347,10 +4347,7 @@ void NCMesh::FindNeighbors(int elem, Array<int> &neighbors,
       {
          int *v = element_vertex.GetRow(el.index);
          int nv = element_vertex.RowSize(el.index);
-         for (int i = 0; i < nv; i++)
-         {
-            vert.Append(v[i]);
-         }
+         vert.Append(v, nv);
 
          nv = GI[el.Geom()].nv;
          for (int i = 0; i < nv; i++)
@@ -5824,7 +5821,7 @@ std::array<int, 4> NCMesh::FindFaceNodes(const Face &fa) const
    return node;
 }
 
-void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                 Array<int> &bdr_vertices, Array<int> &bdr_edges,
                                 Array<int> &bdr_faces)
 {
@@ -5837,7 +5834,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       GetFaceList(); // make sure 'boundary_faces' is up to date
       for (int f : boundary_faces)
       {
-         if (bdr_attr_is_ess[faces[f].attribute - 1])
+         if (bdr_attr_marked[faces[f].attribute - 1])
          {
             auto node = FindFaceNodes(f);
             int nfv = (node[3] < 0) ? 3 : 4;
@@ -5879,31 +5876,27 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
       for (int f : boundary_faces)
       {
          Face &face = faces[f];
-         if (bdr_attr_is_ess[face.attribute - 1])
+         if (bdr_attr_marked[face.attribute - 1])
          {
             bdr_vertices.Append(nodes[face.p1].vert_index);
             bdr_vertices.Append(nodes[face.p3].vert_index);
-         }
 
-         const auto id_and_type = GetEdgeList().GetMeshIdAndType(face.index);
-         if (id_and_type.type == NCList::MeshIdType::SLAVE)
-         {
-            // A slave face must mark its masters
-            const auto &slave_edge_id = static_cast<const Slave&>(*id_and_type.id);
-            bdr_edges.Append(slave_edge_id.master);
+            // The face and edge indices are the same in 2D only for non-ghost
+            // faces, so look up the edge of the face by its nodes.
+            const int enode = nodes.FindId(face.p1, face.p3);
+            MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
+            const auto id_and_type =
+               GetEdgeList().GetMeshIdAndType(nodes[enode].edge_index);
+            if (id_and_type.type == NCList::MeshIdType::SLAVE)
+            {
+               // A slave face must mark its masters
+               const auto &slave_edge_id =
+                  static_cast<const Slave&>(*id_and_type.id);
+               bdr_edges.Append(slave_edge_id.master);
+            }
          }
       }
    }
-
-   // Filter, sort and unique an array, so it contains only local unique values.
-   auto FilterSortUnique = [](Array<int> &v, int N)
-   {
-      // Perform the O(N) filter before the O(NlogN) sort. begin -> it is only
-      // entries < N.
-      auto it = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
-      std::sort(v.begin(), it);
-      v.SetSize(std::distance(v.begin(), std::unique(v.begin(), it)));
-   };
 
    FilterSortUnique(bdr_vertices, NVertices);
    FilterSortUnique(bdr_edges, NEdges);

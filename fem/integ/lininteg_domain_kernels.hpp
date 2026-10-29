@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,11 +22,10 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void DLFEvalAssemble1D(const int vdim, const int ne, const int d,
-                              const int q, const int map_type,
-                              const int *markers, const real_t *b,
-                              const real_t *detj, const real_t *weights,
-                              const Vector &coeff, real_t *y)
+void DLFEvalAssemble1D(const int vdim, const int ne, const int d, const int q,
+                       const int map_type, const int *markers, const real_t *b,
+                       const real_t *detj, const real_t *weights,
+                       const Vector &coeff, real_t *y)
 {
    {
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -76,11 +75,10 @@ static void DLFEvalAssemble1D(const int vdim, const int ne, const int d,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void DLFEvalAssemble2D(const int vdim, const int ne, const int d,
-                              const int q, const int map_type,
-                              const int *markers, const real_t *b,
-                              const real_t *detj, const real_t *weights,
-                              const Vector &coeff, real_t *y)
+void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
+                       const int map_type, const int *markers, const real_t *b,
+                       const real_t *detj, const real_t *weights,
+                       const Vector &coeff, real_t *y)
 {
    {
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -162,11 +160,10 @@ static void DLFEvalAssemble2D(const int vdim, const int ne, const int d,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void DLFEvalAssemble3D(const int vdim, const int ne, const int d,
-                              const int q, const int map_type,
-                              const int* markers, const real_t *b,
-                              const real_t *detj, const real_t *weights,
-                              const Vector &coeff, real_t *y)
+void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
+                       const int map_type, const int *markers, const real_t *b,
+                       const real_t *detj, const real_t *weights,
+                       const Vector &coeff, real_t *y)
 {
    {
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -308,11 +305,10 @@ DomainLFIntegrator::AssembleKernels::Kernel()
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
-                              const Vector &jac, const Array<real_t> &weights,
-                              const Array<real_t> &testBO,
-                              const Array<real_t> &testBC, const Vector &coeff,
-                              Vector &y, const int d, const int q)
+void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
+                       const Vector &jac, const Array<real_t> &weights,
+                       const Array<real_t> &testBO, const Array<real_t> &testBC,
+                       const Vector &coeff, Vector &y, const int d, const int q)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
                "Problem size too large.");
@@ -412,11 +408,11 @@ static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
-                              const Vector &jac, const Array<real_t> &weights,
-                              const Array<real_t> &testBO,
-                              const Array<real_t> &testBC, const Vector &coeff,
-                              Vector &y, const int d, const int q)
+void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
+                       const Vector &jac, const Array<real_t> &weights,
+                       const Array<real_t> &testBO,
+                       const Array<real_t> &testBC, const Vector &coeff,
+                       Vector &y, const int d, const int q)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
                "Problem size too large.");
@@ -581,11 +577,11 @@ static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
 /// @tparam T_D1D maximum number of dofs along any direction, or 0
 /// @tparam T_Q1D maximum number of quadrature points along any direction, or 0
 template <int T_D1D = 0, int T_Q1D = 0>
-static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
-                               const Vector &jac, const Array<real_t> &weights,
-                               const Array<real_t> &testBO,
-                               const Array<real_t> &testBC, const Vector &coeff,
-                               Vector &y, const int d, const int q)
+void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
+                        const Vector &jac, const Array<real_t> &weights,
+                        const Array<real_t> &testBO,
+                        const Array<real_t> &testBC, const Vector &coeff,
+                        Vector &y, const int d, const int q)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Problem size too large.");

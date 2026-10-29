@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -21,6 +21,10 @@
 #include <omp.h>
 #endif
 
+#ifdef MFEM_USE_MPI
+#include "../general/communication.hpp"
+#endif
+
 #include <iostream>
 #include <cmath>
 #include <ctime>
@@ -36,7 +40,7 @@ namespace mfem
  * a1 = max(a1, b1)
  * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^2)
  *
- * This form is resiliant against overflow/underflow, similar to std::hypot
+ * This form is resilient against overflow/underflow, similar to std::hypot
  */
 struct L2Reducer
 {
@@ -69,7 +73,7 @@ struct L2Reducer
  * a1 = max(a1, b1)
  * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^p)
  *
- * This form is resiliant against overflow/underflow, similar to std::hypot
+ * This form is resilient against overflow/underflow, similar to std::hypot
  */
 struct LpReducer
 {
@@ -659,7 +663,7 @@ void Vector::median(const Vector &lo, const Vector &hi)
    // Note: get read access first, in case *this is the same as lo/hi.
    const auto l = lo.Read(use_dev);
    const auto h = hi.Read(use_dev);
-   auto m = Write(use_dev);
+   auto m = ReadWrite(use_dev);
    mfem::forall_switch(use_dev, N, [=] MFEM_HOST_DEVICE (int i)
    {
       if (m[i] < l[i])
@@ -1285,5 +1289,44 @@ void Vector::DeleteAt(const Array<int> &indices)
       size -= indices.Size();
    }
 }
+
+#ifdef MFEM_USE_MPI
+/// implementation here so we can reuse vector_workspace
+real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
+{
+   MFEM_ASSERT(p > 0.0, "ParNormlp expects p > 0");
+   real_t norm = 0.0;
+   if (p == 1.0)
+   {
+      real_t loc_norm = vec.Norml1();
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+   }
+   else if (p < infinity())
+   {
+      real_t loc_norm = 0;
+      const auto m_data = vec.Read(vec.UseDevice());
+      reduce(vec.Size(), loc_norm, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      {
+         r += pow(fabs(m_data[i]), p);
+      }, SumReducer<real_t> {}, vec.UseDevice(), vector_workspace());
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    comm);
+      if (p == 2)
+      {
+         norm = sqrt(norm);
+      }
+      else
+      {
+         norm = pow(norm, 1.0 / p);
+      }
+   }
+   else
+   {
+      real_t loc_norm = vec.Normlinf();
+      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
+   }
+   return norm;
+}
+#endif
 
 } // namespace mfem

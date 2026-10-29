@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -224,13 +224,11 @@ struct DerefineMatrixOpMultFunctor
                sum += sign * bsptr[boptr[k] + i + j * block_height] *
                       xptr[this->IndexX(col, vdim, k)];
             }
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
             if (Atomic)
             {
-               atomicAdd(yptr + this->IndexY(row, vdim), sum);
+               AtomicAdd(yptr[this->IndexY(row, vdim)], sum);
             }
             else
-#endif
             {
                yptr[this->IndexY(row, vdim)] += sum;
             }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,8 +44,13 @@ namespace mfem
 
 #ifdef MFEM_USE_SINGLE
 typedef float real_t;
+// Macro to simplify the selection of different values, e.g. tolerances, based
+// on the selected build-time precision, double or single. The first parameter
+// is the value for double precision, the second -- for single.
+#define MFEM_PRECISION_SWITCH(dbl,flt) (flt)
 #elif defined MFEM_USE_DOUBLE
 typedef double real_t;
+#define MFEM_PRECISION_SWITCH(dbl,flt) (dbl)
 #else
 #error "Either DOUBLE or SINGLE precision must be specified"
 #endif

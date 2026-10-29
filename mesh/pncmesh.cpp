@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -199,9 +199,14 @@ void ParNCMesh::BuildFaceList()
 
    face_list.Clear();
    shared_faces.Clear();
+
+   // In 2D, the boundary faces are collected by BuildEdgeList, as in the serial
+   // NCMesh::BuildFaceList.
+   if (Dim < 3) { return; }
+
    boundary_faces.SetSize(0);
 
-   if (Dim < 3 || !leaf_elements.Size()) { return; }
+   if (!leaf_elements.Size()) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
@@ -703,16 +708,16 @@ void ParNCMesh::CalcFaceOrientations()
    }
 }
 
-void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces)
 {
-   NCMesh::GetBoundaryClosure(bdr_attr_is_ess, bdr_vertices, bdr_edges, bdr_faces);
+   NCMesh::GetBoundaryClosure(bdr_attr_marked, bdr_vertices, bdr_edges, bdr_faces);
 
    if (Dim == 3)
    {
-      // Mark masters of shared slave boundary faces as essential boundary
-      // faces. Some master faces may only have slave children.
+      // Add the masters of shared slave boundary faces with marked attributes.
+      // Some master faces may only have slave children.
       for (const auto &mf : shared_faces.masters)
       {
          if (elements[mf.element].rank != MyRank) { continue; }
@@ -725,7 +730,7 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                continue;
             }
             const Face &face = *GetFace(elements[sf.element], sf.local);
-            if (face.Boundary() && bdr_attr_is_ess[face.attribute - 1])
+            if (face.Boundary() && bdr_attr_marked[face.attribute - 1])
             {
                bdr_faces.Append(mf.index);
             }
@@ -734,8 +739,8 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    }
    else if (Dim == 2)
    {
-      // Mark masters of shared slave boundary edges as essential boundary
-      // edges. Some master edges may only have slave children.
+      // Add the masters of shared slave boundary edges with marked attributes.
+      // Some master edges may only have slave children.
       for (const auto &me : shared_edges.masters)
       {
          if (elements[me.element].rank != MyRank) { continue; }
@@ -743,22 +748,13 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          {
             const auto &se = GetEdgeList().slaves[j];
             Face *face = GetFace(elements[se.element], se.local);
-            if (face && face->Boundary() && bdr_attr_is_ess[face->attribute - 1])
+            if (face && face->Boundary() && bdr_attr_marked[face->attribute - 1])
             {
                bdr_edges.Append(me.index);
             }
          }
       }
    }
-
-   // Filter, sort and unique an array, so it contains only local unique values.
-   auto FilterSortUnique = [](Array<int> &v, int N)
-   {
-      // Perform the O(N) filter before the O(NlogN) sort.
-      auto local = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
-      std::sort(v.begin(), local);
-      v.SetSize(std::distance(v.begin(), std::unique(v.begin(), local)));
-   };
 
    FilterSortUnique(bdr_vertices, NVertices);
    FilterSortUnique(bdr_edges, NEdges);
@@ -2624,7 +2620,8 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          for (int i = 0; i < rank_neighbors.Size(); i++)
          {
             int elem = rank_neighbors[i];
-            msg.AddElementRank(elem, new_ranks[elements[elem].index]);
+            const Element &el = elements[elem];
+            msg.AddElement(elem, new_ranks[el.index], el.attribute);
          }
 
          msg.Isend(rank, MyComm);
@@ -2647,7 +2644,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       {
          int ghost_index = elements[msg.elements[i]].index;
          MFEM_ASSERT(element_type[ghost_index] == 2, "");
-         new_ranks[ghost_index] = msg.values[i];
+         const ElementRankAndAttribute &value = msg.values[i];
+         new_ranks[ghost_index] = value.rank;
+         elements[msg.elements[i]].attribute = value.attribute;
       }
    }
 
@@ -2718,7 +2717,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
                if ((element_type[el.index] & 1) || el.rank != rank)
                {
-                  msg.AddElementRank(elem, el.rank);
+                  msg.AddElement(elem, el.rank, el.attribute);
                }
                // NOTE: we skip 'ghosts' that are of the receiver's rank because
                // they are not really ghosts and would get sent multiple times,
@@ -2770,10 +2769,12 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
          for (int i = 0; i < msg.Size(); i++)
          {
-            int elem_rank = msg.values[i];
-            elements[msg.elements[i]].rank = elem_rank;
+            const ElementRankAndAttribute &value = msg.values[i];
+            Element &el = elements[msg.elements[i]];
+            el.rank = value.rank;
+            el.attribute = value.attribute;
 
-            if (elem_rank == MyRank) { received_elements++; }
+            if (value.rank == MyRank) { received_elements++; }
          }
 
          // save the ranks we received from, for later use in RecvRebalanceDofs
@@ -2809,7 +2810,10 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
             for (int i = 0; i < msg.Size(); i++)
             {
-               elements[msg.elements[i]].rank = msg.values[i];
+               const ElementRankAndAttribute &value = msg.values[i];
+               Element &el = elements[msg.elements[i]];
+               el.rank = value.rank;
+               el.attribute = value.attribute;
             }
 
             // save the ranks we received from, for later use in RecvRebalanceDofs
