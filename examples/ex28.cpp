@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    SchurConstrainedSolver * solver =
       new SchurConstrainedSolver(A, *local_constraints, M);
    solver->SetRelTol(1e-5);
-   solver->SetMaxIter(2000);
+   solver->SetMaxIter(2500);
    solver->SetPrintLevel(1);
    solver->Mult(B, X);
 
