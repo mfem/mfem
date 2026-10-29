@@ -1819,7 +1819,14 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
          fec->FiniteElementForGeometry(child_geom);
       isotr.SetIdentityTransformation(child_geom);
       isotr.SetPointMat(pmats(i));
-      fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
+      if (child_geom == parent_geom)
+      {
+         fine_fe->GetLocalInterpolation(isotr, localP(i));
+      }
+      else
+      {
+          fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
+      }
    }
 }
 
