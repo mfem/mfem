@@ -294,6 +294,37 @@ TEST_CASE("complex_t range edges", "[Complex]")
       CheckClose(tan(complex_t(0, y)), s.real(), s.imag(), eps);
    }
 
+   SECTION("tan near a real pole")
+   {
+      // std::complex cancels here too, so the reference is the finite value.
+#ifdef MFEM_USE_SINGLE
+      const real_t y = 1e-5;
+      const real_t expect_re = -437.10556;
+      const real_t expect_im = 99998.094;
+#else
+      const real_t y = 1e-10;
+      const real_t expect_re = 6123.23399573447;
+      const real_t expect_im = 9999999999.99625;
+#endif
+      const complex_t z = tan(complex_t(M_PI / 2, y));
+      const real_t scale = std::fmax(std::fabs(expect_re),
+                                     std::fabs(expect_im));
+      REQUIRE(std::isfinite(z.real()));
+      REQUIRE(std::isfinite(z.imag()));
+      CheckClose(z, expect_re, expect_im, scale * real_t{1e-6});
+   }
+
+   SECTION("tan of a huge real part")
+   {
+      // Doubling this real part overflows. The result stays O(1).
+      const real_t x = real_t{0.75} * mx;
+      const complex_t z = tan(complex_t(x, 1));
+      REQUIRE(std::isfinite(z.real()));
+      REQUIRE(std::isfinite(z.imag()));
+      REQUIRE(std::fabs(z.real()) <= 2);
+      REQUIRE(std::fabs(z.imag()) <= 2);
+   }
+
    SECTION("exp near the top of the range")
    {
       const real_t x = std::log(mx) + real_t{0.25};

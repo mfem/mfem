@@ -108,14 +108,16 @@ struct complex_t
    {
       // Real poles: the scaled denominator is zero and the imag part is 0/0.
       if (z.y == 0) { return complex_t{std::tan(z.x), z.y}; }
-      // Scale by exp(-2|y|) so a large imaginary part stays finite.
-      const real_t x2 = 2 * z.x;
-      const real_t y2 = 2 * z.y;
-      const real_t ex = std::exp(-std::fabs(y2));
-      const real_t den = 1 + ex * ex + 2 * std::cos(x2) * ex;
-      const real_t re = 2 * std::sin(x2) * ex / den;
-      const real_t im_num = -std::expm1(-2 * std::fabs(y2));
-      return complex_t{re, std::copysign(im_num, y2) / den};
+      // expm1 and sin/cos of x stay finite near a pole and for a huge x.
+      const real_t s = std::sin(z.x);
+      const real_t c = std::cos(z.x);
+      const real_t ay = std::fabs(z.y);
+      const real_t ex = std::exp(-2 * ay);
+      const real_t e = -std::expm1(-2 * ay);
+      const real_t den = e * e + 4 * ex * c * c;
+      const real_t re = 4 * ex * s * c / den;
+      const real_t im = std::copysign(e * (2 - e), z.y) / den;
+      return complex_t{re, im};
    }
 };
 
