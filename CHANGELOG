@@ -40,6 +40,12 @@ Miscellaneous
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
 
+- Fixed a silent out-of-bounds read in DenseMatrix::CalcSingularvalue for
+  non-square matrices, which only tripped an MFEM_ASSERT in debug builds and
+  returned garbage in release builds. Rectangular matrices with
+  min(Height(), Width()) of 1, 2 or 3 are now supported, and unsupported sizes
+  or indexes are rejected with MFEM_VERIFY.
+
 - Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
   failure if an MPI rank had no design parameters (aka decision variables).
   Also plugged a MPI communicator leak that would cause memory leaks.
