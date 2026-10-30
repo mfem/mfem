@@ -986,105 +986,8 @@ public:
       //    | DJt_ij  DJt_il |
       //    | DJt_kj  DJt_kl | = DJt_ij DJt_kl - DJt_il DJt_kj
 
-      if (dont(HAVE_DJt)) { Eval_DJt(); }
-      Get_I1(); // evaluates I1 and the diagonal of B
-      if (dont(HAVE_B_offd)) { Eval_B_offd(); }
-      const int nd = D_height;
-      const int ah = 3*nd;
-      const scalar_t a = 2*w;
-      for (int i = 0; i < ah; i++)
-      {
-         const scalar_t avi = a*DJt[i];
-         A[i+ah*i] += avi*DJt[i];
-         for (int j = 0; j < i; j++)
-         {
-            const scalar_t aVVt_ij = avi*DJt[j];
-            A[i+ah*j] += aVVt_ij;
-            A[j+ah*i] += aVVt_ij;
-         }
-      }
-
-      for (int i = 0; i < nd; i++)
-      {
-         const int i0 = i+nd*0, i1 = i+nd*1, i2 = i+nd*2;
-         const scalar_t aD_i[3] = { a*D[i0], a*D[i1], a*D[i2] };
-         const scalar_t aDJt_i[3] = { a*DJt[i0], a*DJt[i1], a*DJt[i2] };
-         // k == i
-         {
-            const scalar_t aDDt_ii =
-               aD_i[0]*D[i0] + aD_i[1]*D[i1] + aD_i[2]*D[i2];
-            const scalar_t Z1_ii =
-               I1*aDDt_ii - (aDJt_i[0]*DJt[i0] + aDJt_i[1]*DJt[i1] +
-                             aDJt_i[2]*DJt[i2]);
-            // l == j
-            for (int j = 0; j < 3; j++)
-            {
-               const int ij = i+nd*j;
-               A[ij+ah*ij] += Z1_ii - aDDt_ii*B[j];
-            }
-            // l != j
-            const scalar_t Z2_ii_01 = aDDt_ii*B[3];
-            const scalar_t Z2_ii_02 = aDDt_ii*B[4];
-            const scalar_t Z2_ii_12 = aDDt_ii*B[5];
-            A[i0+ah*i1] -= Z2_ii_01;
-            A[i1+ah*i0] -= Z2_ii_01;
-            A[i0+ah*i2] -= Z2_ii_02;
-            A[i2+ah*i0] -= Z2_ii_02;
-            A[i1+ah*i2] -= Z2_ii_12;
-            A[i2+ah*i1] -= Z2_ii_12;
-         }
-         // 0 <= k < i
-         for (int k = 0; k < i; k++)
-         {
-            const int k0 = k+nd*0, k1 = k+nd*1, k2 = k+nd*2;
-            const scalar_t aDDt_ik =
-               aD_i[0]*D[k0] + aD_i[1]*D[k1] + aD_i[2]*D[k2];
-            const scalar_t Z1_ik =
-               I1*aDDt_ik - (aDJt_i[0]*DJt[k0] + aDJt_i[1]*DJt[k1] +
-                             aDJt_i[2]*DJt[k2]);
-            // l == j
-            for (int j = 0; j < 3; j++)
-            {
-               const int ij = i+nd*j, kj = k+nd*j;
-               const scalar_t Z2_ik_jj = Z1_ik - aDDt_ik*B[j];
-               A[ij+ah*kj] += Z2_ik_jj;
-               A[kj+ah*ij] += Z2_ik_jj;
-            }
-            // l != j
-            {
-               const scalar_t Z2_ik_01 = aDDt_ik*B[3];
-               A[i0+ah*k1] -= Z2_ik_01;
-               A[i1+ah*k0] -= Z2_ik_01;
-               A[k0+ah*i1] -= Z2_ik_01;
-               A[k1+ah*i0] -= Z2_ik_01;
-               const scalar_t Z2_ik_02 = aDDt_ik*B[4];
-               A[i0+ah*k2] -= Z2_ik_02;
-               A[i2+ah*k0] -= Z2_ik_02;
-               A[k0+ah*i2] -= Z2_ik_02;
-               A[k2+ah*i0] -= Z2_ik_02;
-               const scalar_t Z2_ik_12 = aDDt_ik*B[5];
-               A[i1+ah*k2] -= Z2_ik_12;
-               A[i2+ah*k1] -= Z2_ik_12;
-               A[k1+ah*i2] -= Z2_ik_12;
-               A[k2+ah*i1] -= Z2_ik_12;
-            }
-            // 0 <= l < j
-            for (int j = 1; j < 3; j++)
-            {
-               const int ij = i+nd*j, kj = k+nd*j;
-               for (int l = 0; l < j; l++)
-               {
-                  const int il = i+nd*l, kl = k+nd*l;
-                  const scalar_t Z3_ik_jl =
-                     aDJt_i[j]*DJt[kl] - aDJt_i[l]*DJt[kj];
-                  A[ij+ah*kl] += Z3_ik_jl;
-                  A[kl+ah*ij] += Z3_ik_jl;
-                  A[il+ah*kj] -= Z3_ik_jl;
-                  A[kj+ah*il] -= Z3_ik_jl;
-               }
-            }
-         }
-      }
+      Assemble_ddI2_rank1<false>(w, A);
+      Assemble_ddI2_struct<false>(w, A);
    }
    void Assemble_ddI2b(scalar_t w, scalar_t *A)
    {
@@ -1335,6 +1238,161 @@ public:
             const scalar_t A_ij = axi*DXt[j];
             A[i+ah*j] += A_ij;
             A[j+ah*i] += A_ij;
+         }
+      }
+   }
+   // The rank-1 sweep of Assemble_ddI2(w_ddI2) plus Assemble_TProd(w_xy, X, Y)
+   // and Assemble_TProd(w_yy, Y) in one pass over A.
+   void Assemble_ddI2_TProd(scalar_t w_ddI2, scalar_t w_xy, const scalar_t *X,
+                            const scalar_t *Y, scalar_t w_yy, scalar_t *A)
+   {
+      Assemble_ddI2_rank1<true>(w_ddI2, A, w_xy, X, Y, w_yy);
+   }
+   // Assemble_ddI1(w_ddI1), the rest of Assemble_ddI2(w_ddI2) and
+   // Assemble_ddI3b(w_ddI3b) in one pass over A. The ddI1 and ddI3b entries are
+   // a subset of the ddI2 ones, so each entry is updated once.
+   void Assemble_ddI1_ddI2_struct_ddI3b(scalar_t w_ddI1, scalar_t w_ddI2,
+                                        scalar_t w_ddI3b, scalar_t *A)
+   {
+      // The ddI1 and ddI3b weights enter as their scaled coefficients.
+      Assemble_ddI2_struct<true>(w_ddI2, A, 2*w_ddI1, w_ddI3b/Get_I3b());
+   }
+
+protected:
+   static scalar_t Dot3(const scalar_t *u, const scalar_t *V, const int *p)
+   {
+      return u[0]*V[p[0]] + u[1]*V[p[1]] + u[2]*V[p[2]];
+   }
+   // The two nests of Assemble_ddI2. With Fused set they also add the extra
+   // terms of the fused forms above to the entries they write.
+   template <bool Fused>
+   void Assemble_ddI2_rank1(scalar_t w, scalar_t *A, scalar_t w_xy = 0,
+                            const scalar_t *X = nullptr,
+                            const scalar_t *Y = nullptr, scalar_t w_yy = 0)
+   {
+      if (dont(HAVE_DJt)) { Eval_DJt(); }
+      if constexpr (Fused)
+      {
+         Eval_DZt(X, &DXt);
+         Eval_DZt(Y, &DYt);
+      }
+      const int ah = 3*D_height;
+      const scalar_t a = 2*w;
+      for (int i = 0; i < ah; i++)
+      {
+         // Coefficients of DJt_j, DXt_j and DYt_j in row i.
+         const scalar_t avi = a*DJt[i];
+         const scalar_t axi = Fused ? w_xy*DYt[i] : scalar_t(0);
+         const scalar_t ayi = Fused ? w_xy*DXt[i] + w_yy*DYt[i] : scalar_t(0);
+         if constexpr (Fused)
+         {
+            A[i+ah*i] += avi*DJt[i] + axi*DXt[i] + ayi*DYt[i];
+         }
+         else { A[i+ah*i] += avi*DJt[i]; }
+         for (int j = 0; j < i; j++)
+         {
+            const scalar_t A_ij = Fused ?
+                                  avi*DJt[j] + axi*DXt[j] + ayi*DYt[j] :
+                                  avi*DJt[j];
+            A[i+ah*j] += A_ij;
+            A[j+ah*i] += A_ij;
+         }
+      }
+   }
+   // a1 and a3 are the ddI1 and ddI3b coefficients, 2*w_ddI1 and w_ddI3b/I3b.
+   // Only the Fused instantiation reads them, the plain form keeps the
+   // defaults.
+   template <bool Fused>
+   void Assemble_ddI2_struct(scalar_t w, scalar_t *A, scalar_t a1 = 0,
+                             scalar_t a3 = 0)
+   {
+      if (dont(HAVE_DJt)) { Eval_DJt(); }
+      Get_I1(); // evaluates I1 and the diagonal of B
+      if (dont(HAVE_B_offd)) { Eval_B_offd(); }
+      if constexpr (Fused) { if (dont(HAVE_DaJ)) { Eval_DaJ(); } }
+      const int nd = D_height;
+      const int ah = 3*nd;
+      const scalar_t a = 2*w;
+      for (int i = 0; i < nd; i++)
+      {
+         const int ip[3] = { i, i+nd, i+2*nd };
+         scalar_t aD_i[3], aDJt_i[3], a1D_i[3] = {}, a3DaJ_i[3] = {};
+         for (int j = 0; j < 3; j++)
+         {
+            aD_i[j] = a*D[ip[j]];
+            aDJt_i[j] = a*DJt[ip[j]];
+            if constexpr (Fused)
+            {
+               a1D_i[j] = a1*D[ip[j]];
+               a3DaJ_i[j] = a3*DaJ[ip[j]];
+            }
+         }
+         // k == i
+         {
+            const scalar_t aDDt_ii = Dot3(aD_i, D, ip);
+            const scalar_t Z1_ii = I1*aDDt_ii - Dot3(aDJt_i, DJt, ip);
+            const scalar_t ddI1_ii = Fused ? Dot3(a1D_i, D, ip) : scalar_t(0);
+            for (int j = 0; j < 3; j++)
+            {
+               const int ij = ip[j];
+               if constexpr (Fused)
+               {
+                  A[ij+ah*ij] += Z1_ii - aDDt_ii*B[j] + ddI1_ii;
+               }
+               else { A[ij+ah*ij] += Z1_ii - aDDt_ii*B[j]; }
+               // l > j; B[2+j+l] is B(j,l)
+               for (int l = j+1; l < 3; l++)
+               {
+                  const int il = ip[l];
+                  const scalar_t Z2_ii_jl = aDDt_ii*B[2+j+l];
+                  A[ij+ah*il] -= Z2_ii_jl;
+                  A[il+ah*ij] -= Z2_ii_jl;
+               }
+            }
+         }
+         // 0 <= k < i
+         for (int k = 0; k < i; k++)
+         {
+            const int kp[3] = { k, k+nd, k+2*nd };
+            const scalar_t aDDt_ik = Dot3(aD_i, D, kp);
+            const scalar_t Z1_ik = I1*aDDt_ik - Dot3(aDJt_i, DJt, kp);
+            const scalar_t ddI1_ik = Fused ? Dot3(a1D_i, D, kp) : scalar_t(0);
+            for (int j = 0; j < 3; j++)
+            {
+               const int ij = ip[j], kj = kp[j];
+               const scalar_t Z2_ik_jj = Fused ?
+                                         Z1_ik - aDDt_ik*B[j] + ddI1_ik :
+                                         Z1_ik - aDDt_ik*B[j];
+               A[ij+ah*kj] += Z2_ik_jj;
+               A[kj+ah*ij] += Z2_ik_jj;
+               for (int l = j+1; l < 3; l++)
+               {
+                  const int il = ip[l], kl = kp[l];
+                  const scalar_t Z2_ik_jl = aDDt_ik*B[2+j+l];
+                  A[ij+ah*kl] -= Z2_ik_jl;
+                  A[il+ah*kj] -= Z2_ik_jl;
+                  A[kj+ah*il] -= Z2_ik_jl;
+                  A[kl+ah*ij] -= Z2_ik_jl;
+               }
+            }
+            // 0 <= l < j; these are also the entries ddI3b writes
+            for (int j = 1; j < 3; j++)
+            {
+               const int ij = ip[j], kj = kp[j];
+               for (int l = 0; l < j; l++)
+               {
+                  const int il = ip[l], kl = kp[l];
+                  scalar_t Z3_ik_jl = aDJt_i[j]*DJt[kl] - aDJt_i[l]*DJt[kj];
+                  if constexpr (Fused)
+                  {
+                     Z3_ik_jl += a3DaJ_i[j]*DaJ[kl] - a3DaJ_i[l]*DaJ[kj];
+                  }
+                  A[ij+ah*kl] += Z3_ik_jl;
+                  A[kl+ah*ij] += Z3_ik_jl;
+                  A[il+ah*kj] -= Z3_ik_jl;
+                  A[kj+ah*il] -= Z3_ik_jl;
+               }
+            }
          }
       }
    }
