@@ -192,19 +192,6 @@ public:
                      MPITypeMap<real_t>::mpi_type,
                      MPI_COMM_WORLD);
    }
-
-   void ScatterDofs(const Vector &global, Vector &local) const
-   {
-      const int nlocal = LocalNumSamples();
-      local.UseDevice(true);
-      if (local.Size() != nlocal) { local.SetSize(nlocal); }
-      if (Mpi::WorldSize() == 1) { local = global; return; }
-      MFEM_VERIFY(global.Size() == NumSamples(), "ScatterDofs size");
-      const real_t *g =
-         global.HostRead() + static_cast<long long>(elem0) * q1d * q1d;
-      real_t *l = local.HostWrite();
-      for (int i = 0; i < nlocal; ++i) { l[i] = g[i]; }
-   }
 };
 
 // ----------------------------------------------------------------------------
