@@ -90,13 +90,11 @@ void MFEMFinalizePetsc();
 class PetscMemory : public Memory<real_t>
 {
 private:
-   /// TODO: can base be removed?
-   Memory<real_t> *base;
    bool read;
    bool write;
    bool usedev;
 public:
-   PetscMemory()                      { Reset(); base = nullptr; }
+   PetscMemory()                      { Reset(); }
    void SetHostValid() const
    {
       const_cast<PetscMemory *>(this)->SetHostValidity(0, size_, true);
@@ -113,22 +111,12 @@ public:
    {
       const_cast<PetscMemory *>(this)->SetDeviceValidity(0, size_, false);
    }
-   inline bool IsAliasForSync() const
-   {
-      if (base)
-      {
-         // can't distinguish base from alias anymore, closest approximation is
-         // there are two references
-         return SegmentRefCount() > 1;
-      }
-      return false;
-   }
+   /// @deprecated Always returns false; aliases share validity automatically.
+   MFEM_DEPRECATED inline bool IsAliasForSync() const { return false; }
 
    inline void MakeAliasForSync(const Memory<real_t> &base_, int offset_,
                                 int size_, bool usedev_)
    {
-      MFEM_VERIFY(!IsAliasForSync(),"Already alias");
-      base = (Memory<real_t>*)&base_;
       read = true;
       write = false;
       usedev = usedev_;
@@ -137,8 +125,6 @@ public:
    inline void MakeAliasForSync(Memory<real_t> &base_, int offset_, int size_,
                                 bool read_, bool write_, bool usedev_)
    {
-      MFEM_VERIFY(!IsAliasForSync(),"Already alias");
-      base = (Memory<real_t>*)&base_;
       read = read_;
       write = write_;
       usedev = usedev_;
@@ -148,23 +134,18 @@ public:
    MFEM_DEPRECATED inline void SyncBase() {}
    inline void SyncBaseAndReset()
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
-      base = nullptr;
       Reset();
    }
    inline bool ReadRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return read;
    }
    inline bool WriteRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return write;
    }
    inline bool DeviceRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return usedev;
    }
    const real_t *GetHostPointer() const;
