@@ -60,7 +60,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
-   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   const auto element = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   CAPTURE(order, element);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, element);
 
    // Make the mesh NC
    mesh.EnsureNCMesh();
@@ -81,9 +83,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Y")
@@ -98,9 +100,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -115,9 +117,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -132,9 +134,9 @@ TEST_CASE("Least-squares ZZ estimator on 2D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 }
 
@@ -143,7 +145,9 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
    // Setup
    ConstantCoefficient one(1.0);
    const auto order = GENERATE(1, 2, 3, 4);
-   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   const auto element = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   CAPTURE(order, element);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, element);
 
    // Make the mesh NC
    mesh.EnsureNCMesh();
@@ -213,15 +217,17 @@ TEST_CASE("Convergence rate test on 2D NCMesh", "[NCMesh]")
       x.Update();
 
    }
-   REQUIRE(rate < order/2.0 + 1e-1);
-   REQUIRE(rate > order/2.0 - 1e-1);
+   CHECK(rate < order/2.0 + 1e-1);
+   CHECK(rate > order/2.0 - 1e-1);
 }
 
 TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
 {
    // Setup
    const auto order = GENERATE(2, 3);
-   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   const auto element = Element::HEXAHEDRON;
+   CAPTURE(order, element);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, element);
 
    // Make the mesh NC
    mesh.EnsureNCMesh();
@@ -242,9 +248,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Y")
@@ -259,9 +265,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Perfect Approximation Z")
@@ -276,9 +282,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) < 1e-10);
+         CHECK(local_errors(i) < 1e-10);
       }
-      REQUIRE(estimator.GetTotalError() < 1e-10);
+      CHECK(estimator.GetTotalError() < 1e-10);
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -293,9 +299,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -310,9 +316,9 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
    SECTION("Nonsmooth Approximation Z")
@@ -327,11 +333,241 @@ TEST_CASE("Least-squares ZZ estimator on 3D NCMesh", "[NCMesh]")
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() > 0.0);
    }
 
+}
+
+namespace testhelper
+{
+real_t UnitFaceCoefficient(Mesh*, const int, const bool) { return 1.0; }
+
+/// Unit interval, square or cube with element 0 refined, nonconforming in 2D
+/// and 3D. The planes x, y, z = 0.5 are covered by faces.
+Mesh MakeRefinedMesh(Element::Type type)
+{
+   Mesh mesh;
+   switch (type)
+   {
+      case Element::SEGMENT:
+         mesh = Mesh::MakeCartesian1D(2);
+         break;
+      case Element::TRIANGLE:
+      case Element::QUADRILATERAL:
+         mesh = Mesh::MakeCartesian2D(2, 2, type);
+         break;
+      default:
+         mesh = Mesh::MakeCartesian3D(2, 2, 2, type);
+   }
+   if (mesh.Dimension() > 1) { mesh.EnsureNCMesh(true); }
+   Array<int> elements_to_refine;
+   elements_to_refine.Append(0);
+   mesh.GeneralRefinement(elements_to_refine, 1, 0);
+   return mesh;
+}
+
+/// Moves a 2D mesh into the plane z = x.
+void TiltMesh(Mesh &mesh)
+{
+   mesh.SetCurvature(1, false, 3, Ordering::byNODES);
+   GridFunction &nodes = *mesh.GetNodes();
+   const int nnodes = nodes.Size()/3;
+   for (int i = 0; i < nnodes; i++) { nodes(2*nnodes + i) = nodes(i); }
+}
+
+std::unique_ptr<FiniteElementCollection> MakeFEC(bool h1, int order, int dim)
+{
+   using FECPtr = std::unique_ptr<FiniteElementCollection>;
+   if (h1) { return FECPtr(new H1_FECollection(order, dim)); }
+   return FECPtr(new L2_FECollection(order, dim));
+}
+
+/// Total Kelly error estimate of the projection of @a u onto @a fes.
+real_t KellyTotalError(FiniteElementSpace &fes, real_t (*u)(const Vector &),
+                       BilinearFormIntegrator &integ,
+                       bool unit_face_coefficient, bool with_coeff = true)
+{
+   Mesh &mesh = *fes.GetMesh();
+   L2_FECollection flux_fec(fes.GetMaxElementOrder(), mesh.Dimension());
+   std::unique_ptr<FiniteElementSpace> flux_fes;
+   std::unique_ptr<GridFunction> u_gf;
+#ifdef MFEM_USE_MPI
+   if (auto pfes = dynamic_cast<ParFiniteElementSpace*>(&fes))
+   {
+      flux_fes.reset(new ParFiniteElementSpace(pfes->GetParMesh(), &flux_fec,
+                                               mesh.SpaceDimension()));
+      u_gf.reset(new ParGridFunction(pfes));
+   }
+   else
+#endif
+   {
+      flux_fes.reset(new FiniteElementSpace(&mesh, &flux_fec,
+                                            mesh.SpaceDimension()));
+      u_gf.reset(new GridFunction(&fes));
+   }
+   FunctionCoefficient u_coeff(u);
+   u_gf->ProjectCoefficient(u_coeff);
+
+   KellyErrorEstimator estimator(integ, *u_gf, *flux_fes, Array<int>(),
+                                 with_coeff);
+   if (unit_face_coefficient)
+   {
+      estimator.SetFaceCoefficientFunction(UnitFaceCoefficient);
+   }
+   estimator.GetLocalErrors();
+   return estimator.GetTotalError();
+}
+}
+
+TEST_CASE("Kelly Error Estimator exact values", "[NCMesh]")
+{
+   const auto type = GENERATE(Element::SEGMENT, Element::TRIANGLE,
+                              Element::QUADRILATERAL, Element::TETRAHEDRON,
+                              Element::HEXAHEDRON);
+   const auto h1 = GENERATE(true, false);
+   const auto order = GENERATE(1, 3);
+   CAPTURE(type, h1, order);
+
+   Mesh mesh = testhelper::MakeRefinedMesh(type);
+   auto fec = testhelper::MakeFEC(h1, order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, fec.get());
+   DiffusionIntegrator di;
+
+   real_t (*linear[])(const Vector &) =
+   {
+      testhelper::SmoothSolutionX, testhelper::SmoothSolutionY,
+      testhelper::SmoothSolutionZ
+   };
+   real_t (*kink[])(const Vector &) =
+   {
+      testhelper::NonsmoothSolutionX, testhelper::NonsmoothSolutionY,
+      testhelper::NonsmoothSolutionZ
+   };
+   for (int d = 0; d < mesh.Dimension(); d++)
+   {
+      CAPTURE(d);
+      CHECK(testhelper::KellyTotalError(fes, linear[d], di, true) ==
+            MFEM_Approx(0.0, 1e-10));
+      // The flux jumps by 2 across the unit interface, counted for both
+      // adjacent elements.
+      CHECK(testhelper::KellyTotalError(fes, kink[d], di, true) ==
+            MFEM_Approx(sqrt(2*4.0)));
+   }
+}
+
+TEST_CASE("Kelly Error Estimator exact values on tilted surface", "[NCMesh]")
+{
+   const auto h1 = GENERATE(true, false);
+   const auto order = GENERATE(1, 3);
+   CAPTURE(h1, order);
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   testhelper::TiltMesh(mesh);
+   mesh.EnsureNCMesh();
+   Array<int> elements_to_refine;
+   elements_to_refine.Append(0);
+   mesh.GeneralRefinement(elements_to_refine, 1, 0);
+
+   auto fec = testhelper::MakeFEC(h1, order, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, fec.get());
+   DiffusionIntegrator di;
+
+   CHECK(testhelper::KellyTotalError(fes, testhelper::SmoothSolutionX, di,
+                                     true) == MFEM_Approx(0.0, 1e-10));
+   CHECK(testhelper::KellyTotalError(fes, testhelper::SmoothSolutionY, di,
+                                     true) == MFEM_Approx(0.0, 1e-10));
+   // The surface is stretched by √2 along x, so the tangential flux jumps by
+   // √2 across x = 0.5. The interface y = 0.5 has length √2.
+   CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionX, di,
+                                     true) == MFEM_Approx(sqrt(2*2.0)));
+   CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionY, di,
+                                     true) == MFEM_Approx(sqrt(2*4*sqrt(2.0))));
+}
+
+TEST_CASE("Kelly Error Estimator default face coefficient", "[NCMesh]")
+{
+   // The flux jumps by 2 across x = 0.5 and hₖ = diameter/2p.
+   const auto h1 = GENERATE(true, false);
+   const auto order = GENERATE(1, 2, 3);
+   CAPTURE(h1, order);
+   DiffusionIntegrator di;
+
+   SECTION("1D")
+   {
+      // The interface point joins elements of length 0.25 and 0.5.
+      Mesh mesh = testhelper::MakeRefinedMesh(Element::SEGMENT);
+      auto fec = testhelper::MakeFEC(h1, order, mesh.Dimension());
+      FiniteElementSpace fes(&mesh, fec.get());
+      CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionX,
+                                        di, false) ==
+            MFEM_Approx(sqrt(2*4*0.5/(2*order))));
+   }
+
+   SECTION("2D")
+   {
+      // Two slave faces of length 0.25 and one face of length 0.5.
+      Mesh mesh = testhelper::MakeRefinedMesh(Element::QUADRILATERAL);
+      auto fec = testhelper::MakeFEC(h1, order, mesh.Dimension());
+      FiniteElementSpace fes(&mesh, fec.get());
+      CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionX,
+                                        di, false) ==
+            MFEM_Approx(sqrt(2*4*(2*0.25*0.25 + 0.5*0.5)/(2*order))));
+   }
+
+   SECTION("Variable order")
+   {
+      // Elements of order 1 and 3 meet at two faces of length 0.5.
+      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+      mesh.EnsureNCMesh();
+      auto fec = testhelper::MakeFEC(h1, 1, mesh.Dimension());
+      FiniteElementSpace fes(&mesh, fec.get());
+      fes.SetElementOrder(1, order);
+      fes.SetElementOrder(3, order);
+      fes.Update(false);
+      CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionX,
+                                        di, false) ==
+            MFEM_Approx(sqrt(2*4*(2*0.5*0.5)/(2*order))));
+   }
+}
+
+TEST_CASE("Kelly Error Estimator convergence rate", "[Kelly]")
+{
+   // For the interpolant of a smooth solution the estimate converges as hᵖ.
+   // On uniform quadrilateral meshes the jumps superconverge for even p.
+   const auto type = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   const auto order = GENERATE(1, 2, 3);
+   CAPTURE(type, order);
+   if (type == Element::QUADRILATERAL && order % 2 == 0) { return; }
+   DiffusionIntegrator di;
+
+   real_t eta[2];
+   for (int i = 0; i < 2; i++)
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(16 << i, 16 << i, type);
+      H1_FECollection fec(order, mesh.Dimension());
+      FiniteElementSpace fes(&mesh, &fec);
+      eta[i] = testhelper::KellyTotalError(fes, testhelper::SinXSinY, di,
+                                           false);
+   }
+   CHECK(log2(eta[0]/eta[1]) == MFEM_Approx(order, 0.1));
+}
+
+TEST_CASE("Kelly Error Estimator integrator coefficient", "[Kelly]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(2, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   ConstantCoefficient k(3.0);
+   DiffusionIntegrator di(k);
+
+   CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionX, di,
+                                     true, true) ==
+         MFEM_Approx(3.0*sqrt(2*4.0)));
+   CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionX, di,
+                                     true, false) ==
+         MFEM_Approx(sqrt(2*4.0)));
 }
 
 #ifdef MFEM_USE_MPI
@@ -341,7 +577,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
-   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   const auto element = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   CAPTURE(order, element);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, element);
 
    // Make the mesh NC
    mesh.EnsureNCMesh();
@@ -371,9 +609,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Perfect Approximation Y")
@@ -390,9 +628,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -405,13 +643,14 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       ParFiniteElementSpace flux_fes(pmesh, &flux_fec, pmesh->SpaceDimension());
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
+      estimator.SetFaceCoefficientFunction(testhelper::UnitFaceCoefficient);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() == MFEM_Approx(sqrt(2*4.0)));
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -424,13 +663,14 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh",
       ParFiniteElementSpace flux_fes(pmesh, &flux_fec, pmesh->SpaceDimension());
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
+      estimator.SetFaceCoefficientFunction(testhelper::UnitFaceCoefficient);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
+         CHECK(local_errors(i) >= MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() == MFEM_Approx(sqrt(2*4.0)));
    }
 
    delete pmesh;
@@ -441,14 +681,15 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
 {
    // Setup
    const auto order = GENERATE(1, 3, 5);
+   CAPTURE(order);
 
-   // Manually construct embedded mesh
+   // Manually construct a mesh in the plane z = x
    std::array<real_t, 4*3> vertices =
    {
       0.0,0.0,0.0,
       0.0,1.0,0.0,
-      1.0,1.0,0.0,
-      1.0,0.0,0.0
+      1.0,1.0,1.0,
+      1.0,0.0,1.0
    };
 
    std::array<int, 4> element_indices =
@@ -516,9 +757,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Perfect Approximation Y")
@@ -535,9 +776,9 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0));
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -550,13 +791,14 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       ParFiniteElementSpace flux_fes(pmesh, &flux_fec, pmesh->SpaceDimension());
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
+      estimator.SetFaceCoefficientFunction(testhelper::UnitFaceCoefficient);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() == MFEM_Approx(sqrt(2*2.0)));
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -569,13 +811,14 @@ TEST_CASE("Kelly Error Estimator on 2D NCMesh embedded in 3D",
       ParFiniteElementSpace flux_fes(pmesh, &flux_fec, pmesh->SpaceDimension());
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
+      estimator.SetFaceCoefficientFunction(testhelper::UnitFaceCoefficient);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
+         CHECK(local_errors(i) >= MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() == MFEM_Approx(sqrt(2*4*sqrt(2.0))));
    }
 
    delete pmesh;
@@ -585,14 +828,47 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
           "[NCMesh], [Parallel]")
 {
    // Setup
-   const auto order = GENERATE(1, 3, 5);
-   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   const auto order = GENERATE(1, 4, 5);
+   const auto element = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
+   const auto nrefs = GENERATE(0, 1);
+   CAPTURE(order, element, nrefs);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, element);
 
    // Make the mesh NC
-   mesh.EnsureNCMesh();
+   mesh.EnsureNCMesh(true);
+   switch (element)
    {
-      Array<int> elements_to_refine(1);
-      elements_to_refine[0] = 1;
+      case Element::HEXAHEDRON:
+      {
+         Array<int> elements_to_refine(1);
+         elements_to_refine[0] = 0;
+         mesh.GeneralRefinement(elements_to_refine, 1, 0);
+      }
+      break;
+
+      case Element::TETRAHEDRON:
+      {
+         Array<int> elements_to_refine(6);
+         for (int i=0; i<6; i++)
+         {
+            elements_to_refine[i] = i;
+         }
+         mesh.GeneralRefinement(elements_to_refine, 1, 0);
+      }
+      break;
+
+      default:
+         REQUIRE(false);
+         break;
+   }
+
+   for (int nref=0; nref<nrefs; nref++)
+   {
+      Array<int> elements_to_refine(mesh.GetNE());
+      for (int i=0; i<mesh.GetNE(); i++)
+      {
+         elements_to_refine[i] = i;
+      }
       mesh.GeneralRefinement(elements_to_refine, 1, 0);
    }
 
@@ -616,9 +892,9 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0, 1e-10));
    }
 
    SECTION("Perfect Approximation Y")
@@ -635,9 +911,9 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0, 1e-10));
    }
 
    SECTION("Perfect Approximation Z")
@@ -654,9 +930,9 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) == MFEM_Approx(0.0));
+         CHECK(local_errors(i) == MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() == MFEM_Approx(0.0));
+      CHECK(estimator.GetTotalError() == MFEM_Approx(0.0, 1e-10));
    }
 
    SECTION("Nonsmooth Approximation X")
@@ -669,13 +945,14 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       ParFiniteElementSpace flux_fes(pmesh, &flux_fec, pmesh->SpaceDimension());
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
+      estimator.SetFaceCoefficientFunction(testhelper::UnitFaceCoefficient);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() == MFEM_Approx(sqrt(2*4.0)));
    }
 
    SECTION("Nonsmooth Approximation Y")
@@ -688,13 +965,14 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       ParFiniteElementSpace flux_fes(pmesh, &flux_fec, pmesh->SpaceDimension());
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
+      estimator.SetFaceCoefficientFunction(testhelper::UnitFaceCoefficient);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= MFEM_Approx(0.0));
+         CHECK(local_errors(i) >= MFEM_Approx(0.0));
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() == MFEM_Approx(sqrt(2*4.0)));
    }
 
    SECTION("Nonsmooth Approximation Z")
@@ -707,16 +985,36 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
       ParFiniteElementSpace flux_fes(pmesh, &flux_fec, pmesh->SpaceDimension());
       DiffusionIntegrator di;
       KellyErrorEstimator estimator(di, u_gf, flux_fes);
+      estimator.SetFaceCoefficientFunction(testhelper::UnitFaceCoefficient);
 
       auto &local_errors = estimator.GetLocalErrors();
       for (int i=0; i<local_errors.Size(); i++)
       {
-         REQUIRE(local_errors(i) >= 0.0);
+         CHECK(local_errors(i) >= 0.0);
       }
-      REQUIRE(estimator.GetTotalError() > 0.0);
+      CHECK(estimator.GetTotalError() == MFEM_Approx(sqrt(2*4.0)));
    }
 
    delete pmesh;
+}
+
+TEST_CASE("Kelly Error Estimator default face coefficient in parallel",
+          "[NCMesh], [Parallel]")
+{
+   // Same setup as the serial test, with shared faces on the interface.
+   const auto h1 = GENERATE(true, false);
+   const auto order = GENERATE(1, 2, 3);
+   CAPTURE(h1, order);
+   DiffusionIntegrator di;
+
+   Mesh mesh = testhelper::MakeRefinedMesh(Element::QUADRILATERAL);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+   auto fec = testhelper::MakeFEC(h1, order, pmesh.Dimension());
+   ParFiniteElementSpace fes(&pmesh, fec.get());
+   CHECK(testhelper::KellyTotalError(fes, testhelper::NonsmoothSolutionX, di,
+                                     false) ==
+         MFEM_Approx(sqrt(2*4*(2*0.25*0.25 + 0.5*0.5)/(2*order))));
 }
 
 #endif

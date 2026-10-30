@@ -587,7 +587,9 @@ private:
        approximate the geometrical characteristic hₖ with the face diameter,
        which should be also be a possibility in this implementation.
 
-       Defaults to hₖ=diameter/2p.
+       Defaults to hₖ=diameter/2p, where p is the maximal polynomial degree of
+       the two elements sharing the face. In 1D the diameter is the maximal
+       length of these two elements.
    */
    FaceCoefficientFunction compute_face_coefficient;
 
@@ -597,6 +599,8 @@ private:
    FiniteElementSpace*
    flux_space; /**< @brief Ownership based on own_flux_fes. */
    bool own_flux_fespace; ///< Ownership flag for flux_space.
+
+   bool with_coeff; ///< Scale the flux by the integrator coefficient.
 
 #ifdef MFEM_USE_MPI
    const bool isParallel;
@@ -629,10 +633,12 @@ public:
        @param attributes_ The attributes of the subdomain(s) for which the
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
+       @param with_coeff_ Scale the flux by the coefficient of @a di_.
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
                        FiniteElementSpace& flux_fes_,
-                       const Array<int> &attributes_ = Array<int>());
+                       const Array<int> &attributes_ = Array<int>(),
+                       bool with_coeff_ = true);
 
    /** @brief Construct a new KellyErrorEstimator object for a scalar field.
        @param di_         The bilinear form to compute the interface flux.
@@ -641,10 +647,12 @@ public:
        @param attributes_ The attributes of the subdomain(s) for which the
                           error should be estimated. An empty array results in
                           estimating the error over the complete domain.
+       @param with_coeff_ Scale the flux by the coefficient of @a di_.
    */
    KellyErrorEstimator(BilinearFormIntegrator& di_, GridFunction& sol_,
                        FiniteElementSpace* flux_fes_,
-                       const Array<int> &attributes_ = Array<int>());
+                       const Array<int> &attributes_ = Array<int>(),
+                       bool with_coeff_ = true);
 
    ~KellyErrorEstimator();
 
