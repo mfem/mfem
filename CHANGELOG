@@ -227,6 +227,10 @@ Linear and nonlinear solvers
   Array<real_t> objects, and vice versa. Currently, viewing methods are
   provided only for the first direction, see Vector::GetArrayView().
 
+- Added interface to MUMPS direct solver for complex-valued problems.
+  Its usage is demonstrated in ex25p. See http://mumps.enseeiht.fr/ for more details.
+  Supported versions >= 5.1.1.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new Particle-In-Cell (PIC) miniapp in miniapps/plasma/pic, performing

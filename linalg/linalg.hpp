@@ -66,7 +66,7 @@
 #include "hypre_parcsr.hpp"
 #include "hypre.hpp"
 
-#ifdef MFEM_USE_MUMPS
+#if defined(MFEM_USE_MUMPS) || defined(MFEM_USE_COMPLEX_MUMPS)
 #include "mumps.hpp"
 #endif
 
