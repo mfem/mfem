@@ -186,37 +186,24 @@ void TMOP_Integrator::ComputeAllElementTargets(const Vector &xe) const
    targetC->ComputeAllElementTargets(*fes, ir, xe, PA.Jtr);
 }
 
-void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
+void TMOP_Integrator::UpdateCoefficientsPA(const Vector &xloc)
 {
-   Vector x_loc;
-   if (periodic)
-   {
-      GetPeriodicPositions(*x_0, d_loc, *x_0->FESpace(), *PA.fes, x_loc);
-   }
-   else
-   {
-      x_loc.SetSize(x_0->Size());
-      add(*x_0, d_loc, x_loc);
-   }
+   // The Coefficients for adaptive limiting are assumed fixed during mesh
+   // optimization and PA.ALC is assembled only once.
+   // When these are GridFunctionCoefficients, updating them would
+   // require a remap of their underlying fields, which TMOP doesn't do.
+   if (PA.MC.Size() == 1 && PA.C0.Size() <= 1) { return; }
 
-
-   // All are constant or not specified.
-   const int nal = PA.nal;
-   const bool alc_is_qvec =
-      (nal > 0) ? (PA.ALC.Size() == nal * PA.nq * PA.ne) : false;
-   if (PA.MC.Size() == 1 && PA.C0.Size() <= 1 && !alc_is_qvec) { return; }
-
-   // Coefficients are always evaluated on the CPU for now.
-   PA.MC.HostWrite();
-   PA.C0.HostWrite();
-   if (alc_is_qvec) { PA.ALC.HostWrite(); }
+   // Mesh-position-dependent coefficients are evaluated on the CPU for now.
+   if (PA.MC.Size() > 1) { PA.MC.HostWrite(); }
+   if (PA.C0.Size() > 1) { PA.C0.HostWrite(); }
 
    const IntegrationRule &ir = *PA.ir;
    auto T = new IsoparametricTransformation;
    for (int e = 0; e < PA.ne; ++e)
    {
-      // Uses the node positions in x_loc.
-      PA.fes->GetMesh()->GetElementTransformation(e, x_loc, T);
+      // Uses the current node positions.
+      PA.fes->GetMesh()->GetElementTransformation(e, xloc, T);
 
       if (PA.MC.Size() > 1)
       {
@@ -233,20 +220,6 @@ void TMOP_Integrator::UpdateCoefficientsPA(const Vector &d_loc)
             PA.C0(q + e * PA.nq) = lim_coeff->Eval(*T, ir.IntPoint(q));
          }
       }
-
-      if (alc_is_qvec)
-      {
-         MFEM_VERIFY(nal == adapt_lim_coeff.Size(), "internal error");
-         for (int c = 0; c < nal; c++)
-         {
-            real_t *ALC_c = PA.ALC.HostWrite() + c * PA.nq * PA.ne;
-            for (int q = 0; q < PA.nq; ++q)
-            {
-               ALC_c[q + e * PA.nq] =
-                  adapt_lim_coeff[c]->Eval(*T, ir.IntPoint(q));
-            }
-         }
-      }
    }
 
    delete T;
@@ -257,6 +230,7 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
    const MemoryType mt =
       (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
    PA.enabled = true;
+   PA.nal = 0;
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();
    const int ne = PA.ne = mesh->GetNE();
@@ -350,10 +324,10 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 
 void TMOP_Integrator::AssemblePA_AdaptLim()
 {
-   const int nal = adapt_lim_coeff.Size();
-   MFEM_VERIFY(nal > 0, "internal error");
+   PA.nal = adapt_lim_coeff.Size();
+   MFEM_VERIFY(PA.nal > 0, "internal error");
 
-   MFEM_VERIFY(adapt_lim_gf.Size() == nal && adapt_lim_gf0.Size() == nal,
+   MFEM_VERIFY(adapt_lim_gf.Size() == PA.nal && adapt_lim_gf0.Size() == PA.nal,
                "internal error");
    const FiniteElementSpace *alfes = adapt_lim_gf[0]->FESpace();
    MFEM_VERIFY(alfes && alfes->GetVDim() == 1, "internal error");
@@ -363,13 +337,14 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
                "The PA code assumes the same FE spaces for mesh and limiting.");
 
    PA.AL_grads_assembled = false;
-   PA.nal = nal;
 
    // adapt_lim_coeff -> PA.ALC
-   // Keep the ConstantCoefficient fast-path: when all coefficients are
-   // constant, store one scalar per adaptive-limiting term.
+   // Keep the ConstantCoefficient fast-path when all coefficients are
+   // constant. Otherwise, use one Q-vector block per coefficient. Same-mesh
+   // scalar GridFunctionCoefficients are projected on the device. All
+   // adaptive-limiting coefficients are assembled once and remain fixed.
    bool all_const = true;
-   for (int c = 0; c < nal; c++)
+   for (int c = 0; c < PA.nal; c++)
    {
       if (!dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]))
       {
@@ -380,9 +355,9 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.ALC.UseDevice(true);
    if (all_const)
    {
-      PA.ALC.SetSize(nal, Device::GetMemoryType());
+      PA.ALC.SetSize(PA.nal, Device::GetMemoryType());
       real_t *ALC_all = PA.ALC.HostWrite();
-      for (int c = 0; c < nal; c++)
+      for (int c = 0; c < PA.nal; c++)
       {
          auto *cc = dynamic_cast<ConstantCoefficient *>(adapt_lim_coeff[c]);
          MFEM_VERIFY(cc, "internal error");
@@ -391,22 +366,17 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    }
    else
    {
-      // If one Coefficient is not constant, we allocate the full size for
-      // all Coefficients. Could be optimized in the future.
-      PA.ALC.SetSize(nal * PA.nq * PA.ne, Device::GetMemoryType());
-      real_t *ALC_all = PA.ALC.HostWrite();
-      for (int c = 0; c < nal; c++)
+      const int block_size = PA.nq * PA.ne;
+      PA.ALC.SetSize(PA.nal * block_size, Device::GetMemoryType());
+      QuadratureSpace qs(*PA.fes->GetMesh(), *PA.ir);
+      Vector ALC_c;
+      for (int c = 0; c < PA.nal; c++)
       {
-         real_t *ALC_c = ALC_all + c * PA.nq * PA.ne;
-         for (int e = 0; e < PA.ne; ++e)
-         {
-            ElementTransformation &T = *PA.fes->GetElementTransformation(e);
-            for (int q = 0; q < PA.ir->GetNPoints(); ++q)
-            {
-               ALC_c[q + e * PA.nq] =
-                  adapt_lim_coeff[c]->Eval(T, PA.ir->IntPoint(q));
-            }
-         }
+         ALC_c.MakeRef(PA.ALC, c * block_size, block_size);
+         QuadratureFunction qf(qs, Device::GetMemoryType());
+         adapt_lim_coeff[c]->Project(qf);
+         MFEM_VERIFY(qf.Size() == block_size, "internal error");
+         ALC_c = qf;
       }
    }
 
@@ -441,13 +411,13 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    const int ndofs = alfes->GetVSize();
 
    const int Esize = alf_R->Height();
-   PA.ALF.SetSize(nal * Esize, Device::GetMemoryType());
+   PA.ALF.SetSize(PA.nal * Esize, Device::GetMemoryType());
    PA.ALF.UseDevice(true);
-   PA.ALFmF0.SetSize(nal * Esize, Device::GetMemoryType());
+   PA.ALFmF0.SetSize(PA.nal * Esize, Device::GetMemoryType());
    PA.ALFmF0.UseDevice(true);
 
    Vector ALFc, ALF0c;
-   for (int c = 0; c < nal; c++)
+   for (int c = 0; c < PA.nal; c++)
    {
       ALFc.MakeRef(PA.ALF, c * Esize, Esize);
       ALF0c.MakeRef(PA.ALFmF0, c * Esize, Esize);
@@ -463,18 +433,18 @@ void TMOP_Integrator::AssemblePA_AdaptLim()
    PA.ALFmF0 += PA.ALF;
 
    // Per-field delta_max values.
-   MFEM_VERIFY(adapt_lim_delta_max.Size() == nal, "internal error");
-   PA.ALD.SetSize(nal);
+   MFEM_VERIFY(adapt_lim_delta_max.Size() == PA.nal, "internal error");
+   PA.ALD.SetSize(PA.nal);
    PA.ALD.HostWrite();
-   for (int c = 0; c < nal; c++) { PA.ALD(c) = adapt_lim_delta_max[c]; }
+   for (int c = 0; c < PA.nal; c++) { PA.ALD(c) = adapt_lim_delta_max[c]; }
 
    // Allocate storage for gradient and Hessian of ALF at quadrature points
    // These will be filled during AssembleGradPA
    const int dim = PA.dim;
    PA.ALFG.UseDevice(true);
-   PA.ALFG.SetSize(nal * dim * PA.nq * PA.ne, Device::GetMemoryType());
+   PA.ALFG.SetSize(PA.nal * dim * PA.nq * PA.ne, Device::GetMemoryType());
    PA.ALFH.UseDevice(true);
-   PA.ALFH.SetSize(nal * dim * dim * PA.nq * PA.ne, Device::GetMemoryType());
+   PA.ALFH.SetSize(PA.nal * dim * dim * PA.nq * PA.ne, Device::GetMemoryType());
 
 }
 
