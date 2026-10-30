@@ -566,4 +566,41 @@ TEST_CASE("Hcurl/Hdiv diagonal PA",
    }  // dimension
 }
 
+TEST_CASE("Hcurl nonlinear diagonal PA",
+          "[GPU][PartialAssembly][AssembleDiagonal][NonlinearPA]")
+{
+   class IdentityNLFIntegrator : public NonlinearFormIntegrator
+   {
+   public:
+      using NonlinearFormIntegrator::AssemblePA;
+      void AssemblePA(const FiniteElementSpace &) override { }
+      void AssembleGradPA(const Vector &, const FiniteElementSpace &) override { }
+      void AssembleGradDiagonalPA(Vector &diag) const override { diag += 1.; }
+   };
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+
+   Array<int> vertices;
+   mesh.GetElement(1)->GetVertices(vertices);
+   std::rotate(vertices.begin(), vertices.begin() + 1, vertices.end());
+   mesh.GetElement(1)->SetVertices(vertices);
+   mesh.FinalizeMesh();
+
+   ND_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   const auto *r = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   const auto &m = static_cast<const ElementRestriction *>(r)->GatherMap();
+   REQUIRE(std::any_of(m.begin(), m.end(), [](int dof) { return dof < 0; }));
+
+   NonlinearForm nlf_pa(&fes);
+   nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   nlf_pa.AddDomainIntegrator(new IdentityNLFIntegrator);
+   nlf_pa.Setup();
+
+   Vector diag_pa(fes.GetVSize());
+   nlf_pa.GetGradient(Vector(fes.GetVSize())).AssembleDiagonal(diag_pa);
+   REQUIRE(diag_pa.Sum() == MFEM_Approx(8.));
+}
+
 } // namespace assemblediagonalpa
